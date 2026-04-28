@@ -31,6 +31,8 @@ var sidekickCmd = &cobra.Command{
 			s.Screen = next
 			s.Filter = ""
 			s.Cursor = 0
+		} else {
+			s.Screen = state.Palette
 		}
 
 		m := app.New(p, s)

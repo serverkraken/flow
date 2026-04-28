@@ -101,6 +101,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "b":
+			m.current = screenPalette
+			return m, nil
 		case "p":
 			m.current = screenPalette
 			return m, nil
