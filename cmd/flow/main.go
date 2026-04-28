@@ -50,6 +50,8 @@ var sidekickCmd = &cobra.Command{
 
 func main() {
 	rootCmd.AddCommand(sidekickCmd)
+	worktimeCmd.AddCommand(wtStatusCmd, wtStartCmd, wtStopCmd)
+	rootCmd.AddCommand(worktimeCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

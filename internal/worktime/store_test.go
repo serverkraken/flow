@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serverkraken/flow/internal/screen/worktime"
+	"github.com/serverkraken/flow/internal/worktime"
 )
 
-func writeTmuxFiles(t *testing.T, dir string, stateEpoch string, logContent string) {
+func writeTmuxFiles(t *testing.T, dir, stateEpoch, logContent string) {
 	t.Helper()
 	tmuxDir := filepath.Join(dir, ".tmux")
 	if err := os.MkdirAll(tmuxDir, 0o755); err != nil {
@@ -68,8 +68,8 @@ func TestLoadToday_TodaySessionsFiltered(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	today := time.Now().Format("2006-01-02")
-	log := today + "\t09:00\t12:00\t10800\n" + // 3h today
-		"2020-01-01\t10:00\t11:00\t3600\n" // old date, must be filtered
+	log := today + "\t09:00\t12:00\t10800\n" +
+		"2020-01-01\t10:00\t11:00\t3600\n"
 
 	writeTmuxFiles(t, dir, "", log)
 
@@ -91,8 +91,7 @@ func TestDay_Total_NoActiveSession(t *testing.T) {
 		Logged: 2 * time.Hour,
 		Target: worktime.TargetHours * time.Hour,
 	}
-	got := d.Total(time.Now())
-	if got != 2*time.Hour {
+	if got := d.Total(time.Now()); got != 2*time.Hour {
 		t.Errorf("Total() = %v, want 2h", got)
 	}
 }
@@ -110,5 +109,42 @@ func TestDay_Total_WithActiveSession(t *testing.T) {
 	want := 90 * time.Minute
 	if got < want-time.Second || got > want+time.Second {
 		t.Errorf("Total() = %v, want ~90min", got)
+	}
+}
+
+func TestParseStartArg_Now(t *testing.T) {
+	t.Parallel()
+	before := time.Now()
+	ts, err := worktime.ParseStartArg("")
+	after := time.Now()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ts.Before(before) || ts.After(after) {
+		t.Errorf("ParseStartArg('') = %v, want time.Now()", ts)
+	}
+}
+
+func TestParseStartArg_MinusMinutes(t *testing.T) {
+	t.Parallel()
+	ts, err := worktime.ParseStartArg("-30m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff := time.Since(ts)
+	if diff < 29*time.Minute || diff > 31*time.Minute {
+		t.Errorf("ParseStartArg('-30m') offset = %v, want ~30m", diff)
+	}
+}
+
+func TestParseStartArg_HoursMinutes(t *testing.T) {
+	t.Parallel()
+	ts, err := worktime.ParseStartArg("-1h30m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	diff := time.Since(ts)
+	if diff < 89*time.Minute || diff > 91*time.Minute {
+		t.Errorf("ParseStartArg('-1h30m') offset = %v, want ~90m", diff)
 	}
 }
