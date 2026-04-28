@@ -3,10 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/serverkraken/flow/internal/worktime"
 	"github.com/spf13/cobra"
 )
+
+func tmuxRefresh() { _ = exec.Command("tmux", "refresh-client", "-S").Run() }
 
 var worktimeCmd = &cobra.Command{
 	Use:          "worktime",
@@ -41,6 +44,7 @@ var wtStartCmd = &cobra.Command{
 		if err := worktime.Start(ts); err != nil {
 			return err
 		}
+		tmuxRefresh()
 		fmt.Fprintf(os.Stderr, "Worktime läuft seit %s\n", ts.Format("15:04"))
 		return nil
 	},
@@ -66,6 +70,7 @@ var wtStopCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		tmuxRefresh()
 		h := int(s.Elapsed.Hours())
 		m := int(s.Elapsed.Minutes()) % 60
 		fmt.Fprintf(os.Stderr, "Gestoppt nach %dh %02dm\n", h, m)
@@ -82,6 +87,7 @@ var wtToggleCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		tmuxRefresh()
 		fmt.Fprintln(os.Stderr, msg)
 		return nil
 	},
