@@ -31,11 +31,15 @@ const (
 type dialogMode int
 
 const (
-	dialogNone   dialogMode = 0
-	dialogStart  dialogMode = 1 // time input for custom start
-	dialogEntry1 dialogMode = 2 // manual entry: date
-	dialogEntry2 dialogMode = 3 // manual entry: start time
-	dialogEntry3 dialogMode = 4 // manual entry: stop time
+	dialogNone      dialogMode = 0
+	dialogStart     dialogMode = 1 // time input for custom start
+	dialogEntry1    dialogMode = 2 // manual entry: date
+	dialogEntry2    dialogMode = 3 // manual entry: start time
+	dialogEntry3    dialogMode = 4 // manual entry: stop time
+	dialogStopAt    dialogMode = 5 // stop running session with custom time
+	dialogCorrect   dialogMode = 6 // correct start of running session
+	dialogEditStart dialogMode = 7 // edit existing session: new start
+	dialogEditStop  dialogMode = 8 // edit existing session: new stop
 )
 
 // — messages —
@@ -73,6 +77,10 @@ type Model struct {
 
 	entryDate  string
 	entryStart string
+
+	sessionCursor int
+	editDate      time.Time
+	editIdx       int
 
 	weekLoaded    bool
 	historyLoaded bool
@@ -177,22 +185,76 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "tab":
 		return m.nextView()
+
 	case "s":
 		if m.day.IsRunning() {
-			return m, stopCmd()
+			m.dialog = dialogStopAt
+			m.input.Placeholder = time.Now().Format("15:04") + "  ·  -30m  ·  Enter=jetzt"
+			m.input.SetValue("")
+			m.input.Focus()
+			return m, textinput.Blink
 		}
 		m.dialog = dialogStart
-		m.input.Placeholder = time.Now().Format("15:04") + " · -1h30m · Enter=jetzt"
+		m.input.Placeholder = time.Now().Format("15:04") + "  ·  -1h30m  ·  Enter=jetzt"
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
+
+	case "c":
+		if m.day.IsRunning() && m.day.Active != nil {
+			m.dialog = dialogCorrect
+			m.input.Placeholder = "neue Startzeit"
+			m.input.SetValue(m.day.Active.Format("15:04"))
+			m.input.Focus()
+			return m, textinput.Blink
+		}
+
 	case "e":
 		m.dialog = dialogEntry1
 		m.input.Placeholder = time.Now().Format("2006-01-02")
 		m.input.SetValue("")
 		m.input.Focus()
 		return m, textinput.Blink
+
+	case "E":
+		if m.view == viewToday && len(m.day.Sessions) > 0 {
+			s := m.day.Sessions[m.sessionCursor]
+			m.editDate = s.Date
+			m.editIdx = m.sessionCursor
+			m.dialog = dialogEditStart
+			m.input.Placeholder = "neue Startzeit"
+			m.input.SetValue(s.Start.Format("15:04"))
+			m.input.Focus()
+			return m, textinput.Blink
+		}
+
+	case "d":
+		if m.view == viewToday && len(m.day.Sessions) > 0 {
+			idx := m.sessionCursor
+			date := m.day.Sessions[idx].Date
+			if m.sessionCursor >= len(m.day.Sessions)-1 {
+				m.sessionCursor = max(0, len(m.day.Sessions)-2)
+			}
+			return m, deleteCmd(date, idx)
+		}
+
+	case "j", "down":
+		if m.view == viewToday && len(m.day.Sessions) > 0 {
+			if m.sessionCursor < len(m.day.Sessions)-1 {
+				m.sessionCursor++
+			}
+			return m, nil
+		}
+
+	case "k", "up":
+		if m.view == viewToday && len(m.day.Sessions) > 0 {
+			if m.sessionCursor > 0 {
+				m.sessionCursor--
+			}
+			return m, nil
+		}
 	}
+
 	if m.view == viewHistory {
 		var cmd tea.Cmd
 		m.histVp, cmd = m.histVp.Update(msg)
@@ -263,6 +325,46 @@ func (m Model) confirmDialog() (tea.Model, tea.Cmd) {
 			return m, textinput.Blink
 		}
 		return m, addManualCmd(m.entryDate, m.entryStart, val)
+
+	case dialogStopAt:
+		ts, err := wt.ParseStartArg(val)
+		if err != nil {
+			m.input.Placeholder = "Fehler: " + err.Error()
+			m.input.SetValue("")
+			return m, textinput.Blink
+		}
+		return m, stopAtCmd(ts)
+
+	case dialogCorrect:
+		ts, err := wt.ParseStartArg(val)
+		if err != nil {
+			m.input.Placeholder = "Fehler: " + err.Error()
+			m.input.SetValue("")
+			return m, textinput.Blink
+		}
+		return m, correctCmd(ts)
+
+	case dialogEditStart:
+		if _, err := time.Parse("15:04", val); err != nil {
+			m.input.Placeholder = "Format: HH:MM"
+			m.input.SetValue("")
+			return m, textinput.Blink
+		}
+		m.entryStart = val
+		m.dialog = dialogEditStop
+		stop := m.day.Sessions[m.editIdx].Stop.Format("15:04")
+		m.input.Placeholder = "neue Endzeit"
+		m.input.SetValue(stop)
+		m.input.Focus()
+		return m, textinput.Blink
+
+	case dialogEditStop:
+		if _, err := time.Parse("15:04", val); err != nil {
+			m.input.Placeholder = "Format: HH:MM"
+			m.input.SetValue("")
+			return m, textinput.Blink
+		}
+		return m, editCmd(m.editDate, m.editIdx, m.entryStart, val)
 	}
 	return m, nil
 }
@@ -333,11 +435,18 @@ func (m Model) renderToday() string {
 	)
 	box := titlebox.Render(title, body, m.width, m.theme)
 
-	toggle := "s → starten"
+	var footerParts []string
 	if m.day.IsRunning() {
-		toggle = "s → stoppen"
+		footerParts = append(footerParts, "s → stoppen", "c → startzeit fix")
+	} else {
+		footerParts = append(footerParts, "s → starten")
 	}
-	return box + "\n" + stFooter(m.theme, toggle+"  ·  e → eintrag  ·  tab → woche  ·  b → zurück")
+	footerParts = append(footerParts, "e → eintrag")
+	if len(m.day.Sessions) > 0 {
+		footerParts = append(footerParts, "j/k → session", "d → löschen", "E → bearbeiten")
+	}
+	footerParts = append(footerParts, "tab → woche", "b → zurück")
+	return box + "\n" + stFooter(m.theme, strings.Join(footerParts, "  ·  "))
 }
 
 func (m Model) renderTodayBody(inner int) []string {
@@ -390,10 +499,9 @@ func (m Model) renderTodayBody(inner int) []string {
 	if len(m.day.Sessions) > 0 {
 		rows = append(rows, "")
 		rows = append(rows, picker.SectionHeader("sessions heute", inner, m.theme))
-		for _, s := range m.day.Sessions {
-			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Fg).Render(
-				fmt.Sprintf("  %s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed)),
-			))
+		for i, s := range m.day.Sessions {
+			label := fmt.Sprintf("%s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed))
+			rows = append(rows, picker.Row(i == m.sessionCursor, label, "", inner, m.theme))
 		}
 	}
 	return rows
@@ -574,6 +682,38 @@ func (m Model) renderDialog() string {
 		rows = append(rows, "")
 		rows = append(rows, picker.SectionHeader("stop (HH:MM)", inner, m.theme))
 		rows = append(rows, "  "+m.input.View())
+
+	case dialogStopAt:
+		title = "Worktime · Stoppen"
+		hint = "HH:MM  ·  -30m  ·  Enter=jetzt  ·  Esc=abbrechen"
+		rows = append(rows, picker.SectionHeader("stoppzeit", inner, m.theme))
+		rows = append(rows, "  "+m.input.View())
+
+	case dialogCorrect:
+		title = "Worktime · Startzeit korrigieren"
+		hint = "HH:MM  ·  -1h30m  ·  Enter=bestätigen  ·  Esc=abbrechen"
+		rows = append(rows, picker.SectionHeader("neue startzeit", inner, m.theme))
+		rows = append(rows, "  "+m.input.View())
+
+	case dialogEditStart:
+		title = "Worktime · Session bearbeiten (1/2)"
+		hint = "neue Startzeit  ·  Enter=weiter  ·  Esc=abbrechen"
+		if m.editIdx < len(m.day.Sessions) {
+			s := m.day.Sessions[m.editIdx]
+			rows = append(rows, stDim(m.theme, fmt.Sprintf("  Session %d:  %s → %s",
+				m.editIdx+1, s.Start.Format("15:04"), s.Stop.Format("15:04"))))
+			rows = append(rows, "")
+		}
+		rows = append(rows, picker.SectionHeader("start (HH:MM)", inner, m.theme))
+		rows = append(rows, "  "+m.input.View())
+
+	case dialogEditStop:
+		title = "Worktime · Session bearbeiten (2/2)"
+		hint = "neue Endzeit  ·  Enter=speichern  ·  Esc=abbrechen"
+		rows = append(rows, stDim(m.theme, "  Start:  "+m.entryStart))
+		rows = append(rows, "")
+		rows = append(rows, picker.SectionHeader("stop (HH:MM)", inner, m.theme))
+		rows = append(rows, "  "+m.input.View())
 	}
 
 	rows = append(rows, "")
@@ -612,6 +752,36 @@ func stopCmd() tea.Cmd {
 	return func() tea.Msg {
 		_, err := wt.Stop()
 		return actionDoneMsg{err: err}
+	}
+}
+
+func stopAtCmd(ts time.Time) tea.Cmd {
+	return func() tea.Msg {
+		_, err := wt.StopAt(ts)
+		return actionDoneMsg{err: err}
+	}
+}
+
+func correctCmd(ts time.Time) tea.Cmd {
+	return func() tea.Msg { return actionDoneMsg{err: wt.CorrectStart(ts)} }
+}
+
+func deleteCmd(date time.Time, idx int) tea.Cmd {
+	return func() tea.Msg { return actionDoneMsg{err: wt.DeleteSession(date, idx)} }
+}
+
+func editCmd(date time.Time, idx int, startStr, stopStr string) tea.Cmd {
+	return func() tea.Msg {
+		startD, err := parseHM(startStr)
+		if err != nil {
+			return actionDoneMsg{err: err}
+		}
+		stopD, err := parseHM(stopStr)
+		if err != nil {
+			return actionDoneMsg{err: err}
+		}
+		base := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
+		return actionDoneMsg{err: wt.EditSession(date, idx, base.Add(startD), base.Add(stopD))}
 	}
 }
 
@@ -684,6 +854,13 @@ func isoMonday(t time.Time) time.Time {
 	}
 	d := t.AddDate(0, 0, -(wd - 1))
 	return time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, t.Location())
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func stDim(p tk.Palette, s string) string {

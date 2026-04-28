@@ -233,6 +233,156 @@ func Stop() (Session, error) {
 	return s, os.Remove(statePath)
 }
 
+// Toggle starts the session if idle, stops it if running.
+// Returns a human-readable description of the action taken.
+func Toggle() (string, error) {
+	day, err := LoadToday()
+	if err != nil {
+		return "", err
+	}
+	if day.IsRunning() {
+		s, err := Stop()
+		if err != nil {
+			return "", err
+		}
+		h := int(s.Elapsed.Hours())
+		m := int(s.Elapsed.Minutes()) % 60
+		return fmt.Sprintf("gestoppt nach %dh %02dm", h, m), nil
+	}
+	if err := Start(time.Now()); err != nil {
+		return "", err
+	}
+	return "gestartet", nil
+}
+
+// CorrectStart overwrites the start time of the currently running session.
+func CorrectStart(ts time.Time) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	statePath := filepath.Join(home, ".tmux", "worktime.state")
+	active, err := readActiveState(statePath)
+	if err != nil || active == nil {
+		return errors.New("keine aktive Session")
+	}
+	return os.WriteFile(statePath, []byte(strconv.FormatInt(ts.Unix(), 10)), 0o644)
+}
+
+// StopAt stops the current session with a specific stop time.
+func StopAt(stopTime time.Time) (Session, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return Session{}, err
+	}
+	statePath := filepath.Join(home, ".tmux", "worktime.state")
+	logPath := filepath.Join(home, ".tmux", "worktime.log")
+
+	active, err := readActiveState(statePath)
+	if err != nil {
+		return Session{}, err
+	}
+	if active == nil {
+		return Session{}, errors.New("keine aktive Session")
+	}
+	if !stopTime.After(*active) {
+		return Session{}, errors.New("Stoppzeit muss nach Startzeit liegen")
+	}
+
+	s := Session{
+		Date:    time.Date(stopTime.Year(), stopTime.Month(), stopTime.Day(), 0, 0, 0, 0, stopTime.Location()),
+		Start:   *active,
+		Stop:    stopTime,
+		Elapsed: stopTime.Sub(*active),
+	}
+	if err := appendLog(logPath, s); err != nil {
+		return Session{}, err
+	}
+	return s, os.Remove(statePath)
+}
+
+// DeleteSession removes the session at index idx (0-based) for the given date.
+func DeleteSession(date time.Time, idx int) error {
+	return rewriteLog(func(sessions []Session) []Session {
+		dateStr := date.Format("2006-01-02")
+		dayIdx := 0
+		result := make([]Session, 0, len(sessions))
+		for _, s := range sessions {
+			if s.Date.Format("2006-01-02") == dateStr {
+				if dayIdx != idx {
+					result = append(result, s)
+				}
+				dayIdx++
+			} else {
+				result = append(result, s)
+			}
+		}
+		return result
+	})
+}
+
+// EditSession replaces the session at index idx (0-based) for the given date.
+func EditSession(date time.Time, idx int, newStart, newStop time.Time) error {
+	if !newStop.After(newStart) {
+		return errors.New("Stoppzeit muss nach Startzeit liegen")
+	}
+	return rewriteLog(func(sessions []Session) []Session {
+		dateStr := date.Format("2006-01-02")
+		dayIdx := 0
+		for i, s := range sessions {
+			if s.Date.Format("2006-01-02") == dateStr {
+				if dayIdx == idx {
+					sessions[i] = Session{
+						Date:    s.Date,
+						Start:   newStart,
+						Stop:    newStop,
+						Elapsed: newStop.Sub(newStart),
+					}
+				}
+				dayIdx++
+			}
+		}
+		return sessions
+	})
+}
+
+// rewriteLog reads the entire log, applies fn, and writes it back atomically.
+func rewriteLog(fn func([]Session) []Session) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	logPath := filepath.Join(home, ".tmux", "worktime.log")
+
+	sessions, err := readSessions(logPath, nil)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	sessions = fn(sessions)
+
+	tmp := logPath + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if _, err := fmt.Fprintf(f, "%s\t%s\t%s\t%d\n",
+			s.Date.Format("2006-01-02"),
+			s.Start.Format("15:04"),
+			s.Stop.Format("15:04"),
+			int64(s.Elapsed.Seconds()),
+		); err != nil {
+			f.Close() //nolint:errcheck
+			return err
+		}
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, logPath)
+}
+
 // AddManual appends a manual session entry to the log.
 func AddManual(date, start, stop time.Time) error {
 	if !stop.After(start) {
