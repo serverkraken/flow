@@ -225,16 +225,21 @@ func loadDirs(root string) ([]string, error) {
 	if !isDirAccessible(root) {
 		return nil, nil
 	}
-	out, err := exec.Command("fd", ".", root, "--type", "d", "--max-depth", "3", "--color", "never").Output()
+	// Locate git repos by finding .git directories (max depth 5 = repos 4 levels deep).
+	out, err := exec.Command("fd", "-H", "--type", "d", "--max-depth", "5",
+		"--color", "never", `^\.git$`, root).Output()
 	if err != nil {
 		return nil, err
 	}
 	var dirs []string
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		line = strings.TrimPrefix(line, root+"/")
-		line = strings.TrimSuffix(line, "/")
 		line = strings.TrimSpace(line)
-		if line != "" && line != "." {
+		line = strings.TrimSuffix(line, "/")
+		// Strip the /.git suffix to get the repo root.
+		line = strings.TrimSuffix(line, "/.git")
+		// Make relative to root.
+		line = strings.TrimPrefix(line, root+"/")
+		if line != "" && line != root {
 			dirs = append(dirs, line)
 		}
 	}
