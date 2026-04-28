@@ -98,11 +98,11 @@ func parseEntriesFile(path string, baseOrder int) ([]Entry, error) {
 	i := 0
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
+		raw := sc.Text()
+		if strings.TrimSpace(raw) == "" || strings.HasPrefix(strings.TrimSpace(raw), "#") {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 4)
+		parts := strings.SplitN(raw, "\t", 4)
 		if len(parts) < 3 || strings.TrimSpace(parts[2]) == "" {
 			continue
 		}

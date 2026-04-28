@@ -213,7 +213,10 @@ func (m Model) renderEntries(innerWidth int) []string {
 			rows = append(rows, picker.SectionHeader(e.Section, innerWidth, m.theme))
 			lastSection = e.Section
 		}
-		label := e.Icon + "  " + e.Label
+		label := e.Label
+		if e.Icon != "" {
+			label = e.Icon + "  " + e.Label
+		}
 		rows = append(rows, picker.Row(i == m.cursor, label, "", innerWidth, m.theme))
 	}
 	return rows
