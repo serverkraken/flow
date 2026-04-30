@@ -2084,7 +2084,7 @@ func (m Model) renderToday() string {
 	)
 	box := titlebox.Render(title, body, m.width, m.theme)
 
-	return box + m.renderToastRow() + "\n" + stFooter(m.theme, m.todayFooter())
+	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme, m.todayFooter(), m.width)
 }
 
 func (m Model) todayFooter() string {
@@ -2121,14 +2121,9 @@ func (m Model) todayFooter() string {
 		parts = append(parts, strings.Join(ctx, "  "))
 	}
 	parts = append(parts, strings.Join(nav, "  "))
-
-	joined := strings.Join(parts, "   ·   ")
-	// Two-line layout for narrow terminals: actions+ctx on top, nav below.
-	if m.width > 0 && lipgloss.Width(joined) > m.width-2 {
-		top := strings.Join(parts[:len(parts)-1], "   ·   ")
-		return top + "\n" + strings.Join(nav, "  ")
-	}
-	return joined
+	// wrapFooter at the call site handles the per-width line break; here we
+	// just produce the canonical "  ·  "-separated chip list.
+	return strings.Join(parts, "  ·  ")
 }
 
 func (m Model) renderTodayBody(inner int) []string {
@@ -2249,7 +2244,7 @@ func (m Model) renderTodayBody(inner int) []string {
 	}
 	rows = append(rows, headline)
 	if len(secondary) > 0 {
-		rows = append(rows, "  "+strings.Join(secondary, "  ·  "))
+		rows = append(rows, joinWrapped(secondary, "  ·  ", "  ", "  ", inner))
 	}
 	if spark := m.renderTodaySparkline(); spark != "" {
 		rows = append(rows, spark)
@@ -2477,8 +2472,9 @@ func (m Model) renderWeek() string {
 	if m.day.IsRunning() {
 		sLabel = "s stoppen"
 	}
-	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
-		sLabel+"  ·  enter drill  ·  h/l vorw./zurück  ·  e eintrag  ·  tab history  ·  ? hilfe  ·  b zurück  ·  q schließen")
+	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme,
+		sLabel+"  ·  enter drill  ·  h/l vorw./zurück  ·  e eintrag  ·  tab history  ·  ? hilfe  ·  b zurück  ·  q schließen",
+		m.width)
 }
 
 func (m Model) renderWeekBody(inner int) []string {
@@ -2610,7 +2606,11 @@ func (m Model) renderWeekBody(inner int) []string {
 	prev := m.weekRefOrNow().AddDate(0, 0, -7)
 	prevStats := wt.WeekStats(prev)
 	_, prevWN := isoMonday(prev).ISOWeek()
-	prevSuffix := ""
+	kpis := []string{
+		fmt.Sprintf("Schnitt %s", formatDur(avg)),
+		fmt.Sprintf("Ziele %d/%d", hits, weekdays),
+		"Saldo " + bal,
+	}
 	if prevStats.Workdays > 0 {
 		diff := weekTotal - prevStats.Total
 		col := m.theme.Dim
@@ -2620,12 +2620,10 @@ func (m Model) renderWeekBody(inner int) []string {
 		case diff < 0:
 			col = m.theme.Yellow
 		}
-		prevSuffix = "  ·  " + lipgloss.NewStyle().Foreground(col).Render(
-			fmt.Sprintf("%s vs KW%d", formatSignedDur(diff), prevWN))
+		kpis = append(kpis, lipgloss.NewStyle().Foreground(col).Render(
+			fmt.Sprintf("%s vs KW%d", formatSignedDur(diff), prevWN)))
 	}
-
-	rows = append(rows, fmt.Sprintf("  Schnitt %s  ·  Ziele %d/%d  ·  Saldo %s%s",
-		formatDur(avg), hits, weekdays, bal, prevSuffix))
+	rows = append(rows, joinWrapped(kpis, "  ·  ", "  ", "  ", inner))
 
 	return rows
 }
@@ -2733,8 +2731,9 @@ func (m Model) renderHistory() string {
 	default:
 		mode = "list"
 	}
-	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
-		"j/k auswahl  ·  enter drill  ·  v "+mode+"  ·  / filter  ·  [/] kw±  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen")
+	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme,
+		"j/k auswahl  ·  enter drill  ·  v "+mode+"  ·  / filter  ·  [/] kw±  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen",
+		m.width)
 }
 
 // renderHistoryHeader is the small stats strip above the scrollable body.
@@ -2754,6 +2753,7 @@ func (m Model) renderHistoryHeader() string {
 	bal := lipgloss.NewStyle().Foreground(balColor).Render(formatSignedDur(st.Overtime))
 	// Two grouped lines instead of one nine-value chain — readable on terminals
 	// under ~110 cols. First row = the volume snapshot; second = performance.
+	// Each row wraps to subsequent lines when the terminal is narrow.
 	volume := []string{
 		"Tage " + lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%d", st.Days)),
 		"Werktage " + fmt.Sprintf("%d", st.Workdays),
@@ -2767,14 +2767,22 @@ func (m Model) renderHistoryHeader() string {
 		"Streak " + fmt.Sprintf("%d (best %d)", st.Streak, st.BestStreak),
 		"Saldo " + bal,
 	}
-	header := "  " + stDim(m.theme, "volumen:      ") + strings.Join(volume, "  ·  ") +
-		"\n  " + stDim(m.theme, "performance:  ") + strings.Join(performance, "  ·  ")
+	inner := m.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
+	header := joinWrapped(volume, "  ·  ",
+		"  "+stDim(m.theme, "volumen:      "),
+		"                ", inner) +
+		"\n" + joinWrapped(performance, "  ·  ",
+		"  "+stDim(m.theme, "performance:  "),
+		"                ", inner)
 
 	// Tag strip on a second line, with proportional bars so a tag's relative
 	// weight in the range is readable at a glance instead of having to compare
 	// numbers. Untagged time hides at the end if it's >5% of total.
 	if tags := st.TopTags(6); len(tags) > 0 {
-		header += "\n  " + stDim(m.theme, "tags:") + "  " + m.renderTagBars(tags)
+		header += "\n" + m.renderTagBars(tags, inner)
 	}
 	if st.Untagged > 0 && st.Total > 0 {
 		untaggedPct := int(st.Untagged * 100 / st.Total)
@@ -2797,14 +2805,15 @@ func (m Model) renderHistoryHeader() string {
 				freeParts = append(freeParts, fmt.Sprintf("%s %d", k.LabelDe(), c))
 			}
 		}
-		header += "\n  " + stDim(m.theme, "frei: "+strings.Join(freeParts, "  ·  "))
+		header += "\n" + joinWrapped(freeParts, "  ·  ",
+			"  "+stDim(m.theme, "frei: "), "        ", inner)
 	}
 	// Tag-targets row: when the user configured tag_target_NAME entries,
 	// surface progress for them. Only visible when a tag-filter is *not*
 	// active (otherwise the bar redundancy is loud).
 	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(m.histQuery)), "tag:") {
-		if line := m.renderTagTargetsLine(st); line != "" {
-			header += "\n  " + line
+		if line := m.renderTagTargetsLine(st, inner); line != "" {
+			header += "\n" + line
 		}
 	}
 	return header
@@ -2813,7 +2822,8 @@ func (m Model) renderHistoryHeader() string {
 // renderTagBars renders a horizontal bar strip for the given (tag, duration)
 // pairs, scaled to the largest tag in the slice. Glyph progression uses the
 // 1/8-step block characters so 8 cells comfortably fit a fine-grained bar.
-func (m Model) renderTagBars(tags []wt.TagDur) string {
+// Wraps onto multiple lines at `inner` width.
+func (m Model) renderTagBars(tags []wt.TagDur, inner int) string {
 	if len(tags) == 0 {
 		return ""
 	}
@@ -2832,7 +2842,8 @@ func (m Model) renderTagBars(tags []wt.TagDur) string {
 		barStyled := lipgloss.NewStyle().Foreground(m.theme.Accent).Render(bar)
 		parts = append(parts, fmt.Sprintf("%-10s %s %s", t.Tag, barStyled, formatDur(t.Total)))
 	}
-	return strings.Join(parts, "  ·  ")
+	return joinWrapped(parts, "  ·  ",
+		"  "+stDim(m.theme, "tags:")+"  ", "         ", inner)
 }
 
 // renderTagTargetsLine renders progress against configured tag_target_*
@@ -2840,7 +2851,8 @@ func (m Model) renderTagBars(tags []wt.TagDur) string {
 //
 // Targets are *daily* — for the History header, we scale by the number of
 // workdays in the range so "deep 4h × 5 workdays = 20h" is the implied bar.
-func (m Model) renderTagTargetsLine(st wt.Stats) string {
+// Wraps onto multiple lines at `inner` width.
+func (m Model) renderTagTargetsLine(st wt.Stats, inner int) string {
 	targets := wt.TagTargets()
 	if len(targets) == 0 {
 		return ""
@@ -2873,7 +2885,8 @@ func (m Model) renderTagTargetsLine(st wt.Stats) string {
 		return ""
 	}
 	sort.Strings(parts) // stable display order
-	return stDim(m.theme, "tag-ziele: ") + strings.Join(parts, "  ·  ")
+	return joinWrapped(parts, "  ·  ",
+		"  "+stDim(m.theme, "tag-ziele: "), "             ", inner)
 }
 
 // filteredHistory applies m.histQuery against m.history and returns the
@@ -3150,14 +3163,28 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 		lines = append(lines, lipgloss.NewStyle().Foreground(m.theme.Accent).Render(status))
 	}
 
-	legend := stDim(m.theme, "   . leer  ░ <50%  ▒ <75%  ▓ <100%  ") +
-		lipgloss.NewStyle().Foreground(m.theme.Green).Render("█ Ziel") +
-		stDim(m.theme, "  ") +
-		lipgloss.NewStyle().Foreground(m.theme.Red).Render("█ ≥150%") +
-		stDim(m.theme, "  ") +
-		lipgloss.NewStyle().Foreground(m.theme.Cyan).Render("★/☼/✚ frei") +
-		stDim(m.theme, "    h/j/k/l navigieren · enter drilldown · y yank · [/] ±13 Wochen · T jetzt")
-	lines = append(lines, legend)
+	legendChips := []string{
+		stDim(m.theme, ". leer"),
+		stDim(m.theme, "░ <50%"),
+		stDim(m.theme, "▒ <75%"),
+		stDim(m.theme, "▓ <100%"),
+		lipgloss.NewStyle().Foreground(m.theme.Green).Render("█ Ziel"),
+		lipgloss.NewStyle().Foreground(m.theme.Red).Render("█ ≥150%"),
+		lipgloss.NewStyle().Foreground(m.theme.Cyan).Render("★/☼/✚ frei"),
+	}
+	navChips := []string{
+		stDim(m.theme, "h/j/k/l navigieren"),
+		stDim(m.theme, "enter drilldown"),
+		stDim(m.theme, "y yank"),
+		stDim(m.theme, "[/] ±13 Wochen"),
+		stDim(m.theme, "T jetzt"),
+	}
+	innerW := m.width - 4
+	if innerW <= 0 {
+		innerW = 80
+	}
+	lines = append(lines, joinWrapped(legendChips, "  ", "   ", "   ", innerW))
+	lines = append(lines, joinWrapped(navChips, "  ·  ", "   ", "   ", innerW))
 	return strings.Join(lines, "\n")
 }
 
@@ -3284,8 +3311,9 @@ func (m Model) renderDayOffs() string {
 	}
 	title := fmt.Sprintf("Worktime · Frei %d%s", year, suffix)
 	box := titlebox.Render(title, body, m.width, m.theme)
-	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
-		"a anlegen  ·  A heute=Urlaub  ·  K heute=krank  ·  B Feiertage-sync  ·  d/x löschen  ·  h/l/[/] Jahr ±  ·  T aktuell  ·  j/k auswahl  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen")
+	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme,
+		"a anlegen  ·  A heute=Urlaub  ·  K heute=krank  ·  B Feiertage-sync  ·  d/x löschen  ·  h/l/[/] Jahr ±  ·  T aktuell  ·  j/k auswahl  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen",
+		m.width)
 }
 
 func (m Model) renderDayOffsBody(inner int) []string {
@@ -3309,7 +3337,11 @@ func (m Model) renderDayOffsBody(inner int) []string {
 			parts = append(parts, fmt.Sprintf("%s %d", k.LabelDe(), c))
 		}
 	}
-	rows = append(rows, "  "+stDim(m.theme, strings.Join(parts, "  ·  ")))
+	dimStyled := make([]string, len(parts))
+	for i, p := range parts {
+		dimStyled[i] = stDim(m.theme, p)
+	}
+	rows = append(rows, joinWrapped(dimStyled, stDim(m.theme, "  ·  "), "  ", "  ", inner))
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader(fmt.Sprintf("einträge (%d)", len(m.dayoffs)), inner, m.theme))
 
@@ -3506,7 +3538,7 @@ func (m Model) renderDialog() string {
 
 	rows = append(rows, "")
 	box := titlebox.Render(title, strings.Join(rows, "\n"), m.width, m.theme)
-	return box + m.renderToastRow() + "\n" + stFooter(m.theme, hint)
+	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme, hint, m.width)
 }
 
 // renderForm renders the active multi-field form (entry/edit).
@@ -4661,6 +4693,52 @@ func stErr(p tk.Palette, s string) string {
 
 func stFooter(p tk.Palette, s string) string {
 	return lipgloss.NewStyle().Foreground(p.Dim).Padding(0, 1).Render(s)
+}
+
+// joinWrapped joins `parts` with `sep`, breaking onto the next line whenever
+// the next item would push the current line past `maxWidth` (visible columns,
+// not bytes — matters for ANSI/styled strings). The first line starts with
+// `prefix`; continuation lines indent with `cont` so the eye visually groups
+// the wrapped chunk back together.
+//
+// `maxWidth <= 0` disables wrapping (returns the plain joined string), which
+// keeps callers safe before the model has received a WindowSizeMsg.
+func joinWrapped(parts []string, sep, prefix, cont string, maxWidth int) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if maxWidth <= 0 {
+		return prefix + strings.Join(parts, sep)
+	}
+	var lines []string
+	cur := prefix + parts[0]
+	for _, p := range parts[1:] {
+		cand := cur + sep + p
+		if lipgloss.Width(cand) > maxWidth {
+			lines = append(lines, cur)
+			cur = cont + p
+		} else {
+			cur = cand
+		}
+	}
+	lines = append(lines, cur)
+	return strings.Join(lines, "\n")
+}
+
+// wrapFooter renders a footer string, wrapping at the terminal width. Chips
+// are split on the "  ·  " separator that the existing footers use; lines
+// that don't contain it (already short / pre-formatted) pass through.
+func wrapFooter(p tk.Palette, s string, maxWidth int) string {
+	const sep = "  ·  "
+	if maxWidth <= 0 || lipgloss.Width(s) <= maxWidth-2 {
+		return stFooter(p, s)
+	}
+	parts := strings.Split(s, sep)
+	if len(parts) <= 1 {
+		return stFooter(p, s)
+	}
+	wrapped := joinWrapped(parts, sep, "", "  ", maxWidth-2)
+	return stFooter(p, wrapped)
 }
 
 // renderToastRow returns the toast line prefixed with a leading newline so
