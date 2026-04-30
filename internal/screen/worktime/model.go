@@ -179,6 +179,22 @@ type Model struct {
 	heatCol int // week column 0..weeks-1
 	heatRow int // 0..6 (Mo..So)
 
+	// heatOffsetWeeks shifts the heatmap window by N weeks relative to the
+	// newest record. Adjusted with [/] in heatmap mode (±13 weeks per press).
+	// Zero means the default window ending on the newest record.
+	heatOffsetWeeks int
+
+	// lastBestStreakSeen is the BestStreak value from the previous load, used
+	// to detect when an action just produced a *new* best. -1 means "no value
+	// observed yet" (initial load) — we don't celebrate the first observation
+	// since that would fire the first time the screen ever opens.
+	lastBestStreakSeen int
+
+	// celebrateBestStreak holds a "✦ neuer Best-Streak" hint that should be
+	// surfaced once. Cleared on next load. Batch 4's toast system will pick
+	// this up; until then, the secondary line renders it inline.
+	celebrateBestStreak int
+
 	prevView subView // remembers previous tab for context-aware "b" handling
 
 	weekLoaded    bool
@@ -211,11 +227,12 @@ func New(p tk.Palette) Model {
 	ti := textinput.New()
 	ti.CharLimit = 60
 	return Model{
-		theme:   p,
-		now:     time.Now(),
-		weekRef: time.Now(),
-		loading: true,
-		input:   ti,
+		theme:              p,
+		now:                time.Now(),
+		weekRef:            time.Now(),
+		loading:            true,
+		input:              ti,
+		lastBestStreakSeen: -1,
 	}
 }
 
@@ -341,6 +358,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.day = msg.day
 			m.notes = msg.notes
+			// Best-streak celebration: only fire when the value strictly
+			// increases AND we've already observed at least one prior value
+			// (not the initial load — that would always celebrate on first
+			// run). Records the trigger; the secondary line renders it once.
+			if m.lastBestStreakSeen > 0 && msg.stats.BestStreak > m.lastBestStreakSeen {
+				m.celebrateBestStreak = msg.stats.BestStreak
+			}
+			m.lastBestStreakSeen = msg.stats.BestStreak
 			m.stats = msg.stats
 			// Keep history in sync if it isn't already loaded — sparkline +
 			// "vs Schnitt" depend on it. Don't overwrite when the user is
@@ -760,6 +785,34 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 				return model, cmd, true
 			}
 			return m, nil, true
+		case "[":
+			// Pan the visible heatmap window backward by ~half its width. The
+			// cursor stays at the same calendar date so the user keeps their
+			// reference point.
+			m.heatOffsetWeeks -= 13
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			m.heatCol, m.heatRow = m.heatmapTodayCell()
+			return m, nil, true
+		case "]":
+			m.heatOffsetWeeks += 13
+			if m.heatOffsetWeeks > 0 {
+				m.heatOffsetWeeks = 0
+			}
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			m.heatCol, m.heatRow = m.heatmapTodayCell()
+			return m, nil, true
+		case "T":
+			// In heatmap mode, T resets both offset and cursor to "today".
+			m.heatOffsetWeeks = 0
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			m.heatCol, m.heatRow = m.heatmapTodayCell()
+			return m, nil, true
 		}
 	}
 	switch key {
@@ -931,8 +984,8 @@ func (m Model) heatmapCellFor(d time.Time) (int, int) {
 // — heatmap cursor helpers —
 
 // heatmapBounds returns the start-Monday and number of weeks in the current
-// heatmap. Mirrors the logic of renderHistoryHeatmap so the cursor lands on
-// real cells. Returns zero/0 when the history is empty.
+// heatmap. Honours `m.heatOffsetWeeks` so [/] in heatmap mode pans the visible
+// window. Returns zero/0 when the history is empty.
 func (m Model) heatmapBounds() (time.Time, int) {
 	records := m.filteredHistory()
 	if len(records) == 0 {
@@ -940,8 +993,25 @@ func (m Model) heatmapBounds() (time.Time, int) {
 	}
 	newest := records[0].Date
 	oldest := records[len(records)-1].Date
+	if m.heatOffsetWeeks != 0 {
+		// Shift the right edge of the window by offset*7 days. We cap it at
+		// the newest record (no future panning) and at the oldest minus 25
+		// weeks (no panning past existing data).
+		shifted := newest.AddDate(0, 0, 7*m.heatOffsetWeeks)
+		if shifted.After(newest) {
+			shifted = newest
+		}
+		minEdge := isoMonday(oldest).AddDate(0, 0, 7*0)
+		if shifted.Before(minEdge) {
+			shifted = minEdge
+		}
+		newest = shifted
+	}
 	endMon := isoMonday(newest)
 	startMon := isoMonday(oldest)
+	if startMon.After(endMon) {
+		startMon = endMon
+	}
 	weeks := int(endMon.Sub(startMon).Hours()/24/7) + 1
 	if weeks > 26 {
 		weeks = 26
@@ -1949,7 +2019,14 @@ func (m Model) renderTodayBody(inner int) []string {
 	// from the primary so the headline stays scannable; this row is for
 	// follow-up reading.
 	var secondary []string
-	if m.stats.Streak >= 2 {
+	switch {
+	case m.celebrateBestStreak > 0:
+		// Replace the plain Streak chip with a celebration glyph until the
+		// toast system in Batch 4 takes over. The flag is sticky until the
+		// user navigates or another load arrives.
+		secondary = append(secondary, lipgloss.NewStyle().Foreground(m.theme.Green).Bold(true).
+			Render(fmt.Sprintf("✦ neuer Best-Streak %d", m.celebrateBestStreak)))
+	case m.stats.Streak >= 2:
 		secondary = append(secondary, stDim(m.theme, fmt.Sprintf("Streak %d", m.stats.Streak)))
 	}
 	if avg := m.recentWorkdayAvg(); avg > 0 {
@@ -1975,6 +2052,25 @@ func (m Model) renderTodayBody(inner int) []string {
 		secondary = append(secondary, lipgloss.NewStyle().Foreground(monthColor).Render(
 			fmt.Sprintf("Monat %s/%s %s",
 				formatDur(rep.Total), formatDur(rep.Target), formatSignedDur(rep.Saldo))))
+	}
+	// Pause stats: total gap-time today + longest single gap. Surfaces the
+	// "how much actual break did I take" question that's otherwise hidden in
+	// the per-session pause markers — useful for compliance/self-reflection.
+	if pauseTotal, longestPause := pauseStats(m.day, now); pauseTotal > 0 {
+		secondary = append(secondary, stDim(m.theme,
+			fmt.Sprintf("Pause %s  (max %s)", formatDur(pauseTotal), formatDur(longestPause))))
+	}
+	// Typical stop time: median of last 14 workdays' end-of-day, projected onto
+	// today. Complements the linear ETA (below) — linear assumes no pauses,
+	// typical assumes "you'll do what you usually do". When they disagree the
+	// user has a useful signal.
+	if t, ok := m.typicalStopTime(now); ok && total < target {
+		col := m.theme.Dim
+		if t.After(now) {
+			col = m.theme.Cyan
+		}
+		secondary = append(secondary, lipgloss.NewStyle().Foreground(col).Render(
+			"fertig typisch "+t.Format("15:04")))
 	}
 
 	barCells := inner - 4
@@ -2024,10 +2120,13 @@ func (m Model) renderTodayBody(inner int) []string {
 	if len(m.day.Sessions) == 0 && m.day.Active == nil && len(m.notes) == 0 && !m.day.IsPaused() {
 		rows = append(rows, "")
 		rows = append(rows, picker.SectionHeader("heute", inner, m.theme))
-		// On a workday past 10:00 with nothing logged → louder, yellow hint.
-		// "Vergessen zu starten?" prompt the review called out.
+		// On a workday past the user's typical start window → louder yellow
+		// "Vergessen zu starten?" prompt. The cutoff adapts: 90 min after the
+		// median start-of-day across the last 14 workdays. Falls back to a
+		// fixed 10:00 when there isn't enough history yet.
+		threshold := m.forgetfulnessThreshold(now)
 		switch {
-		case wt.IsWorkday(now) && now.Hour() >= 10:
+		case wt.IsWorkday(now) && !now.Before(threshold):
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Yellow).Bold(true).
 				Render("  Heute noch nichts erfasst."))
 			rows = append(rows, stDim(m.theme,
@@ -2496,18 +2595,23 @@ func (m Model) renderHistoryHeader() string {
 		balColor = m.theme.Yellow
 	}
 	bal := lipgloss.NewStyle().Foreground(balColor).Render(formatSignedDur(st.Overtime))
-	parts := []string{
+	// Two grouped lines instead of one nine-value chain — readable on terminals
+	// under ~110 cols. First row = the volume snapshot; second = performance.
+	volume := []string{
 		"Tage " + lipgloss.NewStyle().Bold(true).Render(fmt.Sprintf("%d", st.Days)),
 		"Werktage " + fmt.Sprintf("%d", st.Workdays),
 		"Total " + lipgloss.NewStyle().Bold(true).Render(formatDur(st.Total)),
 		"Schnitt " + formatDur(st.Avg),
 		"Max " + formatDur(st.Max),
 		"Min " + formatDur(st.Min),
+	}
+	performance := []string{
 		"Ziele " + fmt.Sprintf("%d/%d", st.Hits, st.Workdays),
 		"Streak " + fmt.Sprintf("%d (best %d)", st.Streak, st.BestStreak),
 		"Saldo " + bal,
 	}
-	header := "  " + strings.Join(parts, "  ·  ")
+	header := "  " + stDim(m.theme, "volumen:      ") + strings.Join(volume, "  ·  ") +
+		"\n  " + stDim(m.theme, "performance:  ") + strings.Join(performance, "  ·  ")
 
 	// Tag strip on a second line, with proportional bars so a tag's relative
 	// weight in the range is readable at a glance instead of having to compare
@@ -2770,15 +2874,11 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 	for _, r := range records {
 		byKey[r.Date.Format("2006-01-02")] = r
 	}
-	// Span: Mon of newest week → Mon of oldest week.
-	newest := records[0].Date
-	oldest := records[len(records)-1].Date
-	endMon := isoMonday(newest)
-	startMon := isoMonday(oldest)
-	weeks := int(endMon.Sub(startMon).Hours()/24/7) + 1
-	if weeks > 26 {
-		weeks = 26
-		startMon = endMon.AddDate(0, 0, -7*(weeks-1))
+	// Bounds come from heatmapBounds() so [/]-panning, cursor positioning
+	// and rendering all agree on which cells are visible.
+	startMon, weeks := m.heatmapBounds()
+	if weeks == 0 {
+		return ""
 	}
 
 	var lines []string
@@ -2896,7 +2996,7 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 		lipgloss.NewStyle().Foreground(m.theme.Red).Render("█ ≥150%") +
 		stDim(m.theme, "  ") +
 		lipgloss.NewStyle().Foreground(m.theme.Cyan).Render("★/☼/✚ frei") +
-		stDim(m.theme, "    h/j/k/l navigieren · enter drilldown · y yank")
+		stDim(m.theme, "    h/j/k/l navigieren · enter drilldown · y yank · [/] ±13 Wochen · T jetzt")
 	lines = append(lines, legend)
 	return strings.Join(lines, "\n")
 }
@@ -4199,6 +4299,107 @@ func confirmButton(p tk.Palette, label string, isDefault bool) string {
 	}
 	return lipgloss.NewStyle().Foreground(p.Fg).
 		Render(" " + label + " ")
+}
+
+// typicalStopTime computes the median end-of-day across the last 14 workdays
+// and projects it onto today's date. Returns ok=false when there are fewer
+// than 3 workdays of history (median is meaningless on tiny samples).
+func (m Model) typicalStopTime(now time.Time) (time.Time, bool) {
+	stops := make([]int, 0, 14)
+	for _, rec := range m.recentWorkdays(14) {
+		if len(rec.Sessions) == 0 {
+			continue
+		}
+		last := rec.Sessions[0].Stop
+		for _, s := range rec.Sessions {
+			if s.Stop.After(last) {
+				last = s.Stop
+			}
+		}
+		stops = append(stops, last.Hour()*60+last.Minute())
+	}
+	if len(stops) < 3 {
+		return time.Time{}, false
+	}
+	sort.Ints(stops)
+	median := stops[len(stops)/2]
+	h := median / 60
+	mi := median % 60
+	return time.Date(now.Year(), now.Month(), now.Day(), h, mi, 0, 0, now.Location()), true
+}
+
+// forgetfulnessThreshold returns the wall-clock time after which a workday
+// with zero entries should trigger the "vergessen zu starten?" prompt. Based
+// on the median earliest-start over the user's last 14 workdays plus a 90 min
+// grace window. Returns a fixed 10:00 anchor if history is too sparse.
+func (m Model) forgetfulnessThreshold(now time.Time) time.Time {
+	startOf := func(d time.Time, h, mi int) time.Time {
+		return time.Date(d.Year(), d.Month(), d.Day(), h, mi, 0, 0, d.Location())
+	}
+	const fallbackHour = 10
+	starts := make([]int, 0, 14)
+	for _, rec := range m.recentWorkdays(14) {
+		if len(rec.Sessions) == 0 {
+			continue
+		}
+		earliest := rec.Sessions[0].Start
+		for _, s := range rec.Sessions {
+			if s.Start.Before(earliest) {
+				earliest = s.Start
+			}
+		}
+		starts = append(starts, earliest.Hour()*60+earliest.Minute())
+	}
+	if len(starts) < 3 {
+		return startOf(now, fallbackHour, 0)
+	}
+	sort.Ints(starts)
+	median := starts[len(starts)/2]
+	median += 90 // grace
+	h := median / 60
+	mi := median % 60
+	if h >= 24 {
+		h, mi = 23, 59
+	}
+	return startOf(now, h, mi)
+}
+
+// pauseStats walks the sessions of `d` plus the gap to the active session
+// (or the time since the last stop, when paused) and returns the cumulative
+// pause time and the longest single pause. Returns (0, 0) when there is at
+// most one session and no gaps to measure.
+func pauseStats(d wt.Day, now time.Time) (time.Duration, time.Duration) {
+	var total, longest time.Duration
+	var prevStop time.Time
+	for _, s := range d.Sessions {
+		if !prevStop.IsZero() {
+			if gap := s.Start.Sub(prevStop); gap > 0 {
+				total += gap
+				if gap > longest {
+					longest = gap
+				}
+			}
+		}
+		prevStop = s.Stop
+	}
+	switch {
+	case d.Active != nil && !prevStop.IsZero():
+		if gap := d.Active.Sub(prevStop); gap > 0 {
+			total += gap
+			if gap > longest {
+				longest = gap
+			}
+		}
+	case d.IsPaused() && d.PausedAt != nil:
+		// The current pause is open — count it from PausedAt to now.
+		if gap := now.Sub(*d.PausedAt); gap > 0 {
+			total += gap
+			if gap > longest {
+				longest = gap
+			}
+		}
+	}
+	return total, longest
 }
 
 // sessionMiniBar renders a small horizontal bar whose fill ratio equals

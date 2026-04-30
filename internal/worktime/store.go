@@ -965,6 +965,21 @@ func StatusSegment() string {
 		parts = append(parts, fmt.Sprintf("#[fg=%s]Streak %d#[default]", pal.green, streak))
 	}
 
+	// Monthly saldo traffic-light: ▲ over, ▼ under, only when |saldo| ≥ 1h so
+	// trivial under-by-15m noise doesn't flicker the bar. Answers "stehe ich
+	// diesen Monat im Plus oder Minus?" at a glance.
+	if rep := MonthBurndown(now); rep.Target > 0 {
+		const min = time.Hour
+		switch {
+		case rep.Saldo >= min:
+			h := int(rep.Saldo.Hours())
+			parts = append(parts, fmt.Sprintf("#[fg=%s]▲ +%dh#[default]", pal.green, h))
+		case rep.Saldo <= -min:
+			h := int((-rep.Saldo).Hours())
+			parts = append(parts, fmt.Sprintf("#[fg=%s]▼ -%dh#[default]", pal.yellow, h))
+		}
+	}
+
 	return strings.Join(parts, " ")
 }
 
