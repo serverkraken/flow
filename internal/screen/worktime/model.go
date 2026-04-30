@@ -681,6 +681,13 @@ func (m Model) handleTodayKey(key string) (tea.Model, tea.Cmd, bool) {
 			}
 			return m, detachNoteCmd(m.now, n.id), true
 		}
+	case "Y":
+		// Yesterday quick-drill: open the day-detail for yesterday without
+		// the History → search → enter detour. Backend returns "no sessions"
+		// if yesterday has none, which is fine.
+		yest := m.now.AddDate(0, 0, -1)
+		mm, cmd := m.openDayDetail(yest)
+		return mm, cmd, true
 	}
 	return m, nil, false
 }
@@ -1102,7 +1109,7 @@ func (m Model) openDayOffAdd() Model {
 
 func (m Model) handleDayOffConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "z", "j", "enter": // QWERTZ-friendly: z and j (Ja) both confirm
+	case "y", "z", "j": // QWERTZ-friendly: explicit confirm. Enter is safe default.
 		if m.dayoffsCur >= 0 && m.dayoffsCur < len(m.dayoffs) {
 			d := m.dayoffs[m.dayoffsCur].Date
 			m.dialog = dialogNone
@@ -1110,7 +1117,7 @@ func (m Model) handleDayOffConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.dialog = dialogNone
 		return m, nil
-	case "n", "esc":
+	case "n", "esc", "enter":
 		m.dialog = dialogNone
 		return m, nil
 	}
@@ -1119,8 +1126,9 @@ func (m Model) handleDayOffConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleStopChoiceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "z", "s", "enter":
-		// Confirm: stop now. (`z` covers QWERTZ users hitting the wrong y.)
+	case "y", "z", "s":
+		// Explicit confirm: stop now. (`z` covers QWERTZ users hitting the
+		// wrong y.) Enter is bound to the safe "weiterlaufen" default below.
 		m.dialog = dialogNone
 		return m, stopAtCmd(m.now)
 	case "t":
@@ -1131,8 +1139,9 @@ func (m Model) handleStopChoiceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.Focus()
 		m.errMsg = ""
 		return m, textinput.Blink
-	case "n", "esc":
-		// Keep running.
+	case "n", "esc", "enter":
+		// Keep running — Enter is the safe default for an "are you sure"
+		// prompt that fires after a near-empty session.
 		m.dialog = dialogNone
 		return m, nil
 	}
@@ -1463,7 +1472,8 @@ func (m Model) handleTagFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "z", "j", "enter":
+	case "y", "z", "j":
+		// Explicit confirm only — Enter is the safe default (cancel).
 		idx := m.editIdx
 		date := m.editDate
 		// Source-of-truth list depends on which screen launched the delete.
@@ -1482,7 +1492,7 @@ func (m Model) handleDeleteConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.dialog = dialogNone
 		return m, deleteCmd(date, idx)
-	case "n", "esc":
+	case "n", "esc", "enter":
 		m.dialog = dialogNone
 		return m, nil
 	}
@@ -1794,24 +1804,27 @@ func (m Model) View() string {
 
 func (m Model) renderTabBar() string {
 	tabs := []struct {
+		idx   string
 		label string
 		view  subView
 	}{
-		{"Heute", viewToday},
-		{"Woche", viewWeek},
-		{"History", viewHistory},
-		{"Frei", viewDayOffs},
+		{"1", "Heute", viewToday},
+		{"2", "Woche", viewWeek},
+		{"3", "History", viewHistory},
+		{"4", "Frei", viewDayOffs},
 	}
 	active := lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true)
 	inactive := lipgloss.NewStyle().Foreground(m.theme.Dim)
+	idxActive := lipgloss.NewStyle().Foreground(m.theme.Accent)
+	idxInactive := lipgloss.NewStyle().Foreground(m.theme.Border)
 	sep := lipgloss.NewStyle().Foreground(m.theme.Border).Render(" │ ")
 
 	var parts []string
 	for _, t := range tabs {
 		if t.view == m.view {
-			parts = append(parts, active.Render(t.label))
+			parts = append(parts, idxActive.Render(t.idx+" ")+active.Render(t.label))
 		} else {
-			parts = append(parts, inactive.Render(t.label))
+			parts = append(parts, idxInactive.Render(t.idx+" ")+inactive.Render(t.label))
 		}
 	}
 	return "  " + strings.Join(parts, sep)
@@ -2053,12 +2066,22 @@ func (m Model) renderTodayBody(inner int) []string {
 			if wt.MaxStreakMinutes > 0 && int(elapsed.Minutes()) >= 2*wt.MaxStreakMinutes {
 				runColor = m.theme.Red
 			}
+			// Bar reference for the running row alone is itself — we want
+			// elapsed-vs-max-of-day, computed below in the loop. Use elapsed
+			// directly so the running session always shows a sense of progress.
+			activeMax := elapsed
+			for _, s := range m.day.Sessions {
+				if s.Elapsed > activeMax {
+					activeMax = s.Elapsed
+				}
+			}
+			bar := sessionMiniBar(m.theme, elapsed, activeMax, 10)
 			marker := lipgloss.NewStyle().Foreground(runColor).Bold(true).Render("  ▶ ")
 			label := lipgloss.NewStyle().Foreground(runColor).Bold(true).Render(
 				fmt.Sprintf("%s → …   %s",
 					m.day.Active.Format("15:04"), formatDur(elapsed)))
 			suffix := stDim(m.theme, "läuft")
-			rows = append(rows, marker+label+"   "+suffix)
+			rows = append(rows, marker+label+"  "+bar+"   "+suffix)
 		}
 		// Pause-Marker zwischen aktiver Session und letzter abgeschlossener.
 		if m.day.IsRunning() && m.day.Active != nil && len(m.day.Sessions) > 0 {
@@ -2066,6 +2089,20 @@ func (m Model) renderTodayBody(inner int) []string {
 			if pause := m.day.Active.Sub(lastStop); pause > 0 {
 				rows = append(rows, stDim(m.theme,
 					fmt.Sprintf("       ─ %s Pause ─", formatDur(pause))))
+			}
+		}
+		// Bar reference: the longest session of the day. Lets each row's bar
+		// fill ratio communicate "how big is this session relative to my
+		// biggest one today" — the most useful comparison at a glance.
+		maxSess := time.Duration(0)
+		for _, s := range m.day.Sessions {
+			if s.Elapsed > maxSess {
+				maxSess = s.Elapsed
+			}
+		}
+		if m.day.IsRunning() && m.day.Active != nil {
+			if running := now.Sub(*m.day.Active); running > maxSess {
+				maxSess = running
 			}
 		}
 		var prevStop time.Time
@@ -2077,8 +2114,10 @@ func (m Model) renderTodayBody(inner int) []string {
 				}
 			}
 			prevStop = s.Stop
+			bar := sessionMiniBar(m.theme, s.Elapsed, maxSess, 10)
 			dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
-			label := fmt.Sprintf("%s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
+			label := fmt.Sprintf("%s → %s   %s  %s",
+				s.Start.Format("15:04"), s.Stop.Format("15:04"), dur, bar)
 			hint := ""
 			if s.Tag != "" {
 				hint = stDim(m.theme, "["+s.Tag+"]")
@@ -2768,8 +2807,14 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 		for w := 0; w < weeks; w++ {
 			day := startMon.AddDate(0, 0, 7*w+d)
 			rec, ok := byKey[day.Format("2006-01-02")]
+			// Empty-cell glyph: '.' for missing weekday data, '·' (mid-dot)
+			// for an empty weekend cell. The two glyphs distinguish "expected
+			// to be empty" from "data gap" at a glance.
 			cell := " . "
 			color := m.theme.Border
+			if isWeekendDate(day) {
+				cell = " · "
+			}
 			if ok && rec.Target > 0 {
 				pct := float64(rec.Total) / float64(rec.Target)
 				switch {
@@ -2789,9 +2834,9 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 					cell = " ░ "
 					color = m.theme.Yellow
 				}
-			} else if isWeekendDate(day) {
-				cell = "   "
 			}
+			// Weekend default already set to ' · ' above; nothing to override
+			// here for the empty-data path.
 			// Day-off marker takes priority over empty cells but not over
 			// data cells — those keep their pct-derived glyph and recolour
 			// to cyan for visibility.
@@ -3022,7 +3067,7 @@ func (m Model) renderDialog() string {
 
 	case dialogDeleteConfirm:
 		title = "Worktime · Session löschen"
-		hint = "y/Enter=löschen  ·  n/Esc=abbrechen"
+		hint = "y/z/j=löschen  ·  Enter/n/Esc=abbrechen (default)"
 		s, ok := m.deleteTarget()
 		if ok {
 			afterTotal := m.day.Total(m.now) - s.Elapsed
@@ -3037,6 +3082,8 @@ func (m Model) renderDialog() string {
 			rows = append(rows, "")
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).
 				Render("  Wirklich löschen?"))
+			rows = append(rows, "  "+confirmButton(m.theme, "y/z/j löschen", false)+
+				"   "+confirmButton(m.theme, "Enter abbrechen", true))
 		}
 
 	case dialogNotePicker:
@@ -3072,7 +3119,7 @@ func (m Model) renderDialog() string {
 
 	case dialogDayOffConfirm:
 		title = "Worktime · Eintrag löschen"
-		hint = "y/Enter=löschen  ·  n/Esc=abbrechen"
+		hint = "y/z/j=löschen  ·  Enter/n/Esc=abbrechen (default)"
 		if m.dayoffsCur >= 0 && m.dayoffsCur < len(m.dayoffs) {
 			d := m.dayoffs[m.dayoffsCur]
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Yellow).Bold(true).
@@ -3081,11 +3128,13 @@ func (m Model) renderDialog() string {
 			rows = append(rows, "")
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).
 				Render("  Wirklich löschen?"))
+			rows = append(rows, "  "+confirmButton(m.theme, "y/z/j löschen", false)+
+				"   "+confirmButton(m.theme, "Enter abbrechen", true))
 		}
 
 	case dialogStopChoice:
 		title = "Worktime · Sehr kurze Session"
-		hint = "y/s=stoppen  ·  t=zeit wählen  ·  n/Esc=weiter"
+		hint = "y/s=stoppen  ·  t=zeit wählen  ·  Enter/n/Esc=weiter (default)"
 		elapsed := time.Duration(0)
 		if m.day.Active != nil {
 			elapsed = m.now.Sub(*m.day.Active)
@@ -3095,7 +3144,7 @@ func (m Model) renderDialog() string {
 		rows = append(rows, "")
 		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("y/s")+stDim(m.theme, "  jetzt stoppen"))
 		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("t  ")+stDim(m.theme, "  Stop-Zeit wählen"))
-		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("n  ")+stDim(m.theme, "  weiterlaufen lassen"))
+		rows = append(rows, "  "+confirmButton(m.theme, "Enter / n  weiterlaufen lassen", true))
 	}
 
 	rows = append(rows, "")
@@ -3127,10 +3176,123 @@ func (m Model) renderForm(inner int) []string {
 			rows = append(rows, "")
 		}
 	}
+	if line := m.renderFormDurationLine(); line != "" {
+		rows = append(rows, line)
+	}
 	if m.errMsg != "" {
 		rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
 	}
 	return rows
+}
+
+// renderFormDurationLine computes "Dauer: Xh Ym  ·  Tagestotal danach: A/B"
+// for the active entry- or edit-form. Returns "" when start/stop can't be
+// parsed yet — the line stays hidden until the user has typed something
+// meaningful instead of showing zero.
+func (m Model) renderFormDurationLine() string {
+	var startStr, stopStr string
+	var anchor time.Time
+	switch m.dialog {
+	case dialogEntryForm:
+		if len(m.formInputs) < 3 {
+			return ""
+		}
+		dateStr := strings.TrimSpace(m.formInputs[0].Value())
+		startStr = strings.TrimSpace(m.formInputs[1].Value())
+		stopStr = strings.TrimSpace(m.formInputs[2].Value())
+		if dateStr == "" {
+			anchor = m.now
+		} else if d, err := time.ParseInLocation("2006-01-02", dateStr, m.now.Location()); err == nil {
+			anchor = d
+		} else {
+			return ""
+		}
+	case dialogEditForm:
+		if len(m.formInputs) < 2 {
+			return ""
+		}
+		startStr = strings.TrimSpace(m.formInputs[0].Value())
+		stopStr = strings.TrimSpace(m.formInputs[1].Value())
+		anchor = m.editDate
+		if anchor.IsZero() {
+			anchor = m.now
+		}
+	default:
+		return ""
+	}
+	startD, errStart := wt.ParseHM(startStr)
+	if errStart != nil {
+		return ""
+	}
+	base := time.Date(anchor.Year(), anchor.Month(), anchor.Day(), 0, 0, 0, 0, anchor.Location())
+	startTime := base.Add(startD)
+	var stopTime time.Time
+	switch {
+	case stopStr == "":
+		// Empty stop → "now" only when anchor is today; otherwise leave blank.
+		if !sameDay(anchor, m.now) {
+			return ""
+		}
+		stopTime = m.now
+	default:
+		t, err := wt.ParseStop(stopStr, startTime)
+		if err != nil {
+			return ""
+		}
+		// HH:MM forms are anchored on time.Now's date — rebase to the form's
+		// anchor so cross-day computation stays sane.
+		if stopStr[0] != '+' {
+			if stopHM, err := wt.ParseHM(stopStr); err == nil {
+				t = base.Add(stopHM)
+			}
+		}
+		stopTime = t
+	}
+	dur := stopTime.Sub(startTime)
+	if dur <= 0 {
+		return ""
+	}
+
+	// Day-total projection: simulate the edit/entry against the day's other
+	// sessions so the user sees the saldo before committing.
+	var existing []wt.Session
+	switch {
+	case sameDay(anchor, m.now):
+		existing = m.day.Sessions
+	case len(m.drillSessions) > 0 && sameDay(anchor, m.drillDate):
+		existing = m.drillSessions
+	}
+	var afterTotal time.Duration
+	skipIdx := -1
+	if m.dialog == dialogEditForm {
+		skipIdx = m.editIdx
+	}
+	for i, s := range existing {
+		if i == skipIdx {
+			continue
+		}
+		afterTotal += s.Elapsed
+	}
+	afterTotal += dur
+
+	target := wt.TargetFor(anchor)
+	parts := []string{
+		stDim(m.theme, "    Dauer: ") +
+			lipgloss.NewStyle().Foreground(m.theme.Fg).Bold(true).Render(formatDur(dur)),
+	}
+	if target > 0 {
+		col := m.theme.Yellow
+		if afterTotal >= target {
+			col = m.theme.Green
+		}
+		parts = append(parts, stDim(m.theme, "Tagestotal danach: ")+
+			lipgloss.NewStyle().Foreground(col).Render(
+				fmt.Sprintf("%s / %s", formatDur(afterTotal), formatDur(target))))
+	} else {
+		parts = append(parts, stDim(m.theme, "Tagestotal danach: ")+
+			lipgloss.NewStyle().Foreground(m.theme.Fg).Render(formatDur(afterTotal)))
+	}
+	return strings.Join(parts, stDim(m.theme, "  ·  "))
 }
 
 // renderDayOffAddForm renders the dayoff-add form: date, label, kind picker.
@@ -3274,6 +3436,12 @@ func (m Model) renderDayDetailBody(inner int) []string {
 		"  "+stDim(m.theme, fmt.Sprintf("/ %s  ·  %d%%", formatDur(target), pct)))
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader(fmt.Sprintf("sessions (%d)", len(m.drillSessions)), inner, m.theme))
+	maxSess := time.Duration(0)
+	for _, s := range m.drillSessions {
+		if s.Elapsed > maxSess {
+			maxSess = s.Elapsed
+		}
+	}
 	prevStop := time.Time{}
 	for i, s := range m.drillSessions {
 		if !prevStop.IsZero() {
@@ -3284,8 +3452,10 @@ func (m Model) renderDayDetailBody(inner int) []string {
 			}
 		}
 		prevStop = s.Stop
+		bar := sessionMiniBar(m.theme, s.Elapsed, maxSess, 10)
 		dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
-		label := fmt.Sprintf("%s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
+		label := fmt.Sprintf("%s → %s   %s  %s",
+			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur, bar)
 		hint := ""
 		if s.Tag != "" {
 			hint = stDim(m.theme, "["+s.Tag+"]")
@@ -3317,6 +3487,7 @@ func (m Model) renderHelpBody(inner int) []string {
 	rows = append(rows, "  t / N       tag / notiz für session")
 	rows = append(rows, "  n           kompendium-notiz attach / detach")
 	rows = append(rows, "  o / O / D   notiz: ansehen / editor / lösen")
+	rows = append(rows, "  Y           gestern drilldown")
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader("woche / history", inner, m.theme))
 	rows = append(rows, "  enter       tag drill-down (heute → Heute-Tab)")
@@ -4016,4 +4187,39 @@ func stErr(p tk.Palette, s string) string {
 
 func stFooter(p tk.Palette, s string) string {
 	return lipgloss.NewStyle().Foreground(p.Dim).Padding(0, 1).Render(s)
+}
+
+// confirmButton renders a chip-style label for a confirm-dialog option. The
+// `isDefault` flag inverts colours so the safe default (typically Cancel) is
+// the visually obvious target — Enter is wired to that branch.
+func confirmButton(p tk.Palette, label string, isDefault bool) string {
+	if isDefault {
+		return lipgloss.NewStyle().Foreground(p.Bg).Background(p.Accent).Bold(true).
+			Render(" " + label + " ")
+	}
+	return lipgloss.NewStyle().Foreground(p.Fg).
+		Render(" " + label + " ")
+}
+
+// sessionMiniBar renders a small horizontal bar whose fill ratio equals
+// dur/maxDur. Used in session lists so two sessions of vastly different sizes
+// look different, not just textually but visually. Always shows ≥1 cell as
+// long as dur > 0 — a 1-minute session shouldn't render as totally empty.
+func sessionMiniBar(p tk.Palette, dur, maxDur time.Duration, cells int) string {
+	if cells <= 0 {
+		return ""
+	}
+	if maxDur <= 0 || dur <= 0 {
+		return lipgloss.NewStyle().Foreground(p.Border).Render(strings.Repeat("·", cells))
+	}
+	filled := int(time.Duration(cells) * dur / maxDur)
+	if filled < 1 {
+		filled = 1
+	}
+	if filled > cells {
+		filled = cells
+	}
+	f := lipgloss.NewStyle().Foreground(p.Accent).Render(strings.Repeat("▰", filled))
+	e := lipgloss.NewStyle().Foreground(p.Border).Render(strings.Repeat("▱", cells-filled))
+	return f + e
 }
