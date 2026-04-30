@@ -104,6 +104,11 @@ type recentTagsLoadedMsg struct {
 	err     error
 }
 
+type templatesLoadedMsg struct {
+	templates []wt.SessionTemplate
+	err       error
+}
+
 type actionDoneMsg struct{ err error }
 
 type undoEntry struct {
@@ -175,6 +180,12 @@ type Model struct {
 	tagSugCur  int      // -1 = no suggestion focus, otherwise index into recentTags
 	topSugCur  int      // mirror of tagSugCur for the top-tags strip
 
+	// Session templates cache for the entry form's quick-insert chips.
+	// Loaded on dialogEntryForm open via loadTemplatesCmd. templateCur is
+	// the index applied via Ctrl+T (-1 when none has been applied yet).
+	templates   []wt.SessionTemplate
+	templateCur int
+
 	// Heatmap navigation cursor in history view.
 	heatCol int // week column 0..weeks-1
 	heatRow int // 0..6 (Mo..So)
@@ -233,6 +244,7 @@ func New(p tk.Palette) Model {
 		loading:            true,
 		input:              ti,
 		lastBestStreakSeen: -1,
+		templateCur:        -1,
 	}
 }
 
@@ -411,6 +423,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.recentTags = msg.tags
 			m.topTags = msg.topTags
+		}
+		return m, nil
+
+	case templatesLoadedMsg:
+		if msg.err == nil {
+			m.templates = msg.templates
 		}
 		return m, nil
 
@@ -1238,7 +1256,7 @@ func (m Model) openCorrectDialog() (tea.Model, tea.Cmd) {
 func (m Model) openEntryDialog() (tea.Model, tea.Cmd) {
 	m.dialog = dialogEntryForm
 	m.buildEntryForm(time.Now())
-	return m, textinput.Blink
+	return m, tea.Batch(textinput.Blink, loadTemplatesCmd())
 }
 
 func (m Model) openEditDialog() (tea.Model, tea.Cmd) {
@@ -1578,6 +1596,15 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	onKindField := m.dialog == dialogDayOffAdd && m.formCur == len(m.formInputs)
 
+	// Ctrl+T cycles session templates in the entry form: each press fills
+	// date/start/stop with the next template's shape. Skip when no templates
+	// loaded or in non-entry forms (edit/dayoff have their own semantics).
+	if m.dialog == dialogEntryForm && msg.String() == "ctrl+t" && len(m.templates) > 0 {
+		m.templateCur = (m.templateCur + 1) % len(m.templates)
+		m = m.applyTemplate(m.templates[m.templateCur])
+		return m, nil
+	}
+
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.dialog = dialogNone
@@ -1649,12 +1676,20 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 			m.errMsg = errStr
 			return m, nil
 		}
+		if errStr := m.overlapCheck(date, values[1], values[2], -1); errStr != "" {
+			m.errMsg = errStr
+			return m, nil
+		}
 		return m, addManualCmd(date, values[1], values[2])
 	case dialogEditForm:
 		if len(values) < 2 {
 			return m, nil
 		}
 		if errStr := validateEntry("", values[0], values[1]); errStr != "" {
+			m.errMsg = errStr
+			return m, nil
+		}
+		if errStr := m.overlapCheck(m.editDate.Format("2006-01-02"), values[0], values[1], m.editIdx); errStr != "" {
 			m.errMsg = errStr
 			return m, nil
 		}
@@ -1679,6 +1714,89 @@ func (m Model) submitForm() (tea.Model, tea.Cmd) {
 		return m, addDayOffCmd(dateExpr, kind, label, m.dayoffsYear)
 	}
 	return m, nil
+}
+
+// applyTemplate fills the entry-form fields from a SessionTemplate. Date
+// stays at "today" so the user can press Enter immediately; start and stop
+// are rendered as HH:MM. Existing field values are overwritten — the user
+// can still edit afterwards.
+func (m Model) applyTemplate(t wt.SessionTemplate) Model {
+	if len(m.formInputs) < 3 {
+		return m
+	}
+	startH := int(t.Start.Hours())
+	startM := int(t.Start.Minutes()) % 60
+	stop := t.Start + t.Duration
+	stopH := int(stop.Hours()) % 24
+	stopM := int(stop.Minutes()) % 60
+	m.formInputs[0].SetValue(time.Now().Format("2006-01-02"))
+	m.formInputs[1].SetValue(fmt.Sprintf("%02d:%02d", startH, startM))
+	m.formInputs[2].SetValue(fmt.Sprintf("%02d:%02d", stopH, stopM))
+	return m
+}
+
+// overlapCheck reports a user-facing string when the given (start, stop)
+// overlaps an existing session on the same date (other than `skipIdx`, which
+// is the session being edited). Catches errors before round-tripping through
+// the backend's ErrOverlap so the user sees the conflicting times directly.
+//
+// Empty stop on today is treated as "now"; on other days it skips the check
+// (the backend will reject anyway, but with a clearer error).
+func (m Model) overlapCheck(dateStr, startStr, stopStr string, skipIdx int) string {
+	date, err := time.ParseInLocation("2006-01-02", dateStr, m.now.Location())
+	if err != nil {
+		return ""
+	}
+	startD, err := wt.ParseHM(startStr)
+	if err != nil {
+		return ""
+	}
+	base := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	startTime := base.Add(startD)
+	var stopTime time.Time
+	switch {
+	case stopStr == "":
+		if !sameDay(date, m.now) {
+			return ""
+		}
+		stopTime = m.now
+	case stopStr[0] == '+':
+		t, err := wt.ParseStop(stopStr, startTime)
+		if err != nil {
+			return ""
+		}
+		stopTime = t
+	default:
+		stopD, err := wt.ParseHM(stopStr)
+		if err != nil {
+			return ""
+		}
+		stopTime = base.Add(stopD)
+	}
+	if !stopTime.After(startTime) {
+		return ""
+	}
+	var existing []wt.Session
+	switch {
+	case sameDay(date, m.now):
+		existing = m.day.Sessions
+	case sameDay(date, m.drillDate):
+		existing = m.drillSessions
+	default:
+		// We don't have other dates loaded in memory; defer to backend.
+		return ""
+	}
+	for i, s := range existing {
+		if i == skipIdx {
+			continue
+		}
+		// Half-open interval test: [a,b) overlaps [c,d) iff a < d && c < b.
+		if startTime.Before(s.Stop) && s.Start.Before(stopTime) {
+			return fmt.Sprintf("Überschneidet Session %d (%s → %s)",
+				i+1, s.Start.Format("15:04"), s.Stop.Format("15:04"))
+		}
+	}
+	return ""
 }
 
 // validateEntry parses date + start + stop. date may be "" when the form has
@@ -3104,8 +3222,12 @@ func (m Model) renderDialog() string {
 
 	case dialogEntryForm:
 		title = "Worktime · Manueller Eintrag"
-		hint = "Tab/↑↓ Feld  ·  Enter=weiter/speichern  ·  Esc=abbrechen"
+		hint = "Tab/↑↓ Feld  ·  Ctrl+T Vorlage  ·  Enter=weiter/speichern  ·  Esc=abbrechen"
 		rows = append(rows, m.renderForm(inner)...)
+		if line := m.renderTemplateStrip(); line != "" {
+			rows = append(rows, "")
+			rows = append(rows, stDim(m.theme, "  vorlagen:  ")+line)
+		}
 
 	case dialogStopAt:
 		title = "Worktime · Stoppen"
@@ -3148,15 +3270,16 @@ func (m Model) renderDialog() string {
 		hint = "Tab=letzte  ·  Shift+Tab=top  ·  Enter=speichern  ·  leer=löschen  ·  Esc=abbrechen"
 		rows = append(rows, picker.SectionHeader("tag", inner, m.theme))
 		rows = append(rows, "  "+m.input.View())
+		prefix := m.input.Value()
 		if len(m.recentTags) > 0 {
 			rows = append(rows, "")
 			rows = append(rows, stDim(m.theme, "  letzte tags:"))
-			rows = append(rows, "  "+m.renderTagSuggestionsList(m.recentTags, m.tagSugCur))
+			rows = append(rows, "  "+m.renderTagSuggestionsList(m.recentTags, m.tagSugCur, prefix))
 		}
 		if len(m.topTags) > 0 {
 			rows = append(rows, "")
 			rows = append(rows, stDim(m.theme, "  top by usage:"))
-			rows = append(rows, "  "+m.renderTagSuggestionsList(m.topTags, m.topSugCur))
+			rows = append(rows, "  "+m.renderTagSuggestionsList(m.topTags, m.topSugCur, prefix))
 		}
 
 	case dialogNoteForm:
@@ -3436,20 +3559,55 @@ func (m Model) renderDayOffAddForm(inner int) []string {
 	return rows
 }
 
+// renderTemplateStrip renders the loaded session-templates as chips. The
+// currently applied chip (templateCur) gets the inverted-style; the rest
+// stay neutral. Empty when nothing is loaded.
+func (m Model) renderTemplateStrip() string {
+	if len(m.templates) == 0 {
+		return ""
+	}
+	chips := make([]string, 0, len(m.templates))
+	for i, t := range m.templates {
+		startH := int(t.Start.Hours())
+		startM := int(t.Start.Minutes()) % 60
+		durMin := int(t.Duration.Minutes())
+		var label string
+		switch {
+		case t.Tag != "":
+			label = fmt.Sprintf("%02d:%02d +%dm %s", startH, startM, durMin, t.Tag)
+		default:
+			label = fmt.Sprintf("%02d:%02d +%dm", startH, startM, durMin)
+		}
+		st := lipgloss.NewStyle().Foreground(m.theme.Fg)
+		if i == m.templateCur {
+			st = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
+		}
+		chips = append(chips, st.Render(" "+label+" "))
+	}
+	return strings.Join(chips, "  ")
+}
+
 // renderTagSuggestions renders the recentTags chips, highlighting tagSugCur
 // when set. Used inside the dialogTagForm overlay.
 func (m Model) renderTagSuggestions() string {
-	return m.renderTagSuggestionsList(m.recentTags, m.tagSugCur)
+	return m.renderTagSuggestionsList(m.recentTags, m.tagSugCur, "")
 }
 
 // renderTagSuggestionsList is the parametrised renderer used for both the
-// recency strip and the usage-top strip in the tag form.
-func (m Model) renderTagSuggestionsList(tags []string, cur int) string {
+// recency strip and the usage-top strip in the tag form. `prefix` (when
+// non-empty) underlines chips whose name starts with it — so as the user
+// types, matching suggestions stand out alongside the cursor highlight.
+func (m Model) renderTagSuggestionsList(tags []string, cur int, prefix string) string {
+	prefix = strings.ToLower(strings.TrimSpace(prefix))
 	chips := make([]string, 0, len(tags))
 	for i, t := range tags {
 		st := lipgloss.NewStyle().Foreground(m.theme.Fg)
-		if i == cur {
+		isMatch := prefix != "" && strings.HasPrefix(strings.ToLower(t), prefix)
+		switch {
+		case i == cur:
 			st = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
+		case isMatch:
+			st = lipgloss.NewStyle().Foreground(m.theme.Cyan).Bold(true).Underline(true)
 		}
 		chips = append(chips, st.Render(" "+t+" "))
 	}
@@ -4068,6 +4226,13 @@ func loadRecentTagsCmd() tea.Cmd {
 			return recentTagsLoadedMsg{tags: tags, err: err}
 		}
 		return recentTagsLoadedMsg{tags: tags, topTags: top}
+	}
+}
+
+func loadTemplatesCmd() tea.Cmd {
+	return func() tea.Msg {
+		t, err := wt.RecentSessionTemplates(5)
+		return templatesLoadedMsg{templates: t, err: err}
 	}
 }
 

@@ -718,6 +718,90 @@ func RecentTags(n int) ([]string, error) {
 	return out, nil
 }
 
+// SessionTemplate is a recurring (start-of-day, duration, tag) shape derived
+// from past sessions. Surfaced in the TUI entry form so common patterns
+// (standup, daily review) can be inserted in one keystroke.
+type SessionTemplate struct {
+	Start    time.Duration // offset from midnight, rounded to 15 min
+	Duration time.Duration // duration rounded to 15 min
+	Tag      string
+	Count    int       // how often this exact shape was seen
+	Latest   time.Time // most recent occurrence — tiebreaker for sort
+}
+
+// RecentSessionTemplates buckets the user's past sessions by (start-of-day
+// rounded to 15 min, duration rounded to 15 min, tag) and returns the top-n
+// shapes with count >= 2, ordered by count desc then most-recent.
+//
+// The 15-minute grid is wide enough to absorb typical drift ("standup ~9:30
+// give or take a few minutes") yet narrow enough that patterns of different
+// kinds don't merge.
+func RecentSessionTemplates(n int) ([]SessionTemplate, error) {
+	if n <= 0 {
+		return nil, nil
+	}
+	sessions, err := loadAllSessions()
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	const grid = 15 * time.Minute
+	roundDown := func(d time.Duration) time.Duration {
+		return (d / grid) * grid
+	}
+	type key struct {
+		start time.Duration
+		dur   time.Duration
+		tag   string
+	}
+	bucket := make(map[key]*SessionTemplate, len(sessions))
+	for _, s := range sessions {
+		// Skip sessions crossing midnight — their "start of day" is
+		// ambiguous and they're rarely recurring.
+		if s.Start.Day() != s.Stop.Day() {
+			continue
+		}
+		startOff := time.Duration(s.Start.Hour())*time.Hour +
+			time.Duration(s.Start.Minute())*time.Minute
+		startB := roundDown(startOff)
+		durB := roundDown(s.Elapsed)
+		if durB < grid {
+			continue // ignore sub-15-min sessions; usually noise
+		}
+		k := key{start: startB, dur: durB, tag: strings.ToLower(s.Tag)}
+		t, ok := bucket[k]
+		if !ok {
+			t = &SessionTemplate{Start: startB, Duration: durB, Tag: s.Tag}
+			bucket[k] = t
+		}
+		t.Count++
+		if s.Start.After(t.Latest) {
+			t.Latest = s.Start
+			// Preserve the original tag casing of the most recent occurrence.
+			t.Tag = s.Tag
+		}
+	}
+	out := make([]SessionTemplate, 0, len(bucket))
+	for _, t := range bucket {
+		if t.Count < 2 {
+			continue
+		}
+		out = append(out, *t)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Latest.After(out[j].Latest)
+	})
+	if len(out) > n {
+		out = out[:n]
+	}
+	return out, nil
+}
+
 // SessionsOverlap reports whether candidate [start, stop) intersects any
 // session in the same date in the on-disk log, except the one at excludeIdx
 // (use -1 to consider all). Used by AddManual / EditSession to prevent
