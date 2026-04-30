@@ -2,6 +2,7 @@
 package projects
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,24 +18,27 @@ import (
 )
 
 type dirsLoadedMsg struct {
-	dirs []string
-	err  error
+	dirs     []string
+	sessions map[string]bool
+	err      error
 }
 
 type switchedMsg struct{}
 
 // Model is the bubbletea model for the project-switcher screen.
 type Model struct {
-	all     []string
-	visible []string
-	cursor  int
-	filter  textinput.Model
-	root    string
-	theme   tk.Palette
-	width   int
-	height  int
-	err     error
-	loading bool
+	all      []string
+	visible  []string
+	sessions map[string]bool
+	cursor   int
+	offset   int
+	filter   textinput.Model
+	root     string
+	theme    tk.Palette
+	width    int
+	height   int
+	err      error
+	loading  bool
 }
 
 // New creates a new projects Model.
@@ -75,7 +79,8 @@ func (m Model) WithState(filter string, cursor int) Model {
 func (m Model) Init() tea.Cmd {
 	return func() tea.Msg {
 		dirs, err := loadDirs(m.root)
-		return dirsLoadedMsg{dirs: dirs, err: err}
+		sessions := tmuxSessions()
+		return dirsLoadedMsg{dirs: dirs, sessions: sessions, err: err}
 	}
 }
 
@@ -90,6 +95,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.err = msg.err
 		m.all = msg.dirs
+		m.sessions = msg.sessions
 		m.applyFilter()
 		return m, nil
 
@@ -113,11 +119,25 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "j", "down":
 		if m.cursor < len(m.visible)-1 {
 			m.cursor++
+			m.ensureCursorVisible()
 		}
 	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
+			m.ensureCursorVisible()
 		}
+	case "G":
+		m.cursor = max(0, len(m.visible)-1)
+		m.ensureCursorVisible()
+	case "g":
+		m.cursor = 0
+		m.ensureCursorVisible()
+	case "pgdown", "ctrl+d":
+		m.cursor = min(len(m.visible)-1, m.cursor+m.maxVisible())
+		m.ensureCursorVisible()
+	case "pgup", "ctrl+u":
+		m.cursor = max(0, m.cursor-m.maxVisible())
+		m.ensureCursorVisible()
 	case "enter":
 		if len(m.visible) > 0 {
 			return m, m.switchToProject(m.visible[m.cursor])
@@ -163,12 +183,31 @@ func (m *Model) applyFilter() {
 	if m.cursor >= len(m.visible) {
 		m.cursor = max(0, len(m.visible)-1)
 	}
+	m.offset = 0
+	m.ensureCursorVisible()
 }
+
+func (m Model) maxVisible() int {
+	return max(1, m.height-6)
+}
+
+func (m *Model) ensureCursorVisible() {
+	vis := m.maxVisible()
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	} else if m.cursor >= m.offset+vis {
+		m.offset = m.cursor - vis + 1
+	}
+}
+
+var nameReplacer = strings.NewReplacer(".", "_", " ", "_", "/", "_")
+
+func sessionName(dir string) string { return nameReplacer.Replace(dir) }
 
 func (m Model) switchToProject(dir string) tea.Cmd {
 	root := m.root
 	return func() tea.Msg {
-		name := strings.NewReplacer(".", "_", " ", "_", "/", "_").Replace(dir)
+		name := sessionName(dir)
 		target := filepath.Join(root, dir)
 		if err := exec.Command("tmux", "has-session", "-t", name).Run(); err != nil {
 			_ = exec.Command("tmux", "new-session", "-d", "-s", name, "-c", target).Run()
@@ -200,16 +239,38 @@ func (m Model) View() string {
 	case len(m.visible) == 0:
 		rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Dim).Render("  keine Treffer"))
 	default:
-		for i, dir := range m.visible {
-			rows = append(rows, picker.Row(i == m.cursor, dir, "", inner, m.theme))
+		vis := m.maxVisible()
+		end := min(m.offset+vis, len(m.visible))
+		if m.offset > 0 {
+			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Dim).
+				Render(fmt.Sprintf("  ↑ %d vorherige…", m.offset)))
+		}
+		for i := m.offset; i < end; i++ {
+			dir := m.visible[i]
+			name := sessionName(dir)
+			label := dir
+			if m.sessions[name] {
+				label = dir + "  " + lipgloss.NewStyle().Foreground(m.theme.Green).Render("●")
+			}
+			rows = append(rows, picker.Row(i == m.cursor, label, "", inner, m.theme))
+		}
+		if end < len(m.visible) {
+			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Dim).
+				Render(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end)))
 		}
 	}
 
 	body := strings.Join(rows, "\n")
+	var title string
 	label := filepath.Base(m.root)
-	box := titlebox.Render("Projekte · "+label, body, m.width, m.theme)
+	if m.filter.Value() != "" {
+		title = fmt.Sprintf("Projekte · %s · %d/%d", label, len(m.visible), len(m.all))
+	} else {
+		title = fmt.Sprintf("Projekte · %s · %d", label, len(m.all))
+	}
+	box := titlebox.Render(title, body, m.width, m.theme)
 	footer := lipgloss.NewStyle().Foreground(m.theme.Dim).Padding(0, 1).
-		Render("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  esc → löschen  ·  q → schließen")
+		Render("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  esc → löschen  ·  b → zurück  ·  q → schließen")
 	return box + "\n" + footer
 }
 
@@ -246,9 +307,16 @@ func loadDirs(root string) ([]string, error) {
 	return dirs, nil
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
+func tmuxSessions() map[string]bool {
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil {
+		return nil
 	}
-	return b
+	sessions := make(map[string]bool)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if name := strings.TrimSpace(line); name != "" {
+			sessions[name] = true
+		}
+	}
+	return sessions
 }

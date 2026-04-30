@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/tui-kit/components/titlebox"
 	tk "github.com/serverkraken/tui-kit/theme"
 )
 
@@ -65,11 +65,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.vp = viewport.New(msg.Width, msg.Height-3)
-		if m.rawContent != "" && !m.rendered {
-			m.renderContent()
-		} else if m.rendered {
-			// Re-render at new width.
+		m.vp = viewport.New(msg.Width-4, msg.Height-4)
+		if m.rawContent != "" {
 			m.rendered = false
 			m.renderContent()
 		}
@@ -78,7 +75,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loadedMsg:
 		m.err = msg.err
 		m.rawContent = msg.content
-		if m.width > 0 && !m.rendered {
+		if m.width > 0 {
 			m.renderContent()
 		}
 		return m, nil
@@ -126,26 +123,12 @@ func (m Model) View() string {
 		content = m.vp.View()
 	}
 
-	footer := lipgloss.NewStyle().Foreground(m.theme.Dim).Padding(0, 1).
-		Render("↑/↓ PgUp/PgDn → scrollen  ·  q → schließen")
-
-	title := lipgloss.NewStyle().Foreground(m.theme.Purple).Bold(true).
-		Render("Cheatsheet")
-	pct := lipgloss.NewStyle().Foreground(m.theme.Dim).
-		Render(scrollPercent(m.vp))
-	header := lipgloss.NewStyle().Foreground(m.theme.Border).
-		Render(strings.Repeat("─", m.width-lipgloss.Width(title)-lipgloss.Width(pct)-2))
-	titleBar := title + " " + header + pct
-
-	return titleBar + "\n" + content + "\n" + footer
-}
-
-func scrollPercent(vp viewport.Model) string {
-	pct := vp.ScrollPercent()
-	if pct == 0 && vp.TotalLineCount() == 0 {
-		return ""
+	title := "Cheatsheet"
+	if m.rendered {
+		title = fmt.Sprintf("Cheatsheet · %.0f%%", m.vp.ScrollPercent()*100)
 	}
-	return lipgloss.NewStyle().Padding(0, 1).Render(
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#565f89")).
-			Render(fmt.Sprintf("%.0f%%", pct*100)))
+	box := titlebox.Render(title, content, m.width, m.theme)
+	footer := lipgloss.NewStyle().Foreground(m.theme.Dim).Padding(0, 1).
+		Render("↑/↓ PgUp/PgDn → scrollen  ·  b → zurück  ·  q → schließen")
+	return box + "\n" + footer
 }

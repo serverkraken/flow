@@ -31,8 +31,6 @@ var sidekickCmd = &cobra.Command{
 			s.Screen = next
 			s.Filter = ""
 			s.Cursor = 0
-		} else {
-			s.Screen = state.Palette
 		}
 
 		m := app.New(p, s)
@@ -50,7 +48,12 @@ var sidekickCmd = &cobra.Command{
 
 func main() {
 	rootCmd.AddCommand(sidekickCmd)
-	worktimeCmd.AddCommand(wtStatusCmd, wtStartCmd, wtStopCmd, wtToggleCmd, wtCorrectCmd)
+	worktimeCmd.AddCommand(
+		wtStatusCmd, wtStartCmd, wtStopCmd, wtToggleCmd, wtCorrectCmd,
+		wtPauseCmd, wtResumeCmd,
+		wtExportCmd, wtStatsCmd, wtBriefCmd,
+		wtTagCmd, wtNoteCmd, wtDayOffCmd,
+	)
 	rootCmd.AddCommand(worktimeCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

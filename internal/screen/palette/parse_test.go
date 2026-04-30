@@ -27,24 +27,24 @@ func TestParseEntriesFile_BasicParsing(t *testing.T) {
 
 	writeMenuEntries(t, pluginsDir, "myplugin",
 		"🤖\tToggle Claude\trun-shell '~/.tmux/plugins/sidekick/sidekick.sh toggle claude'\tSidekick\n"+
-			"📝\tNew Note\trun-shell 'kompendium new'\tNotes\n",
+			"📝\tNew Note\trun-shell 'kompendium new'\tKompendium\n",
 	)
 
 	// We can't call LoadEntries() here without mocking the FS layout,
 	// so test parseEntriesFile via the exported surface (LoadEntries with temp home).
-	entries, err := palette.LoadEntries()
+	entries, _, err := palette.LoadEntries()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(entries) != 2 {
 		t.Fatalf("got %d entries, want 2", len(entries))
 	}
-	// Sidekick comes before Notes in section priority.
+	// Sidekick comes before Kompendium in section priority.
 	if entries[0].Section != "Sidekick" {
 		t.Errorf("entries[0].Section = %q, want %q", entries[0].Section, "Sidekick")
 	}
-	if entries[1].Section != "Notes" {
-		t.Errorf("entries[1].Section = %q, want %q", entries[1].Section, "Notes")
+	if entries[1].Section != "Kompendium" {
+		t.Errorf("entries[1].Section = %q, want %q", entries[1].Section, "Kompendium")
 	}
 }
 
@@ -58,7 +58,7 @@ func TestParseEntriesFile_SkipsCommentsAndBlanks(t *testing.T) {
 		"# this is a comment\n\n🤖\tClaude\trun-shell 'foo'\tSidekick\n# another\n",
 	)
 
-	entries, err := palette.LoadEntries()
+	entries, _, err := palette.LoadEntries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestParseEntriesFile_MissingSectionDefaultsMisc(t *testing.T) {
 
 	writeMenuEntries(t, pluginsDir, "myplugin", "🔄\tReload\trun-shell 'tmux source'\n")
 
-	entries, err := palette.LoadEntries()
+	entries, _, err := palette.LoadEntries()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,15 +95,15 @@ func TestLoadEntries_SectionOrder(t *testing.T) {
 
 	writeMenuEntries(t, pluginsDir, "plugin1",
 		"🗂\tMisc Action\trun-shell 'x'\tMisc\n"+
-			"📓\tNotes Action\trun-shell 'y'\tNotes\n"+
+			"📓\tNotes Action\trun-shell 'y'\tKompendium\n"+
 			"🤖\tSidekick Action\trun-shell 'z'\tSidekick\n",
 	)
 
-	entries, err := palette.LoadEntries()
+	entries, _, err := palette.LoadEntries()
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Sidekick", "Notes", "Misc"}
+	want := []string{"Sidekick", "Kompendium", "Misc"}
 	for i, w := range want {
 		if entries[i].Section != w {
 			t.Errorf("entries[%d].Section = %q, want %q", i, entries[i].Section, w)
