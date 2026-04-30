@@ -46,6 +46,7 @@ func TestHelpMentionsImportantKeys(t *testing.T) {
 		"K":     "quick today=sick",
 		"B":     "Bundesland sync",
 		"v":     "history list/heatmap toggle",
+		"F":     "history tag quickpicker",
 		"/":     "history filter",
 		"y":     "yank day",
 		"T":     "now-jump (week/dayoffs/history)",

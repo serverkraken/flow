@@ -35,6 +35,10 @@ type Stats struct {
 	// should skip that bucket.
 	ByTag map[string]time.Duration
 
+	// CountByTag mirrors ByTag with the per-tag session count. Lets the UI
+	// show "deep: 4×, ⌀ 1h45m" without re-walking the records.
+	CountByTag map[string]int
+
 	// Untagged is the total of sessions without a Tag. Equivalent to
 	// ByTag[""], hoisted to a top-level field because UI surfaces it
 	// explicitly ("untagged 2h 15m" line in History header).
@@ -50,13 +54,13 @@ type Stats struct {
 // "Streak" counts back from the newest workday with a session.
 func Aggregate(records []DayRecord) Stats {
 	if len(records) == 0 {
-		return Stats{ByTag: map[string]time.Duration{}}
+		return Stats{ByTag: map[string]time.Duration{}, CountByTag: map[string]int{}}
 	}
 	sorted := make([]DayRecord, len(records))
 	copy(sorted, records)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Date.Before(sorted[j].Date) })
 
-	st := Stats{Days: len(sorted), ByTag: map[string]time.Duration{}}
+	st := Stats{Days: len(sorted), ByTag: map[string]time.Duration{}, CountByTag: map[string]int{}}
 	st.Min = sorted[0].Total
 	st.MinDate = sorted[0].Date
 
@@ -80,6 +84,7 @@ func Aggregate(records []DayRecord) Stats {
 		}
 		for _, s := range r.Sessions {
 			st.ByTag[s.Tag] += s.Elapsed
+			st.CountByTag[s.Tag]++
 		}
 	}
 	if st.Days > 0 {
@@ -157,7 +162,7 @@ func (s Stats) TopTags(n int) []TagDur {
 		if k == "" {
 			continue
 		}
-		out = append(out, TagDur{Tag: k, Total: v})
+		out = append(out, TagDur{Tag: k, Total: v, Count: s.CountByTag[k]})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Total != out[j].Total {
@@ -171,10 +176,12 @@ func (s Stats) TopTags(n int) []TagDur {
 	return out
 }
 
-// TagDur is a single (tag, duration) pair.
+// TagDur is a (tag, total duration, session count) triple. Count lets the UI
+// derive an average per-session duration without re-aggregating.
 type TagDur struct {
 	Tag   string
 	Total time.Duration
+	Count int
 }
 
 // WeekStats aggregates the ISO-week containing ref. Returns zero-value Stats

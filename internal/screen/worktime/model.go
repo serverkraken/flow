@@ -127,15 +127,17 @@ type undoEntry struct {
 }
 type clearErrMsg struct{}
 
-// historyMode toggles between the three history sub-views: list (default),
-// the day-percent heatmap, and the time-of-day clock that visualises *when*
-// during the week sessions happen.
+// historyMode toggles between the four history sub-views: list (default),
+// the day-percent heatmap, the time-of-day clock that visualises *when*
+// during the week sessions happen, and a calendar-month grid for picking
+// individual days.
 type historyMode int
 
 const (
 	historyList     historyMode = 0
 	historyHeatmap  historyMode = 1
 	historyTagClock historyMode = 2
+	historyMonth    historyMode = 3
 )
 
 // Model is the bubbletea model for the worktime screen.
@@ -207,6 +209,16 @@ type Model struct {
 	// newest record. Adjusted with [/] in heatmap mode (±13 weeks per press).
 	// Zero means the default window ending on the newest record.
 	heatOffsetWeeks int
+
+	// TagClock navigation cursor (Mo..So × 0..23h grid).
+	tagClockCol int // hour 0..23
+	tagClockRow int // 0..6 (Mo..So)
+
+	// Month-grid navigation. monthRef is the first-of-month for the displayed
+	// month; monthCur is the day-of-month under the cursor (1..31). Initialised
+	// when entering historyMonth from the v-cycle.
+	monthRef time.Time
+	monthCur int
 
 	// lastBestStreakSeen is the BestStreak value from the previous load, used
 	// to detect when an action just produced a *new* best. -1 means "no value
@@ -802,6 +814,51 @@ func (m Model) handleWeekKey(key string) (tea.Model, tea.Cmd, bool) {
 
 // handleHistoryKey routes history-only keys.
 func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	if m.histMode == historyMonth {
+		if mm, cmd, ok := m.handleHistoryMonthKey(key); ok {
+			return mm, cmd, true
+		}
+	}
+	if m.histMode == historyTagClock {
+		switch key {
+		case "h", "left":
+			m.tagClockCol = (m.tagClockCol + 23) % 24
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			return m, nil, true
+		case "l", "right":
+			m.tagClockCol = (m.tagClockCol + 1) % 24
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			return m, nil, true
+		case "j", "down":
+			m.tagClockRow = (m.tagClockRow + 1) % 7
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			return m, nil, true
+		case "k", "up":
+			m.tagClockRow = (m.tagClockRow + 6) % 7
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			return m, nil, true
+		case "T":
+			// Anchor cursor at "now" in tagclock: today's weekday + current hour.
+			row := int(m.now.Weekday()) - 1
+			if row < 0 {
+				row = 6 // Sunday
+			}
+			m.tagClockRow = row
+			m.tagClockCol = m.now.Hour()
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+			return m, nil, true
+		}
+	}
 	if m.histMode == historyHeatmap {
 		switch key {
 		case "h", "left":
@@ -881,6 +938,25 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 			}
 		case historyHeatmap:
 			m.histMode = historyTagClock
+			// Anchor cursor on "now" so the user immediately sees where they
+			// typically work. h/l shifts hour, j/k shifts weekday.
+			row := int(m.now.Weekday()) - 1
+			if row < 0 {
+				row = 6
+			}
+			m.tagClockRow = row
+			m.tagClockCol = m.now.Hour()
+		case historyTagClock:
+			m.histMode = historyMonth
+			// Default month: try to anchor on the date the user had focused
+			// in the list, otherwise fall back to today. Cursor on that day.
+			anchor := m.now
+			records := m.filteredHistory()
+			if m.histCur >= 0 && m.histCur < len(records) {
+				anchor = records[m.histCur].Date
+			}
+			m.monthRef = time.Date(anchor.Year(), anchor.Month(), 1, 0, 0, 0, 0, anchor.Location())
+			m.monthCur = anchor.Day()
 		default:
 			m.histMode = historyList
 		}
@@ -890,10 +966,19 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 		return m, nil, true
 	case "/":
 		m.dialog = dialogHistFilter
-		m.input.Placeholder = "filter: KWxx, YYYY, YYYY-MM, tag:deep, leer=alle"
+		m.input.Placeholder = "KWxx · YYYY · YYYY-MM · tag:foo · note:bar · leer=alle"
 		m.input.SetValue(m.histQuery)
 		m.input.Focus()
-		return m, textinput.Blink, true
+		return m, tea.Batch(textinput.Blink, loadRecentTagsCmd()), true
+	case "F":
+		// Quick tag-filter picker: open the filter dialog pre-filled with
+		// "tag:" so the user only has to pick a tag from the suggestions strip.
+		m.dialog = dialogHistFilter
+		m.input.Placeholder = "tag:NAME — Suggestions unten"
+		m.input.SetValue("tag:")
+		m.input.CursorEnd()
+		m.input.Focus()
+		return m, tea.Batch(textinput.Blink, loadRecentTagsCmd()), true
 	case "[", "]":
 		// Paginate the active filter context.
 		// "" → seed with current month; KWnn / YYYY-MM / YYYY → step ±1.
@@ -956,6 +1041,89 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 	return m, nil, false
 }
 
+// handleHistoryMonthKey routes navigation, pagination and drilldown keys for
+// the month-grid mode. Returns ok=false to fall through to shared keys
+// (filter, yank, etc.) that aren't month-specific.
+func (m Model) handleHistoryMonthKey(key string) (tea.Model, tea.Cmd, bool) {
+	if m.monthRef.IsZero() {
+		m.monthRef = time.Date(m.now.Year(), m.now.Month(), 1, 0, 0, 0, 0, m.now.Location())
+		m.monthCur = m.now.Day()
+	}
+	switch key {
+	case "h", "left":
+		m.monthCur = monthClampDay(m.monthRef, m.monthCur-1)
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "l", "right":
+		m.monthCur = monthClampDay(m.monthRef, m.monthCur+1)
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "j", "down":
+		m.monthCur = monthClampDay(m.monthRef, m.monthCur+7)
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "k", "up":
+		m.monthCur = monthClampDay(m.monthRef, m.monthCur-7)
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "[":
+		m.monthRef = m.monthRef.AddDate(0, -1, 0)
+		m.monthCur = monthClampDay(m.monthRef, m.monthCur)
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "]":
+		// Don't paginate past the current month — there's nothing newer.
+		next := m.monthRef.AddDate(0, 1, 0)
+		if !next.After(time.Date(m.now.Year(), m.now.Month(), 1, 0, 0, 0, 0, m.now.Location())) {
+			m.monthRef = next
+			m.monthCur = monthClampDay(m.monthRef, m.monthCur)
+			if m.width > 0 {
+				m.histVp.SetContent(m.renderHistoryContent())
+			}
+		}
+		return m, nil, true
+	case "T":
+		m.monthRef = time.Date(m.now.Year(), m.now.Month(), 1, 0, 0, 0, 0, m.now.Location())
+		m.monthCur = m.now.Day()
+		if m.width > 0 {
+			m.histVp.SetContent(m.renderHistoryContent())
+		}
+		return m, nil, true
+	case "enter":
+		d := time.Date(m.monthRef.Year(), m.monthRef.Month(), m.monthCur, 0, 0, 0, 0, m.monthRef.Location())
+		if sameDay(d, m.now) {
+			mm, cmd := m.gotoView(viewToday)
+			return mm, cmd, true
+		}
+		mm, cmd := m.openDayDetail(d)
+		return mm, cmd, true
+	}
+	return m, nil, false
+}
+
+// monthClampDay clamps `day` to the [1, last-of-month] range for `monthRef`.
+func monthClampDay(monthRef time.Time, day int) int {
+	first := time.Date(monthRef.Year(), monthRef.Month(), 1, 0, 0, 0, 0, monthRef.Location())
+	last := first.AddDate(0, 1, -1).Day()
+	if day < 1 {
+		return 1
+	}
+	if day > last {
+		return last
+	}
+	return day
+}
+
 // stepHistFilter advances the active filter expression by `dir` units. The
 // unit is inferred from the syntax: KWnn → ±1 week, YYYY-MM → ±1 month,
 // YYYY → ±1 year, tag:* → unchanged (returns ok=false). An empty filter is
@@ -968,7 +1136,7 @@ func stepHistFilter(q string, now time.Time, dir int) (string, bool) {
 		seed := fmt.Sprintf("KW%d", wn)
 		return stepHistFilter(seed, now, dir)
 	}
-	if strings.HasPrefix(strings.ToLower(q), "tag:") {
+	if strings.HasPrefix(strings.ToLower(q), "tag:") || strings.HasPrefix(strings.ToLower(q), "note:") {
 		return q, false
 	}
 	if strings.HasPrefix(strings.ToUpper(q), "KW") {
@@ -1122,8 +1290,13 @@ func (m Model) openStartStopDialog() (tea.Model, tea.Cmd) {
 		m.input.Placeholder = time.Now().Format("15:04") + "  ·  -30m  ·  Enter=jetzt"
 	} else if m.day.IsPaused() {
 		// Pause-aware: `s` resumes immediately. The user that wants a fresh
-		// start time presses `S` (force-start dialog) instead.
-		return m, resumeCmd()
+		// start time presses `S` (force-start dialog) instead. Pass PausedAt
+		// so the resume toast can spell out "nach 12m Pause (seit 14:32)".
+		var since time.Time
+		if m.day.PausedAt != nil {
+			since = *m.day.PausedAt
+		}
+		return m, resumeCmd(since)
 	} else {
 		m.dialog = dialogStart
 		m.input.Placeholder = time.Now().Format("15:04") + "  ·  -1h30m  ·  Enter=jetzt"
@@ -1249,9 +1422,10 @@ func (m Model) handleDayOffConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleStopChoiceKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "z", "s":
+	case "y", "z", "j":
 		// Explicit confirm: stop now. (`z` covers QWERTZ users hitting the
-		// wrong y.) Enter is bound to the safe "weiterlaufen" default below.
+		// wrong y; `j` for "ja" matches Delete/DayOff confirm.) Enter is
+		// bound to the safe "weiterlaufen" default below.
 		m.dialog = dialogNone
 		return m, stopAtCmd(m.now)
 	case "t":
@@ -2223,15 +2397,20 @@ func (m Model) renderTodayBody(inner int) []string {
 	}
 	if rep := wt.MonthBurndown(now); rep.Target > 0 {
 		monthColor := m.theme.Dim
+		// Trend glyph: ▲ on track, ▼ well behind. Subtle "·" between when
+		// only mildly behind (-2h..0) so we don't over-alarm a single bad day.
+		trend := "·"
 		switch {
 		case rep.OnTrack:
 			monthColor = m.theme.Green
+			trend = "▲"
 		case rep.Saldo < -2*time.Hour:
 			monthColor = m.theme.Yellow
+			trend = "▼"
 		}
 		secondary = append(secondary, lipgloss.NewStyle().Foreground(monthColor).Render(
-			fmt.Sprintf("Monat %s/%s %s",
-				formatDur(rep.Total), formatDur(rep.Target), formatSignedDur(rep.Saldo))))
+			fmt.Sprintf("Monat %s/%s %s %s",
+				formatDur(rep.Total), formatDur(rep.Target), formatSignedDur(rep.Saldo), trend)))
 	}
 	// Pause stats: total gap-time today + longest single gap. Surfaces the
 	// "how much actual break did I take" question that's otherwise hidden in
@@ -2306,6 +2485,26 @@ func (m Model) renderTodayBody(inner int) []string {
 	// Empty state: no sessions, no active, no notes — invite to action.
 	// Distinct treatment for "should be working" workday vs "free day".
 	if len(m.day.Sessions) == 0 && m.day.Active == nil && len(m.notes) == 0 && !m.day.IsPaused() {
+		// First-time onboarding: when history is also empty, the user has
+		// never tracked anything in this install. Surface a brief welcome
+		// instead of dropping them straight into the empty workday view.
+		if len(m.history) == 0 {
+			rows = append(rows, "")
+			rows = append(rows, picker.SectionHeader("willkommen", inner, m.theme))
+			welcomeChips := []string{
+				lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true).Render("Worktime"),
+				stDim(m.theme, "trackt deine Arbeitszeit lokal"),
+				stDim(m.theme, "→ ~/.tmux/worktime.log"),
+			}
+			rows = append(rows, joinWrapped(welcomeChips, "  ·  ", "  ", "  ", inner))
+			startChips := []string{
+				lipgloss.NewStyle().Foreground(m.theme.Green).Render("s starten"),
+				lipgloss.NewStyle().Foreground(m.theme.Cyan).Render("e manueller eintrag"),
+				lipgloss.NewStyle().Foreground(m.theme.Cyan).Render("? Hilfe"),
+			}
+			rows = append(rows, joinWrapped(startChips, "  ·  ", "  ", "  ", inner))
+			rows = append(rows, "")
+		}
 		rows = append(rows, "")
 		rows = append(rows, picker.SectionHeader("heute", inner, m.theme))
 		// On a workday past the user's typical start window → louder yellow
@@ -2784,7 +2983,7 @@ func (m Model) renderHistory() string {
 	if !m.historyLoaded {
 		content = tabBar + "\n" + stDim(m.theme, "  lade…")
 	} else if len(m.history) == 0 {
-		content = tabBar + "\n" + stDim(m.theme, "  Noch keine Einträge.")
+		content = tabBar + "\n" + stDim(m.theme, "  Noch keine Daten.")
 	} else {
 		content = tabBar + "\n" + m.renderHistoryHeader() + "\n" + m.histVp.View()
 	}
@@ -2800,11 +2999,13 @@ func (m Model) renderHistory() string {
 		mode = "heatmap"
 	case historyTagClock:
 		mode = "tagclock"
+	case historyMonth:
+		mode = "month"
 	default:
 		mode = "list"
 	}
 	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme,
-		"j/k auswahl  ·  enter drill  ·  v "+mode+"  ·  / filter  ·  [/] kw±  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen",
+		"j/k auswahl  ·  enter drill  ·  v ansicht ("+mode+")  ·  / filter  ·  [/] paginate  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen",
 		m.width)
 }
 
@@ -2813,7 +3014,7 @@ func (m Model) renderHistoryHeader() string {
 	records := m.filteredHistory()
 	st := wt.Aggregate(records)
 	if st.Days == 0 {
-		return stDim(m.theme, "  keine Daten im Filter")
+		return stDim(m.theme, "  Keine Treffer.")
 	}
 	balColor := m.theme.Dim
 	switch {
@@ -2881,9 +3082,10 @@ func (m Model) renderHistoryHeader() string {
 			"  "+stDim(m.theme, "frei: "), "        ", inner)
 	}
 	// Tag-targets row: when the user configured tag_target_NAME entries,
-	// surface progress for them. Only visible when a tag-filter is *not*
-	// active (otherwise the bar redundancy is loud).
-	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(m.histQuery)), "tag:") {
+	// surface progress for them. Only visible when a tag- or note-filter is
+	// not active (otherwise the bar redundancy is loud).
+	q := strings.ToLower(strings.TrimSpace(m.histQuery))
+	if !strings.HasPrefix(q, "tag:") && !strings.HasPrefix(q, "note:") {
 		if line := m.renderTagTargetsLine(st, inner); line != "" {
 			header += "\n" + line
 		}
@@ -2891,10 +3093,11 @@ func (m Model) renderHistoryHeader() string {
 	return header
 }
 
-// renderTagBars renders a horizontal bar strip for the given (tag, duration)
-// pairs, scaled to the largest tag in the slice. Glyph progression uses the
-// 1/8-step block characters so 8 cells comfortably fit a fine-grained bar.
-// Wraps onto multiple lines at `inner` width.
+// renderTagBars renders a horizontal bar strip for the given tag stats,
+// scaled to the largest tag in the slice. Each chip is
+// "name  ▎▎▎▎▎▎▎▎    1h 30m  ·  4× ⌀ 22m" — bar + total + count + avg per
+// session. The avg helps the user spot "lots of short pings" vs. "few deep
+// blocks" patterns even when totals match.
 func (m Model) renderTagBars(tags []wt.TagDur, inner int) string {
 	if len(tags) == 0 {
 		return ""
@@ -2912,7 +3115,12 @@ func (m Model) renderTagBars(tags []wt.TagDur, inner int) string {
 		}
 		bar := strings.Repeat("▎", filled) + strings.Repeat(" ", cells-filled)
 		barStyled := lipgloss.NewStyle().Foreground(m.theme.Accent).Render(bar)
-		parts = append(parts, fmt.Sprintf("%-10s %s %s", t.Tag, barStyled, formatDur(t.Total)))
+		eff := ""
+		if t.Count > 0 {
+			avg := t.Total / time.Duration(t.Count)
+			eff = stDim(m.theme, fmt.Sprintf("  %d× ⌀ %s", t.Count, formatDur(avg)))
+		}
+		parts = append(parts, fmt.Sprintf("%-10s %s %s%s", t.Tag, barStyled, formatDur(t.Total), eff))
 	}
 	return joinWrapped(parts, "  ·  ",
 		"  "+stDim(m.theme, "tags:")+"  ", "         ", inner)
@@ -2973,12 +3181,18 @@ func (m Model) renderTagTargetsLine(st wt.Stats, inner int) string {
 //     Each kept record is reduced to only those sessions
 //     and its Total recomputed, so the bar reflects the
 //     tag's slice of the day.
+//   - "note:foo"       → records with at least one session whose note contains
+//     "foo" (case-insensitive substring). Like tag-filter,
+//     the kept record is reduced to matching sessions only.
 func (m Model) filteredHistory() []wt.DayRecord {
 	q := strings.TrimSpace(m.histQuery)
 	if q == "" {
 		return m.history
 	}
 	if out, ok := m.filterByTag(q); ok {
+		return out
+	}
+	if out, ok := m.filterByNote(q); ok {
 		return out
 	}
 	if out, ok := m.filterByISOWeek(q); ok {
@@ -2988,6 +3202,36 @@ func (m Model) filteredHistory() []wt.DayRecord {
 		return out
 	}
 	return m.history
+}
+
+// filterByNote handles "note:SUBSTR" — keeps only sessions whose note contains
+// the substring (case-insensitive) and recomputes per-day totals so the bar
+// reflects only matching sessions.
+func (m Model) filterByNote(q string) ([]wt.DayRecord, bool) {
+	if !strings.HasPrefix(strings.ToLower(q), "note:") {
+		return nil, false
+	}
+	want := strings.ToLower(strings.TrimSpace(q[len("note:"):]))
+	if want == "" {
+		return m.history, true
+	}
+	out := make([]wt.DayRecord, 0, len(m.history))
+	for _, rec := range m.history {
+		var keep []wt.Session
+		var total time.Duration
+		for _, s := range rec.Sessions {
+			if strings.Contains(strings.ToLower(s.Note), want) {
+				keep = append(keep, s)
+				total += s.Elapsed
+			}
+		}
+		if len(keep) > 0 {
+			out = append(out, wt.DayRecord{
+				Date: rec.Date, Sessions: keep, Total: total, Target: rec.Target,
+			})
+		}
+	}
+	return out, true
 }
 
 // filterByTag handles "tag:NAME" — keeps only sessions with that tag and
@@ -3056,13 +3300,15 @@ func (m Model) filterByRange(q string) ([]wt.DayRecord, bool) {
 func (m Model) renderHistoryContent() string {
 	records := m.filteredHistory()
 	if len(records) == 0 {
-		return stDim(m.theme, "  keine Treffer")
+		return stDim(m.theme, "  Keine Treffer.")
 	}
 	switch m.histMode {
 	case historyHeatmap:
 		return m.renderHistoryHeatmap(records)
 	case historyTagClock:
 		return m.renderHistoryTagClock(records)
+	case historyMonth:
+		return m.renderHistoryMonth(records)
 	}
 	return m.renderHistoryList(records)
 }
@@ -3204,7 +3450,10 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 			cellStyle := lipgloss.NewStyle().Foreground(color)
 			switch {
 			case isCursor:
-				cellStyle = cellStyle.Background(m.theme.Accent).Bold(true)
+				// 2D grid cursor: full Accent block (bg-colored glyph against
+				// Accent background) gives a uniform highlight that's readable
+				// regardless of the underlying data colour. Mirrored in tagclock.
+				cellStyle = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
 			case isToday:
 				// Permanent "today" marker — keeps the user oriented after
 				// they navigate the cursor away. Subtler than cursor.
@@ -3271,7 +3520,7 @@ func isWeekendDate(t time.Time) bool {
 // ich?" — combine with a tag:NAME filter to see "wann mache ich deep work?".
 func (m Model) renderHistoryTagClock(records []wt.DayRecord) string {
 	if len(records) == 0 {
-		return stDim(m.theme, "  keine Daten")
+		return stDim(m.theme, "  Keine Treffer.")
 	}
 	var grid [7][24]time.Duration
 	for _, rec := range records {
@@ -3302,7 +3551,7 @@ func (m Model) renderHistoryTagClock(records []wt.DayRecord) string {
 		}
 	}
 	if maxCell == 0 {
-		return stDim(m.theme, "  keine Sessions im Filter")
+		return stDim(m.theme, "  Keine Treffer.")
 	}
 
 	dayLabels := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
@@ -3343,18 +3592,246 @@ func (m Model) renderHistoryTagClock(records []wt.DayRecord) string {
 				cell = "░░"
 				color = m.theme.Yellow
 			}
-			row += lipgloss.NewStyle().Foreground(color).Render(cell)
+			isCursor := r == m.tagClockRow && c == m.tagClockCol
+			cellStyle := lipgloss.NewStyle().Foreground(color)
+			if isCursor {
+				// Same Accent-block cursor as in the heatmap — readable across
+				// every data colour because foreground is forced to theme bg.
+				cellStyle = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
+			}
+			row += cellStyle.Render(cell)
 		}
 		lines = append(lines, row)
 	}
 	lines = append(lines, "")
-	legend := stDim(m.theme, "   ·· keine  ░░ <25%  ▒▒ <50%  ▓▓ <75%  ██ ≥75%   ·   v: weiter zu list")
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m.histQuery)), "tag:") {
-		legend = stDim(m.theme, "   filter aktiv: ") + lipgloss.NewStyle().Foreground(m.theme.Cyan).Render(m.histQuery) +
-			stDim(m.theme, "  ·  ·· keine  ░░░▒▒▓▓██ Intensität")
+
+	// Cursor status line: weekday, hour-range, total time spent in that slot.
+	row := m.tagClockRow
+	col := m.tagClockCol
+	if row >= 0 && row < 7 && col >= 0 && col < 24 {
+		dur := grid[row][col]
+		var status string
+		switch {
+		case dur == 0:
+			status = fmt.Sprintf("   %s  %02d:00–%02d:00  —",
+				dayLabels[row], col, (col+1)%24)
+		default:
+			pct := int(float64(dur) / float64(maxCell) * 100)
+			status = fmt.Sprintf("   %s  %02d:00–%02d:00  %s  (%d%% des Maximums)",
+				dayLabels[row], col, (col+1)%24, formatDur(dur), pct)
+		}
+		lines = append(lines, lipgloss.NewStyle().Foreground(m.theme.Accent).Render(status))
 	}
-	lines = append(lines, legend)
+
+	innerW := m.width - 4
+	if innerW <= 0 {
+		innerW = 80
+	}
+	legendChips := []string{
+		stDim(m.theme, "·· keine"),
+		stDim(m.theme, "░░ <25%"),
+		stDim(m.theme, "▒▒ <50%"),
+		stDim(m.theme, "▓▓ <75%"),
+		stDim(m.theme, "██ ≥75%"),
+	}
+	navChips := []string{
+		stDim(m.theme, "h/j/k/l navigieren"),
+		stDim(m.theme, "T jetzt"),
+		stDim(m.theme, "v ansicht"),
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m.histQuery)), "tag:") {
+		legendChips = append([]string{
+			stDim(m.theme, "filter:") + " " +
+				lipgloss.NewStyle().Foreground(m.theme.Cyan).Render(m.histQuery),
+		}, legendChips...)
+	}
+	lines = append(lines, joinWrapped(legendChips, "  ", "   ", "   ", innerW))
+	lines = append(lines, joinWrapped(navChips, "  ·  ", "   ", "   ", innerW))
 	return strings.Join(lines, "\n")
+}
+
+// renderHistoryMonth draws a calendar grid for the month at `m.monthRef`,
+// with a status glyph per day:
+//
+//	··  no data (workday) / weekend
+//	░▒▓█  scaled to %-of-target (matches heatmap)
+//	★/☼/✚  holiday / vacation / sick
+//
+// The cursor cell is highlighted with the same Accent block used by the
+// heatmap and tagclock so the visual language stays consistent.
+func (m Model) renderHistoryMonth(records []wt.DayRecord) string {
+	if m.monthRef.IsZero() {
+		m.monthRef = time.Date(m.now.Year(), m.now.Month(), 1, 0, 0, 0, 0, m.now.Location())
+		m.monthCur = m.now.Day()
+	}
+	first := time.Date(m.monthRef.Year(), m.monthRef.Month(), 1, 0, 0, 0, 0, m.monthRef.Location())
+	last := first.AddDate(0, 1, -1)
+
+	byKey := make(map[string]wt.DayRecord, len(records))
+	for _, r := range records {
+		byKey[r.Date.Format("2006-01-02")] = r
+	}
+
+	var lines []string
+	header := lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true).
+		Render(fmt.Sprintf("  %s %d", germanMonth(first.Month()), first.Year()))
+	lines = append(lines, header)
+	lines = append(lines, "")
+
+	dayLabels := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
+	hdr := "    "
+	for _, lbl := range dayLabels {
+		hdr += lipgloss.NewStyle().Foreground(m.theme.Dim).Render(fmt.Sprintf(" %-3s ", lbl))
+	}
+	lines = append(lines, hdr)
+
+	// Compute the Monday on/before the 1st so the grid starts correctly.
+	wd := int(first.Weekday())
+	if wd == 0 {
+		wd = 7
+	}
+	gridStart := first.AddDate(0, 0, -(wd - 1))
+
+	for week := 0; week < 6; week++ {
+		row := "    "
+		anyInMonth := false
+		for d := 0; d < 7; d++ {
+			day := gridStart.AddDate(0, 0, week*7+d)
+			inMonth := day.Month() == first.Month() && day.Year() == first.Year()
+			if inMonth {
+				anyInMonth = true
+			}
+			cell := m.renderMonthCell(day, inMonth, byKey)
+			row += cell
+		}
+		if !anyInMonth && week > 0 {
+			break
+		}
+		lines = append(lines, row)
+	}
+	lines = append(lines, "")
+
+	// Cursor status line.
+	cursorDate := time.Date(first.Year(), first.Month(), m.monthCur, 0, 0, 0, 0, first.Location())
+	if m.monthCur < 1 || m.monthCur > last.Day() {
+		cursorDate = first
+	}
+	rec, hit := byKey[cursorDate.Format("2006-01-02")]
+	var status string
+	switch {
+	case hit:
+		pct := 0
+		if rec.Target > 0 {
+			pct = int(rec.Total * 100 / rec.Target)
+		}
+		status = fmt.Sprintf("   %s  %s  %s / %s  ·  %d%%",
+			germanWeekdayShort(cursorDate.Weekday()),
+			cursorDate.Format("2006-01-02"),
+			formatDur(rec.Total), formatDur(rec.Target), pct)
+	default:
+		status = fmt.Sprintf("   %s  %s  —",
+			germanWeekdayShort(cursorDate.Weekday()),
+			cursorDate.Format("2006-01-02"))
+	}
+	if dayOff, doh := wt.LookupDayOff(cursorDate); doh {
+		status += "  ·  " + dayOff.Kind.LabelDe() + " " + dayOff.Label
+	}
+	lines = append(lines, lipgloss.NewStyle().Foreground(m.theme.Accent).Render(status))
+
+	// Month aggregate strip.
+	monthStats := wt.MonthStats(first)
+	if monthStats.Days > 0 {
+		balColor := m.theme.Dim
+		switch {
+		case monthStats.Overtime > 0:
+			balColor = m.theme.Green
+		case monthStats.Overtime < 0:
+			balColor = m.theme.Yellow
+		}
+		bal := lipgloss.NewStyle().Foreground(balColor).Render(formatSignedDur(monthStats.Overtime))
+		lines = append(lines, "")
+		lines = append(lines, "   "+stDim(m.theme, fmt.Sprintf("Monat %s  ·  Ziele %d/%d  ·  Saldo ",
+			formatDur(monthStats.Total), monthStats.Hits, monthStats.Workdays))+bal)
+	}
+
+	innerW := m.width - 4
+	if innerW <= 0 {
+		innerW = 80
+	}
+	navChips := []string{
+		stDim(m.theme, "h/j/k/l navigieren"),
+		stDim(m.theme, "enter drilldown"),
+		stDim(m.theme, "[/] Monat ±"),
+		stDim(m.theme, "T jetzt"),
+		stDim(m.theme, "v ansicht"),
+	}
+	lines = append(lines, joinWrapped(navChips, "  ·  ", "   ", "   ", innerW))
+	return strings.Join(lines, "\n")
+}
+
+// renderMonthCell renders one day cell of the month grid as a fixed-width
+// 5-char block: " DD G " where DD is the day number and G is a status glyph.
+// Out-of-month days render as blank padding so the column alignment holds.
+func (m Model) renderMonthCell(day time.Time, inMonth bool, byKey map[string]wt.DayRecord) string {
+	if !inMonth {
+		return "     "
+	}
+	rec, hasRec := byKey[day.Format("2006-01-02")]
+	dayOff, isOff := wt.LookupDayOff(day)
+	isCursor := day.Day() == m.monthCur
+	isToday := sameDay(day, m.now)
+	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
+
+	glyph := "·"
+	color := m.theme.Border
+	switch {
+	case hasRec && rec.Target > 0:
+		pct := float64(rec.Total) / float64(rec.Target)
+		switch {
+		case pct >= 1.5:
+			glyph = "█"
+			color = m.theme.Red
+		case pct >= 1.0:
+			glyph = "█"
+			color = m.theme.Green
+		case pct >= 0.75:
+			glyph = "▓"
+			color = m.theme.Green
+		case pct >= 0.5:
+			glyph = "▒"
+			color = m.theme.Yellow
+		case pct > 0:
+			glyph = "░"
+			color = m.theme.Yellow
+		}
+	case isOff:
+		switch dayOff.Kind {
+		case wt.KindHoliday:
+			glyph = "★"
+		case wt.KindVacation:
+			glyph = "☼"
+		case wt.KindSick:
+			glyph = "✚"
+		}
+		color = m.theme.Cyan
+	case isWeekend:
+		glyph = " "
+		color = m.theme.Dim
+	}
+
+	dayNum := fmt.Sprintf("%2d", day.Day())
+	body := fmt.Sprintf(" %s %s", dayNum, glyph)
+
+	st := lipgloss.NewStyle().Foreground(color)
+	switch {
+	case isCursor:
+		st = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
+	case isToday:
+		st = st.Underline(true).Bold(true)
+	case !inMonth:
+		st = st.Foreground(m.theme.Border)
+	}
+	return st.Render(body) + " "
 }
 
 // — dayoffs view —
@@ -3397,7 +3874,7 @@ func (m Model) renderDayOffsBody(inner int) []string {
 			stDim(m.theme, "Krankheit"),
 		}
 		return []string{
-			stDim(m.theme, "  Keine Einträge in diesem Jahr."),
+			stDim(m.theme, "  Noch keine Daten in diesem Jahr."),
 			"",
 			joinWrapped(hintChips, "  ·  ", "  ", "  ", inner),
 		}
@@ -3467,11 +3944,15 @@ func (m Model) renderDialog() string {
 	case dialogEntryForm:
 		title = "Worktime · Manueller Eintrag"
 		hint = "Tab/↑↓ Feld  ·  Ctrl+T Vorlage  ·  Enter=weiter/speichern  ·  Esc=abbrechen"
-		rows = append(rows, m.renderForm(inner)...)
+		// Render the template strip above the form so the affordance is the
+		// first thing the user sees on opening — Ctrl+T is otherwise easy to
+		// miss at the bottom.
 		if line := m.renderTemplateStrip(); line != "" {
+			rows = append(rows, picker.SectionHeader("vorlagen  (Ctrl+T cyclen)", inner, m.theme))
+			rows = append(rows, "  "+line)
 			rows = append(rows, "")
-			rows = append(rows, stDim(m.theme, "  vorlagen:  ")+line)
 		}
+		rows = append(rows, m.renderForm(inner)...)
 
 	case dialogStopAt:
 		title = "Worktime · Stoppen"
@@ -3573,16 +4054,33 @@ func (m Model) renderDialog() string {
 		hint = "Enter=anwenden  ·  leer=alles  ·  Esc=abbrechen"
 		rows = append(rows, picker.SectionHeader("filter", inner, m.theme))
 		rows = append(rows, "  "+m.input.View())
+		// Tag suggestions: when the user has typed (or pressed F to seed)
+		// "tag:", show the top-usage tags as click-to-paste chips. Highlights
+		// matches against the prefix the user has typed after "tag:".
+		val := strings.ToLower(strings.TrimSpace(m.input.Value()))
+		if strings.HasPrefix(val, "tag:") {
+			tagPrefix := strings.TrimSpace(val[len("tag:"):])
+			if len(m.topTags) > 0 || len(m.recentTags) > 0 {
+				rows = append(rows, "")
+				if len(m.topTags) > 0 {
+					rows = append(rows, stDim(m.theme, "  top tags:"))
+					rows = append(rows, "  "+m.renderTagSuggestionsList(m.topTags, -1, tagPrefix))
+				}
+				if len(m.recentTags) > 0 {
+					rows = append(rows, stDim(m.theme, "  letzte tags:"))
+					rows = append(rows, "  "+m.renderTagSuggestionsList(m.recentTags, -1, tagPrefix))
+				}
+				rows = append(rows, "")
+			}
+		}
 		rows = append(rows, stDim(m.theme,
-			"  Beispiele:  KW18  ·  2026  ·  2026-04  ·  2026-04-01..2026-04-30  ·  tag:deep"))
+			"  Beispiele:  KW18  ·  2026  ·  2026-04  ·  2026-04-01..2026-04-30  ·  tag:deep  ·  note:standup"))
 
 	case dialogDayOffAdd:
 		title = "Worktime · Tag(e) frei eintragen"
 		hint = "Tab/↑↓ Feld  ·  h/l Kategorie  ·  Enter=speichern  ·  Esc=abbrechen"
+		// renderDayOffAddForm renders the inline errMsg under the focused field.
 		rows = append(rows, m.renderDayOffAddForm(inner)...)
-		if m.errMsg != "" {
-			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
-		}
 
 	case dialogDayOffConfirm:
 		title = "Worktime · Eintrag löschen"
@@ -3601,7 +4099,7 @@ func (m Model) renderDialog() string {
 
 	case dialogStopChoice:
 		title = "Worktime · Sehr kurze Session"
-		hint = "y/s=stoppen  ·  t=zeit wählen  ·  Enter/n/Esc=weiter (default)"
+		hint = "y/z/j=stoppen  ·  t=zeit wählen  ·  Enter/n/Esc=weiter (default)"
 		elapsed := time.Duration(0)
 		if m.day.Active != nil {
 			elapsed = m.now.Sub(*m.day.Active)
@@ -3609,7 +4107,7 @@ func (m Model) renderDialog() string {
 		rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Yellow).
 			Render(fmt.Sprintf("  Erst %s gelaufen — versehentlich gestoppt?", formatDur(elapsed))))
 		rows = append(rows, "")
-		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("y/s")+stDim(m.theme, "  jetzt stoppen"))
+		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("y/z/j")+stDim(m.theme, "  jetzt stoppen"))
 		rows = append(rows, "  "+lipgloss.NewStyle().Bold(true).Render("t  ")+stDim(m.theme, "  Stop-Zeit wählen"))
 		rows = append(rows, "  "+confirmButton(m.theme, "Enter / n  weiterlaufen lassen", true))
 	}
@@ -3623,9 +4121,21 @@ func (m Model) renderDialog() string {
 }
 
 // renderForm renders the active multi-field form (entry/edit).
+//
+// Layout per field:
+//
+//	SectionHeader (label)
+//	value or live input
+//	parsePreview / inline errMsg (focused field only)
+//	thin separator (between fields)
+//
+// errMsg appears under the focused field whose validation failed instead of
+// at the end of the form — that way the eye doesn't have to jump down past
+// the duration line to find the problem, and the layout above stays stable.
 func (m Model) renderForm(inner int) []string {
 	var rows []string
 	labels := m.formLabels()
+	sep := stDim(m.theme, "  "+strings.Repeat("─", maxInt(8, inner-4)))
 	for i, ti := range m.formInputs {
 		focused := i == m.formCur
 		rows = append(rows, picker.SectionHeader(labels[i], inner, m.theme))
@@ -3640,19 +4150,97 @@ func (m Model) renderForm(inner int) []string {
 			line = "    " + val
 		}
 		rows = append(rows, line)
-		if focused {
+		switch {
+		case focused && m.errMsg != "":
+			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
+		case focused:
 			rows = append(rows, m.parsePreview(ti.Value()))
-		} else {
+		default:
 			rows = append(rows, "")
+		}
+		// Thin separator between fields (skipped after the last one).
+		if i < len(m.formInputs)-1 {
+			rows = append(rows, sep)
 		}
 	}
 	if line := m.renderFormDurationLine(); line != "" {
+		rows = append(rows, "", line)
+	}
+	if line := m.renderEditDiffLine(); line != "" {
 		rows = append(rows, line)
 	}
-	if m.errMsg != "" {
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
-	}
 	return rows
+}
+
+// renderEditDiffLine builds a "Δ Start 09:00 → 09:30  ·  Tag deep → focus"
+// line for dialogEditForm, listing only the fields that differ from the
+// session being edited. Returns "" outside edit mode or when nothing changed.
+// Helps the user verify a non-trivial edit before pressing Enter.
+func (m Model) renderEditDiffLine() string {
+	if m.dialog != dialogEditForm || len(m.formInputs) < 2 {
+		return ""
+	}
+	var orig wt.Session
+	switch {
+	case sameDay(m.editDate, m.now) && m.editIdx >= 0 && m.editIdx < len(m.day.Sessions):
+		orig = m.day.Sessions[m.editIdx]
+	case sameDay(m.editDate, m.drillDate) && m.editIdx >= 0 && m.editIdx < len(m.drillSessions):
+		orig = m.drillSessions[m.editIdx]
+	default:
+		return ""
+	}
+	values := m.formValues()
+	curStart := values[0]
+	curStop := values[1]
+	curTag := ""
+	curNote := ""
+	if len(values) >= 3 {
+		curTag = values[2]
+	}
+	if len(values) >= 4 {
+		curNote = values[3]
+	}
+	var diffs []string
+	yellow := lipgloss.NewStyle().Foreground(m.theme.Yellow)
+	if origStart := orig.Start.Format("15:04"); curStart != "" && curStart != origStart {
+		diffs = append(diffs, yellow.Render("Start "+origStart+" → "+curStart))
+	}
+	if origStop := orig.Stop.Format("15:04"); curStop != "" && curStop != origStop {
+		diffs = append(diffs, yellow.Render("Stop "+origStop+" → "+curStop))
+	}
+	if curTag != orig.Tag {
+		from := orig.Tag
+		if from == "" {
+			from = "—"
+		}
+		to := curTag
+		if to == "" {
+			to = "—"
+		}
+		diffs = append(diffs, yellow.Render("Tag "+from+" → "+to))
+	}
+	if curNote != orig.Note {
+		from := orig.Note
+		if from == "" {
+			from = "—"
+		}
+		to := curNote
+		if to == "" {
+			to = "—"
+		}
+		diffs = append(diffs, yellow.Render("Notiz "+from+" → "+to))
+	}
+	if len(diffs) == 0 {
+		return ""
+	}
+	return stDim(m.theme, "    Δ ") + strings.Join(diffs, stDim(m.theme, "  ·  "))
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // renderFormDurationLine computes "Dauer: Xh Ym  ·  Tagestotal danach: A/B"
@@ -3767,9 +4355,13 @@ func (m Model) renderFormDurationLine() string {
 
 // renderDayOffAddForm renders the dayoff-add form: date, label, kind picker.
 // Kind is a virtual third "field" rendered as horizontal radio buttons.
+// Inline errMsg appears under the focused field; thin separators visually
+// group fields on narrow panes.
 func (m Model) renderDayOffAddForm(inner int) []string {
 	var rows []string
 	labels := []string{"datum (YYYY-MM-DD oder YYYY-MM-DD..YYYY-MM-DD)", "label (z.B. Brückentag)"}
+	sep := stDim(m.theme, "  "+strings.Repeat("─", maxInt(8, inner-4)))
+	totalFields := len(m.formInputs) + 1 // +1 for the virtual kind picker
 	for i, ti := range m.formInputs {
 		focused := i == m.formCur
 		rows = append(rows, picker.SectionHeader(labels[i], inner, m.theme))
@@ -3784,17 +4376,24 @@ func (m Model) renderDayOffAddForm(inner int) []string {
 			line = "    " + val
 		}
 		rows = append(rows, line)
-		rows = append(rows, "")
+		if focused && m.errMsg != "" {
+			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
+		} else {
+			rows = append(rows, "")
+		}
+		if i < totalFields-1 {
+			rows = append(rows, sep)
+		}
 	}
-	// Kind picker as a virtual third field.
-	focused := m.formCur == len(m.formInputs)
+	// Kind picker as a virtual trailing field.
+	kindFocused := m.formCur == len(m.formInputs)
 	rows = append(rows, picker.SectionHeader("kategorie  (h/l zum Wechseln)", inner, m.theme))
 	chips := make([]string, 0, len(wt.AllKinds))
 	for i, k := range wt.AllKinds {
 		label := k.LabelDe()
 		st := lipgloss.NewStyle().Foreground(m.theme.Dim)
 		if i == m.dayoffKindCur {
-			if focused {
+			if kindFocused {
 				st = lipgloss.NewStyle().Foreground(m.theme.Bg).Background(m.theme.Accent).Bold(true)
 			} else {
 				st = lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true)
@@ -3803,6 +4402,9 @@ func (m Model) renderDayOffAddForm(inner int) []string {
 		chips = append(chips, st.Render(" "+label+" "))
 	}
 	rows = append(rows, "  "+strings.Join(chips, "  "))
+	if kindFocused && m.errMsg != "" {
+		rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Red).Render("    "+m.errMsg))
+	}
 	return rows
 }
 
@@ -3998,9 +4600,19 @@ func (m Model) renderHelpBody(inner int) []string {
 	rows = append(rows, "  enter       tag drill-down (heute → Heute-Tab)")
 	rows = append(rows, "  h / l       woche zurück / vor (woche-tab)")
 	rows = append(rows, "  T           sprung zu aktueller Woche / kein Filter")
-	rows = append(rows, "  v           cyclet history-mode: list → heatmap → tagclock")
-	rows = append(rows, "  / + tag:    filter (history)")
+	rows = append(rows, "  v           cyclet history-mode: list → heatmap → tagclock → month")
+	rows = append(rows, "  /           filter öffnen (history)")
+	rows = append(rows, "  F           tag-quickpicker (history) — top tags als chips")
 	rows = append(rows, "  [ / ]       paginate KW/Monat im Filter (history)")
+	rows = append(rows, "")
+	rows = append(rows, picker.SectionHeader("history-filter syntax", inner, m.theme))
+	rows = append(rows, "  KW18                       ISO-Woche (aktuelles Jahr)")
+	rows = append(rows, "  2026                       ganzes Jahr")
+	rows = append(rows, "  2026-04                    ein Monat")
+	rows = append(rows, "  2026-04-01..2026-04-30     beliebiger Bereich")
+	rows = append(rows, "  tag:deep                   nur Sessions mit Tag »deep«")
+	rows = append(rows, "  note:standup               Notiz-Substring-Suche")
+	rows = append(rows, "  f                          Tag-Quick-Picker (Multi-Select)")
 	rows = append(rows, "  y / Y       yank tag / range als Markdown")
 	rows = append(rows, "  h/j/k/l     heatmap-cursor (history-heatmap)")
 	rows = append(rows, "")
@@ -4048,7 +4660,7 @@ func (m Model) renderNotePickerBody(inner int) []string {
 
 	filtered := m.filteredPicker()
 	if len(filtered) == 0 {
-		rows = append(rows, stDim(m.theme, "  keine Treffer"))
+		rows = append(rows, stDim(m.theme, "  Keine Treffer."))
 		return rows
 	}
 
@@ -4249,10 +4861,18 @@ func pauseCmd() tea.Cmd {
 	}
 }
 
-func resumeCmd() tea.Cmd {
+// resumeCmd resumes a paused session. `pausedAt` is the wall-clock time the
+// user paused at (or zero when unknown) — included in the toast so the user
+// sees how long the break lasted at a glance.
+func resumeCmd(pausedAt time.Time) tea.Cmd {
 	return func() tea.Msg {
 		if err := wt.Resume(); err != nil {
 			return actionDoneMsg{err: err}
+		}
+		if !pausedAt.IsZero() {
+			gap := time.Since(pausedAt)
+			return actionDoneMsg{toast: fmt.Sprintf("▶ Resume nach %s Pause (seit %s)",
+				formatDur(gap), pausedAt.Format("15:04"))}
 		}
 		return actionDoneMsg{toast: "▶ Worktime fortgesetzt"}
 	}
