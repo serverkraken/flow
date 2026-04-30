@@ -525,6 +525,41 @@ var wtDayOffRemoveCmd = &cobra.Command{
 	},
 }
 
+var (
+	wtDayOffExportYear   int
+	wtDayOffExportFormat string
+)
+
+var wtDayOffExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Frei-Einträge exportieren (--format ics|tsv, default ics)",
+	Long: `Exportiert Frei-Einträge in stdout.
+  --format ics  RFC 5545 .ics Kalenderdatei (Default)
+  --format tsv  rohes TSV (Date<TAB>Kind<TAB>Label)
+  --year        Default: aktuelles Jahr`,
+	SilenceUsage: true,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		year := wtDayOffExportYear
+		if year == 0 {
+			year = time.Now().Year()
+		}
+		from := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
+		to := time.Date(year, time.December, 31, 0, 0, 0, 0, time.Local)
+		switch wtDayOffExportFormat {
+		case "tsv":
+			for _, d := range worktime.ListDayOffs(from, to) {
+				fmt.Printf("%s\t%s\t%s\n",
+					d.Date.Format("2006-01-02"), d.Kind, d.Label)
+			}
+			return nil
+		case "ics", "":
+			return worktime.ExportICS(os.Stdout, from, to)
+		default:
+			return fmt.Errorf("unbekanntes Format: %s (ics|tsv)", wtDayOffExportFormat)
+		}
+	},
+}
+
 var wtDayOffListYear int
 
 var wtDayOffListCmd = &cobra.Command{
@@ -587,7 +622,9 @@ func init() {
 	wtDayOffListCmd.Flags().IntVar(&wtDayOffListYear, "year", 0, "Jahr (default: aktuelles)")
 	wtDayOffSyncCmd.Flags().StringVar(&wtDayOffSyncLand, "land", "NW", "Bundesland (NW, BY, BW, …)")
 	wtDayOffSyncCmd.Flags().IntVar(&wtDayOffSyncYear, "year", 0, "Jahr (default: aktuelles)")
-	wtDayOffCmd.AddCommand(wtDayOffAddCmd, wtDayOffRemoveCmd, wtDayOffListCmd, wtDayOffSyncCmd)
+	wtDayOffExportCmd.Flags().IntVar(&wtDayOffExportYear, "year", 0, "Jahr (default: aktuelles)")
+	wtDayOffExportCmd.Flags().StringVar(&wtDayOffExportFormat, "format", "ics", "Ausgabeformat: ics|tsv")
+	wtDayOffCmd.AddCommand(wtDayOffAddCmd, wtDayOffRemoveCmd, wtDayOffListCmd, wtDayOffSyncCmd, wtDayOffExportCmd)
 }
 
 func loadDayRecordsInRange(r worktime.Range) ([]worktime.DayRecord, error) {

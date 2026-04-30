@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -126,12 +127,15 @@ type undoEntry struct {
 }
 type clearErrMsg struct{}
 
-// historyMode toggles between the listed history and the heatmap view.
+// historyMode toggles between the three history sub-views: list (default),
+// the day-percent heatmap, and the time-of-day clock that visualises *when*
+// during the week sessions happen.
 type historyMode int
 
 const (
-	historyList    historyMode = 0
-	historyHeatmap historyMode = 1
+	historyList     historyMode = 0
+	historyHeatmap  historyMode = 1
+	historyTagClock historyMode = 2
 )
 
 // Model is the bubbletea model for the worktime screen.
@@ -863,7 +867,8 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 	}
 	switch key {
 	case "v":
-		if m.histMode == historyList {
+		switch m.histMode {
+		case historyList:
 			m.histMode = historyHeatmap
 			// Anchor cursor at the date the user had focused in the list,
 			// not always today — that way "find day in list, then v" lands
@@ -874,7 +879,9 @@ func (m Model) handleHistoryKey(key string, _ tea.KeyMsg) (tea.Model, tea.Cmd, b
 			} else {
 				m.heatCol, m.heatRow = m.heatmapTodayCell()
 			}
-		} else {
+		case historyHeatmap:
+			m.histMode = historyTagClock
+		default:
 			m.histMode = historyList
 		}
 		if m.width > 0 {
@@ -2199,6 +2206,12 @@ func (m Model) renderTodayBody(inner int) []string {
 		secondary = append(secondary, stDim(m.theme,
 			fmt.Sprintf("Pause %s  (max %s)", formatDur(pauseTotal), formatDur(longestPause))))
 	}
+	// Pomodoro strip: only meaningful while a session is running. Shows
+	// completed cycles + the in-progress one + remaining cycles to hit the
+	// daily target. Adds an "Zeit für Pause" hint at cycle completion.
+	if pom := m.renderPomodoroStrip(now); pom != "" {
+		secondary = append(secondary, pom)
+	}
 	// Typical stop time: median of last 14 workdays' end-of-day, projected onto
 	// today. Complements the linear ETA (below) — linear assumes no pauses,
 	// typical assumes "you'll do what you usually do". When they disagree the
@@ -2711,9 +2724,14 @@ func (m Model) renderHistory() string {
 		title += "  ·  filter: " + m.histQuery
 	}
 	box := titlebox.Render(title, content, m.width, m.theme)
-	mode := "list"
-	if m.histMode == historyHeatmap {
+	var mode string
+	switch m.histMode {
+	case historyHeatmap:
 		mode = "heatmap"
+	case historyTagClock:
+		mode = "tagclock"
+	default:
+		mode = "list"
 	}
 	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
 		"j/k auswahl  ·  enter drill  ·  v "+mode+"  ·  / filter  ·  [/] kw±  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen")
@@ -2955,8 +2973,11 @@ func (m Model) renderHistoryContent() string {
 	if len(records) == 0 {
 		return stDim(m.theme, "  keine Treffer")
 	}
-	if m.histMode == historyHeatmap {
+	switch m.histMode {
+	case historyHeatmap:
 		return m.renderHistoryHeatmap(records)
+	case historyTagClock:
+		return m.renderHistoryTagClock(records)
 	}
 	return m.renderHistoryList(records)
 }
@@ -3143,6 +3164,98 @@ func (m Model) renderHistoryHeatmap(records []wt.DayRecord) string {
 func isWeekendDate(t time.Time) bool {
 	wd := t.Weekday()
 	return wd == time.Saturday || wd == time.Sunday
+}
+
+// renderHistoryTagClock renders a 7×24h grid (rows = Mo..So, cols = 0..23)
+// where each cell's intensity reflects how often work happened in that
+// (weekday, hour) slot across the filtered records. Answers "wann arbeite
+// ich?" — combine with a tag:NAME filter to see "wann mache ich deep work?".
+func (m Model) renderHistoryTagClock(records []wt.DayRecord) string {
+	if len(records) == 0 {
+		return stDim(m.theme, "  keine Daten")
+	}
+	var grid [7][24]time.Duration
+	for _, rec := range records {
+		for _, s := range rec.Sessions {
+			t := s.Start
+			for t.Before(s.Stop) {
+				wd := int(t.Weekday()) - 1
+				if wd < 0 {
+					wd = 6 // Sunday
+				}
+				hour := t.Hour()
+				next := time.Date(t.Year(), t.Month(), t.Day(),
+					hour+1, 0, 0, 0, t.Location())
+				if next.After(s.Stop) {
+					next = s.Stop
+				}
+				grid[wd][hour] += next.Sub(t)
+				t = next
+			}
+		}
+	}
+	var maxCell time.Duration
+	for r := 0; r < 7; r++ {
+		for c := 0; c < 24; c++ {
+			if grid[r][c] > maxCell {
+				maxCell = grid[r][c]
+			}
+		}
+	}
+	if maxCell == 0 {
+		return stDim(m.theme, "  keine Sessions im Filter")
+	}
+
+	dayLabels := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
+	var lines []string
+	// Header: hour numbers 0..23, two chars wide, dim.
+	hdr := "      "
+	for h := 0; h < 24; h++ {
+		col := m.theme.Dim
+		// Slight emphasis on the on-the-hour markers that bracket typical
+		// workday windows.
+		if h == 9 || h == 12 || h == 17 {
+			col = m.theme.Border
+		}
+		hdr += lipgloss.NewStyle().Foreground(col).Render(fmt.Sprintf("%02d", h))
+	}
+	lines = append(lines, hdr)
+
+	for r := 0; r < 7; r++ {
+		row := "  " + lipgloss.NewStyle().Foreground(m.theme.Fg).Width(3).Render(dayLabels[r]) + " "
+		for c := 0; c < 24; c++ {
+			frac := float64(grid[r][c]) / float64(maxCell)
+			cell := "  "
+			color := m.theme.Border
+			switch {
+			case grid[r][c] == 0:
+				cell = "··"
+				color = m.theme.Border
+			case frac >= 0.75:
+				cell = "██"
+				color = m.theme.Green
+			case frac >= 0.5:
+				cell = "▓▓"
+				color = m.theme.Green
+			case frac >= 0.25:
+				cell = "▒▒"
+				color = m.theme.Yellow
+			case frac > 0:
+				cell = "░░"
+				color = m.theme.Yellow
+			}
+			row += lipgloss.NewStyle().Foreground(color).Render(cell)
+		}
+		lines = append(lines, row)
+	}
+	lines = append(lines, "")
+	legend := stDim(m.theme, "   ·· keine  ░░ <25%  ▒▒ <50%  ▓▓ <75%  ██ ≥75%   ·   v: weiter zu list")
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m.histQuery)), "tag:") {
+		legend = stDim(m.theme, "   filter aktiv: ") + lipgloss.NewStyle().Foreground(m.theme.Cyan).Render(m.histQuery) +
+			stDim(m.theme, "  ·  ·· keine  ░░░▒▒▓▓██ Intensität")
+	}
+	lines = append(lines, legend)
+	return strings.Join(lines, "\n")
 }
 
 // — dayoffs view —
@@ -3772,7 +3885,7 @@ func (m Model) renderHelpBody(inner int) []string {
 	rows = append(rows, "  enter       tag drill-down (heute → Heute-Tab)")
 	rows = append(rows, "  h / l       woche zurück / vor (woche-tab)")
 	rows = append(rows, "  T           sprung zu aktueller Woche / kein Filter")
-	rows = append(rows, "  v           heatmap-toggle (history; cursor erbt Datum)")
+	rows = append(rows, "  v           cyclet history-mode: list → heatmap → tagclock")
 	rows = append(rows, "  / + tag:    filter (history)")
 	rows = append(rows, "  [ / ]       paginate KW/Monat im Filter (history)")
 	rows = append(rows, "  y / Y       yank tag / range als Markdown")
@@ -3785,6 +3898,8 @@ func (m Model) renderHelpBody(inner int) []string {
 	rows = append(rows, "  d / x       eintrag löschen")
 	rows = append(rows, "  h / l       jahr zurück / vor")
 	rows = append(rows, "  T           sprung zu aktuellem jahr")
+	rows = append(rows, "")
+	rows = append(rows, stDim(m.theme, "  CLI: flow worktime dayoff export --format ics > kalender.ics"))
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader("eingabe / dialoge", inner, m.theme))
 	rows = append(rows, "  +1h30m      stop-feld: dauer ab start (statt absolute Zeit)")
@@ -4574,6 +4689,83 @@ func confirmButton(p tk.Palette, label string, isDefault bool) string {
 	}
 	return lipgloss.NewStyle().Foreground(p.Fg).
 		Render(" " + label + " ")
+}
+
+// pomodoroMinutes returns the configured cycle length in minutes for the
+// pomodoro strip. Configurable via WORKTIME_POMODORO_MIN, default 25.
+func pomodoroMinutes() int {
+	if v := os.Getenv("WORKTIME_POMODORO_MIN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 25
+}
+
+// renderPomodoroStrip returns "●●●◐○○  3/6 Pomodori" describing the user's
+// progress through cycles of the running session. Returns "" when nothing
+// is currently running — Pomodoros only make sense for active focus time.
+//
+// Layout choices:
+//   - ● = completed cycle (green)
+//   - ◐ = current cycle (cyan/yellow/red by progress within cycle)
+//   - ○ = pending cycle (dim)
+//   - When the current cycle is overdue (>=99%), a "Zeit für Pause" tail
+//     hint nudges without forcing an action.
+func (m Model) renderPomodoroStrip(now time.Time) string {
+	if !m.day.IsRunning() || m.day.Active == nil {
+		return ""
+	}
+	cycleLen := time.Duration(pomodoroMinutes()) * time.Minute
+	if cycleLen <= 0 {
+		return ""
+	}
+	elapsed := now.Sub(*m.day.Active)
+	if elapsed <= 0 {
+		return ""
+	}
+	completed := int(elapsed / cycleLen)
+	progress := float64(elapsed%cycleLen) / float64(cycleLen)
+
+	// Cap the visible cycles: enough to show the trajectory without flooding
+	// the line. Use the day's target as the soft upper bound.
+	target := m.day.Target
+	totalCycles := completed + 1
+	if target > 0 {
+		needed := int(target / cycleLen)
+		if needed > totalCycles {
+			totalCycles = needed
+		}
+	}
+	if totalCycles > 12 {
+		totalCycles = 12
+	}
+
+	var b strings.Builder
+	for i := 0; i < totalCycles; i++ {
+		switch {
+		case i < completed:
+			b.WriteString(lipgloss.NewStyle().Foreground(m.theme.Green).Render("●"))
+		case i == completed:
+			color := m.theme.Cyan
+			glyph := "◐"
+			switch {
+			case progress >= 0.99:
+				color = m.theme.Red
+				glyph = "◉"
+			case progress >= 0.5:
+				color = m.theme.Yellow
+			}
+			b.WriteString(lipgloss.NewStyle().Foreground(color).Render(glyph))
+		default:
+			b.WriteString(lipgloss.NewStyle().Foreground(m.theme.Border).Render("○"))
+		}
+	}
+	tail := fmt.Sprintf("  %d/%d Pomodori", completed, totalCycles)
+	if progress >= 0.99 {
+		tail += "  ·  Zeit für Pause"
+	}
+	return b.String() + stDim(m.theme, tail)
 }
 
 // typicalStopTime computes the median end-of-day across the last 14 workdays
