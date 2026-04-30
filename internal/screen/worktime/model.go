@@ -109,7 +109,16 @@ type templatesLoadedMsg struct {
 	err       error
 }
 
-type actionDoneMsg struct{ err error }
+// actionDoneMsg signals a backend mutation has completed. `toast`, when
+// non-empty, is shown in the bottom toast slot for ~3s — gives the user
+// confirmation that something happened (the changed list is otherwise the
+// only feedback). Set by the caller; empty toast = no toast.
+type actionDoneMsg struct {
+	err   error
+	toast string
+}
+
+type clearToastMsg struct{}
 
 type undoEntry struct {
 	date    time.Time
@@ -216,6 +225,10 @@ type Model struct {
 	// errMsg is shown as an inline error line under the active dialog input,
 	// instead of replacing the input's placeholder.
 	errMsg string
+
+	// toast is a transient success message rendered above the footer. Cleared
+	// after ~3s by clearToastMsg or when a new action runs.
+	toast string
 
 	theme  tk.Palette
 	width  int
@@ -370,12 +383,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.day = msg.day
 			m.notes = msg.notes
+			var streakToast tea.Cmd
 			// Best-streak celebration: only fire when the value strictly
 			// increases AND we've already observed at least one prior value
 			// (not the initial load — that would always celebrate on first
-			// run). Records the trigger; the secondary line renders it once.
+			// run). Sets a toast that survives until the next clear timer.
 			if m.lastBestStreakSeen > 0 && msg.stats.BestStreak > m.lastBestStreakSeen {
 				m.celebrateBestStreak = msg.stats.BestStreak
+				m.toast = fmt.Sprintf("✦ Neuer Best-Streak %d Tage!", msg.stats.BestStreak)
+				streakToast = tea.Tick(5*time.Second, func(time.Time) tea.Msg { return clearToastMsg{} })
 			}
 			m.lastBestStreakSeen = msg.stats.BestStreak
 			m.stats = msg.stats
@@ -386,6 +402,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.history = msg.history
 			}
 			m.clampCursor()
+			return m, streakToast
 		}
 		return m, nil
 
@@ -440,6 +457,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.SetValue("")
 		m.clearForm()
 		m.err = msg.err
+		// Success toast: only when no error. Replaces any prior toast.
+		if msg.err == nil && msg.toast != "" {
+			m.toast = msg.toast
+		}
 		m.weekLoaded = false
 		m.historyLoaded = false
 		// Day-offs may have been added/removed as part of this action — even
@@ -461,7 +482,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			cmds = append(cmds, tea.Tick(3*time.Second, func(time.Time) tea.Msg { return clearErrMsg{} }))
 		}
+		if m.toast != "" {
+			cmds = append(cmds, tea.Tick(3*time.Second, func(time.Time) tea.Msg { return clearToastMsg{} }))
+		}
 		return m, tea.Batch(cmds...)
+
+	case clearToastMsg:
+		m.toast = ""
+		return m, nil
 
 	case dayDetailLoadedMsg:
 		if msg.err == nil {
@@ -2049,7 +2077,7 @@ func (m Model) renderToday() string {
 	)
 	box := titlebox.Render(title, body, m.width, m.theme)
 
-	return box + "\n" + stFooter(m.theme, m.todayFooter())
+	return box + m.renderToastRow() + "\n" + stFooter(m.theme, m.todayFooter())
 }
 
 func (m Model) todayFooter() string {
@@ -2137,14 +2165,7 @@ func (m Model) renderTodayBody(inner int) []string {
 	// from the primary so the headline stays scannable; this row is for
 	// follow-up reading.
 	var secondary []string
-	switch {
-	case m.celebrateBestStreak > 0:
-		// Replace the plain Streak chip with a celebration glyph until the
-		// toast system in Batch 4 takes over. The flag is sticky until the
-		// user navigates or another load arrives.
-		secondary = append(secondary, lipgloss.NewStyle().Foreground(m.theme.Green).Bold(true).
-			Render(fmt.Sprintf("✦ neuer Best-Streak %d", m.celebrateBestStreak)))
-	case m.stats.Streak >= 2:
+	if m.stats.Streak >= 2 {
 		secondary = append(secondary, stDim(m.theme, fmt.Sprintf("Streak %d", m.stats.Streak)))
 	}
 	if avg := m.recentWorkdayAvg(); avg > 0 {
@@ -2443,7 +2464,7 @@ func (m Model) renderWeek() string {
 	if m.day.IsRunning() {
 		sLabel = "s stoppen"
 	}
-	return box + "\n" + stFooter(m.theme,
+	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
 		sLabel+"  ·  enter drill  ·  h/l vorw./zurück  ·  e eintrag  ·  tab history  ·  ? hilfe  ·  b zurück  ·  q schließen")
 }
 
@@ -2694,7 +2715,7 @@ func (m Model) renderHistory() string {
 	if m.histMode == historyHeatmap {
 		mode = "heatmap"
 	}
-	return box + "\n" + stFooter(m.theme,
+	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
 		"j/k auswahl  ·  enter drill  ·  v "+mode+"  ·  / filter  ·  [/] kw±  ·  T alle  ·  y/Y kopieren  ·  g/G top/bot  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen")
 }
 
@@ -3150,7 +3171,7 @@ func (m Model) renderDayOffs() string {
 	}
 	title := fmt.Sprintf("Worktime · Frei %d%s", year, suffix)
 	box := titlebox.Render(title, body, m.width, m.theme)
-	return box + "\n" + stFooter(m.theme,
+	return box + m.renderToastRow() + "\n" + stFooter(m.theme,
 		"a anlegen  ·  A heute=Urlaub  ·  K heute=krank  ·  B Feiertage-sync  ·  d/x löschen  ·  h/l/[/] Jahr ±  ·  T aktuell  ·  j/k auswahl  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen")
 }
 
@@ -3372,7 +3393,7 @@ func (m Model) renderDialog() string {
 
 	rows = append(rows, "")
 	box := titlebox.Render(title, strings.Join(rows, "\n"), m.width, m.theme)
-	return box + "\n" + stFooter(m.theme, hint)
+	return box + m.renderToastRow() + "\n" + stFooter(m.theme, hint)
 }
 
 // renderForm renders the active multi-field form (entry/edit).
@@ -3768,6 +3789,7 @@ func (m Model) renderHelpBody(inner int) []string {
 	rows = append(rows, picker.SectionHeader("eingabe / dialoge", inner, m.theme))
 	rows = append(rows, "  +1h30m      stop-feld: dauer ab start (statt absolute Zeit)")
 	rows = append(rows, "  Tab/⇧Tab    tag-form: letzte / top-by-usage")
+	rows = append(rows, "  Ctrl+T      entry-form: vorlage cyclen")
 	rows = append(rows, "  y/z/j       confirm (QWERTZ-friendly)")
 	rows = append(rows, "  esc/q       help schließen")
 	rows = append(rows, "")
@@ -3883,13 +3905,19 @@ func viewNoteCmd(id string) tea.Cmd {
 
 func detachNoteCmd(date time.Time, id string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: wt.RemoveLink(date, id)}
+		if err := wt.RemoveLink(date, id); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Notiz losgelöst"}
 	}
 }
 
 func attachNoteCmd(date time.Time, id string) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: wt.AddLink(date, id)}
+		if err := wt.AddLink(date, id); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Notiz angehängt"}
 	}
 }
 
@@ -3944,15 +3972,36 @@ func loadDayDetailCmd(date time.Time) tea.Cmd {
 }
 
 func setTagCmd(date time.Time, idx int, tag string) tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.SetTag(date, idx, tag)} }
+	return func() tea.Msg {
+		if err := wt.SetTag(date, idx, tag); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		if tag == "" {
+			return actionDoneMsg{toast: fmt.Sprintf("✓ Tag entfernt (Session %d)", idx+1)}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ Tag »%s« gesetzt (Session %d)", tag, idx+1)}
+	}
 }
 
 func setNoteCmd(date time.Time, idx int, note string) tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.SetNote(date, idx, note)} }
+	return func() tea.Msg {
+		if err := wt.SetNote(date, idx, note); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		if note == "" {
+			return actionDoneMsg{toast: fmt.Sprintf("✓ Notiz entfernt (Session %d)", idx+1)}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ Notiz gespeichert (Session %d)", idx+1)}
+	}
 }
 
 func startCmd(ts time.Time) tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.Start(ts)} }
+	return func() tea.Msg {
+		if err := wt.Start(ts); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "▶ Worktime gestartet — " + ts.Format("15:04")}
+	}
 }
 
 // startForceCmd is used after the user confirms an "trotzdem starten" prompt
@@ -3964,13 +4013,21 @@ func startForceCmd(ts time.Time) tea.Cmd {
 
 func pauseCmd() tea.Cmd {
 	return func() tea.Msg {
-		_, err := wt.Pause()
-		return actionDoneMsg{err: err}
+		s, err := wt.Pause()
+		if err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("⏸ Pausiert nach %s", formatDur(s.Elapsed))}
 	}
 }
 
 func resumeCmd() tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.Resume()} }
+	return func() tea.Msg {
+		if err := wt.Resume(); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "▶ Worktime fortgesetzt"}
+	}
 }
 
 // yankDayMarkdownCmd writes a Markdown summary of the given date's sessions
@@ -4007,7 +4064,10 @@ func yankDayMarkdownCmd(d time.Time) tea.Cmd {
 				s.Start.Format("15:04"), s.Stop.Format("15:04"),
 				formatDur(s.Elapsed), tagBit, noteBit))
 		}
-		return actionDoneMsg{err: copyToClipboard(b.String())}
+		if err := copyToClipboard(b.String()); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Tag in Clipboard"}
 	}
 }
 
@@ -4040,7 +4100,10 @@ func yankBriefMarkdownCmd(filter string, ref time.Time) tea.Cmd {
 		if err := wt.WriteMarkdownBrief(&b, anchor, scope); err != nil {
 			return actionDoneMsg{err: err}
 		}
-		return actionDoneMsg{err: copyToClipboard(b.String())}
+		if err := copyToClipboard(b.String()); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Range in Clipboard"}
 	}
 }
 
@@ -4087,22 +4150,39 @@ func copyToClipboard(s string) error {
 
 func stopAtCmd(ts time.Time) tea.Cmd {
 	return func() tea.Msg {
-		_, err := wt.StopAt(ts)
-		return actionDoneMsg{err: err}
+		s, err := wt.StopAt(ts)
+		if err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("■ Gestoppt — Session %s (%s)",
+			formatDur(s.Elapsed), ts.Format("15:04"))}
 	}
 }
 
 func correctCmd(ts time.Time) tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.CorrectStart(ts)} }
+	return func() tea.Msg {
+		if err := wt.CorrectStart(ts); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Startzeit korrigiert auf " + ts.Format("15:04")}
+	}
 }
 
 func deleteCmd(date time.Time, idx int) tea.Cmd {
-	return func() tea.Msg { return actionDoneMsg{err: wt.DeleteSession(date, idx)} }
+	return func() tea.Msg {
+		if err := wt.DeleteSession(date, idx); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ Session %d gelöscht  ·  u Undo", idx+1)}
+	}
 }
 
 func undoDeleteCmd(date time.Time, s wt.Session) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: wt.AddManual(date, s.Start, s.Stop)}
+		if err := wt.AddManual(date, s.Start, s.Stop); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Löschung rückgängig"}
 	}
 }
 
@@ -4149,7 +4229,7 @@ func editFullCmd(date time.Time, idx int, startStr, stopStr, tag, note string) t
 		if err := wt.SetNote(date, idx, note); err != nil {
 			return actionDoneMsg{err: err}
 		}
-		return actionDoneMsg{}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ Session %d aktualisiert", idx+1)}
 	}
 }
 
@@ -4184,7 +4264,11 @@ func addManualCmd(dateStr, startStr, stopStr string) tea.Cmd {
 			}
 			stopTime = base.Add(stopD)
 		}
-		return actionDoneMsg{err: wt.AddManual(date, startTime, stopTime)}
+		if err := wt.AddManual(date, startTime, stopTime); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ Eintrag %s → %s erfasst",
+			startTime.Format("15:04"), stopTime.Format("15:04"))}
 	}
 }
 
@@ -4244,22 +4328,29 @@ func addDayOffCmd(dateExpr string, kind wt.Kind, label string, currentYear int) 
 			return actionDoneMsg{err: err}
 		}
 		if isRange {
-			if _, err := wt.AddDayOffRange(from, to, kind, label); err != nil {
+			n, err := wt.AddDayOffRange(from, to, kind, label)
+			if err != nil {
 				return actionDoneMsg{err: err}
 			}
-		} else {
-			if err := wt.AddDayOff(from, kind, label); err != nil {
-				return actionDoneMsg{err: err}
-			}
+			_ = currentYear
+			return actionDoneMsg{toast: fmt.Sprintf("✓ %d Tag(e) als %s eingetragen",
+				n, kind.LabelDe())}
+		}
+		if err := wt.AddDayOff(from, kind, label); err != nil {
+			return actionDoneMsg{err: err}
 		}
 		_ = currentYear
-		return actionDoneMsg{}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ %s eingetragen für %s",
+			kind.LabelDe(), from.Format("2006-01-02"))}
 	}
 }
 
 func removeDayOffCmd(date time.Time, _ int) tea.Cmd {
 	return func() tea.Msg {
-		return actionDoneMsg{err: wt.RemoveDayOff(date)}
+		if err := wt.RemoveDayOff(date); err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: "✓ Eintrag entfernt für " + date.Format("2006-01-02")}
 	}
 }
 
@@ -4267,8 +4358,11 @@ func removeDayOffCmd(date time.Time, _ int) tea.Cmd {
 // Feiertage for the given year and Bundesland. Idempotent.
 func syncGermanHolidaysCmd(year int, land string) tea.Cmd {
 	return func() tea.Msg {
-		_, _, err := wt.SyncGermanHolidays(year, land)
-		return actionDoneMsg{err: err}
+		added, _, err := wt.SyncGermanHolidays(year, land)
+		if err != nil {
+			return actionDoneMsg{err: err}
+		}
+		return actionDoneMsg{toast: fmt.Sprintf("✓ %d Feiertag(e) für %s/%d", added, land, year)}
 	}
 }
 
@@ -4452,6 +4546,22 @@ func stErr(p tk.Palette, s string) string {
 
 func stFooter(p tk.Palette, s string) string {
 	return lipgloss.NewStyle().Foreground(p.Dim).Padding(0, 1).Render(s)
+}
+
+// renderToastRow returns the toast line prefixed with a leading newline so
+// it slots neatly between the titlebox and the footer. Empty string when
+// no toast is set — the surrounding render code stays unchanged.
+func (m Model) renderToastRow() string {
+	if m.toast == "" {
+		return ""
+	}
+	col := m.theme.Green
+	// Heuristic: if the toast starts with "Neuer Best-Streak" or similar
+	// celebration glyph, use the accent colour to make it pop.
+	if strings.HasPrefix(m.toast, "✦") {
+		col = m.theme.Accent
+	}
+	return "\n" + lipgloss.NewStyle().Foreground(col).Padding(0, 1).Render(m.toast)
 }
 
 // confirmButton renders a chip-style label for a confirm-dialog option. The
