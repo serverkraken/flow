@@ -2026,31 +2026,67 @@ func (m Model) View() string {
 }
 
 func (m Model) renderTabBar() string {
-	tabs := []struct {
-		idx   string
-		label string
-		view  subView
-	}{
-		{"1", "Heute", viewToday},
-		{"2", "Woche", viewWeek},
-		{"3", "History", viewHistory},
-		{"4", "Frei", viewDayOffs},
+	type tab struct {
+		idx     string
+		label   string
+		shortL  string // single-letter fallback for very narrow panes
+		view    subView
+	}
+	tabs := []tab{
+		{"1", "Heute", "H", viewToday},
+		{"2", "Woche", "W", viewWeek},
+		{"3", "History", "Hi", viewHistory},
+		{"4", "Frei", "F", viewDayOffs},
 	}
 	active := lipgloss.NewStyle().Foreground(m.theme.Accent).Bold(true)
 	inactive := lipgloss.NewStyle().Foreground(m.theme.Dim)
 	idxActive := lipgloss.NewStyle().Foreground(m.theme.Accent)
 	idxInactive := lipgloss.NewStyle().Foreground(m.theme.Border)
-	sep := lipgloss.NewStyle().Foreground(m.theme.Border).Render(" │ ")
 
-	var parts []string
-	for _, t := range tabs {
-		if t.view == m.view {
-			parts = append(parts, idxActive.Render(t.idx+" ")+active.Render(t.label))
-		} else {
-			parts = append(parts, idxInactive.Render(t.idx+" ")+inactive.Render(t.label))
+	// Three-step degradation: full labels with " │ " separators, mid uses
+	// "·" separator, compact uses single-char labels with " " separator.
+	// `inner` = box content width; the bar must fit in there with its 2-space
+	// left indent.
+	inner := m.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
+	type form struct {
+		label string
+		sep   string
+	}
+	tries := []form{
+		{"full", " │ "},
+		{"full", " · "},
+		{"short", " · "},
+	}
+	render := func(labelMode, sep string) string {
+		sepR := lipgloss.NewStyle().Foreground(m.theme.Border).Render(sep)
+		var parts []string
+		for _, t := range tabs {
+			lbl := t.label
+			if labelMode == "short" {
+				lbl = t.shortL
+			}
+			activeStyle := active
+			idxStyle := idxActive
+			if t.view != m.view {
+				activeStyle = inactive
+				idxStyle = idxInactive
+			}
+			parts = append(parts, idxStyle.Render(t.idx+" ")+activeStyle.Render(lbl))
+		}
+		return "  " + strings.Join(parts, sepR)
+	}
+	for _, f := range tries {
+		out := render(f.label, f.sep)
+		if lipgloss.Width(out) <= inner {
+			return out
 		}
 	}
-	return "  " + strings.Join(parts, sep)
+	// Fall through: still too wide, return the compact form anyway — better
+	// than overflowing.
+	return render("short", " ")
 }
 
 // — today view —
@@ -2075,13 +2111,16 @@ func (m Model) renderToday() string {
 	if m.day.IsRunning() {
 		status = "läuft ▶"
 	}
-	title := fmt.Sprintf("Worktime · %s, %02d. %s · %s · %s",
-		germanWeekday(m.now.Weekday()),
-		m.now.Day(),
-		germanMonth(m.now.Month()),
+	// Title built as chips so boxTitle can drop the lower-priority pieces
+	// (clock, weekday) before the corner of the box gets pushed off-screen
+	// in narrow tmux panes — that overflow was rendering a "doubled" header.
+	title := boxTitle([]string{
+		"Worktime",
+		fmt.Sprintf("%s, %02d. %s",
+			germanWeekday(m.now.Weekday()), m.now.Day(), germanMonth(m.now.Month())),
 		m.now.Format("15:04:05"),
 		status,
-	)
+	}, m.width)
 	box := titlebox.Render(title, body, m.width, m.theme)
 
 	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme, m.todayFooter(), m.width)
@@ -2230,13 +2269,15 @@ func (m Model) renderTodayBody(inner int) []string {
 	if remaining < 0 {
 		remaining = 0
 	}
-	eta := ""
+	summaryChips := []string{
+		stDim(m.theme, "Ziel "+formatDur(target)),
+		stDim(m.theme, "noch "+formatDur(remaining)),
+	}
 	if m.day.Active != nil {
 		etaT := m.day.Active.Add(target - m.day.Logged)
-		eta = "  ·  ETA " + etaT.Format("15:04")
+		summaryChips = append(summaryChips, stDim(m.theme, "ETA "+etaT.Format("15:04")))
 	}
-	summary := stDim(m.theme, fmt.Sprintf("  Ziel %s  ·  noch %s%s",
-		formatDur(target), formatDur(remaining), eta))
+	summary := joinWrapped(summaryChips, "  ·  ", "  ", "  ", inner)
 
 	rows := []string{}
 	if dayOffBanner != "" {
@@ -2272,20 +2313,32 @@ func (m Model) renderTodayBody(inner int) []string {
 		// median start-of-day across the last 14 workdays. Falls back to a
 		// fixed 10:00 when there isn't enough history yet.
 		threshold := m.forgetfulnessThreshold(now)
+		var hintChips []string
 		switch {
 		case wt.IsWorkday(now) && !now.Before(threshold):
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Yellow).Bold(true).
 				Render("  Heute noch nichts erfasst."))
-			rows = append(rows, stDim(m.theme,
-				"  Vergessen zu starten?  ·  e → manuell nachtragen  ·  s → jetzt starten"))
+			hintChips = []string{
+				stDim(m.theme, "Vergessen zu starten?"),
+				stDim(m.theme, "e → manuell nachtragen"),
+				stDim(m.theme, "s → jetzt starten"),
+			}
 		default:
 			rows = append(rows, lipgloss.NewStyle().Foreground(m.theme.Fg).
 				Render("  Noch nichts erfasst."))
-			rows = append(rows, stDim(m.theme,
-				"  s  starten   ·   e  manueller eintrag   ·   f  fokus-modus   ·   n  attach"))
+			hintChips = []string{
+				stDim(m.theme, "s starten"),
+				stDim(m.theme, "e manueller eintrag"),
+				stDim(m.theme, "f fokus-modus"),
+				stDim(m.theme, "n attach"),
+			}
 		}
-		rows = append(rows, stDim(m.theme,
-			"  Tab/1·2·3·4 wechselt zu Woche · History · Frei   ·   ?  Hilfe"))
+		rows = append(rows, joinWrapped(hintChips, "  ·  ", "  ", "  ", inner))
+		navChips := []string{
+			stDim(m.theme, "Tab / 1·2·3·4 wechseln"),
+			stDim(m.theme, "? Hilfe"),
+		}
+		rows = append(rows, joinWrapped(navChips, "  ·  ", "  ", "  ", inner))
 		rows = append(rows, "")
 		rows = append(rows, picker.SectionHeader("notizen", inner, m.theme))
 		rows = append(rows, stDim(m.theme, "  keine"))
@@ -2321,13 +2374,18 @@ func (m Model) renderTodayBody(inner int) []string {
 					activeMax = s.Elapsed
 				}
 			}
-			bar := sessionMiniBar(m.theme, elapsed, activeMax, 10)
 			marker := lipgloss.NewStyle().Foreground(runColor).Bold(true).Render("  ▶ ")
 			label := lipgloss.NewStyle().Foreground(runColor).Bold(true).Render(
 				fmt.Sprintf("%s → …   %s",
 					m.day.Active.Format("15:04"), formatDur(elapsed)))
-			suffix := stDim(m.theme, "läuft")
-			rows = append(rows, marker+label+"  "+bar+"   "+suffix)
+			// Skip mini-bar + "läuft" tail at very narrow widths so the row
+			// fits within the box; the marker + time alone communicate state.
+			row := marker + label
+			if inner >= 50 {
+				bar := sessionMiniBar(m.theme, elapsed, activeMax, 10)
+				row += "  " + bar + "   " + stDim(m.theme, "läuft")
+			}
+			rows = append(rows, row)
 		}
 		// Pause-Marker zwischen aktiver Session und letzter abgeschlossener.
 		if m.day.IsRunning() && m.day.Active != nil && len(m.day.Sessions) > 0 {
@@ -2380,7 +2438,11 @@ func (m Model) renderTodayBody(inner int) []string {
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader("notizen", inner, m.theme))
 	if len(m.notes) == 0 {
-		rows = append(rows, stDim(m.theme, "  ○  keine Tagesnotiz  ·  n → notiz anhängen"))
+		rows = append(rows, joinWrapped(
+			[]string{
+				stDim(m.theme, "○  keine Tagesnotiz"),
+				stDim(m.theme, "n → notiz anhängen"),
+			}, "  ·  ", "  ", "  ", inner))
 	} else {
 		for i, n := range m.notes {
 			marker := "◆"
@@ -2455,18 +2517,23 @@ func (m Model) renderWeek() string {
 	suffix := ""
 	switch {
 	case isoMonday(m.now).Equal(monday):
-		suffix = "  ·  diese Woche"
+		suffix = "diese Woche"
 	case isoMonday(m.now.AddDate(0, 0, -7)).Equal(monday):
-		suffix = "  ·  letzte Woche"
+		suffix = "letzte Woche"
 	case isoMonday(m.now.AddDate(0, 0, 7)).Equal(monday):
-		suffix = "  ·  nächste Woche"
+		suffix = "nächste Woche"
 	}
-	title := fmt.Sprintf("Worktime · KW %d · %02d. %s – %02d. %s%s",
-		weekNum,
-		monday.Day(), germanMonth(monday.Month()),
-		sunday.Day(), germanMonth(sunday.Month()),
-		suffix,
-	)
+	titleParts := []string{
+		"Worktime",
+		fmt.Sprintf("KW %d", weekNum),
+		fmt.Sprintf("%02d. %s – %02d. %s",
+			monday.Day(), germanMonth(monday.Month()),
+			sunday.Day(), germanMonth(sunday.Month())),
+	}
+	if suffix != "" {
+		titleParts = append(titleParts, suffix)
+	}
+	title := boxTitle(titleParts, m.width)
 	box := titlebox.Render(title, body, m.width, m.theme)
 	sLabel := "s starten"
 	if m.day.IsRunning() {
@@ -2710,17 +2777,22 @@ func dayOffPaceGlyph(k wt.Kind) string {
 func (m Model) renderHistory() string {
 	tabBar := m.renderTabBar()
 	var content string
+	// IMPORTANT: pass each line through lipgloss.Render *separately*. Putting
+	// a "\n" inside the rendered string causes lipgloss to pad the shorter
+	// line up to the width of the longest line, which inflates the tab-bar
+	// row inside the titlebox and overflows narrow tmux panes.
 	if !m.historyLoaded {
-		content = tabBar + stDim(m.theme, "\n  lade…")
+		content = tabBar + "\n" + stDim(m.theme, "  lade…")
 	} else if len(m.history) == 0 {
-		content = tabBar + stDim(m.theme, "\n  Noch keine Einträge.")
+		content = tabBar + "\n" + stDim(m.theme, "  Noch keine Einträge.")
 	} else {
 		content = tabBar + "\n" + m.renderHistoryHeader() + "\n" + m.histVp.View()
 	}
-	title := "Worktime · History"
+	titleParts := []string{"Worktime", "History"}
 	if m.histQuery != "" {
-		title += "  ·  filter: " + m.histQuery
+		titleParts = append(titleParts, "filter: "+m.histQuery)
 	}
+	title := boxTitle(titleParts, m.width)
 	box := titlebox.Render(title, content, m.width, m.theme)
 	var mode string
 	switch m.histMode {
@@ -3305,11 +3377,11 @@ func (m Model) renderDayOffs() string {
 
 	rows = append(rows, "")
 	body := strings.Join(rows, "\n")
-	suffix := ""
+	titleParts := []string{"Worktime", fmt.Sprintf("Frei %d", year)}
 	if year == m.now.Year() {
-		suffix = "  ·  aktuelles Jahr"
+		titleParts = append(titleParts, "aktuelles Jahr")
 	}
-	title := fmt.Sprintf("Worktime · Frei %d%s", year, suffix)
+	title := boxTitle(titleParts, m.width)
 	box := titlebox.Render(title, body, m.width, m.theme)
 	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme,
 		"a anlegen  ·  A heute=Urlaub  ·  K heute=krank  ·  B Feiertage-sync  ·  d/x löschen  ·  h/l/[/] Jahr ±  ·  T aktuell  ·  j/k auswahl  ·  tab heute  ·  ? hilfe  ·  b zurück  ·  q schließen",
@@ -3318,10 +3390,16 @@ func (m Model) renderDayOffs() string {
 
 func (m Model) renderDayOffsBody(inner int) []string {
 	if len(m.dayoffs) == 0 {
+		hintChips := []string{
+			stDim(m.theme, "a → Tag eintragen"),
+			stDim(m.theme, "Feiertag"),
+			stDim(m.theme, "Urlaub"),
+			stDim(m.theme, "Krankheit"),
+		}
 		return []string{
 			stDim(m.theme, "  Keine Einträge in diesem Jahr."),
 			"",
-			stDim(m.theme, "  a → Tag eintragen (Feiertag, Urlaub, Krankheit)"),
+			joinWrapped(hintChips, "  ·  ", "  ", "  ", inner),
 		}
 	}
 
@@ -3537,7 +3615,10 @@ func (m Model) renderDialog() string {
 	}
 
 	rows = append(rows, "")
-	box := titlebox.Render(title, strings.Join(rows, "\n"), m.width, m.theme)
+	// Dialog titles already use " · " as separator; route through boxTitle so
+	// long titles (e.g. "Worktime · Tag YYYY-MM-DD") don't push the corner off.
+	titleClamped := boxTitle(strings.Split(title, " · "), m.width)
+	box := titlebox.Render(titleClamped, strings.Join(rows, "\n"), m.width, m.theme)
 	return box + m.renderToastRow() + "\n" + wrapFooter(m.theme, hint, m.width)
 }
 
@@ -4675,10 +4756,13 @@ func totalThresholdColor(p tk.Palette, total, target time.Duration, running bool
 }
 
 // todayStatusBadge returns the glyph, label, and color for the today status badge.
+// The "running + achieved" label is intentionally compact ("läuft ✓") so the
+// headline line stays inside narrow tmux panes — the long form
+// "läuft (Ziel erreicht)" pushed the header past 40 cols.
 func todayStatusBadge(p tk.Palette, running, achieved bool) (string, string, lipgloss.TerminalColor) {
 	switch {
 	case running && achieved:
-		return "✓", "läuft (Ziel erreicht)", p.Green
+		return "▶", "läuft ✓", p.Green
 	case running:
 		return "▶", "läuft", p.Green
 	case achieved:
@@ -4693,6 +4777,38 @@ func stErr(p tk.Palette, s string) string {
 
 func stFooter(p tk.Palette, s string) string {
 	return lipgloss.NewStyle().Foreground(p.Dim).Padding(0, 1).Render(s)
+}
+
+// boxTitle builds a titlebox title from `parts` (joined by " · "), but drops
+// trailing parts progressively until the result fits in the available
+// horizontal budget. The titlebox draws `╭─ <title> ─╮` so each title char
+// past `maxWidth - 5` would push the right corner past the terminal edge,
+// at which point the terminal hard-wraps and the box appears doubled.
+//
+// As a last resort the first (most-important) segment is hard-truncated.
+func boxTitle(parts []string, maxWidth int) string {
+	const overhead = 5
+	if len(parts) == 0 {
+		return ""
+	}
+	if maxWidth <= 0 {
+		return strings.Join(parts, " · ")
+	}
+	budget := maxWidth - overhead
+	if budget < 4 {
+		budget = 4
+	}
+	full := strings.Join(parts, " · ")
+	if lipgloss.Width(full) <= budget {
+		return full
+	}
+	for i := len(parts) - 1; i > 0; i-- {
+		cand := strings.Join(parts[:i], " · ")
+		if lipgloss.Width(cand) <= budget {
+			return cand
+		}
+	}
+	return lipgloss.NewStyle().MaxWidth(budget).Render(parts[0])
 }
 
 // joinWrapped joins `parts` with `sep`, breaking onto the next line whenever
@@ -4725,19 +4841,32 @@ func joinWrapped(parts []string, sep, prefix, cont string, maxWidth int) string 
 	return strings.Join(lines, "\n")
 }
 
-// wrapFooter renders a footer string, wrapping at the terminal width. Chips
-// are split on the "  ·  " separator that the existing footers use; lines
-// that don't contain it (already short / pre-formatted) pass through.
+// wrapFooter renders a footer string, wrapping at the terminal width. The
+// footer is split on the "  ·  " primary separator; for groups that are
+// still wider than the budget after that, we fall back to splitting on the
+// "  " (double-space) inner separator that the chip-builders use. Lines
+// passing through `stFooter` get its single-char horizontal padding so the
+// effective budget is `maxWidth - 2`.
 func wrapFooter(p tk.Palette, s string, maxWidth int) string {
-	const sep = "  ·  "
-	if maxWidth <= 0 || lipgloss.Width(s) <= maxWidth-2 {
+	const groupSep = "  ·  "
+	const chipSep = "  "
+	budget := maxWidth - 2
+	if maxWidth <= 0 || lipgloss.Width(s) <= budget {
 		return stFooter(p, s)
 	}
-	parts := strings.Split(s, sep)
-	if len(parts) <= 1 {
-		return stFooter(p, s)
+	groups := strings.Split(s, groupSep)
+	// Flatten oversize groups by re-splitting them on the chip separator;
+	// keep groups that still fit as a single token. This way we get tight
+	// wrapping without losing the chip texture entirely.
+	var chips []string
+	for _, g := range groups {
+		if lipgloss.Width(g) <= budget {
+			chips = append(chips, g)
+			continue
+		}
+		chips = append(chips, strings.Split(g, chipSep)...)
 	}
-	wrapped := joinWrapped(parts, sep, "", "  ", maxWidth-2)
+	wrapped := joinWrapped(chips, chipSep, "", "  ", budget)
 	return stFooter(p, wrapped)
 }
 
