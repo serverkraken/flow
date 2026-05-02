@@ -18,6 +18,7 @@ Available Commands:
   status      Print tmux status-right segment
   stop        Stop current worktime session (optional: custom stop time)
   tag         Tag der heutigen Session setzen (idx 1-basiert; leerer Tag löscht)
+  today       Worktime TUI öffnen (Heute-Tab; Tab/1-4 wechselt zu Woche/History/Frei)
   toggle      Start wenn idle, stopp wenn läuft (alias: s)
 
 Flags:

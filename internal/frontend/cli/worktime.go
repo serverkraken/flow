@@ -12,7 +12,9 @@ import (
 	"strconv"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
+	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
@@ -37,6 +39,11 @@ func fprint(w io.Writer, args ...any) {
 // WorktimeDeps is the dependency bundle the worktime cobra subcommand
 // tree consumes. Constructed by the composition root and threaded into
 // every RunE through closures.
+//
+// Screen is a factory typed `func(tk.Palette) tea.Model` so the `today`
+// verb can run flow's worktime TUI as a standalone bubbletea program
+// without cli/worktime importing the screen package directly (depguard
+// keeps frontend-cli decoupled from frontend/tui/screen/<name>).
 type WorktimeDeps struct {
 	Clock          ports.Clock
 	Tmux           ports.Tmux
@@ -47,6 +54,7 @@ type WorktimeDeps struct {
 	DayOffWriter   *usecase.DayOffWriter
 	DayOffReader   *usecase.DayOffReader
 	Reader         *usecase.WorktimeReader
+	Screen         func(tk.Palette) tea.Model
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -67,11 +75,48 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		newCorrectCmd(deps),
 		newExportCmd(deps),
 		newStatsCmd(deps),
+		newTodayCmd(deps),
 		newTagCmd(deps),
 		newNoteCmd(deps),
 		newDayOffCmd(deps),
 	)
 	return worktimeCmd
+}
+
+// runWorktimeToday is the production handler. Package-level var so
+// tests can swap in a no-op and verify the cobra wiring without
+// launching a real Bubble Tea program against a (non-existent) TTY.
+// Mirrors the kompendium-cli runBrowse pattern.
+var runWorktimeToday = func(deps WorktimeDeps) error {
+	tk.Init()
+	pal := tk.Load()
+	prog := tea.NewProgram(deps.Screen(pal), tea.WithAltScreen())
+	_, err := prog.Run()
+	return err
+}
+
+// newTodayCmd opens flow's worktime TUI as a standalone bubbletea
+// program, defaulting to the Heute tab. Same screen flow's sidekick
+// hosts at `prefix+a 3` (or `flow sidekick` → `w`); just spawned
+// directly without the surrounding 5-tab chrome.
+//
+// Mirrors `flow kompendium browse`: a single TUI surface, no flags,
+// no shell-out, q to quit. The dotfiles' worktime sidekick view
+// shells this verb to peek at today's sessions in the same styled
+// frame the rest of flow's TUI uses.
+func newTodayCmd(deps WorktimeDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:          "today",
+		Short:        "Worktime TUI öffnen (Heute-Tab; Tab/1-4 wechselt zu Woche/History/Frei)",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if deps.Screen == nil {
+				return errors.New("worktime screen factory not wired (composition-root bug)")
+			}
+			return runWorktimeToday(deps)
+		},
+	}
 }
 
 func newStatusCmd(deps WorktimeDeps) *cobra.Command {

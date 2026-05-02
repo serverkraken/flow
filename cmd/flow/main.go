@@ -163,6 +163,25 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	projectsReader := &usecase.ProjectsReader{Scanner: projectScanner, Tmux: tmux}
 	projectSwitcher := &usecase.ProjectSwitcher{Tmux: tmux}
 
+	// Hoisted so both the sidekick worktime tab and the standalone
+	// `flow worktime today` verb share one factory — same wiring, no
+	// drift risk.
+	worktimeScreen := func(pal theme.Palette) tea.Model {
+		return worktime.New(pal, worktime.Deps{
+			Reader:        reader,
+			Stats:         stats,
+			SessionWriter: sessionWriter,
+			Tagger:        tagger,
+			DayOffReader:  dayoffReader,
+			DayOffWriter:  dayoffWriter,
+			LinkReader:    linkReader,
+			LinkWriter:    linkWriter,
+			Reporter:      reporter,
+			NoteOpener:    noteOpener,
+			Clock:         clock,
+		})
+	}
+
 	return Deps{
 		Worktime: cli.WorktimeDeps{
 			Clock:          clock,
@@ -174,6 +193,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			DayOffWriter:   dayoffWriter,
 			DayOffReader:   dayoffReader,
 			Reader:         reader,
+			Screen:         worktimeScreen,
 		},
 		Sidekick: cli.SidekickDeps{
 			FlowState: flowState,
@@ -186,21 +206,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			Projects: func(pal theme.Palette) tea.Model {
 				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
 			},
-			Worktime: func(pal theme.Palette) tea.Model {
-				return worktime.New(pal, worktime.Deps{
-					Reader:        reader,
-					Stats:         stats,
-					SessionWriter: sessionWriter,
-					Tagger:        tagger,
-					DayOffReader:  dayoffReader,
-					DayOffWriter:  dayoffWriter,
-					LinkReader:    linkReader,
-					LinkWriter:    linkWriter,
-					Reporter:      reporter,
-					NoteOpener:    noteOpener,
-					Clock:         clock,
-				})
-			},
+			Worktime: worktimeScreen,
 			Notes: func(_ theme.Palette) tea.Model {
 				return buildNotesScreen(p, kompDeps)
 			},
