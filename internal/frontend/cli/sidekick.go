@@ -2,6 +2,7 @@ package cli
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/serverkraken/flow/internal/domain"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
 	"github.com/serverkraken/flow/internal/ports"
@@ -34,18 +35,9 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 			tk.Init()
 			pal := tk.Load()
 
-			fs, err := deps.FlowState.Load()
+			fs, err := preflightSidekick(deps.FlowState)
 			if err != nil {
 				return err
-			}
-			next, err := deps.FlowState.ConsumeNextScreen()
-			if err != nil {
-				return err
-			}
-			if next != "" {
-				fs.Screen = next
-				fs.Filter = ""
-				fs.Cursor = 0
 			}
 
 			m := sidekick.New(pal, fs, sidekick.Deps{
@@ -65,4 +57,26 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// preflightSidekick reads the persisted FlowState and applies the
+// one-shot next-screen override if present. Extracted from RunE so the
+// pre-bubbletea logic can be unit-tested without entering
+// tea.NewProgram.Run() — that call blocks on a real TTY (and only
+// short-circuits in CI where no TTY is attached).
+func preflightSidekick(store ports.FlowStateStore) (domain.FlowState, error) {
+	state, err := store.Load()
+	if err != nil {
+		return domain.FlowState{}, err
+	}
+	next, err := store.ConsumeNextScreen()
+	if err != nil {
+		return domain.FlowState{}, err
+	}
+	if next != "" {
+		state.Screen = next
+		state.Filter = ""
+		state.Cursor = 0
+	}
+	return state, nil
 }

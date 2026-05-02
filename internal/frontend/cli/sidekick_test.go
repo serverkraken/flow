@@ -1,10 +1,10 @@
-package cli_test
+package cli
 
-// Smoke tests for NewSidekickCmd. The bubbletea program inside RunE
-// can't run in a test environment (no TTY), but the surrounding load /
-// next-screen / save logic is testable via the FlowStateStore fake's
-// LoadErr / SaveErr hooks. Goal: cover everything before tea.NewProgram
-// is invoked and the metadata around the cobra command itself.
+// Smoke + behaviour tests for the sidekick subcommand. Cobra's RunE
+// proceeds into tea.NewProgram.Run() which blocks on a real TTY, so the
+// testable preflight (FlowState load + next-screen apply) lives in
+// preflightSidekick and the tests target that helper directly.
+// White-box per the documented exception for unexported helpers.
 
 import (
 	"errors"
@@ -12,22 +12,21 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/frontend/cli"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
 // stubScreen is a no-op tea.Model just to satisfy the screen factory
-// signature — RunE never reaches the program loop in these tests.
+// signature in metadata-only tests.
 type stubScreen struct{}
 
 func (stubScreen) Init() tea.Cmd                       { return nil }
 func (stubScreen) Update(tea.Msg) (tea.Model, tea.Cmd) { return stubScreen{}, nil }
 func (stubScreen) View() string                        { return "" }
 
-func makeSidekickDeps(state *testutil.FakeFlowStateStore) cli.SidekickDeps {
+func makeSidekickDeps(state *testutil.FakeFlowStateStore) SidekickDeps {
 	factory := func(tk.Palette) tea.Model { return stubScreen{} }
-	return cli.SidekickDeps{
+	return SidekickDeps{
 		FlowState:  state,
 		Cheatsheet: factory,
 		Palette:    factory,
@@ -37,7 +36,7 @@ func makeSidekickDeps(state *testutil.FakeFlowStateStore) cli.SidekickDeps {
 }
 
 func TestNewSidekickCmd_ConstructsValidCobraCommand(t *testing.T) {
-	cmd := cli.NewSidekickCmd(makeSidekickDeps(&testutil.FakeFlowStateStore{}))
+	cmd := NewSidekickCmd(makeSidekickDeps(&testutil.FakeFlowStateStore{}))
 	if cmd == nil {
 		t.Fatal("expected a non-nil command")
 	}
@@ -55,32 +54,32 @@ func TestNewSidekickCmd_ConstructsValidCobraCommand(t *testing.T) {
 	}
 }
 
-func TestNewSidekickCmd_LoadError_PropagatesEarly(t *testing.T) {
+func TestPreflightSidekick_LoadError_PropagatesEarly(t *testing.T) {
 	wantErr := errors.New("flowstate corrupt")
 	state := &testutil.FakeFlowStateStore{LoadErr: wantErr}
-	cmd := cli.NewSidekickCmd(makeSidekickDeps(state))
-	cmd.SetArgs([]string{})
-	err := cmd.Execute()
-	if !errors.Is(err, wantErr) {
-		t.Errorf("RunE should propagate the load error, got %v", err)
+	if _, err := preflightSidekick(state); !errors.Is(err, wantErr) {
+		t.Errorf("preflightSidekick should propagate the load error, got %v", err)
 	}
 }
 
-func TestNewSidekickCmd_NextScreenOverridesPersistedState(t *testing.T) {
-	// Make sure that ConsumeNextScreen's value is honored. We can't observe
-	// the override directly because RunE proceeds into tea.NewProgram which
-	// fails without a TTY — but we can confirm:
-	//   1. NextScreen was consumed (cleared)
-	//   2. RunE did not return the load error (since LoadErr is unset)
+func TestPreflightSidekick_NextScreenOverridesPersistedState(t *testing.T) {
 	state := &testutil.FakeFlowStateStore{
-		State:      domain.FlowState{Screen: "palette", Filter: "stale"},
+		State:      domain.FlowState{Screen: "palette", Filter: "stale", Cursor: 7},
 		NextScreen: "worktime",
 	}
-	cmd := cli.NewSidekickCmd(makeSidekickDeps(state))
-	cmd.SetArgs([]string{})
-	// Execute will fail at tea.NewProgram.Run() in a no-TTY environment,
-	// but only after ConsumeNextScreen has been called and applied.
-	_ = cmd.Execute()
+	fs, err := preflightSidekick(state)
+	if err != nil {
+		t.Fatalf("preflightSidekick: %v", err)
+	}
+	if fs.Screen != "worktime" {
+		t.Errorf("Screen: got %q want worktime", fs.Screen)
+	}
+	if fs.Filter != "" {
+		t.Errorf("Filter: got %q want empty (cleared by next-screen override)", fs.Filter)
+	}
+	if fs.Cursor != 0 {
+		t.Errorf("Cursor: got %d want 0 (cleared by next-screen override)", fs.Cursor)
+	}
 	if state.NextScreen != "" {
 		t.Errorf("ConsumeNextScreen should have cleared NextScreen, still %q", state.NextScreen)
 	}
