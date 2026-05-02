@@ -6,6 +6,7 @@ const (
 	ScreenProjects   = "projects"
 	ScreenWorktime   = "worktime"
 	ScreenCheatsheet = "cheatsheet"
+	ScreenNotes      = "notes"
 )
 
 // FlowState holds the persisted UI state restored on next launch.
@@ -15,10 +16,10 @@ type FlowState struct {
 	Cursor int    `json:"cursor"`
 }
 
-// IsValidScreen reports whether s is one of the four screen identifiers.
+// IsValidScreen reports whether s is one of the recognised screen identifiers.
 func IsValidScreen(s string) bool {
 	switch s {
-	case ScreenPalette, ScreenProjects, ScreenWorktime, ScreenCheatsheet:
+	case ScreenPalette, ScreenProjects, ScreenWorktime, ScreenCheatsheet, ScreenNotes:
 		return true
 	}
 	return false

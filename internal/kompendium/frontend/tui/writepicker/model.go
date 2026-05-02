@@ -1,0 +1,269 @@
+// Package writepicker is the small Bubble Tea picker that backs
+// `kompendium write`: a tmux-popup-friendly menu that asks "Daily,
+// Project, or Free Note?" and (for Free) collects a slug, leaving the
+// outer CLI to invoke the matching Create* use case.
+package writepicker
+
+import (
+	"strings"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+)
+
+// Choice is the user's pick after the picker exits.
+type Choice int
+
+// Defined Choice values.
+const (
+	// ChoiceCancel signals the user dismissed the picker; the caller does
+	// nothing.
+	ChoiceCancel Choice = iota
+	// ChoiceDaily means the caller should run the CreateDaily use case.
+	ChoiceDaily
+	// ChoiceProject means CreateProject.
+	ChoiceProject
+	// ChoiceFree means CreateFree, with Result.Slug as the input.
+	ChoiceFree
+)
+
+// Result bundles what the picker collected. Slug is set only for ChoiceFree.
+type Result struct {
+	Choice Choice
+	Slug   string
+}
+
+type option struct {
+	label  string
+	hint   string
+	icon   string
+	choice Choice
+}
+
+// Model is the Bubble Tea state for the picker.
+type Model struct {
+	options    []option
+	cursor     int
+	askingSlug bool
+	slug       textinput.Model
+	result     Result
+	quitting   bool
+	width      int
+	height     int
+}
+
+// New returns a picker. When allowProject is false the Project option is
+// hidden — that is the case when the caller is not in a git repository.
+func New(allowProject bool) Model {
+	opts := []option{
+		{label: "Daily Note", hint: "today's journal", icon: "▣", choice: ChoiceDaily},
+	}
+	if allowProject {
+		opts = append(opts, option{label: "Project Note", hint: "current repo · today", icon: "▦", choice: ChoiceProject})
+	}
+	opts = append(opts, option{label: "Free Note", hint: "named slug", icon: "▥", choice: ChoiceFree})
+
+	ti := textinput.New()
+	ti.Prompt = ""
+	ti.CharLimit = 64
+	ti.Placeholder = "slug"
+	ti.Cursor.Style = cursorStyle
+	ti.PlaceholderStyle = dimStyle
+
+	return Model{options: opts, slug: ti}
+}
+
+// Init satisfies tea.Model. The picker has nothing to schedule on entry.
+func (m Model) Init() tea.Cmd { return nil }
+
+// Result reports what the user selected; valid after Update returns
+// tea.Quit.
+func (m Model) Result() Result { return m.result }
+
+// Update is the Bubble Tea reducer.
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+	case tea.KeyMsg:
+		if m.askingSlug {
+			return m.handleSlugKey(msg)
+		}
+		return m.handleMenuKey(msg)
+	}
+	return m, nil
+}
+
+func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q", "esc":
+		m.quitting = true
+		m.result = Result{Choice: ChoiceCancel}
+		return m, tea.Quit
+	case "j", "down":
+		if m.cursor < len(m.options)-1 {
+			m.cursor++
+		}
+	case "k", "up":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "enter":
+		opt := m.options[m.cursor]
+		if opt.choice == ChoiceFree {
+			m.askingSlug = true
+			m.slug.Focus()
+			return m, textinput.Blink
+		}
+		m.result = Result{Choice: opt.choice}
+		m.quitting = true
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+func (m Model) handleSlugKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc, tea.KeyCtrlC:
+		m.quitting = true
+		m.result = Result{Choice: ChoiceCancel}
+		return m, tea.Quit
+	case tea.KeyEnter:
+		if strings.TrimSpace(m.slug.Value()) == "" {
+			return m, nil
+		}
+		m.result = Result{Choice: ChoiceFree, Slug: strings.TrimSpace(m.slug.Value())}
+		m.quitting = true
+		return m, tea.Quit
+	}
+	var cmd tea.Cmd
+	m.slug, cmd = m.slug.Update(msg)
+	return m, cmd
+}
+
+// View renders the picker.
+func (m Model) View() string {
+	if m.quitting {
+		return ""
+	}
+
+	var card string
+	if m.askingSlug {
+		card = slugCard(m.slug.View())
+	} else {
+		card = menuCard(m.options, m.cursor)
+	}
+
+	if m.width > 0 && m.height > 0 {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
+			lipgloss.WithWhitespaceChars("·"),
+			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.BgHighlight)))
+	}
+	return card
+}
+
+var (
+	frameStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(theme.Blue)).
+			Padding(1, 3)
+
+	headerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Blue)).
+			Bold(true)
+
+	cursorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Blue)).
+			Bold(true)
+
+	selectedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Fg)).
+			Background(lipgloss.Color(theme.BgHighlight)).
+			Bold(true).
+			Padding(0, 1)
+
+	optionStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Fg)).
+			Padding(0, 1)
+
+	iconStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Cyan))
+
+	hintStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted)).
+			Italic(true)
+
+	dimStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted))
+
+	footerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Muted)).
+			Italic(true)
+
+	footerKeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Cyan)).
+			Bold(true)
+
+	slugBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color(theme.Yellow)).
+			Padding(0, 1)
+)
+
+func menuCard(opts []option, cursor int) string {
+	var sb strings.Builder
+	sb.WriteString(headerStyle.Render("Create a note"))
+	sb.WriteString("\n\n")
+	for i, opt := range opts {
+		icon := iconStyle.Render(opt.icon)
+		row := icon + "  " + opt.label
+		if opt.hint != "" {
+			row = row + "  " + hintStyle.Render(opt.hint)
+		}
+		if i == cursor {
+			sb.WriteString(cursorStyle.Render("▶ "))
+			sb.WriteString(selectedStyle.Render(row))
+		} else {
+			sb.WriteString("  ")
+			sb.WriteString(optionStyle.Render(row))
+		}
+		sb.WriteByte('\n')
+	}
+	sb.WriteString("\n")
+	sb.WriteString(footerLine([]hintEntry{
+		{"j/k", "navigate"},
+		{"enter", "select"},
+		{"q", "cancel"},
+	}))
+	return frameStyle.Render(sb.String())
+}
+
+func slugCard(slugView string) string {
+	var sb strings.Builder
+	sb.WriteString(headerStyle.Render("Slug for the new free note"))
+	sb.WriteString("\n\n")
+	if slugView == "" {
+		slugView = "▌"
+	}
+	sb.WriteString(slugBoxStyle.Render(slugView))
+	sb.WriteString("\n\n")
+	sb.WriteString(footerLine([]hintEntry{
+		{"enter", "confirm"},
+		{"esc", "cancel"},
+	}))
+	return frameStyle.Render(sb.String())
+}
+
+type hintEntry struct{ key, desc string }
+
+func footerLine(entries []hintEntry) string {
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, footerKeyStyle.Render(e.key)+footerStyle.Render(" "+e.desc))
+	}
+	return strings.Join(parts, footerStyle.Render(" · "))
+}

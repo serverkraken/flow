@@ -1,0 +1,210 @@
+package domain_test
+
+import (
+	"bytes"
+	"errors"
+	"reflect"
+	"testing"
+
+	"github.com/serverkraken/flow/internal/kompendium/domain"
+)
+
+func TestNoteType_IsValid(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		nt   domain.NoteType
+		want bool
+	}{
+		{domain.TypeDaily, true},
+		{domain.TypeProject, true},
+		{domain.TypeFree, true},
+		{domain.NoteType(""), false},
+		{domain.NoteType("unknown"), false},
+	}
+	for _, tc := range cases {
+		t.Run(string(tc.nt), func(t *testing.T) {
+			t.Parallel()
+			if got := tc.nt.IsValid(); got != tc.want {
+				t.Errorf("%q.IsValid() = %v, want %v", tc.nt, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFrontmatter_Validate(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		fm      domain.Frontmatter
+		wantErr bool
+	}{
+		{"valid daily", domain.Frontmatter{ID: "daily/2026-04-25", Type: domain.TypeDaily}, false},
+		{"valid project", domain.Frontmatter{ID: "projects/foo/bar/2026-04-25", Type: domain.TypeProject, Project: "github.com/foo/bar"}, false},
+		{"valid free", domain.Frontmatter{ID: "notes/setup", Type: domain.TypeFree}, false},
+
+		{"empty id", domain.Frontmatter{Type: domain.TypeDaily}, true},
+		{"invalid type empty", domain.Frontmatter{ID: "x"}, true},
+		{"invalid type unknown", domain.Frontmatter{ID: "x", Type: "garbage"}, true},
+		{"project without project field", domain.Frontmatter{ID: "x", Type: domain.TypeProject}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tc.fm.Validate()
+			if tc.wantErr {
+				if !errors.Is(err, domain.ErrInvalidFrontmatter) {
+					t.Fatalf("expected ErrInvalidFrontmatter, got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestHasFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content []byte
+		want    bool
+	}{
+		{"with delim", []byte("---\nid: x\n---\nbody\n"), true},
+		{"plain markdown", []byte("# Heading\n"), false},
+		{"only opening dashes no newline", []byte("---"), false},
+		{"empty", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := domain.HasFrontmatter(tc.content); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("standard", func(t *testing.T) {
+		t.Parallel()
+		content := []byte("---\nid: daily/2026-04-25\ntype: daily\n---\nbody line\n")
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fm.ID != "daily/2026-04-25" || fm.Type != domain.TypeDaily {
+			t.Errorf("got fm=%+v", fm)
+		}
+		if string(body) != "body line\n" {
+			t.Errorf("got body=%q", body)
+		}
+	})
+
+	t.Run("no trailing newline after closing delim", func(t *testing.T) {
+		t.Parallel()
+		content := []byte("---\nid: daily/2026-04-25\ntype: daily\n---")
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fm.ID != "daily/2026-04-25" {
+			t.Errorf("got fm=%+v", fm)
+		}
+		if len(body) != 0 {
+			t.Errorf("expected empty body, got %q", body)
+		}
+	})
+
+	t.Run("empty frontmatter with body", func(t *testing.T) {
+		t.Parallel()
+		content := []byte("---\n---\nbody\n")
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !reflect.DeepEqual(fm, domain.Frontmatter{}) {
+			t.Errorf("expected zero fm, got %+v", fm)
+		}
+		if string(body) != "body\n" {
+			t.Errorf("got body=%q", body)
+		}
+	})
+
+	t.Run("empty frontmatter no body", func(t *testing.T) {
+		t.Parallel()
+		content := []byte("---\n---")
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !reflect.DeepEqual(fm, domain.Frontmatter{}) {
+			t.Errorf("expected zero fm, got %+v", fm)
+		}
+		if len(body) != 0 {
+			t.Errorf("expected empty body, got %q", body)
+		}
+	})
+
+	t.Run("missing frontmatter", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := domain.ParseFrontmatter([]byte("# Heading\nbody\n"))
+		if !errors.Is(err, domain.ErrNoFrontmatter) {
+			t.Errorf("expected ErrNoFrontmatter, got %v", err)
+		}
+	})
+
+	t.Run("unterminated frontmatter", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := domain.ParseFrontmatter([]byte("---\nid: x\nno closer\n"))
+		if !errors.Is(err, domain.ErrMalformedFrontmatter) {
+			t.Errorf("expected ErrMalformedFrontmatter, got %v", err)
+		}
+	})
+
+	t.Run("malformed yaml", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := domain.ParseFrontmatter([]byte("---\nid: x\n  bad indent\n  : nope\n---\n"))
+		if !errors.Is(err, domain.ErrMalformedFrontmatter) {
+			t.Errorf("expected ErrMalformedFrontmatter, got %v", err)
+		}
+	})
+}
+
+func TestFrontmatter_Serialize(t *testing.T) {
+	t.Parallel()
+
+	fm := domain.Frontmatter{
+		ID:    "daily/2026-04-25",
+		Type:  domain.TypeDaily,
+		Title: "kompendium aufsetzen",
+		Tags:  []string{"tmux", "plugin"},
+	}
+	body := []byte("# kompendium\nbody content\n")
+
+	out := fm.Serialize(body)
+
+	if !bytes.HasPrefix(out, []byte("---\n")) {
+		t.Errorf("output must start with frontmatter delim, got %q", out)
+	}
+	if !bytes.Contains(out, body) {
+		t.Errorf("output must contain body, got %q", out)
+	}
+
+	parsed, parsedBody, err := domain.ParseFrontmatter(out)
+	if err != nil {
+		t.Fatalf("roundtrip ParseFrontmatter: %v", err)
+	}
+	if parsed.ID != fm.ID || parsed.Type != fm.Type || parsed.Title != fm.Title {
+		t.Errorf("roundtrip mismatch: got %+v want %+v", parsed, fm)
+	}
+	if string(parsedBody) != string(body) {
+		t.Errorf("roundtrip body mismatch: got %q want %q", parsedBody, body)
+	}
+}

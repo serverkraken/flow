@@ -1,8 +1,8 @@
 // Package sidekick is the root bubbletea model for the `flow sidekick`
-// TUI. It owns the four top-level screens (Palette, Projects, Worktime,
-// Cheatsheet) as opaque tea.Models, routes messages between them, and
-// snapshots the active screen's filter / cursor for persistence via
-// ports.FlowStateStore.
+// TUI. It owns the five top-level screens (Palette, Projects, Worktime,
+// Cheatsheet, Notes) as opaque tea.Models, routes messages between
+// them, and snapshots the active screen's filter / cursor for
+// persistence via ports.FlowStateStore.
 //
 // Screen models are constructed by the composition root and handed in
 // via Deps; the sidekick has no knowledge of use cases, adapters, or any
@@ -26,6 +26,7 @@ const (
 	screenProjects   screenID = 1
 	screenWorktime   screenID = 2
 	screenCheatsheet screenID = 3
+	screenNotes      screenID = 4
 )
 
 // screener is the extra interface every screen model satisfies on top
@@ -51,7 +52,7 @@ type stateRestorer interface {
 	WithState(filter string, cursor int) tea.Model
 }
 
-// Deps bundles the four pre-built screen models. All fields are required
+// Deps bundles the five pre-built screen models. All fields are required
 // — the composition root in cmd/flow/main.go is responsible for wiring
 // every slot. nil is not a supported configuration; the sidekick does not
 // fall back to legacy in-package constructors.
@@ -60,11 +61,12 @@ type Deps struct {
 	Projects   tea.Model
 	Worktime   tea.Model
 	Cheatsheet tea.Model
+	Notes      tea.Model
 }
 
 // Model is the root bubbletea model.
 type Model struct {
-	screens  [4]tea.Model
+	screens  [5]tea.Model
 	current  screenID
 	showHelp bool
 	pal      theme.Palette
@@ -76,7 +78,7 @@ type Model struct {
 // When s.Screen names a stateful screen and that screen implements
 // stateRestorer, its filter / cursor are reapplied before first render.
 func New(p theme.Palette, s domain.FlowState, deps Deps) Model {
-	screens := [4]tea.Model{deps.Palette, deps.Projects, deps.Worktime, deps.Cheatsheet}
+	screens := [5]tea.Model{deps.Palette, deps.Projects, deps.Worktime, deps.Cheatsheet, deps.Notes}
 
 	var cur screenID
 	switch s.Screen {
@@ -86,6 +88,8 @@ func New(p theme.Palette, s domain.FlowState, deps Deps) Model {
 		cur = screenWorktime
 	case domain.ScreenCheatsheet:
 		cur = screenCheatsheet
+	case domain.ScreenNotes:
+		cur = screenNotes
 	default:
 		cur = screenPalette
 	}
@@ -159,6 +163,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			m.current = screenCheatsheet
 			return m, nil
+		case "n":
+			m.current = screenNotes
+			return m, nil
 		}
 		updated, cmd := m.screens[m.current].Update(msg)
 		m.screens[m.current] = updated
@@ -195,6 +202,7 @@ func (m Model) renderHelp() string {
 			{"f", "Projekte"},
 			{"w", "Worktime"},
 			{"c", "Cheatsheet"},
+			{"n", "Notes (Kompendium)"},
 			{"?", "Hilfe (diese Ansicht)"},
 			{"q / Ctrl+C", "Beenden"},
 		}},
@@ -287,6 +295,8 @@ func idToName(id screenID) string {
 		return domain.ScreenWorktime
 	case screenCheatsheet:
 		return domain.ScreenCheatsheet
+	case screenNotes:
+		return domain.ScreenNotes
 	default:
 		return domain.ScreenPalette
 	}

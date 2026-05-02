@@ -1,0 +1,48 @@
+package usecase
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/kompendium/domain"
+	"github.com/serverkraken/flow/internal/kompendium/ports"
+)
+
+// Open opens an existing note in the editor. It does not create a missing
+// note — that is the job of one of the Create* use cases.
+//
+// Index is optional — when set, the note is re-indexed after the editor
+// closes so post-edit content shows up in `kompendium search`.
+type Open struct {
+	Store  ports.NoteStore
+	Editor ports.Editor
+	Index  ports.Indexer
+}
+
+// NewOpen wires the use case with its required ports.
+func NewOpen(store ports.NoteStore, editor ports.Editor) *Open {
+	return &Open{Store: store, Editor: editor}
+}
+
+// OpenInput carries the note ID to open.
+type OpenInput struct {
+	ID domain.ID
+}
+
+// Execute checks that the note exists and asks the editor to open it. A
+// missing note returns ports.ErrNoteNotFound so callers can show a helpful
+// message rather than spawning an editor on a phantom path.
+func (u *Open) Execute(ctx context.Context, in OpenInput) error {
+	exists, err := u.Store.Exists(ctx, in.ID)
+	if err != nil {
+		return fmt.Errorf("exists: %w", err)
+	}
+	if !exists {
+		return ports.ErrNoteNotFound
+	}
+	if err := u.Editor.Edit(ctx, u.Store.Path(in.ID)); err != nil {
+		return fmt.Errorf("edit: %w", err)
+	}
+	reindex(ctx, u.Store, u.Index, in.ID)
+	return nil
+}

@@ -58,17 +58,19 @@ func (r restoreScreen) WithState(filter string, cursor int) tea.Model {
 	return r
 }
 
-func newDeps() (sidekick.Deps, *fakeScreen, *fakeScreen, *fakeScreen, *fakeScreen) {
+func newDeps() (sidekick.Deps, *fakeScreen, *fakeScreen, *fakeScreen, *fakeScreen, *fakeScreen) {
 	pal := &fakeScreen{name: "palette"}
 	pr := &fakeScreen{name: "projects"}
 	wt := &fakeScreen{name: "worktime"}
 	ch := &fakeScreen{name: "cheatsheet"}
+	nt := &fakeScreen{name: "notes"}
 	return sidekick.Deps{
 		Palette:    pal,
 		Projects:   pr,
 		Worktime:   wt,
 		Cheatsheet: ch,
-	}, pal, pr, wt, ch
+		Notes:      nt,
+	}, pal, pr, wt, ch, nt
 }
 
 func keyMsg(s string) tea.KeyMsg {
@@ -88,7 +90,7 @@ func keyMsg(s string) tea.KeyMsg {
 
 func TestNew_DefaultsToPalette(t *testing.T) {
 	t.Parallel()
-	deps, _, _, _, _ := newDeps()
+	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	if !strings.Contains(m.View(), "palette:view") {
 		t.Errorf("View() = %q, want palette screen", m.View())
@@ -97,7 +99,7 @@ func TestNew_DefaultsToPalette(t *testing.T) {
 
 func TestNew_RestoresActiveScreenFromState(t *testing.T) {
 	t.Parallel()
-	deps, _, _, wt, _ := newDeps()
+	deps, _, _, wt, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	if !strings.Contains(m.View(), "worktime:view") {
 		t.Errorf("View() = %q, want worktime active", m.View())
@@ -113,6 +115,7 @@ func TestNew_AppliesWithStateOnActiveScreen(t *testing.T) {
 		Projects:   &fakeScreen{name: "projects"},
 		Worktime:   &fakeScreen{name: "worktime"},
 		Cheatsheet: &fakeScreen{name: "cheatsheet"},
+		Notes:      &fakeScreen{name: "notes"},
 	}
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenPalette, Filter: "ext", Cursor: 4}, deps)
 	if pal.filter != "ext" || pal.cursor != 4 {
@@ -123,7 +126,7 @@ func TestNew_AppliesWithStateOnActiveScreen(t *testing.T) {
 
 func TestInit_FansOutToAllScreens(t *testing.T) {
 	t.Parallel()
-	deps, pal, pr, wt, ch := newDeps()
+	deps, pal, pr, wt, ch, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	if cmd := m.Init(); cmd == nil {
 		t.Fatal("Init() returned nil cmd")
@@ -137,7 +140,7 @@ func TestInit_FansOutToAllScreens(t *testing.T) {
 
 func TestUpdate_WindowSize_FansOut(t *testing.T) {
 	t.Parallel()
-	deps, pal, pr, wt, ch := newDeps()
+	deps, pal, pr, wt, ch, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	_ = updated
@@ -150,13 +153,14 @@ func TestUpdate_WindowSize_FansOut(t *testing.T) {
 
 func TestUpdate_TabKeys_SwitchScreens(t *testing.T) {
 	t.Parallel()
-	deps, _, _, _, _ := newDeps()
+	deps, _, _, _, _, _ := newDeps()
 	cases := []struct {
 		key, want string
 	}{
 		{"f", "projects:view"},
 		{"w", "worktime:view"},
 		{"c", "cheatsheet:view"},
+		{"n", "notes:view"},
 		{"p", "palette:view"},
 	}
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
@@ -169,9 +173,22 @@ func TestUpdate_TabKeys_SwitchScreens(t *testing.T) {
 	}
 }
 
+func TestNew_RestoresNotesScreen(t *testing.T) {
+	t.Parallel()
+	deps, _, _, _, _, _ := newDeps()
+	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenNotes}, deps)
+	if !strings.Contains(m.View(), "notes:view") {
+		t.Errorf("View() = %q, want notes active", m.View())
+	}
+	got := m.CurrentState()
+	if got.Screen != domain.ScreenNotes {
+		t.Errorf("CurrentState.Screen = %q, want %q", got.Screen, domain.ScreenNotes)
+	}
+}
+
 func TestUpdate_BJumpsToPaletteByDefault(t *testing.T) {
 	t.Parallel()
-	deps, _, _, _, _ := newDeps()
+	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(keyMsg("b"))
 	m = updated.(sidekick.Model)
@@ -188,6 +205,7 @@ func TestUpdate_BConsumedByBackHandler(t *testing.T) {
 		Projects:   &fakeScreen{name: "projects"},
 		Worktime:   backScreen{wt},
 		Cheatsheet: &fakeScreen{name: "cheatsheet"},
+		Notes:      &fakeScreen{name: "notes"},
 	}
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(keyMsg("b"))
@@ -208,6 +226,7 @@ func TestUpdate_FilterActive_RoutesKeysToScreen(t *testing.T) {
 		Projects:   &fakeScreen{name: "projects"},
 		Worktime:   &fakeScreen{name: "worktime"},
 		Cheatsheet: &fakeScreen{name: "cheatsheet"},
+		Notes:      &fakeScreen{name: "notes"},
 	}
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	// "w" would normally switch to worktime, but the active palette's
@@ -224,7 +243,7 @@ func TestUpdate_FilterActive_RoutesKeysToScreen(t *testing.T) {
 
 func TestUpdate_HelpToggle(t *testing.T) {
 	t.Parallel()
-	deps, _, _, _, _ := newDeps()
+	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = updated.(sidekick.Model)
@@ -242,7 +261,7 @@ func TestUpdate_HelpToggle(t *testing.T) {
 
 func TestUpdate_QuitKeys(t *testing.T) {
 	t.Parallel()
-	deps, _, _, _, _ := newDeps()
+	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	for _, k := range []tea.KeyMsg{keyMsg("q"), {Type: tea.KeyCtrlC}} {
 		_, cmd := m.Update(k)
@@ -260,6 +279,7 @@ func TestCurrentState_RoundTrip(t *testing.T) {
 		Projects:   &fakeScreen{name: "projects"},
 		Worktime:   &fakeScreen{name: "worktime"},
 		Cheatsheet: &fakeScreen{name: "cheatsheet"},
+		Notes:      &fakeScreen{name: "notes"},
 	}
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenPalette}, deps)
 	got := m.CurrentState()
@@ -278,7 +298,7 @@ func TestCurrentState_RoundTrip(t *testing.T) {
 
 func TestUpdate_AsyncMsg_FansOut(t *testing.T) {
 	t.Parallel()
-	deps, pal, pr, wt, ch := newDeps()
+	deps, pal, pr, wt, ch, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
 	type pingMsg struct{}
 	updated, _ := m.Update(pingMsg{})

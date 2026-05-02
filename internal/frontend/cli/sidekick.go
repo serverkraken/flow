@@ -10,7 +10,7 @@ import (
 )
 
 // SidekickDeps is the dependency bundle for the `flow sidekick` cobra
-// subcommand. The four screen factories are required — each one builds
+// subcommand. The five screen factories are required — each one builds
 // its screen against the live theme palette read inside RunE so the
 // palette is loaded exactly once per program run, after `theme.Init()`.
 // Building a screen at process startup would force `flow worktime status`
@@ -21,6 +21,7 @@ type SidekickDeps struct {
 	Palette    func(tk.Palette) tea.Model
 	Projects   func(tk.Palette) tea.Model
 	Worktime   func(tk.Palette) tea.Model
+	Notes      func(tk.Palette) tea.Model
 }
 
 // NewSidekickCmd constructs the `flow sidekick` cobra subcommand. It
@@ -45,6 +46,7 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 				Projects:   deps.Projects(pal),
 				Worktime:   deps.Worktime(pal),
 				Cheatsheet: deps.Cheatsheet(pal),
+				Notes:      deps.Notes(pal),
 			})
 			prog := tea.NewProgram(m, tea.WithAltScreen())
 			final, err := prog.Run()

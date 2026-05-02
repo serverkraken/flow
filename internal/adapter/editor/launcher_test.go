@@ -37,34 +37,110 @@ type response struct {
 	err error
 }
 
+// staticPath returns a canned path for a known ID and "" for everything else.
+// pathOf "" signals the launcher to refuse rather than spawn the editor on a
+// blank path, so most tests pre-load a path for the ID they pass.
+func staticPath(idToPath map[string]string) editor.PathFunc {
+	return func(id string) string { return idToPath[id] }
+}
+
+// nvimArgs is the production-shape EditorArgsFunc most tests use: returns
+// argv {nvim, path} so the launcher's tmux split picks up nvim + path
+// just like the kompendium nvimeditor adapter would.
+func nvimArgs(path string) ([]string, error) {
+	return []string{"nvim", path}, nil
+}
+
 func TestOpen_EmptyID(t *testing.T) {
 	r, _ := recorder(t)
-	l := editor.NewWithRunner("kompendium", "glow", r)
-	err := l.Open("")
-	if err == nil {
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
+	if err := l.Open("   "); err == nil {
 		t.Fatal("want error, got nil")
 	}
 }
 
-func TestOpen_ShellsTmuxSplit(t *testing.T) {
+func TestOpen_UnresolvablePath(t *testing.T) {
+	r, _ := recorder(t)
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
+	if err := l.Open("daily/missing"); err == nil {
+		t.Fatal("want error when pathOf returns empty path")
+	}
+}
+
+func TestOpen_SpawnsTmuxSplit(t *testing.T) {
 	r, calls := recorder(t)
-	l := editor.NewWithRunner("kompendium", "glow", r)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"daily/2026-04-30": "/notes/daily/2026-04-30.md"}),
+		nvimArgs, "glow", r,
+	)
 	if err := l.Open("daily/2026-04-30"); err != nil {
 		t.Fatal(err)
 	}
 	if len(*calls) != 1 || (*calls)[0].name != "tmux" {
 		t.Fatalf("calls: %+v", *calls)
 	}
-	want := []string{"split-window", "-h", "kompendium", "open", "daily/2026-04-30"}
+	want := []string{"split-window", "-h", "nvim", "/notes/daily/2026-04-30.md"}
 	if !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
 	}
 }
 
-func TestOpen_PropagatesError(t *testing.T) {
+// TestOpen_HonoursEditorArgsFlags covers the case where editorArgs
+// returns extra flags (e.g. "code -w" or "nvim -O"). The launcher
+// must pass them through to tmux split-window verbatim — without
+// flag passthrough, the user's editor preferences are silently
+// ignored.
+func TestOpen_HonoursEditorArgsFlags(t *testing.T) {
+	r, calls := recorder(t)
+	editorArgs := func(path string) ([]string, error) {
+		return []string{"nvim", "-O", path}, nil
+	}
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"daily/2026-04-30": "/p.md"}),
+		editorArgs, "glow", r,
+	)
+	if err := l.Open("daily/2026-04-30"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"split-window", "-h", "nvim", "-O", "/p.md"}
+	if !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
+	}
+}
+
+func TestOpen_ResolveEditorErrorWrapped(t *testing.T) {
+	r, _ := recorder(t)
+	want := errors.New("env parse")
+	editorArgs := func(string) ([]string, error) { return nil, want }
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/p"}),
+		editorArgs, "glow", r,
+	)
+	err := l.Open("x")
+	if err == nil || !errors.Is(err, want) {
+		t.Errorf("got %v, want wrapped %v", err, want)
+	}
+}
+
+func TestOpen_EmptyEditorArgs(t *testing.T) {
+	r, _ := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/p"}),
+		func(string) ([]string, error) { return nil, nil },
+		"glow", r,
+	)
+	if err := l.Open("x"); err == nil {
+		t.Fatal("expected error on empty editor argv")
+	}
+}
+
+func TestOpen_PropagatesTmuxError(t *testing.T) {
 	want := errors.New("split failed")
 	r, _ := recorder(t, response{err: want})
-	l := editor.NewWithRunner("kompendium", "glow", r)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"daily": "/p"}),
+		nvimArgs, "glow", r,
+	)
 	if err := l.Open("daily"); !errors.Is(err, want) {
 		t.Errorf("got %v, want %v", err, want)
 	}
@@ -72,83 +148,66 @@ func TestOpen_PropagatesError(t *testing.T) {
 
 func TestView_EmptyID(t *testing.T) {
 	r, _ := recorder(t)
-	l := editor.NewWithRunner("kompendium", "glow", r)
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
 	if err := l.View("   "); err == nil {
 		t.Fatal("want error, got nil")
 	}
 }
 
-func TestView_PathErrorWrapped(t *testing.T) {
-	want := errors.New("not found")
-	r, _ := recorder(t, response{err: want})
-	l := editor.NewWithRunner("kompendium", "glow", r)
-	err := l.View("missing")
-	if err == nil || !errors.Is(err, want) {
-		t.Errorf("got %v, want wrapped %v", err, want)
-	}
-}
-
-func TestView_EmptyPath(t *testing.T) {
-	r, _ := recorder(t, response{out: []byte("\n")})
-	l := editor.NewWithRunner("kompendium", "glow", r)
-	if err := l.View("note"); err == nil {
-		t.Fatal("want error, got nil")
+func TestView_UnresolvablePath(t *testing.T) {
+	r, _ := recorder(t)
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
+	if err := l.View("missing"); err == nil {
+		t.Fatal("want error when pathOf returns empty path")
 	}
 }
 
 func TestView_OpensViewerOnSplit(t *testing.T) {
-	r, calls := recorder(t,
-		response{out: []byte("/notes/daily.md\n")}, // kompendium path
-		response{}, // tmux split
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"daily": "/notes/daily.md"}),
+		nvimArgs, "glow", r,
 	)
-	l := editor.NewWithRunner("kompendium", "glow", r)
 	if err := l.View("daily"); err != nil {
 		t.Fatal(err)
 	}
-	if len(*calls) != 2 {
-		t.Fatalf("want 2 calls, got %d: %+v", len(*calls), *calls)
+	if len(*calls) != 1 {
+		t.Fatalf("want 1 call, got %d: %+v", len(*calls), *calls)
 	}
-	pathCall := (*calls)[0]
-	if pathCall.name != "kompendium" ||
-		!reflect.DeepEqual(pathCall.args, []string{"path", "daily"}) {
-		t.Errorf("path call: %+v", pathCall)
-	}
-	splitCall := (*calls)[1]
 	want := []string{"split-window", "-h", "glow", "/notes/daily.md"}
-	if splitCall.name != "tmux" || !reflect.DeepEqual(splitCall.args, want) {
-		t.Errorf("split call: %+v", splitCall)
+	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("split call: %+v", (*calls)[0])
 	}
 }
 
 func TestView_HonoursCustomViewer(t *testing.T) {
-	r, calls := recorder(t,
-		response{out: []byte("/p")},
-		response{},
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/p"}),
+		nvimArgs, "bat --paging=always", r,
 	)
-	l := editor.NewWithRunner("kompendium", "bat --paging=always", r)
 	if err := l.View("x"); err != nil {
 		t.Fatal(err)
 	}
-	if (*calls)[1].args[2] != "bat --paging=always" {
-		t.Errorf("viewer not propagated: %+v", (*calls)[1].args)
+	if (*calls)[0].args[2] != "bat --paging=always" {
+		t.Errorf("viewer not propagated: %+v", (*calls)[0].args)
 	}
 }
 
 func TestView_PropagatesSplitError(t *testing.T) {
 	splitErr := errors.New("no tmux")
-	r, _ := recorder(t,
-		response{out: []byte("/p")},
-		response{err: splitErr},
+	r, _ := recorder(t, response{err: splitErr})
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"note": "/p"}),
+		nvimArgs, "glow", r,
 	)
-	l := editor.NewWithRunner("kompendium", "glow", r)
-	err := l.View("note")
-	if !errors.Is(err, splitErr) {
+	if err := l.View("note"); !errors.Is(err, splitErr) {
 		t.Errorf("got %v, want %v", err, splitErr)
 	}
 }
 
 func TestNew_ProductionConstructor(t *testing.T) {
-	l := editor.New("kompendium", "glow")
+	l := editor.New(staticPath(nil), nvimArgs, "glow")
 	if l == nil {
 		t.Fatal("New returned nil")
 	}

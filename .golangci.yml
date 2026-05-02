@@ -95,6 +95,145 @@ linters:
               desc: "use cases consume ports for I/O; database/sql belongs in adapters"
             - pkg: path/filepath
               desc: "use cases consume ports for I/O; path/filepath belongs in adapters"
+        # Kompendium subtree mirrors the same hexagonal layering as flow's
+        # own (domain → ports → usecase → adapter → frontend), but lives
+        # in its own `internal/kompendium/...` namespace. Globs like
+        # `**/internal/domain/**` do NOT match `internal/kompendium/domain/`
+        # (the path segments aren't consecutive), so each kompendium layer
+        # gets its own rule. domain-style is deny-only (yaml.v3 in
+        # frontmatter parsing is accepted; see CLAUDE-kompendium-plan §8).
+        kompendium-domain:
+          files:
+            - "**/internal/kompendium/domain/**"
+          deny:
+            - pkg: os
+              desc: "kompendium domain layer must stay I/O-free; use a port instead"
+            - pkg: os/exec
+              desc: "kompendium domain layer must stay I/O-free; use a port instead"
+            - pkg: net
+              desc: "kompendium domain layer must stay I/O-free; use a port instead"
+            - pkg: net/http
+              desc: "kompendium domain layer must stay I/O-free; use a port instead"
+            - pkg: database/sql
+              desc: "kompendium domain layer must stay I/O-free; use a port instead"
+            - pkg: path/filepath
+              desc: "kompendium domain layer must stay path-agnostic; use a port instead"
+        kompendium-ports:
+          list-mode: strict
+          files:
+            - "**/internal/kompendium/ports/**"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/kompendium/domain
+        kompendium-usecase:
+          list-mode: strict
+          files:
+            - "**/internal/kompendium/usecase/**"
+            - "!**/internal/kompendium/usecase/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/kompendium/domain
+            - github.com/serverkraken/flow/internal/kompendium/ports
+        # The kompendium-adapter rule allowlists kompendium-only domain/ports
+        # plus the single third-party dep an adapter currently needs:
+        # `modernc.org/sqlite` (pure-Go SQLite driver) for sqliteindex. The
+        # blank import `_ "modernc.org/sqlite"` registers the "sqlite"
+        # database/sql driver and is the only kompendium-adapter dep beyond
+        # stdlib; gitrepo / gitsnapshot / tarsnapshot / legacysource /
+        # nvimeditor / fsstore are stdlib-only. Test files are excluded so
+        # white-box tests can reach unexported helpers without weakening
+        # the rule.
+        kompendium-adapter:
+          list-mode: strict
+          files:
+            - "**/internal/kompendium/adapter/**"
+            - "!**/internal/kompendium/adapter/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/kompendium/domain
+            - github.com/serverkraken/flow/internal/kompendium/ports
+            # flow/ports is allowed so kompendium adapters can satisfy
+            # flow-defined cross-boundary ports (today: WikilinkResolver
+            # for the shared markdown renderer; later K4 may add more
+            # gateway ports for the in-process kompendiumlib bridge).
+            - github.com/serverkraken/flow/internal/ports
+            - modernc.org/sqlite
+        # The kompendium-frontend-cli rule mirrors flow's frontend-cli
+        # rule but for the kompendium subtree. Allowlist: stdlib +
+        # kompendium/{domain,ports,usecase} + cobra + bubbletea + the
+        # two TUI subpackages browse/write hands off to (browse and
+        # writepicker). The cobra-side handlers stay thin shells; the
+        # heavy lifting lives in the TUI subpackages.
+        kompendium-frontend-cli:
+          list-mode: strict
+          files:
+            - "**/internal/kompendium/frontend/cli/**"
+            - "!**/internal/kompendium/frontend/cli/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/kompendium/domain
+            - github.com/serverkraken/flow/internal/kompendium/ports
+            - github.com/serverkraken/flow/internal/kompendium/usecase
+            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse
+            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker
+            - github.com/charmbracelet/bubbletea
+            - github.com/spf13/cobra
+        # The kompendium-frontend-tui rule mirrors flow's frontend-tui
+        # rule but for the kompendium subtree. Allowlist: stdlib +
+        # kompendium/{domain,ports,usecase} + the shared markdown
+        # renderer + flow/ports (for WikilinkResolver) + bubbletea +
+        # widgets + lipgloss/cellbuf/ansi. The browse → view sibling
+        # import is allowed explicitly because view is browse's
+        # in-process full-screen detail viewer, not a peer screen.
+        kompendium-frontend-tui:
+          list-mode: strict
+          files:
+            - "**/internal/kompendium/frontend/tui/**"
+            - "!**/internal/kompendium/frontend/tui/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/kompendium/domain
+            - github.com/serverkraken/flow/internal/kompendium/ports
+            - github.com/serverkraken/flow/internal/kompendium/usecase
+            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
+            - github.com/serverkraken/flow/internal/frontend/tui/markdown
+            - github.com/serverkraken/flow/internal/frontend/tui/markdown/theme
+            - github.com/serverkraken/flow/internal/ports
+            - github.com/charmbracelet/bubbletea
+            - github.com/charmbracelet/bubbles
+            - github.com/charmbracelet/lipgloss
+            - github.com/charmbracelet/x/ansi
+            - github.com/charmbracelet/x/cellbuf
+        # The markdown rule covers both the renderer at
+        # internal/frontend/tui/markdown/ and its sibling theme subpackage.
+        # Allowlist is tight: stdlib + the WikilinkResolver port +
+        # goldmark + chroma + lipgloss + cellbuf + termenv + ansi. No
+        # kompendium imports — the renderer is fully decoupled from
+        # the kompendium subtree per K3.B's exit criteria. Test files
+        # are excluded so white-box tests can poke at unexported helpers.
+        markdown:
+          list-mode: strict
+          files:
+            - "**/internal/frontend/tui/markdown/**"
+            - "!**/internal/frontend/tui/markdown/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/ports
+            - github.com/serverkraken/flow/internal/frontend/tui/markdown/theme
+            - github.com/yuin/goldmark
+            - github.com/yuin/goldmark/ast
+            - github.com/yuin/goldmark/extension
+            - github.com/yuin/goldmark/extension/ast
+            - github.com/yuin/goldmark/parser
+            - github.com/yuin/goldmark/renderer
+            - github.com/yuin/goldmark/text
+            - github.com/yuin/goldmark/util
+            - github.com/alecthomas/chroma/v2
+            - github.com/alecthomas/chroma/v2/lexers
+            - github.com/charmbracelet/lipgloss
+            - github.com/charmbracelet/x/ansi
+            - github.com/charmbracelet/x/cellbuf
+            - github.com/muesli/termenv
         adapter:
           list-mode: strict
           files:
@@ -104,7 +243,6 @@ linters:
             - $gostd
             - github.com/serverkraken/flow/internal/domain
             - github.com/serverkraken/flow/internal/ports
-            - github.com/charmbracelet/glamour
         frontend-cli:
           list-mode: strict
           files:
@@ -123,11 +261,16 @@ linters:
             - github.com/charmbracelet/bubbletea
             - github.com/serverkraken/flow/internal/frontend/tui/components/theme
             - github.com/serverkraken/flow/internal/frontend/tui/sidekick
+        # The markdown rule below claims internal/frontend/tui/markdown/**
+        # for itself (renderer + theme subpackage); excluding it here lets
+        # those files keep a tight goldmark/chroma allowlist without
+        # bleeding those deps into every other TUI screen.
         frontend-tui:
           list-mode: strict
           files:
             - "**/internal/frontend/tui/**"
             - "!**/internal/frontend/tui/**_test.go"
+            - "!**/internal/frontend/tui/markdown/**"
           allow:
             - $gostd
             - github.com/serverkraken/flow/internal/domain
@@ -136,16 +279,16 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/components
             # The bubbletea + lipgloss UI vocabulary — bubbles wraps the
             # widget primitives screens hold directly (textinput.Model,
-            # viewport.Model, spinner.Model). glamour powers the markdown
-            # component, termenv configures TrueColor for theme.Init,
-            # sahilm/fuzzy is the ranking primitive used by the palette
-            # and projects screens. Sibling-screen imports stay denied:
-            # strict mode rejects anything not on this list, including
-            # frontend/tui/screen/<name> peers.
+            # viewport.Model, spinner.Model). termenv configures TrueColor
+            # for theme.Init; sahilm/fuzzy is the ranking primitive used
+            # by the palette and projects screens. Markdown rendering is
+            # served by the dedicated markdown rule (above). Sibling-
+            # screen imports stay denied: strict mode rejects anything
+            # not on this list, including frontend/tui/screen/<name>
+            # peers.
             - github.com/charmbracelet/bubbletea
             - github.com/charmbracelet/bubbles
             - github.com/charmbracelet/lipgloss
-            - github.com/charmbracelet/glamour
             - github.com/muesli/termenv
             - github.com/sahilm/fuzzy
     gocyclo:

@@ -15,6 +15,7 @@ func TestIsValidScreen(t *testing.T) {
 		{domain.ScreenProjects, true},
 		{domain.ScreenWorktime, true},
 		{domain.ScreenCheatsheet, true},
+		{domain.ScreenNotes, true},
 		{"", false},
 		{"unknown", false},
 	}

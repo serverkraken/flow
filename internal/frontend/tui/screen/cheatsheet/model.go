@@ -3,8 +3,8 @@
 //
 // The screen takes a CheatsheetReader (loads the raw Markdown) and a
 // MarkdownRenderer (turns it into a styled, terminal-ready string)
-// via constructor injection. No filesystem or glamour calls happen
-// in this package.
+// via constructor injection. No filesystem or rendering library
+// calls happen in this package.
 package cheatsheet
 
 import (

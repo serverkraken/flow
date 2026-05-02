@@ -25,7 +25,13 @@ test:
 	go test -race ./...
 
 cover:
-	go test -race -covermode=atomic -coverprofile=$(COVER_OUT) -coverpkg=$(COVER_PKG) ./...
+	# -race is intentionally NOT passed here. With -race, Go's coverage
+	# attribution under -coverpkg=./internal/... drops random hits in
+	# parallel-test packages (sidekick + cli/sidekick lose ~1.5% under
+	# -race vs the same suite without). Race correctness is enforced by
+	# the separate `make test` target; coverage is a measurement, not a
+	# correctness check.
+	go test -covermode=atomic -coverprofile=$(COVER_OUT) -coverpkg=$(COVER_PKG) ./...
 	@./scripts/coverage-gate.sh $(COVER_OUT) $(COVER_THRESHOLD)
 
 lint:
