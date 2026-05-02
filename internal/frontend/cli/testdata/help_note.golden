@@ -1,0 +1,7 @@
+Notiz der heutigen Session setzen (idx 1-basiert; leerer Text löscht)
+
+Usage:
+  worktime note <session-idx> [text] [flags]
+
+Flags:
+  -h, --help   help for note

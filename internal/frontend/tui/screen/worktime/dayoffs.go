@@ -1,0 +1,593 @@
+package worktime
+
+import (
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+)
+
+// — messages —
+
+type freiLoadedMsg struct {
+	entries []domain.DayOff
+	year    int
+	err     error
+}
+
+type freiActionDoneMsg struct {
+	err   error
+	toast string
+}
+
+type freiClearToastMsg struct{}
+
+// — dialog modes —
+
+type freiDialog int
+
+const (
+	freiDialogNone freiDialog = iota
+	freiDialogAdd
+	freiDialogConfirm
+)
+
+// frei is the Frei (day-off) sub-model. F4.3 wave E gives it the action
+// surface needed for day-off CRUD: add via form (date or range, kind,
+// label), quick-add today as Urlaub or Krank, sync gesetzliche Feiertage
+// for the displayed year, and delete with confirm. j/k navigates the
+// year's entries; h/l/[/] shifts the year window.
+type frei struct {
+	pal  theme.Palette
+	deps Deps
+
+	width int
+
+	entries []domain.DayOff
+	cursor  int
+	year    int
+	loaded  bool
+	err     error
+
+	dialog  freiDialog
+	form    []textinput.Model
+	formCur int
+	kindCur int
+	errMsg  string
+
+	toast string
+}
+
+func newFrei(p theme.Palette, deps Deps) frei {
+	return frei{pal: p, deps: deps}
+}
+
+// — capability interfaces —
+
+// FilterActive bubbles up to the root so global tab keys don't intercept
+// while the add form or delete confirm has focus.
+func (f frei) FilterActive() bool { return f.dialog != freiDialogNone }
+
+// StateFilter has no meaning here — Frei has no persistent filter expression.
+func (f frei) StateFilter() string { return "" }
+
+// StateCursor reports the focused entry index for state persistence.
+func (f frei) StateCursor() int { return f.cursor }
+
+// Init kicks off the year load.
+func (f frei) Init() tea.Cmd { return f.loadCmd(f.currentYear()) }
+
+func (f frei) currentYear() int {
+	if f.year != 0 {
+		return f.year
+	}
+	return f.deps.Clock.Now().Year()
+}
+
+func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		f.width = msg.Width
+		return f, nil
+
+	case freiLoadedMsg:
+		f.loaded = true
+		f.err = msg.err
+		if msg.err == nil {
+			f.entries = msg.entries
+			f.year = msg.year
+			f.clampCursor()
+		}
+		return f, nil
+
+	case freiActionDoneMsg:
+		f.dialog = freiDialogNone
+		f.form = nil
+		f.formCur = 0
+		f.errMsg = ""
+		f.err = msg.err
+		if msg.err == nil && msg.toast != "" {
+			f.toast = msg.toast
+			return f, tea.Batch(f.loadCmd(f.currentYear()),
+				tea.Tick(3*time.Second, func(time.Time) tea.Msg { return freiClearToastMsg{} }))
+		}
+		return f, f.loadCmd(f.currentYear())
+
+	case freiClearToastMsg:
+		f.toast = ""
+		return f, nil
+
+	case dayRefreshMsg:
+		return f, f.loadCmd(f.currentYear())
+
+	case tea.KeyMsg:
+		if f.dialog != freiDialogNone {
+			return f.handleDialogKey(msg)
+		}
+		return f.handleNormalKey(msg)
+	}
+	return f, nil
+}
+
+func (f frei) loadCmd(year int) tea.Cmd {
+	reader := f.deps.DayOffReader
+	return func() tea.Msg {
+		from := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
+		to := time.Date(year, time.December, 31, 0, 0, 0, 0, time.Local)
+		return freiLoadedMsg{entries: reader.List(from, to), year: year}
+	}
+}
+
+func (f *frei) clampCursor() {
+	total := len(f.entries)
+	if f.cursor >= total {
+		f.cursor = total - 1
+	}
+	if f.cursor < 0 {
+		f.cursor = 0
+	}
+}
+
+// — keymap (no dialog) —
+
+func (f frei) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "j", "down":
+		if total := len(f.entries); total > 0 {
+			f.cursor = (f.cursor + 1) % total
+		}
+	case "k", "up":
+		if total := len(f.entries); total > 0 {
+			f.cursor = (f.cursor + total - 1) % total
+		}
+	case "g":
+		f.cursor = 0
+	case "G":
+		if total := len(f.entries); total > 0 {
+			f.cursor = total - 1
+		}
+	case "a":
+		return f.openAdd()
+	case "A":
+		return f, f.quickAddTodayCmd(domain.KindVacation)
+	case "K":
+		return f, f.quickAddTodayCmd(domain.KindSick)
+	case "B":
+		return f, f.syncHolidaysCmd()
+	case "d", "x":
+		if f.cursor >= 0 && f.cursor < len(f.entries) {
+			f.dialog = freiDialogConfirm
+			f.errMsg = ""
+		}
+	case "h", "left", "[":
+		return f.shiftYear(-1)
+	case "l", "right", "]":
+		return f.shiftYear(+1)
+	case "T":
+		now := f.deps.Clock.Now()
+		f.loaded = false
+		f.cursor = 0
+		f.year = now.Year()
+		return f, f.loadCmd(f.year)
+	}
+	return f, nil
+}
+
+func (f frei) shiftYear(delta int) (tea.Model, tea.Cmd) {
+	f.loaded = false
+	f.cursor = 0
+	f.year = f.currentYear() + delta
+	return f, f.loadCmd(f.year)
+}
+
+// — actions —
+
+func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
+	writer := f.deps.DayOffWriter
+	now := f.deps.Clock.Now()
+	return func() tea.Msg {
+		if err := writer.Add(now, kind, ""); err != nil {
+			return freiActionDoneMsg{err: err}
+		}
+		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %s eingetragen für %s",
+			kind.LabelDe(), now.Format("2006-01-02"))}
+	}
+}
+
+func (f frei) syncHolidaysCmd() tea.Cmd {
+	writer := f.deps.DayOffWriter
+	year := f.currentYear()
+	land := os.Getenv("WORKTIME_LAND")
+	if land == "" {
+		land = "NW"
+	}
+	return func() tea.Msg {
+		added, _, err := writer.SyncGermanHolidays(year, land)
+		if err != nil {
+			return freiActionDoneMsg{err: err}
+		}
+		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %d Feiertag(e) für %s/%d", added, land, year)}
+	}
+}
+
+// — add dialog —
+
+func (f frei) openAdd() (tea.Model, tea.Cmd) {
+	now := f.deps.Clock.Now()
+	date := form.NewTextInput("YYYY-MM-DD oder YYYY-MM-DD..YYYY-MM-DD", f.pal)
+	date.SetValue(now.Format("2006-01-02"))
+	date.CursorEnd()
+	label := form.NewTextInput("z.B. Brückentag", f.pal)
+	date.Focus()
+	f.form = []textinput.Model{date, label}
+	f.formCur = 0
+	f.kindCur = 1 // default: Urlaub (most common manual add)
+	f.dialog = freiDialogAdd
+	f.errMsg = ""
+	return f, textinput.Blink
+}
+
+// — dialog dispatch —
+
+func (f frei) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch f.dialog {
+	case freiDialogConfirm:
+		return f.handleConfirmKey(msg)
+	case freiDialogAdd:
+		return f.handleAddFormKey(msg)
+	}
+	return f, nil
+}
+
+func (f frei) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "z", "j":
+		if f.cursor < 0 || f.cursor >= len(f.entries) {
+			f.dialog = freiDialogNone
+			return f, nil
+		}
+		date := f.entries[f.cursor].Date
+		writer := f.deps.DayOffWriter
+		f.dialog = freiDialogNone
+		return f, func() tea.Msg {
+			if err := writer.Remove(date); err != nil {
+				return freiActionDoneMsg{err: err}
+			}
+			return freiActionDoneMsg{toast: "✓ Eintrag entfernt für " + date.Format("2006-01-02")}
+		}
+	case "n", "esc", "enter":
+		f.dialog = freiDialogNone
+		return f, nil
+	}
+	return f, nil
+}
+
+func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	maxCur := len(f.form) // virtual kind picker sits at index = len(f.form)
+	switch msg.Type {
+	case tea.KeyEsc:
+		f.dialog = freiDialogNone
+		f.form = nil
+		f.errMsg = ""
+		return f, nil
+	case tea.KeyTab, tea.KeyDown:
+		next := f.formCur + 1
+		if next > maxCur {
+			next = 0
+		}
+		f.focusForm(next)
+		return f, textinput.Blink
+	case tea.KeyShiftTab, tea.KeyUp:
+		next := f.formCur - 1
+		if next < 0 {
+			next = maxCur
+		}
+		f.focusForm(next)
+		return f, textinput.Blink
+	case tea.KeyEnter:
+		if f.formCur < maxCur {
+			f.focusForm(f.formCur + 1)
+			return f, textinput.Blink
+		}
+		return f.submitAdd()
+	}
+	if f.formCur == len(f.form) {
+		return f.handleKindCycle(msg)
+	}
+	if f.formCur >= 0 && f.formCur < len(f.form) {
+		var cmd tea.Cmd
+		f.errMsg = ""
+		f.form[f.formCur], cmd = f.form[f.formCur].Update(msg)
+		return f, cmd
+	}
+	return f, nil
+}
+
+func (f frei) handleKindCycle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "h", "left":
+		if f.kindCur > 0 {
+			f.kindCur--
+		} else {
+			f.kindCur = len(domain.AllKinds) - 1
+		}
+	case "l", "right":
+		f.kindCur = (f.kindCur + 1) % len(domain.AllKinds)
+	}
+	return f, nil
+}
+
+func (f *frei) focusForm(i int) {
+	for j := range f.form {
+		if j == i {
+			f.form[j].Focus()
+		} else {
+			f.form[j].Blur()
+		}
+	}
+	f.formCur = i
+}
+
+func (f frei) submitAdd() (tea.Model, tea.Cmd) {
+	dateExpr := strings.TrimSpace(f.form[0].Value())
+	label := strings.TrimSpace(f.form[1].Value())
+	from, to, isRange, err := parseDateOrRangeExpr(dateExpr)
+	if err != nil {
+		f.errMsg = err.Error()
+		return f, nil
+	}
+	kind := domain.AllKinds[f.kindCur%len(domain.AllKinds)]
+	writer := f.deps.DayOffWriter
+	if isRange {
+		return f, func() tea.Msg {
+			n, err := writer.AddRange(from, to, kind, label)
+			if err != nil {
+				return freiActionDoneMsg{err: err}
+			}
+			return freiActionDoneMsg{toast: fmt.Sprintf("✓ %d Tag(e) als %s eingetragen",
+				n, kind.LabelDe())}
+		}
+	}
+	return f, func() tea.Msg {
+		if err := writer.Add(from, kind, label); err != nil {
+			return freiActionDoneMsg{err: err}
+		}
+		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %s eingetragen für %s",
+			kind.LabelDe(), from.Format("2006-01-02"))}
+	}
+}
+
+// — render —
+
+func (f frei) View() string {
+	if f.width == 0 {
+		return ""
+	}
+	if f.dialog != freiDialogNone {
+		return f.renderDialog()
+	}
+	if !f.loaded {
+		return stDim(f.pal, "  Frei lädt …")
+	}
+	if f.err != nil {
+		return stErr(f.pal, f.err.Error())
+	}
+	return f.renderBody()
+}
+
+func (f frei) renderBody() string {
+	inner := f.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
+	rows := []string{f.renderHeader(), ""}
+	rows = append(rows, f.renderEntries(inner)...)
+	if f.toast != "" {
+		rows = append(rows, "", lipgloss.NewStyle().Foreground(f.pal.Cyan).Render("  "+f.toast))
+	}
+	rows = append(rows, "", renderFooterHints(f.pal, f.footerHints(), inner))
+	return strings.Join(rows, "\n")
+}
+
+func (f frei) renderHeader() string {
+	year := f.currentYear()
+	now := f.deps.Clock.Now()
+	left := lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render(fmt.Sprintf("Frei %d", year))
+	if year == now.Year() {
+		left += "   " + stDim(f.pal, "aktuelles Jahr")
+	}
+	return "  " + left
+}
+
+func (f frei) renderEntries(inner int) []string {
+	if len(f.entries) == 0 {
+		hint := []string{"a anlegen", "A heute=Urlaub", "K heute=krank", "B Feiertage-sync"}
+		return []string{
+			stDim(f.pal, "  Noch keine Daten in diesem Jahr."),
+			"",
+			renderFooterHints(f.pal, hint, inner),
+		}
+	}
+	rows := []string{"  " + f.renderKindSummary(), ""}
+	rows = append(rows, picker.SectionHeader(fmt.Sprintf("einträge (%d)", len(f.entries)), inner, f.pal))
+	for i, d := range f.entries {
+		rows = append(rows, f.renderEntryRow(i, d, inner))
+	}
+	return rows
+}
+
+func (f frei) renderKindSummary() string {
+	byKind := map[domain.Kind]int{}
+	for _, d := range f.entries {
+		byKind[d.Kind]++
+	}
+	parts := make([]string, 0, len(domain.AllKinds))
+	for _, k := range domain.AllKinds {
+		if c := byKind[k]; c > 0 {
+			parts = append(parts,
+				stDim(f.pal, fmt.Sprintf("%s %d", k.LabelDe(), c)))
+		}
+	}
+	return strings.Join(parts, stDim(f.pal, "  ·  "))
+}
+
+func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
+	date := domain.WeekdayShortDe(d.Date.Weekday()) + " " + d.Date.Format("02.01.")
+	dateCell := lipgloss.NewStyle().Width(10).Foreground(f.pal.Dim).Render(date)
+	kindCell := lipgloss.NewStyle().Width(10).Foreground(kindColor(f.pal, d.Kind)).Render(d.Kind.LabelDe())
+	label := dateCell + "  " + kindCell + "  " + d.Label
+	return picker.Row(idx == f.cursor, label, "", inner, f.pal)
+}
+
+func (f frei) footerHints() []string {
+	return []string{
+		"a anlegen",
+		"A heute=Urlaub",
+		"K heute=krank",
+		"B Feiertage-sync",
+		"d/x löschen",
+		"h/l Jahr ±",
+		"T aktuell",
+		"j/k auswahl",
+	}
+}
+
+// — render dialog —
+
+func (f frei) renderDialog() string {
+	inner := f.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
+	switch f.dialog {
+	case freiDialogAdd:
+		return f.renderAddDialog(inner)
+	case freiDialogConfirm:
+		return f.renderConfirmDialog(inner)
+	}
+	return ""
+}
+
+func (f frei) renderAddDialog(inner int) string {
+	rows := []string{
+		lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render("  Tag(e) frei eintragen"),
+		"",
+	}
+	rows = append(rows, f.renderAddFields(inner)...)
+	rows = append(rows, f.renderKindPicker(inner))
+	if f.errMsg != "" {
+		rows = append(rows, "", lipgloss.NewStyle().Foreground(f.pal.Red).Render("  "+f.errMsg))
+	}
+	rows = append(rows, "", stDim(f.pal,
+		"  Tab/↑↓ Feld  ·  h/l Kategorie  ·  Enter=weiter/speichern  ·  Esc=abbrechen"))
+	return strings.Join(rows, "\n")
+}
+
+func (f frei) renderAddFields(inner int) []string {
+	labels := []string{"datum", "label"}
+	rows := make([]string, 0, len(f.form)*2)
+	for i, ti := range f.form {
+		rows = append(rows, picker.SectionHeader(labels[i], inner, f.pal))
+		if i == f.formCur {
+			rows = append(rows, "  "+ti.View())
+		} else {
+			val := ti.Value()
+			if val == "" {
+				val = stDim(f.pal, ti.Placeholder)
+			}
+			rows = append(rows, "    "+val)
+		}
+	}
+	return rows
+}
+
+func (f frei) renderKindPicker(inner int) string {
+	header := picker.SectionHeader("kategorie  (h/l zum Wechseln)", inner, f.pal)
+	chips := make([]string, 0, len(domain.AllKinds))
+	kindFocused := f.formCur == len(f.form)
+	for i, k := range domain.AllKinds {
+		st := lipgloss.NewStyle().Foreground(f.pal.Dim)
+		if i == f.kindCur {
+			if kindFocused {
+				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Accent).Bold(true)
+			} else {
+				st = lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true)
+			}
+		}
+		chips = append(chips, st.Render(" "+k.LabelDe()+" "))
+	}
+	return header + "\n  " + strings.Join(chips, "  ")
+}
+
+func (f frei) renderConfirmDialog(_ int) string {
+	rows := []string{
+		lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render("  Eintrag löschen"),
+		"",
+	}
+	if f.cursor >= 0 && f.cursor < len(f.entries) {
+		d := f.entries[f.cursor]
+		rows = append(rows, lipgloss.NewStyle().Foreground(f.pal.Yellow).Bold(true).Render(
+			fmt.Sprintf("  %s  %s  %s",
+				d.Date.Format("2006-01-02"), d.Kind.LabelDe(), d.Label)))
+		rows = append(rows, "")
+		rows = append(rows, lipgloss.NewStyle().Foreground(f.pal.Red).Render("  Wirklich löschen?"))
+	}
+	rows = append(rows, "", stDim(f.pal, "  y/z/j=löschen  ·  Enter/n/Esc=abbrechen (default)"))
+	return strings.Join(rows, "\n")
+}
+
+// — pure helpers (private to package) —
+
+// parseDateOrRangeExpr parses YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD into
+// from/to anchors plus an isRange flag. Errors return German messages so
+// the form can surface them inline.
+func parseDateOrRangeExpr(s string) (time.Time, time.Time, bool, error) {
+	for i := 0; i < len(s)-1; i++ {
+		if s[i] == '.' && s[i+1] == '.' {
+			fromStr := s[:i]
+			toStr := s[i+2:]
+			from, e1 := time.ParseInLocation("2006-01-02", fromStr, time.Local)
+			to, e2 := time.ParseInLocation("2006-01-02", toStr, time.Local)
+			if e1 != nil {
+				return time.Time{}, time.Time{}, false, fmt.Errorf("from: %v", e1)
+			}
+			if e2 != nil {
+				return time.Time{}, time.Time{}, false, fmt.Errorf("to: %v", e2)
+			}
+			return from, to, true, nil
+		}
+	}
+	d, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	if err != nil {
+		return time.Time{}, time.Time{}, false, fmt.Errorf("ungültiges datum: %s", s)
+	}
+	return d, d, false, nil
+}

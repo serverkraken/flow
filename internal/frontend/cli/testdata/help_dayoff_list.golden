@@ -1,0 +1,11 @@
+Alle freien Tage anzeigen (default: aktuelles Jahr)
+
+Usage:
+  worktime dayoff list [flags]
+
+Aliases:
+  list, ls
+
+Flags:
+  -h, --help       help for list
+      --year int   Jahr (default: aktuelles)

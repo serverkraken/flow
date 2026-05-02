@@ -1,0 +1,10 @@
+Eintrag für ein Datum entfernen
+
+Usage:
+  worktime dayoff remove <date> [flags]
+
+Aliases:
+  remove, rm, del
+
+Flags:
+  -h, --help   help for remove

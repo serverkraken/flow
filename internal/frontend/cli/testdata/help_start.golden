@@ -1,0 +1,10 @@
+Startet eine Session.
+
+  --force    überschreibt eine bereits laufende Session (Default: Fehler).
+
+Usage:
+  worktime start [zeit] [flags]
+
+Flags:
+      --force   läuft bereits → trotzdem überschreiben
+  -h, --help    help for start

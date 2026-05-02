@@ -2,3 +2,7 @@ bin/
 dist/
 coverage.out
 coverage.html
+
+# Claude project files (per global rule: never committed)
+CLAUDE.md
+CLAUDE-*.md

@@ -1,0 +1,7 @@
+Tag der heutigen Session setzen (idx 1-basiert; leerer Tag löscht)
+
+Usage:
+  worktime tag <session-idx> [tag] [flags]
+
+Flags:
+  -h, --help   help for tag

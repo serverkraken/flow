@@ -1,0 +1,15 @@
+Befüllt worktime-dayoffs.tsv mit den gesetzlichen Feiertagen für das
+gewählte Bundesland und Jahr. Vorhandene vacation/sick-Einträge bleiben
+unangetastet.
+
+  --land   BW BY BE BB HB HH HE MV NI NW RP SL SN ST SH TH (default NW)
+           Aliase: NRW → NW, Bayern → BY
+  --year   Default: aktuelles Jahr
+
+Usage:
+  worktime dayoff sync [flags]
+
+Flags:
+  -h, --help          help for sync
+      --land string   Bundesland (NW, BY, BW, …) (default "NW")
+      --year int      Jahr (default: aktuelles)

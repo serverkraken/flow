@@ -1,0 +1,26 @@
+Worktime subcommands
+
+Usage:
+  worktime [command]
+
+Available Commands:
+  brief       Markdown-Briefing der Woche/des Monats nach stdout
+  completion  Generate the autocompletion script for the specified shell
+  correct     Startzeit der laufenden Session korrigieren
+  dayoff      Feiertage/Urlaub/Krankheit verwalten
+  export      Sessions als CSV/JSON exportieren (range: today, week, month, YYYY, YYYY-MM, FROM..TO)
+  help        Help about any command
+  note        Notiz der heutigen Session setzen (idx 1-basiert; leerer Text löscht)
+  pause       Aktive Session pausieren (resume mit `start`/`toggle`)
+  resume      Nach Pause weiterarbeiten
+  start       Start worktime session (jetzt, HH:MM, -Nm, -NhMMm)
+  stats       Aggregierte Statistiken (Total, Schnitt, Max, Min, Streak, Überzeit, Tags)
+  status      Print tmux status-right segment
+  stop        Stop current worktime session (optional: custom stop time)
+  tag         Tag der heutigen Session setzen (idx 1-basiert; leerer Tag löscht)
+  toggle      Start wenn idle, stopp wenn läuft (alias: s)
+
+Flags:
+  -h, --help   help for worktime
+
+Use "worktime [command] --help" for more information about a command.

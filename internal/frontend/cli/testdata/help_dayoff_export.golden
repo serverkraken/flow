@@ -1,0 +1,12 @@
+Exportiert Frei-Einträge in stdout.
+  --format ics  RFC 5545 .ics Kalenderdatei (Default)
+  --format tsv  rohes TSV (Date<TAB>Kind<TAB>Label)
+  --year        Default: aktuelles Jahr
+
+Usage:
+  worktime dayoff export [flags]
+
+Flags:
+      --format string   Ausgabeformat: ics|tsv (default "ics")
+  -h, --help            help for export
+      --year int        Jahr (default: aktuelles)

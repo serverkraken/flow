@@ -1,0 +1,7 @@
+Aktive Session pausieren (resume mit `start`/`toggle`)
+
+Usage:
+  worktime pause [flags]
+
+Flags:
+  -h, --help   help for pause

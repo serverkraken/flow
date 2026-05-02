@@ -3,7 +3,7 @@
 set -euo pipefail
 
 profile="${1:-coverage.out}"
-threshold="${2:-70}"
+threshold="${2:-90}"
 
 if [[ ! -f "$profile" ]]; then
   printf 'coverage profile not found: %s\n' "$profile" >&2

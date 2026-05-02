@@ -1,0 +1,22 @@
+{
+  "avg_seconds": 28800,
+  "best_streak": 1,
+  "by_tag": [
+    {
+      "tag": "build",
+      "elapsed_seconds": 28800
+    }
+  ],
+  "days": 1,
+  "days_off": [],
+  "hits": 1,
+  "max_date": "2026-04-27",
+  "max_seconds": 28800,
+  "min_date": "2026-04-27",
+  "min_seconds": 28800,
+  "overtime_seconds": 0,
+  "range": "week",
+  "streak": 1,
+  "total_seconds": 28800,
+  "workdays": 1
+}

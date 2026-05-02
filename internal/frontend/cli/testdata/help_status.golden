@@ -1,0 +1,10 @@
+Druckt das tmux status-right Segment.
+
+  --watch    refresht alle 60s (für non-tmux Statusbars).
+
+Usage:
+  worktime status [flags]
+
+Flags:
+  -h, --help    help for status
+      --watch   alle 60s neu drucken

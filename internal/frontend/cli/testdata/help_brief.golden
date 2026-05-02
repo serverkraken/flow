@@ -1,0 +1,15 @@
+Erzeugt einen Stand-up-tauglichen Markdown-Bericht.
+
+Beispiele:
+  flow worktime brief                  # aktuelle Woche
+  flow worktime brief week
+  flow worktime brief month
+  flow worktime brief 2026-04-15       # Woche, in der das Datum liegt
+  flow worktime brief --scope month 2026-04-15
+
+Usage:
+  worktime brief [week|month|YYYY-MM-DD] [flags]
+
+Flags:
+  -h, --help           help for brief
+      --scope string   Bereich: week|month (default "week")

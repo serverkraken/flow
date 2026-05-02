@@ -1,0 +1,7 @@
+Startzeit der laufenden Session korrigieren
+
+Usage:
+  worktime correct [HH:MM] [flags]
+
+Flags:
+  -h, --help   help for correct

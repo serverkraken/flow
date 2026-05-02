@@ -6,6 +6,7 @@ run:
 linters:
   default: none
   enable:
+    - depguard
     - errcheck
     - staticcheck
     - revive
@@ -13,7 +14,140 @@ linters:
     - gocognit
     - misspell
     - unused
+  # depguard locks the hexagonal layering. Every rule is in strict mode
+  # with an explicit allowlist, so any new import that doesn't fit the
+  # layer's contract fails the lint. Layer contracts:
+  #   domain      → stdlib only; no I/O packages, no third-party libs.
+  #   ports       → domain + stdlib; declares interfaces, never uses them.
+  #   usecase     → domain + ports + stdlib; consumes ports for all I/O.
+  #   adapter/<n> → domain + ports + stdlib + opted-in 3rd-party (e.g.
+  #                 glamour for glamourrenderer). Sibling adapters and
+  #                 usecase/frontend layers are denied.
+  #   frontend/cli → domain + ports + usecase + cobra + bubbletea +
+  #                  frontend/tui/components/theme + frontend/tui/sidekick.
+  #                  bubbletea + theme stay because SidekickDeps factories
+  #                  are typed `func(theme.Palette) tea.Model`.
+  #   frontend/tui → domain (read-only) + ports + usecase + bubbletea +
+  #                  lipgloss + bubbles/* + glamour + termenv + sahilm/fuzzy
+  #                  + frontend/tui/components. Sibling-screen imports are
+  #                  denied via strict mode; the sidekick root composes
+  #                  screens as tea.Model.
+  # cmd/flow is intentionally outside the rule set: it is the composition
+  # root and may import any layer to wire adapters into use cases.
   settings:
+    depguard:
+      rules:
+        domain:
+          files:
+            - "**/internal/domain/**"
+          deny:
+            - pkg: os
+              desc: "domain layer must stay I/O-free; use a port instead"
+            - pkg: os/exec
+              desc: "domain layer must stay I/O-free; use a port instead"
+            - pkg: net
+              desc: "domain layer must stay I/O-free; use a port instead"
+            - pkg: net/http
+              desc: "domain layer must stay I/O-free; use a port instead"
+            - pkg: database/sql
+              desc: "domain layer must stay I/O-free; use a port instead"
+            - pkg: path/filepath
+              desc: "domain layer must stay path-agnostic; use a port instead"
+        ports:
+          list-mode: strict
+          files:
+            - "**/internal/ports/**"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/domain
+          deny:
+            - pkg: os
+              desc: "ports declare interfaces only; os belongs in adapters"
+            - pkg: os/exec
+              desc: "ports declare interfaces only; os/exec belongs in adapters"
+            - pkg: net
+              desc: "ports declare interfaces only; net belongs in adapters"
+            - pkg: net/http
+              desc: "ports declare interfaces only; net/http belongs in adapters"
+            - pkg: database/sql
+              desc: "ports declare interfaces only; database/sql belongs in adapters"
+            - pkg: path/filepath
+              desc: "ports declare interfaces only; path/filepath belongs in adapters"
+        usecase:
+          list-mode: strict
+          files:
+            - "**/internal/usecase/**"
+            - "!**/internal/usecase/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/domain
+            - github.com/serverkraken/flow/internal/ports
+          deny:
+            - pkg: os
+              desc: "use cases consume ports for I/O; os belongs in adapters"
+            - pkg: os/exec
+              desc: "use cases consume ports for I/O; os/exec belongs in adapters"
+            - pkg: net
+              desc: "use cases consume ports for I/O; net belongs in adapters"
+            - pkg: net/http
+              desc: "use cases consume ports for I/O; net/http belongs in adapters"
+            - pkg: database/sql
+              desc: "use cases consume ports for I/O; database/sql belongs in adapters"
+            - pkg: path/filepath
+              desc: "use cases consume ports for I/O; path/filepath belongs in adapters"
+        adapter:
+          list-mode: strict
+          files:
+            - "**/internal/adapter/**"
+            - "!**/internal/adapter/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/domain
+            - github.com/serverkraken/flow/internal/ports
+            - github.com/charmbracelet/glamour
+        frontend-cli:
+          list-mode: strict
+          files:
+            - "**/internal/frontend/cli/**"
+            - "!**/internal/frontend/cli/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/domain
+            - github.com/serverkraken/flow/internal/ports
+            - github.com/serverkraken/flow/internal/usecase
+            - github.com/spf13/cobra
+            # sidekick.go drives the bubbletea program for `flow sidekick`
+            # via the frontend/tui/sidekick root model. The factories on
+            # SidekickDeps are typed `func(theme.Palette) tea.Model`, so
+            # bubbletea + theme stay on the allowlist alongside sidekick.
+            - github.com/charmbracelet/bubbletea
+            - github.com/serverkraken/flow/internal/frontend/tui/components/theme
+            - github.com/serverkraken/flow/internal/frontend/tui/sidekick
+        frontend-tui:
+          list-mode: strict
+          files:
+            - "**/internal/frontend/tui/**"
+            - "!**/internal/frontend/tui/**_test.go"
+          allow:
+            - $gostd
+            - github.com/serverkraken/flow/internal/domain
+            - github.com/serverkraken/flow/internal/ports
+            - github.com/serverkraken/flow/internal/usecase
+            - github.com/serverkraken/flow/internal/frontend/tui/components
+            # The bubbletea + lipgloss UI vocabulary — bubbles wraps the
+            # widget primitives screens hold directly (textinput.Model,
+            # viewport.Model, spinner.Model). glamour powers the markdown
+            # component, termenv configures TrueColor for theme.Init,
+            # sahilm/fuzzy is the ranking primitive used by the palette
+            # and projects screens. Sibling-screen imports stay denied:
+            # strict mode rejects anything not on this list, including
+            # frontend/tui/screen/<name> peers.
+            - github.com/charmbracelet/bubbletea
+            - github.com/charmbracelet/bubbles
+            - github.com/charmbracelet/lipgloss
+            - github.com/charmbracelet/glamour
+            - github.com/muesli/termenv
+            - github.com/sahilm/fuzzy
     gocyclo:
       min-complexity: 20
     gocognit:
@@ -41,6 +175,13 @@ linters:
         linters:
           - gocyclo
           - gocognit
+      # testutil is test infrastructure — every exported helper is by
+      # design a tiny one-line method against an interface, and a doc
+      # comment for each adds noise without information.
+      - path: internal/testutil/
+        linters:
+          - revive
+        text: "exported"
 
 formatters:
   enable:

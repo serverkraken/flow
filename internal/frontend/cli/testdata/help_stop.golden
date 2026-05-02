@@ -1,0 +1,7 @@
+Stop current worktime session (optional: custom stop time)
+
+Usage:
+  worktime stop [HH:MM] [flags]
+
+Flags:
+  -h, --help   help for stop

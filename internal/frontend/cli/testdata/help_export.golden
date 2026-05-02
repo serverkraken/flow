@@ -1,0 +1,17 @@
+Exportiert Sessions in stdout.
+Range-Beispiele:
+  flow worktime export                 # alles
+  flow worktime export today
+  flow worktime export week
+  flow worktime export month
+  flow worktime export 2026
+  flow worktime export 2026-04
+  flow worktime export 2026-04-01..2026-04-30
+Format: --format csv (default) | json
+
+Usage:
+  worktime export [range] [flags]
+
+Flags:
+      --format string   Ausgabeformat: csv|json (default "csv")
+  -h, --help            help for export

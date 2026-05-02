@@ -1,0 +1,11 @@
+Trägt einen freien Tag oder einen Range ein.
+Beispiele:
+  flow worktime dayoff add 2026-04-30 vacation "Brückentag"
+  flow worktime dayoff add 2026-07-13..2026-07-26 vacation "Sommerurlaub"
+  flow worktime dayoff add 2026-09-15 sick
+
+Usage:
+  worktime dayoff add <date|FROM..TO> <kind> [label] [flags]
+
+Flags:
+  -h, --help   help for add

@@ -1,0 +1,15 @@
+Aggregiert Sessions im angegebenen Range.
+Range-Beispiele:
+  flow worktime stats             # default month
+  flow worktime stats today
+  flow worktime stats week
+  flow worktime stats 2026
+  flow worktime stats 2026-04-01..2026-04-30
+Format: --format text (default) | json
+
+Usage:
+  worktime stats [range] [flags]
+
+Flags:
+      --format string   Ausgabeformat: text|json (default "text")
+  -h, --help            help for stats

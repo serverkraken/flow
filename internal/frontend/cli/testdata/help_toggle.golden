@@ -1,0 +1,10 @@
+Start wenn idle, stopp wenn läuft (alias: s)
+
+Usage:
+  worktime toggle [flags]
+
+Aliases:
+  toggle, s
+
+Flags:
+  -h, --help   help for toggle

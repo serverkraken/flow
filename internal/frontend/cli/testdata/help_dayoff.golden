@@ -1,0 +1,16 @@
+Feiertage/Urlaub/Krankheit verwalten
+
+Usage:
+  worktime dayoff [command]
+
+Available Commands:
+  add         Tag(e) frei eintragen (kind: holiday|vacation|sick, alias: h|v|s)
+  export      Frei-Einträge exportieren (--format ics|tsv, default ics)
+  list        Alle freien Tage anzeigen (default: aktuelles Jahr)
+  remove      Eintrag für ein Datum entfernen
+  sync        Bundesland-Feiertage automatisch eintragen (idempotent)
+
+Flags:
+  -h, --help   help for dayoff
+
+Use "worktime dayoff [command] --help" for more information about a command.
