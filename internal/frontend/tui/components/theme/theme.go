@@ -1,5 +1,11 @@
-// Package theme provides the Tokyonight Storm color palette and lipgloss renderer
-// initialisation for the tui-kit component library.
+// Package theme is a thin compatibility view over the canonical token
+// package at internal/frontend/tui/theme.
+//
+// It exposes the smaller 11-field Palette that the existing component
+// library was built against, plus the tmux @tn_* overlay flow and the
+// TrueColor renderer setup. New component code should reach for the
+// canonical theme package directly; this package stays for back-compat
+// while screens migrate (P3/P4 of the design-system roadmap).
 package theme
 
 import (
@@ -9,37 +15,53 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-// Palette holds the full Tokyonight Storm color set, mirroring the @tn_* user-options
-// defined in .tmux.conf.
+// Palette is the 11-field colour set consumed by the component library.
+// Field roles (mapped onto canonical tokens):
+//
+//	Bg     → canonical.Bg
+//	Fg     → canonical.Fg
+//	Accent → canonical.Sem().Accent  (Blue)
+//	Dim    → canonical.FgMuted       (hint / meta)
+//	Border → canonical.BgCode        (panel border)
+//	Hues   → canonical hues (1:1)
 type Palette struct {
 	Bg, Fg, Accent, Dim, Border              lipgloss.Color
 	Purple, Green, Red, Orange, Yellow, Cyan lipgloss.Color
 }
 
-// fallback is the canonical Tokyonight Storm palette, identical to the @tn_* values
-// hard-coded in .tmux.conf. Used when tmux is unavailable or an option is unset.
-var fallback = Palette{
-	Bg:     "#24283b",
-	Fg:     "#c0caf5",
-	Accent: "#7aa2f7",
-	Dim:    "#565f89",
-	Border: "#414868",
-	Purple: "#bb9af7",
-	Green:  "#9ece6a",
-	Red:    "#f7768e",
-	Orange: "#ff9e64",
-	Yellow: "#e0af68",
-	Cyan:   "#7dcfff",
+// Fallback projects the canonical default palette (theme.Default) onto
+// the 11-field shape this package exposes. Used as the starting point
+// for Load() before tmux @tn_* overlays are applied; exported so tests
+// can assert against canonical values without depending on whether a
+// tmux server happens to be running on the dev machine.
+func Fallback() Palette {
+	p := canonical.Default
+	sem := p.Sem()
+	return Palette{
+		Bg:     lipgloss.Color(p.Bg),
+		Fg:     lipgloss.Color(p.Fg),
+		Accent: lipgloss.Color(sem.Accent),
+		Dim:    lipgloss.Color(p.FgMuted),
+		Border: lipgloss.Color(p.BgCode),
+		Purple: lipgloss.Color(p.Purple),
+		Green:  lipgloss.Color(p.Green),
+		Red:    lipgloss.Color(p.Red),
+		Orange: lipgloss.Color(p.Orange),
+		Yellow: lipgloss.Color(p.Yellow),
+		Cyan:   lipgloss.Color(p.Cyan),
+	}
 }
 
-// Load reads the @tn_* user-options from a running tmux server and returns a Palette.
-// When tmux is unavailable or an option is unset the Tokyonight Storm hex fallbacks are
-// used. Load never returns an error; a missing tmux server is silently ignored so the
-// library remains usable in tests and stand-alone demos.
+// Load reads the @tn_* user-options from a running tmux server and
+// returns a Palette. When tmux is unavailable or an option is unset
+// the canonical defaults are used. Load never returns an error; a
+// missing tmux server is silently ignored so the library remains
+// usable in tests and stand-alone demos.
 func Load() Palette {
-	p := fallback
+	p := Fallback()
 	entries := []struct {
 		name string
 		dest *lipgloss.Color
@@ -64,11 +86,13 @@ func Load() Palette {
 	return p
 }
 
-// Init configures the lipgloss default renderer for TrueColor output when running inside
-// tmux. tmux sets TERM=screen-256color which causes termenv's auto-detection to downgrade
-// to ANSI256; this override restores full 24-bit rendering.
+// Init configures the lipgloss default renderer for TrueColor output
+// when running inside tmux. tmux sets TERM=screen-256color which causes
+// termenv's auto-detection to downgrade to ANSI256; this override
+// restores full 24-bit rendering.
 //
-// Init must be called once at program startup, before any lipgloss styles are rendered.
+// Init must be called once at program startup, before any lipgloss
+// styles are rendered.
 func Init() {
 	if os.Getenv("TMUX") == "" {
 		return
