@@ -31,7 +31,7 @@ var screenBaseline = map[string]int{
 	"worktime/dayoffs.go": 5,
 	"worktime/history.go": 29,
 	"worktime/model.go":   2,
-	"worktime/today.go":   3,
+	"worktime/today.go":   4,
 	"worktime/week.go":    13,
 }
 

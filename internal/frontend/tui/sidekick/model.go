@@ -255,6 +255,10 @@ func (m Model) renderHelp() string {
 			{"E / Enter", "Session bearbeiten"},
 			{"D", "Session löschen (y/Enter bestätigt)"},
 			{"t · N", "Tag · Notiz für die fokussierte Session"},
+			{"n", "Kompendium-Note an heute anhängen"},
+			{"o · O", "Erste angehängte Note ansehen · bearbeiten"},
+			{"Ctrl+D", "Erste angehängte Note entfernen"},
+			{"?", "Diese Hilfe (auch im Standalone-`flow worktime today`)"},
 		}},
 		{Title: "Worktime — Woche", Keys: [][2]string{
 			{"j/k · g/G", "Tag fokussieren · oben/unten"},

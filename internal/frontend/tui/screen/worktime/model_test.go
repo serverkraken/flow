@@ -580,6 +580,44 @@ func TestHeute_CtrlD_NoAttachedNotes_IsNoop(t *testing.T) {
 	}
 }
 
+func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	if !updated.(worktime.Model).FilterActive() {
+		t.Fatal("`?` should open the help overlay (FilterActive=true)")
+	}
+	out := updated.View()
+	// picker.SectionHeader uppercases its title; sniff the upper form.
+	for _, want := range []string{
+		"Heute · Hilfe",
+		"CURSOR & ACTION",
+		"KOMPENDIUM",
+		"n", "Ctrl+D", "o", "O",
+		"beliebige Taste schließt",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("help overlay should contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestHeute_HelpOverlay_AnyKeyCloses(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	// Any key dismisses — pick something that would otherwise have its own
+	// behaviour in normal mode (`s` toggles start/stop) to prove the help
+	// dialog ate the key first.
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	if updated.(worktime.Model).FilterActive() {
+		t.Error("any key on help overlay should close it")
+	}
+	if r.active.Active != nil {
+		t.Error("the dismiss key must not bubble through to start a session")
+	}
+}
+
 func TestHeute_DDelete_StillDeletesSessionWhenNotesAttached(t *testing.T) {
 	// Regression guard: introducing Ctrl+D for detach must not change
 	// the meaning of `D` (uppercase) — it remains the destructive-with-

@@ -41,6 +41,7 @@ const (
 	heuteDialogEdit
 	heuteDialogDelete
 	heuteDialogNoteAttach
+	heuteDialogHelp
 )
 
 // heute is the Heute (today) sub-model. F4.3 wave B gives it the action
@@ -248,6 +249,13 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h, h.editAttachedNoteCmd()
 	case "ctrl+d":
 		return h, h.detachAttachedNoteCmd()
+	case "?":
+		// Standalone-`flow worktime today`: kein sidekick-Wrapper, der
+		// `?` abfängt. Im sidekick-Modus kommt der Key gar nicht hier
+		// an (sidekick.model:159 fängt ihn vorher), Heute öffnet sein
+		// eigenes Overlay nur wenn die globale Hilfe nicht greift.
+		h.dialog = heuteDialogHelp
+		return h, nil
 	}
 	return h.handleDialogOpenKey(msg)
 }
@@ -489,6 +497,11 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h.handleFormKey(msg)
 	case heuteDialogTag, heuteDialogNote, heuteDialogNoteAttach:
 		return h.handleSimpleInputKey(msg)
+	case heuteDialogHelp:
+		// Help-Overlay schließt auf jede Taste — keine Validierung,
+		// kein State zum Beibehalten. Mirror der sidekick-Hilfe-UX.
+		h.dialog = heuteDialogNone
+		return h, nil
 	}
 	return h, nil
 }
@@ -925,6 +938,11 @@ func (h heute) renderDialog() string {
 		if h.confirmModel != nil {
 			rows = append(rows, "  "+h.confirmModel.View())
 		}
+
+	case heuteDialogHelp:
+		title = "Heute · Hilfe"
+		hint = "beliebige Taste schließt"
+		rows = append(rows, h.renderHelpRows(inner)...)
 	}
 
 	if h.errMsg != "" {
@@ -936,6 +954,49 @@ func (h heute) renderDialog() string {
 	}
 	rows = append(rows, "", titleLine)
 	return strings.Join(rows, "\n")
+}
+
+// renderHelpRows enumerates Heute's keybinds for the standalone `?`
+// overlay. Sections are grouped by purpose, keys ordered roughly by
+// frequency. Inside the sidekick wrapper this overlay never opens —
+// sidekick.model intercepts `?` first; that overlay carries its own
+// "Worktime — Heute" section. Both must stay in sync; a screen-level
+// drift is the easier failure mode to spot during review.
+func (h heute) renderHelpRows(inner int) []string {
+	type entry struct{ key, desc string }
+	type section struct {
+		title   string
+		entries []entry
+	}
+	sections := []section{
+		{"Cursor & Action", []entry{
+			{"j/k · g/G", "bewegen · oben/unten"},
+			{"s", "starten / stoppen / fortsetzen"},
+			{"p", "pause (im laufenden Zustand)"},
+		}},
+		{"Session-Edit (auf fokussierter Zeile)", []entry{
+			{"E / Enter", "Session bearbeiten"},
+			{"D", "Session löschen (y/Enter bestätigt)"},
+			{"t · N", "Tag · Notiz setzen"},
+		}},
+		{"Kompendium (für heute)", []entry{
+			{"n", "Note anhängen (ID eingeben)"},
+			{"o · O", "erste Note ansehen · bearbeiten"},
+			{"Ctrl+D", "erste Note entfernen"},
+		}},
+	}
+	rows := []string{}
+	for i, sec := range sections {
+		if i > 0 {
+			rows = append(rows, "")
+		}
+		rows = append(rows, picker.SectionHeader(sec.title, inner, h.pal))
+		for _, e := range sec.entries {
+			keyCell := lipgloss.NewStyle().Width(14).Render(theme.Highlight(e.key, h.pal))
+			rows = append(rows, "  "+keyCell+stDim(h.pal, e.desc))
+		}
+	}
+	return rows
 }
 
 // — small helpers (private to package) —
