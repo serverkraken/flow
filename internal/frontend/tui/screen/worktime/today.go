@@ -20,8 +20,9 @@ import (
 // — messages —
 
 type heuteLoadedMsg struct {
-	day domain.Day
-	err error
+	day   domain.Day
+	notes []string
+	err   error
 }
 
 type heuteActionDoneMsg struct {
@@ -39,14 +40,17 @@ const (
 	heuteDialogNote
 	heuteDialogEdit
 	heuteDialogDelete
+	heuteDialogNoteAttach
 )
 
 // heute is the Heute (today) sub-model. F4.3 wave B gives it the action
 // surface needed for everyday tracking: start/stop/pause/resume plus
-// per-session edits (tag, note, edit, delete). Decoration features
+// per-session edits (tag, note, edit, delete). Wave-B+ slice 1 adds the
+// Kompendium-attach trio (`n` attach via LinkWriter, `o` view via
+// NoteOpener, render-line for attached IDs). Other decoration features
 // (sparkline, pomodoro, typical stop time, day-off banner, best-streak
-// celebration, smart stop suggestion, Kompendium notes) are deferred to
-// post-wave-B enhancements — they don't block the architectural lift.
+// celebration, smart stop suggestion) stay deferred — they don't block
+// anything.
 type heute struct {
 	pal  theme.Palette
 	deps Deps
@@ -73,6 +77,11 @@ type heute struct {
 
 	editIdx  int
 	editDate time.Time
+
+	// attachedNotes holds Kompendium note IDs linked to today, in
+	// insertion order (LinkReader keeps that). Loaded alongside the day
+	// in loadCmd; render shows them as a chip line under the headline.
+	attachedNotes []string
 
 	// toast is the canonical green-✓ confirmation surface (toast.Model).
 	// Pre-Welle-3 this was a hand-rolled cyan-foreground render with a
@@ -121,6 +130,7 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.err = msg.err
 		if msg.err == nil {
 			h.day = msg.day
+			h.attachedNotes = msg.notes
 			h.clampCursor()
 		}
 		return h, nil
@@ -174,9 +184,18 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (h heute) loadCmd() tea.Cmd {
 	reader := h.deps.Reader
+	linkReader := h.deps.LinkReader
+	clock := h.deps.Clock
 	return func() tea.Msg {
 		day, err := reader.Today()
-		return heuteLoadedMsg{day: day, err: err}
+		if err != nil {
+			return heuteLoadedMsg{day: day, err: err}
+		}
+		// Note-load errors stay silent — the day is the primary surface.
+		// A broken linkstsv shouldn't blank the headline; the chip line
+		// just doesn't render.
+		notes, _ := linkReader.ListByDate(clock.Now())
+		return heuteLoadedMsg{day: day, notes: notes}
 	}
 }
 
@@ -223,6 +242,18 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return h, h.pauseCmd()
 		}
 		return h, nil
+	case "o":
+		return h, h.viewAttachedNoteCmd()
+	}
+	return h.handleDialogOpenKey(msg)
+}
+
+// handleDialogOpenKey dispatches the keys that activate a dialog. Split
+// from handleNormalKey to keep gocyclo under the project ceiling — the
+// session-edit family (t/N/E/⏎/D) plus the day-level Kompendium attach
+// (n) read more naturally as one group anyway.
+func (h heute) handleDialogOpenKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
 	case "t":
 		if h.onSession() {
 			return h.openTagDialog()
@@ -243,8 +274,31 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if h.onSession() {
 			return h.openDeleteDialog()
 		}
+	case "n":
+		return h.openNoteAttachDialog()
 	}
 	return h, nil
+}
+
+// viewAttachedNoteCmd opens the first attached Kompendium note for today
+// via NoteOpener.View (typically a tmux split running the configured
+// note viewer). When nothing is attached the action is a noop with a
+// dim toast — calling NoteOpener.View("") would surface a hard error
+// the user neither caused nor cares about.
+func (h heute) viewAttachedNoteCmd() tea.Cmd {
+	if len(h.attachedNotes) == 0 {
+		return func() tea.Msg {
+			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt — `n` hängt eine an"}
+		}
+	}
+	id := h.attachedNotes[0]
+	opener := h.deps.NoteOpener
+	return func() tea.Msg {
+		if err := opener.View(id); err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("📖 Note %s geöffnet", id)}
+	}
 }
 
 // toggleStartStopCmd maps the legacy `s` key to the simplest reasonable
@@ -338,6 +392,22 @@ func (h heute) openEditDialog() (tea.Model, tea.Cmd) {
 	return h, textinput.Blink
 }
 
+// openNoteAttachDialog activates the single-textinput dialog the user
+// types a Kompendium note ID into. The submit branch dispatches
+// LinkWriter.Add against today's date; the load branch refreshes
+// attachedNotes so the chip line picks the new ID up immediately.
+// Note: this is the minimal-viable attach — no fuzzy picker, no
+// recent-notes suggestions. A picker UI is a follow-up slice.
+func (h heute) openNoteAttachDialog() (tea.Model, tea.Cmd) {
+	h.editDate = h.deps.Clock.Now()
+	h.dialog = heuteDialogNoteAttach
+	h.input = form.NewTextInput("Note-ID (z.B. 2026-05-03 oder daily-2026-05-03)", h.pal)
+	h.input.SetValue("")
+	h.input.Focus()
+	h.errMsg = ""
+	return h, textinput.Blink
+}
+
 func (h heute) openDeleteDialog() (tea.Model, tea.Cmd) {
 	s := h.day.Sessions[h.cursor]
 	h.editIdx = h.cursor
@@ -369,7 +439,7 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h, cmd
 	case heuteDialogEdit:
 		return h.handleFormKey(msg)
-	case heuteDialogTag, heuteDialogNote:
+	case heuteDialogTag, heuteDialogNote, heuteDialogNoteAttach:
 		return h.handleSimpleInputKey(msg)
 	}
 	return h, nil
@@ -475,6 +545,21 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 
 	case heuteDialogEdit:
 		return h.submitEdit()
+
+	case heuteDialogNoteAttach:
+		id := strings.TrimSpace(h.input.Value())
+		if id == "" {
+			h.errMsg = "Note-ID darf nicht leer sein"
+			return h, nil
+		}
+		date := h.editDate
+		writer := h.deps.LinkWriter
+		return h, func() tea.Msg {
+			if err := writer.Add(date, id); err != nil {
+				return heuteActionDoneMsg{err: err}
+			}
+			return heuteActionDoneMsg{toast: fmt.Sprintf("🔗 Note %s angehängt", id)}
+		}
 	}
 	return h, nil
 }
@@ -564,6 +649,9 @@ func (h heute) renderBody() string {
 	now := h.deps.Clock.Now()
 
 	rows := []string{h.renderHeadline(now), "", h.renderProgressBar(inner), h.renderSummary(inner)}
+	if line := h.renderAttachedNotes(); line != "" {
+		rows = append(rows, "", line)
+	}
 	if line := h.renderPauseHint(now); line != "" {
 		rows = append(rows, "", line)
 	}
@@ -633,6 +721,19 @@ func (h heute) renderSummary(inner int) string {
 		parts = append(parts, "ETA "+eta.Format("15:04"))
 	}
 	return renderFooterHints(h.pal, parts, inner)
+}
+
+// renderAttachedNotes renders the chip line that surfaces today's
+// linked Kompendium notes. Empty result skips the row entirely so
+// the layout doesn't grow a blank gap when nothing is attached.
+func (h heute) renderAttachedNotes() string {
+	if len(h.attachedNotes) == 0 {
+		return ""
+	}
+	label := theme.Highlight("🔗", h.pal)
+	ids := stDim(h.pal, strings.Join(h.attachedNotes, "  ·  "))
+	hint := stDim(h.pal, "  ·  o → öffnen")
+	return "  " + label + "  " + ids + hint
 }
 
 func (h heute) renderPauseHint(now time.Time) string {
@@ -736,6 +837,15 @@ func (h heute) renderDialog() string {
 		title = "Session-Notiz"
 		hint = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
 		rows = append(rows, picker.SectionHeader("notiz", inner, h.pal), "  "+h.input.View())
+
+	case heuteDialogNoteAttach:
+		title = "Kompendium-Note anhängen"
+		hint = "Enter → anhängen  ·  Esc → abbrechen"
+		rows = append(rows, picker.SectionHeader("note id", inner, h.pal), "  "+h.input.View())
+		if len(h.attachedNotes) > 0 {
+			rows = append(rows, "", stDim(h.pal,
+				"  bereits angehängt:  "+strings.Join(h.attachedNotes, "  ·  ")))
+		}
 
 	case heuteDialogEdit:
 		title = "Session bearbeiten"

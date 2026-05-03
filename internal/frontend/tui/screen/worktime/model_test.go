@@ -17,12 +17,14 @@ import (
 // tests can both inspect the inputs and manipulate the wired state
 // (e.g. seeding sessions before Init runs).
 type rig struct {
-	model    worktime.Model
-	clock    *testutil.FixedClock
-	sessions *testutil.FakeSessionStore
-	active   *testutil.FakeActiveSessionStore
-	dayoffs  *testutil.FakeDayOffStore
-	lock     *testutil.FakeLock
+	model        worktime.Model
+	clock        *testutil.FixedClock
+	sessions     *testutil.FakeSessionStore
+	active       *testutil.FakeActiveSessionStore
+	dayoffs      *testutil.FakeDayOffStore
+	lock         *testutil.FakeLock
+	links        *testutil.FakeLinkStore
+	noteLauncher *testutil.FakeNoteLauncher
 }
 
 // newRig builds a wired worktime root with empty fakes everywhere — the
@@ -56,12 +58,14 @@ func newRig(t *testing.T) rig {
 		Clock:         clock,
 	}
 	return rig{
-		model:    worktime.New(theme.Load(), deps),
-		clock:    clock,
-		sessions: sessions,
-		active:   active,
-		dayoffs:  dayoffs,
-		lock:     lock,
+		model:        worktime.New(theme.Load(), deps),
+		clock:        clock,
+		sessions:     sessions,
+		active:       active,
+		dayoffs:      dayoffs,
+		lock:         lock,
+		links:        links,
+		noteLauncher: noteLauncher,
 	}
 }
 
@@ -438,6 +442,84 @@ func TestHeute_EscClosesDialog(t *testing.T) {
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if updated.(worktime.Model).FilterActive() {
 		t.Error("Esc should close the tag dialog")
+	}
+}
+
+// — Heute Wave-B+ slice 1: Kompendium attach (n) + view (o) —
+
+func TestHeute_AttachDialog_AddsNoteToLinkStore(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	if !updated.(worktime.Model).FilterActive() {
+		t.Fatal("attach dialog should set FilterActive=true")
+	}
+	for _, ch := range "daily-2026-05-01" {
+		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	final := drainCmd(t, updated, cmd)
+	if fa := final.(worktime.Model); fa.FilterActive() {
+		t.Error("dialog should be closed after submit")
+	}
+	got := r.links.ByDate[r.clock.T.Format("2006-01-02")]
+	if len(got) != 1 || got[0] != "daily-2026-05-01" {
+		t.Errorf("LinkStore for today = %v, want [daily-2026-05-01]", got)
+	}
+}
+
+func TestHeute_AttachDialog_RejectsEmpty(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	// Submit without typing anything → errMsg, dialog stays open, no link added.
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = drainCmd(t, updated, cmd)
+	if !updated.(worktime.Model).FilterActive() {
+		t.Error("dialog should stay open when submission was rejected")
+	}
+	if len(r.links.ByDate) != 0 {
+		t.Errorf("LinkStore should be empty after empty submit, got %v", r.links.ByDate)
+	}
+}
+
+func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
+	r := newRig(t)
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	if err := r.links.Add(r.clock.T, "projects/foo-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+	out := m.View()
+	for _, want := range []string{"🔗", "daily-2026-05-01", "projects/foo-2026-05-01"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("attached-notes chip line should contain %q, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestHeute_OpenKey_LaunchesNoteViewer(t *testing.T) {
+	r := newRig(t)
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	_ = drainCmd(t, updated, cmd)
+	if len(r.noteLauncher.Calls) != 1 || r.noteLauncher.Calls[0] != "view:daily-2026-05-01" {
+		t.Errorf("`o` should call NoteLauncher.View, got Calls=%v", r.noteLauncher.Calls)
+	}
+}
+
+func TestHeute_OpenKey_NoAttachedNotes_IsNoop(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	_ = drainCmd(t, updated, cmd)
+	if len(r.noteLauncher.Calls) != 0 {
+		t.Errorf("`o` with no attached notes must not launch the viewer, got Calls=%v", r.noteLauncher.Calls)
 	}
 }
 
