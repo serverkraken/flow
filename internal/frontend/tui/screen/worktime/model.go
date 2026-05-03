@@ -217,7 +217,7 @@ func (m Model) View() string {
 	}
 	body := m.subs[m.current].View()
 	if body == "" {
-		body = lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  (lädt …)")
+		body = theme.Dim("  (lädt …)", m.pal)
 	}
 	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
 }

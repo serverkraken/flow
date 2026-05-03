@@ -593,7 +593,7 @@ func (h heute) renderHeadline(now time.Time) string {
 	}
 	totalStr := lipgloss.NewStyle().Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Bold(true).Render(totalText)
 	statusStr := lipgloss.NewStyle().Foreground(statusColor).Render(statusGlyph + " " + statusLabel)
-	pctStr := lipgloss.NewStyle().Foreground(h.pal.Dim).Render(fmt.Sprintf("%d%%", pct))
+	pctStr := theme.Dim(fmt.Sprintf("%d%%", pct), h.pal)
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
 	// zwischen den drei Status-Cells. 3-Cell-Gaps (vorher) lagen außerhalb der
 	// Skala und ließen die Headline ungleichmäßig ausgerichtet wirken.
@@ -640,7 +640,7 @@ func (h heute) renderPauseHint(now time.Time) string {
 		return ""
 	}
 	return "  " +
-		lipgloss.NewStyle().Foreground(h.pal.Yellow).Bold(true).Render("⏸ in Pause") +
+		theme.Warning("⏸ in Pause", h.pal) +
 		stDim(h.pal, fmt.Sprintf("  seit %s  ·  %s — `s` setzt fort",
 			h.day.PausedAt.Format("15:04"), formatDur(now.Sub(*h.day.PausedAt))))
 }
@@ -662,9 +662,9 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 
 	if h.day.IsRunning() && h.day.Active != nil {
 		elapsed := now.Sub(*h.day.Active)
-		rows = append(rows, lipgloss.NewStyle().Foreground(h.pal.Green).Bold(true).Render(
+		rows = append(rows, theme.Success(
 			fmt.Sprintf("  ▶ %s → …   %s   läuft",
-				h.day.Active.Format("15:04"), formatDur(elapsed))))
+				h.day.Active.Format("15:04"), formatDur(elapsed)), h.pal))
 	}
 	for i, s := range h.day.Sessions {
 		dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
@@ -721,8 +721,6 @@ func (h heute) footerHints() []string {
 // Yellow-Question, Detail-Zeile und kanonisches y/Enter-→-ja-Hint mitbringt.
 func (h heute) renderDialog() string {
 	inner := h.width - 4
-	titleStyle := lipgloss.NewStyle().Foreground(h.pal.Purple).Bold(true)
-	hintStyle := lipgloss.NewStyle().Foreground(h.pal.Dim)
 
 	var rows []string
 	var title, hint string
@@ -771,11 +769,11 @@ func (h heute) renderDialog() string {
 	}
 
 	if h.errMsg != "" {
-		rows = append(rows, "", lipgloss.NewStyle().Foreground(h.pal.Red).Render("  "+h.errMsg))
+		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
 	}
-	titleLine := "  " + titleStyle.Render(title)
+	titleLine := "  " + theme.Highlight(title, h.pal)
 	if hint != "" {
-		titleLine += hintStyle.Render("  ·  " + hint)
+		titleLine += theme.Dim("  ·  "+hint, h.pal)
 	}
 	rows = append(rows, "", titleLine)
 	return strings.Join(rows, "\n")

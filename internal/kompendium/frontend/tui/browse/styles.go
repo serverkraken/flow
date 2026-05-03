@@ -181,22 +181,14 @@ var (
 				Foreground(lipgloss.Color(pal.Fg))
 )
 
-// Modals — DoubleBorder lifts them visually above the rounded outer frame.
+// Modal-internal content styles (Headline/Question/Hint). Der Frame
+// selbst (DoubleBorder + BgPanel + Padding) kommt seit P4c aus
+// components/modal — siehe model.go renderDeleteModal /
+// renderHelpOverlay. modalStyle, modalSafeStyle und die Key-Pillen
+// (modalKey*Style) wurden entsprechend entfernt; für Key-Highlights
+// in zukünftigen Modalen ist components/theme.RenderPill der richtige
+// Ort.
 var (
-	modalStyle = lipgloss.NewStyle().
-			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color(pal.Red)).
-			Padding(1, 3).
-			Background(lipgloss.Color(pal.BgPanel)).
-			Foreground(lipgloss.Color(pal.Fg))
-
-	modalSafeStyle = lipgloss.NewStyle().
-			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color(pal.Blue)).
-			Padding(1, 3).
-			Background(lipgloss.Color(pal.BgPanel)).
-			Foreground(lipgloss.Color(pal.Fg))
-
 	modalDangerStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(pal.Red)).
 				Bold(true)
@@ -204,18 +196,6 @@ var (
 	modalQuestionStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(pal.Fg)).
 				Bold(true)
-
-	modalKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Bg)).
-			Background(lipgloss.Color(pal.Blue)).
-			Bold(true).
-			Padding(0, 1)
-
-	modalKeyDangerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Bg)).
-				Background(lipgloss.Color(pal.Red)).
-				Bold(true).
-				Padding(0, 1)
 
 	modalHintStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(pal.FgMuted)).

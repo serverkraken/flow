@@ -412,16 +412,16 @@ func (m Model) View() string {
 
 	var rows []string
 
-	prompt := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true).Render("› ")
+	prompt := theme.Heading("› ", m.pal)
 	rows = append(rows, prompt+m.filter.View())
 	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Border).
 		Render(strings.Repeat("─", inner)))
 
 	switch {
 	case m.loading:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  Aktionen werden geladen…"))
+		rows = append(rows, theme.Dim("  Aktionen werden geladen…", m.pal))
 	case m.err != nil:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Red).Render("  "+m.err.Error()))
+		rows = append(rows, theme.Err("  "+m.err.Error(), m.pal))
 	case len(m.visible) == 0:
 		rows = append(rows, m.renderEmptyState()...)
 	default:
@@ -516,8 +516,7 @@ func (m Model) renderEntries(innerWidth int) []string {
 
 	var rows []string
 	if m.offset > 0 {
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).
-			Render(fmt.Sprintf("  ↑ %d vorherige…", m.offset)))
+		rows = append(rows, theme.Dim(fmt.Sprintf("  ↑ %d vorherige…", m.offset), m.pal))
 	}
 	lastSection := ""
 	for i := m.offset; i < end; i++ {
@@ -534,8 +533,7 @@ func (m Model) renderEntries(innerWidth int) []string {
 		rows = append(rows, m.renderRow(i == m.cursor, e.Label, m.highlights[i], e.Keybind, innerWidth))
 	}
 	if end < len(m.visible) {
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).
-			Render(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end)))
+		rows = append(rows, theme.Dim(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end), m.pal))
 	}
 	return rows
 }

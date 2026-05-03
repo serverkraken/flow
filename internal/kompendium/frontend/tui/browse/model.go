@@ -16,6 +16,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
@@ -1619,15 +1620,22 @@ func humanizeAge(d time.Duration) string {
 // renderDeleteModal — Skill §Component vocabulary + §Visual hierarchy:
 // Single-Question + Single-Hint statt vierfacher Bestätigungs-Affordance
 // (vorher: Headline, Target-ID, Prompt, Key-Pillen, Hint — zu dicht).
-// Wording deutsch, kanonisches y/Enter → ja, n/Esc → nein.
+// Wording deutsch, kanonisches y/Enter → ja, n/Esc → nein. Frame
+// kommt aus components/modal (Kind = Danger → Red DoubleBorder); die
+// internen Style-Vars (modalDangerStyle, modalQuestionStyle,
+// modalHintStyle) bleiben für die Inhalts-Hierarchie.
 func (m Model) renderDeleteModal() string {
 	headline := modalDangerStyle.Render("⚠  Notiz löschen?")
 	target := modalQuestionStyle.Render(m.deleteTargetID.String())
 	hint := modalHintStyle.Render("y/Enter → ja  ·  n/Esc → nein")
 	body := lipgloss.JoinVertical(lipgloss.Center, headline, "", target, "", hint)
-	return modalStyle.Render(body)
+	return modal.Render(body, modal.Opts{Kind: modal.KindDanger}, pal)
 }
 
+// renderHelpOverlay nutzt components/modal in der Default-Variante
+// (Accent-Border) — der Help-Inhalt ist informativ, nicht safe-/danger-
+// markiert. Der Inline-Title („Tastenbelegung") bleibt in body, weil
+// modal.Opts.Title unter dem Border sitzt und doppelt wäre.
 func (m Model) renderHelpOverlay() string {
 	title := modalQuestionStyle.Render("Tastenbelegung")
 	hForm := help.New()
@@ -1636,7 +1644,10 @@ func (m Model) renderHelpOverlay() string {
 	hForm.Styles = m.helpUI.Styles
 	body := hForm.View(m.keys)
 	hint := modalHintStyle.Render("? / Esc → schließen")
-	return modalSafeStyle.Render(lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", hint))
+	return modal.Render(
+		lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", hint),
+		modal.Opts{}, pal,
+	)
 }
 
 // frameContent wraps content in the rounded outer frame and explicitly

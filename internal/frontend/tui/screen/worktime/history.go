@@ -598,8 +598,7 @@ func (h history) renderList(records []domain.DayRecord) string {
 			if prevWeek != -1 {
 				lines = append(lines, "")
 			}
-			lines = append(lines, lipgloss.NewStyle().Foreground(h.pal.Accent).Bold(true).
-				Render(fmt.Sprintf("  KW %d / %d", w, y)))
+			lines = append(lines, theme.Heading(fmt.Sprintf("  KW %d / %d", w, y), h.pal))
 			prevWeek, prevYear = w, y
 		}
 		pct := 0
@@ -909,8 +908,7 @@ func (h history) renderMonth(records []domain.DayRecord, _ int) string {
 	for _, r := range records {
 		byKey[r.Date.Format("2006-01-02")] = r
 	}
-	header := lipgloss.NewStyle().Foreground(h.pal.Accent).Bold(true).
-		Render(fmt.Sprintf("  %s %d", domain.MonthShortDe(first.Month()), first.Year()))
+	header := theme.Heading(fmt.Sprintf("  %s %d", domain.MonthShortDe(first.Month()), first.Year()), h.pal)
 	lines := []string{header, "", h.renderMonthDayLabels()}
 	lines = append(lines, h.renderMonthGridRows(first, byKey, monthRef)...)
 	lines = append(lines, "", h.renderMonthCursorStatus(first, byKey))
@@ -1059,9 +1057,8 @@ func (h history) renderDrill() string {
 	if inner <= 0 {
 		inner = 80
 	}
-	rows := []string{lipgloss.NewStyle().Foreground(h.pal.Accent).Bold(true).
-		Render("  Tag " + h.drillDate.Format("2006-01-02") + " (" +
-			domain.WeekdayShortDe(h.drillDate.Weekday()) + ")"), ""}
+	rows := []string{theme.Heading("  Tag "+h.drillDate.Format("2006-01-02")+" ("+
+		domain.WeekdayShortDe(h.drillDate.Weekday())+")", h.pal), ""}
 	if h.drillErr != nil {
 		rows = append(rows, stErr(h.pal, h.drillErr.Error()))
 		rows = append(rows, "", stDim(h.pal, "  b/Esc zurück"))
@@ -1081,7 +1078,7 @@ func (h history) renderDrill() string {
 	if target > 0 {
 		pct = int(total * 100 / target)
 	}
-	rows = append(rows, "  "+lipgloss.NewStyle().Foreground(h.pal.Fg).Bold(true).Render(formatDur(total))+
+	rows = append(rows, "  "+theme.Strong(formatDur(total), h.pal)+
 		"  "+stDim(h.pal, fmt.Sprintf("/ %s  ·  %d%%", formatDur(target), pct)))
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader(
@@ -1131,7 +1128,7 @@ func (h history) renderFilterDialog() string {
 	rows = append(rows, stDim(h.pal,
 		"  Beispiele:  KW18  ·  2026  ·  2026-04  ·  2026-04-01..2026-04-30  ·  tag:deep  ·  note:standup"))
 	if h.errMsg != "" {
-		rows = append(rows, "", lipgloss.NewStyle().Foreground(h.pal.Red).Render("  "+h.errMsg))
+		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
 	}
 	rows = append(rows, "", stDim(h.pal,
 		"  Enter=anwenden  ·  leer=alles  ·  Esc=abbrechen"))

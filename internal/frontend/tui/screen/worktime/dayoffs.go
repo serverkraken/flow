@@ -445,7 +445,7 @@ func (f frei) renderBody() string {
 func (f frei) renderHeader() string {
 	year := f.currentYear()
 	now := f.deps.Clock.Now()
-	left := lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render(fmt.Sprintf("Frei %d", year))
+	left := theme.Heading(fmt.Sprintf("Frei %d", year), f.pal)
 	if year == now.Year() {
 		left += "   " + stDim(f.pal, "aktuelles Jahr")
 	}
@@ -524,13 +524,13 @@ func (f frei) renderAddDialog(inner int) string {
 	rows := []string{
 		// Skill §Component vocabulary: Dialog-Title in Purple-Bold (Identity)
 		// statt Accent — konsistent mit titlebox/help-Konvention.
-		lipgloss.NewStyle().Foreground(f.pal.Purple).Bold(true).Render("  Tag(e) frei eintragen"),
+		theme.Highlight("  Tag(e) frei eintragen", f.pal),
 		"",
 	}
 	rows = append(rows, f.renderAddFields(inner)...)
 	rows = append(rows, f.renderKindPicker(inner))
 	if f.errMsg != "" {
-		rows = append(rows, "", lipgloss.NewStyle().Foreground(f.pal.Red).Render("  "+f.errMsg))
+		rows = append(rows, "", theme.Err("  "+f.errMsg, f.pal))
 	}
 	rows = append(rows, "", stDim(f.pal,
 		"  Tab/↑↓ → Feld  ·  h/l → Kategorie  ·  Enter → weiter / speichern  ·  Esc → abbrechen"))
@@ -576,7 +576,7 @@ func (f frei) renderKindPicker(inner int) string {
 func (f frei) renderConfirmDialog(_ int) string {
 	rows := []string{
 		// Title konsistent zu renderAddDialog: Purple-Bold.
-		lipgloss.NewStyle().Foreground(f.pal.Purple).Bold(true).Render("  Eintrag löschen"),
+		theme.Highlight("  Eintrag löschen", f.pal),
 		"",
 	}
 	if f.confirmModel != nil {

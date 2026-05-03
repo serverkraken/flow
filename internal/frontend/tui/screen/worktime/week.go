@@ -155,7 +155,7 @@ func (w woche) renderHeader(now time.Time) string {
 	monday := isoMonday(now)
 	sunday := monday.AddDate(0, 0, 6)
 	_, weekNum := monday.ISOWeek()
-	left := lipgloss.NewStyle().Foreground(w.pal.Accent).Bold(true).Render(fmt.Sprintf("KW %d", weekNum))
+	left := theme.Heading(fmt.Sprintf("KW %d", weekNum), w.pal)
 	right := stDim(w.pal, fmt.Sprintf("%02d. %s – %02d. %s",
 		monday.Day(), domain.MonthShortDe(monday.Month()),
 		sunday.Day(), domain.MonthShortDe(sunday.Month())))
@@ -254,10 +254,10 @@ func (w woche) renderTotals(inner int, now time.Time) []string {
 	if barW < 8 {
 		barW = 8
 	}
-	totals := "  " + lipgloss.NewStyle().Foreground(w.pal.Fg).Bold(true).Render(formatDur(weekTotal)) +
+	totals := "  " + theme.Strong(formatDur(weekTotal), w.pal) +
 		"  " + stDim(w.pal, "/ "+formatDur(weekTarget))
 	bar := "  " + statusbar.Bar(pct, barW, w.pal) + "  " +
-		lipgloss.NewStyle().Foreground(w.pal.Accent).Bold(true).Render(fmt.Sprintf("%3d%%", pct))
+		theme.Heading(fmt.Sprintf("%3d%%", pct), w.pal)
 	return []string{
 		picker.SectionHeader("woche gesamt", inner, w.pal),
 		totals,
