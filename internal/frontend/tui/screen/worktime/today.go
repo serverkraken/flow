@@ -797,13 +797,15 @@ func formatDurLive(d time.Duration) string {
 	return fmt.Sprintf("%dh %02dm %02ds", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
 }
 
-func stDim(p theme.Palette, s string) string {
-	return lipgloss.NewStyle().Foreground(p.Dim).Render(s)
-}
+// stDim is the worktime-screen-local thin wrapper over the central
+// theme.Dim builder. Kept as a wrapper (rather than open-coding
+// theme.Dim at call-sites) because every worktime-tab calls this
+// dozens of times — the short name + arg order is the screen's
+// existing idiom. Same for stErr below, plus the "  "-indent prefix
+// that's load-bearing for error rows under the box border.
+func stDim(p theme.Palette, s string) string { return theme.Dim(s, p) }
 
-func stErr(p theme.Palette, s string) string {
-	return lipgloss.NewStyle().Foreground(p.Red).Render("  " + s)
-}
+func stErr(p theme.Palette, s string) string { return theme.Err("  "+s, p) }
 
 // renderFooterHints joins the action chips into one or more dim lines that
 // fit inside `inner`. Each wrapped line is dim-styled separately because

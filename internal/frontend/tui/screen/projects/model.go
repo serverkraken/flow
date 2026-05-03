@@ -228,25 +228,23 @@ func (m Model) View() string {
 	inner := m.width - 4
 
 	var rows []string
-	prompt := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true).Render("› ")
+	prompt := theme.Heading("› ", m.pal)
 	rows = append(rows, prompt+m.filter.View(), "")
 
 	switch {
 	case m.loading:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  lade Projekte…"))
+		rows = append(rows, theme.Dim("  lade Projekte…", m.pal))
 	case m.err != nil:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Red).Render("  "+m.err.Error()))
+		rows = append(rows, theme.Err("  "+m.err.Error(), m.pal))
 	case len(m.all) == 0:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render(
-			"  keine Projekte gefunden — $SOURCECODE_ROOT prüfen"))
+		rows = append(rows, theme.Dim("  keine Projekte gefunden — $SOURCECODE_ROOT prüfen", m.pal))
 	case len(m.visible) == 0:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  keine Treffer"))
+		rows = append(rows, theme.Dim("  keine Treffer", m.pal))
 	default:
 		vis := m.maxVisible()
 		end := min(m.offset+vis, len(m.visible))
 		if m.offset > 0 {
-			rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).
-				Render(fmt.Sprintf("  ↑ %d vorherige…", m.offset)))
+			rows = append(rows, theme.Dim(fmt.Sprintf("  ↑ %d vorherige…", m.offset), m.pal))
 		}
 		for i := m.offset; i < end; i++ {
 			p := m.visible[i]
@@ -257,8 +255,7 @@ func (m Model) View() string {
 			rows = append(rows, picker.Row(i == m.cursor, label, "", inner, m.pal))
 		}
 		if end < len(m.visible) {
-			rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).
-				Render(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end)))
+			rows = append(rows, theme.Dim(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end), m.pal))
 		}
 	}
 

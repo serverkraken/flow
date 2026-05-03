@@ -121,10 +121,9 @@ func (m Model) View() string {
 	var content string
 	switch {
 	case m.err != nil:
-		content = lipgloss.NewStyle().Foreground(m.pal.Red).Render(
-			"\n  Fehler: " + m.err.Error())
+		content = theme.Err("\n  Fehler: "+m.err.Error(), m.pal)
 	case !m.rendered:
-		content = lipgloss.NewStyle().Foreground(m.pal.Dim).Render("\n  Cheatsheet lädt…")
+		content = theme.Dim("\n  Cheatsheet lädt…", m.pal)
 	default:
 		content = m.vp.View()
 	}
