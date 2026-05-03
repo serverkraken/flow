@@ -103,3 +103,31 @@ func TestUpdate_UnknownKeyNoOp(t *testing.T) {
 		t.Error("expected nil command for unhandled key")
 	}
 }
+
+func TestNewDanger_RendersQuestion(t *testing.T) {
+	t.Parallel()
+	m := confirm.NewDanger("Wirklich löschen?", "Diese Sitzung wird unwiderruflich entfernt.", testPalette)
+	v := m.View()
+	if !strings.Contains(v, "Wirklich löschen?") {
+		t.Errorf("danger view missing question: %q", v)
+	}
+	if !strings.Contains(v, "unwiderruflich") {
+		t.Errorf("danger view missing detail: %q", v)
+	}
+}
+
+func TestKeys_Exposes_DefaultMap(t *testing.T) {
+	t.Parallel()
+	km := confirm.New("Sure?", "", testPalette).Keys()
+	if len(km.Confirm.Keys()) == 0 {
+		t.Error("Confirm key binding has no keys")
+	}
+	if len(km.Cancel.Keys()) == 0 {
+		t.Error("Cancel key binding has no keys")
+	}
+	// Help text is what an overlay surfaces — must be non-empty so
+	// the binding is self-describing.
+	if km.Confirm.Help().Key == "" || km.Confirm.Help().Desc == "" {
+		t.Error("Confirm key has empty help")
+	}
+}

@@ -53,3 +53,34 @@ func TestInit_ReturnsCmd(t *testing.T) {
 		t.Error("Init should return a tick command")
 	}
 }
+
+// TestKindGlyphs verifies A11y-2 from the design-system audit: every
+// toast kind carries a distinct glyph in addition to its colour, so a
+// NO_COLOR or colour-blind viewer still gets the semantic flavour.
+func TestKindGlyphs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		make   func() toast.Model
+		glyph  string
+		others []string // glyphs that must NOT appear
+	}{
+		{"success", func() toast.Model { return toast.NewSuccess("ok", testPalette) }, "✓", []string{"▲", "✗", "›"}},
+		{"warning", func() toast.Model { return toast.NewWarning("careful", testPalette) }, "▲", []string{"✓", "✗", "›"}},
+		{"danger", func() toast.Model { return toast.NewDanger("failed", testPalette) }, "✗", []string{"✓", "▲", "›"}},
+		{"info", func() toast.Model { return toast.NewInfo("fyi", testPalette) }, "›", []string{"✓", "▲", "✗"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := tc.make().View()
+			if !strings.Contains(out, tc.glyph) {
+				t.Errorf("%s: missing glyph %q in %q", tc.name, tc.glyph, out)
+			}
+			for _, g := range tc.others {
+				if strings.Contains(out, g) {
+					t.Errorf("%s: stray glyph %q from another kind in %q", tc.name, g, out)
+				}
+			}
+		})
+	}
+}
