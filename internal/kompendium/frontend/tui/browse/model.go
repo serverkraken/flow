@@ -17,7 +17,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
-	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
@@ -1526,9 +1525,9 @@ func (m Model) renderFooter() string {
 // transient-mode badge (only while searching or confirming a delete),
 // current note path (cursor's ID, truncated to fit), and a meta tail
 // with the index's age plus a `?` help hint. The bar paints
-// theme.BgHighlight across its full inner width so it reads as a
-// contiguous strip; the path is the elastic cell so the line never
-// wraps onto a second row.
+// pal.BgChip across its full inner width so it reads as a contiguous
+// strip; the path is the elastic cell so the line never wraps onto a
+// second row.
 func (m Model) renderStatusBar() string {
 	width := m.contentWidth()
 	if width <= 0 {
@@ -1676,7 +1675,7 @@ func overlay(base, top string, width, height int) string {
 	}
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, top,
 		lipgloss.WithWhitespaceChars("·"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.BgHighlight)))
+		lipgloss.WithWhitespaceForeground(lipgloss.Color(pal.BgChip)))
 }
 
 // badgeFor returns the colored type pill shown in the list row.

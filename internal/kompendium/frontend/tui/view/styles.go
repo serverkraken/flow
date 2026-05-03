@@ -6,51 +6,55 @@ package view
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// pal is the canonical palette this package's styles render against.
+// Initialised once at package-init from theme.Default.
+var pal = theme.Default
 
 var (
 	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Blue)).
+			BorderForeground(lipgloss.Color(pal.Blue)).
 			Padding(0, 1)
 
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Blue)).
+			Foreground(lipgloss.Color(pal.Blue)).
 			Bold(true)
 
 	separatorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.BgHighlight))
+			Foreground(lipgloss.Color(pal.BgChip))
 
 	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Muted)).
+			Foreground(lipgloss.Color(pal.FgMuted)).
 			Italic(true)
 
 	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Cyan)).
+			Foreground(lipgloss.Color(pal.Cyan)).
 			Bold(true)
 
 	searchActiveLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.Yellow)).
+				Foreground(lipgloss.Color(pal.Yellow)).
 				Bold(true)
 
 	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Blue)).
+			Foreground(lipgloss.Color(pal.Blue)).
 			Bold(true)
 
 	statusBarStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color(theme.BgHighlight)).
-			Foreground(lipgloss.Color(theme.FgDim))
+			Background(lipgloss.Color(pal.BgChip)).
+			Foreground(lipgloss.Color(pal.FgDim))
 
 	statusBarModeSearchStyle = lipgloss.NewStyle().
-					Background(lipgloss.Color(theme.Yellow)).
-					Foreground(lipgloss.Color(theme.Bg)).
+					Background(lipgloss.Color(pal.Yellow)).
+					Foreground(lipgloss.Color(pal.Bg)).
 					Bold(true).
 					Padding(0, 1)
 
 	statusBarPathStyle = lipgloss.NewStyle().
-				Background(lipgloss.Color(theme.BgHighlight)).
-				Foreground(lipgloss.Color(theme.Fg))
+				Background(lipgloss.Color(pal.BgChip)).
+				Foreground(lipgloss.Color(pal.Fg))
 
 	// matchBarStyle renders the left-margin bar prepended to lines that
 	// matched the search query. Inline highlight of just the matched
@@ -58,12 +62,12 @@ var (
 	// breaking nested OSC 8 hyperlinks — fragile. A two-cell left bar
 	// stays robust regardless of what the line carries.
 	matchBarStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Yellow))
+			Foreground(lipgloss.Color(pal.Yellow))
 
 	// matchCurrentBarStyle marks the cursor's current match. Same shape
 	// as matchBar but bold + Orange so n/N navigation is readable.
 	matchCurrentBarStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.Orange)).
+				Foreground(lipgloss.Color(pal.Orange)).
 				Bold(true)
 
 	emptyLineMarker = "  " // two cells; reserved gutter when no match

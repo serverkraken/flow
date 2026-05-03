@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Choice is the user's pick after the picker exits.
@@ -161,56 +161,61 @@ func (m Model) View() string {
 	if m.width > 0 && m.height > 0 {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
 			lipgloss.WithWhitespaceChars("·"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color(theme.BgHighlight)))
+			lipgloss.WithWhitespaceForeground(lipgloss.Color(pal.BgChip)))
 	}
 	return card
 }
 
+// pal is the canonical palette this picker renders against. Init-time
+// snapshot of theme.Default — the picker has no per-call palette
+// override yet (no consumer needs one).
+var pal = theme.Default
+
 var (
 	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Blue)).
+			BorderForeground(lipgloss.Color(pal.Blue)).
 			Padding(1, 3)
 
 	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Blue)).
+			Foreground(lipgloss.Color(pal.Blue)).
 			Bold(true)
 
 	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Blue)).
+			Foreground(lipgloss.Color(pal.Blue)).
 			Bold(true)
 
 	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Fg)).
-			Background(lipgloss.Color(theme.BgHighlight)).
+			Foreground(lipgloss.Color(pal.Fg)).
+			Background(lipgloss.Color(pal.BgChip)).
 			Bold(true).
 			Padding(0, 1)
 
 	optionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Fg)).
+			Foreground(lipgloss.Color(pal.Fg)).
 			Padding(0, 1)
 
 	iconStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Cyan))
+			Foreground(lipgloss.Color(pal.Cyan))
 
 	hintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Muted)).
+			Foreground(lipgloss.Color(pal.FgMuted)).
 			Italic(true)
 
 	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Muted))
+			Foreground(lipgloss.Color(pal.FgMuted))
 
 	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Muted)).
+			Foreground(lipgloss.Color(pal.FgMuted)).
 			Italic(true)
 
 	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Cyan)).
+			Foreground(lipgloss.Color(pal.Cyan)).
 			Bold(true)
 
 	slugBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(theme.Yellow)).
+			BorderForeground(lipgloss.Color(pal.Yellow)).
 			Padding(0, 1)
 )
 
