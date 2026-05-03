@@ -516,7 +516,7 @@ func (m Model) startConfirmDelete() Model {
 
 // handleConfirmDeleteKey — kanonisches y/Enter → ja, n/Esc → nein
 // (Skill §Keybind grammar). Vorher fehlte Enter als Confirm-Variante,
-// was die Konvention der restlichen Codebase (confirm.Model) inkonsistent
+// was die Konvention der restlichen Codebase (confirm.Model) uneinheitlich
 // machte.
 func (m Model) handleConfirmDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {

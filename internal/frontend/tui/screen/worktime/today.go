@@ -689,6 +689,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 //  2. j/k → bewegen — Listenkontext immer.
 //  3. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
 //  4. D → löschen — wenn auf Session, einziger destructive Slot.
+//
 // Tag/Note/Pause sind im `?`-Overlay des Sidekick-Roots dokumentiert.
 func (h heute) footerHints() []string {
 	var actions []string

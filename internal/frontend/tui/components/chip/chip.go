@@ -5,11 +5,11 @@
 // Two visual variants:
 //
 //   - Solid   — background carries the colour, foreground is the
-//                palette's Bg so the label always reads against it.
-//                Default; used for tags, ranks, status badges.
+//     palette's Bg so the label always reads against it.
+//     Default; used for tags, ranks, status badges.
 //   - Outline — border carries the colour, foreground matches; useful
-//                where Solid would be too loud (e.g. a dense list of
-//                chips next to prose).
+//     where Solid would be too loud (e.g. a dense list of
+//     chips next to prose).
 //
 // docs/design-system-audit.md §2.3.3.
 package chip

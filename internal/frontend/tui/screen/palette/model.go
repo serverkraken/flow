@@ -373,14 +373,14 @@ func (m *Model) ensureCursorVisible() {
 
 // dispatch records the pick via the writer, then either:
 //
-//   (a) emits a SwitchScreenMsg if the action matches the goto.sh deep-link
-//       pattern — the sidekick root handles it as an in-process tab switch,
-//       no subshell, no flow restart;
+//	(a) emits a SwitchScreenMsg if the action matches the goto.sh deep-link
+//	    pattern — the sidekick root handles it as an in-process tab switch,
+//	    no subshell, no flow restart;
 //
-//   (b) hands the action off to tmux via run-shell and returns a
-//       dispatchedMsg so the palette can toast confirmation while staying
-//       open. Popups (display-popup) overlay flow's terminal until they
-//       close; fire-and-forget actions (run-shell -b) never affect flow.
+//	(b) hands the action off to tmux via run-shell and returns a
+//	    dispatchedMsg so the palette can toast confirmation while staying
+//	    open. Popups (display-popup) overlay flow's terminal until they
+//	    close; fire-and-forget actions (run-shell -b) never affect flow.
 //
 // Pre-F-WAVE-1 every dispatch ended in tea.Quit, killing flow and forcing
 // the sidekick pane to flicker on each action.

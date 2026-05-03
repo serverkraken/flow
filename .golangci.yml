@@ -198,6 +198,12 @@ linters:
             - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
             - github.com/serverkraken/flow/internal/frontend/tui/markdown
             - github.com/serverkraken/flow/internal/frontend/tui/markdown/theme
+            # Canonical theme + the components-kit. P4a migrated browse,
+            # view and writepicker off the deprecated markdown/theme
+            # shims onto canonical theme.Default; P4c lifted browse's
+            # hand-rolled DoubleBorder modal onto components/modal.
+            - github.com/serverkraken/flow/internal/frontend/tui/theme
+            - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/ports
             - github.com/charmbracelet/bubbletea
             - github.com/charmbracelet/bubbles
@@ -220,6 +226,9 @@ linters:
             - $gostd
             - github.com/serverkraken/flow/internal/ports
             - github.com/serverkraken/flow/internal/frontend/tui/markdown/theme
+            # Canonical theme — markdown.Render takes a theme.Palette via
+            # WithPalette option (P2). MarkdownRolesFor reads from it.
+            - github.com/serverkraken/flow/internal/frontend/tui/theme
             - github.com/yuin/goldmark
             - github.com/yuin/goldmark/ast
             - github.com/yuin/goldmark/extension
@@ -258,8 +267,12 @@ linters:
             # via the frontend/tui/sidekick root model. The factories on
             # SidekickDeps are typed `func(theme.Palette) tea.Model`, so
             # bubbletea + theme stay on the allowlist alongside sidekick.
+            # cheatsheet.go (`flow cheatsheet` standalone command, F-WAVE)
+            # constructs the cheatsheet screen directly because the verb
+            # is a one-screen program — sidekick would be overkill.
             - github.com/charmbracelet/bubbletea
             - github.com/serverkraken/flow/internal/frontend/tui/components/theme
+            - github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet
             - github.com/serverkraken/flow/internal/frontend/tui/sidekick
         # The markdown rule below claims internal/frontend/tui/markdown/**
         # for itself (renderer + theme subpackage); excluding it here lets
@@ -277,6 +290,18 @@ linters:
             - github.com/serverkraken/flow/internal/ports
             - github.com/serverkraken/flow/internal/usecase
             - github.com/serverkraken/flow/internal/frontend/tui/components
+            # The canonical token package (theme.Palette + Sem + tokens +
+            # builders + contrast). Live-source for every component and
+            # the markdown role mapper since P1; readable from any
+            # frontend/tui file without going through components/theme.
+            - github.com/serverkraken/flow/internal/frontend/tui/theme
+            # Sidekick imports screen/palette for the SwitchScreenMsg
+            # type (palette emits this when a picked entry's action is a
+            # flow-internal screen switch — sidekick catches it and
+            # updates m.current). This is the only sibling-screen
+            # import in the codebase; if a second one shows up, carve a
+            # dedicated sidekick rule instead of widening this allow.
+            - github.com/serverkraken/flow/internal/frontend/tui/screen/palette
             # The bubbletea + lipgloss UI vocabulary — bubbles wraps the
             # widget primitives screens hold directly (textinput.Model,
             # viewport.Model, spinner.Model). termenv configures TrueColor
@@ -285,7 +310,7 @@ linters:
             # served by the dedicated markdown rule (above). Sibling-
             # screen imports stay denied: strict mode rejects anything
             # not on this list, including frontend/tui/screen/<name>
-            # peers.
+            # peers (with the documented sidekick-only exception above).
             - github.com/charmbracelet/bubbletea
             - github.com/charmbracelet/bubbles
             - github.com/charmbracelet/lipgloss

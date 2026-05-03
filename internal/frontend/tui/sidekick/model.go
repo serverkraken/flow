@@ -111,6 +111,14 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update routes messages to the active screen or handles global navigation keys.
+//
+// The function is a flat dispatch table over a fixed set of message
+// types and a fixed set of global keys; cyclomatic complexity sits at
+// 22 (just above the linter's 20 threshold). Splitting helpers would
+// hide the dispatch structure behind indirection without simplifying
+// it. Same rationale palette/model.go's handleNormalKey uses.
+//
+//nolint:gocyclo
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
