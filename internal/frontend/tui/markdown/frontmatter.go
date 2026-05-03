@@ -11,8 +11,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-
-	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
 )
 
 // renderFrontmatterCard returns the styled card for fm sized to width.
@@ -90,22 +88,22 @@ func (r *nodeRenderer) cardBadge(t NoteType) string {
 // `#go` always reads as the same colour across notes (matches the
 // browse-list tag chip rotation in browse/styles.go).
 func (r *nodeRenderer) tagChip(tag string) string {
-	idx := tagColorIdx(tag)
+	idx := tagColorIdx(tag, len(r.palette.TagPalette))
 	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(theme.Bg)).
-		Background(lipgloss.Color(theme.TagPalette[idx])).
+		Foreground(lipgloss.Color(r.palette.Bg)).
+		Background(lipgloss.Color(r.palette.TagPalette[idx])).
 		Bold(true).
 		Padding(0, 1)
 	return style.Render(tag)
 }
 
-// tagColorIdx is a tiny FNV-1a hash. Same shape as the helper in
-// browse/styles.go so a tag picks the SAME palette slot in both
-// surfaces — visual consistency for the user.
-func tagColorIdx(tag string) int {
+// tagColorIdx is a tiny FNV-1a hash mod paletteLen. Same shape as the
+// helper in browse/styles.go so a tag picks the SAME palette slot in
+// both surfaces — visual consistency for the user.
+func tagColorIdx(tag string, paletteLen int) int {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(tag))
-	return int(h.Sum32() % uint32(len(theme.TagPalette)))
+	return int(h.Sum32() % uint32(paletteLen))
 }
 
 // joinRow places left at column 0 and right flush against width

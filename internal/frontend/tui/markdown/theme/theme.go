@@ -1,50 +1,70 @@
-// Package theme is the palette + role mapping for the markdown
-// renderer. Code-block syntax-highlight colours, callout badges,
-// frontmatter card chips, and every other styled output the renderer
-// emits resolve through the package-level shortcuts (Bg, Blue, Cyan, …)
-// so a palette swap stays one SetActive call.
+// Package theme is the markdown renderer's role-mapping layer over the
+// canonical token package at internal/frontend/tui/theme.
 //
-// The shortcut variables below mirror the active palette's fields.
-// They are populated at init time from theme.Active (the default is
-// Tokyonight); SetActive rewrites them when a caller picks a different
-// theme. Consumers reference the unchanged identifiers (theme.Blue,
-// theme.Bg, …) and never touch Active directly — but a palette swap
-// propagates because every style is built per-render via
-// MarkdownRolesFor.
+// Architecture:
+//
+//   - The canonical Palette + Sem live in canonical theme/.
+//   - This package builds the markdown-specific MarkdownRoles bundle
+//     (H1Bar, CodeFenceBg, CardBadge*, …) from a Palette parameter.
+//   - The package-level shortcut vars below (Bg, Blue, Cyan, …) are a
+//     deprecated transitional shim for kompendium/browse/styles.go and
+//     a few older call-sites that read them directly. They are
+//     populated once from canonical.Default at init time and never
+//     mutate. P4 of the design-system roadmap migrates those screens
+//     onto per-call palette-as-parameter; once that lands the shims
+//     can be deleted.
+//
+// What's gone (P2 — docs/design-system-audit.md §2.4 / §2.7):
+//
+//   - The duplicate Palette struct + Tokyonight / Catppuccin literals.
+//     The canonical theme.Palette is the single source of truth.
+//   - The Active package var and SetActive() runtime mutator.
+//     MarkdownRolesFor takes a Palette parameter so a per-call swap
+//     (e.g. NO_COLOR test) is parallel-safe — no global state.
+//   - The Themes registry. Theme selection is the canonical package's
+//     job (theme.Themes there).
+//
+// Adding a heading / callout / card style: extend MarkdownRoles in
+// markdown.go and the MarkdownRolesFor builder.
 package theme
 
-// Backgrounds.
-var (
-	Bg              = Active.Bg
-	PanelBg         = Active.PanelBg
-	BgCode          = Active.BgCode
-	BgHighlight     = Active.BgHighlight
-	BgHighlightSoft = Active.BgHighlightSoft
-	BarBg           = Active.BarBg
-	DangerBg        = Active.DangerBg
-	SuccessBg       = Active.SuccessBg
-)
+import canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 
-// Foregrounds — neutrals.
+// Deprecated shortcut vars — derived from canonical.Default at init.
+// Kept until kompendium screens migrate (P4). New code should reach
+// for canonical.Palette fields directly via a function parameter.
+//
+// The grouping below mirrors the canonical Palette field order so a
+// missed token is obvious in review.
+//
+//nolint:gochecknoglobals // intentional transitional shim, see package doc
 var (
-	Fg    = Active.Fg
-	FgDim = Active.FgDim
-	Muted = Active.Muted
-)
+	// Surface
+	Bg              = canonical.Default.Bg
+	PanelBg         = canonical.Default.BgPanel
+	BgCode          = canonical.Default.BgCode
+	BgHighlight     = canonical.Default.BgChip
+	BgHighlightSoft = canonical.Default.BgChipSoft
+	BarBg           = canonical.Default.BgBar
+	DangerBg        = canonical.Default.BgDanger
+	SuccessBg       = canonical.Default.BgSuccess
 
-// Foregrounds — accents.
-var (
-	Blue    = Active.Blue
-	Cyan    = Active.Cyan
-	Green   = Active.Green
-	Purple  = Active.Purple
-	Magenta = Active.Magenta
-	Yellow  = Active.Yellow
-	Orange  = Active.Orange
-	Red     = Active.Red
-	Teal    = Active.Teal
-)
+	// Foreground neutrals
+	Fg    = canonical.Default.Fg
+	FgDim = canonical.Default.FgDim
+	Muted = canonical.Default.FgMuted
 
-// TagPalette is rotated for tag chips so a noisy tag-set doesn't read
-// as a wall of one colour. Order is determined by the active theme.
-var TagPalette = Active.TagPalette
+	// Foreground accents (raw hues — components prefer canonical.Sem)
+	Blue    = canonical.Default.Blue
+	Cyan    = canonical.Default.Cyan
+	Green   = canonical.Default.Green
+	Purple  = canonical.Default.Purple
+	Magenta = canonical.Default.Magenta
+	Yellow  = canonical.Default.Yellow
+	Orange  = canonical.Default.Orange
+	Red     = canonical.Default.Red
+	Teal    = canonical.Default.Teal
+
+	// TagPalette — Hash-rotated tag chip background pool.
+	TagPalette = canonical.Default.TagPalette
+)

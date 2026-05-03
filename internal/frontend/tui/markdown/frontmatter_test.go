@@ -106,12 +106,13 @@ func TestRender_FrontmatterCard_DailyAndFreeBadges(t *testing.T) {
 // the browse-list tag chips.
 func TestTagColorIdx_Deterministic(t *testing.T) {
 	t.Parallel()
-	first := tagColorIdx("go")
-	second := tagColorIdx("go")
+	const slots = 7 // matches canonical default TagPalette length
+	first := tagColorIdx("go", slots)
+	second := tagColorIdx("go", slots)
 	if first != second {
 		t.Errorf("tagColorIdx not deterministic: %d vs %d", first, second)
 	}
-	if tagColorIdx("go") == tagColorIdx("infra") {
+	if tagColorIdx("go", slots) == tagColorIdx("infra", slots) {
 		t.Skip("two tags happened to hash to the same slot — non-fatal")
 	}
 }

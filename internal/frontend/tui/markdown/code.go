@@ -18,7 +18,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/util"
 
-	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // codeBlockRightPad is the breathing room appended past the longest
@@ -225,52 +225,52 @@ func (r *nodeRenderer) codeBand(target int, lang string, top bool) string {
 // chromaStyle returns the lipgloss style for a chroma token type.
 // Every style carries the panel BG so the row stays uniformly tinted
 // regardless of which token sits in a given cell. Token-type → colour
-// mapping mirrors the upstream tokyo-night chroma style; theme swaps
-// pick up automatically because the colour names resolve via the
-// theme package's package-level shortcuts.
+// mapping mirrors the upstream tokyo-night chroma style; the active
+// palette is the one this nodeRenderer was constructed against, so a
+// per-call WithPalette override flows down naturally.
 func (r *nodeRenderer) chromaStyle(t chroma.TokenType) lipgloss.Style {
 	base := r.roles.CodeFenceBg
-	fg := chromaTokenColor(t)
+	fg := chromaTokenColor(t, r.palette)
 	if fg == "" {
 		return base
 	}
 	return base.Foreground(lipgloss.Color(fg))
 }
 
-// chromaTokenColor maps a chroma TokenType to a palette colour name.
+// chromaTokenColor maps a chroma TokenType to a palette colour string.
 // Returns "" for tokens that should inherit the panel's default text
 // colour (most whitespace + unmapped categories).
 //
 // The cases are ordered most-specific-first so InCategory checks at
 // the bottom don't shadow the precise types above.
-func chromaTokenColor(t chroma.TokenType) string {
+func chromaTokenColor(t chroma.TokenType, p canonical.Palette) string {
 	switch t {
 	case chroma.KeywordType:
-		return theme.Blue
+		return p.Blue
 	case chroma.NameFunction, chroma.NameDecorator, chroma.NameAttribute:
-		return theme.Green
+		return p.Green
 	case chroma.NameConstant:
-		return theme.Purple
+		return p.Purple
 	case chroma.NameBuiltin, chroma.NameBuiltinPseudo, chroma.NameClass, chroma.NameVariable:
-		return theme.Blue
+		return p.Blue
 	case chroma.NameTag, chroma.NameNamespace:
-		return theme.Cyan
+		return p.Cyan
 	}
 	switch {
 	case t.InCategory(chroma.Comment):
-		return theme.Muted
+		return p.FgMuted
 	case t.InCategory(chroma.Keyword):
-		return theme.Cyan
+		return p.Cyan
 	case t.InSubCategory(chroma.LiteralString) || t == chroma.LiteralString:
-		return theme.Yellow
+		return p.Yellow
 	case t.InSubCategory(chroma.LiteralNumber) || t == chroma.LiteralNumber:
-		return theme.Orange
+		return p.Orange
 	case t.InCategory(chroma.Operator):
-		return theme.Cyan
+		return p.Cyan
 	case t.InCategory(chroma.Punctuation):
-		return theme.FgDim
+		return p.FgDim
 	case t.InCategory(chroma.Generic):
-		return theme.FgDim
+		return p.FgDim
 	}
 	return ""
 }

@@ -20,12 +20,14 @@ import (
 	"github.com/yuin/goldmark/util"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 type nodeRenderer struct {
-	roles theme.MarkdownRoles
-	width int
-	opts  options
+	roles   theme.MarkdownRoles
+	palette canonical.Palette
+	width   int
+	opts    options
 
 	// indent is the per-cell left-padding the parent block reserves
 	// for its own marker / bar / continuation prefix. Children
@@ -50,12 +52,14 @@ type nodeRenderer struct {
 // newNodeRenderer constructs a renderer ready to register against a
 // goldmark renderer.Renderer. The lipgloss renderer that builds the
 // palette comes from the options (NoColor swaps in an Ascii-profile
-// renderer).
+// renderer); the canonical palette is also pulled from options so
+// per-call overrides (WithPalette) reach every helper.
 func newNodeRenderer(width int, opts options) *nodeRenderer {
 	return &nodeRenderer{
-		roles: theme.MarkdownRolesFor(opts.lip),
-		width: width,
-		opts:  opts,
+		roles:   theme.MarkdownRolesFor(opts.lip, opts.palette),
+		palette: opts.palette,
+		width:   width,
+		opts:    opts,
 	}
 }
 

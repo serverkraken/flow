@@ -1,11 +1,15 @@
 package theme
 
 // Markdown role mapping. The renderer in internal/frontend/tui/markdown
-// looks up its block / inline styles here so a palette swap stays a
-// one-file edit (the active Palette in palette.go is the only ground
-// truth).
+// looks up its block / inline styles here; the source of truth for the
+// colours involved is the canonical Palette, passed through as a
+// parameter so a NO_COLOR test or a per-screen palette override stays
+// parallel-safe.
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
+)
 
 // MarkdownRoles bundles every pre-built lipgloss style the renderer
 // needs. Built once per Render call (the constructor takes a
@@ -92,143 +96,149 @@ const (
 )
 
 // CalloutBadge returns the styled badge chip ("NOTE", "WARNING", …)
-// for a callout kind.
-func CalloutBadge(kind CalloutKind) lipgloss.Style {
+// for a callout kind, painted onto the given palette.
+func CalloutBadge(kind CalloutKind, p canonical.Palette) lipgloss.Style {
 	color := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(Bg)).
+		Foreground(lipgloss.Color(p.Bg)).
 		Bold(true).
 		Padding(0, 1)
 	switch kind {
 	case CalloutTip, CalloutNote:
-		return color.Background(lipgloss.Color(Cyan))
+		return color.Background(lipgloss.Color(p.Cyan))
 	case CalloutInfo:
-		return color.Background(lipgloss.Color(Blue))
+		return color.Background(lipgloss.Color(p.Blue))
 	case CalloutWarning:
-		return color.Background(lipgloss.Color(Yellow))
+		return color.Background(lipgloss.Color(p.Yellow))
 	case CalloutDanger:
-		return color.Background(lipgloss.Color(Red))
+		return color.Background(lipgloss.Color(p.Red))
 	case CalloutImportant:
-		return color.Background(lipgloss.Color(Purple))
+		return color.Background(lipgloss.Color(p.Purple))
 	case CalloutSuccess:
-		return color.Background(lipgloss.Color(Green))
+		return color.Background(lipgloss.Color(p.Green))
 	}
-	return color.Background(lipgloss.Color(Muted))
+	return color.Background(lipgloss.Color(p.FgMuted))
 }
 
 // CalloutBar returns the leading │ bar style matched to a callout
 // kind so the bar colour reinforces the badge.
-func CalloutBar(kind CalloutKind) lipgloss.Style {
+func CalloutBar(kind CalloutKind, p canonical.Palette) lipgloss.Style {
 	switch kind {
 	case CalloutTip, CalloutNote:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Cyan))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Cyan))
 	case CalloutInfo:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Blue))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Blue))
 	case CalloutWarning:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Yellow))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Yellow))
 	case CalloutDanger:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Red))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Red))
 	case CalloutImportant:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Purple))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple))
 	case CalloutSuccess:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(Green))
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Green))
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(Muted))
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted))
 }
 
 // MarkdownRolesFor returns a MarkdownRoles built against the given
-// lipgloss renderer. Pass r = lipgloss.DefaultRenderer() for normal
-// stdout, or a renderer with WithColorProfile(termenv.Ascii) for the
-// NO_COLOR path.
-func MarkdownRolesFor(r *lipgloss.Renderer) MarkdownRoles {
+// lipgloss renderer + canonical palette. Pass r =
+// lipgloss.DefaultRenderer() for normal stdout, or a renderer with
+// WithColorProfile(termenv.Ascii) for the NO_COLOR path. The palette
+// argument is a parameter (no Active/SetActive global) so concurrent
+// renders with different palettes — including the NO_COLOR contrast
+// test — never race.
+func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 	color := r.NewStyle
 	return MarkdownRoles{
 		H1Bar: color().
-			Background(lipgloss.Color(BarBg)).
-			Foreground(lipgloss.Color(Purple)).
+			Background(lipgloss.Color(p.BgBar)).
+			Foreground(lipgloss.Color(p.Purple)).
 			Bold(true),
 		H1Text: color().
-			Background(lipgloss.Color(BarBg)).
-			Foreground(lipgloss.Color(Purple)).
+			Background(lipgloss.Color(p.BgBar)).
+			Foreground(lipgloss.Color(p.Purple)).
 			Bold(true),
-		// H2 wears a subtle BG chip behind the text (BgHighlight) and
-		// a Purple bold foreground so it visually shares the H1 family
+		// H2 wears a subtle BG chip behind the text (BgChip) and a
+		// Purple bold foreground so it visually shares the H1 family
 		// without claiming the full-width banner. Padding keeps the
 		// chip from sitting flush against the prose around it.
 		H2: color().
-			Foreground(lipgloss.Color(Purple)).
-			Background(lipgloss.Color(BgHighlight)).
+			Foreground(lipgloss.Color(p.Purple)).
+			Background(lipgloss.Color(p.BgChip)).
 			Bold(true).
 			Padding(0, 1),
 		H3: color().
-			Foreground(lipgloss.Color(Cyan)).
+			Foreground(lipgloss.Color(p.Cyan)).
 			Bold(true),
 		H4: color().
-			Foreground(lipgloss.Color(Cyan)).
+			Foreground(lipgloss.Color(p.Cyan)).
 			Bold(true),
 		H5: color().
-			Foreground(lipgloss.Color(FgDim)),
+			Foreground(lipgloss.Color(p.FgDim)),
+		// A11y-3 (audit §2.5): no Faint() on prose. Faint dims a
+		// terminal foreground 30–50%, which on top of an already-Muted
+		// FgMuted drops the pair below WCAG AA. Italic alone carries
+		// the "lowest level heading" semantics.
 		H6: color().
-			Foreground(lipgloss.Color(Muted)).
-			Faint(true).
+			Foreground(lipgloss.Color(p.FgMuted)).
 			Italic(true),
 		Paragraph: color().
-			Foreground(lipgloss.Color(Fg)),
+			Foreground(lipgloss.Color(p.Fg)),
 		HRule: color().
-			Foreground(lipgloss.Color(Muted)),
+			Foreground(lipgloss.Color(p.FgMuted)),
 
 		Strong: color().Bold(true),
 		Emph:   color().Italic(true),
 		Strike: color().Strikethrough(true),
 		CodeSpan: color().
-			Foreground(lipgloss.Color(Green)).
-			Background(lipgloss.Color(BgCode)),
+			Foreground(lipgloss.Color(p.Green)).
+			Background(lipgloss.Color(p.BgCode)),
 		LinkText: color().
-			Foreground(lipgloss.Color(Blue)),
+			Foreground(lipgloss.Color(p.Blue)),
 
 		CodeFenceBg: color().
-			Background(lipgloss.Color(BgCode)).
-			Foreground(lipgloss.Color(FgDim)),
+			Background(lipgloss.Color(p.BgCode)).
+			Foreground(lipgloss.Color(p.FgDim)),
 		CodeFenceBand: color().
-			Background(lipgloss.Color(BarBg)).
-			Foreground(lipgloss.Color(Muted)),
+			Background(lipgloss.Color(p.BgBar)).
+			Foreground(lipgloss.Color(p.FgMuted)),
 		CodeFenceLabel: color().
-			Background(lipgloss.Color(BarBg)).
-			Foreground(lipgloss.Color(Cyan)).
+			Background(lipgloss.Color(p.BgBar)).
+			Foreground(lipgloss.Color(p.Cyan)).
 			Bold(true),
 		CodeFencePlain: color().
-			Background(lipgloss.Color(BgCode)).
-			Foreground(lipgloss.Color(FgDim)),
+			Background(lipgloss.Color(p.BgCode)).
+			Foreground(lipgloss.Color(p.FgDim)),
 
-		Bullet1:      color().Foreground(lipgloss.Color(Blue)).Bold(true),
-		Bullet2:      color().Foreground(lipgloss.Color(Cyan)),
-		Bullet3:      color().Foreground(lipgloss.Color(Purple)),
-		Bullet4:      color().Foreground(lipgloss.Color(Muted)),
-		NumberMarker: color().Foreground(lipgloss.Color(Muted)).Bold(true),
-		TaskOpen:     color().Foreground(lipgloss.Color(Yellow)).Bold(true),
-		TaskDone:     color().Foreground(lipgloss.Color(Green)).Bold(true),
-		TaskDoneText: color().Foreground(lipgloss.Color(Muted)).Strikethrough(true),
+		Bullet1:      color().Foreground(lipgloss.Color(p.Blue)).Bold(true),
+		Bullet2:      color().Foreground(lipgloss.Color(p.Cyan)),
+		Bullet3:      color().Foreground(lipgloss.Color(p.Purple)),
+		Bullet4:      color().Foreground(lipgloss.Color(p.FgMuted)),
+		NumberMarker: color().Foreground(lipgloss.Color(p.FgMuted)).Bold(true),
+		TaskOpen:     color().Foreground(lipgloss.Color(p.Yellow)).Bold(true),
+		TaskDone:     color().Foreground(lipgloss.Color(p.Green)).Bold(true),
+		TaskDoneText: color().Foreground(lipgloss.Color(p.FgMuted)).Strikethrough(true),
 
-		TableBorder: color().Foreground(lipgloss.Color(Muted)),
-		TableHeader: color().Foreground(lipgloss.Color(Cyan)).Bold(true),
-		TableCell:   color().Foreground(lipgloss.Color(Fg)),
-		TableRowAlt: color().Background(lipgloss.Color(BgHighlightSoft)).Foreground(lipgloss.Color(Fg)),
+		TableBorder: color().Foreground(lipgloss.Color(p.FgMuted)),
+		TableHeader: color().Foreground(lipgloss.Color(p.Cyan)).Bold(true),
+		TableCell:   color().Foreground(lipgloss.Color(p.Fg)),
+		TableRowAlt: color().Background(lipgloss.Color(p.BgChipSoft)).Foreground(lipgloss.Color(p.Fg)),
 
-		WikilinkValid:  color().Foreground(lipgloss.Color(Cyan)),
-		WikilinkBroken: color().Foreground(lipgloss.Color(Red)).Faint(true),
-		ImageChip:      color().Foreground(lipgloss.Color(Muted)).Background(lipgloss.Color(BgHighlightSoft)),
+		WikilinkValid:  color().Foreground(lipgloss.Color(p.Cyan)),
+		WikilinkBroken: color().Foreground(lipgloss.Color(p.Red)).Faint(true),
+		ImageChip:      color().Foreground(lipgloss.Color(p.FgMuted)).Background(lipgloss.Color(p.BgChipSoft)),
 
-		CardBadgeDaily:   color().Foreground(lipgloss.Color(Bg)).Background(lipgloss.Color(Yellow)).Bold(true).Padding(0, 1),
-		CardBadgeProject: color().Foreground(lipgloss.Color(Bg)).Background(lipgloss.Color(Purple)).Bold(true).Padding(0, 1),
-		CardBadgeFree:    color().Foreground(lipgloss.Color(Bg)).Background(lipgloss.Color(Cyan)).Bold(true).Padding(0, 1),
-		CardTitle:        color().Foreground(lipgloss.Color(Fg)).Bold(true),
-		CardMeta:         color().Foreground(lipgloss.Color(Muted)).Italic(true),
-		CardProjectChip:  color().Foreground(lipgloss.Color(Green)).Background(lipgloss.Color(BgHighlightSoft)),
-		CardSeparator:    color().Foreground(lipgloss.Color(BgHighlight)),
-		BlockquoteBar:    color().Foreground(lipgloss.Color(Muted)),
-		BlockquoteText:   color().Foreground(lipgloss.Color(FgDim)).Italic(true),
+		CardBadgeDaily:   color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Yellow)).Bold(true).Padding(0, 1),
+		CardBadgeProject: color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Purple)).Bold(true).Padding(0, 1),
+		CardBadgeFree:    color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Cyan)).Bold(true).Padding(0, 1),
+		CardTitle:        color().Foreground(lipgloss.Color(p.Fg)).Bold(true),
+		CardMeta:         color().Foreground(lipgloss.Color(p.FgMuted)).Italic(true),
+		CardProjectChip:  color().Foreground(lipgloss.Color(p.Green)).Background(lipgloss.Color(p.BgChipSoft)),
+		CardSeparator:    color().Foreground(lipgloss.Color(p.BgChip)),
+		BlockquoteBar:    color().Foreground(lipgloss.Color(p.FgMuted)),
+		BlockquoteText:   color().Foreground(lipgloss.Color(p.FgDim)).Italic(true),
 
-		FootnoteRef:       color().Foreground(lipgloss.Color(Purple)).Bold(true),
-		FootnoteListTitle: color().Foreground(lipgloss.Color(Cyan)).Bold(true),
-		FootnoteDef:       color().Foreground(lipgloss.Color(FgDim)),
+		FootnoteRef:       color().Foreground(lipgloss.Color(p.Purple)).Bold(true),
+		FootnoteListTitle: color().Foreground(lipgloss.Color(p.Cyan)).Bold(true),
+		FootnoteDef:       color().Foreground(lipgloss.Color(p.FgDim)),
 	}
 }

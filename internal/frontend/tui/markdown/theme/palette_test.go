@@ -1,87 +1,55 @@
-package theme
+package theme_test
 
-import "testing"
+import (
+	"testing"
 
-// TestSetActive_RewritesShortcuts: the package-level shortcut vars
-// (theme.Bg, theme.Blue, …) must reflect the new palette after a
-// SetActive call. Restores the default at the end so subsequent
-// tests / running consumers see the expected Tokyonight palette.
-func TestSetActive_RewritesShortcuts(t *testing.T) {
-	t.Cleanup(func() { SetActive(Tokyonight) })
+	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
+)
 
-	SetActive(Catppuccin)
-
-	if Active.Name != "catppuccin" {
-		t.Errorf("Active.Name = %q, want catppuccin", Active.Name)
+// TestShortcutShims_TrackCanonicalDefault: the deprecated package-level
+// shortcuts (theme.Bg, theme.Blue, …) must mirror canonical.Default at
+// init time. P4 will migrate kompendium screens off these shims; until
+// then the assertion catches a drift between the two sources of truth
+// before it manifests as a colour mismatch on screen.
+func TestShortcutShims_TrackCanonicalDefault(t *testing.T) {
+	t.Parallel()
+	def := canonical.Default
+	cases := []struct {
+		got, want, name string
+	}{
+		{theme.Bg, def.Bg, "Bg"},
+		{theme.PanelBg, def.BgPanel, "PanelBg → BgPanel"},
+		{theme.BgCode, def.BgCode, "BgCode"},
+		{theme.BgHighlight, def.BgChip, "BgHighlight → BgChip"},
+		{theme.BgHighlightSoft, def.BgChipSoft, "BgHighlightSoft → BgChipSoft"},
+		{theme.BarBg, def.BgBar, "BarBg → BgBar"},
+		{theme.DangerBg, def.BgDanger, "DangerBg → BgDanger"},
+		{theme.SuccessBg, def.BgSuccess, "SuccessBg → BgSuccess"},
+		{theme.Fg, def.Fg, "Fg"},
+		{theme.FgDim, def.FgDim, "FgDim"},
+		{theme.Muted, def.FgMuted, "Muted → FgMuted"},
+		{theme.Blue, def.Blue, "Blue"},
+		{theme.Cyan, def.Cyan, "Cyan"},
+		{theme.Green, def.Green, "Green"},
+		{theme.Purple, def.Purple, "Purple"},
+		{theme.Magenta, def.Magenta, "Magenta"},
+		{theme.Yellow, def.Yellow, "Yellow"},
+		{theme.Orange, def.Orange, "Orange"},
+		{theme.Red, def.Red, "Red"},
+		{theme.Teal, def.Teal, "Teal"},
 	}
-	if Bg != Catppuccin.Bg {
-		t.Errorf("Bg = %q, want %q", Bg, Catppuccin.Bg)
-	}
-	if Blue != Catppuccin.Blue {
-		t.Errorf("Blue = %q, want %q", Blue, Catppuccin.Blue)
-	}
-	if BgCode != Catppuccin.BgCode {
-		t.Errorf("BgCode = %q, want %q", BgCode, Catppuccin.BgCode)
-	}
-	if len(TagPalette) == 0 || TagPalette[0] != Catppuccin.TagPalette[0] {
-		t.Errorf("TagPalette[0] = %v, want first of Catppuccin.TagPalette = %q",
-			TagPalette, Catppuccin.TagPalette[0])
-	}
-}
-
-// TestSetActive_BackToDefault: switching back to Tokyonight restores
-// every shortcut. Makes sure SetActive's per-field rewrite covers
-// every documented field — a missed field would manifest as a
-// cross-theme bleed-through.
-func TestSetActive_BackToDefault(t *testing.T) {
-	t.Cleanup(func() { SetActive(Tokyonight) })
-
-	SetActive(Catppuccin)
-	SetActive(Tokyonight)
-
-	if Active.Name != "tokyonight" {
-		t.Errorf("Active.Name = %q, want tokyonight", Active.Name)
-	}
-	if Blue != Tokyonight.Blue {
-		t.Errorf("Blue = %q, want %q (Catppuccin bled through)", Blue, Tokyonight.Blue)
-	}
-}
-
-// TestThemes_RegistryComplete: every Themes map value matches its
-// Name field. A typo in the map key would silently break env-var
-// resolution; the assertion catches it at test time.
-func TestThemes_RegistryComplete(t *testing.T) {
-	for key, p := range Themes {
-		if key != p.Name {
-			t.Errorf("Themes[%q].Name = %q (key/name mismatch)", key, p.Name)
+	for _, tt := range cases {
+		if tt.got != tt.want {
+			t.Errorf("%s: got %q, want %q", tt.name, tt.got, tt.want)
 		}
 	}
-}
-
-// TestPaletteFieldsPopulated: bundled themes must fill every Palette
-// field — a zero-string field would render as the terminal's default
-// FG/BG, breaking visual consistency. Loops over both bundled
-// themes so adding a third surfaces missing fields immediately.
-func TestPaletteFieldsPopulated(t *testing.T) {
-	for _, p := range []Palette{Tokyonight, Catppuccin} {
-		t.Run(p.Name, func(t *testing.T) {
-			fields := map[string]string{
-				"Bg": p.Bg, "PanelBg": p.PanelBg, "BgCode": p.BgCode,
-				"BgHighlight": p.BgHighlight, "BgHighlightSoft": p.BgHighlightSoft,
-				"BarBg": p.BarBg, "DangerBg": p.DangerBg, "SuccessBg": p.SuccessBg,
-				"Fg": p.Fg, "FgDim": p.FgDim, "Muted": p.Muted,
-				"Blue": p.Blue, "Cyan": p.Cyan, "Green": p.Green, "Purple": p.Purple,
-				"Magenta": p.Magenta, "Yellow": p.Yellow, "Orange": p.Orange,
-				"Red": p.Red, "Teal": p.Teal,
-			}
-			for name, val := range fields {
-				if val == "" {
-					t.Errorf("%s field unpopulated", name)
-				}
-			}
-			if len(p.TagPalette) == 0 {
-				t.Error("TagPalette is empty")
-			}
-		})
+	if len(theme.TagPalette) != len(def.TagPalette) {
+		t.Errorf("TagPalette length: got %d, want %d", len(theme.TagPalette), len(def.TagPalette))
+	}
+	for i := range theme.TagPalette {
+		if theme.TagPalette[i] != def.TagPalette[i] {
+			t.Errorf("TagPalette[%d]: got %q, want %q", i, theme.TagPalette[i], def.TagPalette[i])
+		}
 	}
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -37,6 +38,10 @@ type options struct {
 	noColor     bool
 	nerdFont    bool
 	lip         *lipgloss.Renderer
+	// palette is the canonical color set the renderer reads from.
+	// Defaulted in buildOptions when the caller omits WithPalette so
+	// existing call-sites don't need to change.
+	palette theme.Palette
 }
 
 // WithFrontmatter renders a styled card above the body. Pass nil (or
@@ -70,6 +75,14 @@ func WithNoColor(noColor bool) Option {
 // the renderer never assumes a specific font.
 func WithNerdFont(nerdFont bool) Option {
 	return func(o *options) { o.nerdFont = nerdFont }
+}
+
+// WithPalette overrides the canonical default palette for this Render
+// call. Useful when a screen wants to render notes against the same
+// palette its enclosing surface uses (e.g. a per-test override for
+// contrast / NO_COLOR fixtures). Omit to use theme.Default.
+func WithPalette(p theme.Palette) Option {
+	return func(o *options) { o.palette = p }
 }
 
 // Render parses source as CommonMark + GFM and returns ANSI output
@@ -127,6 +140,11 @@ func buildOptions(opts []Option) options {
 		o.lip = lipgloss.NewRenderer(io.Discard, termenv.WithProfile(termenv.Ascii))
 	} else {
 		o.lip = lipgloss.DefaultRenderer()
+	}
+	// Empty Palette name signals "caller didn't pick one"; default to
+	// the canonical so legacy call-sites stay one-line.
+	if o.palette.Name == "" {
+		o.palette = theme.Default
 	}
 	return o
 }

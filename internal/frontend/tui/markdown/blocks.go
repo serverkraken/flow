@@ -250,8 +250,8 @@ func knownCallout(k theme.CalloutKind) bool {
 // matching coloured bar. body may be empty when the callout has no
 // content beyond the marker line.
 func (r *nodeRenderer) styleCallout(kind theme.CalloutKind, title, body string) string {
-	badge := theme.CalloutBadge(kind).Render(strings.ToUpper(string(kind)))
-	bar := theme.CalloutBar(kind).Render("│ ")
+	badge := theme.CalloutBadge(kind, r.palette).Render(strings.ToUpper(string(kind)))
+	bar := theme.CalloutBar(kind, r.palette).Render("│ ")
 	header := badge
 	if title != "" {
 		header += " " + r.roles.CardTitle.Render(title)

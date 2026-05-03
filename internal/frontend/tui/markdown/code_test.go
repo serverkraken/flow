@@ -7,6 +7,8 @@ import (
 	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // TestRender_FencedCodeBlock_PanelWithLanguageLabel: a ` ```go ` block
@@ -189,9 +191,10 @@ func TestChromaTokenColor_CoversCommonCategories(t *testing.T) {
 		{"GenericInserted", chroma.GenericInserted, true},
 		{"Background", chroma.Background, false},
 	}
+	p := canonical.TokyonightNight
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := chromaTokenColor(tc.tok)
+			got := chromaTokenColor(tc.tok, p)
 			if tc.nonEmpty && got == "" {
 				t.Errorf("expected non-empty colour for %s", tc.name)
 			}
