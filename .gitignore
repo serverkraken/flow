@@ -3,6 +3,9 @@ dist/
 coverage.out
 coverage.html
 
+# macOS Finder noise.
+.DS_Store
+
 # Claude project files (per global rule: never committed)
 CLAUDE.md
 CLAUDE-*.md
