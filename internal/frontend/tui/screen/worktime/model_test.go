@@ -125,7 +125,7 @@ func TestView_RendersTabStripAndStub(t *testing.T) {
 			t.Errorf("tab strip should contain %q, got:\n%s", label, out)
 		}
 	}
-	if !strings.Contains(out, "lade") {
+	if !strings.Contains(out, "lädt") {
 		t.Errorf("Heute should show its loading indicator before Init runs, got:\n%s", out)
 	}
 }
@@ -143,7 +143,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 		// Heute (wave B) renders the live screen — no wave-letter sentinel.
 		// Sniff the loading marker, since Init hasn't run for the sub-models
 		// in a pure Update-driven test.
-		{"1", "lade"},
+		{"1", "Heute lädt"},
 	}
 	for _, c := range cases {
 		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(c.key)})
@@ -156,7 +156,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "lade"}
+	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "Heute lädt"}
 	for _, w := range wants {
 		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
 		if got := updated.View(); !strings.Contains(got, w) {
@@ -387,19 +387,22 @@ func TestHeute_DeleteDialog_RequiresExplicitConfirm(t *testing.T) {
 	}
 	m := seedSessionAndLoad(t, r, s)
 
-	// Open delete dialog, then press Enter (safe default = cancel).
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Skill §Keybind grammar: `D` (uppercase) öffnet die destructive Action,
+	// confirm.Model bindet y/Enter → ja, n/Esc → nein.
+	//
+	// Esc cancelt den Dialog ohne Löschen.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if len(r.sessions.Sessions) != 1 {
-		t.Errorf("Enter on delete dialog should be a safe-cancel, sessions=%d", len(r.sessions.Sessions))
+		t.Errorf("Esc on delete dialog should cancel, sessions=%d", len(r.sessions.Sessions))
 	}
 
-	// Reopen and press `j` to confirm.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	// Erneut öffnen, mit Enter bestätigen → Session weg.
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.sessions.Sessions) != 0 {
-		t.Errorf("`j` should delete the session, got %d remaining", len(r.sessions.Sessions))
+		t.Errorf("Enter on delete dialog should confirm and delete, got %d remaining", len(r.sessions.Sessions))
 	}
 }
 
@@ -606,12 +609,13 @@ func TestHistory_VCyclesModes(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	steps := []string{"heatmap", "tagclock", "month", "list"}
+	// Skill §German UI: mode-Labels sind seit Welle 2 deutsch im Footer.
+	steps := []string{"Heatmap", "Tag-Clock", "Monat", "Liste"}
 	for _, want := range steps {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
 		got := m.View()
-		if !strings.Contains(got, "ansicht ("+want+")") {
-			t.Errorf("v cycle expected ansicht (%s) in footer, got:\n%s", want, got)
+		if !strings.Contains(got, "Ansicht ("+want+")") {
+			t.Errorf("v cycle expected Ansicht (%s) in footer, got:\n%s", want, got)
 		}
 	}
 }
@@ -663,7 +667,7 @@ func TestHistory_HeatmapNavigates(t *testing.T) {
 	// Move cursor down one row — should still render.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	out := m.View()
-	if !strings.Contains(out, "ansicht (heatmap)") {
+	if !strings.Contains(out, "Ansicht (Heatmap)") {
 		t.Errorf("heatmap mode expected, got:\n%s", out)
 	}
 	for _, marker := range []string{"Mo", "Di", "So"} {
@@ -824,19 +828,20 @@ func TestFrei_DeleteConfirm_RequiresExplicitConfirm(t *testing.T) {
 	}
 	m := loadedFrei(t, r)
 
-	// Open delete dialog, then Enter (safe-cancel default).
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Skill §Keybind grammar: `D` (uppercase) öffnet die destructive Action,
+	// confirm.Model: y/Enter → ja, n/Esc → nein.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if len(r.dayoffs.Entries) != 1 {
-		t.Errorf("Enter on delete confirm should be safe-cancel, got %d entries", len(r.dayoffs.Entries))
+		t.Errorf("Esc on delete confirm should cancel, got %d entries", len(r.dayoffs.Entries))
 	}
 
-	// Reopen and `j` to confirm.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	// Erneut öffnen, mit Enter bestätigen.
+	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.dayoffs.Entries) != 0 {
-		t.Errorf("`j` should delete the entry, got %d remaining", len(r.dayoffs.Entries))
+		t.Errorf("Enter on delete confirm should delete the entry, got %d remaining", len(r.dayoffs.Entries))
 	}
 }
 

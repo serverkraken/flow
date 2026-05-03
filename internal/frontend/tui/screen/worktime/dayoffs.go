@@ -10,9 +10,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 )
 
 // — messages —
@@ -27,8 +29,6 @@ type freiActionDoneMsg struct {
 	err   error
 	toast string
 }
-
-type freiClearToastMsg struct{}
 
 // — dialog modes —
 
@@ -63,7 +63,13 @@ type frei struct {
 	kindCur int
 	errMsg  string
 
-	toast string
+	// confirmModel — kanonisches Delete-Confirm. Skill §Component vocabulary
+	// + §Keybind grammar: y/Enter → ja, n/Esc → nein. Vorher hand-rolled mit
+	// Enter-as-cancel-Default, was die Konvention der ganzen App invertierte.
+	confirmModel *confirm.Model
+
+	// toast — kanonische green-✓ Bestätigung, post-Welle-3 via toast.Model.
+	toast *toast.Model
 }
 
 func newFrei(p theme.Palette, deps Deps) frei {
@@ -112,18 +118,42 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		f.dialog = freiDialogNone
 		f.form = nil
 		f.formCur = 0
+		f.confirmModel = nil
 		f.errMsg = ""
 		f.err = msg.err
 		if msg.err == nil && msg.toast != "" {
-			f.toast = msg.toast
-			return f, tea.Batch(f.loadCmd(f.currentYear()),
-				tea.Tick(3*time.Second, func(time.Time) tea.Msg { return freiClearToastMsg{} }))
+			t := toast.NewDefault(msg.toast, f.pal)
+			f.toast = &t
+			return f, tea.Batch(f.loadCmd(f.currentYear()), t.Init())
 		}
 		return f, f.loadCmd(f.currentYear())
 
-	case freiClearToastMsg:
-		f.toast = ""
+	case toast.DismissedMsg:
+		f.toast = nil
 		return f, nil
+
+	case confirm.ResultMsg:
+		// Auflösung des Delete-Confirm-Dialogs (siehe today.go für die
+		// Begründung des Wechsels auf confirm.Model).
+		if f.dialog != freiDialogConfirm {
+			return f, nil
+		}
+		f.dialog = freiDialogNone
+		f.confirmModel = nil
+		if !msg.Confirmed {
+			return f, nil
+		}
+		if f.cursor < 0 || f.cursor >= len(f.entries) {
+			return f, nil
+		}
+		date := f.entries[f.cursor].Date
+		writer := f.deps.DayOffWriter
+		return f, func() tea.Msg {
+			if err := writer.Remove(date); err != nil {
+				return freiActionDoneMsg{err: err}
+			}
+			return freiActionDoneMsg{toast: "✓ Eintrag entfernt für " + date.Format("2006-01-02")}
+		}
 
 	case dayRefreshMsg:
 		return f, f.loadCmd(f.currentYear())
@@ -182,10 +212,20 @@ func (f frei) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return f, f.quickAddTodayCmd(domain.KindSick)
 	case "B":
 		return f, f.syncHolidaysCmd()
-	case "d", "x":
+	case "D":
+		// Skill §Keybind grammar: destructive Action = Uppercase. Vorher d/x.
+		// `x` als Alias war historischer Ballast — Uppercase D ist der einzige
+		// destructive Slot in der ganzen App.
 		if f.cursor >= 0 && f.cursor < len(f.entries) {
 			f.dialog = freiDialogConfirm
 			f.errMsg = ""
+			d := f.entries[f.cursor]
+			question := "Eintrag löschen?"
+			detail := fmt.Sprintf("%s  %s  %s",
+				d.Date.Format("2006-01-02"), d.Kind.LabelDe(), d.Label)
+			cm := confirm.New(question, detail, f.pal)
+			f.confirmModel = &cm
+			return f, cm.Init()
 		}
 	case "h", "left", "[":
 		return f.shiftYear(-1)
@@ -260,32 +300,17 @@ func (f frei) openAdd() (tea.Model, tea.Cmd) {
 func (f frei) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch f.dialog {
 	case freiDialogConfirm:
-		return f.handleConfirmKey(msg)
-	case freiDialogAdd:
-		return f.handleAddFormKey(msg)
-	}
-	return f, nil
-}
-
-func (f frei) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "z", "j":
-		if f.cursor < 0 || f.cursor >= len(f.entries) {
+		// confirm.Model konsumiert y/Enter (ja) und n/Esc (nein); Result
+		// wird im Outer-Update als confirm.ResultMsg gehandhabt.
+		if f.confirmModel == nil {
 			f.dialog = freiDialogNone
 			return f, nil
 		}
-		date := f.entries[f.cursor].Date
-		writer := f.deps.DayOffWriter
-		f.dialog = freiDialogNone
-		return f, func() tea.Msg {
-			if err := writer.Remove(date); err != nil {
-				return freiActionDoneMsg{err: err}
-			}
-			return freiActionDoneMsg{toast: "✓ Eintrag entfernt für " + date.Format("2006-01-02")}
-		}
-	case "n", "esc", "enter":
-		f.dialog = freiDialogNone
-		return f, nil
+		updated, cmd := f.confirmModel.Update(msg)
+		f.confirmModel = &updated
+		return f, cmd
+	case freiDialogAdd:
+		return f.handleAddFormKey(msg)
 	}
 	return f, nil
 }
@@ -410,8 +435,8 @@ func (f frei) renderBody() string {
 	}
 	rows := []string{f.renderHeader(), ""}
 	rows = append(rows, f.renderEntries(inner)...)
-	if f.toast != "" {
-		rows = append(rows, "", lipgloss.NewStyle().Foreground(f.pal.Cyan).Render("  "+f.toast))
+	if f.toast != nil {
+		rows = append(rows, "", "  "+f.toast.View())
 	}
 	rows = append(rows, "", renderFooterHints(f.pal, f.footerHints(), inner))
 	return strings.Join(rows, "\n")
@@ -429,7 +454,7 @@ func (f frei) renderHeader() string {
 
 func (f frei) renderEntries(inner int) []string {
 	if len(f.entries) == 0 {
-		hint := []string{"a anlegen", "A heute=Urlaub", "K heute=krank", "B Feiertage-sync"}
+		hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank", "B → Feiertage-sync"}
 		return []string{
 			stDim(f.pal, "  Noch keine Daten in diesem Jahr."),
 			"",
@@ -467,16 +492,15 @@ func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
 	return picker.Row(idx == f.cursor, label, "", inner, f.pal)
 }
 
+// footerHints — Skill §Hint format: max 4. Top-4 nach Frequenz: navigieren,
+// Eintrag anlegen, löschen, Jahr blättern. A/K/B/T sind im `?`-Overlay
+// dokumentiert, sind nicht Teil des täglichen Worktime-Flows.
 func (f frei) footerHints() []string {
 	return []string{
-		"a anlegen",
-		"A heute=Urlaub",
-		"K heute=krank",
-		"B Feiertage-sync",
-		"d/x löschen",
-		"h/l Jahr ±",
-		"T aktuell",
-		"j/k auswahl",
+		"j/k → bewegen",
+		"a → anlegen",
+		"D → löschen",
+		"h/l → Jahr ±",
 	}
 }
 
@@ -498,7 +522,9 @@ func (f frei) renderDialog() string {
 
 func (f frei) renderAddDialog(inner int) string {
 	rows := []string{
-		lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render("  Tag(e) frei eintragen"),
+		// Skill §Component vocabulary: Dialog-Title in Purple-Bold (Identity)
+		// statt Accent — konsistent mit titlebox/help-Konvention.
+		lipgloss.NewStyle().Foreground(f.pal.Purple).Bold(true).Render("  Tag(e) frei eintragen"),
 		"",
 	}
 	rows = append(rows, f.renderAddFields(inner)...)
@@ -507,7 +533,7 @@ func (f frei) renderAddDialog(inner int) string {
 		rows = append(rows, "", lipgloss.NewStyle().Foreground(f.pal.Red).Render("  "+f.errMsg))
 	}
 	rows = append(rows, "", stDim(f.pal,
-		"  Tab/↑↓ Feld  ·  h/l Kategorie  ·  Enter=weiter/speichern  ·  Esc=abbrechen"))
+		"  Tab/↑↓ → Feld  ·  h/l → Kategorie  ·  Enter → weiter / speichern  ·  Esc → abbrechen"))
 	return strings.Join(rows, "\n")
 }
 
@@ -549,18 +575,13 @@ func (f frei) renderKindPicker(inner int) string {
 
 func (f frei) renderConfirmDialog(_ int) string {
 	rows := []string{
-		lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true).Render("  Eintrag löschen"),
+		// Title konsistent zu renderAddDialog: Purple-Bold.
+		lipgloss.NewStyle().Foreground(f.pal.Purple).Bold(true).Render("  Eintrag löschen"),
 		"",
 	}
-	if f.cursor >= 0 && f.cursor < len(f.entries) {
-		d := f.entries[f.cursor]
-		rows = append(rows, lipgloss.NewStyle().Foreground(f.pal.Yellow).Bold(true).Render(
-			fmt.Sprintf("  %s  %s  %s",
-				d.Date.Format("2006-01-02"), d.Kind.LabelDe(), d.Label)))
-		rows = append(rows, "")
-		rows = append(rows, lipgloss.NewStyle().Foreground(f.pal.Red).Render("  Wirklich löschen?"))
+	if f.confirmModel != nil {
+		rows = append(rows, "  "+f.confirmModel.View())
 	}
-	rows = append(rows, "", stDim(f.pal, "  y/z/j=löschen  ·  Enter/n/Esc=abbrechen (default)"))
 	return strings.Join(rows, "\n")
 }
 

@@ -38,8 +38,11 @@ func TestFooterDriftGuard(t *testing.T) {
 				start := r.clock.T.Add(-30 * time.Minute)
 				r.active.Active = &start
 			},
-			tab:  "1",
-			keys: []string{"s", "p", "j/k"},
+			tab: "1",
+			// Skill §Hint format ≤4: post-Welle-2 zeigt der Footer im
+			// Running-State nur die Top-Frequenz-Hints. `p` (pause) wandert
+			// in den `?`-Overlay.
+			keys: []string{"s", "j/k"},
 		},
 		{
 			name: "heute_on_session",
@@ -50,26 +53,32 @@ func TestFooterDriftGuard(t *testing.T) {
 					Stop: today.Add(10 * time.Hour), Elapsed: time.Hour,
 				}}
 			},
-			tab:  "1",
-			keys: []string{"E", "d", "t", "N"},
+			tab: "1",
+			// Top-4 (s, j/k, enter, D) — t/N (tag/note) sind im `?`-Overlay
+			// dokumentiert. D statt d (§Keybind grammar destructive).
+			keys: []string{"s", "j/k", "enter", "D"},
 		},
 		{
 			name:  "woche",
 			setup: func(_ rig) {},
 			tab:   "2",
-			keys:  []string{"j/k", "g/G", "1/2/3/4"},
+			// Tab-Navigation 1/2/3/4 ist parent-level — gehört nicht in den
+			// screen-level Footer (Skill §Hint format „context-relevant").
+			keys: []string{"j/k", "g/G"},
 		},
 		{
 			name:  "history",
 			setup: func(_ rig) {},
 			tab:   "3",
-			keys:  []string{"j/k", "enter", "v", "/", "[/]", "T"},
+			keys:  []string{"j/k", "enter", "v", "/"},
 		},
 		{
 			name:  "frei",
 			setup: func(_ rig) {},
 			tab:   "4",
-			keys:  []string{"a", "A", "K", "B", "d/x", "h/l", "T", "j/k"},
+			// Top-4: navigieren, anlegen, löschen (D), Jahr blättern.
+			// A/K/B/T sind im `?`-Overlay.
+			keys: []string{"j/k", "a", "D", "h/l"},
 		},
 	}
 	for _, c := range cases {

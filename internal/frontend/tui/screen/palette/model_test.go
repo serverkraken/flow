@@ -96,16 +96,75 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 	if !strings.Contains(f.tmux.Shells[0], "source-file") {
 		t.Errorf("RunShell payload should embed the action, got %q", f.tmux.Shells[0])
 	}
-	// dispatchedMsg → tea.Quit → the next Update produces tea.QuitMsg
-	if _, ok := msg.(tea.QuitMsg); !ok {
-		_, quit := updated.Update(msg)
-		if quit == nil {
-			t.Fatal("dispatchedMsg should propagate tea.Quit")
-		}
+	// Post-F-WAVE-1: dispatch no longer quits flow. The cmd resolves to a
+	// dispatchedMsg → palette stays open + a transient toast confirms.
+	// Update with the msg should NOT yield a tea.QuitMsg-producing cmd.
+	if _, ok := msg.(tea.QuitMsg); ok {
+		t.Fatalf("dispatch must not return tea.QuitMsg post-F-WAVE-1, got %T", msg)
+	}
+	updated2, _ := updated.Update(msg)
+	view := updated2.View()
+	if !strings.Contains(view, "Reload") {
+		t.Errorf("toast should mention the action label »Reload«; view:\n%s", view)
 	}
 	// Stats: one Mark recorded
 	if got := f.stats.Stats.Actions[domain.EntryKey(domain.PaletteEntry{Label: "Reload", Section: "System"})].Count; got != 1 {
 		t.Errorf("Mark count: got %d want 1", got)
+	}
+}
+
+// TestEnter_OnGotoActionEmitsSwitchScreenMsg covers the in-process
+// flow-internal screen-switch fast path: action strings matching the
+// goto.sh deep-link pattern bypass tmux entirely.
+func TestEnter_OnGotoActionEmitsSwitchScreenMsg(t *testing.T) {
+	f := newFixture(
+		domain.PaletteEntry{
+			Label:   "Worktime öffnen",
+			Action:  "run-shell '~/.tmux/plugins/flow/goto.sh worktime'",
+			Section: "Worktime",
+		},
+	)
+	updated := runUntilLoaded(t, f.model())
+	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter on goto action should produce a tea.Cmd")
+	}
+	msg := cmd()
+	sw, ok := msg.(palette.SwitchScreenMsg)
+	if !ok {
+		t.Fatalf("goto action should emit SwitchScreenMsg, got %T", msg)
+	}
+	if sw.Screen != "worktime" {
+		t.Errorf("SwitchScreenMsg.Screen: got %q want worktime", sw.Screen)
+	}
+	if len(f.tmux.Shells) != 0 {
+		t.Errorf("goto action must NOT call RunShell (in-process switch), got %d", len(f.tmux.Shells))
+	}
+}
+
+// TestEnter_OnUnknownGotoScreenFallsThroughToTmux covers the safety case:
+// if goto.sh is invoked with an unknown screen name (typo, retired screen),
+// the regex matches but domain.IsValidScreen rejects it. Fall through to
+// the normal external dispatch path so the action still runs.
+func TestEnter_OnUnknownGotoScreenFallsThroughToTmux(t *testing.T) {
+	f := newFixture(
+		domain.PaletteEntry{
+			Label:   "Bogus",
+			Action:  "run-shell '~/.tmux/plugins/flow/goto.sh nonexistent'",
+			Section: "Misc",
+		},
+	)
+	updated := runUntilLoaded(t, f.model())
+	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter should produce a tea.Cmd even for unknown screens")
+	}
+	msg := cmd()
+	if _, ok := msg.(palette.SwitchScreenMsg); ok {
+		t.Errorf("unknown screen %q should NOT emit SwitchScreenMsg", "nonexistent")
+	}
+	if len(f.tmux.Shells) != 1 {
+		t.Errorf("fallback path should call RunShell once, got %d", len(f.tmux.Shells))
 	}
 }
 

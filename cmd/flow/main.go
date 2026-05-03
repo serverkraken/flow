@@ -66,6 +66,7 @@ type Paths struct {
 type Deps struct {
 	Worktime   cli.WorktimeDeps
 	Sidekick   cli.SidekickDeps
+	Cheatsheet cli.CheatsheetDeps
 	Kompendium kompendiumcli.Deps
 }
 
@@ -210,6 +211,13 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			Notes: func(_ theme.Palette) tea.Model {
 				return buildNotesScreen(p, kompDeps)
 			},
+		},
+		// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
+		// Sidekick-Tab — identische Render-Pipeline, identische Theme,
+		// keine Drift zwischen Popup und Tab.
+		Cheatsheet: cli.CheatsheetDeps{
+			Reader:   cheatsheetReader,
+			Renderer: mdRenderer,
 		},
 		Kompendium: kompDeps,
 	}, kompCleanup, nil
@@ -390,6 +398,7 @@ func main() {
 
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
+	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 
 	if err := rootCmd.Execute(); err != nil {

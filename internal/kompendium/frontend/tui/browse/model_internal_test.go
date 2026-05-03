@@ -48,9 +48,9 @@ func TestEditFinishedMsg_Error_StoredAndShownInView(t *testing.T) {
 	if pm.editErr == nil {
 		t.Fatal("editErr should be set")
 	}
-	// Force loaded so View renders; otherwise it short-circuits to "Loading…".
+	// Force loaded so View renders; otherwise it short-circuits to „lädt…".
 	pm.loaded = true
-	if !contains(pm.View(), "Edit error") {
+	if !contains(pm.View(), "Fehler beim Bearbeiten") {
 		t.Errorf("editErr should surface in View, got:\n%s", pm.View())
 	}
 }

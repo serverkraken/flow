@@ -26,22 +26,22 @@ func TestPolish_HelpOverlayToggles(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
-	// `?` opens the overlay; the overlay carries the "Keyboard shortcuts" header.
+	// `?` opens the overlay; the overlay carries the "Tastenbelegung" header.
 	model, _ = model.Update(runeKey('?'))
-	if !strings.Contains(model.View(), "Keyboard shortcuts") {
+	if !strings.Contains(model.View(), "Tastenbelegung") {
 		t.Errorf("? should open help overlay:\n%s", model.View())
 	}
 
 	// `?` again closes it.
 	model, _ = model.Update(runeKey('?'))
-	if strings.Contains(model.View(), "Keyboard shortcuts") {
+	if strings.Contains(model.View(), "Tastenbelegung") {
 		t.Errorf("? again should close help overlay:\n%s", model.View())
 	}
 
 	// re-open then close with esc.
 	model, _ = model.Update(runeKey('?'))
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if strings.Contains(model.View(), "Keyboard shortcuts") {
+	if strings.Contains(model.View(), "Tastenbelegung") {
 		t.Errorf("esc should close help overlay:\n%s", model.View())
 	}
 }
@@ -69,7 +69,7 @@ func TestPolish_TwoPanePreviewWithSize(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 
 	view := model.View()
-	if !strings.Contains(view, "preview") {
+	if !strings.Contains(view, "vorschau") {
 		t.Errorf("two-pane layout should render the preview pane title:\n%s", view)
 	}
 	// Tag chips render the tag text verbatim somewhere in the row block.

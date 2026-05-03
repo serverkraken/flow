@@ -10,7 +10,9 @@ package palette
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,8 +20,10 @@ import (
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -29,7 +33,34 @@ type loadedMsg struct {
 	err      error
 }
 
-type dispatchedMsg struct{}
+// dispatchedMsg fires after an external action (popup, fire-and-forget tmux
+// command) was handed off to tmux. The palette stays open and shows a toast
+// with the entry's label so the user gets confirmation. Pre-F-WAVE-1 this
+// returned tea.Quit; that killed flow's process and made the surrounding
+// sidekick pane flicker on every action.
+type dispatchedMsg struct {
+	label string
+}
+
+// SwitchScreenMsg is emitted when a palette entry's action is recognized as
+// a flow-internal screen switch (the goto.sh deep-link pattern). The
+// sidekick root catches it and updates m.current — no subshell, no flow
+// restart, no flicker. Action strings that do NOT match this pattern fall
+// through to the external dispatch path.
+type SwitchScreenMsg struct {
+	Screen string
+}
+
+// gotoScreenRe matches the action string written by ~/.tmux/plugins/flow/goto.sh.
+// Examples it must catch:
+//
+//	run-shell '~/.tmux/plugins/flow/goto.sh worktime'
+//	run-shell "~/.tmux/plugins/flow/goto.sh projects"
+//	run-shell ~/.tmux/plugins/flow/goto.sh palette
+//
+// The captured group is the screen name (palette / projects / worktime /
+// cheatsheet / notes), validated against domain.IsValidScreen at use site.
+var gotoScreenRe = regexp.MustCompile(`flow/goto\.sh\s+(\w+)`)
 
 // Model is the bubbletea model for the palette screen.
 type Model struct {
@@ -46,6 +77,10 @@ type Model struct {
 	loading    bool
 	session    string
 	stats      domain.PaletteStats
+
+	// toast renders a transient ack after a non-screen-switch dispatch.
+	// nil when no toast is active.
+	toast *toast.Model
 
 	reader *usecase.PaletteReader
 	writer *usecase.PaletteWriter
@@ -116,7 +151,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case dispatchedMsg:
-		return m, tea.Quit
+		// External action handed off to tmux — stay in palette, toast.
+		t := toast.New("ausgeführt: "+msg.label, 2*time.Second, m.pal)
+		m.toast = &t
+		return m, t.Init()
+
+	case toast.DismissedMsg:
+		m.toast = nil
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.filter.Focused() {
@@ -329,16 +371,35 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
-// dispatch records the pick via the writer, then asks tmux to run the
-// action. The model quits on dispatchedMsg so the sidekick's altscreen
-// closes immediately while tmux runs the action in the background.
+// dispatch records the pick via the writer, then either:
+//
+//   (a) emits a SwitchScreenMsg if the action matches the goto.sh deep-link
+//       pattern — the sidekick root handles it as an in-process tab switch,
+//       no subshell, no flow restart;
+//
+//   (b) hands the action off to tmux via run-shell and returns a
+//       dispatchedMsg so the palette can toast confirmation while staying
+//       open. Popups (display-popup) overlay flow's terminal until they
+//       close; fire-and-forget actions (run-shell -b) never affect flow.
+//
+// Pre-F-WAVE-1 every dispatch ended in tea.Quit, killing flow and forcing
+// the sidekick pane to flicker on each action.
 func (m Model) dispatch(e domain.PaletteEntry) tea.Cmd {
 	_ = m.writer.Mark(e) // best-effort persist
+
+	if matches := gotoScreenRe.FindStringSubmatch(e.Action); matches != nil {
+		screen := matches[1]
+		if domain.IsValidScreen(screen) {
+			return func() tea.Msg { return SwitchScreenMsg{Screen: screen} }
+		}
+	}
+
 	tm := m.tmux
 	action := e.Action
+	label := e.Label
 	return func() tea.Msg {
 		_ = tm.RunShell(fmt.Sprintf("sleep 0.15; tmux %s", action))
-		return dispatchedMsg{}
+		return dispatchedMsg{label: label}
 	}
 }
 
@@ -358,7 +419,7 @@ func (m Model) View() string {
 
 	switch {
 	case m.loading:
-		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  lade…"))
+		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Dim).Render("  Aktionen werden geladen…"))
 	case m.err != nil:
 		rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Red).Render("  "+m.err.Error()))
 	case len(m.visible) == 0:
@@ -372,6 +433,9 @@ func (m Model) View() string {
 	parts := []string{box}
 	if preview := m.renderPreview(m.width - 4); preview != "" {
 		parts = append(parts, preview)
+	}
+	if m.toast != nil && m.toast.Visible() {
+		parts = append(parts, "  "+m.toast.View())
 	}
 	parts = append(parts, m.renderFooter())
 	return strings.Join(parts, "\n")
@@ -427,25 +491,18 @@ func (m Model) renderEmptyState() []string {
 	}
 }
 
+// renderFooter draws the canonical hint strip — max 4 most-frequent hints,
+// `key → action` form, all-dim, separator `  ·  `. Surplus bindings (1-9
+// direktwahl, ] / [ section jumps, `.` pin, esc two-stage) live in the `?`
+// overlay rendered by the sidekick root.
 func (m Model) renderFooter() string {
-	hints := [][2]string{
-		{"enter", "ausführen"},
-		{"1-9", "direktwahl"},
-		{"j/k", "bewegen"},
-		{"]/[", "section"},
-		{".", "pin"},
-		{"esc", "zurück"},
-		{"q", "schließen"},
+	hints := []string{
+		"enter → ausführen",
+		"j/k → bewegen",
+		"/ → filter",
+		"? → hilfe",
 	}
-	keyStyle := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true)
-	descStyle := lipgloss.NewStyle().Foreground(m.pal.Dim)
-	sepStyle := lipgloss.NewStyle().Foreground(m.pal.Border)
-	parts := make([]string, 0, len(hints))
-	for _, h := range hints {
-		parts = append(parts, keyStyle.Render(h[0])+" "+descStyle.Render(h[1]))
-	}
-	return lipgloss.NewStyle().Padding(0, 1).
-		Render(strings.Join(parts, sepStyle.Render(" · ")))
+	return statusbar.Hints(strings.Join(hints, "  ·  "), m.pal)
 }
 
 func (m Model) renderEntries(innerWidth int) []string {

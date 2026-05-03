@@ -9,6 +9,11 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 )
 
+// DefaultDuration is the recommended toast lifetime per the TUI usability
+// skill ("~2 s default duration"). NewDefault uses it; callers that need a
+// non-canonical timing pass an explicit value to New.
+const DefaultDuration = 2 * time.Second
+
 // DismissedMsg is sent when the toast auto-dismisses.
 type DismissedMsg struct{}
 
@@ -23,6 +28,14 @@ type Model struct {
 // New creates a toast that auto-dismisses after dur.
 func New(text string, dur time.Duration, p theme.Palette) Model {
 	return Model{text: text, dur: dur, visible: true, theme: p}
+}
+
+// NewDefault creates a toast with the canonical DefaultDuration. Prefer
+// this over New unless a specific timing is part of the screen's
+// behaviour (e.g. „long action just finished, give the user a beat to
+// read the result").
+func NewDefault(text string, p theme.Palette) Model {
+	return New(text, DefaultDuration, p)
 }
 
 // Visible reports whether the toast is still showing.

@@ -62,8 +62,13 @@ func (m Model) Init() tea.Cmd {
 	}
 }
 
-// Update handles window resize, the async loadedMsg, and viewport scroll
-// keys.
+// Update handles window resize, the async loadedMsg, the standalone-quit
+// keys (q / Ctrl+C), and viewport scroll. q/Ctrl+C only fire when the
+// cheatsheet is the program's root model — when hosted as a flow sidekick
+// tab, the parent sidekick consumes those keys first (sidekick/model.go's
+// tea.KeyMsg handler), so the local handler is a harmless no-op there.
+// Without this, `flow cheatsheet` launched as a standalone tmux popup
+// has no way to exit short of Ctrl+C SIGINT.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -82,6 +87,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.renderContent()
 		}
 		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
 	}
 
 	var cmd tea.Cmd
@@ -113,7 +124,7 @@ func (m Model) View() string {
 		content = lipgloss.NewStyle().Foreground(m.pal.Red).Render(
 			"\n  Fehler: " + m.err.Error())
 	case !m.rendered:
-		content = lipgloss.NewStyle().Foreground(m.pal.Dim).Render("\n  lade…")
+		content = lipgloss.NewStyle().Foreground(m.pal.Dim).Render("\n  Cheatsheet lädt…")
 	default:
 		content = m.vp.View()
 	}
@@ -123,7 +134,10 @@ func (m Model) View() string {
 		title = fmt.Sprintf("Cheatsheet · %.0f%%", m.vp.ScrollPercent()*100)
 	}
 	box := titlebox.Render(title, content, m.width, m.pal)
+	// Skill §Hint format ≤4: scrollen, Palette-Sprung (b ist sidekick-router),
+	// schließen. „b → Palette" statt „b → zurück" — letzteres impliziert
+	// Browser-History, was im Sidekick nicht stimmt.
 	footer := lipgloss.NewStyle().Foreground(m.pal.Dim).Padding(0, 1).
-		Render("↑/↓ PgUp/PgDn → scrollen  ·  b → zurück  ·  q → schließen")
+		Render("↑/↓ · PgUp/PgDn → scrollen  ·  b → Palette  ·  q → schließen")
 	return box + "\n" + footer
 }

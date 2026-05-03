@@ -186,20 +186,21 @@ func TestStatusBar_RendersInView(t *testing.T) {
 	if !strings.Contains(view, "daily/2026-04-25") {
 		t.Errorf("status bar should show selected note path:\n%s", view)
 	}
-	if !strings.Contains(view, "index 1m") {
+	if !strings.Contains(view, "Index 1m") {
 		t.Errorf("status bar should show humanized index age:\n%s", view)
 	}
 
+	// Welle 4 / Skill §German UI: Mode-Badges sind deutsch (SUCHE / LÖSCHEN).
 	// Mode badges are rendered into the status bar before the overlay
 	// kicks in, so we exercise the bar's mode helper directly — the
 	// confirm-delete modal otherwise replaces the entire frame.
 	m.mode = ModeSearch
-	if !strings.Contains(m.statusBarMode(), "SEARCH") {
-		t.Errorf("search mode should surface a SEARCH badge: %q", m.statusBarMode())
+	if !strings.Contains(m.statusBarMode(), "SUCHE") {
+		t.Errorf("search mode should surface a SUCHE badge: %q", m.statusBarMode())
 	}
 	m.mode = ModeConfirmDelete
-	if !strings.Contains(m.statusBarMode(), "DELETE") {
-		t.Errorf("delete-confirm mode should surface a DELETE badge: %q", m.statusBarMode())
+	if !strings.Contains(m.statusBarMode(), "LÖSCHEN") {
+		t.Errorf("delete-confirm mode should surface a LÖSCHEN badge: %q", m.statusBarMode())
 	}
 }
 
@@ -311,8 +312,8 @@ func TestStatusBar_HidesIndexWhenUnwired(t *testing.T) {
 		height:  24,
 	}
 	view := m.View()
-	if strings.Contains(view, "index ") {
-		t.Errorf("status bar must not render `index Nm` when IndexAgeFunc is nil:\n%s", view)
+	if strings.Contains(view, "Index ") {
+		t.Errorf("status bar must not render `Index Nm` when IndexAgeFunc is nil:\n%s", view)
 	}
 	if !strings.Contains(view, "—") {
 		t.Errorf("status bar should fall back to em-dash for empty cursor:\n%s", view)

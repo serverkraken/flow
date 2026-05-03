@@ -41,7 +41,8 @@ func TestBrowse_LoadsEntriesAndRenders(t *testing.T) {
 
 	got := drive(t, newModel(usecase.NewListNotes(store)))
 
-	if !strings.Contains(got, "kompendium — 2/2 notes") {
+	// Welle 4: Header-Label ist deutsch („Notizen").
+	if !strings.Contains(got, "kompendium — 2/2 Notizen") {
 		t.Errorf("missing header in view:\n%s", got)
 	}
 	if !strings.Contains(got, "today") || !strings.Contains(got, "setup") {
@@ -168,7 +169,7 @@ func TestBrowse_SearchFiltersOnTitleAndProject(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
 	model, _ = model.Update(key("/"))
-	if !strings.Contains(model.View(), "Search:") {
+	if !strings.Contains(model.View(), "Suche:") {
 		t.Errorf("search bar should appear:\n%s", model.View())
 	}
 
@@ -181,12 +182,12 @@ func TestBrowse_SearchFiltersOnTitleAndProject(t *testing.T) {
 	}
 
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
-	if !strings.Contains(model.View(), "Search:") {
+	if !strings.Contains(model.View(), "Suche:") {
 		t.Errorf("search bar lost after backspace:\n%s", model.View())
 	}
 
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if strings.Contains(model.View(), "type to filter") {
+	if strings.Contains(model.View(), "tippen → filtern") {
 		t.Errorf("enter should leave search mode:\n%s", model.View())
 	}
 	model, _ = model.Update(key("/"))
@@ -227,7 +228,7 @@ func TestBrowse_NavigationLiteralInSearchMode(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(key("/"))
 	model, _ = model.Update(runeKey('j'))
-	if !strings.Contains(model.View(), "Search: j") {
+	if !strings.Contains(model.View(), "Suche: j") {
 		t.Errorf("j should land in search query, not move the cursor:\n%s", model.View())
 	}
 }
@@ -235,8 +236,9 @@ func TestBrowse_NavigationLiteralInSearchMode(t *testing.T) {
 func TestBrowse_EmptyStateHints(t *testing.T) {
 	t.Parallel()
 
+	// Welle 4: Empty-State-Hint ist deutsch („keine Treffer").
 	model := initialised(newModel(usecase.NewListNotes(testutil.NewFakeNoteStore())))
-	if !strings.Contains(model.View(), "no notes match") {
+	if !strings.Contains(model.View(), "keine Treffer") {
 		t.Errorf("missing empty-state hint:\n%s", model.View())
 	}
 }
@@ -248,7 +250,7 @@ func TestBrowse_LoadError(t *testing.T) {
 	store.ListErr = errForTest("forced list err")
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
-	if !strings.Contains(model.View(), "Error:") {
+	if !strings.Contains(model.View(), "Fehler:") {
 		t.Errorf("missing error indicator in view:\n%s", model.View())
 	}
 }
@@ -266,8 +268,9 @@ func TestBrowse_QuittingViewIsEmpty(t *testing.T) {
 func TestBrowse_LoadingState(t *testing.T) {
 	t.Parallel()
 
+	// Welle 4: Loading-Label ist deutsch („lädt…").
 	m := newModel(usecase.NewListNotes(testutil.NewFakeNoteStore()))
-	if !strings.Contains(m.View(), "Loading") {
+	if !strings.Contains(m.View(), "lädt") {
 		t.Errorf("missing loading state in initial view: %q", m.View())
 	}
 }
@@ -492,10 +495,16 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 		t.Errorf("D should only switch mode, not schedule a cmd, got %v", cmd())
 	}
 	view := model.View()
-	if !strings.Contains(view, "Delete daily/2026-04-25?") {
+	// Welle 4: Modal vereinfacht — single-question + DE-Hint, keine
+	// vierfache Affordance. Note-ID erscheint im Modal, der Hint ist
+	// die kanonische y/Enter-Variante.
+	if !strings.Contains(view, "daily/2026-04-25") {
+		t.Errorf("confirm prompt should render the note ID:\n%s", view)
+	}
+	if !strings.Contains(view, "Notiz löschen?") {
 		t.Errorf("confirm prompt not rendered:\n%s", view)
 	}
-	if !strings.Contains(view, "y to confirm") {
+	if !strings.Contains(view, "y/Enter → ja") {
 		t.Errorf("confirm footer hint missing:\n%s", view)
 	}
 }
@@ -638,7 +647,7 @@ func TestBrowse_DDeleteErrorSurfacesInView(t *testing.T) {
 		t.Errorf("delete error should not schedule another cmd, got %v", followUp)
 	}
 	view := model.View()
-	if !strings.Contains(view, "Edit error") || !strings.Contains(view, "disk full") {
+	if !strings.Contains(view, "Fehler beim Bearbeiten") || !strings.Contains(view, "disk full") {
 		t.Errorf("delete error should surface in view, got:\n%s", view)
 	}
 }

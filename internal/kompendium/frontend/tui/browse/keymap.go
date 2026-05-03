@@ -22,65 +22,66 @@ type keyMap struct {
 	Quit     key.Binding
 }
 
-// defaultKeys returns the default keymap. Soenne can later swap individual
-// bindings without touching the rest of the model.
+// defaultKeys returns the default keymap. Skill §German UI: Help-Labels auf
+// Deutsch. Soenne can later swap individual bindings without touching the
+// rest of the model.
 func defaultKeys() keyMap {
 	return keyMap{
 		Up: key.NewBinding(
 			key.WithKeys("k", "up"),
-			key.WithHelp("k/↑", "up"),
+			key.WithHelp("k/↑", "hoch"),
 		),
 		Down: key.NewBinding(
 			key.WithKeys("j", "down"),
-			key.WithHelp("j/↓", "down"),
+			key.WithHelp("j/↓", "runter"),
 		),
 		Top: key.NewBinding(
 			key.WithKeys("g", "home"),
-			key.WithHelp("g", "top"),
+			key.WithHelp("g", "Anfang"),
 		),
 		Bottom: key.NewBinding(
 			key.WithKeys("G", "end"),
-			key.WithHelp("G", "bottom"),
+			key.WithHelp("G", "Ende"),
 		),
 		PageUp: key.NewBinding(
 			key.WithKeys("ctrl+u", "pgup"),
-			key.WithHelp("ctrl+u", "page up"),
+			key.WithHelp("ctrl+u", "Seite hoch"),
 		),
 		PageDown: key.NewBinding(
 			key.WithKeys("ctrl+d", "pgdown"),
-			key.WithHelp("ctrl+d", "page down"),
+			key.WithHelp("ctrl+d", "Seite runter"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("tab"),
-			key.WithHelp("tab", "cycle filter"),
+			key.WithHelp("tab", "Filter wechseln"),
 		),
 		Search: key.NewBinding(
 			key.WithKeys("/"),
-			key.WithHelp("/", "search"),
+			key.WithHelp("/", "Suche"),
 		),
 		Edit: key.NewBinding(
 			key.WithKeys("enter"),
-			key.WithHelp("enter", "edit"),
+			key.WithHelp("enter", "bearbeiten"),
 		),
 		View: key.NewBinding(
 			key.WithKeys("v"),
-			key.WithHelp("v", "view"),
+			key.WithHelp("v", "Vorschau"),
 		),
 		New: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new"),
+			key.WithHelp("n", "neu"),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("D"),
-			key.WithHelp("D", "delete"),
+			key.WithHelp("D", "löschen"),
 		),
 		Help: key.NewBinding(
 			key.WithKeys("?"),
-			key.WithHelp("?", "help"),
+			key.WithHelp("?", "Hilfe"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", "schließen"),
 		),
 	}
 }

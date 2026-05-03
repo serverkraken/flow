@@ -10,13 +10,12 @@
 package sidekick
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 )
 
 type screenID int
@@ -127,6 +126,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case palette.SwitchScreenMsg:
+		// In-process screen switch — the palette emits this when a picked
+		// entry's action matches the goto.sh deep-link pattern. No subshell,
+		// no flow restart, no flicker.
+		if id, ok := screenIDForName(msg.Screen); ok {
+			m.current = id
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.showHelp {
 			m.showHelp = false
@@ -192,12 +200,13 @@ func (m Model) View() string {
 	return m.screens[m.current].View()
 }
 
+// renderHelp draws the `?`-overlay for the sidekick. Sections are grouped by
+// purpose, keys ordered by frequency. Uses the canonical help.Render
+// component instead of hand-rolled titlebox styling so visual drift across
+// help overlays in the codebase is impossible.
 func (m Model) renderHelp() string {
-	sections := []struct {
-		title string
-		keys  [][2]string
-	}{
-		{"Global", [][2]string{
+	sections := []help.Section{
+		{Title: "Global", Keys: [][2]string{
 			{"p / b", "Palette"},
 			{"f", "Projekte"},
 			{"w", "Worktime"},
@@ -206,7 +215,7 @@ func (m Model) renderHelp() string {
 			{"?", "Hilfe (diese Ansicht)"},
 			{"q / Ctrl+C", "Beenden"},
 		}},
-		{"Palette", [][2]string{
+		{Title: "Palette", Keys: [][2]string{
 			{"a–z (außer j/k/g/G)", "tippen → Filter direkt"},
 			{"/", "Filter explizit öffnen"},
 			{"j / k / ↑ / ↓", "Navigieren"},
@@ -218,7 +227,7 @@ func (m Model) renderHelp() string {
 			{"Enter", "Ausführen"},
 			{"Esc", "Filter leeren · 2× → schließen"},
 		}},
-		{"Projekte", [][2]string{
+		{Title: "Projekte", Keys: [][2]string{
 			{"j / k / ↑ / ↓", "Navigieren"},
 			{"G / g", "Ende / Anfang"},
 			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
@@ -226,53 +235,45 @@ func (m Model) renderHelp() string {
 			{"Esc", "Filter löschen"},
 			{"Enter", "Wechseln"},
 		}},
-		{"Worktime", [][2]string{
-			{"Tab / 1·2·3·4", "Heute · Woche · History · Frei"},
-			{"shift+Tab", "Vorherige Tab"},
-			{"b", "Vorheriger Tab (oder zurück zur Palette wenn auf Heute)"},
-			{"s", "Start / Stopp (mit Zeitangabe)"},
-			{"f", "Fokus-Modus: Start + Daily-Note"},
-			{"C", "Startzeit der laufenden Session korrigieren"},
-			{"e", "Manuellen Eintrag erstellen"},
+		{Title: "Worktime — Tabs", Keys: [][2]string{
+			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
+			{"Tab", "Nächster Tab"},
+			{"b", "Voriger Tab (oder zurück zur Palette wenn auf Heute)"},
+		}},
+		{Title: "Worktime — Heute", Keys: [][2]string{
+			{"j/k · g/G", "Cursor bewegen · oben/unten"},
+			{"s", "Starten / Stoppen / Fortsetzen"},
+			{"p", "Pause (im laufenden Zustand)"},
 			{"E / Enter", "Session bearbeiten"},
-			{"d", "Session löschen (mit Bestätigung)"},
-			{"u", "Letzte Löschung rückgängig"},
-			{"t / N", "Tag · Notiz für Session"},
-			{"n", "Kompendium-Notiz anhängen / detachen"},
-			{"o", "Notiz read-only ansehen (glow)"},
-			{"O", "Notiz im Editor öffnen"},
-			{"D", "Notiz detachen"},
-			{"j/k · g/G · ↑/↓", "Cursor · oben/unten"},
-			{"Woche: h/l", "Woche zurück / vor (t = aktuell)"},
-			{"Woche: Enter", "Drill-Down auf Tag"},
-			{"History: v", "List- ↔ Heatmap-Ansicht"},
-			{"History: /", "Filter (KW18, 2026, tag:deep, FROM..TO)"},
-			{"History: h/j/k/l", "Heatmap-Cursor (im Heatmap-Mode)"},
-			{"Frei: a", "Tag(e) frei eintragen"},
-			{"Frei: d/x", "Eintrag entfernen"},
-			{"Frei: h/l", "Jahr ± · t aktuell"},
-			{"r", "Neu laden"},
+			{"D", "Session löschen (y/Enter bestätigt)"},
+			{"t · N", "Tag · Notiz für die fokussierte Session"},
+		}},
+		{Title: "Worktime — Woche", Keys: [][2]string{
+			{"j/k · g/G", "Tag fokussieren · oben/unten"},
+		}},
+		{Title: "Worktime — History", Keys: [][2]string{
+			{"j/k · g/G", "Cursor / Zeile · oben/unten"},
+			{"Enter", "Drill-Down auf den Tag"},
+			{"v", "Ansicht: Liste → Heatmap → Tag-Clock → Monat"},
+			{"/", "Filter (KW18, 2026, 2026-04, tag:deep, note:standup)"},
+			{"F", "Filter mit Prefix »tag:« vorbelegen"},
+			{"[ / ]", "Filter um eine Einheit zurück / vor"},
+			{"T", "Filter zurücksetzen / aktuelles Fenster"},
+			{"h · l (Heatmap/Tag-Clock/Monat)", "Cursor horizontal"},
+		}},
+		{Title: "Worktime — Frei", Keys: [][2]string{
+			{"j/k · g/G", "Eintrag fokussieren"},
+			{"a", "Tag(e) frei eintragen (Form)"},
+			{"A · K", "heute = Urlaub · heute = krank"},
+			{"B", "Gesetzliche Feiertage syncen"},
+			{"D", "Eintrag löschen (y/Enter bestätigt)"},
+			{"h · l · [ · ]", "Jahr zurück / vor"},
+			{"T", "Aktuelles Jahr"},
 		}},
 	}
 
-	accent := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true)
-	dim := lipgloss.NewStyle().Foreground(m.pal.Dim)
-	fg := lipgloss.NewStyle().Foreground(m.pal.Fg)
-
-	var rows []string
-	for _, sec := range sections {
-		rows = append(rows, accent.Render("  "+sec.title))
-		for _, kv := range sec.keys {
-			key := fg.Width(22).Render("    " + kv[0])
-			rows = append(rows, key+dim.Render(kv[1]))
-		}
-		rows = append(rows, "")
-	}
-
-	body := strings.Join(rows, "\n")
-	box := titlebox.Render("Hilfe · Tastenbelegung", body, m.width, m.pal)
-	footer := lipgloss.NewStyle().Foreground(m.pal.Dim).Padding(0, 1).
-		Render("beliebige Taste → zurück")
+	box := help.Render("Hilfe · Tastenbelegung", sections, 22, m.width, m.pal)
+	footer := statusbar.Hints("beliebige Taste → zurück", m.pal)
 	return box + "\n" + footer
 }
 
@@ -300,4 +301,22 @@ func idToName(id screenID) string {
 	default:
 		return domain.ScreenPalette
 	}
+}
+
+// screenIDForName resolves a domain screen identifier to its internal
+// screenID. Returns false when name does not match any known screen.
+func screenIDForName(name string) (screenID, bool) {
+	switch name {
+	case domain.ScreenPalette:
+		return screenPalette, true
+	case domain.ScreenProjects:
+		return screenProjects, true
+	case domain.ScreenWorktime:
+		return screenWorktime, true
+	case domain.ScreenCheatsheet:
+		return screenCheatsheet, true
+	case domain.ScreenNotes:
+		return screenNotes, true
+	}
+	return 0, false
 }

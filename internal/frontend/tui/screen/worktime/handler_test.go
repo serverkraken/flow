@@ -331,13 +331,13 @@ func TestFrei_DeleteConfirm_RendersConfirmDialog(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedFrei(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("d")})
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
 	m = drainCmd(t, m, cmd)
 	out := m.View()
 	if !strings.Contains(out, "löschen") {
 		t.Errorf("delete confirm dialog should mention »löschen«, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Wirklich löschen?") {
+	if !strings.Contains(out, "Eintrag löschen?") {
 		t.Errorf("confirm dialog should ask the question, got:\n%s", out)
 	}
 }
@@ -430,9 +430,9 @@ func TestHistory_TagClockKey_AllNavigation(t *testing.T) {
 	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("F")})
 	m = drainCmd(t, m, cmd)
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	// v → month switches mode.
+	// v → month switches mode. Welle 2: Mode-Labels sind deutsch.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
-	if got := m.View(); !strings.Contains(got, "ansicht (month)") {
+	if got := m.View(); !strings.Contains(got, "Ansicht (Monat)") {
 		t.Errorf("expected month label in View after v, got:\n%s", got)
 	}
 }

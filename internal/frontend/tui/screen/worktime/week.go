@@ -366,8 +366,11 @@ func (w woche) totals(now time.Time) (total, target time.Duration) {
 	return total, target
 }
 
+// footerHints — Skill §Hint format: nur context-relevante Keys. Tab-
+// Navigation (1/2/3/4) ist parent-level (worktime-Root), gehört nicht in
+// den Screen-Footer.
 func (w woche) footerHints() []string {
-	return []string{"j/k auswahl", "g/G erste/letzte", "1/2/3/4 tabs"}
+	return []string{"j/k → bewegen", "g/G → erste/letzte"}
 }
 
 // — small helpers (private to package) —

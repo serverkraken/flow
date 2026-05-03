@@ -52,16 +52,17 @@ const (
 )
 
 // label returns the human-readable filter label rendered in the status bar.
+// Skill §German UI: User-facing-Strings auf Deutsch.
 func (f Filter) label() string {
 	switch f {
 	case FilterDaily:
 		return "Daily"
 	case FilterProject:
-		return "Project"
+		return "Projekt"
 	case FilterFree:
-		return "Free"
+		return "Frei"
 	}
-	return "All"
+	return "Alle"
 }
 
 // CmdFunc returns an unstarted *exec.Cmd that takes over the terminal
@@ -513,9 +514,13 @@ func (m Model) startConfirmDelete() Model {
 	return m
 }
 
+// handleConfirmDeleteKey — kanonisches y/Enter → ja, n/Esc → nein
+// (Skill §Keybind grammar). Vorher fehlte Enter als Confirm-Variante,
+// was die Konvention der restlichen Codebase (confirm.Model) inkonsistent
+// machte.
 func (m Model) handleConfirmDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "y", "Y":
+	case "y", "Y", "enter":
 		id := m.deleteTargetID
 		m.mode = ModeNormal
 		m.deleteTargetID = ""
@@ -618,7 +623,7 @@ func (m Model) openViewer() Model {
 // view.New receives separately.
 func buildViewerSource(_ ports.NoteEntry, body []byte) string {
 	if len(body) == 0 {
-		return "*No body cached yet.*"
+		return "*Inhalt noch nicht geladen.*"
 	}
 	return string(body)
 }
@@ -789,7 +794,7 @@ func (m *Model) refreshPreview() {
 		return
 	}
 	if m.cursor < 0 || m.cursor >= len(m.visible) {
-		m.preview.SetContent(dimStyle.Render("(no note selected)"))
+		m.preview.SetContent(dimStyle.Render("(keine Notiz ausgewählt)"))
 		m.previewID = ""
 		return
 	}
@@ -888,10 +893,10 @@ func (m Model) View() string {
 		return m.viewer.View()
 	}
 	if m.loadErr != nil {
-		return frameContent(m.width, m.height, errorStyle.Render("Error: "+m.loadErr.Error()))
+		return frameContent(m.width, m.height, errorStyle.Render("Fehler: "+m.loadErr.Error()))
 	}
 	if !m.loaded {
-		loading := lipgloss.JoinHorizontal(lipgloss.Center, m.spin.View(), " ", dimStyle.Render("Loading…"))
+		loading := lipgloss.JoinHorizontal(lipgloss.Center, m.spin.View(), " ", dimStyle.Render("lädt…"))
 		return frameContent(m.width, m.height, loading)
 	}
 
@@ -919,7 +924,7 @@ func (m Model) View() string {
 // "kompendium — N/M notes" substring still match.
 func (m Model) renderHeader() string {
 	headline := headlineStyle.Render(
-		fmt.Sprintf("kompendium — %d/%d notes", len(m.visible), len(m.all)),
+		fmt.Sprintf("kompendium — %d/%d Notizen", len(m.visible), len(m.all)),
 	)
 
 	headlineRow := []string{headline}
@@ -938,7 +943,7 @@ func (m Model) renderHeader() string {
 	headerBlock := lipgloss.JoinVertical(lipgloss.Left, headlineLine, separator, statusLine)
 	if m.editErr != nil {
 		headerBlock = lipgloss.JoinVertical(lipgloss.Left, headerBlock,
-			errorStyle.Render("Edit error: "+m.editErr.Error()))
+			errorStyle.Render("Fehler beim Bearbeiten: "+m.editErr.Error()))
 	}
 	return headerBlock
 }
@@ -964,8 +969,8 @@ func (m Model) renderTypeCounts() string {
 	}
 	parts := []string{
 		countDailyStyle.Render(fmt.Sprintf("● %d", d)) + dimStyle.Render(" daily"),
-		countProjectStyle.Render(fmt.Sprintf("● %d", p)) + dimStyle.Render(" proj"),
-		countFreeStyle.Render(fmt.Sprintf("● %d", f)) + dimStyle.Render(" free"),
+		countProjectStyle.Render(fmt.Sprintf("● %d", p)) + dimStyle.Render(" projekt"),
+		countFreeStyle.Render(fmt.Sprintf("● %d", f)) + dimStyle.Render(" frei"),
 	}
 	return strings.Join(parts, "  ")
 }
@@ -1017,10 +1022,10 @@ func (m Model) renderSearchSegment() string {
 		if view == "" {
 			view = "▌"
 		}
-		return searchActiveLabelStyle.Render("Search:") + " " + view
+		return searchActiveLabelStyle.Render("Suche:") + " " + view
 	}
 	if v := m.search.Value(); v != "" {
-		return searchPassiveLabelStyle.Render("Search:") + " " + searchValueStyle.Render(v)
+		return searchPassiveLabelStyle.Render("Suche:") + " " + searchValueStyle.Render(v)
 	}
 	return ""
 }
@@ -1047,7 +1052,7 @@ func (m Model) renderBody() string {
 // bottom border.
 func (m Model) renderListPane() string {
 	w := m.listPaneWidth()
-	header := panelTitleStyle.Render("notes")
+	header := panelTitleStyle.Render("notizen")
 	if len(m.visible) == 0 {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.renderEmptyState(w), "")
 	}
@@ -1459,15 +1464,15 @@ func (m Model) renderTags(tags []string) string {
 
 func (m Model) renderEmptyState(width int) string {
 	glyph := emptyGlyphStyle.Render("✺")
-	title := emptyTitleStyle.Render("no notes match")
+	title := emptyTitleStyle.Render("keine Treffer")
 	newKey := keyLabel(m.keys.New)
 	searchKey := keyLabel(m.keys.Search)
 	filterKey := keyLabel(m.keys.Filter)
-	hint := emptyHintStyle.Render("press ") + footerKeyStyle.Render(newKey) +
-		emptyHintStyle.Render(" to create one")
-	tail := emptyHintStyle.Render("or ") + footerKeyStyle.Render(filterKey) +
-		emptyHintStyle.Render(" to change filter · ") + footerKeyStyle.Render(searchKey) +
-		emptyHintStyle.Render(" to clear search")
+	hint := footerKeyStyle.Render(newKey) +
+		emptyHintStyle.Render(" → neue Notiz anlegen")
+	tail := footerKeyStyle.Render(filterKey) +
+		emptyHintStyle.Render(" → Filter wechseln · ") + footerKeyStyle.Render(searchKey) +
+		emptyHintStyle.Render(" → Suche zurücksetzen")
 	stack := lipgloss.JoinVertical(lipgloss.Center, glyph, "", title, hint, tail)
 	if width <= 0 {
 		return stack
@@ -1489,10 +1494,10 @@ func (m Model) renderPreviewPane() string {
 	if paneW <= 0 {
 		return ""
 	}
-	titleLine := panelTitleStyle.Render("preview")
+	titleLine := panelTitleStyle.Render("vorschau")
 	body := m.preview.View()
 	if body == "" {
-		body = dimStyle.Render("(empty)")
+		body = dimStyle.Render("(leer)")
 	}
 	inner := lipgloss.JoinVertical(lipgloss.Left, titleLine, body)
 	// lipgloss Style.Width sets the *content* width; the NormalBorder
@@ -1510,9 +1515,9 @@ func (m Model) renderPreviewPane() string {
 func (m Model) renderFooter() string {
 	switch m.mode {
 	case ModeSearch:
-		return footerStyle.Render("type to filter · enter apply · esc cancel")
+		return footerStyle.Render("tippen → filtern  ·  enter → anwenden  ·  esc → abbrechen")
 	case ModeConfirmDelete:
-		return footerStyle.Render("y to confirm · n / esc to cancel")
+		return footerStyle.Render("y/Enter → ja  ·  n/Esc → nein")
 	}
 	return m.helpUI.View(m.keys)
 }
@@ -1559,9 +1564,9 @@ func (m Model) renderStatusBar() string {
 func (m Model) statusBarMode() string {
 	switch m.mode {
 	case ModeSearch:
-		return statusBarModeSearchStyle.Render("SEARCH")
+		return statusBarModeSearchStyle.Render("SUCHE")
 	case ModeConfirmDelete:
-		return statusBarModeDeleteStyle.Render("DELETE")
+		return statusBarModeDeleteStyle.Render("LÖSCHEN")
 	}
 	return ""
 }
@@ -1590,7 +1595,7 @@ func (m Model) statusBarMeta() string {
 	if t.IsZero() {
 		return ""
 	}
-	label := statusBarMetaStyle.Render("index " + humanizeAge(time.Since(t)))
+	label := statusBarMetaStyle.Render("Index " + humanizeAge(time.Since(t)))
 	return statusBarStyle.Render(" ") + label + statusBarStyle.Render(" ")
 }
 
@@ -1612,29 +1617,26 @@ func humanizeAge(d time.Duration) string {
 	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
+// renderDeleteModal — Skill §Component vocabulary + §Visual hierarchy:
+// Single-Question + Single-Hint statt vierfacher Bestätigungs-Affordance
+// (vorher: Headline, Target-ID, Prompt, Key-Pillen, Hint — zu dicht).
+// Wording deutsch, kanonisches y/Enter → ja, n/Esc → nein.
 func (m Model) renderDeleteModal() string {
-	headline := modalDangerStyle.Render("⚠  Delete this note?")
+	headline := modalDangerStyle.Render("⚠  Notiz löschen?")
 	target := modalQuestionStyle.Render(m.deleteTargetID.String())
-	prompt := modalQuestionStyle.Render(fmt.Sprintf("Delete %s?", m.deleteTargetID.String()))
-	keys := lipgloss.JoinHorizontal(lipgloss.Center,
-		modalKeyDangerStyle.Render(" y "), modalHintStyle.Render(" confirm   "),
-		modalKeyStyle.Render(" n "), modalHintStyle.Render(" cancel "),
-	)
-	hint := modalHintStyle.Render("y to confirm · n / esc to cancel")
-	body := lipgloss.JoinVertical(lipgloss.Center,
-		headline, "", target, "", prompt, "", keys, hint,
-	)
+	hint := modalHintStyle.Render("y/Enter → ja  ·  n/Esc → nein")
+	body := lipgloss.JoinVertical(lipgloss.Center, headline, "", target, "", hint)
 	return modalStyle.Render(body)
 }
 
 func (m Model) renderHelpOverlay() string {
-	title := modalQuestionStyle.Render("Keyboard shortcuts")
+	title := modalQuestionStyle.Render("Tastenbelegung")
 	hForm := help.New()
 	hForm.ShowAll = true
 	hForm.Width = 70
 	hForm.Styles = m.helpUI.Styles
 	body := hForm.View(m.keys)
-	hint := modalHintStyle.Render("? or esc to close")
+	hint := modalHintStyle.Render("? / Esc → schließen")
 	return modalSafeStyle.Render(lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", hint))
 }
 
@@ -1678,14 +1680,17 @@ func overlay(base, top string, width, height int) string {
 }
 
 // badgeFor returns the colored type pill shown in the list row.
+// Skill §German UI: Badges sind user-facing — DE-Kurzformen statt EN.
+// Width-Padding auf einheitliche 5 Zellen, damit die Type-Pille die
+// Listen-Spalten nicht ungleichmäßig schiebt.
 func badgeFor(t domain.NoteType) string {
 	switch t {
 	case domain.TypeDaily:
-		return badgeDailyStyle.Render("DAILY")
+		return badgeDailyStyle.Render("TÄGL.")
 	case domain.TypeProject:
-		return badgeProjectStyle.Render("PROJ ")
+		return badgeProjectStyle.Render("PROJ.")
 	case domain.TypeFree:
-		return badgeFreeStyle.Render("FREE ")
+		return badgeFreeStyle.Render("FREI ")
 	}
 	return badgeUnknownStyle.Render("  ?  ")
 }

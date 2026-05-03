@@ -228,7 +228,7 @@ func (m Model) View() string {
 	inner := m.width - 4
 
 	var rows []string
-	prompt := lipgloss.NewStyle().Foreground(m.pal.Accent).Render("> ")
+	prompt := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true).Render("› ")
 	rows = append(rows, prompt+m.filter.View(), "")
 
 	switch {
@@ -271,8 +271,10 @@ func (m Model) View() string {
 		title = fmt.Sprintf("Projekte · %s · %d", label, len(m.all))
 	}
 	box := titlebox.Render(title, body, m.width, m.pal)
+	// 4-Cap (skill §Spacing): wichtigste 4 im Footer, Surplus (esc/b/q) sind
+	// Fixed-Slot-Keys, dokumentiert im sidekick-globalen `?`-Overlay.
 	footer := lipgloss.NewStyle().Foreground(m.pal.Dim).Padding(0, 1).
-		Render("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  esc → löschen  ·  b → zurück  ·  q → schließen")
+		Render("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  ? → hilfe")
 	return box + "\n" + footer
 }
 

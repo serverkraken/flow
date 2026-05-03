@@ -23,13 +23,18 @@ func Render(title string, sections []Section, keyWidth, boxWidth int, p theme.Pa
 	fg := lipgloss.NewStyle().Foreground(p.Fg)
 
 	var rows []string
-	for _, sec := range sections {
+	for i, sec := range sections {
+		if i > 0 {
+			// Blank-Spacer zwischen Sections, nicht NACH der letzten —
+			// sonst hängt eine leere Zeile direkt am unteren Border, was die
+			// Box vertikal unbalanciert wirken lässt.
+			rows = append(rows, "")
+		}
 		rows = append(rows, accent.Render("  "+sec.Title))
 		for _, kv := range sec.Keys {
 			key := fg.Width(keyWidth).Render("    " + kv[0])
 			rows = append(rows, key+dim.Render(kv[1]))
 		}
-		rows = append(rows, "")
 	}
 
 	body := strings.Join(rows, "\n")

@@ -9,10 +9,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 )
 
 // — messages —
@@ -26,8 +28,6 @@ type heuteActionDoneMsg struct {
 	err   error
 	toast string
 }
-
-type heuteClearToastMsg struct{}
 
 // — dialog modes —
 
@@ -64,11 +64,21 @@ type heute struct {
 	// form drives the multi-input edit dialog.
 	form    []textinput.Model
 	formCur int
+	// confirmModel drives the destructive-delete dialog. Vorher hand-rolled
+	// (eigene y/z/j-Behandlung mit Enter=Abbrechen-as-Default) — das invertierte
+	// die Enter=Confirm-Konvention der restlichen Codebase und verlangte
+	// systemweit die gleiche Inversion. Skill §Component vocabulary verlangt
+	// die kanonische Form: y/Enter → ja, n/Esc → nein.
+	confirmModel *confirm.Model
 
 	editIdx  int
 	editDate time.Time
 
-	toast  string
+	// toast is the canonical green-✓ confirmation surface (toast.Model).
+	// Pre-Welle-3 this was a hand-rolled cyan-foreground render with a
+	// custom heuteClearToastMsg tick — wrong color (cyan = active, not
+	// success) and reinventing the toast component.
+	toast  *toast.Model
 	errMsg string
 }
 
@@ -124,18 +134,34 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.input.SetValue("")
 		h.form = nil
 		h.formCur = 0
+		h.confirmModel = nil
 		h.errMsg = ""
 		h.err = msg.err
 		if msg.err == nil && msg.toast != "" {
-			h.toast = msg.toast
-			return h, tea.Batch(h.loadCmd(),
-				tea.Tick(3*time.Second, func(time.Time) tea.Msg { return heuteClearToastMsg{} }))
+			t := toast.NewDefault(msg.toast, h.pal)
+			h.toast = &t
+			return h, tea.Batch(h.loadCmd(), t.Init())
 		}
 		return h, h.loadCmd()
 
-	case heuteClearToastMsg:
-		h.toast = ""
+	case toast.DismissedMsg:
+		h.toast = nil
 		return h, nil
+
+	case confirm.ResultMsg:
+		// Auflösung des Delete-Confirm-Dialogs. Bei „ja" nur dispatchen, wenn
+		// editIdx noch in den Bounds des aktuellen Day liegt (zwischen Open
+		// und Confirm könnte ein dayRefreshMsg die Sessions umnummeriert
+		// haben — defensiv nochmal prüfen).
+		if h.dialog != heuteDialogDelete {
+			return h, nil
+		}
+		h.dialog = heuteDialogNone
+		h.confirmModel = nil
+		if !msg.Confirmed {
+			return h, nil
+		}
+		return h, h.deleteCmd(h.editDate, h.editIdx)
 
 	case tea.KeyMsg:
 		if h.dialog != heuteDialogNone {
@@ -209,7 +235,11 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if h.onSession() {
 			return h.openEditDialog()
 		}
-	case "d":
+	case "D":
+		// Skill §Keybind grammar: „`D` (uppercase) | Destructive action on
+		// focused item — **always** y/N confirms". Vorher lowercase d, was
+		// auf der Sister-Surface (Kompendium-Browse) bereits korrekt mit D
+		// gebunden ist — Konsistenz wiederhergestellt.
 		if h.onSession() {
 			return h.openDeleteDialog()
 		}
@@ -314,7 +344,12 @@ func (h heute) openDeleteDialog() (tea.Model, tea.Cmd) {
 	h.editDate = s.Date
 	h.dialog = heuteDialogDelete
 	h.errMsg = ""
-	return h, nil
+	question := fmt.Sprintf("Session %d löschen?", h.cursor+1)
+	detail := fmt.Sprintf("%s → %s   %s",
+		s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed))
+	cm := confirm.New(question, detail, h.pal)
+	h.confirmModel = &cm
+	return h, cm.Init()
 }
 
 // — dialog dispatch —
@@ -322,7 +357,16 @@ func (h heute) openDeleteDialog() (tea.Model, tea.Cmd) {
 func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch h.dialog {
 	case heuteDialogDelete:
-		return h.handleDeleteKey(msg)
+		// Confirm-Dialog forwarded an die kanonische confirm.Model. Der
+		// resultierende confirm.ResultMsg landet im Outer-Update und löst
+		// h.deleteCmd aus (oder schließt den Dialog ohne Aktion).
+		if h.confirmModel == nil {
+			h.dialog = heuteDialogNone
+			return h, nil
+		}
+		updated, cmd := h.confirmModel.Update(msg)
+		h.confirmModel = &updated
+		return h, cmd
 	case heuteDialogEdit:
 		return h.handleFormKey(msg)
 	case heuteDialogTag, heuteDialogNote:
@@ -383,17 +427,6 @@ func (h heute) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		h.form[h.formCur], cmd = h.form[h.formCur].Update(msg)
 		return h, cmd
-	}
-	return h, nil
-}
-
-func (h heute) handleDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "y", "z", "j":
-		return h, h.deleteCmd(h.editDate, h.editIdx)
-	case "n", "esc", "enter":
-		h.dialog = heuteDialogNone
-		return h, nil
 	}
 	return h, nil
 }
@@ -521,7 +554,7 @@ func (h heute) View() string {
 
 func (h heute) renderBody() string {
 	if !h.loaded {
-		return stDim(h.pal, "  lade …")
+		return stDim(h.pal, "  Heute lädt …")
 	}
 	if h.err != nil {
 		return stErr(h.pal, h.err.Error())
@@ -535,8 +568,8 @@ func (h heute) renderBody() string {
 		rows = append(rows, "", line)
 	}
 	rows = append(rows, h.renderSessionsList(inner, now)...)
-	if h.toast != "" {
-		rows = append(rows, "", lipgloss.NewStyle().Foreground(h.pal.Cyan).Render("  "+h.toast))
+	if h.toast != nil {
+		rows = append(rows, "", "  "+h.toast.View())
 	}
 	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
 	return strings.Join(rows, "\n")
@@ -561,7 +594,10 @@ func (h heute) renderHeadline(now time.Time) string {
 	totalStr := lipgloss.NewStyle().Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Bold(true).Render(totalText)
 	statusStr := lipgloss.NewStyle().Foreground(statusColor).Render(statusGlyph + " " + statusLabel)
 	pctStr := lipgloss.NewStyle().Foreground(h.pal.Dim).Render(fmt.Sprintf("%d%%", pct))
-	return "  " + totalStr + "   " + statusStr + "   " + pctStr
+	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
+	// zwischen den drei Status-Cells. 3-Cell-Gaps (vorher) lagen außerhalb der
+	// Skala und ließen die Headline ungleichmäßig ausgerichtet wirken.
+	return "  " + totalStr + "    " + statusStr + "    " + pctStr
 }
 
 func (h heute) renderProgressBar(inner int) string {
@@ -646,42 +682,65 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 	return rows
 }
 
+// footerHints liefert max 4 Hints, priorisiert nach Frequenz (Skill §Hint
+// format: „Maximum 4 hints in a permanent footer; if more apply, the surplus
+// belongs in the `?` overlay"). Reihenfolge:
+//  1. s → start/stop/resume — globaler Default-State, immer relevant.
+//  2. j/k → bewegen — Listenkontext immer.
+//  3. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
+//  4. D → löschen — wenn auf Session, einziger destructive Slot.
+// Tag/Note/Pause sind im `?`-Overlay des Sidekick-Roots dokumentiert.
 func (h heute) footerHints() []string {
 	var actions []string
 	switch {
 	case h.day.IsRunning():
-		actions = append(actions, "s stoppen", "p pause")
+		actions = append(actions, "s → stoppen")
 	case h.day.IsPaused():
-		actions = append(actions, "s resume")
+		actions = append(actions, "s → fortsetzen")
 	default:
-		actions = append(actions, "s starten")
+		actions = append(actions, "s → starten")
 	}
+	actions = append(actions, "j/k → bewegen")
 	if h.onSession() {
-		actions = append(actions, "E/⏎ bearbeiten", "d löschen", "t tag", "N notiz")
+		actions = append(actions, "enter → bearbeiten", "D → löschen")
 	}
-	actions = append(actions, "j/k auswahl")
+	if len(actions) > 4 {
+		actions = actions[:4]
+	}
 	return actions
 }
 
+// renderDialog rendert die vier Dialog-Modi (Tag, Notiz, Edit, Delete).
+//
+// Skill §Component vocabulary: Dialog-Title bekommt purple-bold (wie
+// titlebox/help-Header) statt dim, sonst ist er im Footer nicht mehr von
+// dem Hint-String unterscheidbar. Hint-Format folgt §Hint format mit
+// `key → action  ·  …`-Separatoren.
+//
+// Delete-Modus delegiert komplett an confirm.Model, das selbst
+// Yellow-Question, Detail-Zeile und kanonisches y/Enter-→-ja-Hint mitbringt.
 func (h heute) renderDialog() string {
 	inner := h.width - 4
+	titleStyle := lipgloss.NewStyle().Foreground(h.pal.Purple).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(h.pal.Dim)
+
 	var rows []string
 	var title, hint string
 
 	switch h.dialog {
 	case heuteDialogTag:
 		title = "Tag setzen"
-		hint = "Enter=speichern  ·  leer=löschen  ·  Esc=abbrechen"
+		hint = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
 		rows = append(rows, picker.SectionHeader("tag", inner, h.pal), "  "+h.input.View())
 
 	case heuteDialogNote:
 		title = "Session-Notiz"
-		hint = "Enter=speichern  ·  leer=löschen  ·  Esc=abbrechen"
+		hint = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
 		rows = append(rows, picker.SectionHeader("notiz", inner, h.pal), "  "+h.input.View())
 
 	case heuteDialogEdit:
 		title = "Session bearbeiten"
-		hint = "Tab/↑↓ Feld  ·  Enter=weiter/speichern  ·  Esc=abbrechen"
+		hint = "Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen"
 		if h.editIdx >= 0 && h.editIdx < len(h.day.Sessions) {
 			s := h.day.Sessions[h.editIdx]
 			rows = append(rows, stDim(h.pal, fmt.Sprintf("  Session %d:  %s → %s",
@@ -703,22 +762,22 @@ func (h heute) renderDialog() string {
 
 	case heuteDialogDelete:
 		title = "Session löschen"
-		hint = "y/z/j=löschen  ·  Enter/n/Esc=abbrechen (default)"
-		if h.editIdx >= 0 && h.editIdx < len(h.day.Sessions) {
-			s := h.day.Sessions[h.editIdx]
-			rows = append(rows,
-				lipgloss.NewStyle().Foreground(h.pal.Yellow).Bold(true).Render(
-					fmt.Sprintf("  Session %d:  %s → %s  (%s)",
-						h.editIdx+1, s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed))),
-				"",
-				lipgloss.NewStyle().Foreground(h.pal.Red).Render("  Wirklich löschen?"))
+		// confirm.Model rendert bereits seinen eigenen y/Enter-→-ja-Hint;
+		// hier nur der gemeinsame Title-Strip, kein doppelter Hint nötig.
+		hint = ""
+		if h.confirmModel != nil {
+			rows = append(rows, "  "+h.confirmModel.View())
 		}
 	}
 
 	if h.errMsg != "" {
 		rows = append(rows, "", lipgloss.NewStyle().Foreground(h.pal.Red).Render("  "+h.errMsg))
 	}
-	rows = append(rows, "", stDim(h.pal, "  "+title+"  ·  "+hint))
+	titleLine := "  " + titleStyle.Render(title)
+	if hint != "" {
+		titleLine += hintStyle.Render("  ·  " + hint)
+	}
+	rows = append(rows, "", titleLine)
 	return strings.Join(rows, "\n")
 }
 

@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
 )
 
@@ -309,5 +310,51 @@ func TestUpdate_AsyncMsg_FansOut(t *testing.T) {
 		if s.View() == "" {
 			t.Errorf("%s broken after async fan-out", s.name)
 		}
+	}
+}
+
+// TestUpdate_SwitchScreenMsg_SwitchesActiveScreen covers the in-process
+// flow-tab switch path. Palette emits SwitchScreenMsg when an entry's
+// action matches the goto.sh deep-link pattern; the sidekick root catches
+// it and updates m.current — no subshell, no flow restart.
+func TestUpdate_SwitchScreenMsg_SwitchesActiveScreen(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		screen, want string
+	}{
+		{domain.ScreenWorktime, "worktime:view"},
+		{domain.ScreenProjects, "projects:view"},
+		{domain.ScreenCheatsheet, "cheatsheet:view"},
+		{domain.ScreenNotes, "notes:view"},
+		{domain.ScreenPalette, "palette:view"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.screen, func(t *testing.T) {
+			deps, _, _, _, _, _ := newDeps()
+			m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
+			updated, cmd := m.Update(palette.SwitchScreenMsg{Screen: tc.screen})
+			if cmd != nil {
+				t.Errorf("SwitchScreenMsg should produce no follow-up cmd, got %v", cmd)
+			}
+			m = updated.(sidekick.Model)
+			if !strings.Contains(m.View(), tc.want) {
+				t.Errorf("after SwitchScreenMsg(%q): View() = %q, want %q",
+					tc.screen, m.View(), tc.want)
+			}
+		})
+	}
+}
+
+// TestUpdate_SwitchScreenMsg_UnknownIsNoop guards against typos / retired
+// screen names: an unrecognised target leaves the active screen unchanged.
+func TestUpdate_SwitchScreenMsg_UnknownIsNoop(t *testing.T) {
+	t.Parallel()
+	deps, _, _, _, _, _ := newDeps()
+	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
+	before := m.View()
+	updated, _ := m.Update(palette.SwitchScreenMsg{Screen: "nonexistent"})
+	if updated.View() != before {
+		t.Errorf("unknown screen should be a no-op; before=%q after=%q",
+			before, updated.View())
 	}
 }

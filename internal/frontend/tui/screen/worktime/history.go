@@ -41,16 +41,18 @@ const (
 	historyModeMonth
 )
 
+// label — deutsche User-facing-Bezeichnung des Modes (Skill §German UI).
+// Vorher EN-internalia (heatmap/tagclock/month/list) im Footer-Hint sichtbar.
 func (m historyMode) label() string {
 	switch m {
 	case historyModeHeatmap:
-		return "heatmap"
+		return "Heatmap"
 	case historyModeTagClock:
-		return "tagclock"
+		return "Tag-Clock"
 	case historyModeMonth:
-		return "month"
+		return "Monat"
 	}
-	return "list"
+	return "Liste"
 }
 
 type historyDialog int
@@ -1136,14 +1138,14 @@ func (h history) renderFilterDialog() string {
 	return strings.Join(rows, "\n")
 }
 
+// footerHints — Skill §Hint format max 4. Top-4 nach Frequenz: navigieren,
+// drill, view-mode-cycle, filter. [/] und T sind im `?`-Overlay dokumentiert.
 func (h history) footerHints() []string {
 	return []string{
-		"j/k auswahl",
-		"enter drill",
-		"v ansicht (" + h.mode.label() + ")",
-		"/ filter",
-		"[/] paginate",
-		"T zurücksetzen",
+		"j/k → bewegen",
+		"enter → drill",
+		"v → Ansicht (" + h.mode.label() + ")",
+		"/ → filter",
 	}
 }
 
