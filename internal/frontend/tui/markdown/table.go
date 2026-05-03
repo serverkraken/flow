@@ -229,8 +229,11 @@ func tableBorderRow(left, mid, right string, widths []int) string {
 
 // renderTableRow emits one content row: leading │, each cell padded
 // to column width with alignment honoured, separated by │, trailing
-// │. Header rows wear TableHeader styling; body rows wear TableCell
-// (with alternating-row tint when alt is true).
+// │. Multi-line cells (content wider than the column) emit multiple
+// physical lines, each carrying the full border + per-cell row tint
+// so the row reads as one visual block. Header rows wear TableHeader
+// styling; body rows wear TableCell (with alternating-row tint when
+// alt is true).
 func (r *nodeRenderer) renderTableRow(cells []tableCell, widths []int, aligns []extast.Alignment, header, alt bool) string {
 	border := r.roles.TableBorder
 	cellStyle := r.roles.TableCell
@@ -239,8 +242,12 @@ func (r *nodeRenderer) renderTableRow(cells []tableCell, widths []int, aligns []
 	} else if alt {
 		cellStyle = r.roles.TableRowAlt
 	}
-	var b strings.Builder
-	b.WriteString(border.Render("│"))
+
+	// Wrap each cell to its column width and find the row's height
+	// (== max cell line count). Empty cells still produce one line of
+	// pure padding so the border alignment stays intact.
+	cellLines := make([][]string, len(widths))
+	height := 1
 	for i, w := range widths {
 		var content string
 		var align extast.Alignment
@@ -251,35 +258,81 @@ func (r *nodeRenderer) renderTableRow(cells []tableCell, widths []int, aligns []
 		if align == extast.AlignNone && i < len(aligns) {
 			align = aligns[i]
 		}
-		b.WriteString(cellStyle.Render(formatTableCell(content, w, align)))
+		cellLines[i] = formatTableCellLines(content, w, align)
+		if n := len(cellLines[i]); n > height {
+			height = n
+		}
+	}
+
+	// Pad shorter cells with empty padded lines so every line of the
+	// stitched row has the same number of columns.
+	for i := range cellLines {
+		for len(cellLines[i]) < height {
+			cellLines[i] = append(cellLines[i], emptyCellLine(widths[i]))
+		}
+	}
+
+	// Stitch line-by-line: │ + cell + │ + cell + │ … repeated `height`
+	// times. The whole stitched block is the row.
+	var b strings.Builder
+	for ln := 0; ln < height; ln++ {
+		if ln > 0 {
+			b.WriteString("\n")
+		}
 		b.WriteString(border.Render("│"))
+		for i := range widths {
+			b.WriteString(cellStyle.Render(cellLines[i][ln]))
+			b.WriteString(border.Render("│"))
+		}
 	}
 	return b.String()
 }
 
-// formatTableCell renders one cell's content into width cells with
-// the requested alignment, truncating with `…` when over budget.
-// width includes the per-cell pad (one space each side).
-func formatTableCell(content string, width int, align extast.Alignment) string {
+// formatTableCellLines wraps content into one or more lines, each
+// shaped to width cells (including the per-cell pad) and aligned per
+// the column's alignment. Wrapping uses the package's style-aware
+// cellbuf wrapper, so wrap boundaries inside an inline-code or link
+// span re-open the SGR on the next line.
+//
+// Truncation only fires as a fallback for unbreakable tokens wider
+// than `inner` (e.g. a 60-char URL in a 20-cell column when wrapText
+// can't find a break point). The caller can't reasonably do better.
+func formatTableCellLines(content string, width int, align extast.Alignment) []string {
 	inner := width - tableCellPad
 	if inner < 1 {
 		inner = 1
 	}
-	if visibleWidth(content) > inner {
-		content = ansi.Truncate(content, inner, "…")
+	wrapped := wrapText(content, inner)
+	rawLines := strings.Split(wrapped, "\n")
+	out := make([]string, len(rawLines))
+	for i, line := range rawLines {
+		if visibleWidth(line) > inner {
+			line = ansi.Truncate(line, inner, "…")
+		}
+		pad := inner - visibleWidth(line)
+		if pad < 0 {
+			pad = 0
+		}
+		switch align {
+		case extast.AlignRight:
+			out[i] = " " + strings.Repeat(" ", pad) + line + " "
+		case extast.AlignCenter:
+			left := pad / 2
+			right := pad - left
+			out[i] = " " + strings.Repeat(" ", left) + line + strings.Repeat(" ", right) + " "
+		default:
+			out[i] = " " + line + strings.Repeat(" ", pad) + " "
+		}
 	}
-	pad := inner - visibleWidth(content)
-	if pad < 0 {
-		pad = 0
+	return out
+}
+
+// emptyCellLine returns the padding-only string used to fill the
+// shorter cells when a row's other cells wrap onto more lines.
+func emptyCellLine(width int) string {
+	inner := width - tableCellPad
+	if inner < 1 {
+		inner = 1
 	}
-	switch align {
-	case extast.AlignRight:
-		return " " + strings.Repeat(" ", pad) + content + " "
-	case extast.AlignCenter:
-		left := pad / 2
-		right := pad - left
-		return " " + strings.Repeat(" ", left) + content + strings.Repeat(" ", right) + " "
-	default:
-		return " " + content + strings.Repeat(" ", pad) + " "
-	}
+	return " " + strings.Repeat(" ", inner) + " "
 }

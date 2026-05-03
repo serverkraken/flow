@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 const minimalTable = "| Name | Status |\n|------|--------|\n| a    | ok     |\n| b    | fail   |\n"
@@ -102,6 +103,119 @@ func TestRender_Table_AllRowsShareWidth(t *testing.T) {
 	for i, row := range rows {
 		if w := lipgloss.Width(row); w != want {
 			t.Errorf("row %d width = %d, want %d", i, w, want)
+		}
+	}
+}
+
+// TestRender_Table_WrapsLongCellsAcrossLines: a table whose natural
+// width would overflow the budget shrinks the columns AND wraps the
+// over-budget cell content vertically instead of truncating it. The
+// truncation regression (only `…` shown for long Decisions/Notes
+// cells, content lost off the right edge) is what this guards.
+func TestRender_Table_WrapsLongCellsAcrossLines(t *testing.T) {
+	t.Parallel()
+	src := "| Decision | Notes |\n|---|---|\n" +
+		"| tui-kit migrates into internal/frontend/tui/components | Eliminates the sibling replace directive — no more cross-module bouncing |\n"
+	out, err := Render(src, 60)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	plain := ansi.Strip(out)
+	// Negative regression: the old truncation behaviour ended each
+	// over-budget cell with `…`. Wrapping must NOT emit any `…` marker
+	// for content that fits across multiple physical lines.
+	if strings.Contains(plain, "…") {
+		t.Errorf("wrap path must not surface `…` truncation markers; got:\n%s", plain)
+	}
+	// Positive regression: tokens at the START of each cell still
+	// survive (they don't depend on wrap-point luck — wrap only ever
+	// affects later text on a long line).
+	for _, want := range []string{"tui-kit migrates into", "Eliminates the sibling"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("wrapped content should retain %q, got plain:\n%s", want, plain)
+		}
+	}
+	// "bouncing" is the LAST token of the Notes cell — surviving the
+	// wrap proves the second half of the content didn't fall off the
+	// right edge as it did under the truncation regression.
+	if !strings.Contains(plain, "bouncing") {
+		t.Errorf("trailing word »bouncing« should survive the wrap, got plain:\n%s", plain)
+	}
+	// All physical lines of the framed table must share the same
+	// width — a multi-line cell that breaks alignment reads broken.
+	rows := tableRows(out)
+	if len(rows) < 4 {
+		t.Fatalf("expected >=4 rows (top + header + sep + ≥1 body wrapped), got %d:\n%s", len(rows), plain)
+	}
+	want := lipgloss.Width(rows[0])
+	for i, row := range rows {
+		if w := lipgloss.Width(row); w != want {
+			t.Errorf("row %d width = %d, want %d", i, w, want)
+		}
+	}
+}
+
+// TestRender_Table_WrappedRowKeepsBackground: every physical line of
+// a wrapped alt body row carries the alt-row background SGR — both
+// the content lines AND the wrap-continuation / empty padding lines.
+// Without this, the alt-row tint paints only the first line and the
+// wrap continuations read as a transparent gap. Guards specifically
+// against `cellStyle.Render` being skipped on continuation lines or
+// against lipgloss-Render swallowing the bg on a multi-line input.
+func TestRender_Table_WrappedRowKeepsBackground(t *testing.T) {
+	// NO t.Parallel(): this test mutates the global lipgloss color
+	// profile to force SGR emission. Other table tests rely on the
+	// default Ascii profile (no SGRs) so they're racy with our flip.
+	// Force truecolor so lipgloss doesn't strip SGR codes when run
+	// outside a TTY (test runner has no terminal). Without this every
+	// `;48;` would be elided by lipgloss's Ascii profile and the test
+	// would silently always pass.
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+
+	// Two body rows: first is row-index 0 (TableCell, no bg). Second
+	// is row-index 1 (TableRowAlt, with bg). Both wrap because the
+	// Decision column overflows; the Notes column has short content so
+	// the empty-padding-line code path is exercised on the right cell.
+	src := "| Decision | Notes |\n|---|---|\n" +
+		"| this is the first body row with content that absolutely must wrap onto two lines | short |\n" +
+		"| this is the second body row also wide enough to wrap onto two physical lines | tiny |\n"
+	out, err := Render(src, 60)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	rows := tableRows(out)
+
+	// Pull the alt body row's two physical lines: they're the two
+	// rows that contain the bg SGR (`;48;`) — the first body row is
+	// non-alt and has fg only.
+	var altLines []string
+	for _, row := range rows {
+		if strings.Contains(row, ";48;") {
+			altLines = append(altLines, row)
+		}
+	}
+	if len(altLines) < 2 {
+		t.Fatalf("expected ≥2 alt body lines (wrapped), got %d:\n%s",
+			len(altLines), strings.Join(rows, "\n"))
+	}
+	// Every alt line — including the wrap continuation — must keep
+	// the bg SGR. Pre-fix the second line lost it.
+	for i, line := range altLines {
+		if !strings.Contains(line, ";48;") {
+			t.Errorf("alt-row physical line %d missing bg SGR (`;48;`):\n%q", i, line)
+		}
+	}
+	// Stronger pin: every cell on each alt line must carry the bg.
+	// The line stitches as │+cellA+│+cellB+│; cellA and cellB must
+	// each contain the bg SGR. Test counts `;48;` per line and
+	// expects ≥ number-of-cells (2 for this fixture).
+	const wantCells = 2
+	for i, line := range altLines {
+		if got := strings.Count(line, ";48;"); got < wantCells {
+			t.Errorf("alt-row physical line %d: %d bg-styled cells, want ≥%d:\n%q",
+				i, got, wantCells, line)
 		}
 	}
 }
