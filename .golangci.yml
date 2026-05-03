@@ -274,6 +274,12 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/components/theme
             - github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet
             - github.com/serverkraken/flow/internal/frontend/tui/sidekick
+            # markdown.go (`flow markdown view <file>` standalone command)
+            # hosts the kompendium viewer directly so a plain Markdown
+            # file gets the same render pipeline (glamour + OSC 8 + search
+            # + code-snippet copy) as a kompendium note. Wikilink resolver
+            # is passed nil — free-floating files have no notebook context.
+            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
         # The markdown rule below claims internal/frontend/tui/markdown/**
         # for itself (renderer + theme subpackage); excluding it here lets
         # those files keep a tight goldmark/chroma allowlist without

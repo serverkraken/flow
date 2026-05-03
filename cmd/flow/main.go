@@ -399,6 +399,7 @@ func main() {
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
+	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 
 	if err := rootCmd.Execute(); err != nil {
