@@ -244,6 +244,10 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h, nil
 	case "o":
 		return h, h.viewAttachedNoteCmd()
+	case "O":
+		return h, h.editAttachedNoteCmd()
+	case "ctrl+d":
+		return h, h.detachAttachedNoteCmd()
 	}
 	return h.handleDialogOpenKey(msg)
 }
@@ -298,6 +302,50 @@ func (h heute) viewAttachedNoteCmd() tea.Cmd {
 			return heuteActionDoneMsg{err: err}
 		}
 		return heuteActionDoneMsg{toast: fmt.Sprintf("📖 Note %s geöffnet", id)}
+	}
+}
+
+// editAttachedNoteCmd opens the first attached note in the editor via
+// NoteOpener.Open (typically tmux split + nvim). Mirrors
+// viewAttachedNoteCmd; the no-attached-notes branch toasts instead of
+// dispatching through the empty-id guard.
+func (h heute) editAttachedNoteCmd() tea.Cmd {
+	if len(h.attachedNotes) == 0 {
+		return func() tea.Msg {
+			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt — `n` hängt eine an"}
+		}
+	}
+	id := h.attachedNotes[0]
+	opener := h.deps.NoteOpener
+	return func() tea.Msg {
+		if err := opener.Open(id); err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("🖉 Note %s zum Bearbeiten geöffnet", id)}
+	}
+}
+
+// detachAttachedNoteCmd removes the first attached note from today via
+// LinkWriter.Remove. No confirm dialog: the operation is reversible
+// (re-attach via `n` with the same ID) and the underlying store is
+// idempotent — over-removing a missing pair is documented as a no-op.
+// `D` (uppercase) is intentionally NOT used because it already binds
+// delete-session in wave B; `Ctrl+D` reads as "destructive on the
+// linked entity" and stays out of the way.
+func (h heute) detachAttachedNoteCmd() tea.Cmd {
+	if len(h.attachedNotes) == 0 {
+		return func() tea.Msg {
+			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt"}
+		}
+	}
+	id := h.attachedNotes[0]
+	date := h.deps.Clock.Now()
+	writer := h.deps.LinkWriter
+	return func() tea.Msg {
+		if err := writer.Remove(date, id); err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("✂ Note %s entfernt", id)}
 	}
 }
 
@@ -732,7 +780,7 @@ func (h heute) renderAttachedNotes() string {
 	}
 	label := theme.Highlight("🔗", h.pal)
 	ids := stDim(h.pal, strings.Join(h.attachedNotes, "  ·  "))
-	hint := stDim(h.pal, "  ·  o → öffnen")
+	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  Ctrl+D → entfernen")
 	return "  " + label + "  " + ids + hint
 }
 

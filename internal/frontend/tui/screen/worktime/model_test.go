@@ -523,6 +523,91 @@ func TestHeute_OpenKey_NoAttachedNotes_IsNoop(t *testing.T) {
 	}
 }
 
+// — Heute Wave-B+ slice 2: O (edit) + Ctrl+D (detach) —
+
+func TestHeute_OpenUppercase_LaunchesEditor(t *testing.T) {
+	r := newRig(t)
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	_ = drainCmd(t, updated, cmd)
+	if len(r.noteLauncher.Calls) != 1 || r.noteLauncher.Calls[0] != "open:daily-2026-05-01" {
+		t.Errorf("`O` should call NoteLauncher.Open, got Calls=%v", r.noteLauncher.Calls)
+	}
+}
+
+func TestHeute_OpenUppercase_NoAttachedNotes_IsNoop(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	_ = drainCmd(t, updated, cmd)
+	if len(r.noteLauncher.Calls) != 0 {
+		t.Errorf("`O` with no attached notes must not launch the editor, got Calls=%v", r.noteLauncher.Calls)
+	}
+}
+
+func TestHeute_CtrlD_DetachesFirstAttachedNote(t *testing.T) {
+	r := newRig(t)
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	if err := r.links.Add(r.clock.T, "projects/foo-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	_ = drainCmd(t, updated, cmd)
+	got := r.links.ByDate[r.clock.T.Format("2006-01-02")]
+	if len(got) != 1 || got[0] != "projects/foo-2026-05-01" {
+		t.Errorf("Ctrl+D should remove the first attached note (daily-...), leaving the second; got %v", got)
+	}
+}
+
+func TestHeute_CtrlD_NoAttachedNotes_IsNoop(t *testing.T) {
+	r := newRig(t)
+	m := loadedHeute(t, r)
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	final := drainCmd(t, updated, cmd)
+	// Sanity: no panic, no link store mutation, no session deletion either
+	// (Ctrl+D must NOT collide with `D`-delete-session).
+	if len(r.links.ByDate) != 0 {
+		t.Errorf("Ctrl+D with no attachments should not touch the link store, got %v", r.links.ByDate)
+	}
+	if final.(worktime.Model).FilterActive() {
+		t.Error("Ctrl+D should not open any dialog")
+	}
+}
+
+func TestHeute_DDelete_StillDeletesSessionWhenNotesAttached(t *testing.T) {
+	// Regression guard: introducing Ctrl+D for detach must not change
+	// the meaning of `D` (uppercase) — it remains the destructive-with-
+	// confirm key for the focused session, even when notes are attached.
+	r := newRig(t)
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	today := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
+	s := domain.Session{
+		Date: today, Start: today.Add(9 * time.Hour), Stop: today.Add(10 * time.Hour),
+		Elapsed: time.Hour,
+	}
+	m := seedSessionAndLoad(t, r, s)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = drainCmd(t, updated, cmd)
+	if len(r.sessions.Sessions) != 0 {
+		t.Errorf("D + Enter must still delete the focused session, got %d remaining", len(r.sessions.Sessions))
+	}
+	// Detach must NOT have happened as a side-effect.
+	got := r.links.ByDate[r.clock.T.Format("2006-01-02")]
+	if len(got) != 1 {
+		t.Errorf("D-delete-session must not touch attached notes, got %v", got)
+	}
+}
+
 // — Woche (wave C) smoke tests —
 
 // loadedWoche drains Init for every sub-model, then switches to the
