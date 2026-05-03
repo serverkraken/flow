@@ -279,7 +279,14 @@ linters:
             # file gets the same render pipeline (glamour + OSC 8 + search
             # + code-snippet copy) as a kompendium note. Wikilink resolver
             # is passed nil — free-floating files have no notebook context.
+            # The tui/markdown + lipgloss + termenv imports cover the
+            # `--raw` mode: bypass the TUI, force truecolor (otherwise
+            # lipgloss detects Ascii on a piped stdout and strips every
+            # SGR), and write pre-rendered ANSI to stdout.
             - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
+            - github.com/serverkraken/flow/internal/frontend/tui/markdown
+            - github.com/charmbracelet/lipgloss
+            - github.com/muesli/termenv
         # The markdown rule below claims internal/frontend/tui/markdown/**
         # for itself (renderer + theme subpackage); excluding it here lets
         # those files keep a tight goldmark/chroma allowlist without
