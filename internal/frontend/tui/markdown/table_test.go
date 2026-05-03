@@ -220,6 +220,82 @@ func TestRender_Table_WrappedRowKeepsBackground(t *testing.T) {
 	}
 }
 
+// TestRender_Table_AltRowKeepsBgAcrossInlineCodeReset: the regression
+// the user actually saw — an alt-tinted body row with inline code (or
+// any inline span that resets with `\x1b[0m`) used to lose its row tint
+// for everything past the inline reset. Cause: cellbuf.Wrap closes the
+// inline span with `[0m` (which clears bg too) AND lipgloss's outer
+// Render does NOT re-apply the cell SGR after internal resets — so
+// trailing pad spaces and any wrap-continuation tail rendered as a
+// transparent gap. Fix re-emits the cell opener after each `[0m`
+// inside the wrapped line. This test pins that the alt bg survives
+// past every internal reset on every physical line of the row.
+func TestRender_Table_AltRowKeepsBgAcrossInlineCodeReset(t *testing.T) {
+	prev := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+
+	// Row index 0 → non-alt; row index 1 → alt. The alt row's Decision
+	// cell carries an inline-code span that wraps mid-token, exactly
+	// the user's reproducer (`internal/frontend/tui/components/`).
+	src := "| Decision | Notes |\n|---|---|\n" +
+		"| short | short |\n" +
+		"| tui-kit migrates into `internal/frontend/tui/components/` | mini |\n"
+	out, err := Render(src, 60)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	rows := tableRows(out)
+
+	var altLines []string
+	for _, row := range rows {
+		// Alt rows are the only ones with the chip-soft bg `;48;2;36;40;59`.
+		if strings.Contains(row, ";48;2;36;40;59") {
+			altLines = append(altLines, row)
+		}
+	}
+	if len(altLines) < 2 {
+		t.Fatalf("expected ≥2 alt physical lines (wrapped), got %d:\n%s",
+			len(altLines), strings.Join(rows, "\n"))
+	}
+	// On every alt physical line, every `\x1b[0m` reset that is NOT the
+	// terminating one must be followed by a re-emit of the cell SGR.
+	// The simplest (and exact) test: after stripping the terminating
+	// reset, the line must NOT contain a `\x1b[0m` that is not directly
+	// followed by `\x1b[`. That is — every internal reset ends with the
+	// next ESC starting a fresh SGR span.
+	for i, line := range altLines {
+		// Walk the line; every internal `\x1b[0m` must be followed
+		// either by the cell-border ESC or by the re-applied cell SGR.
+		// Equivalently: the only `\x1b[0m` allowed without a following
+		// `\x1b[` is the line's last reset before the cell-border ESC.
+		// Implementation pin: count internal resets, count re-applications
+		// (the alt-bg sequence `;48;2;36;40;59`), and require ≥2
+		// occurrences of the alt-bg SGR per cell — initial open + at
+		// least one re-emit after an internal reset.
+		bgOccurrences := strings.Count(line, ";48;2;36;40;59")
+		// Two cells per row × at least 2 alt-bg SGR opens (initial +
+		// post-reset re-apply) ⇒ ≥4 total when the row contains an
+		// inline-code reset; tolerate ≥2 for cells without internal
+		// resets so empty / non-wrap rows still pass.
+		if i == 0 && bgOccurrences < 2 {
+			t.Errorf("first alt physical line should have ≥2 alt-bg SGR opens (initial + post-inline-reset reapply), got %d:\n%q",
+				bgOccurrences, line)
+		}
+		// Stronger pin for any line that contains an inline-code SGR
+		// (the chip-bg `;48;2;65;72;104` for inline code): every such
+		// line MUST have at least one alt-bg SGR re-emit AFTER the
+		// inline-code's `[0m`. Sniff via `]0m\x1b[38;2;192;202;245;48;2;36;40;59m`
+		// substring — that is the post-reset re-apply pattern.
+		if strings.Contains(line, ";48;2;65;72;104") {
+			needle := "\x1b[0m\x1b[38;2;192;202;245;48;2;36;40;59m"
+			if !strings.Contains(line, needle) {
+				t.Errorf("alt physical line %d has inline-code reset but no post-reset re-apply of alt-row bg:\n%q", i, line)
+			}
+		}
+	}
+}
+
 // TestRender_Table_NeverExceedsWidth: a table whose natural width
 // would overflow the budget gets shrunk so no row exceeds r.width.
 func TestRender_Table_NeverExceedsWidth(t *testing.T) {

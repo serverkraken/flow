@@ -9,6 +9,7 @@ package markdown
 import (
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
@@ -272,6 +273,15 @@ func (r *nodeRenderer) renderTableRow(cells []tableCell, widths []int, aligns []
 		}
 	}
 
+	// Inline spans inside wrapped cells reset with `\x1b[0m`, which
+	// also clears the outer cell SGR (bg + fg). Lipgloss's Render
+	// does NOT re-apply the outer style after internal resets, so a
+	// row tint or trailing pad after an inline-code highlight loses
+	// its bg and reads as a transparent gap. Workaround: extract the
+	// cell's opening SGR and re-emit it inside each line right after
+	// every internal reset, before handing the line to cellStyle.Render.
+	cellOpen := openingSGR(cellStyle)
+
 	// Stitch line-by-line: │ + cell + │ + cell + │ … repeated `height`
 	// times. The whole stitched block is the row.
 	var b strings.Builder
@@ -281,11 +291,29 @@ func (r *nodeRenderer) renderTableRow(cells []tableCell, widths []int, aligns []
 		}
 		b.WriteString(border.Render("│"))
 		for i := range widths {
-			b.WriteString(cellStyle.Render(cellLines[i][ln]))
+			line := cellLines[i][ln]
+			if cellOpen != "" {
+				line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+cellOpen)
+			}
+			b.WriteString(cellStyle.Render(line))
 			b.WriteString(border.Render("│"))
 		}
 	}
 	return b.String()
+}
+
+// openingSGR returns the leading ANSI SGR sequence a lipgloss Style
+// emits before its content. We render a known sentinel char and slice
+// off everything before it — the prefix is the style's "open" string
+// in the current colour profile. Empty when the active profile is
+// Ascii (no SGRs to emit at all).
+func openingSGR(s lipgloss.Style) string {
+	const sentinel = "\x00"
+	rendered := s.Render(sentinel)
+	if idx := strings.Index(rendered, sentinel); idx > 0 {
+		return rendered[:idx]
+	}
+	return ""
 }
 
 // formatTableCellLines wraps content into one or more lines, each
@@ -302,7 +330,17 @@ func formatTableCellLines(content string, width int, align extast.Alignment) []s
 	if inner < 1 {
 		inner = 1
 	}
-	wrapped := wrapText(content, inner)
+	// cellbuf.Wrap closes inline SGR spans with the bare `\x1b[m` SGR
+	// (the spec-shorthand for full reset). Lipgloss's Render re-applies
+	// the outer style after each `\x1b[0m` it sees in the input, but it
+	// does not pattern-match `\x1b[m` — so on a wrapped alt row where
+	// an inline code highlight gets broken across the wrap point, the
+	// `[m` shorthand killed the cell's row-tint for everything after
+	// the inline-code reset (trailing pad spaces and any text past the
+	// inline span lost their bg). Normalising to `\x1b[0m` is what
+	// lipgloss expects and re-applies on, so the row tint paints across
+	// the whole physical line.
+	wrapped := strings.ReplaceAll(wrapText(content, inner), "\x1b[m", "\x1b[0m")
 	rawLines := strings.Split(wrapped, "\n")
 	out := make([]string, len(rawLines))
 	for i, line := range rawLines {
