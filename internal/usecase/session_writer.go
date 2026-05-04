@@ -101,17 +101,46 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 }
 
 // Pause stops the running session and records a pause marker. No-op (no
-// error) when nothing is running.
+// error) when nothing is running. Both writes happen under one Lock.With
+// so a concurrent Start can't slip between Stop's ClearActive and
+// SetPause and leave both worktime.state and worktime.pause populated.
 func (w *SessionWriter) Pause() (domain.Session, error) {
-	s, err := w.Stop()
+	var result domain.Session
+	err := w.Lock.With(func() error {
+		active, err := w.State.GetActive()
+		if err != nil {
+			return err
+		}
+		if active == nil {
+			return domain.ErrNoActiveSession
+		}
+		stop := w.Clock.Now()
+		if !stop.After(*active) {
+			return errors.New("stoppzeit muss nach Startzeit liegen")
+		}
+		result = domain.Session{
+			Date:    startOfDay(stop),
+			Start:   *active,
+			Stop:    stop,
+			Elapsed: stop.Sub(*active),
+		}
+		for _, part := range domain.SplitAtMidnight(*active, stop) {
+			if err := w.Sessions.Append(part); err != nil {
+				return err
+			}
+		}
+		if err := w.State.ClearActive(); err != nil {
+			return err
+		}
+		return w.State.SetPause(stop)
+	})
 	if err != nil {
 		if errors.Is(err, domain.ErrNoActiveSession) {
 			return domain.Session{}, nil
 		}
 		return domain.Session{}, err
 	}
-	_ = w.State.SetPause(s.Stop)
-	return s, nil
+	return result, nil
 }
 
 // Resume starts a session at clock-now and clears the pause marker.
@@ -167,25 +196,29 @@ func (w *SessionWriter) CorrectStart(ts time.Time) error {
 // The first arg (date) is retained for API symmetry with the original
 // worktime function. The actual stored row's date is derived from start
 // via SplitAtMidnight; the parameter is ignored here.
+//
+// Overlap check and append run under one Lock.With so a concurrent
+// writer can't slip a colliding session in between.
 func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 	if !stop.After(start) {
 		return errors.New("stop muss nach Start liegen")
 	}
-	for _, part := range domain.SplitAtMidnight(start, stop) {
-		hit, conflict, err := w.Reader.SessionsOverlap(part.Date, part.Start, part.Stop, -1)
-		if err != nil {
-			return err
-		}
-		if hit && conflict != nil {
-			return fmt.Errorf("%w (%s, %s → %s)",
-				domain.ErrOverlap,
-				part.Date.Format("2006-01-02"),
-				conflict.Start.Format("15:04"),
-				conflict.Stop.Format("15:04"))
-		}
-	}
 	return w.Lock.With(func() error {
-		for _, part := range domain.SplitAtMidnight(start, stop) {
+		parts := domain.SplitAtMidnight(start, stop)
+		for _, part := range parts {
+			hit, conflict, err := w.Reader.SessionsOverlap(part.Date, part.Start, part.Stop, -1)
+			if err != nil {
+				return err
+			}
+			if hit && conflict != nil {
+				return fmt.Errorf("%w (%s, %s → %s)",
+					domain.ErrOverlap,
+					part.Date.Format("2006-01-02"),
+					conflict.Start.Format("15:04"),
+					conflict.Stop.Format("15:04"))
+			}
+		}
+		for _, part := range parts {
 			if err := w.Sessions.Append(part); err != nil {
 				return err
 			}
@@ -196,29 +229,34 @@ func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 
 // Edit replaces the session at idx (0-based, scoped to date) with the
 // given start/stop, preserving its Tag and Note. Returns ErrOverlap when
-// the new span intersects another session on the same day.
+// the new span intersects another session on the same day, or
+// ErrSessionNotFound when idx is out of range for that day.
+//
+// Overlap check, lookup and rewrite all happen under one Lock.With.
 func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Time) error {
 	if !newStop.After(newStart) {
 		return errors.New("stoppzeit muss nach Startzeit liegen")
 	}
-	hit, conflict, err := w.Reader.SessionsOverlap(date, newStart, newStop, idx)
-	if err != nil {
-		return err
-	}
-	if hit && conflict != nil {
-		return fmt.Errorf("%w (%s → %s)",
-			domain.ErrOverlap,
-			conflict.Start.Format("15:04"), conflict.Stop.Format("15:04"))
-	}
-	return w.rewriteAtIndex(date, idx, func(s domain.Session) domain.Session {
-		return domain.Session{
-			Date:    s.Date,
-			Start:   newStart,
-			Stop:    newStop,
-			Elapsed: newStop.Sub(newStart),
-			Tag:     s.Tag,
-			Note:    s.Note,
+	return w.Lock.With(func() error {
+		hit, conflict, err := w.Reader.SessionsOverlap(date, newStart, newStop, idx)
+		if err != nil {
+			return err
 		}
+		if hit && conflict != nil {
+			return fmt.Errorf("%w (%s → %s)",
+				domain.ErrOverlap,
+				conflict.Start.Format("15:04"), conflict.Stop.Format("15:04"))
+		}
+		return w.rewriteAtIndexLocked(date, idx, func(s domain.Session) domain.Session {
+			return domain.Session{
+				Date:    s.Date,
+				Start:   newStart,
+				Stop:    newStop,
+				Elapsed: newStop.Sub(newStart),
+				Tag:     s.Tag,
+				Note:    s.Note,
+			}
+		})
 	})
 }
 
@@ -264,26 +302,41 @@ func (w *SessionWriter) SetNote(date time.Time, idx int, note string) error {
 	})
 }
 
-// rewriteAtIndex loads the log under lock, applies fn to the session at
-// (date, idx), and writes it back. Used by Edit/SetTag/SetNote.
+// rewriteAtIndex acquires the lock and delegates to the locked variant.
+// Used by SetTag/SetNote which have no extra pre-checks.
 func (w *SessionWriter) rewriteAtIndex(date time.Time, idx int, fn func(domain.Session) domain.Session) error {
 	return w.Lock.With(func() error {
-		all, err := w.Sessions.LoadAll()
-		if err != nil {
-			return err
-		}
-		dateStr := date.Format("2006-01-02")
-		dayIdx := 0
-		for i, s := range all {
-			if s.Date.Format("2006-01-02") == dateStr {
-				if dayIdx == idx {
-					all[i] = fn(s)
-				}
-				dayIdx++
-			}
-		}
-		return w.Sessions.Rewrite(all)
+		return w.rewriteAtIndexLocked(date, idx, fn)
 	})
+}
+
+// rewriteAtIndexLocked loads the log, applies fn to the session at
+// (date, idx), and writes it back. Caller must hold the Lock. Returns
+// ErrSessionNotFound when no session exists at the requested index for
+// that day — without this signal the rewrite was a silent no-op for
+// stale CLI input like `flow worktime tag 99 deep`.
+func (w *SessionWriter) rewriteAtIndexLocked(date time.Time, idx int, fn func(domain.Session) domain.Session) error {
+	all, err := w.Sessions.LoadAll()
+	if err != nil {
+		return err
+	}
+	dateStr := date.Format("2006-01-02")
+	dayIdx := 0
+	found := false
+	for i, s := range all {
+		if s.Date.Format("2006-01-02") != dateStr {
+			continue
+		}
+		if dayIdx == idx {
+			all[i] = fn(s)
+			found = true
+		}
+		dayIdx++
+	}
+	if !found {
+		return domain.ErrSessionNotFound
+	}
+	return w.Sessions.Rewrite(all)
 }
 
 // startOfDay returns t truncated to 00:00 in t's location.

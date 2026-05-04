@@ -17,3 +17,8 @@ var ErrAlreadyRunning = errors.New("session läuft bereits")
 // can detect this with errors.Is and present a precise hint instead of a
 // generic failure.
 var ErrOverlap = errors.New("überschneidet eine bestehende Session")
+
+// ErrSessionNotFound is returned when an Edit/SetTag/SetNote/Delete asks
+// for a session index that does not exist on the requested date. Without
+// this signal the rewrite path silently no-ops, hiding bad CLI input.
+var ErrSessionNotFound = errors.New("session nicht gefunden")

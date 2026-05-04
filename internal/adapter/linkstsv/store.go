@@ -7,12 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Store reads and writes day-to-note attachments to a TSV file.
+//
+// Writers (Add/Remove) serialise on mu so two concurrent Add calls for
+// the same (date, noteID) can't both pass the dedup check, append, and
+// produce a duplicated row.
 type Store struct {
 	path string
+
+	mu sync.Mutex
 }
 
 // New constructs a Store backed by path. The file is created on first
@@ -41,7 +48,9 @@ func (s *Store) ListByDate(date time.Time) ([]string, error) {
 // Add appends (date, noteID). Idempotent: if the pair already exists,
 // returns nil without touching the file.
 func (s *Store) Add(date time.Time, noteID string) error {
-	existing, err := s.ListByDate(date)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, err := s.listByDateLocked(date)
 	if err != nil {
 		return err
 	}
@@ -53,17 +62,27 @@ func (s *Store) Add(date time.Time, noteID string) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
+	var buf []byte
+	buf = fmt.Appendf(buf, "%s\t%s\n", date.Format("2006-01-02"), noteID)
 	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer f.Close() //nolint:errcheck
-	_, err = fmt.Fprintf(f, "%s\t%s\n", date.Format("2006-01-02"), noteID)
-	return err
+	if _, err := f.Write(buf); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // Remove detaches (date, noteID). Removing a non-existent pair is a no-op.
 func (s *Store) Remove(date time.Time, noteID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	all, err := s.readAll()
 	if err != nil {
 		return err
@@ -82,6 +101,21 @@ func (s *Store) Remove(date time.Time, noteID string) error {
 		return nil
 	}
 	return s.writeAll(kept)
+}
+
+func (s *Store) listByDateLocked(date time.Time) ([]string, error) {
+	all, err := s.readAll()
+	if err != nil {
+		return nil, err
+	}
+	key := date.Format("2006-01-02")
+	var out []string
+	for _, l := range all {
+		if l.Date.Format("2006-01-02") == key {
+			out = append(out, l.NoteID)
+		}
+	}
+	return out, nil
 }
 
 type link struct {
@@ -143,11 +177,18 @@ func (s *Store) writeAll(links []link) error {
 	}
 	for _, l := range links {
 		if _, werr := fmt.Fprintf(f, "%s\t%s\n", l.Date.Format("2006-01-02"), l.NoteID); werr != nil {
-			f.Close() //nolint:errcheck
+			_ = f.Close()
+			_ = os.Remove(tmp)
 			return werr
 		}
 	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
 	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, s.path)

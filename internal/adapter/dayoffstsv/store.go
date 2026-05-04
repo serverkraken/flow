@@ -59,22 +59,30 @@ func (s *Store) Lookup(date time.Time) (domain.DayOff, bool) {
 
 // Add inserts or replaces the entry for off.Date. Validation (kind,
 // label) is the use-case's job; the adapter only persists.
+//
+// Holds mu for the entire read-modify-write so two concurrent Add/Remove
+// calls can't both read the same prior state and have the second
+// overwrite the first.
 func (s *Store) Add(off domain.DayOff) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	fresh := readFile(s.path)
 	fresh[off.Date.Format("2006-01-02")] = off
-	return s.write(fresh)
+	return s.writeLocked(fresh)
 }
 
 // Remove deletes the entry for date. Removing a non-existent entry is a
 // no-op (no error).
 func (s *Store) Remove(date time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	fresh := readFile(s.path)
 	key := date.Format("2006-01-02")
 	if _, ok := fresh[key]; !ok {
 		return nil
 	}
 	delete(fresh, key)
-	return s.write(fresh)
+	return s.writeLocked(fresh)
 }
 
 func (s *Store) readCached() map[string]domain.DayOff {
@@ -102,14 +110,8 @@ func (s *Store) readCached() map[string]domain.DayOff {
 	return out
 }
 
-func (s *Store) invalidate() {
-	s.mu.Lock()
-	s.cache = nil
-	s.primed = false
-	s.mu.Unlock()
-}
-
-func (s *Store) write(m map[string]domain.DayOff) error {
+// writeLocked persists m and invalidates the cache. Caller must hold mu.
+func (s *Store) writeLocked(m map[string]domain.DayOff) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
@@ -141,7 +143,8 @@ func (s *Store) write(m map[string]domain.DayOff) error {
 	if err := os.Rename(tmp, s.path); err != nil {
 		return err
 	}
-	s.invalidate()
+	s.cache = nil
+	s.primed = false
 	return nil
 }
 
