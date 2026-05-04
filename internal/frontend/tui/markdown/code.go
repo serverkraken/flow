@@ -183,9 +183,11 @@ func (r *nodeRenderer) plainCodeLines(src string) []string {
 // codeRow frames one styled line: a leading BG-only space (so the
 // first column never reads as a tinted hole between SGR resets), the
 // (possibly truncated) content, and a trailing BG-only filler that
-// pads the visible width to target. Lines wider than the budget get
-// truncated with `…` rather than wrapped — wrap-with-continuation is
-// reserved for P1.12 polish.
+// pads the visible width to target. Wrapping happens upstream via
+// cellbuf.Wrap (see renderCodePanel) which preserves SGR/link state
+// across breaks; codeRow only truncates as a last-ditch defence when
+// even the wrapped line still exceeds the budget — e.g. a single
+// unbreakable token longer than the panel.
 func (r *nodeRenderer) codeRow(line string, target int) string {
 	leadSpace := r.roles.CodeFenceBg.Render(" ")
 	leadW := lipgloss.Width(leadSpace)

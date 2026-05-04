@@ -162,3 +162,42 @@ func TestParseRange_WeekFromSunday(t *testing.T) {
 		t.Errorf("Monday from Sunday: got %v, want %v", got.From, wantMon)
 	}
 }
+
+func TestParseDateOrRange_SingleDate(t *testing.T) {
+	from, to, isRange, err := domain.ParseDateOrRange("2026-05-01")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if isRange {
+		t.Errorf("single date should report isRange=false")
+	}
+	if !from.Equal(to) {
+		t.Errorf("single date should produce from==to, got from=%s to=%s", from, to)
+	}
+}
+
+func TestParseDateOrRange_Range(t *testing.T) {
+	from, to, isRange, err := domain.ParseDateOrRange("2026-05-01..2026-05-05")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !isRange {
+		t.Errorf("expected isRange=true")
+	}
+	wantFrom := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
+	wantTo := time.Date(2026, 5, 5, 0, 0, 0, 0, time.Local)
+	if !from.Equal(wantFrom) || !to.Equal(wantTo) {
+		t.Errorf("got from=%s to=%s want from=%s to=%s", from, to, wantFrom, wantTo)
+	}
+}
+
+func TestParseDateOrRange_BadInputs(t *testing.T) {
+	cases := []string{"nope", "nope..2026-05-05", "2026-05-01..nope"}
+	for _, in := range cases {
+		t.Run(in, func(t *testing.T) {
+			if _, _, _, err := domain.ParseDateOrRange(in); err == nil {
+				t.Errorf("expected error for %q", in)
+			}
+		})
+	}
+}

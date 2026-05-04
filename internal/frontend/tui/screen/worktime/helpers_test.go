@@ -317,57 +317,6 @@ func TestTagClockCellGlyph_Levels(t *testing.T) {
 	}
 }
 
-// — dayoffs.go pure helper —
-
-func TestParseDateOrRangeExpr_SingleDate(t *testing.T) {
-	from, to, isRange, err := parseDateOrRangeExpr("2026-05-01")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if isRange {
-		t.Errorf("single date should report isRange=false")
-	}
-	if !from.Equal(to) {
-		t.Errorf("single date should produce from==to, got from=%s to=%s", from, to)
-	}
-}
-
-func TestParseDateOrRangeExpr_Range(t *testing.T) {
-	from, to, isRange, err := parseDateOrRangeExpr("2026-05-01..2026-05-05")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !isRange {
-		t.Errorf("expected isRange=true")
-	}
-	wantFrom := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
-	wantTo := time.Date(2026, 5, 5, 0, 0, 0, 0, time.Local)
-	if !from.Equal(wantFrom) || !to.Equal(wantTo) {
-		t.Errorf("got from=%s to=%s want from=%s to=%s", from, to, wantFrom, wantTo)
-	}
-}
-
-func TestParseDateOrRangeExpr_BadSingle(t *testing.T) {
-	_, _, _, err := parseDateOrRangeExpr("nope")
-	if err == nil {
-		t.Errorf("expected error for unparseable input")
-	}
-}
-
-func TestParseDateOrRangeExpr_BadRangeFrom(t *testing.T) {
-	_, _, _, err := parseDateOrRangeExpr("nope..2026-05-05")
-	if err == nil {
-		t.Errorf("expected error for unparseable from-side")
-	}
-}
-
-func TestParseDateOrRangeExpr_BadRangeTo(t *testing.T) {
-	_, _, _, err := parseDateOrRangeExpr("2026-05-01..nope")
-	if err == nil {
-		t.Errorf("expected error for unparseable to-side")
-	}
-}
-
 // — today.go pure helper —
 
 func TestFormatDurLive(t *testing.T) {

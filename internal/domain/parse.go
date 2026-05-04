@@ -200,6 +200,29 @@ func splitRange(s string) (string, string, bool) {
 	return "", "", false
 }
 
+// ParseDateOrRange parses a single YYYY-MM-DD date or a YYYY-MM-DD..YYYY-MM-DD
+// range expression in time.Local. Returned bounds are inclusive (from == to
+// when isRange is false). Used by both the worktime CLI verbs and the
+// dayoffs add-range form so the syntax stays uniform.
+func ParseDateOrRange(s string) (from, to time.Time, isRange bool, err error) {
+	if a, b, ok := splitRange(s); ok {
+		from, e1 := time.ParseInLocation("2006-01-02", a, time.Local)
+		to, e2 := time.ParseInLocation("2006-01-02", b, time.Local)
+		if e1 != nil {
+			return time.Time{}, time.Time{}, false, fmt.Errorf("from: %w", e1)
+		}
+		if e2 != nil {
+			return time.Time{}, time.Time{}, false, fmt.Errorf("to: %w", e2)
+		}
+		return from, to, true, nil
+	}
+	d, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	if err != nil {
+		return time.Time{}, time.Time{}, false, fmt.Errorf("ungültiges datum: %s (YYYY-MM-DD oder YYYY-MM-DD..YYYY-MM-DD)", s)
+	}
+	return d, d, false, nil
+}
+
 // startOfDay returns t truncated to 00:00 in t's location.
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())

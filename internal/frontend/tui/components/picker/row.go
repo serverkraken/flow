@@ -8,7 +8,10 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 )
 
-const accentBarRune = "▎"
+// AccentBarRune is the left-edge marker for the selected row in any
+// picker-shaped list. Exported so other screens (palette etc.) can
+// reuse the same glyph instead of redeclaring it locally.
+const AccentBarRune = "▎"
 
 // Row renders a single list entry: an accent bar on the left, label on the left
 // side, and a hint string right-aligned within width.
@@ -20,7 +23,7 @@ func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 	bar := " "
 	labelStyle := lipgloss.NewStyle().Foreground(p.Fg)
 	if selected {
-		bar = lipgloss.NewStyle().Foreground(p.Accent).Render(accentBarRune)
+		bar = lipgloss.NewStyle().Foreground(p.Accent).Render(AccentBarRune)
 		labelStyle = lipgloss.NewStyle().Foreground(p.Fg).Bold(true)
 	}
 	hintStyle := lipgloss.NewStyle().Foreground(p.Dim)

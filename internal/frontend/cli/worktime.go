@@ -518,7 +518,7 @@ Beispiele:
 			if len(args) >= 3 {
 				label = args[2]
 			}
-			from, to, isRange, err := parseDateOrRange(args[0])
+			from, to, isRange, err := domain.ParseDateOrRange(args[0])
 			if err != nil {
 				return err
 			}
@@ -746,27 +746,4 @@ func dateOrEmpty(t time.Time) string {
 		return ""
 	}
 	return t.Format("2006-01-02")
-}
-
-func parseDateOrRange(s string) (from, to time.Time, isRange bool, err error) {
-	for i := 0; i < len(s)-1; i++ {
-		if s[i] == '.' && s[i+1] == '.' {
-			fromStr := s[:i]
-			toStr := s[i+2:]
-			f, e1 := time.ParseInLocation("2006-01-02", fromStr, time.Local)
-			t, e2 := time.ParseInLocation("2006-01-02", toStr, time.Local)
-			if e1 != nil {
-				return time.Time{}, time.Time{}, false, fmt.Errorf("from: %w", e1)
-			}
-			if e2 != nil {
-				return time.Time{}, time.Time{}, false, fmt.Errorf("to: %w", e2)
-			}
-			return f, t, true, nil
-		}
-	}
-	d, err := time.ParseInLocation("2006-01-02", s, time.Local)
-	if err != nil {
-		return time.Time{}, time.Time{}, false, fmt.Errorf("ungültiges datum: %s (YYYY-MM-DD oder YYYY-MM-DD..YYYY-MM-DD)", s)
-	}
-	return d, d, false, nil
 }

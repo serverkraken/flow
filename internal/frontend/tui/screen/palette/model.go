@@ -538,8 +538,6 @@ func (m Model) renderEntries(innerWidth int) []string {
 	return rows
 }
 
-const accentBarRune = "▎"
-
 // renderRow paints one entry row. Mirrors picker.Row's layout (bar ·
 // label · gap · hint) but supports per-rune highlight indices for
 // fuzzy-match emphasis — picker.Row applies a single foreground style
@@ -548,7 +546,7 @@ func (m Model) renderRow(selected bool, label string, highlight []int, hint stri
 	bar := " "
 	labelStyle := lipgloss.NewStyle().Foreground(m.pal.Fg)
 	if selected {
-		bar = lipgloss.NewStyle().Foreground(m.pal.Accent).Render(accentBarRune)
+		bar = lipgloss.NewStyle().Foreground(m.pal.Accent).Render(picker.AccentBarRune)
 		labelStyle = labelStyle.Bold(true)
 	}
 	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true)

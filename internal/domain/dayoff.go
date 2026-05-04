@@ -56,7 +56,3 @@ type DayOff struct {
 	Label  string
 	Target time.Duration
 }
-
-// Holiday is the legacy alias kept so existing call sites compile during the
-// hexagonal transition. New code should use DayOff.
-type Holiday = DayOff
