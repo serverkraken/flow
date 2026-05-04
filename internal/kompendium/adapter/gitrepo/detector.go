@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -42,6 +44,17 @@ func New() Detector {
 // concept, and treating "user is in a bare clone of foo.git" as "in
 // foo's project" would produce notes that can't be edited from there.
 func (d Detector) Detect(ctx context.Context, cwd string) (ports.RepoInfo, error) {
+	// Stat first so a typo'd --cwd surfaces as "no such directory"
+	// instead of being mapped to ErrNotInRepo (the previous behaviour
+	// pointed users at the wrong problem). Tests that inject a runFunc
+	// and skip os.Stat — by passing the real filesystem path — still
+	// work because the stat is real.
+	if _, err := os.Stat(cwd); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return ports.RepoInfo{}, fmt.Errorf("cwd %q: %w", cwd, err)
+		}
+		return ports.RepoInfo{}, fmt.Errorf("stat cwd %q: %w", cwd, err)
+	}
 	root, err := d.run(ctx, cwd, "rev-parse", "--show-toplevel")
 	if err != nil {
 		if isExitErr(err) {

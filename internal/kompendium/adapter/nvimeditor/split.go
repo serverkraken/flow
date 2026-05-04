@@ -48,8 +48,11 @@ func splitCommand(input string) ([]string, error) {
 		}
 		i += consumed
 	}
-	if sp.state != splitNormal {
+	switch sp.state {
+	case splitSingle, splitDouble:
 		return nil, errors.New("unterminated quote")
+	case splitTrailingBackslash:
+		return nil, errors.New("trailing backslash")
 	}
 	sp.flush()
 	return sp.tokens, nil
@@ -84,6 +87,11 @@ func (s *splitter) stepNormal(input string, i int) int {
 	case c == '\\' && i+1 < len(input):
 		s.cur = append(s.cur, input[i+1])
 		return 2
+	case c == '\\':
+		// Trailing backslash: previously fell through to default and was
+		// appended literally. POSIX shells reject this; signal the same
+		// rather than silently embedding a stray "\" in the resolved argv.
+		s.state = splitTrailingBackslash
 	case c == ' ' || c == '\t':
 		s.flush()
 	default:
@@ -121,4 +129,5 @@ const (
 	splitNormal splitState = iota
 	splitSingle
 	splitDouble
+	splitTrailingBackslash
 )

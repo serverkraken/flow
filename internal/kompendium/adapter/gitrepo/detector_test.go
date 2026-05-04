@@ -28,9 +28,18 @@ func TestDetector_NonexistentCwd(t *testing.T) {
 	t.Parallel()
 	d := gitrepo.New()
 
+	// A typo'd --cwd should report "no such directory" (so the user
+	// fixes the path) rather than "not in a repository" (which sends
+	// them on a wild goose chase looking for a missing .git).
 	_, err := d.Detect(context.Background(), "/nonexistent-path-for-test-only")
-	if !errors.Is(err, ports.ErrNotInRepo) {
-		t.Errorf("got %v, want ErrNotInRepo", err)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if errors.Is(err, ports.ErrNotInRepo) {
+		t.Errorf("non-existent cwd should not be ErrNotInRepo, got %v", err)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected fs.ErrNotExist, got %v", err)
 	}
 }
 

@@ -2,6 +2,7 @@ package fspaletteentries
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,13 @@ func New(pluginsDir, enabledFile string) *Reader {
 // List aggregates entries across all enabled plugins (or all subdirs
 // of pluginsDir when enabledFile is missing). Order across plugins is
 // preserved so the palette renders sections in the intended layout.
+//
+// A plugin without a menu.entries file is silently skipped (that's the
+// expected shape for service plugins like clipboard/nav). Real read or
+// scan errors on an EXISTING menu.entries file are joined into the
+// returned error so the caller can surface "plugin X has a broken
+// menu.entries" instead of seeing it silently disappear from the
+// palette.
 func (r *Reader) List() ([]domain.PaletteEntry, error) {
 	plugins, err := r.enabledPlugins()
 	if err != nil {
@@ -40,18 +48,24 @@ func (r *Reader) List() ([]domain.PaletteEntry, error) {
 		}
 	}
 
-	var entries []domain.PaletteEntry
-	order := 0
+	var (
+		entries []domain.PaletteEntry
+		errs    []error
+		order   = 0
+	)
 	for _, plugin := range plugins {
 		path := filepath.Join(r.pluginsDir, plugin, "menu.entries")
-		ee, err := parseEntriesFile(path, order)
-		if err != nil {
+		ee, perr := parseEntriesFile(path, order)
+		if perr != nil {
+			if !errors.Is(perr, os.ErrNotExist) {
+				errs = append(errs, fmt.Errorf("%s: %w", plugin, perr))
+			}
 			continue
 		}
 		entries = append(entries, ee...)
 		order += len(ee)
 	}
-	return entries, nil
+	return entries, errors.Join(errs...)
 }
 
 func (r *Reader) enabledPlugins() ([]string, error) {

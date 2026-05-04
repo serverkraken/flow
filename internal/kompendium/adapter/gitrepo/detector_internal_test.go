@@ -20,7 +20,10 @@ func TestDetect_NonExitErrFromRevParse(t *testing.T) {
 		return "", forced
 	}}
 
-	_, err := d.Detect(context.Background(), "/anywhere")
+	// Use t.TempDir so the upfront cwd-stat check passes — without an
+	// existing dir we'd hit the new "no such directory" branch instead
+	// of the runFunc path under test.
+	_, err := d.Detect(context.Background(), t.TempDir())
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -45,7 +48,7 @@ func TestDetect_NonExitErrFromRemoteGetURL(t *testing.T) {
 		return "", forced
 	}}
 
-	_, err := d.Detect(context.Background(), "/anywhere")
+	_, err := d.Detect(context.Background(), t.TempDir())
 	if err == nil {
 		t.Fatal("expected error")
 	}

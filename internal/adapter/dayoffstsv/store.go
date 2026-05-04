@@ -109,15 +109,23 @@ func (s *Store) readCached() map[string]domain.DayOff {
 
 // readLocked returns the cached map, priming it from disk (with legacy
 // fallback) on first call. Caller must hold mu.
+//
+// Legacy fallback fires whenever the primary path produces nil — both
+// "file does not exist" and "file unreadable / parse failed" — rather
+// than only os.ErrNotExist. Otherwise a corrupted primary masked all
+// legacy data and silently shipped writes to the broken file.
 func (s *Store) readLocked() map[string]domain.DayOff {
 	if s.primed {
 		return s.cache
 	}
-	out := readFile(s.path)
-	if len(out) == 0 && s.legacyPath != "" {
-		if _, err := os.Stat(s.path); errors.Is(err, os.ErrNotExist) {
-			out = readFile(s.legacyPath)
+	out, err := readFile(s.path)
+	if (err != nil || out == nil) && s.legacyPath != "" {
+		if legacy, lerr := readFile(s.legacyPath); lerr == nil && legacy != nil {
+			out = legacy
 		}
+	}
+	if out == nil {
+		out = map[string]domain.DayOff{}
 	}
 	s.cache = out
 	s.primed = true
@@ -178,19 +186,30 @@ func writeBody(w io.Writer, m map[string]domain.DayOff, keys []string) error {
 	return nil
 }
 
-// readFile parses a TSV file. Missing or unreadable file → empty map.
-// Per-line parse errors are tolerated silently.
-func readFile(path string) map[string]domain.DayOff {
-	out := map[string]domain.DayOff{}
+// readFile parses a TSV file.
+//
+// Returns:
+//   - (nil, nil)  → file does not exist or path is empty
+//   - (map, nil)  → file read OK (map may legitimately be empty)
+//   - (nil, err)  → I/O failure (permission denied, scan error, etc.)
+//
+// The (nil, nil) "file missing" case is distinct from (nil, err) so
+// readLocked can fall back to the legacy path on any non-existence
+// AND on any I/O failure.
+func readFile(path string) (map[string]domain.DayOff, error) {
 	if path == "" {
-		return out
+		return nil, nil
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return out
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
 	}
 	defer f.Close() //nolint:errcheck
 
+	out := map[string]domain.DayOff{}
 	sc := textscan.New(f)
 	for sc.Scan() {
 		entry, ok := parseLine(sc.Text())
@@ -199,7 +218,10 @@ func readFile(path string) map[string]domain.DayOff {
 		}
 		out[entry.Date.Format("2006-01-02")] = entry
 	}
-	return out
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func parseLine(raw string) (domain.DayOff, bool) {

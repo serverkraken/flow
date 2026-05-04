@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
@@ -16,9 +17,11 @@ import (
 
 // Store reads and writes day-to-note attachments to a TSV file.
 //
-// Writers (Add/Remove) serialise on mu so two concurrent Add calls for
-// the same (date, noteID) can't both pass the dedup check, append, and
-// produce a duplicated row.
+// Writers (Add/Remove) serialise on mu (in-process) AND syscall.Flock
+// on a sibling .lock file (cross-process). Without the file lock, two
+// flow instances racing on the same TSV — TUI + a goto.sh CLI helper,
+// say — could each pass the dedup check and write a duplicate row, or
+// race a read-modify-rewrite against an append and lose data.
 type Store struct {
 	path string
 
@@ -53,45 +56,73 @@ func (s *Store) ListByDate(date time.Time) ([]string, error) {
 func (s *Store) Add(date time.Time, noteID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	existing, err := s.listByDateLocked(date)
-	if err != nil {
-		return err
-	}
-	for _, id := range existing {
-		if id == noteID {
-			return nil
+	return s.withFileLock(func() error {
+		existing, err := s.listByDateLocked(date)
+		if err != nil {
+			return err
 		}
-	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return err
-	}
-	var buf []byte
-	buf = fmt.Appendf(buf, "%s\t%s\n", date.Format("2006-01-02"), noteID)
-	return atomicfile.Append(s.path, buf, 0o644)
+		for _, id := range existing {
+			if id == noteID {
+				return nil
+			}
+		}
+		if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+			return err
+		}
+		var buf []byte
+		buf = fmt.Appendf(buf, "%s\t%s\n", date.Format("2006-01-02"), noteID)
+		return atomicfile.Append(s.path, buf, 0o644)
+	})
 }
 
 // Remove detaches (date, noteID). Removing a non-existent pair is a no-op.
 func (s *Store) Remove(date time.Time, noteID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.readAll()
-	if err != nil {
-		return err
-	}
-	key := date.Format("2006-01-02")
-	kept := make([]link, 0, len(all))
-	removed := false
-	for _, l := range all {
-		if !removed && l.Date.Format("2006-01-02") == key && l.NoteID == noteID {
-			removed = true
-			continue
+	return s.withFileLock(func() error {
+		all, err := s.readAll()
+		if err != nil {
+			return err
 		}
-		kept = append(kept, l)
+		key := date.Format("2006-01-02")
+		kept := make([]link, 0, len(all))
+		removed := false
+		for _, l := range all {
+			if !removed && l.Date.Format("2006-01-02") == key && l.NoteID == noteID {
+				removed = true
+				continue
+			}
+			kept = append(kept, l)
+		}
+		if !removed {
+			return nil
+		}
+		return s.writeAll(kept)
+	})
+}
+
+// withFileLock acquires an advisory POSIX lock on a sibling .lock file
+// for cross-process serialisation. The lockfile is separate from the
+// TSV itself because writeAll uses temp+rename and would otherwise
+// pull the lock target out from under the holder. Best-effort: if the
+// dir cannot be created or the lockfile cannot be opened, the write
+// goes ahead without cross-process protection (mu still serialises
+// in-process callers).
+func (s *Store) withFileLock(fn func() error) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return fn()
 	}
-	if !removed {
-		return nil
+	lockPath := s.path + ".lock"
+	lf, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return fn()
 	}
-	return s.writeAll(kept)
+	defer lf.Close() //nolint:errcheck
+	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
+		return fn()
+	}
+	defer syscall.Flock(int(lf.Fd()), syscall.LOCK_UN) //nolint:errcheck
+	return fn()
 }
 
 func (s *Store) listByDateLocked(date time.Time) ([]string, error) {

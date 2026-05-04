@@ -129,8 +129,10 @@ func (l *Launcher) View(id string) error {
 	}
 	argv := append(append([]string(nil), l.viewerArgv...), path)
 	cmd := joinShellArgv(argv)
-	_, err := l.run("tmux", "split-window", "-h", cmd)
-	return err
+	if _, err := l.run("tmux", "split-window", "-h", cmd); err != nil {
+		return fmt.Errorf("tmux split-window: %w", err)
+	}
+	return nil
 }
 
 // shellQuote wraps s in single quotes so /bin/sh -c reads it as one
