@@ -4,9 +4,17 @@ import "time"
 
 // SplitAtMidnight splits a span [start, stop) into one Session per calendar
 // day so each day reflects its own elapsed time. Returns a single-element
-// slice when the span doesn't cross midnight.
+// slice when the span doesn't cross midnight; nil when stop is strictly
+// before start (callers must validate the order before calling — but
+// returning nil here also defends every downstream that assumed Elapsed
+// non-negative). A zero-length span (start == stop) returns one
+// degenerate Session so callers can rely on a non-empty slice for
+// "valid" input.
 func SplitAtMidnight(start, stop time.Time) []Session {
-	if !SameDay(start, stop) && stop.After(start) {
+	if stop.Before(start) {
+		return nil
+	}
+	if !SameDay(start, stop) {
 		var parts []Session
 		cur := start
 		for {

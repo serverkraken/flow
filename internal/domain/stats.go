@@ -10,23 +10,31 @@ import (
 // Workday-counting rules (consistent across all fields):
 //
 //   - "Workday" = neither weekend nor a configured day-off (Feiertag/Urlaub/Krank).
-//   - Hits, Streak, BestStreak, Overtime are computed over Workdays only.
-//   - Days/Total/Avg/Max/Min still cover *all* records in the input — that
-//     stays useful for "total tracked time" reporting.
+//   - Hits, Streak, BestStreak are computed over Workdays only.
+//   - Overtime is the saldo across all workdays in the input — including
+//     empty placeholders. This is intentional: a partial week with two
+//     unworked days SHOULD show -16h to reflect "you're behind".
+//   - DaysWithSessions is the count of records with Total > 0.
+//   - Avg and Min are computed only over DaysWithSessions so an empty
+//     placeholder day doesn't drag a 6h average down to "1h 30m" or
+//     report Min = 0 when the user worked between 4h and 8h every day.
+//   - Days / Total / Max still cover *all* records — Total is the raw
+//     tracked time and Max is naturally driven by non-zero days anyway.
 //   - DaysOff lists the configured day-offs that fell into the range.
 type Stats struct {
-	Days       int
-	Workdays   int
-	Total      time.Duration
-	Avg        time.Duration // Total / Days (only days with sessions)
-	Max        time.Duration
-	MaxDate    time.Time
-	Min        time.Duration
-	MinDate    time.Time
-	Hits       int           // workdays that met or exceeded their target
-	Streak     int           // current consecutive-from-newest hit streak (workdays only)
-	BestStreak int           // longest run of consecutive hits ever (workdays only)
-	Overtime   time.Duration // sum of (Total - Target) over workdays only
+	Days             int
+	DaysWithSessions int
+	Workdays         int
+	Total            time.Duration
+	Avg              time.Duration // Total / DaysWithSessions; zero when DaysWithSessions == 0
+	Max              time.Duration
+	MaxDate          time.Time
+	Min              time.Duration // min Total over records with Total > 0; zero when none
+	MinDate          time.Time
+	Hits             int           // workdays that met or exceeded their target
+	Streak           int           // current consecutive-from-newest hit streak (workdays only)
+	BestStreak       int           // longest run of consecutive hits ever (workdays only)
+	Overtime         time.Duration // sum of (Total - Target) over all workdays in input (saldo)
 
 	// ByTag maps tag → total duration over the input. Sessions with empty
 	// Tag are aggregated under the empty key "" — callers that want a strip

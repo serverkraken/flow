@@ -8,7 +8,7 @@ import (
 )
 
 func TestGermanHolidays_BundesweitAlwaysIncluded(t *testing.T) {
-	hs := domain.GermanHolidays(2026, "DE")
+	hs := domain.GermanHolidays(2026, "DE", time.Local)
 	must := map[string]bool{
 		"2026-01-01": false, // Neujahr
 		"2026-05-01": false, // Tag der Arbeit
@@ -29,7 +29,7 @@ func TestGermanHolidays_BundesweitAlwaysIncluded(t *testing.T) {
 }
 
 func TestGermanHolidays_NRWFeatures(t *testing.T) {
-	hs := domain.GermanHolidays(2026, "NW")
+	hs := domain.GermanHolidays(2026, "NW", time.Local)
 	// Easter 2026 is 2026-04-05.
 	want := map[string]bool{
 		"2026-04-03": false, // Karfreitag
@@ -52,7 +52,7 @@ func TestGermanHolidays_NRWFeatures(t *testing.T) {
 }
 
 func TestGermanHolidays_BavariaHasFronleichnam(t *testing.T) {
-	hs := domain.GermanHolidays(2026, "BY")
+	hs := domain.GermanHolidays(2026, "BY", time.Local)
 	for _, h := range hs {
 		if h.Label == "Fronleichnam" {
 			return
@@ -62,7 +62,7 @@ func TestGermanHolidays_BavariaHasFronleichnam(t *testing.T) {
 }
 
 func TestGermanHolidays_BerlinNoFronleichnam(t *testing.T) {
-	hs := domain.GermanHolidays(2026, "BE")
+	hs := domain.GermanHolidays(2026, "BE", time.Local)
 	for _, h := range hs {
 		if h.Label == "Fronleichnam" {
 			t.Error("Berlin should NOT include Fronleichnam")
@@ -73,7 +73,7 @@ func TestGermanHolidays_BerlinNoFronleichnam(t *testing.T) {
 func TestGermanHolidays_DEExcludesLandSpecific(t *testing.T) {
 	// "DE" is the bundesweit-only filter — region-specific holidays must NOT
 	// appear (e.g. Allerheiligen, Heilige Drei Könige, Frauentag).
-	hs := domain.GermanHolidays(2026, "DE")
+	hs := domain.GermanHolidays(2026, "DE", time.Local)
 	forbidden := map[string]bool{
 		"Heilige Drei Könige":       true,
 		"Internationaler Frauentag": true,
@@ -110,7 +110,7 @@ func TestNormalizeLand(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.in, func(t *testing.T) {
-			hs := domain.GermanHolidays(2026, tc.in)
+			hs := domain.GermanHolidays(2026, tc.in, time.Local)
 			found := false
 			for _, h := range hs {
 				if h.Label == tc.sample {
@@ -128,7 +128,7 @@ func TestNormalizeLand(t *testing.T) {
 func TestGermanHolidays_EmptyLandFallsBackToDE(t *testing.T) {
 	// Empty land normalizes to "DE" — confirm by checking that no
 	// region-specific holiday (e.g. Fronleichnam) appears.
-	hs := domain.GermanHolidays(2026, "")
+	hs := domain.GermanHolidays(2026, "", time.Local)
 	for _, h := range hs {
 		if h.Label == "Fronleichnam" {
 			t.Error("empty land should yield bundesweit-only set, not Fronleichnam")
@@ -142,14 +142,14 @@ func TestGermanHolidays_EmptyLandFallsBackToDE(t *testing.T) {
 
 func TestGermanHolidays_BusBettagOnlyInSaxony(t *testing.T) {
 	for _, land := range []string{"NW", "BY", "DE", "BE"} {
-		hs := domain.GermanHolidays(2026, land)
+		hs := domain.GermanHolidays(2026, land, time.Local)
 		for _, h := range hs {
 			if h.Label == "Buß- und Bettag" {
 				t.Errorf("Buß- und Bettag should not appear in %s", land)
 			}
 		}
 	}
-	hs := domain.GermanHolidays(2026, "SN")
+	hs := domain.GermanHolidays(2026, "SN", time.Local)
 	found := false
 	for _, h := range hs {
 		if h.Label == "Buß- und Bettag" {
@@ -169,7 +169,7 @@ func TestGermanHolidays_BusBettagOnlyInSaxony(t *testing.T) {
 }
 
 func TestGermanHolidays_AllKindAreHoliday(t *testing.T) {
-	for _, h := range domain.GermanHolidays(2026, "NW") {
+	for _, h := range domain.GermanHolidays(2026, "NW", time.Local) {
 		if h.Kind != domain.KindHoliday {
 			t.Errorf("%q has kind %q, want holiday", h.Label, h.Kind)
 		}
@@ -188,7 +188,7 @@ func TestEasterSunday_KnownDates(t *testing.T) {
 		2027: "2027-03-26", // Easter 03-28
 	}
 	for year, wantKar := range tests {
-		hs := domain.GermanHolidays(year, "DE")
+		hs := domain.GermanHolidays(year, "DE", time.Local)
 		var got string
 		for _, h := range hs {
 			if h.Label == "Karfreitag" {

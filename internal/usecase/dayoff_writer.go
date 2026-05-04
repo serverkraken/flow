@@ -66,7 +66,7 @@ func (w *DayOffWriter) Remove(date time.Time) error {
 // preserved — those get counted as "skipped" so the caller can report
 // "1 added, 5 already had user entries".
 func (w *DayOffWriter) SyncGermanHolidays(year int, land string) (added, skipped int, err error) {
-	hs := domain.GermanHolidays(year, land)
+	hs := domain.GermanHolidays(year, land, time.Local)
 	for _, h := range hs {
 		existing, ok := w.Store.Lookup(h.Date)
 		if ok && existing.Kind == domain.KindHoliday && existing.Label == h.Label {

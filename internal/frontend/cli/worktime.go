@@ -523,7 +523,7 @@ Beispiele:
 			if len(args) >= 3 {
 				label = args[2]
 			}
-			from, to, isRange, err := domain.ParseDateOrRange(args[0])
+			from, to, isRange, err := domain.ParseDateOrRange(args[0], time.Local)
 			if err != nil {
 				return err
 			}

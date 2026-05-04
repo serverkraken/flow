@@ -9,18 +9,33 @@ import (
 )
 
 // ParseHM parses an "HH:MM" string into a time.Duration offset from midnight.
+//
+// Hours must be in [0,24] (24:00 is accepted as the end-of-day idiom),
+// minutes in [0,59]. Without this validation, a corrupted log row like
+// "99:99" would parse to 100h39m and silently propagate into stats /
+// burndown / brief / ICS export, where it would render as "04:39" and
+// corrupt accumulators.
 func ParseHM(s string) (time.Duration, error) {
 	parts := strings.SplitN(strings.TrimSpace(s), ":", 2)
 	if len(parts) != 2 {
 		return 0, fmt.Errorf("invalid HH:MM: %s", s)
 	}
-	h, err := strconv.Atoi(parts[0])
+	h, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
 		return 0, err
 	}
-	m, err := strconv.Atoi(parts[1])
+	m, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err != nil {
 		return 0, err
+	}
+	if h < 0 || h > 24 {
+		return 0, fmt.Errorf("invalid HH:MM (hour out of range): %s", s)
+	}
+	if m < 0 || m > 59 {
+		return 0, fmt.Errorf("invalid HH:MM (minute out of range): %s", s)
+	}
+	if h == 24 && m != 0 {
+		return 0, fmt.Errorf("invalid HH:MM (24:MM only valid as 24:00): %s", s)
 	}
 	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute, nil
 }
@@ -32,15 +47,16 @@ func ParseHM(s string) (time.Duration, error) {
 //	"-Nm"     → now - N minutes
 //	"-NhMMm"  → now - Nh MMm
 func ParseStartArg(arg string, now time.Time) (time.Time, error) {
+	arg = strings.TrimSpace(arg)
 	if arg == "" {
 		return now, nil
 	}
 
-	// HH:MM
-	if len(arg) == 5 && arg[2] == ':' {
-		var h, m int
-		if _, err := fmt.Sscanf(arg, "%d:%d", &h, &m); err == nil {
-			t := time.Date(now.Year(), now.Month(), now.Day(), h, m, 0, 0, now.Location())
+	// HH:MM (delegates to ParseHM for trim + range validation, so direct
+	// CLI callers behave the same as the TSV parser).
+	if strings.Contains(arg, ":") && (len(arg) == 0 || arg[0] != '-') {
+		if hm, err := ParseHM(arg); err == nil {
+			t := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Add(hm)
 			if t.After(now) {
 				return time.Time{}, fmt.Errorf("zeit liegt in der Zukunft: %s", arg)
 			}
@@ -55,17 +71,18 @@ func ParseStartArg(arg string, now time.Time) (time.Time, error) {
 			hStr := rest[:hi]
 			mStr := strings.TrimSuffix(rest[hi+1:], "m")
 			h, errH := strconv.Atoi(hStr)
+			if errH != nil {
+				return time.Time{}, fmt.Errorf("ungültig (Stunden-Teil nicht numerisch): %s", arg)
+			}
 			m := 0
 			if mStr != "" {
 				var errM error
 				m, errM = strconv.Atoi(mStr)
 				if errM != nil {
-					return time.Time{}, fmt.Errorf("ungültig: %s", arg)
+					return time.Time{}, fmt.Errorf("ungültig (Minuten-Teil nicht numerisch): %s", arg)
 				}
 			}
-			if errH == nil {
-				return now.Add(-time.Duration(h)*time.Hour - time.Duration(m)*time.Minute), nil
-			}
+			return now.Add(-time.Duration(h)*time.Hour - time.Duration(m)*time.Minute), nil
 		}
 		// -Nm
 		mStr := strings.TrimSuffix(rest, "m")
@@ -201,22 +218,30 @@ func splitRange(s string) (string, string, bool) {
 }
 
 // ParseDateOrRange parses a single YYYY-MM-DD date or a YYYY-MM-DD..YYYY-MM-DD
-// range expression in time.Local. Returned bounds are inclusive (from == to
+// range expression anchored in loc. Returned bounds are inclusive (from == to
 // when isRange is false). Used by both the worktime CLI verbs and the
-// dayoffs add-range form so the syntax stays uniform.
-func ParseDateOrRange(s string) (from, to time.Time, isRange bool, err error) {
+// dayoffs add-range form so the syntax stays uniform. Pass time.Local for
+// production behavior; tests pass an explicit location to stay TZ-independent.
+// Additionally rejects inverted ranges (a > b).
+func ParseDateOrRange(s string, loc *time.Location) (from, to time.Time, isRange bool, err error) {
+	if loc == nil {
+		loc = time.UTC
+	}
 	if a, b, ok := splitRange(s); ok {
-		from, e1 := time.ParseInLocation("2006-01-02", a, time.Local)
-		to, e2 := time.ParseInLocation("2006-01-02", b, time.Local)
+		from, e1 := time.ParseInLocation("2006-01-02", a, loc)
+		to, e2 := time.ParseInLocation("2006-01-02", b, loc)
 		if e1 != nil {
 			return time.Time{}, time.Time{}, false, fmt.Errorf("from: %w", e1)
 		}
 		if e2 != nil {
 			return time.Time{}, time.Time{}, false, fmt.Errorf("to: %w", e2)
 		}
+		if to.Before(from) {
+			return time.Time{}, time.Time{}, false, fmt.Errorf("ungültiger range: %s liegt vor %s", b, a)
+		}
 		return from, to, true, nil
 	}
-	d, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	d, err := time.ParseInLocation("2006-01-02", s, loc)
 	if err != nil {
 		return time.Time{}, time.Time{}, false, fmt.Errorf("ungültiges datum: %s (YYYY-MM-DD oder YYYY-MM-DD..YYYY-MM-DD)", s)
 	}

@@ -79,14 +79,18 @@ func TestSplitAtMidnight(t *testing.T) {
 		}
 	})
 
-	t.Run("stop before start uses single-session fallback", func(t *testing.T) {
-		// Different days but stop NOT after start → treated as a "same-day"
-		// degenerate single-session record (negative elapsed).
+	t.Run("stop before start returns nil", func(t *testing.T) {
+		// Inverted spans were previously silently accepted as a
+		// degenerate single-session record with negative Elapsed —
+		// downstream accumulators (WeekDay.Total, MonthBurndown) didn't
+		// clamp negatives so the bad input shrank totals. The function
+		// now refuses inverted input; callers (session_writer) already
+		// validate before calling.
 		start := at(2026, 4, 30, 9, 0)
 		stop := at(2026, 4, 29, 23, 0)
 		parts := domain.SplitAtMidnight(start, stop)
-		if len(parts) != 1 {
-			t.Fatalf("want 1 part, got %d", len(parts))
+		if parts != nil {
+			t.Fatalf("want nil for inverted span, got %d parts", len(parts))
 		}
 	})
 }

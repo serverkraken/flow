@@ -6,7 +6,11 @@ import (
 )
 
 // GermanHolidays returns the gesetzliche Feiertage for a given Bundesland
-// and year. Empty land defaults to "DE" (only the bundesweit set).
+// and year, anchored at midnight in loc. Pass time.Local for the
+// production behavior; tests pass an explicit *time.Location so they
+// don't depend on the host's $TZ. nil loc defaults to time.UTC — that
+// keeps round-trips deterministic but won't match a German user's
+// wallclock; production callers should always pass a real location.
 //
 // Bundesland codes (case-insensitive, "NRW" alias for "NW"):
 //
@@ -15,10 +19,12 @@ import (
 // Movable feasts (Karfreitag, Ostermontag, Christi Himmelfahrt, Pfingstmontag,
 // Fronleichnam) are computed from the Anonymous Gregorian (Meeus/Jones/Butcher)
 // Easter algorithm.
-func GermanHolidays(year int, land string) []DayOff {
+func GermanHolidays(year int, land string, loc *time.Location) []DayOff {
+	if loc == nil {
+		loc = time.UTC
+	}
 	land = normalizeLand(land)
-	easter := easterSunday(year)
-	loc := time.Local
+	easter := easterSunday(year, loc)
 
 	type entry struct {
 		date  time.Time
@@ -44,7 +50,7 @@ func GermanHolidays(year int, land string) []DayOff {
 		{d(10, 3), "Tag der Deutschen Einheit", nil},
 		{d(10, 31), "Reformationstag", []string{"BB", "HB", "HH", "MV", "NI", "SN", "ST", "SH", "TH"}},
 		{d(11, 1), "Allerheiligen", []string{"BW", "BY", "NW", "RP", "SL"}},
-		{busBettag(year), "Buß- und Bettag", []string{"SN"}},
+		{busBettag(year, loc), "Buß- und Bettag", []string{"SN"}},
 		{d(12, 25), "1. Weihnachtstag", nil},
 		{d(12, 26), "2. Weihnachtstag", nil},
 	}
@@ -99,8 +105,9 @@ func appliesIn(lands []string, land string) bool {
 }
 
 // easterSunday returns Easter Sunday for the given Gregorian year using the
-// Anonymous Gregorian algorithm (Meeus/Jones/Butcher).
-func easterSunday(year int) time.Time {
+// Anonymous Gregorian algorithm (Meeus/Jones/Butcher), anchored at
+// midnight in loc.
+func easterSunday(year int, loc *time.Location) time.Time {
 	a := year % 19
 	b := year / 100
 	c := year % 100
@@ -115,13 +122,14 @@ func easterSunday(year int) time.Time {
 	m := (a + 11*h + 22*l) / 451
 	month := (h + l - 7*m + 114) / 31
 	day := ((h + l - 7*m + 114) % 31) + 1
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, loc)
 }
 
 // busBettag is the Wednesday before November 23rd (always falls between
-// Nov 16 and Nov 22). Sachsen-only public holiday.
-func busBettag(year int) time.Time {
-	nov23 := time.Date(year, time.November, 23, 0, 0, 0, 0, time.Local)
+// Nov 16 and Nov 22). Sachsen-only public holiday, anchored at midnight
+// in loc.
+func busBettag(year int, loc *time.Location) time.Time {
+	nov23 := time.Date(year, time.November, 23, 0, 0, 0, 0, loc)
 	for d := nov23.AddDate(0, 0, -1); ; d = d.AddDate(0, 0, -1) {
 		if d.Weekday() == time.Wednesday {
 			return d

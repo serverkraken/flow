@@ -400,7 +400,7 @@ func (f *frei) focusForm(i int) {
 func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 	dateExpr := strings.TrimSpace(f.form[0].Value())
 	label := strings.TrimSpace(f.form[1].Value())
-	from, to, isRange, err := domain.ParseDateOrRange(dateExpr)
+	from, to, isRange, err := domain.ParseDateOrRange(dateExpr, time.Local)
 	if err != nil {
 		f.errMsg = err.Error()
 		return f, nil

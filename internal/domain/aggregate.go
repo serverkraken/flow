@@ -35,8 +35,11 @@ func Aggregate(
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Date.Before(sorted[j].Date) })
 
 	st := Stats{Days: len(sorted), ByTag: map[string]time.Duration{}, CountByTag: map[string]int{}}
-	st.Min = sorted[0].Total
-	st.MinDate = sorted[0].Date
+	// Min initialises lazily so empty (Total == 0) placeholder days
+	// don't dominate the result. Without this, a range starting with an
+	// untracked weekday placeholder would pin Min = 0 forever even
+	// though the user worked 4–8h on every other day.
+	minSeen := false
 
 	for _, r := range sorted {
 		st.Total += r.Total
@@ -44,9 +47,13 @@ func Aggregate(
 			st.Max = r.Total
 			st.MaxDate = r.Date
 		}
-		if r.Total < st.Min {
-			st.Min = r.Total
-			st.MinDate = r.Date
+		if r.Total > 0 {
+			st.DaysWithSessions++
+			if !minSeen || r.Total < st.Min {
+				st.Min = r.Total
+				st.MinDate = r.Date
+				minSeen = true
+			}
 		}
 		if isWorkday(r.Date) {
 			st.Workdays++
@@ -60,8 +67,8 @@ func Aggregate(
 			st.CountByTag[s.Tag]++
 		}
 	}
-	if st.Days > 0 {
-		st.Avg = st.Total / time.Duration(st.Days)
+	if st.DaysWithSessions > 0 {
+		st.Avg = st.Total / time.Duration(st.DaysWithSessions)
 	}
 	st.Untagged = st.ByTag[""]
 
