@@ -574,13 +574,19 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 }
 
 // openWritePicker enters ModeWritePicker with a freshly built picker.
-// allowProject mirrors the `flow kompendium write --cwd <dir>` rule —
-// the Project option only appears when the current cwd resolves to a
-// repo (the composition root captures this via `currentRepo`'s zero
-// value: empty means no repo).
+// Project is always offered — even when currentRepo is empty (cwd is
+// not a repo, or is a repo without an `origin` remote). The actual
+// `flow kompendium new project` invocation surfaces wrapProjectErr's
+// hint (»cd into a repository«, »project notes need an origin
+// remote«) via the runViaExecCapture stderr-passthrough — which is
+// more discoverable than silently hiding the option from the menu.
+//
+// Pre-refactor only currentRepo!="" enabled Project, so users in a
+// repo without origin (kompendium notebooks under ~/notes don't need
+// one) saw a 2-option picker and had no signal why Project was
+// missing. The hint-on-attempt UX is the better trade.
 func (m Model) openWritePicker() (tea.Model, tea.Cmd) {
-	allowProject := m.currentRepo != ""
-	m.picker = writepicker.New(allowProject)
+	m.picker = writepicker.New(true)
 	m.mode = ModeWritePicker
 	m.editErr = nil
 	return m, m.picker.Init()
