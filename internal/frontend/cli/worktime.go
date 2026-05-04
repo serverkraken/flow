@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -86,11 +87,12 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 // runWorktimeToday is the production handler. Package-level var so
 // tests can swap in a no-op and verify the cobra wiring without
 // launching a real Bubble Tea program against a (non-existent) TTY.
-// Mirrors the kompendium-cli runBrowse pattern.
-var runWorktimeToday = func(deps WorktimeDeps) error {
+// Mirrors the kompendium-cli runBrowse pattern. Tests must NOT call
+// t.Parallel — the var is process-global; concurrent swaps race.
+var runWorktimeToday = func(ctx context.Context, deps WorktimeDeps) error {
 	tk.Init()
 	pal := tk.Load()
-	prog := tea.NewProgram(deps.Screen(pal), tea.WithAltScreen())
+	prog := tea.NewProgram(deps.Screen(pal), tea.WithAltScreen(), tea.WithContext(ctx))
 	_, err := prog.Run()
 	return err
 }
@@ -110,11 +112,11 @@ func newTodayCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Worktime TUI öffnen (Heute-Tab; Tab/1-4 wechselt zu Woche/History/Frei)",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if deps.Screen == nil {
 				return errors.New("worktime screen factory not wired (composition-root bug)")
 			}
-			return runWorktimeToday(deps)
+			return runWorktimeToday(cmd.Context(), deps)
 		},
 	}
 }
@@ -176,10 +178,15 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 			} else {
 				err = deps.SessionWriter.Start(ts)
 			}
+			if errors.Is(err, domain.ErrAlreadyRunning) {
+				// Idempotent for tmux bindings — pressing start while a
+				// session is already running prints a hint but exits 0
+				// instead of raising stderr noise the binding cannot
+				// react to. Pass --force to overwrite.
+				fprintln(cmd.ErrOrStderr(), "Worktime läuft bereits — `flow worktime stop` oder `--force`")
+				return nil
+			}
 			if err != nil {
-				if errors.Is(err, domain.ErrAlreadyRunning) || err.Error() == "läuft bereits" {
-					return fmt.Errorf("eine Session läuft bereits — `flow worktime stop` oder `--force`")
-				}
 				return err
 			}
 			_ = deps.Tmux.RefreshClient()
@@ -218,10 +225,10 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Nach Pause weiterarbeiten",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// SessionWriter.Resume is idempotent — already-running just
+			// clears the pause marker and returns nil. The legacy
+			// ErrAlreadyRunning branch was dead and has been removed.
 			if err := deps.SessionWriter.Resume(); err != nil {
-				if errors.Is(err, domain.ErrAlreadyRunning) || err.Error() == "läuft bereits" {
-					return fmt.Errorf("läuft bereits")
-				}
 				return err
 			}
 			_ = deps.Tmux.RefreshClient()
@@ -302,7 +309,7 @@ func newStopCmd(deps WorktimeDeps) *cobra.Command {
 			} else {
 				s, err = deps.SessionWriter.Stop()
 			}
-			if errors.Is(err, domain.ErrNoActiveSession) || (err != nil && err.Error() == "keine laufende Session") {
+			if errors.Is(err, domain.ErrNoActiveSession) {
 				// Idempotent for the tmux binding (prefix+E): pressing stop
 				// with nothing running is a no-op, not an error.
 				return nil
@@ -355,6 +362,7 @@ func newCorrectCmd(deps WorktimeDeps) *cobra.Command {
 			if err := deps.SessionWriter.CorrectStart(ts); err != nil {
 				return err
 			}
+			_ = deps.Tmux.RefreshClient()
 			fprintf(cmd.ErrOrStderr(), "Startzeit korrigiert auf %s\n", ts.Format("15:04"))
 			return nil
 		},
@@ -481,7 +489,11 @@ func newTagCmd(deps WorktimeDeps) *cobra.Command {
 			if len(args) > 1 {
 				tag = args[1]
 			}
-			return deps.SessionWriter.SetTag(deps.Clock.Now(), idx-1, tag)
+			if err := deps.SessionWriter.SetTag(deps.Clock.Now(), idx-1, tag); err != nil {
+				return err
+			}
+			_ = deps.Tmux.RefreshClient()
+			return nil
 		},
 	}
 }
@@ -501,7 +513,11 @@ func newNoteCmd(deps WorktimeDeps) *cobra.Command {
 			if len(args) > 1 {
 				text = args[1]
 			}
-			return deps.SessionWriter.SetNote(deps.Clock.Now(), idx-1, text)
+			if err := deps.SessionWriter.SetNote(deps.Clock.Now(), idx-1, text); err != nil {
+				return err
+			}
+			_ = deps.Tmux.RefreshClient()
+			return nil
 		},
 	}
 }
@@ -552,12 +568,14 @@ Beispiele:
 				if err != nil {
 					return err
 				}
+				_ = deps.Tmux.RefreshClient()
 				fprintf(errOut, "%d Tag(e) als %s eingetragen\n", n, kind.LabelDe())
 				return nil
 			}
 			if err := deps.DayOffWriter.Add(from, kind, label); err != nil {
 				return err
 			}
+			_ = deps.Tmux.RefreshClient()
 			fprintf(errOut, "%s eingetragen für %s\n", kind.LabelDe(), from.Format("2006-01-02"))
 			return nil
 		},
@@ -576,7 +594,11 @@ func newDayOffRemoveCmd(deps WorktimeDeps) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("ungültiges datum: %s (YYYY-MM-DD)", args[0])
 			}
-			return deps.DayOffWriter.Remove(d)
+			if err := deps.DayOffWriter.Remove(d); err != nil {
+				return err
+			}
+			_ = deps.Tmux.RefreshClient()
+			return nil
 		},
 	}
 }
@@ -596,10 +618,11 @@ func newDayOffListCmd(deps WorktimeDeps) *cobra.Command {
 			from := time.Date(y, time.January, 1, 0, 0, 0, 0, time.Local)
 			to := time.Date(y, time.December, 31, 0, 0, 0, 0, time.Local)
 			entries := deps.DayOffReader.List(from, to)
-			if len(entries) == 0 {
-				fprintf(cmd.ErrOrStderr(), "keine Einträge für %d\n", y)
-				return nil
-			}
+			// Pure read verb → empty result is silent on stdout (no
+			// rows). Surfacing 'keine Einträge für YEAR' on stderr was
+			// confusing for `dayoff list --year 2099 | wc -l` which
+			// expected 0 with no signal of a real problem; an empty
+			// stdout is the standard Unix shape for empty results.
 			sort.Slice(entries, func(i, j int) bool { return entries[i].Date.Before(entries[j].Date) })
 			out := cmd.OutOrStdout()
 			for _, d := range entries {
@@ -638,6 +661,9 @@ unangetastet.
 			added, skipped, err := deps.DayOffWriter.SyncGermanHolidays(y, l)
 			if err != nil {
 				return err
+			}
+			if added > 0 {
+				_ = deps.Tmux.RefreshClient()
 			}
 			fprintf(cmd.ErrOrStderr(), "%d Feiertag(e) hinzugefügt, %d übersprungen (%s/%d)\n",
 				added, skipped, l, y)

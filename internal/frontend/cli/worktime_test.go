@@ -187,15 +187,18 @@ func TestStart_AlreadyRunning_NoForce(t *testing.T) {
 	f := newFixture()
 	t1 := fixedNow.Add(-2 * time.Hour)
 	f.active.Active = &t1
-	_, _, err := f.run("start")
-	if err == nil {
-		t.Fatal("expected error")
+	_, stderr, err := f.run("start")
+	if err != nil {
+		// Idempotent: already-running is a no-op exit-0 with a hint on
+		// stderr instead of a hard error, so tmux bindings can press
+		// 'start' blindly without surfacing red noise.
+		t.Fatalf("expected idempotent success, got %v", err)
 	}
-	if !strings.Contains(err.Error(), "läuft bereits") {
-		t.Errorf("error message: %v", err)
+	if !strings.Contains(stderr, "läuft bereits") {
+		t.Errorf("stderr should hint that a session is running, got %q", stderr)
 	}
 	if f.tmux.Refreshes != 0 {
-		t.Errorf("must not refresh on error, got %d", f.tmux.Refreshes)
+		t.Errorf("idempotent no-op must not refresh, got %d", f.tmux.Refreshes)
 	}
 }
 
@@ -583,11 +586,14 @@ func TestDayOff_List_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
+	// Empty result is a silent empty stdout (Unix shape) so the
+	// caller can `dayoff list --year 2099 | wc -l` without parsing
+	// stderr noise out of an empty success path.
 	if stdout != "" {
 		t.Errorf("stdout should be empty, got %q", stdout)
 	}
-	if !strings.Contains(stderr, "keine Einträge für 2026") {
-		t.Errorf("stderr: %q", stderr)
+	if stderr != "" {
+		t.Errorf("stderr should be empty for a clean empty read, got %q", stderr)
 	}
 }
 

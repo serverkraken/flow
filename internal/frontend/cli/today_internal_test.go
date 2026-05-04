@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ import (
 // package-level runWorktimeToday hook without exposing it through the
 // public API. Mirrors the kompendium-cli browse_test pattern.
 
-func swapRunWorktimeToday(replacement func(WorktimeDeps) error) func() {
+func swapRunWorktimeToday(replacement func(context.Context, WorktimeDeps) error) func() {
 	prev := runWorktimeToday
 	runWorktimeToday = replacement
 	return func() { runWorktimeToday = prev }
@@ -41,7 +42,7 @@ func TestToday_NilScreenReturnsError(t *testing.T) {
 // path stays untouched while the test exercises every line of the
 // RunE that isn't behind tea.NewProgram.
 func TestToday_RunsScreenFactory(t *testing.T) {
-	t.Cleanup(swapRunWorktimeToday(func(d WorktimeDeps) error {
+	t.Cleanup(swapRunWorktimeToday(func(_ context.Context, d WorktimeDeps) error {
 		if d.Screen == nil {
 			t.Errorf("runWorktimeToday received nil Screen factory")
 		}
@@ -86,7 +87,7 @@ func TestToday_RunsScreenFactory(t *testing.T) {
 // (non-zero exit triggers the view's restart-loop intent).
 func TestToday_RunnerErrorBubbles(t *testing.T) {
 	want := errors.New("forced runner error")
-	t.Cleanup(swapRunWorktimeToday(func(_ WorktimeDeps) error { return want }))
+	t.Cleanup(swapRunWorktimeToday(func(_ context.Context, _ WorktimeDeps) error { return want }))
 
 	deps := WorktimeDeps{Screen: func(_ tk.Palette) tea.Model { return nil }}
 	cmd := NewWorktimeCmd(deps)

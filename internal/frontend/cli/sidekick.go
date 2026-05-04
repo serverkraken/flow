@@ -32,7 +32,7 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 		Use:          "sidekick",
 		Short:        "Run as tmux sidekick panel",
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			tk.Init()
 			pal := tk.Load()
 
@@ -48,7 +48,12 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 				Cheatsheet: deps.Cheatsheet(pal),
 				Notes:      deps.Notes(pal),
 			})
-			prog := tea.NewProgram(m, tea.WithAltScreen())
+			// tea.WithContext threads the cobra command's context (which
+			// the composition root cancels on SIGINT/SIGTERM) into the
+			// program's event loop, so a signal tears the TUI down
+			// cleanly and the deferred FlowState.Save below + the
+			// deferred sqlite Close() in main() actually run.
+			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
 			final, err := prog.Run()
 			if err != nil {
 				return err

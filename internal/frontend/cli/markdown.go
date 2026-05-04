@@ -38,7 +38,7 @@ func newMarkdownViewCmd() *cobra.Command {
 		Short:        "Open a Markdown file in the full-screen TUI viewer",
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 			source, err := os.ReadFile(path)
 			if err != nil {
@@ -64,7 +64,8 @@ func newMarkdownViewCmd() *cobra.Command {
 			}
 
 			m := view.New(filepath.Base(path), string(source), nil, nil, nil)
-			prog := tea.NewProgram(markdownViewerProgram{inner: m}, tea.WithAltScreen())
+			prog := tea.NewProgram(markdownViewerProgram{inner: m},
+				tea.WithAltScreen(), tea.WithContext(cmd.Context()))
 			_, err = prog.Run()
 			return err
 		},

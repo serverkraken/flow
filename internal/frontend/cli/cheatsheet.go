@@ -28,11 +28,11 @@ func NewCheatsheetCmd(deps CheatsheetDeps) *cobra.Command {
 		Use:          "cheatsheet",
 		Short:        "Render the tmux cheatsheet (full-screen TUI)",
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			tk.Init()
 			pal := tk.Load()
 			m := cheatsheet.New(pal, deps.Reader, deps.Renderer)
-			prog := tea.NewProgram(m, tea.WithAltScreen())
+			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
 			_, err := prog.Run()
 			return err
 		},
