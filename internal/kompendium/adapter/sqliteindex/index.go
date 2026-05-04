@@ -18,6 +18,15 @@ import (
 // underlying sql.DB rather than a typed error.
 var ErrIndexClosed = errors.New("kompendium index closed")
 
+// schemaVersion is bumped whenever the on-disk shape changes (new
+// table/column, altered FTS5 tokenizer, etc.). New() refuses to open a
+// database whose user_version is *higher* than this constant — that
+// means the file was written by a newer flow build and the current
+// binary cannot safely query it. A *lower* user_version is migrated
+// in-place (currently only `0 → 1`, which is the legacy "no version"
+// state from before this guard existed and shares the same shape).
+const schemaVersion = 1
+
 const schema = `
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
@@ -42,6 +51,11 @@ CREATE INDEX IF NOT EXISTS idx_notes_type ON notes(type);
 CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project);
 CREATE INDEX IF NOT EXISTS idx_links_dst ON links(dst_id);
 `
+
+// ErrSchemaTooNew signals that the on-disk index was written by a
+// newer flow binary and the current build cannot safely use it. The
+// CLI prints this with a hint to upgrade or rebuild the index.
+var ErrSchemaTooNew = errors.New("kompendium index schema is newer than this build supports")
 
 // Indexer implements ports.Indexer using a SQLite + FTS5 database.
 //
@@ -84,7 +98,37 @@ func New(dbPath string) (*Indexer, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
+	if err := ensureSchemaVersion(db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	return &Indexer{db: db}, nil
+}
+
+// ensureSchemaVersion compares the on-disk PRAGMA user_version against
+// the binary's schemaVersion. New databases (user_version=0) get
+// stamped with the current version. Older versions get migrated (today
+// 0 and 1 share the same shape, so the migration is just a stamp).
+// Newer versions return ErrSchemaTooNew so the binary fails fast
+// instead of running queries against an unknown shape.
+func ensureSchemaVersion(db *sql.DB) error {
+	var have int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&have); err != nil {
+		return fmt.Errorf("read user_version: %w", err)
+	}
+	if have > schemaVersion {
+		return fmt.Errorf("%w: file is at version %d, binary supports up to %d (run `flow kompendium index rebuild` after upgrading)", ErrSchemaTooNew, have, schemaVersion)
+	}
+	if have == schemaVersion {
+		return nil
+	}
+	// PRAGMA user_version takes a literal int — sql parameter bindings
+	// are not honoured for it. Inlining schemaVersion is safe because
+	// the constant is compile-time fixed.
+	if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return fmt.Errorf("stamp user_version: %w", err)
+	}
+	return nil
 }
 
 // Close releases the database handle. Blocks until in-flight queries

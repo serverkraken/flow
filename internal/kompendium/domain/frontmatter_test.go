@@ -239,3 +239,28 @@ func TestFrontmatter_Serialize(t *testing.T) {
 		t.Errorf("roundtrip body mismatch: got %q want %q", parsedBody, body)
 	}
 }
+
+// TestFrontmatter_PreservesUnknownKeys verifies that Get→Put round-trip
+// (which is what CaptureDaily does on every capture) keeps user-added
+// frontmatter keys like `mood:` or `weather:` rather than silently
+// dropping them through the closed Frontmatter struct.
+func TestFrontmatter_PreservesUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	content := []byte("---\nid: daily/2026-04-25\ntype: daily\nmood: focused\nweather: sunny\n---\nbody\n")
+	fm, body, err := domain.ParseFrontmatter(content)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if fm.Extra["mood"] != "focused" || fm.Extra["weather"] != "sunny" {
+		t.Errorf("Extra missing user keys: got %+v", fm.Extra)
+	}
+
+	out := fm.Serialize(body)
+	if !bytes.Contains(out, []byte("mood: focused")) {
+		t.Errorf("serialized output dropped mood key: %s", out)
+	}
+	if !bytes.Contains(out, []byte("weather: sunny")) {
+		t.Errorf("serialized output dropped weather key: %s", out)
+	}
+}

@@ -131,7 +131,7 @@ func TestOpen_PathWithSpaces_GetsQuoted(t *testing.T) {
 }
 
 // TestOpen_PathWithSingleQuote escapes inner quotes via the POSIX
-// '\\'' sequence so the shell still reads it as one argument.
+// '\\” sequence so the shell still reads it as one argument.
 func TestOpen_PathWithSingleQuote(t *testing.T) {
 	r, calls := recorder(t)
 	l := editor.NewWithRunner(
@@ -213,9 +213,10 @@ func TestView_OpensViewerOnSplit(t *testing.T) {
 	if len(*calls) != 1 {
 		t.Fatalf("want 1 call, got %d: %+v", len(*calls), *calls)
 	}
-	// noteViewer is a free-form fragment; the path is shell-escaped
-	// and appended.
-	want := []string{"split-window", "-h", "glow '/notes/daily.md'"}
+	// noteViewer is pre-tokenised at construction; each argv token is
+	// single-quote-escaped at exec time so a hostile viewer cannot
+	// inject extra commands via tmux's sh -c.
+	want := []string{"split-window", "-h", "'glow' '/notes/daily.md'"}
 	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("split call: %+v", (*calls)[0])
 	}
@@ -230,14 +231,14 @@ func TestView_HonoursCustomViewer(t *testing.T) {
 	if err := l.View("x"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"split-window", "-h", "bat --paging=always '/p'"}
+	want := []string{"split-window", "-h", "'bat' '--paging=always' '/p'"}
 	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("split call: %+v", (*calls)[0])
 	}
 }
 
-// TestView_PathWithSpaces ensures the path is quoted even though the
-// noteViewer fragment is not.
+// TestView_PathWithSpaces ensures the path is quoted alongside the
+// pre-tokenised viewer argv.
 func TestView_PathWithSpaces(t *testing.T) {
 	r, calls := recorder(t)
 	l := editor.NewWithRunner(
@@ -247,9 +248,28 @@ func TestView_PathWithSpaces(t *testing.T) {
 	if err := l.View("x"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"split-window", "-h", "glow '/notes/My Daily.md'"}
+	want := []string{"split-window", "-h", "'glow' '/notes/My Daily.md'"}
 	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("split call: %+v", (*calls)[0])
+	}
+}
+
+// TestView_RejectsShellInjectionInViewer verifies that a hostile
+// $FLOW_NOTE_VIEWER like `glow; rm -rf $HOME` is tokenised, not
+// interpreted by sh — the `;` becomes part of the first argv token,
+// the `rm` and `$HOME` become literal arguments to that bogus binary.
+func TestView_RejectsShellInjectionInViewer(t *testing.T) {
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/p"}),
+		nvimArgs, "glow; rm -rf $HOME", r,
+	)
+	if err := l.View("x"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"split-window", "-h", `'glow;' 'rm' '-rf' '$HOME' '/p'`}
+	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("split call: got %v, want %v", (*calls)[0].args, want)
 	}
 }
 

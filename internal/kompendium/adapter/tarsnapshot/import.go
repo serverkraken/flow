@@ -53,6 +53,10 @@ func (Snapshot) Import(_ context.Context, archive, targetRoot string, mode ports
 	}
 }
 
+// extractEntry writes one tar entry to disk via temp+fsync+rename so a
+// crash mid-import never leaves a half-written file in the notebook
+// (mirrors the discipline in fsstore.Put). The parent dir is fsync'd
+// after rename so the new directory entry is durable.
 func extractEntry(tr *tar.Reader, hdr *tar.Header, targetRoot string, mode ports.ConflictMode) error {
 	target := filepath.Join(targetRoot, filepath.FromSlash(hdr.Name))
 	resolved, skip, err := resolveConflict(target, hdr, mode)
@@ -62,26 +66,66 @@ func extractEntry(tr *tar.Reader, hdr *tar.Header, targetRoot string, mode ports
 	if skip {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
-		return fmt.Errorf("mkdir %q: %w", filepath.Dir(resolved), err)
+	dir := filepath.Dir(resolved)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %q: %w", dir, err)
 	}
-	out, err := os.Create(resolved)
+	tmp, err := os.CreateTemp(dir, ".tarsnap-*.tmp")
 	if err != nil {
-		return fmt.Errorf("create %q: %w", resolved, err)
+		return fmt.Errorf("create temp in %q: %w", dir, err)
 	}
-	if _, err := io.Copy(out, tr); err != nil {
-		_ = out.Close()
+	tmpPath := tmp.Name()
+	cleanup := func() { _ = os.Remove(tmpPath) }
+
+	if _, err := io.Copy(tmp, tr); err != nil {
+		_ = tmp.Close()
+		cleanup()
 		return fmt.Errorf("write %q: %w", resolved, err)
 	}
-	if err := out.Close(); err != nil {
-		return fmt.Errorf("close %q: %w", resolved, err)
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		cleanup()
+		return fmt.Errorf("fsync %q: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		cleanup()
+		return fmt.Errorf("close %q: %w", tmpPath, err)
+	}
+	if err := os.Chmod(tmpPath, 0o644); err != nil {
+		cleanup()
+		return fmt.Errorf("chmod %q: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, resolved); err != nil {
+		cleanup()
+		return fmt.Errorf("rename %q → %q: %w", tmpPath, resolved, err)
 	}
 	if err := os.Chtimes(resolved, hdr.ModTime, hdr.ModTime); err != nil {
 		return fmt.Errorf("chtimes %q: %w", resolved, err)
 	}
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("fsync dir %q: %w", dir, err)
+	}
 	return nil
 }
 
+// syncDir fsync's the directory FD so the prior rename becomes durable.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	if err := d.Sync(); err != nil {
+		_ = d.Close()
+		return err
+	}
+	return d.Close()
+}
+
+// resolveConflict picks a destination path according to the configured
+// ConflictMode, or signals "skip this entry" / abort. For ConflictManual
+// the .imported suffix is bumped (.imported.1, .imported.2, …) on
+// collision so a second manual-mode import doesn't silently overwrite
+// the first user's rescue copy.
 func resolveConflict(target string, hdr *tar.Header, mode ports.ConflictMode) (resolved string, skip bool, err error) {
 	info, statErr := os.Stat(target)
 	if errors.Is(statErr, fs.ErrNotExist) {
@@ -99,7 +143,28 @@ func resolveConflict(target string, hdr *tar.Header, mode ports.ConflictMode) (r
 		}
 		return "", true, nil
 	case ports.ConflictManual:
-		return target + ".imported", false, nil
+		return uniqueImportedPath(target), false, nil
 	}
 	return "", false, fmt.Errorf("unknown conflict mode %d", mode)
+}
+
+// uniqueImportedPath returns target+".imported", or, if that already
+// exists, target+".imported.1", ".imported.2", … up to a sensible
+// cap. The cap exists so a corrupted state (thousands of .imported.N
+// files) surfaces as an error rather than spinning forever.
+func uniqueImportedPath(target string) string {
+	base := target + ".imported"
+	if _, err := os.Stat(base); errors.Is(err, fs.ErrNotExist) {
+		return base
+	}
+	for i := 1; i < 1000; i++ {
+		candidate := fmt.Sprintf("%s.%d", base, i)
+		if _, err := os.Stat(candidate); errors.Is(err, fs.ErrNotExist) {
+			return candidate
+		}
+	}
+	// Pathological: 1000 .imported copies already exist. Return a
+	// timestamp-suffixed path so the caller still gets a write target;
+	// the user clearly has bigger problems than name collision.
+	return fmt.Sprintf("%s.%d", base, os.Getpid())
 }

@@ -29,7 +29,7 @@ type Launcher struct {
 	run        Runner
 	pathOf     PathFunc
 	editorArgs ArgsFunc
-	noteViewer string
+	viewerArgv []string
 }
 
 // New constructs a Launcher with the production runner. pathOf must
@@ -38,18 +38,43 @@ type Launcher struct {
 // ($VISUAL/$EDITOR/nvim resolution); noteViewer is the read-only viewer
 // for View (typically "glow", overridable via $FLOW_NOTE_VIEWER at the
 // composition-root level).
+//
+// noteViewer is split at construction time using POSIX-shell-style
+// tokenisation (whitespace separates argv tokens; single/double quotes
+// preserve content; backslash escapes the next byte). Each token is
+// then single-quote-escaped at exec time. This is deliberate: a hostile
+// $FLOW_NOTE_VIEWER like `glow; rm -rf $HOME` would otherwise inject
+// arbitrary commands into the `tmux split-window -h` invocation, which
+// always runs through /bin/sh -c. Side effect: shell features like
+// pipes (`glow | less`) no longer work — wrap them in a real script.
 func New(pathOf PathFunc, editorArgs ArgsFunc, noteViewer string) *Launcher {
 	return &Launcher{
 		run:        defaultRunner,
 		pathOf:     pathOf,
 		editorArgs: editorArgs,
-		noteViewer: noteViewer,
+		viewerArgv: parseViewer(noteViewer),
 	}
 }
 
 // NewWithRunner is for tests.
 func NewWithRunner(pathOf PathFunc, editorArgs ArgsFunc, noteViewer string, r Runner) *Launcher {
-	return &Launcher{run: r, pathOf: pathOf, editorArgs: editorArgs, noteViewer: noteViewer}
+	return &Launcher{run: r, pathOf: pathOf, editorArgs: editorArgs, viewerArgv: parseViewer(noteViewer)}
+}
+
+// parseViewer tokenises the user-supplied viewer string into argv. On
+// parse error (unterminated quote, trailing backslash) it falls back to
+// a single literal token so the launcher still tries to exec something
+// rather than silently doing nothing.
+func parseViewer(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	argv, err := splitShell(trimmed)
+	if err != nil || len(argv) == 0 {
+		return []string{trimmed}
+	}
+	return argv
 }
 
 func defaultRunner(name string, args ...string) ([]byte, error) {
@@ -87,26 +112,30 @@ func (l *Launcher) Open(id string) error {
 }
 
 // View resolves the note's path in-process and opens it with the
-// configured note viewer. noteViewer is a free-form shell fragment
-// (e.g. "glow" or "bat --paging=always" — multi-token by design); the
-// path is appended as one shell-escaped token so spaces in the
-// resolved path don't shell-split.
+// configured note viewer. The viewer was parsed once at construction
+// into argv tokens; the resolved path is appended as one more token
+// and the whole argv is single-quote-escaped before handing to
+// tmux split-window -h (which runs /bin/sh -c).
 func (l *Launcher) View(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("note id darf nicht leer sein")
+	}
+	if len(l.viewerArgv) == 0 {
+		return errors.New("note viewer not configured")
 	}
 	path := l.pathOf(id)
 	if path == "" {
 		return errors.New("note path nicht auflösbar")
 	}
-	cmd := strings.TrimSpace(l.noteViewer) + " " + shellQuote(path)
+	argv := append(append([]string(nil), l.viewerArgv...), path)
+	cmd := joinShellArgv(argv)
 	_, err := l.run("tmux", "split-window", "-h", cmd)
 	return err
 }
 
 // shellQuote wraps s in single quotes so /bin/sh -c reads it as one
 // literal argument. Embedded single quotes are emitted as the
-// POSIX-portable `'\''` sequence.
+// POSIX-portable `'\”` sequence.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

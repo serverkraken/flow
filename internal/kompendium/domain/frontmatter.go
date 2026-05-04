@@ -29,13 +29,20 @@ func (t NoteType) IsValid() bool {
 }
 
 // Frontmatter is the YAML header of a note file.
+//
+// Extra captures any user-added top-level keys (mood, weather, plugin
+// metadata, aliases, …) so a Get→Put round-trip preserves them rather
+// than silently dropping anything not in the closed struct. yaml.v3's
+// ",inline" tag merges unknown keys into Extra on Unmarshal and splices
+// them back at the top level on Marshal.
 type Frontmatter struct {
-	ID      string   `yaml:"id"`
-	Type    NoteType `yaml:"type"`
-	Project string   `yaml:"project,omitempty"`
-	Date    string   `yaml:"date,omitempty"`
-	Title   string   `yaml:"title,omitempty"`
-	Tags    []string `yaml:"tags,omitempty"`
+	ID      string         `yaml:"id"`
+	Type    NoteType       `yaml:"type"`
+	Project string         `yaml:"project,omitempty"`
+	Date    string         `yaml:"date,omitempty"`
+	Title   string         `yaml:"title,omitempty"`
+	Tags    []string       `yaml:"tags,omitempty"`
+	Extra   map[string]any `yaml:",inline"`
 }
 
 // Sentinel errors for frontmatter handling.

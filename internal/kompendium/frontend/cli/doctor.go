@@ -109,14 +109,14 @@ func writeIssues(w io.Writer, header string, issues []usecase.DoctorIssue) error
 // consumers of `kompendium doctor --json`. Other JSON outputs in this
 // package use the same DTO discipline — see output.go.
 type doctorReportDTO struct {
-	NotebookRoot       string             `json:"notebook_root"`
-	IsRepo             bool               `json:"is_repo"`
-	HasUncommitted     bool               `json:"has_uncommitted"`
-	NoteCount          int                `json:"note_count"`
-	InvalidFrontmatter []doctorIssueDTO   `json:"invalid_frontmatter"`
-	BrokenLinks        []doctorIssueDTO   `json:"broken_links"`
-	InconsistentIDs    []doctorIssueDTO   `json:"inconsistent_ids"`
-	MergeMarkers       []doctorIssueDTO   `json:"merge_markers"`
+	NotebookRoot       string           `json:"notebook_root"`
+	IsRepo             bool             `json:"is_repo"`
+	HasUncommitted     bool             `json:"has_uncommitted"`
+	NoteCount          int              `json:"note_count"`
+	InvalidFrontmatter []doctorIssueDTO `json:"invalid_frontmatter"`
+	BrokenLinks        []doctorIssueDTO `json:"broken_links"`
+	InconsistentIDs    []doctorIssueDTO `json:"inconsistent_ids"`
+	MergeMarkers       []doctorIssueDTO `json:"merge_markers"`
 }
 
 type doctorIssueDTO struct {
