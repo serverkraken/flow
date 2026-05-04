@@ -493,7 +493,7 @@ func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
 	}
 	m := loadedHeute(t, r)
 	out := m.View()
-	for _, want := range []string{"🔗", "daily-2026-05-01", "projects/foo-2026-05-01"} {
+	for _, want := range []string{"●", "daily-2026-05-01", "projects/foo-2026-05-01"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("attached-notes chip line should contain %q, got:\n%s", want, out)
 		}

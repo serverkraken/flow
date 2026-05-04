@@ -146,8 +146,15 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 // Resume starts a session at clock-now and clears the pause marker.
 // Equivalent to Start(now) with the marker cleanup, exposed as a
 // distinct verb for the CLI/TUI.
+//
+// Idempotent: when a session is already running we just clear the
+// pause marker. tmux bindings invoke this blindly (CLAUDE.md
+// "idempotency in flow worktime <verb>") and surfacing
+// ErrAlreadyRunning as a red status flash there is wrong — the user
+// already has the state they wanted.
 func (w *SessionWriter) Resume() error {
-	if err := w.Start(w.Clock.Now()); err != nil {
+	err := w.Start(w.Clock.Now())
+	if err != nil && !errors.Is(err, domain.ErrAlreadyRunning) {
 		return err
 	}
 	_ = w.State.ClearPause()

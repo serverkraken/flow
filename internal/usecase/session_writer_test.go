@@ -197,12 +197,27 @@ func TestSessionWriter_Resume_ClearsPauseMarker(t *testing.T) {
 	}
 }
 
-func TestSessionWriter_Resume_AlreadyRunningFails(t *testing.T) {
+func TestSessionWriter_Resume_AlreadyRunningIsIdempotent(t *testing.T) {
+	// CLAUDE.md: tmux bindings invoke worktime verbs blindly without
+	// checking exit codes. Resume on a running session must not flash
+	// red — the user already has the state they wanted. The pause
+	// marker (if any) still gets cleared.
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
-	w := mkWriter(now, withActive(now.Add(-time.Hour)))
+	pause := now.Add(-30 * time.Minute)
+	active := now.Add(-time.Hour)
+	w := mkWriter(now, func(r *usecase.WorktimeReader) {
+		r.State = &testutil.FakeActiveSessionStore{Active: &active, Pause: &pause}
+	})
 	w.State = w.Reader.State
-	if err := w.Resume(); !errors.Is(err, domain.ErrAlreadyRunning) {
-		t.Errorf("expected ErrAlreadyRunning, got %v", err)
+	if err := w.Resume(); err != nil {
+		t.Fatalf("Resume should be idempotent on running session, got %v", err)
+	}
+	state := w.State.(*testutil.FakeActiveSessionStore)
+	if state.Pause != nil {
+		t.Errorf("pause marker should be cleared even when already running, got %v", state.Pause)
+	}
+	if state.Active == nil || !state.Active.Equal(active) {
+		t.Errorf("active start should be untouched (%v), got %v", active, state.Active)
 	}
 }
 

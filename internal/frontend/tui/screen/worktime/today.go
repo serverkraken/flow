@@ -309,7 +309,7 @@ func (h heute) viewAttachedNoteCmd() tea.Cmd {
 		if err := opener.View(id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("📖 Note %s geöffnet", id)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s geöffnet", id)}
 	}
 }
 
@@ -329,7 +329,7 @@ func (h heute) editAttachedNoteCmd() tea.Cmd {
 		if err := opener.Open(id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("🖉 Note %s zum Bearbeiten geöffnet", id)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geöffnet", id)}
 	}
 }
 
@@ -353,7 +353,7 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 		if err := writer.Remove(date, id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✂ Note %s entfernt", id)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s entfernt", id)}
 	}
 }
 
@@ -619,7 +619,7 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 			if err := writer.Add(date, id); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
-			return heuteActionDoneMsg{toast: fmt.Sprintf("🔗 Note %s angehängt", id)}
+			return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s angehängt", id)}
 		}
 	}
 	return h, nil
@@ -787,11 +787,16 @@ func (h heute) renderSummary(inner int) string {
 // renderAttachedNotes renders the chip line that surfaces today's
 // linked Kompendium notes. Empty result skips the row entirely so
 // the layout doesn't grow a blank gap when nothing is attached.
+//
+// CLAUDE.md forbids emoji pictograms in TUI output: the previous 🔗
+// rendered at emoji width on some fonts and broke column alignment
+// against the surrounding monospace glyphs (▶ ✓ ● ○ …). ● is in the
+// approved set and reads naturally as a list-item marker.
 func (h heute) renderAttachedNotes() string {
 	if len(h.attachedNotes) == 0 {
 		return ""
 	}
-	label := theme.Highlight("🔗", h.pal)
+	label := theme.Highlight("●", h.pal)
 	ids := stDim(h.pal, strings.Join(h.attachedNotes, "  ·  "))
 	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  Ctrl+D → entfernen")
 	return "  " + label + "  " + ids + hint

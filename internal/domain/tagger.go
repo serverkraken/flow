@@ -101,7 +101,13 @@ func SessionTemplatesOf(sessions []Session, n int) []SessionTemplate {
 	}
 	bucket := make(map[key]*SessionTemplate, len(sessions))
 	for _, s := range sessions {
-		if s.Start.Day() != s.Stop.Day() {
+		// SameDay handles month- and year-rollover correctly. The
+		// previous Day() != Day() check missed cross-month spans like
+		// 1.März → 1.April (both Day == 1) and would have bucketed
+		// them as same-day with a 24h+ duration. SplitAtMidnight in
+		// the writer makes that defensive today, but a future un-split
+		// caller would silently corrupt the templates.
+		if !SameDay(s.Start, s.Stop) {
 			continue
 		}
 		startOff := time.Duration(s.Start.Hour())*time.Hour +
