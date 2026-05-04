@@ -26,6 +26,7 @@ type loadedMsg struct {
 // Model is the bubbletea model for the cheatsheet screen.
 type Model struct {
 	vp         viewport.Model
+	vpReady    bool
 	rawContent string
 	rendered   bool
 	err        error
@@ -73,7 +74,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.vp = viewport.New(msg.Width-4, msg.Height-4)
+		w, h := msg.Width-4, msg.Height-4
+		// Resize in place so the user's scroll position survives a tmux
+		// pane resize. Allocating a new viewport.Model on every resize
+		// reset YOffset to 0, which was very visible while the user was
+		// mid-scroll and tmux re-laid out the panes.
+		if !m.vpReady {
+			m.vp = viewport.New(w, h)
+			m.vpReady = true
+		} else {
+			m.vp.Width = w
+			m.vp.Height = h
+		}
 		if m.rawContent != "" {
 			m.rendered = false
 			m.renderContent()

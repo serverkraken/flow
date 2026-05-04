@@ -28,6 +28,10 @@ type freiLoadedMsg struct {
 type freiActionDoneMsg struct {
 	err   error
 	toast string
+	// year, when non-zero, replaces the displayed year before the
+	// follow-up reload. Used by quickAdd-today so the just-added entry
+	// is actually visible even if the user was navigating past years.
+	year int
 }
 
 // — dialog modes —
@@ -121,6 +125,11 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		f.confirmModel = nil
 		f.errMsg = ""
 		f.err = msg.err
+		if msg.err == nil && msg.year != 0 && msg.year != f.currentYear() {
+			f.year = msg.year
+			f.cursor = 0
+			f.loaded = false
+		}
 		if msg.err == nil && msg.toast != "" {
 			t := toast.NewDefault(msg.toast, f.pal)
 			f.toast = &t
@@ -257,8 +266,15 @@ func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
 		if err := writer.Add(now, kind, ""); err != nil {
 			return freiActionDoneMsg{err: err}
 		}
-		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %s eingetragen für %s",
-			kind.LabelDe(), now.Format("2006-01-02"))}
+		// Quick-add always lands on today, but the list shows the
+		// currently selected year. Hopping back to today's year so
+		// the new entry is visible — otherwise the toast says "✓
+		// eingetragen" while the empty 2024 grid stares back.
+		return freiActionDoneMsg{
+			year: now.Year(),
+			toast: fmt.Sprintf("✓ %s eingetragen für %s",
+				kind.LabelDe(), now.Format("2006-01-02")),
+		}
 	}
 }
 

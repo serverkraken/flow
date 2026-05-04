@@ -57,6 +57,22 @@ func TestWrapURLs(t *testing.T) {
 			in:   "pre " + osc8Open + "https://x" + osc8Sep + "https://x" + osc8Close + " post",
 			want: "pre " + osc8Open + "https://x" + osc8Sep + "https://x" + osc8Close + " post",
 		},
+		{
+			// Regression: the previous whole-document Contains check
+			// returned the input unchanged once a single OSC 8 region
+			// existed upstream, dropping clickability for every bare URL
+			// in the same document. Bare URLs alongside an existing OSC 8
+			// region must still be wrapped.
+			name: "bare url alongside existing OSC 8 still wrapped",
+			in:   "linked: " + osc8Open + "https://a" + osc8Sep + "label" + osc8Close + " bare: https://b.com",
+			want: "linked: " + osc8Open + "https://a" + osc8Sep + "label" + osc8Close +
+				" bare: " + osc8Open + "https://b.com" + osc8Sep + "https://b.com" + osc8Close,
+		},
+		{
+			name: "bare url inside existing OSC 8 link text left untouched",
+			in:   osc8Open + "https://a" + osc8Sep + "see https://b.com" + osc8Close,
+			want: osc8Open + "https://a" + osc8Sep + "see https://b.com" + osc8Close,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

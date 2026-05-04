@@ -214,6 +214,32 @@ func (h *history) clampCursors() {
 		h.monthRef = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 		h.monthCur = now.Day()
 	}
+
+	// Heatmap: a dayRefreshMsg can shift records (oldest day rolls
+	// off, today rolls in), pushing heatCol past the new week count
+	// and producing an invisible cursor on heatmapDateAt-miss. Snap
+	// to today's cell when the current cell falls out of range.
+	weeks := h.heatmapWeeks()
+	if weeks > 0 {
+		if h.heatCol < 0 || h.heatCol >= weeks || h.heatRow < 0 || h.heatRow > 6 {
+			h.heatCol, h.heatRow = h.heatmapTodayCell()
+		}
+	}
+
+	// Tag-clock: the grid is fixed 24×7 so the cursor can only be out
+	// of range by uninitialised state, but defend in depth so the
+	// renderer never indexes out of bounds.
+	if h.tagClockCol < 0 || h.tagClockCol > 23 {
+		h.tagClockCol = 0
+	}
+	if h.tagClockRow < 0 || h.tagClockRow > 6 {
+		h.tagClockRow = 0
+	}
+
+	// Month grid: clamp the day cursor to the current month length.
+	if !h.monthRef.IsZero() {
+		h.monthCur = monthClampDay(h.monthRef, h.monthCur)
+	}
 }
 
 // — keymap dispatch —

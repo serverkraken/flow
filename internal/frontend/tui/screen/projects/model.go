@@ -27,7 +27,9 @@ type loadedMsg struct {
 	err      error
 }
 
-type switchedMsg struct{}
+type switchedMsg struct {
+	err error
+}
 
 // Model is the bubbletea model for the project-switcher screen.
 type Model struct {
@@ -105,6 +107,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case switchedMsg:
+		// Surface tmux failures (no server, missing socket) instead of
+		// quitting silently. Without this the user sees flow disappear
+		// with no clue why no new session attached.
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
 		return m, tea.Quit
 
 	case tea.KeyMsg:
@@ -209,14 +218,14 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
-// switchToProject delegates to the use case. Errors propagate to the
-// loadedMsg.err field via a follow-up reload, but we quit on success
-// so the operator sees the new tmux session in the foreground.
+// switchToProject delegates to the use case. On success the program
+// quits so the operator sees the new tmux session in the foreground;
+// on failure the err propagates back as switchedMsg.err and surfaces
+// in the loaded-error row.
 func (m Model) switchToProject(p domain.Project) tea.Cmd {
 	sw := m.switcher
 	return func() tea.Msg {
-		_ = sw.Switch(p) // best-effort; tmux failures show up next run
-		return switchedMsg{}
+		return switchedMsg{err: sw.Switch(p)}
 	}
 }
 
