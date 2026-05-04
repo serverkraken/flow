@@ -2,6 +2,7 @@ package gitsnapshot
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -40,8 +41,16 @@ func (m Manager) ImportBundle(ctx context.Context, root, bundlePath string) erro
 		"kompendium-bundle/" + branch,
 	}
 	if _, err := m.run(ctx, root, identityArgs(ctx, m.run, root, mergeArgs)...); err != nil {
-		_ = m.cleanupBundleRefs(ctx, root)
-		return fmt.Errorf("git merge bundle: %w", err)
+		// Cleanup runs best-effort but its error is now joined to the
+		// merge failure so a leaking ref accumulation is visible
+		// instead of being lost to `_ =`. Without this, every failed
+		// merge silently grew refs/remotes/kompendium-bundle/* — exactly
+		// the leak the cleanup was meant to prevent.
+		mergeErr := fmt.Errorf("git merge bundle: %w", err)
+		if cerr := m.cleanupBundleRefs(ctx, root); cerr != nil {
+			return errors.Join(mergeErr, fmt.Errorf("cleanup bundle refs: %w", cerr))
+		}
+		return mergeErr
 	}
 	if err := m.cleanupBundleRefs(ctx, root); err != nil {
 		return fmt.Errorf("cleanup bundle refs: %w", err)

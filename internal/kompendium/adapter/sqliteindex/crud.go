@@ -19,16 +19,26 @@ func (i *Indexer) Upsert(ctx context.Context, note domain.Note, mtime time.Time)
 }
 
 // Delete implements ports.Indexer. Removes the metadata row, FTS5 row, and
-// every outgoing link in one transaction. Missing IDs are a no-op so callers
-// can use Delete defensively.
+// every link involving id (both directions) in one transaction. Missing
+// IDs are a no-op so callers can use Delete defensively.
+//
+// Inbound links (`dst_id = id`) are dropped alongside outbound ones —
+// previously only `src_id = id` was deleted, so every reference TO a
+// deleted note accumulated forever. BacklinksOf masked the leak via
+// LEFT JOIN (returning empty title for the dangling target), but the
+// links table grew monotonically until the next Rebuild.
 func (i *Indexer) Delete(ctx context.Context, id domain.ID) error {
 	return i.inTx(ctx, func(tx *sql.Tx) error {
 		for _, q := range []string{
 			`DELETE FROM notes WHERE id = ?`,
 			`DELETE FROM notes_fts WHERE id = ?`,
-			`DELETE FROM links WHERE src_id = ?`,
+			`DELETE FROM links WHERE src_id = ? OR dst_id = ?`,
 		} {
-			if _, err := tx.ExecContext(ctx, q, id.String()); err != nil {
+			args := []any{id.String()}
+			if q[len(q)-len("? OR dst_id = ?"):] == "? OR dst_id = ?" {
+				args = append(args, id.String())
+			}
+			if _, err := tx.ExecContext(ctx, q, args...); err != nil {
 				return fmt.Errorf("delete: %w", err)
 			}
 		}

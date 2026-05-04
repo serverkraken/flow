@@ -3,10 +3,25 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
+
+// legacyDailyWikilink matches `[[YYYY-MM-DD]]` in legacy note bodies.
+// The legacy plugin used bare ISO dates as note IDs; the migration
+// reshapes daily IDs to `daily/YYYY-MM-DD`, so an unrewritten wikilink
+// would land as a Doctor "broken link" entry on every cross-reference.
+var legacyDailyWikilink = regexp.MustCompile(`\[\[(\d{4}-\d{2}-\d{2})\]\]`)
+
+// rewriteLegacyDailyWikilinks promotes bare-date `[[YYYY-MM-DD]]` to
+// `[[daily/YYYY-MM-DD]]` so links between migrated daily notes still
+// resolve in the new ID scheme. Anything that isn't a date pattern is
+// left untouched.
+func rewriteLegacyDailyWikilinks(body []byte) []byte {
+	return legacyDailyWikilink.ReplaceAll(body, []byte("[[daily/$1]]"))
+}
 
 // ImportLegacy migrates Soenne's tmux-era notes/project-notes files into
 // the kompendium notebook. One-shot; idempotent on re-run because target
@@ -79,9 +94,10 @@ func (u *ImportLegacy) migrateDaily(ctx context.Context, d ports.LegacyDaily, ou
 	if skipped, err := u.skipIfExists(ctx, id, d.Path, out); err != nil || skipped {
 		return err
 	}
+	body := rewriteLegacyDailyWikilinks(d.Body)
 	note, err := domain.NewNote(id, domain.Frontmatter{
 		ID: id.String(), Type: domain.TypeDaily, Date: d.Date,
-	}, d.Body)
+	}, body)
 	if err != nil {
 		out.Skipped = append(out.Skipped, SkipNote{Path: d.Path, Reason: err.Error()})
 		return nil
@@ -104,9 +120,10 @@ func (u *ImportLegacy) migrateProject(ctx context.Context, p ports.LegacyProject
 	if skipped, err := u.skipIfExists(ctx, id, p.Path, out); err != nil || skipped {
 		return err
 	}
+	body := rewriteLegacyDailyWikilinks(p.Body)
 	note, err := domain.NewNote(id, domain.Frontmatter{
 		ID: id.String(), Type: domain.TypeProject, Project: string(canonical),
-	}, p.Body)
+	}, body)
 	if err != nil {
 		out.Skipped = append(out.Skipped, SkipNote{Path: p.Path, Reason: err.Error()})
 		return nil
