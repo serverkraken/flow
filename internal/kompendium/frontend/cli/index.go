@@ -29,11 +29,14 @@ func newIndexRebuildCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Success summary on stdout; per-note warnings on stderr so a
+			// `| tee log.txt` pipe doesn't mix them and `> /dev/null`
+			// doesn't silently swallow failures.
 			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Indexed %d notes\n", out.Indexed); err != nil {
 				return err
 			}
 			for _, e := range out.Errors {
-				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  warn: %s — %s\n", e.NoteID, e.Detail); err != nil {
+				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "  warn: %s — %s\n", e.NoteID, e.Detail); err != nil {
 					return err
 				}
 			}

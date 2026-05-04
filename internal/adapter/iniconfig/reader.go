@@ -1,13 +1,13 @@
 package iniconfig
 
 import (
-	"bufio"
 	"errors"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -65,7 +65,7 @@ func (r *Reader) readFile(cfg *domain.Config) (time.Duration, error) {
 	defer f.Close() //nolint:errcheck
 
 	var def time.Duration
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

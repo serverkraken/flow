@@ -1,7 +1,6 @@
 package tsvsessions
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
+	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -80,7 +80,7 @@ func (s *Store) read(keep func(domain.Session) bool) ([]domain.Session, error) {
 	defer f.Close() //nolint:errcheck
 
 	var sessions []domain.Session
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		sess, ok := parseLine(sc.Text())
 		if !ok {

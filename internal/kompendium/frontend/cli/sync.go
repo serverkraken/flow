@@ -27,12 +27,20 @@ func newSyncCmd(deps Deps) *cobra.Command {
 				}
 				return err
 			}
+			// Verb table:
+			//   pulled + pushed → both directions had work
+			//   pushed only     → first-ever sync (no remote branch yet)
+			//                     OR pull was a no-op while local had commits
+			//   pulled only     → unreachable in the success path because
+			//                     SyncNotebook returns the push error when
+			//                     it fails; kept off the table.
+			//   neither         → nothing to do
 			verb := "Up to date."
 			switch {
 			case out.Stats.Pulled && out.Stats.Pushed:
 				verb = "Synced (pulled + pushed)."
-			case out.Stats.Pulled:
-				verb = "Pulled (push failed — see error)."
+			case out.Stats.Pushed:
+				verb = "Pushed (initial sync)."
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), verb)
 			return err

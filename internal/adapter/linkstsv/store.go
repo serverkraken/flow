@@ -1,7 +1,6 @@
 package linkstsv
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
+	"github.com/serverkraken/flow/internal/adapter/textscan"
 )
 
 // Store reads and writes day-to-note attachments to a TSV file.
@@ -125,7 +125,7 @@ func (s *Store) readAll() ([]link, error) {
 	defer f.Close() //nolint:errcheck
 
 	var links []link
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		l, ok := parseLine(sc.Text())
 		if !ok {

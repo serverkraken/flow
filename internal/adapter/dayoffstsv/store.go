@@ -1,7 +1,6 @@
 package dayoffstsv
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
+	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -191,7 +191,7 @@ func readFile(path string) map[string]domain.DayOff {
 	}
 	defer f.Close() //nolint:errcheck
 
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		entry, ok := parseLine(sc.Text())
 		if !ok {

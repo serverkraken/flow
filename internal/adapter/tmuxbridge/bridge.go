@@ -78,12 +78,22 @@ func (b *Bridge) ListSessions() ([]string, error) {
 	return names, nil
 }
 
-// HasSession reports whether a session of the given name exists. A nil
-// error from `tmux has-session -t name` means "exists"; any error
-// (including missing-server) means "no".
+// HasSession reports whether a session of the given name exists. The
+// implementation goes through ListSessions so a missing tmux server
+// returns false (no sessions at all) without conflating that with
+// "session absent" — the older `tmux has-session -t name` exit-code 1
+// covered both, masking the no-server case.
 func (b *Bridge) HasSession(name string) bool {
-	_, err := b.run("tmux", "has-session", "-t", name)
-	return err == nil
+	names, err := b.ListSessions()
+	if err != nil {
+		return false
+	}
+	for _, n := range names {
+		if n == name {
+			return true
+		}
+	}
+	return false
 }
 
 // NewSessionAt creates a detached session at dir. No-op when a session

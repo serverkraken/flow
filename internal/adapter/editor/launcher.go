@@ -59,6 +59,13 @@ func defaultRunner(name string, args ...string) ([]byte, error) {
 // Open spawns a tmux split that runs the user's editor on the note's
 // path. The path is resolved in-process via pathOf; the editor argv
 // (binary + flags) comes from editorArgs.
+//
+// Each argv token is single-quote-escaped and joined into one shell
+// command passed as a single positional to `tmux split-window -h`.
+// tmux always runs split-window's trailing args through /bin/sh -c, so
+// a path containing a space (or `;`, `$`, backtick) would otherwise
+// re-split inside sh — opening a file with the wrong name and creating
+// a stray new buffer for the leftover tokens.
 func (l *Launcher) Open(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("note id darf nicht leer sein")
@@ -74,13 +81,16 @@ func (l *Launcher) Open(id string) error {
 	if len(argv) == 0 {
 		return errors.New("editor command empty")
 	}
-	args := append([]string{"split-window", "-h"}, argv...)
-	_, err = l.run("tmux", args...)
+	cmd := joinShellArgv(argv)
+	_, err = l.run("tmux", "split-window", "-h", cmd)
 	return err
 }
 
 // View resolves the note's path in-process and opens it with the
-// configured note viewer.
+// configured note viewer. noteViewer is a free-form shell fragment
+// (e.g. "glow" or "bat --paging=always" — multi-token by design); the
+// path is appended as one shell-escaped token so spaces in the
+// resolved path don't shell-split.
 func (l *Launcher) View(id string) error {
 	if strings.TrimSpace(id) == "" {
 		return errors.New("note id darf nicht leer sein")
@@ -89,6 +99,24 @@ func (l *Launcher) View(id string) error {
 	if path == "" {
 		return errors.New("note path nicht auflösbar")
 	}
-	_, err := l.run("tmux", "split-window", "-h", l.noteViewer, path)
+	cmd := strings.TrimSpace(l.noteViewer) + " " + shellQuote(path)
+	_, err := l.run("tmux", "split-window", "-h", cmd)
 	return err
+}
+
+// shellQuote wraps s in single quotes so /bin/sh -c reads it as one
+// literal argument. Embedded single quotes are emitted as the
+// POSIX-portable `'\''` sequence.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+// joinShellArgv quotes each argv token and joins with spaces. Empty
+// argv returns "" — callers check for that case before calling.
+func joinShellArgv(argv []string) string {
+	parts := make([]string, len(argv))
+	for i, a := range argv {
+		parts[i] = shellQuote(a)
+	}
+	return strings.Join(parts, " ")
 }

@@ -79,7 +79,11 @@ func TestOpen_SpawnsTmuxSplit(t *testing.T) {
 	if len(*calls) != 1 || (*calls)[0].name != "tmux" {
 		t.Fatalf("calls: %+v", *calls)
 	}
-	want := []string{"split-window", "-h", "nvim", "/notes/daily/2026-04-30.md"}
+	// argv tokens are single-quote-escaped and joined into one shell
+	// command — see joinShellArgv. tmux runs split-window's trailing
+	// arg through /bin/sh -c, so quoting is required to keep paths
+	// with spaces / shell metachars from re-splitting.
+	want := []string{"split-window", "-h", "'nvim' '/notes/daily/2026-04-30.md'"}
 	if !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
 	}
@@ -102,7 +106,42 @@ func TestOpen_HonoursEditorArgsFlags(t *testing.T) {
 	if err := l.Open("daily/2026-04-30"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"split-window", "-h", "nvim", "-O", "/p.md"}
+	want := []string{"split-window", "-h", "'nvim' '-O' '/p.md'"}
+	if !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
+	}
+}
+
+// TestOpen_PathWithSpaces_GetsQuoted verifies the regression that
+// motivated the quoting refactor: a path containing a space used to
+// reach /bin/sh as `nvim /notes/My Daily.md` and split into three args.
+func TestOpen_PathWithSpaces_GetsQuoted(t *testing.T) {
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/notes/My Daily.md"}),
+		nvimArgs, "glow", r,
+	)
+	if err := l.Open("x"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"split-window", "-h", "'nvim' '/notes/My Daily.md'"}
+	if !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
+	}
+}
+
+// TestOpen_PathWithSingleQuote escapes inner quotes via the POSIX
+// '\\'' sequence so the shell still reads it as one argument.
+func TestOpen_PathWithSingleQuote(t *testing.T) {
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/n/it's-fine.md"}),
+		nvimArgs, "glow", r,
+	)
+	if err := l.Open("x"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"split-window", "-h", `'nvim' '/n/it'\''s-fine.md'`}
 	if !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("args: got %v, want %v", (*calls)[0].args, want)
 	}
@@ -174,7 +213,9 @@ func TestView_OpensViewerOnSplit(t *testing.T) {
 	if len(*calls) != 1 {
 		t.Fatalf("want 1 call, got %d: %+v", len(*calls), *calls)
 	}
-	want := []string{"split-window", "-h", "glow", "/notes/daily.md"}
+	// noteViewer is a free-form fragment; the path is shell-escaped
+	// and appended.
+	want := []string{"split-window", "-h", "glow '/notes/daily.md'"}
 	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
 		t.Errorf("split call: %+v", (*calls)[0])
 	}
@@ -189,8 +230,26 @@ func TestView_HonoursCustomViewer(t *testing.T) {
 	if err := l.View("x"); err != nil {
 		t.Fatal(err)
 	}
-	if (*calls)[0].args[2] != "bat --paging=always" {
-		t.Errorf("viewer not propagated: %+v", (*calls)[0].args)
+	want := []string{"split-window", "-h", "bat --paging=always '/p'"}
+	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("split call: %+v", (*calls)[0])
+	}
+}
+
+// TestView_PathWithSpaces ensures the path is quoted even though the
+// noteViewer fragment is not.
+func TestView_PathWithSpaces(t *testing.T) {
+	r, calls := recorder(t)
+	l := editor.NewWithRunner(
+		staticPath(map[string]string{"x": "/notes/My Daily.md"}),
+		nvimArgs, "glow", r,
+	)
+	if err := l.View("x"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"split-window", "-h", "glow '/notes/My Daily.md'"}
+	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
+		t.Errorf("split call: %+v", (*calls)[0])
 	}
 }
 

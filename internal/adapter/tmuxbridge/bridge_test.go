@@ -129,31 +129,38 @@ func TestListSessions_PropagatesError(t *testing.T) {
 }
 
 func TestHasSession(t *testing.T) {
-	r, _ := recorder(t, response{}) // no error → exists
+	// HasSession is now ListSessions-based — searches the list for the name.
+	r, _ := recorder(t, response{out: []byte("flow\nfoo\n")})
 	if !tmuxbridge.NewWithRunner(r).HasSession("flow") {
-		t.Error("want true")
+		t.Error("want true (flow in list)")
 	}
 
-	r, _ = recorder(t, response{err: errors.New("no")})
+	r, _ = recorder(t, response{out: []byte("foo\nbar\n")})
 	if tmuxbridge.NewWithRunner(r).HasSession("missing") {
-		t.Error("want false")
+		t.Error("want false (missing not in list)")
+	}
+
+	r, _ = recorder(t, response{err: errors.New("no server")})
+	if tmuxbridge.NewWithRunner(r).HasSession("any") {
+		t.Error("want false on list-sessions error")
 	}
 }
 
 func TestNewSessionAt_AlreadyExists_NoOp(t *testing.T) {
-	r, calls := recorder(t, response{}) // first call (has-session) succeeds → exists
+	// list-sessions returns the existing session → HasSession=true → no-op.
+	r, calls := recorder(t, response{out: []byte("flow\n")})
 	if err := tmuxbridge.NewWithRunner(r).NewSessionAt("flow", "/tmp"); err != nil {
 		t.Fatal(err)
 	}
 	if len(*calls) != 1 {
-		t.Errorf("want 1 call (has-session only), got %d: %+v", len(*calls), *calls)
+		t.Errorf("want 1 call (list-sessions only), got %d: %+v", len(*calls), *calls)
 	}
 }
 
 func TestNewSessionAt_CreatesWhenAbsent(t *testing.T) {
 	r, calls := recorder(t,
-		response{err: errors.New("no")}, // has-session fails
-		response{},                      // new-session succeeds
+		response{out: []byte("other\n")}, // list-sessions: name not present
+		response{},                       // new-session succeeds
 	)
 	if err := tmuxbridge.NewWithRunner(r).NewSessionAt("flow", "/tmp/proj"); err != nil {
 		t.Fatal(err)

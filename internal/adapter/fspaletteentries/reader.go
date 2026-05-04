@@ -1,12 +1,12 @@
 package fspaletteentries
 
 import (
-	"bufio"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -68,7 +68,7 @@ func (r *Reader) enabledPlugins() ([]string, error) {
 	defer f.Close() //nolint:errcheck
 
 	var plugins []string
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -104,7 +104,7 @@ func parseEntriesFile(path string, baseOrder int) ([]domain.PaletteEntry, error)
 
 	var entries []domain.PaletteEntry
 	i := 0
-	sc := bufio.NewScanner(f)
+	sc := textscan.New(f)
 	for sc.Scan() {
 		entry, ok := parseLine(sc.Text(), baseOrder+i)
 		if !ok {
