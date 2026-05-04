@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -40,14 +41,9 @@ func (s *Store) LoadFiltered(keep func(domain.Session) bool) ([]domain.Session, 
 
 // Append writes a single session row. The parent directory is created on
 // demand so callers can configure the path before the .tmux dir exists.
-//
-// Crash safety: the row is assembled in memory and emitted via a single
-// Write call (POSIX guarantees atomic O_APPEND for writes <= PIPE_BUF —
-// session rows are ~50 bytes), then fsync'd. Without fsync a crash
-// after the write but before the kernel flushes the page cache loses
-// the row even though it appeared to succeed; without the single-write
-// assembly, an interrupted write could leave a row missing its trailing
-// newline and the next Append would concatenate onto it.
+// The row is assembled in memory and emitted via a single Write call
+// (POSIX guarantees atomic O_APPEND for writes <= PIPE_BUF — session
+// rows are ~50 bytes); see atomicfile.Append for the fsync discipline.
 func (s *Store) Append(sess domain.Session) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
@@ -56,52 +52,21 @@ func (s *Store) Append(sess domain.Session) error {
 	if _, err := writeSessionLine(&buf, sess); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(buf.Bytes()); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
+	return atomicfile.Append(s.path, buf.Bytes(), 0o644)
 }
 
-// Rewrite replaces the entire log atomically by writing to a sibling
-// temp-file, fsyncing, and renaming over the target. fsync ensures the
-// new content reaches disk before the rename — without it the directory
-// entry can flip to the new inode while its data pages are still
-// dirty, surfacing as a zero-length log on power loss.
+// Rewrite replaces the entire log atomically (see atomicfile.WriteFile).
 func (s *Store) Rewrite(sessions []domain.Session) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
+	var buf bytes.Buffer
 	for _, sess := range sessions {
-		if _, werr := writeSessionLine(f, sess); werr != nil {
-			_ = f.Close()
-			_ = os.Remove(tmp)
+		if _, werr := writeSessionLine(&buf, sess); werr != nil {
 			return werr
 		}
 	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, s.path)
+	return atomicfile.WriteFile(s.path, buf.Bytes(), 0o644)
 }
 
 func (s *Store) read(keep func(domain.Session) bool) ([]domain.Session, error) {
@@ -131,13 +96,19 @@ func (s *Store) read(keep func(domain.Session) bool) ([]domain.Session, error) {
 // parseLine parses one TSV row. Blank lines, comments (#), and malformed
 // rows are skipped silently — invalid rows in older logs must not break
 // newer readers.
+//
+// Tag and note are split with a column cap of 6 so any tabs inside the
+// note (rare but possible from a paste) are kept as-is in the note value
+// rather than truncating the row. Tabs in tag are not allowed by the
+// writer (replaced with spaces); if a hand-edited row has one, the tag
+// will absorb up to the 5th tab and the rest is the note.
 func parseLine(raw string) (domain.Session, bool) {
 	line := strings.TrimRight(raw, "\r\n")
 	trimmed := strings.TrimSpace(line)
 	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 		return domain.Session{}, false
 	}
-	parts := strings.Split(line, "\t")
+	parts := strings.SplitN(line, "\t", 6)
 	if len(parts) < 4 {
 		return domain.Session{}, false
 	}
@@ -173,6 +144,20 @@ func parseLine(raw string) (domain.Session, bool) {
 	return s, true
 }
 
+// sanitizeTSVField replaces tab/CR/LF in user-provided strings with a
+// single space so they round-trip through the TSV row format. Without
+// this, a note containing a literal tab corrupts the column layout and
+// the parser silently truncates everything after the embedded tab.
+func sanitizeTSVField(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '\t', '\r', '\n':
+			return ' '
+		}
+		return r
+	}, s)
+}
+
 // writeSessionLine writes one TSV row, omitting trailing tag/note columns
 // when empty so the file stays compact and 4-column historical readers
 // still parse newly written rows.
@@ -183,11 +168,13 @@ func writeSessionLine(w io.Writer, s domain.Session) (int, error) {
 		s.Stop.Format("15:04"),
 		int64(s.Elapsed.Seconds()),
 	)
-	if s.Tag != "" || s.Note != "" {
-		base += "\t" + s.Tag
+	tag := sanitizeTSVField(s.Tag)
+	note := sanitizeTSVField(s.Note)
+	if tag != "" || note != "" {
+		base += "\t" + tag
 	}
-	if s.Note != "" {
-		base += "\t" + s.Note
+	if note != "" {
+		base += "\t" + note
 	}
 	return fmt.Fprintln(w, base)
 }

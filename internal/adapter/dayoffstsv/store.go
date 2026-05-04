@@ -2,8 +2,10 @@ package dayoffstsv
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -62,13 +65,17 @@ func (s *Store) Lookup(date time.Time) (domain.DayOff, bool) {
 //
 // Holds mu for the entire read-modify-write so two concurrent Add/Remove
 // calls can't both read the same prior state and have the second
-// overwrite the first.
+// overwrite the first. The read goes through readLocked so the
+// legacy-path fallback applies — without that, the first Add against a
+// user with only legacy data would silently mask all prior entries
+// (the new primary file would contain just the one fresh row).
 func (s *Store) Add(off domain.DayOff) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fresh := readFile(s.path)
-	fresh[off.Date.Format("2006-01-02")] = off
-	return s.writeLocked(fresh)
+	fresh := s.readLocked()
+	merged := cloneMap(fresh)
+	merged[off.Date.Format("2006-01-02")] = off
+	return s.writeLocked(merged)
 }
 
 // Remove deletes the entry for date. Removing a non-existent entry is a
@@ -76,13 +83,14 @@ func (s *Store) Add(off domain.DayOff) error {
 func (s *Store) Remove(date time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fresh := readFile(s.path)
+	fresh := s.readLocked()
 	key := date.Format("2006-01-02")
 	if _, ok := fresh[key]; !ok {
 		return nil
 	}
-	delete(fresh, key)
-	return s.writeLocked(fresh)
+	merged := cloneMap(fresh)
+	delete(merged, key)
+	return s.writeLocked(merged)
 }
 
 func (s *Store) readCached() map[string]domain.DayOff {
@@ -96,6 +104,12 @@ func (s *Store) readCached() map[string]domain.DayOff {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.readLocked()
+}
+
+// readLocked returns the cached map, priming it from disk (with legacy
+// fallback) on first call. Caller must hold mu.
+func (s *Store) readLocked() map[string]domain.DayOff {
 	if s.primed {
 		return s.cache
 	}
@@ -110,7 +124,17 @@ func (s *Store) readCached() map[string]domain.DayOff {
 	return out
 }
 
-// writeLocked persists m and invalidates the cache. Caller must hold mu.
+func cloneMap(in map[string]domain.DayOff) map[string]domain.DayOff {
+	out := make(map[string]domain.DayOff, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+// writeLocked persists m and refreshes the cache to match. Caller must
+// hold mu. The cache is set to m (not nil) so subsequent List/Lookup
+// calls — fired on every TUI tick — don't trigger a disk reread.
 func (s *Store) writeLocked(m map[string]domain.DayOff) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
@@ -121,38 +145,23 @@ func (s *Store) writeLocked(m map[string]domain.DayOff) error {
 	}
 	sort.Strings(keys)
 
-	tmp := s.path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := writeBody(&buf, m, keys); err != nil {
 		return err
 	}
-	if werr := writeBody(f, m, keys); werr != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return werr
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
+	if err := atomicfile.WriteFile(s.path, buf.Bytes(), 0o644); err != nil {
 		return err
 	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		return err
-	}
-	s.cache = nil
-	s.primed = false
+	s.cache = m
+	s.primed = true
 	return nil
 }
 
-func writeBody(f *os.File, m map[string]domain.DayOff, keys []string) error {
-	if _, err := fmt.Fprintln(f, "# worktime day-offs — TSV: date\\tkind\\tlabel[\\thours]"); err != nil {
+func writeBody(w io.Writer, m map[string]domain.DayOff, keys []string) error {
+	if _, err := fmt.Fprintln(w, "# worktime day-offs — TSV: date<TAB>kind<TAB>label[<TAB>hours]"); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(f, "# kinds: holiday | vacation | sick"); err != nil {
+	if _, err := fmt.Fprintln(w, "# kinds: holiday | vacation | sick"); err != nil {
 		return err
 	}
 	for _, k := range keys {
@@ -162,7 +171,7 @@ func writeBody(f *os.File, m map[string]domain.DayOff, keys []string) error {
 		if d.Target > 0 {
 			row += fmt.Sprintf("\t%g", d.Target.Hours())
 		}
-		if _, err := fmt.Fprintln(f, row); err != nil {
+		if _, err := fmt.Fprintln(w, row); err != nil {
 			return err
 		}
 	}

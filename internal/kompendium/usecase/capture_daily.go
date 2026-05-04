@@ -53,7 +53,10 @@ func (u *CaptureDaily) Execute(ctx context.Context, in CaptureDailyInput) (Captu
 	if text == "" {
 		return CaptureDailyOutput{}, ErrCaptureEmpty
 	}
-	now := u.Clock.Now().UTC()
+	// Local time — see the rationale in CreateDaily. The bullet's HH:MM
+	// must match the user's wallclock for the daily-note format to read
+	// naturally.
+	now := u.Clock.Now()
 	date := now.Format("2006-01-02")
 	id := domain.ID("daily/" + date)
 	bullet := fmt.Sprintf("- %s — %s\n", now.Format("15:04"), text)

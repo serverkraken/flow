@@ -52,7 +52,8 @@ func (u *CreateProject) Execute(ctx context.Context, in CreateProjectInput) (Cre
 		return CreateProjectOutput{}, err
 	}
 
-	date := u.Clock.Now().UTC().Format("2006-01-02")
+	// Local date — see the rationale in CreateDaily.
+	date := u.Clock.Now().Format("2006-01-02")
 	id := domain.ID("projects/" + string(info.URL) + "/" + date)
 
 	exists, err := u.Store.Exists(ctx, id)

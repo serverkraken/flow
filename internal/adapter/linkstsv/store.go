@@ -2,6 +2,7 @@ package linkstsv
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 )
 
 // Store reads and writes day-to-note attachments to a TSV file.
@@ -64,19 +67,7 @@ func (s *Store) Add(date time.Time, noteID string) error {
 	}
 	var buf []byte
 	buf = fmt.Appendf(buf, "%s\t%s\n", date.Format("2006-01-02"), noteID)
-	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(buf); err != nil {
-		_ = f.Close()
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
+	return atomicfile.Append(s.path, buf, 0o644)
 }
 
 // Remove detaches (date, noteID). Removing a non-existent pair is a no-op.
@@ -170,26 +161,11 @@ func (s *Store) writeAll(links []link) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
+	var buf bytes.Buffer
 	for _, l := range links {
-		if _, werr := fmt.Fprintf(f, "%s\t%s\n", l.Date.Format("2006-01-02"), l.NoteID); werr != nil {
-			_ = f.Close()
-			_ = os.Remove(tmp)
+		if _, werr := fmt.Fprintf(&buf, "%s\t%s\n", l.Date.Format("2006-01-02"), l.NoteID); werr != nil {
 			return werr
 		}
 	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, s.path)
+	return atomicfile.WriteFile(s.path, buf.Bytes(), 0o644)
 }

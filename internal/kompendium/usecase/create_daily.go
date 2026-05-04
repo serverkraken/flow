@@ -37,7 +37,11 @@ type CreateDailyOutput struct {
 // Execute resolves today's daily ID, ensures the note exists (creating it
 // with default frontmatter if needed), and asks the editor to open it.
 func (u *CreateDaily) Execute(ctx context.Context) (CreateDailyOutput, error) {
-	date := u.Clock.Now().UTC().Format("2006-01-02")
+	// Use the wallclock date in the user's local TZ — daily notes are a
+	// human-day concept, not a UTC-day concept. Without this, a Berlin
+	// user creating a note at 01:30 CEST would land in yesterday's daily
+	// (UTC 23:30 of the previous day).
+	date := u.Clock.Now().Format("2006-01-02")
 	id := domain.ID("daily/" + date)
 
 	exists, err := u.Store.Exists(ctx, id)

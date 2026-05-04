@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 )
 
 // State implements ports.ActiveSessionStore by storing one Unix epoch per
@@ -63,7 +65,7 @@ func writeEpoch(path string, t time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return writeFileAtomic(path, []byte(strconv.FormatInt(t.Unix(), 10)), 0o644)
+	return atomicfile.WriteFile(path, []byte(strconv.FormatInt(t.Unix(), 10)), 0o644)
 }
 
 func removeIfExists(path string) error {
@@ -71,32 +73,4 @@ func removeIfExists(path string) error {
 		return err
 	}
 	return nil
-}
-
-// writeFileAtomic writes data via temp+fsync+rename so a crash mid-write
-// can never leave a truncated or half-written file in place. Without
-// fsync the new content can land in the page cache after the rename has
-// already updated the directory entry, which on power loss surfaces as
-// a zero-length file the next time it's opened.
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
 }

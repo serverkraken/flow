@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -62,28 +63,5 @@ func (s *Store) Save(stats domain.PaletteStats) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(s.path, data, 0o644)
-}
-
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.WriteFile(s.path, data, 0o644)
 }

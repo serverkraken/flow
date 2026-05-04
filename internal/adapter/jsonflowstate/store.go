@@ -3,10 +3,12 @@ package jsonflowstate
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -23,12 +25,19 @@ func New(statePath, nextScreenPath string) *Store {
 	return &Store{statePath: statePath, nextScreenPath: nextScreenPath}
 }
 
-// Load returns the persisted state, falling back to DefaultFlowState
-// when the file is absent or malformed.
+// Load returns the persisted state. A missing file returns the default
+// (first launch is normal). A malformed file is also defaulted, so a
+// hand-edit gone wrong doesn't lock the user out of the TUI. Other I/O
+// errors (permission denied, EIO) are surfaced — silently defaulting on
+// those would mask real problems and the next Save would overwrite a
+// possibly-recoverable file.
 func (s *Store) Load() (domain.FlowState, error) {
 	data, err := os.ReadFile(s.statePath)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return domain.DefaultFlowState(), nil
+	}
+	if err != nil {
+		return domain.FlowState{}, err
 	}
 	var st domain.FlowState
 	if err := json.Unmarshal(data, &st); err != nil {
@@ -49,7 +58,7 @@ func (s *Store) Save(st domain.FlowState) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(s.statePath, data, 0o644)
+	return atomicfile.WriteFile(s.statePath, data, 0o644)
 }
 
 // ConsumeNextScreen reads and removes the one-shot deep-link marker.
@@ -82,32 +91,5 @@ func (s *Store) WriteNextScreen(screen string) error {
 	if err := os.MkdirAll(filepath.Dir(s.nextScreenPath), 0o755); err != nil {
 		return err
 	}
-	return writeFileAtomic(s.nextScreenPath, []byte(screen), 0o644)
-}
-
-// writeFileAtomic writes data via temp+fsync+rename so a crash mid-write
-// can never leave a truncated file. Without fsync the new content can
-// land in the page cache after the rename has already updated the
-// directory entry, which on power loss surfaces as a zero-length file.
-func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
-	if err != nil {
-		return err
-	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.WriteFile(s.nextScreenPath, []byte(screen), 0o644)
 }
