@@ -121,6 +121,18 @@ func (m Model) StateCursor() int {
 // On tabHeute we let `b` fall through to the palette switch.
 func (m Model) HandlesBack() bool { return m.current != tabHeute }
 
+// ConsumesKeys lists letter keys the active sub-model claims, so the
+// sidekick's global navigation (p / n / f / w / c) doesn't intercept
+// keys that the screen itself binds. The sub-model interface lets each
+// tab declare its own claim set per-state — e.g. Heute claims `n` for
+// kompendium-attach and `p` for pause whenever those actions apply.
+func (m Model) ConsumesKeys() []string {
+	if kc, ok := m.subs[m.current].(interface{ ConsumesKeys() []string }); ok {
+		return kc.ConsumesKeys()
+	}
+	return nil
+}
+
 // Init starts every sub-model concurrently and schedules the first
 // tick.
 func (m Model) Init() tea.Cmd {

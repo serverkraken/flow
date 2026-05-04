@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -371,9 +373,10 @@ func envOr(name, fallback string) string {
 }
 
 var rootCmd = &cobra.Command{
-	Use:          "flow",
-	Short:        "Workspace TUI sidekick",
-	SilenceUsage: true,
+	Use:           "flow",
+	Short:         "Workspace TUI sidekick",
+	SilenceUsage:  true,
+	SilenceErrors: true,
 }
 
 func main() {
@@ -420,7 +423,14 @@ func main() {
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 
-	if err := rootCmd.Execute(); err != nil {
+	// Signal-aware context so long-running subcommands (status --watch,
+	// markdown view, kompendium browse) can shut down cleanly. Without
+	// this, defers don't run on Ctrl+C / SIGTERM and the kompendium
+	// sqlite WAL is left without a final checkpoint.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

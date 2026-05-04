@@ -152,42 +152,89 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 // "idempotency in flow worktime <verb>") and surfacing
 // ErrAlreadyRunning as a red status flash there is wrong — the user
 // already has the state they wanted.
+//
+// SetActive and ClearPause run under a single Lock.With so a concurrent
+// Pause can't slip between the two and end up with both markers set.
 func (w *SessionWriter) Resume() error {
-	err := w.Start(w.Clock.Now())
-	if err != nil && !errors.Is(err, domain.ErrAlreadyRunning) {
-		return err
-	}
-	_ = w.State.ClearPause()
-	return nil
+	now := w.Clock.Now()
+	return w.Lock.With(func() error {
+		active, err := w.State.GetActive()
+		if err != nil {
+			return err
+		}
+		if active == nil {
+			if err := w.State.SetActive(now); err != nil {
+				return err
+			}
+		}
+		_ = w.State.ClearPause()
+		return nil
+	})
 }
 
 // Toggle starts when idle, stops when running. Returns a human-readable
 // description of the action taken.
+//
+// Read, decide, and write happen under a single Lock.With — without that
+// two concurrent toggle calls (e.g. tmux binding double-press, or
+// toggle from one pane while another runs `flow worktime stop`) could
+// both observe "idle" and both call Start, or one's read could race
+// with the other's write.
 func (w *SessionWriter) Toggle() (string, error) {
-	active, err := w.State.GetActive()
+	now := w.Clock.Now()
+	var msg string
+	err := w.Lock.With(func() error {
+		active, err := w.State.GetActive()
+		if err != nil {
+			return err
+		}
+		if active != nil {
+			if !now.After(*active) {
+				return errors.New("stoppzeit muss nach Startzeit liegen")
+			}
+			s := domain.Session{
+				Date:    startOfDay(now),
+				Start:   *active,
+				Stop:    now,
+				Elapsed: now.Sub(*active),
+			}
+			for _, part := range domain.SplitAtMidnight(*active, now) {
+				if err := w.Sessions.Append(part); err != nil {
+					return err
+				}
+			}
+			if err := w.State.ClearActive(); err != nil {
+				return err
+			}
+			_ = w.State.ClearPause()
+			msg = fmt.Sprintf("gestoppt nach %dh %02dm",
+				int(s.Elapsed.Hours()), int(s.Elapsed.Minutes())%60)
+			return nil
+		}
+		if err := w.State.SetActive(now); err != nil {
+			return err
+		}
+		msg = "gestartet"
+		return nil
+	})
 	if err != nil {
 		return "", err
 	}
-	if active != nil {
-		s, err := w.Stop()
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("gestoppt nach %dh %02dm",
-			int(s.Elapsed.Hours()), int(s.Elapsed.Minutes())%60), nil
-	}
-	if err := w.Start(w.Clock.Now()); err != nil {
-		return "", err
-	}
-	return "gestartet", nil
+	return msg, nil
 }
 
 // CorrectStart overwrites the start time of the running session. Returns
-// ErrNoActiveSession when nothing is running.
+// ErrNoActiveSession when nothing is running. Real I/O errors from the
+// state read surface verbatim — masking them as "no active session"
+// would point a user with a permission-denied state file at the wrong
+// problem and let the next Start overwrite it.
 func (w *SessionWriter) CorrectStart(ts time.Time) error {
 	return w.Lock.With(func() error {
 		active, err := w.State.GetActive()
-		if err != nil || active == nil {
+		if err != nil {
+			return err
+		}
+		if active == nil {
 			return domain.ErrNoActiveSession
 		}
 		return w.State.SetActive(ts)

@@ -106,6 +106,14 @@ func (h heute) StateFilter() string { return "" }
 // StateCursor reports the focused session index for state persistence.
 func (h heute) StateCursor() int { return h.cursor }
 
+// ConsumesKeys lists letter keys Heute claims away from the sidekick's
+// global navigation. `n` is kompendium-attach (advertised in the
+// `?`-overlay); `p` is pause-the-running-session. Both keys would
+// otherwise be eaten by the sidekick to switch screens — the bindings
+// would be tot in sidekick mode, only working in `flow worktime today`
+// standalone.
+func (h heute) ConsumesKeys() []string { return []string{"n", "p"} }
+
 // FastTick reports whether the root should schedule the fast (1 s) tick.
 // True during the first minute of an active session — the live elapsed
 // counter only shows seconds for that window, then drops to minutes.
@@ -140,6 +148,21 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, h.loadCmd()
 
 	case heuteActionDoneMsg:
+		// On error: if a dialog is still open (edit/tag/note forms), keep
+		// it open and surface the error inside it via errMsg so the user
+		// can retry without re-filling the form. If the dialog already
+		// closed (delete confirms close on submit), surface a danger
+		// toast so the failure is visible — without this branch the
+		// previous code blanked the whole tagesansicht via h.err.
+		if msg.err != nil {
+			if h.dialog != heuteDialogNone {
+				h.errMsg = msg.err.Error()
+				return h, nil
+			}
+			t := toast.NewDanger(msg.err.Error(), h.pal)
+			h.toast = &t
+			return h, tea.Batch(h.loadCmd(), t.Init())
+		}
 		h.dialog = heuteDialogNone
 		h.input.Blur()
 		h.input.SetValue("")
@@ -147,8 +170,8 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.formCur = 0
 		h.confirmModel = nil
 		h.errMsg = ""
-		h.err = msg.err
-		if msg.err == nil && msg.toast != "" {
+		h.err = nil
+		if msg.toast != "" {
 			t := toast.NewDefault(msg.toast, h.pal)
 			h.toast = &t
 			return h, tea.Batch(h.loadCmd(), t.Init())

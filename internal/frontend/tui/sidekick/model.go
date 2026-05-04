@@ -44,6 +44,17 @@ type backHandler interface {
 	HandlesBack() bool
 }
 
+// keyConsumer is implemented by screens that want to claim specific
+// letter keys away from the sidekick's global navigation. The sidekick
+// asks each Update which keys the active screen wants right now —
+// returning {"n","p"} from Worktime/Heute means `n` (kompendium-attach)
+// and `p` (pause) reach the screen instead of switching to Notes /
+// Palette. Without this mech, screen-internal bindings advertised in
+// `?`-overlays are silently dead in sidekick mode.
+type keyConsumer interface {
+	ConsumesKeys() []string
+}
+
 // stateRestorer is satisfied by screens that persist a filter + cursor
 // across runs. The active screen receives WithState(filter, cursor) so
 // the snapshot from FlowStateStore is applied before its first render.
@@ -153,7 +164,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screens[m.current] = updated
 			return m, cmd
 		}
-		switch msg.String() {
+		key := msg.String()
+		if kc, ok := m.screens[m.current].(keyConsumer); ok {
+			for _, claimed := range kc.ConsumesKeys() {
+				if claimed == key {
+					updated, cmd := m.screens[m.current].Update(msg)
+					m.screens[m.current] = updated
+					return m, cmd
+				}
+			}
+		}
+		switch key {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "?":

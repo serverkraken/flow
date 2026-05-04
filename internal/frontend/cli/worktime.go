@@ -131,16 +131,21 @@ func newStatusCmd(deps WorktimeDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			if !watch {
-				fprint(out, deps.StatusComposer.Compose())
+				fprintln(out, deps.StatusComposer.Compose())
 				return nil
 			}
 			ticker := time.NewTicker(60 * time.Second)
 			defer ticker.Stop()
 			fprintln(out, deps.StatusComposer.Compose())
-			for range ticker.C {
-				fprintln(out, deps.StatusComposer.Compose())
+			ctx := cmd.Context()
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-ticker.C:
+					fprintln(out, deps.StatusComposer.Compose())
+				}
 			}
-			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&watch, "watch", false, "alle 60s neu drucken")
