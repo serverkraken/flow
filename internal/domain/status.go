@@ -68,7 +68,7 @@ func BuildStatusSegment(in StatusInputs) string {
 		mainAttr, icon, int(total.Hours()), int(total.Minutes())%60))
 
 	if in.Day.IsRunning() && in.Day.Active != nil {
-		parts = append(parts, activeSessionParts(in, total, achieved)...)
+		parts = append(parts, activeSessionParts(in, achieved)...)
 	}
 
 	if achieved && total > 0 {
@@ -109,7 +109,7 @@ func statusBanner(day Day, total, target time.Duration, achieved bool, pal Statu
 
 // activeSessionParts renders the "▶ S:MM" running-session indicator and
 // the "→HH:MM" projected target ETA when below target.
-func activeSessionParts(in StatusInputs, total time.Duration, achieved bool) []string {
+func activeSessionParts(in StatusInputs, achieved bool) []string {
 	elapsed := in.Now.Sub(*in.Day.Active)
 	if elapsed < 0 {
 		elapsed = 0
@@ -136,8 +136,6 @@ func activeSessionParts(in StatusInputs, total time.Duration, achieved bool) []s
 		out = append(out, fmt.Sprintf("#[fg=%s]→%s#[default]",
 			in.Palette.Dim, etaT.Format("15:04")))
 	}
-	// total is referenced by the caller — keep the parameter for future use.
-	_ = total
 	return out
 }
 

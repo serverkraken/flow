@@ -64,7 +64,11 @@ type splitter struct {
 }
 
 func (s *splitter) flush() {
-	if len(s.cur) > 0 || s.state != splitNormal {
+	// splitCommand returns "unterminated quote" before reaching here when
+	// state != splitNormal, so the second branch of the older condition
+	// was dead. A whitespace-triggered flush only fires from stepNormal
+	// where state is normal by definition.
+	if len(s.cur) > 0 {
 		s.tokens = append(s.tokens, string(s.cur))
 		s.cur = s.cur[:0]
 	}

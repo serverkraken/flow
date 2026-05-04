@@ -20,13 +20,13 @@ func mkComposer(now time.Time, sessions []domain.Session, opts ...readerOpt) *us
 		State:   reader.State,
 	}
 	return &usecase.StatusComposer{
-		Reader:       reader,
-		DayOffs:      reader.Targets.DayOffs,
-		Targets:      reader.Targets,
-		Stats:        stats,
-		Tmux:         &testutil.FakeTmux{},
-		Clock:        &testutil.FixedClock{T: now},
-		MaxStreakMin: 90,
+		Reader:  reader,
+		DayOffs: reader.Targets.DayOffs,
+		Targets: reader.Targets,
+		Stats:   stats,
+		Tmux:    &testutil.FakeTmux{},
+		Clock:   &testutil.FixedClock{T: now},
+		Config:  &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour, MaxStreakMin: 90}},
 	}
 }
 

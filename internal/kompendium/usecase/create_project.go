@@ -85,6 +85,5 @@ func buildProjectTemplate(id domain.ID, date string, url domain.CanonicalURL) (d
 		Type:    domain.TypeProject,
 		Project: string(url),
 		Date:    date,
-		Daily:   date,
 	}, []byte{})
 }

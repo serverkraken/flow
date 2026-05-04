@@ -16,8 +16,11 @@ type StatusComposer struct {
 	Stats   *StatsComputer
 	Tmux    ports.Tmux
 	Clock   ports.Clock
-	// MaxStreakMin is the active-session warning threshold. 0 disables.
-	MaxStreakMin int
+	// Config feeds the active-session warning threshold (Config.MaxStreakMin).
+	// Reading on each Compose keeps the value live with worktime.conf
+	// edits — the compose call already pays the file-read cost via
+	// TargetResolver, so this is essentially free.
+	Config ports.ConfigReader
 }
 
 // Compose returns the status-right segment string. Empty string when
@@ -41,6 +44,13 @@ func (c *StatusComposer) Compose() string {
 		dayOff = &d
 	}
 
+	maxStreak := 0
+	if c.Config != nil {
+		if cfg, err := c.Config.Load(); err == nil {
+			maxStreak = cfg.MaxStreakMin
+		}
+	}
+
 	return domain.BuildStatusSegment(domain.StatusInputs{
 		Now:          now,
 		Day:          day,
@@ -51,7 +61,7 @@ func (c *StatusComposer) Compose() string {
 		Burndown:     burndown,
 		LookupDayOff: c.DayOffs.Lookup,
 		Palette:      c.palette(),
-		MaxStreakMin: c.MaxStreakMin,
+		MaxStreakMin: maxStreak,
 	})
 }
 

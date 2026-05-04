@@ -50,8 +50,8 @@ func TestCreateProject_NewlyCreated(t *testing.T) {
 	if got.Meta.Project != "github.com/serverkraken/dotfiles" {
 		t.Errorf("Project frontmatter got %q", got.Meta.Project)
 	}
-	if got.Meta.Daily != "2026-04-25" {
-		t.Errorf("Daily back-reference got %q, want 2026-04-25", got.Meta.Daily)
+	if got.Meta.Date != "2026-04-25" {
+		t.Errorf("Date got %q, want 2026-04-25", got.Meta.Date)
 	}
 }
 

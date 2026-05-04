@@ -36,7 +36,6 @@ type Frontmatter struct {
 	Date    string   `yaml:"date,omitempty"`
 	Title   string   `yaml:"title,omitempty"`
 	Tags    []string `yaml:"tags,omitempty"`
-	Daily   string   `yaml:"daily,omitempty"`
 }
 
 // Sentinel errors for frontmatter handling.

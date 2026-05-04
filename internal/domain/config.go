@@ -18,6 +18,11 @@ type Config struct {
 	PerWeekday map[time.Weekday]time.Duration
 	// TagTargets maps tag name (lowercased) to a per-tag daily target.
 	TagTargets map[string]time.Duration
+	// MaxStreakMin is the active-session warning threshold in minutes.
+	// 0 (the default) disables the warning. The status segment turns
+	// yellow at MaxStreakMin and red at 2× MaxStreakMin — see
+	// status.go for the rendering logic.
+	MaxStreakMin int
 }
 
 // TargetForWeekday returns the configured target for wd, or DefaultTarget

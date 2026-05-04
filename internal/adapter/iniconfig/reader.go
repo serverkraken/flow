@@ -77,6 +77,14 @@ func (r *Reader) readFile(cfg *domain.Config) (time.Duration, error) {
 		}
 		key := strings.TrimSpace(line[:eq])
 		val := strings.TrimSpace(line[eq+1:])
+		// max_streak_min is an integer (minutes), not hours-as-float
+		// like the other keys — handle it before the float parse.
+		if key == "max_streak_min" {
+			if n, err := strconv.Atoi(val); err == nil && n >= 0 {
+				cfg.MaxStreakMin = n
+			}
+			continue
+		}
 		h, err := strconv.ParseFloat(val, 64)
 		if err != nil || h < 0 {
 			continue

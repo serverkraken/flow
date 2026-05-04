@@ -150,6 +150,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 		Stats:   stats,
 		Tmux:    tmux,
 		Clock:   clock,
+		Config:  configReader,
 	}
 	dayoffWriter := &usecase.DayOffWriter{Store: dayoffStore}
 	dayoffReader := &usecase.DayOffReader{Store: dayoffStore}
