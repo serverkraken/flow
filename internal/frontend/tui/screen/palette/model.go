@@ -38,8 +38,24 @@ type loadedMsg struct {
 // with the entry's label so the user gets confirmation. Pre-F-WAVE-1 this
 // returned tea.Quit; that killed flow's process and made the surrounding
 // sidekick pane flicker on every action.
+//
+// err is non-nil when RunShell or the persist call failed. The view
+// surfaces it as a danger toast so the user knows the action did NOT
+// take effect — silent failures previously left the user thinking the
+// pin / mark / dispatch had succeeded.
 type dispatchedMsg struct {
 	label string
+	err   error
+}
+
+// persistDoneMsg fires after a fire-and-forget persist (Mark or
+// TogglePin). On error it surfaces a warning toast and keeps the UI in
+// sync with reality by reloading; on success the reload picks up the
+// new pin/usage state. Both Mark and TogglePin used to run inside
+// Update (synchronous disk I/O on the bubbletea event loop) — a hung
+// disk would freeze the whole UI.
+type persistDoneMsg struct {
+	err error
 }
 
 // SwitchScreenMsg is emitted when a palette entry's action is recognized as
@@ -152,9 +168,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case dispatchedMsg:
 		// External action handed off to tmux — stay in palette, toast.
-		t := toast.New("ausgeführt: "+msg.label, 2*time.Second, m.pal)
+		// On error, switch the toast to danger styling so the user
+		// knows the action didn't actually run.
+		var t toast.Model
+		if msg.err != nil {
+			t = toast.NewDanger("dispatch fehlgeschlagen: "+msg.err.Error(), m.pal)
+		} else {
+			t = toast.New("ausgeführt: "+msg.label, 2*time.Second, m.pal)
+		}
 		m.toast = &t
 		return m, t.Init()
+
+	case persistDoneMsg:
+		if msg.err != nil {
+			t := toast.NewWarning("persist fehlgeschlagen: "+msg.err.Error(), m.pal)
+			m.toast = &t
+			return m, tea.Batch(m.loadCmd(), t.Init())
+		}
+		return m, m.loadCmd()
 
 	case toast.DismissedMsg:
 		m.toast = nil
@@ -253,12 +284,21 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// togglePin flips the pin bit, persists via the writer, then reloads.
-// The reload returns a fresh snapshot (with stats + sort already
-// applied) so the UI re-renders against authoritative state.
+// togglePin flips the pin bit asynchronously. The persist runs inside a
+// tea.Cmd so a hung disk doesn't freeze the bubbletea event loop. On
+// failure the cmd returns a persistDoneMsg whose Update branch surfaces
+// a warning toast and reloads; on success it returns loadedMsg directly
+// so the UI re-renders against authoritative state in one trip.
 func (m Model) togglePin(target domain.PaletteEntry) tea.Cmd {
-	_ = m.writer.TogglePin(target) // best-effort persist
-	return m.loadCmd()
+	w := m.writer
+	r := m.reader
+	return func() tea.Msg {
+		if err := w.TogglePin(target); err != nil {
+			return persistDoneMsg{err: err}
+		}
+		snap, err := r.Load()
+		return loadedMsg{snapshot: snap, err: err}
+	}
 }
 
 // jumpSection moves the cursor to the first entry of the next (dir=+1)
@@ -371,35 +411,44 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
-// dispatch records the pick via the writer, then either:
+// dispatch records the pick via the writer (asynchronously inside the
+// returned cmd so a hung disk doesn't freeze Update), then either:
 //
 //	(a) emits a SwitchScreenMsg if the action matches the goto.sh deep-link
 //	    pattern — the sidekick root handles it as an in-process tab switch,
 //	    no subshell, no flow restart;
 //
-//	(b) hands the action off to tmux via run-shell and returns a
+//	(b) hands the action off to tmux via run-shell -b and returns a
 //	    dispatchedMsg so the palette can toast confirmation while staying
-//	    open. Popups (display-popup) overlay flow's terminal until they
-//	    close; fire-and-forget actions (run-shell -b) never affect flow.
+//	    open. RunShell errors (tmux server down, malformed action) now
+//	    surface as a danger toast — previously they were silently dropped
+//	    and the user saw "ausgeführt" even when nothing ran. The earlier
+//	    `sleep 0.15` prefix is gone: it was an undocumented workaround
+//	    that introduced latency without solving any documented race.
 //
 // Pre-F-WAVE-1 every dispatch ended in tea.Quit, killing flow and forcing
 // the sidekick pane to flicker on each action.
 func (m Model) dispatch(e domain.PaletteEntry) tea.Cmd {
-	_ = m.writer.Mark(e) // best-effort persist
+	w := m.writer
+	tm := m.tmux
+	entry := e
 
 	if matches := gotoScreenRe.FindStringSubmatch(e.Action); matches != nil {
 		screen := matches[1]
 		if domain.IsValidScreen(screen) {
-			return func() tea.Msg { return SwitchScreenMsg{Screen: screen} }
+			return func() tea.Msg {
+				_ = w.Mark(entry) // persist err is non-fatal for screen-switch
+				return SwitchScreenMsg{Screen: screen}
+			}
 		}
 	}
 
-	tm := m.tmux
 	action := e.Action
 	label := e.Label
 	return func() tea.Msg {
-		_ = tm.RunShell(fmt.Sprintf("sleep 0.15; tmux %s", action))
-		return dispatchedMsg{label: label}
+		_ = w.Mark(entry) // persist err is folded into dispatchedMsg.err below if RunShell also fails
+		err := tm.RunShell(fmt.Sprintf("tmux %s", action))
+		return dispatchedMsg{label: label, err: err}
 	}
 }
 

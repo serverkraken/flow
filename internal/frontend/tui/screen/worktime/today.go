@@ -145,6 +145,16 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case dayRefreshMsg:
+		// While a dialog is open, suppress the periodic refresh: the
+		// frozen editIdx would point at a different session if the
+		// reload re-numbered the list (manual edit from another shell,
+		// or a session that ended elsewhere). The next refresh after
+		// the dialog closes is fine. heuteActionDoneMsg explicitly
+		// triggers loadCmd on success, so the user sees the fresh
+		// state right after submit.
+		if h.dialog != heuteDialogNone {
+			return h, nil
+		}
 		return h, h.loadCmd()
 
 	case heuteActionDoneMsg:
