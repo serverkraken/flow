@@ -125,10 +125,17 @@ func (s *Store) write(m map[string]domain.DayOff) error {
 		return err
 	}
 	if werr := writeBody(f, m, keys); werr != nil {
-		f.Close() //nolint:errcheck
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return werr
 	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
 	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, s.path); err != nil {

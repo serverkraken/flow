@@ -49,7 +49,7 @@ func (s *Store) Save(st domain.FlowState) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(s.statePath, data, 0o644)
+	return writeFileAtomic(s.statePath, data, 0o644)
 }
 
 // ConsumeNextScreen reads and removes the one-shot deep-link marker.
@@ -82,5 +82,32 @@ func (s *Store) WriteNextScreen(screen string) error {
 	if err := os.MkdirAll(filepath.Dir(s.nextScreenPath), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(s.nextScreenPath, []byte(screen), 0o644)
+	return writeFileAtomic(s.nextScreenPath, []byte(screen), 0o644)
+}
+
+// writeFileAtomic writes data via temp+fsync+rename so a crash mid-write
+// can never leave a truncated file. Without fsync the new content can
+// land in the page cache after the rename has already updated the
+// directory entry, which on power loss surfaces as a zero-length file.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, path)
 }

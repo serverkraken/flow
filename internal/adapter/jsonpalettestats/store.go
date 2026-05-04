@@ -46,19 +46,44 @@ func (s *Store) Load() (domain.PaletteStats, error) {
 // Save persists the stats. The on-disk JSON is the bare actions map,
 // matching the layout the legacy implementation has been writing —
 // so users upgrading don't lose history.
+//
+// Crash safety: write goes through temp+fsync+rename so a power loss
+// mid-write cannot leave a truncated file that the next Load would
+// silently treat as empty stats.
 func (s *Store) Save(stats domain.PaletteStats) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
 	}
-	f, err := os.Create(s.path)
-	if err != nil {
-		return err
-	}
-	defer f.Close() //nolint:errcheck
-
 	actions := stats.Actions
 	if actions == nil {
 		actions = map[string]domain.PaletteActionStat{}
 	}
-	return json.NewEncoder(f).Encode(actions)
+	data, err := json.Marshal(actions)
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(s.path, data, 0o644)
+}
+
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, path)
 }

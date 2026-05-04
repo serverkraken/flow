@@ -2,6 +2,7 @@ package tsvsessions
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -39,21 +40,42 @@ func (s *Store) LoadFiltered(keep func(domain.Session) bool) ([]domain.Session, 
 
 // Append writes a single session row. The parent directory is created on
 // demand so callers can configure the path before the .tmux dir exists.
+//
+// Crash safety: the row is assembled in memory and emitted via a single
+// Write call (POSIX guarantees atomic O_APPEND for writes <= PIPE_BUF —
+// session rows are ~50 bytes), then fsync'd. Without fsync a crash
+// after the write but before the kernel flushes the page cache loses
+// the row even though it appeared to succeed; without the single-write
+// assembly, an interrupted write could leave a row missing its trailing
+// newline and the next Append would concatenate onto it.
 func (s *Store) Append(sess domain.Session) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	if _, err := writeSessionLine(&buf, sess); err != nil {
 		return err
 	}
 	f, err := os.OpenFile(s.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
-	defer f.Close() //nolint:errcheck
-	_, err = writeSessionLine(f, sess)
-	return err
+	if _, err := f.Write(buf.Bytes()); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 // Rewrite replaces the entire log atomically by writing to a sibling
-// temp-file and renaming over the target.
+// temp-file, fsyncing, and renaming over the target. fsync ensures the
+// new content reaches disk before the rename — without it the directory
+// entry can flip to the new inode while its data pages are still
+// dirty, surfacing as a zero-length log on power loss.
 func (s *Store) Rewrite(sessions []domain.Session) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return err
@@ -65,11 +87,18 @@ func (s *Store) Rewrite(sessions []domain.Session) error {
 	}
 	for _, sess := range sessions {
 		if _, werr := writeSessionLine(f, sess); werr != nil {
-			f.Close() //nolint:errcheck
+			_ = f.Close()
+			_ = os.Remove(tmp)
 			return werr
 		}
 	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
 	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	return os.Rename(tmp, s.path)
