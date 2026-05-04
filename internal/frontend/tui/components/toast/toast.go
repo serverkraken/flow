@@ -6,6 +6,7 @@
 package toast
 
 import (
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -50,13 +51,14 @@ func (m Model) Dismiss() DismissedMsg {
 }
 
 // nextToastID is bumped on every constructor so each instance owns its
-// own dismissal id. uint64 wraparound is not a practical concern for an
-// interactive TUI.
-var nextToastID uint64
+// own dismissal id. atomic so concurrent t.Parallel() tests (and the
+// realistically-rare case of two goroutines constructing toasts at the
+// same time) don't race on the increment. uint64 wraparound is not a
+// practical concern for an interactive TUI.
+var nextToastID atomic.Uint64
 
 func newID() uint64 {
-	nextToastID++
-	return nextToastID
+	return nextToastID.Add(1)
 }
 
 // Model is the bubbletea sub-model for a toast notification.
