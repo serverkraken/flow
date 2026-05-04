@@ -36,6 +36,25 @@ type Result struct {
 	Slug   string
 }
 
+// DoneMsg is the tea.Msg the picker emits when the user has finished
+// (either submitted a choice or cancelled). The hosting model
+// intercepts this to harvest the Result. A standalone CLI host
+// converts it into tea.Quit; an embedding host (e.g. kompendium
+// browse) returns to its previous mode and acts on the Result without
+// tearing down the outer program.
+//
+// Replaces the previous design where the picker emitted tea.Quit
+// directly. That worked for the standalone path, but inside browse
+// the picker had to run as a subprocess (`flow kompendium write`) and
+// nested tea.Programs through tea.ExecProcess fail at /dev/tty
+// negotiation in bubbletea v1.3.x — the picker never appeared and
+// the subprocess exited 1.
+type DoneMsg struct{ Result Result }
+
+func doneCmd(r Result) tea.Cmd {
+	return func() tea.Msg { return DoneMsg{Result: r} }
+}
+
 type option struct {
 	label  string
 	hint   string
@@ -103,7 +122,7 @@ func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q", "esc":
 		m.quitting = true
 		m.result = Result{Choice: ChoiceCancel}
-		return m, tea.Quit
+		return m, doneCmd(m.result)
 	case "j", "down":
 		if m.cursor < len(m.options)-1 {
 			m.cursor++
@@ -121,7 +140,7 @@ func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.result = Result{Choice: opt.choice}
 		m.quitting = true
-		return m, tea.Quit
+		return m, doneCmd(m.result)
 	}
 	return m, nil
 }
@@ -131,14 +150,14 @@ func (m Model) handleSlugKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc, tea.KeyCtrlC:
 		m.quitting = true
 		m.result = Result{Choice: ChoiceCancel}
-		return m, tea.Quit
+		return m, doneCmd(m.result)
 	case tea.KeyEnter:
 		if strings.TrimSpace(m.slug.Value()) == "" {
 			return m, nil
 		}
 		m.result = Result{Choice: ChoiceFree, Slug: strings.TrimSpace(m.slug.Value())}
 		m.quitting = true
-		return m, tea.Quit
+		return m, doneCmd(m.result)
 	}
 	var cmd tea.Cmd
 	m.slug, cmd = m.slug.Update(msg)

@@ -20,6 +20,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
+	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 	flowports "github.com/serverkraken/flow/internal/ports"
@@ -38,6 +39,15 @@ const (
 	// the screen and emits view.ExitMsg on q/esc; the reducer
 	// returns to ModeNormal then.
 	ModeView
+	// ModeWritePicker hosts the writepicker (Daily / Project / Free)
+	// in-process. Pre-fix the picker ran as a subprocess via
+	// `flow kompendium write` + tea.ExecProcess, but nested
+	// tea.Programs through ExecProcess fail at /dev/tty negotiation
+	// in bubbletea v1.3.x — the picker never appeared and the user
+	// saw "Fehler beim Bearbeiten: exit status 1". The picker now
+	// lives inside this program; only the resulting `kompendium new
+	// <type>` (a non-bubbletea CLI) is forked, which behaves cleanly.
+	ModeWritePicker
 )
 
 // Filter narrows the visible note list by type.
@@ -73,9 +83,15 @@ func (f Filter) label() string {
 // internal/frontend/tui/view, which keeps URLs OSC-8-clickable.
 type CmdFunc func(path string) *exec.Cmd
 
-// WriteCmdFunc returns an unstarted *exec.Cmd that re-spawns the kompendium
-// binary in `write` mode.
-type WriteCmdFunc func() *exec.Cmd
+// WriteCmdFunc returns an unstarted *exec.Cmd that creates the note
+// the user picked: `flow kompendium new daily`, `… new project`, or
+// `… new free <slug>`. Receives the picker's Result so the right
+// concrete subcommand and slug can be assembled. Pre-fix this took no
+// argument and always spawned `flow kompendium write` (which itself
+// hosted the picker as a tea.Program); that nested-program shape
+// failed under tea.ExecProcess and was replaced by the in-process
+// ModeWritePicker plus this richer factory signature.
+type WriteCmdFunc func(writepicker.Result) *exec.Cmd
 
 // IndexAgeFunc returns the timestamp of the index's last on-disk write,
 // used by the status bar to render "index Nm ago". A zero time hides the
@@ -107,6 +123,7 @@ type Model struct {
 	writeCmd    WriteCmdFunc
 
 	viewer view.Model
+	picker writepicker.Model
 
 	all     []ports.NoteEntry
 	visible []ports.NoteEntry
@@ -289,6 +306,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.mode == ModeView {
 		return m.updateViewer(msg)
 	}
+	if m.mode == ModeWritePicker {
+		return m.updatePicker(msg)
+	}
 	switch msg := msg.(type) {
 	case entriesLoadedMsg:
 		m.all = msg.entries
@@ -464,7 +484,7 @@ func (m Model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, m.keys.View):
 		return m.openViewer(), nil, true
 	case key.Matches(msg, m.keys.New):
-		model, cmd := m.runWriteCmd()
+		model, cmd := m.openWritePicker()
 		return model, cmd, true
 	case key.Matches(msg, m.keys.Delete):
 		return m.startConfirmDelete(), nil, true
@@ -551,16 +571,53 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// runWriteCmd hands control to the nested `kompendium write` picker via
-// tea.ExecProcess.
-func (m Model) runWriteCmd() (tea.Model, tea.Cmd) {
-	if m.writeCmd == nil {
-		return m, nil
+// openWritePicker enters ModeWritePicker with a freshly built picker.
+// allowProject mirrors the `flow kompendium write --cwd <dir>` rule —
+// the Project option only appears when the current cwd resolves to a
+// repo (the composition root captures this via `currentRepo`'s zero
+// value: empty means no repo).
+func (m Model) openWritePicker() (tea.Model, tea.Cmd) {
+	allowProject := m.currentRepo != ""
+	m.picker = writepicker.New(allowProject)
+	m.mode = ModeWritePicker
+	m.editErr = nil
+	return m, m.picker.Init()
+}
+
+// updatePicker is the reducer-branch active while ModeWritePicker is
+// the input mode. The picker emits writepicker.DoneMsg when the user
+// either selects a type (with optional slug) or cancels; we harvest
+// the Result, return to ModeNormal, and — when the choice was not
+// Cancel — fork the corresponding `flow kompendium new <type>`
+// subcommand via tea.ExecProcess. That subcommand is a plain CLI
+// (creates the file, opens nvim), not another tea.Program, so the
+// nested-tea problem that motivated this whole refactor doesn't
+// recur.
+func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.helpUI.Width = m.width
+		next, cmd := m.picker.Update(msg)
+		m.picker = next.(writepicker.Model)
+		return m, cmd
+	case writepicker.DoneMsg:
+		m.mode = ModeNormal
+		m.picker = writepicker.Model{}
+		if msg.Result.Choice == writepicker.ChoiceCancel || m.writeCmd == nil {
+			return m, nil
+		}
+		cmd := m.writeCmd(msg.Result)
+		if cmd == nil {
+			return m, nil
+		}
+		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+			return editFinishedMsg{err: err}
+		})
 	}
-	cmd := m.writeCmd()
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return editFinishedMsg{err: err}
-	})
+	next, cmd := m.picker.Update(msg)
+	m.picker = next.(writepicker.Model)
+	return m, cmd
 }
 
 // runOnSelected resolves the cursor's note ID to a path, builds the
@@ -891,6 +948,12 @@ func (m Model) View() string {
 	}
 	if m.mode == ModeView {
 		return m.viewer.View()
+	}
+	if m.mode == ModeWritePicker {
+		// Picker manages its own width/height + center placement, so it
+		// gets the full screen as a passthrough — no frameContent wrap
+		// (which would double-border it).
+		return m.picker.View()
 	}
 	if m.loadErr != nil {
 		return frameContent(m.width, m.height, errorStyle.Render("Fehler: "+m.loadErr.Error()))

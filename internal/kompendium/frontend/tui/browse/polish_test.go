@@ -10,6 +10,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
+	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -58,7 +59,7 @@ func TestPolish_TwoPanePreviewWithSize(t *testing.T) {
 	store.Seed(body, time.Unix(1, 0))
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 
 	// Drive entries → bodies, then resize wide enough to enable the two-pane layout.

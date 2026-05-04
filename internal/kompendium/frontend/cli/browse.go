@@ -11,6 +11,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
+	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
 
@@ -76,18 +77,33 @@ func indexAgeFromFile(path string) browse.IndexAgeFunc {
 	}
 }
 
-// buildWriteCmd returns a closure that re-spawns the running kompendium
-// binary with `write --cwd <cwd>`. Browse calls it on `n`. Using
-// os.Executable() (not os.Args[0]) keeps the nested process pointing at
-// the same binary even when the user launched kompendium via a symlink
-// or a relative path.
+// buildWriteCmd returns a closure that re-spawns the running binary
+// with the matching `kompendium new <type>` subcommand for the
+// picker's harvested Result. Browse runs the picker in-process now
+// (the nested-bubbletea-via-tea.ExecProcess approach failed at TTY
+// negotiation in bubbletea v1.3.x), so all this factory has to fork
+// is the plain non-tea CLI that creates the file + opens nvim.
+//
+// Using os.Executable() (not os.Args[0]) keeps the nested process
+// pointing at the same binary even when the user launched the
+// command via a symlink or a relative path.
 func buildWriteCmd(cwd string) browse.WriteCmdFunc {
-	return func() *exec.Cmd {
+	return func(r writepicker.Result) *exec.Cmd {
 		exe, err := os.Executable()
 		if err != nil || exe == "" {
 			exe = "kompendium"
 		}
-		cmd := exec.Command(exe, "write", "--cwd", cwd)
+		var cmd *exec.Cmd
+		switch r.Choice {
+		case writepicker.ChoiceDaily:
+			cmd = exec.Command(exe, "new", "daily")
+		case writepicker.ChoiceProject:
+			cmd = exec.Command(exe, "new", "project", "--cwd", cwd)
+		case writepicker.ChoiceFree:
+			cmd = exec.Command(exe, "new", "free", r.Slug)
+		default:
+			return nil
+		}
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

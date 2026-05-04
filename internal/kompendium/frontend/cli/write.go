@@ -15,19 +15,49 @@ import (
 // runPicker is the production handler that launches the Bubble Tea picker
 // and returns the user's choice. Tests swap it out so the CLI wiring can be
 // covered without spinning up tea against a non-existent TTY.
+//
+// The picker now emits writepicker.DoneMsg instead of tea.Quit (so it can
+// be embedded in a hosting model like kompendium browse without forking
+// a subprocess). For this standalone path we wrap the picker in a tiny
+// tea.Model adapter that converts DoneMsg → tea.Quit, mirroring the
+// existing view.ExitMsg pattern.
 var runPicker = func(ctx context.Context, allowProject bool) (writepicker.Result, error) {
-	m := writepicker.New(allowProject)
-	p := tea.NewProgram(m, tea.WithContext(ctx))
+	host := pickerHost{inner: writepicker.New(allowProject)}
+	p := tea.NewProgram(host, tea.WithContext(ctx))
 	finalModel, err := p.Run()
 	if err != nil {
 		return writepicker.Result{}, err
 	}
-	pm, ok := finalModel.(writepicker.Model)
+	final, ok := finalModel.(pickerHost)
 	if !ok {
 		return writepicker.Result{}, fmt.Errorf("write picker returned unexpected model %T", finalModel)
 	}
-	return pm.Result(), nil
+	return final.result, nil
 }
+
+// pickerHost adapts the writepicker into a standalone tea.Program. The
+// host catches DoneMsg, stashes the Result, and returns tea.Quit. The
+// inner picker's typed Update is forwarded otherwise.
+type pickerHost struct {
+	inner  writepicker.Model
+	result writepicker.Result
+}
+
+func (h pickerHost) Init() tea.Cmd { return h.inner.Init() }
+
+func (h pickerHost) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if d, ok := msg.(writepicker.DoneMsg); ok {
+		h.result = d.Result
+		return h, tea.Quit
+	}
+	next, cmd := h.inner.Update(msg)
+	if pm, ok := next.(writepicker.Model); ok {
+		h.inner = pm
+	}
+	return h, cmd
+}
+
+func (h pickerHost) View() string { return h.inner.View() }
 
 func newWriteCmd(deps Deps) *cobra.Command {
 	var cwd string

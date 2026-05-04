@@ -196,6 +196,13 @@ linters:
             - github.com/serverkraken/flow/internal/kompendium/ports
             - github.com/serverkraken/flow/internal/kompendium/usecase
             - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
+            # browse embeds writepicker in-process so the new-note picker
+            # lives inside the browse program rather than as a forked
+            # `flow kompendium write` subprocess. The fork-and-nest model
+            # failed at /dev/tty negotiation under tea.ExecProcess in
+            # bubbletea v1.3.x — surface error was »Fehler beim
+            # Bearbeiten: exit status 1« with no picker rendering at all.
+            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker
             - github.com/serverkraken/flow/internal/frontend/tui/markdown
             - github.com/serverkraken/flow/internal/frontend/tui/markdown/theme
             # Canonical theme + the components-kit. P4a migrated browse,

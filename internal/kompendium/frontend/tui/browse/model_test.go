@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
+	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -305,7 +306,7 @@ func TestBrowse_SearchMatchesBodyContent(t *testing.T) {
 	store.Seed(miss, time.Unix(1, 0))
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 
 	// Init → entriesLoadedMsg → loadBodiesCmd → bodiesLoadedMsg.
@@ -340,7 +341,7 @@ func TestBrowse_EnterRunsEditCmdOnSelected(t *testing.T) {
 		capturedPath = path
 		return exec.Command("true")
 	}
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
@@ -368,7 +369,7 @@ func TestBrowse_VOpensInProcessViewer(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -397,7 +398,7 @@ func TestBrowse_VViewerExitReturnsToNormal(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -431,7 +432,7 @@ func TestBrowse_EnterNoOpOnEmptyList(t *testing.T) {
 	t.Parallel()
 
 	editCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	store := testutil.NewFakeNoteStore()
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
@@ -441,27 +442,75 @@ func TestBrowse_EnterNoOpOnEmptyList(t *testing.T) {
 	}
 }
 
-func TestBrowse_NRunsWriteCmd(t *testing.T) {
+func TestBrowse_NEntersWritePickerAndDispatchesOnDone(t *testing.T) {
 	t.Parallel()
 
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
+	var (
+		writeCalled bool
+		gotResult   writepicker.Result
+	)
+	writeCmd := func(r writepicker.Result) *exec.Cmd {
+		writeCalled = true
+		gotResult = r
+		return exec.Command("true")
+	}
+
+	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
+	model := initialised(m)
+	// Press `n` → enters ModeWritePicker; the writeCmd MUST NOT have run yet.
+	model, _ = model.Update(runeKey('n'))
+	if writeCalled {
+		t.Fatal("writeCmd must not be called on `n` press — picker hasn't resolved")
+	}
+	if got := model.(browse.Model).CurrentMode(); got != browse.ModeWritePicker {
+		t.Errorf("n should enter ModeWritePicker, got %v", got)
+	}
+	// Simulate the picker resolving with ChoiceDaily — the DoneMsg
+	// is what the embedded picker would emit on Enter for the Daily row.
+	model, cmd := model.Update(writepicker.DoneMsg{Result: writepicker.Result{Choice: writepicker.ChoiceDaily}})
+	if cmd == nil {
+		t.Fatal("DoneMsg with non-Cancel choice should schedule writeCmd via tea.ExecProcess")
+	}
+	if !writeCalled {
+		t.Error("writeCmd should have been invoked once the picker resolved")
+	}
+	if gotResult.Choice != writepicker.ChoiceDaily {
+		t.Errorf("writeCmd Result Choice = %v, want ChoiceDaily", gotResult.Choice)
+	}
+	// After DoneMsg the model should leave ModeWritePicker.
+	if got := model.(browse.Model).CurrentMode(); got != browse.ModeNormal {
+		t.Errorf("after DoneMsg mode = %v, want ModeNormal", got)
+	}
+}
+
+func TestBrowse_NWritePickerCancelIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	store := testutil.NewFakeNoteStore()
+	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
+	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	var writeCalled bool
-	writeCmd := func() *exec.Cmd {
+	writeCmd := func(writepicker.Result) *exec.Cmd {
 		writeCalled = true
 		return exec.Command("true")
 	}
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
 	model := initialised(m)
-	_, cmd := model.Update(runeKey('n'))
-	if cmd == nil {
-		t.Fatal("n should return a tea.Cmd")
+	model, _ = model.Update(runeKey('n'))
+	model, cmd := model.Update(writepicker.DoneMsg{Result: writepicker.Result{Choice: writepicker.ChoiceCancel}})
+	if writeCalled {
+		t.Error("Cancel from picker must not invoke writeCmd")
 	}
-	if !writeCalled {
-		t.Error("writeCmd was not invoked")
+	if cmd != nil {
+		t.Errorf("Cancel should not schedule any cmd, got %v", cmd())
+	}
+	if got := model.(browse.Model).CurrentMode(); got != browse.ModeNormal {
+		t.Errorf("after Cancel DoneMsg mode = %v, want ModeNormal", got)
 	}
 }
 
@@ -473,9 +522,15 @@ func TestBrowse_NNoOpWithoutWriteCmd(t *testing.T) {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, nil)
 	model := initialised(m)
-	_, cmd := model.Update(runeKey('n'))
+	// `n` still enters ModeWritePicker; resolving the picker with no
+	// writeCmd wired must leave the model harmless (no panic, no cmd).
+	model, _ = model.Update(runeKey('n'))
+	model, cmd := model.Update(writepicker.DoneMsg{Result: writepicker.Result{Choice: writepicker.ChoiceDaily}})
 	if cmd != nil {
-		t.Errorf("n without writeCmd should be a no-op, got cmd=%v", cmd())
+		t.Errorf("DoneMsg without writeCmd wired should not schedule a cmd, got %v", cmd())
+	}
+	if got := model.(browse.Model).CurrentMode(); got != browse.ModeNormal {
+		t.Errorf("after DoneMsg mode = %v, want ModeNormal", got)
 	}
 }
 
@@ -485,7 +540,7 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -515,7 +570,7 @@ func TestBrowse_DConfirmDeletesAndReloads(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -547,7 +602,7 @@ func TestBrowse_DCancelOnN(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -572,7 +627,7 @@ func TestBrowse_DCancelOnEsc(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -593,7 +648,7 @@ func TestBrowse_DNoOpWithoutDeleteUC(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -611,7 +666,7 @@ func TestBrowse_DNoOpOnEmptyList(t *testing.T) {
 
 	store := testutil.NewFakeNoteStore()
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -632,7 +687,7 @@ func TestBrowse_DDeleteErrorSurfacesInView(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	store.DeleteErr = errForTest("disk full")
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
@@ -669,7 +724,7 @@ func tabKey() tea.KeyMsg        { return tea.KeyMsg{Type: tea.KeyTab} }
 // those callbacks received use browse.New directly.
 func newModel(list *usecase.ListNotes) browse.Model {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	noopWrite := func() *exec.Cmd { return exec.Command("true") }
+	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	return browse.New(list, testutil.NewFakeNoteStore(), nil, "", noopCmd, noopWrite)
 }
 

@@ -40,6 +40,7 @@ import (
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
+	kompwritepicker "github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
@@ -239,12 +240,29 @@ func buildNotesScreen(p Paths, kompDeps kompendiumcli.Deps) tea.Model {
 	if info, derr := kompDeps.Repo.Detect(context.Background(), cwd); derr == nil {
 		currentRepo = info.URL
 	}
-	writeCmd := func() *exec.Cmd {
+	// writeCmd builds the `flow kompendium new <type>` cmd that runs
+	// after the in-process picker harvested a Result. Pre-fix this
+	// spawned `flow kompendium write` which embedded its own
+	// tea.Program — that nested-bubbletea-through-ExecProcess shape
+	// failed at /dev/tty negotiation in bubbletea v1.3.x. The picker
+	// now runs inline inside browse and only the new-note CLI (a
+	// plain non-tea command) gets forked here.
+	writeCmd := func(r kompwritepicker.Result) *exec.Cmd {
 		exe, e := os.Executable()
 		if e != nil || exe == "" {
 			exe = "flow"
 		}
-		c := exec.Command(exe, "kompendium", "write", "--cwd", cwd)
+		var c *exec.Cmd
+		switch r.Choice {
+		case kompwritepicker.ChoiceDaily:
+			c = exec.Command(exe, "kompendium", "new", "daily")
+		case kompwritepicker.ChoiceProject:
+			c = exec.Command(exe, "kompendium", "new", "project", "--cwd", cwd)
+		case kompwritepicker.ChoiceFree:
+			c = exec.Command(exe, "kompendium", "new", "free", r.Slug)
+		default:
+			return nil
+		}
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr

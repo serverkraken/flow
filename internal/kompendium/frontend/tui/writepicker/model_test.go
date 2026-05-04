@@ -192,13 +192,19 @@ func TestPicker_IgnoresNonKeyMessages(t *testing.T) {
 func key(s string) tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
 func runeKey(r rune) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
 
+// sendOne forwards one message into the picker. Returns the updated
+// model and a "done" boolean that's true iff the picker emitted a
+// writepicker.DoneMsg via its returned cmd. Pre-DoneMsg refactor this
+// looked for tea.QuitMsg; the picker now signals completion via the
+// custom message so it can be embedded inside another bubbletea
+// program (kompendium browse) without forcing a tea.Quit on the host.
 func sendOne(m writepicker.Model, msg tea.Msg) (writepicker.Model, bool) {
 	model, cmd := m.Update(msg)
 	pm := model.(writepicker.Model)
 	if cmd == nil {
 		return pm, false
 	}
-	if _, ok := cmd().(tea.QuitMsg); ok {
+	if _, ok := cmd().(writepicker.DoneMsg); ok {
 		return pm, true
 	}
 	return pm, false
