@@ -1461,6 +1461,11 @@ func startOfDay(t time.Time) time.Time {
 
 // joinWrapped joins parts with sep, wrapping when the line would exceed
 // maxWidth. prefix on the first wrapped line; cont on the followers.
+//
+// A single part wider than maxWidth (e.g. a paste-bombed Note token) is
+// emitted on its own line, even though it overshoots — the helper can't
+// split a chip and silently dropping data is worse than visual overrun.
+// See wrap_test.go: TestJoinWrapped_SinglePartLongerThanWidth.
 func joinWrapped(parts []string, sep, prefix, cont string, maxWidth int) string {
 	if len(parts) == 0 {
 		return ""

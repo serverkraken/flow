@@ -345,11 +345,15 @@ func (m *Model) jumpSection(dir int) {
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		// Two-stage: first esc clears the value (keeping focus, so the
-		// user can immediately retype); second esc on an empty filter
-		// closes the palette.
+		// Esc with a non-empty filter clears the value AND blurs so j/k
+		// (which are normal-mode navigation keys) reach the list. The
+		// older two-stage "clear, keep focus, second esc quits" combined
+		// with the type-to-filter auto-focus made it impossible to
+		// navigate without re-pressing `/` — and any printable key then
+		// re-trapped the user. Esc on an empty filter still quits.
 		if m.filter.Value() != "" {
 			m.filter.SetValue("")
+			m.filter.Blur()
 			m.applyFilter()
 			return m, nil
 		}

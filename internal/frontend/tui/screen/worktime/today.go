@@ -531,10 +531,18 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case heuteDialogTag, heuteDialogNote, heuteDialogNoteAttach:
 		return h.handleSimpleInputKey(msg)
 	case heuteDialogHelp:
-		// Help-Overlay schließt auf jede Taste — keine Validierung,
-		// kein State zum Beibehalten. Mirror der sidekick-Hilfe-UX.
+		// Help-Overlay schließt explizit auf Esc oder ?. Andere Tasten
+		// laufen normal weiter, damit der User direkt nach dem
+		// Erinnern-an-die-Tastenbelegung nicht nochmal drücken muss
+		// (z.B. `?` öffnet Help, dann `s` zum Starten — ohne diese
+		// Logik wurde `s` als Dialog-Dismiss verschluckt).
+		switch msg.String() {
+		case "esc", "?", "q":
+			h.dialog = heuteDialogNone
+			return h, nil
+		}
 		h.dialog = heuteDialogNone
-		return h, nil
+		return h.handleNormalKey(msg)
 	}
 	return h, nil
 }
@@ -549,6 +557,14 @@ func (h heute) handleSimpleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h, nil
 	case tea.KeyEnter:
 		return h.submitDialog()
+	case tea.KeyTab, tea.KeyShiftTab:
+		// Single-input dialogs (Tag/Note/NoteAttach) have nowhere to
+		// tab to — swallow the key instead of letting bubbles textinput
+		// insert a literal tab character that would survive into the
+		// stored field. The tsvsessions writer now sanitises tab/CR/LF
+		// at write time too, but rejecting at the input boundary is
+		// less surprising for the user.
+		return h, nil
 	}
 	h.errMsg = ""
 	var cmd tea.Cmd

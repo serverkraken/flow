@@ -156,8 +156,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if m.showHelp {
+			// Help schließt explizit auf Esc/?/q. Jede andere Taste
+			// schließt zwar auch, aber wird dann normal verarbeitet —
+			// sonst muss man nach `?` zur Erinnerung an einen Shortcut
+			// die Taste zweimal drücken.
 			m.showHelp = false
-			return m, nil
+			switch msg.String() {
+			case "esc", "?", "q":
+				return m, nil
+			}
 		}
 		if si, ok := m.screens[m.current].(screener); ok && si.FilterActive() {
 			updated, cmd := m.screens[m.current].Update(msg)

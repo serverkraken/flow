@@ -331,8 +331,15 @@ func (f frei) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return f, nil
 }
 
+// kindIdx is the formCur value that addresses the kind picker (which
+// is a "virtual" form field rendered after the text inputs). Centralised
+// so the picker stays reachable when text fields are added — the older
+// `len(f.form)` arithmetic was correct only because there happened to
+// be exactly two text fields.
+func (f frei) kindIdx() int { return len(f.form) }
+
 func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	maxCur := len(f.form) // virtual kind picker sits at index = len(f.form)
+	last := f.kindIdx()
 	switch msg.Type {
 	case tea.KeyEsc:
 		f.dialog = freiDialogNone
@@ -341,7 +348,7 @@ func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return f, nil
 	case tea.KeyTab, tea.KeyDown:
 		next := f.formCur + 1
-		if next > maxCur {
+		if next > last {
 			next = 0
 		}
 		f.focusForm(next)
@@ -349,21 +356,21 @@ func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyShiftTab, tea.KeyUp:
 		next := f.formCur - 1
 		if next < 0 {
-			next = maxCur
+			next = last
 		}
 		f.focusForm(next)
 		return f, textinput.Blink
 	case tea.KeyEnter:
-		if f.formCur < maxCur {
+		if f.formCur < last {
 			f.focusForm(f.formCur + 1)
 			return f, textinput.Blink
 		}
 		return f.submitAdd()
 	}
-	if f.formCur == len(f.form) {
+	if f.formCur == last {
 		return f.handleKindCycle(msg)
 	}
-	if f.formCur >= 0 && f.formCur < len(f.form) {
+	if f.formCur >= 0 && f.formCur < last {
 		var cmd tea.Cmd
 		f.errMsg = ""
 		f.form[f.formCur], cmd = f.form[f.formCur].Update(msg)
@@ -574,7 +581,7 @@ func (f frei) renderAddFields(inner int) []string {
 func (f frei) renderKindPicker(inner int) string {
 	header := picker.SectionHeader("kategorie  (h/l zum Wechseln)", inner, f.pal)
 	chips := make([]string, 0, len(domain.AllKinds))
-	kindFocused := f.formCur == len(f.form)
+	kindFocused := f.formCur == f.kindIdx()
 	for i, k := range domain.AllKinds {
 		st := lipgloss.NewStyle().Foreground(f.pal.Dim)
 		if i == f.kindCur {

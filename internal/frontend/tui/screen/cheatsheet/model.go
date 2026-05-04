@@ -105,11 +105,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
+		// Forward only key messages the local switch didn't claim.
+		// Non-Key messages (toast.DismissedMsg, palette switches, etc.)
+		// have no business reaching the viewport — bubbles' viewport
+		// would just ignore them, but the unbounded forwarding surface
+		// is a footgun whenever bubbletea adds a new event type.
+		var cmd tea.Cmd
+		m.vp, cmd = m.vp.Update(msg)
+		return m, cmd
 	}
-
-	var cmd tea.Cmd
-	m.vp, cmd = m.vp.Update(msg)
-	return m, cmd
+	return m, nil
 }
 
 func (m *Model) renderContent() {
