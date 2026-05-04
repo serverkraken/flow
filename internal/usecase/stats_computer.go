@@ -74,6 +74,9 @@ func (c *StatsComputer) Burndown(now time.Time) (domain.MonthBurndownReport, err
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}
-	active, _ := c.State.GetActive()
+	active, err := c.State.GetActive()
+	if err != nil {
+		return domain.MonthBurndownReport{}, err
+	}
 	return domain.MonthBurndownCompute(now, hist, active, c.Targets.IsWorkday, c.Targets.For), nil
 }

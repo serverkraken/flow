@@ -47,8 +47,7 @@ func (w *SessionWriter) StartForce(ts time.Time) error {
 		if err := w.State.SetActive(ts); err != nil {
 			return err
 		}
-		_ = w.State.ClearPause()
-		return nil
+		return w.State.ClearPause()
 	})
 }
 
@@ -91,8 +90,7 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		if err := w.State.ClearActive(); err != nil {
 			return err
 		}
-		_ = w.State.ClearPause()
-		return nil
+		return w.State.ClearPause()
 	})
 	if err != nil {
 		return domain.Session{}, err
@@ -167,8 +165,7 @@ func (w *SessionWriter) Resume() error {
 				return err
 			}
 		}
-		_ = w.State.ClearPause()
-		return nil
+		return w.State.ClearPause()
 	})
 }
 
@@ -206,7 +203,9 @@ func (w *SessionWriter) Toggle() (string, error) {
 			if err := w.State.ClearActive(); err != nil {
 				return err
 			}
-			_ = w.State.ClearPause()
+			if err := w.State.ClearPause(); err != nil {
+				return err
+			}
 			msg = fmt.Sprintf("gestoppt nach %dh %02dm",
 				int(s.Elapsed.Hours()), int(s.Elapsed.Minutes())%60)
 			return nil
@@ -314,7 +313,11 @@ func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Tim
 	})
 }
 
-// Delete removes the session at idx (0-based, scoped to date).
+// Delete removes the session at idx (0-based, scoped to date). Returns
+// ErrSessionNotFound when idx is out of range so stale CLI input like
+// `flow worktime delete 99` against a day with 3 sessions surfaces an
+// error instead of silently rewriting the unchanged log and reporting
+// success — same contract Edit / SetTag / SetNote already enforce.
 func (w *SessionWriter) Delete(date time.Time, idx int) error {
 	return w.Lock.With(func() error {
 		all, err := w.Sessions.LoadAll()
@@ -323,16 +326,22 @@ func (w *SessionWriter) Delete(date time.Time, idx int) error {
 		}
 		dateStr := date.Format("2006-01-02")
 		dayIdx := 0
+		found := false
 		out := make([]domain.Session, 0, len(all))
 		for _, s := range all {
 			if s.Date.Format("2006-01-02") == dateStr {
-				if dayIdx != idx {
+				if dayIdx == idx {
+					found = true
+				} else {
 					out = append(out, s)
 				}
 				dayIdx++
 			} else {
 				out = append(out, s)
 			}
+		}
+		if !found {
+			return domain.ErrSessionNotFound
 		}
 		return w.Sessions.Rewrite(out)
 	})

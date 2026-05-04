@@ -55,15 +55,25 @@ func TestPaletteWriter_TogglePin(t *testing.T) {
 	}
 }
 
-func TestPaletteWriter_StatsLoadErrorIsTolerated(t *testing.T) {
-	store := &testutil.FakePaletteStatsStore{LoadErr: errors.New("file missing")}
+// TestPaletteWriter_LoadErrorAbortsWrite verifies that a transient
+// stats-load failure does NOT silently overwrite the on-disk stats
+// with an empty struct. The legitimate "file does not exist" case
+// returns a zero-value stats struct (no error) by adapter contract;
+// only real I/O errors propagate through Load and they must abort
+// the write.
+func TestPaletteWriter_LoadErrorAbortsWrite(t *testing.T) {
+	loadErr := errors.New("file missing")
+	store := &testutil.FakePaletteStatsStore{LoadErr: loadErr}
 	w := &usecase.PaletteWriter{
 		Stats: store,
 		Clock: &testutil.FixedClock{T: time.Now()},
 	}
 	e := domain.PaletteEntry{Section: "Worktime", Label: "Start"}
-	if err := w.Mark(e); err != nil {
-		t.Errorf("load error should be tolerated: %v", err)
+	if err := w.Mark(e); !errors.Is(err, loadErr) {
+		t.Errorf("expected loadErr from Mark, got %v", err)
+	}
+	if err := w.TogglePin(e); !errors.Is(err, loadErr) {
+		t.Errorf("expected loadErr from TogglePin, got %v", err)
 	}
 }
 

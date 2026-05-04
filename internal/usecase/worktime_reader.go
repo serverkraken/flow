@@ -28,11 +28,20 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 	now := r.Clock.Now()
 	day := domain.Day{Target: r.Targets.For(now)}
 
-	active, _ := r.State.GetActive()
+	active, err := r.State.GetActive()
+	if err != nil {
+		return day, err
+	}
 	if active != nil {
 		day.Active = active
-	} else if pause, _ := r.State.GetPause(); pause != nil {
-		day.PausedAt = pause
+	} else {
+		pause, err := r.State.GetPause()
+		if err != nil {
+			return day, err
+		}
+		if pause != nil {
+			day.PausedAt = pause
+		}
 	}
 
 	sessions, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
@@ -53,7 +62,10 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 // is set.
 func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 	now := r.Clock.Now()
-	active, _ := r.State.GetActive()
+	active, err := r.State.GetActive()
+	if err != nil {
+		return nil, err
+	}
 
 	wd := int(now.Weekday())
 	if wd == 0 {
