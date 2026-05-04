@@ -22,16 +22,25 @@ func New() Manager {
 	return Manager{run: realRun}
 }
 
-// currentBranch returns the symbolic branch name of HEAD. A detached HEAD
-// returns "HEAD", which is then used verbatim — almost certainly leading
-// to a "no such ref" merge error, which is the right outcome since
-// merging into a detached HEAD has no symbolic target anyway.
+// ErrDetachedHead signals that the notebook repo is on a detached HEAD,
+// which has no symbolic ref to push or merge into. Sync / Bundle return
+// this so the CLI can surface a clear "checkout a branch first" message
+// instead of letting git fail with a cryptic ref error downstream.
+var ErrDetachedHead = errors.New("notebook is on detached HEAD — check out a branch first")
+
+// currentBranch returns the symbolic branch name of HEAD. A detached
+// HEAD surfaces as ErrDetachedHead so callers can short-circuit before
+// invoking pull/push/bundle against an unresolvable target.
 func (m Manager) currentBranch(ctx context.Context, root string) (string, error) {
 	out, err := m.run(ctx, root, "rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	branch := strings.TrimSpace(out)
+	if branch == "HEAD" {
+		return "", ErrDetachedHead
+	}
+	return branch, nil
 }
 
 // identityArgs prepends `-c user.name=… -c user.email=…` to args ONLY

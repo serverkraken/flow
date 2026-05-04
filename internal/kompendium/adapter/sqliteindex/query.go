@@ -10,6 +10,11 @@ import (
 
 // Search implements ports.Indexer.
 func (i *Indexer) Search(ctx context.Context, q domain.SearchQuery) ([]domain.SearchResult, error) {
+	release, err := i.guard()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	query, args := buildSearch(q)
 	rows, err := i.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -64,6 +69,11 @@ func (i *Indexer) LinksFrom(ctx context.Context, id domain.ID) ([]domain.LinkRef
 }
 
 func (i *Indexer) queryLinkRefs(ctx context.Context, query string, args ...any) ([]domain.LinkRef, error) {
+	release, err := i.guard()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 	rows, err := i.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)

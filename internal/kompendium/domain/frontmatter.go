@@ -68,16 +68,32 @@ const (
 	fmDelim   = "---"
 )
 
+// utf8BOM is the UTF-8 byte-order mark some editors prepend on save.
+// It carries no semantic meaning but breaks the literal "---\n" prefix
+// check below, so HasFrontmatter / ParseFrontmatter strip it before
+// inspecting content.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
 // HasFrontmatter reports whether content begins with a frontmatter opening
-// delimiter.
+// delimiter, tolerating a UTF-8 BOM and CRLF line endings as written by
+// Windows or non-LF-defaulting editors.
 func HasFrontmatter(content []byte) bool {
-	return bytes.HasPrefix(content, []byte(fmDelimNL))
+	content = stripBOM(content)
+	return bytes.HasPrefix(content, []byte(fmDelimNL)) ||
+		bytes.HasPrefix(content, []byte("---\r\n"))
 }
 
 // ParseFrontmatter splits content into frontmatter and body. It expects content
 // to start with "---\n", a YAML block, and a closing "---" on its own line.
-// LF line endings only.
+//
+// Tolerates a leading UTF-8 BOM (some editors save with one) and CRLF
+// line endings (Windows-created notes, copy-paste from web editors).
+// Both are normalised to LF before parsing so the YAML block, body, and
+// downstream consumers all see consistent line endings — without this,
+// the "---\n" prefix check failed silently and reported ErrNoFrontmatter
+// for files that clearly had frontmatter.
 func ParseFrontmatter(content []byte) (Frontmatter, []byte, error) {
+	content = normaliseLineEndings(stripBOM(content))
 	rest, ok := stripOpeningDelim(content)
 	if !ok {
 		return Frontmatter{}, nil, ErrNoFrontmatter
@@ -91,6 +107,23 @@ func ParseFrontmatter(content []byte) (Frontmatter, []byte, error) {
 		return Frontmatter{}, nil, fmt.Errorf("%w: %v", ErrMalformedFrontmatter, err)
 	}
 	return fm, body, nil
+}
+
+func stripBOM(content []byte) []byte {
+	if bytes.HasPrefix(content, utf8BOM) {
+		return content[len(utf8BOM):]
+	}
+	return content
+}
+
+func normaliseLineEndings(content []byte) []byte {
+	if !bytes.Contains(content, []byte("\r")) {
+		return content
+	}
+	// Handle CRLF first so a stray CR mid-document doesn't dupe the LF.
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	return content
 }
 
 func stripOpeningDelim(content []byte) ([]byte, bool) {

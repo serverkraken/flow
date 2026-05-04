@@ -61,7 +61,15 @@ func (i *Indexer) Rebuild(ctx context.Context, all []ports.IndexEntry) error {
 // inTx runs fn inside a write transaction. Commit is automatic on success;
 // any error from fn rolls back. The deferred Rollback after a successful
 // Commit is a no-op (database/sql guarantees this), so it is safe to leave.
+//
+// Holds the read-side guard against Close so a shutdown during a long
+// Rebuild doesn't pull the *sql.DB out from under us mid-transaction.
 func (i *Indexer) inTx(ctx context.Context, fn func(*sql.Tx) error) error {
+	release, err := i.guard()
+	if err != nil {
+		return err
+	}
+	defer release()
 	tx, err := i.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)

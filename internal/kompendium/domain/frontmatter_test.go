@@ -78,6 +78,8 @@ func TestHasFrontmatter(t *testing.T) {
 		{"plain markdown", []byte("# Heading\n"), false},
 		{"only opening dashes no newline", []byte("---"), false},
 		{"empty", nil, false},
+		{"with utf-8 BOM", append([]byte{0xEF, 0xBB, 0xBF}, []byte("---\nid: x\n---\nbody\n")...), true},
+		{"with CRLF", []byte("---\r\nid: x\r\n---\r\nbody\r\n"), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -173,6 +175,35 @@ func TestParseFrontmatter(t *testing.T) {
 		_, _, err := domain.ParseFrontmatter([]byte("---\nid: x\n  bad indent\n  : nope\n---\n"))
 		if !errors.Is(err, domain.ErrMalformedFrontmatter) {
 			t.Errorf("expected ErrMalformedFrontmatter, got %v", err)
+		}
+	})
+
+	t.Run("utf-8 BOM tolerated", func(t *testing.T) {
+		t.Parallel()
+		content := append([]byte{0xEF, 0xBB, 0xBF},
+			[]byte("---\nid: daily/2026-04-25\ntype: daily\n---\nbody\n")...)
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fm.ID != "daily/2026-04-25" || string(body) != "body\n" {
+			t.Errorf("got fm=%+v body=%q", fm, body)
+		}
+	})
+
+	t.Run("CRLF line endings tolerated", func(t *testing.T) {
+		t.Parallel()
+		content := []byte("---\r\nid: daily/2026-04-25\r\ntype: daily\r\n---\r\nbody line\r\n")
+		fm, body, err := domain.ParseFrontmatter(content)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if fm.ID != "daily/2026-04-25" {
+			t.Errorf("got fm=%+v", fm)
+		}
+		// Body should be normalised to LF too.
+		if string(body) != "body line\n" {
+			t.Errorf("got body=%q (expected LF-normalised)", body)
 		}
 	})
 }
