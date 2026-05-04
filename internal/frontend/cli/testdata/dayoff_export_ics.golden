@@ -4,7 +4,7 @@ PRODID:-//serverkraken//flow worktime//DE
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-UID:dayoff-20260501-holiday@flow.serverkraken
+UID:dayoff-20260501-87686141@flow.serverkraken
 DTSTART;VALUE=DATE:20260501
 DTEND;VALUE=DATE:20260502
 SUMMARY:Tag der Arbeit (Feiertag)

@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"sort"
@@ -37,7 +39,13 @@ func WriteICS(w io.Writer, dayoffs []DayOff, now time.Time) error {
 		if d.Label != "" {
 			summary = d.Label + " (" + d.Kind.LabelDe() + ")"
 		}
-		uid := fmt.Sprintf("dayoff-%s-%s@flow.serverkraken", dtstart, d.Kind)
+		// UID hashes date+kind+label+target so two entries on the same
+		// day with different labels (e.g. half-day Arzt + half-day
+		// Brückentag) produce distinct UIDs. The previous date+kind-only
+		// UID would collide and any RFC 5545-conformant calendar client
+		// would treat the second event as an update of the first,
+		// silently overwriting it.
+		uid := dayoffUID(d, dtstart)
 		b.WriteString("BEGIN:VEVENT\r\n")
 		fmt.Fprintf(&b, "UID:%s\r\n", uid)
 		fmt.Fprintf(&b, "DTSTAMP:%s\r\n", stamp)
@@ -54,4 +62,14 @@ func WriteICS(w io.Writer, dayoffs []DayOff, now time.Time) error {
 	b.WriteString("END:VCALENDAR\r\n")
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// dayoffUID returns a UID stable across re-imports for a given DayOff.
+// The first 8 hex chars of sha1(date|kind|label|target_minutes) are
+// enough to distinguish realistic same-day entries without producing
+// noisy long URIs in calendar UIs.
+func dayoffUID(d DayOff, dtstart string) string {
+	h := sha1.Sum([]byte(fmt.Sprintf("%s|%s|%s|%d",
+		dtstart, d.Kind, d.Label, int(d.Target/time.Minute))))
+	return fmt.Sprintf("dayoff-%s-%s@flow.serverkraken", dtstart, hex.EncodeToString(h[:4]))
 }

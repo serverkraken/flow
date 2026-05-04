@@ -249,15 +249,25 @@ Beispiele:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref := deps.Clock.Now()
 			scope := domain.ReportWeek
-			if scopeFlag == "month" {
-				scope = domain.ReportMonth
+			scopeFromFlag := false
+			if cmd.Flags().Changed("scope") {
+				scopeFromFlag = true
+				if scopeFlag == "month" {
+					scope = domain.ReportMonth
+				}
 			}
 			if len(args) > 0 {
 				arg := args[0]
 				switch arg {
 				case "week", "":
+					if scopeFromFlag && scope != domain.ReportWeek {
+						return fmt.Errorf("widersprüchliche scopes: --scope=%s und Argument %q", scopeFlag, arg)
+					}
 					scope = domain.ReportWeek
 				case "month":
+					if scopeFromFlag && scope != domain.ReportMonth {
+						return fmt.Errorf("widersprüchliche scopes: --scope=%s und Argument %q", scopeFlag, arg)
+					}
 					scope = domain.ReportMonth
 				default:
 					if t, err := time.ParseInLocation("2006-01-02", arg, time.Local); err == nil {

@@ -139,15 +139,19 @@ func TestManager_Snapshot(t *testing.T) {
 	}
 }
 
-func TestManager_Snapshot_AllowsEmpty(t *testing.T) {
+func TestManager_Snapshot_RefusesEmpty(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
 	m := gitsnapshot.New()
 	mustInit(t, m, tmp)
 
-	// No changes at all — Snapshot must still succeed via --allow-empty.
-	if err := m.Snapshot(context.Background(), tmp, "empty snapshot"); err != nil {
-		t.Errorf("Snapshot on clean tree should succeed, got %v", err)
+	// No changes at all — Snapshot now surfaces git's "nothing to
+	// commit" error. Callers (SnapshotNotebook) check
+	// HasUncommittedChanges first and short-circuit on clean trees, so
+	// reaching here without a real change is treated as a programming
+	// error rather than silently producing an empty commit.
+	if err := m.Snapshot(context.Background(), tmp, "empty snapshot"); err == nil {
+		t.Error("Snapshot on clean tree should fail (git: nothing to commit)")
 	}
 }
 

@@ -134,6 +134,10 @@ func FilterRecords(records []DayRecord, from, to time.Time) []DayRecord {
 
 // BriefBounds resolves the [from, to) span and the title for a brief.
 // from is inclusive, to is exclusive (one day past the brief's last day).
+// Keep the half-open contract stable — callers in usecase/reporter.go
+// compensate with `to.AddDate(0, 0, -1)` when the downstream API wants
+// inclusive bounds (DayOffStore.List), so changing this signature is a
+// silent off-by-one bug if every call site isn't updated together.
 func BriefBounds(ref time.Time, scope ReportRange) (from, to time.Time, title string) {
 	switch scope {
 	case ReportMonth:

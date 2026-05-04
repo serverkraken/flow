@@ -34,6 +34,13 @@ func New() Detector {
 // ports.ErrRepoHasNoRemote — project notes need a stable canonical URL
 // across machines, and the previous filesystem-path fallback produced
 // keys that broke as soon as the user moved to a second machine.
+//
+// `git rev-parse --show-toplevel` resolves working trees correctly for
+// regular clones, worktrees added via `git worktree add`, and submodules
+// (each returns its own working-tree root). Bare repositories deliberately
+// surface as ErrNotInRepo — kompendium's project notes are a working-tree
+// concept, and treating "user is in a bare clone of foo.git" as "in
+// foo's project" would produce notes that can't be edited from there.
 func (d Detector) Detect(ctx context.Context, cwd string) (ports.RepoInfo, error) {
 	root, err := d.run(ctx, cwd, "rev-parse", "--show-toplevel")
 	if err != nil {

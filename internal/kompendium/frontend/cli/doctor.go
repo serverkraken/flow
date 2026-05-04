@@ -103,8 +103,49 @@ func writeIssues(w io.Writer, header string, issues []usecase.DoctorIssue) error
 	return nil
 }
 
+// doctorReportDTO mirrors the wire shape of DoctorReport. The CLI owns
+// this type so a refactor of the use-case struct (renaming a field,
+// adding a new check category) doesn't silently break external
+// consumers of `kompendium doctor --json`. Other JSON outputs in this
+// package use the same DTO discipline — see output.go.
+type doctorReportDTO struct {
+	NotebookRoot       string             `json:"notebook_root"`
+	IsRepo             bool               `json:"is_repo"`
+	HasUncommitted     bool               `json:"has_uncommitted"`
+	NoteCount          int                `json:"note_count"`
+	InvalidFrontmatter []doctorIssueDTO   `json:"invalid_frontmatter"`
+	BrokenLinks        []doctorIssueDTO   `json:"broken_links"`
+	InconsistentIDs    []doctorIssueDTO   `json:"inconsistent_ids"`
+	MergeMarkers       []doctorIssueDTO   `json:"merge_markers"`
+}
+
+type doctorIssueDTO struct {
+	NoteID string `json:"note_id"`
+	Detail string `json:"detail"`
+}
+
+func toDoctorReportDTO(r usecase.DoctorReport) doctorReportDTO {
+	conv := func(in []usecase.DoctorIssue) []doctorIssueDTO {
+		out := make([]doctorIssueDTO, len(in))
+		for i, v := range in {
+			out[i] = doctorIssueDTO{NoteID: v.NoteID.String(), Detail: v.Detail}
+		}
+		return out
+	}
+	return doctorReportDTO{
+		NotebookRoot:       r.NotebookRoot,
+		IsRepo:             r.IsRepo,
+		HasUncommitted:     r.HasUncommitted,
+		NoteCount:          r.NoteCount,
+		InvalidFrontmatter: conv(r.InvalidFrontmatter),
+		BrokenLinks:        conv(r.BrokenLinks),
+		InconsistentIDs:    conv(r.InconsistentIDs),
+		MergeMarkers:       conv(r.MergeMarkers),
+	}
+}
+
 func printDoctorJSON(w io.Writer, r usecase.DoctorReport) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(r)
+	return enc.Encode(toDoctorReportDTO(r))
 }

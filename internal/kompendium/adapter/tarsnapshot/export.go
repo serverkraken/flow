@@ -13,18 +13,30 @@ import (
 
 // Export writes a tar.gz of every regular file under sourceRoot (except
 // anything under .git/) to outPath.
-func (Snapshot) Export(_ context.Context, sourceRoot, outPath string) error {
+//
+// Close errors on the tar / gzip writers and the file are checked
+// explicitly: a deferred-discard would silently produce a corrupt
+// archive (incomplete tar trailer or gzip footer) that the matching
+// Import would later reject as "unexpected EOF". The file is also
+// fsync'd before close so a crash between the last write and the OS
+// flush can't truncate the just-written archive.
+func (Snapshot) Export(_ context.Context, sourceRoot, outPath string) (retErr error) {
 	f, err := os.Create(outPath)
 	if err != nil {
 		return fmt.Errorf("create %q: %w", outPath, err)
 	}
-	defer func() { _ = f.Close() }()
+	// Belt-and-suspenders: if we return early via error, still close the
+	// file so the fd doesn't leak. The successful path closes it
+	// explicitly below to inspect the error.
+	closed := false
+	defer func() {
+		if !closed {
+			_ = f.Close()
+		}
+	}()
 
 	gz := gzip.NewWriter(f)
-	defer func() { _ = gz.Close() }()
-
 	tw := tar.NewWriter(gz)
-	defer func() { _ = tw.Close() }()
 
 	walkErr := filepath.WalkDir(sourceRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -51,6 +63,19 @@ func (Snapshot) Export(_ context.Context, sourceRoot, outPath string) error {
 	})
 	if walkErr != nil {
 		return fmt.Errorf("walk %q: %w", sourceRoot, walkErr)
+	}
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("tar close: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("gzip close: %w", err)
+	}
+	if err := f.Sync(); err != nil {
+		return fmt.Errorf("sync %q: %w", outPath, err)
+	}
+	closed = true
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close %q: %w", outPath, err)
 	}
 	return nil
 }

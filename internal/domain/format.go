@@ -8,23 +8,35 @@ import (
 
 // FmtDuration formats a duration as "Nh MMm" (e.g. "2h 15m"). Negative
 // durations are clamped to zero — the format is for display, not math.
+//
+// Rounding is half-up to the nearest minute so a session ending at
+// 1h59m45s renders as "2h 00m" rather than truncating to "1h 59m".
+// Without this, the threshold check (>= target) could be satisfied
+// while the formatted brief showed "8h 00m / 8h 00m" but no ✓ tick.
+// Threshold comparisons still use the raw duration; only the display
+// rounds.
 func FmtDuration(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
-	return fmt.Sprintf("%dh %02dm", int(d.Hours()), int(d.Minutes())%60)
+	d = d.Round(time.Minute)
+	mins := int(d / time.Minute)
+	return fmt.Sprintf("%dh %02dm", mins/60, mins%60)
 }
 
 // FmtSignedDuration formats a duration with an explicit "+" or "-" sign.
 // Zero renders as "+0h 00m" — the sign always appears, signalling that the
-// value is a balance/saldo rather than a quantity.
+// value is a balance/saldo rather than a quantity. Rounding policy
+// matches FmtDuration (half-up to the minute, after sign extraction).
 func FmtSignedDuration(d time.Duration) string {
 	sign := "+"
 	if d < 0 {
 		sign = "-"
 		d = -d
 	}
-	return fmt.Sprintf("%s%dh %02dm", sign, int(d.Hours()), int(d.Minutes())%60)
+	d = d.Round(time.Minute)
+	mins := int(d / time.Minute)
+	return fmt.Sprintf("%s%dh %02dm", sign, mins/60, mins%60)
 }
 
 var (

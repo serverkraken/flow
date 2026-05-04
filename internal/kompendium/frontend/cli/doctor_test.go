@@ -79,10 +79,12 @@ func TestDoctor_JSONOutput(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
 		t.Fatalf("json unmarshal: %v\n%s", err, stdout)
 	}
-	if !report["IsRepo"].(bool) {
-		t.Errorf("IsRepo got %v", report["IsRepo"])
+	// DTO uses snake_case so external CI consumers get a stable wire
+	// shape independent of Go field names — see doctor.go.
+	if !report["is_repo"].(bool) {
+		t.Errorf("is_repo got %v", report["is_repo"])
 	}
-	if !report["HasUncommitted"].(bool) {
-		t.Errorf("HasUncommitted got %v", report["HasUncommitted"])
+	if !report["has_uncommitted"].(bool) {
+		t.Errorf("has_uncommitted got %v", report["has_uncommitted"])
 	}
 }

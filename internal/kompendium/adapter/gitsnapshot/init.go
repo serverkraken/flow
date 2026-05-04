@@ -93,12 +93,19 @@ func (m Manager) Snapshot(ctx context.Context, root, message string) error {
 }
 
 // commit invokes `git commit`, injecting a kompendium fallback identity
-// only when the host has no user.name/user.email configured. The
-// `--allow-empty` flag keeps Snapshot idempotent even on clean trees,
-// which matters for callers that snapshot before exporting a bundle.
+// only when the host has no user.name/user.email configured. The caller
+// (SnapshotNotebook use case) checks HasUncommittedChanges first and
+// short-circuits when the tree is clean, so commit is reached only when
+// there is something to commit. `--allow-empty` was previously set
+// "for callers that snapshot before exporting a bundle" but no caller
+// exercises that path; the flag papered over a TOCTOU race that would
+// have produced an empty commit if a concurrent process committed
+// between HasUncommittedChanges and this call. Drop it; if the race
+// loses, surfacing the "nothing to commit" error is more honest than
+// silently polluting history with empty commits.
 func (m Manager) commit(ctx context.Context, root, message string) error {
 	args := identityArgs(ctx, m.run, root, []string{
-		"commit", "--allow-empty", "-q", "-m", message,
+		"commit", "-q", "-m", message,
 	})
 	if _, err := m.run(ctx, root, args...); err != nil {
 		return fmt.Errorf("git commit: %w", err)

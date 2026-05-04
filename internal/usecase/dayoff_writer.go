@@ -19,9 +19,17 @@ type DayOffWriter struct {
 // Add inserts or replaces an entry for date. An empty label defaults to
 // the kind's German label ("Feiertag" / "Urlaub" / "Krank") so the row
 // always renders meaningfully.
+//
+// A label containing tab/CR/LF is rejected with an explicit error so
+// the user notices their shell escaping went wrong — silently turning
+// `"first\nsecond"` into `"first second"` was lossy without feedback.
+// Surrounding whitespace is still trimmed silently (intentional UX).
 func (w *DayOffWriter) Add(date time.Time, kind domain.Kind, label string) error {
 	if _, ok := domain.ParseKind(string(kind)); !ok {
 		return fmt.Errorf("ungültige kategorie: %q", kind)
+	}
+	if containsTSVMeta(label) {
+		return fmt.Errorf("label enthält Tab oder Zeilenumbruch — bitte ohne diese Zeichen eingeben")
 	}
 	label = sanitizeField(label)
 	if label == "" {
@@ -32,6 +40,18 @@ func (w *DayOffWriter) Add(date time.Time, kind domain.Kind, label string) error
 		Kind:  kind,
 		Label: label,
 	})
+}
+
+// containsTSVMeta reports whether s contains any of the characters that
+// would otherwise be replaced silently by sanitizeField. Whitespace at
+// the edges is fine — sanitizeField TrimSpaces it without complaint.
+func containsTSVMeta(s string) bool {
+	for _, r := range s {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return true
+		}
+	}
+	return false
 }
 
 // AddRange adds an entry for every calendar day in [from, to] (inclusive).
