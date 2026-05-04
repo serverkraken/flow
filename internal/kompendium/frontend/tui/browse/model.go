@@ -1,8 +1,10 @@
 package browse
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"strings"
 	"time"
@@ -584,6 +586,34 @@ func (m Model) openWritePicker() (tea.Model, tea.Cmd) {
 	return m, m.picker.Init()
 }
 
+// runViaExecCapture wraps tea.ExecProcess with a stderr-capturing
+// MultiWriter so that when the spawned process exits non-zero, the
+// editFinishedMsg carries cobra's actual "Error: ..." line in
+// addition to the bare exit code. Without this the alt-screen redraw
+// after tea.ExecProcess wipes whatever the subprocess printed to
+// stderr, leaving browse with only `*exec.ExitError`'s short
+// "exit status N" — no actionable signal for the user.
+//
+// Stdout is left untouched (nvim and CreateX printCreateOutput need
+// it to take over the TTY) and stderr keeps streaming to the user's
+// terminal too — the captured copy is purely additive.
+func runViaExecCapture(cmd *exec.Cmd) tea.Cmd {
+	var errBuf bytes.Buffer
+	if cmd.Stderr != nil {
+		cmd.Stderr = io.MultiWriter(cmd.Stderr, &errBuf)
+	} else {
+		cmd.Stderr = &errBuf
+	}
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		if err != nil {
+			if captured := strings.TrimSpace(errBuf.String()); captured != "" {
+				err = fmt.Errorf("%w — %s", err, captured)
+			}
+		}
+		return editFinishedMsg{err: err}
+	})
+}
+
 // updatePicker is the reducer-branch active while ModeWritePicker is
 // the input mode. The picker emits writepicker.DoneMsg when the user
 // either selects a type (with optional slug) or cancels; we harvest
@@ -611,9 +641,7 @@ func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd == nil {
 			return m, nil
 		}
-		return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-			return editFinishedMsg{err: err}
-		})
+		return m, runViaExecCapture(cmd)
 	}
 	next, cmd := m.picker.Update(msg)
 	m.picker = next.(writepicker.Model)
@@ -631,9 +659,7 @@ func (m Model) runOnSelected(builder CmdFunc) (tea.Model, tea.Cmd) {
 	}
 	id := m.visible[m.cursor].ID
 	cmd := builder(m.store.Path(id))
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return editFinishedMsg{err: err}
-	})
+	return m, runViaExecCapture(cmd)
 }
 
 // openViewer constructs a fresh in-process Markdown viewer for the
