@@ -194,25 +194,30 @@ func TestHandleNormalKey_TypeToFilter_AutoFocuses(t *testing.T) {
 
 // — handleFilterKey edges —
 
-func TestHandleFilterKey_EscClearsFirst_QuitsSecond(t *testing.T) {
+func TestHandleFilterKey_EscClearsFirst_BlursSecond(t *testing.T) {
 	f := makeFixtureWithSections()
 	m := runUntilLoaded(t, f.model())
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
 	for _, r := range "abc" {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 	}
-	// First esc clears value (filter still focused)
+	// First esc clears the value AND blurs so j/k navigate again.
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd != nil {
-		t.Errorf("first esc should clear, not quit, got cmd=%v", cmd)
+		t.Errorf("first esc should clear, not produce a cmd, got %v", cmd)
 	}
 	if got := m.(palette.Model).StateFilter(); got != "" {
 		t.Errorf("first esc should clear filter, got %q", got)
 	}
-	// Second esc quits
+	if m.(palette.Model).FilterActive() {
+		t.Error("first esc should also blur the filter")
+	}
+	// Second esc on the now-blurred empty filter is a no-op — palette
+	// must NOT tea.Quit here because that would tear down the sidekick
+	// host. The host owns the quit key.
 	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd == nil {
-		t.Error("second esc on empty filter should quit")
+	if cmd != nil {
+		t.Errorf("second esc must not produce tea.Quit (would kill sidekick), got %v", cmd)
 	}
 }
 

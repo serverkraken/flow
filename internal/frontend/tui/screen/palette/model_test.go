@@ -215,12 +215,14 @@ func TestSlashFocusesFilter_AppliesFuzzyMatch(t *testing.T) {
 	}
 }
 
-func TestEsc_QuitsWhenFilterEmpty(t *testing.T) {
+func TestEsc_NoOpInNormalMode(t *testing.T) {
+	// Palette is hosted inside sidekick — esc here MUST be a no-op,
+	// not tea.Quit, otherwise the host program tears down too.
 	f := newFixture()
 	updated := runUntilLoaded(t, f.model())
 	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd == nil {
-		t.Fatal("esc should produce tea.Quit")
+	if cmd != nil {
+		t.Errorf("esc in normal mode must not produce a cmd, got %v", cmd)
 	}
 }
 

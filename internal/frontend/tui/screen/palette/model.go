@@ -212,7 +212,13 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filter.Focus()
 		return m, textinput.Blink
 	case "esc":
-		return m, tea.Quit
+		// No-op. Palette runs as a screen inside sidekick; tea.Quit
+		// here would tear down the whole program. The sidekick host
+		// owns the quit key (`q` / `ctrl+c` at sidekick/model.go:185)
+		// and does not consume esc itself, so swallowing it here is
+		// the right shape — the user explicitly pressed esc on a
+		// no-modal screen, no action.
+		return m, nil
 	case "j", "down":
 		if m.cursor < len(m.visible)-1 {
 			m.cursor++
@@ -357,7 +363,11 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.applyFilter()
 			return m, nil
 		}
-		return m, tea.Quit
+		// Empty filter + esc → blur and stay on the screen. tea.Quit
+		// here would tear down the sidekick host (palette is never
+		// run standalone). The host's q-key owns program quit.
+		m.filter.Blur()
+		return m, nil
 	case tea.KeyEnter:
 		m.filter.Blur()
 		if len(m.visible) > 0 {

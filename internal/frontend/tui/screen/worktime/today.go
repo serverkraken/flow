@@ -90,6 +90,13 @@ type heute struct {
 	// success) and reinventing the toast component.
 	toast  *toast.Model
 	errMsg string
+
+	// actionInFlight blocks dayRefreshMsg from running between the
+	// async action being dispatched (e.g. confirm.ResultMsg → deleteCmd)
+	// and heuteActionDoneMsg arriving. Without this gate, a tick fired
+	// in that window would re-load the day with editIdx still pointing
+	// at a session whose siblings may have just been renumbered.
+	actionInFlight bool
 }
 
 func newHeute(p theme.Palette, deps Deps) heute {
@@ -145,19 +152,23 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case dayRefreshMsg:
-		// While a dialog is open, suppress the periodic refresh: the
-		// frozen editIdx would point at a different session if the
-		// reload re-numbered the list (manual edit from another shell,
-		// or a session that ended elsewhere). The next refresh after
-		// the dialog closes is fine. heuteActionDoneMsg explicitly
-		// triggers loadCmd on success, so the user sees the fresh
-		// state right after submit.
-		if h.dialog != heuteDialogNone {
+		// While a dialog is open OR an async action is in flight,
+		// suppress the periodic refresh: the frozen editIdx would
+		// point at a different session if the reload re-numbered the
+		// list (manual edit from another shell, or a session that
+		// ended elsewhere). The next refresh after the dialog closes
+		// is fine. heuteActionDoneMsg explicitly triggers loadCmd on
+		// success, so the user sees the fresh state right after
+		// submit. The actionInFlight gate covers the gap between
+		// confirm.ResultMsg clearing the dialog and the async
+		// deleteCmd / similar returning.
+		if h.dialog != heuteDialogNone || h.actionInFlight {
 			return h, nil
 		}
 		return h, h.loadCmd()
 
 	case heuteActionDoneMsg:
+		h.actionInFlight = false
 		// On error: if a dialog is still open (edit/tag/note forms), keep
 		// it open and surface the error inside it via errMsg so the user
 		// can retry without re-filling the form. If the dialog already
@@ -205,6 +216,7 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !msg.Confirmed {
 			return h, nil
 		}
+		h.actionInFlight = true
 		return h, h.deleteCmd(h.editDate, h.editIdx)
 
 	case tea.KeyMsg:

@@ -201,13 +201,15 @@ func TestInit_ReturnsCmd(t *testing.T) {
 	}
 }
 
-func TestStateAccessors_DefaultsAreEmpty(t *testing.T) {
+func TestStateAccessors_Defaults(t *testing.T) {
 	m := newModel(t)
 	if m.FilterActive() {
 		t.Error("FilterActive should be false on the skeleton stubs")
 	}
-	if m.StateFilter() != "" {
-		t.Errorf("StateFilter: got %q", m.StateFilter())
+	// Default tab is heute; StateFilter encodes it as a "tab=…" marker
+	// so WithState can restore the tab on the next session.
+	if got := m.StateFilter(); got != "tab=heute" {
+		t.Errorf("default StateFilter: got %q, want tab=heute", got)
 	}
 }
 

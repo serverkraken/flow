@@ -158,8 +158,12 @@ func (r *nodeRenderer) tableColumnWidths(header []tableCell, rows [][]tableCell,
 }
 
 // shrinkColumns proportionally reduces a slice of column widths so
-// the sum equals budget. Each column keeps a minimum of (pad + 1)
-// cells so a chopped cell still has room for `…`.
+// the sum equals budget. Each column normally keeps a minimum of
+// (pad + 1) cells so a chopped cell still has room for `…`. When
+// budget is so tight that even the per-column minimum sum overflows
+// (very narrow callout, many columns), the function falls through to
+// distributing budget evenly across columns — at the cost of cells
+// becoming unreadable, but never overrunning the parent block.
 func shrinkColumns(widths []int, budget int) []int {
 	out := make([]int, len(widths))
 	copy(out, widths)
@@ -180,10 +184,29 @@ func shrinkColumns(widths []int, budget int) []int {
 			}
 		}
 		if idx < 0 || out[idx] <= tableCellPad+1 {
-			return out
+			break
 		}
 		out[idx]--
 	}
+	// Tight-budget fallback: every column already at the min and the
+	// sum still exceeds budget. Spread budget evenly so the rendered
+	// table fits within its parent block.
+	if budget < len(out) {
+		budget = len(out)
+	}
+	base := budget / len(out)
+	rem := budget - base*len(out)
+	for i := range out {
+		w := base
+		if i < rem {
+			w++
+		}
+		if w < 1 {
+			w = 1
+		}
+		out[i] = w
+	}
+	return out
 }
 
 // renderTableFrame stitches header + body rows together with box-

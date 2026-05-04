@@ -10,6 +10,7 @@
 package worktime
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +19,14 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+// stateRestorer is the optional contract a sub-model implements when
+// it can restore its (filter, cursor) state from persistence. Mirrors
+// sidekick's stateRestorer shape — duplicated so this package stays
+// self-contained.
+type stateRestorer interface {
+	WithState(filter string, cursor int) tea.Model
+}
 
 // Deps bundles every use case the worktime screen and its sub-models
 // consume. Wired by the composition root and threaded into all four
@@ -88,6 +97,30 @@ func New(p theme.Palette, deps Deps) Model {
 	}
 }
 
+// WithState restores the persisted tab selection (parsed from filter,
+// shape "tab=NAME[|sub-filter]") and forwards the persisted cursor +
+// the sub-filter half to the active sub-model when that sub-model
+// supports state restoration. Called by the sidekick root after
+// constructing the model.
+func (m Model) WithState(filter string, cursor int) tea.Model {
+	subFilter := ""
+	if filter != "" {
+		head, rest, hasRest := strings.Cut(filter, "|")
+		if rest != "" || hasRest {
+			subFilter = rest
+		}
+		if name, ok := strings.CutPrefix(head, "tab="); ok {
+			if t, ok := parseTabName(name); ok {
+				m.current = t
+			}
+		}
+	}
+	if sr, ok := m.subs[m.current].(stateRestorer); ok {
+		m.subs[m.current] = sr.WithState(subFilter, cursor)
+	}
+	return m
+}
+
 // FilterActive returns whether the active sub-model has filter focus.
 // Sub-models that don't have a filter (all four today) return false.
 func (m Model) FilterActive() bool {
@@ -97,23 +130,60 @@ func (m Model) FilterActive() bool {
 	return false
 }
 
-// StateFilter returns the active sub-model's filter for state
-// persistence — currently always "" (no sub-model has a filter).
+// StateFilter returns the persisted state for the worktime screen.
+// Encodes the active tab as "tab=N" plus, when the active sub-model
+// itself carries a filter, the sub-model's own filter via "tab=N|<f>".
+// WithState parses this back into (tab, filter) for restoration.
 func (m Model) StateFilter() string {
+	tabPart := "tab=" + tabName(m.current)
 	if fa, ok := m.subs[m.current].(filterActiver); ok {
-		return fa.StateFilter()
+		if f := fa.StateFilter(); f != "" {
+			return tabPart + "|" + f
+		}
 	}
-	return ""
+	return tabPart
+}
+
+// tabName returns a stable string identifier for t — used by
+// StateFilter so persisted state survives a tab-index renumbering.
+func tabName(t tab) string {
+	switch t {
+	case tabHeute:
+		return "heute"
+	case tabWoche:
+		return "woche"
+	case tabHistory:
+		return "history"
+	case tabFrei:
+		return "frei"
+	}
+	return "heute"
+}
+
+// parseTabName is the inverse of tabName.
+func parseTabName(s string) (tab, bool) {
+	switch s {
+	case "heute":
+		return tabHeute, true
+	case "woche":
+		return tabWoche, true
+	case "history":
+		return tabHistory, true
+	case "frei":
+		return tabFrei, true
+	}
+	return tabHeute, false
 }
 
 // StateCursor returns the active sub-model's cursor for state
-// persistence. The skeleton sub-models all return 0; later waves may
-// surface a meaningful cursor (e.g. the History list position).
+// persistence. Each tab persists its own cursor shape (Heute's row,
+// Woche's day, History's drill index, Frei's row). The active tab is
+// encoded in StateFilter so WithState can restore both halves.
 func (m Model) StateCursor() int {
 	if cs, ok := m.subs[m.current].(cursorStater); ok {
 		return cs.StateCursor()
 	}
-	return int(m.current)
+	return 0
 }
 
 // HandlesBack tells the parent app that this screen consumes the global

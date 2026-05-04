@@ -154,7 +154,15 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case historyDrillLoadedMsg:
-		h.drillDate = msg.date
+		// Discard late drill loads when the dialog is closed or the
+		// user already opened a different day's drill — without this
+		// guard the next manual open briefly flashes the stale day's
+		// rows as the in-flight load lands. The dialog gate also
+		// catches the "esc closed drill, late load arrives" case where
+		// drillSessions=nil was set synchronously at line 511.
+		if h.dialog != historyDialogDrill || !sameDay(h.drillDate, msg.date) {
+			return h, nil
+		}
 		h.drillErr = msg.err
 		h.drillSessions = msg.sessions
 		h.drillCur = 0
@@ -725,10 +733,18 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 		color = h.pal.Cyan
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(color)
+	isCursor := w == h.heatCol && d == h.heatRow
+	isToday := sameDay(day, now)
 	switch {
-	case w == h.heatCol && d == h.heatRow:
+	case isCursor:
+		// Cursor cell: invert with the accent. Combine the today-underline
+		// when the cursor sits on today so the user still gets the
+		// "this is today" reinforcement instead of an exclusive switch.
 		cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Accent).Bold(true)
-	case sameDay(day, now):
+		if isToday {
+			cellStyle = cellStyle.Underline(true)
+		}
+	case isToday:
 		cellStyle = cellStyle.Underline(true).Bold(true)
 	}
 	return cellStyle.Render(cell)

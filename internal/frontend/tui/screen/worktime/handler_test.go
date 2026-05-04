@@ -39,11 +39,14 @@ func TestState_HeuteCursor_TracksAfterJK(t *testing.T) {
 	}
 }
 
-func TestState_HeuteFilter_AlwaysEmpty(t *testing.T) {
+func TestState_HeuteFilter_TabOnly(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	if got := m.(worktime.Model).StateFilter(); got != "" {
-		t.Errorf("Heute has no filter; StateFilter should be \"\", got %q", got)
+	// StateFilter encodes the active tab plus, when present, the
+	// sub-model's own filter. Heute carries no filter, so the value
+	// is just the tab marker.
+	if got := m.(worktime.Model).StateFilter(); got != "tab=heute" {
+		t.Errorf("Heute StateFilter should be \"tab=heute\", got %q", got)
 	}
 }
 
@@ -55,11 +58,12 @@ func TestState_FreiCursor_Default(t *testing.T) {
 	}
 }
 
-func TestState_FreiFilter_AlwaysEmpty(t *testing.T) {
+func TestState_FreiFilter_TabOnly(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	if got := m.(worktime.Model).StateFilter(); got != "" {
-		t.Errorf("Frei has no filter; StateFilter should be \"\", got %q", got)
+	// Frei carries no own filter; StateFilter is just the tab marker.
+	if got := m.(worktime.Model).StateFilter(); got != "tab=frei" {
+		t.Errorf("Frei StateFilter should be \"tab=frei\", got %q", got)
 	}
 }
 
@@ -67,9 +71,9 @@ func TestState_HistoryFilter_TracksQueryAndModeLabel(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	// no filter set yet → mode label
+	// no filter set yet → tab marker plus the mode-label sub-filter
 	if got := m.(worktime.Model).StateFilter(); got == "" {
-		t.Errorf("StateFilter should report the mode label when no filter set, got empty")
+		t.Errorf("StateFilter should report tab + mode label when no filter set, got empty")
 	}
 	// Open filter dialog, type tag:deep, submit
 	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
@@ -78,8 +82,8 @@ func TestState_HistoryFilter_TracksQueryAndModeLabel(t *testing.T) {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
 	}
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if got := m.(worktime.Model).StateFilter(); got != "tag:deep" {
-		t.Errorf("StateFilter should be the active query, got %q", got)
+	if got := m.(worktime.Model).StateFilter(); got != "tab=history|tag:deep" {
+		t.Errorf("StateFilter should be the active query under the tab marker, got %q", got)
 	}
 }
 
@@ -351,13 +355,21 @@ func TestHistory_StepFilter_KWForwardSetsQuery(t *testing.T) {
 	// `]` from empty seeds the current ISO week then steps forward.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("]")})
 	got := m.(worktime.Model).StateFilter()
-	if !strings.HasPrefix(got, "KW") {
-		t.Errorf("after `]` query should be a KW expression, got %q", got)
+	// StateFilter shape is "tab=history|<sub>"; pull out the sub.
+	const prefix = "tab=history|"
+	if !strings.HasPrefix(got, prefix) {
+		t.Fatalf("expected %q prefix in StateFilter, got %q", prefix, got)
+	}
+	sub := strings.TrimPrefix(got, prefix)
+	if !strings.HasPrefix(sub, "KW") {
+		t.Errorf("after `]` sub-filter should be a KW expression, got %q", sub)
 	}
 	// `[` → stepHistFilter on existing KW reports ok=true, query updates
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("[")})
-	if !strings.HasPrefix(m.(worktime.Model).StateFilter(), "KW") {
-		t.Errorf("after `[` query should still be a KW expression")
+	got = m.(worktime.Model).StateFilter()
+	sub = strings.TrimPrefix(got, prefix)
+	if !strings.HasPrefix(sub, "KW") {
+		t.Errorf("after `[` sub-filter should still be a KW expression, got %q", sub)
 	}
 }
 
