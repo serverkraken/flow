@@ -86,21 +86,27 @@ func indexAgeFromFile(path string) browse.IndexAgeFunc {
 //
 // Using os.Executable() (not os.Args[0]) keeps the nested process
 // pointing at the same binary even when the user launched the
-// command via a symlink or a relative path.
+// command via a symlink or a relative path. After the K1-K5
+// integration there is no standalone `kompendium` binary anymore;
+// the executable is always `flow` and `new` lives under
+// `flow kompendium new`. Pre-fix this factory built `<exe> new daily`
+// (the standalone-kompendium-era arg layout), which under flow
+// surfaces as »unknown command "new" for "flow"« and the subprocess
+// exits 1 — exactly the symptom users hit on the n keypress.
 func buildWriteCmd(cwd string) browse.WriteCmdFunc {
 	return func(r writepicker.Result) *exec.Cmd {
 		exe, err := os.Executable()
 		if err != nil || exe == "" {
-			exe = "kompendium"
+			exe = "flow"
 		}
 		var cmd *exec.Cmd
 		switch r.Choice {
 		case writepicker.ChoiceDaily:
-			cmd = exec.Command(exe, "new", "daily")
+			cmd = exec.Command(exe, "kompendium", "new", "daily")
 		case writepicker.ChoiceProject:
-			cmd = exec.Command(exe, "new", "project", "--cwd", cwd)
+			cmd = exec.Command(exe, "kompendium", "new", "project", "--cwd", cwd)
 		case writepicker.ChoiceFree:
-			cmd = exec.Command(exe, "new", "free", r.Slug)
+			cmd = exec.Command(exe, "kompendium", "new", "free", r.Slug)
 		default:
 			return nil
 		}
