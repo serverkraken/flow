@@ -33,7 +33,10 @@ func (r *Reporter) WriteBrief(w io.Writer, ref time.Time, scope domain.ReportRan
 	return domain.WriteBrief(w, domain.BriefInputs{
 		Title:   title,
 		Records: records,
-		Stats:   r.Stats.Aggregate(records),
+		// AggregateRange so the saldo line accounts for unworked
+		// workdays inside the brief's range — without this, a Mon-Tue-
+		// only week renders Saldo +0h instead of -24h.
+		Stats:   r.Stats.AggregateRange(records, from, to),
 		Planned: domain.PlannedTarget(from, to, r.Targets.IsWorkday, r.Targets.For),
 		// to is exclusive; ListDayOffs takes inclusive bounds.
 		DayOffs: r.DayOffs.List(from, to.AddDate(0, 0, -1)),

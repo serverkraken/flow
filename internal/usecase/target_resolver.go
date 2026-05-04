@@ -34,8 +34,16 @@ func (r *TargetResolver) For(date time.Time) time.Duration {
 	if err != nil {
 		return r.DefaultTarget
 	}
-	if t := cfg.TargetForWeekday(date.Weekday()); t > 0 {
+	// LookupWeekday distinguishes "explicitly set to N" (including 0,
+	// which a user configures to mean 'no work this weekday') from
+	// "no override, use the default". The previous `t > 0` check
+	// silently overwrote an explicit 0 with the default — so a user
+	// who set target_sun=0 still saw an 8h Sunday saldo gap.
+	if t, ok := cfg.LookupWeekday(date.Weekday()); ok {
 		return t
+	}
+	if cfg.DefaultTarget > 0 {
+		return cfg.DefaultTarget
 	}
 	return r.DefaultTarget
 }

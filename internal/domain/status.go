@@ -109,8 +109,18 @@ func statusBanner(day Day, total, target time.Duration, achieved bool, pal Statu
 
 // activeSessionParts renders the "▶ S:MM" running-session indicator and
 // the "→HH:MM" projected target ETA when below target.
+//
+// elapsed is clamped to today's midnight so a session started yesterday
+// and still running today shows only today's portion. Without the clamp
+// the banner ("⏱ HH:MM" of today's clamped Total) and this marker
+// reported two different elapsed numbers for the same session.
 func activeSessionParts(in StatusInputs, achieved bool) []string {
-	elapsed := in.Now.Sub(*in.Day.Active)
+	start := *in.Day.Active
+	midnight := time.Date(in.Now.Year(), in.Now.Month(), in.Now.Day(), 0, 0, 0, 0, in.Now.Location())
+	if start.Before(midnight) {
+		start = midnight
+	}
+	elapsed := in.Now.Sub(start)
 	if elapsed < 0 {
 		elapsed = 0
 	}
@@ -141,6 +151,11 @@ func activeSessionParts(in StatusInputs, achieved bool) []string {
 
 // monthBurndownPart renders the ▲/▼ monthly saldo indicator. Returns nothing
 // when |saldo| < 1h so trivial 15-minute fluctuations don't flicker the row.
+//
+// Hours are rounded, not truncated: a 1h 59m surplus would otherwise
+// render "▲ +1h" (off by ~50 %) and a value sitting right at the
+// 1h-vs-2h boundary jumps from "(no marker)" to "▲ +1h" while the
+// actual saldo is already nearly two hours.
 func monthBurndownPart(rep MonthBurndownReport, pal StatusPalette) []string {
 	if rep.Target == 0 {
 		return nil
@@ -148,10 +163,10 @@ func monthBurndownPart(rep MonthBurndownReport, pal StatusPalette) []string {
 	const min = time.Hour
 	switch {
 	case rep.Saldo >= min:
-		h := int(rep.Saldo.Hours())
+		h := int(rep.Saldo.Round(time.Hour).Hours())
 		return []string{fmt.Sprintf("#[fg=%s]▲ +%dh#[default]", pal.Green, h)}
 	case rep.Saldo <= -min:
-		h := int((-rep.Saldo).Hours())
+		h := int((-rep.Saldo).Round(time.Hour).Hours())
 		return []string{fmt.Sprintf("#[fg=%s]▼ -%dh#[default]", pal.Yellow, h)}
 	}
 	return nil

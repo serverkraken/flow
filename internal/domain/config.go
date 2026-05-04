@@ -28,12 +28,24 @@ type Config struct {
 // TargetForWeekday returns the configured target for wd, or DefaultTarget
 // when no per-weekday override exists.
 func (c Config) TargetForWeekday(wd time.Weekday) time.Duration {
-	if c.PerWeekday != nil {
-		if v, ok := c.PerWeekday[wd]; ok {
-			return v
-		}
+	if v, ok := c.LookupWeekday(wd); ok {
+		return v
 	}
 	return c.DefaultTarget
+}
+
+// LookupWeekday is the presence-aware variant of TargetForWeekday.
+// Returns (override, true) when the user explicitly configured the
+// weekday — including when the override is zero, which means "no work
+// today, do not fall through to DefaultTarget". Callers that need to
+// honour an explicit zero (TargetResolver.For for the saldo math) MUST
+// use this instead of TargetForWeekday.
+func (c Config) LookupWeekday(wd time.Weekday) (time.Duration, bool) {
+	if c.PerWeekday == nil {
+		return 0, false
+	}
+	v, ok := c.PerWeekday[wd]
+	return v, ok
 }
 
 // TagTarget returns the configured daily target for the named tag, or 0

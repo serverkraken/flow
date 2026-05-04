@@ -431,16 +431,25 @@ Format: --format text (default) | json`,
 				return err
 			}
 			var records []domain.DayRecord
+			var st domain.Stats
 			if r.From.IsZero() && r.To.IsZero() {
 				records = all
+				// No clean range → fall back to the record-driven
+				// Aggregate. Saldo here ignores any workdays without
+				// records, but the user explicitly asked for "all".
+				st = deps.Stats.Aggregate(records)
 			} else {
 				for _, d := range all {
 					if r.ContainsDate(d.Date) {
 						records = append(records, d)
 					}
 				}
+				// AggregateRange so missed workdays inside the range
+				// pull saldo down. domain.Range is half-open [From, To);
+				// AggregateRange wants the same shape so r.To passes
+				// through unchanged.
+				st = deps.Stats.AggregateRange(records, r.From, r.To)
 			}
-			st := deps.Stats.Aggregate(records)
 			out := cmd.OutOrStdout()
 			switch format {
 			case "json":

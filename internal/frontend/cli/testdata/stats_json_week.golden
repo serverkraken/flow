@@ -14,9 +14,9 @@
   "max_seconds": 28800,
   "min_date": "2026-04-27",
   "min_seconds": 28800,
-  "overtime_seconds": 0,
+  "overtime_seconds": -115200,
   "range": "week",
   "streak": 1,
   "total_seconds": 28800,
-  "workdays": 1
+  "workdays": 5
 }

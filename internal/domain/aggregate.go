@@ -22,6 +22,14 @@ const (
 // listDayOffs returns the day-offs in the given inclusive date range; it
 // is invoked once per Aggregate call to populate Stats.DaysOff. Pass a
 // closure that wraps a DayOffStore at the use-case boundary.
+//
+// IMPORTANT: Aggregate's saldo (Stats.Overtime) and Workdays count only
+// the *days that produced records*. A workday with zero sessions has no
+// record and therefore contributes nothing to either. Use AggregateRange
+// when the caller knows a fixed [from, to) span and wants missed
+// workdays to count toward the saldo (status segment, week/month brief,
+// `flow worktime stats <range>`); use Aggregate for filtered subsets
+// where the span is implicit (the history.go tag/note filters).
 func Aggregate(
 	records []DayRecord,
 	isWorkday func(time.Time) bool,
@@ -103,7 +111,11 @@ func bestStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 }
 
 // currentStreak walks backward from the newest workday and counts hits
-// until the first miss. Non-workdays are transparent.
+// until the first miss. Non-workdays are transparent. NOTE: this
+// only walks the records — a workday between records that produced
+// no session is invisible and does NOT break the streak. The
+// AggregateRange caller can compensate by filling in zero-Total
+// placeholders for unworked workdays before invoking this helper.
 func currentStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 	streak := 0
 	for i := len(sorted) - 1; i >= 0; i-- {
@@ -118,6 +130,106 @@ func currentStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 		}
 	}
 	return streak
+}
+
+// AggregateRange computes Stats over [from, to) (half-open). Differs
+// from Aggregate in that it walks every workday in the range — a
+// workday without a record contributes 0h Total and the configured
+// targetFor(d) toward the saldo, so a partial week with two unworked
+// days correctly shows e.g. -16h Overtime. listDayOffs is called over
+// the inclusive [from, to-1d] range to populate Stats.DaysOff.
+//
+// records may include rows outside [from, to); they are filtered. Same
+// invariants as Aggregate: order doesn't matter, sessions are walked
+// for the by-tag tally, the active session (if any) belongs in records
+// already if the caller wants it counted.
+func AggregateRange(
+	records []DayRecord,
+	from, to time.Time,
+	isWorkday func(time.Time) bool,
+	targetFor func(time.Time) time.Duration,
+	listDayOffs func(from, to time.Time) []DayOff,
+) Stats {
+	st := Stats{ByTag: map[string]time.Duration{}, CountByTag: map[string]int{}}
+	if !from.Before(to) {
+		return st
+	}
+
+	// Sort records and index by date for the workday walk.
+	inRange := make([]DayRecord, 0, len(records))
+	for _, r := range records {
+		if !r.Date.Before(from) && r.Date.Before(to) {
+			inRange = append(inRange, r)
+		}
+	}
+	sort.Slice(inRange, func(i, j int) bool { return inRange[i].Date.Before(inRange[j].Date) })
+	byDate := make(map[time.Time]DayRecord, len(inRange))
+	for _, r := range inRange {
+		byDate[truncDay(r.Date)] = r
+	}
+
+	st.Days = len(inRange)
+	minSeen := false
+
+	for _, r := range inRange {
+		st.Total += r.Total
+		if r.Total > st.Max {
+			st.Max = r.Total
+			st.MaxDate = r.Date
+		}
+		if r.Total > 0 {
+			st.DaysWithSessions++
+			if !minSeen || r.Total < st.Min {
+				st.Min = r.Total
+				st.MinDate = r.Date
+				minSeen = true
+			}
+		}
+		for _, s := range r.Sessions {
+			st.ByTag[s.Tag] += s.Elapsed
+			st.CountByTag[s.Tag]++
+		}
+	}
+
+	// Walk the full range so every workday — recorded or not — feeds
+	// Workdays/Hits/Overtime. The saldo therefore accounts for unworked
+	// workdays inside [from, to). Streak semantics deliberately stay
+	// record-driven (consistent with Aggregate) — a workday-aware
+	// streak that breaks on missed workdays needs `now` to distinguish
+	// past misses from future days, which AggregateRange does not take.
+	for d := from; d.Before(to); d = d.AddDate(0, 0, 1) {
+		if !isWorkday(d) {
+			continue
+		}
+		st.Workdays++
+		if rec, ok := byDate[truncDay(d)]; ok {
+			if rec.Total >= rec.Target && rec.Target > 0 {
+				st.Hits++
+			}
+			st.Overtime += rec.Total - rec.Target
+			continue
+		}
+		st.Overtime -= targetFor(d)
+	}
+
+	if st.DaysWithSessions > 0 {
+		st.Avg = st.Total / time.Duration(st.DaysWithSessions)
+	}
+	st.Untagged = st.ByTag[""]
+	st.BestStreak = bestStreak(inRange, isWorkday)
+	st.Streak = currentStreak(inRange, isWorkday)
+
+	if listDayOffs != nil {
+		// to is exclusive; ListDayOffs takes inclusive bounds.
+		st.DaysOff = listDayOffs(from, to.AddDate(0, 0, -1))
+	}
+	return st
+}
+
+// truncDay strips the time-of-day component so two timestamps on the
+// same calendar day compare equal as map keys.
+func truncDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
 // FilterRecords keeps records whose date is in [from, to). Helper for
