@@ -38,9 +38,20 @@ func (r *Reporter) WriteBrief(w io.Writer, ref time.Time, scope domain.ReportRan
 		// only week renders Saldo +0h instead of -24h.
 		Stats:   r.Stats.AggregateRange(records, from, to),
 		Planned: domain.PlannedTarget(from, to, r.Targets.IsWorkday, r.Targets.For),
-		// to is exclusive; ListDayOffs takes inclusive bounds.
-		DayOffs: r.DayOffs.List(from, to.AddDate(0, 0, -1)),
+		DayOffs: r.dayOffsInHalfOpen(from, to),
 	})
+}
+
+// dayOffsInHalfOpen wraps the BriefBounds (half-open [from, to))
+// → DayOffStore.List (inclusive bounds) conversion in one place.
+// Without this helper every caller of Brief-style aggregation has to
+// remember the off-by-one (`to.AddDate(0, 0, -1)`) and any new
+// usage introduces a silent bug the day someone forgets it.
+func (r *Reporter) dayOffsInHalfOpen(from, to time.Time) []domain.DayOff {
+	if !to.After(from) {
+		return nil
+	}
+	return r.DayOffs.List(from, to.AddDate(0, 0, -1))
 }
 
 // WriteCSV writes a CSV dump of sessions in rng to w.

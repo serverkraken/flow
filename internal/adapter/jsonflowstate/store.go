@@ -26,11 +26,19 @@ func New(statePath, nextScreenPath string) *Store {
 }
 
 // Load returns the persisted state. A missing file returns the default
-// (first launch is normal). A malformed file is also defaulted, so a
-// hand-edit gone wrong doesn't lock the user out of the TUI. Other I/O
-// errors (permission denied, EIO) are surfaced — silently defaulting on
-// those would mask real problems and the next Save would overwrite a
-// possibly-recoverable file.
+// (first launch is normal). A malformed file is also defaulted so a
+// hand-edit gone wrong doesn't lock the user out of the TUI; the
+// broken file is preserved as <path>.bak so a forensic rescue is
+// possible (without this, the next Save destroyed the only copy).
+// Other I/O errors (permission denied, EIO) are surfaced verbatim —
+// silently defaulting on those would mask real problems.
+//
+// The opposite-direction `jsonpalettestats.Load` surfaces malformed
+// content as an error because the palette caller refuses to overwrite
+// (see usecase.PaletteWriter). flowstate's `Load` is the more
+// permissive end of that pair because the consequences of refusing
+// to load are worse here — the sidekick can't render at all without
+// some FlowState.
 func (s *Store) Load() (domain.FlowState, error) {
 	data, err := os.ReadFile(s.statePath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -41,6 +49,12 @@ func (s *Store) Load() (domain.FlowState, error) {
 	}
 	var st domain.FlowState
 	if err := json.Unmarshal(data, &st); err != nil {
+		// Best-effort: move the broken file aside so it isn't
+		// destroyed by the next Save. Failure to rename is logged
+		// implicitly (we still return defaults) — the user already
+		// has a malformed file; the worst case is the .bak doesn't
+		// land and the broken state is overwritten as before.
+		_ = os.Rename(s.statePath, s.statePath+".bak")
 		return domain.DefaultFlowState(), nil
 	}
 	if !domain.IsValidScreen(st.Screen) {

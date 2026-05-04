@@ -71,22 +71,24 @@ func ParseStartArg(arg string, now time.Time) (time.Time, error) {
 			hStr := rest[:hi]
 			mStr := strings.TrimSuffix(rest[hi+1:], "m")
 			h, errH := strconv.Atoi(hStr)
-			if errH != nil {
+			if errH != nil || h < 0 {
 				return time.Time{}, fmt.Errorf("ungültig (Stunden-Teil nicht numerisch): %s", arg)
 			}
 			m := 0
 			if mStr != "" {
 				var errM error
 				m, errM = strconv.Atoi(mStr)
-				if errM != nil {
+				if errM != nil || m < 0 {
 					return time.Time{}, fmt.Errorf("ungültig (Minuten-Teil nicht numerisch): %s", arg)
 				}
 			}
 			return now.Add(-time.Duration(h)*time.Hour - time.Duration(m)*time.Minute), nil
 		}
-		// -Nm
+		// -Nm. Reject negative N (e.g. "--5m") which would otherwise
+		// double-negate to "now + 5min" — silently shifting the start
+		// into the future on a typo.
 		mStr := strings.TrimSuffix(rest, "m")
-		if min, err := strconv.Atoi(mStr); err == nil {
+		if min, err := strconv.Atoi(mStr); err == nil && min >= 0 {
 			return now.Add(-time.Duration(min) * time.Minute), nil
 		}
 	}

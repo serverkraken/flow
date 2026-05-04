@@ -97,11 +97,13 @@ func (s *Store) read(keep func(domain.Session) bool) ([]domain.Session, error) {
 // rows are skipped silently — invalid rows in older logs must not break
 // newer readers.
 //
-// Tag and note are split with a column cap of 6 so any tabs inside the
-// note (rare but possible from a paste) are kept as-is in the note value
-// rather than truncating the row. Tabs in tag are not allowed by the
-// writer (replaced with spaces); if a hand-edited row has one, the tag
-// will absorb up to the 5th tab and the rest is the note.
+// Tag and note are split with a column cap of 6 (SplitN .., "\t", 6) so
+// any tabs inside the note are kept as-is in the note value rather than
+// truncating the row. Tabs in tag are forbidden by the writer (replaced
+// with spaces). If a hand-edited row has 7+ tabs, parts[4] becomes the
+// tag and parts[5] absorbs the rest of the line including any embedded
+// tabs — the older comment claimed tag absorbed up to the 5th tab,
+// which is the opposite of the actual SplitN cap.
 func parseLine(raw string) (domain.Session, bool) {
 	line := strings.TrimRight(raw, "\r\n")
 	trimmed := strings.TrimSpace(line)

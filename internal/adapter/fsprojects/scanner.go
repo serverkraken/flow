@@ -30,17 +30,35 @@ func New(root string) *Scanner {
 // List walks the root and returns every directory containing a `.git`
 // entry, sorted by relative name. Missing or unreadable root → empty
 // slice with no error (first launch or env misconfig is tolerated).
+//
+// Subtrees that produce a walk error (typically EACCES) are skipped
+// silently here — the projects screen prefers showing some projects
+// over showing none. ListWithSkipped is the diagnostic-aware variant
+// for callers that want to surface skipped paths to the user.
 func (s *Scanner) List() ([]domain.Project, error) {
+	out, _, err := s.ListWithSkipped()
+	return out, err
+}
+
+// ListWithSkipped behaves like List but also returns the paths whose
+// subtrees were skipped due to walk errors (typically permission
+// denied). Callers that want to surface "couldn't read foo/bar" to
+// the user use this variant; the bare List swallows the diagnostic
+// to keep the projects screen lossless on transient permission gaps.
+func (s *Scanner) ListWithSkipped() ([]domain.Project, []string, error) {
 	info, err := os.Stat(s.root)
 	if err != nil || !info.IsDir() {
-		return nil, nil
+		return nil, nil, nil
 	}
 	rootDepth := strings.Count(s.root, string(filepath.Separator))
 
-	var rel []string
+	var rel, skipped []string
 	walkErr := filepath.WalkDir(s.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Unreadable subtree: skip it but keep walking the rest.
+			// Unreadable subtree: record the path so the caller can
+			// surface a diagnostic, then skip it but keep walking
+			// the rest of the tree.
+			skipped = append(skipped, path)
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
@@ -67,7 +85,7 @@ func (s *Scanner) List() ([]domain.Project, error) {
 		return nil
 	})
 	if walkErr != nil {
-		return nil, walkErr
+		return nil, skipped, walkErr
 	}
 
 	sort.Strings(rel)
@@ -78,5 +96,5 @@ func (s *Scanner) List() ([]domain.Project, error) {
 			Path: filepath.Join(s.root, name),
 		})
 	}
-	return projects, nil
+	return projects, skipped, nil
 }
