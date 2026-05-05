@@ -45,8 +45,8 @@ func (r *nodeRenderer) backlinkLine(ref BacklinkRef) string {
 		uri, _, found = r.opts.resolver.Resolve(ref.ID)
 	}
 	if !found {
-		return r.roles.WikilinkBroken.Render("⌧ " + display)
+		return r.roles.WikilinkBroken.Render("⊘ " + display)
 	}
 	r.osc8ID++
-	return osc8Wrap(uri, r.osc8ID, r.roles.WikilinkValid.Render("⇲ "+display))
+	return osc8Wrap(uri, r.osc8ID, r.roles.WikilinkValid.Render("→ "+display))
 }

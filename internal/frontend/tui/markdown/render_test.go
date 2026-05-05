@@ -235,8 +235,10 @@ func TestRender_MarkdownLinkEmitsTextAndURL(t *testing.T) {
 	}
 }
 
-// TestRender_ImageEmitsChip: `![alt](url)` becomes a `[image: alt — url]`
-// chip — no graphics protocol in P1.11.0, just a textual placeholder.
+// TestRender_ImageEmitsChip: `![alt](url)` becomes an `image: alt`
+// chip — the URL is stowed in an OSC 8 hyperlink (invisible until
+// hover) so a long destination doesn't bloat the chip across lines.
+// No graphics protocol in P1.11.0, just a textual placeholder.
 func TestRender_ImageEmitsChip(t *testing.T) {
 	t.Parallel()
 	out, err := Render("![diagram](https://example.com/d.png)", 60)
@@ -244,11 +246,11 @@ func TestRender_ImageEmitsChip(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	plain := ansi.Strip(out)
-	if !strings.Contains(plain, "[image: diagram") {
+	if !strings.Contains(plain, "image: diagram") {
 		t.Errorf("image chip missing 'image:' prefix: %q", plain)
 	}
-	if !strings.Contains(plain, "https://example.com/d.png") {
-		t.Errorf("image chip missing destination: %q", plain)
+	if !strings.Contains(out, ";https://example.com/d.png\x07") {
+		t.Errorf("image chip missing OSC 8 destination: %q", out)
 	}
 }
 

@@ -166,31 +166,49 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 			Background(lipgloss.Color(p.BgChip)).
 			Bold(true).
 			Padding(0, 1),
+		// H3 wears bold + cyan + double-bar — distinct family head
+		// (purple H1+H2 → cyan H3+H4) with the loudest bar treatment.
 		H3: color().
 			Foreground(lipgloss.Color(p.Cyan)).
 			Bold(true),
+		// H4 drops the bold and shifts to Blue so the cyan/blue pair
+		// reads as "same family, lower rung". Without this delta H3
+		// and H4 collapsed onto each other (both bold cyan) — only the
+		// `▌▌` vs `▌` glyph distinguished them, which forced the eye
+		// to count.
 		H4: color().
-			Foreground(lipgloss.Color(p.Cyan)).
-			Bold(true),
+			Foreground(lipgloss.Color(p.Blue)),
 		H5: color().
 			Foreground(lipgloss.Color(p.FgDim)),
 		// A11y-3 (audit §2.5): no Faint() on prose. Faint dims a
 		// terminal foreground 30–50%, which on top of an already-Muted
 		// FgMuted drops the pair below WCAG AA. Italic alone carries
-		// the "lowest level heading" semantics.
+		// the "lowest level heading" semantics — but italic in
+		// monospace fonts is unreliable, so the prefix glyph (·)
+		// carries the level even if the font has no italic face.
 		H6: color().
 			Foreground(lipgloss.Color(p.FgMuted)).
 			Italic(true),
 		Paragraph: color().
 			Foreground(lipgloss.Color(p.Fg)),
+		// HR is structural punctuation, not content — it should
+		// recede, not announce. FgMuted made the rule almost as
+		// bright as body text. BgChip is the same colour the
+		// frontmatter / footnote separators already use, so all
+		// horizontal-rule-like elements share one visual language.
 		HRule: color().
-			Foreground(lipgloss.Color(p.FgMuted)),
+			Foreground(lipgloss.Color(p.BgChip)),
 
 		Strong: color().Bold(true),
 		Emph:   color().Italic(true),
 		Strike: color().Strikethrough(true),
+		// Inline code reads on a tinted chip; the foreground inherits
+		// the surrounding prose colour so inline `code` stays in the
+		// same visual register as fenced ``` ``` ``` blocks (which
+		// run plain text on the panel BG plus chroma highlighting).
+		// The previous green foreground made inline code feel like a
+		// different language than the same identifier in a block.
 		CodeSpan: color().
-			Foreground(lipgloss.Color(p.Green)).
 			Background(lipgloss.Color(p.BgCode)),
 		LinkText: color().
 			Foreground(lipgloss.Color(p.Blue)),
@@ -198,11 +216,16 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		CodeFenceBg: color().
 			Background(lipgloss.Color(p.BgCode)).
 			Foreground(lipgloss.Color(p.FgDim)),
+		// Codeband uses BgChipSoft (a touch lighter than BgCode) so
+		// the band reads as a frame edge rather than a continuation
+		// of the H1 / H2 banners (those use BgBar + BgChip). Without
+		// this delta a code block at the top of a section visually
+		// merged into the H1 banner above it.
 		CodeFenceBand: color().
-			Background(lipgloss.Color(p.BgBar)).
+			Background(lipgloss.Color(p.BgChipSoft)).
 			Foreground(lipgloss.Color(p.FgMuted)),
 		CodeFenceLabel: color().
-			Background(lipgloss.Color(p.BgBar)).
+			Background(lipgloss.Color(p.BgChipSoft)).
 			Foreground(lipgloss.Color(p.Cyan)).
 			Bold(true),
 		CodeFencePlain: color().

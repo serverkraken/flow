@@ -61,8 +61,8 @@ func TestRender_BacklinksFooter_FallsBackToIDWhenTitleEmpty(t *testing.T) {
 }
 
 // TestRender_BacklinksFooter_ResolverDecidesValidVsBroken: a backlink
-// whose resolver-lookup succeeds gets ⇲ + OSC 8; a ref the resolver
-// rejects gets ⌧ + dim red. Mirrors the wikilink contract so the
+// whose resolver-lookup succeeds gets → + OSC 8; a ref the resolver
+// rejects gets ⊘ + dim red. Mirrors the wikilink contract so the
 // reader treats both consistently.
 func TestRender_BacklinksFooter_ResolverDecidesValidVsBroken(t *testing.T) {
 	t.Parallel()
@@ -75,11 +75,11 @@ func TestRender_BacklinksFooter_ResolverDecidesValidVsBroken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	if !strings.Contains(out, "⇲ Known") {
-		t.Errorf("valid backlink missing ⇲ marker:\n%s", out)
+	if !strings.Contains(out, "→ Known") {
+		t.Errorf("valid backlink missing → marker:\n%s", out)
 	}
-	if !strings.Contains(out, "⌧ Missing") {
-		t.Errorf("broken backlink missing ⌧ marker:\n%s", out)
+	if !strings.Contains(out, "⊘ Missing") {
+		t.Errorf("broken backlink missing ⊘ marker:\n%s", out)
 	}
 	if !strings.Contains(out, "kompendium://note/known\x07") {
 		t.Errorf("valid backlink missing OSC 8 destination:\n%s", out)

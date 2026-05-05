@@ -36,6 +36,14 @@ type nodeRenderer struct {
 	// outer list-item prefix is applied.
 	indent int
 
+	// inQuote is incremented while a Blockquote is rendering its
+	// children and decremented on exit. Renderers downstream
+	// (renderParagraph) consult it to swap their default Foreground
+	// for the quoted-prose style, so a paragraph inside `> …` carries
+	// the same dim italic as the surrounding bar without losing
+	// inline emphasis / code / link styling.
+	inQuote int
+
 	// osc8ID is the running counter stamped onto OSC 8 hyperlink
 	// open sequences. lipgloss / cellbuf re-emit the same id around
 	// every wrap boundary so the terminal joins multi-line links
@@ -214,15 +222,16 @@ func (r *nodeRenderer) handlers() map[ast.NodeKind]renderer.NodeRendererFunc {
 		extast.KindFootnoteLink:     r.renderFootnoteLink,
 		extast.KindFootnoteBacklink: r.renderFootnoteBacklink,
 		// Inline — styled
-		ast.KindText:     r.renderText,
-		ast.KindString:   r.renderString,
-		ast.KindEmphasis: r.renderEmphasis,
-		ast.KindCodeSpan: r.renderCodeSpan,
-		ast.KindLink:     r.renderLink,
-		ast.KindAutoLink: r.renderAutoLink,
-		ast.KindImage:    r.renderImage,
-		ast.KindRawHTML:  r.renderRawInline,
-		wikiLinkKind:     r.renderWikiLink,
+		ast.KindText:           r.renderText,
+		ast.KindString:         r.renderString,
+		ast.KindEmphasis:       r.renderEmphasis,
+		ast.KindCodeSpan:       r.renderCodeSpan,
+		ast.KindLink:           r.renderLink,
+		ast.KindAutoLink:       r.renderAutoLink,
+		ast.KindImage:          r.renderImage,
+		ast.KindRawHTML:        r.renderRawInline,
+		extast.KindStrikethrough: r.renderStrikethrough,
+		wikiLinkKind:           r.renderWikiLink,
 	}
 	return r.handlersCache
 }

@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark/ast"
 	extast "github.com/yuin/goldmark/extension/ast"
@@ -43,37 +44,38 @@ func (r *nodeRenderer) renderHeading(w util.BufWriter, source []byte, n ast.Node
 }
 
 // styleHeading renders the level-appropriate visual treatment.
-// Six distinct shapes — three independent visual signals (decoration,
-// colour family, `#`-count) reinforcing each other:
+// Five distinct shapes — two independent visual signals (decoration
+// + colour family) reinforcing each other:
 //
 //	H1  full-width Purple BG banner (1 row)             — section title
-//	H2  Purple-on-BgHighlight chip + ─ underline        — subsection
+//	H2  Purple-on-BgChip chip + ─ underline             — subsection
 //	H3  ▌▌ thick double bar + bold cyan                 — block
-//	H4  ▌  single bar + bold cyan                       — sub-block
+//	H4  ▌  single bar + non-bold blue                   — sub-block
 //	H5  › chevron + dim                                 — fine-grained
-//	H6  · mid-dot + faint italic muted                  — note
+//	H6  · mid-dot + italic muted                        — note
 //
 // Decoration weight steps down monotonically (banner → chip → ▌▌ →
-// ▌ → › → ·), the colour family changes at H3 (Purple → Cyan) and
-// at H5 (Cyan → muted), and the `#`-count climbs — the reader picks
-// any one signal and lands on the right level. Over-wide headings
-// truncate with `…` rather than wrap (a banner-style heading on two
-// lines reads broken).
+// ▌ → › → ·) and the colour family shifts H3→H4 (cyan→blue) and
+// H5→H6 (dim→muted+italic). The raw `#` markdown sigils are
+// stripped from the rendered output — the glyph + colour pair
+// already carries the level, and exposing the markdown source noise
+// makes the rendered document feel like coloured-raw-markdown rather
+// than a typeset document. Over-wide headings truncate with `…`
+// rather than wrap (a banner-style heading on two lines reads broken).
 func (r *nodeRenderer) styleHeading(level int, inner string) string {
-	prefix := strings.Repeat("#", level) + " "
 	switch level {
 	case 1:
-		return r.styleH1(prefix + inner)
+		return r.styleH1(inner)
 	case 2:
-		return r.styleH2(prefix + inner)
+		return r.styleH2(inner)
 	case 3:
-		return r.roles.H3.Render("▌▌ " + prefix + inner)
+		return r.roles.H3.Render("▌▌ " + inner)
 	case 4:
-		return r.roles.H4.Render("▌ " + prefix + inner)
+		return r.roles.H4.Render("▌ " + inner)
 	case 5:
-		return r.roles.H5.Render("› " + prefix + inner)
+		return r.roles.H5.Render("› " + inner)
 	default:
-		return r.roles.H6.Render("· " + prefix + inner)
+		return r.roles.H6.Render("· " + inner)
 	}
 }
 
@@ -111,6 +113,13 @@ func (r *nodeRenderer) styleH1(inner string) string {
 // the result followed by a blank line. Reflow happens here (not at
 // the inline level) so wrap boundaries respect the paragraph's
 // full text rather than per-fragment widths.
+//
+// Inside a blockquote, the BlockquoteText role (FgDim + italic) is
+// the baseline style; emitting Paragraph's own Foreground here would
+// override the dim cue and make quoted prose visually identical to
+// the surrounding body. r.inQuote > 0 selects the quoted-body style
+// for the wrap baseline so the leading │ bar and the dim italic
+// agree.
 func (r *nodeRenderer) renderParagraph(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
@@ -120,7 +129,11 @@ func (r *nodeRenderer) renderParagraph(w util.BufWriter, source []byte, n ast.No
 		return ast.WalkStop, err
 	}
 	wrapped := wrapText(inner, r.effectiveWidth())
-	_, _ = w.WriteString(r.roles.Paragraph.Render(wrapped))
+	style := r.roles.Paragraph
+	if r.inQuote > 0 {
+		style = r.roles.BlockquoteText
+	}
+	_, _ = w.WriteString(style.Render(wrapped))
 	_, _ = w.WriteString("\n\n")
 	return ast.WalkSkipChildren, nil
 }
@@ -156,13 +169,15 @@ func (r *nodeRenderer) renderBlockquote(w util.BufWriter, source []byte, n ast.N
 		return ast.WalkSkipChildren, nil
 	}
 
+	r.inQuote++
 	body, err := r.renderChildrenToString(source, n)
+	r.inQuote--
 	if err != nil {
 		return ast.WalkStop, err
 	}
 	body = strings.TrimRight(body, "\n")
 	bar := r.roles.BlockquoteBar.Render("│ ")
-	out := prefixFirstLine(r.roles.BlockquoteText.Render(body), bar, bar)
+	out := prefixFirstLine(body, bar, bar)
 	_, _ = w.WriteString("\n")
 	_, _ = w.WriteString(out)
 	_, _ = w.WriteString("\n\n")
@@ -325,6 +340,7 @@ func (r *nodeRenderer) renderListItem(w util.BufWriter, source []byte, n ast.Nod
 	markerW := lipglossWidth(marker)
 	r.indent += markerW
 	body, err := r.renderChildrenToString(source, n)
+	parentIndent := r.indent - markerW
 	r.indent -= markerW
 	if err != nil {
 		return ast.WalkStop, err
@@ -334,10 +350,21 @@ func (r *nodeRenderer) renderListItem(w util.BufWriter, source []byte, n ast.Nod
 	// Tight list items render via TextBlock (no Paragraph wrap),
 	// so explicit wrap is needed here. Paragraph-rendered loose
 	// items already fit width-marker so this is a no-op for them.
-	body = wrapText(body, r.width-markerW)
+	//
+	// Wrap budget = full width − every parent ListItem's marker
+	// (parentIndent) − this item's own marker. The previous
+	// `r.width-markerW` only accounted for the immediate marker, so
+	// at depth ≥ 2 the wrapped continuation lines sat past the
+	// content column and the parent's prefixFirstLine pushed them
+	// further right than the bullet content.
+	budget := r.width - parentIndent - markerW
+	if budget < 1 {
+		budget = 1
+	}
+	body = wrapText(body, budget)
 
 	if isTask && taskDone {
-		body = r.roles.TaskDoneText.Render(stripANSI(body))
+		body = applyDoneStyle(stripANSI(body), r.roles.TaskDoneText)
 	}
 
 	out := prefixFirstLine(body, marker, strings.Repeat(" ", markerW))
@@ -473,4 +500,37 @@ type lipglossStyleLike interface {
 // for tests that inject a different measurement (none today).
 func lipglossWidth(s string) int {
 	return visibleWidth(s)
+}
+
+// applyDoneStyle wraps text in the open-SGR of style + strikethrough
+// (SGR 9), and closes with a single reset. Going through lipgloss's
+// Render for a Strikethrough+Foreground style emits one SGR run **per
+// grapheme** (defensive against terminals that reset strikethrough on
+// space), which inflates done-task lines by ~30× the byte count
+// without visual benefit. The manual wrap keeps the line down to one
+// open + one close.
+//
+// Input must be plain text (no SGR sequences inside) — the caller
+// strips ANSI before invoking.
+func applyDoneStyle(plain string, style lipglossStyleLike) string {
+	open := openingSGR(toLipglossStyle(style))
+	if open == "" {
+		// NO_COLOR / Ascii profile — no SGR baseline; just pass
+		// through. The leading checkbox glyph already conveys "done"
+		// in the plain layout.
+		return plain
+	}
+	return open + plain + "\x1b[0m"
+}
+
+// toLipglossStyle narrows the lipglossStyleLike interface back to the
+// concrete lipgloss.Style openingSGR expects. The interface exists so
+// bulletStyle's switch can return Style values without dragging
+// lipgloss into the call site, but applyDoneStyle does need the
+// concrete type to extract the open sequence.
+func toLipglossStyle(s lipglossStyleLike) lipgloss.Style {
+	if ls, ok := s.(lipgloss.Style); ok {
+		return ls
+	}
+	return lipgloss.Style{}
 }

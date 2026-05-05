@@ -6,6 +6,8 @@
 package markdown
 
 import (
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/util"
 )
@@ -62,6 +64,45 @@ func (r *nodeRenderer) renderEmphasis(w util.BufWriter, source []byte, n ast.Nod
 	return ast.WalkSkipChildren, nil
 }
 
+// renderStrikethrough wraps inner content with SGR 9 (strikethrough).
+// goldmark's GFM extension parses `~~text~~` into an extast.Strikethrough
+// node; without an explicit handler the default HTML renderer fires and
+// the strike disappears from the ANSI output.
+//
+// Bypasses lipgloss.Render (the Strike role) because lipgloss emits one
+// open/close pair **per grapheme cluster** for Strikethrough — defensive
+// against terminals that reset the attribute on space, but the bytes
+// balloon ~30× without visual benefit. A manual `\x1b[9m...\x1b[29m`
+// wrap is the same effect with one open + one close. Inner SGRs from
+// nested inline spans (bold, code, …) round-trip unchanged because
+// `[29m` only resets strike, leaving fg/bg intact.
+func (r *nodeRenderer) renderStrikethrough(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	inner, err := r.renderInlineToString(source, n)
+	if err != nil {
+		return ast.WalkStop, err
+	}
+	if r.opts.noColor || isAsciiProfile(r.opts.lip) {
+		_, _ = w.WriteString(inner)
+		return ast.WalkSkipChildren, nil
+	}
+	_, _ = w.WriteString("\x1b[9m" + inner + "\x1b[29m")
+	return ast.WalkSkipChildren, nil
+}
+
+// isAsciiProfile reports whether the lipgloss renderer sits on the
+// Ascii color profile (NO_COLOR path). The renderer's exposed
+// ColorProfile method is the authoritative read; nil renderer falls
+// back to "non-ascii" so the caller emits SGR by default.
+func isAsciiProfile(r *lipgloss.Renderer) bool {
+	if r == nil {
+		return false
+	}
+	return r.ColorProfile() == termenv.Ascii
+}
+
 // renderCodeSpan emits inline `code` with a coloured BG span and
 // hair-space padding so the BG reads as a chip rather than tinted
 // letters. Children of a CodeSpan are always Text nodes.
@@ -112,9 +153,13 @@ func (r *nodeRenderer) renderAutoLink(w util.BufWriter, source []byte, n ast.Nod
 	return ast.WalkSkipChildren, nil
 }
 
-// renderImage emits a `[image: alt — url]` chip in the ImageChip
-// style. Real graphics rendering (Kitty / Sixel / chafa) is deferred
-// to P1.13; the chip keeps notes readable until then.
+// renderImage emits a compact `[image: alt]` chip in the ImageChip
+// style and stows the URL in an OSC 8 wrap when present. Including
+// the URL in the chip body bloated the chip across multiple lines
+// for any non-trivial URL and triggered the WrapURLs post-process to
+// double-wrap it; clickable behaviour belongs in OSC 8 where the URL
+// is invisible until hover. Real graphics rendering (Kitty / Sixel /
+// chafa) is deferred to P1.13.
 func (r *nodeRenderer) renderImage(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
@@ -124,11 +169,15 @@ func (r *nodeRenderer) renderImage(w util.BufWriter, source []byte, n ast.Node, 
 	if err != nil {
 		return ast.WalkStop, err
 	}
-	chip := " [image: " + alt
-	if dest := string(img.Destination); dest != "" {
-		chip += " — " + dest
+	label := "image"
+	if alt != "" {
+		label = "image: " + alt
 	}
-	chip += "] "
-	_, _ = w.WriteString(r.roles.ImageChip.Render(chip))
+	chip := r.roles.ImageChip.Render(" " + label + " ")
+	if dest := string(img.Destination); dest != "" {
+		r.osc8ID++
+		chip = osc8Wrap(dest, r.osc8ID, chip)
+	}
+	_, _ = w.WriteString(chip)
 	return ast.WalkSkipChildren, nil
 }

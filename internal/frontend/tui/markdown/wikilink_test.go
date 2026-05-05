@@ -22,7 +22,7 @@ func (r stubWikiResolver) Resolve(target string) (uri, title string, ok bool) {
 
 // TestRender_Wikilink_ValidGetsOSC8: a wikilink whose target the
 // resolver knows comes out wrapped in an OSC 8 sequence pointing at
-// the resolver's URI, with the valid-glyph (⇲) prefix.
+// the resolver's URI, with the valid-glyph (→) prefix.
 func TestRender_Wikilink_ValidGetsOSC8(t *testing.T) {
 	t.Parallel()
 	res := stubWikiResolver{known: map[string]string{
@@ -33,7 +33,7 @@ func TestRender_Wikilink_ValidGetsOSC8(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	plain := ansi.Strip(out)
-	if !strings.Contains(plain, "⇲ projects/foo") {
+	if !strings.Contains(plain, "→ projects/foo") {
 		t.Errorf("valid wikilink missing glyph + display: %q", plain)
 	}
 	if !strings.Contains(out, "kompendium://note/projects/foo\x07") {
@@ -42,7 +42,7 @@ func TestRender_Wikilink_ValidGetsOSC8(t *testing.T) {
 }
 
 // TestRender_Wikilink_BrokenGetsRedMarker: an unknown target wears
-// the broken style + ⌧ glyph and is NOT wrapped in OSC 8 (a dead
+// the broken style + ⊘ glyph and is NOT wrapped in OSC 8 (a dead
 // link shouldn't pretend to be clickable).
 func TestRender_Wikilink_BrokenGetsRedMarker(t *testing.T) {
 	t.Parallel()
@@ -52,7 +52,7 @@ func TestRender_Wikilink_BrokenGetsRedMarker(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	plain := ansi.Strip(out)
-	if !strings.Contains(plain, "⌧ unknown") {
+	if !strings.Contains(plain, "⊘ unknown") {
 		t.Errorf("broken wikilink missing marker: %q", plain)
 	}
 	if strings.Contains(out, "\x1b]8;") && strings.Contains(out, "unknown") {
@@ -95,7 +95,7 @@ func TestRender_Wikilink_NoResolverFallsBackToBroken(t *testing.T) {
 		t.Fatalf("Render: %v", err)
 	}
 	plain := ansi.Strip(out)
-	if !strings.Contains(plain, "⌧ anything") {
+	if !strings.Contains(plain, "⊘ anything") {
 		t.Errorf("no-resolver fallback should render as broken: %q", plain)
 	}
 }

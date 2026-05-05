@@ -76,30 +76,47 @@ func WrapURLs(s string) string {
 }
 
 // osc8Regions returns the byte-index spans [open .. closeEnd) covered by
-// each well-formed OSC 8 hyperlink in s. A `\x1b]8;;` marker followed
-// immediately by `\x07` is the close form; any other byte means the
-// marker opens a new region. Malformed input (open without close) is
-// ignored — the leftover open marker simply doesn't produce a region.
+// each well-formed OSC 8 hyperlink in s. The OSC 8 spec is
+// `ESC ] 8 ; <params> ; <URL> BEL` for the open and `ESC ] 8 ; ; BEL`
+// for the close — `<params>` may be empty (`;;`) or carry an `id=N`
+// stamp (`;id=N;`) emitted by the renderer to keep multi-line wraps
+// joined as one click target. The previous version only matched the
+// no-params open shape (`\x1b]8;;`), missing every id-stamped open and
+// causing WrapURLs to re-wrap URLs sitting inside the open header.
+//
+// Malformed input (open without close) is ignored — the leftover open
+// marker simply doesn't produce a region.
 func osc8Regions(s string) [][2]int {
 	var regions [][2]int
-	const marker = "\x1b]8;;"
+	const prefix = "\x1b]8;"
 	i := 0
 	for {
-		idx := strings.Index(s[i:], marker)
+		idx := strings.Index(s[i:], prefix)
 		if idx < 0 {
 			return regions
 		}
 		open := i + idx
-		afterMarker := open + len(marker)
-		if afterMarker < len(s) && s[afterMarker] == '\x07' {
-			i = afterMarker + 1
-			continue
+		// Skip past the params (everything up to the second ';') and
+		// past the URL (everything up to the BEL terminator).
+		afterPrefix := open + len(prefix)
+		paramsEnd := strings.IndexByte(s[afterPrefix:], ';')
+		if paramsEnd < 0 {
+			return regions
 		}
-		closeIdx := strings.Index(s[afterMarker:], marker+"\x07")
+		urlStart := afterPrefix + paramsEnd + 1
+		bel := strings.IndexByte(s[urlStart:], '\x07')
+		if bel < 0 {
+			return regions
+		}
+		afterOpen := urlStart + bel + 1
+		// Close form: a second `\x1b]8;;\x07` (empty params, empty URL,
+		// BEL). Anything else here means malformed input we won't try
+		// to recover from.
+		closeIdx := strings.Index(s[afterOpen:], "\x1b]8;;\x07")
 		if closeIdx < 0 {
 			return regions
 		}
-		closeEnd := afterMarker + closeIdx + len(marker) + 1
+		closeEnd := afterOpen + closeIdx + len("\x1b]8;;\x07")
 		regions = append(regions, [2]int{open, closeEnd})
 		i = closeEnd
 	}

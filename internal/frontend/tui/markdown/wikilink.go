@@ -121,16 +121,19 @@ func (r *nodeRenderer) renderWikiLink(w util.BufWriter, _ []byte, n ast.Node, en
 	return ast.WalkSkipChildren, nil
 }
 
-// styleWikiLink builds the visible span: a leading glyph (⇲ for
-// valid, ⌧ for broken), the styled display text, and — when valid —
+// styleWikiLink builds the visible span: a leading glyph (→ for
+// valid, ⊘ for broken), the styled display text, and — when valid —
 // an OSC 8 hyperlink wrap with a per-render id so multi-line wraps
-// stay one click target.
+// stay one click target. The glyph picks were swapped from ⇲/⌧ to
+// →/⊘ — both are common Unicode; → reads as "follows / link to" and
+// ⊘ reads as "no entry / not found", much closer to what the eye
+// expects from a notebook cross-reference.
 func (r *nodeRenderer) styleWikiLink(display, uri string, valid bool) string {
 	if !valid {
-		return r.roles.WikilinkBroken.Render("⌧ " + display)
+		return r.roles.WikilinkBroken.Render("⊘ " + display)
 	}
 	r.osc8ID++
-	return osc8Wrap(uri, r.osc8ID, r.roles.WikilinkValid.Render("⇲ "+display))
+	return osc8Wrap(uri, r.osc8ID, r.roles.WikilinkValid.Render("→ "+display))
 }
 
 // osc8Wrap returns text wrapped in an OSC 8 hyperlink with the given
