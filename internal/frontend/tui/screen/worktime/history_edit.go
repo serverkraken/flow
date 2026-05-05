@@ -194,17 +194,10 @@ func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
 	base := startOfDay(h.drillDate)
 	startTime := base.Add(startD)
 
-	stopTime, err := domain.ParseStop(stopStr, startTime, h.deps.Clock.Now())
+	stopTime, err := parseDrillStop(stopStr, startTime, base)
 	if err != nil {
 		h.errMsg = err.Error()
 		return h, nil
-	}
-	// HH:MM stop on a non-today date: rebase to the drill's date so we
-	// don't pick up "today + HH:MM" from the now-anchored ParseStop logic.
-	if stopStr != "" && stopStr[0] != '+' {
-		if stopHM, perr := domain.ParseHM(stopStr); perr == nil {
-			stopTime = base.Add(stopHM)
-		}
 	}
 
 	sw := h.deps.SessionWriter
@@ -375,4 +368,32 @@ func lastSessionIndexForDate(all []domain.Session, date time.Time) int {
 		}
 	}
 	return idx
+}
+
+// parseDrillStop parses a Stop input for a drill-edit / drill-add
+// dialog. Two accepted shapes:
+//
+//   - "HH:MM"     → that time on the drill date (NOT today). domain.
+//     ParseStop anchors HH:MM on `now` and rejects "Zeit liegt in der
+//     Zukunft" if the past day's stop hasn't happened in real time
+//     yet — wrong here, the user is editing a past session.
+//   - "+1h30m"    → start + duration. Case-insensitive (`+8H02M` is
+//     accepted as `+8h02m`); domain.parseHumanDuration is strict-lower.
+//
+// Empty input is rejected — the drill always needs an explicit stop.
+func parseDrillStop(arg string, start, base time.Time) (time.Time, error) {
+	arg = strings.TrimSpace(arg)
+	if arg == "" {
+		return time.Time{}, fmt.Errorf("stoppzeit darf nicht leer sein")
+	}
+	if arg[0] == '+' {
+		// Lowercase the H/M suffixes so the user-facing parser doesn't
+		// reject `+8H02M`. The leading + + numeric digits stay as-is.
+		return domain.ParseStop(strings.ToLower(arg), start, time.Time{})
+	}
+	hm, err := domain.ParseHM(arg)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return base.Add(hm), nil
 }
