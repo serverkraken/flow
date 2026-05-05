@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -61,14 +62,26 @@ const (
 	historyDialogNone historyDialog = iota
 	historyDialogFilter
 	historyDialogDrill
+	historyDialogDrillEdit   // edit start/stop/tag/note of selected session
+	historyDialogDrillAdd    // add a new manual session to the drill day
+	historyDialogDrillDelete // confirm-delete selected session
 )
+
+// historyActionDoneMsg carries the result of a drill mutation (edit /
+// add / delete). The history sub-model consumes it to display a toast
+// + reload the drill so the new state surfaces immediately.
+type historyActionDoneMsg struct {
+	err   error
+	toast string
+	date  time.Time
+}
 
 // history is the History tab sub-model. It owns four render sub-modes
 // (list / heatmap / tag-clock / month) plus a filter dialog and a
-// read-only day-detail drill. Edit/delete on past-day sessions from the
-// drill is deferred to a post-wave-D enhancement — it shares the lock-
-// guarded SessionWriter surface with the Heute dialogs and lands once
-// wave F migrates the keymap-sync tests onto the new path.
+// day-detail drill that supports session edit / add / delete on
+// past-day rows. Mutations route through the same SessionWriter the
+// Heute view uses — locking, overlap checks and split-at-midnight
+// invariants stay enforced in one place.
 type history struct {
 	pal  theme.Palette
 	deps Deps
@@ -104,6 +117,20 @@ type history struct {
 	drillSessions []domain.Session
 	drillCur      int
 	drillErr      error
+
+	// drillEditIdx is the session row the active drill-edit / drill-
+	// delete dialog targets. -1 in drill-add mode (no row reference).
+	drillEditIdx int
+	// drillForm drives the multi-input edit / add dialog. Same shape
+	// as today.go's edit form: [start, stop, tag, note].
+	drillForm    []textinput.Model
+	drillFormCur int
+	// drillConfirm drives the delete-confirm dialog (canonical
+	// confirm.Model component).
+	drillConfirm *confirm.Model
+	// drillToast surfaces the result of the last mutation. Auto-clears
+	// on the next drill load.
+	drillToast string
 }
 
 func newHistory(p theme.Palette, deps Deps) history {
@@ -160,13 +187,39 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// rows as the in-flight load lands. The dialog gate also
 		// catches the "esc closed drill, late load arrives" case where
 		// drillSessions=nil was set synchronously at line 511.
-		if h.dialog != historyDialogDrill || !sameDay(h.drillDate, msg.date) {
+		//
+		// Drill-edit / drill-add / drill-delete dialogs sit ON TOP of
+		// the drill (we only enter them from the drill view), so the
+		// load must accept those modes too — otherwise a dialog open
+		// during an async reload would discard the fresh sessions.
+		if !h.drillModeActive() || !sameDay(h.drillDate, msg.date) {
 			return h, nil
 		}
 		h.drillErr = msg.err
 		h.drillSessions = msg.sessions
-		h.drillCur = 0
+		if h.drillCur >= len(h.drillSessions) {
+			h.drillCur = 0
+		}
 		return h, nil
+
+	case historyActionDoneMsg:
+		if msg.err != nil {
+			h.errMsg = msg.err.Error()
+			return h, nil
+		}
+		h.drillToast = msg.toast
+		// Mutations change day totals → reload the outer history list
+		// so the bar / pct of this day stay in sync. The drill load
+		// reloads the session list visible in the dialog.
+		var cmds []tea.Cmd
+		if !msg.date.IsZero() {
+			cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
+		}
+		cmds = append(cmds, h.loadCmd())
+		return h, tea.Batch(cmds...)
+
+	case confirm.ResultMsg:
+		return h.handleDrillConfirmResult(msg)
 
 	case dayRefreshMsg:
 		return h, h.loadCmd()
@@ -255,6 +308,12 @@ func (h *history) clampCursors() {
 func (h history) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if h.dialog == historyDialogFilter {
 		return h.handleFilterKey(msg)
+	}
+	if h.dialog == historyDialogDrillEdit || h.dialog == historyDialogDrillAdd {
+		return h.handleDrillFormKey(msg)
+	}
+	if h.dialog == historyDialogDrillDelete {
+		return h.handleDrillDeleteKey(msg)
 	}
 	if h.dialog == historyDialogDrill {
 		return h.handleDrillKey(msg)
@@ -517,6 +576,7 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "b":
 		h.dialog = historyDialogNone
 		h.drillSessions = nil
+		h.drillToast = ""
 		return h, nil
 	case "j", "down":
 		if n := len(h.drillSessions); n > 0 {
@@ -532,8 +592,24 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if n := len(h.drillSessions); n > 0 {
 			h.drillCur = n - 1
 		}
+	case "enter":
+		if h.drillOnSession() {
+			return h.openDrillEdit()
+		}
+	case "a":
+		return h.openDrillAdd()
+	case "D":
+		if h.drillOnSession() {
+			return h.openDrillDelete()
+		}
 	}
 	return h, nil
+}
+
+// drillOnSession reports whether the drill cursor sits on a real
+// session row. Without sessions, the edit/delete shortcuts are no-ops.
+func (h history) drillOnSession() bool {
+	return h.drillCur >= 0 && h.drillCur < len(h.drillSessions)
 }
 
 // — render —
@@ -545,7 +621,10 @@ func (h history) View() string {
 	if h.dialog == historyDialogFilter {
 		return h.renderFilterDialog()
 	}
-	if h.dialog == historyDialogDrill {
+	if h.drillModeActive() {
+		// Edit / Add / Delete modes render on top of the drill body
+		// (sessions list + summary stays visible above the dialog) so
+		// the user sees what they're editing without losing context.
 		return h.renderDrill()
 	}
 	if !h.loaded {
@@ -555,6 +634,18 @@ func (h history) View() string {
 		return stErr(h.pal, h.err.Error())
 	}
 	return h.renderMain()
+}
+
+// drillModeActive reports whether any drill-rooted dialog is open.
+// Edit / Add / Delete render on top of the drill list, so they all
+// participate in the drill's load/render flow.
+func (h history) drillModeActive() bool {
+	switch h.dialog {
+	case historyDialogDrill, historyDialogDrillEdit,
+		historyDialogDrillAdd, historyDialogDrillDelete:
+		return true
+	}
+	return false
 }
 
 func (h history) renderMain() string {
@@ -1108,7 +1199,14 @@ func (h history) renderDrill() string {
 	}
 	if len(h.drillSessions) == 0 {
 		rows = append(rows, stDim(h.pal, "  keine Sessions an diesem Tag"))
-		rows = append(rows, "", stDim(h.pal, "  b/Esc zurück"))
+		// Even an empty day allows manual entry — `a` adds the first
+		// session. Without this hint the only visible action is "back",
+		// which would force the user into Heute-just-to-add-an-old-row.
+		if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
+			rows = append(rows, "")
+			rows = append(rows, dialogRows...)
+		}
+		rows = append(rows, "", h.renderDrillFooter())
 		return strings.Join(rows, "\n")
 	}
 	target := h.deps.Stats.Targets.For(h.drillDate)
@@ -1147,8 +1245,47 @@ func (h history) renderDrill() string {
 			rows = append(rows, stDim(h.pal, "       "+s.Note))
 		}
 	}
-	rows = append(rows, "", stDim(h.pal, "  j/k auswahl  ·  b/Esc zurück"))
+
+	if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
+		rows = append(rows, "")
+		rows = append(rows, dialogRows...)
+	}
+	if h.drillToast != "" && h.dialog == historyDialogDrill {
+		rows = append(rows, "", "  "+theme.Success(h.drillToast, h.pal))
+	}
+	if h.errMsg != "" {
+		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
+	}
+	rows = append(rows, "", h.renderDrillFooter())
 	return strings.Join(rows, "\n")
+}
+
+// renderDrillFooter picks the hint line for the active drill dialog
+// mode. Each mode advertises its own keys; the bare drill view
+// promotes navigate / edit / add / delete to the user.
+func (h history) renderDrillFooter() string {
+	switch h.dialog {
+	case historyDialogDrillEdit:
+		return stDim(h.pal, "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen")
+	case historyDialogDrillAdd:
+		return stDim(h.pal, "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen")
+	case historyDialogDrillDelete:
+		// confirm.Model rendert bereits den eigenen y/Enter-Hint —
+		// die Footer-Zeile bleibt hier auf dem Standard "zurück", damit
+		// der globale Help-Button + Tab-Strip nicht aus dem Layout fällt.
+		return stDim(h.pal, "  y/Enter → löschen  ·  n/Esc → abbrechen")
+	}
+	hints := []string{"j/k → bewegen"}
+	if h.drillOnSession() {
+		hints = append(hints, "enter → bearbeiten", "D → löschen")
+	}
+	hints = append(hints, "a → neu", "b/Esc → zurück")
+	if len(hints) > 4 {
+		// 4-Hint-Limit (Skill §Hint format) — bei vorhandener Session
+		// fällt der seltenere "neu" weg, sonst der "back".
+		hints = hints[:4]
+	}
+	return stDim(h.pal, "  "+strings.Join(hints, "  ·  "))
 }
 
 func (h history) renderFilterDialog() string {
