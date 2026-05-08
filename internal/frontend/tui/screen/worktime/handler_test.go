@@ -442,10 +442,11 @@ func TestHistory_TagClockKey_AllNavigation(t *testing.T) {
 	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("F")})
 	m = drainCmd(t, m, cmd)
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	// v → month switches mode. Welle 2: Mode-Labels sind deutsch.
+	// v → month switches mode. Probe via the month-grid header (Slice E
+	// removed the "Ansicht (...)" footer hint — see Review-Punkt M5).
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
-	if got := m.View(); !strings.Contains(got, "Ansicht (Monat)") {
-		t.Errorf("expected month label in View after v, got:\n%s", got)
+	if got := m.View(); !strings.Contains(got, "Apr 2026") {
+		t.Errorf("expected month grid header »Apr 2026« in View after v, got:\n%s", got)
 	}
 }
 

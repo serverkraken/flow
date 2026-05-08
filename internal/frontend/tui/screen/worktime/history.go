@@ -141,6 +141,18 @@ func newHistory(p theme.Palette, deps Deps) history {
 
 func (h history) FilterActive() bool { return h.dialog != historyDialogNone }
 
+// TextInputActive reports whether History's current dialog has a
+// textinput focused — the filter expression, the drill-edit form, or
+// the drill-add form. The drill-delete confirm and the bare drill view
+// are intentionally NOT text-input — q from there should exit.
+func (h history) TextInputActive() bool {
+	switch h.dialog {
+	case historyDialogFilter, historyDialogDrillEdit, historyDialogDrillAdd:
+		return true
+	}
+	return false
+}
+
 func (h history) StateFilter() string {
 	if h.histQuery != "" {
 		return h.histQuery
@@ -1222,7 +1234,8 @@ func (h history) renderDrill() string {
 		"  "+stDim(h.pal, fmt.Sprintf("/ %s  ·  %d%%", formatDur(target), pct)))
 	rows = append(rows, "")
 	rows = append(rows, picker.SectionHeader(
-		fmt.Sprintf("sessions (%d)", len(h.drillSessions)), inner, h.pal))
+		fmt.Sprintf("sessions (%d)", len(h.drillSessions)), inner, h.pal,
+	))
 	prevStop := time.Time{}
 	for i, s := range h.drillSessions {
 		if !prevStop.IsZero() {
@@ -1314,13 +1327,16 @@ func (h history) renderFilterDialog() string {
 	return strings.Join(rows, "\n")
 }
 
-// footerHints — Skill §Hint format max 4. Top-4 nach Frequenz: navigieren,
-// drill, view-mode-cycle, filter. [/] und T sind im `?`-Overlay dokumentiert.
+// footerHints — Skill §Hint format max 4. Top-4 nach Frequenz:
+// navigieren, drill, Aktions-Menü, filter. v (Ansicht-Cycle), [/], T
+// und F leben im `?`-Overlay; das ältere `v → Ansicht (Liste)` war
+// missverständlich (zeigte den aktuellen Mode statt des Nächsten —
+// siehe TUI-Review-Punkt M5).
 func (h history) footerHints() []string {
 	return []string{
 		"j/k → bewegen",
 		"enter → drill",
-		"v → Ansicht (" + h.mode.label() + ")",
+		": → aktionen",
 		"/ → filter",
 	}
 }

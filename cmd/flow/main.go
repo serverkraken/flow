@@ -22,6 +22,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
+	"github.com/serverkraken/flow/internal/adapter/output"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
 	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
@@ -51,6 +52,7 @@ import (
 // Paths bundles every filesystem location the dependency graph reads or writes.
 // Tests rewire this against t.TempDir() so the whole graph runs in isolation.
 type Paths struct {
+	Home               string // user home (resolves ~/Downloads for the worktime menu's file output target).
 	WorktimeLog        string
 	TmuxDir            string
 	CacheDir           string
@@ -89,6 +91,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	)
 	configReader := iniconfig.New(filepath.Join(p.TmuxDir, "worktime.conf"))
 	linkStore := linkstsv.New(filepath.Join(p.TmuxDir, "worktime-links.tsv"))
+	outputTargets := output.New(p.Home, tmux)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
@@ -184,6 +187,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			Reporter:      reporter,
 			NoteOpener:    noteOpener,
 			Clock:         clock,
+			Output:        outputTargets,
 		})
 	}
 
@@ -402,6 +406,7 @@ func main() {
 	indexPath := filepath.Join(indexDir, "kompendium", "index.db")
 
 	deps, cleanup, err := buildDeps(Paths{
+		Home:               home,
 		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
 		TmuxDir:            tmuxDir,
 		CacheDir:           filepath.Join(home, ".cache", "flow"),

@@ -463,8 +463,7 @@ Format: --format text (default) | json`,
 			case "json":
 				return printStatsJSON(out, expr, st)
 			case "text", "":
-				printStatsText(out, expr, st)
-				return nil
+				return domain.WriteStats(out, expr, st)
 			default:
 				return fmt.Errorf("unbekanntes Format: %s (text|json)", format)
 			}
@@ -711,41 +710,6 @@ func newDayOffExportCmd(deps WorktimeDeps) *cobra.Command {
 	cmd.Flags().IntVar(&year, "year", 0, "Jahr (default: aktuelles)")
 	cmd.Flags().StringVar(&format, "format", "ics", "Ausgabeformat: ics|tsv")
 	return cmd
-}
-
-func printStatsText(w io.Writer, expr string, st domain.Stats) {
-	fprintf(w, "Range:    %s\n", expr)
-	fprintf(w, "Tage:     %d\n", st.Days)
-	fprintf(w, "Werktage: %d\n", st.Workdays)
-	fprintf(w, "Total:    %s\n", domain.FmtDuration(st.Total))
-	fprintf(w, "Schnitt:  %s\n", domain.FmtDuration(st.Avg))
-	if !st.MaxDate.IsZero() {
-		fprintf(w, "Max:      %s  (%s)\n", domain.FmtDuration(st.Max), st.MaxDate.Format("2006-01-02"))
-	}
-	if !st.MinDate.IsZero() {
-		fprintf(w, "Min:      %s  (%s)\n", domain.FmtDuration(st.Min), st.MinDate.Format("2006-01-02"))
-	}
-	fprintf(w, "Ziele:    %d / %d\n", st.Hits, st.Workdays)
-	fprintf(w, "Streak:   %d (best %d)\n", st.Streak, st.BestStreak)
-	fprintf(w, "Saldo:    %s\n", domain.FmtSignedDuration(st.Overtime))
-	if tags := st.TopTags(0); len(tags) > 0 {
-		fprintln(w, "Tags:")
-		for _, t := range tags {
-			fprintf(w, "  %-16s %s\n", t.Tag, domain.FmtDuration(t.Total))
-		}
-	}
-	if len(st.DaysOff) > 0 {
-		fprintln(w, "Frei:")
-		byKind := map[domain.Kind]int{}
-		for _, d := range st.DaysOff {
-			byKind[d.Kind]++
-		}
-		for _, k := range domain.AllKinds {
-			if c := byKind[k]; c > 0 {
-				fprintf(w, "  %-10s %d\n", k.LabelDe(), c)
-			}
-		}
-	}
 }
 
 func printStatsJSON(w io.Writer, expr string, st domain.Stats) error {

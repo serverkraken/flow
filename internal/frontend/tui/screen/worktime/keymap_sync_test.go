@@ -30,7 +30,7 @@ func TestFooterDriftGuard(t *testing.T) {
 			name:  "heute_idle",
 			setup: func(_ rig) {},
 			tab:   "1",
-			keys:  []string{"s", "j/k"},
+			keys:  []string{"s", "j/k", ":"},
 		},
 		{
 			name: "heute_running",
@@ -39,10 +39,9 @@ func TestFooterDriftGuard(t *testing.T) {
 				r.active.Active = &start
 			},
 			tab: "1",
-			// Skill §Hint format ≤4: post-Welle-2 zeigt der Footer im
-			// Running-State nur die Top-Frequenz-Hints. `p` (pause) wandert
-			// in den `?`-Overlay.
-			keys: []string{"s", "j/k"},
+			// Skill §Hint format ≤4: Top-Frequenz-Hints; `p` (pause)
+			// wandert in den `?`-Overlay.
+			keys: []string{"s", "j/k", ":"},
 		},
 		{
 			name: "heute_on_session",
@@ -54,9 +53,9 @@ func TestFooterDriftGuard(t *testing.T) {
 				}}
 			},
 			tab: "1",
-			// Top-4 (s, j/k, enter, D) — t/N (tag/note) sind im `?`-Overlay
-			// dokumentiert. D statt d (§Keybind grammar destructive).
-			keys: []string{"s", "j/k", "enter", "D"},
+			// Top-4 (s, j/k, :, enter). D wandert in den `?`-Overlay,
+			// das Aktions-Menü (`:`) verdrängt die destructive Action.
+			keys: []string{"s", "j/k", ":", "enter"},
 		},
 		{
 			name:  "woche",
@@ -64,21 +63,23 @@ func TestFooterDriftGuard(t *testing.T) {
 			tab:   "2",
 			// Tab-Navigation 1/2/3/4 ist parent-level — gehört nicht in den
 			// screen-level Footer (Skill §Hint format „context-relevant").
-			keys: []string{"j/k", "g/G"},
+			keys: []string{"j/k", "g/G", ":"},
 		},
 		{
 			name:  "history",
 			setup: func(_ rig) {},
 			tab:   "3",
-			keys:  []string{"j/k", "enter", "v", "/"},
+			// `v`-Mode-Cycle ins `?`-Overlay verschoben (zeigte vorher den
+			// aktuellen Mode statt des nächsten — Review-Punkt M5).
+			keys: []string{"j/k", "enter", ":", "/"},
 		},
 		{
 			name:  "frei",
 			setup: func(_ rig) {},
 			tab:   "4",
-			// Top-4: navigieren, anlegen, löschen (D), Jahr blättern.
-			// A/K/B/T sind im `?`-Overlay.
-			keys: []string{"j/k", "a", "D", "h/l"},
+			// Top-4: navigieren, anlegen, löschen (D), Aktions-Menü.
+			// h/l/[/], A/K/B/T sind im `?`-Overlay.
+			keys: []string{"j/k", "a", "D", ":"},
 		},
 	}
 	for _, c := range cases {

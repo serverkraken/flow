@@ -32,7 +32,8 @@ func (h history) openDrillEdit() (tea.Model, tea.Cmd) {
 	s := h.drillSessions[h.drillCur]
 	h.dialog = historyDialogDrillEdit
 	h.drillEditIdx = h.drillCur
-	h.drillForm = newSessionForm(h.pal,
+	h.drillForm = newSessionForm(
+		h.pal,
 		s.Start.Format("15:04"),
 		s.Stop.Format("15:04"),
 		s.Tag,

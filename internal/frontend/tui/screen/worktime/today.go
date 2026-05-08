@@ -107,6 +107,19 @@ func newHeute(p theme.Palette, deps Deps) heute {
 // while a dialog input is taking text.
 func (h heute) FilterActive() bool { return h.dialog != heuteDialogNone }
 
+// TextInputActive reports whether one of Heute's text-bearing dialogs
+// (tag / note / edit form / kompendium-attach) is currently the focused
+// surface. Lets the worktime root treat 'q' as a literal letter in
+// those fields instead of an exit key. Confirm-delete and the help
+// overlay are intentionally NOT text-input — q from there exits.
+func (h heute) TextInputActive() bool {
+	switch h.dialog {
+	case heuteDialogTag, heuteDialogNote, heuteDialogEdit, heuteDialogNoteAttach:
+		return true
+	}
+	return false
+}
+
 // StateFilter has no meaning here — Heute has no filter expression.
 func (h heute) StateFilter() string { return "" }
 
@@ -886,13 +899,15 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 	}
 
 	rows := []string{"", picker.SectionHeader(
-		fmt.Sprintf("sessions heute (%d)", totalRows), inner, h.pal)}
+		fmt.Sprintf("sessions heute (%d)", totalRows), inner, h.pal,
+	)}
 
 	if h.day.IsRunning() && h.day.Active != nil {
 		elapsed := now.Sub(*h.day.Active)
 		rows = append(rows, theme.Success(
 			fmt.Sprintf("  ▶ %s → …   %s   läuft",
-				h.day.Active.Format("15:04"), formatDur(elapsed)), h.pal))
+				h.day.Active.Format("15:04"), formatDur(elapsed)), h.pal,
+		))
 	}
 	for i, s := range h.day.Sessions {
 		dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
@@ -915,10 +930,12 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 // belongs in the `?` overlay"). Reihenfolge:
 //  1. s → start/stop/resume — globaler Default-State, immer relevant.
 //  2. j/k → bewegen — Listenkontext immer.
-//  3. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
-//  4. D → löschen — wenn auf Session, einziger destructive Slot.
+//  3. : → aktionen — Worktime-Aktions-Menü (Brief, Export, Stats,
+//     Korrektur, Land); zentraler Discoverability-Anker.
+//  4. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
 //
-// Tag/Note/Pause sind im `?`-Overlay des Sidekick-Roots dokumentiert.
+// D → löschen, Tag, Note und Pause leben im `?`-Overlay; das 4-Hint-
+// Limit verdrängt die destructive Action in den Hilfetext.
 func (h heute) footerHints() []string {
 	var actions []string
 	switch {
@@ -929,9 +946,9 @@ func (h heute) footerHints() []string {
 	default:
 		actions = append(actions, "s → starten")
 	}
-	actions = append(actions, "j/k → bewegen")
+	actions = append(actions, "j/k → bewegen", ": → aktionen")
 	if h.onSession() {
-		actions = append(actions, "enter → bearbeiten", "D → löschen")
+		actions = append(actions, "enter → bearbeiten")
 	}
 	if len(actions) > 4 {
 		actions = actions[:4]

@@ -275,6 +275,8 @@ func (m Model) renderHelp() string {
 			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
 			{"Tab", "Nächster Tab"},
 			{"b", "Voriger Tab (oder zurück zur Palette wenn auf Heute)"},
+			{":", "Aktions-Menü (Brief · Export · Stats · Korrektur · Land)"},
+			{"q", "Beenden — auch aus Dialogen / Aktions-Menü heraus"},
 		}},
 		{Title: "Worktime — Heute", Keys: [][2]string{
 			{"j/k · g/G", "Cursor bewegen · oben/unten"},
@@ -305,10 +307,20 @@ func (m Model) renderHelp() string {
 			{"j/k · g/G", "Eintrag fokussieren"},
 			{"a", "Tag(e) frei eintragen (Form)"},
 			{"A · K", "heute = Urlaub · heute = krank"},
-			{"B", "Gesetzliche Feiertage syncen"},
+			{"B", "Gesetzliche Feiertage syncen (Default-Land)"},
 			{"D", "Eintrag löschen (y/Enter bestätigt)"},
 			{"h · l · [ · ]", "Jahr zurück / vor"},
 			{"T", "Aktuelles Jahr"},
+		}},
+		{Title: "Worktime — Aktions-Menü (`:`)", Keys: [][2]string{
+			{"Brief Wochen-/Monatsbericht", "Markdown via glow / clipboard / ~/Downloads"},
+			{"Export CSV / JSON", "Range-Form + Output-Target"},
+			{"Stats für Range", "Aggregate über StatsComputer"},
+			{"Startzeit korrigieren", "Heute, nur wenn Session läuft"},
+			{"Land für Feiertage", "Bundesland-Picker → SyncGermanHolidays"},
+			{"j/k · g/G · enter · esc", "Im Menü navigieren / picken / abbrechen"},
+			{"tippen", "Live-Filter über die Aktions-Liste"},
+			{"c · s · f", "Output-Target direkt: Clipboard / Split / Datei"},
 		}},
 	}
 

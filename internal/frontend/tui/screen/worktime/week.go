@@ -368,9 +368,10 @@ func (w woche) totals(now time.Time) (total, target time.Duration) {
 
 // footerHints — Skill §Hint format: nur context-relevante Keys. Tab-
 // Navigation (1/2/3/4) ist parent-level (worktime-Root), gehört nicht in
-// den Screen-Footer.
+// den Screen-Footer; `:` öffnet das Aktions-Menü und ist auf jeder
+// Worktime-Surface gleich.
 func (w woche) footerHints() []string {
-	return []string{"j/k → bewegen", "g/G → erste/letzte"}
+	return []string{"j/k → bewegen", "g/G → erste/letzte", ": → aktionen"}
 }
 
 // — small helpers (private to package) —

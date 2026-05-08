@@ -816,13 +816,22 @@ func TestHistory_VCyclesModes(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	// Skill §German UI: mode-Labels sind seit Welle 2 deutsch im Footer.
-	steps := []string{"Heatmap", "Tag-Clock", "Monat", "Liste"}
+	// Slice E removed the "Ansicht (Mode)" footer hint (it was showing
+	// the current mode rather than the next, see Review-Punkt M5).
+	// Probe each mode by a unique body anchor instead.
+	steps := []struct {
+		name, anchor string
+	}{
+		{"Heatmap", "█ Ziel"},
+		{"Tag-Clock", "≥75%"},
+		{"Monat", "Apr 2026"},
+		{"Liste", "KW 18 / 2026"},
+	}
 	for _, want := range steps {
 		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
 		got := m.View()
-		if !strings.Contains(got, "Ansicht ("+want+")") {
-			t.Errorf("v cycle expected Ansicht (%s) in footer, got:\n%s", want, got)
+		if !strings.Contains(got, want.anchor) {
+			t.Errorf("v cycle expected %s mode body anchor %q, got:\n%s", want.name, want.anchor, got)
 		}
 	}
 }
@@ -874,8 +883,8 @@ func TestHistory_HeatmapNavigates(t *testing.T) {
 	// Move cursor down one row — should still render.
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
 	out := m.View()
-	if !strings.Contains(out, "Ansicht (Heatmap)") {
-		t.Errorf("heatmap mode expected, got:\n%s", out)
+	if !strings.Contains(out, "█ Ziel") {
+		t.Errorf("heatmap mode expected (legend »█ Ziel«), got:\n%s", out)
 	}
 	for _, marker := range []string{"Mo", "Di", "So"} {
 		if !strings.Contains(out, marker) {

@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -43,6 +44,12 @@ type Deps struct {
 	Reporter      *usecase.Reporter
 	NoteOpener    *usecase.NoteOpener
 	Clock         interface{ Now() time.Time }
+	// Output is the worktime menu's three-target sink (Clipboard /
+	// tmux-Split / Datei in ~/Downloads). Wired in cmd/flow/main.go via
+	// internal/adapter/output. Slice B: nil-tolerant (no flow uses it
+	// yet); Slice C/D/E start dispatching Brief / Export / Stats output
+	// through this port.
+	Output ports.Output
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -80,6 +87,7 @@ type Model struct {
 	height  int
 	current tab
 	subs    [4]tea.Model
+	menu    menuModel
 }
 
 // New constructs the worktime root model with the four sub-models
@@ -94,6 +102,7 @@ func New(p theme.Palette, deps Deps) Model {
 			newHistory(p, deps),
 			newFrei(p, deps),
 		},
+		menu: newMenuModel(p, deps),
 	}
 }
 
@@ -121,9 +130,14 @@ func (m Model) WithState(filter string, cursor int) tea.Model {
 	return m
 }
 
-// FilterActive returns whether the active sub-model has filter focus.
-// Sub-models that don't have a filter (all four today) return false.
+// FilterActive returns whether either the action menu or the active
+// sub-model is currently consuming text input. The Worktime root,
+// sidekick parent, and tab-switching keys all check this before
+// claiming letter keys back.
 func (m Model) FilterActive() bool {
+	if m.menu.Active() {
+		return true
+	}
 	if fa, ok := m.subs[m.current].(filterActiver); ok {
 		return fa.FilterActive()
 	}
@@ -191,16 +205,17 @@ func (m Model) StateCursor() int {
 // On tabHeute we let `b` fall through to the palette switch.
 func (m Model) HandlesBack() bool { return m.current != tabHeute }
 
-// ConsumesKeys lists letter keys the active sub-model claims, so the
-// sidekick's global navigation (p / n / f / w / c) doesn't intercept
-// keys that the screen itself binds. The sub-model interface lets each
-// tab declare its own claim set per-state — e.g. Heute claims `n` for
-// kompendium-attach and `p` for pause whenever those actions apply.
+// ConsumesKeys lists letter / punctuation keys the active sub-model and
+// the worktime-root menu claim, so the sidekick's global navigation
+// (p / n / f / w / c) doesn't intercept keys the worktime surface itself
+// binds. `:` is always claimed because the action menu lives at the
+// root and must open from any tab.
 func (m Model) ConsumesKeys() []string {
+	keys := []string{":"}
 	if kc, ok := m.subs[m.current].(interface{ ConsumesKeys() []string }); ok {
-		return kc.ConsumesKeys()
+		keys = append(keys, kc.ConsumesKeys()...)
 	}
-	return nil
+	return keys
 }
 
 // Init starts every sub-model concurrently and schedules the first
@@ -216,11 +231,13 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update routes messages to the active sub-model and handles the
-// global tab keys + tick.
+// global tab keys + tick. When the action menu is open, all keys go
+// to the menu and tab-switching is suspended.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.menu = m.menu.SetSize(msg.Width, msg.Height)
 		var cmds []tea.Cmd
 		for i, s := range m.subs {
 			updated, cmd := s.Update(msg)
@@ -244,42 +261,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
-		// Tab switching: 1/2/3/4 jumps to a tab; tab cycles forward;
-		// b cycles backward when not on the default tab. All gated on
-		// FilterActive — once a sub-model dialog is taking input, those
-		// keys belong to the sub-model, not the tab router.
-		if !m.FilterActive() {
-			switch msg.String() {
-			case "1":
-				m.current = tabHeute
-				return m, nil
-			case "2":
-				m.current = tabWoche
-				return m, nil
-			case "3":
-				m.current = tabHistory
-				return m, nil
-			case "4":
-				m.current = tabFrei
-				return m, nil
-			case "tab":
-				m.current = (m.current + 1) % 4
-				return m, nil
-			case "b":
-				if m.current != tabHeute {
-					m.current = (m.current + 3) % 4 // -1 mod 4
-					return m, nil
-				}
-			}
-		}
-		// Anything else routes to the active sub-model.
-		updated, cmd := m.subs[m.current].Update(msg)
-		m.subs[m.current] = updated
-		return m, cmd
+		return m.handleKeyMsg(msg)
 	}
 
-	// Async messages (loadedMsg variants from sub-models) are dispatched
-	// to all sub-models so each picks up the ones it owns. Sub-models
+	// Async messages (loadedMsg variants from sub-models, toast
+	// dismiss ticks for the menu) are dispatched to every sub-screen
+	// PLUS the menu so each picks up the ones it owns. Recipients
 	// drop messages they don't recognise.
 	var cmds []tea.Cmd
 	for i, s := range m.subs {
@@ -289,17 +276,95 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 	}
+	if m.menu.Active() {
+		updated, cmd := m.menu.Update(msg)
+		m.menu = updated
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
 	return m, tea.Batch(cmds...)
 }
 
-// View renders the active sub-model with a tab strip on top.
+// handleKeyMsg dispatches a key when no async / tick / window message
+// is in flight. Order:
+//  1. q is the universal exit key — returns tea.Quit from any sub-
+//     mode (menu, dialog, picker, help overlay) UNLESS a textinput is
+//     currently focused; in that case 'q' is a literal letter the user
+//     wants in their tag / note / range / HH:MM input.
+//  2. Menu owns input while open.
+//  3. Tab-router keys (1/2/3/4/Tab/b/`:`) when no dialog/menu blocks.
+//  4. Forward everything else to the active sub-model.
+//
+// Split off Update to keep cyclomatic complexity inside the project
+// budget.
+func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "q" && !m.textInputActive() {
+		return m, tea.Quit
+	}
+	if m.menu.Active() {
+		updated, cmd := m.menu.Update(msg)
+		m.menu = updated
+		return m, cmd
+	}
+	if !m.FilterActive() {
+		if next, ok := m.handleTabRouterKey(msg); ok {
+			return next, nil
+		}
+	}
+	updated, cmd := m.subs[m.current].Update(msg)
+	m.subs[m.current] = updated
+	return m, cmd
+}
+
+// handleTabRouterKey handles the global tab-switching keys plus the
+// `:` action-menu trigger. Returns (model, true) when the key was
+// claimed; (zero, false) lets the caller forward the key to the active
+// sub-model.
+func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
+	switch msg.String() {
+	case ":":
+		m.menu = m.menu.openMenu(m.current)
+		return m, true
+	case "1":
+		m.current = tabHeute
+		return m, true
+	case "2":
+		m.current = tabWoche
+		return m, true
+	case "3":
+		m.current = tabHistory
+		return m, true
+	case "4":
+		m.current = tabFrei
+		return m, true
+	case "tab":
+		m.current = (m.current + 1) % 4
+		return m, true
+	case "b":
+		if m.current != tabHeute {
+			m.current = (m.current + 3) % 4 // -1 mod 4
+			return m, true
+		}
+	}
+	return Model{}, false
+}
+
+// View renders the active sub-model with a tab strip on top. When the
+// action menu is open it replaces the tab body — the tab strip stays
+// so the user keeps the visual anchor of which tab they came from.
 func (m Model) View() string {
 	if m.width == 0 {
 		return ""
 	}
-	body := m.subs[m.current].View()
-	if body == "" {
-		body = theme.Dim("  (lädt …)", m.pal)
+	var body string
+	if m.menu.Active() {
+		body = m.menu.View()
+	} else {
+		body = m.subs[m.current].View()
+		if body == "" {
+			body = theme.Dim("  (lädt …)", m.pal)
+		}
 	}
 	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
 }
@@ -376,4 +441,29 @@ type cursorStater interface {
 // visible to the user. Returning false drops to the slow tick.
 type fastTicker interface {
 	FastTick(now time.Time) bool
+}
+
+// textInputActiver lets a sub-model report whether a textinput.Model is
+// currently focused — i.e. the user is typing free-form text into a
+// field and 'q' should land in the field, not quit the program.
+//
+// Sub-models that don't implement this default to "no text input
+// active" — q in those contexts (Heute idle, Woche, History list,
+// menu list / target / land) returns tea.Quit at the worktime root.
+type textInputActiver interface {
+	TextInputActive() bool
+}
+
+// textInputActive aggregates the menu's and the active sub-model's
+// text-input state. The worktime root checks this before honouring
+// q-as-quit so typing 'q' inside a tag / note / range form / etc.
+// edits the field instead of quitting.
+func (m Model) textInputActive() bool {
+	if m.menu.Active() && m.menu.TextInputActive() {
+		return true
+	}
+	if ti, ok := m.subs[m.current].(textInputActiver); ok {
+		return ti.TextInputActive()
+	}
+	return false
 }

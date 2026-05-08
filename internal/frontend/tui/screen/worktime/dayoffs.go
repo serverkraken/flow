@@ -86,6 +86,12 @@ func newFrei(p theme.Palette, deps Deps) frei {
 // while the add form or delete confirm has focus.
 func (f frei) FilterActive() bool { return f.dialog != freiDialogNone }
 
+// TextInputActive reports whether the Frei add form is the focused
+// surface — only the add dialog hosts text inputs. The delete confirm
+// (freiDialogConfirm) is a yes/no prompt, not text input, so q from
+// there exits the program.
+func (f frei) TextInputActive() bool { return f.dialog == freiDialogAdd }
+
 // StateFilter has no meaning here — Frei has no persistent filter expression.
 func (f frei) StateFilter() string { return "" }
 
@@ -515,15 +521,17 @@ func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
 	return picker.Row(idx == f.cursor, label, "", inner, f.pal)
 }
 
-// footerHints — Skill §Hint format: max 4. Top-4 nach Frequenz: navigieren,
-// Eintrag anlegen, löschen, Jahr blättern. A/K/B/T sind im `?`-Overlay
-// dokumentiert, sind nicht Teil des täglichen Worktime-Flows.
+// footerHints — Skill §Hint format: max 4. Top-4 nach Frequenz:
+// navigieren, Eintrag anlegen, löschen, Aktions-Menü. A/K/B/T und das
+// Jahr-Blättern (h/l/[/]) leben im `?`-Overlay, das Aktions-Menü
+// erlaubt sowieso einen Land-spezifischen Sync außerhalb des `B`-
+// Default-Pfads.
 func (f frei) footerHints() []string {
 	return []string{
 		"j/k → bewegen",
 		"a → anlegen",
 		"D → löschen",
-		"h/l → Jahr ±",
+		": → aktionen",
 	}
 }
 
