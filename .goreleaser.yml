@@ -1,0 +1,76 @@
+# GoReleaser-Konfiguration. Läuft im Release-Workflow nach release-
+# please's Tag-Erstellung und hängt Cross-Plattform-Binaries an die
+# bereits angelegte GitHub-Release-Entry.
+#
+# Plattformen spiegeln die `cross-build`-Matrix in `.github/workflows/
+# ci.yml`: linux/amd64 + darwin/{amd64,arm64}. Linux/arm64 ist
+# bewusst nicht dabei, weil noch kein Use-Case besteht; bei Bedarf
+# `ignore`-Block anpassen.
+
+version: 2
+
+project_name: flow
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: flow
+    main: ./cmd/flow
+    binary: flow
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # linux/arm64 nicht in der CI-Cross-Build-Matrix → konsistent
+      # auch hier auslassen.
+      - goos: linux
+        goarch: arm64
+    flags:
+      # -trimpath entfernt absolute Build-Pfade aus dem Binary
+      # (reproducibility); -s -w stripped Debug-Symbole + DWARF, was
+      # den Binary spürbar kleiner macht (ca. 30-40%).
+      - -trimpath
+    ldflags:
+      - -s -w
+
+archives:
+  - id: default
+    # Bewusst ohne {{ .Version }}: das macht
+    # `releases/latest/download/flow_darwin_arm64.tar.gz` als stabilen
+    # Install-URL möglich (siehe README). Die Version bleibt über das
+    # umschließende Tag (`releases/download/vX.Y.Z/...`) auflösbar.
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  # checksums.txt enthält SHA-256 jeder Archiv-Datei. Hash-Verify-
+  # freundlich für install-Skripte (sha256sum -c checksums.txt).
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  # release-please generiert den Changelog aus den Conventional-
+  # Commits und schreibt ihn in CHANGELOG.md + die Release-Notes;
+  # goreleaser darf hier nichts dazwischenfunken.
+  disable: true
+
+release:
+  github:
+    owner: serverkraken
+    name: flow
+  # release-please hat die Release-Entry schon angelegt; goreleaser
+  # hängt Assets dran statt eine neue Release zu erzeugen.
+  mode: append
+  # Bei Re-Runs (Replay nach manuellem Tag-Move) bestehende Assets
+  # ersetzen statt zu duplizieren.
+  replace_existing_artifacts: true

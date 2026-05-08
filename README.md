@@ -323,6 +323,66 @@ für blinde tmux-Bindings.
 
 ---
 
+## Releases
+
+Versionierung ist automatisch — der Release-Workflow nutzt
+[release-please](https://github.com/googleapis/release-please) und
+[GoReleaser](https://goreleaser.com).
+
+**Conventional-Commit-Flow:**
+
+```
+feat:     → Minor-Bump (0.1.0 → 0.2.0)
+fix:      → Patch-Bump (0.1.0 → 0.1.1)
+feat!:    → Major-Bump
+chore: ci: docs: test:    → kein Bump (im Hidden-Changelog)
+```
+
+**Was beim Push auf main passiert:**
+
+1. **release-please** liest neue Conventional-Commits seit dem letzten
+   Tag und öffnet (oder aktualisiert) eine Release-PR mit dem
+   nächsten SemVer + auto-generiertem Changelog.
+2. Beim **Mergen der Release-PR**: ein Tag `vX.Y.Z` wird gepusht und
+   eine GitHub-Release mit den Notes aus dem Changelog angelegt.
+3. **GoReleaser** läuft danach im selben Workflow, baut Cross-
+   Plattform-Binaries (linux/amd64, darwin/{amd64,arm64}) und hängt
+   sie + `checksums.txt` an die Release.
+
+Releases liegen unter `Releases` im GitHub-Repo. Install ohne Go-
+Toolchain — Archiv-Name ist über alle Versionen stabil, das `latest`-
+Redirect resolved automatisch:
+
+```sh
+# macOS Apple Silicon
+curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_darwin_arm64.tar.gz \
+  | tar -xz && sudo install flow /usr/local/bin/
+
+# macOS Intel
+curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_darwin_amd64.tar.gz \
+  | tar -xz && sudo install flow /usr/local/bin/
+
+# Linux amd64
+curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/flow_linux_amd64.tar.gz \
+  | tar -xz && sudo install flow /usr/local/bin/
+```
+
+Eine bestimmte Version pinnen geht über `releases/download/vX.Y.Z/`:
+
+```sh
+curl -fsSL https://github.com/serverkraken/flow/releases/download/v0.1.0/flow_darwin_arm64.tar.gz \
+  | tar -xz
+```
+
+Checksums liegen unter `checksums.txt` in jeder Release. Verify:
+
+```sh
+curl -fsSL https://github.com/serverkraken/flow/releases/latest/download/checksums.txt -o checksums.txt
+sha256sum -c checksums.txt --ignore-missing
+```
+
+---
+
 ## Lizenz
 
 [MIT](LICENSE) — siehe `LICENSE` für den vollen Text.
