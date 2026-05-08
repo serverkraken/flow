@@ -222,16 +222,16 @@ func (r *nodeRenderer) handlers() map[ast.NodeKind]renderer.NodeRendererFunc {
 		extast.KindFootnoteLink:     r.renderFootnoteLink,
 		extast.KindFootnoteBacklink: r.renderFootnoteBacklink,
 		// Inline — styled
-		ast.KindText:           r.renderText,
-		ast.KindString:         r.renderString,
-		ast.KindEmphasis:       r.renderEmphasis,
-		ast.KindCodeSpan:       r.renderCodeSpan,
-		ast.KindLink:           r.renderLink,
-		ast.KindAutoLink:       r.renderAutoLink,
-		ast.KindImage:          r.renderImage,
-		ast.KindRawHTML:        r.renderRawInline,
+		ast.KindText:             r.renderText,
+		ast.KindString:           r.renderString,
+		ast.KindEmphasis:         r.renderEmphasis,
+		ast.KindCodeSpan:         r.renderCodeSpan,
+		ast.KindLink:             r.renderLink,
+		ast.KindAutoLink:         r.renderAutoLink,
+		ast.KindImage:            r.renderImage,
+		ast.KindRawHTML:          r.renderRawInline,
 		extast.KindStrikethrough: r.renderStrikethrough,
-		wikiLinkKind:           r.renderWikiLink,
+		wikiLinkKind:             r.renderWikiLink,
 	}
 	return r.handlersCache
 }

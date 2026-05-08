@@ -84,7 +84,7 @@ func (r *nodeRenderer) renderStrikethrough(w util.BufWriter, source []byte, n as
 	if err != nil {
 		return ast.WalkStop, err
 	}
-	if r.opts.noColor || isAsciiProfile(r.opts.lip) {
+	if r.opts.noColor || isASCIIProfile(r.opts.lip) {
 		_, _ = w.WriteString(inner)
 		return ast.WalkSkipChildren, nil
 	}
@@ -92,11 +92,11 @@ func (r *nodeRenderer) renderStrikethrough(w util.BufWriter, source []byte, n as
 	return ast.WalkSkipChildren, nil
 }
 
-// isAsciiProfile reports whether the lipgloss renderer sits on the
+// isASCIIProfile reports whether the lipgloss renderer sits on the
 // Ascii color profile (NO_COLOR path). The renderer's exposed
 // ColorProfile method is the authoritative read; nil renderer falls
 // back to "non-ascii" so the caller emits SGR by default.
-func isAsciiProfile(r *lipgloss.Renderer) bool {
+func isASCIIProfile(r *lipgloss.Renderer) bool {
 	if r == nil {
 		return false
 	}

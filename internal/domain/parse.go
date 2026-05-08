@@ -51,49 +51,69 @@ func ParseStartArg(arg string, now time.Time) (time.Time, error) {
 	if arg == "" {
 		return now, nil
 	}
-
-	// HH:MM (delegates to ParseHM for trim + range validation, so direct
-	// CLI callers behave the same as the TSV parser).
-	if strings.Contains(arg, ":") && (len(arg) == 0 || arg[0] != '-') {
-		if hm, err := ParseHM(arg); err == nil {
-			t := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Add(hm)
-			if t.After(now) {
-				return time.Time{}, fmt.Errorf("zeit liegt in der Zukunft: %s", arg)
-			}
-			return t, nil
-		}
+	if t, ok, err := parseStartArgClock(arg, now); ok {
+		return t, err
 	}
-
-	// -NhMMm  or  -NhM  or  -Nh  or  -Nm
-	if len(arg) > 1 && arg[0] == '-' {
-		rest := arg[1:]
-		if hi := strings.IndexByte(rest, 'h'); hi >= 0 {
-			hStr := rest[:hi]
-			mStr := strings.TrimSuffix(rest[hi+1:], "m")
-			h, errH := strconv.Atoi(hStr)
-			if errH != nil || h < 0 {
-				return time.Time{}, fmt.Errorf("ungültig (Stunden-Teil nicht numerisch): %s", arg)
-			}
-			m := 0
-			if mStr != "" {
-				var errM error
-				m, errM = strconv.Atoi(mStr)
-				if errM != nil || m < 0 {
-					return time.Time{}, fmt.Errorf("ungültig (Minuten-Teil nicht numerisch): %s", arg)
-				}
-			}
-			return now.Add(-time.Duration(h)*time.Hour - time.Duration(m)*time.Minute), nil
-		}
-		// -Nm. Reject negative N (e.g. "--5m") which would otherwise
-		// double-negate to "now + 5min" — silently shifting the start
-		// into the future on a typo.
-		mStr := strings.TrimSuffix(rest, "m")
-		if min, err := strconv.Atoi(mStr); err == nil && min >= 0 {
-			return now.Add(-time.Duration(min) * time.Minute), nil
-		}
+	if t, ok, err := parseStartArgRelative(arg, now); ok {
+		return t, err
 	}
-
 	return time.Time{}, fmt.Errorf("unbekanntes Format: %s (erwartet: HH:MM, -1h30m, -45m)", arg)
+}
+
+// parseStartArgClock handles the HH:MM shape — that-time-today, future
+// rejected. ok=true only when the input matches the clock pattern;
+// ParseStartArg falls through to the relative parser otherwise.
+// Delegates to ParseHM for trim + range validation, so direct CLI
+// callers behave the same as the TSV parser.
+func parseStartArgClock(arg string, now time.Time) (time.Time, bool, error) {
+	if !strings.Contains(arg, ":") || (len(arg) > 0 && arg[0] == '-') {
+		return time.Time{}, false, nil
+	}
+	hm, err := ParseHM(arg)
+	if err != nil {
+		return time.Time{}, false, nil
+	}
+	t := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Add(hm)
+	if t.After(now) {
+		return time.Time{}, true, fmt.Errorf("zeit liegt in der Zukunft: %s", arg)
+	}
+	return t, true, nil
+}
+
+// parseStartArgRelative handles `-Nm` and `-NhMMm` shapes. ok=true
+// when the input has the leading `-` and parses cleanly; the caller
+// surfaces the parse-or-format error.
+func parseStartArgRelative(arg string, now time.Time) (time.Time, bool, error) {
+	if len(arg) <= 1 || arg[0] != '-' {
+		return time.Time{}, false, nil
+	}
+	rest := arg[1:]
+	if hi := strings.IndexByte(rest, 'h'); hi >= 0 {
+		hStr := rest[:hi]
+		mStr := strings.TrimSuffix(rest[hi+1:], "m")
+		h, errH := strconv.Atoi(hStr)
+		if errH != nil || h < 0 {
+			return time.Time{}, true, fmt.Errorf("ungültig (Stunden-Teil nicht numerisch): %s", arg)
+		}
+		m := 0
+		if mStr != "" {
+			var errM error
+			m, errM = strconv.Atoi(mStr)
+			if errM != nil || m < 0 {
+				return time.Time{}, true, fmt.Errorf("ungültig (Minuten-Teil nicht numerisch): %s", arg)
+			}
+		}
+		return now.Add(-time.Duration(h)*time.Hour - time.Duration(m)*time.Minute), true, nil
+	}
+	// -Nm. Reject negative N (e.g. "--5m") which would otherwise
+	// double-negate to "now + 5min" — silently shifting the start
+	// into the future on a typo.
+	mStr := strings.TrimSuffix(rest, "m")
+	min, err := strconv.Atoi(mStr)
+	if err != nil || min < 0 {
+		return time.Time{}, false, nil
+	}
+	return now.Add(-time.Duration(min) * time.Minute), true, nil
 }
 
 // ParseStop parses a stop-time argument relative to a known start time and

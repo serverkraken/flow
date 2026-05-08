@@ -1,3 +1,6 @@
+// Package form bundles the themed bubbles widgets the worktime / kompendium
+// TUIs share (text inputs, in particular). Centralising the styling keeps
+// every dialog input visually consistent across screens.
 package form
 
 import (

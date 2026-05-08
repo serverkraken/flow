@@ -154,8 +154,28 @@ func AggregateRange(
 	if !from.Before(to) {
 		return st
 	}
+	inRange, byDate := filterAndIndexRange(records, from, to)
+	st.Days = len(inRange)
+	tallyRecordsInto(&st, inRange)
+	walkWorkdaysForSaldo(&st, from, to, byDate, isWorkday, targetFor)
 
-	// Sort records and index by date for the workday walk.
+	if st.DaysWithSessions > 0 {
+		st.Avg = st.Total / time.Duration(st.DaysWithSessions)
+	}
+	st.Untagged = st.ByTag[""]
+	st.BestStreak = bestStreak(inRange, isWorkday)
+	st.Streak = currentStreak(inRange, isWorkday)
+
+	if listDayOffs != nil {
+		// to is exclusive; ListDayOffs takes inclusive bounds.
+		st.DaysOff = listDayOffs(from, to.AddDate(0, 0, -1))
+	}
+	return st
+}
+
+// filterAndIndexRange returns records within [from, to) sorted
+// chronologically plus a date-keyed index for the workday walk.
+func filterAndIndexRange(records []DayRecord, from, to time.Time) ([]DayRecord, map[time.Time]DayRecord) {
 	inRange := make([]DayRecord, 0, len(records))
 	for _, r := range records {
 		if !r.Date.Before(from) && r.Date.Before(to) {
@@ -167,10 +187,13 @@ func AggregateRange(
 	for _, r := range inRange {
 		byDate[truncDay(r.Date)] = r
 	}
+	return inRange, byDate
+}
 
-	st.Days = len(inRange)
+// tallyRecordsInto walks each record's sessions and accumulates totals,
+// max/min, by-tag duration and CountByTag counts onto st.
+func tallyRecordsInto(st *Stats, inRange []DayRecord) {
 	minSeen := false
-
 	for _, r := range inRange {
 		st.Total += r.Total
 		if r.Total > st.Max {
@@ -190,13 +213,21 @@ func AggregateRange(
 			st.CountByTag[s.Tag]++
 		}
 	}
+}
 
-	// Walk the full range so every workday — recorded or not — feeds
-	// Workdays/Hits/Overtime. The saldo therefore accounts for unworked
-	// workdays inside [from, to). Streak semantics deliberately stay
-	// record-driven (consistent with Aggregate) — a workday-aware
-	// streak that breaks on missed workdays needs `now` to distinguish
-	// past misses from future days, which AggregateRange does not take.
+// walkWorkdaysForSaldo iterates every workday in [from, to) — recorded
+// or not — and feeds Workdays/Hits/Overtime so the saldo accounts for
+// unworked workdays. Streak semantics deliberately stay record-driven
+// (consistent with Aggregate) — a workday-aware streak that breaks on
+// missed workdays needs `now` to distinguish past misses from future
+// days, which AggregateRange does not take.
+func walkWorkdaysForSaldo(
+	st *Stats,
+	from, to time.Time,
+	byDate map[time.Time]DayRecord,
+	isWorkday func(time.Time) bool,
+	targetFor func(time.Time) time.Duration,
+) {
 	for d := from; d.Before(to); d = d.AddDate(0, 0, 1) {
 		if !isWorkday(d) {
 			continue
@@ -211,19 +242,6 @@ func AggregateRange(
 		}
 		st.Overtime -= targetFor(d)
 	}
-
-	if st.DaysWithSessions > 0 {
-		st.Avg = st.Total / time.Duration(st.DaysWithSessions)
-	}
-	st.Untagged = st.ByTag[""]
-	st.BestStreak = bestStreak(inRange, isWorkday)
-	st.Streak = currentStreak(inRange, isWorkday)
-
-	if listDayOffs != nil {
-		// to is exclusive; ListDayOffs takes inclusive bounds.
-		st.DaysOff = listDayOffs(from, to.AddDate(0, 0, -1))
-	}
-	return st
 }
 
 // truncDay strips the time-of-day component so two timestamps on the

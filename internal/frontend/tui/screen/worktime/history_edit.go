@@ -20,6 +20,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // — open helpers —
@@ -177,10 +178,45 @@ func (h history) handleDrillConfirmResult(msg confirm.ResultMsg) (tea.Model, tea
 
 // submitDrillForm validates the form, calls Edit or AddManual, and
 // closes the dialog on success. Validation errors stay in errMsg and
-// keep the dialog open so the user can correct.
+// keep the dialog open so the user can correct. The two dispatch
+// branches (add / edit) live in their own helpers so each can hold
+// its async-tea.Cmd closure without tipping the gocognit budget.
 func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
-	if len(h.drillForm) < 2 {
+	fields, ok := h.parseDrillFormFields()
+	if !ok {
+		// Validation error already lives in h.errMsg.
 		return h, nil
+	}
+	date := h.drillDate
+	if h.dialog == historyDialogDrillAdd {
+		h.dialog = historyDialogDrill
+		h.drillForm = nil
+		h.drillFormCur = 0
+		return h, dispatchDrillAdd(h.deps.SessionWriter, date, fields)
+	}
+	idx := h.drillEditIdx
+	h.dialog = historyDialogDrill
+	h.drillForm = nil
+	h.drillFormCur = 0
+	return h, dispatchDrillEdit(h.deps.SessionWriter, date, idx, fields)
+}
+
+// drillFormFields holds the parsed + validated drill-form values. Only
+// produced by parseDrillFormFields; the dispatch helpers consume it
+// without re-validating.
+type drillFormFields struct {
+	startTime time.Time
+	stopTime  time.Time
+	tag       string
+	note      string
+}
+
+// parseDrillFormFields validates the textinputs into a typed struct.
+// Returns ok=false on a validation error (and populates h.errMsg) so
+// the dialog stays open for correction.
+func (h *history) parseDrillFormFields() (drillFormFields, bool) {
+	if len(h.drillForm) < 2 {
+		return drillFormFields{}, false
 	}
 	startStr := strings.TrimSpace(h.drillForm[0].Value())
 	stopStr := strings.TrimSpace(h.drillForm[1].Value())
@@ -190,7 +226,7 @@ func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
 	startD, err := domain.ParseHM(startStr)
 	if err != nil {
 		h.errMsg = err.Error()
-		return h, nil
+		return drillFormFields{}, false
 	}
 	base := startOfDay(h.drillDate)
 	startTime := base.Add(startD)
@@ -198,76 +234,50 @@ func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
 	stopTime, err := parseDrillStop(stopStr, startTime, base)
 	if err != nil {
 		h.errMsg = err.Error()
-		return h, nil
+		return drillFormFields{}, false
 	}
+	return drillFormFields{startTime: startTime, stopTime: stopTime, tag: tag, note: note}, true
+}
 
-	sw := h.deps.SessionWriter
-	date := h.drillDate
-
-	if h.dialog == historyDialogDrillAdd {
-		h.dialog = historyDialogDrill
-		h.drillForm = nil
-		h.drillFormCur = 0
-		return h, func() tea.Msg {
-			if err := sw.AddManual(date, startTime, stopTime); err != nil {
-				return historyActionDoneMsg{err: err, date: date}
-			}
-			// Tag / Note auf der neu angelegten Session setzen — sie
-			// landet als letzter Eintrag des Tages, also Index = Anzahl
-			// vor dem Append. SessionsOverlap und AddManual liefen schon
-			// in einer Lock.With-Box, der nachgelagerte SetTag/SetNote
-			// nimmt einen weiteren Lock — bei zwei Konkurrenten könnte
-			// dazwischen eine Session reinrutschen, deshalb verwerfen wir
-			// hier den Index nicht (worst case: Tag/Note auf der falschen
-			// Session). Tag/Note setzen ist optional; leere Strings
-			// überspringen wir, damit kein Lock-Roundtrip erzwungen wird.
-			if tag == "" && note == "" {
-				return historyActionDoneMsg{
-					toast: fmt.Sprintf("✓ Session am %s angelegt",
-						date.Format("2006-01-02")),
-					date: date,
-				}
-			}
-			// We need the index of the newly appended session. Loading
-			// after the append is the simplest correct approach.
-			all, err := sw.Sessions.LoadAll()
-			if err != nil {
-				return historyActionDoneMsg{err: err, date: date}
-			}
-			idx := lastSessionIndexForDate(all, date)
-			if idx >= 0 {
-				if tag != "" {
-					if err := sw.SetTag(date, idx, tag); err != nil {
-						return historyActionDoneMsg{err: err, date: date}
-					}
-				}
-				if note != "" {
-					if err := sw.SetNote(date, idx, note); err != nil {
-						return historyActionDoneMsg{err: err, date: date}
-					}
-				}
-			}
-			return historyActionDoneMsg{
-				toast: fmt.Sprintf("✓ Session am %s angelegt",
-					date.Format("2006-01-02")),
-				date: date,
-			}
-		}
-	}
-
-	// Edit-Branch: idx aus dem geöffneten Dialog.
-	idx := h.drillEditIdx
-	h.dialog = historyDialogDrill
-	h.drillForm = nil
-	h.drillFormCur = 0
-	return h, func() tea.Msg {
-		if err := sw.Edit(date, idx, startTime, stopTime); err != nil {
+// dispatchDrillAdd builds the tea.Cmd that appends a new session and
+// — when present — applies tag/note to the freshly-appended row. Tag/
+// Note setting takes a separate Lock pass; under writer concurrency
+// the index lookup may target a row another writer just inserted, so
+// the worst case is "tag landed on wrong session"; documented and
+// accepted (see SessionWriter doc).
+func dispatchDrillAdd(sw *usecase.SessionWriter, date time.Time, f drillFormFields) tea.Cmd {
+	return func() tea.Msg {
+		if err := sw.AddManual(date, f.startTime, f.stopTime); err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
-		if err := sw.SetTag(date, idx, tag); err != nil {
+		toast := fmt.Sprintf("✓ Session am %s angelegt", date.Format("2006-01-02"))
+		if f.tag == "" && f.note == "" {
+			return historyActionDoneMsg{toast: toast, date: date}
+		}
+		all, err := sw.Sessions.LoadAll()
+		if err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
-		if err := sw.SetNote(date, idx, note); err != nil {
+		idx := lastSessionIndexForDate(all, date)
+		if idx < 0 {
+			return historyActionDoneMsg{toast: toast, date: date}
+		}
+		if err := applyTagNote(sw, date, idx, f.tag, f.note); err != nil {
+			return historyActionDoneMsg{err: err, date: date}
+		}
+		return historyActionDoneMsg{toast: toast, date: date}
+	}
+}
+
+// dispatchDrillEdit builds the tea.Cmd that mutates an existing
+// session at idx — Edit followed by SetTag / SetNote so empty-string
+// inputs clear the slot.
+func dispatchDrillEdit(sw *usecase.SessionWriter, date time.Time, idx int, f drillFormFields) tea.Cmd {
+	return func() tea.Msg {
+		if err := sw.Edit(date, idx, f.startTime, f.stopTime); err != nil {
+			return historyActionDoneMsg{err: err, date: date}
+		}
+		if err := applyTagNote(sw, date, idx, f.tag, f.note); err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
@@ -275,6 +285,19 @@ func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
 			date:  date,
 		}
 	}
+}
+
+// applyTagNote runs SetTag + SetNote on the targeted row. Empty inputs
+// are passed through unchanged (the writer treats empty as „clear").
+// Returns the first error encountered.
+func applyTagNote(sw *usecase.SessionWriter, date time.Time, idx int, tag, note string) error {
+	if err := sw.SetTag(date, idx, tag); err != nil {
+		return err
+	}
+	if err := sw.SetNote(date, idx, note); err != nil {
+		return err
+	}
+	return nil
 }
 
 // — render helpers —

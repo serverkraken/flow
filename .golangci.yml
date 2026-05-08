@@ -259,6 +259,19 @@ linters:
             - $gostd
             - github.com/serverkraken/flow/internal/domain
             - github.com/serverkraken/flow/internal/ports
+            # Shared adapter-internal helpers. These are NOT ports — they
+            # are tiny implementation utilities other adapters consume:
+            #   atomicfile  →  write-temp-then-rename for crash safety
+            #   textscan    →  bufio.Scanner with a larger MaxScanTokenSize
+            #                  for long markdown / brief lines
+            # Keeping them in adapter/ (not moving to a separate "lib/")
+            # is intentional: they are I/O-flavoured (filesystem +
+            # bufio) and thus belong in the adapter layer; the depguard
+            # rule allows the cross-adapter import explicitly so other
+            # adapters don't have to re-implement the same atomic-write
+            # or large-line-scanner each time.
+            - github.com/serverkraken/flow/internal/adapter/atomicfile
+            - github.com/serverkraken/flow/internal/adapter/textscan
         frontend-cli:
           list-mode: strict
           files:

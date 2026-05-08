@@ -124,27 +124,14 @@ func (m Model) Init() tea.Cmd {
 // Update routes messages to the active screen or handles global navigation keys.
 //
 // The function is a flat dispatch table over a fixed set of message
-// types and a fixed set of global keys; cyclomatic complexity sits at
-// 22 (just above the linter's 20 threshold). Splitting helpers would
-// hide the dispatch structure behind indirection without simplifying
-// it. Same rationale palette/model.go's handleNormalKey uses.
-//
-//nolint:gocyclo
+// types. Key handling lives in handleKeyMsg (and its helpers) so the
+// gocognit / gocyclo budgets stay green; the high-level shape of
+// Update — message-type switch, fan-out to sub-models on size /
+// async — stays visible here.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		for i, s := range m.screens {
-			updated, cmd := s.Update(msg)
-			m.screens[i] = updated
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		return m, tea.Batch(cmds...)
-
+		return m.fanOutToAll(msg)
 	case palette.SwitchScreenMsg:
 		// In-process screen switch — the palette emits this when a picked
 		// entry's action matches the goto.sh deep-link pattern. No subshell,
@@ -153,78 +140,116 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = id
 		}
 		return m, nil
-
 	case tea.KeyMsg:
-		if m.showHelp {
-			// Help schließt explizit auf Esc/?/q. Jede andere Taste
-			// schließt zwar auch, aber wird dann normal verarbeitet —
-			// sonst muss man nach `?` zur Erinnerung an einen Shortcut
-			// die Taste zweimal drücken.
-			m.showHelp = false
-			switch msg.String() {
-			case "esc", "?", "q":
-				return m, nil
-			}
-		}
-		if si, ok := m.screens[m.current].(screener); ok && si.FilterActive() {
-			updated, cmd := m.screens[m.current].Update(msg)
-			m.screens[m.current] = updated
-			return m, cmd
-		}
-		key := msg.String()
-		if kc, ok := m.screens[m.current].(keyConsumer); ok {
-			for _, claimed := range kc.ConsumesKeys() {
-				if claimed == key {
-					updated, cmd := m.screens[m.current].Update(msg)
-					m.screens[m.current] = updated
-					return m, cmd
-				}
-			}
-		}
-		switch key {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "?":
-			m.showHelp = true
-			return m, nil
-		case "b":
-			if bh, ok := m.screens[m.current].(backHandler); ok && bh.HandlesBack() {
-				updated, cmd := m.screens[m.current].Update(msg)
-				m.screens[m.current] = updated
-				return m, cmd
-			}
-			m.current = screenPalette
-			return m, nil
-		case "p":
-			m.current = screenPalette
-			return m, nil
-		case "f":
-			m.current = screenProjects
-			return m, nil
-		case "w":
-			m.current = screenWorktime
-			return m, nil
-		case "c":
-			m.current = screenCheatsheet
-			return m, nil
-		case "n":
-			m.current = screenNotes
-			return m, nil
-		}
-		updated, cmd := m.screens[m.current].Update(msg)
-		m.screens[m.current] = updated
-		return m, cmd
-
-	default:
-		for i, s := range m.screens {
-			updated, cmd := s.Update(msg)
-			m.screens[i] = updated
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		return m, tea.Batch(cmds...)
+		return m.handleKeyMsg(msg)
 	}
+	return m.fanOutToAll(msg)
+}
+
+// fanOutToAll forwards msg to every screen and batches the resulting
+// tea.Cmds. Used by WindowSizeMsg and the default-async branch so any
+// screen that listens for those gets them.
+func (m Model) fanOutToAll(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = size.Width, size.Height
+	}
+	var cmds []tea.Cmd
+	for i, s := range m.screens {
+		updated, cmd := s.Update(msg)
+		m.screens[i] = updated
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// handleKeyMsg routes a key. Order: help-overlay-dismiss → forward
+// to the active screen if it owns input → forward if the screen
+// claimed the key → global key dispatch → fall through to the active
+// screen.
+func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.showHelp {
+		// Help schließt explizit auf Esc/?/q. Jede andere Taste
+		// schließt zwar auch, aber wird dann normal verarbeitet —
+		// sonst muss man nach `?` zur Erinnerung an einen Shortcut
+		// die Taste zweimal drücken.
+		m.showHelp = false
+		switch msg.String() {
+		case "esc", "?", "q":
+			return m, nil
+		}
+	}
+	if si, ok := m.screens[m.current].(screener); ok && si.FilterActive() {
+		return m.forwardToCurrent(msg)
+	}
+	if m.screenClaimsKey(msg.String()) {
+		return m.forwardToCurrent(msg)
+	}
+	if next, cmd, ok := m.handleGlobalKey(msg); ok {
+		return next, cmd
+	}
+	return m.forwardToCurrent(msg)
+}
+
+// screenClaimsKey reports whether the active screen's keyConsumer
+// claim list contains the given key. Lets the screen suppress the
+// sidekick's global tab-switch keys (e.g. worktime claims `:` and `n`).
+func (m Model) screenClaimsKey(key string) bool {
+	kc, ok := m.screens[m.current].(keyConsumer)
+	if !ok {
+		return false
+	}
+	for _, claimed := range kc.ConsumesKeys() {
+		if claimed == key {
+			return true
+		}
+	}
+	return false
+}
+
+// handleGlobalKey dispatches the sidekick's own key map (q / ? / b /
+// p / f / w / c / n). ok=false means the key isn't a global; the
+// caller forwards to the active screen.
+func (m Model) handleGlobalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit, true
+	case "?":
+		m.showHelp = true
+		return m, nil, true
+	case "b":
+		if bh, ok := m.screens[m.current].(backHandler); ok && bh.HandlesBack() {
+			next, cmd := m.forwardToCurrent(msg)
+			return next, cmd, true
+		}
+		m.current = screenPalette
+		return m, nil, true
+	case "p":
+		m.current = screenPalette
+		return m, nil, true
+	case "f":
+		m.current = screenProjects
+		return m, nil, true
+	case "w":
+		m.current = screenWorktime
+		return m, nil, true
+	case "c":
+		m.current = screenCheatsheet
+		return m, nil, true
+	case "n":
+		m.current = screenNotes
+		return m, nil, true
+	}
+	return m, nil, false
+}
+
+// forwardToCurrent forwards msg to the active screen and returns the
+// updated sidekick model.
+func (m Model) forwardToCurrent(msg tea.Msg) (tea.Model, tea.Cmd) {
+	updated, cmd := m.screens[m.current].Update(msg)
+	m.screens[m.current] = updated
+	return m, cmd
 }
 
 // View delegates rendering to the active screen, or to the help overlay
