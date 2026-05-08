@@ -1,25 +1,6 @@
 package theme
 
-import (
-	"github.com/charmbracelet/lipgloss"
-
-	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
-)
-
-// Layout-token re-exports. The canonical values live in
-// internal/frontend/tui/theme/tokens.go; screens that already import
-// the components/theme compat layer get them here as well so they
-// don't have to reach for a second import path. New screen code can
-// import the canonical theme package directly.
-const (
-	// KeyHintWidth is the column width for keystroke labels in help
-	// overlays (canonical = 12). Drives the eye down the key column
-	// instead of having ragged-right keys.
-	KeyHintWidth = canonical.KeyHintWidth
-	// PillWidth is the canonical fixed cell width of a status pill
-	// (4). Mirrored here so screens don't have to dual-import.
-	PillWidth = canonical.PillWidth
-)
+import "github.com/charmbracelet/lipgloss"
 
 // PillKind selects the pill's semantic flavour. Each kind carries a
 // glyph in addition to its colour so the pill is readable in NO_COLOR
@@ -52,20 +33,20 @@ type pillSpec struct {
 }
 
 var pillSpecs = map[PillKind]pillSpec{
-	PillNeutral: {"·", func(p Palette) lipgloss.Color { return p.Dim }},
+	PillNeutral: {"·", func(p Palette) lipgloss.Color { return p.FgMuted }},
 	PillSuccess: {"✓", func(p Palette) lipgloss.Color { return p.Green }},
 	PillWarning: {"▲", func(p Palette) lipgloss.Color { return p.Yellow }},
 	PillDanger:  {"✗", func(p Palette) lipgloss.Color { return p.Red }},
 	PillActive:  {"▶", func(p Palette) lipgloss.Color { return p.Cyan }},
-	PillInfo:    {"›", func(p Palette) lipgloss.Color { return p.Accent }},
-	PillSkip:    {"○", func(p Palette) lipgloss.Color { return p.Dim }},
+	PillInfo:    {"›", func(p Palette) lipgloss.Color { return p.Sem().Accent }},
+	PillSkip:    {"○", func(p Palette) lipgloss.Color { return p.FgMuted }},
 }
 
 // RenderPill returns "{glyph} {label}" coloured by kind. The visible
 // width grows with the label; callers wanting columnar alignment pad
-// at the call site. canonical.PillWidth = 4 is the minimum guideline
-// (a glyph-only pill renders at width 1; pad to 4 for status-bar
-// rows that have other 4-cell pills nearby).
+// at the call site. PillWidth = 4 is the minimum guideline (a
+// glyph-only pill renders at width 1; pad to 4 for status-bar rows
+// that have other 4-cell pills nearby).
 //
 // Use this in new code; the legacy string-keyed Pill() below is kept
 // for back-compat with existing call-sites.
@@ -81,10 +62,10 @@ func RenderPill(kind PillKind, label string, p Palette) string {
 	return lipgloss.NewStyle().Foreground(spec.color(p)).Bold(true).Render(body)
 }
 
-// Pill renders a fixed-width (canonical PillWidth, 4 cells) coloured
-// status indicator from a legacy string state name. Width is enforced
-// even when the state's label would naturally exceed it — back-compat
-// with status-bar rows that rely on the 4-cell column rhythm.
+// Pill renders a fixed-width (PillWidth, 4 cells) coloured status
+// indicator from a legacy string state name. Width is enforced even
+// when the state's label would naturally exceed it — back-compat with
+// status-bar rows that rely on the 4-cell column rhythm.
 //
 // Known states and their colours:
 //
@@ -99,7 +80,7 @@ func RenderPill(kind PillKind, label string, p Palette) string {
 // the 4-cell budget.
 func Pill(state string, p Palette) string {
 	c := pillStateColor(state, p)
-	return lipgloss.NewStyle().Foreground(c).Bold(true).Width(canonical.PillWidth).Render(state)
+	return lipgloss.NewStyle().Foreground(c).Bold(true).Width(PillWidth).Render(state)
 }
 
 func pillStateColor(state string, p Palette) lipgloss.Color {
@@ -113,5 +94,5 @@ func pillStateColor(state string, p Palette) lipgloss.Color {
 	case "...":
 		return p.Orange
 	}
-	return p.Dim
+	return p.FgMuted
 }

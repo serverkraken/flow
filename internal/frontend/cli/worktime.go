@@ -15,7 +15,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
-	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"

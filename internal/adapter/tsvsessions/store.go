@@ -164,7 +164,8 @@ func sanitizeTSVField(s string) string {
 // when empty so the file stays compact and 4-column historical readers
 // still parse newly written rows.
 func writeSessionLine(w io.Writer, s domain.Session) (int, error) {
-	base := fmt.Sprintf("%s\t%s\t%s\t%d",
+	base := fmt.Sprintf(
+		"%s\t%s\t%s\t%d",
 		s.Date.Format("2006-01-02"),
 		s.Start.Format("15:04"),
 		s.Stop.Format("15:04"),

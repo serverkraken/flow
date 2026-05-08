@@ -3,8 +3,14 @@ package theme_test
 import (
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// hex extracts the underlying string from a lipgloss.Color so the
+// contrast assertions can read it (Color is `type Color string` after
+// the P4 closure; ContrastRatio takes raw hex strings).
+func hex(c lipgloss.Color) string { return string(c) }
 
 // TestPalettesPassWCAG_AA enforces A11y-1 from docs/design-system-audit.md:
 // a palette doesn't ship unless every text/glyph-on-surface pair meets the
@@ -19,20 +25,20 @@ func TestPalettesPassWCAG_AA(t *testing.T) {
 
 			// Text-on-surface — full AA (4.5:1).
 			textPairs := []struct{ fg, bg, name string }{
-				{p.Fg, p.Bg, "Fg on Bg"},
-				{p.FgDim, p.Bg, "FgDim on Bg"},
-				{p.FgMuted, p.Bg, "FgMuted on Bg"},
-				{p.Fg, p.BgPanel, "Fg on BgPanel"},
-				{p.FgDim, p.BgPanel, "FgDim on BgPanel"},
-				{p.Fg, p.BgChip, "Fg on BgChip (selected row)"},
-				{p.Fg, p.BgChipSoft, "Fg on BgChipSoft"},
-				{sem.Accent, p.Bg, "Accent on Bg"},
-				{sem.Success, p.Bg, "Success on Bg"},
-				{sem.Warning, p.Bg, "Warning on Bg"},
-				{sem.Danger, p.Bg, "Danger on Bg"},
-				{sem.Info, p.Bg, "Info on Bg"},
-				{sem.Highlight, p.Bg, "Highlight on Bg"},
-				{sem.Active, p.Bg, "Active on Bg"},
+				{hex(p.Fg), hex(p.Bg), "Fg on Bg"},
+				{hex(p.FgDim), hex(p.Bg), "FgDim on Bg"},
+				{hex(p.FgMuted), hex(p.Bg), "FgMuted on Bg"},
+				{hex(p.Fg), hex(p.BgPanel), "Fg on BgPanel"},
+				{hex(p.FgDim), hex(p.BgPanel), "FgDim on BgPanel"},
+				{hex(p.Fg), hex(p.BgChip), "Fg on BgChip (selected row)"},
+				{hex(p.Fg), hex(p.BgChipSoft), "Fg on BgChipSoft"},
+				{hex(sem.Accent), hex(p.Bg), "Accent on Bg"},
+				{hex(sem.Success), hex(p.Bg), "Success on Bg"},
+				{hex(sem.Warning), hex(p.Bg), "Warning on Bg"},
+				{hex(sem.Danger), hex(p.Bg), "Danger on Bg"},
+				{hex(sem.Info), hex(p.Bg), "Info on Bg"},
+				{hex(sem.Highlight), hex(p.Bg), "Highlight on Bg"},
+				{hex(sem.Active), hex(p.Bg), "Active on Bg"},
 			}
 			for _, tt := range textPairs {
 				t.Run(tt.name, func(t *testing.T) {
@@ -50,11 +56,11 @@ func TestPalettesPassWCAG_AA(t *testing.T) {
 			// Bg-as-fg on accent fills (pill, callout) — also AA, since
 			// the pill label is body-sized.
 			pillPairs := []struct{ fg, bg, name string }{
-				{p.Bg, sem.Success, "Bg on Success (pill)"},
-				{p.Bg, sem.Warning, "Bg on Warning (pill)"},
-				{p.Bg, sem.Danger, "Bg on Danger (pill)"},
-				{p.Bg, sem.Info, "Bg on Info (pill)"},
-				{p.Bg, sem.Accent, "Bg on Accent (pill)"},
+				{hex(p.Bg), hex(sem.Success), "Bg on Success (pill)"},
+				{hex(p.Bg), hex(sem.Warning), "Bg on Warning (pill)"},
+				{hex(p.Bg), hex(sem.Danger), "Bg on Danger (pill)"},
+				{hex(p.Bg), hex(sem.Info), "Bg on Info (pill)"},
+				{hex(p.Bg), hex(sem.Accent), "Bg on Accent (pill)"},
 			}
 			for _, tt := range pillPairs {
 				t.Run(tt.name, func(t *testing.T) {

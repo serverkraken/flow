@@ -12,9 +12,10 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -42,6 +43,21 @@ type Model struct {
 // source reader, and Markdown renderer.
 func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer) Model {
 	return Model{pal: p, cheatsheet: cs, renderer: r}
+}
+
+// HelpSections exposes the cheatsheet-screen key bindings for the
+// sidekick `?`-overlay aggregation.
+func (Model) HelpSections() []help.Section {
+	return []help.Section{{
+		Title: "Cheatsheet",
+		Keys: [][2]string{
+			{"↑ / ↓", "Eine Zeile scrollen"},
+			{"PgUp / PgDn", "Eine Seite scrollen"},
+			{"g / G", "Anfang / Ende"},
+			{"b", "Zurück zur Palette"},
+			{"q", "Schließen (im Standalone)"},
+		},
+	}}
 }
 
 // FilterActive always returns false — cheatsheet has no text filter.

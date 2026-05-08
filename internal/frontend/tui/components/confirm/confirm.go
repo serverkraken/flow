@@ -12,7 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/strings"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Kind selects the dialog's semantic flavour.
@@ -103,18 +103,18 @@ func (m Model) View() string {
 		Render(m.question)
 	var detail string
 	if m.detail != "" {
-		detail = "\n" + lipgloss.NewStyle().Foreground(m.theme.Fg).Render(m.detail)
+		detail = "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Render(m.detail)
 	}
-	hint := lipgloss.NewStyle().Foreground(m.theme.Dim).Render(strings.HintConfirm)
+	hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.FgMuted)).Render(strings.HintConfirm)
 	return q + detail + "\n\n" + hint
 }
 
 // questionColor picks Yellow for default, Red for Danger.
 func (m Model) questionColor() lipgloss.Color {
 	if m.kind == KindDanger {
-		return m.theme.Red
+		return lipgloss.Color(m.theme.Red)
 	}
-	return m.theme.Yellow
+	return lipgloss.Color(m.theme.Yellow)
 }
 
 func confirmed(yes bool) tea.Cmd {

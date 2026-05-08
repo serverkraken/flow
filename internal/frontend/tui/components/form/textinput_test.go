@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 func TestNewTextInput_SetsPlaceholder(t *testing.T) {

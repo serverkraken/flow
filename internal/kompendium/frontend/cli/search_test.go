@@ -47,11 +47,13 @@ func TestSearch_JSONOutput(t *testing.T) {
 func TestSearch_OrderRecent(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	_ = env.index.Upsert(context.Background(),
+	_ = env.index.Upsert(
+		context.Background(),
 		mustNote(t, "daily/2026-04-22", domain.TypeDaily, "", "", "shared"),
 		time.Unix(1, 0),
 	)
-	_ = env.index.Upsert(context.Background(),
+	_ = env.index.Upsert(
+		context.Background(),
 		mustNote(t, "daily/2026-04-25", domain.TypeDaily, "", "", "shared"),
 		time.Unix(2, 0),
 	)

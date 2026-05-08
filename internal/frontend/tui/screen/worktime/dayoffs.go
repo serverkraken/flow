@@ -13,8 +13,8 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // — messages —
@@ -515,7 +515,7 @@ func (f frei) renderKindSummary() string {
 
 func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
 	date := domain.WeekdayShortDe(d.Date.Weekday()) + " " + d.Date.Format("02.01.")
-	dateCell := lipgloss.NewStyle().Width(10).Foreground(f.pal.Dim).Render(date)
+	dateCell := lipgloss.NewStyle().Width(10).Foreground(f.pal.FgMuted).Render(date)
 	kindCell := lipgloss.NewStyle().Width(10).Foreground(kindColor(f.pal, d.Kind)).Render(d.Kind.LabelDe())
 	label := dateCell + "  " + kindCell + "  " + d.Label
 	return picker.Row(idx == f.cursor, label, "", inner, f.pal)
@@ -591,12 +591,12 @@ func (f frei) renderKindPicker(inner int) string {
 	chips := make([]string, 0, len(domain.AllKinds))
 	kindFocused := f.formCur == f.kindIdx()
 	for i, k := range domain.AllKinds {
-		st := lipgloss.NewStyle().Foreground(f.pal.Dim)
+		st := lipgloss.NewStyle().Foreground(f.pal.FgMuted)
 		if i == f.kindCur {
 			if kindFocused {
-				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Accent).Bold(true)
+				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true)
 			} else {
-				st = lipgloss.NewStyle().Foreground(f.pal.Accent).Bold(true)
+				st = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true)
 			}
 		}
 		chips = append(chips, st.Render(" "+k.LabelDe()+" "))

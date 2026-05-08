@@ -13,11 +13,11 @@ func TestStatusPaletteFor_TokyonightNight(t *testing.T) {
 	cases := []struct {
 		got, want, name string
 	}{
-		{got.Green, p.Green, "Green"},
-		{got.Yellow, p.Yellow, "Yellow"},
-		{got.Red, p.Red, "Red"},
-		{got.Cyan, p.Cyan, "Cyan"},
-		{got.Dim, p.FgMuted, "Dim → FgMuted"},
+		{got.Green, string(p.Green), "Green"},
+		{got.Yellow, string(p.Yellow), "Yellow"},
+		{got.Red, string(p.Red), "Red"},
+		{got.Cyan, string(p.Cyan), "Cyan"},
+		{got.Dim, string(p.FgMuted), "Dim → FgMuted"},
 	}
 	for _, tt := range cases {
 		if tt.got != tt.want {

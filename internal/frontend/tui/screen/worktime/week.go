@@ -10,7 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // — messages —
@@ -183,11 +183,11 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 	isWeekend := d.Date.Weekday() == time.Saturday || d.Date.Weekday() == time.Sunday
 
 	name := lipgloss.NewStyle().Foreground(w.pal.Fg).Width(3).Render(domain.WeekdayShortDe(d.Date.Weekday()))
-	date := lipgloss.NewStyle().Foreground(w.pal.Dim).Width(6).
+	date := lipgloss.NewStyle().Foreground(w.pal.FgMuted).Width(6).
 		Render(fmt.Sprintf("%02d.%02d", d.Date.Day(), d.Date.Month()))
 	marker := "  "
 	if idx == w.cursor {
-		marker = lipgloss.NewStyle().Foreground(w.pal.Accent).Render(picker.AccentBarRune) + " "
+		marker = lipgloss.NewStyle().Foreground(w.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
 	}
 
 	dayOff, isOff := w.deps.DayOffReader.Lookup(d.Date)
@@ -205,7 +205,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		return marker + name + " " + date + "  " + label + suffix
 
 	case total == 0:
-		emptyBar := lipgloss.NewStyle().Foreground(w.pal.Border).Render(strings.Repeat("─", barW))
+		emptyBar := lipgloss.NewStyle().Foreground(w.pal.BgCode).Render(strings.Repeat("─", barW))
 		todayMark := ""
 		if d.IsToday {
 			todayMark = "  " + stDim(w.pal, "heute")
@@ -273,7 +273,7 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 		avg = weekTotal / time.Duration(weekdays)
 	}
 	balance := weekTotal - weekTarget
-	balColor := w.pal.Dim
+	balColor := w.pal.FgMuted
 	switch {
 	case balance > 0:
 		balColor = w.pal.Green
@@ -291,7 +291,7 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 
 func (w woche) renderPace(now time.Time) string {
 	greenStyle := lipgloss.NewStyle().Foreground(w.pal.Green)
-	dimStyle := lipgloss.NewStyle().Foreground(w.pal.Dim)
+	dimStyle := lipgloss.NewStyle().Foreground(w.pal.FgMuted)
 	yellowStyle := lipgloss.NewStyle().Foreground(w.pal.Yellow)
 
 	dots := make([]string, 0, len(w.week))

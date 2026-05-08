@@ -44,11 +44,12 @@ type Opts struct {
 // passed verbatim — callers wanting a scrollable or interactive modal
 // pass a pre-rendered tea-model View() string.
 func Render(content string, opts Opts, p theme.Palette) string {
+	bc := borderColor(opts.Kind, p)
 	box := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
-		BorderForeground(lipgloss.Color(borderColor(opts.Kind, p))).
-		Background(lipgloss.Color(p.BgPanel)).
-		Foreground(lipgloss.Color(p.Fg)).
+		BorderForeground(bc).
+		Background(p.BgPanel).
+		Foreground(p.Fg).
 		Padding(theme.PadMD, theme.PadSM)
 	if opts.Width > 0 {
 		box = box.Width(opts.Width)
@@ -57,7 +58,7 @@ func Render(content string, opts Opts, p theme.Palette) string {
 	body := content
 	if opts.Title != "" {
 		title := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(borderColor(opts.Kind, p))).
+			Foreground(bc).
 			Bold(true).
 			Render(opts.Title)
 		body = title + "\n\n" + content
@@ -66,7 +67,7 @@ func Render(content string, opts Opts, p theme.Palette) string {
 }
 
 // borderColor picks the semantic border color for a modal kind.
-func borderColor(k Kind, p theme.Palette) string {
+func borderColor(k Kind, p theme.Palette) lipgloss.Color {
 	sem := p.Sem()
 	switch k {
 	case KindDanger:

@@ -6,7 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Render draws a rounded box with title in the top border.
@@ -20,8 +20,8 @@ import (
 // with "…" instead of breaking the right border (Bubbletea Golden Rule
 // #2 — never auto-wrap in bordered panels).
 func Render(title, body string, width int, p theme.Palette) string {
-	border := lipgloss.NewStyle().Foreground(p.Border)
-	titleStyle := lipgloss.NewStyle().Foreground(p.Purple).Bold(true)
+	border := lipgloss.NewStyle().Foreground(lipgloss.Color(p.BgCode))
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple)).Bold(true)
 	inner := width - 2
 
 	// Title budget: width − "╭─ " (3) − " " (1) − "╮" (1) = width − 5.

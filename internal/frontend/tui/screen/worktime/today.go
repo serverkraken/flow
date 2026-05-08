@@ -11,10 +11,11 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // — messages —
@@ -1050,44 +1051,49 @@ func (h heute) renderDialog() string {
 	return strings.Join(rows, "\n")
 }
 
-// renderHelpRows enumerates Heute's keybinds for the standalone `?`
-// overlay. Sections are grouped by purpose, keys ordered roughly by
-// frequency. Inside the sidekick wrapper this overlay never opens —
-// sidekick.model intercepts `?` first; that overlay carries its own
-// "Worktime — Heute" section. Both must stay in sync; a screen-level
-// drift is the easier failure mode to spot during review.
-func (h heute) renderHelpRows(inner int) []string {
-	type entry struct{ key, desc string }
-	type section struct {
-		title   string
-		entries []entry
-	}
-	sections := []section{
-		{"Cursor & Action", []entry{
+// helpSectionsHeute is the canonical Heute key-binding inventory. Both
+// the standalone `?`-overlay (heute.renderHelpRows) and the sidekick's
+// aggregated `?`-overlay (sidekick.renderHelp via worktime.HelpSections)
+// read from this single source so the two surfaces cannot drift.
+func helpSectionsHeute() []help.Section {
+	return []help.Section{
+		{Title: "Worktime — Heute · Cursor & Action", Keys: [][2]string{
 			{"j/k · g/G", "bewegen · oben/unten"},
 			{"s", "starten / stoppen / fortsetzen"},
 			{"p", "pause (im laufenden Zustand)"},
 		}},
-		{"Session-Edit (auf fokussierter Zeile)", []entry{
+		{Title: "Worktime — Heute · Session-Edit (auf fokussierter Zeile)", Keys: [][2]string{
 			{"E / Enter", "Session bearbeiten"},
 			{"D", "Session löschen (y/Enter bestätigt)"},
 			{"t · N", "Tag · Notiz setzen"},
 		}},
-		{"Kompendium (für heute)", []entry{
+		{Title: "Worktime — Heute · Kompendium (für heute)", Keys: [][2]string{
 			{"n", "Note anhängen (ID eingeben)"},
 			{"o · O", "erste Note ansehen · bearbeiten"},
 			{"Ctrl+D", "erste Note entfernen"},
 		}},
 	}
+}
+
+// renderHelpRows enumerates Heute's keybinds for the standalone `?`
+// overlay. Reads from helpSectionsHeute so the standalone overlay and
+// the sidekick aggregator stay in lockstep.
+func (h heute) renderHelpRows(inner int) []string {
+	sections := helpSectionsHeute()
 	rows := []string{}
 	for i, sec := range sections {
 		if i > 0 {
 			rows = append(rows, "")
 		}
-		rows = append(rows, picker.SectionHeader(sec.title, inner, h.pal))
-		for _, e := range sec.entries {
-			keyCell := lipgloss.NewStyle().Width(theme.KeyHintWidth).Render(theme.Highlight(e.key, h.pal))
-			rows = append(rows, "  "+keyCell+stDim(h.pal, e.desc))
+		// Strip the "Worktime — Heute · " prefix in standalone mode —
+		// the parent context is implicit when the user opened heute's
+		// own help overlay, and the prefix wastes horizontal real
+		// estate inside the cramped dialog frame.
+		title := strings.TrimPrefix(sec.Title, "Worktime — Heute · ")
+		rows = append(rows, picker.SectionHeader(title, inner, h.pal))
+		for _, kv := range sec.Keys {
+			keyCell := lipgloss.NewStyle().Width(theme.KeyHintWidth).Render(theme.Highlight(kv[0], h.pal))
+			rows = append(rows, "  "+keyCell+stDim(h.pal, kv[1]))
 		}
 	}
 	return rows
@@ -1142,7 +1148,7 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 	case achieved:
 		return "✓", "Ziel erreicht", p.Green
 	}
-	return "‖", "pausiert", p.Dim
+	return "‖", "pausiert", p.FgMuted
 }
 
 // totalThresholdColor picks the today-total foreground based on running
@@ -1159,5 +1165,5 @@ func totalThresholdColor(p theme.Palette, total, target time.Duration, running b
 	case running:
 		return p.Cyan
 	}
-	return p.Dim
+	return p.FgMuted
 }

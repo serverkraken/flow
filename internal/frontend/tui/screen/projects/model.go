@@ -16,10 +16,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -64,6 +65,23 @@ func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switch
 		reader:   reader,
 		switcher: switcher,
 	}
+}
+
+// HelpSections exposes the projects-screen key bindings to the
+// sidekick `?`-overlay aggregation. Source of truth — see palette/Model
+// for the same pattern.
+func (Model) HelpSections() []help.Section {
+	return []help.Section{{
+		Title: "Projekte",
+		Keys: [][2]string{
+			{"j / k / ↑ / ↓", "Navigieren"},
+			{"G / g", "Ende / Anfang"},
+			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
+			{"/", "Filter öffnen"},
+			{"Esc", "Filter löschen"},
+			{"Enter", "Wechseln"},
+		},
+	}}
 }
 
 // FilterActive reports whether the filter input is focused.

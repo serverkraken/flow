@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Section groups related key bindings under a heading.
@@ -18,9 +18,10 @@ type Section struct {
 // Render draws a themed help overlay inside a titlebox.
 // keyWidth controls the fixed column width for the key labels.
 func Render(title string, sections []Section, keyWidth, boxWidth int, p theme.Palette) string {
-	accent := lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
-	dim := lipgloss.NewStyle().Foreground(p.Dim)
-	fg := lipgloss.NewStyle().Foreground(p.Fg)
+	sem := p.Sem()
+	accent := lipgloss.NewStyle().Foreground(lipgloss.Color(sem.Accent)).Bold(true)
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted))
+	fg := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Fg))
 
 	var rows []string
 	for i, sec := range sections {

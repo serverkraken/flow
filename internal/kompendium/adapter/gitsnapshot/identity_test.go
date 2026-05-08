@@ -132,7 +132,8 @@ func newRepoWithoutIdentity(t *testing.T) string {
 	// Identity env vars must be UNSET (not "") — git treats an empty
 	// GIT_AUTHOR_NAME as "set but invalid" and refuses the commit. Use
 	// os.Unsetenv with manual restore so we get the unset semantics.
-	unsetEnv(t,
+	unsetEnv(
+		t,
 		"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_AUTHOR_DATE",
 		"GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL", "GIT_COMMITTER_DATE",
 		"EMAIL",

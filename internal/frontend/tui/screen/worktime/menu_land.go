@@ -13,7 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // landEntry is one row in the land picker. code is the two-letter

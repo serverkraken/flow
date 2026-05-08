@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 func TestHints_ContainsText(t *testing.T) {

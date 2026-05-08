@@ -17,8 +17,8 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 type screenID int
@@ -338,13 +338,21 @@ func (m Model) renderTabStripCompact(entries []tabStripEntry) string {
 	return " " + strings.Join(parts, sep)
 }
 
-// renderHelp draws the `?`-overlay for the sidekick. Sections are grouped by
-// purpose, keys ordered by frequency. Uses the canonical help.Render
-// component instead of hand-rolled titlebox styling so visual drift across
-// help overlays in the codebase is impossible.
-func (m Model) renderHelp() string {
-	sections := []help.Section{
-		{Title: "Global", Keys: [][2]string{
+// helpProvider is the contract a screen implements to feed the
+// sidekick `?`-overlay. Each screen owns its key bindings as data and
+// returns them; sidekick concatenates with the global section, so a
+// new binding lives in exactly one place.
+type helpProvider interface {
+	HelpSections() []help.Section
+}
+
+// helpSectionsGlobal lists the bindings the sidekick root itself owns
+// (screen switches + quit + help-toggle). Kept as a data constant so a
+// new sidekick-level binding extends this slice and nothing else.
+func helpSectionsGlobal() help.Section {
+	return help.Section{
+		Title: "Global",
+		Keys: [][2]string{
 			{"p / b", "Palette"},
 			{"f", "Projekte"},
 			{"w", "Worktime"},
@@ -352,80 +360,23 @@ func (m Model) renderHelp() string {
 			{"n", "Notes (Kompendium)"},
 			{"?", "Hilfe (diese Ansicht)"},
 			{"q / Ctrl+C", "Beenden"},
-		}},
-		{Title: "Palette", Keys: [][2]string{
-			{"a–z (außer j/k/g/G)", "tippen → Filter direkt"},
-			{"/", "Filter explizit öffnen"},
-			{"j / k / ↑ / ↓", "Navigieren"},
-			{"G / g", "Ende / Anfang"},
-			{"] / [", "Nächste / vorige Section"},
-			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
-			{"1–9", "Direktwahl (n-ter Treffer)"},
-			{".", "Pin / Unpin (→ Favoriten)"},
-			{"Enter", "Ausführen"},
-			{"Esc", "Filter leeren · 2× → schließen"},
-		}},
-		{Title: "Projekte", Keys: [][2]string{
-			{"j / k / ↑ / ↓", "Navigieren"},
-			{"G / g", "Ende / Anfang"},
-			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
-			{"/", "Filter öffnen"},
-			{"Esc", "Filter löschen"},
-			{"Enter", "Wechseln"},
-		}},
-		{Title: "Worktime — Tabs", Keys: [][2]string{
-			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
-			{"Tab", "Nächster Tab"},
-			{"b", "Voriger Tab (oder zurück zur Palette wenn auf Heute)"},
-			{":", "Aktions-Menü (Brief · Export · Stats · Korrektur · Land)"},
-			{"q", "Beenden — auch aus Dialogen / Aktions-Menü heraus"},
-		}},
-		{Title: "Worktime — Heute", Keys: [][2]string{
-			{"j/k · g/G", "Cursor bewegen · oben/unten"},
-			{"s", "Starten / Stoppen / Fortsetzen"},
-			{"p", "Pause (im laufenden Zustand)"},
-			{"E / Enter", "Session bearbeiten"},
-			{"D", "Session löschen (y/Enter bestätigt)"},
-			{"t · N", "Tag · Notiz für die fokussierte Session"},
-			{"n", "Kompendium-Note an heute anhängen"},
-			{"o · O", "Erste angehängte Note ansehen · bearbeiten"},
-			{"Ctrl+D", "Erste angehängte Note entfernen"},
-			{"?", "Diese Hilfe (auch im Standalone-`flow worktime today`)"},
-		}},
-		{Title: "Worktime — Woche", Keys: [][2]string{
-			{"j/k · g/G", "Tag fokussieren · oben/unten"},
-		}},
-		{Title: "Worktime — History", Keys: [][2]string{
-			{"j/k · g/G", "Cursor / Zeile · oben/unten"},
-			{"Enter", "Drill-Down auf den Tag"},
-			{"v", "Ansicht: Liste → Heatmap → Tag-Clock → Monat"},
-			{"/", "Filter (KW18, 2026, 2026-04, tag:deep, note:standup)"},
-			{"F", "Filter mit Prefix »tag:« vorbelegen"},
-			{"[ / ]", "Filter um eine Einheit zurück / vor"},
-			{"T", "Filter zurücksetzen / aktuelles Fenster"},
-			{"h · l (Heatmap/Tag-Clock/Monat)", "Cursor horizontal"},
-		}},
-		{Title: "Worktime — Frei", Keys: [][2]string{
-			{"j/k · g/G", "Eintrag fokussieren"},
-			{"a", "Tag(e) frei eintragen (Form)"},
-			{"A · K", "heute = Urlaub · heute = krank"},
-			{"B", "Gesetzliche Feiertage syncen (Default-Land)"},
-			{"D", "Eintrag löschen (y/Enter bestätigt)"},
-			{"h · l · [ · ]", "Jahr zurück / vor"},
-			{"T", "Aktuelles Jahr"},
-		}},
-		{Title: "Worktime — Aktions-Menü (`:`)", Keys: [][2]string{
-			{"Brief Wochen-/Monatsbericht", "Markdown via glow / clipboard / ~/Downloads"},
-			{"Export CSV / JSON", "Range-Form + Output-Target"},
-			{"Stats für Range", "Aggregate über StatsComputer"},
-			{"Startzeit korrigieren", "Heute, nur wenn Session läuft"},
-			{"Land für Feiertage", "Bundesland-Picker → SyncGermanHolidays"},
-			{"j/k · g/G · enter · esc", "Im Menü navigieren / picken / abbrechen"},
-			{"tippen", "Live-Filter über die Aktions-Liste"},
-			{"c · s · f", "Output-Target direkt: Clipboard / Split / Datei"},
-		}},
+		},
 	}
+}
 
+// renderHelp draws the `?`-overlay. Aggregates the global section and
+// each screen's HelpSections() so a new binding lands in exactly one
+// place — the screen that owns it. Screens that do not implement
+// helpProvider are skipped silently; the sidekick has no "stub" data
+// to fall back on (which is the point: the overlay never claims a
+// binding the screen no longer offers).
+func (m Model) renderHelp() string {
+	sections := []help.Section{helpSectionsGlobal()}
+	for _, s := range m.screens {
+		if hp, ok := s.(helpProvider); ok {
+			sections = append(sections, hp.HelpSections()...)
+		}
+	}
 	box := help.Render("Hilfe · Tastenbelegung", sections, 22, m.width, m.pal)
 	footer := statusbar.Hints("beliebige Taste → zurück", m.pal)
 	return box + "\n" + footer

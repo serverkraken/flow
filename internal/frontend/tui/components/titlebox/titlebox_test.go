@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 var testPalette = theme.Load()

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Bar renders a horizontal progress bar using ▰ (filled) and ▱ (empty) block characters.
@@ -19,8 +19,9 @@ func Bar(pct, cells int, p theme.Palette) string {
 	}
 	filled := pct * cells / 100
 	empty := cells - filled
+	sem := p.Sem()
 
-	f := lipgloss.NewStyle().Foreground(p.Accent).Render(strings.Repeat("▰", filled))
-	e := lipgloss.NewStyle().Foreground(p.Border).Render(strings.Repeat("▱", empty))
+	f := lipgloss.NewStyle().Foreground(lipgloss.Color(sem.Accent)).Render(strings.Repeat("▰", filled))
+	e := lipgloss.NewStyle().Foreground(lipgloss.Color(p.BgCode)).Render(strings.Repeat("▱", empty))
 	return f + e
 }

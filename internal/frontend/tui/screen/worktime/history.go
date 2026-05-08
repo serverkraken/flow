@@ -13,7 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // — messages —
@@ -694,7 +694,7 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 		}
 		return stDim(h.pal, "  Keine Treffer.") + filterChip
 	}
-	balColor := h.pal.Dim
+	balColor := h.pal.FgMuted
 	switch {
 	case st.Overtime > 0:
 		balColor = h.pal.Green
@@ -747,7 +747,7 @@ func (h history) renderList(records []domain.DayRecord) string {
 		}
 		name := lipgloss.NewStyle().Foreground(h.pal.Fg).Width(3).
 			Render(domain.WeekdayShortDe(rec.Date.Weekday()))
-		date := lipgloss.NewStyle().Foreground(h.pal.Dim).Width(9).
+		date := lipgloss.NewStyle().Foreground(h.pal.FgMuted).Width(9).
 			Render(fmt.Sprintf("%02d.%02d.%02d", rec.Date.Day(), rec.Date.Month(), rec.Date.Year()%100))
 		bar := statusbar.Bar(pct, barW, h.pal)
 		pctStr := stDim(h.pal, fmt.Sprintf("%3d%%", pct))
@@ -759,7 +759,7 @@ func (h history) renderList(records []domain.DayRecord) string {
 		}
 		marker := "  "
 		if i == h.listCur {
-			marker = lipgloss.NewStyle().Foreground(h.pal.Accent).Render(picker.AccentBarRune) + " "
+			marker = lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
 		}
 		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done)
 	}
@@ -794,7 +794,7 @@ func (h history) renderHeatmapWeekHeader(startMon time.Time, weeks int) string {
 	for w := 0; w < weeks; w++ {
 		mon := startMon.AddDate(0, 0, 7*w)
 		yr, wn := mon.ISOWeek()
-		col := h.pal.Dim
+		col := h.pal.FgMuted
 		if prevYear != -1 && yr != prevYear {
 			col = h.pal.Cyan
 		}
@@ -822,7 +822,7 @@ func (h history) renderHeatmapRows(byKey map[string]domain.DayRecord, startMon t
 func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRecord, w, d int, now time.Time) string {
 	rec, hasRec := byKey[day.Format("2006-01-02")]
 	cell := " . "
-	var color lipgloss.TerminalColor = h.pal.Border
+	var color lipgloss.TerminalColor = h.pal.BgCode
 	if isWeekendDate(day) {
 		cell = " · "
 	}
@@ -843,7 +843,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 		// Cursor cell: invert with the accent. Combine the today-underline
 		// when the cursor sits on today so the user still gets the
 		// "this is today" reinforcement instead of an exclusive switch.
-		cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Accent).Bold(true)
+		cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
 		if isToday {
 			cellStyle = cellStyle.Underline(true)
 		}
@@ -873,7 +873,7 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 			status += " " + dayOff.Label
 		}
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Accent).Render(status)
+	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
 }
 
 func (h history) renderHeatmapLegend(inner int) string {
@@ -903,7 +903,7 @@ func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss
 	case pct > 0:
 		return " ░ ", pal.Yellow
 	}
-	return " . ", pal.Border
+	return " . ", pal.BgCode
 }
 
 func dayOffHeatmapGlyph(k domain.Kind) string {
@@ -955,7 +955,7 @@ func tagClockGrid(records []domain.DayRecord) ([7][24]time.Duration, time.Durati
 func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, lipgloss.TerminalColor) {
 	switch {
 	case cell == 0:
-		return "··", pal.Border
+		return "··", pal.BgCode
 	case frac >= 0.75:
 		return "██", pal.Green
 	case frac >= 0.5:
@@ -965,15 +965,15 @@ func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (str
 	case frac > 0:
 		return "░░", pal.Yellow
 	}
-	return "··", pal.Border
+	return "··", pal.BgCode
 }
 
 func (h history) renderTagClockHeader() string {
 	hdr := "      "
 	for col := 0; col < 24; col++ {
-		c := h.pal.Dim
+		c := h.pal.FgMuted
 		if col == 9 || col == 12 || col == 17 {
-			c = h.pal.Border
+			c = h.pal.BgCode
 		}
 		hdr += lipgloss.NewStyle().Foreground(c).Render(fmt.Sprintf("%02d", col))
 	}
@@ -989,7 +989,7 @@ func (h history) renderTagClockRows(grid [7][24]time.Duration, maxCell time.Dura
 			cell, color := tagClockCellGlyph(h.pal, grid[r][c], frac)
 			cellStyle := lipgloss.NewStyle().Foreground(color)
 			if r == h.tagClockRow && c == h.tagClockCol {
-				cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Accent).Bold(true)
+				cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
 			}
 			row += cellStyle.Render(cell)
 		}
@@ -1013,7 +1013,7 @@ func (h history) renderTagClockStatus(grid [7][24]time.Duration, maxCell time.Du
 		status = fmt.Sprintf("   %s  %02d:00–%02d:00  %s  (%d%% des Maximums)",
 			dayLabels[row], col, (col+1)%24, formatDur(dur), pct)
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Accent).Render(status)
+	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
 }
 
 func (h history) renderTagClock(records []domain.DayRecord, inner int) string {
@@ -1067,7 +1067,7 @@ func (h history) renderMonthDayLabels() string {
 	dayLabels := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
 	hdr := "    "
 	for _, lbl := range dayLabels {
-		hdr += lipgloss.NewStyle().Foreground(h.pal.Dim).Render(fmt.Sprintf(" %-3s ", lbl))
+		hdr += lipgloss.NewStyle().Foreground(h.pal.FgMuted).Render(fmt.Sprintf(" %-3s ", lbl))
 	}
 	return hdr
 }
@@ -1125,14 +1125,14 @@ func (h history) renderMonthCursorStatus(first time.Time, byKey map[string]domai
 			status += " " + dayOff.Label
 		}
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Accent).Render(status)
+	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
 }
 
 func (h history) renderMonthAggregate(monthRef, now time.Time) string {
 	if h.monthStats.Days == 0 || monthRef.Year() != now.Year() || monthRef.Month() != now.Month() {
 		return ""
 	}
-	balColor := h.pal.Dim
+	balColor := h.pal.FgMuted
 	switch {
 	case h.monthStats.Overtime > 0:
 		balColor = h.pal.Green
@@ -1156,7 +1156,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
 
 	glyph := "·"
-	color := h.pal.Border
+	color := h.pal.BgCode
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)
@@ -1183,14 +1183,14 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 		}
 		color = h.pal.Cyan
 	case isWeekend:
-		glyph, color = " ", h.pal.Dim
+		glyph, color = " ", h.pal.FgMuted
 	}
 	dayNum := fmt.Sprintf("%2d", day.Day())
 	body := fmt.Sprintf(" %s %s", dayNum, glyph)
 	st := lipgloss.NewStyle().Foreground(color)
 	switch {
 	case isCursor:
-		st = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Accent).Bold(true)
+		st = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
 	case isToday:
 		st = st.Underline(true).Bold(true)
 	}

@@ -2,8 +2,8 @@ package cli
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet"
+	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/spf13/cobra"
 )

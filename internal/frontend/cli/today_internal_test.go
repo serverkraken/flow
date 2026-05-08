@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	tk "github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // Internal test (package cli, not cli_test) so it can swap the

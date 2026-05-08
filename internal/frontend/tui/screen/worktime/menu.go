@@ -18,8 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // menuSubMode discriminates which inner state the menu is currently
@@ -531,7 +531,7 @@ func (m menuModel) renderListBody(inner int) string {
 }
 
 func (m menuModel) renderFilterLine() string {
-	prompt := lipgloss.NewStyle().Foreground(m.pal.Accent).Render("/ ")
+	prompt := lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Render("/ ")
 	body := m.query
 	if body == "" {
 		return "  " + prompt + theme.Dim("(tippen → filter)", m.pal)

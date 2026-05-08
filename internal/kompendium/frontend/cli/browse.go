@@ -40,7 +40,8 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 	// copy text out of a note any more. Keyboard scroll (j/k,
 	// ctrl+u/d) covers the only navigation the mouse-wheel handler
 	// did, and tmux/terminal handle wheel scrolling natively.
-	p := tea.NewProgram(m,
+	p := tea.NewProgram(
+		m,
 		tea.WithAltScreen(),
 		tea.WithContext(ctx),
 	)

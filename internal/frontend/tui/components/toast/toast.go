@@ -11,7 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // DefaultDuration is the recommended toast lifetime per the TUI usability
@@ -158,12 +158,12 @@ func SlotLine(t *Model, indent string) string {
 func (m Model) glyphAndColor() (string, lipgloss.Color) {
 	switch m.kind {
 	case KindWarning:
-		return "▲", m.theme.Yellow
+		return "▲", lipgloss.Color(m.theme.Yellow)
 	case KindDanger:
-		return "✗", m.theme.Red
+		return "✗", lipgloss.Color(m.theme.Red)
 	case KindInfo:
-		return "›", m.theme.Cyan
+		return "›", lipgloss.Color(m.theme.Cyan)
 	default:
-		return "✓", m.theme.Green
+		return "✓", lipgloss.Color(m.theme.Green)
 	}
 }

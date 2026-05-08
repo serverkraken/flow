@@ -236,16 +236,16 @@ func (r *nodeRenderer) chromaStyle(t chroma.TokenType) lipgloss.Style {
 	if fg == "" {
 		return base
 	}
-	return base.Foreground(lipgloss.Color(fg))
+	return base.Foreground(fg)
 }
 
-// chromaTokenColor maps a chroma TokenType to a palette colour string.
-// Returns "" for tokens that should inherit the panel's default text
-// colour (most whitespace + unmapped categories).
+// chromaTokenColor maps a chroma TokenType to a palette colour. Returns
+// the zero lipgloss.Color ("") for tokens that should inherit the
+// panel's default text colour (most whitespace + unmapped categories).
 //
 // The cases are ordered most-specific-first so InCategory checks at
 // the bottom don't shadow the precise types above.
-func chromaTokenColor(t chroma.TokenType, p canonical.Palette) string {
+func chromaTokenColor(t chroma.TokenType, p canonical.Palette) lipgloss.Color {
 	switch t {
 	case chroma.KeywordType:
 		return p.Blue

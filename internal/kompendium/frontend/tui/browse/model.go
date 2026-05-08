@@ -18,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -180,6 +181,26 @@ func (m Model) WithBacklinks(fn BacklinksFunc) Model {
 // external _test.go to assert ModeView is entered on `v` without
 // needing access to the unexported field.
 func (m Model) CurrentMode() Mode { return m.mode }
+
+// HelpSections exposes the kompendium-browse key bindings to the
+// sidekick `?`-overlay aggregator. The standalone overlay (kompendium
+// browse `?`) renders its own bubbles/help-driven view from the
+// internal keymap; this method mirrors that surface for the sidekick
+// aggregation, which expects flow's components/help.Section shape.
+func (Model) HelpSections() []flowhelp.Section {
+	return []flowhelp.Section{{
+		Title: "Notes (Kompendium)",
+		Keys: [][2]string{
+			{"j / k · ↑ / ↓", "Eintrag fokussieren"},
+			{"Enter", "Note öffnen / View-Modus"},
+			{"/", "Suche öffnen"},
+			{"Esc", "Suche schließen / View verlassen"},
+			{"o", "Note in Editor öffnen ($EDITOR)"},
+			{"r", "Liste neu laden"},
+			{"?", "Standalone-Hilfe (im Browser-TUI)"},
+		},
+	}}
+}
 
 // New returns a Model wired with the list use case, the note store (for
 // body loading + path resolution), an optional delete use case (D + y/N
@@ -934,7 +955,8 @@ func (m *Model) renderPreviewBody(e ports.NoteEntry) string {
 	}
 
 	meta := e.Meta
-	rendered, err := markdown.Render(source, width,
+	rendered, err := markdown.Render(
+		source, width,
 		markdown.WithWikilinks(m.wikilinkResolver()),
 		markdown.WithFrontmatter(frontmatterToMarkdown(&meta)),
 	)

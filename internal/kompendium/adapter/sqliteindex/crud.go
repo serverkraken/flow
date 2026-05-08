@@ -124,7 +124,8 @@ func upsertWithin(ctx context.Context, tx *sql.Tx, n domain.Note, mtime time.Tim
 			continue
 		}
 		seen[l.Target] = struct{}{}
-		if _, err := tx.ExecContext(ctx,
+		if _, err := tx.ExecContext(
+			ctx,
 			`INSERT INTO links (src_id, dst_id) VALUES (?, ?)`,
 			n.ID.String(), l.Target,
 		); err != nil {

@@ -67,7 +67,8 @@ func briefDays(sb *strings.Builder, records []DayRecord) {
 		if r.Total >= r.Target && r.Target > 0 {
 			tick = "  ✓"
 		}
-		fmt.Fprintf(sb, "- **%s, %s** — %s / %s%s\n",
+		fmt.Fprintf(
+			sb, "- **%s, %s** — %s / %s%s\n",
 			WeekdayShortDe(r.Date.Weekday()),
 			r.Date.Format("02.01."),
 			FmtDuration(r.Total),
@@ -83,7 +84,8 @@ func briefDays(sb *strings.Builder, records []DayRecord) {
 			if s.Note != "" {
 				noteBit = "  — " + s.Note
 			}
-			fmt.Fprintf(sb, "  - %s–%s  (%s)%s%s\n",
+			fmt.Fprintf(
+				sb, "  - %s–%s  (%s)%s%s\n",
 				s.Start.Format("15:04"),
 				s.Stop.Format("15:04"),
 				FmtDuration(s.Elapsed),
@@ -116,7 +118,8 @@ func briefDayOffs(sb *strings.Builder, dayoffs []DayOff) {
 	}
 	fmt.Fprintln(sb, "## Frei")
 	for _, d := range dayoffs {
-		fmt.Fprintf(sb, "- **%s, %s** — %s%s\n",
+		fmt.Fprintf(
+			sb, "- **%s, %s** — %s%s\n",
 			WeekdayShortDe(d.Date.Weekday()),
 			d.Date.Format("02.01."),
 			d.Kind.LabelDe(),

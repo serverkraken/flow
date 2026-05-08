@@ -17,7 +17,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // outputTarget is the user's picked sink for the active action's
@@ -142,7 +142,7 @@ func (tp targetPicker) view(parentLabel string, pal theme.Palette, inner int) st
 		"",
 		picker.SectionHeader("output-ziel", inner, pal),
 	}
-	hkStyle := lipgloss.NewStyle().Foreground(pal.Accent).Bold(true)
+	hkStyle := lipgloss.NewStyle().Foreground(pal.Sem().Accent).Bold(true)
 	for i := 0; i < targetCount; i++ {
 		t := outputTarget(i)
 		hint := t.hint(tp.viewer)

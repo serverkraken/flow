@@ -210,6 +210,7 @@ linters:
             # shims onto canonical theme.Default; P4c lifted browse's
             # hand-rolled DoubleBorder modal onto components/modal.
             - github.com/serverkraken/flow/internal/frontend/tui/theme
+            - github.com/serverkraken/flow/internal/frontend/tui/components/help
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/ports
             - github.com/charmbracelet/bubbletea
@@ -291,7 +292,7 @@ linters:
             # constructs the cheatsheet screen directly because the verb
             # is a one-screen program — sidekick would be overkill.
             - github.com/charmbracelet/bubbletea
-            - github.com/serverkraken/flow/internal/frontend/tui/components/theme
+            - github.com/serverkraken/flow/internal/frontend/tui/theme
             - github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet
             - github.com/serverkraken/flow/internal/frontend/tui/sidekick
             # markdown.go (`flow markdown view <file>` standalone command)

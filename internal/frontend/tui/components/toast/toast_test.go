@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 var testPalette = theme.Load()

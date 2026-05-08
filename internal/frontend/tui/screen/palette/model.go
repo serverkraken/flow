@@ -19,11 +19,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -117,6 +118,27 @@ func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.Palette
 		writer:  writer,
 		tmux:    tmux,
 	}
+}
+
+// HelpSections returns the canonical key bindings of the palette
+// screen for aggregation by the sidekick `?`-overlay. Single source
+// of truth — the overlay used to maintain a parallel hand-pasted copy.
+func (Model) HelpSections() []help.Section {
+	return []help.Section{{
+		Title: "Palette",
+		Keys: [][2]string{
+			{"a–z (außer j/k/g/G)", "tippen → Filter direkt"},
+			{"/", "Filter explizit öffnen"},
+			{"j / k / ↑ / ↓", "Navigieren"},
+			{"G / g", "Ende / Anfang"},
+			{"] / [", "Nächste / vorige Section"},
+			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
+			{"1–9", "Direktwahl (n-ter Treffer)"},
+			{".", "Pin / Unpin (→ Favoriten)"},
+			{"Enter", "Ausführen"},
+			{"Esc", "Filter leeren · 2× → schließen"},
+		},
+	}}
 }
 
 // FilterActive reports whether the text input has focus.
@@ -477,7 +499,7 @@ func (m Model) View() string {
 
 	prompt := theme.Heading("› ", m.pal)
 	rows = append(rows, prompt+m.filter.View())
-	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Border).
+	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.BgCode).
 		Render(strings.Repeat("─", inner)))
 
 	switch {
@@ -521,8 +543,8 @@ func (m Model) renderPreview(maxWidth int) string {
 			action = string(runes[:available-1]) + "…"
 		}
 	}
-	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.Border)
-	textStyle := lipgloss.NewStyle().Foreground(m.pal.Dim)
+	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.BgCode)
+	textStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 	return "  " + arrowStyle.Render("▸") + " " + textStyle.Render(action)
 }
 
@@ -540,7 +562,7 @@ func (m Model) title() string {
 }
 
 func (m Model) renderEmptyState() []string {
-	dim := lipgloss.NewStyle().Foreground(m.pal.Dim)
+	dim := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 	if m.filter.Value() != "" {
 		return []string{
 			"",
@@ -610,11 +632,11 @@ func (m Model) renderRow(selected bool, label string, highlight []int, hint stri
 	bar := " "
 	labelStyle := lipgloss.NewStyle().Foreground(m.pal.Fg)
 	if selected {
-		bar = lipgloss.NewStyle().Foreground(m.pal.Accent).Render(picker.AccentBarRune)
+		bar = lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Render(picker.AccentBarRune)
 		labelStyle = labelStyle.Bold(true)
 	}
-	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true)
-	hintStyle := lipgloss.NewStyle().Foreground(m.pal.Dim)
+	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Bold(true)
+	hintStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 
 	hi := make(map[int]bool, len(highlight))
 	for _, idx := range highlight {

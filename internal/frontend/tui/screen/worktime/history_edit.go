@@ -19,7 +19,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 

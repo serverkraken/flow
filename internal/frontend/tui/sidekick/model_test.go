@@ -6,9 +6,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // fakeScreen is a tea.Model with optional screener / backHandler /

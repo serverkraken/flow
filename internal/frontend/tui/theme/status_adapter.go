@@ -18,10 +18,10 @@ import "github.com/serverkraken/flow/internal/domain"
 func StatusPaletteFor(p Palette) domain.StatusPalette {
 	sem := p.Sem()
 	return domain.StatusPalette{
-		Green:  sem.Success,
-		Yellow: sem.Warning,
-		Red:    sem.Danger,
-		Cyan:   sem.Info,
-		Dim:    p.FgMuted,
+		Green:  string(sem.Success),
+		Yellow: string(sem.Warning),
+		Red:    string(sem.Danger),
+		Cyan:   string(sem.Info),
+		Dim:    string(p.FgMuted),
 	}
 }

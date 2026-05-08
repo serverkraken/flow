@@ -27,7 +27,8 @@ func (m Manager) ImportBundle(ctx context.Context, root, bundlePath string) erro
 	if _, err := m.run(ctx, root, "bundle", "verify", bundlePath); err != nil {
 		return fmt.Errorf("git bundle verify: %w", err)
 	}
-	if _, err := m.run(ctx, root, "fetch", bundlePath,
+	if _, err := m.run(
+		ctx, root, "fetch", bundlePath,
 		"+refs/heads/*:refs/remotes/kompendium-bundle/*",
 	); err != nil {
 		return fmt.Errorf("git fetch bundle: %w", err)

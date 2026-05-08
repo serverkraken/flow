@@ -1,5 +1,7 @@
 package theme
 
+import "github.com/charmbracelet/lipgloss"
+
 // Semantic is the consumer-facing view of a Palette: aliases that name
 // the *role* a color plays, not the hue. Components read Semantic, not
 // the raw hues — so a palette swap shifts the whole UI in lockstep
@@ -9,15 +11,15 @@ package theme
 // Yellow directly; if a future palette redefines "warning" as orange,
 // the confirm dialog follows automatically.
 type Semantic struct {
-	Accent       string // primary interactive accent
-	Active       string // currently running / live thing
-	Success      string
-	Warning      string
-	Danger       string
-	Info         string // informative without action
-	Highlight    string // attention-grabbing, non-actionable mark
-	BorderSubtle string // light divider / panel border
-	BorderStrong string // load-bearing border (modal, focused panel)
+	Accent       lipgloss.Color // primary interactive accent
+	Active       lipgloss.Color // currently running / live thing
+	Success      lipgloss.Color
+	Warning      lipgloss.Color
+	Danger       lipgloss.Color
+	Info         lipgloss.Color // informative without action
+	Highlight    lipgloss.Color // attention-grabbing, non-actionable mark
+	BorderSubtle lipgloss.Color // light divider / panel border
+	BorderStrong lipgloss.Color // load-bearing border (modal, focused panel)
 }
 
 // Sem returns the semantic alias view of p. The mapping is fixed across

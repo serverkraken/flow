@@ -158,7 +158,8 @@ func TestNewSessionAt_AlreadyExists_NoOp(t *testing.T) {
 }
 
 func TestNewSessionAt_CreatesWhenAbsent(t *testing.T) {
-	r, calls := recorder(t,
+	r, calls := recorder(
+		t,
 		response{out: []byte("other\n")}, // list-sessions: name not present
 		response{},                       // new-session succeeds
 	)
@@ -176,7 +177,8 @@ func TestNewSessionAt_CreatesWhenAbsent(t *testing.T) {
 
 func TestNewSessionAt_PropagatesCreateError(t *testing.T) {
 	want := errors.New("permission denied")
-	r, _ := recorder(t,
+	r, _ := recorder(
+		t,
 		response{err: errors.New("no")},
 		response{err: want},
 	)
