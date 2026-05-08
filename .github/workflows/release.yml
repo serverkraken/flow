@@ -34,7 +34,13 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # Wir benutzen einen User-PAT (Repo-Secret RELEASE_PLEASE_TOKEN)
+          # statt des GITHUB_TOKEN: Die Org-Policy auf serverkraken
+          # verbietet GitHub-Actions-erzeugte PRs (per default-workflow-
+          # permissions), erlaubt aber PR-Erstellung durch den User. Der
+          # PAT trägt die `repo`-Scope und umgeht damit die Org-Policy
+          # ohne sie auflockern zu müssen.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           # Config + Manifest liegen im Repo-Root; release-please liest
           # sie automatisch.
 
