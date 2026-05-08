@@ -1115,7 +1115,7 @@ func (m Model) renderSearchSegment() string {
 	if m.mode == ModeSearch {
 		view := m.search.View()
 		if view == "" {
-			view = "▌"
+			view = "▎"
 		}
 		return searchActiveLabelStyle.Render("Suche:") + " " + view
 	}

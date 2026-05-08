@@ -137,6 +137,22 @@ func (m Model) View() string {
 		Render(glyph + " " + m.text)
 }
 
+// SlotLine returns a fixed-height (one line) representation of t for
+// direct append to a layout row list. When t is nil or already
+// dismissed, it returns "" — the layout still gets the row but it
+// renders blank, so footer / hints below stay anchored when the toast
+// appears or fades. Without this slot, the surrounding rows shift up
+// by one line each time the toast goes away.
+//
+// indent is prepended only when a toast is actually shown so an empty
+// slot does not carry invisible whitespace.
+func SlotLine(t *Model, indent string) string {
+	if t == nil || !t.Visible() {
+		return ""
+	}
+	return indent + t.View()
+}
+
 // glyphAndColor maps Kind to (glyph, foreground colour). Kept as a
 // single switch so a future Kind addition is one block to extend.
 func (m Model) glyphAndColor() (string, lipgloss.Color) {

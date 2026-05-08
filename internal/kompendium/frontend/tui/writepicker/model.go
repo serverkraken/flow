@@ -271,7 +271,7 @@ func slugCard(slugView string) string {
 	sb.WriteString(headerStyle.Render("Slug for the new free note"))
 	sb.WriteString("\n\n")
 	if slugView == "" {
-		slugView = "▌"
+		slugView = "▎"
 	}
 	sb.WriteString(slugBoxStyle.Render(slugView))
 	sb.WriteString("\n\n")

@@ -10,7 +10,10 @@
 package sidekick
 
 import (
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -149,13 +152,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // fanOutToAll forwards msg to every screen and batches the resulting
 // tea.Cmds. Used by WindowSizeMsg and the default-async branch so any
 // screen that listens for those gets them.
+//
+// WindowSizeMsg is forwarded with one row reserved for the global tab
+// strip rendered above the active screen, so child screens that
+// allocate viewports against the message height (cheatsheet) don't
+// extend past the bottom and scroll their footer off.
 func (m Model) fanOutToAll(msg tea.Msg) (tea.Model, tea.Cmd) {
+	childMsg := msg
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = size.Width, size.Height
+		reserved := size.Height - 1
+		if reserved < 0 {
+			reserved = 0
+		}
+		childMsg = tea.WindowSizeMsg{Width: size.Width, Height: reserved}
 	}
 	var cmds []tea.Cmd
 	for i, s := range m.screens {
-		updated, cmd := s.Update(msg)
+		updated, cmd := s.Update(childMsg)
 		m.screens[i] = updated
 		if cmd != nil {
 			cmds = append(cmds, cmd)
@@ -252,13 +266,76 @@ func (m Model) forwardToCurrent(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// View delegates rendering to the active screen, or to the help overlay
-// when `?` was pressed.
+// View delegates rendering to the active screen, prefixed by a one-line
+// global tab strip that surfaces which sidekick screen is active. The
+// strip is suppressed when the `?`-overlay owns the surface — help is
+// modal and the strip would compete with the section titles inside it.
 func (m Model) View() string {
 	if m.showHelp {
 		return m.renderHelp()
 	}
-	return m.screens[m.current].View()
+	return m.renderTabStrip() + "\n" + m.screens[m.current].View()
+}
+
+// tabStripEntry is one cell of the global strip. Key is the global
+// switch letter (p / f / w / c / n) the user types; Label is the
+// human-readable screen name; ID identifies the active match.
+type tabStripEntry struct {
+	key   string
+	label string
+	id    screenID
+}
+
+// renderTabStrip draws the global five-tab navigation bar at the top of
+// every sidekick render. The active tab is bold + Accent (Heading
+// style); inactive tabs are dim. The leading letter doubles as the
+// global switch key so the strip self-documents the keybinds.
+//
+// Width-adaptive degradation mirrors worktime/model.go's tabStrip:
+// full labels first, then key-only fallback when the pane is too
+// narrow for the long form. NO_COLOR readers see brackets around the
+// active key in the compact form so the marker survives without
+// colour.
+func (m Model) renderTabStrip() string {
+	entries := []tabStripEntry{
+		{"p", "Palette", screenPalette},
+		{"f", "Projekte", screenProjects},
+		{"w", "Worktime", screenWorktime},
+		{"c", "Cheatsheet", screenCheatsheet},
+		{"n", "Notes", screenNotes},
+	}
+	full := m.renderTabStripFull(entries)
+	if m.width == 0 || lipgloss.Width(full) <= m.width {
+		return full
+	}
+	return m.renderTabStripCompact(entries)
+}
+
+func (m Model) renderTabStripFull(entries []tabStripEntry) string {
+	sep := theme.Dim("  ·  ", m.pal)
+	parts := make([]string, len(entries))
+	for i, e := range entries {
+		text := e.key + " " + e.label
+		if e.id == m.current {
+			parts[i] = theme.Heading(text, m.pal)
+		} else {
+			parts[i] = theme.Dim(text, m.pal)
+		}
+	}
+	return " " + strings.Join(parts, sep)
+}
+
+func (m Model) renderTabStripCompact(entries []tabStripEntry) string {
+	sep := theme.Dim(" · ", m.pal)
+	parts := make([]string, len(entries))
+	for i, e := range entries {
+		if e.id == m.current {
+			parts[i] = theme.Heading("["+e.key+"]", m.pal)
+		} else {
+			parts[i] = theme.Dim(e.key, m.pal)
+		}
+	}
+	return " " + strings.Join(parts, sep)
 }
 
 // renderHelp draws the `?`-overlay for the sidekick. Sections are grouped by

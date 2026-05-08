@@ -37,7 +37,7 @@ func TestBuildStatusSegment_IdleHit(t *testing.T) {
 		Palette:      pal(),
 	}
 	got := domain.BuildStatusSegment(in)
-	if !strings.Contains(got, "⏸ 08:00") {
+	if !strings.Contains(got, "‖ 08:00") {
 		t.Errorf("missing idle banner with 08:00: %q", got)
 	}
 	if !strings.Contains(got, "✓") {
@@ -55,8 +55,8 @@ func TestBuildStatusSegment_IdleMissed(t *testing.T) {
 		Palette:      pal(),
 	}
 	got := domain.BuildStatusSegment(in)
-	if !strings.Contains(got, "⏸") || strings.Contains(got, "✓") {
-		t.Errorf("missed day should be ⏸ without ✓: %q", got)
+	if !strings.Contains(got, "‖") || strings.Contains(got, "✓") {
+		t.Errorf("missed day should be ‖ without ✓: %q", got)
 	}
 }
 

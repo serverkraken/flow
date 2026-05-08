@@ -397,17 +397,15 @@ func (m Model) tabStrip(width int) string {
 }
 
 func (m Model) renderTabs(labels []string, sep string) string {
-	active := lipgloss.NewStyle().Foreground(m.pal.Accent).Bold(true).Render
-	dim := lipgloss.NewStyle().Foreground(m.pal.Dim).Render
 	out := ""
 	for i, l := range labels {
 		if i > 0 {
-			out += dim(sep)
+			out += theme.Dim(sep, m.pal)
 		}
 		if tab(i) == m.current {
-			out += active(l)
+			out += theme.Heading(l, m.pal)
 		} else {
-			out += dim(l)
+			out += theme.Dim(l, m.pal)
 		}
 	}
 	return out

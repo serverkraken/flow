@@ -48,6 +48,10 @@ type StatusInputs struct {
 // "" when nothing was tracked today and no week activity exists.
 //
 // Layout: [Frei: …] ⏱ HH:MM ▶ S:MM →HH:MM ✓ ●●●●○ Streak N ▲ +Nh
+//
+// Idle state uses the canonical glyph ‖ from the project glyph whitelist
+// (internal/frontend/tui/components/glyphs); ⏸ U+23F8 is emoji-presentation
+// in many fonts and breaks tmux status-right column alignment.
 func BuildStatusSegment(in StatusInputs) string {
 	total := in.Day.Total(in.Now)
 	dots := BuildPaceDots(in.Week, in.Now, in.LookupDayOff, in.Palette)
@@ -102,9 +106,9 @@ func statusBanner(day Day, total, target time.Duration, achieved bool, pal Statu
 		}
 	}
 	if achieved && total > 0 {
-		return "⏸", pal.Green
+		return "‖", pal.Green
 	}
-	return "⏸", pal.Dim
+	return "‖", pal.Dim
 }
 
 // activeSessionParts renders the "▶ S:MM" running-session indicator and

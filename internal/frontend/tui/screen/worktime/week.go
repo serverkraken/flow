@@ -187,7 +187,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		Render(fmt.Sprintf("%02d.%02d", d.Date.Day(), d.Date.Month()))
 	marker := "  "
 	if idx == w.cursor {
-		marker = lipgloss.NewStyle().Foreground(w.pal.Accent).Render("▌ ")
+		marker = lipgloss.NewStyle().Foreground(w.pal.Accent).Render(picker.AccentBarRune) + " "
 	}
 
 	dayOff, isOff := w.deps.DayOffReader.Lookup(d.Date)

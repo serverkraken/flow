@@ -12,7 +12,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/ports"
@@ -153,7 +153,6 @@ func (m Model) View() string {
 	// Skill §Hint format ≤4: scrollen, Palette-Sprung (b ist sidekick-router),
 	// schließen. „b → Palette" statt „b → zurück" — letzteres impliziert
 	// Browser-History, was im Sidekick nicht stimmt.
-	footer := lipgloss.NewStyle().Foreground(m.pal.Dim).Padding(0, 1).
-		Render("↑/↓ · PgUp/PgDn → scrollen  ·  b → Palette  ·  q → schließen")
+	footer := statusbar.Hints("↑/↓ · PgUp/PgDn → scrollen  ·  b → Palette  ·  q → schließen", m.pal)
 	return box + "\n" + footer
 }

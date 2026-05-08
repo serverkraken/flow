@@ -206,8 +206,8 @@ func (m Model) composeContent() string {
 	if m.matchIdx >= 0 && m.matchIdx < len(m.matches) {
 		cur = m.matches[m.matchIdx]
 	}
-	bar := matchBarStyle.Render("▌ ")
-	curBar := matchCurrentBarStyle.Render("▌ ")
+	bar := matchBarStyle.Render("▎ ")
+	curBar := matchCurrentBarStyle.Render("▎ ")
 	out := make([]string, len(m.lines))
 	for i, l := range m.lines {
 		if i == cur {
@@ -422,7 +422,7 @@ func (m Model) renderFooter() string {
 	if m.mode == ModeSearch {
 		view := m.search.View()
 		if view == "" {
-			view = "▌"
+			view = "▎"
 		}
 		return searchActiveLabelStyle.Render("Search:") + " " + view +
 			"   " + footerStyle.Render("enter apply · esc cancel")

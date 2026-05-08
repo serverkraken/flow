@@ -497,9 +497,10 @@ func (m Model) View() string {
 	if preview := m.renderPreview(m.width - 4); preview != "" {
 		parts = append(parts, preview)
 	}
-	if m.toast != nil && m.toast.Visible() {
-		parts = append(parts, "  "+m.toast.View())
-	}
+	// Reserved toast slot: always one line, blank when no toast is
+	// active. Keeps the footer at the same screen row regardless of
+	// toast state — the user's eye doesn't need to re-acquire it.
+	parts = append(parts, toast.SlotLine(m.toast, "  "))
 	parts = append(parts, m.renderFooter())
 	return strings.Join(parts, "\n")
 }

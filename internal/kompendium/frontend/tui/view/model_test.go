@@ -190,7 +190,7 @@ func TestStatusBar_LongTitleTruncated(t *testing.T) {
 }
 
 // TestSearch_BarRendersInComposedContent: an applied query must lead
-// to the yellow ▌ bar appearing in the viewport's composed content.
+// to the yellow ▎ bar appearing in the viewport's composed content.
 // Asserts the highlight pipeline reaches the bytes the user sees.
 func TestSearch_BarRendersInComposedContent(t *testing.T) {
 	t.Parallel()
@@ -200,8 +200,8 @@ func TestSearch_BarRendersInComposedContent(t *testing.T) {
 		model, _ = model.Update(runeKey(r))
 	}
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if !strings.Contains(model.View(), "▌") {
-		t.Errorf("composed content should carry a ▌ match bar\n%s", model.View())
+	if !strings.Contains(model.View(), "▎") {
+		t.Errorf("composed content should carry a ▎ match bar\n%s", model.View())
 	}
 }
 

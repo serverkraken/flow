@@ -506,9 +506,9 @@ func (m menuModel) View() string {
 		body = m.renderListBody(inner)
 	}
 	rows := []string{body}
-	if m.toast != nil {
-		rows = append(rows, "", "  "+m.toast.View())
-	}
+	// Reserved toast slot — see toast.SlotLine. Keeps the menu footer
+	// stable when a TODO/Success toast appears.
+	rows = append(rows, "", toast.SlotLine(m.toast, "  "))
 	if m.errMsg != "" {
 		rows = append(rows, "", theme.Err("  "+m.errMsg, m.pal))
 	}

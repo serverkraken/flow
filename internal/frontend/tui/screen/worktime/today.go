@@ -28,6 +28,11 @@ type heuteLoadedMsg struct {
 type heuteActionDoneMsg struct {
 	err   error
 	toast string
+	// info marks the toast as an Info-kind notice (cyan ›) instead of
+	// the default Success kind (green ✓). Used for "nothing to do"
+	// branches (e.g. detach when no note is attached) where the operation
+	// is neither a success nor a failure.
+	info bool
 }
 
 // — dialog modes —
@@ -206,7 +211,12 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.errMsg = ""
 		h.err = nil
 		if msg.toast != "" {
-			t := toast.NewDefault(msg.toast, h.pal)
+			var t toast.Model
+			if msg.info {
+				t = toast.NewInfo(msg.toast, h.pal)
+			} else {
+				t = toast.NewDefault(msg.toast, h.pal)
+			}
 			h.toast = &t
 			return h, tea.Batch(h.loadCmd(), t.Init())
 		}
@@ -358,7 +368,7 @@ func (h heute) handleDialogOpenKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (h heute) viewAttachedNoteCmd() tea.Cmd {
 	if len(h.attachedNotes) == 0 {
 		return func() tea.Msg {
-			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt — `n` hängt eine an"}
+			return heuteActionDoneMsg{toast: "Keine Notiz angehängt — `n` hängt eine an", info: true}
 		}
 	}
 	id := h.attachedNotes[0]
@@ -378,7 +388,7 @@ func (h heute) viewAttachedNoteCmd() tea.Cmd {
 func (h heute) editAttachedNoteCmd() tea.Cmd {
 	if len(h.attachedNotes) == 0 {
 		return func() tea.Msg {
-			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt — `n` hängt eine an"}
+			return heuteActionDoneMsg{toast: "Keine Notiz angehängt — `n` hängt eine an", info: true}
 		}
 	}
 	id := h.attachedNotes[0]
@@ -401,7 +411,7 @@ func (h heute) editAttachedNoteCmd() tea.Cmd {
 func (h heute) detachAttachedNoteCmd() tea.Cmd {
 	if len(h.attachedNotes) == 0 {
 		return func() tea.Msg {
-			return heuteActionDoneMsg{toast: "  ℹ Keine Notiz angehängt"}
+			return heuteActionDoneMsg{toast: "Keine Notiz angehängt", info: true}
 		}
 	}
 	id := h.attachedNotes[0]
@@ -455,7 +465,7 @@ func (h heute) pauseCmd() tea.Cmd {
 		if err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("⏸ Pausiert nach %s", formatDur(s.Elapsed))}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("‖ Pausiert nach %s", formatDur(s.Elapsed))}
 	}
 }
 
@@ -791,9 +801,10 @@ func (h heute) renderBody() string {
 		rows = append(rows, "", line)
 	}
 	rows = append(rows, h.renderSessionsList(inner, now)...)
-	if h.toast != nil {
-		rows = append(rows, "", "  "+h.toast.View())
-	}
+	// Toast lives in a reserved one-line slot so the footer below stays
+	// anchored whether a toast is showing or not — without this, the
+	// footer hop-jumps every time a toast arrives or fades.
+	rows = append(rows, "", toast.SlotLine(h.toast, "  "))
 	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
 	return strings.Join(rows, "\n")
 }
@@ -881,7 +892,7 @@ func (h heute) renderPauseHint(now time.Time) string {
 		return ""
 	}
 	return "  " +
-		theme.Warning("⏸ in Pause", h.pal) +
+		theme.Warning("‖ in Pause", h.pal) +
 		stDim(h.pal, fmt.Sprintf("  seit %s  ·  %s — `s` setzt fort",
 			h.day.PausedAt.Format("15:04"), formatDur(now.Sub(*h.day.PausedAt))))
 }
@@ -1075,7 +1086,7 @@ func (h heute) renderHelpRows(inner int) []string {
 		}
 		rows = append(rows, picker.SectionHeader(sec.title, inner, h.pal))
 		for _, e := range sec.entries {
-			keyCell := lipgloss.NewStyle().Width(14).Render(theme.Highlight(e.key, h.pal))
+			keyCell := lipgloss.NewStyle().Width(theme.KeyHintWidth).Render(theme.Highlight(e.key, h.pal))
 			rows = append(rows, "  "+keyCell+stDim(h.pal, e.desc))
 		}
 	}
@@ -1131,7 +1142,7 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 	case achieved:
 		return "✓", "Ziel erreicht", p.Green
 	}
-	return "⏸", "pausiert", p.Dim
+	return "‖", "pausiert", p.Dim
 }
 
 // totalThresholdColor picks the today-total foreground based on running

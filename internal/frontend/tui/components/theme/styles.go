@@ -6,6 +6,21 @@ import (
 	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
+// Layout-token re-exports. The canonical values live in
+// internal/frontend/tui/theme/tokens.go; screens that already import
+// the components/theme compat layer get them here as well so they
+// don't have to reach for a second import path. New screen code can
+// import the canonical theme package directly.
+const (
+	// KeyHintWidth is the column width for keystroke labels in help
+	// overlays (canonical = 12). Drives the eye down the key column
+	// instead of having ragged-right keys.
+	KeyHintWidth = canonical.KeyHintWidth
+	// PillWidth is the canonical fixed cell width of a status pill
+	// (4). Mirrored here so screens don't have to dual-import.
+	PillWidth = canonical.PillWidth
+)
+
 // PillKind selects the pill's semantic flavour. Each kind carries a
 // glyph in addition to its colour so the pill is readable in NO_COLOR
 // or for colour-blind readers (audit A11y-2). docs/design-system-

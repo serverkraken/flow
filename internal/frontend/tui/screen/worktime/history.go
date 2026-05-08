@@ -759,7 +759,7 @@ func (h history) renderList(records []domain.DayRecord) string {
 		}
 		marker := "  "
 		if i == h.listCur {
-			marker = lipgloss.NewStyle().Foreground(h.pal.Accent).Render("▌ ")
+			marker = lipgloss.NewStyle().Foreground(h.pal.Accent).Render(picker.AccentBarRune) + " "
 		}
 		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done)
 	}

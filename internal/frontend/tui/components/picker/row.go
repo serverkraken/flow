@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 )
 
@@ -13,12 +14,20 @@ import (
 // reuse the same glyph instead of redeclaring it locally.
 const AccentBarRune = "▎"
 
-// Row renders a single list entry: an accent bar on the left, label on the left
-// side, and a hint string right-aligned within width.
+// Row renders a single list entry: an accent bar on the left, label on
+// the left side, and a hint string right-aligned within width.
 //
 // width is the available inner width (excluding any outer box border).
-// Selected rows show the accent bar (▎) and bold foreground; unselected rows
-// show a plain space.
+// Selected rows show the accent bar (▎) and bold foreground; unselected
+// rows show a plain space.
+//
+// Label and hint are truncated with "…" when their combined width would
+// overflow the row (Bubbletea Golden Rule #2). The hint keeps full
+// priority; the label loses width first because it is more often the
+// long-tail field (note titles, action labels) while the hint is
+// usually a short tag like "[deep]" or a key-bind preview. When the
+// row is so narrow that even the hint wouldn't fit, the hint is
+// dropped and the label gets all remaining space.
 func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 	bar := " "
 	labelStyle := lipgloss.NewStyle().Foreground(p.Fg)
@@ -28,8 +37,23 @@ func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 	}
 	hintStyle := lipgloss.NewStyle().Foreground(p.Dim)
 
-	// bar(1) + space(1) + label + gap + hint
-	gap := width - 1 - lipgloss.Width(label) - lipgloss.Width(hint) - 1
+	// Reserved cells: bar(1) + space(1) + min-gap(1) = 3.
+	const reserved = 3
+	hintW := lipgloss.Width(hint)
+	maxLabel := width - reserved - hintW
+	if maxLabel < 1 {
+		// No room for label + hint: drop the hint to give the label
+		// space. A hint-only row would lose the primary content.
+		hint = ""
+		hintW = 0
+		maxLabel = width - reserved
+		if maxLabel < 1 {
+			maxLabel = 1
+		}
+	}
+	label = tuistrings.Truncate(label, maxLabel)
+
+	gap := width - 1 - lipgloss.Width(label) - hintW - 1
 	if gap < 1 {
 		gap = 1
 	}

@@ -25,14 +25,14 @@ import (
 // suite — the test logs the new lower count. Update the baseline in
 // the same commit so the next PR can't regress past the new floor.
 var screenBaseline = map[string]int{
-	"cheatsheet/model.go":     1,
+	"cheatsheet/model.go":     0,
 	"palette/model.go":        8,
-	"projects/model.go":       2,
+	"projects/model.go":       1,
 	"worktime/dayoffs.go":     5,
 	"worktime/history.go":     29,
 	"worktime/menu.go":        2,
 	"worktime/menu_target.go": 1,
-	"worktime/model.go":       2,
+	"worktime/model.go":       0,
 	"worktime/today.go":       4,
 	"worktime/week.go":        13,
 }

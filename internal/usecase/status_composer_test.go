@@ -44,8 +44,8 @@ func TestStatusComposer_RenderingIncludesBanner(t *testing.T) {
 		sessAt("2026-04-29", 9, 0, 8*time.Hour),
 	})
 	got := c.Compose()
-	if !strings.Contains(got, "⏸ 08:00") {
-		t.Errorf("expected ⏸ 08:00 banner, got %q", got)
+	if !strings.Contains(got, "‖ 08:00") {
+		t.Errorf("expected ‖ 08:00 banner, got %q", got)
 	}
 	if !strings.Contains(got, "✓") {
 		t.Errorf("expected ✓ on hit day, got %q", got)

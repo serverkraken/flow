@@ -17,6 +17,7 @@ import (
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/theme"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -279,8 +280,7 @@ func (m Model) View() string {
 	box := titlebox.Render(title, body, m.width, m.pal)
 	// 4-Cap (skill §Spacing): wichtigste 4 im Footer, Surplus (esc/b/q) sind
 	// Fixed-Slot-Keys, dokumentiert im sidekick-globalen `?`-Overlay.
-	footer := lipgloss.NewStyle().Foreground(m.pal.Dim).Padding(0, 1).
-		Render("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  ? → hilfe")
+	footer := statusbar.Hints("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  ? → hilfe", m.pal)
 	return box + "\n" + footer
 }
 
