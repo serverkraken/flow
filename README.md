@@ -54,24 +54,99 @@ Wechsel, Cheatsheet — ohne den Kontext zu verlassen.
 
 ---
 
+## Voraussetzungen
+
+| Komponente            | Pflicht | Wofür                                                              |
+| --------------------- | ------- | ------------------------------------------------------------------ |
+| **Go 1.25+**          | Ja      | Build (Pure-Go-Binary, kein cgo, kein C-Compiler nötig)            |
+| **tmux**              | empf.   | Sidekick-Pane, Status-Right-Segment, Aktions-Menü-Output-Target    |
+| **git**               | empf.   | Kompendium-Sync, Snapshot-Adapter                                  |
+| **glow**              | optional| Markdown-Render im tmux-Split (Brief / Note-Viewer)                |
+| **less**              | optional| Pager-Fallback für CSV/JSON/Stats im tmux-Split                    |
+| **nvim** / `$EDITOR`  | optional| Kompendium-Note-Edit (Default `nvim`; `$VISUAL`/`$EDITOR` greifen) |
+| **pbcopy** / **xclip**| optional| Aktions-Menü Clipboard-Target (macOS / Linux)                      |
+| **TrueColor-Terminal**| empf.   | Lipgloss-Themes erwarten 24-Bit-Farbe (Ghostty, iTerm2, Alacritty) |
+
+Standalone-CLI (`flow worktime stop`, `flow worktime brief`, …) läuft
+auch ohne tmux. Nur das interaktive TUI macht ohne tmux wenig Sinn,
+weil sich Sidekick und Status-Bar gegenseitig brauchen.
+
 ## Installation
 
-Voraussetzungen: **Go 1.25**, **tmux**, ein TrueColor-fähiges Terminal,
-optional `glow` für Markdown-Render im tmux-Split.
+### macOS (Homebrew)
 
 ```sh
+brew install go tmux glow neovim git
 git clone https://github.com/serverkraken/flow.git
 cd flow
-make install        # → ~/.local/bin/flow
+make install            # → ~/.local/bin/flow
 ```
 
-Oder ohne Install nur ins lokale `bin/`:
+`pbcopy` / `pbpaste` sind auf macOS Bordmittel — kein extra Install.
+Stelle sicher, dass `~/.local/bin` im `PATH` liegt:
 
 ```sh
-make build
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 ```
 
-`flow --help` zeigt die Subcommands.
+### Debian / Ubuntu
+
+`apt`s Go-Paket hinkt in der Regel mehrere Versionen hinterher; für
+Go 1.25 die offizielle Binary von `go.dev/dl` ziehen oder einen
+Version-Manager (`mise` / `asdf`) verwenden.
+
+```sh
+# Laufzeit-Tools aus apt — alle pflichtfrei außer git
+sudo apt update
+sudo apt install -y tmux git glow less xclip neovim
+
+# Go 1.25 offiziell
+GO_VERSION=1.25.0
+curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+sudo rm -rf /usr/local/go
+sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+echo 'export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.local/bin:$PATH"' >> ~/.bashrc
+exec $SHELL -l
+
+# Build
+git clone https://github.com/serverkraken/flow.git
+cd flow
+make install            # → ~/.local/bin/flow
+```
+
+Falls `glow` in Deinem Debian-Release noch nicht in apt liegt, gibt es
+das Charm-APT-Repo (`https://github.com/charmbracelet/charm/blob/main/INSTALLING.md`)
+oder ein `go install github.com/charmbracelet/glow@latest`.
+
+### Build-Targets
+
+| Target          | Tut                                                       |
+| --------------- | --------------------------------------------------------- |
+| `make build`    | Binary nach `bin/flow` (lokal, kein Install)              |
+| `make install`  | `go install` nach `~/.local/bin/flow`                     |
+| `go build -o /irgendwo/flow ./cmd/flow` | Manueller Build mit eigenem Pfad      |
+
+Cross-Compile (z.B. Linux-Binary von macOS aus):
+
+```sh
+GOOS=linux   GOARCH=amd64 go build -o bin/flow-linux-amd64  ./cmd/flow
+GOOS=darwin  GOARCH=arm64 go build -o bin/flow-darwin-arm64 ./cmd/flow
+GOOS=darwin  GOARCH=amd64 go build -o bin/flow-darwin-amd64 ./cmd/flow
+```
+
+CGO ist nicht erforderlich (`modernc.org/sqlite` ist Pure-Go) — der
+Cross-Compile-Build braucht keinen C-Toolchain für die Zielarchitektur.
+
+### Verifizieren
+
+```sh
+flow --help              # Subcommand-Übersicht
+flow worktime status     # tmux status-right Segment auf stdout
+flow kompendium doctor   # Notebook-Health-Check
+```
+
+`flow sidekick` startet die TUI direkt; üblicher ist sie als tmux-Pane
+über die Bindings im Abschnitt [tmux-Integration](#tmux-integration).
 
 ---
 
