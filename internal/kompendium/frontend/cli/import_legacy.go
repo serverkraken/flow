@@ -19,7 +19,7 @@ func newImportLegacyCmd(deps Deps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "import-legacy",
 		Short: "Migrate notes from the old tmux notes/project-notes plugins",
-		Long: "One-shot migration of Soenne's tmux-era files: ~/notes/YYYY-MM-DD.md become " +
+		Long: "One-shot migration of legacy tmux-era notes: ~/notes/YYYY-MM-DD.md become " +
 			"daily/YYYY-MM-DD, ~/.project-notes/<repo>-<hash>.md become " +
 			"projects/<canonical-url>/_project. Existing target IDs are skipped — re-running " +
 			"is safe.",

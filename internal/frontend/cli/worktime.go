@@ -21,9 +21,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// fprintf, fprintln and fprint wrap fmt.Fprint* and discard the byte
-// count + error. Print failures to cmd.OutOrStdout / ErrOrStderr are
-// not recoverable in a CLI; matches the legacy tmuxRefresh discard
+// fprintf and fprintln wrap fmt.Fprint* and discard the byte count
+// + error. Print failures to cmd.OutOrStdout / ErrOrStderr are not
+// recoverable in a CLI; matches the legacy tmuxRefresh discard
 // pattern.
 func fprintf(w io.Writer, format string, args ...any) {
 	_, _ = fmt.Fprintf(w, format, args...)
@@ -31,10 +31,6 @@ func fprintf(w io.Writer, format string, args ...any) {
 
 func fprintln(w io.Writer, args ...any) {
 	_, _ = fmt.Fprintln(w, args...)
-}
-
-func fprint(w io.Writer, args ...any) {
-	_, _ = fmt.Fprint(w, args...)
 }
 
 // WorktimeDeps is the dependency bundle the worktime cobra subcommand

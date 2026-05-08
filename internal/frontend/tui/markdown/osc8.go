@@ -16,7 +16,7 @@ import (
 // sentence boundary. Round parens are excluded too — that means URLs
 // containing balanced parens (e.g. Wikipedia article slugs) get
 // truncated at the first `(`. The simple form is good enough for the
-// notes Soenne actually writes; a paren-balancing matcher is reserved
+// notes that land in this notebook; a paren-balancing matcher is reserved
 // for the day a real URL hits this corner.
 var urlRegex = regexp.MustCompile(`https?://[^\s\x1b<>()"'\[\]]+`)
 

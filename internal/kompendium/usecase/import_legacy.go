@@ -23,7 +23,7 @@ func rewriteLegacyDailyWikilinks(body []byte) []byte {
 	return legacyDailyWikilink.ReplaceAll(body, []byte("[[daily/$1]]"))
 }
 
-// ImportLegacy migrates Soenne's tmux-era notes/project-notes files into
+// ImportLegacy migrates legacy tmux-era notes/project-notes files into
 // the kompendium notebook. One-shot; idempotent on re-run because target
 // IDs that already exist are skipped, not overwritten.
 //

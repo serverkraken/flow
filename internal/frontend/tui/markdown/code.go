@@ -71,8 +71,8 @@ func collectLeafLines(n ast.Node, source []byte) string {
 // sized to the longest content line + codeBlockRightPad, capped at
 // effectiveWidth. Lines wider than the budget are HARD-wrapped (the
 // previous behaviour truncated with `…`, which silently dropped
-// long identifiers / strings off the right edge — Soenne reported
-// it as "Text wrappt nicht in Code-Blöcken").
+// long identifiers / strings off the right edge — reported in
+// review as „Text wrappt nicht in Code-Blöcken").
 //
 // Empty src yields a 1-row panel so the band wrap still reads as
 // a code block.

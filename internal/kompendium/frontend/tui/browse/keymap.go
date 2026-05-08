@@ -23,7 +23,7 @@ type keyMap struct {
 }
 
 // defaultKeys returns the default keymap. Skill §German UI: Help-Labels auf
-// Deutsch. Soenne can later swap individual bindings without touching the
+// Deutsch. The keymap can be swapped individually without touching the
 // rest of the model.
 func defaultKeys() keyMap {
 	return keyMap{

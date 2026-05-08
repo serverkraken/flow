@@ -14,7 +14,7 @@ import (
 )
 
 // TestEditFinishedReloadsPreview reproduces the "preview stays
-// stale after editing" bug Soenne reported in P1.12: after the
+// stale after editing" bug reported in P1.12: after the
 // editor exits, the preview pane has to re-render against the
 // just-saved file, not return the cached pre-edit body. Drives the
 // scenario through the public Update path with a real fake store —

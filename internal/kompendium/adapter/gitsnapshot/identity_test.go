@@ -44,8 +44,8 @@ func TestIdentity_PreservedWhenConfigured(t *testing.T) {
 	if err := m.Init(ctx, tmp); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	mustGit(t, tmp, "config", "user.name", "Soenne Test")
-	mustGit(t, tmp, "config", "user.email", "soenne@example.test")
+	mustGit(t, tmp, "config", "user.name", "Test User")
+	mustGit(t, tmp, "config", "user.email", "user@example.test")
 
 	if err := os.WriteFile(filepath.Join(tmp, "n.md"), []byte("body\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestIdentity_PreservedWhenConfigured(t *testing.T) {
 	}
 
 	out := mustGitOutput(t, tmp, "log", "-1", "--format=%an <%ae>")
-	if !strings.Contains(out, "Soenne Test") || !strings.Contains(out, "soenne@example.test") {
+	if !strings.Contains(out, "Test User") || !strings.Contains(out, "user@example.test") {
 		t.Errorf("configured identity should be preserved, got %q", out)
 	}
 	if strings.Contains(out, "kompendium@local") {

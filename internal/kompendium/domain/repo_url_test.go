@@ -33,10 +33,10 @@ func TestNormalizeURL(t *testing.T) {
 		// Filesystem-path fallback (gitrepo.Detect uses repo root when origin is unset).
 		// macOS is case-preserving + Foundation expects the original case, so the
 		// path passes through verbatim — only the trailing slash is stripped.
-		{"absolute path preserves case", "/Users/msoent/notes", "/Users/msoent/notes"},
-		{"absolute path trailing slash trimmed", "/Users/msoent/notes/", "/Users/msoent/notes"},
+		{"absolute path preserves case", "/Users/dev/notes", "/Users/dev/notes"},
+		{"absolute path trailing slash trimmed", "/Users/dev/notes/", "/Users/dev/notes"},
 		{"home-relative path preserves case", "~/Notes", "~/Notes"},
-		{"deep absolute path with mixed case", "/Users/Soenne/Sourcecode/Project", "/Users/Soenne/Sourcecode/Project"},
+		{"deep absolute path with mixed case", "/Users/Dev/Sourcecode/Project", "/Users/Dev/Sourcecode/Project"},
 	}
 
 	for _, tc := range cases {

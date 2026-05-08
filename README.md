@@ -250,4 +250,4 @@ für blinde tmux-Bindings.
 
 ## Lizenz
 
-Privates Projekt. Keine öffentliche Lizenz vergeben.
+[MIT](LICENSE) — siehe `LICENSE` für den vollen Text.

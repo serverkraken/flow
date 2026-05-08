@@ -42,7 +42,7 @@ func newFixture(p ...domain.Project) *fixture {
 func (f *fixture) model() projects.Model {
 	reader := &usecase.ProjectsReader{Scanner: f.scanner, Tmux: f.tmux}
 	switcher := &usecase.ProjectSwitcher{Tmux: f.tmux}
-	return projects.New(theme.Load(), "/Users/msoent/Sourcecode", reader, switcher)
+	return projects.New(theme.Load(), "/Users/dev/Sourcecode", reader, switcher)
 }
 
 func runUntilLoaded(t *testing.T, m projects.Model) tea.Model {
@@ -62,8 +62,8 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 
 func TestInit_LoadsAndAnnotatesSessions(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/msoent/Sourcecode/alpha"},
-		domain.Project{Name: "existing", Path: "/Users/msoent/Sourcecode/existing"},
+		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
+		domain.Project{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	out := updated.View()
@@ -99,7 +99,7 @@ func TestEmpty_AfterLoad_ShowsHelp(t *testing.T) {
 
 func TestEnter_SwitchesToProject(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/msoent/Sourcecode/alpha"},
+		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -110,7 +110,7 @@ func TestEnter_SwitchesToProject(t *testing.T) {
 	if len(f.tmux.New) != 1 {
 		t.Fatalf("expected 1 NewSessionAt call, got %d", len(f.tmux.New))
 	}
-	if f.tmux.New[0] != "alpha@/Users/msoent/Sourcecode/alpha" {
+	if f.tmux.New[0] != "alpha@/Users/dev/Sourcecode/alpha" {
 		t.Errorf("NewSessionAt args: got %q", f.tmux.New[0])
 	}
 	if len(f.tmux.Switches) != 1 || f.tmux.Switches[0] != "alpha" {
