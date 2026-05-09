@@ -25,47 +25,47 @@ func defaultKeys() keyMap {
 	return keyMap{
 		Up: key.NewBinding(
 			key.WithKeys("k", "up"),
-			key.WithHelp("k/↑", "up"),
+			key.WithHelp("k/↑", "hoch"),
 		),
 		Down: key.NewBinding(
 			key.WithKeys("j", "down"),
-			key.WithHelp("j/↓", "down"),
+			key.WithHelp("j/↓", "runter"),
 		),
 		PageUp: key.NewBinding(
 			key.WithKeys("ctrl+u", "pgup"),
-			key.WithHelp("ctrl+u", "page up"),
+			key.WithHelp("ctrl+u", "Seite hoch"),
 		),
 		PageDown: key.NewBinding(
 			key.WithKeys("ctrl+d", "pgdown", " "),
-			key.WithHelp("ctrl+d", "page down"),
+			key.WithHelp("ctrl+d", "Seite runter"),
 		),
 		Top: key.NewBinding(
 			key.WithKeys("g", "home"),
-			key.WithHelp("g", "top"),
+			key.WithHelp("g", "Anfang"),
 		),
 		Bottom: key.NewBinding(
 			key.WithKeys("G", "end"),
-			key.WithHelp("G", "bottom"),
+			key.WithHelp("G", "Ende"),
 		),
 		Search: key.NewBinding(
 			key.WithKeys("/"),
-			key.WithHelp("/", "search"),
+			key.WithHelp("/", "suchen"),
 		),
 		NextMatch: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "next match"),
+			key.WithHelp("n", "nächster Treffer"),
 		),
 		PrevMatch: key.NewBinding(
 			key.WithKeys("N"),
-			key.WithHelp("N", "prev match"),
+			key.WithHelp("N", "vorheriger Treffer"),
 		),
 		CopyCode: key.NewBinding(
 			key.WithKeys("c"),
-			key.WithHelp("c", "copy code"),
+			key.WithHelp("c", "Code kopieren"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc", "ctrl+c"),
-			key.WithHelp("q/esc", "back"),
+			key.WithHelp("q/Esc", "zurück"),
 		),
 	}
 }

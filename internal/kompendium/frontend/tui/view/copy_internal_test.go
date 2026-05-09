@@ -66,7 +66,7 @@ func TestCopy_CKeyOnDocWithoutSnippets(t *testing.T) {
 	t.Parallel()
 	m := New("note", "just prose, no code\n", nil, nil, nil).SetSize(120, 30)
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	if !strings.Contains(model.View(), "no code blocks") {
+	if !strings.Contains(model.View(), "Keine Code-Blöcke") {
 		t.Errorf("status bar should explain why nothing was copied:\n%s", model.View())
 	}
 }
@@ -76,11 +76,11 @@ func TestCopy_CKeyOnDocWithoutSnippets(t *testing.T) {
 func TestCopy_FooterAdvertisesCKeyOnlyWhenSnippetsExist(t *testing.T) {
 	t.Parallel()
 	withSnips := New("a", noteWithSnippets, nil, nil, nil).SetSize(120, 30).View()
-	if !strings.Contains(withSnips, "copy code") {
+	if !strings.Contains(withSnips, "Code kopieren") {
 		t.Errorf("footer should advertise `c copy code` when snippets exist:\n%s", withSnips)
 	}
 	withoutSnips := New("b", "just prose\n", nil, nil, nil).SetSize(120, 30).View()
-	if strings.Contains(withoutSnips, "copy code") {
+	if strings.Contains(withoutSnips, "Code kopieren") {
 		t.Errorf("footer should hide `c copy code` when no snippets:\n%s", withoutSnips)
 	}
 }
@@ -91,11 +91,11 @@ func TestCopy_StatusClearsOnTickMsg(t *testing.T) {
 	t.Parallel()
 	m := New("note", noteWithSnippets, nil, nil, nil).SetSize(120, 30)
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
-	if !strings.Contains(model.View(), "copied") {
+	if !strings.Contains(model.View(), "Kopiert") {
 		t.Fatalf("baseline: status bar should show copied message")
 	}
 	cleared, _ := model.Update(clearCopyStatusMsg{})
-	if strings.Contains(cleared.View(), "copied") {
+	if strings.Contains(cleared.View(), "Kopiert") {
 		t.Errorf("status bar should be cleared after clearCopyStatusMsg")
 	}
 }

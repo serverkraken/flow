@@ -84,12 +84,12 @@ func New(allowProject bool) Model {
 	// Extra (zusätzliche Note neben dem Daily), Free = Empty (offener
 	// Slot ohne Default-Inhalt).
 	opts := []option{
-		{label: "Daily Note", hint: "today's journal", icon: glyphs.Filled, choice: ChoiceDaily},
+		{label: "Daily-Note", hint: "Tagesjournal", icon: glyphs.Filled, choice: ChoiceDaily},
 	}
 	if allowProject {
-		opts = append(opts, option{label: "Project Note", hint: "current repo · today", icon: glyphs.Extra, choice: ChoiceProject})
+		opts = append(opts, option{label: "Projekt-Note", hint: "aktuelles Repo · heute", icon: glyphs.Extra, choice: ChoiceProject})
 	}
-	opts = append(opts, option{label: "Free Note", hint: "named slug", icon: glyphs.Empty, choice: ChoiceFree})
+	opts = append(opts, option{label: "Freie Note", hint: "benannter Slug", icon: glyphs.Empty, choice: ChoiceFree})
 
 	ti := textinput.New()
 	ti.Prompt = ""
@@ -252,7 +252,7 @@ var (
 
 func menuCard(opts []option, cursor int) string {
 	var sb strings.Builder
-	sb.WriteString(headerStyle.Render("Create a note"))
+	sb.WriteString(headerStyle.Render("Note anlegen"))
 	sb.WriteString("\n\n")
 	for i, opt := range opts {
 		icon := iconStyle.Render(opt.icon)
@@ -261,7 +261,7 @@ func menuCard(opts []option, cursor int) string {
 			row = row + "  " + hintStyle.Render(opt.hint)
 		}
 		if i == cursor {
-			sb.WriteString(cursorStyle.Render("▶ "))
+			sb.WriteString(cursorStyle.Render(glyphs.Active + " "))
 			sb.WriteString(selectedStyle.Render(row))
 		} else {
 			sb.WriteString("  ")
@@ -271,25 +271,25 @@ func menuCard(opts []option, cursor int) string {
 	}
 	sb.WriteString("\n")
 	sb.WriteString(footerLine([]hintEntry{
-		{"j/k", "navigate"},
-		{"enter", "select"},
-		{"q", "cancel"},
+		{"j/k", "navigieren"},
+		{"Enter", "wählen"},
+		{"q", "abbrechen"},
 	}))
 	return frameStyle.Render(sb.String())
 }
 
 func slugCard(slugView string) string {
 	var sb strings.Builder
-	sb.WriteString(headerStyle.Render("Slug for the new free note"))
+	sb.WriteString(headerStyle.Render("Slug für die neue freie Note"))
 	sb.WriteString("\n\n")
 	if slugView == "" {
-		slugView = "▎"
+		slugView = glyphs.AccentBar
 	}
 	sb.WriteString(slugBoxStyle.Render(slugView))
 	sb.WriteString("\n\n")
 	sb.WriteString(footerLine([]hintEntry{
-		{"enter", "confirm"},
-		{"esc", "cancel"},
+		{"Enter", "bestätigen"},
+		{"Esc", "abbrechen"},
 	}))
 	return frameStyle.Render(sb.String())
 }

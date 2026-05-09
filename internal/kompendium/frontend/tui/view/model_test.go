@@ -134,8 +134,8 @@ func TestSearch_NoMatchKeepsModeNormal(t *testing.T) {
 		t.Errorf("expected zero matches, got %d", len(model.Matches()))
 	}
 	out := model.View()
-	if !strings.Contains(out, "no matches") {
-		t.Errorf("status bar should show 'no matches'\n%s", out)
+	if !strings.Contains(out, "Keine Treffer") {
+		t.Errorf("status bar should show 'Keine Treffer'\n%s", out)
 	}
 }
 
@@ -294,10 +294,10 @@ func TestSearch_FooterRendersInSearchMode(t *testing.T) {
 	m := newSized(t, "note", sampleNote)
 	model, _ := m.Update(runeKey('/'))
 	out := model.View()
-	if !strings.Contains(out, "Search:") {
-		t.Errorf("active search-mode footer should show 'Search:' label\n%s", out)
+	if !strings.Contains(out, "Suche:") {
+		t.Errorf("active search-mode footer should show 'Suche:' label\n%s", out)
 	}
-	if !strings.Contains(out, "enter apply") {
+	if !strings.Contains(out, "Enter → übernehmen") {
 		t.Errorf("active search-mode footer should show enter/esc hint\n%s", out)
 	}
 }

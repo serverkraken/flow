@@ -289,7 +289,7 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // (the status bar still says so).
 func (m Model) copyNextSnippet() (Model, string) {
 	if len(m.snippets) == 0 {
-		m.copyStatus = "no code blocks to copy"
+		m.copyStatus = "Keine Code-Blöcke zum Kopieren."
 		return m, ""
 	}
 	if m.copyIdx >= len(m.snippets) {
@@ -298,9 +298,9 @@ func (m Model) copyNextSnippet() (Model, string) {
 	snip := m.snippets[m.copyIdx]
 	label := snip.lang
 	if label == "" {
-		label = "code"
+		label = "Code"
 	}
-	m.copyStatus = fmt.Sprintf("copied %s %d/%d", label, m.copyIdx+1, len(m.snippets))
+	m.copyStatus = fmt.Sprintf("Kopiert: %s %d/%d", label, m.copyIdx+1, len(m.snippets))
 	m.copyIdx++
 	return m, snip.body
 }
@@ -424,15 +424,15 @@ func (m Model) renderFooter() string {
 		if view == "" {
 			view = "▎"
 		}
-		return searchActiveLabelStyle.Render("Search:") + " " + view +
-			"   " + footerStyle.Render("enter apply · esc cancel")
+		return searchActiveLabelStyle.Render("Suche:") + " " + view +
+			"   " + footerStyle.Render("Enter → übernehmen  ·  Esc → abbrechen")
 	}
-	hint := footerStyle.Render("j/k scroll · ") +
-		footerKeyStyle.Render("/") + footerStyle.Render(" search · ")
+	hint := footerStyle.Render("j/k → scrollen  ·  ") +
+		footerKeyStyle.Render("/") + footerStyle.Render(" → suchen  ·  ")
 	if len(m.snippets) > 0 {
-		hint += footerKeyStyle.Render("c") + footerStyle.Render(" copy code · ")
+		hint += footerKeyStyle.Render("c") + footerStyle.Render(" → Code kopieren  ·  ")
 	}
-	hint += footerKeyStyle.Render("q") + footerStyle.Render(" back")
+	hint += footerKeyStyle.Render("q") + footerStyle.Render(" → zurück")
 	return hint
 }
 
@@ -483,7 +483,7 @@ func (m Model) statusBarMeta() string {
 	}
 	var label string
 	if len(m.matches) == 0 {
-		label = fmt.Sprintf(" no matches for %q ", m.query)
+		label = fmt.Sprintf(" Keine Treffer für %q ", m.query)
 	} else {
 		label = fmt.Sprintf(" %d/%d %q ", m.matchIdx+1, len(m.matches), m.query)
 	}

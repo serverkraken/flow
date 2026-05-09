@@ -952,7 +952,7 @@ func (m *Model) renderPreviewBody(e ports.NoteEntry) string {
 	if hasBody {
 		source = string(body)
 	} else {
-		source = "*No body cached yet.*"
+		source = "*Noch kein Body gecacht.*"
 	}
 
 	meta := e.Meta

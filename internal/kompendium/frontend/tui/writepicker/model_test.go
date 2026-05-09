@@ -12,10 +12,10 @@ import (
 func TestNew_HidesProjectWhenNotInRepo(t *testing.T) {
 	t.Parallel()
 	view := writepicker.New(false).View()
-	if strings.Contains(view, "Project Note") {
+	if strings.Contains(view, "Projekt-Note") {
 		t.Errorf("Project option should be hidden outside a repo:\n%s", view)
 	}
-	if !strings.Contains(view, "Daily Note") || !strings.Contains(view, "Free Note") {
+	if !strings.Contains(view, "Daily-Note") || !strings.Contains(view, "Freie Note") {
 		t.Errorf("Daily and Free options must always show:\n%s", view)
 	}
 }
@@ -23,7 +23,7 @@ func TestNew_HidesProjectWhenNotInRepo(t *testing.T) {
 func TestNew_ShowsProjectInRepo(t *testing.T) {
 	t.Parallel()
 	view := writepicker.New(true).View()
-	if !strings.Contains(view, "Project Note") {
+	if !strings.Contains(view, "Projekt-Note") {
 		t.Errorf("Project option must show in repo:\n%s", view)
 	}
 }
@@ -63,7 +63,7 @@ func TestPicker_SelectsFree_WithSlug(t *testing.T) {
 	if quit {
 		t.Fatal("Enter on Free should NOT quit yet — slug entry follows")
 	}
-	if !strings.Contains(m.View(), "Slug for the new free note") {
+	if !strings.Contains(m.View(), "Slug für die neue freie Note") {
 		t.Errorf("expected slug prompt, got:\n%s", m.View())
 	}
 
@@ -164,7 +164,7 @@ func TestPicker_CursorClampedAtEdges(t *testing.T) {
 	for range 5 {
 		m, _ = sendOne(m, key("j"))
 	}
-	if !strings.Contains(m.View(), "▶") {
+	if !strings.Contains(m.View(), glyphsActive) {
 		t.Errorf("cursor disappeared after edge navigation:\n%s", m.View())
 	}
 }
@@ -186,6 +186,12 @@ func TestPicker_IgnoresNonKeyMessages(t *testing.T) {
 		t.Error("non-key messages should not blank the view")
 	}
 }
+
+// glyphsActive ist die String-Form von glyphs.Active, hier dupliziert
+// damit der Test nicht das interne glyphs-Package importieren muss
+// (würde gegen die Test-Konvention verstoßen, dass Tests nur das
+// Public-API des Packages-under-test berühren).
+const glyphsActive = "▶"
 
 // --- helpers ----------------------------------------------------------------
 
