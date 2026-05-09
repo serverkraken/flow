@@ -62,6 +62,24 @@ type persistDoneMsg struct {
 	err error
 }
 
+// Mode discriminates the palette's hosting context. Default is
+// ModeEmbedded — the sidekick root catches SwitchScreenMsg and swaps
+// the active tab inline. ModeStandalone (gesetzt durch WithStandalone)
+// passt das Verhalten an einen tmux-display-popup-Aufruf an: goto.sh-
+// Actions werden wie normale tmux-Kommandos durchgereicht (mit
+// run-shell), und nach erfolgreichem Dispatch quittet die Palette,
+// damit das Popup zugeht (CLAUDE-tmux-migration-plan §3).
+type Mode int
+
+const (
+	// ModeEmbedded ist das Standardverhalten — Palette läuft im
+	// Sidekick und der Root verarbeitet SwitchScreenMsg.
+	ModeEmbedded Mode = iota
+	// ModeStandalone ist für tmux-Popup-Aufruf via `flow palette`.
+	// goto.sh-Aktionen laufen extern; Dispatch beendet das Programm.
+	ModeStandalone
+)
+
 // SwitchScreenMsg is emitted when a palette entry's action is recognized as
 // a flow-internal screen switch (the goto.sh deep-link pattern). The
 // sidekick root catches it and updates m.current — no subshell, no flow
@@ -105,13 +123,26 @@ type Model struct {
 	reader *usecase.PaletteReader
 	writer *usecase.PaletteWriter
 	tmux   ports.Tmux
+
+	mode Mode
+}
+
+// Option mutates a Model after New(). Mit dem Pattern bleibt die
+// Standard-Konstruktor-Signatur stabil und neue Hosting-Modes können
+// als opt-in über die Option-Liste durchgereicht werden.
+type Option func(*Model)
+
+// WithStandalone schaltet den ModeStandalone — siehe Mode-Doku.
+// Für `flow palette` (tmux-display-popup), nicht für den Sidekick.
+func WithStandalone() Option {
+	return func(m *Model) { m.mode = ModeStandalone }
 }
 
 // New constructs a palette Model wired against the given use cases and
 // tmux dispatcher.
-func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.PaletteWriter, tmux ports.Tmux) Model {
+func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.PaletteWriter, tmux ports.Tmux, opts ...Option) Model {
 	ti := form.NewTextInput("filter…", p)
-	return Model{
+	m := Model{
 		pal:     p,
 		filter:  ti,
 		loading: true,
@@ -119,6 +150,10 @@ func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.Palette
 		writer:  writer,
 		tmux:    tmux,
 	}
+	for _, opt := range opts {
+		opt(&m)
+	}
+	return m
 }
 
 // HelpSections returns the canonical key bindings of the palette
@@ -200,6 +235,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			t = toast.New("ausgeführt: "+msg.label, 2*time.Second, m.pal)
 		}
 		m.toast = &t
+		// Standalone-Mode: nach erfolgreichem Dispatch quittet der Popup.
+		// Bei Fehler bleibt das Programm offen, damit der User die
+		// Danger-Toast-Message sehen kann.
+		if m.mode == ModeStandalone && msg.err == nil {
+			return m, tea.Batch(t.Init(), tea.Quit)
+		}
 		return m, t.Init()
 
 	case persistDoneMsg:
@@ -470,12 +511,16 @@ func (m Model) dispatch(e domain.PaletteEntry) tea.Cmd {
 	tm := m.tmux
 	entry := e
 
-	if matches := gotoScreenRe.FindStringSubmatch(e.Action); matches != nil {
-		screen := matches[1]
-		if domain.IsValidScreen(screen) {
-			return func() tea.Msg {
-				_ = w.Mark(entry) // persist err is non-fatal for screen-switch
-				return SwitchScreenMsg{Screen: screen}
+	if m.mode == ModeEmbedded {
+		// SwitchScreenMsg ist nur im Sidekick-Embed sinnvoll; standalone
+		// Popup hat keinen Parent, der das Msg verarbeitet.
+		if matches := gotoScreenRe.FindStringSubmatch(e.Action); matches != nil {
+			screen := matches[1]
+			if domain.IsValidScreen(screen) {
+				return func() tea.Msg {
+					_ = w.Mark(entry) // persist err is non-fatal for screen-switch
+					return SwitchScreenMsg{Screen: screen}
+				}
 			}
 		}
 	}

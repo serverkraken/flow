@@ -57,13 +57,39 @@ type Model struct {
 
 	reader   *usecase.ProjectsReader
 	switcher *usecase.ProjectSwitcher
+
+	mode Mode
+}
+
+// Mode discriminates the projects-screen's hosting context. In beiden
+// Modes ist das funktionale Verhalten heute identisch (tea.Quit nach
+// erfolgreichem Switch — tmux switch-client hat den Client schon
+// umgehängt; der Sidekick wird im neuen Projekt-Kontext frisch
+// initialisiert). Die Option existiert für API-Symmetrie mit palette
+// (CLAUDE-tmux-migration-plan §3) und als Hook für künftige Standalone-
+// only-Anpassungen (z. B. Banner-Text "popup schließt").
+type Mode int
+
+const (
+	// ModeEmbedded ist das Standardverhalten — Projects läuft im Sidekick.
+	ModeEmbedded Mode = iota
+	// ModeStandalone ist für tmux-Popup-Aufruf via `flow projects`.
+	ModeStandalone
+)
+
+// Option mutates a Model after New().
+type Option func(*Model)
+
+// WithStandalone schaltet den ModeStandalone — siehe Mode-Doku.
+func WithStandalone() Option {
+	return func(m *Model) { m.mode = ModeStandalone }
 }
 
 // New constructs a projects Model. rootDir is purely informational —
 // shown in the title bar; the reader is responsible for honouring it.
-func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switcher *usecase.ProjectSwitcher) Model {
+func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switcher *usecase.ProjectSwitcher, opts ...Option) Model {
 	ti := form.NewTextInput("filter…", p)
-	return Model{
+	m := Model{
 		pal:      p,
 		filter:   ti,
 		rootDir:  rootDir,
@@ -71,6 +97,10 @@ func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switch
 		reader:   reader,
 		switcher: switcher,
 	}
+	for _, opt := range opts {
+		opt(&m)
+	}
+	return m
 }
 
 // HelpSections exposes the projects-screen key bindings to the

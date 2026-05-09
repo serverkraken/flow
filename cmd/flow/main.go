@@ -73,6 +73,8 @@ type Deps struct {
 	Worktime   cli.WorktimeDeps
 	Sidekick   cli.SidekickDeps
 	Cheatsheet cli.CheatsheetDeps
+	Palette    cli.PaletteDeps
+	Projects   cli.ProjectsDeps
 	Kompendium kompendiumcli.Deps
 }
 
@@ -232,6 +234,24 @@ func buildDeps(p Paths) (Deps, func(), error) {
 		Cheatsheet: cli.CheatsheetDeps{
 			Reader:   cheatsheetReader,
 			Renderer: mdRenderer,
+		},
+		// Standalone-Palette für `flow palette` — tmux-display-popup-
+		// Aufruf (CLAUDE-tmux-migration-plan.md). WithStandalone()
+		// schaltet die Dispatch-Semantik um (goto.sh → run-shell statt
+		// SwitchScreenMsg) und quittet nach erfolgreichem Dispatch.
+		Palette: cli.PaletteDeps{
+			Screen: func(pal theme.Palette) tea.Model {
+				return palette.New(pal, paletteReader, paletteWriter, tmux, palette.WithStandalone())
+			},
+		},
+		// Standalone-Projects für `flow projects`. tmux switch-client
+		// hängt den Client um, nach Erfolg quittet die TUI — identisch
+		// zum Sidekick-Verhalten, daher genügt die API-Symmetrie via
+		// projects.WithStandalone().
+		Projects: cli.ProjectsDeps{
+			Screen: func(pal theme.Palette) tea.Model {
+				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projects.WithStandalone())
+			},
 		},
 		Kompendium: kompDeps,
 	}, kompCleanup, nil
@@ -441,6 +461,8 @@ func main() {
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
+	rootCmd.AddCommand(cli.NewPaletteCmd(deps.Palette))
+	rootCmd.AddCommand(cli.NewProjectsCmd(deps.Projects))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 

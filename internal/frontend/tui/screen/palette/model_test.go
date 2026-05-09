@@ -240,3 +240,60 @@ func TestStateRoundtrip(t *testing.T) {
 		t.Errorf("StateCursor: got %d want 7", m.StateCursor())
 	}
 }
+
+// TestStandaloneMode_GotoDispatchesAsExternal: im Standalone-Modus
+// (= `flow palette` über tmux-display-popup) emittiert die Palette
+// keine SwitchScreenMsg — auch wenn die Action das goto.sh-Pattern
+// matched. Stattdessen läuft der Action durch tm.RunShell wie jede
+// andere tmux-Aktion. Damit verhält sich `flow palette` exakt wie das
+// alte palette.sh im Popup-Kontext (CLAUDE-tmux-migration-plan §3).
+func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{
+		Label:   "→ Worktime",
+		Action:  "run-shell '~/.tmux/plugins/flow/goto.sh worktime'",
+		Section: "Flow",
+	})
+	reader := &usecase.PaletteReader{Entries: f.entries, Stats: f.stats, Tmux: f.tmux, Clock: f.clock}
+	writer := &usecase.PaletteWriter{Stats: f.stats, Clock: f.clock}
+	m := palette.New(theme.Load(), reader, writer, f.tmux, palette.WithStandalone())
+	updated := runUntilLoaded(t, m)
+	// Enter auf der ersten (einzigen) Aktion — goto.sh-pattern, sollte
+	// aber im Standalone-Modus durch run-shell laufen, nicht als
+	// SwitchScreenMsg.
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
+	}
+	msg := cmd()
+	if _, isSwitch := msg.(palette.SwitchScreenMsg); isSwitch {
+		t.Errorf("standalone mode must NOT emit SwitchScreenMsg, got %T", msg)
+	}
+	// FakeTmux.RunShell sollte aufgerufen worden sein.
+	if len(f.tmux.Shells) != 1 {
+		t.Errorf("standalone goto.sh must dispatch via RunShell, got %d calls", len(f.tmux.Shells))
+	}
+}
+
+// TestEmbeddedMode_GotoEmitsSwitchScreenMsg: das Default-Verhalten
+// (Sidekick-Embed) bleibt unverändert — der Sidekick-Root fängt
+// SwitchScreenMsg und macht den Tab-Wechsel inline.
+func TestEmbeddedMode_GotoEmitsSwitchScreenMsg(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{
+		Label:   "→ Worktime",
+		Action:  "run-shell '~/.tmux/plugins/flow/goto.sh worktime'",
+		Section: "Flow",
+	})
+	updated := runUntilLoaded(t, f.model()) // Default = Embedded
+	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
+	}
+	msg := cmd()
+	sw, isSwitch := msg.(palette.SwitchScreenMsg)
+	if !isSwitch {
+		t.Fatalf("embedded mode must emit SwitchScreenMsg, got %T", msg)
+	}
+	if sw.Screen != "worktime" {
+		t.Errorf("SwitchScreenMsg.Screen got %q want worktime", sw.Screen)
+	}
+}
