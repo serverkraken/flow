@@ -169,27 +169,38 @@ func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	}
 }
 
-func TestB_CyclesBackwardWhenNotOnHeute(t *testing.T) {
+// TestB_FallsThroughToParentFromAnyTab — `b` claimt Worktime nicht
+// mehr (UI-Review): aus jeder Tab soll der Key zur Sidekick-Layer
+// durchfallen, die ihn dann als „back to Palette" interpretiert. Vorher
+// cyclete `b` rückwärts durch die Tabs, was zwei verschiedene
+// Bedeutungen für `b` auf verschiedenen Tabs ergab (Heute → Palette,
+// sonst → vorheriger Tab). Doppeldeutig.
+func TestB_FallsThroughToParentFromAnyTab(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	// Move to Frei (tab 4)
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
-	// 'b' should cycle backward to History (tab 3)
+	// 'b' on Frei: Worktime gibt es weiter — sub-model ignoriert es
+	// (kein Frei-Keybind), Tab bleibt auf Frei. Wenn der Key konsumiert
+	// wäre, würde er entweder zur History cyclen oder Worktime-internes
+	// State ändern. Wir asserten daher: View bleibt Frei.
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
-	if got := updated.View(); !strings.Contains(got, "History lädt") {
-		t.Errorf("b on Frei should cycle to History, got:\n%s", got)
+	if got := updated.View(); !strings.Contains(got, "Frei") {
+		t.Errorf("b on Frei must NOT cycle tabs (must fall through to parent); got:\n%s", got)
 	}
 }
 
-func TestHandlesBack_OnlyOffHeute(t *testing.T) {
+func TestHandlesBack_AlwaysFalse(t *testing.T) {
+	// HandlesBack signalisiert dem Sidekick-Parent, dass der Key
+	// `b` an Worktime durchgereicht werden soll. Worktime claimt ihn
+	// nicht mehr → false auf jedem Tab.
 	m := newModel(t)
 	if m.HandlesBack() {
-		t.Error("HandlesBack should be false on the default tab (Heute)")
+		t.Error("HandlesBack must be false on Heute")
 	}
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
-	if hb, ok := updated.(worktime.Model); !ok || !hb.HandlesBack() {
-		t.Error("HandlesBack should be true on a non-default tab")
+	if hb, ok := updated.(worktime.Model); !ok || hb.HandlesBack() {
+		t.Error("HandlesBack must be false on every tab — `b` is global")
 	}
 }
 
@@ -550,7 +561,7 @@ func TestHeute_OpenUppercase_NoAttachedNotes_IsNoop(t *testing.T) {
 	}
 }
 
-func TestHeute_CtrlD_DetachesFirstAttachedNote(t *testing.T) {
+func TestHeute_R_DetachesFirstAttachedNote(t *testing.T) {
 	r := newRig(t)
 	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
 		t.Fatalf("seed link: %v", err)
@@ -559,26 +570,28 @@ func TestHeute_CtrlD_DetachesFirstAttachedNote(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	// `R` (Remove) statt vorherigem Ctrl+D — Ctrl+D ist die Terminal-EOF-
+	// /Process-Kill-Sequenz und las als „destructive" alarmierend.
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
 	_ = drainCmd(t, updated, cmd)
 	got := r.links.ByDate[r.clock.T.Format("2006-01-02")]
 	if len(got) != 1 || got[0] != "projects/foo-2026-05-01" {
-		t.Errorf("Ctrl+D should remove the first attached note (daily-...), leaving the second; got %v", got)
+		t.Errorf("R should remove the first attached note (daily-...), leaving the second; got %v", got)
 	}
 }
 
-func TestHeute_CtrlD_NoAttachedNotes_IsNoop(t *testing.T) {
+func TestHeute_R_NoAttachedNotes_IsNoop(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
 	final := drainCmd(t, updated, cmd)
 	// Sanity: no panic, no link store mutation, no session deletion either
-	// (Ctrl+D must NOT collide with `D`-delete-session).
+	// (R must NOT collide with `D`-delete-session).
 	if len(r.links.ByDate) != 0 {
-		t.Errorf("Ctrl+D with no attachments should not touch the link store, got %v", r.links.ByDate)
+		t.Errorf("R with no attachments should not touch the link store, got %v", r.links.ByDate)
 	}
 	if final.(worktime.Model).FilterActive() {
-		t.Error("Ctrl+D should not open any dialog")
+		t.Error("R should not open any dialog")
 	}
 }
 
@@ -595,7 +608,7 @@ func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
 		"Heute · Hilfe",
 		"CURSOR & ACTION",
 		"KOMPENDIUM",
-		"n", "Ctrl+D", "o", "O",
+		"n", "R", "o", "O",
 		"beliebige Taste schließt",
 	} {
 		if !strings.Contains(out, want) {

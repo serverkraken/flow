@@ -60,6 +60,10 @@ type menuModel struct {
 
 	open      bool
 	activeTab tab
+	// ctx ist der Sichtbarkeits-Snapshot, der zum Öffnungszeitpunkt aus
+	// deps.Reader gezogen wird. computeMenuActions liest hieraus statt
+	// pro Keystroke einen frischen Reader.Today()-Aufruf zu machen.
+	ctx menuContext
 
 	subMode menuSubMode
 
@@ -95,15 +99,25 @@ func newMenuModel(p theme.Palette, deps Deps) menuModel {
 }
 
 // openMenu primes the model state for a fresh open. Must be re-called
-// each time `:` opens the menu so predicates re-evaluate against the
-// active tab and current worktime state.
+// each time `:` opens the menu so the visibility snapshot re-evaluates
+// against the active tab and current worktime state.
+//
+// Reader.Today() wird hier *einmal* synchron gezogen und im ctx-
+// Snapshot eingefroren — der Filter-Hot-Path (Tippen pro Keystroke)
+// liest dann nur noch ctx, nicht den Adapter.
 func (m menuModel) openMenu(activeTab tab) menuModel {
 	m.open = true
 	m.activeTab = activeTab
+	m.ctx = menuContext{activeTab: activeTab}
+	if m.deps.Reader != nil {
+		if day, err := m.deps.Reader.Today(); err == nil {
+			m.ctx.todayRunning = day.IsRunning()
+		}
+	}
 	m.subMode = menuSubModeList
 	m.cursor = 0
 	m.query = ""
-	m.filtered = computeMenuActions(activeTab, m.deps, "")
+	m.filtered = computeMenuActions(m.ctx, "")
 	m.pending = menuAction{}
 	m.rangeF = rangeForm{}
 	m.rangeExpr = ""
@@ -352,7 +366,7 @@ func (m menuModel) handleEsc() menuModel {
 	if m.query != "" {
 		m.query = ""
 		m.cursor = 0
-		m.filtered = computeMenuActions(m.activeTab, m.deps, "")
+		m.filtered = computeMenuActions(m.ctx, "")
 		return m
 	}
 	m.open = false
@@ -367,7 +381,7 @@ func (m menuModel) handleBackspace() menuModel {
 		return m
 	}
 	m.query = string(r[:len(r)-1])
-	m.filtered = computeMenuActions(m.activeTab, m.deps, m.query)
+	m.filtered = computeMenuActions(m.ctx, m.query)
 	m.clampCursor()
 	return m
 }
@@ -384,7 +398,7 @@ func (m menuModel) handleRuneKey(msg tea.KeyMsg) menuModel {
 		return m
 	}
 	m.query += string(r)
-	m.filtered = computeMenuActions(m.activeTab, m.deps, m.query)
+	m.filtered = computeMenuActions(m.ctx, m.query)
 	m.clampCursor()
 	return m
 }
@@ -506,9 +520,9 @@ func (m menuModel) View() string {
 		body = m.renderListBody(inner)
 	}
 	rows := []string{body}
-	// Reserved toast slot — see toast.SlotLine. Keeps the menu footer
-	// stable when a TODO/Success toast appears.
-	rows = append(rows, "", toast.SlotLine(m.toast, "  "))
+	// Toast-Slot via SlotRows — bei nil/dismissed kollabiert der Block
+	// auf nichts, statt drei Leerzeilen Loch zu hinterlassen.
+	rows = append(rows, toast.SlotRows(m.toast, "  ")...)
 	if m.errMsg != "" {
 		rows = append(rows, "", theme.Err("  "+m.errMsg, m.pal))
 	}
@@ -570,7 +584,7 @@ func (m menuModel) renderFooter(inner int) string {
 		"j/k → bewegen",
 		"enter → öffnen",
 		"tippen → filter",
-		"esc → zu",
+		"esc → zurück",
 	}
 	return renderFooterHints(m.pal, hints, inner)
 }

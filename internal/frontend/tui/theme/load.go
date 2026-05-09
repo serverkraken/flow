@@ -4,10 +4,20 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 )
+
+// tmuxKeys ist die 1:1-Liste der vom Adapter konsumierten tmux-Optionen.
+// Aus der Liste leitet Load() den Overlay-Mapping ab; tmuxOption-Caching
+// liest sie als Schlüsselmenge (siehe loadTmuxCache).
+var tmuxKeys = []string{
+	"@tn_bg", "@tn_fg", "@tn_accent", "@tn_dim", "@tn_border",
+	"@tn_purple", "@tn_green", "@tn_red", "@tn_orange",
+	"@tn_yellow", "@tn_cyan",
+}
 
 // Load returns the canonical Default palette overlaid with the
 // per-machine tmux user-options @tn_* (bg/fg/accent/dim/border/<hues>).
@@ -20,8 +30,14 @@ import (
 // Blue (= Sem.Accent), @tn_dim overrides FgMuted, @tn_border overrides
 // BgCode, the hue keys (@tn_purple / @tn_green / …) override their
 // like-named canonical hues 1:1.
+//
+// Caching: Load liest tmux-Optionen einmal pro Prozess (siehe
+// tmuxCacheOnce). Worktime-Status-Segment kann pro tmux-Refresh-Tick
+// laufen; ohne Cache spawnten wir 11 `tmux show-options`-Subprozesse pro
+// 5 s — gemessbar im perf-Profile.
 func Load() Palette {
 	p := Default
+	cache := loadTmuxCache()
 	overlay := []struct {
 		key  string
 		dest *lipgloss.Color
@@ -39,7 +55,7 @@ func Load() Palette {
 		{"@tn_cyan", &p.Cyan},
 	}
 	for _, o := range overlay {
-		if v := tmuxOption(o.key); v != "" {
+		if v := cache[o.key]; v != "" {
 			*o.dest = lipgloss.Color(v)
 		}
 	}
@@ -47,16 +63,24 @@ func Load() Palette {
 }
 
 // Init configures the lipgloss default renderer for TrueColor output
-// when running inside tmux. tmux sets TERM=screen-256color which causes
-// termenv's auto-detection to downgrade to ANSI256; this override
-// restores full 24-bit rendering so the canonical hex colours render
-// faithfully.
+// when the terminal can render it. Two paths:
+//
+//  1. Inside tmux, TERM=screen-256color causes termenv to downgrade
+//     auto-detected to ANSI256 even though tmux passes through 24-bit
+//     colour from the host. Force TrueColor unconditionally.
+//  2. Outside tmux, COLORTERM=truecolor (gesetzt von Ghostty / iTerm2 /
+//     Alacritty / WezTerm / Kitty / Modern xterm) verlangt TrueColor —
+//     vorher hat Init() die Detektion termenv überlassen, was bei nicht
+//     korrekt-gesetztem TERM (z.B. xterm-256color) auf ANSI256 fiel.
 //
 // Init must be called once at program startup, before any lipgloss
-// styles are rendered. Outside tmux the function is a no-op — the
-// terminal's own profile is already correct.
+// styles are rendered.
 func Init() {
-	if os.Getenv("TMUX") == "" {
+	switch {
+	case os.Getenv("TMUX") != "":
+	case strings.EqualFold(os.Getenv("COLORTERM"), "truecolor"):
+	case strings.EqualFold(os.Getenv("COLORTERM"), "24bit"):
+	default:
 		return
 	}
 	lipgloss.SetDefaultRenderer(
@@ -64,9 +88,40 @@ func Init() {
 	)
 }
 
-// tmuxOption reads a single tmux global user-option. Returns "" when
+var (
+	tmuxCacheOnce sync.Once
+	tmuxCacheMap  map[string]string
+)
+
+// loadTmuxCache liest alle tmux-Keys einmal pro Prozess in eine Map und
+// gibt sie cached zurück. Vorher rief Load() pro Aufruf 11×
+// `tmux show-options` als Subprozess (200-500 µs pro spawn auf macOS),
+// und Load() wird jeden tmux-Refresh-Tick im Worktime-Status-Segment
+// erneut aufgerufen — das war messbar.
+//
+// Trade-off: ein Live-Update der @tn_*-Variablen während eines
+// laufenden flow-Prozesses greift nicht mehr. In der Praxis kein
+// Verlust — die Variablen werden in tmux.conf gesetzt und beim Reload
+// gibt es einen flow-Restart.
+func loadTmuxCache() map[string]string {
+	tmuxCacheOnce.Do(func() {
+		tmuxCacheMap = make(map[string]string, len(tmuxKeys))
+		if os.Getenv("TMUX") == "" {
+			// Außerhalb tmux: keine Spawns versuchen.
+			return
+		}
+		for _, k := range tmuxKeys {
+			tmuxCacheMap[k] = readTmuxOption(k)
+		}
+	})
+	return tmuxCacheMap
+}
+
+// readTmuxOption reads a single tmux global user-option. Returns "" when
 // tmux is not running, the option is unset, or the lookup fails.
-func tmuxOption(name string) string {
+// Unbeschränkt aufrufbar — wird von loadTmuxCache nur einmal pro Key
+// pro Prozess aufgerufen.
+func readTmuxOption(name string) string {
 	out, err := exec.Command("tmux", "show-options", "-gqv", name).Output()
 	if err != nil {
 		return ""

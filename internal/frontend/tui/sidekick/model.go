@@ -311,13 +311,21 @@ func (m Model) renderTabStrip() string {
 	return m.renderTabStripCompact(entries)
 }
 
+// activeTabStyle is Bold + Accent + Underline — A11y-2 (Skill §Tabs):
+// der Underline-SGR sorgt dafür, dass der aktive Tab in NO_COLOR / Color-
+// Blind-Settings ohne reine Farbabhängigkeit erkennbar bleibt.
+func activeTabStyle(p theme.Palette) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(p.Sem().Accent).Bold(true).Underline(true)
+}
+
 func (m Model) renderTabStripFull(entries []tabStripEntry) string {
 	sep := theme.Dim("  ·  ", m.pal)
+	active := activeTabStyle(m.pal)
 	parts := make([]string, len(entries))
 	for i, e := range entries {
 		text := e.key + " " + e.label
 		if e.id == m.current {
-			parts[i] = theme.Heading(text, m.pal)
+			parts[i] = active.Render(text)
 		} else {
 			parts[i] = theme.Dim(text, m.pal)
 		}
@@ -327,10 +335,11 @@ func (m Model) renderTabStripFull(entries []tabStripEntry) string {
 
 func (m Model) renderTabStripCompact(entries []tabStripEntry) string {
 	sep := theme.Dim(" · ", m.pal)
+	active := activeTabStyle(m.pal)
 	parts := make([]string, len(entries))
 	for i, e := range entries {
 		if e.id == m.current {
-			parts[i] = theme.Heading("["+e.key+"]", m.pal)
+			parts[i] = active.Render("[" + e.key + "]")
 		} else {
 			parts[i] = theme.Dim(e.key, m.pal)
 		}

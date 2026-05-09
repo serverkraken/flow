@@ -69,9 +69,11 @@ func TestFooterDriftGuard(t *testing.T) {
 			name:  "history",
 			setup: func(_ rig) {},
 			tab:   "3",
-			// `v`-Mode-Cycle ins `?`-Overlay verschoben (zeigte vorher den
-			// aktuellen Mode statt des nächsten — Review-Punkt M5).
-			keys: []string{"j/k", "enter", ":", "/"},
+			// `v` zeigt den nächsten Mode-Cycle als zentrale Discoverability
+			// für 4 Ansichten; `:` lebt im `?`-Overlay (Aktions-Menü
+			// universell verfügbar). Vorher umgekehrt — UI-Review hat das
+			// als versteckt-aber-wertvolles Feature flag-gegeben.
+			keys: []string{"j/k", "enter", "v", "/"},
 		},
 		{
 			name:  "frei",

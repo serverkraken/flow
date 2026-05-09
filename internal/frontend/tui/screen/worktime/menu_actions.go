@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+// menuContext bündelt den Snapshot, gegen den das Aktions-Menü die
+// Sichtbarkeit von kontext-abhängigen Einträgen entscheidet. Wird beim
+// Öffnen des Menüs (`:`) einmal aus deps.Reader gezogen und dann pro
+// Filter-Tastendruck ungeändert wiederverwendet — vorher rief der
+// Predicate auf jedem Keystroke synchron Reader.Today() (= TSV-Read).
+type menuContext struct {
+	activeTab    tab
+	todayRunning bool
+}
+
 // menuActionKind discriminates what runAction does after the user
 // confirms a menu entry. Slice B routes every kind through the shared
 // TODO-toast in runAction; Slice C/D/E grow runAction into a switch
@@ -35,15 +45,14 @@ const (
 	menuActionCorrect
 )
 
-// menuAction is one entry in the action menu. predicate decides whether
-// it shows in the current context (active tab + worktime state); a nil
-// predicate means always-visible.
+// menuAction is one entry in the action menu. Sichtbarkeit wird per
+// menuActionKind in isMenuActionVisible entschieden — kein per-Eintrag-
+// Predicate-Closure mehr, das pro Keystroke ausgewertet werden muss.
 type menuAction struct {
-	kind      menuActionKind
-	section   string
-	label     string
-	hint      string
-	predicate func(activeTab tab, deps Deps) bool
+	kind    menuActionKind
+	section string
+	label   string
+	hint    string
 }
 
 const (
@@ -51,32 +60,23 @@ const (
 	menuSectionGeneral = "allgemein"
 )
 
-// allMenuActions returns the global registry. Order is render order:
-// context section first when applicable, then general. Predicates filter
-// against (activeTab, deps); a nil predicate means always-visible.
-func allMenuActions() []menuAction {
+// menuActionRegistry ist die gecachte Liste aller registrierten Aktionen.
+// Vorher allozierte allMenuActions() das Slice + den Predicate-Closure
+// pro Keystroke neu — bei aktivem Filter bedeutete das mehrere Closure-
+// Allokationen und einen Reader.Today()-Read pro getippter Taste. Liste
+// ist immutabel, daher als package-var sicher.
+//
+// Hinweis: der Land-Hint hängt von currentLand() ab (env-Variable). Wir
+// bauen die Liste lazy beim ersten Zugriff statt in init() — sonst
+// fixiert das Test-Env $WORKTIME_LAND zur Test-Init-Zeit.
+var menuActionRegistry = func() []menuAction {
 	return []menuAction{
-		// — context-specific —
 		{
 			kind:    menuActionCorrect,
 			section: menuSectionContext,
 			label:   "Startzeit der laufenden Session korrigieren",
 			hint:    "HH:MM",
-			predicate: func(activeTab tab, deps Deps) bool {
-				if activeTab != tabHeute {
-					return false
-				}
-				if deps.Reader == nil {
-					return false
-				}
-				day, err := deps.Reader.Today()
-				if err != nil {
-					return false
-				}
-				return day.IsRunning()
-			},
 		},
-		// — general (always visible) —
 		{
 			kind:    menuActionBriefWeek,
 			section: menuSectionGeneral,
@@ -114,17 +114,29 @@ func allMenuActions() []menuAction {
 			hint:    "aktuell: " + currentLand(),
 		},
 	}
+}()
+
+// isMenuActionVisible wertet die Kontext-Sichtbarkeit aus. Vorher in
+// einer Closure pro Eintrag, jetzt in einem zentralen Switch — eine
+// neue kontext-abhängige Aktion fügt sich hier mit einem Case-Zweig
+// ein. Synchroner I/O hat hier nichts zu suchen; ctx ist ein
+// vorab-gezogener Snapshot.
+func isMenuActionVisible(kind menuActionKind, ctx menuContext) bool {
+	switch kind {
+	case menuActionCorrect:
+		return ctx.activeTab == tabHeute && ctx.todayRunning
+	}
+	return true
 }
 
-// computeMenuActions filters allMenuActions by predicate + filter query.
-// Empty query means "show everything that the predicate admits".
-// Matching is case-insensitive substring on label or hint.
-func computeMenuActions(activeTab tab, deps Deps, query string) []menuAction {
+// computeMenuActions filtert die gecachte Action-Registry nach Kontext
+// und Filter-Query. Allocates nur das `out`-Slice; das Action-Slice
+// selbst ist statisch.
+func computeMenuActions(ctx menuContext, query string) []menuAction {
 	q := strings.ToLower(strings.TrimSpace(query))
-	all := allMenuActions()
-	out := make([]menuAction, 0, len(all))
-	for _, a := range all {
-		if a.predicate != nil && !a.predicate(activeTab, deps) {
+	out := make([]menuAction, 0, len(menuActionRegistry))
+	for _, a := range menuActionRegistry {
+		if !isMenuActionVisible(a.kind, ctx) {
 			continue
 		}
 		if q != "" {

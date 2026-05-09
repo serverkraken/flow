@@ -19,26 +19,36 @@ import (
 // containers. A title or body line wider than the inner space is clipped
 // with "…" instead of breaking the right border (Bubbletea Golden Rule
 // #2 — never auto-wrap in bordered panels).
+//
+// Width < 7: not enough room for "╭─ X ─╮" (corners + "─ x ─"); the top
+// border degrades to a plain corner line ("╭───╮") so the rendered
+// width still equals `width` exactly. Below width 4 nothing reasonable
+// fits; the function returns "" so the caller can degrade gracefully.
 func Render(title, body string, width int, p theme.Palette) string {
+	if width < 4 {
+		return ""
+	}
 	border := lipgloss.NewStyle().Foreground(lipgloss.Color(p.BgCode))
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple)).Bold(true)
 	inner := width - 2
 
-	// Title budget: width − "╭─ " (3) − " " (1) − "╮" (1) = width − 5.
-	// Reserve at least 1 dash on the right so the corner glyph never
-	// sits flush against the title text.
-	titleBudget := width - 5 - 1
+	// Title budget: width − "╭─ " (3) − " " (1) − "╮" (1) − ≥1 right-dash = width − 6.
+	// Below that, fall back to a title-less top border so width stays exact —
+	// the previous impl produced a top row 1–2 chars wider than width when
+	// titleBudget was clamped to 1, breaking the alignment with the body.
+	titleBudget := width - 6
+	var top string
 	if titleBudget < 1 {
-		titleBudget = 1
+		top = border.Render("╭" + strings.Repeat("─", inner) + "╮")
+	} else {
+		titleR := titleStyle.Render(tuistrings.Truncate(title, titleBudget))
+		used := 3 + lipgloss.Width(titleR) + 2
+		dashes := width - used
+		if dashes < 1 {
+			dashes = 1
+		}
+		top = border.Render("╭─ ") + titleR + " " + border.Render(strings.Repeat("─", dashes)+"╮")
 	}
-	titleR := titleStyle.Render(tuistrings.Truncate(title, titleBudget))
-
-	used := 3 + lipgloss.Width(titleR) + 2
-	dashes := width - used
-	if dashes < 1 {
-		dashes = 1
-	}
-	top := border.Render("╭─ ") + titleR + " " + border.Render(strings.Repeat("─", dashes)+"╮")
 
 	// Body lines: │ <truncated and padded content> │. Truncate first so
 	// a single overlong line cannot push past the right border; pad

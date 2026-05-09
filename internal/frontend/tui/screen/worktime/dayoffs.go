@@ -464,9 +464,9 @@ func (f frei) renderBody() string {
 	}
 	rows := []string{f.renderHeader(), ""}
 	rows = append(rows, f.renderEntries(inner)...)
-	if f.toast != nil {
-		rows = append(rows, "", "  "+f.toast.View())
-	}
+	// Toast-Slot via SlotRows — kollabiert, wenn kein Toast aktiv ist,
+	// statt drei Leerzeilen unter der Liste zu hinterlassen.
+	rows = append(rows, toast.SlotRows(f.toast, "  ")...)
 	rows = append(rows, "", renderFooterHints(f.pal, f.footerHints(), inner))
 	return strings.Join(rows, "\n")
 }
@@ -483,9 +483,22 @@ func (f frei) renderHeader() string {
 
 func (f frei) renderEntries(inner int) []string {
 	if len(f.entries) == 0 {
-		hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank", "B → Feiertage-sync"}
+		// Empty-state: B-Sync (gesetzliche Feiertage) ist die häufigste
+		// First-Action und steht deshalb visuell vorne — Hervorhebung mit
+		// Highlight statt Dim, plus Bundesland-Hint aus WORKTIME_LAND damit
+		// der User sofort sieht *was* gesynct wird. a/A/K liegen darunter
+		// als sekundäre Hints im 4-Hint-Slot.
+		land := os.Getenv("WORKTIME_LAND")
+		if land == "" {
+			land = "NW"
+		}
+		bSyncHint := theme.Highlight("B", f.pal) + theme.Dim(
+			fmt.Sprintf("  → gesetzliche Feiertage für %s importieren", land), f.pal)
+		hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank"}
 		return []string{
 			stDim(f.pal, "  Noch keine Daten in diesem Jahr."),
+			"",
+			"  " + bSyncHint,
 			"",
 			renderFooterHints(f.pal, hint, inner),
 		}
@@ -563,8 +576,11 @@ func (f frei) renderAddDialog(inner int) string {
 	if f.errMsg != "" {
 		rows = append(rows, "", theme.Err("  "+f.errMsg, f.pal))
 	}
+	// h/l wirkt nur, wenn der Cursor auf dem Kategorie-Feld steht — der
+	// Hint stellt das jetzt klar, sonst rätseln User warum h/l in
+	// Datums-/Label-Feldern stumm bleibt.
 	rows = append(rows, "", stDim(f.pal,
-		"  Tab/↑↓ → Feld  ·  h/l → Kategorie  ·  Enter → weiter / speichern  ·  Esc → abbrechen"))
+		"  Tab/↑↓ → Feld  ·  h/l → Kategorie wechseln (auf Kategorie-Feld)  ·  Enter → weiter / speichern  ·  Esc → abbrechen"))
 	return strings.Join(rows, "\n")
 }
 

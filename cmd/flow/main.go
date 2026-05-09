@@ -161,6 +161,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
 	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
+	noteLister := newKompendiumNoteLister(kompDeps)
 	paletteReader := &usecase.PaletteReader{
 		Entries: paletteEntries,
 		Stats:   paletteStats,
@@ -186,6 +187,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			LinkWriter:    linkWriter,
 			Reporter:      reporter,
 			NoteOpener:    noteOpener,
+			NoteLister:    noteLister,
 			Clock:         clock,
 			Output:        outputTargets,
 		})

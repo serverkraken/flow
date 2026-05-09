@@ -146,11 +146,33 @@ func (m Model) View() string {
 //
 // indent is prepended only when a toast is actually shown so an empty
 // slot does not carry invisible whitespace.
+//
+// Prefer SlotRows in new code: SlotLine paired with a leading "" row
+// reserves three rows whether a toast is showing or not, which leaves a
+// visible hole when no toast is active. SlotRows collapses the empty case.
 func SlotLine(t *Model, indent string) string {
 	if t == nil || !t.Visible() {
 		return ""
 	}
 	return indent + t.View()
+}
+
+// SlotRows returns the rows the caller should append between body content
+// and footer to host a transient toast. When the toast is not visible the
+// helper returns nil — the caller's "" + footer pattern collapses to a
+// single blank-row separator. When the toast is visible, two rows are
+// returned (leading separator + indented toast view) and the caller's
+// "" + footer adds the trailing separator that visually balances the toast.
+//
+// Net effect: footer sits one blank row below content when no toast is
+// active, three rows when a toast is showing. The 2-row jump on transient
+// toasts (DefaultDuration 2s) is acceptable in exchange for not leaving a
+// 3-line hole in the dominant idle state.
+func SlotRows(t *Model, indent string) []string {
+	if t == nil || !t.Visible() {
+		return nil
+	}
+	return []string{"", indent + t.View()}
 }
 
 // glyphAndColor maps Kind to (glyph, foreground colour). Kept as a

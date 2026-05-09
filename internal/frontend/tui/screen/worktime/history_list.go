@@ -1,0 +1,158 @@
+package worktime
+
+// History list-mode rendering — die Default-Ansicht des History-Tabs.
+// Pro KW gruppierte Tagezeile mit Bar / Pct / Total. Plus die Render-
+// Hülle (renderMain) und der Header (Volumen / Performance Strip).
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+)
+
+func (h history) renderMain() string {
+	inner := h.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
+	records := filteredHistory(h.records, h.histQuery, h.deps.Clock.Now())
+	rows := []string{h.renderHeader(records, inner), ""}
+	switch h.mode {
+	case historyModeHeatmap:
+		rows = append(rows, h.renderHeatmap(records, inner))
+	case historyModeTagClock:
+		rows = append(rows, h.renderTagClock(records, inner))
+	case historyModeMonth:
+		rows = append(rows, h.renderMonth(records, inner))
+	default:
+		if len(records) == 0 {
+			msg := "  Keine Treffer."
+			if h.histQuery != "" {
+				msg += "  ·  T → Filter zurücksetzen"
+			}
+			rows = append(rows, stDim(h.pal, msg))
+		} else {
+			rows = append(rows, h.renderList(records))
+		}
+	}
+	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
+	return strings.Join(rows, "\n")
+}
+
+func (h history) renderHeader(records []domain.DayRecord, inner int) string {
+	st := h.deps.Stats.Aggregate(records)
+	if st.Days == 0 {
+		// Empty mit aktivem Filter: Recovery-Hint + Filter-Chip, sonst
+		// nur "Keine Treffer." — sonst wirkt der Zustand „kaputt" (selbe
+		// Meldung wie wenn nie gearbeitet wurde, aber der User sieht den
+		// Filter nicht oder weiß nicht, wie er ihn löscht).
+		if h.histQuery != "" {
+			filterChip := "  ·  " + lipgloss.NewStyle().Foreground(h.pal.Cyan).Render("filter: "+h.histQuery)
+			recovery := "  ·  T → Filter zurücksetzen"
+			return stDim(h.pal, "  Keine Treffer."+recovery) + filterChip
+		}
+		return stDim(h.pal, "  Keine Treffer.")
+	}
+	balColor := h.pal.FgMuted
+	switch {
+	case st.Overtime > 0:
+		balColor = h.pal.Green
+	case st.Overtime < 0:
+		balColor = h.pal.Yellow
+	}
+	bal := lipgloss.NewStyle().Foreground(balColor).Bold(true).Render(domain.FmtSignedDuration(st.Overtime))
+	// Label-Value-Hierarchie: Label dim, Wert bold/colored. SectionHeader
+	// trennt Volumen / Performance optisch — gleiche Konvention wie
+	// SESSIONS HEUTE / WOCHE GESAMT, damit der User die Strip-Hierarchie
+	// sofort liest.
+	kvBold := func(label, value string) string {
+		return stDim(h.pal, label+" ") + lipgloss.NewStyle().Bold(true).Render(value)
+	}
+	kv := func(label, value string) string {
+		return stDim(h.pal, label+" ") + value
+	}
+	volume := []string{
+		kvBold("Tage", fmt.Sprintf("%d", st.Days)),
+		kv("Werktage", fmt.Sprintf("%d", st.Workdays)),
+		kvBold("Total", formatDur(st.Total)),
+		kv("Schnitt", formatDur(st.Avg)),
+		kv("Max", formatDur(st.Max)),
+		kv("Min", formatDur(st.Min)),
+	}
+	performance := []string{
+		kv("Ziele", fmt.Sprintf("%d/%d", st.Hits, st.Workdays)),
+		kv("Streak", fmt.Sprintf("%d (best %d)", st.Streak, st.BestStreak)),
+		stDim(h.pal, "Saldo ") + bal,
+	}
+	header := picker.SectionHeader("volumen", inner, h.pal) + "\n" +
+		joinWrapped(volume, "  ·  ", "  ", "  ", inner) + "\n" +
+		picker.SectionHeader("performance", inner, h.pal) + "\n" +
+		joinWrapped(performance, "  ·  ", "  ", "  ", inner)
+	if h.histQuery != "" {
+		header += "\n  " + stDim(h.pal, "filter: ") +
+			lipgloss.NewStyle().Foreground(h.pal.Cyan).Bold(true).Render(h.histQuery)
+	}
+	return header
+}
+
+func (h history) renderList(records []domain.DayRecord) string {
+	const barW = 12
+	var lines []string
+	prevWeek := -1
+	prevYear := -1
+	for i, rec := range records {
+		y, w := rec.Date.ISOWeek()
+		if w != prevWeek || y != prevYear {
+			if prevWeek != -1 {
+				lines = append(lines, "")
+			}
+			lines = append(lines, theme.Heading(fmt.Sprintf("  KW %d / %d", w, y), h.pal))
+			prevWeek, prevYear = w, y
+		}
+		pct := 0
+		if rec.Target > 0 {
+			pct = int(rec.Total * 100 / rec.Target)
+			if pct > 100 {
+				pct = 100
+			}
+		}
+		name := lipgloss.NewStyle().Foreground(h.pal.Fg).Width(3).
+			Render(domain.WeekdayShortDe(rec.Date.Weekday()))
+		date := lipgloss.NewStyle().Foreground(h.pal.FgMuted).Width(9).
+			Render(fmt.Sprintf("%02d.%02d.%02d", rec.Date.Day(), rec.Date.Month(), rec.Date.Year()%100))
+		bar := statusbar.Bar(pct, barW, h.pal)
+		pctStr := stDim(h.pal, fmt.Sprintf("%3d%%", pct))
+		durStr := lipgloss.NewStyle().Foreground(h.pal.Fg).Bold(rec.Total >= rec.Target).
+			Render(formatDur(rec.Total))
+		done := ""
+		if rec.Total >= rec.Target {
+			done = "  " + lipgloss.NewStyle().Foreground(h.pal.Green).Render("✓")
+		}
+		marker := "  "
+		if i == h.listCur {
+			marker = lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
+		}
+		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// footerHints — Skill §Hint format max 4. Top-4 nach Frequenz:
+// navigieren, drill, Ansicht-Cycle, filter. Der `v`-Hint zeigt den
+// *nächsten* Mode statt des aktuellen — sonst muss der User raten,
+// was er drückt. `:` (Aktions-Menü), `[/]`, `T` und `F` leben im
+// `?`-Overlay; die View-Modi sind das wertvollste verborgene Feature
+// und gehören in den Footer.
+func (h history) footerHints() []string {
+	return []string{
+		"j/k → bewegen",
+		"enter → drill",
+		"v → " + h.mode.next().label(),
+		"/ → filter",
+	}
+}

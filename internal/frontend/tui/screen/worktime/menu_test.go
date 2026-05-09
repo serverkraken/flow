@@ -186,7 +186,7 @@ func TestMenu_NavRunesNotConsumedByFilter(t *testing.T) {
 }
 
 func TestComputeMenuActions_EmptyQueryReturnsAllVisible(t *testing.T) {
-	all := computeMenuActions(tabHeute, Deps{}, "")
+	all := computeMenuActions(menuContext{activeTab: tabHeute}, "")
 	if len(all) == 0 {
 		t.Fatal("empty query must return at least the general actions")
 	}

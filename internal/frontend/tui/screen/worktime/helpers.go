@@ -1,0 +1,96 @@
+package worktime
+
+// Paket-shared Render- und Format-Helpers, die alle vier Sub-Tab-Files
+// (today.go, week.go, history.go, dayoffs.go) teilen. Vorher saßen sie
+// am Boden von today.go und liefen bei jedem Heute-Edit mit Diff —
+// gehören semantisch in eine eigene Datei (Skill §No-Monoliths).
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+)
+
+// formatDur formats a duration as "Xh YYm" with zero-padded minutes.
+// Negative values clamp to 0 so a clock-skew or pre-start preview can
+// never render an angry "-3h 14m" cell.
+func formatDur(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	return fmt.Sprintf("%dh %02dm", int(d.Hours()), int(d.Minutes())%60)
+}
+
+// formatDurLive adds zero-padded seconds for the first-minute live view.
+func formatDurLive(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	return fmt.Sprintf("%dh %02dm %02ds", int(d.Hours()), int(d.Minutes())%60, int(d.Seconds())%60)
+}
+
+// stDim is the worktime-screen-local thin wrapper over the central
+// theme.Dim builder. Kept as a wrapper (rather than open-coding
+// theme.Dim at call-sites) because every worktime-tab calls this
+// dozens of times — the short name + arg order is the screen's
+// existing idiom. Same for stErr below, plus the "  "-indent prefix
+// that's load-bearing for error rows under the box border.
+func stDim(p theme.Palette, s string) string { return theme.Dim(s, p) }
+
+func stErr(p theme.Palette, s string) string { return theme.Err("  "+s, p) }
+
+// renderFooterHints joins the action chips into one or more dim lines that
+// fit inside `inner`. Each wrapped line is dim-styled separately because
+// lipgloss pads multi-line styled strings (see TestStDimMultilinePadsShorterLines)
+// — passing the whole "\n"-joined string through stDim would leak trailing
+// spaces into the previous box border.
+func renderFooterHints(p theme.Palette, parts []string, inner int) string {
+	wrapped := joinWrapped(parts, "  ·  ", "  ", "  ", inner)
+	lines := strings.Split(wrapped, "\n")
+	for i, l := range lines {
+		lines[i] = stDim(p, l)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// joinWrapped joins parts with sep, wrapping when the line would exceed
+// maxWidth. prefix on the first wrapped line; cont on the followers.
+//
+// A single part wider than maxWidth (e.g. a paste-bombed Note token) is
+// emitted on its own line, even though it overshoots — the helper can't
+// split a chip and silently dropping data is worse than visual overrun.
+// See wrap_test.go: TestJoinWrapped_SinglePartLongerThanWidth.
+func joinWrapped(parts []string, sep, prefix, cont string, maxWidth int) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	if maxWidth <= 0 {
+		return prefix + strings.Join(parts, sep)
+	}
+	var lines []string
+	cur := prefix + parts[0]
+	for _, p := range parts[1:] {
+		cand := cur + sep + p
+		if lipgloss.Width(cand) > maxWidth {
+			lines = append(lines, cur)
+			cur = cont + p
+		} else {
+			cur = cand
+		}
+	}
+	lines = append(lines, cur)
+	return strings.Join(lines, "\n")
+}
+
+// sameDay reports whether a and b fall on the same calendar day.
+func sameDay(a, b time.Time) bool {
+	return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
+}
+
+// startOfDay normalises t to midnight in its location.
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}

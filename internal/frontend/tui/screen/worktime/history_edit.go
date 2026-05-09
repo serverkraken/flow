@@ -43,7 +43,7 @@ func (h history) openDrillEdit() (tea.Model, tea.Cmd) {
 	h.drillFormCur = 0
 	h.drillForm[0].Focus()
 	h.errMsg = ""
-	h.drillToast = ""
+	h.drillToast = nil
 	return h, textinput.Blink
 }
 
@@ -59,7 +59,7 @@ func (h history) openDrillAdd() (tea.Model, tea.Cmd) {
 	h.drillFormCur = 0
 	h.drillForm[0].Focus()
 	h.errMsg = ""
-	h.drillToast = ""
+	h.drillToast = nil
 	return h, textinput.Blink
 }
 
@@ -76,7 +76,7 @@ func (h history) openDrillDelete() (tea.Model, tea.Cmd) {
 	cm := confirm.New(question, detail, h.pal)
 	h.drillConfirm = &cm
 	h.errMsg = ""
-	h.drillToast = ""
+	h.drillToast = nil
 	return h, cm.Init()
 }
 

@@ -43,7 +43,11 @@ type Deps struct {
 	LinkWriter    *usecase.LinkWriter
 	Reporter      *usecase.Reporter
 	NoteOpener    *usecase.NoteOpener
-	Clock         interface{ Now() time.Time }
+	// NoteLister füttert den Note-Attach-Picker in Heute mit den
+	// jüngsten Kompendium-Notes. Optional — bei nil degradiert der
+	// Dialog zur reinen ID-Eingabe (Pre-Picker-Verhalten).
+	NoteLister NoteLister
+	Clock      interface{ Now() time.Time }
 	// Output is the worktime menu's three-target sink (Clipboard /
 	// tmux-Split / Datei in ~/Downloads). Wired in cmd/flow/main.go via
 	// internal/adapter/output. Slice B: nil-tolerant (no flow uses it
@@ -200,10 +204,18 @@ func (m Model) StateCursor() int {
 	return 0
 }
 
-// HandlesBack tells the parent app that this screen consumes the global
-// `b` key for tab cycling — only when the user is on a non-default tab.
-// On tabHeute we let `b` fall through to the palette switch.
-func (m Model) HandlesBack() bool { return m.current != tabHeute }
+// HandlesBack reports whether the worktime screen wants to consume the
+// global `b` key. It always returns false now, so `b` from any
+// worktime tab falls through to the sidekick and switches to Palette.
+//
+// The previous behaviour cycled tabs backward inside Worktime when the
+// user wasn't on Heute — which meant `b` had two different meanings on
+// different tabs (jump-to-Palette on Heute, cycle-tabs elsewhere). The
+// review found that inconsistent and surprising; users expect `b` to
+// be a global "back to launcher". Tab cycling stays available via
+// 1/2/3/4 and Tab; the lost backward-cycle had no dedicated keybinding
+// and is not missed.
+func (m Model) HandlesBack() bool { return false }
 
 // ConsumesKeys lists letter / punctuation keys the active sub-model and
 // the worktime-root menu claim, so the sidekick's global navigation
@@ -341,12 +353,9 @@ func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
 	case "tab":
 		m.current = (m.current + 1) % 4
 		return m, true
-	case "b":
-		if m.current != tabHeute {
-			m.current = (m.current + 3) % 4 // -1 mod 4
-			return m, true
-		}
 	}
+	// `b` ist jetzt global — die sidekick-Layer routet ihn zu Palette.
+	// Worktime claimt `b` nicht mehr (siehe HandlesBack-Comment).
 	return Model{}, false
 }
 
@@ -372,12 +381,13 @@ func (m Model) View() string {
 // tabStrip renders the four-tab navigation. Three-step degradation keeps
 // the strip inside the titlebox budget on narrow tmux panes: full labels
 // with "  ·  " spacing → compact "·" separators → single-char fallback
-// ("H · W · Hi · F"). titlebox.Render needs at most width-5 chars in the
-// title; anything wider pushes the corner past the right edge.
+// ("H · W · Hi · F"). titlebox.Render reserves "╭─ " (3) + " " (1) +
+// "╮" (1) + ≥1 right-dash = 6 chars for borders; the title fits in
+// width-6 chars.
 func (m Model) tabStrip(width int) string {
 	labels := []string{"Heute", "Woche", "History", "Frei"}
 	short := []string{"H", "W", "Hi", "F"}
-	budget := width - 5
+	budget := width - 6
 	if budget < 1 {
 		budget = 1
 	}
@@ -397,13 +407,21 @@ func (m Model) tabStrip(width int) string {
 }
 
 func (m Model) renderTabs(labels []string, sep string) string {
+	// A11y-2 — der aktive Tab kriegt zusätzlich zum Bold+Accent-Foreground
+	// einen Underline-SGR. Glyph + Color allein liefen Gefahr, in NO_COLOR /
+	// Color-Blind-Settings ohne Identifier dazustehen; ein Unterstrich ist
+	// der etablierte Identifier (Skill §Tabs „Underline (default)").
+	activeStyle := lipgloss.NewStyle().
+		Foreground(m.pal.Sem().Accent).
+		Bold(true).
+		Underline(true)
 	out := ""
 	for i, l := range labels {
 		if i > 0 {
 			out += theme.Dim(sep, m.pal)
 		}
 		if tab(i) == m.current {
-			out += theme.Heading(l, m.pal)
+			out += activeStyle.Render(l)
 		} else {
 			out += theme.Dim(l, m.pal)
 		}
