@@ -24,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -588,11 +589,16 @@ func (m Model) renderEmptyState() []string {
 // direktwahl, ] / [ section jumps, `.` pin, esc two-stage) live in the `?`
 // overlay rendered by the sidekick root.
 func (m Model) renderFooter() string {
+	// Enter und j/k bleiben palette-spezifisch — "ausführen" und
+	// "bewegen" sind präziser als das generische strings.HintNav
+	// ("Enter → wählen / j/k → navigieren") für den Action-Picker-
+	// Kontext. / und ? kommen aus den kanonischen strings.*-Konstanten,
+	// damit ein Wording-Drift mit anderen Footern direkt sichtbar wird.
 	hints := []string{
-		"enter → ausführen",
+		"Enter → ausführen",
 		"j/k → bewegen",
-		"/ → filter",
-		"? → hilfe",
+		uistrings.HintFilter,
+		uistrings.HintHelp,
 	}
 	return statusbar.Hints(strings.Join(hints, "  ·  "), m.pal)
 }

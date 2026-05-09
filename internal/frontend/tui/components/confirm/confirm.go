@@ -108,6 +108,11 @@ func (m Model) View() string {
 	// die Cancel-Action (dim, ohne Brackets) absetzen. Brackets sind ein
 	// non-color Signal — bei NO_COLOR weiß der User, welche Taste der
 	// "primäre" Pfad ist, ohne sich auf Bold-Rendering verlassen zu müssen.
+	//
+	// Die confirm-spezifische Bracket-Variante ist eine A11y-Erweiterung
+	// gegenüber strings.HintConfirm (footer-/statusbar-form ohne Brackets).
+	// Beide Wordings sind synchronisiert; Änderungen am DE-Wording müssen
+	// hier UND in components/strings.HintConfirm passieren.
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.FgMuted))
 	primary := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Bold(true)
 	hint := primary.Render("[y/Enter] → ja") + dim.Render("  ·  n/Esc → nein")

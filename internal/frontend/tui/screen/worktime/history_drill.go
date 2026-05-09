@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -151,9 +152,10 @@ func (h history) renderDrill() string {
 }
 
 // drillFormHint is the canonical key-hint shown while editing or adding
-// a drill session. Both modes share the same form layout, so the hint
-// is identical and lives here as a single literal.
-const drillFormHint = "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen"
+// a drill session. Wording kommt aus uistrings.HintFormNav (geteilt mit
+// today_dialog/dayoffs); zwei Spaces vorgestellt für die Footer-Indent-
+// Konvention der Drill-Surface.
+const drillFormHint = "  " + uistrings.HintFormNav
 
 // drillBackHint is the standalone "back" hint shown when the drill
 // branch has nothing else to advertise (error path). The plain drill

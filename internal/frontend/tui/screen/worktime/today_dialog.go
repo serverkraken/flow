@@ -18,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -404,12 +405,12 @@ func (h heute) renderDialog() string {
 	switch h.dialog {
 	case heuteDialogTag:
 		title = "Tag setzen"
-		hint = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
+		hint = uistrings.HintInputSave
 		rows = append(rows, picker.SectionHeader("tag", inner, h.pal), "  "+h.input.View())
 
 	case heuteDialogNote:
 		title = "Session-Notiz"
-		hint = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
+		hint = uistrings.HintInputSave
 		rows = append(rows, picker.SectionHeader("notiz", inner, h.pal), "  "+h.input.View())
 
 	case heuteDialogNoteAttach:
@@ -430,7 +431,7 @@ func (h heute) renderDialog() string {
 
 	case heuteDialogEdit:
 		title = "Session bearbeiten"
-		hint = "Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen"
+		hint = uistrings.HintFormNav
 		if h.editIdx >= 0 && h.editIdx < len(h.day.Sessions) {
 			s := h.day.Sessions[h.editIdx]
 			rows = append(rows, stDim(h.pal, fmt.Sprintf("  Session %d:  %s → %s",

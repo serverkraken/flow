@@ -15,11 +15,19 @@ import "github.com/charmbracelet/lipgloss"
 // Hint strings — short, single-line, comma-separated keys. Used in
 // status-bar Hints components and footer rows.
 const (
-	HintCancel = "Esc → abbrechen"
-	HintFilter = "/ → suchen"
-	HintHelp   = "? → Hilfe"
-	HintQuit   = "q → schließen"
-	HintNav    = "j/k → navigieren  ·  Enter → wählen"
+	HintCancel  = "Esc → abbrechen"
+	HintFilter  = "/ → suchen"
+	HintHelp    = "? → Hilfe"
+	HintQuit    = "q → schließen"
+	HintNav     = "j/k → navigieren  ·  Enter → wählen"
+	HintConfirm = "y/Enter → ja  ·  n/Esc → nein"
+	// HintFormNav steht für mehrfeldige Eingabedialoge (today_dialog
+	// edit-form, dayoffs add-form, history_drill edit-form). Vorher
+	// dreifach wortgleich inline kopiert.
+	HintFormNav = "Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen"
+	// HintInputSave steht für ein-Feld-Inputs mit optionalem Löschen
+	// (Tag-, Notiz-, Korrektur-Dialog).
+	HintInputSave = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
 )
 
 // Label strings — block-level text rendered inside boxes / cards.

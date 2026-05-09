@@ -20,6 +20,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -317,7 +318,16 @@ func (m Model) View() string {
 	box := titlebox.Render(title, body, m.width, m.pal)
 	// 4-Cap (skill §Spacing): wichtigste 4 im Footer, Surplus (esc/b/q) sind
 	// Fixed-Slot-Keys, dokumentiert im sidekick-globalen `?`-Overlay.
-	footer := statusbar.Hints("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  ? → hilfe", m.pal)
+	// Enter und j/k sind projects-spezifisch ("wechseln" / "bewegen") —
+	// die generischen strings.HintNav-Wordings würden die Action verwischen.
+	// / und ? kommen aus dem kanonischen strings-Vokabular.
+	hints := strings.Join([]string{
+		"Enter → wechseln",
+		"j/k → bewegen",
+		uistrings.HintFilter,
+		uistrings.HintHelp,
+	}, "  ·  ")
+	footer := statusbar.Hints(hints, m.pal)
 	// Toast-Slot zwischen Box und Footer: hält den Footer auf konstanter
 	// Bildschirmzeile, egal ob ein Toast aktiv ist (mirror palette/View).
 	return box + "\n" + toast.SlotLine(m.switchToast, "  ") + "\n" + footer
