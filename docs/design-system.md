@@ -66,15 +66,16 @@ same test on Mocha Bg; `theme.CatppuccinMocha.FgMuted = #a6adc8` clears.
 
 ```go
 type Semantic struct {
-    Accent       string // primary interactive — Blue
-    Active       string // running / live — Cyan
-    Success      string // Green
-    Warning      string // Yellow
-    Danger       string // Red
-    Info         string // informative without action — Cyan
-    Highlight    string // attention-grabbing, non-actionable — Purple
-    BorderSubtle string // light divider — BgChip
-    BorderStrong string // load-bearing border — FgMuted
+    Accent       lipgloss.Color // primary interactive — Blue
+    Active       lipgloss.Color // running / live — Cyan
+    Success      lipgloss.Color // Green
+    Warning      lipgloss.Color // Yellow
+    Danger       lipgloss.Color // Red
+    Info         lipgloss.Color // informative without action — Cyan
+    Highlight    lipgloss.Color // attention-grabbing, non-actionable — Purple
+    Border       lipgloss.Color // dim separator / progress-empty cells — BgCode
+    BorderSubtle lipgloss.Color // light divider — BgChip
+    BorderStrong lipgloss.Color // load-bearing border — FgMuted
 }
 ```
 
@@ -82,6 +83,17 @@ type Semantic struct {
 that redefines "danger" as orange shifts every consumer in lockstep
 without per-call-site renames. The hues stay accessible to renderers
 that need free colour choice (markdown heading hierarchy, tag chips).
+
+**Border-Trio:** drei Tokens für visuell zunehmend lautere Affordance.
+`Border` (= `BgCode`) ist absichtlich sub-WCAG (≈ 1.3–2.0:1 auf Bg) —
+es taucht im Status-Bar-▱-Empty, in Picker-Section-Dividern und
+manchen Panel-Frames auf, wo Information durch parallel sichtbare
+sem.Accent-/sem.Active-Glyphen getragen wird. Load-bearing Frames
+(modal, help-overlay, picker AccentBar) müssen `BorderStrong` (=
+`FgMuted`, ≥ 3:1 WCAG-Non-Text geprüft) verwenden. `BorderSubtle` ist
+der Mittelweg für selection-Tints. Die WCAG-Trennung ist im
+`theme/contrast_test.go` festgenagelt: BorderStrong-on-Bg/BgPanel
+fail-fast, Border bekommt einen `t.Logf`-Info-Hook ohne Threshold.
 
 ### Spacing & layout — `theme.PadXS / PadSM / PadMD / …`
 

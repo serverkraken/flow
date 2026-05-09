@@ -12,6 +12,13 @@ const (
 	WCAGNormalAA = 4.5 // body text — AA minimum
 	WCAGLargeAA  = 3.0 // ≥18 pt or ≥14 pt bold; in TUI applies to
 	// glyph-only signals (pace dots, progress bar cells).
+
+	// WCAGNonTextAA is the SC 1.4.11 threshold (3:1) for non-text
+	// content — UI components and graphical objects that aren't
+	// reading text. Used for Sem.Border (separators, empty progress-
+	// bar cells, panel-frame edges) where the goal is visible
+	// affordance, not readability.
+	WCAGNonTextAA = 3.0
 )
 
 // ContrastRatio returns the WCAG 2.1 contrast ratio of two #rrggbb

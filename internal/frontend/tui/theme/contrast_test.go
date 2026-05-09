@@ -74,6 +74,60 @@ func TestPalettesPassWCAG_AA(t *testing.T) {
 					}
 				})
 			}
+
+			// Sem.Border ist absichtlich sub-WCAG-Non-Text (≥ 3:1):
+			// das Token ist als dim separator gewollt, nicht als
+			// information-tragende Decoration. Render-Pfade sind:
+			//   - statusbar/progress: ▱-Cells als "leer" — Information
+			//     trägt der ▰-Anteil (sem.Accent, separat WCAG-AA),
+			//     ohne den ▰ ist der Bar als Ganzes 0 % und ohne Sinn.
+			//   - titlebox/panel: BorderForeground für den Frame; der
+			//     Frame ist Strukturmarker, kein UI-Component-Edge.
+			//   - picker/row: dim separator zwischen Sektionen.
+			// Die WCAG-Konformität wird durch die FgMuted-Variante
+			// (Sem.BorderStrong) für load-bearing Frames eingehalten —
+			// modal/help-overlay/picker.AccentBar nutzen die statt sem.
+			// Border. Der dokumentierte Trade-off: ein hellerer
+			// sem.Border-Wert würde Frames lauter machen als sie
+			// dürfen, ohne dass es die A11y-Story verbessert
+			// (Information liegt im ▰-Anteil, nicht in ▱).
+			borderInfo := []struct{ fg, bg, name string }{
+				{hex(sem.Border), hex(p.Bg), "Border on Bg"},
+				{hex(sem.Border), hex(p.BgPanel), "Border on BgPanel"},
+			}
+			for _, tt := range borderInfo {
+				t.Run("info: "+tt.name, func(t *testing.T) {
+					r, err := theme.ContrastRatio(tt.fg, tt.bg)
+					if err != nil {
+						t.Fatalf("contrast(%q, %q): %v", tt.fg, tt.bg, err)
+					}
+					t.Logf("%s contrast = %.2f (intentional sub-WCAG dim separator; load-bearing Frames nutzen sem.BorderStrong)",
+						tt.name, r)
+				})
+			}
+
+			// Sem.BorderStrong (= FgMuted) ist die load-bearing Variante
+			// — modale Frames, focused Panels, picker.AccentBar. Hier
+			// gilt die WCAG-Non-Text-Schwelle (3:1) als Pflicht, weil
+			// der Frame die Modal-Struktur trägt (nicht-abdeckbar durch
+			// andere Signale). Test fail-fast wenn ein Palette-Refactor
+			// BorderStrong unter 3:1 fallen lässt.
+			strongBorders := []struct{ fg, bg, name string }{
+				{hex(sem.BorderStrong), hex(p.Bg), "BorderStrong on Bg"},
+				{hex(sem.BorderStrong), hex(p.BgPanel), "BorderStrong on BgPanel"},
+			}
+			for _, tt := range strongBorders {
+				t.Run(tt.name, func(t *testing.T) {
+					r, err := theme.ContrastRatio(tt.fg, tt.bg)
+					if err != nil {
+						t.Fatalf("contrast(%q, %q): %v", tt.fg, tt.bg, err)
+					}
+					if r < theme.WCAGNonTextAA {
+						t.Errorf("%s: %.2f, want ≥ %.2f (fg=%s bg=%s)",
+							tt.name, r, theme.WCAGNonTextAA, tt.fg, tt.bg)
+					}
+				})
+			}
 		})
 	}
 }
