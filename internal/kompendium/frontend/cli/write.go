@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -22,6 +23,10 @@ import (
 // tea.Model adapter that converts DoneMsg → tea.Quit, mirroring the
 // existing view.ExitMsg pattern.
 var runPicker = func(ctx context.Context, allowProject bool) (writepicker.Result, error) {
+	// Live-Palette in das writepicker-Package durchreichen, damit der
+	// Standalone-Picker den User-tmux-Overlay (@tn_*) erbt.
+	tk.Init()
+	writepicker.SetPalette(tk.Load())
 	host := pickerHost{inner: writepicker.New(allowProject)}
 	p := tea.NewProgram(host, tea.WithContext(ctx))
 	finalModel, err := p.Run()

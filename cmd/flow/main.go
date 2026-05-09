@@ -43,6 +43,7 @@ import (
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
+	kompview "github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	kompwritepicker "github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -221,8 +222,8 @@ func buildDeps(p Paths) (Deps, func(), error) {
 				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
 			},
 			Worktime: worktimeScreen,
-			Notes: func(_ theme.Palette) tea.Model {
-				return buildNotesScreen(p, kompDeps)
+			Notes: func(pal theme.Palette) tea.Model {
+				return buildNotesScreen(p, pal, kompDeps)
 			},
 		},
 		// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
@@ -243,7 +244,16 @@ func buildDeps(p Paths) (Deps, func(), error) {
 // resolver, edit Cmd, and write Cmd all reuse what kompDeps already
 // has. currentRepo is detected from the launch cwd; when flow lives
 // outside a git repo the project promotion just stays off.
-func buildNotesScreen(p Paths, kompDeps kompendiumcli.Deps) tea.Model {
+func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps) tea.Model {
+	// Sidekick-Notes-Tab: pal kommt vom Sidekick-Root (tk.Load() in
+	// cli/sidekick.go) durch — vor dem ersten Render in alle drei
+	// Kompendium-TUI-Packages SetPalette propagieren, damit der User-
+	// tmux-Overlay (@tn_*) durchschlägt. Mehrfach-Aufrufe pro Run
+	// sind idempotent.
+	kompbrowse.SetPalette(pal)
+	kompview.SetPalette(pal)
+	kompwritepicker.SetPalette(pal)
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = ""

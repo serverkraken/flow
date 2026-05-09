@@ -9,8 +9,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
+	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -25,6 +27,16 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 	}
 
 	writeCmd := buildWriteCmd(cwd)
+
+	// Live-Palette laden (overlayed @tn_*-tmux-Optionen) und in alle
+	// drei Kompendium-TUI-Packages durchreichen, BEVOR browse.New die
+	// Styles konsumiert. theme.Init() konfiguriert den TrueColor-
+	// Renderer für tmux/Ghostty etc.; theme.Load() liest @tn_* einmal.
+	tk.Init()
+	pal := tk.Load()
+	browse.SetPalette(pal)
+	view.SetPalette(pal)
+	writepicker.SetPalette(pal)
 
 	m := browse.New(deps.ListNotes, deps.Store, deps.DeleteNote, currentRepo, deps.EditCmd, writeCmd)
 	if deps.IndexPath != "" {

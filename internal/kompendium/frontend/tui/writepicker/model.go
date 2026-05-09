@@ -192,8 +192,10 @@ func (m Model) View() string {
 }
 
 // pal ist die canonical Palette dieses Pickers. Init-Time-Snapshot
-// von theme.Default; ein Runtime-Swap (Stufe-7-Goal) macht pal zu
-// einem per-render-Param.
+// von theme.Default. Composition-Root-Bridge swappt sie über
+// SetPalette(p) auf den Live-Wert (= tk.Load() in cli/sidekick.go +
+// cmd/flow/main.go); rebuildStyles() weist alle Style-vars neu zu,
+// sodass ein @tn_*-tmux-Overlay durchschlägt.
 //
 // sem ist die Sem()-Sicht — Components lesen den semantischen Alias,
 // nicht die rohe Hue (siehe docs/design-system.md).
@@ -202,53 +204,64 @@ var (
 	sem = pal.Sem()
 )
 
+// SetPalette swappt die Package-Palette und rebuildet alle Styles.
+func SetPalette(p theme.Palette) {
+	pal = p
+	sem = p.Sem()
+	rebuildStyles()
+}
+
 var (
-	frameStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(sem.Accent).
-			Padding(1, 3)
-
-	headerStyle = lipgloss.NewStyle().
-			Foreground(sem.Accent).
-			Bold(true)
-
-	cursorStyle = lipgloss.NewStyle().
-			Foreground(sem.Accent).
-			Bold(true)
-
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Fg)).
-			Background(lipgloss.Color(pal.BgChip)).
-			Bold(true).
-			Padding(0, 1)
-
-	optionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Fg)).
-			Padding(0, 1)
-
-	iconStyle = lipgloss.NewStyle().
-			Foreground(sem.Active)
-
-	hintStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.FgMuted)).
-			Italic(true)
-
-	dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.FgMuted))
-
-	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.FgMuted)).
-			Italic(true)
-
-	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(sem.Active).
-			Bold(true)
-
-	slugBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(sem.Warning).
-			Padding(0, 1)
+	frameStyle     lipgloss.Style
+	headerStyle    lipgloss.Style
+	cursorStyle    lipgloss.Style
+	selectedStyle  lipgloss.Style
+	optionStyle    lipgloss.Style
+	iconStyle      lipgloss.Style
+	hintStyle      lipgloss.Style
+	dimStyle       lipgloss.Style
+	footerStyle    lipgloss.Style
+	footerKeyStyle lipgloss.Style
+	slugBoxStyle   lipgloss.Style
 )
+
+func init() { rebuildStyles() }
+
+func rebuildStyles() {
+	frameStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(sem.Accent).
+		Padding(1, 3)
+	headerStyle = lipgloss.NewStyle().
+		Foreground(sem.Accent).
+		Bold(true)
+	cursorStyle = lipgloss.NewStyle().
+		Foreground(sem.Accent).
+		Bold(true)
+	selectedStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.Fg)).
+		Background(lipgloss.Color(pal.BgChip)).
+		Bold(true).
+		Padding(0, 1)
+	optionStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.Fg)).
+		Padding(0, 1)
+	iconStyle = lipgloss.NewStyle().
+		Foreground(sem.Active)
+	hintStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.FgMuted))
+	dimStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.FgMuted))
+	footerStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.FgMuted))
+	footerKeyStyle = lipgloss.NewStyle().
+		Foreground(sem.Active).
+		Bold(true)
+	slugBoxStyle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(sem.Warning).
+		Padding(0, 1)
+}
 
 func menuCard(opts []option, cursor int) string {
 	var sb strings.Builder
