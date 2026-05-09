@@ -87,9 +87,10 @@ func (r *nodeRenderer) cardBadge(t NoteType) string {
 // `#go` always reads as the same colour across notes (matches the
 // browse-list tag chip rotation in browse/styles.go).
 //
-// Geht über die vorgefertigten r.roles.TagChips, damit der Style durch
-// denselben lipgloss.Renderer läuft wie der Rest und im NO_COLOR-Profil
-// nicht die Hintergrundfarbe verloren geht.
+// Resolves through r.roles.TagChips so the style passes through the
+// same lipgloss.Renderer as the rest of the roles — that way the
+// NO_COLOR/Ascii profile keeps the tag text legible instead of
+// dropping the background and leaving Bg-on-Bg.
 func (r *nodeRenderer) tagChip(tag string) string {
 	chips := r.roles.TagChips
 	if len(chips) == 0 {

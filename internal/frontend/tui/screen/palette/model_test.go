@@ -260,7 +260,7 @@ func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
 	// Enter auf der ersten (einzigen) Aktion — goto.sh-pattern, sollte
 	// aber im Standalone-Modus durch run-shell laufen, nicht als
 	// SwitchScreenMsg.
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}
@@ -284,7 +284,7 @@ func TestEmbeddedMode_GotoEmitsSwitchScreenMsg(t *testing.T) {
 		Section: "Flow",
 	})
 	updated := runUntilLoaded(t, f.model()) // Default = Embedded
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}

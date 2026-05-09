@@ -69,12 +69,12 @@ type MarkdownRoles struct {
 	CardMeta         lipgloss.Style // dim metadata (date, id, etc.)
 	CardProjectChip  lipgloss.Style // project URL chip
 	CardSeparator    lipgloss.Style // ─ rule below the card
-	// TagChips ist die per Palette vorgefertigte Style-Slice für die
-	// Tag-Chips im Frontmatter-Card. Der Renderer indiziert über einen
-	// Hash der Tag-Strings hinein, damit `#go` deterministisch dieselbe
-	// Farbe trägt. Vor dieser Slot-Aufnahme baute frontmatter.tagChip
-	// einen Inline-`lipgloss.NewStyle()`, der den per-Renderer NO_COLOR-
-	// Profile-Pfad umging — A11y-4-Regression.
+	// TagChips is the per-palette pre-built slice of styles for the
+	// frontmatter-card tag chips. The renderer indexes into this via a
+	// stable hash of the tag string so `#go` keeps the same colour
+	// across notes. Before this slot was lifted out, frontmatter.tagChip
+	// constructed an inline `lipgloss.NewStyle()` that bypassed the
+	// per-Renderer NO_COLOR / Ascii profile — A11y-4 regression.
 	TagChips []lipgloss.Style
 
 	// Block quotes + GitHub-style callouts

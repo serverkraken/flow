@@ -208,40 +208,7 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, h.loadCmd()
 
 	case heuteActionDoneMsg:
-		h.actionInFlight = false
-		// On error: if a dialog is still open (edit/tag/note forms), keep
-		// it open and surface the error inside it via errMsg so the user
-		// can retry without re-filling the form. If the dialog already
-		// closed (delete confirms close on submit), surface a danger
-		// toast so the failure is visible.
-		if msg.err != nil {
-			if h.dialog != heuteDialogNone {
-				h.errMsg = msg.err.Error()
-				return h, nil
-			}
-			t := toast.NewDanger(msg.err.Error(), h.pal)
-			h.toast = &t
-			return h, tea.Batch(h.loadCmd(), t.Init())
-		}
-		h.dialog = heuteDialogNone
-		h.input.Blur()
-		h.input.SetValue("")
-		h.form = nil
-		h.formCur = 0
-		h.confirmModel = nil
-		h.errMsg = ""
-		h.err = nil
-		if msg.toast != "" {
-			var t toast.Model
-			if msg.info {
-				t = toast.NewInfo(msg.toast, h.pal)
-			} else {
-				t = toast.NewDefault(msg.toast, h.pal)
-			}
-			h.toast = &t
-			return h, tea.Batch(h.loadCmd(), t.Init())
-		}
-		return h, h.loadCmd()
+		return h.handleActionDone(msg)
 
 	case toast.DismissedMsg:
 		h.toast = nil
@@ -267,6 +234,47 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h.handleNormalKey(msg)
 	}
 	return h, nil
+}
+
+// handleActionDone routet das Result einer asynchronen Action (toast,
+// reload, error). Vorher inline im Update-Switch, jetzt als eigene
+// Methode — Update.gocognit war über der 25er Schwelle, weil dieser
+// Case 5+ Verzweigungen trägt.
+func (h heute) handleActionDone(msg heuteActionDoneMsg) (tea.Model, tea.Cmd) {
+	h.actionInFlight = false
+	// On error: if a dialog is still open (edit/tag/note forms), keep
+	// it open and surface the error inside it via errMsg so the user
+	// can retry without re-filling the form. If the dialog already
+	// closed (delete confirms close on submit), surface a danger
+	// toast so the failure is visible.
+	if msg.err != nil {
+		if h.dialog != heuteDialogNone {
+			h.errMsg = msg.err.Error()
+			return h, nil
+		}
+		t := toast.NewDanger(msg.err.Error(), h.pal)
+		h.toast = &t
+		return h, tea.Batch(h.loadCmd(), t.Init())
+	}
+	h.dialog = heuteDialogNone
+	h.input.Blur()
+	h.input.SetValue("")
+	h.form = nil
+	h.formCur = 0
+	h.confirmModel = nil
+	h.errMsg = ""
+	h.err = nil
+	if msg.toast == "" {
+		return h, h.loadCmd()
+	}
+	var t toast.Model
+	if msg.info {
+		t = toast.NewInfo(msg.toast, h.pal)
+	} else {
+		t = toast.NewDefault(msg.toast, h.pal)
+	}
+	h.toast = &t
+	return h, tea.Batch(h.loadCmd(), t.Init())
 }
 
 func (h heute) loadCmd() tea.Cmd {

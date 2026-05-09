@@ -32,7 +32,7 @@ var screenBaseline = map[string]int{
 	"worktime/history.go":          0,
 	"worktime/history_drill.go":    1,
 	"worktime/history_heatmap.go":  8,
-	"worktime/history_list.go":     9,
+	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    5,
 	"worktime/history_tagclock.go": 5,
 	"worktime/menu.go":             2,
@@ -41,7 +41,7 @@ var screenBaseline = map[string]int{
 	"worktime/today.go":            0,
 	"worktime/today_dialog.go":     1,
 	"worktime/today_render.go":     3,
-	"worktime/week.go":             13,
+	"worktime/week.go":             11,
 }
 
 // TestScreenInlineNewStyleBudget walks the internal/frontend/tui/screen
