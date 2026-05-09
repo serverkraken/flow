@@ -21,6 +21,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
@@ -1635,9 +1636,11 @@ func (m Model) renderPreviewPane() string {
 func (m Model) renderFooter() string {
 	switch m.mode {
 	case ModeSearch:
-		return footerStyle.Render("tippen → filtern  ·  enter → anwenden  ·  esc → abbrechen")
+		return footerStyle.Render("tippen → filtern  ·  Enter → anwenden  ·  Esc → abbrechen")
 	case ModeConfirmDelete:
-		return footerStyle.Render("y/Enter → ja  ·  n/Esc → nein")
+		// Wording aus components/strings.HintConfirm — confirm-Modal-
+		// Hint und Footer-Hint synchron, ein DE-Drift fällt sofort auf.
+		return footerStyle.Render(uistrings.HintConfirm)
 	}
 	return m.helpUI.View(m.keys)
 }
