@@ -33,6 +33,35 @@ const (
 	AccentBar = "▎" // selection / focus indicator
 	BarFilled = "▰" // progress bar — filled cell
 	BarEmpty  = "▱" // progress bar — empty cell
+	Info      = "›" // toast / status — informative without action
+	BulletDot = "·" // mid-dot bullet (separator, low-key marker)
+	BarThick  = "▌" // heading-bar / accent-block (one cell)
+)
+
+// Heat-cell glyphs — used by the history month-grid + heatmap to map
+// quantitative load (pct of target) onto visual density. Memory bank
+// (feedback_no_icons.md) explicitly whitelists ░▒▓█ — they are
+// solid block-drawing, single-cell, no emoji-width drift.
+const (
+	HeatFull   = "█" // ≥100 % — solid block
+	HeatDark   = "▓" // ≥75 %  — dark shade
+	HeatMedium = "▒" // ≥50 %  — medium shade
+	HeatLight  = "░" // >0 %   — light shade
+)
+
+// Markdown glyphs — used by the markdown renderer for list bullets,
+// task checkboxes, and heading bars. Same single-cell, monospace-only,
+// no-emoji rules as the rest of the whitelist (audit §2.1). Lives in
+// this package so the cell-width test guards them too — the design-
+// system audit treats markdown rendering as part of the canonical TUI,
+// not a side-channel that gets to ignore the alignment rules.
+const (
+	Bullet1  = "●" // L1 list bullet (matches Filled — deliberate)
+	Bullet2  = "○" // L2 list bullet (matches Empty — deliberate)
+	Bullet3  = "◆" // L3 list bullet
+	Bullet4  = "▪" // L4+ list bullet
+	TaskOpen = "☐" // unchecked task
+	TaskDone = "☑" // completed task
 )
 
 // Box-drawing — single set used for every component border. Mixing

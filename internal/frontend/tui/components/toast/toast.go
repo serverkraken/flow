@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -177,15 +178,17 @@ func SlotRows(t *Model, indent string) []string {
 
 // glyphAndColor maps Kind to (glyph, foreground colour). Kept as a
 // single switch so a future Kind addition is one block to extend.
+// Glyphen kommen aus der Whitelist; ein Drift im Whitelist-Set ändert
+// hier mit, was eine Inline-String-Variante nicht täte.
 func (m Model) glyphAndColor() (string, lipgloss.Color) {
 	switch m.kind {
 	case KindWarning:
-		return "▲", lipgloss.Color(m.theme.Yellow)
+		return glyphs.Up, lipgloss.Color(m.theme.Yellow)
 	case KindDanger:
-		return "✗", lipgloss.Color(m.theme.Red)
+		return glyphs.Failed, lipgloss.Color(m.theme.Red)
 	case KindInfo:
-		return "›", lipgloss.Color(m.theme.Cyan)
+		return glyphs.Info, lipgloss.Color(m.theme.Cyan)
 	default:
-		return "✓", lipgloss.Color(m.theme.Green)
+		return glyphs.Done, lipgloss.Color(m.theme.Green)
 	}
 }

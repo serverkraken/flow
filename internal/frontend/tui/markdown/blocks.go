@@ -17,6 +17,7 @@ import (
 	extast "github.com/yuin/goldmark/extension/ast"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
 )
 
@@ -69,13 +70,13 @@ func (r *nodeRenderer) styleHeading(level int, inner string) string {
 	case 2:
 		return r.styleH2(inner)
 	case 3:
-		return r.roles.H3.Render("▌▌ " + inner)
+		return r.roles.H3.Render(glyphs.BarThick + glyphs.BarThick + " " + inner)
 	case 4:
-		return r.roles.H4.Render("▌ " + inner)
+		return r.roles.H4.Render(glyphs.BarThick + " " + inner)
 	case 5:
-		return r.roles.H5.Render("› " + inner)
+		return r.roles.H5.Render(glyphs.Info + " " + inner)
 	default:
-		return r.roles.H6.Render("· " + inner)
+		return r.roles.H6.Render(glyphs.BulletDot + " " + inner)
 	}
 }
 
@@ -391,9 +392,9 @@ func (r *nodeRenderer) itemMarker(list *ast.List, item ast.Node, _ []byte, depth
 		isTask = true
 		taskDone = box.IsChecked
 		if box.IsChecked {
-			marker = r.roles.TaskDone.Render("☑") + " "
+			marker = r.roles.TaskDone.Render(glyphs.TaskDone) + " "
 		} else {
-			marker = r.roles.TaskOpen.Render("☐") + " "
+			marker = r.roles.TaskOpen.Render(glyphs.TaskOpen) + " "
 		}
 		return
 	}
@@ -416,13 +417,13 @@ func (r *nodeRenderer) itemMarker(list *ast.List, item ast.Node, _ []byte, depth
 func bulletGlyph(depth int) string {
 	switch depth {
 	case 1:
-		return "●"
+		return glyphs.Bullet1
 	case 2:
-		return "○"
+		return glyphs.Bullet2
 	case 3:
-		return "◆"
+		return glyphs.Bullet3
 	default:
-		return "▪"
+		return glyphs.Bullet4
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -77,13 +78,18 @@ type Model struct {
 // New returns a picker. When allowProject is false the Project option is
 // hidden — that is the case when the caller is not in a git repository.
 func New(allowProject bool) Model {
+	// Icons aus der Whitelist: Filled / Extra / Empty (vorher ▣ ▦ ▥,
+	// die nicht in components/glyphs stehen und in einigen Nerd-Fonts
+	// emoji-Breite hatten). Daily = Filled (heute, jetzt), Project =
+	// Extra (zusätzliche Note neben dem Daily), Free = Empty (offener
+	// Slot ohne Default-Inhalt).
 	opts := []option{
-		{label: "Daily Note", hint: "today's journal", icon: "▣", choice: ChoiceDaily},
+		{label: "Daily Note", hint: "today's journal", icon: glyphs.Filled, choice: ChoiceDaily},
 	}
 	if allowProject {
-		opts = append(opts, option{label: "Project Note", hint: "current repo · today", icon: "▦", choice: ChoiceProject})
+		opts = append(opts, option{label: "Project Note", hint: "current repo · today", icon: glyphs.Extra, choice: ChoiceProject})
 	}
-	opts = append(opts, option{label: "Free Note", hint: "named slug", icon: "▥", choice: ChoiceFree})
+	opts = append(opts, option{label: "Free Note", hint: "named slug", icon: glyphs.Empty, choice: ChoiceFree})
 
 	ti := textinput.New()
 	ti.Prompt = ""

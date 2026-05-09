@@ -11,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -133,32 +134,25 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	isToday := sameDay(day, h.deps.Clock.Now())
 	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
 
-	glyph := "·"
+	glyph := glyphs.BulletDot
 	color := h.pal.BgCode
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)
 		switch {
 		case pct >= 1.5:
-			glyph, color = "▲", h.pal.Red
+			glyph, color = glyphs.Up, h.pal.Red
 		case pct >= 1.0:
-			glyph, color = "█", h.pal.Green
+			glyph, color = glyphs.HeatFull, h.pal.Green
 		case pct >= 0.75:
-			glyph, color = "▓", h.pal.Green
+			glyph, color = glyphs.HeatDark, h.pal.Green
 		case pct >= 0.5:
-			glyph, color = "▒", h.pal.Yellow
+			glyph, color = glyphs.HeatMedium, h.pal.Yellow
 		case pct > 0:
-			glyph, color = "░", h.pal.Yellow
+			glyph, color = glyphs.HeatLight, h.pal.Yellow
 		}
 	case isOff:
-		switch dayOff.Kind {
-		case domain.KindHoliday:
-			glyph = "★"
-		case domain.KindVacation:
-			glyph = "☼"
-		case domain.KindSick:
-			glyph = "✚"
-		}
+		glyph = dayOffGlyph(dayOff.Kind)
 		color = h.pal.Cyan
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted

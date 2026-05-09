@@ -178,7 +178,7 @@ func (h heute) renderAttachedNotes() string {
 	if len(h.attachedNotes) == 0 {
 		return ""
 	}
-	label := theme.Highlight("●", h.pal)
+	label := theme.Highlight(glyphs.Filled, h.pal)
 	ids := stDim(h.pal, strings.Join(h.attachedNotes, "  ·  "))
 	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  R → entfernen")
 	return "  " + label + "  " + ids + hint

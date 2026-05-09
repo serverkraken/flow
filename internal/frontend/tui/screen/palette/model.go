@@ -20,6 +20,7 @@ import (
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -537,7 +538,7 @@ func (m Model) renderPreview(maxWidth int) string {
 		return ""
 	}
 	action := m.visible[m.cursor].Action
-	prefix := "  ▸ "
+	prefix := "  " + glyphs.Active + " "
 	available := maxWidth - lipgloss.Width(prefix)
 	if available < 8 {
 		return ""
@@ -550,7 +551,7 @@ func (m Model) renderPreview(maxWidth int) string {
 	}
 	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Border)
 	textStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
-	return "  " + arrowStyle.Render("▸") + " " + textStyle.Render(action)
+	return "  " + arrowStyle.Render(glyphs.Active) + " " + textStyle.Render(action)
 }
 
 func (m Model) title() string {

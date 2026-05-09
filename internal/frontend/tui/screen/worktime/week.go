@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -225,10 +226,10 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		durStr := lipgloss.NewStyle().Foreground(w.pal.Fg).Bold(total >= d.Target).Render(formatDur(total))
 		extra := ""
 		if d.IsToday && d.Active != nil {
-			extra += "  " + lipgloss.NewStyle().Foreground(w.pal.Green).Render("▶")
+			extra += "  " + theme.Success(glyphs.Active, w.pal)
 		}
 		if total >= d.Target {
-			extra += "  " + lipgloss.NewStyle().Foreground(w.pal.Green).Render("✓")
+			extra += "  " + theme.Success(glyphs.Done, w.pal)
 		}
 		return marker + name + " " + date + "  " + bar + "  " + pctStr + "  " + durStr + extra
 	}
@@ -309,11 +310,11 @@ func (w woche) renderPace(now time.Time) string {
 			dots = append(dots, lipgloss.NewStyle().Foreground(kindColor(w.pal, dayOff.Kind)).
 				Render(dayOffPaceGlyph(dayOff.Kind)))
 		case hit:
-			dots = append(dots, greenStyle.Render("●"))
+			dots = append(dots, greenStyle.Render(glyphs.Filled))
 		case d.IsToday && d.Active != nil:
-			dots = append(dots, yellowStyle.Render("●"))
+			dots = append(dots, yellowStyle.Render(glyphs.Filled))
 		default:
-			dots = append(dots, dimStyle.Render("○"))
+			dots = append(dots, dimStyle.Render(glyphs.Empty))
 		}
 
 		if !isWeekend && !isOff {
@@ -402,15 +403,9 @@ func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
 	return p.Fg
 }
 
-// dayOffPaceGlyph picks a per-kind monospace glyph for the pace strip.
+// dayOffPaceGlyph delegiert an helpers.dayOffGlyph — selbe Whitelist-
+// Mapping wie history_heatmap und history_month, eine zentrale
+// Wahrheits-Quelle.
 func dayOffPaceGlyph(k domain.Kind) string {
-	switch k {
-	case domain.KindHoliday:
-		return "★"
-	case domain.KindVacation:
-		return "☼"
-	case domain.KindSick:
-		return "✚"
-	}
-	return "○"
+	return dayOffGlyph(k)
 }

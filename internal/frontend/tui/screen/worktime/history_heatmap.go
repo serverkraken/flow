@@ -162,16 +162,12 @@ func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss
 	return " · ", pal.BgCode
 }
 
+// dayOffHeatmapGlyph wraps dayOffGlyph mit den Heatmap-Cell-Spaces
+// (jede Heat-Zelle ist 3 Char breit). Zentralisierter Single-Cell-
+// Glyph kommt aus helpers.dayOffGlyph; die Spaces bleiben hier, weil
+// nur die Heatmap pro Cell-Position drei Chars verlangt.
 func dayOffHeatmapGlyph(k domain.Kind) string {
-	switch k {
-	case domain.KindHoliday:
-		return " ★ "
-	case domain.KindVacation:
-		return " ☼ "
-	case domain.KindSick:
-		return " ✚ "
-	}
-	return " · "
+	return " " + dayOffGlyph(k) + " "
 }
 
 // — heatmap bounds + cursor helpers —

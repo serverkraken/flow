@@ -10,8 +10,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 func (h history) renderMain() string {
@@ -134,7 +136,7 @@ func (h history) renderList(records []domain.DayRecord, inner int) string {
 			Render(formatDur(rec.Total))
 		done := ""
 		if rec.Total >= rec.Target {
-			done = "  " + lipgloss.NewStyle().Foreground(h.pal.Green).Render("✓")
+			done = "  " + theme.Success(glyphs.Done, h.pal)
 		}
 		marker := "  "
 		if i == h.listCur {

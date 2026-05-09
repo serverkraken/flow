@@ -18,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
@@ -1309,7 +1310,9 @@ func renderDateCell(e ports.NoteEntry) (string, string) {
 		dateRendered = todayDateStyle.Render(date)
 	}
 	if today {
-		return dateRendered, todayMarkerStyle.Render("★ ")
+		// glyphs.Filled (●) ist der kanonische Today-Marker laut
+		// Whitelist; ★ ist semantisch Holiday und wäre ein Drift.
+		return dateRendered, todayMarkerStyle.Render(glyphs.Filled + " ")
 	}
 	return dateRendered, "  "
 }
@@ -1742,7 +1745,7 @@ func humanizeAge(d time.Duration) string {
 // internen Style-Vars (modalDangerStyle, modalQuestionStyle,
 // modalHintStyle) bleiben für die Inhalts-Hierarchie.
 func (m Model) renderDeleteModal() string {
-	headline := modalDangerStyle.Render("⚠  Notiz löschen?")
+	headline := modalDangerStyle.Render(glyphs.Failed + "  Notiz löschen?")
 	target := modalQuestionStyle.Render(m.deleteTargetID.String())
 	hint := modalHintStyle.Render("y/Enter → ja  ·  n/Esc → nein")
 	body := lipgloss.JoinVertical(lipgloss.Center, headline, "", target, "", hint)
