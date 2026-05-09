@@ -38,6 +38,7 @@ func TestSem_MapsToHues(t *testing.T) {
 		{sem.Danger, p.Red, "Danger → Red"},
 		{sem.Info, p.Cyan, "Info → Cyan"},
 		{sem.Highlight, p.Purple, "Highlight → Purple"},
+		{sem.Border, p.BgCode, "Border → BgCode"},
 		{sem.BorderSubtle, p.BgChip, "BorderSubtle → BgChip"},
 		{sem.BorderStrong, p.FgMuted, "BorderStrong → FgMuted"},
 	}

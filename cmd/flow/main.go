@@ -162,6 +162,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
 	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
 	noteLister := newKompendiumNoteLister(kompDeps)
+	noteReader := newKompendiumNoteReader(kompDeps)
 	paletteReader := &usecase.PaletteReader{
 		Entries: paletteEntries,
 		Stats:   paletteStats,
@@ -177,19 +178,21 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	// drift risk.
 	worktimeScreen := func(pal theme.Palette) tea.Model {
 		return worktime.New(pal, worktime.Deps{
-			Reader:        reader,
-			Stats:         stats,
-			SessionWriter: sessionWriter,
-			Tagger:        tagger,
-			DayOffReader:  dayoffReader,
-			DayOffWriter:  dayoffWriter,
-			LinkReader:    linkReader,
-			LinkWriter:    linkWriter,
-			Reporter:      reporter,
-			NoteOpener:    noteOpener,
-			NoteLister:    noteLister,
-			Clock:         clock,
-			Output:        outputTargets,
+			Reader:           reader,
+			Stats:            stats,
+			SessionWriter:    sessionWriter,
+			Tagger:           tagger,
+			DayOffReader:     dayoffReader,
+			DayOffWriter:     dayoffWriter,
+			LinkReader:       linkReader,
+			LinkWriter:       linkWriter,
+			Reporter:         reporter,
+			NoteOpener:       noteOpener,
+			NoteLister:       noteLister,
+			NoteReader:       noteReader,
+			MarkdownRenderer: mdRenderer,
+			Clock:            clock,
+			Output:           outputTargets,
 		})
 	}
 

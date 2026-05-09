@@ -24,6 +24,11 @@ func (h heute) View() string {
 	if h.width == 0 {
 		return ""
 	}
+	if h.dialog == heuteDialogNoteView {
+		// Note-Viewer ist ein Vollbild-Sub-Screen mit eigenem titlebox +
+		// scrollbarem Body — keine Dialog-Header-Hülle drumherum.
+		return h.renderNoteViewDialog(h.width - 4)
+	}
 	if h.dialog != heuteDialogNone {
 		return h.renderDialog()
 	}
@@ -87,7 +92,7 @@ func (h heute) renderHeadline(now time.Time) string {
 	// gleiche Stärke hat wie totalStr — vorher hatte der dim pctStr und
 	// der bold totalStr im Vergleich den Status-Glyph erschlagen.
 	statusStr := lipgloss.NewStyle().Foreground(statusColor).Bold(true).Render(statusGlyph + " " + statusLabel)
-	pctStr := theme.Dim(fmt.Sprintf("%d%%", pct), h.pal)
+	pctStr := theme.Dim(fmt.Sprintf("Ziel %d%%", pct), h.pal)
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
 	// zwischen den drei Status-Cells.
 	return "  " + totalStr + "    " + statusStr + "    " + pctStr

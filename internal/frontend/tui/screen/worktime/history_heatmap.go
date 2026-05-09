@@ -134,6 +134,11 @@ func (h history) renderHeatmapLegend(inner int) string {
 		lipgloss.NewStyle().Foreground(h.pal.Green).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(h.pal.Red).Render("▲ ≥150%"),
 		lipgloss.NewStyle().Foreground(h.pal.Cyan).Render("★/☼/✚ frei"),
+		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
+		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
+		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —
+		// die Heatmap selbst trägt die Underline-Semantik.
+		stDim(h.pal, "_ heute (unterstrichen)"),
 	}
 	return joinWrapped(legend, "  ", "   ", "   ", inner)
 }

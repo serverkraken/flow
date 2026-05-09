@@ -7,6 +7,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 )
 
@@ -39,6 +40,37 @@ func newKompendiumNoteLister(kompDeps kompendiumcli.Deps) *kompendiumNoteLister 
 		}
 	}
 	return a
+}
+
+// kompendiumNoteReader adaptiert kompendium ports.NoteStore.Get auf
+// das schmale worktime.NoteReader-Interface, das der integrierte
+// Note-Viewer in Heute (`o`-Key) konsumiert. Liefert den Markdown-Body
+// einer Note als string; Composition-Root-Wiring isoliert den Worktime-
+// Screen vom kompendium domain.Note Typ.
+type kompendiumNoteReader struct {
+	store kompports.NoteStore
+}
+
+// newKompendiumNoteReader baut den Adapter über kompDeps.Store. Bei
+// nil-Store (kompendium nicht initialisiert) liefert Read einen Fehler.
+func newKompendiumNoteReader(kompDeps kompendiumcli.Deps) *kompendiumNoteReader {
+	return &kompendiumNoteReader{store: kompDeps.Store}
+}
+
+// Read implementiert worktime.NoteReader. Parst die ID, lädt die Note
+// über den Store und gibt den Body als string zurück. Parse-Fehler und
+// Store-Fehler propagieren nach oben — der Heute-Note-Viewer rendert
+// sie inline.
+func (a *kompendiumNoteReader) Read(id string) (string, error) {
+	parsed, err := kompdomain.ParseID(id)
+	if err != nil {
+		return "", err
+	}
+	note, err := a.store.Get(context.Background(), parsed)
+	if err != nil {
+		return "", err
+	}
+	return string(note.Body), nil
 }
 
 // Recent implementiert worktime.NoteLister. Liefert bis zu `limit`

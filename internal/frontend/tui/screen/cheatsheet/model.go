@@ -156,13 +156,18 @@ func (m Model) View() string {
 	case m.err != nil:
 		content = theme.Err("\n  Fehler: "+m.err.Error(), m.pal)
 	case !m.rendered:
-		content = theme.Dim("\n  Cheatsheet lädt…", m.pal)
+		// Loading-Glyph ○ vorm Text, damit der State auch in NO_COLOR-
+		// Profilen ohne theme.Dim erkennbar ist (Round-2 C2).
+		content = theme.Dim("\n  ○ Cheatsheet lädt…", m.pal)
 	default:
 		content = m.vp.View()
 	}
 
 	title := "Cheatsheet"
-	if m.rendered {
+	switch {
+	case m.err != nil:
+		title = "Cheatsheet · Fehler"
+	case m.rendered:
 		title = fmt.Sprintf("Cheatsheet · %.0f%%", m.vp.ScrollPercent()*100)
 	}
 	box := titlebox.Render(title, content, m.width, m.pal)

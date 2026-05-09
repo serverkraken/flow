@@ -28,8 +28,9 @@ func Render(title, body string, width int, p theme.Palette) string {
 	if width < 4 {
 		return ""
 	}
-	border := lipgloss.NewStyle().Foreground(lipgloss.Color(p.BgCode))
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple)).Bold(true)
+	sem := p.Sem()
+	border := lipgloss.NewStyle().Foreground(sem.Border)
+	titleStyle := lipgloss.NewStyle().Foreground(sem.Highlight).Bold(true)
 	inner := width - 2
 
 	// Title budget: width − "╭─ " (3) − " " (1) − "╮" (1) − ≥1 right-dash = width − 6.

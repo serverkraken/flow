@@ -18,7 +18,8 @@ type Semantic struct {
 	Danger       lipgloss.Color
 	Info         lipgloss.Color // informative without action
 	Highlight    lipgloss.Color // attention-grabbing, non-actionable mark
-	BorderSubtle lipgloss.Color // light divider / panel border
+	Border       lipgloss.Color // panel border / horizontal rule / dim separator
+	BorderSubtle lipgloss.Color // selection-row tint, lighter than Border
 	BorderStrong lipgloss.Color // load-bearing border (modal, focused panel)
 }
 
@@ -35,6 +36,7 @@ func (p Palette) Sem() Semantic {
 		Danger:       p.Red,
 		Info:         p.Cyan,
 		Highlight:    p.Purple,
+		Border:       p.BgCode,
 		BorderSubtle: p.BgChip,
 		BorderStrong: p.FgMuted,
 	}

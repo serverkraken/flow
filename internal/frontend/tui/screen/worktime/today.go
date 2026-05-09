@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
@@ -47,6 +48,11 @@ const (
 	heuteDialogDelete
 	heuteDialogNoteAttach
 	heuteDialogHelp
+	// heuteDialogNoteView ist der integrierte Markdown-Viewer für
+	// angehängte Kompendium-Notes. Wird vom `o`-Key geöffnet und nutzt
+	// einen viewport.Model + den injizierten ports.MarkdownRenderer —
+	// dieselbe Pipeline wie der Cheatsheet-Tab.
+	heuteDialogNoteView
 )
 
 // heute is the Heute (today) sub-model. F4.3 wave B gives it the action
@@ -100,6 +106,15 @@ type heute struct {
 	// getippten Raw-ID.
 	noteSuggestions []NoteSuggestion
 	noteSuggCur     int
+
+	// noteView Felder treiben den integrierten Note-Viewer (`o`-Key,
+	// dialog == heuteDialogNoteView). noteViewVP ist der Scroll-Container,
+	// noteViewID die geladene Note für den Title, noteViewErr ein
+	// Render-/Read-Fehler der inline statt als Toast gezeigt wird.
+	noteViewVP    viewport.Model
+	noteViewReady bool
+	noteViewID    string
+	noteViewErr   error
 }
 
 // noteAttachPickerLimit ist die maximale Anzahl jüngster Notes, die
@@ -306,7 +321,7 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 	case "o":
-		return h, h.viewAttachedNoteCmd()
+		return h.openNoteViewDialog()
 	case "O":
 		return h, h.editAttachedNoteCmd()
 	case "R":

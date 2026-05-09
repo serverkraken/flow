@@ -47,7 +47,15 @@ type Deps struct {
 	// jüngsten Kompendium-Notes. Optional — bei nil degradiert der
 	// Dialog zur reinen ID-Eingabe (Pre-Picker-Verhalten).
 	NoteLister NoteLister
-	Clock      interface{ Now() time.Time }
+	// NoteReader liest den Markdown-Body einer Note für den
+	// integrierten Inline-Viewer (Heute `o`-Key). Optional — bei nil
+	// degradiert `o` auf den externen Viewer-Pfad via NoteOpener.View.
+	NoteReader NoteReader
+	// MarkdownRenderer rendert den Note-Body inline. Geteilt mit dem
+	// Cheatsheet-Screen — gleiche Pipeline, gleiches Styling. Optional;
+	// bei nil zeigt der Viewer den Raw-Markdown.
+	MarkdownRenderer ports.MarkdownRenderer
+	Clock            interface{ Now() time.Time }
 	// Output is the worktime menu's three-target sink (Clipboard /
 	// tmux-Split / Datei in ~/Downloads). Wired in cmd/flow/main.go via
 	// internal/adapter/output. Slice B: nil-tolerant (no flow uses it

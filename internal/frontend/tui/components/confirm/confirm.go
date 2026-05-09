@@ -11,7 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -105,7 +104,13 @@ func (m Model) View() string {
 	if m.detail != "" {
 		detail = "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Render(m.detail)
 	}
-	hint := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.FgMuted)).Render(strings.HintConfirm)
+	// A11y: Default-Action explizit als `[y/Enter]` (bold + bracketed) gegen
+	// die Cancel-Action (dim, ohne Brackets) absetzen. Brackets sind ein
+	// non-color Signal — bei NO_COLOR weiß der User, welche Taste der
+	// "primäre" Pfad ist, ohne sich auf Bold-Rendering verlassen zu müssen.
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.FgMuted))
+	primary := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Bold(true)
+	hint := primary.Render("[y/Enter] → ja") + dim.Render("  ·  n/Esc → nein")
 	return q + detail + "\n\n" + hint
 }
 

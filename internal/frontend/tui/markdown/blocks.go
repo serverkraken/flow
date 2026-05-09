@@ -91,7 +91,11 @@ func (r *nodeRenderer) styleH2(text string) string {
 		row = ansi.Truncate(row, w, "…")
 	}
 	chip := r.roles.H2.Render(row)
-	rule := r.roles.CardSeparator.Render(strings.Repeat("─", w))
+	// HRule ist die heading-rule-Rolle (auch genutzt für thematic breaks).
+	// CardSeparator ist das frontmatter-card / backlinks-card Pendant —
+	// dieselbe Hue, aber semantisch eine andere Rolle; das Heading sollte
+	// nicht an Card-Style gekoppelt sein.
+	rule := r.roles.HRule.Render(strings.Repeat("─", w))
 	return chip + "\n" + rule
 }
 
@@ -101,10 +105,15 @@ func (r *nodeRenderer) styleH2(text string) string {
 // get truncated with `…`.
 func (r *nodeRenderer) styleH1(inner string) string {
 	w := r.effectiveWidth()
-	text := " " + inner + " "
-	if visibleWidth(text) > w {
-		text = ansi.Truncate(text, w, "…")
+	// Truncate `inner` selbst auf w-2, damit die umrahmenden Spaces
+	// (" inner ") die volle effective-width nicht durch das ansi.Truncate
+	// um zwei Zeichen auffressen — vorher kürzte `ansi.Truncate(text, w)`
+	// den Inhalt um 1 Cell pro umrahmendem Space + 1 für das "…", also drei
+	// Zellen statt der nötigen einen.
+	if visibleWidth(inner) > w-2 {
+		inner = ansi.Truncate(inner, w-2, "…")
 	}
+	text := " " + inner + " "
 	return r.roles.H1Text.Width(w).Render(text)
 }
 

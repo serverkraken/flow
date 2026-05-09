@@ -157,6 +157,8 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		h.dialog = heuteDialogNone
 		return h.handleNormalKey(msg)
+	case heuteDialogNoteView:
+		return h.updateNoteViewKey(msg)
 	}
 	return h, nil
 }
@@ -463,11 +465,14 @@ func (h heute) renderDialog() string {
 	if h.errMsg != "" {
 		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
 	}
-	titleLine := "  " + theme.Highlight(title, h.pal)
+	// Title + Hint auf eigenen Zeilen: bei schmalen Sidekick-Panes (~70 Cols)
+	// schluckte titlebox.Truncate vorher den Hint, weil er auf der gleichen
+	// Zeile wie der Title hing und mit ` · `-Separator angehängt wurde.
+	header := []string{"  " + theme.Highlight(title, h.pal)}
 	if hint != "" {
-		titleLine += theme.Dim("  ·  "+hint, h.pal)
+		header = append(header, "  "+theme.Dim(hint, h.pal))
 	}
-	header := []string{titleLine, ""}
+	header = append(header, "")
 	return strings.Join(append(header, rows...), "\n")
 }
 
@@ -485,11 +490,13 @@ func helpSectionsHeute() []help.Section {
 		{Title: "Worktime — Heute · Session-Edit (auf fokussierter Zeile)", Keys: [][2]string{
 			{"E / Enter", "Session bearbeiten"},
 			{"D", "Session löschen (y/Enter bestätigt)"},
-			{"t · N", "Tag · Notiz setzen"},
+			{"t", "Session-Tag setzen"},
+			{"N", "Session-Notiz setzen (großgeschrieben)"},
 		}},
 		{Title: "Worktime — Heute · Kompendium (für heute)", Keys: [][2]string{
 			{"n", "Note anhängen (ID eingeben)"},
-			{"o · O", "erste Note ansehen · bearbeiten"},
+			{"o", "erste Note inline ansehen (integrierter Markdown-Viewer)"},
+			{"O", "erste Note im Editor öffnen"},
 			{"R", "erste Note entfernen"},
 		}},
 	}

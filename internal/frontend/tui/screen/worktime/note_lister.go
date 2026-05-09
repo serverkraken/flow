@@ -20,3 +20,12 @@ type NoteSuggestion struct {
 type NoteLister interface {
 	Recent(limit int) []NoteSuggestion
 }
+
+// NoteReader liefert den rohen Markdown-Body einer Note. Genutzt vom
+// integrierten Note-Viewer in Heute (`o`-Key), der die angehängte Note
+// inline mit dem flow-eigenen MarkdownRenderer öffnet, statt einen
+// externen Viewer in einem tmux-Split zu starten. Implementiert in
+// cmd/flow/main.go als Adapter über kompendium ports.NoteStore.Get.
+type NoteReader interface {
+	Read(id string) (string, error)
+}

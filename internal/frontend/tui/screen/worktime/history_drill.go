@@ -81,7 +81,7 @@ func (h history) renderDrill() string {
 		domain.WeekdayShortDe(h.drillDate.Weekday())+")", h.pal), ""}
 	if h.drillErr != nil {
 		rows = append(rows, stErr(h.pal, h.drillErr.Error()))
-		rows = append(rows, "", stDim(h.pal, "  b/Esc zurück"))
+		rows = append(rows, "", stDim(h.pal, drillBackHint))
 		return strings.Join(rows, "\n")
 	}
 	if len(h.drillSessions) == 0 {
@@ -150,20 +150,35 @@ func (h history) renderDrill() string {
 	return strings.Join(rows, "\n")
 }
 
+// drillFormHint is the canonical key-hint shown while editing or adding
+// a drill session. Both modes share the same form layout, so the hint
+// is identical and lives here as a single literal.
+const drillFormHint = "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen"
+
+// drillBackHint is the standalone "back" hint shown when the drill
+// branch has nothing else to advertise (error path). The plain drill
+// footer composes its own multi-hint strip; this constant is for the
+// degenerate case where only "back" is meaningful.
+const drillBackHint = "  b/Esc zurück"
+
 // renderDrillFooter picks the hint line for the active drill dialog
 // mode. Each mode advertises its own keys; the bare drill view
 // promotes navigate / edit / add / delete to the user.
 func (h history) renderDrillFooter() string {
 	switch h.dialog {
-	case historyDialogDrillEdit:
-		return stDim(h.pal, "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen")
-	case historyDialogDrillAdd:
-		return stDim(h.pal, "  Tab/↑↓ → Feld  ·  Enter → weiter / speichern  ·  Esc → abbrechen")
+	case historyDialogDrillEdit, historyDialogDrillAdd:
+		return stDim(h.pal, drillFormHint)
 	case historyDialogDrillDelete:
 		// confirm.Model rendert bereits den eigenen y/Enter-Hint —
 		// die Footer-Zeile bleibt hier auf dem Standard "zurück", damit
 		// der globale Help-Button + Tab-Strip nicht aus dem Layout fällt.
 		return stDim(h.pal, "  y/Enter → löschen  ·  n/Esc → abbrechen")
+	}
+	// Empty-Day-Empty-State: kein Session-Eintrag → `a → neu` an die
+	// Spitze des Hint-Stacks, weil "navigieren" auf einer leeren Liste
+	// keinen Sinn ergibt.
+	if len(h.drillSessions) == 0 {
+		return stDim(h.pal, "  a → erste Session hinzufügen  ·  b/Esc → zurück")
 	}
 	hints := []string{"j/k → bewegen"}
 	if h.drillOnSession() {

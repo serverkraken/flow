@@ -68,11 +68,16 @@ func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (str
 func (h history) renderTagClockHeader() string {
 	hdr := "      "
 	for col := 0; col < 24; col++ {
+		// Landmark-Stunden (9/12/17) bold-Cyan damit Morning/Noon/EOD-
+		// Boundaries als Orientierungspunkte erkennbar bleiben — vorher
+		// kollidierten sie als BgCode mit der Hintergrundfarbe (A11y-2).
 		c := h.pal.FgMuted
+		bold := false
 		if col == 9 || col == 12 || col == 17 {
-			c = h.pal.BgCode
+			c = h.pal.Cyan
+			bold = true
 		}
-		hdr += lipgloss.NewStyle().Foreground(c).Render(fmt.Sprintf("%02d", col))
+		hdr += lipgloss.NewStyle().Foreground(c).Bold(bold).Render(fmt.Sprintf("%02d", col))
 	}
 	return hdr
 }
@@ -86,7 +91,7 @@ func (h history) renderTagClockRows(grid [7][24]time.Duration, maxCell time.Dura
 			cell, color := tagClockCellGlyph(h.pal, grid[r][c], frac)
 			cellStyle := lipgloss.NewStyle().Foreground(color)
 			if r == h.tagClockRow && c == h.tagClockCol {
-				cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
+				cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true).Underline(true)
 			}
 			row += cellStyle.Render(cell)
 		}

@@ -124,6 +124,11 @@ func (r *nodeRenderer) renderCodeSpan(w util.BufWriter, source []byte, n ast.Nod
 // underline — the lipgloss per-cell underline quirk would split the
 // span char-by-char) and wraps the whole span in OSC 8 so the link
 // is clickable in terminals that support hyperlinks.
+//
+// Auf Ascii-Profilen (NO_COLOR / kein OSC-8-Support) zeigt der Link-Text
+// die Destination zusätzlich in Klammern, weil OSC-8-only-Renderings
+// dort komplett unsichtbar bleiben — der User hätte sonst keinen Hinweis
+// auf die URL.
 func (r *nodeRenderer) renderLink(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
 		return ast.WalkContinue, nil
@@ -134,6 +139,13 @@ func (r *nodeRenderer) renderLink(w util.BufWriter, source []byte, n ast.Node, e
 		return ast.WalkStop, err
 	}
 	dest := string(link.Destination)
+	if dest != "" && (r.opts.noColor || isASCIIProfile(r.opts.lip)) && inner != dest {
+		// Inner ist der angezeigte Text (z.B. "Hier klicken"); auf Ascii-
+		// Profilen ergänzen wir " (URL)" damit die Destination sichtbar
+		// bleibt.
+		_, _ = w.WriteString(inner + " (" + dest + ")")
+		return ast.WalkSkipChildren, nil
+	}
 	r.osc8ID++
 	_, _ = w.WriteString(osc8Wrap(dest, r.osc8ID, r.roles.LinkText.Render(inner)))
 	return ast.WalkSkipChildren, nil
@@ -148,6 +160,12 @@ func (r *nodeRenderer) renderAutoLink(w util.BufWriter, source []byte, n ast.Nod
 	}
 	a := n.(*ast.AutoLink)
 	url := string(a.URL(source))
+	if r.opts.noColor || isASCIIProfile(r.opts.lip) {
+		// Auf Ascii-Profilen reicht der reine URL-Text — OSC 8 würde dort
+		// vom Terminal ohnehin entfernt; der Text ist die Information.
+		_, _ = w.WriteString(url)
+		return ast.WalkSkipChildren, nil
+	}
 	r.osc8ID++
 	_, _ = w.WriteString(osc8Wrap(url, r.osc8ID, r.roles.LinkText.Render(url)))
 	return ast.WalkSkipChildren, nil

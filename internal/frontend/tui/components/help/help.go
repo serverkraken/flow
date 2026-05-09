@@ -33,7 +33,11 @@ func Render(title string, sections []Section, keyWidth, boxWidth int, p theme.Pa
 		}
 		rows = append(rows, accent.Render("  "+sec.Title))
 		for _, kv := range sec.Keys {
-			key := fg.Width(keyWidth).Render("    " + kv[0])
+			// 4-Char-Indent außerhalb des Width-Budgets, damit lange Key-
+			// Combos (z.B. "Ctrl+D / Ctrl+U") nicht den gesamten Slot
+			// auffressen und damit die Description ohne führendes Space
+			// rechts daneben klebt.
+			key := "    " + fg.Width(keyWidth).Render(kv[0])
 			rows = append(rows, key+dim.Render(kv[1]))
 		}
 	}

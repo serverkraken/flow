@@ -12,7 +12,6 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
-	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 func (h history) renderMain() string {
@@ -37,7 +36,7 @@ func (h history) renderMain() string {
 			}
 			rows = append(rows, stDim(h.pal, msg))
 		} else {
-			rows = append(rows, h.renderList(records))
+			rows = append(rows, h.renderList(records, inner))
 		}
 	}
 	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
@@ -86,7 +85,8 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 	}
 	performance := []string{
 		kv("Ziele", fmt.Sprintf("%d/%d", st.Hits, st.Workdays)),
-		kv("Streak", fmt.Sprintf("%d (best %d)", st.Streak, st.BestStreak)),
+		kv("Streak", fmt.Sprintf("%d", st.Streak)),
+		kv("Beststreak", fmt.Sprintf("%d", st.BestStreak)),
 		stDim(h.pal, "Saldo ") + bal,
 	}
 	header := picker.SectionHeader("volumen", inner, h.pal) + "\n" +
@@ -100,7 +100,7 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 	return header
 }
 
-func (h history) renderList(records []domain.DayRecord) string {
+func (h history) renderList(records []domain.DayRecord, inner int) string {
 	const barW = 12
 	var lines []string
 	prevWeek := -1
@@ -111,7 +111,10 @@ func (h history) renderList(records []domain.DayRecord) string {
 			if prevWeek != -1 {
 				lines = append(lines, "")
 			}
-			lines = append(lines, theme.Heading(fmt.Sprintf("  KW %d / %d", w, y), h.pal))
+			// SectionHeader (`KW 19 — ─────`) statt theme.Heading: KW-Gruppen
+			// sind List-Sub-Sections, keine Screen-Titel; Heading-Style war
+			// purple-bold und damit visuell auf Dialog-Titel-Niveau.
+			lines = append(lines, picker.SectionHeader(fmt.Sprintf("KW %d / %d", w, y), inner, h.pal))
 			prevWeek, prevYear = w, y
 		}
 		pct := 0

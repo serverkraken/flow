@@ -16,10 +16,12 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -47,6 +49,11 @@ type Model struct {
 	loading bool
 	rootDir string
 
+	// switchToast surfacet tmux-Dispatch-Fehler ohne den Body zu
+	// überschreiben; ohne ihn ginge der Listen-Kontext (Cursor-Position,
+	// gerade getippter Filter) verloren, sobald ein Switch fehlschlägt.
+	switchToast *toast.Model
+
 	reader   *usecase.ProjectsReader
 	switcher *usecase.ProjectSwitcher
 }
@@ -54,9 +61,7 @@ type Model struct {
 // New constructs a projects Model. rootDir is purely informational —
 // shown in the title bar; the reader is responsible for honouring it.
 func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switcher *usecase.ProjectSwitcher) Model {
-	ti := textinput.New()
-	ti.Placeholder = "filter…"
-	ti.CharLimit = 80
+	ti := form.NewTextInput("filter…", p)
 	return Model{
 		pal:      p,
 		filter:   ti,
@@ -127,13 +132,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case switchedMsg:
 		// Surface tmux failures (no server, missing socket) instead of
-		// quitting silently. Without this the user sees flow disappear
-		// with no clue why no new session attached.
+		// quitting silently. Routed über einen Danger-Toast statt einer
+		// Body-Fehlerzeile, damit die Projekt-Liste mit Cursor-Position
+		// + Filter sichtbar bleibt — der User kann direkt erneut wählen.
 		if msg.err != nil {
-			m.err = msg.err
-			return m, nil
+			t := toast.NewDanger("dispatch fehlgeschlagen: "+msg.err.Error(), m.pal)
+			m.switchToast = &t
+			return m, t.Init()
 		}
 		return m, tea.Quit
+
+	case toast.DismissedMsg:
+		m.switchToast = nil
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.filter.Focused() {
@@ -256,7 +267,12 @@ func (m Model) View() string {
 	inner := m.width - 4
 
 	var rows []string
-	prompt := theme.Heading("› ", m.pal)
+	// Focused: filled ▶ Accent-Bold; unfocused: dim › — non-color signal
+	// für Filter-Focus, mirror palette/View.
+	prompt := theme.Dim("› ", m.pal)
+	if m.filter.Focused() {
+		prompt = theme.Heading("▶ ", m.pal)
+	}
 	rows = append(rows, prompt+m.filter.View(), "")
 
 	switch {
@@ -276,11 +292,14 @@ func (m Model) View() string {
 		}
 		for i := m.offset; i < end; i++ {
 			p := m.visible[i]
-			label := p.Name
+			hint := ""
 			if p.HasTmuxSession {
-				label = p.Name + "  " + lipgloss.NewStyle().Foreground(m.pal.Green).Render("●")
+				// Active-tmux-session-Marker im Hint-Slot statt im Label —
+				// picker.Row truncated nur das Label und garantiert dass der
+				// Marker rechtsbündig erhalten bleibt, auch bei langen Namen.
+				hint = lipgloss.NewStyle().Foreground(m.pal.Sem().Success).Render("●")
 			}
-			rows = append(rows, picker.Row(i == m.cursor, label, "", inner, m.pal))
+			rows = append(rows, picker.Row(i == m.cursor, p.Name, hint, inner, m.pal))
 		}
 		if end < len(m.visible) {
 			rows = append(rows, theme.Dim(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end), m.pal))
@@ -299,7 +318,9 @@ func (m Model) View() string {
 	// 4-Cap (skill §Spacing): wichtigste 4 im Footer, Surplus (esc/b/q) sind
 	// Fixed-Slot-Keys, dokumentiert im sidekick-globalen `?`-Overlay.
 	footer := statusbar.Hints("enter → wechseln  ·  j/k → bewegen  ·  / → filter  ·  ? → hilfe", m.pal)
-	return box + "\n" + footer
+	// Toast-Slot zwischen Box und Footer: hält den Footer auf konstanter
+	// Bildschirmzeile, egal ob ein Toast aktiv ist (mirror palette/View).
+	return box + "\n" + toast.SlotLine(m.switchToast, "  ") + "\n" + footer
 }
 
 func lastSegment(p string) string {

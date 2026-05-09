@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -107,9 +108,7 @@ type Model struct {
 // New constructs a palette Model wired against the given use cases and
 // tmux dispatcher.
 func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.PaletteWriter, tmux ports.Tmux) Model {
-	ti := textinput.New()
-	ti.Placeholder = "filter…"
-	ti.CharLimit = 80
+	ti := form.NewTextInput("filter…", p)
 	return Model{
 		pal:     p,
 		filter:  ti,
@@ -497,9 +496,15 @@ func (m Model) View() string {
 
 	var rows []string
 
-	prompt := theme.Heading("› ", m.pal)
+	// Focused: filled ▶ in Accent-Bold; unfocused: dim ›. Non-color
+	// signal für Filter-Focus — reine Cursor-Blink-Sichtbarkeit reichte
+	// bei statischen Screenshots / langsamem Cursor nicht.
+	prompt := theme.Dim("› ", m.pal)
+	if m.filter.Focused() {
+		prompt = theme.Heading("▶ ", m.pal)
+	}
 	rows = append(rows, prompt+m.filter.View())
-	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.BgCode).
+	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Sem().Border).
 		Render(strings.Repeat("─", inner)))
 
 	switch {
@@ -543,7 +548,7 @@ func (m Model) renderPreview(maxWidth int) string {
 			action = string(runes[:available-1]) + "…"
 		}
 	}
-	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.BgCode)
+	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Border)
 	textStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 	return "  " + arrowStyle.Render("▸") + " " + textStyle.Render(action)
 }
@@ -631,11 +636,12 @@ func (m Model) renderEntries(innerWidth int) []string {
 func (m Model) renderRow(selected bool, label string, highlight []int, hint string, width int) string {
 	bar := " "
 	labelStyle := lipgloss.NewStyle().Foreground(m.pal.Fg)
+	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Bold(true)
 	if selected {
 		bar = lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Render(picker.AccentBarRune)
-		labelStyle = labelStyle.Bold(true)
+		labelStyle = labelStyle.Bold(true).Underline(true)
+		matchStyle = matchStyle.Underline(true)
 	}
-	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Bold(true)
 	hintStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 
 	hi := make(map[int]bool, len(highlight))

@@ -5,14 +5,16 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // AccentBarRune is the left-edge marker for the selected row in any
 // picker-shaped list. Exported so other screens (palette etc.) can
-// reuse the same glyph instead of redeclaring it locally.
-const AccentBarRune = "▎"
+// reuse the same glyph instead of redeclaring it locally. Sourced from
+// the canonical glyph whitelist — the bar lives in exactly one place.
+const AccentBarRune = glyphs.AccentBar
 
 // Row renders a single list entry: an accent bar on the left, label on
 // the left side, and a hint string right-aligned within width.
@@ -66,7 +68,7 @@ func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 func SectionHeader(name string, width int, p theme.Palette) string {
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted)).Bold(true).Padding(0, 0, 0, 1)
 	rendered := style.Render(strings.ToUpper(name))
-	dashStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.BgCode))
+	dashStyle := lipgloss.NewStyle().Foreground(p.Sem().Border)
 
 	gap := width - lipgloss.Width(rendered) - 1
 	if gap < 0 {

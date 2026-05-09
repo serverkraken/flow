@@ -610,9 +610,9 @@ func (f frei) renderKindPicker(inner int) string {
 		st := lipgloss.NewStyle().Foreground(f.pal.FgMuted)
 		if i == f.kindCur {
 			if kindFocused {
-				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true)
+				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true).Underline(true)
 			} else {
-				st = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true)
+				st = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true).Underline(true)
 			}
 		}
 		chips = append(chips, st.Render(" "+k.LabelDe()+" "))

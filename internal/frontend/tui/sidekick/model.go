@@ -31,6 +31,13 @@ const (
 	screenNotes      screenID = 4
 )
 
+// TabStripRows is the vertical budget the sidekick reserves above the
+// active screen for the tab strip. Exported so screens that allocate
+// viewports against the forwarded WindowSizeMsg height can subtract
+// further chrome on top (cheatsheet does `msg.Height - 4` for its
+// titlebox + footer) without re-deriving the strip's row count.
+const TabStripRows = 1
+
 // screener is the extra interface every screen model satisfies on top
 // of tea.Model. Used to forward keys when a screen has its own filter
 // active and to snapshot UI state for persistence.
@@ -161,7 +168,7 @@ func (m Model) fanOutToAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 	childMsg := msg
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = size.Width, size.Height
-		reserved := size.Height - 1
+		reserved := size.Height - TabStripRows
 		if reserved < 0 {
 			reserved = 0
 		}
@@ -341,7 +348,10 @@ func (m Model) renderTabStripCompact(entries []tabStripEntry) string {
 		if e.id == m.current {
 			parts[i] = active.Render("[" + e.key + "]")
 		} else {
-			parts[i] = theme.Dim(e.key, m.pal)
+			// Bracket-Form auch für inaktive Tabs, damit unter NO_COLOR die
+			// Tab-Slots als solche erkennbar bleiben (A11y-2, Round-2 Sk1):
+			// (p) signalisiert "Tab-Eintrag", [p] signalisiert "aktiv".
+			parts[i] = theme.Dim("("+e.key+")", m.pal)
 		}
 	}
 	return " " + strings.Join(parts, sep)
