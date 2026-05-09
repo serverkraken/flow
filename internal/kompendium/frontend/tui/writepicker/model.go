@@ -191,23 +191,29 @@ func (m Model) View() string {
 	return card
 }
 
-// pal is the canonical palette this picker renders against. Init-time
-// snapshot of theme.Default — the picker has no per-call palette
-// override yet (no consumer needs one).
-var pal = theme.Default
+// pal ist die canonical Palette dieses Pickers. Init-Time-Snapshot
+// von theme.Default; ein Runtime-Swap (Stufe-7-Goal) macht pal zu
+// einem per-render-Param.
+//
+// sem ist die Sem()-Sicht — Components lesen den semantischen Alias,
+// nicht die rohe Hue (siehe docs/design-system.md).
+var (
+	pal = theme.Default
+	sem = pal.Sem()
+)
 
 var (
 	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(pal.Blue)).
+			BorderForeground(sem.Accent).
 			Padding(1, 3)
 
 	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	selectedStyle = lipgloss.NewStyle().
@@ -221,7 +227,7 @@ var (
 			Padding(0, 1)
 
 	iconStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Cyan))
+			Foreground(sem.Active)
 
 	hintStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(pal.FgMuted)).
@@ -235,12 +241,12 @@ var (
 			Italic(true)
 
 	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Cyan)).
+			Foreground(sem.Active).
 			Bold(true)
 
 	slugBoxStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(pal.Yellow)).
+			BorderForeground(sem.Warning).
 			Padding(0, 1)
 )
 

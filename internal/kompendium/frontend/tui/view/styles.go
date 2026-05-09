@@ -9,18 +9,27 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-// pal is the canonical palette this package's styles render against.
-// Initialised once at package-init from theme.Default.
-var pal = theme.Default
+// pal ist die canonical Palette dieses Packages. Init beim Package-
+// Load aus theme.Default; ein Runtime-Swap (Stufe-7-Goal) wired pal
+// als per-render-Param und beseitigt diesen Package-State.
+//
+// sem ist die Sem()-Sicht auf pal — Components konsumieren laut
+// docs/design-system.md den semantischen Alias (`sem.Accent`,
+// `sem.Danger` …), nicht die rohe Hue. Ein zukünftiger Palette-Swap,
+// der z. B. "Warning" auf Orange remappt, schiebt damit hier durch.
+var (
+	pal = theme.Default
+	sem = pal.Sem()
+)
 
 var (
 	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(pal.Blue)).
+			BorderForeground(sem.Accent).
 			Padding(0, 1)
 
 	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	separatorStyle = lipgloss.NewStyle().
@@ -31,15 +40,15 @@ var (
 			Italic(true)
 
 	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Cyan)).
+			Foreground(sem.Active).
 			Bold(true)
 
 	searchActiveLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Yellow)).
+				Foreground(sem.Warning).
 				Bold(true)
 
 	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	statusBarStyle = lipgloss.NewStyle().
@@ -47,7 +56,7 @@ var (
 			Foreground(lipgloss.Color(pal.FgDim))
 
 	statusBarModeSearchStyle = lipgloss.NewStyle().
-					Background(lipgloss.Color(pal.Yellow)).
+					Background(sem.Warning).
 					Foreground(lipgloss.Color(pal.Bg)).
 					Bold(true).
 					Padding(0, 1)
@@ -62,10 +71,11 @@ var (
 	// breaking nested OSC 8 hyperlinks — fragile. A two-cell left bar
 	// stays robust regardless of what the line carries.
 	matchBarStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Yellow))
+			Foreground(sem.Warning)
 
-	// matchCurrentBarStyle marks the cursor's current match. Same shape
-	// as matchBar but bold + Orange so n/N navigation is readable.
+	// matchCurrentBarStyle marks the cursor's current match. Sem hat
+	// keinen Orange-Alias (Orange ist eine Markdown-Domain-Hue, kein
+	// semantisches Token); pal.Orange bleibt direkt.
 	matchCurrentBarStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(pal.Orange)).
 				Bold(true)

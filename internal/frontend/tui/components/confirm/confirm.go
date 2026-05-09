@@ -95,6 +95,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // View renders the dialog.
+//
+// Surface-Tokens (Fg/FgMuted) bleiben direkt aus der Palette — sie
+// haben keine Sem-Aliase, weil sie keine Hue, sondern struktureller
+// Vorder-/Hintergrund sind. Hues für Question (Yellow/Red) gehen
+// dagegen über Sem.Warning/Sem.Danger.
 func (m Model) View() string {
 	q := lipgloss.NewStyle().
 		Foreground(m.questionColor()).
@@ -119,12 +124,16 @@ func (m Model) View() string {
 	return q + detail + "\n\n" + hint
 }
 
-// questionColor picks Yellow for default, Red for Danger.
+// questionColor picks Sem.Warning for default, Sem.Danger for Danger
+// — über den semantischen Alias statt Yellow/Red direkt zuzugreifen,
+// damit ein Palette-Swap, der "Warning" auf einen anderen Hue mapt
+// (z. B. eine High-Contrast-Variante), das Confirm-Modal mitnimmt.
 func (m Model) questionColor() lipgloss.Color {
+	sem := m.theme.Sem()
 	if m.kind == KindDanger {
-		return lipgloss.Color(m.theme.Red)
+		return sem.Danger
 	}
-	return lipgloss.Color(m.theme.Yellow)
+	return sem.Warning
 }
 
 func confirmed(yes bool) tea.Cmd {

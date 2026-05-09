@@ -10,21 +10,29 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-// pal is the canonical palette this package's styles render against.
-// Initialised once at package-init from theme.Default; a runtime swap
-// would need this var rewritten (P3+ component-kit work moves browse
-// onto a per-render palette parameter, removing the package var).
-var pal = theme.Default
+// pal ist die canonical Palette dieses Packages. Init beim Package-
+// Load aus theme.Default; Runtime-Swap (Stufe-7-Goal) wired pal als
+// per-render-Param.
+//
+// sem ist die Sem()-Sicht auf pal — Components konsumieren laut
+// docs/design-system.md den semantischen Alias (`sem.Accent`,
+// `sem.Danger` …), nicht die rohe Hue. Hue-Direct-Zugriffe bleiben
+// nur dort, wo es kein passendes Sem gibt (Teal als Repo-Chip-Hue,
+// TagPalette für Tag-Hash-Rotation).
+var (
+	pal = theme.Default
+	sem = pal.Sem()
+)
 
 // Layout / chrome.
 var (
 	frameStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(pal.Blue)).
+			BorderForeground(sem.Accent).
 			Padding(0, 1)
 
 	headlineStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	headerSeparatorStyle = lipgloss.NewStyle().
@@ -59,18 +67,18 @@ var (
 			Italic(true)
 
 	footerKeyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Cyan)).
+			Foreground(sem.Active).
 			Bold(true)
 )
 
 // List items.
 var (
 	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	cursorStripeStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Cyan)).
+				Foreground(sem.Active).
 				Bold(true)
 
 	selectedTitleStyle = lipgloss.NewStyle().
@@ -84,11 +92,11 @@ var (
 			Foreground(lipgloss.Color(pal.FgDim))
 
 	todayDateStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Yellow)).
+			Foreground(sem.Warning).
 			Bold(true)
 
 	todayMarkerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Yellow)).
+				Foreground(sem.Warning).
 				Bold(true)
 
 	excerptStyle = lipgloss.NewStyle().
@@ -97,7 +105,7 @@ var (
 
 	matchStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(pal.Bg)).
-			Background(lipgloss.Color(pal.Yellow)).
+			Background(sem.Warning).
 			Bold(true)
 )
 
@@ -130,19 +138,19 @@ func tagColorIdx(s string) int {
 var (
 	badgeDailyStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(pal.Bg)).
-			Background(lipgloss.Color(pal.Blue)).
+			Background(sem.Accent).
 			Bold(true).
 			Padding(0, 1)
 
 	badgeProjectStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(pal.Bg)).
-				Background(lipgloss.Color(pal.Green)).
+				Background(sem.Success).
 				Bold(true).
 				Padding(0, 1)
 
 	badgeFreeStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(pal.Bg)).
-			Background(lipgloss.Color(pal.Purple)).
+			Background(sem.Highlight).
 			Bold(true).
 			Padding(0, 1)
 
@@ -156,22 +164,22 @@ var (
 // Header type-count pills (subtler than the row badges — only fg/bold).
 var (
 	countDailyStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	countProjectStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Green)).
+				Foreground(sem.Success).
 				Bold(true)
 
 	countFreeStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Purple)).
+			Foreground(sem.Highlight).
 			Bold(true)
 )
 
 // Search bar.
 var (
 	searchActiveLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Yellow)).
+				Foreground(sem.Warning).
 				Bold(true)
 
 	searchPassiveLabelStyle = lipgloss.NewStyle().
@@ -190,7 +198,7 @@ var (
 // Ort.
 var (
 	modalDangerStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Red)).
+				Foreground(sem.Danger).
 				Bold(true)
 
 	modalQuestionStyle = lipgloss.NewStyle().
@@ -208,11 +216,11 @@ var (
 			Foreground(lipgloss.Color(pal.FgMuted))
 
 	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Red)).
+			Foreground(sem.Danger).
 			Bold(true)
 
 	emptyGlyphStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Blue)).
+			Foreground(sem.Accent).
 			Bold(true)
 
 	emptyTitleStyle = lipgloss.NewStyle().
@@ -224,10 +232,10 @@ var (
 			Italic(true)
 
 	spinnerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(pal.Cyan))
+			Foreground(sem.Active)
 
 	paginatorActiveDotStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(pal.Cyan))
+				Foreground(sem.Active)
 
 	paginatorInactiveDotStyle = lipgloss.NewStyle().
 					Foreground(lipgloss.Color(pal.BgChip))
@@ -244,13 +252,13 @@ var (
 			Foreground(lipgloss.Color(pal.FgDim))
 
 	statusBarModeSearchStyle = lipgloss.NewStyle().
-					Background(lipgloss.Color(pal.Yellow)).
+					Background(sem.Warning).
 					Foreground(lipgloss.Color(pal.Bg)).
 					Bold(true).
 					Padding(0, 1)
 
 	statusBarModeDeleteStyle = lipgloss.NewStyle().
-					Background(lipgloss.Color(pal.Red)).
+					Background(sem.Danger).
 					Foreground(lipgloss.Color(pal.Bg)).
 					Bold(true).
 					Padding(0, 1)
