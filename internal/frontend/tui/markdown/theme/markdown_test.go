@@ -141,3 +141,37 @@ func TestH6_NoFaint(t *testing.T) {
 		t.Error("H6 has Faint() applied — drops below WCAG AA on FgMuted (A11y-3)")
 	}
 }
+
+// TestWikilinkBroken_NoFaint guards the same A11y-3 regression on the
+// broken-wikilink style. The brokenness is signalled by the `⊘` glyph
+// the renderer prefixes plus Strikethrough — the colour does not need
+// a second dimming layer.
+func TestWikilinkBroken_NoFaint(t *testing.T) {
+	t.Parallel()
+	r := lipgloss.DefaultRenderer()
+	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	if roles.WikilinkBroken.GetFaint() {
+		t.Error("WikilinkBroken has Faint() applied — drops below WCAG AA on Red (A11y-3)")
+	}
+}
+
+// TestTagChips_NoColorPath guards A11y-4: every tag-chip slot must
+// keep the tag string readable when the renderer is forced into Ascii
+// profile. Vor der TagChips-Slot-Aufnahme baute frontmatter.tagChip
+// einen Inline-`lipgloss.NewStyle()`, der den Renderer ignorierte —
+// im NO_COLOR-Pfad fiel der Hintergrund weg, das Foreground (Bg) aber
+// nicht, was den Tag-Text auf Bg-on-Bg unsichtbar machte.
+func TestTagChips_NoColorPath(t *testing.T) {
+	t.Parallel()
+	r := lipgloss.NewRenderer(io.Discard, termenv.WithProfile(termenv.Ascii))
+	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	if len(roles.TagChips) == 0 {
+		t.Fatal("TagChips slot is empty — frontmatter tag-chip rendering would fall back")
+	}
+	for i, st := range roles.TagChips {
+		out := st.Render("#go")
+		if !strings.Contains(out, "#go") {
+			t.Errorf("TagChips[%d] NO_COLOR: rendered output %q drops tag text", i, out)
+		}
+	}
+}

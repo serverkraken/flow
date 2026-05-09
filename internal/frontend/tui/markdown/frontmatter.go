@@ -9,7 +9,6 @@ import (
 	"hash/fnv"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -87,14 +86,17 @@ func (r *nodeRenderer) cardBadge(t NoteType) string {
 // tagChip renders one tag with a deterministic palette colour so
 // `#go` always reads as the same colour across notes (matches the
 // browse-list tag chip rotation in browse/styles.go).
+//
+// Geht über die vorgefertigten r.roles.TagChips, damit der Style durch
+// denselben lipgloss.Renderer läuft wie der Rest und im NO_COLOR-Profil
+// nicht die Hintergrundfarbe verloren geht.
 func (r *nodeRenderer) tagChip(tag string) string {
-	idx := tagColorIdx(tag, len(r.palette.TagPalette))
-	style := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(r.palette.Bg)).
-		Background(lipgloss.Color(r.palette.TagPalette[idx])).
-		Bold(true).
-		Padding(0, 1)
-	return style.Render(tag)
+	chips := r.roles.TagChips
+	if len(chips) == 0 {
+		return tag
+	}
+	idx := tagColorIdx(tag, len(chips))
+	return chips[idx].Render(tag)
 }
 
 // tagColorIdx is a tiny FNV-1a hash mod paletteLen. Same shape as the

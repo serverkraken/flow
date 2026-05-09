@@ -58,7 +58,7 @@ type MarkdownRoles struct {
 
 	// Wikilinks
 	WikilinkValid  lipgloss.Style // resolved wikilink (cyan, underlined, OSC 8 wrapped)
-	WikilinkBroken lipgloss.Style // unresolved wikilink (red marker, no link)
+	WikilinkBroken lipgloss.Style // unresolved wikilink (red + strike, no link)
 	ImageChip      lipgloss.Style // textual image placeholder until P1.13
 
 	// Frontmatter card
@@ -69,6 +69,13 @@ type MarkdownRoles struct {
 	CardMeta         lipgloss.Style // dim metadata (date, id, etc.)
 	CardProjectChip  lipgloss.Style // project URL chip
 	CardSeparator    lipgloss.Style // ─ rule below the card
+	// TagChips ist die per Palette vorgefertigte Style-Slice für die
+	// Tag-Chips im Frontmatter-Card. Der Renderer indiziert über einen
+	// Hash der Tag-Strings hinein, damit `#go` deterministisch dieselbe
+	// Farbe trägt. Vor dieser Slot-Aufnahme baute frontmatter.tagChip
+	// einen Inline-`lipgloss.NewStyle()`, der den per-Renderer NO_COLOR-
+	// Profile-Pfad umging — A11y-4-Regression.
+	TagChips []lipgloss.Style
 
 	// Block quotes + GitHub-style callouts
 	BlockquoteBar  lipgloss.Style // leading │ bar in front of quoted lines
@@ -246,8 +253,16 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		TableCell:   color().Foreground(lipgloss.Color(p.Fg)),
 		TableRowAlt: color().Background(lipgloss.Color(p.BgChipSoft)).Foreground(lipgloss.Color(p.Fg)),
 
-		WikilinkValid:  color().Foreground(lipgloss.Color(p.Cyan)),
-		WikilinkBroken: color().Foreground(lipgloss.Color(p.Red)).Faint(true),
+		WikilinkValid: color().Foreground(lipgloss.Color(p.Cyan)),
+		// A11y-3 (audit §2.5): kein Faint() auf Prose. Faint reduziert
+		// die terminal-Foreground-Helligkeit um 30–50 %; auf einem schon
+		// schwachen Red-on-BgBar fällt das unter WCAG AA. Die Brokenness
+		// signalisiert weiterhin der `⊘`-Glyph (in backlinkLine +
+		// renderWikiLink), unterscheidbar von `→` bei WikilinkValid auch
+		// im NO_COLOR-Profil. Kein zusätzlicher SGR-Modifier — Lipgloss
+		// segmentiert Strikethrough per-Zelle und reißt den Span in
+		// individuelle Zeichen-SGR-Sequenzen auseinander.
+		WikilinkBroken: color().Foreground(lipgloss.Color(p.Red)),
 		ImageChip:      color().Foreground(lipgloss.Color(p.FgMuted)).Background(lipgloss.Color(p.BgChipSoft)),
 
 		CardBadgeDaily:   color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Yellow)).Bold(true).Padding(0, 1),
@@ -263,5 +278,24 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		FootnoteRef:       color().Foreground(lipgloss.Color(p.Purple)).Bold(true),
 		FootnoteListTitle: color().Foreground(lipgloss.Color(p.Cyan)).Bold(true),
 		FootnoteDef:       color().Foreground(lipgloss.Color(p.FgDim)),
+
+		TagChips: tagChipStyles(color, p),
 	}
+}
+
+// tagChipStyles baut die per-Tag-Slot-Styles aus der Palette-TagPalette.
+// Die Styles laufen durch denselben lipgloss.Renderer wie alle anderen
+// Roles, daher reicht der Ascii-Profile-Pfad (NO_COLOR) durch und der
+// Test TestMarkdownRolesFor_NoColorPath deckt die Tag-Chips
+// genauso ab wie alle anderen Slots.
+func tagChipStyles(color func() lipgloss.Style, p canonical.Palette) []lipgloss.Style {
+	out := make([]lipgloss.Style, len(p.TagPalette))
+	for i, c := range p.TagPalette {
+		out[i] = color().
+			Foreground(lipgloss.Color(p.Bg)).
+			Background(lipgloss.Color(c)).
+			Bold(true).
+			Padding(0, 1)
+	}
+	return out
 }
