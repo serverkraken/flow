@@ -20,6 +20,28 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
+// noteViewWidth liefert die Viewport-Breite für den Note-View aus der
+// aktuellen Terminalbreite. Mirror der inneren Box (`h.width - 4`) mit
+// einem Floor von 60 für den Pre-WindowSizeMsg-Pfad und schmale Panes.
+func noteViewWidth(termW int) int {
+	w := termW - 4
+	if w < 1 {
+		w = 60
+	}
+	return w
+}
+
+// noteViewHeight liefert die Viewport-Höhe für den Note-View. Chrome
+// = titlebox (3) + Footer-Hint (1) + Buffer (1). Floor 8 verhindert
+// einen unbrauchbar dünnen Viewport bei sehr kleinen Terminals.
+func noteViewHeight(termH int) int {
+	h := termH - 5
+	if h < 8 {
+		h = 8
+	}
+	return h
+}
+
 // openNoteViewDialog aktiviert den integrierten Note-Viewer für die
 // erste angehängte Note des Tages. Drei Degenerationspfade:
 //   - keine Anhänge: Info-Toast, Dialog bleibt zu.
@@ -59,14 +81,7 @@ func (h heute) openNoteViewDialog() (tea.Model, tea.Cmd) {
 			rendered = r
 		}
 	}
-	vpW := h.width - 4
-	if vpW < 1 {
-		vpW = 60
-	}
-	// Höhe konservativ: titlebox (3) + footer (1) = 4 Zeilen Chrome —
-	// real height kommt erst über WindowSizeMsg (heute kennt keine
-	// height-Komponente direkt; viewport reflowt bei Update).
-	vp := viewport.New(vpW, 20)
+	vp := viewport.New(noteViewWidth(h.width), noteViewHeight(h.height))
 	vp.SetContent(rendered)
 	h.noteViewVP = vp
 	h.noteViewReady = true

@@ -64,7 +64,8 @@ type heute struct {
 	pal  theme.Palette
 	deps Deps
 
-	width int
+	width  int
+	height int
 
 	day    domain.Day
 	cursor int
@@ -175,6 +176,14 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
+		h.height = msg.Height
+		// Resize viewport in place so the user's scroll position survives
+		// a tmux pane resize (mirror cheatsheet/model.go). Allocating a
+		// new viewport.Model on every resize would reset YOffset.
+		if h.dialog == heuteDialogNoteView && h.noteViewReady {
+			h.noteViewVP.Width = noteViewWidth(h.width)
+			h.noteViewVP.Height = noteViewHeight(h.height)
+		}
 		return h, nil
 
 	case heuteLoadedMsg:

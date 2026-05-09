@@ -60,61 +60,59 @@ const (
 	menuSectionGeneral = "allgemein"
 )
 
-// menuActionRegistry ist die gecachte Liste aller registrierten Aktionen.
+// menuActionRegistry ist die statische Liste aller registrierten Aktionen.
 // Vorher allozierte allMenuActions() das Slice + den Predicate-Closure
 // pro Keystroke neu — bei aktivem Filter bedeutete das mehrere Closure-
 // Allokationen und einen Reader.Today()-Read pro getippter Taste. Liste
 // ist immutabel, daher als package-var sicher.
 //
-// Hinweis: der Land-Hint hängt von currentLand() ab (env-Variable). Wir
-// bauen die Liste lazy beim ersten Zugriff statt in init() — sonst
-// fixiert das Test-Env $WORKTIME_LAND zur Test-Init-Zeit.
-var menuActionRegistry = func() []menuAction {
-	return []menuAction{
-		{
-			kind:    menuActionCorrect,
-			section: menuSectionContext,
-			label:   "Startzeit der laufenden Session korrigieren",
-			hint:    "HH:MM",
-		},
-		{
-			kind:    menuActionBriefWeek,
-			section: menuSectionGeneral,
-			label:   "Brief Wochenbericht",
-			hint:    "aktuelle KW · Markdown",
-		},
-		{
-			kind:    menuActionBriefMonth,
-			section: menuSectionGeneral,
-			label:   "Brief Monatsbericht",
-			hint:    "aktueller Monat · Markdown",
-		},
-		{
-			kind:    menuActionExportCSV,
-			section: menuSectionGeneral,
-			label:   "Export CSV",
-			hint:    "Range wählbar",
-		},
-		{
-			kind:    menuActionExportJSON,
-			section: menuSectionGeneral,
-			label:   "Export JSON",
-			hint:    "Range wählbar",
-		},
-		{
-			kind:    menuActionStats,
-			section: menuSectionGeneral,
-			label:   "Stats für Range",
-			hint:    "Range wählbar",
-		},
-		{
-			kind:    menuActionLand,
-			section: menuSectionGeneral,
-			label:   "Land für Feiertage",
-			hint:    "aktuell: " + currentLand(),
-		},
-	}
-}()
+// Der Land-Hint wird in computeMenuActions zur Render-Zeit aufgelöst,
+// nicht hier — sonst friert ein mid-session-`tmux setenv WORKTIME_LAND`
+// den alten Wert ein.
+var menuActionRegistry = []menuAction{
+	{
+		kind:    menuActionCorrect,
+		section: menuSectionContext,
+		label:   "Startzeit der laufenden Session korrigieren",
+		hint:    "HH:MM",
+	},
+	{
+		kind:    menuActionBriefWeek,
+		section: menuSectionGeneral,
+		label:   "Brief Wochenbericht",
+		hint:    "aktuelle KW · Markdown",
+	},
+	{
+		kind:    menuActionBriefMonth,
+		section: menuSectionGeneral,
+		label:   "Brief Monatsbericht",
+		hint:    "aktueller Monat · Markdown",
+	},
+	{
+		kind:    menuActionExportCSV,
+		section: menuSectionGeneral,
+		label:   "Export CSV",
+		hint:    "Range wählbar",
+	},
+	{
+		kind:    menuActionExportJSON,
+		section: menuSectionGeneral,
+		label:   "Export JSON",
+		hint:    "Range wählbar",
+	},
+	{
+		kind:    menuActionStats,
+		section: menuSectionGeneral,
+		label:   "Stats für Range",
+		hint:    "Range wählbar",
+	},
+	{
+		kind:    menuActionLand,
+		section: menuSectionGeneral,
+		label:   "Land für Feiertage",
+		// hint wird in computeMenuActions aus currentLand() befüllt.
+	},
+}
 
 // isMenuActionVisible wertet die Kontext-Sichtbarkeit aus. Vorher in
 // einer Closure pro Eintrag, jetzt in einem zentralen Switch — eine
@@ -138,6 +136,12 @@ func computeMenuActions(ctx menuContext, query string) []menuAction {
 	for _, a := range menuActionRegistry {
 		if !isMenuActionVisible(a.kind, ctx) {
 			continue
+		}
+		// menuActionLand-Hint hängt von $WORKTIME_LAND ab und muss zur
+		// Render-Zeit aufgelöst werden, damit ein mid-session-Setzen
+		// der Env-Variable im Menü sichtbar wird.
+		if a.kind == menuActionLand {
+			a.hint = "aktuell: " + currentLand()
 		}
 		if q != "" {
 			if !strings.Contains(strings.ToLower(a.label), q) &&

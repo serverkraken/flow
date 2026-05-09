@@ -394,6 +394,9 @@ func (h heute) submitEdit() (tea.Model, tea.Cmd) {
 // Yellow-Question, Detail-Zeile und kanonisches y/Enter-→-ja-Hint mitbringt.
 func (h heute) renderDialog() string {
 	inner := h.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
 
 	var rows []string
 	var title, hint string

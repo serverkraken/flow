@@ -44,6 +44,9 @@ func (h heute) renderBody() string {
 	}
 
 	inner := h.width - 4
+	if inner <= 0 {
+		inner = 80
+	}
 	now := h.deps.Clock.Now()
 
 	rows := []string{h.renderDateLine(now), h.renderHeadline(now), "", h.renderProgressBar(inner, now), h.renderSummary(inner, now)}

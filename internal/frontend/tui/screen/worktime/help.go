@@ -31,7 +31,7 @@ func helpSectionsTabs() help.Section {
 		Keys: [][2]string{
 			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
 			{"Tab", "Nächster Tab"},
-			{"b", "Voriger Tab (oder zurück zur Palette wenn auf Heute)"},
+			{"b", "Zurück zur Palette"},
 			{":", "Aktions-Menü (Brief · Export · Stats · Korrektur · Land)"},
 			{"q", "Beenden — auch aus Dialogen / Aktions-Menü heraus"},
 		},

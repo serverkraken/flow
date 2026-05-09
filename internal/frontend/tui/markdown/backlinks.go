@@ -22,10 +22,21 @@ func (r *nodeRenderer) renderBacklinksFooter(refs []BacklinkRef) string {
 	b.WriteString("\n\n")
 	b.WriteString(r.roles.H3.Render("↩ Referenced by"))
 	b.WriteString("\n\n")
+	// Bullet "●" + space = 2 visible cells; eine schmal-aber-noch-lesbare
+	// Floor-Breite verhindert, dass extrem schmale Viewer den Wrap auf
+	// 0 zwingen (cellbuf.Wrap würde den String in Einzelzeichen splitten).
+	bodyW := r.width - 2
+	if bodyW < 8 {
+		bodyW = 8
+	}
 	for _, ref := range refs {
 		b.WriteString(r.roles.Bullet1.Render("●"))
 		b.WriteString(" ")
-		b.WriteString(r.backlinkLine(ref))
+		// Lange whitespace-freie Slugs (z. B. `2026-05-09-very-long-id`)
+		// würden ohne explizites Wrap den Footer über die Viewport-Breite
+		// hinausziehen und die OSC-8-Region mitziehen. wrapText respektiert
+		// SGR-Spans, die backlinkLine emittiert.
+		b.WriteString(wrapText(r.backlinkLine(ref), bodyW))
 		b.WriteString("\n")
 	}
 	return b.String()
