@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.0](https://github.com/serverkraken/flow/compare/v1.0.0...v1.1.0) (2026-05-09)
+
+
+### Features
+
+* **tui:** Note-Picker, Tab-Underline (A11y-2), b-as-global-back; split today.go/history.go (No-Monoliths) ([168ff06](https://github.com/serverkraken/flow/commit/168ff063579ba44eae7bde0f55ae193c5f8f0f02))
+
+
+### Bug Fixes
+
+* **tui:** UI/UX-Review-Findings — Glyphen, Truncation, Toast-Slot, Sidekick-Strip ([7f934ee](https://github.com/serverkraken/flow/commit/7f934ee47993dc95cd6a43257b5657aa2276d804))
+
+
+### Refactoring
+
+* **tui:** P4-Closure (canonical theme.Palette) + Help-Aggregation ([b4b64a3](https://github.com/serverkraken/flow/commit/b4b64a337a2a56794ebae2e6f8893c187be9195f))
+
 ## 1.0.0 (2026-05-08)
 
 
