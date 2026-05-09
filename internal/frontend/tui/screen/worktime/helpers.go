@@ -10,11 +10,32 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// renderFormField liefert die zwei Zeilen für ein Eingabe-Form-Feld:
+// SectionHeader plus entweder den Live-Input (ti.View() bei focused)
+// oder den ungetippten Wert/Placeholder (dim). Pattern C1 aus dem
+// TUI-Review — vorher 2× wortgleich in dayoffs.renderAddFields und
+// history_edit.renderDrillFormDialog kopiert.
+func renderFormField(label string, ti textinput.Model, focused bool, inner int, pal theme.Palette) []string {
+	rows := []string{picker.SectionHeader(label, inner, pal)}
+	if focused {
+		rows = append(rows, "  "+ti.View())
+		return rows
+	}
+	v := ti.Value()
+	if v == "" {
+		v = stDim(pal, ti.Placeholder)
+	}
+	rows = append(rows, "    "+v)
+	return rows
+}
 
 // dayOffGlyph mappt domain.Kind auf den kanonischen Single-Cell-Glyph
 // aus der Whitelist. Zentral statt 3× dupliziert (week.dayOffPaceGlyph,

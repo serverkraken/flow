@@ -588,16 +588,7 @@ func (f frei) renderAddFields(inner int) []string {
 	labels := []string{"datum", "label"}
 	rows := make([]string, 0, len(f.form)*2)
 	for i, ti := range f.form {
-		rows = append(rows, picker.SectionHeader(labels[i], inner, f.pal))
-		if i == f.formCur {
-			rows = append(rows, "  "+ti.View())
-		} else {
-			val := ti.Value()
-			if val == "" {
-				val = stDim(f.pal, ti.Placeholder)
-			}
-			rows = append(rows, "    "+val)
-		}
+		rows = append(rows, renderFormField(labels[i], ti, i == f.formCur, inner, f.pal)...)
 	}
 	return rows
 }

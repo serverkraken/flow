@@ -331,16 +331,7 @@ func (h history) renderDrillFormDialog(inner int, header, subtitle string) []str
 	}
 	labels := []string{"Start (HH:MM)", "Stop (HH:MM oder +1h30m)", "Tag", "Notiz"}
 	for i, ti := range h.drillForm {
-		rows = append(rows, picker.SectionHeader(labels[i], inner, h.pal))
-		if i == h.drillFormCur {
-			rows = append(rows, "  "+ti.View())
-		} else {
-			v := ti.Value()
-			if v == "" {
-				v = stDim(h.pal, ti.Placeholder)
-			}
-			rows = append(rows, "    "+v)
-		}
+		rows = append(rows, renderFormField(labels[i], ti, i == h.drillFormCur, inner, h.pal)...)
 	}
 	return rows
 }

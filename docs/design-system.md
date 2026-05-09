@@ -234,7 +234,6 @@ messages.
 | `toast`   | `New / NewSuccess / NewWarning / NewDanger / NewInfo` | Success ✓, Warning ▲, Danger ✗, Info › | —             | DefaultDuration = 2 s. Glyph + colour, never colour alone. |
 | `confirm` | `New / NewDanger`                            | KindDefault (yellow), KindDanger (red)        | `Keys() KeyMap` (A11y-5) | y/Enter → confirm, n/Esc → cancel. Hint via `strings.HintConfirm`. |
 | `form.TextInput` | `New(opts InputOpts, p)`              | default                                       | —             | Cursor + focus styled via Sem.Accent. |
-| `form.ChoiceModel` | `New(items, width, p)`              | with-glyph                                    | —             | Bubble Tea picker for n-way choices. |
 | `viewport` | bubbles wrapper                             | —                                             | —             | Scroll glyph + border styled from palette. |
 
 ### Pill (in `components/theme`)
