@@ -2,7 +2,6 @@ package worktime
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -287,10 +286,7 @@ func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
 func (f frei) syncHolidaysCmd() tea.Cmd {
 	writer := f.deps.DayOffWriter
 	year := f.currentYear()
-	land := os.Getenv("WORKTIME_LAND")
-	if land == "" {
-		land = "NW"
-	}
+	land := landOrDefault(f.deps.Land)
 	return func() tea.Msg {
 		added, _, err := writer.SyncGermanHolidays(year, land)
 		if err != nil {
@@ -488,12 +484,10 @@ func (f frei) renderEntries(inner int) []string {
 		// Highlight statt Dim, plus Bundesland-Hint aus WORKTIME_LAND damit
 		// der User sofort sieht *was* gesynct wird. a/A/K liegen darunter
 		// als sekundäre Hints im 4-Hint-Slot.
-		land := os.Getenv("WORKTIME_LAND")
-		if land == "" {
-			land = "NW"
-		}
+		land := landOrDefault(f.deps.Land)
 		bSyncHint := theme.Highlight("B", f.pal) + theme.Dim(
-			fmt.Sprintf("  → gesetzliche Feiertage für %s importieren", land), f.pal)
+			fmt.Sprintf("  → gesetzliche Feiertage für %s importieren", land), f.pal,
+		)
 		hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank"}
 		return []string{
 			stDim(f.pal, "  Noch keine Daten in diesem Jahr."),

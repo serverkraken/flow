@@ -11,16 +11,25 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// Reader loads worktime configuration from a key=value file plus the
-// WORKTIME_TARGET_HOURS env var fallback.
+// Reader loads worktime configuration from a key=value file. The
+// fallback for an absent `target_hours` key is supplied by the caller
+// so env-var resolution stays in the composition root rather than
+// scattered across adapters (review finding A1).
 type Reader struct {
-	path string
+	path          string
+	defaultTarget time.Duration
 }
 
 // New constructs a Reader that reads from path on each Load. The file
-// is not required to exist.
-func New(path string) *Reader {
-	return &Reader{path: path}
+// is not required to exist. defaultTarget is used when neither the
+// file nor a prior caller has supplied a `target_hours` value — the
+// composition root resolves WORKTIME_TARGET_HOURS into this argument.
+// Pass 0 to fall back to the package's hardcoded 8h baseline.
+func New(path string, defaultTarget time.Duration) *Reader {
+	if defaultTarget <= 0 {
+		defaultTarget = defaultTargetHours * time.Hour
+	}
+	return &Reader{path: path, defaultTarget: defaultTarget}
 }
 
 const defaultTargetHours = 8
@@ -47,7 +56,7 @@ func (r *Reader) Load() (domain.Config, error) {
 	if err != nil {
 		return cfg, err
 	}
-	cfg.DefaultTarget = resolveDefault(fileDef)
+	cfg.DefaultTarget = r.resolveDefault(fileDef)
 	return cfg, nil
 }
 
@@ -106,15 +115,12 @@ func (r *Reader) readFile(cfg *domain.Config) (time.Duration, error) {
 	return def, sc.Err()
 }
 
-// resolveDefault picks the highest-priority source: file > env > 8h.
-func resolveDefault(fileVal time.Duration) time.Duration {
+// resolveDefault picks the highest-priority source: file > caller-
+// supplied default (typically resolved from WORKTIME_TARGET_HOURS at
+// the composition root) > 8h baseline.
+func (r *Reader) resolveDefault(fileVal time.Duration) time.Duration {
 	if fileVal > 0 {
 		return fileVal
 	}
-	if v := os.Getenv("WORKTIME_TARGET_HOURS"); v != "" {
-		if h, err := strconv.ParseFloat(v, 64); err == nil && h > 0 {
-			return time.Duration(h * float64(time.Hour))
-		}
-	}
-	return defaultTargetHours * time.Hour
+	return r.defaultTarget
 }

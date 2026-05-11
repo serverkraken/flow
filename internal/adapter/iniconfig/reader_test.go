@@ -13,19 +13,11 @@ import (
 
 var _ ports.ConfigReader = (*iniconfig.Reader)(nil)
 
-// clearTargetHoursEnv unsets WORKTIME_TARGET_HOURS for the test's lifetime
-// so a developer's exported value doesn't shadow the assertion.
-func clearTargetHoursEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("WORKTIME_TARGET_HOURS", "")
-	if err := os.Unsetenv("WORKTIME_TARGET_HOURS"); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestLoad_MissingFile_Default8h(t *testing.T) {
-	clearTargetHoursEnv(t)
-	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"))
+	// Pass 0 → adapter falls back to its own 8h baseline. This is the
+	// shape the composition root uses when $WORKTIME_TARGET_HOURS is
+	// unset (review finding A1 — env-resolution moved to main.go).
+	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"), 0)
 	cfg, err := r.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -41,9 +33,11 @@ func TestLoad_MissingFile_Default8h(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingFile_EnvFallback(t *testing.T) {
-	t.Setenv("WORKTIME_TARGET_HOURS", "6")
-	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"))
+func TestLoad_MissingFile_HonorsExplicitDefault(t *testing.T) {
+	// Composition root resolved $WORKTIME_TARGET_HOURS=6 into 6h and
+	// passed it in. The reader uses it because the file has no
+	// `target_hours` key.
+	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"), 6*time.Hour)
 	cfg, err := r.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -53,23 +47,17 @@ func TestLoad_MissingFile_EnvFallback(t *testing.T) {
 	}
 }
 
-func TestLoad_MissingFile_EnvBadValueFallsBack(t *testing.T) {
-	t.Setenv("WORKTIME_TARGET_HOURS", "bogus")
-	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"))
+func TestLoad_MissingFile_NegativeDefaultFallsBackTo8h(t *testing.T) {
+	// Defensive: a negative or zero default is treated as "use the
+	// hardcoded baseline" — the adapter shouldn't echo back nonsense.
+	r := iniconfig.New(filepath.Join(t.TempDir(), "missing.conf"), -3*time.Hour)
 	cfg, _ := r.Load()
 	if cfg.DefaultTarget != 8*time.Hour {
-		t.Errorf("bogus env: want 8h, got %v", cfg.DefaultTarget)
-	}
-
-	t.Setenv("WORKTIME_TARGET_HOURS", "0")
-	cfg, _ = r.Load()
-	if cfg.DefaultTarget != 8*time.Hour {
-		t.Errorf("zero env: want 8h, got %v", cfg.DefaultTarget)
+		t.Errorf("negative default: want 8h, got %v", cfg.DefaultTarget)
 	}
 }
 
 func TestLoad_FullFile(t *testing.T) {
-	clearTargetHoursEnv(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "worktime.conf")
 	body := "" +
@@ -92,7 +80,7 @@ func TestLoad_FullFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := iniconfig.New(path).Load()
+	cfg, err := iniconfig.New(path, 0).Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -125,14 +113,15 @@ func TestLoad_FullFile(t *testing.T) {
 	}
 }
 
-func TestLoad_FilePrecedenceOverEnv(t *testing.T) {
-	t.Setenv("WORKTIME_TARGET_HOURS", "12") // env says 12, file says 6
+func TestLoad_FilePrecedenceOverDefault(t *testing.T) {
+	// Composition root passed 12h in (e.g. from $WORKTIME_TARGET_HOURS),
+	// but the file's `target_hours = 6` wins.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "conf")
 	if err := os.WriteFile(path, []byte("target_hours = 6\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := iniconfig.New(path).Load()
+	cfg, err := iniconfig.New(path, 12*time.Hour).Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +136,7 @@ func TestLoad_OpenError(t *testing.T) {
 	if err := os.WriteFile(regular, []byte(""), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r := iniconfig.New(filepath.Join(regular, "child"))
+	r := iniconfig.New(filepath.Join(regular, "child"), 0)
 	_, err := r.Load()
 	if err == nil {
 		t.Fatal("want error, got nil")

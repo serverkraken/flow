@@ -286,12 +286,16 @@ func TestMenu_ApplyActionDoneSurfacesError(t *testing.T) {
 }
 
 func TestTildePath_ShortensHomePrefixedPath(t *testing.T) {
-	t.Setenv("HOME", "/Users/test")
-	if got := tildePath("/Users/test/Downloads/x.md"); got != "~/Downloads/x.md" {
+	const home = "/Users/test"
+	if got := tildePath("/Users/test/Downloads/x.md", home); got != "~/Downloads/x.md" {
 		t.Errorf("tildePath = %q, want ~/Downloads/x.md", got)
 	}
-	if got := tildePath("/elsewhere/x.md"); got != "/elsewhere/x.md" {
+	if got := tildePath("/elsewhere/x.md", home); got != "/elsewhere/x.md" {
 		t.Errorf("tildePath should leave non-home paths intact, got %q", got)
+	}
+	// Empty home (composition root passed nothing) → return path verbatim.
+	if got := tildePath("/Users/test/x.md", ""); got != "/Users/test/x.md" {
+		t.Errorf("tildePath with empty home should return verbatim, got %q", got)
 	}
 }
 

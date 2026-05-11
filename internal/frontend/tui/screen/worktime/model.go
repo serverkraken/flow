@@ -62,6 +62,15 @@ type Deps struct {
 	// yet); Slice C/D/E start dispatching Brief / Export / Stats output
 	// through this port.
 	Output ports.Output
+	// HomeDir is the absolute path to the user's home directory. Used
+	// by the menu's "saved as ~/Downloads/…" toast for path-shortening.
+	// Pre-A1 the screen called os.Getenv("HOME") directly.
+	HomeDir string
+	// Land is the dayoff Bundesland default ($WORKTIME_LAND in
+	// production). Resolved by the composition root so the screen and
+	// its menu_actions don't reach for env vars directly. Empty string
+	// falls back to "NW" inside the helpers.
+	Land string
 }
 
 // tab identifies one of the four worktime sub-screens.

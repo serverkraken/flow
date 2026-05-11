@@ -51,7 +51,7 @@ func statsCmd(deps Deps, target outputTarget, rangeExpr string) tea.Cmd {
 			return menuActionDoneMsg{err: fmt.Errorf("stats render: %w", err)}
 		}
 		basename := fmt.Sprintf("worktime-stats-%s", sanitizeRangeForFilename(expr))
-		return dispatchToTarget(deps.Output, target, buf.String(), basename, "txt", statsPager)
+		return dispatchToTarget(deps.Output, target, buf.String(), basename, "txt", statsPager, deps.HomeDir)
 	}
 }
 

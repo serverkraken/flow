@@ -45,7 +45,7 @@ func briefCmd(deps Deps, target outputTarget, scope domain.ReportRange) tea.Cmd 
 			return menuActionDoneMsg{err: fmt.Errorf("brief: %w", err)}
 		}
 		basename := briefBasename(scope, ref)
-		return dispatchToTarget(deps.Output, target, buf.String(), basename, "md", briefViewer)
+		return dispatchToTarget(deps.Output, target, buf.String(), basename, "md", briefViewer, deps.HomeDir)
 	}
 }
 
@@ -70,7 +70,7 @@ func briefBasename(scope domain.ReportRange, ref time.Time) string {
 // Für SaveFile wird der zurückgegebene Pfad als ~/-shortened für den
 // Toast aufbereitet, damit ein langer Downloads-Pfad die Modal-Footer
 // nicht überlaufen lässt.
-func dispatchToTarget(out ports.Output, target outputTarget, content, basename, ext, viewer string) tea.Msg {
+func dispatchToTarget(out ports.Output, target outputTarget, content, basename, ext, viewer, home string) tea.Msg {
 	switch target {
 	case outputTargetClipboard:
 		if err := out.Copy(content); err != nil {
@@ -87,16 +87,18 @@ func dispatchToTarget(out ports.Output, target outputTarget, content, basename, 
 		if err != nil {
 			return menuActionDoneMsg{err: err}
 		}
-		return menuActionDoneMsg{toast: "✓ gespeichert: " + tildePath(path)}
+		return menuActionDoneMsg{toast: "✓ gespeichert: " + tildePath(path, home)}
 	}
 	return menuActionDoneMsg{err: fmt.Errorf("unbekanntes output-target: %d", target)}
 }
 
-// tildePath kürzt einen absoluten Pfad mit `~` wenn er unter $HOME
+// tildePath kürzt einen absoluten Pfad mit `~` wenn er unter `home`
 // liegt. Toast-Text-Cosmetic — die Output-Adapter geben absolute Pfade
 // zurück, aber `~/Downloads/foo.md` ist im Modal-Footer angenehmer.
-func tildePath(p string) string {
-	home := os.Getenv("HOME")
+//
+// Pre-A1 las diese Funktion os.Getenv("HOME") direkt; jetzt kommt der
+// Wert via Deps.HomeDir vom Composition Root durchgereicht.
+func tildePath(p, home string) string {
 	if home == "" {
 		return p
 	}

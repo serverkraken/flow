@@ -78,7 +78,7 @@ func exportCmd(deps Deps, target outputTarget, rangeExpr string, format exportFo
 			return menuActionDoneMsg{err: fmt.Errorf("export %s: %w", format.label(), err)}
 		}
 		basename := exportBasename(rangeExpr, format)
-		return dispatchToTarget(deps.Output, target, buf.String(), basename, format.ext(), exportPager)
+		return dispatchToTarget(deps.Output, target, buf.String(), basename, format.ext(), exportPager, deps.HomeDir)
 	}
 }
 

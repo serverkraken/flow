@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -65,6 +66,16 @@ type Paths struct {
 	KompendiumIndex    string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
 }
 
+// Env bundles configuration values resolved from environment variables.
+// Per review finding A1, every os.Getenv call lives in main() so deeper
+// layers (adapters, screens) get their values via constructor params and
+// stay testable without env mutation.
+type Env struct {
+	NoteViewer          string        // $FLOW_NOTE_VIEWER (default "glow")
+	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
+	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
+}
+
 // Deps is the wired dependency graph. K4.B extends it with the
 // kompendium subtree's deps so `flow kompendium <verb>` (registered in
 // K4.C) and the kompendium TUI screens (K5) can pull from a single
@@ -78,7 +89,7 @@ type Deps struct {
 	Kompendium kompendiumcli.Deps
 }
 
-func buildDeps(p Paths) (Deps, func(), error) {
+func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	clock := systemclock.New()
 	tmux := tmuxbridge.New()
 
@@ -92,7 +103,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 		filepath.Join(p.TmuxDir, "worktime-dayoffs.tsv"),
 		filepath.Join(p.TmuxDir, "worktime-holidays.tsv"),
 	)
-	configReader := iniconfig.New(filepath.Join(p.TmuxDir, "worktime.conf"))
+	configReader := iniconfig.New(filepath.Join(p.TmuxDir, "worktime.conf"), env.WorktimeTargetHours)
 	linkStore := linkstsv.New(filepath.Join(p.TmuxDir, "worktime-links.tsv"))
 	outputTargets := output.New(p.Home, tmux)
 
@@ -112,7 +123,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 		cmd := kompDeps.EditCmd(path)
 		return cmd.Args, nil
 	}
-	noteLauncher := editor.New(pathOf, editorArgs, envOr("FLOW_NOTE_VIEWER", "glow"))
+	noteLauncher := editor.New(pathOf, editorArgs, env.NoteViewer)
 
 	flowState := jsonflowstate.New(
 		filepath.Join(p.CacheDir, "state.json"),
@@ -164,7 +175,8 @@ func buildDeps(p Paths) (Deps, func(), error) {
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
 	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
-	noteLister := newKompendiumNoteLister(kompDeps)
+	currentRepo := detectCurrentRepo(kompDeps)
+	noteLister := newKompendiumNoteLister(kompDeps, currentRepo)
 	noteReader := newKompendiumNoteReader(kompDeps)
 	paletteReader := &usecase.PaletteReader{
 		Entries: paletteEntries,
@@ -196,6 +208,8 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			MarkdownRenderer: mdRenderer,
 			Clock:            clock,
 			Output:           outputTargets,
+			HomeDir:          p.Home,
+			Land:             env.WorktimeLand,
 		})
 	}
 
@@ -225,7 +239,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 			},
 			Worktime: worktimeScreen,
 			Notes: func(pal theme.Palette) tea.Model {
-				return buildNotesScreen(p, pal, kompDeps)
+				return buildNotesScreen(p, pal, kompDeps, currentRepo)
 			},
 		},
 		// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
@@ -264,7 +278,7 @@ func buildDeps(p Paths) (Deps, func(), error) {
 // resolver, edit Cmd, and write Cmd all reuse what kompDeps already
 // has. currentRepo is detected from the launch cwd; when flow lives
 // outside a git repo the project promotion just stays off.
-func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps) tea.Model {
+func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL) tea.Model {
 	// Sidekick-Notes-Tab: pal kommt vom Sidekick-Root (tk.Load() in
 	// cli/sidekick.go) durch — vor dem ersten Render in alle drei
 	// Kompendium-TUI-Packages SetPalette propagieren, damit der User-
@@ -274,14 +288,9 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps) t
 	kompview.SetPalette(pal)
 	kompwritepicker.SetPalette(pal)
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = ""
-	}
-	var currentRepo kompdomain.CanonicalURL
-	if info, derr := kompDeps.Repo.Detect(context.Background(), cwd); derr == nil {
-		currentRepo = info.URL
-	}
+	// currentRepo is detected once in buildDeps and threaded in here —
+	// previously this function called os.Getwd + Repo.Detect a second
+	// time, duplicating the work and risking drift. (Polish item.)
 	// writeCmd builds the `flow kompendium new <type>` cmd that runs
 	// after the in-process picker harvested a Result. Pre-fix this
 	// spawned `flow kompendium write` which embedded its own
@@ -299,6 +308,10 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps) t
 		case kompwritepicker.ChoiceDaily:
 			c = exec.Command(exe, "kompendium", "new", "daily")
 		case kompwritepicker.ChoiceProject:
+			// Pass current cwd so the new project note inherits the right
+			// repo context. Resolved at click-time (not factory-time) so
+			// the user's pane CWD wins even if it changed since startup.
+			cwd, _ := os.Getwd()
 			c = exec.Command(exe, "kompendium", "new", "project", "--cwd", cwd)
 		case kompwritepicker.ChoiceFree:
 			c = exec.Command(exe, "kompendium", "new", "free", r.Slug)
@@ -412,6 +425,22 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
+// parseEnvHoursDuration reads name as a positive float-of-hours and
+// returns it as a Duration. Empty or malformed values return 0 so the
+// downstream adapter can apply its own baseline. Centralised here so
+// the worktime adapter doesn't have to know the env-var name.
+func parseEnvHoursDuration(name string) time.Duration {
+	v := os.Getenv(name)
+	if v == "" {
+		return 0
+	}
+	h, err := strconv.ParseFloat(v, 64)
+	if err != nil || h <= 0 {
+		return 0
+	}
+	return time.Duration(h * float64(time.Hour))
+}
+
 var rootCmd = &cobra.Command{
 	Use:           "flow",
 	Short:         "Workspace TUI sidekick",
@@ -440,6 +469,12 @@ func main() {
 	}
 	indexPath := filepath.Join(indexDir, "kompendium", "index.db")
 
+	env := Env{
+		NoteViewer:          envOr("FLOW_NOTE_VIEWER", "glow"),
+		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
+		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
+	}
+
 	deps, cleanup, err := buildDeps(Paths{
 		Home:               home,
 		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
@@ -451,7 +486,7 @@ func main() {
 		SourceCodeRoot:     sourceRoot,
 		KompendiumNotebook: notebookRoot,
 		KompendiumIndex:    indexPath,
-	})
+	}, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

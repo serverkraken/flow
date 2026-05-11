@@ -117,7 +117,7 @@ func (m menuModel) openMenu(activeTab tab) menuModel {
 	m.subMode = menuSubModeList
 	m.cursor = 0
 	m.query = ""
-	m.filtered = computeMenuActions(m.ctx, "")
+	m.filtered = computeMenuActions(m.ctx, "", m.deps.Land)
 	m.pending = menuAction{}
 	m.rangeF = rangeForm{}
 	m.rangeExpr = ""
@@ -366,7 +366,7 @@ func (m menuModel) handleEsc() menuModel {
 	if m.query != "" {
 		m.query = ""
 		m.cursor = 0
-		m.filtered = computeMenuActions(m.ctx, "")
+		m.filtered = computeMenuActions(m.ctx, "", m.deps.Land)
 		return m
 	}
 	m.open = false
@@ -381,7 +381,7 @@ func (m menuModel) handleBackspace() menuModel {
 		return m
 	}
 	m.query = string(r[:len(r)-1])
-	m.filtered = computeMenuActions(m.ctx, m.query)
+	m.filtered = computeMenuActions(m.ctx, m.query, m.deps.Land)
 	m.clampCursor()
 	return m
 }
@@ -398,7 +398,7 @@ func (m menuModel) handleRuneKey(msg tea.KeyMsg) menuModel {
 		return m
 	}
 	m.query += string(r)
-	m.filtered = computeMenuActions(m.ctx, m.query)
+	m.filtered = computeMenuActions(m.ctx, m.query, m.deps.Land)
 	m.clampCursor()
 	return m
 }
@@ -450,7 +450,7 @@ func (m menuModel) runAction(a menuAction) (menuModel, tea.Cmd) {
 	case menuActionLand:
 		m.pending = a
 		m.subMode = menuSubModeLand
-		m.landP = newLandPicker(currentLand())
+		m.landP = newLandPicker(landOrDefault(m.deps.Land))
 		m.errMsg = ""
 		m.toast = nil
 		return m, nil

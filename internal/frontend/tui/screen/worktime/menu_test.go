@@ -186,7 +186,7 @@ func TestMenu_NavRunesNotConsumedByFilter(t *testing.T) {
 }
 
 func TestComputeMenuActions_EmptyQueryReturnsAllVisible(t *testing.T) {
-	all := computeMenuActions(menuContext{activeTab: tabHeute}, "")
+	all := computeMenuActions(menuContext{activeTab: tabHeute}, "", "")
 	if len(all) == 0 {
 		t.Fatal("empty query must return at least the general actions")
 	}
@@ -269,16 +269,17 @@ func TestMenu_BackspaceOnEmptyQueryIsNoop(t *testing.T) {
 	}
 }
 
-func TestCurrentLand_PicksUpEnvOverride(t *testing.T) {
-	t.Setenv("WORKTIME_LAND", "BY")
-	if got := currentLand(); got != "BY" {
-		t.Errorf("currentLand with env=BY = %q, want BY", got)
+// landOrDefault replaced currentLand() once env-resolution moved to
+// the composition root (review finding A1). The contract is the same:
+// pass-through for non-empty values, "NW" baseline otherwise.
+func TestLandOrDefault_PassesThroughExplicitValue(t *testing.T) {
+	if got := landOrDefault("BY"); got != "BY" {
+		t.Errorf("landOrDefault(BY) = %q, want BY", got)
 	}
 }
 
-func TestCurrentLand_DefaultsToNW(t *testing.T) {
-	t.Setenv("WORKTIME_LAND", "")
-	if got := currentLand(); got != "NW" {
-		t.Errorf("currentLand without env = %q, want NW", got)
+func TestLandOrDefault_DefaultsToNW(t *testing.T) {
+	if got := landOrDefault(""); got != "NW" {
+		t.Errorf("landOrDefault(\"\") = %q, want NW", got)
 	}
 }

@@ -22,24 +22,39 @@ type kompendiumNoteLister struct {
 	currentRepo kompdomain.CanonicalURL
 }
 
-// newKompendiumNoteLister baut den Adapter mit einem Snapshot des
-// aktuellen Repos zur Boot-Zeit. Aus dem Repo leitet ListNotes die
-// Tier-Promotion (project notes des current repos zuerst) ab — das
-// macht die Picker-Liste „relevant zuerst". Wenn der Adapter ohne
-// laufenden Kompendium-Notebook gebaut wird (kein Index, kein Store),
-// gibt Recent ein nil-Slice zurück; der Worktime-Picker degradiert
-// dann sauber zur Reine-ID-Eingabe.
-func newKompendiumNoteLister(kompDeps kompendiumcli.Deps) *kompendiumNoteLister {
-	a := &kompendiumNoteLister{listNotes: kompDeps.ListNotes}
-	if kompDeps.Repo != nil {
-		cwd, err := os.Getwd()
-		if err == nil {
-			if info, derr := kompDeps.Repo.Detect(context.Background(), cwd); derr == nil {
-				a.currentRepo = info.URL
-			}
-		}
+// newKompendiumNoteLister baut den Adapter mit einem vom Composition
+// Root vorabgelösten currentRepo (siehe detectCurrentRepo in main.go).
+// Aus dem Repo leitet ListNotes die Tier-Promotion (project notes des
+// current repos zuerst) ab — das macht die Picker-Liste „relevant
+// zuerst". Wenn der Adapter ohne laufenden Kompendium-Notebook gebaut
+// wird (kein Index, kein Store) oder kein Repo erkannt wird, gibt
+// Recent ein nil-Slice zurück; der Worktime-Picker degradiert dann
+// sauber zur Reine-ID-Eingabe.
+func newKompendiumNoteLister(kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL) *kompendiumNoteLister {
+	return &kompendiumNoteLister{listNotes: kompDeps.ListNotes, currentRepo: currentRepo}
+}
+
+// detectCurrentRepo resolves the current working directory to its
+// canonical repo URL via kompDeps.Repo.Detect. Centralised so the note
+// lister adapter and the notes screen factory share one snapshot
+// instead of each doing their own os.Getwd + Detect round-trip.
+//
+// Returns the zero CanonicalURL on any error (no repo, missing CWD,
+// detector unavailable). Downstream callers treat that as "no repo
+// context" and skip tier-promotion.
+func detectCurrentRepo(kompDeps kompendiumcli.Deps) kompdomain.CanonicalURL {
+	if kompDeps.Repo == nil {
+		return ""
 	}
-	return a
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	info, derr := kompDeps.Repo.Detect(context.Background(), cwd)
+	if derr != nil {
+		return ""
+	}
+	return info.URL
 }
 
 // kompendiumNoteReader adaptiert kompendium ports.NoteStore.Get auf

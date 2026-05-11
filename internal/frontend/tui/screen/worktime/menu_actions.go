@@ -1,7 +1,6 @@
 package worktime
 
 import (
-	"os"
 	"strings"
 )
 
@@ -130,18 +129,18 @@ func isMenuActionVisible(kind menuActionKind, ctx menuContext) bool {
 // computeMenuActions filtert die gecachte Action-Registry nach Kontext
 // und Filter-Query. Allocates nur das `out`-Slice; das Action-Slice
 // selbst ist statisch.
-func computeMenuActions(ctx menuContext, query string) []menuAction {
+func computeMenuActions(ctx menuContext, query, land string) []menuAction {
 	q := strings.ToLower(strings.TrimSpace(query))
 	out := make([]menuAction, 0, len(menuActionRegistry))
 	for _, a := range menuActionRegistry {
 		if !isMenuActionVisible(a.kind, ctx) {
 			continue
 		}
-		// menuActionLand-Hint hängt von $WORKTIME_LAND ab und muss zur
-		// Render-Zeit aufgelöst werden, damit ein mid-session-Setzen
-		// der Env-Variable im Menü sichtbar wird.
+		// menuActionLand-Hint zeigt das aktuell konfigurierte
+		// Bundesland — Wert kommt aus Deps.Land (vom Composition Root
+		// aus $WORKTIME_LAND aufgelöst, A1).
 		if a.kind == menuActionLand {
-			a.hint = "aktuell: " + currentLand()
+			a.hint = "aktuell: " + landOrDefault(land)
 		}
 		if q != "" {
 			if !strings.Contains(strings.ToLower(a.label), q) &&
@@ -154,12 +153,13 @@ func computeMenuActions(ctx menuContext, query string) []menuAction {
 	return out
 }
 
-// currentLand reads WORKTIME_LAND with NW as the documented default.
-// Mirrors dayoffs.syncHolidaysCmd's fallback so the menu hint stays
-// in sync with what `B` would actually pass to SyncGermanHolidays.
-func currentLand() string {
-	if v := os.Getenv("WORKTIME_LAND"); v != "" {
-		return v
+// landOrDefault applies the documented "NW" fallback when the
+// composition root passed an empty land string. Mirrors the previous
+// os.Getenv("WORKTIME_LAND") + NW-default contract; centralised so the
+// menu hint and dayoff sync use exactly the same resolution.
+func landOrDefault(land string) string {
+	if land != "" {
+		return land
 	}
 	return "NW"
 }
