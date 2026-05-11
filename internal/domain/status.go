@@ -89,17 +89,28 @@ func BuildStatusSegment(in StatusInputs) string {
 	return strings.Join(parts, " ")
 }
 
+// Banner colour thresholds. Extracted so tests can name the boundary
+// instead of repeating the literal, and so changing the "endspurt" /
+// "massive overtime" boundary is a one-place edit. The asymmetry
+// (-2h / +4h) is intentional: yellow Endspurt-Signal kicks in early
+// once the target is in sight, but +1h overtime stays green — only a
+// truly excessive overrun (target + 4h) turns the banner red.
+const (
+	bannerApproachingThreshold   = 2 * time.Hour
+	bannerOvertimeAlertThreshold = 4 * time.Hour
+)
+
 // statusBanner picks the icon + tmux attr string for the main HH:MM banner.
 // Bold + warm colour when running, dim when idle. Red is reserved for
 // "really a lot" — normal +1h overtime stays green.
 func statusBanner(day Day, total, target time.Duration, achieved bool, pal StatusPalette) (icon, attr string) {
 	if day.IsRunning() {
 		switch {
-		case total >= target+4*time.Hour:
+		case total >= target+bannerOvertimeAlertThreshold:
 			return "⏱", pal.Red + ",bold"
 		case achieved:
 			return "⏱", pal.Green + ",bold"
-		case total >= target-2*time.Hour:
+		case total >= target-bannerApproachingThreshold:
 			return "⏱", pal.Yellow + ",bold"
 		default:
 			return "⏱", pal.Cyan + ",bold"
