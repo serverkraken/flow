@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -262,5 +263,28 @@ func TestFrontmatter_PreservesUnknownKeys(t *testing.T) {
 	}
 	if !bytes.Contains(out, []byte("weather: sunny")) {
 		t.Errorf("serialized output dropped weather key: %s", out)
+	}
+}
+
+// TestParseFrontmatter_RejectsOversizedYAML guards against
+// billion-laughs / alias-amplification attacks against yaml.v3. The
+// parser must reject frontmatter blocks beyond the 64 KiB cap before
+// yaml.Unmarshal sees them — otherwise a few KiB of nested aliases can
+// blow up into gigabytes during expansion.
+func TestParseFrontmatter_RejectsOversizedYAML(t *testing.T) {
+	t.Parallel()
+
+	// Padding alone (one big tag value) is the cheap proof. The amount
+	// merely needs to exceed the 64 KiB cap; the bomb threat itself
+	// isn't simulated — it's neutralised by refusing oversized input.
+	big := strings.Repeat("x", 70<<10)
+	content := []byte("---\nid: x\ntype: free\ntitle: " + big + "\n---\nbody\n")
+
+	_, _, err := domain.ParseFrontmatter(content)
+	if err == nil {
+		t.Fatal("expected size-cap error on oversized frontmatter, got nil")
+	}
+	if !errors.Is(err, domain.ErrMalformedFrontmatter) {
+		t.Errorf("error should wrap ErrMalformedFrontmatter, got %v", err)
 	}
 }

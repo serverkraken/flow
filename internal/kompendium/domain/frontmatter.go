@@ -74,6 +74,14 @@ const (
 	fmDelim   = "---"
 )
 
+// maxFrontmatterBytes hard-caps the YAML block size so yaml.v3 can't be
+// asked to expand a billion-laughs alias chain. yaml.v3 resolves aliases
+// without a depth or expansion limit, so a 4-line frontmatter with
+// nested aliases can blow up into gigabytes during Unmarshal. Frontmatter
+// is metadata (id, type, tags, a handful of plugin keys) — 64 KiB is
+// generous for any legitimate use.
+const maxFrontmatterBytes = 64 << 10
+
 // utf8BOM is the UTF-8 byte-order mark some editors prepend on save.
 // It carries no semantic meaning but breaks the literal "---\n" prefix
 // check below, so HasFrontmatter / ParseFrontmatter strip it before
@@ -107,6 +115,9 @@ func ParseFrontmatter(content []byte) (Frontmatter, []byte, error) {
 	yamlPart, body, ok := splitClosingDelim(rest)
 	if !ok {
 		return Frontmatter{}, nil, ErrMalformedFrontmatter
+	}
+	if len(yamlPart) > maxFrontmatterBytes {
+		return Frontmatter{}, nil, fmt.Errorf("%w: frontmatter exceeds %d bytes", ErrMalformedFrontmatter, maxFrontmatterBytes)
 	}
 	var fm Frontmatter
 	if err := yaml.Unmarshal(yamlPart, &fm); err != nil {

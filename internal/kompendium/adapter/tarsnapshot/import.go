@@ -14,6 +14,14 @@ import (
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
 
+// Defensive limits against decompression-bomb archives. The cap is a
+// per-entry hard limit on uncompressed bytes; a crafted .tar.gz that
+// claims a 50 GiB note would otherwise fill the local disk. 100 MiB is
+// a generous ceiling for legitimate notes — typical kompendium notes
+// are well under 1 MiB and the snapshot/export path uses the same tar
+// format, so a legitimate roundtrip never approaches the cap.
+const maxEntryBytes int64 = 100 << 20
+
 // Import extracts archive into targetRoot. Existing files trigger the
 // configured ConflictMode.
 func (Snapshot) Import(_ context.Context, archive, targetRoot string, mode ports.ConflictMode) error {
@@ -47,6 +55,13 @@ func (Snapshot) Import(_ context.Context, archive, targetRoot string, mode ports
 		if !filepath.IsLocal(hdr.Name) {
 			return fmt.Errorf("rejected non-local archive path %q", hdr.Name)
 		}
+		// Per-entry size cap, validated before any allocation. Header
+		// Size is the uncompressed size the archive claims for the entry;
+		// a hostile archive may lie, so the io.Copy below is wrapped in
+		// io.LimitReader as a second line of defence.
+		if hdr.Size > maxEntryBytes {
+			return fmt.Errorf("entry %q exceeds size cap (%d > %d bytes)", hdr.Name, hdr.Size, maxEntryBytes)
+		}
 		if err := extractEntry(tr, hdr, targetRoot, mode); err != nil {
 			return err
 		}
@@ -77,10 +92,19 @@ func extractEntry(tr *tar.Reader, hdr *tar.Header, targetRoot string, mode ports
 	tmpPath := tmp.Name()
 	cleanup := func() { _ = os.Remove(tmpPath) }
 
-	if _, err := io.Copy(tmp, tr); err != nil {
+	// io.LimitReader caps the bytes copied even when the header lied
+	// about the entry size. n == maxEntryBytes signals the reader hit
+	// the cap mid-stream; treat that as a bomb.
+	n, err := io.Copy(tmp, io.LimitReader(tr, maxEntryBytes+1))
+	if err != nil {
 		_ = tmp.Close()
 		cleanup()
 		return fmt.Errorf("write %q: %w", resolved, err)
+	}
+	if n > maxEntryBytes {
+		_ = tmp.Close()
+		cleanup()
+		return fmt.Errorf("entry %q exceeds size cap (%d bytes)", hdr.Name, maxEntryBytes)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()

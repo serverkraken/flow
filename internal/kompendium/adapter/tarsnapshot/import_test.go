@@ -181,6 +181,47 @@ func TestImport_RejectsNonLocalPath(t *testing.T) {
 	}
 }
 
+// TestImport_RejectsOversizedEntry guards against decompression-bomb
+// archives. An entry whose header claims a size beyond the per-entry
+// cap must be rejected before any allocation or write to disk.
+func TestImport_RejectsOversizedEntry(t *testing.T) {
+	t.Parallel()
+
+	archive := filepath.Join(t.TempDir(), "bomb.tar.gz")
+	f, err := os.Create(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	// Claim 1 GiB. No actual content needed — the header check fires
+	// before extractEntry touches the stream.
+	hdr := &tar.Header{
+		Name:     "huge.md",
+		Mode:     0o644,
+		Size:     1 << 30,
+		Typeflag: tar.TypeReg,
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatal(err)
+	}
+	// We don't actually write 1 GiB — close the writer; the gzip stream
+	// will be truncated, but tar.Next on the read side will still see
+	// the header before EOF.
+	_ = tw.Close()
+	_ = gz.Close()
+	_ = f.Close()
+
+	dst := t.TempDir()
+	err = tarsnapshot.New().Import(context.Background(), archive, dst, ports.ConflictAbort)
+	if err == nil {
+		t.Fatal("expected size-cap error, got nil")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("exceeds size cap")) {
+		t.Errorf("error should mention size cap, got %q", err)
+	}
+}
+
 func TestImport_TargetWriteFails(t *testing.T) {
 	t.Parallel()
 	if os.Geteuid() == 0 {
