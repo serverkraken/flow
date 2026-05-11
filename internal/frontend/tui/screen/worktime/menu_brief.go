@@ -2,8 +2,11 @@
 // menuActionBriefWeek (Range = aktuelle ISO-Woche) und
 // menuActionBriefMonth (Range = aktueller Monat). Beide rendern
 // Reporter.WriteBrief in einen Buffer und routen durch den vom User
-// gewählten Output-Target — Markdown landet in glow (Split), pbcopy
-// (Clipboard) oder ~/Downloads/worktime-brief-<scope>-<ts>.md.
+// gewählten Output-Target — Markdown landet im integrierten Overlay
+// (tmux-Split-Target), pbcopy (Clipboard) oder
+// ~/Downloads/worktime-brief-<scope>-<ts>.md (Datei). Kein externer
+// Pager mehr: der Worktime-Root hostet view.Model + viewport für den
+// Brief, sodass alles im gleichen Pane bleibt.
 
 package worktime
 
@@ -20,33 +23,49 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// briefViewer ist der Pager für Markdown-Output im tmux-Split-Target.
-// glow rendert Markdown ANSI-styled — das ist die richtige Wahl, weil
-// der Brief Markdown ist und der User die TOC + Header lesbar haben
-// will. Falls glow nicht im PATH ist, fällt der bash -c des Adapters
-// auf einen exec-Fehler — der wird als Toast surfacet.
-const briefViewer = "glow"
-
 // briefCmd liefert das tea.Cmd, das Reporter.WriteBrief gegen den
-// gegebenen Scope laufen lässt und den resultierenden Markdown-String
-// durch den Output-Port ans User-gewählte Target dispatcht. Das
-// Ergebnis fließt als menuActionDoneMsg zurück in den Menu-Update.
+// gegebenen Scope laufen lässt und das Ergebnis ans User-gewählte
+// Target dispatcht. Für outputTargetSplit liefert das Cmd einen
+// briefViewMsg an den Worktime-Root, der den integrierten Overlay
+// öffnet; für die anderen Targets bleibt der Output-Port (Clipboard /
+// SaveFile) der richtige Weg.
 func briefCmd(deps Deps, target outputTarget, scope domain.ReportRange) tea.Cmd {
 	return func() tea.Msg {
 		if deps.Reporter == nil {
 			return menuActionDoneMsg{err: fmt.Errorf("reporter nicht verdrahtet")}
-		}
-		if deps.Output == nil {
-			return menuActionDoneMsg{err: fmt.Errorf("output port nicht verdrahtet")}
 		}
 		ref := deps.Clock.Now()
 		var buf bytes.Buffer
 		if err := deps.Reporter.WriteBrief(&buf, ref, scope); err != nil {
 			return menuActionDoneMsg{err: fmt.Errorf("brief: %w", err)}
 		}
+		content := buf.String()
 		basename := briefBasename(scope, ref)
-		return dispatchToTarget(deps.Output, target, buf.String(), basename, "md", briefViewer, deps.HomeDir)
+		// Markdown-Brief ins Split-Target: kein externer Pager mehr,
+		// stattdessen ein briefViewMsg an den Worktime-Root für den
+		// integrierten Overlay-Viewer.
+		if target == outputTargetSplit {
+			return briefViewMsg{title: briefOverlayTitle(scope, ref), body: content}
+		}
+		if deps.Output == nil {
+			return menuActionDoneMsg{err: fmt.Errorf("output port nicht verdrahtet")}
+		}
+		// Brief reicht für Clipboard/SaveFile-Targets weiter durch den
+		// generischen Dispatcher. outputTargetSplit ist oben bereits
+		// abgefangen, viewer ist hier unused.
+		return dispatchToTarget(deps.Output, target, content, basename, "md", "", deps.HomeDir)
 	}
+}
+
+// briefOverlayTitle formatiert den Titel des Brief-Overlays — Scope +
+// Periode, damit der User auch ohne Footer-Subtext weiß, welcher Brief
+// vor ihm liegt.
+func briefOverlayTitle(scope domain.ReportRange, ref time.Time) string {
+	if scope == domain.ReportMonth {
+		return fmt.Sprintf("Brief · %s %04d", ref.Month().String(), ref.Year())
+	}
+	_, w := ref.ISOWeek()
+	return fmt.Sprintf("Brief · KW %02d %04d", w, ref.Year())
 }
 
 // briefBasename erzeugt den Datei-Default für SaveFile. Format:

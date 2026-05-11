@@ -131,8 +131,11 @@ func TestViewerForKind_ChoosesPerOutputType(t *testing.T) {
 		kind menuActionKind
 		want string
 	}{
-		{menuActionBriefWeek, briefViewer},
-		{menuActionBriefMonth, briefViewer},
+		// Brief geht in den integrierten Overlay, nicht durch einen Pager
+		// → viewer ist leer (signalisiert "in-process") statt einer
+		// Pager-Kommando-Konstante.
+		{menuActionBriefWeek, ""},
+		{menuActionBriefMonth, ""},
 		{menuActionExportCSV, exportPager},
 		{menuActionExportJSON, exportPager},
 		{menuActionStats, statsPager},

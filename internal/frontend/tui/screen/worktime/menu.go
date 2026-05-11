@@ -369,7 +369,17 @@ func (m menuModel) handleEsc() menuModel {
 		m.filtered = computeMenuActions(m.ctx, "", m.deps.Land)
 		return m
 	}
+	return m.closeMenu()
+}
+
+// closeMenu setzt den Menu-Modal auf inaktiv und resettet den
+// Filter-Query. Wird auch vom Worktime-Root beim Brief-Overlay-Push
+// aufgerufen, damit der hostende Tab beim Schließen des Overlays
+// nicht mit halb-geöffnetem Menü zurückkehrt.
+func (m menuModel) closeMenu() menuModel {
 	m.open = false
+	m.query = ""
+	m.cursor = 0
 	return m
 }
 
@@ -429,7 +439,10 @@ func (m menuModel) runAction(a menuAction) (menuModel, tea.Cmd) {
 	case menuActionBriefWeek, menuActionBriefMonth:
 		m.pending = a
 		m.subMode = menuSubModeTarget
-		m.target = newTargetPicker(briefViewer)
+		// Empty viewer → der TargetPicker zeigt "integriert" als Hint
+		// fürs Split-Target, weil der Brief in einem In-Process-Overlay
+		// rendert statt durch out.Pager an einen externen Viewer geht.
+		m.target = newTargetPicker("")
 		m.errMsg = ""
 		m.toast = nil
 		return m, nil
@@ -475,19 +488,19 @@ func defaultRangeFor(kind menuActionKind) string {
 }
 
 // viewerForKind picks the pager viewer for the tmux-Split target.
-// Brief is Markdown → glow renders the headers/list nicely; Export
-// (CSV/JSON) and Stats are plain text → less -S preserves columns
-// without word-wrap.
+// Brief is Markdown → empty string signals the in-process overlay path
+// (not a pager). Export (CSV/JSON) and Stats are plain text → less -S
+// preserves columns without word-wrap.
 func viewerForKind(kind menuActionKind) string {
 	switch kind {
 	case menuActionBriefWeek, menuActionBriefMonth:
-		return briefViewer
+		return ""
 	case menuActionExportCSV, menuActionExportJSON:
 		return exportPager
 	case menuActionStats:
 		return statsPager
 	}
-	return briefViewer
+	return ""
 }
 
 // View renders the modal body. The Worktime root composites this over

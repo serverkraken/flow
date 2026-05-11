@@ -116,22 +116,26 @@ func TestBriefCmd_RoutesContentToClipboard(t *testing.T) {
 	}
 }
 
-func TestBriefCmd_RoutesContentToTmuxSplit(t *testing.T) {
+// TestBriefCmd_SplitTargetReturnsOverlayMsg: outputTargetSplit für
+// Markdown-Brief routet zum integrierten Overlay (briefViewMsg) statt
+// zum externen Pager. Der Worktime-Root fängt die Message ab und
+// öffnet den view.Model — kein out.Pager-Call, kein externer Prozess.
+func TestBriefCmd_SplitTargetReturnsOverlayMsg(t *testing.T) {
 	r := newBriefRig(t)
 	cmd := briefCmd(r.deps, outputTargetSplit, domain.ReportWeek)
 	msg := cmd()
-	done := msg.(menuActionDoneMsg)
-	if done.err != nil {
-		t.Fatalf("brief cmd err = %v", done.err)
+	bv, ok := msg.(briefViewMsg)
+	if !ok {
+		t.Fatalf("split target must return briefViewMsg, got %T", msg)
 	}
-	if len(r.out.Pagers) != 1 {
-		t.Fatalf("Pager must be called once, got %d", len(r.out.Pagers))
+	if bv.body == "" {
+		t.Error("briefViewMsg.body must contain rendered brief markdown")
 	}
-	if r.out.Pagers[0].Viewer != briefViewer {
-		t.Errorf("viewer = %q, want %q", r.out.Pagers[0].Viewer, briefViewer)
+	if bv.title == "" {
+		t.Error("briefViewMsg.title must be non-empty (used as overlay title)")
 	}
-	if r.out.Pagers[0].Ext != "md" {
-		t.Errorf("ext = %q, want md", r.out.Pagers[0].Ext)
+	if len(r.out.Pagers) != 0 {
+		t.Errorf("split target must not invoke Pager (in-process overlay), got %d calls", len(r.out.Pagers))
 	}
 }
 

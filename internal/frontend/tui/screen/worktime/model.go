@@ -110,6 +110,11 @@ type Model struct {
 	current tab
 	subs    [4]tea.Model
 	menu    menuModel
+	// brief — optionaler Fullscreen-Overlay für den integrierten
+	// Brief-Viewer (Menu → Brief Week/Month → Target tmux-Split).
+	// Bei nil läuft der reguläre Tab-Body; sonst übernimmt brief
+	// Input + Render bis q/Esc/b den Overlay schließt.
+	brief *briefView
 }
 
 // New constructs the worktime root model with the four sub-models
@@ -152,11 +157,14 @@ func (m Model) WithState(filter string, cursor int) tea.Model {
 	return m
 }
 
-// FilterActive returns whether either the action menu or the active
-// sub-model is currently consuming text input. The Worktime root,
-// sidekick parent, and tab-switching keys all check this before
-// claiming letter keys back.
+// FilterActive returns whether either the action menu, the brief
+// overlay, or the active sub-model is currently consuming text input.
+// The Worktime root, sidekick parent, and tab-switching keys all check
+// this before claiming letter keys back.
 func (m Model) FilterActive() bool {
+	if m.brief != nil {
+		return true
+	}
 	if m.menu.Active() {
 		return true
 	}
@@ -265,9 +273,22 @@ func (m Model) Init() tea.Cmd {
 // to the menu and tab-switching is suspended.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case briefViewMsg:
+		// Brief-Result aus dem Menu (briefCmd → outputTargetSplit).
+		// Menu schließt sich, Brief-Overlay übernimmt; q/Esc/b dort
+		// verwirft den Overlay und das Worktime-Tab nimmt zurück.
+		m.menu = m.menu.closeMenu()
+		bv := newBriefView(msg.title, msg.body, m.width, m.height, m.deps, m.pal)
+		m.brief = &bv
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.menu = m.menu.SetSize(msg.Width, msg.Height)
+		if m.brief != nil {
+			bv := m.brief.resize(msg.Width, msg.Height, m.deps)
+			m.brief = &bv
+		}
 		var cmds []tea.Cmd
 		for i, s := range m.subs {
 			updated, cmd := s.Update(msg)
@@ -329,6 +350,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Split off Update to keep cyclomatic complexity inside the project
 // budget.
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
+	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
+	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
+	if m.brief != nil {
+		next, cmd, close := m.brief.updateKey(msg)
+		if close {
+			m.brief = nil
+			return m, nil
+		}
+		m.brief = &next
+		return m, cmd
+	}
 	if msg.String() == "q" && !m.textInputActive() {
 		return m, tea.Quit
 	}
@@ -383,6 +416,12 @@ func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
 func (m Model) View() string {
 	if m.width == 0 {
 		return ""
+	}
+	// Brief-Overlay ersetzt das Worktime-Outer komplett — kein Tab-
+	// Strip, keine titlebox-Umhüllung außenrum. Der Overlay bringt
+	// seine eigene Box + Footer mit (briefView.view).
+	if m.brief != nil {
+		return m.brief.view(m.width-4, m.pal)
 	}
 	var body string
 	if m.menu.Active() {

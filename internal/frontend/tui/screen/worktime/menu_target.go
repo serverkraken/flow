@@ -62,11 +62,16 @@ func (t outputTarget) label() string {
 }
 
 // hint returns the right-aligned per-row meta text. For the split
-// target it shows the planned viewer command (glow / less -S); for
-// clipboard the underlying tool; for file the empty placeholder.
+// target it shows the planned viewer (the external pager command for
+// CSV/JSON/Text, or the literal "integriert" for Markdown content that
+// goes into the in-process overlay); for clipboard the underlying
+// tool; for file the empty placeholder.
 func (t outputTarget) hint(viewer string) string {
 	switch t {
 	case outputTargetSplit:
+		if viewer == "" {
+			return "integriert"
+		}
 		return viewer
 	case outputTargetClipboard:
 		return "pbcopy"
