@@ -26,7 +26,8 @@ import (
 // the same commit so the next PR can't regress past the new floor.
 var screenBaseline = map[string]int{
 	"cheatsheet/model.go":          0,
-	"palette/model.go":             8,
+	"palette/model.go":             0,
+	"palette/render.go":            8,
 	"projects/model.go":            1,
 	"worktime/dayoffs.go":          5,
 	"worktime/history.go":          0,
