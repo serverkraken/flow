@@ -274,12 +274,13 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 		avg = weekTotal / time.Duration(weekdays)
 	}
 	balance := weekTotal - weekTarget
+	sem := w.pal.Sem()
 	balColor := w.pal.FgMuted
 	switch {
 	case balance > 0:
-		balColor = w.pal.Green
+		balColor = sem.Success
 	case balance < 0:
-		balColor = w.pal.Yellow
+		balColor = sem.Warning
 	}
 	bal := lipgloss.NewStyle().Foreground(balColor).Render(domain.FmtSignedDuration(balance))
 	chips := []string{
@@ -291,9 +292,10 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 }
 
 func (w woche) renderPace(now time.Time) string {
-	greenStyle := lipgloss.NewStyle().Foreground(w.pal.Green)
+	sem := w.pal.Sem()
+	greenStyle := lipgloss.NewStyle().Foreground(sem.Success)
 	dimStyle := lipgloss.NewStyle().Foreground(w.pal.FgMuted)
-	yellowStyle := lipgloss.NewStyle().Foreground(w.pal.Yellow)
+	yellowStyle := lipgloss.NewStyle().Foreground(sem.Warning)
 
 	dots := make([]string, 0, len(w.week))
 	hits, expected, workdays := 0, 0, 0

@@ -53,18 +53,19 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 		// Meldung wie wenn nie gearbeitet wurde, aber der User sieht den
 		// Filter nicht oder weiß nicht, wie er ihn löscht).
 		if h.histQuery != "" {
-			filterChip := "  ·  " + lipgloss.NewStyle().Foreground(h.pal.Cyan).Render("filter: "+h.histQuery)
+			filterChip := "  ·  " + lipgloss.NewStyle().Foreground(h.pal.Sem().Info).Render("filter: "+h.histQuery)
 			recovery := "  ·  T → Filter zurücksetzen"
 			return stDim(h.pal, "  Keine Treffer."+recovery) + filterChip
 		}
 		return stDim(h.pal, "  Keine Treffer.")
 	}
+	sem := h.pal.Sem()
 	balColor := h.pal.FgMuted
 	switch {
 	case st.Overtime > 0:
-		balColor = h.pal.Green
+		balColor = sem.Success
 	case st.Overtime < 0:
-		balColor = h.pal.Yellow
+		balColor = sem.Warning
 	}
 	bal := lipgloss.NewStyle().Foreground(balColor).Bold(true).Render(domain.FmtSignedDuration(st.Overtime))
 	// Label-Value-Hierarchie: Label dim, Wert bold/colored. SectionHeader
@@ -97,7 +98,7 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 		joinWrapped(performance, "  ·  ", "  ", "  ", inner)
 	if h.histQuery != "" {
 		header += "\n  " + stDim(h.pal, "filter: ") +
-			lipgloss.NewStyle().Foreground(h.pal.Cyan).Bold(true).Render(h.histQuery)
+			lipgloss.NewStyle().Foreground(sem.Info).Bold(true).Render(h.histQuery)
 	}
 	return header
 }

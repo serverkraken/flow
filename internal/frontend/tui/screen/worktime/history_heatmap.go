@@ -45,7 +45,7 @@ func (h history) renderHeatmapWeekHeader(startMon time.Time, weeks int) string {
 		yr, wn := mon.ISOWeek()
 		col := h.pal.FgMuted
 		if prevYear != -1 && yr != prevYear {
-			col = h.pal.Cyan
+			col = h.pal.Sem().Active
 		}
 		header += lipgloss.NewStyle().Foreground(col).Render(fmt.Sprintf("%2d ", wn%100))
 		prevYear = yr
@@ -82,7 +82,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 		if !hasRec || rec.Target == 0 {
 			cell = dayOffHeatmapGlyph(dayOff.Kind)
 		}
-		color = h.pal.Cyan
+		color = h.pal.Sem().Info
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(color)
 	isCursor := w == h.heatCol && d == h.heatRow
@@ -126,14 +126,15 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 }
 
 func (h history) renderHeatmapLegend(inner int) string {
+	sem := h.pal.Sem()
 	legend := []string{
 		stDim(h.pal, "· leer"),
 		stDim(h.pal, "░ <50%"),
 		stDim(h.pal, "▒ <75%"),
 		stDim(h.pal, "▓ <100%"),
-		lipgloss.NewStyle().Foreground(h.pal.Green).Render("█ Ziel"),
-		lipgloss.NewStyle().Foreground(h.pal.Red).Render("▲ ≥150%"),
-		lipgloss.NewStyle().Foreground(h.pal.Cyan).Render("★/☼/✚ frei"),
+		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
+		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
+		lipgloss.NewStyle().Foreground(sem.Info).Render("★/☼/✚ frei"),
 		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
 		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
 		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —
@@ -144,20 +145,21 @@ func (h history) renderHeatmapLegend(inner int) string {
 }
 
 func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss.TerminalColor) {
+	sem := pal.Sem()
 	pct := float64(rec.Total) / float64(rec.Target)
 	switch {
 	case pct >= 1.5:
 		// ≥150% bekommt einen distinkten Glyph (▲ = "Up" aus dem Whitelist),
 		// damit die A11y-2-Regel hält: Glyph + Farbe, niemals nur Farbe.
-		return " ▲ ", pal.Red
+		return " ▲ ", sem.Danger
 	case pct >= 1.0:
-		return " █ ", pal.Green
+		return " █ ", sem.Success
 	case pct >= 0.75:
-		return " ▓ ", pal.Green
+		return " ▓ ", sem.Success
 	case pct >= 0.5:
-		return " ▒ ", pal.Yellow
+		return " ▒ ", sem.Warning
 	case pct > 0:
-		return " ░ ", pal.Yellow
+		return " ░ ", sem.Warning
 	}
 	return " · ", pal.BgCode
 }

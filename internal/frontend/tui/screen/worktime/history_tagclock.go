@@ -50,17 +50,18 @@ func tagClockGrid(records []domain.DayRecord) ([7][24]time.Duration, time.Durati
 }
 
 func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, lipgloss.TerminalColor) {
+	sem := pal.Sem()
 	switch {
 	case cell == 0:
 		return "··", pal.BgCode
 	case frac >= 0.75:
-		return "██", pal.Green
+		return "██", sem.Success
 	case frac >= 0.5:
-		return "▓▓", pal.Green
+		return "▓▓", sem.Success
 	case frac >= 0.25:
-		return "▒▒", pal.Yellow
+		return "▒▒", sem.Warning
 	case frac > 0:
-		return "░░", pal.Yellow
+		return "░░", sem.Warning
 	}
 	return "··", pal.BgCode
 }
@@ -74,7 +75,7 @@ func (h history) renderTagClockHeader() string {
 		c := h.pal.FgMuted
 		bold := false
 		if col == 9 || col == 12 || col == 17 {
-			c = h.pal.Cyan
+			c = h.pal.Sem().Info
 			bold = true
 		}
 		hdr += lipgloss.NewStyle().Foreground(c).Bold(bold).Render(fmt.Sprintf("%02d", col))

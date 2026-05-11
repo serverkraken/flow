@@ -111,12 +111,13 @@ func (h history) renderMonthAggregate(monthRef, now time.Time) string {
 	if h.monthStats.Days == 0 || monthRef.Year() != now.Year() || monthRef.Month() != now.Month() {
 		return ""
 	}
+	sem := h.pal.Sem()
 	balColor := h.pal.FgMuted
 	switch {
 	case h.monthStats.Overtime > 0:
-		balColor = h.pal.Green
+		balColor = sem.Success
 	case h.monthStats.Overtime < 0:
-		balColor = h.pal.Yellow
+		balColor = sem.Warning
 	}
 	bal := lipgloss.NewStyle().Foreground(balColor).
 		Render(domain.FmtSignedDuration(h.monthStats.Overtime))
@@ -134,6 +135,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	isToday := sameDay(day, h.deps.Clock.Now())
 	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday
 
+	sem := h.pal.Sem()
 	glyph := glyphs.BulletDot
 	color := h.pal.BgCode
 	switch {
@@ -141,19 +143,19 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 		pct := float64(rec.Total) / float64(rec.Target)
 		switch {
 		case pct >= 1.5:
-			glyph, color = glyphs.Up, h.pal.Red
+			glyph, color = glyphs.Up, sem.Danger
 		case pct >= 1.0:
-			glyph, color = glyphs.HeatFull, h.pal.Green
+			glyph, color = glyphs.HeatFull, sem.Success
 		case pct >= 0.75:
-			glyph, color = glyphs.HeatDark, h.pal.Green
+			glyph, color = glyphs.HeatDark, sem.Success
 		case pct >= 0.5:
-			glyph, color = glyphs.HeatMedium, h.pal.Yellow
+			glyph, color = glyphs.HeatMedium, sem.Warning
 		case pct > 0:
-			glyph, color = glyphs.HeatLight, h.pal.Yellow
+			glyph, color = glyphs.HeatLight, sem.Warning
 		}
 	case isOff:
 		glyph = dayOffGlyph(dayOff.Kind)
-		color = h.pal.Cyan
+		color = sem.Info
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted
 	}
