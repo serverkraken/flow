@@ -29,7 +29,7 @@ const (
 	// (Tag-, Notiz-, Korrektur-Dialog).
 	HintInputSave = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
 	// HintScroll ist der Scroll-Tasten-Fragment für viewport-basierte
-	// Sub-Dialoge (Heute-NoteView, Brief-Overlay, Cheatsheet). Wird
+	// Sub-Views (Heute-NoteView, Brief-Overlay, Cheatsheet). Wird
 	// typischerweise mit einem Close-Fragment kombiniert.
 	HintScroll = "↑/↓ · PgUp/PgDn → scrollen"
 )

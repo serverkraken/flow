@@ -17,8 +17,11 @@ import (
 )
 
 // wikiLinkKind identifies the WikiLink AST node so dispatch can
-// route it to renderWikiLink.
-var wikiLinkKind = ast.NewNodeKind("KompendiumWikiLink")
+// route it to renderWikiLink. The name is intentionally neutral —
+// the renderer is shared between the cheatsheet (no kompendium
+// context) and the kompendium browse / view screens, so the AST
+// discriminator must not carry kompendium semantics.
+var wikiLinkKind = ast.NewNodeKind("WikiLink")
 
 // wikiLink is a leaf inline AST node carrying the parsed target +
 // optional display override. Its inline children are not used —
