@@ -11,9 +11,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 	flowports "github.com/serverkraken/flow/internal/ports"
@@ -48,7 +48,25 @@ func (m Model) openViewer() Model {
 	if m.backlinksFn != nil {
 		backlinks = m.backlinksFn(e.ID)
 	}
-	v := view.New(title, source, m.wikilinkResolver(), &meta, backlinks)
+	resolver := m.wikilinkResolver()
+	render := func(src string, w int) string {
+		var opts []markdown.Option
+		if resolver != nil {
+			opts = append(opts, markdown.WithWikilinks(resolver))
+		}
+		opts = append(opts, markdown.WithFrontmatter(frontmatterToMarkdown(&meta)))
+		if len(backlinks) > 0 {
+			opts = append(opts, markdown.WithBacklinks(backlinksToMarkdown(backlinks)))
+		}
+		out, _ := markdown.Render(src, w, opts...)
+		return out
+	}
+	v := markdown_overlay.New(render,
+		markdown_overlay.WithTitle(title),
+		markdown_overlay.WithSource(source),
+		markdown_overlay.WithSearch(),
+		markdown_overlay.WithCodeCopy(),
+	)
 	if m.width > 0 && m.height > 0 {
 		v = v.SetSize(m.width, m.height)
 	}
@@ -60,7 +78,7 @@ func (m Model) openViewer() Model {
 // buildViewerSource returns the body the viewer renders. The header
 // (title + metadata) is no longer prepended as Markdown — the
 // renderer's frontmatter card handles it via WithFrontmatter, which
-// view.New receives separately.
+// the overlay's RenderFunc closure binds in.
 func buildViewerSource(_ ports.NoteEntry, body []byte) string {
 	if len(body) == 0 {
 		return "*Inhalt noch nicht geladen.*"
@@ -142,9 +160,9 @@ func (m *Model) renderPreviewBody(e ports.NoteEntry) string {
 
 // wikilinkResolver builds a flowports.WikilinkResolver that consults
 // the browse model's loaded entries. Used by both renderPreviewBody
-// and the full-screen viewer (browse hands the same resolver to
-// view.New when ModeView starts) so wikilink resolution is consistent
-// across surfaces.
+// and the full-screen viewer (the same resolver is bound into the
+// overlay's RenderFunc closure when ModeView starts) so wikilink
+// resolution is consistent across surfaces.
 func (m Model) wikilinkResolver() flowports.WikilinkResolver {
 	idx := make(map[domain.ID]ports.NoteEntry, len(m.all))
 	for _, e := range m.all {

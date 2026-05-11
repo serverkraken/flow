@@ -175,12 +175,12 @@ linters:
             - github.com/serverkraken/flow/internal/kompendium/ports
             - github.com/serverkraken/flow/internal/kompendium/usecase
             - github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse
-            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
             - github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker
-            # Live-Palette-Wiring (Stufe 7): runBrowse / runPicker rufen
-            # tk.Init() + tk.Load() + {browse,view,writepicker}.SetPalette
+            # Live-Palette-Wiring: runBrowse / runPicker rufen
+            # tk.Init() + tk.Load() + {browse,markdown_overlay,writepicker}.SetPalette
             # damit @tn_*-tmux-Overlays auch im Standalone-Pfad
             # durchschlagen.
+            - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/theme
             - github.com/charmbracelet/bubbletea
             - github.com/spf13/cobra
@@ -218,6 +218,10 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/theme
             - github.com/serverkraken/flow/internal/frontend/tui/components/glyphs
             - github.com/serverkraken/flow/internal/frontend/tui/components/help
+            # markdown_overlay: shared reader component, used by browse's
+            # full-screen viewer (replaces the kompendium-local view/
+            # package from F4).
+            - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/frontend/tui/components/strings
             - github.com/serverkraken/flow/internal/ports
@@ -327,7 +331,7 @@ linters:
             # `--raw` mode: bypass the TUI, force truecolor (otherwise
             # lipgloss detects Ascii on a piped stdout and strips every
             # SGR), and write pre-rendered ANSI to stdout.
-            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
+            - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/markdown
             - github.com/charmbracelet/lipgloss
             - github.com/muesli/termenv

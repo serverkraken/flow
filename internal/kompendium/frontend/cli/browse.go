@@ -9,10 +9,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -35,7 +35,7 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 	tk.Init()
 	pal := tk.Load()
 	browse.SetPalette(pal)
-	view.SetPalette(pal)
+	markdown_overlay.SetPalette(pal)
 	writepicker.SetPalette(pal)
 
 	m := browse.New(deps.ListNotes, deps.Store, deps.DeleteNote, currentRepo, deps.EditCmd, writeCmd)

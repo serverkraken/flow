@@ -8,9 +8,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +63,16 @@ func newMarkdownViewCmd() *cobra.Command {
 				return werr
 			}
 
-			m := view.New(filepath.Base(path), string(source), nil, nil, nil)
+			render := func(src string, w int) string {
+				out, _ := markdown.Render(src, w)
+				return out
+			}
+			m := markdown_overlay.New(render,
+				markdown_overlay.WithTitle(filepath.Base(path)),
+				markdown_overlay.WithSource(string(source)),
+				markdown_overlay.WithSearch(),
+				markdown_overlay.WithCodeCopy(),
+			)
 			prog := tea.NewProgram(markdownViewerProgram{inner: m},
 				tea.WithAltScreen(), tea.WithContext(cmd.Context()))
 			_, err = prog.Run()
@@ -77,18 +86,18 @@ func newMarkdownViewCmd() *cobra.Command {
 	return cmd
 }
 
-// markdownViewerProgram adapts the kompendium viewer (which signals
-// dismissal via view.ExitMsg, expecting a hosting model to handle it)
-// into a standalone tea.Model that quits on ExitMsg. The viewer's
-// concrete-typed Update is forwarded through unchanged.
+// markdownViewerProgram adapts the markdown overlay (which signals
+// dismissal via markdown_overlay.ExitMsg, expecting a hosting model
+// to handle it) into a standalone tea.Model that quits on ExitMsg.
+// The overlay's concrete-typed Update is forwarded through unchanged.
 type markdownViewerProgram struct {
-	inner view.Model
+	inner markdown_overlay.Model
 }
 
 func (p markdownViewerProgram) Init() tea.Cmd { return p.inner.Init() }
 
 func (p markdownViewerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, ok := msg.(view.ExitMsg); ok {
+	if _, ok := msg.(markdown_overlay.ExitMsg); ok {
 		return p, tea.Quit
 	}
 	next, cmd := p.inner.Update(msg)

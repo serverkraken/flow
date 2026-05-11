@@ -8,9 +8,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
@@ -388,9 +388,10 @@ func TestBrowse_VOpensInProcessViewer(t *testing.T) {
 	}
 }
 
-// TestBrowse_VViewerExitReturnsToNormal sends a view.ExitMsg and asserts
-// the model leaves ModeView. Lives here rather than in view's package
-// tests because it exercises the parent reducer's ExitMsg handling.
+// TestBrowse_VViewerExitReturnsToNormal sends a markdown_overlay.ExitMsg
+// and asserts the model leaves ModeView. Lives here rather than in
+// markdown_overlay's package tests because it exercises the parent
+// reducer's ExitMsg handling.
 func TestBrowse_VViewerExitReturnsToNormal(t *testing.T) {
 	t.Parallel()
 
@@ -408,7 +409,7 @@ func TestBrowse_VViewerExitReturnsToNormal(t *testing.T) {
 	if got := model.(browse.Model).CurrentMode(); got != browse.ModeView {
 		t.Fatalf("setup: mode = %v, want ModeView", got)
 	}
-	model, _ = model.Update(view.ExitMsg{})
+	model, _ = model.Update(markdown_overlay.ExitMsg{})
 	if got := model.(browse.Model).CurrentMode(); got != browse.ModeNormal {
 		t.Errorf("after ExitMsg, mode = %v, want ModeNormal", got)
 	}

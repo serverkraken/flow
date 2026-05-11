@@ -14,8 +14,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 )
 
@@ -117,9 +117,9 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshPreview()
 		m.viewer = m.viewer.SetSize(m.width, m.height)
 		return m, nil
-	case view.ExitMsg:
+	case markdown_overlay.ExitMsg:
 		m.mode = ModeNormal
-		m.viewer = view.Model{}
+		m.viewer = markdown_overlay.Model{}
 		return m, nil
 	}
 	var cmd tea.Cmd

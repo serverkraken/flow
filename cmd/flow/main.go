@@ -28,6 +28,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
 	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
 	"github.com/serverkraken/flow/internal/frontend/cli"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
@@ -44,7 +45,6 @@ import (
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
-	kompview "github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	kompwritepicker "github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -81,7 +81,7 @@ type Paths struct {
 // three current sites are:
 //
 //   - internal/frontend/tui/theme/load.go  — TMUX, COLORTERM
-//   - internal/kompendium/frontend/tui/view/copy.go — TMUX
+//   - internal/frontend/tui/components/markdown_overlay/code_copy.go — TMUX
 //   - internal/kompendium/adapter/nvimeditor/split.go — VISUAL, EDITOR
 //
 // Adding a new platform probe? Note it in the list above so the
@@ -299,7 +299,7 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 	// tmux-Overlay (@tn_*) durchschlägt. Mehrfach-Aufrufe pro Run
 	// sind idempotent.
 	kompbrowse.SetPalette(pal)
-	kompview.SetPalette(pal)
+	markdown_overlay.SetPalette(pal)
 	kompwritepicker.SetPalette(pal)
 
 	// currentRepo is detected once in buildDeps and threaded in here —

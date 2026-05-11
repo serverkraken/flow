@@ -3,6 +3,7 @@ package browse
 import (
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
+	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
 
 // frontmatterToMarkdown maps the kompendium domain frontmatter to the
@@ -22,4 +23,17 @@ func frontmatterToMarkdown(fm *domain.Frontmatter) *markdown.Frontmatter {
 		Title:   fm.Title,
 		Tags:    fm.Tags,
 	}
+}
+
+// backlinksToMarkdown maps the use-case-shaped backlink refs to the
+// renderer's local BacklinkRef. Same rationale as frontmatterToMarkdown.
+func backlinksToMarkdown(refs []usecase.BacklinkRef) []markdown.BacklinkRef {
+	if len(refs) == 0 {
+		return nil
+	}
+	out := make([]markdown.BacklinkRef, len(refs))
+	for i, r := range refs {
+		out[i] = markdown.BacklinkRef{ID: r.ID.String(), Title: r.Title}
+	}
+	return out
 }

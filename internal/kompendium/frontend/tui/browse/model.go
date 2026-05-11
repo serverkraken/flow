@@ -27,8 +27,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/view"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
@@ -44,7 +44,7 @@ const (
 	ModeConfirmDelete
 	// ModeView swaps the entire browse render for the in-process
 	// Markdown viewer (internal/frontend/tui/view). The viewer owns
-	// the screen and emits view.ExitMsg on q/esc; the reducer
+	// the screen and emits markdown_overlay.ExitMsg on q/esc; the reducer
 	// returns to ModeNormal then.
 	ModeView
 	// ModeWritePicker hosts the writepicker (Daily / Project / Free)
@@ -130,7 +130,7 @@ type Model struct {
 	editCmd     CmdFunc
 	writeCmd    WriteCmdFunc
 
-	viewer view.Model
+	viewer markdown_overlay.Model
 	picker writepicker.Model
 
 	all     []ports.NoteEntry
