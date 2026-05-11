@@ -94,6 +94,53 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+// TestDelete_RemovesInboundLinks pins the B2 invariant: deleting a note
+// drops every link row that references it as a target (`dst_id`), not just
+// the outbound rows (`src_id`). Without this, an inbound-link pile-up
+// accumulates whenever a referenced note is deleted — BacklinksOf masks
+// the leak via LEFT JOIN, but the links table grows monotonically until
+// the next Rebuild. The test verifies the symmetric cleanup directly so a
+// future refactor that drops the `dst_id` predicate from the DELETE
+// cannot pass silently.
+func TestDelete_RemovesInboundLinks(t *testing.T) {
+	t.Parallel()
+	idx := newIdx(t)
+	ctx := context.Background()
+
+	// A links to B, B links to A — both directions populate the links table.
+	a := makeNote(t, "daily/2026-04-25", "alpha [[daily/2026-04-26]]")
+	b := makeNote(t, "daily/2026-04-26", "bravo [[daily/2026-04-25]]")
+	if err := idx.Upsert(ctx, a, unix(1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Upsert(ctx, b, unix(2)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Sanity: A has B as outbound and B has A as outbound — 2 rows total.
+	if links, err := idx.LinksFrom(ctx, "daily/2026-04-25"); err != nil || len(links) != 1 {
+		t.Fatalf("pre-delete: LinksFrom(A) = (%+v, %v), want 1 link", links, err)
+	}
+	if links, err := idx.LinksFrom(ctx, "daily/2026-04-26"); err != nil || len(links) != 1 {
+		t.Fatalf("pre-delete: LinksFrom(B) = (%+v, %v), want 1 link", links, err)
+	}
+
+	// Delete B. Expect both rows gone: the outbound (B→A) AND the inbound
+	// pointer (A→B, where B is dst).
+	if err := idx.Delete(ctx, "daily/2026-04-26"); err != nil {
+		t.Fatal(err)
+	}
+
+	// A still exists, but its outbound link to the deleted B must be gone.
+	if links, err := idx.LinksFrom(ctx, "daily/2026-04-25"); err != nil || len(links) != 0 {
+		t.Errorf("post-delete: LinksFrom(A) = (%+v, %v); want zero rows — inbound dst_id=B not cleaned", links, err)
+	}
+	// And no backlinks should remain pointing at the deleted B.
+	if back, err := idx.BacklinksOf(ctx, "daily/2026-04-26"); err != nil || len(back) != 0 {
+		t.Errorf("post-delete: BacklinksOf(B) = (%+v, %v); want zero", back, err)
+	}
+}
+
 func TestDelete_MissingIsNoOp(t *testing.T) {
 	t.Parallel()
 	idx := newIdx(t)
