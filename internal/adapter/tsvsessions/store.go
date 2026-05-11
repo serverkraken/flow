@@ -55,6 +55,31 @@ func (s *Store) Append(sess domain.Session) error {
 	return atomicfile.Append(s.path, buf.Bytes(), 0o644)
 }
 
+// AppendBatch writes several session rows in a single O_APPEND call so a
+// partial failure on retry cannot duplicate the rows that were already
+// flushed before the crash. The whole batch is assembled in memory and
+// emitted with one call to atomicfile.Append. An empty batch is a no-op.
+//
+// Why: review finding B1 — `stopAt` / `Pause` / `Toggle` previously
+// looped Append for each midnight-split part. A failure on part N>0 left
+// parts 1..N-1 persisted, and the natural retry path produced
+// duplicates because SplitAtMidnight is deterministic.
+func (s *Store) AppendBatch(sessions []domain.Session) error {
+	if len(sessions) == 0 {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return err
+	}
+	var buf bytes.Buffer
+	for _, sess := range sessions {
+		if _, err := writeSessionLine(&buf, sess); err != nil {
+			return err
+		}
+	}
+	return atomicfile.Append(s.path, buf.Bytes(), 0o644)
+}
+
 // Rewrite replaces the entire log atomically (see atomicfile.WriteFile).
 func (s *Store) Rewrite(sessions []domain.Session) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {

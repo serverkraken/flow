@@ -1,3 +1,10 @@
+//go:build !windows
+
+// linkstsv reaches for syscall.Flock / LOCK_EX / LOCK_UN to coordinate
+// cross-process writes — POSIX-only constants. Until the cross-build
+// matrix gains Windows, this package is silently skipped there. Review
+// finding T9 (companion to flockstate's tag).
+
 package linkstsv
 
 import (
@@ -104,22 +111,27 @@ func (s *Store) Remove(date time.Time, noteID string) error {
 // withFileLock acquires an advisory POSIX lock on a sibling .lock file
 // for cross-process serialisation. The lockfile is separate from the
 // TSV itself because writeAll uses temp+rename and would otherwise
-// pull the lock target out from under the holder. Best-effort: if the
-// dir cannot be created or the lockfile cannot be opened, the write
-// goes ahead without cross-process protection (mu still serialises
-// in-process callers).
+// pull the lock target out from under the holder.
+//
+// Failures are surfaced rather than silently degraded — review
+// finding Q4. Pre-fix the function fell through to fn() on any
+// MkdirAll / Open / Flock error, including non-transient ones like
+// permission-denied or NFS lock-server outage. In-process `mu` still
+// serialised, but cross-process writes raced and could corrupt the
+// TSV. Now: surface the error so the user sees "links could not be
+// updated" instead of silently broken state.
 func (s *Store) withFileLock(fn func() error) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return fn()
+		return fmt.Errorf("links lockfile parent: %w", err)
 	}
 	lockPath := s.path + ".lock"
 	lf, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return fn()
+		return fmt.Errorf("links lockfile open: %w", err)
 	}
 	defer lf.Close() //nolint:errcheck
 	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
-		return fn()
+		return fmt.Errorf("links flock: %w", err)
 	}
 	defer syscall.Flock(int(lf.Fd()), syscall.LOCK_UN) //nolint:errcheck
 	return fn()

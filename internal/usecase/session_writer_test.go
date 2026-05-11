@@ -125,8 +125,61 @@ func TestSessionWriter_Stop_StopBeforeStartFails(t *testing.T) {
 	w.State = w.Reader.State
 	_, err := w.Stop()
 	if err == nil {
-		t.Error("expected error for stop before start")
+		t.Fatal("expected error for stop before start")
 	}
+	// Review finding Q5: the four call sites that previously raised
+	// `errors.New("stoppzeit muss nach Startzeit liegen")` now share
+	// one sentinel so callers can branch on errors.Is.
+	if !errors.Is(err, domain.ErrStopBeforeStart) {
+		t.Errorf("got %v, want wrap of ErrStopBeforeStart", err)
+	}
+}
+
+// TestSessionWriter_StopBeforeStart_SentinelAcrossCallSites guards
+// review finding Q5 across all four entry points (Stop, Pause, Toggle,
+// Edit, AddManual) so future renames keep the contract.
+func TestSessionWriter_StopBeforeStart_SentinelAcrossCallSites(t *testing.T) {
+	now := time.Date(2026, 4, 29, 9, 0, 0, 0, time.Local)
+	future := now.Add(time.Hour)
+
+	t.Run("Stop", func(t *testing.T) {
+		w := mkWriter(now, withActive(future))
+		w.State = w.Reader.State
+		_, err := w.Stop()
+		if !errors.Is(err, domain.ErrStopBeforeStart) {
+			t.Errorf("Stop: got %v, want ErrStopBeforeStart", err)
+		}
+	})
+	t.Run("Pause", func(t *testing.T) {
+		w := mkWriter(now, withActive(future))
+		w.State = w.Reader.State
+		_, err := w.Pause()
+		if !errors.Is(err, domain.ErrStopBeforeStart) {
+			t.Errorf("Pause: got %v, want ErrStopBeforeStart", err)
+		}
+	})
+	t.Run("Toggle", func(t *testing.T) {
+		w := mkWriter(now, withActive(future))
+		w.State = w.Reader.State
+		_, err := w.Toggle()
+		if !errors.Is(err, domain.ErrStopBeforeStart) {
+			t.Errorf("Toggle: got %v, want ErrStopBeforeStart", err)
+		}
+	})
+	t.Run("Edit", func(t *testing.T) {
+		w := mkWriter(now)
+		err := w.Edit(now, 0, future, now) // newStop before newStart
+		if !errors.Is(err, domain.ErrStopBeforeStart) {
+			t.Errorf("Edit: got %v, want ErrStopBeforeStart", err)
+		}
+	})
+	t.Run("AddManual", func(t *testing.T) {
+		w := mkWriter(now)
+		err := w.AddManual(now, future, now) // stop before start
+		if !errors.Is(err, domain.ErrStopBeforeStart) {
+			t.Errorf("AddManual: got %v, want ErrStopBeforeStart", err)
+		}
+	})
 }
 
 func TestSessionWriter_StopAt_ExplicitTime(t *testing.T) {
@@ -541,6 +594,39 @@ func TestSessionWriter_Pause_StopErrPropagates(t *testing.T) {
 	}
 }
 
+// TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate guards
+// review finding B1: a Stop spanning multiple midnights used to loop
+// Append per part. If part 2 failed, part 1 was on disk and the
+// natural retry path duplicated it (SplitAtMidnight is deterministic).
+// AppendBatch must persist all parts in one operation so a retry sees
+// either zero or all rows from the previous attempt.
+func TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate(t *testing.T) {
+	start := time.Date(2026, 4, 28, 22, 0, 0, 0, time.Local)
+	now := time.Date(2026, 4, 30, 1, 0, 0, 0, time.Local) // crosses 2 midnights → 3 parts
+	w := mkWriter(now, withActive(start))
+	w.State = w.Reader.State
+
+	// First attempt: AppendBatch fails. State stays "active".
+	store := &flakySessionStore{FailOn: "AppendBatch"}
+	w.Sessions = store
+	if _, err := w.Stop(); err == nil {
+		t.Fatal("expected error from AppendBatch")
+	}
+	if got := len(store.Sessions); got != 0 {
+		t.Errorf("first attempt: %d sessions on disk after failure, want 0", got)
+	}
+
+	// Retry against a healthy store: same active marker, same input, all
+	// 3 parts now persist exactly once.
+	store.FailOn = ""
+	if _, err := w.Stop(); err != nil {
+		t.Fatalf("retry Stop: %v", err)
+	}
+	if got := len(store.Sessions); got != 3 {
+		t.Errorf("retry: %d sessions, want 3 (one per midnight slice)", got)
+	}
+}
+
 func TestSessionWriter_Delete_RewriteErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)
@@ -652,6 +738,17 @@ func (f *flakySessionStore) Append(s domain.Session) error {
 		return errors.New("boom")
 	}
 	f.Sessions = append(f.Sessions, s)
+	return nil
+}
+
+func (f *flakySessionStore) AppendBatch(sessions []domain.Session) error {
+	if f.FailOn == "AppendBatch" || f.FailOn == "Append" {
+		// Treat the legacy "Append" knob as covering AppendBatch too —
+		// existing TestSessionWriter_*_AppendErr cases continue to assert
+		// the failure surfaces from the use case.
+		return errors.New("boom")
+	}
+	f.Sessions = append(f.Sessions, sessions...)
 	return nil
 }
 

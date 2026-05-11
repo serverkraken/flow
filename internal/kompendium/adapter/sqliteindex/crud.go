@@ -29,16 +29,23 @@ func (i *Indexer) Upsert(ctx context.Context, note domain.Note, mtime time.Time)
 // links table grew monotonically until the next Rebuild.
 func (i *Indexer) Delete(ctx context.Context, id domain.ID) error {
 	return i.inTx(ctx, func(tx *sql.Tx) error {
-		for _, q := range []string{
-			`DELETE FROM notes WHERE id = ?`,
-			`DELETE FROM notes_fts WHERE id = ?`,
-			`DELETE FROM links WHERE src_id = ? OR dst_id = ?`,
-		} {
-			args := []any{id.String()}
-			if q[len(q)-len("? OR dst_id = ?"):] == "? OR dst_id = ?" {
-				args = append(args, id.String())
-			}
-			if _, err := tx.ExecContext(ctx, q, args...); err != nil {
+		s := id.String()
+		// Three explicit statements rather than a slice + suffix-match
+		// arg-count detection: review finding B2. The previous shape
+		// inferred "needs the second placeholder" by comparing the
+		// query string's tail to a literal — any reformatting of the
+		// raw string would silently feed one arg to a two-placeholder
+		// statement.
+		stmts := []struct {
+			q    string
+			args []any
+		}{
+			{`DELETE FROM notes WHERE id = ?`, []any{s}},
+			{`DELETE FROM notes_fts WHERE id = ?`, []any{s}},
+			{`DELETE FROM links WHERE src_id = ? OR dst_id = ?`, []any{s, s}},
+		}
+		for _, st := range stmts {
+			if _, err := tx.ExecContext(ctx, st.q, st.args...); err != nil {
 				return fmt.Errorf("delete: %w", err)
 			}
 		}

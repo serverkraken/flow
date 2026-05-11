@@ -193,6 +193,50 @@ func TestStore_Get_BadFrontmatter(t *testing.T) {
 	}
 }
 
+// TestStore_Get_RejectsInvalidFrontmatter guards review finding B3:
+// fsstore.Get used to construct domain.Note via struct literal, which
+// bypasses Frontmatter.Validate. A note file missing `id` or carrying
+// an unknown `type` would silently propagate into Upsert / reindex
+// paths and only surface in `kompendium doctor`. Now Get routes through
+// domain.NewNote so the validation runs at every read.
+func TestStore_Get_RejectsInvalidFrontmatter(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing id",
+			body: "---\ntype: daily\ntitle: x\n---\nbody\n",
+		},
+		{
+			name: "unknown type",
+			body: "---\nid: x/y\ntype: bogus\n---\nbody\n",
+		},
+		{
+			name: "project type without project field",
+			body: "---\nid: x/y\ntype: project\ntitle: x\n---\nbody\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := newStore(t)
+			p := filepath.Join(s.Root(), "broken.md")
+			if err := os.WriteFile(p, []byte(tc.body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := s.Get(context.Background(), domain.ID("broken"))
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !errors.Is(err, domain.ErrInvalidFrontmatter) {
+				t.Errorf("got %v, want wrap of ErrInvalidFrontmatter", err)
+			}
+		})
+	}
+}
+
 func TestStore_Get_ReadError(t *testing.T) {
 	t.Parallel()
 	if os.Geteuid() == 0 {

@@ -26,7 +26,15 @@ func (s *Store) Get(_ context.Context, id domain.ID) (domain.Note, error) {
 	if err != nil {
 		return domain.Note{}, fmt.Errorf("parse frontmatter of %q: %w", p, err)
 	}
-	return domain.Note{ID: id, Meta: fm, Body: body}, nil
+	// Route through NewNote so meta.Validate() runs — review finding B3.
+	// A note file with a missing `id` or unknown `type` would otherwise
+	// silently propagate into Upsert / reindex paths and only surface in
+	// `kompendium doctor`.
+	note, err := domain.NewNote(id, fm, body)
+	if err != nil {
+		return domain.Note{}, fmt.Errorf("validate %q: %w", p, err)
+	}
+	return note, nil
 }
 
 // Put implements ports.NoteStore. Intermediate directories are created on

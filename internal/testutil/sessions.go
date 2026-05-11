@@ -41,6 +41,14 @@ func (f *FakeSessionStore) Append(s domain.Session) error {
 	return nil
 }
 
+func (f *FakeSessionStore) AppendBatch(sessions []domain.Session) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	f.Sessions = append(f.Sessions, sessions...)
+	return nil
+}
+
 func (f *FakeSessionStore) Rewrite(sessions []domain.Session) error {
 	if f.Err != nil {
 		return f.Err

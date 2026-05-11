@@ -74,7 +74,7 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 			return domain.ErrNoActiveSession
 		}
 		if !stop.After(*active) {
-			return errors.New("stoppzeit muss nach Startzeit liegen")
+			return domain.ErrStopBeforeStart
 		}
 		result = domain.Session{
 			Date:    startOfDay(stop),
@@ -82,10 +82,13 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
 		}
-		for _, part := range domain.SplitAtMidnight(*active, stop) {
-			if err := w.Sessions.Append(part); err != nil {
-				return err
-			}
+		// AppendBatch (review finding B1): a multi-midnight stop split
+		// into N parts must persist atomically. The previous loop wrote
+		// each part with its own Append; a failure on part N>0 left the
+		// earlier parts on disk and the natural retry — same active
+		// marker, same SplitAtMidnight output — duplicated them.
+		if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, stop)); err != nil {
+			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
 			return err
@@ -98,10 +101,24 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 	return result, nil
 }
 
-// Pause stops the running session and records a pause marker. No-op (no
-// error) when nothing is running. Both writes happen under one Lock.With
-// so a concurrent Start can't slip between Stop's ClearActive and
-// SetPause and leave both worktime.state and worktime.pause populated.
+// Pause stops the running session and records a pause marker.
+//
+// Idempotency contract (review finding Q3): when no session is running,
+// returns (zero Session, nil) — NOT ErrNoActiveSession. tmux bindings
+// invoke Pause blindly without first checking state, and surfacing
+// ErrNoActiveSession there as a red status flash would be wrong (the
+// user already has the state they wanted). Callers that need to
+// distinguish "paused something" from "nothing was running" should
+// check the returned Session's zero-value (Start.IsZero()).
+//
+// Stop, in contrast, does NOT swallow ErrNoActiveSession — the CLI
+// handler at frontend/cli/worktime.go does the errors.Is check and
+// translates it to a silent exit-0. The asymmetry is deliberate: Stop
+// returns the last session for printing, Pause does not.
+//
+// Both writes happen under one Lock.With so a concurrent Start can't
+// slip between Stop's ClearActive and SetPause and leave both
+// worktime.state and worktime.pause populated.
 func (w *SessionWriter) Pause() (domain.Session, error) {
 	var result domain.Session
 	err := w.Lock.With(func() error {
@@ -114,7 +131,7 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 		}
 		stop := w.Clock.Now()
 		if !stop.After(*active) {
-			return errors.New("stoppzeit muss nach Startzeit liegen")
+			return domain.ErrStopBeforeStart
 		}
 		result = domain.Session{
 			Date:    startOfDay(stop),
@@ -122,10 +139,9 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
 		}
-		for _, part := range domain.SplitAtMidnight(*active, stop) {
-			if err := w.Sessions.Append(part); err != nil {
-				return err
-			}
+		// AppendBatch (review finding B1): see SessionWriter.stopAt.
+		if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, stop)); err != nil {
+			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
 			return err
@@ -187,7 +203,7 @@ func (w *SessionWriter) Toggle() (string, error) {
 		}
 		if active != nil {
 			if !now.After(*active) {
-				return errors.New("stoppzeit muss nach Startzeit liegen")
+				return domain.ErrStopBeforeStart
 			}
 			s := domain.Session{
 				Date:    startOfDay(now),
@@ -195,10 +211,9 @@ func (w *SessionWriter) Toggle() (string, error) {
 				Stop:    now,
 				Elapsed: now.Sub(*active),
 			}
-			for _, part := range domain.SplitAtMidnight(*active, now) {
-				if err := w.Sessions.Append(part); err != nil {
-					return err
-				}
+			// AppendBatch (review finding B1): see SessionWriter.stopAt.
+			if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, now)); err != nil {
+				return err
 			}
 			if err := w.State.ClearActive(); err != nil {
 				return err
@@ -254,7 +269,7 @@ func (w *SessionWriter) CorrectStart(ts time.Time) error {
 // writer can't slip a colliding session in between.
 func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 	if !stop.After(start) {
-		return errors.New("stop muss nach Start liegen")
+		return domain.ErrStopBeforeStart
 	}
 	return w.Lock.With(func() error {
 		parts := domain.SplitAtMidnight(start, stop)
@@ -271,12 +286,10 @@ func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 					conflict.Stop.Format("15:04"))
 			}
 		}
-		for _, part := range parts {
-			if err := w.Sessions.Append(part); err != nil {
-				return err
-			}
-		}
-		return nil
+		// AppendBatch (review finding B1): same partial-failure
+		// reasoning as stopAt — a manual entry crossing midnight must
+		// either land entirely or not at all.
+		return w.Sessions.AppendBatch(parts)
 	})
 }
 
@@ -288,7 +301,7 @@ func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 // Overlap check, lookup and rewrite all happen under one Lock.With.
 func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Time) error {
 	if !newStop.After(newStart) {
-		return errors.New("stoppzeit muss nach Startzeit liegen")
+		return domain.ErrStopBeforeStart
 	}
 	return w.Lock.With(func() error {
 		hit, conflict, err := w.Reader.SessionsOverlap(date, newStart, newStop, idx)

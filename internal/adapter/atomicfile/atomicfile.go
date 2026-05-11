@@ -14,33 +14,47 @@ import (
 // a sibling temp file, fsync'd, then renamed over path; finally the parent
 // directory is fsync'd so the rename itself becomes durable.
 //
+// The temp file uses os.CreateTemp(dir, base+".*.tmp") so two concurrent
+// writers on the same path don't race for the same `<path>.tmp` slot —
+// review finding Q1. (Worktime paths are protected by flock, but
+// jsonflowstate / jsonpalettestats live without a cross-process lock.)
+//
 // Directory creation is the caller's responsibility — adapters typically
 // MkdirAll first because they want to control mode bits.
 func WriteFile(path string, data []byte, perm os.FileMode) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+	f, err := os.CreateTemp(dir, base+".*.tmp")
 	if err != nil {
 		return err
 	}
+	tmp := f.Name()
+	cleanup := func() { _ = os.Remove(tmp) }
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
+		cleanup()
+		return err
+	}
+	// CreateTemp creates with mode 0o600; bring it up to the caller-
+	// requested perm before the rename so consumers see the right bits.
+	if err := os.Chmod(tmp, perm); err != nil {
+		cleanup()
 		return err
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+		cleanup()
 		return err
 	}
-	return SyncDir(filepath.Dir(path))
+	return SyncDir(dir)
 }
 
 // Append writes data to path in O_APPEND mode, fsync'ing the file at the

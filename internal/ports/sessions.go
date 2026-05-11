@@ -23,6 +23,13 @@ type SessionStore interface {
 	// Append writes a single session row. Multi-day spans must be split
 	// into one Session per day by the caller (see domain.SplitAtMidnight).
 	Append(s domain.Session) error
+	// AppendBatch writes several session rows in a single atomic
+	// operation. Use cases that produce N parts via SplitAtMidnight
+	// (multi-midnight Stop / Pause / Toggle) call this so a partial
+	// failure on retry cannot create duplicate rows for the parts that
+	// were already persisted before the crash. An empty batch is a
+	// no-op and returns nil.
+	AppendBatch(sessions []domain.Session) error
 	// Rewrite replaces the entire log atomically. Used by Edit/Delete
 	// session paths.
 	Rewrite(sessions []domain.Session) error

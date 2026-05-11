@@ -22,3 +22,11 @@ var ErrOverlap = errors.New("überschneidet eine bestehende Session")
 // for a session index that does not exist on the requested date. Without
 // this signal the rewrite path silently no-ops, hiding bad CLI input.
 var ErrSessionNotFound = errors.New("session nicht gefunden")
+
+// ErrStopBeforeStart is returned by Stop / Pause / Toggle / Edit when
+// the requested stop time is not strictly after the start time. Callers
+// can branch via errors.Is to surface a localised hint instead of the
+// raw error string. Pre-Q5 every call site duplicated the literal
+// `errors.New("stoppzeit muss nach Startzeit liegen")`, which made the
+// chain undistinguishable.
+var ErrStopBeforeStart = errors.New("stoppzeit muss nach Startzeit liegen")
