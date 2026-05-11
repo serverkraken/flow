@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
@@ -54,7 +55,7 @@ func (Model) HelpSections() []help.Section {
 			{"↑ / ↓", "Eine Zeile scrollen"},
 			{"PgUp / PgDn", "Eine Seite scrollen"},
 			{"g / G", "Anfang / Ende"},
-			{"b", "Zurück zur Palette"},
+			{"b", uistrings.ActionBackToPalette},
 			{"q", "Schließen (im Standalone)"},
 		},
 	}}
@@ -174,6 +175,6 @@ func (m Model) View() string {
 	// Skill §Hint format ≤4: scrollen, Palette-Sprung (b ist sidekick-router),
 	// schließen. „b → Palette" statt „b → zurück" — letzteres impliziert
 	// Browser-History, was im Sidekick nicht stimmt.
-	footer := statusbar.Hints("↑/↓ · PgUp/PgDn → scrollen  ·  b → Palette  ·  q → schließen", m.pal)
+	footer := statusbar.Hints(uistrings.HintScroll+"  ·  b → Palette  ·  q → schließen", m.pal)
 	return box + "\n" + footer
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -112,7 +113,7 @@ func (h heute) renderNoteViewDialog(inner int) string {
 		body = h.noteViewVP.View()
 	}
 	box := titlebox.Render(title, body, inner+2, h.pal)
-	hint := theme.Dim("  ↑/↓ · PgUp/PgDn → scrollen  ·  q/Esc/b → schließen", h.pal)
+	hint := theme.Dim("  "+uistrings.HintScroll+"  ·  q/Esc/b → schließen", h.pal)
 	return strings.Join([]string{box, hint}, "\n")
 }
 

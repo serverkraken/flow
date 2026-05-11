@@ -1,6 +1,9 @@
 package worktime
 
-import "github.com/serverkraken/flow/internal/frontend/tui/components/help"
+import (
+	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
+)
 
 // HelpSections returns the canonical key-binding inventory for the
 // worktime screen, suitable for direct embedding in the sidekick
@@ -31,7 +34,7 @@ func helpSectionsTabs() help.Section {
 		Keys: [][2]string{
 			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
 			{"Tab", "Nächster Tab"},
-			{"b", "Zurück zur Palette"},
+			{"b", uistrings.ActionBackToPalette},
 			{":", "Aktions-Menü (Brief · Export · Stats · Korrektur · Land)"},
 			{"q", "Beenden — auch aus Dialogen / Aktions-Menü heraus"},
 		},

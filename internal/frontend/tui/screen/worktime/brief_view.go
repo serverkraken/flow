@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -127,6 +128,6 @@ func (b briefView) view(inner int, pal theme.Palette) string {
 		title = fmt.Sprintf("%s · %.0f%%", b.title, b.vp.ScrollPercent()*100)
 	}
 	box := titlebox.Render(title, b.vp.View(), inner+2, pal)
-	hint := theme.Dim("  ↑/↓ · PgUp/PgDn → scrollen  ·  q/Esc/b → schließen", pal)
+	hint := theme.Dim("  "+uistrings.HintScroll+"  ·  q/Esc/b → schließen", pal)
 	return strings.Join([]string{box, hint}, "\n")
 }

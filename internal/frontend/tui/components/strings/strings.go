@@ -28,6 +28,10 @@ const (
 	// HintInputSave steht für ein-Feld-Inputs mit optionalem Löschen
 	// (Tag-, Notiz-, Korrektur-Dialog).
 	HintInputSave = "Enter → speichern  ·  leer → löschen  ·  Esc → abbrechen"
+	// HintScroll ist der Scroll-Tasten-Fragment für viewport-basierte
+	// Sub-Dialoge (Heute-NoteView, Brief-Overlay, Cheatsheet). Wird
+	// typischerweise mit einem Close-Fragment kombiniert.
+	HintScroll = "↑/↓ · PgUp/PgDn → scrollen"
 )
 
 // Label strings — block-level text rendered inside boxes / cards.
@@ -37,6 +41,14 @@ const (
 	LabelError        = "Fehler:"
 	LabelNoSelection  = "Keine Auswahl."
 	LabelConfirmTitle = "Bestätigen"
+)
+
+// Action labels — kurze German-Klartext-Beschreibungen einer Aktion,
+// genutzt in Help-Tabellen ({key, action}-Pairs).
+const (
+	// ActionBackToPalette beschreibt die `b`-Taste, wenn sie global
+	// einen Tab-Wechsel zurück zur Palette auslöst.
+	ActionBackToPalette = "Zurück zur Palette"
 )
 
 // Truncate clips s to at most maxWidth visible cells, appending "…" when
