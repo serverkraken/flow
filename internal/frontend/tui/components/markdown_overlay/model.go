@@ -50,13 +50,14 @@ func (m Model) Init() tea.Cmd { return nil }
 // extend this with WindowSizeMsg/KeyMsg/search/code-copy routing.
 func (m Model) Update(_ tea.Msg) (Model, tea.Cmd) { return m, nil }
 
-// View renders the current viewport content. Chrome is added in a later
-// task; for now the rendered body is returned raw.
+// View renders the chrome (frame + title + separator + body + footer +
+// status bar) sized to (m.width, m.height). Returns "" when the screen
+// is too small for useful chrome.
 func (m Model) View() string {
 	if m.width <= contentLineBudget || m.height <= chromeVertical {
 		return ""
 	}
-	return m.viewport.View()
+	return m.renderChrome()
 }
 
 // contentSize returns the inner content width (markdown reflow target)

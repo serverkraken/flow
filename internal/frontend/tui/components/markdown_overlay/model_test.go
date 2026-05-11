@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 )
@@ -50,5 +51,35 @@ func TestSetSource_ViewContainsRenderedBody(t *testing.T) {
 	view := m.View()
 	if !strings.Contains(view, "R:body") {
 		t.Errorf("view does not contain rendered body. Got:\n%s", view)
+	}
+}
+
+func TestView_ChromeContainsTitleAndBody(t *testing.T) {
+	m := markdown_overlay.New(
+		func(_ string, _ int) string { return "BODY" },
+		markdown_overlay.WithTitle("MyTitle"),
+		markdown_overlay.WithSource("x"),
+	).SetSize(40, 10)
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "MyTitle") {
+		t.Errorf("title missing from view:\n%s", out)
+	}
+	if !strings.Contains(out, "BODY") {
+		t.Errorf("body missing from view:\n%s", out)
+	}
+}
+
+func TestView_StatusBarShowsScrollPercent(t *testing.T) {
+	// Multi-line body wider than viewport-height forces scroll, and the
+	// status bar surfaces the percentage. Initial view shows " 0%".
+	body := strings.Repeat("line\n", 50)
+	m := markdown_overlay.New(
+		func(_ string, _ int) string { return body },
+		markdown_overlay.WithTitle("T"),
+		markdown_overlay.WithSource("x"),
+	).SetSize(60, 12)
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "0%") {
+		t.Errorf("status bar missing initial percent:\n%s", out)
 	}
 }
