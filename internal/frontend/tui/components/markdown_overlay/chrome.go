@@ -49,6 +49,9 @@ func (m Model) renderFooter() string {
 	if m.cfg.enableSearch {
 		parts = append(parts, footerKeyStyle.Render("/")+footerStyle.Render(" → suchen"))
 	}
+	if m.cfg.enableCodeCopy {
+		parts = append(parts, footerKeyStyle.Render("c")+footerStyle.Render(" → Code kopieren"))
+	}
 	parts = append(parts,
 		footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/"))+
 			footerStyle.Render(" → zurück"))
@@ -81,9 +84,14 @@ func (m Model) renderStatusBar() string {
 	return mode + pathSegment + statusBarStyle.Render(strings.Repeat(" ", gap)) + right
 }
 
-// statusBarRight selects the right-aligned label: match counter when a
-// query is active, otherwise the scroll percent.
+// statusBarRight selects the right-aligned label. Copy-status wins
+// over search count (transient feedback for a just-pressed c); search
+// count wins over scroll-percent (query is the focused interaction);
+// scroll-percent is the default.
 func (m Model) statusBarRight() string {
+	if m.copyStatus != "" {
+		return statusBarStyle.Render(" " + m.copyStatus + " ")
+	}
 	if m.query != "" {
 		var label string
 		if len(m.matches) == 0 {

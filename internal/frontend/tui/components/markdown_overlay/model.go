@@ -42,6 +42,11 @@ type Model struct {
 	lines    []string
 	plain    []string
 
+	// code-copy state (used only when cfg.enableCodeCopy).
+	snippets   []codeSnippet
+	copyIdx    int
+	copyStatus string
+
 	keys keyMap
 }
 
@@ -92,6 +97,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m.cycleMatch(+1), nil
 		case m.cfg.enableSearch && key.Matches(msg, m.keys.PrevMatch):
 			return m.cycleMatch(-1), nil
+		case m.cfg.enableCodeCopy && key.Matches(msg, m.keys.CopyCode):
+			updated, payload := m.copyNextSnippet()
+			if payload == "" {
+				return updated, clearCopyStatusCmd()
+			}
+			return updated, tea.Batch(writeClipboardCmd(payload), clearCopyStatusCmd())
 		}
 		if m.isCloseKey(msg) {
 			return m, exitCmd()
@@ -99,6 +110,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
+	case clearCopyStatusMsg:
+		m.copyStatus = ""
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -151,6 +165,9 @@ func (m Model) rerender() Model {
 	}
 	m.rendered = m.render(m.cfg.source, innerW)
 	m.refreshLineCache()
+	if m.cfg.enableCodeCopy {
+		m.snippets = extractCodeSnippets(m.cfg.source)
+	}
 	if m.query != "" {
 		m = m.recomputeMatches()
 	}

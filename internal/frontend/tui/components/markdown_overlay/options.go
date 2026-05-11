@@ -3,10 +3,11 @@ package markdown_overlay
 // config holds the resolved Option set. Unexported; callers configure
 // via With* funcs declared alongside each feature.
 type config struct {
-	title        string
-	source       string
-	enableSearch bool
-	closeKeys    []string
+	title          string
+	source         string
+	enableSearch   bool
+	enableCodeCopy bool
+	closeKeys      []string
 }
 
 // Option configures a Model at New time. Composable.
@@ -47,4 +48,12 @@ func WithCloseKeys(keys ...string) Option {
 // unwanted key surface.
 func WithSearch() Option {
 	return func(c *config) { c.enableSearch = true }
+}
+
+// WithCodeCopy enables the `c` key, fenced-code-block extraction, and
+// the copy-status status-bar segment. Pushes the snippet body through
+// pbcopy / wl-copy / xclip / xsel; falls back to an OSC 52 sequence
+// for headless / SSH terminals.
+func WithCodeCopy() Option {
+	return func(c *config) { c.enableCodeCopy = true }
 }

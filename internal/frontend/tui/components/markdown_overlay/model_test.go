@@ -209,6 +209,35 @@ func TestSearch_CycleMatchesWithNandShiftN(t *testing.T) {
 	}
 }
 
+func TestCodeCopy_DisabledByDefault(t *testing.T) {
+	body := "```sh\necho hi\n```\n"
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource(body),
+	).SetSize(40, 10)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if m.CopyStatus() != "" {
+		t.Errorf("c without WithCodeCopy should not set status; got %q", m.CopyStatus())
+	}
+}
+
+func TestCodeCopy_EnabledCyclesSnippets(t *testing.T) {
+	body := "intro\n```sh\necho one\n```\nmid\n```py\nprint(2)\n```\nend"
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource(body),
+		markdown_overlay.WithCodeCopy(),
+	).SetSize(60, 12)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if !strings.Contains(m.CopyStatus(), "1/2") {
+		t.Errorf("first c: got status %q, want contains 1/2", m.CopyStatus())
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	if !strings.Contains(m.CopyStatus(), "2/2") {
+		t.Errorf("second c: got status %q, want contains 2/2", m.CopyStatus())
+	}
+}
+
 func TestView_StatusBarShowsScrollPercent(t *testing.T) {
 	// Multi-line body wider than viewport-height forces scroll, and the
 	// status bar surfaces the percentage. Initial view shows " 0%".
