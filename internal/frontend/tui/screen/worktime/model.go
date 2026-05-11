@@ -48,8 +48,9 @@ type Deps struct {
 	// Dialog zur reinen ID-Eingabe (Pre-Picker-Verhalten).
 	NoteLister NoteLister
 	// NoteReader liest den Markdown-Body einer Note für den
-	// integrierten Inline-Viewer (Heute `o`-Key). Optional — bei nil
-	// degradiert `o` auf den externen Viewer-Pfad via NoteOpener.View.
+	// integrierten Inline-Viewer (Heute `o`-Key). Composition-Root
+	// muss ihn verdrahten; nil produziert einen klaren Error-Toast
+	// statt eines stillen Workarounds.
 	NoteReader NoteReader
 	// MarkdownRenderer rendert den Note-Body inline. Geteilt mit dem
 	// Cheatsheet-Screen — gleiche Pipeline, gleiches Styling. Optional;

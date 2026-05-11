@@ -13,31 +13,10 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 )
 
-// viewAttachedNoteCmd öffnet die erste angehängte Kompendium-Note für
-// heute via NoteOpener.View (typischerweise tmux-Split mit dem
-// konfigurierten Note-Viewer). Ohne Anhang Toast statt Hard-Error —
-// NoteOpener.View("") würde sonst eine Fehlermeldung produzieren, die
-// der User weder ausgelöst hat noch hilft.
-func (h heute) viewAttachedNoteCmd() tea.Cmd {
-	if len(h.attachedNotes) == 0 {
-		return func() tea.Msg {
-			return heuteActionDoneMsg{toast: "Keine Notiz angehängt — `n` hängt eine an", info: true}
-		}
-	}
-	id := h.attachedNotes[0]
-	opener := h.deps.NoteOpener
-	return func() tea.Msg {
-		if err := opener.View(id); err != nil {
-			return heuteActionDoneMsg{err: err}
-		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s geöffnet", id)}
-	}
-}
-
 // editAttachedNoteCmd öffnet die erste angehängte Note im Editor via
-// NoteOpener.Open (typischerweise tmux split + nvim). Spiegelt
-// viewAttachedNoteCmd; der „keine angehängten Notes"-Branch liefert
-// einen Info-Toast statt durch den Empty-ID-Guard zu fallen.
+// NoteOpener.Open (typischerweise tmux split + nvim). Der
+// „keine angehängten Notes"-Branch liefert einen Info-Toast statt
+// durch den Empty-ID-Guard zu fallen.
 func (h heute) editAttachedNoteCmd() tea.Cmd {
 	if len(h.attachedNotes) == 0 {
 		return func() tea.Msg {

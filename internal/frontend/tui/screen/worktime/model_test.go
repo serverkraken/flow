@@ -1,6 +1,7 @@
 package worktime_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,20 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+// fakeNoteReader is a minimal worktime.NoteReader for tests. Bodies
+// keyed by note ID; missing IDs surface as a "not found" error so the
+// integrated note-view dialog's error path can be exercised.
+type fakeNoteReader struct {
+	Bodies map[string]string
+}
+
+func (f *fakeNoteReader) Read(id string) (string, error) {
+	if body, ok := f.Bodies[id]; ok {
+		return body, nil
+	}
+	return "", fmt.Errorf("note %q not found", id)
+}
 
 // rig groups the fakes alongside the constructed Model so individual
 // tests can both inspect the inputs and manipulate the wired state
@@ -25,6 +40,7 @@ type rig struct {
 	lock         *testutil.FakeLock
 	links        *testutil.FakeLinkStore
 	noteLauncher *testutil.FakeNoteLauncher
+	noteReader   *fakeNoteReader
 }
 
 // newRig builds a wired worktime root with empty fakes everywhere — the
@@ -39,6 +55,7 @@ func newRig(t *testing.T) rig {
 	cfg := &testutil.FakeConfigReader{}
 	links := &testutil.FakeLinkStore{}
 	noteLauncher := &testutil.FakeNoteLauncher{}
+	noteReader := &fakeNoteReader{Bodies: map[string]string{}}
 	lock := &testutil.FakeLock{}
 
 	targets := &usecase.TargetResolver{Config: cfg, DayOffs: dayoffs, DefaultTarget: 8 * time.Hour}
@@ -55,6 +72,7 @@ func newRig(t *testing.T) rig {
 		LinkWriter:    &usecase.LinkWriter{Store: links},
 		Reporter:      &usecase.Reporter{Reader: reader, DayOffs: dayoffs, Targets: targets, Stats: stats, Clock: clock},
 		NoteOpener:    &usecase.NoteOpener{Launcher: noteLauncher},
+		NoteReader:    noteReader,
 		Clock:         clock,
 	}
 	return rig{
@@ -66,6 +84,7 @@ func newRig(t *testing.T) rig {
 		lock:         lock,
 		links:        links,
 		noteLauncher: noteLauncher,
+		noteReader:   noteReader,
 	}
 }
 
@@ -513,16 +532,23 @@ func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
 	}
 }
 
-func TestHeute_OpenKey_LaunchesNoteViewer(t *testing.T) {
+func TestHeute_OpenKey_OpensIntegratedNoteView(t *testing.T) {
 	r := newRig(t)
+	r.noteReader.Bodies["daily-2026-05-01"] = "# Daily\n\nhello"
 	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
-	_ = drainCmd(t, updated, cmd)
-	if len(r.noteLauncher.Calls) != 1 || r.noteLauncher.Calls[0] != "view:daily-2026-05-01" {
-		t.Errorf("`o` should call NoteLauncher.View, got Calls=%v", r.noteLauncher.Calls)
+	updated = drainCmd(t, updated, cmd)
+	// `o` opens the inline note-view dialog (FilterActive=true). The
+	// external NoteLauncher.View path was retired in the glow-migration
+	// (G2); the integrated renderer is the only path now.
+	if !updated.(worktime.Model).FilterActive() {
+		t.Error("`o` should activate the inline note-view dialog (FilterActive=true)")
+	}
+	if len(r.noteLauncher.Calls) != 0 {
+		t.Errorf("`o` must not invoke NoteLauncher (external viewer is gone), got Calls=%v", r.noteLauncher.Calls)
 	}
 }
 

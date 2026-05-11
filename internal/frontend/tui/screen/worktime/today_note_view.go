@@ -43,10 +43,13 @@ func noteViewHeight(termH int) int {
 }
 
 // openNoteViewDialog aktiviert den integrierten Note-Viewer für die
-// erste angehängte Note des Tages. Drei Degenerationspfade:
+// erste angehängte Note des Tages. Zwei Degenerationspfade:
 //   - keine Anhänge: Info-Toast, Dialog bleibt zu.
-//   - kein NoteReader gewired: Fallback auf den externen Viewer-Pfad.
 //   - Read-Fehler: Dialog öffnet, zeigt Fehler inline, viewer-fail-soft.
+//
+// NoteReader-Wiring ist im Composition-Root garantiert (cmd/flow/main.go);
+// ein nil-Reader wäre ein Programmierfehler und surface't als klare
+// Toast statt sich an einem externen Tool vorbeizuschmuggeln.
 func (h heute) openNoteViewDialog() (tea.Model, tea.Cmd) {
 	if len(h.attachedNotes) == 0 {
 		return h, func() tea.Msg {
@@ -54,9 +57,9 @@ func (h heute) openNoteViewDialog() (tea.Model, tea.Cmd) {
 		}
 	}
 	if h.deps.NoteReader == nil {
-		// Composition-Root hat den NoteReader nicht gewired — degradiere
-		// auf den externen Viewer-Pfad statt eines harten Fehlers.
-		return h, h.viewAttachedNoteCmd()
+		return h, func() tea.Msg {
+			return heuteActionDoneMsg{err: fmt.Errorf("note-reader nicht verdrahtet")}
+		}
 	}
 	id := h.attachedNotes[0]
 	h.dialog = heuteDialogNoteView
