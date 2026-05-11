@@ -51,8 +51,8 @@ var landEntries = []landEntry{
 
 // landPicker is the modal state of the Bundesland sub-picker.
 // initialCode is the cursor's starting position — the user's
-// last-known land (currentLand() at open-time) so a quick re-sync
-// against the same state is one Enter away.
+// last-known land (landOrDefault(deps.Land) at open-time) so a quick
+// re-sync against the same state is one Enter away.
 type landPicker struct {
 	cursor int
 }

@@ -65,9 +65,9 @@ const (
 // Allokationen und einen Reader.Today()-Read pro getippter Taste. Liste
 // ist immutabel, daher als package-var sicher.
 //
-// Der Land-Hint wird in computeMenuActions zur Render-Zeit aufgelöst,
-// nicht hier — sonst friert ein mid-session-`tmux setenv WORKTIME_LAND`
-// den alten Wert ein.
+// Der Land-Hint wird in computeMenuActions aus Deps.Land aufgelöst —
+// das Land kommt seit A1 (Env-Var-Disziplin) als Wiring-Parameter rein
+// (cmd/flow), nicht mehr aus os.Getenv im Screen-Code.
 var menuActionRegistry = []menuAction{
 	{
 		kind:    menuActionCorrect,
@@ -109,7 +109,7 @@ var menuActionRegistry = []menuAction{
 		kind:    menuActionLand,
 		section: menuSectionGeneral,
 		label:   "Land für Feiertage",
-		// hint wird in computeMenuActions aus currentLand() befüllt.
+		// hint wird in computeMenuActions aus landOrDefault(deps.Land) befüllt.
 	},
 }
 

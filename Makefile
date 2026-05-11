@@ -8,8 +8,8 @@ COVER_OUT       := coverage.out
 #     requires a real /dev/tty, which Go test runners don't provide.
 #     Each new such verb costs ~2-3% on the cli package coverage.
 #  2. Output adapters (output.copy, output.pager) shell out to host
-#     binaries (pbcopy / glow / less) whose execution is tested via
-#     fakes; the production runners themselves stay 0%-covered.
+#     binaries (pbcopy / less) whose execution is tested via fakes;
+#     the production runners themselves stay 0%-covered.
 # Compensating with broad cobra Execute() smoke tests would only
 # paper over the structural reality. Aggregate has settled around
 # 86%; the 85 floor leaves a small buffer above the actual reading

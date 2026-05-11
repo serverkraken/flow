@@ -26,8 +26,10 @@ import (
 type outputTarget int
 
 const (
-	// outputTargetSplit ist der Default: tmux split-window mit dem
-	// passenden Pager (glow für Markdown, less für Text/CSV/JSON).
+	// outputTargetSplit ist der Default: less -S für Text/CSV/JSON im
+	// tmux-Split, Markdown-Inhalte laufen seit G3 durch das in-process
+	// Brief-Overlay (siehe brief_view.go) statt durch einen externen
+	// Pager.
 	outputTargetSplit outputTarget = iota
 	// outputTargetClipboard kopiert den Inhalt via pbcopy.
 	outputTargetClipboard
