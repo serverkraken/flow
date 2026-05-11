@@ -402,9 +402,7 @@ func parseDrillStop(arg string, start, base time.Time) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("stoppzeit darf nicht leer sein")
 	}
 	if arg[0] == '+' {
-		// Lowercase the H/M suffixes so the user-facing parser doesn't
-		// reject `+8H02M`. The leading + + numeric digits stay as-is.
-		return domain.ParseStop(strings.ToLower(arg), start, time.Time{})
+		return domain.ParseStop(normalizeDurationArg(arg), start, time.Time{})
 	}
 	hm, err := domain.ParseHM(arg)
 	if err != nil {

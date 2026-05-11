@@ -352,7 +352,7 @@ func (h heute) submitEdit() (tea.Model, tea.Cmd) {
 	base := time.Date(h.editDate.Year(), h.editDate.Month(), h.editDate.Day(),
 		0, 0, 0, 0, h.editDate.Location())
 	startTime := base.Add(startD)
-	stopTime, err := domain.ParseStop(stopStr, startTime, h.deps.Clock.Now())
+	stopTime, err := domain.ParseStop(normalizeDurationArg(stopStr), startTime, h.deps.Clock.Now())
 	if err != nil {
 		h.errMsg = err.Error()
 		return h, nil
