@@ -69,6 +69,63 @@ func TestView_ChromeContainsTitleAndBody(t *testing.T) {
 	}
 }
 
+func TestUpdate_CloseKeyEmitsExitMsg(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource("x"),
+	).SetSize(40, 10)
+	for _, key := range []string{"q", "esc", "b"} {
+		var msg tea.KeyMsg
+		switch key {
+		case "esc":
+			msg = tea.KeyMsg{Type: tea.KeyEsc}
+		default:
+			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+		}
+		_, cmd := m.Update(msg)
+		if cmd == nil {
+			t.Fatalf("key %q: expected non-nil cmd from close-key", key)
+		}
+		if _, ok := cmd().(markdown_overlay.ExitMsg); !ok {
+			t.Errorf("key %q: expected ExitMsg, got %T", key, cmd())
+		}
+	}
+}
+
+func TestUpdate_NonCloseKeyDoesNotExit(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource("body"),
+	).SetSize(40, 10)
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if cmd != nil {
+		if _, ok := cmd().(markdown_overlay.ExitMsg); ok {
+			t.Error("non-close key emitted ExitMsg")
+		}
+	}
+}
+
+func TestWithCloseKeys_OverridesDefault(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource("x"),
+		markdown_overlay.WithCloseKeys("x"),
+	).SetSize(40, 10)
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd != nil {
+		if _, ok := cmd().(markdown_overlay.ExitMsg); ok {
+			t.Error("q exited despite custom CloseKeys=[x]")
+		}
+	}
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if cmd == nil {
+		t.Fatal("x expected to emit ExitMsg with custom CloseKeys")
+	}
+	if _, ok := cmd().(markdown_overlay.ExitMsg); !ok {
+		t.Errorf("got %T, want ExitMsg", cmd())
+	}
+}
+
 func TestView_StatusBarShowsScrollPercent(t *testing.T) {
 	// Multi-line body wider than viewport-height forces scroll, and the
 	// status bar surfaces the percentage. Initial view shows " 0%".

@@ -46,9 +46,44 @@ func New(render RenderFunc, opts ...Option) Model {
 // startup work.
 func (m Model) Init() tea.Cmd { return nil }
 
-// Update returns the model unchanged at this stage. Subsequent tasks
-// extend this with WindowSizeMsg/KeyMsg/search/code-copy routing.
-func (m Model) Update(_ tea.Msg) (Model, tea.Cmd) { return m, nil }
+// ExitMsg is emitted when the user hits a configured close key. The
+// host model must observe it in its own Update and clear its overlay
+// state field; the overlay does not know what triggered its presence
+// and therefore cannot un-mount itself.
+type ExitMsg struct{}
+
+func exitCmd() tea.Cmd { return func() tea.Msg { return ExitMsg{} } }
+
+// Update routes incoming messages. WindowSizeMsg re-flows the body;
+// KeyMsg dispatches close-keys (emit ExitMsg) and otherwise forwards
+// to the viewport. Later tasks insert search + code-copy routing
+// before the close-key check.
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		return m.SetSize(msg.Width, msg.Height), nil
+	case tea.KeyMsg:
+		if m.isCloseKey(msg) {
+			return m, exitCmd()
+		}
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
+	}
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+func (m Model) isCloseKey(msg tea.KeyMsg) bool {
+	s := msg.String()
+	for _, k := range m.cfg.closeKeys {
+		if s == k {
+			return true
+		}
+	}
+	return false
+}
 
 // View renders the chrome (frame + title + separator + body + footer +
 // status bar) sized to (m.width, m.height). Returns "" when the screen

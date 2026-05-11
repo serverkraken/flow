@@ -29,3 +29,13 @@ func WithTitle(title string) Option {
 func WithSource(src string) Option {
 	return func(c *config) { c.source = src }
 }
+
+// WithCloseKeys overrides the default close-key set (q, esc, b). Empty
+// keys input is ignored; the default stays in effect.
+func WithCloseKeys(keys ...string) Option {
+	return func(c *config) {
+		if len(keys) > 0 {
+			c.closeKeys = append([]string{}, keys...)
+		}
+	}
+}
