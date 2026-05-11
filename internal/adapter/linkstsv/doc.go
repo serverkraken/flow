@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Package linkstsv implements ports.LinkStore as a TSV file at the
 // configured path (typically ~/.tmux/worktime-links.tsv).
 //

@@ -1,3 +1,5 @@
+//go:build !windows
+
 package dayoffstsv_test
 
 import (

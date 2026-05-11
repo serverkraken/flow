@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Package dayoffstsv implements ports.DayOffStore as a TSV file at the
 // configured primary path (typically ~/.tmux/worktime-dayoffs.tsv).
 //
