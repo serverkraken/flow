@@ -196,6 +196,9 @@ func TestAdd_MkdirError(t *testing.T) {
 }
 
 func TestRemove_WriteAllFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root — chmod 0o500 does not block writes")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "links.tsv")
 	s := linkstsv.New(path)
@@ -204,10 +207,14 @@ func TestRemove_WriteAllFails(t *testing.T) {
 	if err := s.Add(d, "x"); err != nil {
 		t.Fatal(err)
 	}
-	// Sabotage the rewrite: create a directory at the .tmp path so OpenFile fails.
-	if err := os.Mkdir(path+".tmp", 0o755); err != nil {
-		t.Fatal(err)
+	// Sabotage the rewrite: drop write bits on the parent so atomicfile
+	// can't create its sibling temp file. Pre-Q1 the test used a fixed
+	// `path + ".tmp"` collision, but atomicfile now picks unique temp
+	// names via os.CreateTemp so directory perms are the reliable lever.
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Skipf("chmod 0o500 not supported: %v", err)
 	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 	if err := s.Remove(d, "x"); err == nil {
 		t.Error("want error, got nil")
 	}

@@ -42,16 +42,6 @@ func ContrastRatio(a, b string) (float64, error) {
 	return (hi + 0.05) / (lo + 0.05), nil
 }
 
-// MustContrast wraps ContrastRatio for use in test fixtures and one-off
-// scripts; panics on parse error.
-func MustContrast(a, b string) float64 {
-	r, err := ContrastRatio(a, b)
-	if err != nil {
-		panic(err)
-	}
-	return r
-}
-
 // relativeLuminance computes WCAG 2.1 relative luminance for a hex
 // color string. Implements the sRGB → linear → weighted-sum pipeline
 // straight from the W3C definition.

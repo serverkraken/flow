@@ -79,6 +79,62 @@ func TestSplitAtMidnight(t *testing.T) {
 		}
 	})
 
+	t.Run("stop exactly at midnight produces no zero-duration ghost", func(t *testing.T) {
+		// Review finding Q2: a session that stops at exactly 00:00:00
+		// of the next day must not append a degenerate
+		// [midnight → midnight] second part. Defensive test — the loop
+		// already breaks correctly via `!end.Before(stop)`, but the
+		// invariant is load-bearing for the tsv log (one zero-second
+		// row per stop would slowly poison History views).
+		start := at(2026, 4, 29, 22, 0)
+		stop := at(2026, 4, 30, 0, 0)
+		parts := domain.SplitAtMidnight(start, stop)
+		if len(parts) != 1 {
+			t.Fatalf("want 1 part, got %d (%+v)", len(parts), parts)
+		}
+		if parts[0].Elapsed != 2*time.Hour {
+			t.Errorf("Elapsed = %v, want 2h", parts[0].Elapsed)
+		}
+		if !parts[0].Date.Equal(at(2026, 4, 29, 0, 0)) {
+			t.Errorf("Date = %v, want 2026-04-29", parts[0].Date)
+		}
+		// Defence in depth: regardless of count, no part may carry
+		// zero duration unless the original input was zero-length.
+		for i, p := range parts {
+			if p.Elapsed == 0 {
+				t.Errorf("part[%d] is zero-duration ghost (%+v)", i, p)
+			}
+		}
+	})
+
+	t.Run("start exactly at midnight is still a single same-day part", func(t *testing.T) {
+		// Companion of the above: 00:00:00 → 09:00 on the same day
+		// must collapse to one part for the start day.
+		start := at(2026, 4, 29, 0, 0)
+		stop := at(2026, 4, 29, 9, 0)
+		parts := domain.SplitAtMidnight(start, stop)
+		if len(parts) != 1 || parts[0].Elapsed != 9*time.Hour {
+			t.Fatalf("want one 9h part, got %+v", parts)
+		}
+	})
+
+	t.Run("multi-midnight stop produces no zero-duration ghosts", func(t *testing.T) {
+		// 22:00 → next-next-day 00:00 — was previously suspected to
+		// generate a [midnight → midnight] tail. Lock down: every
+		// produced part has a positive elapsed.
+		start := at(2026, 4, 29, 22, 0)
+		stop := at(2026, 5, 1, 0, 0)
+		parts := domain.SplitAtMidnight(start, stop)
+		if len(parts) != 2 {
+			t.Fatalf("want 2 parts, got %d (%+v)", len(parts), parts)
+		}
+		for i, p := range parts {
+			if p.Elapsed <= 0 {
+				t.Errorf("part[%d] has non-positive elapsed: %+v", i, p)
+			}
+		}
+	})
+
 	t.Run("stop before start returns nil", func(t *testing.T) {
 		// Inverted spans were previously silently accepted as a
 		// degenerate single-session record with negative Elapsed —

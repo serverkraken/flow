@@ -113,14 +113,19 @@ func readFrontmatterCapped(path string) (domain.Frontmatter, bool, error) {
 	}
 	prefix := buf[:n]
 
-	// Synthesise a valid closing delimiter when the cap cuts mid-frontmatter
-	// so ParseFrontmatter at least produces a partial Frontmatter rather
-	// than ErrMalformedFrontmatter. The result is reported as un-listable
-	// so callers can decide.
+	// No closing marker in the read window means the frontmatter is
+	// truncated by the cap. Synthesise a `\n---\n` to make
+	// ParseFrontmatter produce a partial Frontmatter rather than
+	// ErrMalformedFrontmatter — the cap is large enough (8 KiB) that
+	// the typed fields we care about (id, type, project, date, title)
+	// were certainly already in the buffer. Pre-polish this branch did
+	// the same thing as the normal path (no synthesis), so a truncated
+	// note silently surfaced as ErrMalformedFrontmatter and was dropped
+	// by the caller — the comment claimed "give up" but the code
+	// produced exactly the symptom it tried to avoid.
 	if !bytes.Contains(prefix, []byte("\n---\n")) && !bytes.HasSuffix(prefix, []byte("\n---")) {
-		// No closing marker in the read window — give up rather than
-		// pretend the frontmatter parsed.
-		fm, _, err := domain.ParseFrontmatter(prefix)
+		closed := append(prefix, []byte("\n---\n")...)
+		fm, _, err := domain.ParseFrontmatter(closed)
 		if err != nil {
 			return domain.Frontmatter{}, false, nil
 		}

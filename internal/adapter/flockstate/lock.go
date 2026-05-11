@@ -1,3 +1,13 @@
+//go:build !windows
+
+// Package flockstate's lock primitive uses syscall.Flock and the
+// syscall.LOCK_* / EWOULDBLOCK constants — POSIX-only. Building this
+// file under windows fails because those symbols are not declared in
+// the windows syscall package. Today the cross-build matrix is
+// linux/amd64 + darwin/{amd64,arm64} (CLAUDE.md), all POSIX, so the
+// constraint is documentation-as-code rather than a current blocker.
+// Review finding T9.
+
 package flockstate
 
 import (

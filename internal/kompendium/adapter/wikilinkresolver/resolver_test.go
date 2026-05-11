@@ -68,6 +68,67 @@ func TestResolver_StoreErrorBecomesBroken(t *testing.T) {
 	}
 }
 
+// TestResolver_TransientStoreErrorNotCached guards review finding T4:
+// the resolver intentionally swallows non-NotFound errors and does NOT
+// poison its cache with them. This invariant is load-bearing — the
+// renderer runs on every WindowSizeMsg and search keystroke; once a
+// transient SQL hiccup clears, the next render must get a fresh chance
+// instead of permanently displaying a broken link.
+func TestResolver_TransientStoreErrorNotCached(t *testing.T) {
+	t.Parallel()
+	knownNote := mustNote(t, "daily/2026-04-25", "Tagesnotiz")
+	store := &fakeStore{
+		notes:     map[domain.ID]domain.Note{"daily/2026-04-25": knownNote},
+		forcedErr: errors.New("transient read error"),
+	}
+	r := wikilinkresolver.New(store)
+
+	// First call hits the forced error → ok=false, must NOT cache.
+	if _, _, ok := r.Resolve("daily/2026-04-25"); ok {
+		t.Fatal("first Resolve must surface the forced error as ok=false")
+	}
+
+	// Clear the error: simulating the underlying issue resolving.
+	store.forcedErr = nil
+
+	// Second call must now succeed — proves the failure was not cached.
+	uri, title, ok := r.Resolve("daily/2026-04-25")
+	if !ok {
+		t.Fatalf("second Resolve ok=false; the transient error poisoned the cache")
+	}
+	if uri == "" || title != "Tagesnotiz" {
+		t.Errorf("post-recovery Resolve returned uri=%q title=%q", uri, title)
+	}
+}
+
+// TestResolver_NotFoundIsCached locks down the complementary contract:
+// ports.ErrNoteNotFound *is* a permanent answer ("the note doesn't
+// exist") and must be cached so a 50-backlink note with one missing
+// target doesn't re-Get on every render.
+func TestResolver_NotFoundIsCached(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{notes: map[domain.ID]domain.Note{}}
+	r := wikilinkresolver.New(store)
+
+	// Two consecutive Resolves of the same missing target.
+	_, _, ok1 := r.Resolve("daily/2026-04-25")
+	_, _, ok2 := r.Resolve("daily/2026-04-25")
+	if ok1 || ok2 {
+		t.Fatal("missing target must be ok=false both times")
+	}
+	// Now the note appears — but the cache should still report missing
+	// (Invalidate would be required to refresh).
+	store.notes["daily/2026-04-25"] = mustNote(t, "daily/2026-04-25", "title")
+	if _, _, ok := r.Resolve("daily/2026-04-25"); ok {
+		t.Error("NotFound result was not cached — got ok=true after note appeared without Invalidate")
+	}
+	// After Invalidate, the new note should resolve.
+	r.Invalidate("daily/2026-04-25")
+	if _, _, ok := r.Resolve("daily/2026-04-25"); !ok {
+		t.Error("post-Invalidate Resolve should pick up the new note")
+	}
+}
+
 // TestResolver_TitleFallsBackToEmpty: a note whose frontmatter has no
 // Title surfaces with title="". The renderer falls back to display
 // the wikilink target verbatim — covered by the markdown renderer's
