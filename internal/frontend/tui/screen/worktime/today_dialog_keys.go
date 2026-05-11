@@ -41,7 +41,13 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		h.dialog = heuteDialogNone
 		return h.handleNormalKey(msg)
 	case heuteDialogNoteView:
-		return h.updateNoteViewKey(msg)
+		if h.noteView == nil {
+			h.dialog = heuteDialogNone
+			return h, nil
+		}
+		upd, cmd := h.noteView.Update(msg)
+		h.noteView = &upd
+		return h, cmd
 	}
 	return h, nil
 }

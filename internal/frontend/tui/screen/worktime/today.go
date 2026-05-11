@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -108,18 +109,12 @@ type heute struct {
 	noteSuggestions []NoteSuggestion
 	noteSuggCur     int
 
-	// noteView Felder treiben den integrierten Note-Viewer (`o`-Key,
-	// dialog == heuteDialogNoteView). noteViewVP ist der Scroll-Container,
-	// noteViewID die geladene Note für den Title, noteViewErr ein
-	// Render-/Read-Fehler der inline statt als Toast gezeigt wird.
-	// noteViewBody behält den rohen Markdown-Body, damit ein
-	// WindowSizeMsg den Renderer mit der neuen Breite neu fahren kann
-	// (Tabellen/Code-Blöcke zerlaufen sonst nach tmux-Pane-Resize).
-	noteViewVP    viewport.Model
-	noteViewReady bool
-	noteViewID    string
-	noteViewBody  string
-	noteViewErr   error
+	// noteView ist der integrierte Note-Viewer (`o`-Key,
+	// dialog == heuteDialogNoteView). Pointer-Pattern, weil der
+	// Dialog optional aktiv ist; nil signalisiert geschlossen.
+	// Konstruktion in openNoteViewDialog; Schließen via
+	// markdown_overlay.ExitMsg im heute-Update-Switch.
+	noteView *markdown_overlay.Model
 }
 
 // noteAttachPickerLimit ist die maximale Anzahl jüngster Notes, die
@@ -181,15 +176,19 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
 		h.height = msg.Height
-		// Resize viewport in place so the user's scroll position survives
-		// a tmux pane resize (mirror cheatsheet/model.go). Allocating a
-		// new viewport.Model on every resize would reset YOffset.
-		// Markdown wird mit der neuen Breite neu gerendert — sonst
-		// zerlaufen Tabellen / Code-Blöcke (parallel zu brief_view.resize).
-		if h.dialog == heuteDialogNoteView && h.noteViewReady {
-			h.noteViewVP.Width = noteViewWidth(h.width)
-			h.noteViewVP.Height = noteViewHeight(h.height)
-			h.noteViewVP.SetContent(renderNoteViewBody(h.noteViewBody, h.width, h.deps))
+		// markdown_overlay re-flows in SetSize: tabletten/code-blocks
+		// passen sich an tmux-pane-Resize an (F1-Regression).
+		if h.dialog == heuteDialogNoteView && h.noteView != nil {
+			upd := h.noteView.SetSize(msg.Width, msg.Height)
+			h.noteView = &upd
+		}
+		return h, nil
+
+	case markdown_overlay.ExitMsg:
+		if h.dialog == heuteDialogNoteView {
+			h.dialog = heuteDialogNone
+			h.noteView = nil
+			return h, nil
 		}
 		return h, nil
 

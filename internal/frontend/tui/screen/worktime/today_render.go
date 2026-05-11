@@ -24,10 +24,11 @@ func (h heute) View() string {
 	if h.width == 0 {
 		return ""
 	}
-	if h.dialog == heuteDialogNoteView {
-		// Note-Viewer ist ein Vollbild-Sub-Screen mit eigenem titlebox +
-		// scrollbarem Body — keine Dialog-Header-Hülle drumherum.
-		return h.renderNoteViewDialog(h.width - 4)
+	if h.dialog == heuteDialogNoteView && h.noteView != nil {
+		// Note-Viewer ist ein Vollbild-Sub-Screen via markdown_overlay
+		// — eigenes frame + statusBar + footer, keine Dialog-Header-
+		// Hülle drumherum.
+		return h.noteView.View()
 	}
 	if h.dialog != heuteDialogNone {
 		return h.renderDialog()

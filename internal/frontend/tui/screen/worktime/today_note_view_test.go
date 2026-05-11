@@ -1,83 +1,72 @@
 package worktime
 
 // Tests für den integrierten Note-Viewer im Heute-Screen. Schwerpunkt:
-// Resize-Pfad rendert Markdown mit der neuen Breite neu — sonst zerlaufen
-// Tabellen / Code-Blöcke nach einem tmux-Pane-Resize (parallel zu
-// brief_view.resize). Vorher: WindowSizeMsg-Handler passte nur die
-// Viewport-Maße an, ohne den Body neu zu rendern.
+// F1-Resize-Pfad rendert Markdown mit der neuen Breite neu — sonst
+// zerlaufen Tabellen / Code-Blöcke nach einem tmux-Pane-Resize. Der
+// Resize-Pfad liegt nach dem Component-Lift in markdown_overlay
+// (SetSize → rerender → RenderFunc-Aufruf); dieser Test pinned die
+// Integration durch heute.Update.
 
 import (
+	"fmt"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
-func TestRenderNoteViewBody_NoRenderer_ReturnsBodyVerbatim(t *testing.T) {
-	t.Parallel()
-	if got := renderNoteViewBody("raw body", 100, Deps{}); got != "raw body" {
-		t.Errorf("renderNoteViewBody without renderer = %q, want %q", got, "raw body")
-	}
+// fakeNoteReader liefert dem heute-Screen einen Note-Body, ohne dass ein
+// Disk-IO-Pfad gebraucht wird. Read kann auch fehlschlagen, um den
+// SetError-Pfad in openNoteViewDialog zu testen.
+type fakeNoteReader struct {
+	body string
+	err  error
 }
 
-func TestRenderNoteViewBody_UsesRendererWidth(t *testing.T) {
-	t.Parallel()
-	mr := &testutil.FakeMarkdownRenderer{Prefix: "[md] "}
-	got := renderNoteViewBody("body", 100, Deps{MarkdownRenderer: mr})
-	if got != "[md] body" {
-		t.Errorf("renderNoteViewBody = %q, want %q", got, "[md] body")
-	}
-	if mr.LastWidth != 94 {
-		t.Errorf("LastWidth = %d, want 94 (termW - 6)", mr.LastWidth)
-	}
+func (r fakeNoteReader) Read(_ string) (string, error) {
+	return r.body, r.err
 }
 
-func TestRenderNoteViewBody_NarrowTerm_AppliesFloor(t *testing.T) {
-	t.Parallel()
-	mr := &testutil.FakeMarkdownRenderer{}
-	_ = renderNoteViewBody("body", 10, Deps{MarkdownRenderer: mr})
-	if mr.LastWidth != 60 {
-		t.Errorf("LastWidth on narrow term = %d, want 60 (floor)", mr.LastWidth)
-	}
-}
-
-func TestRenderNoteViewBody_RendererError_FallsBackToBody(t *testing.T) {
-	t.Parallel()
-	mr := &testutil.FakeMarkdownRenderer{Err: errFakeRender}
-	got := renderNoteViewBody("raw fallback", 100, Deps{MarkdownRenderer: mr})
-	if got != "raw fallback" {
-		t.Errorf("on Render error, want raw body; got %q", got)
-	}
-}
-
-// TestHeute_WindowSizeMsg_ReRendersNoteViewBody pins the resize fix:
-// when the integrated note view is open, a WindowSizeMsg re-runs the
-// MarkdownRenderer at the new inner-box width. Before the fix only
-// the viewport's W/H changed — the rendered content stayed frozen at
-// the open-time width, so tables / code blocks wrapped against the
-// old line length and leaked outside the new pane.
+// TestHeute_WindowSizeMsg_ReRendersNoteViewBody pins the F1 resize
+// fix: when the integrated note view is open, a WindowSizeMsg re-runs
+// the MarkdownRenderer at the new inner width. After the Component-
+// Lift the path is heute.Update → noteView.SetSize → overlay.rerender
+// → RenderFunc closure → deps.MarkdownRenderer.Render. The test
+// asserts mr.LastWidth changes after the WindowSizeMsg.
 func TestHeute_WindowSizeMsg_ReRendersNoteViewBody(t *testing.T) {
 	t.Parallel()
 	mr := &testutil.FakeMarkdownRenderer{}
-	h := newHeute(theme.Load(), Deps{MarkdownRenderer: mr})
-	h.dialog = heuteDialogNoteView
-	h.noteViewReady = true
-	h.noteViewBody = "# heading\n\n| col |\n| --- |\n| x   |"
+	nr := fakeNoteReader{body: "# heading\n\n| col |\n| --- |\n| x   |"}
+	h := newHeute(theme.Load(), Deps{MarkdownRenderer: mr, NoteReader: nr})
 	h.width = 80
 	h.height = 30
+	h.attachedNotes = []string{"daily/2026-05-11"}
+
+	model, _ := h.openNoteViewDialog()
+	h = model.(heute)
+	if h.noteView == nil {
+		t.Fatal("openNoteViewDialog: noteView is nil after attach")
+	}
+	openTimeWidth := mr.LastWidth
+	if openTimeWidth == 0 {
+		t.Fatal("renderer was never called during overlay construction")
+	}
 
 	// Simulate a tmux pane resize: terminal goes from 80×30 → 120×40.
 	updated, _ := h.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	got, ok := updated.(heute)
-	if !ok {
-		t.Fatalf("Update returned %T, want heute", updated)
+	got := updated.(heute)
+	if got.noteView == nil {
+		t.Fatal("noteView dropped during WindowSizeMsg")
 	}
-	if got.noteViewVP.Width != noteViewWidth(120) {
-		t.Errorf("vp.Width after resize = %d, want %d", got.noteViewVP.Width, noteViewWidth(120))
+	if mr.LastWidth == openTimeWidth {
+		t.Errorf("renderer not re-invoked after resize: LastWidth stayed at %d (open-time width)",
+			openTimeWidth)
 	}
-	if mr.LastWidth != 114 {
-		t.Errorf("MarkdownRenderer.LastWidth after resize = %d, want 114 (120 - 6)", mr.LastWidth)
+	if mr.LastWidth < openTimeWidth {
+		t.Errorf("renderer received smaller width after enlargement: open=%d, post-resize=%d",
+			openTimeWidth, mr.LastWidth)
 	}
 }
 
@@ -92,8 +81,40 @@ func TestHeute_WindowSizeMsg_NoReRender_WhenDialogClosed(t *testing.T) {
 	}
 }
 
-type fakeRenderErr struct{}
+func TestHeute_OpenNoteViewDialog_NoAttached_ReturnsToast(t *testing.T) {
+	t.Parallel()
+	h := newHeute(theme.Load(), Deps{})
+	model, cmd := h.openNoteViewDialog()
+	got, ok := model.(heute)
+	if !ok {
+		t.Fatalf("got %T, want heute", model)
+	}
+	if got.noteView != nil {
+		t.Error("noteView must stay nil when no notes are attached")
+	}
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd carrying the info-toast message")
+	}
+	if _, ok := cmd().(heuteActionDoneMsg); !ok {
+		t.Errorf("expected heuteActionDoneMsg, got %T", cmd())
+	}
+}
 
-func (fakeRenderErr) Error() string { return "fake render failure" }
+func TestHeute_OpenNoteViewDialog_ReadError_SetsError(t *testing.T) {
+	t.Parallel()
+	mr := &testutil.FakeMarkdownRenderer{}
+	nr := fakeNoteReader{err: fmt.Errorf("disk gone")}
+	h := newHeute(theme.Load(), Deps{MarkdownRenderer: mr, NoteReader: nr})
+	h.width = 80
+	h.height = 30
+	h.attachedNotes = []string{"daily/2026-05-11"}
 
-var errFakeRender = fakeRenderErr{}
+	model, _ := h.openNoteViewDialog()
+	got := model.(heute)
+	if got.noteView == nil {
+		t.Fatal("noteView must be non-nil even on read-error (SetError path)")
+	}
+	if got.dialog != heuteDialogNoteView {
+		t.Errorf("dialog = %v, want heuteDialogNoteView", got.dialog)
+	}
+}
