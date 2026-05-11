@@ -90,6 +90,13 @@ func TestParseStop(t *testing.T) {
 		{"+ alone fails (empty duration)", "+", time.Time{}, true},
 		{"+ with bad hours fails", "+xh30m", time.Time{}, true},
 		{"+ with bad minutes fails", "+1hxx", time.Time{}, true},
+		// Negative components in a "+NhMMm" or bare "+Nm" reject so a sign
+		// flip can't net out into a smaller positive duration that slips
+		// past the `dur <= 0` guard in ParseStop.
+		{"+ with negative hours rejected", "+-1h", time.Time{}, true},
+		{"+ with negative minutes rejected", "+1h-30m", time.Time{}, true},
+		{"+ bare negative minutes rejected", "+-15m", time.Time{}, true},
+		{"+ negative bare-N minutes rejected", "+-45", time.Time{}, true},
 		{"-Nm delegates to ParseStartArg", "-15m", now.Add(-15 * time.Minute), false},
 		{"unknown delegates and errors", "garbage", time.Time{}, true},
 	}

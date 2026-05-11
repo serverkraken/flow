@@ -148,6 +148,11 @@ func ParseStop(arg string, start, now time.Time) (time.Time, error) {
 // parseHumanDuration parses "1h30m" / "90m" / "2h" / "45" (minutes) into a
 // duration. Internal helper used by ParseStop, which guarantees a non-empty
 // trimmed input — no defensive empty-check here.
+//
+// Negative h / m components are rejected (defense-in-depth — ParseStop
+// already guards `dur <= 0` on the assembled total, but a sign flip
+// inside a multi-component "+1h(-90)m" would have netted out to a
+// smaller positive duration that slipped past that guard).
 func parseHumanDuration(s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if hi := strings.IndexByte(s, 'h'); hi >= 0 {
@@ -157,11 +162,17 @@ func parseHumanDuration(s string) (time.Duration, error) {
 		if errH != nil {
 			return 0, fmt.Errorf("stunden ungültig: %s", hStr)
 		}
+		if h < 0 {
+			return 0, fmt.Errorf("stunden ungültig: %s", hStr)
+		}
 		m := 0
 		if mStr != "" {
 			var errM error
 			m, errM = strconv.Atoi(mStr)
 			if errM != nil {
+				return 0, fmt.Errorf("minuten ungültig: %s", mStr)
+			}
+			if m < 0 {
 				return 0, fmt.Errorf("minuten ungültig: %s", mStr)
 			}
 		}
@@ -171,6 +182,9 @@ func parseHumanDuration(s string) (time.Duration, error) {
 	mStr := strings.TrimSuffix(s, "m")
 	m, err := strconv.Atoi(mStr)
 	if err != nil {
+		return 0, fmt.Errorf("ungültig: %s", s)
+	}
+	if m < 0 {
 		return 0, fmt.Errorf("ungültig: %s", s)
 	}
 	return time.Duration(m) * time.Minute, nil
