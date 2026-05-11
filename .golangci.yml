@@ -188,9 +188,9 @@ linters:
         # rule but for the kompendium subtree. Allowlist: stdlib +
         # kompendium/{domain,ports,usecase} + the shared markdown
         # renderer + flow/ports (for WikilinkResolver) + bubbletea +
-        # widgets + lipgloss/cellbuf/ansi. The browse → view sibling
-        # import is allowed explicitly because view is browse's
-        # in-process full-screen detail viewer, not a peer screen.
+        # widgets + lipgloss/cellbuf/ansi. Full-screen detail viewing
+        # delegates to flow/.../components/markdown_overlay (since F4);
+        # the formerly-local kompendium/.../view/ subpackage is gone.
         kompendium-frontend-tui:
           list-mode: strict
           files:
@@ -201,7 +201,6 @@ linters:
             - github.com/serverkraken/flow/internal/kompendium/domain
             - github.com/serverkraken/flow/internal/kompendium/ports
             - github.com/serverkraken/flow/internal/kompendium/usecase
-            - github.com/serverkraken/flow/internal/kompendium/frontend/tui/view
             # browse embeds writepicker in-process so the new-note picker
             # lives inside the browse program rather than as a forked
             # `flow kompendium write` subprocess. The fork-and-nest model
