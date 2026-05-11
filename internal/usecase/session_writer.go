@@ -76,8 +76,13 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		if !stop.After(*active) {
 			return domain.ErrStopBeforeStart
 		}
+		// Date anchors on the *start* day so a session that crosses
+		// midnight returns to the caller with the day it began on,
+		// matching the first row written by SplitAtMidnight. Anchoring
+		// on stop would silently re-attribute the whole session to the
+		// next calendar day in any caller that prints result.Date.
 		result = domain.Session{
-			Date:    startOfDay(stop),
+			Date:    startOfDay(*active),
 			Start:   *active,
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
@@ -133,8 +138,10 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 		if !stop.After(*active) {
 			return domain.ErrStopBeforeStart
 		}
+		// Date anchors on the start day — see SessionWriter.stopAt for the
+		// midnight-cross rationale.
 		result = domain.Session{
-			Date:    startOfDay(stop),
+			Date:    startOfDay(*active),
 			Start:   *active,
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
@@ -205,8 +212,10 @@ func (w *SessionWriter) Toggle() (string, error) {
 			if !now.After(*active) {
 				return domain.ErrStopBeforeStart
 			}
+			// Date anchors on the start day — see SessionWriter.stopAt for the
+			// midnight-cross rationale.
 			s := domain.Session{
-				Date:    startOfDay(now),
+				Date:    startOfDay(*active),
 				Start:   *active,
 				Stop:    now,
 				Elapsed: now.Sub(*active),

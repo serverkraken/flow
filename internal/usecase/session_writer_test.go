@@ -102,6 +102,14 @@ func TestSessionWriter_Stop_CrossingMidnightSplits(t *testing.T) {
 	if s.Elapsed != 3*time.Hour {
 		t.Errorf("returned Elapsed = %v, want 3h", s.Elapsed)
 	}
+	// Date is anchored on the *start* day, not the stop day. A caller
+	// printing s.Date for a session that began at 22:00 yesterday and
+	// stopped at 01:00 today expects "yesterday" — anchoring on stop
+	// would silently misattribute the session to today.
+	wantDate := time.Date(2026, 4, 29, 0, 0, 0, 0, time.Local)
+	if !s.Date.Equal(wantDate) {
+		t.Errorf("returned Date = %s, want %s (start day)", s.Date, wantDate)
+	}
 	// Stored sessions split into two rows.
 	store := w.Sessions.(*testutil.FakeSessionStore)
 	if len(store.Sessions) != 2 {
