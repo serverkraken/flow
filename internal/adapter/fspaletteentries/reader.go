@@ -9,6 +9,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/shellsafe"
 )
 
 // Reader reads palette entries from a plugins directory.
@@ -177,15 +178,13 @@ func parseLine(raw string, order int) (domain.PaletteEntry, bool) {
 // `~/.tmux/plugins/<name>/menu.entries`, so a plugin cloned from an
 // untrusted source could otherwise execute arbitrary commands the
 // moment the user picks the entry from the palette.
+//
+// The chaining-metacharacter set lives in internal/shellsafe so the
+// pager (which interpolates an unquoted viewer command into bash -c)
+// shares one canonical definition.
 func isSafeAction(s string) bool {
 	if s == "" {
 		return false
 	}
-	if strings.ContainsAny(s, ";|&`\n\r<>") {
-		return false
-	}
-	if strings.Contains(s, "$(") || strings.Contains(s, "${") {
-		return false
-	}
-	return true
+	return shellsafe.ChainingOK(s)
 }

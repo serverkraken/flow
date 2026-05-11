@@ -20,6 +20,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/adapter/textscan"
+	"github.com/serverkraken/flow/internal/flockutil"
 )
 
 // Store reads and writes day-to-note attachments to a TSV file.
@@ -120,6 +121,10 @@ func (s *Store) Remove(date time.Time, noteID string) error {
 // serialised, but cross-process writes raced and could corrupt the
 // TSV. Now: surface the error so the user sees "links could not be
 // updated" instead of silently broken state.
+//
+// Acquisition uses flockutil.Acquire (LOCK_EX|LOCK_NB + backoff up to
+// flockutil.LockTimeout) so a stuck holder times out instead of wedging
+// the caller indefinitely — review finding M3.
 func (s *Store) withFileLock(fn func() error) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("links lockfile parent: %w", err)
@@ -130,7 +135,7 @@ func (s *Store) withFileLock(fn func() error) error {
 		return fmt.Errorf("links lockfile open: %w", err)
 	}
 	defer lf.Close() //nolint:errcheck
-	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
+	if err := flockutil.Acquire(int(lf.Fd()), flockutil.LockTimeout); err != nil {
 		return fmt.Errorf("links flock: %w", err)
 	}
 	defer syscall.Flock(int(lf.Fd()), syscall.LOCK_UN) //nolint:errcheck

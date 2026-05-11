@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/serverkraken/flow/internal/shellsafe"
 )
 
 // Pager opens content in a tmux horizontal split running viewer. The
@@ -28,6 +30,18 @@ func (t *Targets) Pager(content, viewer, ext string) error {
 	if strings.TrimSpace(viewer) == "" {
 		return fmt.Errorf("pager: viewer command is empty")
 	}
+	// viewer is interpolated as-is: in production every caller passes a
+	// hardcoded constant ("less -S"), so the tokens after the command
+	// name are part of that string. Quoting the whole thing would break
+	// those args. We instead reject viewer strings that could escape the
+	// bash -c context — review finding S2.
+	//
+	// Check first, before any temp file is created: otherwise an
+	// adversarial viewer leaks /tmp/worktime-*.<ext> entries on every
+	// rejected call (review follow-up — pager.go leak).
+	if !isSafeViewer(viewer) {
+		return fmt.Errorf("pager: viewer command %q contains shell metacharacters", viewer)
+	}
 	f, err := os.CreateTemp("", "worktime-*."+ext)
 	if err != nil {
 		return fmt.Errorf("pager temp-file: %w", err)
@@ -41,14 +55,6 @@ func (t *Targets) Pager(content, viewer, ext string) error {
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("pager temp-file close: %w", err)
-	}
-	// viewer is interpolated as-is: in production every caller passes a
-	// hardcoded constant ("less -S"), so the tokens after the command
-	// name are part of that string. Quoting the whole thing would break
-	// those args. We instead reject viewer strings that could escape the
-	// bash -c context — review finding S2.
-	if !isSafeViewer(viewer) {
-		return fmt.Errorf("pager: viewer command %q contains shell metacharacters", viewer)
 	}
 	cmdline := fmt.Sprintf("%s %s; rm %s",
 		viewer, shellQuote(tmpPath), shellQuote(tmpPath))
@@ -74,15 +80,14 @@ func shellQuote(s string) string {
 // Why: review finding S2 — the viewer parameter is an exported part of
 // the ports.Output interface, so a future caller wiring it to env or
 // config could otherwise re-introduce shell injection.
+//
+// The forbidden set is shared with the palette's action filter (see
+// internal/shellsafe) — both feed values into bash -c and need the same
+// chaining-metacharacter guard. The viewer is stricter because it gets
+// interpolated unquoted; the palette wraps its action in quoted args.
 func isSafeViewer(s string) bool {
 	if strings.TrimSpace(s) == "" {
 		return false
 	}
-	if strings.ContainsAny(s, ";|&`\n\r<>'\"") {
-		return false
-	}
-	if strings.Contains(s, "$(") || strings.Contains(s, "${") {
-		return false
-	}
-	return true
+	return shellsafe.UnquotedOK(s)
 }

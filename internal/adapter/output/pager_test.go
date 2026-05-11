@@ -58,6 +58,11 @@ func TestPager_RejectsEmptyViewer(t *testing.T) {
 // All current callers pass hardcoded constants (less -S for text/CSV/
 // JSON), but the contract is public — a future caller wiring viewer
 // from env or config would otherwise re-open the injection surface.
+//
+// The test also pins the temp-file invariant: rejected viewers must
+// not leak /tmp/worktime-*.<ext> entries on TMPDIR (a follow-up to S2).
+// The viewer-safety check therefore runs BEFORE os.CreateTemp so a
+// botched call never reaches the filesystem.
 func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -73,6 +78,8 @@ func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			tmpdir := t.TempDir()
+			t.Setenv("TMPDIR", tmpdir)
 			tmux := &testutil.FakeTmux{}
 			tg := output.New(t.TempDir(), tmux)
 			err := tg.Pager("x", tc.viewer, "md")
@@ -81,6 +88,19 @@ func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
 			}
 			if len(tmux.Splits) != 0 {
 				t.Errorf("no tmux split must fire for rejected viewer (got %v)", tmux.Splits)
+			}
+			// The viewer-safety check runs before os.CreateTemp, so the
+			// per-test TMPDIR must remain empty after a rejected call.
+			entries, readErr := os.ReadDir(tmpdir)
+			if readErr != nil {
+				t.Fatalf("ReadDir(%s): %v", tmpdir, readErr)
+			}
+			if len(entries) != 0 {
+				names := make([]string, 0, len(entries))
+				for _, e := range entries {
+					names = append(names, e.Name())
+				}
+				t.Errorf("rejected viewer left %d entry/entries in TMPDIR: %v", len(entries), names)
 			}
 		})
 	}

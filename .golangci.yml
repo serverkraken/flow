@@ -284,6 +284,18 @@ linters:
             # or large-line-scanner each time.
             - github.com/serverkraken/flow/internal/adapter/atomicfile
             - github.com/serverkraken/flow/internal/adapter/textscan
+            # internal/-level utilities consumed by multiple adapters.
+            # They sit outside adapter/ because they are pure-logic
+            # predicates (shellsafe) or syscall-level primitives
+            # (flockutil) with no I/O configuration of their own — the
+            # caller owns the file descriptor / the input string.
+            #   shellsafe  →  bash -c interpolation safety (palette +
+            #                 pager share one forbidden-set)
+            #   flockutil  →  syscall.Flock acquire-with-timeout (used
+            #                 by flockstate + linkstsv + dayoffstsv;
+            #                 review finding M3)
+            - github.com/serverkraken/flow/internal/shellsafe
+            - github.com/serverkraken/flow/internal/flockutil
         frontend-cli:
           list-mode: strict
           files:

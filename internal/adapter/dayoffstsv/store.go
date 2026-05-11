@@ -24,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 	"github.com/serverkraken/flow/internal/adapter/textscan"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/flockutil"
 )
 
 // Store reads and writes day-off entries to a primary TSV file with an
@@ -152,6 +153,10 @@ func (s *Store) Remove(date time.Time) error {
 // processes whose Open or Flock fails (NFS lock-server outage,
 // permission-denied) would both fall through to fn() and race anyway.
 // Pattern mirrors linkstsv.withFileLock (review finding Q4).
+//
+// Acquisition uses flockutil.Acquire (LOCK_EX|LOCK_NB + backoff up to
+// flockutil.LockTimeout) so a stuck holder times out instead of wedging
+// the caller indefinitely — review finding M3.
 func (s *Store) withFileLock(fn func() error) error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("dayoffs lockfile parent: %w", err)
@@ -162,7 +167,7 @@ func (s *Store) withFileLock(fn func() error) error {
 		return fmt.Errorf("dayoffs lockfile open: %w", err)
 	}
 	defer lf.Close() //nolint:errcheck
-	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
+	if err := flockutil.Acquire(int(lf.Fd()), flockutil.LockTimeout); err != nil {
 		return fmt.Errorf("dayoffs flock: %w", err)
 	}
 	defer syscall.Flock(int(lf.Fd()), syscall.LOCK_UN) //nolint:errcheck

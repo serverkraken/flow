@@ -11,12 +11,12 @@
 package flockstate
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/serverkraken/flow/internal/flockutil"
 )
 
 // Lock implements ports.Lock via syscall.Flock(LOCK_EX) on a configurable
@@ -28,17 +28,17 @@ type Lock struct {
 	timeout time.Duration
 }
 
-// LockTimeout is the default ceiling for lock acquisition. Without a
-// ceiling a stuck other process (crashed flow that didn't release, a
-// mounted volume gone unresponsive) wedges every UI keystroke
-// indefinitely with no diagnostic; with the ceiling we fail fast and
-// the caller surfaces a tmux display-message.
-const LockTimeout = 5 * time.Second
+// LockTimeout is the default ceiling for lock acquisition. Re-exported
+// from flockutil so existing flockstate.LockTimeout callers still work;
+// the canonical definition lives there for sharing with linkstsv /
+// dayoffstsv (review finding M3).
+const LockTimeout = flockutil.LockTimeout
 
 // ErrLockTimeout is returned by With when the lock could not be
-// acquired within LockTimeout. Callers may type-assert via errors.Is
-// to surface a "another flow is busy" hint instead of a raw error.
-var ErrLockTimeout = errors.New("worktime lock acquisition timed out")
+// acquired within LockTimeout. Aliased to the shared sentinel so callers
+// can errors.Is(err, flockstate.ErrLockTimeout) regardless of which
+// adapter raised it.
+var ErrLockTimeout = flockutil.ErrLockTimeout
 
 // NewLock constructs a Lock that flocks on path. The lockfile and its
 // parent are created on demand. Lock acquisition will retry until
@@ -59,33 +59,9 @@ func (l *Lock) With(fn func() error) error {
 		return err
 	}
 	defer f.Close() //nolint:errcheck
-	if err := acquireFlock(int(f.Fd()), l.timeout); err != nil {
+	if err := flockutil.Acquire(int(f.Fd()), l.timeout); err != nil {
 		return err
 	}
 	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN) //nolint:errcheck
 	return fn()
-}
-
-// acquireFlock tries LOCK_EX|LOCK_NB and retries with a small backoff
-// until timeout elapses. EWOULDBLOCK is the signal "someone else
-// holds it"; any other error short-circuits with the syscall error.
-func acquireFlock(fd int, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	delay := 20 * time.Millisecond
-	for {
-		err := syscall.Flock(fd, syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) {
-			return err
-		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("%w after %s", ErrLockTimeout, timeout)
-		}
-		time.Sleep(delay)
-		if delay < 200*time.Millisecond {
-			delay *= 2
-		}
-	}
 }
