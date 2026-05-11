@@ -3,9 +3,10 @@ package markdown_overlay
 // config holds the resolved Option set. Unexported; callers configure
 // via With* funcs declared alongside each feature.
 type config struct {
-	title     string
-	source    string
-	closeKeys []string
+	title        string
+	source       string
+	enableSearch bool
+	closeKeys    []string
 }
 
 // Option configures a Model at New time. Composable.
@@ -38,4 +39,12 @@ func WithCloseKeys(keys ...string) Option {
 			c.closeKeys = append([]string{}, keys...)
 		}
 	}
+}
+
+// WithSearch enables the `/` key, the textinput-driven search mode, the
+// match-bar gutter, and the match-counter status-bar segment. Disabled
+// by default — explicit opt-in keeps simple overlays free of an
+// unwanted key surface.
+func WithSearch() Option {
+	return func(c *config) { c.enableSearch = true }
 }

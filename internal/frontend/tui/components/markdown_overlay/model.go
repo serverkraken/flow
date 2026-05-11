@@ -1,6 +1,8 @@
 package markdown_overlay
 
 import (
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,7 +22,7 @@ const (
 // Model is the markdown overlay's bubbletea model. Construct via New;
 // configure dimensions via SetSize after WindowSizeMsg; route messages
 // via Update; render via View. Emits ExitMsg when the user hits a
-// configured close key (added in a later task).
+// configured close key.
 type Model struct {
 	cfg    config
 	render RenderFunc
@@ -30,6 +32,17 @@ type Model struct {
 
 	rendered string
 	viewport viewport.Model
+
+	// search state (used only when cfg.enableSearch).
+	mode     Mode
+	search   textinput.Model
+	query    string
+	matches  []int
+	matchIdx int
+	lines    []string
+	plain    []string
+
+	keys keyMap
 }
 
 // New constructs a Model. render must not be nil — a nil RenderFunc is
@@ -39,7 +52,12 @@ func New(render RenderFunc, opts ...Option) Model {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	return Model{cfg: cfg, render: render}
+	return Model{
+		cfg:    cfg,
+		render: render,
+		search: newSearchInput(),
+		keys:   defaultKeys(),
+	}
 }
 
 // Init satisfies the bubbletea Model contract; the overlay has no
@@ -55,14 +73,26 @@ type ExitMsg struct{}
 func exitCmd() tea.Cmd { return func() tea.Msg { return ExitMsg{} } }
 
 // Update routes incoming messages. WindowSizeMsg re-flows the body;
-// KeyMsg dispatches close-keys (emit ExitMsg) and otherwise forwards
-// to the viewport. Later tasks insert search + code-copy routing
-// before the close-key check.
+// KeyMsg in ModeSearch routes to the textinput; KeyMsg otherwise
+// dispatches search-launch, match-cycle, close-key (emit ExitMsg)
+// and finally falls through to the viewport.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.SetSize(msg.Width, msg.Height), nil
 	case tea.KeyMsg:
+		if m.mode == ModeSearch {
+			return m.handleSearchKey(msg)
+		}
+		if updated, cmd, handled := m.maybeEnterSearch(msg); handled {
+			return updated, cmd
+		}
+		switch {
+		case m.cfg.enableSearch && key.Matches(msg, m.keys.NextMatch):
+			return m.cycleMatch(+1), nil
+		case m.cfg.enableSearch && key.Matches(msg, m.keys.PrevMatch):
+			return m.cycleMatch(-1), nil
+		}
 		if m.isCloseKey(msg) {
 			return m, exitCmd()
 		}
@@ -108,8 +138,9 @@ func (m Model) contentSize() (int, int) {
 }
 
 // rerender re-flows the body through the RenderFunc at the current
-// inner width and pushes the result into the viewport. Called from
-// SetSize and SetSource.
+// inner width, refreshes the search line cache, recomputes match
+// positions if a query is active, and pushes the gutter-prepended
+// content into the viewport. Called from SetSize and SetSource.
 func (m Model) rerender() Model {
 	innerW, innerH := m.contentSize()
 	if innerW <= 0 || innerH <= 0 {
@@ -119,8 +150,12 @@ func (m Model) rerender() Model {
 		return m
 	}
 	m.rendered = m.render(m.cfg.source, innerW)
+	m.refreshLineCache()
+	if m.query != "" {
+		m = m.recomputeMatches()
+	}
 	m.viewport.Width = innerW + gutterWidth
 	m.viewport.Height = innerH
-	m.viewport.SetContent(m.rendered)
+	m.viewport.SetContent(m.composeContent())
 	return m
 }

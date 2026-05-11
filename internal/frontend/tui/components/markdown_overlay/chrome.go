@@ -32,37 +32,68 @@ func (m Model) renderChrome() string {
 	return frameStyle.Width(m.width - frameWidthOffset).Render(content)
 }
 
-// renderFooter assembles the footer hint row. Only the close-key hint
-// is universal; search / code-copy hints are added by later tasks when
-// those features become opt-in.
+// renderFooter assembles the footer hint row. In ModeSearch the
+// row hosts the live textinput + Enter/Esc hints. In ModeNormal it
+// lists the available scroll + close keys, plus a search hint when
+// the feature is enabled.
 func (m Model) renderFooter() string {
+	if m.mode == ModeSearch {
+		view := m.search.View()
+		if view == "" {
+			view = "▎"
+		}
+		return searchActiveLabelStyle.Render("Suche:") + " " + view +
+			"   " + footerStyle.Render("Enter → übernehmen  ·  Esc → abbrechen")
+	}
 	parts := []string{footerStyle.Render("j/k → scrollen")}
+	if m.cfg.enableSearch {
+		parts = append(parts, footerKeyStyle.Render("/")+footerStyle.Render(" → suchen"))
+	}
 	parts = append(parts,
 		footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/"))+
 			footerStyle.Render(" → zurück"))
 	return strings.Join(parts, "  ·  ")
 }
 
-// renderStatusBar produces the bottom row: title path on the left,
-// scroll-percent (or, in later tasks, match-counter / copy-status) on
-// the right. Filler space between is rendered with the status-bar
+// renderStatusBar produces the bottom row: optional mode badge on the
+// left, title path next, match-counter / copy-status / scroll-percent
+// on the right. Filler space is rendered with the status-bar
 // background so the bar reads as a solid bar even when truncated.
 func (m Model) renderStatusBar() string {
 	innerW := m.width - contentLineBudget
 	if innerW <= 0 {
 		return ""
 	}
+	mode := ""
+	if m.mode == ModeSearch {
+		mode = statusBarModeSearchStyle.Render("SEARCH")
+	}
 	title := m.cfg.title
 	if title == "" {
 		title = "—"
 	}
 	pathSegment := statusBarPathStyle.Render(" " + title + " ")
-	right := statusBarStyle.Render(" " + formatPercent(m.viewport.ScrollPercent()) + " ")
-	gap := innerW - lipgloss.Width(pathSegment) - lipgloss.Width(right)
+	right := m.statusBarRight()
+	gap := innerW - lipgloss.Width(mode) - lipgloss.Width(pathSegment) - lipgloss.Width(right)
 	if gap < 0 {
 		gap = 0
 	}
-	return pathSegment + statusBarStyle.Render(strings.Repeat(" ", gap)) + right
+	return mode + pathSegment + statusBarStyle.Render(strings.Repeat(" ", gap)) + right
+}
+
+// statusBarRight selects the right-aligned label: match counter when a
+// query is active, otherwise the scroll percent.
+func (m Model) statusBarRight() string {
+	if m.query != "" {
+		var label string
+		if len(m.matches) == 0 {
+			label = " Keine Treffer "
+		} else {
+			label = " " + strconv.Itoa(m.matchIdx+1) + "/" + strconv.Itoa(len(m.matches)) + " "
+		}
+		return statusBarStyle.Render(label)
+	}
+	return statusBarStyle.Render(" " + formatPercent(m.viewport.ScrollPercent()) + " ")
 }
 
 // formatPercent rounds the scroll percent to an integer and appends "%".

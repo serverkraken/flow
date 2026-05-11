@@ -371,6 +371,11 @@ linters:
             - github.com/charmbracelet/bubbletea
             - github.com/charmbracelet/bubbles
             - github.com/charmbracelet/lipgloss
+            # x/ansi: ANSI-Strip + OSC 52 escape sequences. Needed by
+            # markdown_overlay for search match scanning (lower-cased
+            # ANSI-stripped line cache) and the OSC 52 clipboard
+            # wrap. Mirrors the kompendium-frontend-tui allow.
+            - github.com/charmbracelet/x/ansi
             - github.com/muesli/termenv
             - github.com/sahilm/fuzzy
     gocyclo:

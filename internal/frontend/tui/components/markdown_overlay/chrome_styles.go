@@ -23,13 +23,27 @@ func SetPalette(p theme.Palette) {
 }
 
 var (
-	frameStyle         lipgloss.Style
-	titleStyle         lipgloss.Style
-	separatorStyle     lipgloss.Style
-	footerStyle        lipgloss.Style
-	footerKeyStyle     lipgloss.Style
-	statusBarStyle     lipgloss.Style
-	statusBarPathStyle lipgloss.Style
+	frameStyle               lipgloss.Style
+	titleStyle               lipgloss.Style
+	separatorStyle           lipgloss.Style
+	footerStyle              lipgloss.Style
+	footerKeyStyle           lipgloss.Style
+	statusBarStyle           lipgloss.Style
+	statusBarPathStyle       lipgloss.Style
+	statusBarModeSearchStyle lipgloss.Style
+	searchActiveLabelStyle   lipgloss.Style
+	cursorStyle              lipgloss.Style
+
+	// matchBarStyle renders the left-margin bar prepended to lines
+	// that matched the search query. Inline highlight would have to
+	// splice SGR codes into glamour output without breaking nested
+	// OSC 8 hyperlinks — fragile. A two-cell left bar stays robust.
+	matchBarStyle lipgloss.Style
+
+	// matchCurrentBarStyle marks the cursor's current match. Sem has
+	// no Orange alias (Orange is a Markdown-domain hue, not a
+	// semantic token); pal.Orange stays direct.
+	matchCurrentBarStyle lipgloss.Style
 )
 
 func init() { rebuildStyles() }
@@ -61,4 +75,25 @@ func rebuildStyles() {
 	statusBarPathStyle = lipgloss.NewStyle().
 		Background(lipgloss.Color(pal.BgChip)).
 		Foreground(lipgloss.Color(pal.Fg))
+
+	statusBarModeSearchStyle = lipgloss.NewStyle().
+		Background(sem.Warning).
+		Foreground(lipgloss.Color(pal.Bg)).
+		Bold(true).
+		Padding(0, 1)
+
+	searchActiveLabelStyle = lipgloss.NewStyle().
+		Foreground(sem.Warning).
+		Bold(true)
+
+	cursorStyle = lipgloss.NewStyle().
+		Foreground(sem.Accent).
+		Bold(true)
+
+	matchBarStyle = lipgloss.NewStyle().
+		Foreground(sem.Warning)
+
+	matchCurrentBarStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(pal.Orange)).
+		Bold(true)
 }

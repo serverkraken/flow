@@ -126,6 +126,89 @@ func TestWithCloseKeys_OverridesDefault(t *testing.T) {
 	}
 }
 
+func TestSearch_DisabledByDefault(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource("x"),
+	).SetSize(40, 10)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	if m.CurrentMode() != markdown_overlay.ModeNormal {
+		t.Errorf("/ activated search without WithSearch(); mode=%v", m.CurrentMode())
+	}
+}
+
+func TestSearch_EnabledFindsMatches(t *testing.T) {
+	render := func(_ string, _ int) string {
+		return "alpha foo bar\nbeta foo qux\ngamma"
+	}
+	m := markdown_overlay.New(render,
+		markdown_overlay.WithTitle("S"),
+		markdown_overlay.WithSource("ignored"),
+		markdown_overlay.WithSearch(),
+	).SetSize(60, 12)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	if m.CurrentMode() != markdown_overlay.ModeSearch {
+		t.Fatalf("expected ModeSearch after /, got %v", m.CurrentMode())
+	}
+	for _, r := range "foo" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if got := m.Query(); got != "foo" {
+		t.Errorf("query: got %q, want %q", got, "foo")
+	}
+	if got := m.Matches(); len(got) != 2 {
+		t.Errorf("matches: got %v, want 2 (lines 0 + 1 contain foo)", got)
+	}
+	if m.CurrentMode() != markdown_overlay.ModeNormal {
+		t.Errorf("expected ModeNormal after Enter, got %v", m.CurrentMode())
+	}
+}
+
+func TestSearch_EscCancelsWithoutApplying(t *testing.T) {
+	m := markdown_overlay.New(
+		func(_ string, _ int) string { return "foo\nbar" },
+		markdown_overlay.WithSource("x"),
+		markdown_overlay.WithSearch(),
+	).SetSize(60, 12)
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	for _, r := range "foo" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if got := m.Query(); got != "" {
+		t.Errorf("Esc applied query %q; expected empty", got)
+	}
+	if m.CurrentMode() != markdown_overlay.ModeNormal {
+		t.Errorf("expected ModeNormal after Esc, got %v", m.CurrentMode())
+	}
+}
+
+func TestSearch_CycleMatchesWithNandShiftN(t *testing.T) {
+	m := markdown_overlay.New(
+		func(_ string, _ int) string { return "a foo\nb foo\nc foo\nd qux" },
+		markdown_overlay.WithSource("x"),
+		markdown_overlay.WithSearch(),
+	).SetSize(60, 12)
+	// open / type foo / enter
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	for _, r := range "foo" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if got := m.MatchIndex(); got != 0 {
+		t.Errorf("initial MatchIndex: got %d, want 0", got)
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if got := m.MatchIndex(); got != 1 {
+		t.Errorf("after n: got %d, want 1", got)
+	}
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	if got := m.MatchIndex(); got != 0 {
+		t.Errorf("after N: got %d, want 0", got)
+	}
+}
+
 func TestView_StatusBarShowsScrollPercent(t *testing.T) {
 	// Multi-line body wider than viewport-height forces scroll, and the
 	// status bar surfaces the percentage. Initial view shows " 0%".
