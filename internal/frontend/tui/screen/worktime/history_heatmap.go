@@ -12,6 +12,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -134,7 +135,7 @@ func (h history) renderHeatmapLegend(inner int) string {
 		stDim(h.pal, "▓ <100%"),
 		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
-		lipgloss.NewStyle().Foreground(sem.Info).Render("★/☼/✚ frei"),
+		lipgloss.NewStyle().Foreground(sem.Info).Render(glyphs.Holiday + "/" + glyphs.Vacation + "/" + glyphs.Extra + " frei"),
 		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
 		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
 		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —
