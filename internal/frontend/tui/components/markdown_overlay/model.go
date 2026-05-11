@@ -47,6 +47,11 @@ type Model struct {
 	copyIdx    int
 	copyStatus string
 
+	// err displaces the body when non-nil. Set via SetError, cleared by
+	// any subsequent SetSource (so a successful re-load wipes a prior
+	// failure surface).
+	err error
+
 	keys keyMap
 }
 

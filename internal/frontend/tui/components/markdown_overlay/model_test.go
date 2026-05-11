@@ -1,6 +1,7 @@
 package markdown_overlay_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -235,6 +236,47 @@ func TestCodeCopy_EnabledCyclesSnippets(t *testing.T) {
 	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
 	if !strings.Contains(m.CopyStatus(), "2/2") {
 		t.Errorf("second c: got status %q, want contains 2/2", m.CopyStatus())
+	}
+}
+
+func TestSetError_RendersInsteadOfBody(t *testing.T) {
+	m := markdown_overlay.New(
+		func(_ string, _ int) string { return "RENDERED" },
+		markdown_overlay.WithTitle("E"),
+		markdown_overlay.WithSource("ignored"),
+	).SetSize(60, 10).SetError(errors.New("boom"))
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "boom") {
+		t.Errorf("SetError view missing 'boom':\n%s", out)
+	}
+	if strings.Contains(out, "RENDERED") {
+		t.Errorf("body 'RENDERED' should not appear when error set:\n%s", out)
+	}
+}
+
+func TestSetError_ClearedBySetSource(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return "R:" + s },
+		markdown_overlay.WithTitle("E"),
+	).SetSize(60, 10).SetError(errors.New("boom")).SetSource("recovered")
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "R:recovered") {
+		t.Errorf("after SetSource, body missing:\n%s", out)
+	}
+	if strings.Contains(out, "boom") {
+		t.Errorf("error 'boom' should be cleared by SetSource:\n%s", out)
+	}
+}
+
+func TestWithFooterExtras_RendersInFooter(t *testing.T) {
+	m := markdown_overlay.New(
+		func(s string, _ int) string { return s },
+		markdown_overlay.WithSource("x"),
+		markdown_overlay.WithFooterExtras("p → punch"),
+	).SetSize(80, 12)
+	out := ansi.Strip(m.View())
+	if !strings.Contains(out, "p → punch") {
+		t.Errorf("footer extra missing:\n%s", out)
 	}
 }
 

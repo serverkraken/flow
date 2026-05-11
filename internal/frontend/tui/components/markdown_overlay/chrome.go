@@ -17,7 +17,7 @@ func (m Model) renderChrome() string {
 	}
 	title := titleStyle.Render(m.cfg.title)
 	sep := separatorStyle.Render(strings.Repeat("─", lineW))
-	body := m.viewport.View()
+	body := m.bodyView()
 	footer := m.renderFooter()
 	statusBar := m.renderStatusBar()
 
@@ -51,6 +51,9 @@ func (m Model) renderFooter() string {
 	}
 	if m.cfg.enableCodeCopy {
 		parts = append(parts, footerKeyStyle.Render("c")+footerStyle.Render(" → Code kopieren"))
+	}
+	for _, x := range m.cfg.footerExtras {
+		parts = append(parts, footerStyle.Render(x))
 	}
 	parts = append(parts,
 		footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/"))+
@@ -102,6 +105,17 @@ func (m Model) statusBarRight() string {
 		return statusBarStyle.Render(label)
 	}
 	return statusBarStyle.Render(" " + formatPercent(m.viewport.ScrollPercent()) + " ")
+}
+
+// bodyView returns the body slot: either the viewport's rendered
+// content or a tinted error line when SetError has been called. The
+// error path uses the same vertical slot as the body so chrome height
+// math stays unchanged.
+func (m Model) bodyView() string {
+	if m.err != nil {
+		return "\n  " + errStyle.Render("Fehler: "+m.err.Error())
+	}
+	return m.viewport.View()
 }
 
 // formatPercent rounds the scroll percent to an integer and appends "%".

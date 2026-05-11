@@ -8,6 +8,7 @@ type config struct {
 	enableSearch   bool
 	enableCodeCopy bool
 	closeKeys      []string
+	footerExtras   []string
 }
 
 // Option configures a Model at New time. Composable.
@@ -56,4 +57,12 @@ func WithSearch() Option {
 // for headless / SSH terminals.
 func WithCodeCopy() Option {
 	return func(c *config) { c.enableCodeCopy = true }
+}
+
+// WithFooterExtras appends additional dim-styled hints to the footer
+// row (between the built-in scroll/search/copy/close hints). For
+// host-specific keys the overlay doesn't know about (e.g. a parent's
+// "b → back to list" alongside its own close-keys).
+func WithFooterExtras(hints ...string) Option {
+	return func(c *config) { c.footerExtras = append([]string{}, hints...) }
 }

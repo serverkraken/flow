@@ -44,6 +44,9 @@ var (
 	// no Orange alias (Orange is a Markdown-domain hue, not a
 	// semantic token); pal.Orange stays direct.
 	matchCurrentBarStyle lipgloss.Style
+
+	// errStyle tints the body slot when SetError is active.
+	errStyle lipgloss.Style
 )
 
 func init() { rebuildStyles() }
@@ -95,5 +98,9 @@ func rebuildStyles() {
 
 	matchCurrentBarStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color(pal.Orange)).
+		Bold(true)
+
+	errStyle = lipgloss.NewStyle().
+		Foreground(sem.Danger).
 		Bold(true)
 }
