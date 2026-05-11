@@ -13,7 +13,7 @@ import (
 func TestPager_DispatchesTmuxSplitWithBashAndViewer(t *testing.T) {
 	tmux := &testutil.FakeTmux{}
 	tg := output.New(t.TempDir(), tmux)
-	if err := tg.Pager("# Hallo\n", "glow", "md"); err != nil {
+	if err := tg.Pager("col1,col2\n", "less", "csv"); err != nil {
 		t.Fatalf("Pager err: %v", err)
 	}
 	if len(tmux.Splits) != 1 {
@@ -23,14 +23,14 @@ func TestPager_DispatchesTmuxSplitWithBashAndViewer(t *testing.T) {
 	if !strings.HasPrefix(split, "bash -c ") {
 		t.Errorf("split must invoke `bash -c …`; got %q", split)
 	}
-	if !strings.Contains(split, "glow ") {
-		t.Errorf("split must include the viewer (`glow`); got %q", split)
+	if !strings.Contains(split, "less ") {
+		t.Errorf("split must include the viewer (`less`); got %q", split)
 	}
 	if !strings.Contains(split, "; rm ") {
 		t.Errorf("split must clean up the temp file via `; rm …`; got %q", split)
 	}
-	if !strings.Contains(split, ".md") {
-		t.Errorf("temp file must carry the .md extension; got %q", split)
+	if !strings.Contains(split, ".csv") {
+		t.Errorf("temp file must carry the .csv extension; got %q", split)
 	}
 }
 

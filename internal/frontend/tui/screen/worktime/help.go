@@ -87,7 +87,7 @@ func helpSectionsMenu() help.Section {
 	return help.Section{
 		Title: "Worktime — Aktions-Menü (`:`)",
 		Keys: [][2]string{
-			{"Brief Wochen-/Monatsbericht", "Markdown via glow / clipboard / ~/Downloads"},
+			{"Brief Wochen-/Monatsbericht", "Markdown im integrierten Viewer / clipboard / ~/Downloads"},
 			{"Export CSV / JSON", "Range-Form + Output-Target"},
 			{"Stats für Range", "Aggregate über StatsComputer"},
 			{"Startzeit korrigieren", "Heute, nur wenn Session läuft"},

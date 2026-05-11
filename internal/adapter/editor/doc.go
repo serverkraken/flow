@@ -7,8 +7,7 @@
 // by the kompendium nvimeditor adapter so $VISUAL / $EDITOR / nvim
 // fallback all behave the same way the standalone kompendium binary did.
 //
-// View resolves the same path and opens it with the configured note
-// viewer (typically glow) in a horizontal split. Both flows previously
-// shelled out to the kompendium binary; K4.E folded that into the
-// in-tree adapters.
+// Read-only viewing went in-process during the glow-migration: the
+// Heute `o`-Key opens heuteDialogNoteView (integrated MarkdownRenderer +
+// viewport), so this adapter no longer owns a View() method.
 package editor

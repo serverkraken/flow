@@ -42,9 +42,9 @@ func (f exportFormat) label() string {
 	return "CSV"
 }
 
-// exportPager liefert den Pager für `tmux-Split → glow/less`-Target.
-// Beide Formate sind nicht-Markdown — `less -S` (kein word-wrap, side-
-// scroll) zeigt CSV/JSON als raw Text in voller Zeilenbreite, was bei
+// exportPager liefert den Pager für das `tmux-Split`-Target. Beide
+// Formate sind nicht-Markdown — `less -S` (kein word-wrap, side-scroll)
+// zeigt CSV/JSON als raw Text in voller Zeilenbreite, was bei
 // 6-Spalten-CSV mit langen Notes wichtig ist.
 const exportPager = "less -S"
 

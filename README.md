@@ -61,11 +61,14 @@ Wechsel, Cheatsheet — ohne den Kontext zu verlassen.
 | **Go 1.25+**          | Ja      | Build (Pure-Go-Binary, kein cgo, kein C-Compiler nötig)            |
 | **tmux**              | empf.   | Sidekick-Pane, Status-Right-Segment, Aktions-Menü-Output-Target    |
 | **git**               | empf.   | Kompendium-Sync, Snapshot-Adapter                                  |
-| **glow**              | optional| Markdown-Render im tmux-Split (Brief / Note-Viewer)                |
 | **less**              | optional| Pager-Fallback für CSV/JSON/Stats im tmux-Split                    |
 | **nvim** / `$EDITOR`  | optional| Kompendium-Note-Edit (Default `nvim`; `$VISUAL`/`$EDITOR` greifen) |
 | **pbcopy** / **xclip**| optional| Aktions-Menü Clipboard-Target (macOS / Linux)                      |
 | **TrueColor-Terminal**| empf.   | Lipgloss-Themes erwarten 24-Bit-Farbe (Ghostty, iTerm2, Alacritty) |
+
+Markdown-Rendering (Brief, Heute-Note-View, Cheatsheet, Kompendium-Browse)
+läuft komplett in-process über den integrierten Renderer — kein `glow`
+oder anderer externer Viewer mehr nötig.
 
 Standalone-CLI (`flow worktime stop`, `flow worktime brief`, …) läuft
 auch ohne tmux. Nur das interaktive TUI macht ohne tmux wenig Sinn,
@@ -76,7 +79,7 @@ weil sich Sidekick und Status-Bar gegenseitig brauchen.
 ### macOS (Homebrew)
 
 ```sh
-brew install go tmux glow neovim git
+brew install go tmux neovim git
 git clone https://github.com/serverkraken/flow.git
 cd flow
 make install            # → ~/.local/bin/flow
@@ -98,7 +101,7 @@ Version-Manager (`mise` / `asdf`) verwenden.
 ```sh
 # Laufzeit-Tools aus apt — alle pflichtfrei außer git
 sudo apt update
-sudo apt install -y tmux git glow less xclip neovim
+sudo apt install -y tmux git less xclip neovim
 
 # Go 1.25 offiziell
 GO_VERSION=1.25.0
@@ -113,10 +116,6 @@ git clone https://github.com/serverkraken/flow.git
 cd flow
 make install            # → ~/.local/bin/flow
 ```
-
-Falls `glow` in Deinem Debian-Release noch nicht in apt liegt, gibt es
-das Charm-APT-Repo (`https://github.com/charmbracelet/charm/blob/main/INSTALLING.md`)
-oder ein `go install github.com/charmbracelet/glow@latest`.
 
 ### Build-Targets
 
@@ -224,7 +223,6 @@ Integration:
 | ------------------- | -------------------- | --------------------------------------------- |
 | `NOTES_DIR`         | `~/notes`            | Kompendium-Notizbuch-Wurzel                   |
 | `XDG_DATA_HOME`     | `~/.local/share`     | FTS5-Index unter `<root>/kompendium/index.db` |
-| `FLOW_NOTE_VIEWER`  | `glow`               | Markdown-Viewer für `o` auf Heute-Note        |
 | `SOURCECODE_ROOT`   | `~/Sourcecode`       | Wurzel für die Projekte-Liste                 |
 
 ---
