@@ -55,23 +55,36 @@ func containsTSVMeta(s string) bool {
 }
 
 // AddRange adds an entry for every calendar day in [from, to] (inclusive).
-// Returns the number of days actually written; on partial failure, the
-// count reflects how many succeeded before the error.
+// All or nothing: the underlying store's AddBatch is atomic, so a
+// disk-full or permission error on day 7 of 10 leaves zero rows written
+// — the previous per-day-Add loop left partial state with no signal
+// which days survived. On success returns the number of days written.
+//
+// Validation (kind, label) runs once for the whole range — the
+// previous per-day path duplicated this work and could fail in the
+// middle. Failure paths now return (0, err).
 func (w *DayOffWriter) AddRange(from, to time.Time, kind domain.Kind, label string) (int, error) {
 	if to.Before(from) {
 		return 0, errors.New("to liegt vor from")
 	}
-	cur := startOfDay(from)
-	end := startOfDay(to)
-	count := 0
-	for !cur.After(end) {
-		if err := w.Add(cur, kind, label); err != nil {
-			return count, err
-		}
-		count++
-		cur = cur.AddDate(0, 0, 1)
+	if _, ok := domain.ParseKind(string(kind)); !ok {
+		return 0, fmt.Errorf("ungültige kategorie: %q", kind)
 	}
-	return count, nil
+	if containsTSVMeta(label) {
+		return 0, fmt.Errorf("label enthält Tab oder Zeilenumbruch — bitte ohne diese Zeichen eingeben")
+	}
+	label = sanitizeField(label)
+	if label == "" {
+		label = kind.LabelDe()
+	}
+	var offs []domain.DayOff
+	for cur, end := startOfDay(from), startOfDay(to); !cur.After(end); cur = cur.AddDate(0, 0, 1) {
+		offs = append(offs, domain.DayOff{Date: cur, Kind: kind, Label: label})
+	}
+	if err := w.Store.AddBatch(offs); err != nil {
+		return 0, err
+	}
+	return len(offs), nil
 }
 
 // Remove deletes the entry for date. Removing a non-existent entry is a

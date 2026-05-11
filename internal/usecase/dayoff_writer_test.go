@@ -85,18 +85,27 @@ func TestDayOffWriter_AddRange_InvertedRangeFails(t *testing.T) {
 	}
 }
 
-func TestDayOffWriter_AddRange_StopsOnError(t *testing.T) {
-	// Custom store that fails on the 3rd Add.
-	store := &countingDayOffStore{failAfter: 2}
+// TestDayOffWriter_AddRange_AtomicOnError documents the post-L5
+// contract: when the store fails the batch write, zero rows land. The
+// pre-L5 behaviour was per-day-Add with partial-progress (count = days
+// that succeeded before the failure); the new behaviour is all-or-nothing,
+// because a vacation booking with six orphaned days and four missing
+// ones is worse than a clean retry.
+func TestDayOffWriter_AddRange_AtomicOnError(t *testing.T) {
+	store := testutil.NewFakeDayOffStore()
+	store.Err = errors.New("disk full")
 	w := &usecase.DayOffWriter{Store: store}
 	from := time.Date(2026, 7, 13, 0, 0, 0, 0, time.Local)
 	to := time.Date(2026, 7, 17, 0, 0, 0, 0, time.Local)
 	count, err := w.AddRange(from, to, domain.KindVacation, "x")
 	if err == nil {
-		t.Error("expected error after failAfter")
+		t.Error("expected error from store")
 	}
-	if count != 2 {
-		t.Errorf("partial count = %d, want 2 successes before failure", count)
+	if count != 0 {
+		t.Errorf("count = %d, want 0 (atomic — no partial state on failure)", count)
+	}
+	if got := store.List(time.Time{}, time.Time{}); len(got) != 0 {
+		t.Errorf("store has %d entries after failed batch; want 0", len(got))
 	}
 }
 
@@ -206,24 +215,4 @@ func TestDayOffWriter_SyncGermanHolidays_RespectsLocation(t *testing.T) {
 			t.Errorf("entry %s hour = %d, want 0 (midnight UTC)", entry.Label, h)
 		}
 	}
-}
-
-// countingDayOffStore wraps the in-memory map but fails the (n+1)th Add.
-// Used to test AddRange's partial-progress contract.
-type countingDayOffStore struct {
-	testutil.FakeDayOffStore
-	failAfter int
-	calls     int
-}
-
-func (s *countingDayOffStore) Add(off domain.DayOff) error {
-	s.calls++
-	if s.calls > s.failAfter {
-		return errors.New("boom")
-	}
-	if s.Entries == nil {
-		s.Entries = map[string]domain.DayOff{}
-	}
-	s.Entries[off.Date.Format("2006-01-02")] = off
-	return nil
 }

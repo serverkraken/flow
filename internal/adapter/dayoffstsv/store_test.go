@@ -329,6 +329,47 @@ func contains(s, sub string) bool {
 	return false
 }
 
+// TestAddBatch_AllLand verifies the atomic-batch contract: every entry
+// in offs lands in one write so a multi-day vacation booking is either
+// fully visible after the call or not at all.
+func TestAddBatch_AllLand(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dayoffs.tsv")
+	s := dayoffstsv.New(path, "")
+
+	dates := []time.Time{
+		mustParseDate(t, "2026-07-13"),
+		mustParseDate(t, "2026-07-14"),
+		mustParseDate(t, "2026-07-15"),
+		mustParseDate(t, "2026-07-16"),
+		mustParseDate(t, "2026-07-17"),
+	}
+	var offs []domain.DayOff
+	for _, d := range dates {
+		offs = append(offs, domain.DayOff{Date: d, Kind: domain.KindVacation, Label: "Sommerurlaub"})
+	}
+	if err := s.AddBatch(offs); err != nil {
+		t.Fatal(err)
+	}
+	got := s.List(time.Time{}, time.Time{})
+	if len(got) != len(dates) {
+		t.Fatalf("after AddBatch: got %d entries, want %d", len(got), len(dates))
+	}
+}
+
+// TestAddBatch_EmptyIsNoop: an empty slice does not touch the file.
+// Callers that compute a range and then realise it's empty shouldn't
+// have to special-case it.
+func TestAddBatch_EmptyIsNoop(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dayoffs.tsv")
+	s := dayoffstsv.New(path, "")
+	if err := s.AddBatch(nil); err != nil {
+		t.Fatalf("empty AddBatch: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("empty AddBatch should not create the file; stat err = %v", err)
+	}
+}
+
 // TestAdd_TwoInstancesSamePath_NoDataLoss simulates two independent
 // processes (e.g. CLI + TUI) writing distinct dates concurrently. The
 // in-process sync.Mutex does not protect against this case — only the

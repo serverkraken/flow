@@ -100,6 +100,31 @@ func (s *Store) Add(off domain.DayOff) error {
 	})
 }
 
+// AddBatch inserts or replaces every entry in offs as one atomic
+// read-modify-write — the same lock + cache discipline as Add, but the
+// final atomicfile.WriteFile carries all rows at once. Either every
+// entry lands or none does. An empty slice is a no-op (no file touch).
+//
+// Use-case caller is DayOffWriter.AddRange: a multi-day vacation
+// booking must be all-or-nothing because partial-progress would leave
+// the user with orphaned days and no signal which ones.
+func (s *Store) AddBatch(offs []domain.DayOff) error {
+	if len(offs) == 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.withFileLock(func() error {
+		s.primed = false
+		fresh := s.readLocked()
+		merged := cloneMap(fresh)
+		for _, off := range offs {
+			merged[off.Date.Format("2006-01-02")] = off
+		}
+		return s.writeLocked(merged)
+	})
+}
+
 // Remove deletes the entry for date. Removing a non-existent entry is a
 // no-op (no error).
 func (s *Store) Remove(date time.Time) error {

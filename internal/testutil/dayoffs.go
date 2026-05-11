@@ -53,6 +53,24 @@ func (f *FakeDayOffStore) Add(off domain.DayOff) error {
 	return nil
 }
 
+// AddBatch mirrors the production all-or-nothing contract: if Err is
+// set, no entry is written. Otherwise every entry lands.
+func (f *FakeDayOffStore) AddBatch(offs []domain.DayOff) error {
+	if f.Err != nil {
+		return f.Err
+	}
+	if len(offs) == 0 {
+		return nil
+	}
+	if f.Entries == nil {
+		f.Entries = map[string]domain.DayOff{}
+	}
+	for _, off := range offs {
+		f.Entries[off.Date.Format("2006-01-02")] = off
+	}
+	return nil
+}
+
 func (f *FakeDayOffStore) Remove(date time.Time) error {
 	if f.Err != nil {
 		return f.Err
