@@ -393,14 +393,19 @@ func isoMonday(t time.Time) time.Time {
 // kindColor maps a day-off kind to a palette color. Lives on the screen
 // side because the mapping mixes a domain enum with frontend palette
 // concerns. Wave E (Frei tab) reuses this when listing day-offs.
+//
+// Sem-Mapping: Feiertag → Info (legend-style, kein Live-State),
+// Urlaub → Success (positive day, kein Arbeitsdefizit), Krank → Warning
+// (abweichender Tag, aber nicht alarm-rot).
 func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
+	sem := p.Sem()
 	switch k {
 	case domain.KindHoliday:
-		return p.Cyan
+		return sem.Info
 	case domain.KindVacation:
-		return p.Green
+		return sem.Success
 	case domain.KindSick:
-		return p.Yellow
+		return sem.Warning
 	}
 	return p.Fg
 }

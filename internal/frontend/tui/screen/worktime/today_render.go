@@ -290,13 +290,14 @@ func (h heute) footerHints() []string {
 // der Anker für „alles im grünen Bereich" — Cyan würde zwischen „aktiv"
 // (Pille) und „ETA" (Info) wechseln und das Feld optisch unruhig machen.
 func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, lipgloss.TerminalColor) {
+	sem := p.Sem()
 	switch {
 	case running && achieved:
-		return glyphs.Active, "läuft " + glyphs.Done, p.Green
+		return glyphs.Active, "läuft " + glyphs.Done, sem.Success
 	case running:
-		return glyphs.Active, "läuft", p.Green
+		return glyphs.Active, "läuft", sem.Success
 	case achieved:
-		return glyphs.Done, "Ziel erreicht", p.Green
+		return glyphs.Done, "Ziel erreicht", sem.Success
 	}
 	return glyphs.Paused, "pausiert", p.FgMuted
 }
@@ -305,15 +306,16 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 // state and target progress. Red is reserved for "really a lot" so a
 // normal hour of overtime doesn't look like an alarm.
 func totalThresholdColor(p theme.Palette, total, target time.Duration, running bool) lipgloss.TerminalColor {
+	sem := p.Sem()
 	switch {
 	case total >= target+4*time.Hour:
-		return p.Red
+		return sem.Danger
 	case total >= target:
-		return p.Green
+		return sem.Success
 	case running && total >= target-2*time.Hour:
-		return p.Yellow
+		return sem.Warning
 	case running:
-		return p.Cyan
+		return sem.Active
 	}
 	return p.FgMuted
 }
