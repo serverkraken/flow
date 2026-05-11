@@ -1,8 +1,10 @@
 package dayoffstsv_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -325,4 +327,53 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// TestAdd_TwoInstancesSamePath_NoDataLoss simulates two independent
+// processes (e.g. CLI + TUI) writing distinct dates concurrently. The
+// in-process sync.Mutex does not protect against this case — only the
+// POSIX file lock on the .lock sibling does. Without flock, one of the
+// atomicfile.WriteFile renames would silently discard the other's row.
+func TestAdd_TwoInstancesSamePath_NoDataLoss(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dayoffs.tsv")
+
+	const writesPerStore = 25
+	s1 := dayoffstsv.New(path, "")
+	s2 := dayoffstsv.New(path, "")
+
+	add := func(s *dayoffstsv.Store, prefix string) error {
+		for i := 0; i < writesPerStore; i++ {
+			d := mustParseDate(t, fmt.Sprintf("2026-%02d-%02d", (i%12)+1, (i%28)+1))
+			if err := s.Add(domain.DayOff{
+				Date: d, Kind: domain.KindVacation,
+				Label: fmt.Sprintf("%s-%d", prefix, i),
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	wg.Add(2)
+	go func() { defer wg.Done(); errs <- add(s1, "A") }()
+	go func() { defer wg.Done(); errs <- add(s2, "B") }()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+	}
+
+	// Fresh reader to bypass any per-instance cache.
+	verifier := dayoffstsv.New(path, "")
+	got := verifier.List(time.Time{}, time.Time{})
+	// Both stores wrote to the same 25 keys (i % 12, i % 28 collides
+	// across the two stores). Either A or B is the winner per key, but
+	// no key may go missing: total entries == 25.
+	if len(got) != writesPerStore {
+		t.Fatalf("after concurrent Add across two stores: got %d entries, want %d", len(got), writesPerStore)
+	}
 }

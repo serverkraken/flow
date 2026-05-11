@@ -1,3 +1,10 @@
+//go:build !windows
+
+// dayoffstsv reaches for syscall.Flock / LOCK_EX / LOCK_UN to coordinate
+// cross-process writes — POSIX-only constants. Until the cross-build
+// matrix gains Windows, this package is silently skipped there (same
+// pattern as linkstsv and flockstate).
+
 package dayoffstsv
 
 import (
@@ -11,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
@@ -20,6 +28,13 @@ import (
 
 // Store reads and writes day-off entries to a primary TSV file with an
 // optional read-only legacy-path fallback.
+//
+// Writers (Add/Remove) serialise on mu (in-process) AND on a POSIX
+// advisory file lock on a sibling .lock file (cross-process). Without
+// the file lock, the CLI `flow worktime dayoff add` racing the TUI's
+// SyncGermanHolidays could each pass the read step against identical
+// state, and the second atomicfile.WriteFile rename would silently
+// discard the first writer's row. Matches the pattern in linkstsv.
 type Store struct {
 	path       string
 	legacyPath string
@@ -63,19 +78,26 @@ func (s *Store) Lookup(date time.Time) (domain.DayOff, bool) {
 // Add inserts or replaces the entry for off.Date. Validation (kind,
 // label) is the use-case's job; the adapter only persists.
 //
-// Holds mu for the entire read-modify-write so two concurrent Add/Remove
-// calls can't both read the same prior state and have the second
-// overwrite the first. The read goes through readLocked so the
+// Holds mu (in-process) and a POSIX advisory file lock on a sibling
+// .lock (cross-process) for the entire read-modify-write so two
+// concurrent Add/Remove calls — within or across processes — can't
+// both read the same prior state and have the second overwrite the
+// first. The cache is invalidated under the lock so a second writer
+// in the same process sees rows another process landed since the
+// first writer's commit. The read goes through readLocked so the
 // legacy-path fallback applies — without that, the first Add against a
 // user with only legacy data would silently mask all prior entries
 // (the new primary file would contain just the one fresh row).
 func (s *Store) Add(off domain.DayOff) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fresh := s.readLocked()
-	merged := cloneMap(fresh)
-	merged[off.Date.Format("2006-01-02")] = off
-	return s.writeLocked(merged)
+	return s.withFileLock(func() error {
+		s.primed = false
+		fresh := s.readLocked()
+		merged := cloneMap(fresh)
+		merged[off.Date.Format("2006-01-02")] = off
+		return s.writeLocked(merged)
+	})
 }
 
 // Remove deletes the entry for date. Removing a non-existent entry is a
@@ -83,14 +105,43 @@ func (s *Store) Add(off domain.DayOff) error {
 func (s *Store) Remove(date time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	fresh := s.readLocked()
-	key := date.Format("2006-01-02")
-	if _, ok := fresh[key]; !ok {
-		return nil
+	return s.withFileLock(func() error {
+		s.primed = false
+		fresh := s.readLocked()
+		key := date.Format("2006-01-02")
+		if _, ok := fresh[key]; !ok {
+			return nil
+		}
+		merged := cloneMap(fresh)
+		delete(merged, key)
+		return s.writeLocked(merged)
+	})
+}
+
+// withFileLock acquires an advisory POSIX lock on a sibling .lock file
+// for cross-process serialisation. The lockfile is separate from the
+// TSV itself because writeLocked uses temp+rename and would otherwise
+// pull the lock target out from under the holder.
+//
+// Failures surface rather than degrade silently — without that, two
+// processes whose Open or Flock fails (NFS lock-server outage,
+// permission-denied) would both fall through to fn() and race anyway.
+// Pattern mirrors linkstsv.withFileLock (review finding Q4).
+func (s *Store) withFileLock(fn func() error) error {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+		return fmt.Errorf("dayoffs lockfile parent: %w", err)
 	}
-	merged := cloneMap(fresh)
-	delete(merged, key)
-	return s.writeLocked(merged)
+	lockPath := s.path + ".lock"
+	lf, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return fmt.Errorf("dayoffs lockfile open: %w", err)
+	}
+	defer lf.Close() //nolint:errcheck
+	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("dayoffs flock: %w", err)
+	}
+	defer syscall.Flock(int(lf.Fd()), syscall.LOCK_UN) //nolint:errcheck
+	return fn()
 }
 
 func (s *Store) readCached() map[string]domain.DayOff {
