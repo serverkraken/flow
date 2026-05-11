@@ -8,14 +8,14 @@ import (
 )
 
 func TestTargetPicker_DefaultsToSplit(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	if tp.cursor != int(outputTargetSplit) {
 		t.Errorf("cursor = %d, want %d (split)", tp.cursor, outputTargetSplit)
 	}
 }
 
 func TestTargetPicker_NavigationWraps(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	tp, _ = tp.handleKey(keyName("j"))
 	if tp.cursor != int(outputTargetClipboard) {
 		t.Errorf("after j, cursor = %d, want %d (clipboard)", tp.cursor, outputTargetClipboard)
@@ -34,7 +34,7 @@ func TestTargetPicker_NavigationWraps(t *testing.T) {
 }
 
 func TestTargetPicker_GAndShiftGJump(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	tp, _ = tp.handleKey(runeKey('G'))
 	if tp.cursor != targetCount-1 {
 		t.Errorf("G should jump to last, got %d", tp.cursor)
@@ -58,7 +58,7 @@ func TestTargetPicker_HotkeysPickDirectly(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.label, func(t *testing.T) {
-			tp := newTargetPicker("glow")
+			tp := newTargetPicker("less -S")
 			_, ev := tp.handleKey(runeKey(tc.key))
 			if !ev.picked {
 				t.Errorf("%c should pick a target", tc.key)
@@ -71,7 +71,7 @@ func TestTargetPicker_HotkeysPickDirectly(t *testing.T) {
 }
 
 func TestTargetPicker_EnterPicksAtCursor(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	tp, _ = tp.handleKey(keyName("j")) // → clipboard
 	_, ev := tp.handleKey(keyName("enter"))
 	if !ev.picked {
@@ -83,7 +83,7 @@ func TestTargetPicker_EnterPicksAtCursor(t *testing.T) {
 }
 
 func TestTargetPicker_EscCancels(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	_, ev := tp.handleKey(keyName("esc"))
 	if !ev.canceled {
 		t.Error("Esc should set canceled")
@@ -94,7 +94,7 @@ func TestTargetPicker_EscCancels(t *testing.T) {
 }
 
 func TestTargetPicker_NavOnlyDoesNotPick(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	_, ev := tp.handleKey(keyName("j"))
 	if ev.picked || ev.canceled {
 		t.Errorf("nav-only key should produce a passthrough event, got %+v", ev)
@@ -102,14 +102,14 @@ func TestTargetPicker_NavOnlyDoesNotPick(t *testing.T) {
 }
 
 func TestTargetPicker_ViewRendersAllThreeTargets(t *testing.T) {
-	tp := newTargetPicker("glow")
+	tp := newTargetPicker("less -S")
 	out := tp.view("Brief Wochenbericht", pal(), 80)
 	for _, want := range []string{
 		"Brief Wochenbericht",
 		"tmux-Split",
 		"Zwischenablage",
 		"~/Downloads",
-		"glow",
+		"less -S",
 		"pbcopy",
 		"c · s · f",
 		"esc → zurück",
@@ -141,8 +141,8 @@ func TestOutputTarget_HotkeyAndLabel(t *testing.T) {
 }
 
 func TestOutputTarget_HintShowsViewerForSplit(t *testing.T) {
-	if got := outputTargetSplit.hint("glow"); got != "glow" {
-		t.Errorf("split hint with viewer=glow = %q, want glow", got)
+	if got := outputTargetSplit.hint("less -S"); got != "less -S" {
+		t.Errorf("split hint with viewer=less -S = %q, want less -S", got)
 	}
 	if got := outputTargetClipboard.hint("any"); got != "pbcopy" {
 		t.Errorf("clipboard hint = %q, want pbcopy", got)
