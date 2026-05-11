@@ -181,6 +181,64 @@ func TestImport_RejectsNonLocalPath(t *testing.T) {
 	}
 }
 
+// TestImport_RejectsCumulativeOverflow guards against the "many entries
+// each under the per-entry cap, but totaling more than the disk reserve"
+// shape — a decompression-bomb pattern that the per-entry check alone
+// cannot stop. The test uses the SetCapsForTest helper to drop both
+// limits into KiB territory so the fixture archive stays tiny.
+//
+// Marked non-parallel because the swap mutates package state. The
+// entries are sized so the first two pass the per-entry cap, the third
+// tips the cumulative total above the limit, and Import surfaces a
+// clear cumulative-cap error.
+func TestImport_RejectsCumulativeOverflow(t *testing.T) {
+	// per-entry cap large enough to admit 4 KiB entries; cumulative cap
+	// just over 2 entries so the third write tips it over.
+	restore := tarsnapshot.SetCapsForTest(8<<10, 9<<10)
+	t.Cleanup(restore)
+
+	archive := filepath.Join(t.TempDir(), "many.tar.gz")
+	f, err := os.Create(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	payload := bytes.Repeat([]byte("a"), 4<<10) // 4 KiB
+	for i := 0; i < 3; i++ {
+		hdr := &tar.Header{
+			Name:     "note" + string(rune('0'+i)) + ".md",
+			Mode:     0o644,
+			Size:     int64(len(payload)),
+			Typeflag: tar.TypeReg,
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dst := t.TempDir()
+	err = tarsnapshot.New().Import(context.Background(), archive, dst, ports.ConflictAbort)
+	if err == nil {
+		t.Fatal("expected cumulative-cap error, got nil")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("cumulative size cap")) {
+		t.Errorf("error should mention cumulative size cap, got %q", err)
+	}
+}
+
 // TestImport_RejectsOversizedEntry guards against decompression-bomb
 // archives. An entry whose header claims a size beyond the per-entry
 // cap must be rejected before any allocation or write to disk.
