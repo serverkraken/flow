@@ -67,9 +67,25 @@ type Paths struct {
 }
 
 // Env bundles configuration values resolved from environment variables.
-// Per review finding A1, every os.Getenv call lives in main() so deeper
-// layers (adapters, screens) get their values via constructor params and
-// stay testable without env mutation.
+// Per review finding A1, every os.Getenv call for *app configuration*
+// lives in main() so deeper layers (adapters, screens) get their values
+// via constructor params and stay testable without env mutation.
+//
+// Platform-detection probes are the documented exception: variables
+// that aren't part of the app's config surface but describe the
+// runtime host (TMUX, COLORTERM, VISUAL, EDITOR). They stay where they
+// are read because (a) they aren't user-configurable in the
+// flow-config sense, (b) hoisting them to main.go would just turn
+// main.go into a host-probe registry, and (c) the test boundary for
+// host-detection logic is the function under test, not the env. The
+// three current sites are:
+//
+//   - internal/frontend/tui/theme/load.go  — TMUX, COLORTERM
+//   - internal/kompendium/frontend/tui/view/copy.go — TMUX
+//   - internal/kompendium/adapter/nvimeditor/split.go — VISUAL, EDITOR
+//
+// Adding a new platform probe? Note it in the list above so the
+// exception stays auditable.
 type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default

@@ -95,6 +95,10 @@ func isClosingFence(line, openFence string) bool {
 // tmux, the sequence is wrapped in a DCS tmux passthrough so the
 // inner terminal still sees it (tmux's own OSC 52 handling depends
 // on `set-clipboard on/external` and is unreliable across versions).
+//
+// $TMUX is read in-place rather than via Env in main.go: it describes
+// the runtime terminal multiplexer, not app config. See the A1
+// platform-detection carve-out in cmd/flow/main.go's Env doc.
 func osc52SetClipboard(content string) string {
 	osc := ansi.SetSystemClipboard(content)
 	if os.Getenv("TMUX") == "" {

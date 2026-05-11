@@ -73,6 +73,11 @@ func Load() Palette {
 //     vorher hat Init() die Detektion termenv überlassen, was bei nicht
 //     korrekt-gesetztem TERM (z.B. xterm-256color) auf ANSI256 fiel.
 //
+// TMUX/COLORTERM are read here (and in loadTmuxCache below) rather
+// than via main.go's Env: they describe the runtime terminal, not
+// app config. See the A1 platform-detection carve-out in
+// cmd/flow/main.go's Env doc.
+//
 // Init must be called once at program startup, before any lipgloss
 // styles are rendered.
 func Init() {

@@ -9,6 +9,12 @@ import (
 // resolveEditor picks the editor binary and parses any embedded flags.
 // $VISUAL takes precedence over $EDITOR per POSIX convention; both fall
 // back to "nvim" when unset.
+//
+// VISUAL/EDITOR are read in-place rather than via Env in main.go: see
+// the A1 platform-detection carve-out in cmd/flow/main.go's Env doc.
+// These vars describe the user's POSIX editor preference (set by the
+// shell environment, not flow config) and resolving them in main()
+// would just push the same os.Getenv chain into a wiring helper.
 func resolveEditor() (string, []string, error) {
 	raw := os.Getenv("VISUAL")
 	if raw == "" {
