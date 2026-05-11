@@ -78,7 +78,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	if hasRec && rec.Target > 0 {
 		cell, color = heatmapCellGlyph(h.pal, rec)
 	}
-	if dayOff, isOff := h.deps.DayOffReader.Lookup(day); isOff {
+	if dayOff, isOff := h.deps.DayOffStore.Lookup(day); isOff {
 		if !hasRec || rec.Target == 0 {
 			cell = dayOffHeatmapGlyph(dayOff.Kind)
 		}
@@ -116,7 +116,7 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 		status = fmt.Sprintf("   %s  %s  —",
 			domain.WeekdayShortDe(d.Weekday()), d.Format("2006-01-02"))
 	}
-	if dayOff, doh := h.deps.DayOffReader.Lookup(d); doh {
+	if dayOff, doh := h.deps.DayOffStore.Lookup(d); doh {
 		status += "  ·  " + dayOff.Kind.LabelDe()
 		if dayOff.Label != "" {
 			status += " " + dayOff.Label

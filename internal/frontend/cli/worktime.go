@@ -49,7 +49,7 @@ type WorktimeDeps struct {
 	Reporter       *usecase.Reporter
 	Stats          *usecase.StatsComputer
 	DayOffWriter   *usecase.DayOffWriter
-	DayOffReader   *usecase.DayOffReader
+	DayOffStore    ports.DayOffStore
 	Reader         *usecase.WorktimeReader
 	Screen         func(tk.Palette) tea.Model
 }
@@ -612,7 +612,7 @@ func newDayOffListCmd(deps WorktimeDeps) *cobra.Command {
 			}
 			from := time.Date(y, time.January, 1, 0, 0, 0, 0, time.Local)
 			to := time.Date(y, time.December, 31, 0, 0, 0, 0, time.Local)
-			entries := deps.DayOffReader.List(from, to)
+			entries := deps.DayOffStore.List(from, to)
 			// Pure read verb → empty result is silent on stdout (no
 			// rows). Surfacing 'keine Einträge für YEAR' on stderr was
 			// confusing for `dayoff list --year 2099 | wc -l` which
@@ -691,7 +691,7 @@ func newDayOffExportCmd(deps WorktimeDeps) *cobra.Command {
 			out := cmd.OutOrStdout()
 			switch format {
 			case "tsv":
-				for _, d := range deps.DayOffReader.List(from, to) {
+				for _, d := range deps.DayOffStore.List(from, to) {
 					fprintf(out, "%s\t%s\t%s\n",
 						d.Date.Format("2006-01-02"), d.Kind, d.Label)
 				}

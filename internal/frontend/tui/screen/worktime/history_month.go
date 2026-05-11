@@ -98,7 +98,7 @@ func (h history) renderMonthCursorStatus(first time.Time, byKey map[string]domai
 		status = fmt.Sprintf("   %s  %s  —",
 			domain.WeekdayShortDe(cursorDate.Weekday()), cursorDate.Format("2006-01-02"))
 	}
-	if dayOff, doh := h.deps.DayOffReader.Lookup(cursorDate); doh {
+	if dayOff, doh := h.deps.DayOffStore.Lookup(cursorDate); doh {
 		status += "  ·  " + dayOff.Kind.LabelDe()
 		if dayOff.Label != "" {
 			status += " " + dayOff.Label
@@ -129,7 +129,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 		return "     "
 	}
 	rec, hasRec := byKey[day.Format("2006-01-02")]
-	dayOff, isOff := h.deps.DayOffReader.Lookup(day)
+	dayOff, isOff := h.deps.DayOffStore.Lookup(day)
 	isCursor := day.Day() == h.monthCur && day.Month() == monthRef.Month() && day.Year() == monthRef.Year()
 	isToday := sameDay(day, h.deps.Clock.Now())
 	isWeekend := day.Weekday() == time.Saturday || day.Weekday() == time.Sunday

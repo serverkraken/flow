@@ -182,7 +182,7 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (f frei) loadCmd(year int) tea.Cmd {
-	reader := f.deps.DayOffReader
+	reader := f.deps.DayOffStore
 	return func() tea.Msg {
 		from := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local)
 		to := time.Date(year, time.December, 31, 0, 0, 0, 0, time.Local)

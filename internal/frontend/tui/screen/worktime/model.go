@@ -37,7 +37,7 @@ type Deps struct {
 	Stats         *usecase.StatsComputer
 	SessionWriter *usecase.SessionWriter
 	Tagger        *usecase.Tagger
-	DayOffReader  *usecase.DayOffReader
+	DayOffStore   ports.DayOffStore
 	DayOffWriter  *usecase.DayOffWriter
 	LinkReader    *usecase.LinkReader
 	LinkWriter    *usecase.LinkWriter

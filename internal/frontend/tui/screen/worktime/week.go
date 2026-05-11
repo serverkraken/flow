@@ -191,7 +191,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		marker = lipgloss.NewStyle().Foreground(w.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
 	}
 
-	dayOff, isOff := w.deps.DayOffReader.Lookup(d.Date)
+	dayOff, isOff := w.deps.DayOffStore.Lookup(d.Date)
 
 	switch {
 	case isWeekend && total == 0:
@@ -301,7 +301,7 @@ func (w woche) renderPace(now time.Time) string {
 
 	for _, d := range w.week {
 		isWeekend := d.Date.Weekday() == time.Saturday || d.Date.Weekday() == time.Sunday
-		dayOff, isOff := w.deps.DayOffReader.Lookup(d.Date)
+		dayOff, isOff := w.deps.DayOffStore.Lookup(d.Date)
 		total := d.Total(now)
 		hit := d.Target > 0 && total >= d.Target
 
@@ -348,7 +348,7 @@ func (w woche) countWorkdays() int {
 		if isWeekend {
 			continue
 		}
-		if _, isOff := w.deps.DayOffReader.Lookup(d.Date); isOff {
+		if _, isOff := w.deps.DayOffStore.Lookup(d.Date); isOff {
 			continue
 		}
 		n++

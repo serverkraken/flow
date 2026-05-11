@@ -49,7 +49,7 @@ func newRig(t *testing.T) rig {
 		Stats:         stats,
 		SessionWriter: &usecase.SessionWriter{Sessions: sessions, State: active, Lock: lock, Reader: reader, Clock: clock},
 		Tagger:        &usecase.Tagger{Sessions: sessions},
-		DayOffReader:  &usecase.DayOffReader{Store: dayoffs},
+		DayOffStore:   dayoffs,
 		DayOffWriter:  &usecase.DayOffWriter{Store: dayoffs},
 		LinkReader:    &usecase.LinkReader{Store: links},
 		LinkWriter:    &usecase.LinkWriter{Store: links},

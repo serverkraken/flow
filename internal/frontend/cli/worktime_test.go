@@ -62,7 +62,7 @@ func (f *fixture) deps() cli.WorktimeDeps {
 		},
 		Stats:        stats,
 		DayOffWriter: &usecase.DayOffWriter{Store: f.dayoffs},
-		DayOffReader: &usecase.DayOffReader{Store: f.dayoffs},
+		DayOffStore:  f.dayoffs,
 		Reader:       reader,
 	}
 }

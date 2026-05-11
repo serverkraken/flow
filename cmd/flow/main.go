@@ -170,7 +170,6 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		Config:  configReader,
 	}
 	dayoffWriter := &usecase.DayOffWriter{Store: dayoffStore}
-	dayoffReader := &usecase.DayOffReader{Store: dayoffStore}
 	tagger := &usecase.Tagger{Sessions: sessionStore}
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
@@ -197,7 +196,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			Stats:            stats,
 			SessionWriter:    sessionWriter,
 			Tagger:           tagger,
-			DayOffReader:     dayoffReader,
+			DayOffStore:      dayoffStore,
 			DayOffWriter:     dayoffWriter,
 			LinkReader:       linkReader,
 			LinkWriter:       linkWriter,
@@ -222,7 +221,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			Reporter:       reporter,
 			Stats:          stats,
 			DayOffWriter:   dayoffWriter,
-			DayOffReader:   dayoffReader,
+			DayOffStore:    dayoffStore,
 			Reader:         reader,
 			Screen:         worktimeScreen,
 		},

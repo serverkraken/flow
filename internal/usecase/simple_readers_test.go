@@ -10,23 +10,6 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-func TestDayOffReader_DelegatesToStore(t *testing.T) {
-	d := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
-	store := testutil.NewFakeDayOffStore(domain.DayOff{Date: d, Kind: domain.KindHoliday, Label: "T"})
-	r := &usecase.DayOffReader{Store: store}
-
-	if got, ok := r.Lookup(d); !ok || got.Label != "T" {
-		t.Errorf("Lookup hit failed: got %+v ok %v", got, ok)
-	}
-	if _, ok := r.Lookup(time.Date(2026, 5, 2, 0, 0, 0, 0, time.Local)); ok {
-		t.Error("Lookup miss should return ok=false")
-	}
-	got := r.List(time.Time{}, time.Time{})
-	if len(got) != 1 {
-		t.Errorf("List unbounded: got %d entries", len(got))
-	}
-}
-
 func TestLinkReader_DelegatesToStore(t *testing.T) {
 	d := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	store := &testutil.FakeLinkStore{ByDate: map[string][]string{
