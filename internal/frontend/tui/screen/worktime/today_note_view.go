@@ -66,30 +66,41 @@ func (h heute) openNoteViewDialog() (tea.Model, tea.Cmd) {
 	h.dialog = heuteDialogNoteView
 	h.noteViewID = id
 	h.noteViewErr = nil
+	h.noteViewBody = ""
 	body, err := h.deps.NoteReader.Read(id)
 	if err != nil {
 		h.noteViewErr = err
 		h.noteViewReady = false
 		return h, nil
 	}
-	rendered := body
-	if h.deps.MarkdownRenderer != nil {
-		// Render-Width = inner-Box (h.width - 4) - 2 Pad innen, mirror
-		// cheatsheet/model.go renderContent. Bei width == 0 (vor erstem
-		// WindowSizeMsg) liefert der Renderer trotzdem sinnvollen Output.
-		w := h.width - 6
-		if w < 20 {
-			w = 60
-		}
-		if r, rerr := h.deps.MarkdownRenderer.Render(body, w); rerr == nil {
-			rendered = r
-		}
-	}
+	h.noteViewBody = body
+	rendered := renderNoteViewBody(body, h.width, h.deps)
 	vp := viewport.New(noteViewWidth(h.width), noteViewHeight(h.height))
 	vp.SetContent(rendered)
 	h.noteViewVP = vp
 	h.noteViewReady = true
 	return h, nil
+}
+
+// renderNoteViewBody führt den Body durch den MarkdownRenderer auf der
+// passenden inner-Box-Breite (mirror cheatsheet/model.go). Bei width == 0
+// (vor erstem WindowSizeMsg) liefert der Renderer trotzdem sinnvollen
+// Output. Reine Funktion, damit der Resize-Pfad in today.go denselben
+// Code nimmt — sonst zerlaufen Tabellen / Code-Blöcke nach tmux-Pane-
+// Resize, weil nur die Viewport-Maße aktualisiert würden.
+func renderNoteViewBody(body string, termW int, deps Deps) string {
+	if deps.MarkdownRenderer == nil {
+		return body
+	}
+	w := termW - 6
+	if w < 20 {
+		w = 60
+	}
+	rendered, err := deps.MarkdownRenderer.Render(body, w)
+	if err != nil {
+		return body
+	}
+	return rendered
 }
 
 // renderNoteViewDialog rendert den Sub-Dialog. Title führt die Note-ID
@@ -126,6 +137,7 @@ func (h heute) updateNoteViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		h.noteViewReady = false
 		h.noteViewErr = nil
 		h.noteViewID = ""
+		h.noteViewBody = ""
 		return h, nil
 	}
 	if h.noteViewReady {

@@ -112,9 +112,13 @@ type heute struct {
 	// dialog == heuteDialogNoteView). noteViewVP ist der Scroll-Container,
 	// noteViewID die geladene Note für den Title, noteViewErr ein
 	// Render-/Read-Fehler der inline statt als Toast gezeigt wird.
+	// noteViewBody behält den rohen Markdown-Body, damit ein
+	// WindowSizeMsg den Renderer mit der neuen Breite neu fahren kann
+	// (Tabellen/Code-Blöcke zerlaufen sonst nach tmux-Pane-Resize).
 	noteViewVP    viewport.Model
 	noteViewReady bool
 	noteViewID    string
+	noteViewBody  string
 	noteViewErr   error
 }
 
@@ -180,9 +184,12 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Resize viewport in place so the user's scroll position survives
 		// a tmux pane resize (mirror cheatsheet/model.go). Allocating a
 		// new viewport.Model on every resize would reset YOffset.
+		// Markdown wird mit der neuen Breite neu gerendert — sonst
+		// zerlaufen Tabellen / Code-Blöcke (parallel zu brief_view.resize).
 		if h.dialog == heuteDialogNoteView && h.noteViewReady {
 			h.noteViewVP.Width = noteViewWidth(h.width)
 			h.noteViewVP.Height = noteViewHeight(h.height)
+			h.noteViewVP.SetContent(renderNoteViewBody(h.noteViewBody, h.width, h.deps))
 		}
 		return h, nil
 
