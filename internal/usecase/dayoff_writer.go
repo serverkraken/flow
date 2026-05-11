@@ -85,8 +85,14 @@ func (w *DayOffWriter) Remove(date time.Time) error {
 // synced year is a no-op. User-managed kinds (vacation / sick) are
 // preserved — those get counted as "skipped" so the caller can report
 // "1 added, 5 already had user entries".
-func (w *DayOffWriter) SyncGermanHolidays(year int, land string) (added, skipped int, err error) {
-	hs := domain.GermanHolidays(year, land, time.Local)
+//
+// loc anchors holiday dates at midnight of that location. Production
+// callers (CLI / TUI) pass time.Local because that's what the user's
+// calendar sees; tests pass an explicit location so the assertions
+// don't drift under CI environments with a different $TZ. The
+// previous hardcoded time.Local broke that injection contract.
+func (w *DayOffWriter) SyncGermanHolidays(year int, land string, loc *time.Location) (added, skipped int, err error) {
+	hs := domain.GermanHolidays(year, land, loc)
 	for _, h := range hs {
 		existing, ok := w.Store.Lookup(h.Date)
 		if ok && existing.Kind == domain.KindHoliday && existing.Label == h.Label {

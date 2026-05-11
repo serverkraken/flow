@@ -288,7 +288,7 @@ func (f frei) syncHolidaysCmd() tea.Cmd {
 	year := f.currentYear()
 	land := landOrDefault(f.deps.Land)
 	return func() tea.Msg {
-		added, _, err := writer.SyncGermanHolidays(year, land)
+		added, _, err := writer.SyncGermanHolidays(year, land, time.Local)
 		if err != nil {
 			return freiActionDoneMsg{err: err}
 		}

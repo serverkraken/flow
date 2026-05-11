@@ -115,7 +115,7 @@ func TestDayOffWriter_Remove(t *testing.T) {
 func TestDayOffWriter_SyncGermanHolidays_AddsAll(t *testing.T) {
 	store := testutil.NewFakeDayOffStore()
 	w := &usecase.DayOffWriter{Store: store}
-	added, skipped, err := w.SyncGermanHolidays(2026, "NW")
+	added, skipped, err := w.SyncGermanHolidays(2026, "NW", time.Local)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,10 +127,10 @@ func TestDayOffWriter_SyncGermanHolidays_AddsAll(t *testing.T) {
 func TestDayOffWriter_SyncGermanHolidays_Idempotent(t *testing.T) {
 	store := testutil.NewFakeDayOffStore()
 	w := &usecase.DayOffWriter{Store: store}
-	if _, _, err := w.SyncGermanHolidays(2026, "NW"); err != nil {
+	if _, _, err := w.SyncGermanHolidays(2026, "NW", time.Local); err != nil {
 		t.Fatal(err)
 	}
-	added, skipped, err := w.SyncGermanHolidays(2026, "NW")
+	added, skipped, err := w.SyncGermanHolidays(2026, "NW", time.Local)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestDayOffWriter_SyncGermanHolidays_PreservesUserEntries(t *testing.T) {
 		Label: "Eigene Wahl",
 	})
 	w := &usecase.DayOffWriter{Store: store}
-	if _, _, err := w.SyncGermanHolidays(2026, "NW"); err != nil {
+	if _, _, err := w.SyncGermanHolidays(2026, "NW", time.Local); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := store.Lookup(karfreitag)
@@ -164,7 +164,7 @@ func TestDayOffWriter_SyncGermanHolidays_UnknownLandStillSyncsBundesweit(t *test
 	w := &usecase.DayOffWriter{Store: store}
 	// Unknown land falls through normalizeLand and gets the bundesweit-only
 	// set (since region-specific holidays don't apply).
-	added, _, err := w.SyncGermanHolidays(2026, "XX")
+	added, _, err := w.SyncGermanHolidays(2026, "XX", time.Local)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,8 +177,34 @@ func TestDayOffWriter_SyncGermanHolidays_StoreAddErrPropagates(t *testing.T) {
 	store := testutil.NewFakeDayOffStore()
 	store.Err = errors.New("boom")
 	w := &usecase.DayOffWriter{Store: store}
-	if _, _, err := w.SyncGermanHolidays(2026, "NW"); err == nil {
+	if _, _, err := w.SyncGermanHolidays(2026, "NW", time.Local); err == nil {
 		t.Error("expected error")
+	}
+}
+
+// TestDayOffWriter_SyncGermanHolidays_RespectsLocation guards the
+// injection contract that the function's doc comment promises. The
+// previous hardcoded time.Local meant CI in a different $TZ saw
+// holidays anchored at midnight-Berlin while the test compared against
+// midnight-UTC — a silent date drift. Pass UTC explicitly and verify
+// each stored date is at midnight-UTC.
+func TestDayOffWriter_SyncGermanHolidays_RespectsLocation(t *testing.T) {
+	store := testutil.NewFakeDayOffStore()
+	w := &usecase.DayOffWriter{Store: store}
+	added, _, err := w.SyncGermanHolidays(2026, "NW", time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added == 0 {
+		t.Fatal("expected holidays to be added")
+	}
+	for _, entry := range store.List(time.Time{}, time.Time{}) {
+		if entry.Date.Location() != time.UTC {
+			t.Errorf("entry %s location = %s, want UTC", entry.Label, entry.Date.Location())
+		}
+		if h := entry.Date.Hour(); h != 0 {
+			t.Errorf("entry %s hour = %d, want 0 (midnight UTC)", entry.Label, h)
+		}
 	}
 }
 

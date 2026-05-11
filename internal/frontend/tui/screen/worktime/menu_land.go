@@ -10,6 +10,7 @@ package worktime
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
@@ -144,7 +145,7 @@ func landSyncCmd(deps Deps, code string) tea.Cmd {
 			return menuActionDoneMsg{err: fmt.Errorf("clock nicht verdrahtet")}
 		}
 		year := deps.Clock.Now().Year()
-		added, skipped, err := deps.DayOffWriter.SyncGermanHolidays(year, code)
+		added, skipped, err := deps.DayOffWriter.SyncGermanHolidays(year, code, time.Local)
 		if err != nil {
 			return menuActionDoneMsg{err: fmt.Errorf("sync %s/%d: %w", code, year, err)}
 		}

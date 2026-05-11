@@ -653,7 +653,7 @@ unangetastet.
 			if l == "" {
 				l = "NW"
 			}
-			added, skipped, err := deps.DayOffWriter.SyncGermanHolidays(y, l)
+			added, skipped, err := deps.DayOffWriter.SyncGermanHolidays(y, l, time.Local)
 			if err != nil {
 				return err
 			}
