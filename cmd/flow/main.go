@@ -71,7 +71,6 @@ type Paths struct {
 // layers (adapters, screens) get their values via constructor params and
 // stay testable without env mutation.
 type Env struct {
-	NoteViewer          string        // $FLOW_NOTE_VIEWER (default "glow")
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
 }
@@ -123,7 +122,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		cmd := kompDeps.EditCmd(path)
 		return cmd.Args, nil
 	}
-	noteLauncher := editor.New(pathOf, editorArgs, env.NoteViewer)
+	noteLauncher := editor.New(pathOf, editorArgs)
 
 	flowState := jsonflowstate.New(
 		filepath.Join(p.CacheDir, "state.json"),
@@ -417,13 +416,6 @@ func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, 
 	}, cleanup, nil
 }
 
-func envOr(name, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
-	}
-	return fallback
-}
-
 // parseEnvHoursDuration reads name as a positive float-of-hours and
 // returns it as a Duration. Empty or malformed values return 0 so the
 // downstream adapter can apply its own baseline. Centralised here so
@@ -469,7 +461,6 @@ func main() {
 	indexPath := filepath.Join(indexDir, "kompendium", "index.db")
 
 	env := Env{
-		NoteViewer:          envOr("FLOW_NOTE_VIEWER", "glow"),
 		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
 	}

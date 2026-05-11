@@ -53,7 +53,7 @@ func nvimArgs(path string) ([]string, error) {
 
 func TestOpen_EmptyID(t *testing.T) {
 	r, _ := recorder(t)
-	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, r)
 	if err := l.Open("   "); err == nil {
 		t.Fatal("want error, got nil")
 	}
@@ -61,7 +61,7 @@ func TestOpen_EmptyID(t *testing.T) {
 
 func TestOpen_UnresolvablePath(t *testing.T) {
 	r, _ := recorder(t)
-	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
+	l := editor.NewWithRunner(staticPath(nil), nvimArgs, r)
 	if err := l.Open("daily/missing"); err == nil {
 		t.Fatal("want error when pathOf returns empty path")
 	}
@@ -71,7 +71,7 @@ func TestOpen_SpawnsTmuxSplit(t *testing.T) {
 	r, calls := recorder(t)
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"daily/2026-04-30": "/notes/daily/2026-04-30.md"}),
-		nvimArgs, "glow", r,
+		nvimArgs, r,
 	)
 	if err := l.Open("daily/2026-04-30"); err != nil {
 		t.Fatal(err)
@@ -101,7 +101,7 @@ func TestOpen_HonoursEditorArgsFlags(t *testing.T) {
 	}
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"daily/2026-04-30": "/p.md"}),
-		editorArgs, "glow", r,
+		editorArgs, r,
 	)
 	if err := l.Open("daily/2026-04-30"); err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestOpen_PathWithSpaces_GetsQuoted(t *testing.T) {
 	r, calls := recorder(t)
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"x": "/notes/My Daily.md"}),
-		nvimArgs, "glow", r,
+		nvimArgs, r,
 	)
 	if err := l.Open("x"); err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestOpen_PathWithSingleQuote(t *testing.T) {
 	r, calls := recorder(t)
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"x": "/n/it's-fine.md"}),
-		nvimArgs, "glow", r,
+		nvimArgs, r,
 	)
 	if err := l.Open("x"); err != nil {
 		t.Fatal(err)
@@ -153,7 +153,7 @@ func TestOpen_ResolveEditorErrorWrapped(t *testing.T) {
 	editorArgs := func(string) ([]string, error) { return nil, want }
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"x": "/p"}),
-		editorArgs, "glow", r,
+		editorArgs, r,
 	)
 	err := l.Open("x")
 	if err == nil || !errors.Is(err, want) {
@@ -166,7 +166,7 @@ func TestOpen_EmptyEditorArgs(t *testing.T) {
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"x": "/p"}),
 		func(string) ([]string, error) { return nil, nil },
-		"glow", r,
+		r,
 	)
 	if err := l.Open("x"); err == nil {
 		t.Fatal("expected error on empty editor argv")
@@ -178,115 +178,15 @@ func TestOpen_PropagatesTmuxError(t *testing.T) {
 	r, _ := recorder(t, response{err: want})
 	l := editor.NewWithRunner(
 		staticPath(map[string]string{"daily": "/p"}),
-		nvimArgs, "glow", r,
+		nvimArgs, r,
 	)
 	if err := l.Open("daily"); !errors.Is(err, want) {
 		t.Errorf("got %v, want %v", err, want)
 	}
 }
 
-func TestView_EmptyID(t *testing.T) {
-	r, _ := recorder(t)
-	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
-	if err := l.View("   "); err == nil {
-		t.Fatal("want error, got nil")
-	}
-}
-
-func TestView_UnresolvablePath(t *testing.T) {
-	r, _ := recorder(t)
-	l := editor.NewWithRunner(staticPath(nil), nvimArgs, "glow", r)
-	if err := l.View("missing"); err == nil {
-		t.Fatal("want error when pathOf returns empty path")
-	}
-}
-
-func TestView_OpensViewerOnSplit(t *testing.T) {
-	r, calls := recorder(t)
-	l := editor.NewWithRunner(
-		staticPath(map[string]string{"daily": "/notes/daily.md"}),
-		nvimArgs, "glow", r,
-	)
-	if err := l.View("daily"); err != nil {
-		t.Fatal(err)
-	}
-	if len(*calls) != 1 {
-		t.Fatalf("want 1 call, got %d: %+v", len(*calls), *calls)
-	}
-	// noteViewer is pre-tokenised at construction; each argv token is
-	// single-quote-escaped at exec time so a hostile viewer cannot
-	// inject extra commands via tmux's sh -c.
-	want := []string{"split-window", "-h", "'glow' '/notes/daily.md'"}
-	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
-		t.Errorf("split call: %+v", (*calls)[0])
-	}
-}
-
-func TestView_HonoursCustomViewer(t *testing.T) {
-	r, calls := recorder(t)
-	l := editor.NewWithRunner(
-		staticPath(map[string]string{"x": "/p"}),
-		nvimArgs, "bat --paging=always", r,
-	)
-	if err := l.View("x"); err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"split-window", "-h", "'bat' '--paging=always' '/p'"}
-	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
-		t.Errorf("split call: %+v", (*calls)[0])
-	}
-}
-
-// TestView_PathWithSpaces ensures the path is quoted alongside the
-// pre-tokenised viewer argv.
-func TestView_PathWithSpaces(t *testing.T) {
-	r, calls := recorder(t)
-	l := editor.NewWithRunner(
-		staticPath(map[string]string{"x": "/notes/My Daily.md"}),
-		nvimArgs, "glow", r,
-	)
-	if err := l.View("x"); err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"split-window", "-h", "'glow' '/notes/My Daily.md'"}
-	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
-		t.Errorf("split call: %+v", (*calls)[0])
-	}
-}
-
-// TestView_RejectsShellInjectionInViewer verifies that a hostile
-// $FLOW_NOTE_VIEWER like `glow; rm -rf $HOME` is tokenised, not
-// interpreted by sh — the `;` becomes part of the first argv token,
-// the `rm` and `$HOME` become literal arguments to that bogus binary.
-func TestView_RejectsShellInjectionInViewer(t *testing.T) {
-	r, calls := recorder(t)
-	l := editor.NewWithRunner(
-		staticPath(map[string]string{"x": "/p"}),
-		nvimArgs, "glow; rm -rf $HOME", r,
-	)
-	if err := l.View("x"); err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"split-window", "-h", `'glow;' 'rm' '-rf' '$HOME' '/p'`}
-	if (*calls)[0].name != "tmux" || !reflect.DeepEqual((*calls)[0].args, want) {
-		t.Errorf("split call: got %v, want %v", (*calls)[0].args, want)
-	}
-}
-
-func TestView_PropagatesSplitError(t *testing.T) {
-	splitErr := errors.New("no tmux")
-	r, _ := recorder(t, response{err: splitErr})
-	l := editor.NewWithRunner(
-		staticPath(map[string]string{"note": "/p"}),
-		nvimArgs, "glow", r,
-	)
-	if err := l.View("note"); !errors.Is(err, splitErr) {
-		t.Errorf("got %v, want %v", err, splitErr)
-	}
-}
-
 func TestNew_ProductionConstructor(t *testing.T) {
-	l := editor.New(staticPath(nil), nvimArgs, "glow")
+	l := editor.New(staticPath(nil), nvimArgs)
 	if l == nil {
 		t.Fatal("New returned nil")
 	}

@@ -55,9 +55,9 @@ func TestPager_RejectsEmptyViewer(t *testing.T) {
 
 // TestPager_RejectsViewerWithShellMetacharacters guards review finding
 // S2: the viewer string is interpolated unquoted into a `bash -c` line.
-// All current callers pass hardcoded constants, but the contract is
-// public — a future caller wiring viewer from $FLOW_NOTE_VIEWER would
-// otherwise re-open the injection surface. The reject keeps it closed.
+// All current callers pass hardcoded constants (less -S for text/CSV/
+// JSON), but the contract is public — a future caller wiring viewer
+// from env or config would otherwise re-open the injection surface.
 func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
 	cases := []struct {
 		name   string

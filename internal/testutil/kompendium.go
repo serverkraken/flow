@@ -1,8 +1,9 @@
 package testutil
 
-// FakeNoteLauncher records every Open/View invocation as the note ID,
-// prefixed with "open:" or "view:" so a single Calls slice tells the test
-// what happened in order.
+// FakeNoteLauncher records every Open invocation as the note ID,
+// prefixed with "open:" so a single Calls slice tells the test what
+// happened in order. The pre-glow-migration View() shape is gone; the
+// integrated renderer hosts read-only views in-process now.
 type FakeNoteLauncher struct {
 	Calls []string
 	Err   error
@@ -10,10 +11,5 @@ type FakeNoteLauncher struct {
 
 func (f *FakeNoteLauncher) Open(id string) error {
 	f.Calls = append(f.Calls, "open:"+id)
-	return f.Err
-}
-
-func (f *FakeNoteLauncher) View(id string) error {
-	f.Calls = append(f.Calls, "view:"+id)
 	return f.Err
 }

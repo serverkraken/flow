@@ -6,9 +6,11 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// NoteOpener launches a Kompendium note in the user's environment via
-// the NoteLauncher port. The use case adds the empty-id guard so every
-// adapter doesn't need to repeat it.
+// NoteOpener launches a Kompendium note in the user's editor via the
+// NoteLauncher port. The use case adds the empty-id guard so every
+// adapter doesn't need to repeat it. Read-only view happens in-process
+// via the integrated markdown renderer (Heute `o`-Key), not through
+// this port.
 type NoteOpener struct {
 	Launcher ports.NoteLauncher
 }
@@ -19,12 +21,4 @@ func (o *NoteOpener) Open(id string) error {
 		return errors.New("note id darf nicht leer sein")
 	}
 	return o.Launcher.Open(id)
-}
-
-// View launches the note in a read-only viewer (typically tmux split + glow).
-func (o *NoteOpener) View(id string) error {
-	if id == "" {
-		return errors.New("note id darf nicht leer sein")
-	}
-	return o.Launcher.View(id)
 }
