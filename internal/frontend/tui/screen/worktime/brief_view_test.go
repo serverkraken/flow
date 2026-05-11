@@ -1,67 +1,51 @@
 package worktime
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestNewBriefView_UsesRendererWhenWired(t *testing.T) {
 	t.Parallel()
 	mr := &testutil.FakeMarkdownRenderer{Prefix: "[md] "}
-	bv := newBriefView("Brief · KW 18 2026", "# Brief\n", 100, 40, Deps{MarkdownRenderer: mr}, theme.Load())
-	if bv.rendered == bv.rawBody {
-		t.Error("rendered should differ from rawBody when MarkdownRenderer is wired")
-	}
-	if !bv.ready {
-		t.Error("ready must be true after construction")
+	bv := newBriefView("Brief · KW 18 2026", "# Brief\n", 100, 40, Deps{MarkdownRenderer: mr})
+	out := ansi.Strip(bv.View())
+	if !strings.Contains(out, "[md]") {
+		t.Errorf("rendered body should contain renderer prefix [md]; got:\n%s", out)
 	}
 }
 
 func TestNewBriefView_FallsBackToRawWhenNoRenderer(t *testing.T) {
 	t.Parallel()
-	bv := newBriefView("title", "# raw", 100, 40, Deps{}, theme.Load())
-	if bv.rendered != bv.rawBody {
-		t.Errorf("without MarkdownRenderer rendered must == rawBody; got %q vs %q", bv.rendered, bv.rawBody)
+	bv := newBriefView("title", "# raw body", 100, 40, Deps{})
+	out := ansi.Strip(bv.View())
+	if !strings.Contains(out, "raw body") {
+		t.Errorf("without MarkdownRenderer the raw body should still render; got:\n%s", out)
 	}
 }
 
-func TestBriefView_UpdateKey_QuitsOnCloseKey(t *testing.T) {
+func TestBriefView_CloseKeyEmitsExitMsg(t *testing.T) {
 	t.Parallel()
-	bv := newBriefView("t", "body", 80, 30, Deps{}, theme.Load())
+	bv := newBriefView("t", "body", 80, 30, Deps{})
 	for _, k := range []string{"q", "esc", "b"} {
-		_, _, close := bv.updateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
-		// "esc" + "b" only register via Type for esc; runes work for the
-		// rest. KeyEsc has its own type.
+		var msg tea.KeyMsg
 		if k == "esc" {
-			_, _, close = bv.updateKey(tea.KeyMsg{Type: tea.KeyEsc})
+			msg = tea.KeyMsg{Type: tea.KeyEsc}
+		} else {
+			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
-		if !close {
-			t.Errorf("close-key %q should signal close=true", k)
+		_, cmd := bv.Update(msg)
+		if cmd == nil {
+			t.Fatalf("close-key %q expected non-nil cmd", k)
 		}
-	}
-}
-
-func TestBriefView_UpdateKey_ScrollDoesNotClose(t *testing.T) {
-	t.Parallel()
-	bv := newBriefView("t", "body", 80, 30, Deps{}, theme.Load())
-	_, _, close := bv.updateKey(tea.KeyMsg{Type: tea.KeyDown})
-	if close {
-		t.Error("scroll key must not signal close")
-	}
-}
-
-func TestBriefView_Resize_UpdatesViewport(t *testing.T) {
-	t.Parallel()
-	mr := &testutil.FakeMarkdownRenderer{}
-	bv := newBriefView("t", "body", 80, 30, Deps{MarkdownRenderer: mr}, theme.Load())
-	resized := bv.resize(120, 50, Deps{MarkdownRenderer: mr})
-	if got := resized.vp.Width; got != briefViewWidth(120) {
-		t.Errorf("vp.Width after resize = %d, want %d", got, briefViewWidth(120))
-	}
-	if got := resized.vp.Height; got != briefViewHeight(50) {
-		t.Errorf("vp.Height after resize = %d, want %d", got, briefViewHeight(50))
+		if _, ok := cmd().(markdown_overlay.ExitMsg); !ok {
+			t.Errorf("close-key %q: expected ExitMsg, got %T", k, cmd())
+		}
 	}
 }

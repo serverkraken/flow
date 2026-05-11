@@ -15,6 +15,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
@@ -113,8 +114,8 @@ type Model struct {
 	// brief — optionaler Fullscreen-Overlay für den integrierten
 	// Brief-Viewer (Menu → Brief Week/Month → Target tmux-Split).
 	// Bei nil läuft der reguläre Tab-Body; sonst übernimmt brief
-	// Input + Render bis q/Esc/b den Overlay schließt.
-	brief *briefView
+	// Input + Render bis ein ExitMsg vom Overlay zurückkommt.
+	brief *markdown_overlay.Model
 }
 
 // New constructs the worktime root model with the four sub-models
@@ -276,17 +277,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case briefViewMsg:
 		// Brief-Result aus dem Menu (briefCmd → outputTargetSplit).
 		// Menu schließt sich, Brief-Overlay übernimmt; q/Esc/b dort
+		// emittieren markdown_overlay.ExitMsg, der Worktime-Root
 		// verwirft den Overlay und das Worktime-Tab nimmt zurück.
 		m.menu = m.menu.closeMenu()
-		bv := newBriefView(msg.title, msg.body, m.width, m.height, m.deps, m.pal)
+		bv := newBriefView(msg.title, msg.body, m.width, m.height, m.deps)
 		m.brief = &bv
 		return m, nil
+
+	case markdown_overlay.ExitMsg:
+		// Schließsignal aus dem brief- ODER note-Overlay. Hier nur die
+		// brief-Seite; der note-Overlay sitzt im heute-Submodel und
+		// behandelt das Signal lokal in today.go.
+		if m.brief != nil {
+			m.brief = nil
+			return m, nil
+		}
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.menu = m.menu.SetSize(msg.Width, msg.Height)
 		if m.brief != nil {
-			bv := m.brief.resize(msg.Width, msg.Height, m.deps)
+			bv := m.brief.SetSize(msg.Width, msg.Height)
 			m.brief = &bv
 		}
 		var cmds []tea.Cmd
@@ -353,12 +364,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
 	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
 	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
+	// Das Schließsignal kommt als markdown_overlay.ExitMsg im
+	// Top-Level Update-Switch zurück.
 	if m.brief != nil {
-		next, cmd, close := m.brief.updateKey(msg)
-		if close {
-			m.brief = nil
-			return m, nil
-		}
+		next, cmd := m.brief.Update(msg)
 		m.brief = &next
 		return m, cmd
 	}
@@ -419,9 +428,9 @@ func (m Model) View() string {
 	}
 	// Brief-Overlay ersetzt das Worktime-Outer komplett — kein Tab-
 	// Strip, keine titlebox-Umhüllung außenrum. Der Overlay bringt
-	// seine eigene Box + Footer mit (briefView.view).
+	// seine eigene Box + Footer + StatusBar mit (markdown_overlay).
 	if m.brief != nil {
-		return m.brief.view(m.width-4, m.pal)
+		return m.brief.View()
 	}
 	var body string
 	if m.menu.Active() {
