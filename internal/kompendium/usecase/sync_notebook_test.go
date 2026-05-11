@@ -100,7 +100,7 @@ func TestManageRemote_SetErrorPropagates(t *testing.T) {
 	t.Parallel()
 	forced := errors.New("forced set-remote error")
 	u := usecase.NewManageRemote(testutil.NewFakeNoteStore(), &fakeRemote{setErr: forced})
-	_, err := u.Set(context.Background(), usecase.SetInput{URL: "u"})
+	_, err := u.Set(context.Background(), usecase.SetInput{URL: "https://example.test/notes.git"})
 	if !errors.Is(err, forced) {
 		t.Errorf("got %v, want forced", err)
 	}

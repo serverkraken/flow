@@ -139,6 +139,10 @@ func parseLine(raw string, order int) (domain.PaletteEntry, bool) {
 	if len(parts) < 3 || strings.TrimSpace(parts[2]) == "" {
 		return domain.PaletteEntry{}, false
 	}
+	action := strings.TrimSpace(parts[2])
+	if !isSafeAction(action) {
+		return domain.PaletteEntry{}, false
+	}
 	section := "Misc"
 	if len(parts) >= 4 && strings.TrimSpace(parts[3]) != "" {
 		section = strings.TrimSpace(parts[3])
@@ -150,9 +154,38 @@ func parseLine(raw string, order int) (domain.PaletteEntry, bool) {
 	return domain.PaletteEntry{
 		Icon:    strings.TrimSpace(parts[0]),
 		Label:   strings.TrimSpace(parts[1]),
-		Action:  strings.TrimSpace(parts[2]),
+		Action:  action,
 		Section: section,
 		Keybind: keybind,
 		Order:   order,
 	}, true
+}
+
+// isSafeAction rejects entries whose Action would let a malicious or
+// careless plugin author chain extra commands once the palette feeds
+// the action into `tmux run-shell` (which forwards the whole string to
+// `$SHELL -c`). Legitimate tmux commands like `display-popup -E '…'`,
+// `run-shell '~/.tmux/plugins/foo/bar.sh worktime'`, or
+// `set-option -g @bar value` use only quoted args, hyphens, slashes,
+// dots, and `@`-prefixed user options — none of them need shell
+// chaining metacharacters.
+//
+// A plugin that really needs shell composition can put it in a script
+// and call the script as a single argument.
+//
+// Why: review finding S1 — `menu.entries` is read verbatim from
+// `~/.tmux/plugins/<name>/menu.entries`, so a plugin cloned from an
+// untrusted source could otherwise execute arbitrary commands the
+// moment the user picks the entry from the palette.
+func isSafeAction(s string) bool {
+	if s == "" {
+		return false
+	}
+	if strings.ContainsAny(s, ";|&`\n\r<>") {
+		return false
+	}
+	if strings.Contains(s, "$(") || strings.Contains(s, "${") {
+		return false
+	}
+	return true
 }
