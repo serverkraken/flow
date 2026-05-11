@@ -144,8 +144,11 @@ func TestSessionWriter_Stop_StopBeforeStartFails(t *testing.T) {
 }
 
 // TestSessionWriter_StopBeforeStart_SentinelAcrossCallSites guards
-// review finding Q5 across all four entry points (Stop, Pause, Toggle,
-// Edit, AddManual) so future renames keep the contract.
+// review finding Q5 across the entry points that surface the sentinel
+// (Stop, Toggle, Edit, AddManual) so future renames keep the contract.
+// Pause has a separate idempotency test
+// (TestSessionWriter_Pause_StopBeforeStart_IsIdempotent) — it swallows
+// the sentinel by design, matching its ErrNoActiveSession contract.
 func TestSessionWriter_StopBeforeStart_SentinelAcrossCallSites(t *testing.T) {
 	now := time.Date(2026, 4, 29, 9, 0, 0, 0, time.Local)
 	future := now.Add(time.Hour)
@@ -156,14 +159,6 @@ func TestSessionWriter_StopBeforeStart_SentinelAcrossCallSites(t *testing.T) {
 		_, err := w.Stop()
 		if !errors.Is(err, domain.ErrStopBeforeStart) {
 			t.Errorf("Stop: got %v, want ErrStopBeforeStart", err)
-		}
-	})
-	t.Run("Pause", func(t *testing.T) {
-		w := mkWriter(now, withActive(future))
-		w.State = w.Reader.State
-		_, err := w.Pause()
-		if !errors.Is(err, domain.ErrStopBeforeStart) {
-			t.Errorf("Pause: got %v, want ErrStopBeforeStart", err)
 		}
 	})
 	t.Run("Toggle", func(t *testing.T) {
@@ -237,6 +232,35 @@ func TestSessionWriter_Pause_NoActiveIsNoOp(t *testing.T) {
 	}
 	if s.Elapsed != 0 {
 		t.Errorf("idle Pause should return zero session, got %v", s.Elapsed)
+	}
+}
+
+// TestSessionWriter_Pause_StopBeforeStart_IsIdempotent pins the
+// idempotent treatment of an NTP-backwards-jump (clock-now before the
+// active session's start instant). Pause swallows ErrStopBeforeStart
+// for the same reason it swallows ErrNoActiveSession: the tmux pause
+// binding fires blindly and a red error flash for a transient clock
+// glitch is wrong UX. The active state must NOT be cleared — the next
+// Pause/Stop after the clock recovers should record the session.
+func TestSessionWriter_Pause_StopBeforeStart_IsIdempotent(t *testing.T) {
+	now := time.Date(2026, 4, 29, 9, 0, 0, 0, time.Local)
+	future := now.Add(time.Hour) // active started after clock-now
+	w := mkWriter(now, withActive(future))
+	w.State = w.Reader.State
+
+	s, err := w.Pause()
+	if err != nil {
+		t.Fatalf("Pause must swallow ErrStopBeforeStart, got %v", err)
+	}
+	if !s.Start.IsZero() || s.Elapsed != 0 {
+		t.Errorf("Pause on stop<start should return zero Session, got %+v", s)
+	}
+	state := w.State.(*testutil.FakeActiveSessionStore)
+	if state.Active == nil || !state.Active.Equal(future) {
+		t.Errorf("active marker must be preserved through idempotent Pause; got %v, want %v", state.Active, future)
+	}
+	if state.Pause != nil {
+		t.Errorf("pause marker must NOT be set when Pause was a no-op; got %v", state.Pause)
 	}
 }
 

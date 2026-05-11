@@ -116,6 +116,14 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 // distinguish "paused something" from "nothing was running" should
 // check the returned Session's zero-value (Start.IsZero()).
 //
+// ErrStopBeforeStart (clock-now is at or before the start instant —
+// typically an NTP backwards-jump) is treated under the same contract:
+// the user wanted to pause, the system can't record a coherent session
+// at this instant, so we leave the active state alone and report a
+// zero Session. The next Pause/Stop after the clock catches up records
+// the session normally. The whole closure runs before any state
+// mutation, so the active marker is preserved.
+//
 // Stop, in contrast, does NOT swallow ErrNoActiveSession — the CLI
 // handler at frontend/cli/worktime.go does the errors.Is check and
 // translates it to a silent exit-0. The asymmetry is deliberate: Stop
@@ -156,7 +164,7 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 		return w.State.SetPause(stop)
 	})
 	if err != nil {
-		if errors.Is(err, domain.ErrNoActiveSession) {
+		if errors.Is(err, domain.ErrNoActiveSession) || errors.Is(err, domain.ErrStopBeforeStart) {
 			return domain.Session{}, nil
 		}
 		return domain.Session{}, err
