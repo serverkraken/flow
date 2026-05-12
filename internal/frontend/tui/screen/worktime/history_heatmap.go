@@ -123,7 +123,11 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 			status += " " + dayOff.Label
 		}
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	rendered := lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	if chip := h.attachedChip(d); chip != "" {
+		rendered += chip
+	}
+	return rendered
 }
 
 func (h history) renderHeatmapLegend(inner int) string {

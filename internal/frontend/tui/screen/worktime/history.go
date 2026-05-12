@@ -25,7 +25,12 @@ type historyLoadedMsg struct {
 	records    []domain.DayRecord
 	monthStats domain.Stats
 	topTags    []string
-	err        error
+	// attachedCounts mappt YYYY-MM-DD → Anzahl angehaengter Notes; leer
+	// wenn LinkReader nicht verdrahtet ist oder das Lesen scheitert
+	// (siehe loadCmd: Note-Load-Fehler degradieren still, weil die
+	// Sessions-Liste die primaere Surface bleibt).
+	attachedCounts map[string]int
+	err            error
 }
 
 type historyDrillLoadedMsg struct {
@@ -116,6 +121,11 @@ type history struct {
 	topTags    []string
 	loaded     bool
 	err        error
+	// attachedCounts spiegelt LinkReader.CountsByDate aus dem letzten
+	// loadCmd-Run; List/Heatmap/Month-Renderer lesen daraus, um Tage
+	// mit angehaengten Notes zu markieren („● 2", o.ae.). Map-Kontrakt
+	// per ports/links.go: Schluessel YYYY-MM-DD, Wert > 0.
+	attachedCounts map[string]int
 
 	mode    historyMode
 	listCur int
@@ -241,6 +251,7 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.records = msg.records
 			h.monthStats = msg.monthStats
 			h.topTags = msg.topTags
+			h.attachedCounts = msg.attachedCounts
 			h = h.clampCursors()
 		}
 		return h, nil
@@ -325,7 +336,19 @@ func (h history) loadCmd() tea.Cmd {
 			monthStats = ms
 		}
 		topTags, _ := deps.Tagger.TopUsage(8)
-		return historyLoadedMsg{records: records, monthStats: monthStats, topTags: topTags}
+		// Note-Counts: Fehler degradieren still — Sessions/Targets bleiben
+		// die primaere Surface, ein kaputter LinkStore soll die History
+		// nicht blanken. Mirror von today.loadCmd / drillLoadCmd.
+		var counts map[string]int
+		if deps.LinkReader != nil {
+			counts, _ = deps.LinkReader.CountsByDate()
+		}
+		return historyLoadedMsg{
+			records:        records,
+			monthStats:     monthStats,
+			topTags:        topTags,
+			attachedCounts: counts,
+		}
 	}
 }
 

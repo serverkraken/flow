@@ -16,3 +16,10 @@ type LinkReader struct {
 func (r *LinkReader) ListByDate(date time.Time) ([]string, error) {
 	return r.Store.ListByDate(date)
 }
+
+// CountsByDate returns the per-date attachment counts (key YYYY-MM-DD).
+// Surfaces (history list/heatmap/month) call this once per reload to
+// flag „dieser Tag hat Notes" without N file-reads.
+func (r *LinkReader) CountsByDate() (map[string]int, error) {
+	return r.Store.CountsByDate()
+}

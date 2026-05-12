@@ -14,4 +14,10 @@ type LinkStore interface {
 	// Remove detaches noteID from date. Removing a non-existent pair is
 	// a no-op.
 	Remove(date time.Time, noteID string) error
+	// CountsByDate returns the number of notes attached per day, keyed
+	// by the YYYY-MM-DD date string. Days without attachments are
+	// omitted from the map. Used by surfaces that want to flag „dieser
+	// Tag hat Notes" without paying N file-reads (one per day) for what
+	// could be a single scan.
+	CountsByDate() (map[string]int, error)
 }

@@ -192,6 +192,110 @@ func TestHistory_DrillR_DetachesFirstAttachedNote(t *testing.T) {
 	}
 }
 
+// TestHistory_List_ShowsAttachedNotesMarker pinst den ●-Marker pro Zeile
+// im List-Mode: Tage mit Notes kriegen einen ● (1 Note) bzw. ● N (>1)
+// Suffix; Tage ohne Notes bleiben unmarkiert. Damit sieht der User
+// schon vor dem Drilldown, dass an einem Tag Notizen haengen.
+func TestHistory_List_ShowsAttachedNotesMarker(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	tue := mon.AddDate(0, 0, 1)
+	wed := mon.AddDate(0, 0, 2)
+	if err := r.links.Add(mon, "notes/one"); err != nil {
+		t.Fatalf("seed mon: %v", err)
+	}
+	if err := r.links.Add(wed, "notes/a"); err != nil {
+		t.Fatalf("seed wed-a: %v", err)
+	}
+	if err := r.links.Add(wed, "notes/b"); err != nil {
+		t.Fatalf("seed wed-b: %v", err)
+	}
+	m := loadedHistory(t, r)
+	out := m.View()
+	// Mon: 1 Note → ● (kein Count).
+	monLine := lineContaining(t, out, mon.Format("02.01.06"))
+	if !strings.Contains(monLine, "●") || strings.Contains(monLine, "● 2") {
+		t.Errorf("Montag (1 Note) sollte einzelnes ● zeigen, kein Count: %q", monLine)
+	}
+	// Wed: 2 Notes → ● 2.
+	wedLine := lineContaining(t, out, wed.Format("02.01.06"))
+	if !strings.Contains(wedLine, "● 2") {
+		t.Errorf("Mittwoch (2 Notes) sollte »● 2« zeigen: %q", wedLine)
+	}
+	// Tue: 0 Notes → kein Marker.
+	tueLine := lineContaining(t, out, tue.Format("02.01.06"))
+	if strings.Contains(tueLine, "●") {
+		t.Errorf("Dienstag (0 Notes) darf keinen ●-Marker zeigen: %q", tueLine)
+	}
+}
+
+// TestHistory_Heatmap_StatusShowsAttachedNotesMarker pinst dass der
+// Heatmap-Cursor-Status den ●-Marker zeigt, wenn der fokussierte Tag
+// Notes hat. Heatmap-Cells selbst sind 3-char-glyph-eng, ein In-Cell-
+// Marker wuerde mit der Heat-Glyph-Semantik kollidieren — der Status
+// unter dem Grid ist die richtige Surface.
+func TestHistory_Heatmap_StatusShowsAttachedNotesMarker(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	if err := r.links.Add(wed, "notes/x"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := r.links.Add(wed, "notes/y"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+	// `v` von Liste → Heatmap.
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	// Cursor steht initial auf der jüngsten Session (wed) — siehe
+	// handleListKey "v" branch der den heatCol/heatRow vorbelegt.
+	out := m.View()
+	if !strings.Contains(out, "● 2") {
+		t.Errorf("Heatmap-Status sollte »● 2« zeigen, got:\n%s", out)
+	}
+}
+
+// TestHistory_Month_StatusShowsAttachedNotesMarker spiegelt den
+// Heatmap-Test fuer das Monatsraster: Cursor-Status haengt den ●-Marker
+// an, wenn der fokussierte Tag Notes hat.
+func TestHistory_Month_StatusShowsAttachedNotesMarker(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	// Cursor landet beim Mode-Wechsel auf records[0].Date — die juengste
+	// Session, hier Wed (mon+2) per seedHistorySessions. Link an genau
+	// diesen Tag haengen, damit der Cursor-Status den Marker triggert.
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	if err := r.links.Add(wed, "notes/wed"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+	// Liste → Heatmap → TagClock → Monat (3× v).
+	for i := 0; i < 3; i++ {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	}
+	out := m.View()
+	if !strings.Contains(out, "●") {
+		t.Errorf("Monats-Cursor-Status sollte ●-Marker zeigen wenn Notes da sind, got:\n%s", out)
+	}
+}
+
+// lineContaining sucht die erste Zeile in s, die marker enthaelt.
+// Helper fuer Per-Row-Assertions im List-Mode wo strings.Contains auf
+// dem ganzen Output zu grob waere.
+func lineContaining(t *testing.T, s, marker string) string {
+	t.Helper()
+	for _, line := range strings.Split(s, "\n") {
+		if strings.Contains(line, marker) {
+			return line
+		}
+	}
+	t.Fatalf("keine Zeile enthaelt %q in:\n%s", marker, s)
+	return ""
+}
+
 // TestHistory_DrillR_NoAttached_ShowsToast pinst den Degenerationspfad:
 // `R` ohne angehängte Notes → Info-Toast, kein LinkWriter-Call.
 func TestHistory_DrillR_NoAttached_ShowsToast(t *testing.T) {

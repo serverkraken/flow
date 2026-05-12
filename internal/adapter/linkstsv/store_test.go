@@ -222,6 +222,53 @@ func TestRemove_WriteAllFails(t *testing.T) {
 	}
 }
 
+// TestCountsByDate_Aggregates pinst dass CountsByDate eine Karte
+// YYYY-MM-DD → Anzahl liefert. History list/heatmap/month nutzen den
+// Endpoint, um „dieser Tag hat Notes"-Marker ohne N File-Reads zu
+// rendern; ein Off-by-Tag-Schluessel hier waere ein silent Render-Bug.
+func TestCountsByDate_Aggregates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "links.tsv")
+	s := linkstsv.New(path)
+	d1 := mustParseDate(t, "2026-04-30")
+	d2 := mustParseDate(t, "2026-05-01")
+	if err := s.Add(d1, "a"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := s.Add(d1, "b"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	if err := s.Add(d2, "c"); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	got, err := s.CountsByDate()
+	if err != nil {
+		t.Fatalf("CountsByDate: %v", err)
+	}
+	if got["2026-04-30"] != 2 {
+		t.Errorf("count[2026-04-30] = %d, want 2", got["2026-04-30"])
+	}
+	if got["2026-05-01"] != 1 {
+		t.Errorf("count[2026-05-01] = %d, want 1", got["2026-05-01"])
+	}
+	if _, ok := got["2026-05-02"]; ok {
+		t.Errorf("days without attachments must be omitted; got %v", got)
+	}
+}
+
+// TestCountsByDate_MissingFile pinst dass eine fehlende TSV-Datei eine
+// leere Map ohne Fehler liefert (Erstinstallation darf die History
+// nicht blanken).
+func TestCountsByDate_MissingFile(t *testing.T) {
+	s := linkstsv.New(filepath.Join(t.TempDir(), "missing.tsv"))
+	got, err := s.CountsByDate()
+	if err != nil {
+		t.Fatalf("CountsByDate: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("want empty map, got %v", got)
+	}
+}
+
 func TestList_OpenError(t *testing.T) {
 	dir := t.TempDir()
 	regular := filepath.Join(dir, "regular")

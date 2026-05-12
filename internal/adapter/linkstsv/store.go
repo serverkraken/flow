@@ -83,6 +83,21 @@ func (s *Store) Add(date time.Time, noteID string) error {
 	})
 }
 
+// CountsByDate returns a map of YYYY-MM-DD → number of attached notes.
+// Single file scan instead of N ListByDate calls; preferred by callers
+// (history list/heatmap/month) that need every day's count at once.
+func (s *Store) CountsByDate() (map[string]int, error) {
+	all, err := s.readAll()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]int, len(all))
+	for _, l := range all {
+		out[l.Date.Format("2006-01-02")]++
+	}
+	return out, nil
+}
+
 // Remove detaches (date, noteID). Removing a non-existent pair is a no-op.
 func (s *Store) Remove(date time.Time, noteID string) error {
 	s.mu.Lock()

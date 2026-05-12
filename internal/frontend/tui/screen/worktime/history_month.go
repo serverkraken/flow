@@ -104,7 +104,11 @@ func (h history) renderMonthCursorStatus(first time.Time, byKey map[string]domai
 			status += " " + dayOff.Label
 		}
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	rendered := lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	if chip := h.attachedChip(cursorDate); chip != "" {
+		rendered += chip
+	}
+	return rendered
 }
 
 func (h history) renderMonthAggregate(monthRef, now time.Time) string {

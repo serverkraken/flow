@@ -7,6 +7,7 @@ package worktime
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
@@ -143,9 +144,28 @@ func (h history) renderList(records []domain.DayRecord, inner int) string {
 		if i == h.listCur {
 			marker = lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
 		}
-		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done)
+		notes := h.attachedChip(rec.Date)
+		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done+notes)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// attachedChip rendert den Note-Indikator-Suffix einer Zeile, leer wenn
+// am Tag keine Notes haengen. Ein einzelnes ● fuer 1 Note, ●N fuer 2+ —
+// gleicher Glyph wie im Drill-Chip (renderDrillAttachedNotes), damit
+// das visuelle Vokabular zwischen Liste und Drill konsistent bleibt.
+// Highlight-Foreground statt Dim, weil der Marker sonst neben dem
+// dim-Done-Haken zu unauffaellig wuerde.
+func (h history) attachedChip(date time.Time) string {
+	n := h.attachedCounts[date.Format("2006-01-02")]
+	if n <= 0 {
+		return ""
+	}
+	label := "●"
+	if n > 1 {
+		label = fmt.Sprintf("● %d", n)
+	}
+	return "  " + theme.Highlight(label, h.pal)
 }
 
 // footerHints — Skill §Hint format max 4. Top-4 nach Frequenz:

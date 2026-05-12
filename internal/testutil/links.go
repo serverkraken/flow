@@ -42,6 +42,19 @@ func (f *FakeLinkStore) Add(date time.Time, noteID string) error {
 	return nil
 }
 
+func (f *FakeLinkStore) CountsByDate() (map[string]int, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	out := make(map[string]int, len(f.ByDate))
+	for k, ids := range f.ByDate {
+		if n := len(ids); n > 0 {
+			out[k] = n
+		}
+	}
+	return out, nil
+}
+
 func (f *FakeLinkStore) Remove(date time.Time, noteID string) error {
 	if f.Err != nil {
 		return f.Err
