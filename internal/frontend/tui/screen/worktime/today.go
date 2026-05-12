@@ -198,7 +198,7 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			h.day = msg.day
 			h.attachedNotes = msg.notes
-			h.clampCursor()
+			h = h.clampCursor()
 		}
 		return h, nil
 
@@ -300,7 +300,7 @@ func (h heute) loadCmd() tea.Cmd {
 	}
 }
 
-func (h *heute) clampCursor() {
+func (h heute) clampCursor() heute {
 	total := len(h.day.Sessions)
 	if h.cursor >= total {
 		h.cursor = total - 1
@@ -308,6 +308,7 @@ func (h *heute) clampCursor() {
 	if h.cursor < 0 {
 		h.cursor = 0
 	}
+	return h
 }
 
 func (h heute) onSession() bool {

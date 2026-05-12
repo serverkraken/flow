@@ -29,7 +29,7 @@ func (h heute) editAttachedNoteCmd() tea.Cmd {
 		if err := opener.Open(id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geöffnet", id)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Note %s zum Bearbeiten geöffnet", glyphs.Done, id)}
 	}
 }
 
@@ -53,7 +53,7 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 		if err := writer.Remove(date, id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s entfernt", id)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Note %s entfernt", glyphs.Done, id)}
 	}
 }
 
@@ -107,6 +107,6 @@ func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 		if err := sw.Delete(date, idx); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Session %d gelöscht", idx+1)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Session %d gelöscht", glyphs.Done, idx+1)}
 	}
 }

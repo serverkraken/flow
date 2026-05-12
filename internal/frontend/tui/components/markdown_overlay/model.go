@@ -177,7 +177,7 @@ func (m Model) rerender() Model {
 		return m
 	}
 	m.rendered = m.render(m.cfg.source, innerW)
-	m.refreshLineCache()
+	m = m.refreshLineCache()
 	if m.cfg.enableCodeCopy {
 		m.snippets = extractCodeSnippets(m.cfg.source)
 	}

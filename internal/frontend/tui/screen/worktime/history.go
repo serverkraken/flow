@@ -206,7 +206,7 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			h.records = msg.records
 			h.monthStats = msg.monthStats
 			h.topTags = msg.topTags
-			h.clampCursors()
+			h = h.clampCursors()
 		}
 		return h, nil
 
@@ -291,7 +291,7 @@ func (h history) drillLoadCmd(date time.Time) tea.Cmd {
 	}
 }
 
-func (h *history) clampCursors() {
+func (h history) clampCursors() history {
 	records := filteredHistory(h.records, h.histQuery, h.deps.Clock.Now())
 	if n := len(records); n > 0 {
 		if h.listCur >= n {
@@ -334,6 +334,7 @@ func (h *history) clampCursors() {
 	if !h.monthRef.IsZero() {
 		h.monthCur = monthClampDay(h.monthRef, h.monthCur)
 	}
+	return h
 }
 
 // — keymap dispatch —

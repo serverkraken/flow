@@ -92,7 +92,7 @@ func (m Model) cycleMatch(delta int) Model {
 	}
 	m.matchIdx = (m.matchIdx + delta + len(m.matches)) % len(m.matches)
 	m.viewport.SetContent(m.composeContent())
-	m.scrollToCurrent()
+	m = m.scrollToCurrent()
 	return m
 }
 
@@ -103,7 +103,7 @@ func (m Model) applyQuery(q string) Model {
 	m.query = strings.ToLower(q)
 	m = m.recomputeMatches()
 	m.viewport.SetContent(m.composeContent())
-	m.scrollToCurrent()
+	m = m.scrollToCurrent()
 	return m
 }
 
@@ -127,9 +127,9 @@ func (m Model) recomputeMatches() Model {
 // scrollToCurrent positions the viewport so the current match sits a
 // few lines below the top. Leaves visible context above the hit rather
 // than dropping the user right onto it.
-func (m *Model) scrollToCurrent() {
+func (m Model) scrollToCurrent() Model {
 	if len(m.matches) == 0 {
-		return
+		return m
 	}
 	line := m.matches[m.matchIdx]
 	target := line - m.viewport.Height/3
@@ -137,6 +137,7 @@ func (m *Model) scrollToCurrent() {
 		target = 0
 	}
 	m.viewport.SetYOffset(target)
+	return m
 }
 
 // composeContent prepends the match gutter (or an empty gutter) to
@@ -183,10 +184,11 @@ func (m Model) composeContent() string {
 
 // refreshLineCache populates m.lines + m.plain from m.rendered. Search
 // match scan walks m.plain (ANSI-stripped + lowered).
-func (m *Model) refreshLineCache() {
+func (m Model) refreshLineCache() Model {
 	m.lines = strings.Split(m.rendered, "\n")
 	m.plain = make([]string, len(m.lines))
 	for i, l := range m.lines {
 		m.plain[i] = strings.ToLower(ansi.Strip(l))
 	}
+	return m
 }

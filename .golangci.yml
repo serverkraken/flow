@@ -53,6 +53,12 @@ linters:
               desc: "domain layer must stay I/O-free; use a port instead"
             - pkg: path/filepath
               desc: "domain layer must stay path-agnostic; use a port instead"
+        # ports / usecase: list-mode: strict + allow is sufficient — every
+        # package not on the allow list is already denied. The explicit
+        # deny entries that used to live here were redundant (they would
+        # only matter if list-mode flipped back to "original"). Matching
+        # the kompendium-ports / kompendium-usecase shape keeps both
+        # sides of the project on the same rule grammar.
         ports:
           list-mode: strict
           files:
@@ -60,19 +66,6 @@ linters:
           allow:
             - $gostd
             - github.com/serverkraken/flow/internal/domain
-          deny:
-            - pkg: os
-              desc: "ports declare interfaces only; os belongs in adapters"
-            - pkg: os/exec
-              desc: "ports declare interfaces only; os/exec belongs in adapters"
-            - pkg: net
-              desc: "ports declare interfaces only; net belongs in adapters"
-            - pkg: net/http
-              desc: "ports declare interfaces only; net/http belongs in adapters"
-            - pkg: database/sql
-              desc: "ports declare interfaces only; database/sql belongs in adapters"
-            - pkg: path/filepath
-              desc: "ports declare interfaces only; path/filepath belongs in adapters"
         usecase:
           list-mode: strict
           files:
@@ -82,19 +75,6 @@ linters:
             - $gostd
             - github.com/serverkraken/flow/internal/domain
             - github.com/serverkraken/flow/internal/ports
-          deny:
-            - pkg: os
-              desc: "use cases consume ports for I/O; os belongs in adapters"
-            - pkg: os/exec
-              desc: "use cases consume ports for I/O; os/exec belongs in adapters"
-            - pkg: net
-              desc: "use cases consume ports for I/O; net belongs in adapters"
-            - pkg: net/http
-              desc: "use cases consume ports for I/O; net/http belongs in adapters"
-            - pkg: database/sql
-              desc: "use cases consume ports for I/O; database/sql belongs in adapters"
-            - pkg: path/filepath
-              desc: "use cases consume ports for I/O; path/filepath belongs in adapters"
         # Kompendium subtree mirrors the same hexagonal layering as flow's
         # own (domain → ports → usecase → adapter → frontend), but lives
         # in its own `internal/kompendium/...` namespace. Globs like
@@ -349,7 +329,21 @@ linters:
             - github.com/serverkraken/flow/internal/domain
             - github.com/serverkraken/flow/internal/ports
             - github.com/serverkraken/flow/internal/usecase
-            - github.com/serverkraken/flow/internal/frontend/tui/components
+            # Components-Kit — explicit per-subpackage allow so a new
+            # internal/frontend/tui/components/<name> package doesn't become
+            # silently importable from every screen on day one. Matches the
+            # enumeration shape of kompendium-frontend-tui.
+            - github.com/serverkraken/flow/internal/frontend/tui/components/confirm
+            - github.com/serverkraken/flow/internal/frontend/tui/components/form
+            - github.com/serverkraken/flow/internal/frontend/tui/components/glyphs
+            - github.com/serverkraken/flow/internal/frontend/tui/components/help
+            - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
+            - github.com/serverkraken/flow/internal/frontend/tui/components/modal
+            - github.com/serverkraken/flow/internal/frontend/tui/components/picker
+            - github.com/serverkraken/flow/internal/frontend/tui/components/statusbar
+            - github.com/serverkraken/flow/internal/frontend/tui/components/strings
+            - github.com/serverkraken/flow/internal/frontend/tui/components/titlebox
+            - github.com/serverkraken/flow/internal/frontend/tui/components/toast
             # The canonical token package (theme.Palette + Sem + tokens +
             # builders + contrast). Live-source for every component and
             # the markdown role mapper since P1; readable from any
