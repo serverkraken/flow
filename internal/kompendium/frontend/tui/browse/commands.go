@@ -15,6 +15,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -53,11 +54,32 @@ type bodiesLoadedMsg struct{ bodies map[domain.ID][]byte }
 // store, so opening a long note still renders end-to-end.
 const bodyExcerptLimit = 8 * 1024
 
+// loadBodiesBudget bounds the total time the background goroutine
+// spends reading note bodies. bubbletea's tea.Cmd contract has no
+// cancel signal — without a budget, a Program-Quit mid-load left the
+// goroutine running until all reads finished (potentially seconds on
+// notebooks with thousands of notes). 30s is generous enough for
+// real notebooks on slow disks; if it expires the loader returns what
+// it has and search continues against the partial map.
+const loadBodiesBudget = 30 * time.Second
+
+// perBodyBudget caps a single store.Get call so one stuck file
+// (locked, NFS stall) can't burn the whole budget on its own.
+const perBodyBudget = 2 * time.Second
+
 func loadBodiesCmd(store ports.NoteStore, entries []ports.NoteEntry) tea.Cmd {
 	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), loadBodiesBudget)
+		defer cancel()
 		bodies := make(map[domain.ID][]byte, len(entries))
 		for _, e := range entries {
-			note, err := store.Get(context.Background(), e.ID)
+			if ctx.Err() != nil {
+				// Total budget exhausted — return partial map.
+				break
+			}
+			noteCtx, noteCancel := context.WithTimeout(ctx, perBodyBudget)
+			note, err := store.Get(noteCtx, e.ID)
+			noteCancel()
 			if err != nil {
 				continue
 			}

@@ -1,110 +1,119 @@
 package markdown_overlay
 
 import (
+	"sync/atomic"
+
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-// pal / sem are the package-scoped Palette views the chrome reads
-// from. Initialised from theme.Default at package load; the composition
-// root swaps them via SetPalette before the first New(...).
-var (
-	pal = theme.Default
-	sem = pal.Sem()
-)
-
-// SetPalette swaps the package palette and rebuilds all styles. Call
-// once at boot, before any New(...) — see cmd/flow/main.go.
-func SetPalette(p theme.Palette) {
-	pal = p
-	sem = p.Sem()
-	rebuildStyles()
+// chromeStyles is a coherent snapshot of every lipgloss.Style this
+// component renders with. Held behind an atomic.Pointer so SetPalette
+// can replace the whole set with a single Store while readers do a
+// single Load — there is no half-rebuilt state visible to render.
+//
+// Background (round4): the previous package-var layout had 13 globals
+// that SetPalette rewrote one-by-one in rebuildStyles. Single-goroutine
+// bubbletea event loop tolerated that, but t.Parallel() in tests +
+// SetPalette would surface as a -race data race. atomic.Pointer keeps
+// reads lock-free, writes coherent.
+type chromeStyles struct {
+	frame               lipgloss.Style
+	title               lipgloss.Style
+	separator           lipgloss.Style
+	footer              lipgloss.Style
+	footerKey           lipgloss.Style
+	statusBar           lipgloss.Style
+	statusBarPath       lipgloss.Style
+	statusBarModeSearch lipgloss.Style
+	searchActiveLabel   lipgloss.Style
+	cursor              lipgloss.Style
+	matchBar            lipgloss.Style
+	matchCurrentBar     lipgloss.Style
+	err                 lipgloss.Style
 }
 
-var (
-	frameStyle               lipgloss.Style
-	titleStyle               lipgloss.Style
-	separatorStyle           lipgloss.Style
-	footerStyle              lipgloss.Style
-	footerKeyStyle           lipgloss.Style
-	statusBarStyle           lipgloss.Style
-	statusBarPathStyle       lipgloss.Style
-	statusBarModeSearchStyle lipgloss.Style
-	searchActiveLabelStyle   lipgloss.Style
-	cursorStyle              lipgloss.Style
+var stylesPtr atomic.Pointer[chromeStyles]
 
-	// matchBarStyle renders the left-margin bar prepended to lines
-	// that matched the search query. Inline highlight would have to
-	// splice SGR codes into glamour output without breaking nested
-	// OSC 8 hyperlinks — fragile. A two-cell left bar stays robust.
-	matchBarStyle lipgloss.Style
+// styles returns the active style snapshot. Callers MUST treat the
+// returned pointer as immutable; mutating any field corrupts the
+// shared snapshot.
+func styles() *chromeStyles { return stylesPtr.Load() }
 
-	// matchCurrentBarStyle marks the cursor's current match. Sem has
-	// no Orange alias (Orange is a Markdown-domain hue, not a
-	// semantic token); pal.Orange stays direct.
-	matchCurrentBarStyle lipgloss.Style
-
-	// errStyle tints the body slot when SetError is active.
-	errStyle lipgloss.Style
-)
+// SetPalette swaps the package palette atomically and rebuilds all
+// styles. Call once at boot, before any New(...) — see cmd/flow/main.go.
+// Safe to call concurrently with reads thanks to the atomic.Pointer.
+func SetPalette(p theme.Palette) {
+	stylesPtr.Store(buildStyles(p))
+}
 
 // init seeds the styles from theme.Default so the component renders
 // correctly when imported by tests that don't wire the composition
 // root. Production callers (cmd/flow/main.go) override via SetPalette
 // before constructing the first Model.
-func init() { rebuildStyles() }
+func init() { stylesPtr.Store(buildStyles(theme.Default)) }
 
-func rebuildStyles() {
-	frameStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(sem.Accent).
-		Padding(0, 1)
+func buildStyles(p theme.Palette) *chromeStyles {
+	sem := p.Sem()
+	return &chromeStyles{
+		frame: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(sem.Accent).
+			Padding(0, 1),
 
-	titleStyle = lipgloss.NewStyle().
-		Foreground(sem.Accent).
-		Bold(true)
+		title: lipgloss.NewStyle().
+			Foreground(sem.Accent).
+			Bold(true),
 
-	separatorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.BgChip))
+		separator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.BgChip)),
 
-	footerStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		footer: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.FgMuted)),
 
-	footerKeyStyle = lipgloss.NewStyle().
-		Foreground(sem.Active).
-		Bold(true)
+		footerKey: lipgloss.NewStyle().
+			Foreground(sem.Active).
+			Bold(true),
 
-	statusBarStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(pal.BgChip)).
-		Foreground(lipgloss.Color(pal.FgDim))
+		statusBar: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.BgChip)).
+			Foreground(lipgloss.Color(p.FgDim)),
 
-	statusBarPathStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(pal.BgChip)).
-		Foreground(lipgloss.Color(pal.Fg))
+		statusBarPath: lipgloss.NewStyle().
+			Background(lipgloss.Color(p.BgChip)).
+			Foreground(lipgloss.Color(p.Fg)),
 
-	statusBarModeSearchStyle = lipgloss.NewStyle().
-		Background(sem.Warning).
-		Foreground(lipgloss.Color(pal.Bg)).
-		Bold(true).
-		Padding(0, 1)
+		statusBarModeSearch: lipgloss.NewStyle().
+			Background(sem.Warning).
+			Foreground(lipgloss.Color(p.Bg)).
+			Bold(true).
+			Padding(0, 1),
 
-	searchActiveLabelStyle = lipgloss.NewStyle().
-		Foreground(sem.Warning).
-		Bold(true)
+		searchActiveLabel: lipgloss.NewStyle().
+			Foreground(sem.Warning).
+			Bold(true),
 
-	cursorStyle = lipgloss.NewStyle().
-		Foreground(sem.Accent).
-		Bold(true)
+		cursor: lipgloss.NewStyle().
+			Foreground(sem.Accent).
+			Bold(true),
 
-	matchBarStyle = lipgloss.NewStyle().
-		Foreground(sem.Warning)
+		// matchBar renders the left-margin bar prepended to lines that
+		// matched the search query. Inline highlight would have to
+		// splice SGR codes into glamour output without breaking nested
+		// OSC 8 hyperlinks — fragile. A two-cell left bar stays robust.
+		matchBar: lipgloss.NewStyle().
+			Foreground(sem.Warning),
 
-	matchCurrentBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Orange)).
-		Bold(true)
+		// matchCurrentBar marks the cursor's current match. Sem has no
+		// Orange alias (Orange is a Markdown-domain hue, not a semantic
+		// token); pal.Orange stays direct.
+		matchCurrentBar: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(p.Orange)).
+			Bold(true),
 
-	errStyle = lipgloss.NewStyle().
-		Foreground(sem.Danger).
-		Bold(true)
+		err: lipgloss.NewStyle().
+			Foreground(sem.Danger).
+			Bold(true),
+	}
 }

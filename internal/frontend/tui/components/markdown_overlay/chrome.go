@@ -10,8 +10,9 @@ import (
 
 // renderChrome assembles the frame around the body: title row,
 // separator, body (viewport view), footer hint row, and status bar.
-// The rounded border is applied on the outside via frameStyle.
+// The rounded border is applied on the outside via the frame style.
 func (m Model) renderChrome() string {
+	s := styles()
 	lineW := m.width - contentLineBudget
 	if lineW < 1 {
 		lineW = 1
@@ -20,8 +21,8 @@ func (m Model) renderChrome() string {
 	// title blew past the frame width on a narrow tmux pane, breaking
 	// the rounded border. ansi.Truncate is grapheme-aware so wide
 	// characters / OSC sequences in a title survive correctly.
-	title := titleStyle.Render(ansi.Truncate(m.cfg.title, lineW, "…"))
-	sep := separatorStyle.Render(strings.Repeat("─", lineW))
+	title := s.title.Render(ansi.Truncate(m.cfg.title, lineW, "…"))
+	sep := s.separator.Render(strings.Repeat("─", lineW))
 	body := m.bodyView()
 	footer := m.renderFooter()
 	statusBar := m.renderStatusBar()
@@ -34,7 +35,7 @@ func (m Model) renderChrome() string {
 	if got := strings.Count(content, "\n") + 1; target > 0 && got < target {
 		content += strings.Repeat("\n", target-got)
 	}
-	return frameStyle.Width(m.width - frameWidthOffset).Render(content)
+	return s.frame.Width(m.width - frameWidthOffset).Render(content)
 }
 
 // renderFooter assembles the footer hint row. In ModeSearch the
@@ -45,34 +46,35 @@ func (m Model) renderChrome() string {
 // floating the bottom border; renderFooter degrades the separator and
 // drops optional hints before that happens.
 func (m Model) renderFooter() string {
+	s := styles()
 	if m.mode == ModeSearch {
 		view := m.search.View()
 		if view == "" {
 			view = "▎"
 		}
-		return searchActiveLabelStyle.Render("Suche:") + " " + view +
-			"   " + footerStyle.Render("Enter → übernehmen  ·  Esc → abbrechen")
+		return s.searchActiveLabel.Render("Suche:") + " " + view +
+			"   " + s.footer.Render("Enter → übernehmen  ·  Esc → abbrechen")
 	}
 	lineW := m.width - contentLineBudget
 	if lineW < 1 {
 		lineW = 1
 	}
-	scrollHint := footerStyle.Render("j/k → scrollen")
-	closeHint := footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/")) +
-		footerStyle.Render(" → zurück")
+	scrollHint := s.footer.Render("j/k → scrollen")
+	closeHint := s.footerKey.Render(strings.Join(m.cfg.closeKeys, "/")) +
+		s.footer.Render(" → zurück")
 
 	// Optional hints in priority order (search → code-copy → host extras).
 	// Dropped from the right when widths tighten so the host-supplied
 	// extras (typically context-specific) survive longest.
 	var optional []string
 	if m.cfg.enableSearch {
-		optional = append(optional, footerKeyStyle.Render("/")+footerStyle.Render(" → suchen"))
+		optional = append(optional, s.footerKey.Render("/")+s.footer.Render(" → suchen"))
 	}
 	if m.cfg.enableCodeCopy {
-		optional = append(optional, footerKeyStyle.Render("c")+footerStyle.Render(" → Code kopieren"))
+		optional = append(optional, s.footerKey.Render("c")+s.footer.Render(" → Code kopieren"))
 	}
 	for _, x := range m.cfg.footerExtras {
-		optional = append(optional, footerStyle.Render(x))
+		optional = append(optional, s.footer.Render(x))
 	}
 
 	// Progressive degrade: prefer wider separators (more visual breathing
@@ -100,13 +102,14 @@ func (m Model) renderFooter() string {
 // on the right. Filler space is rendered with the status-bar
 // background so the bar reads as a solid bar even when truncated.
 func (m Model) renderStatusBar() string {
+	s := styles()
 	innerW := m.width - contentLineBudget
 	if innerW <= 0 {
 		return ""
 	}
 	mode := ""
 	if m.mode == ModeSearch {
-		mode = statusBarModeSearchStyle.Render("SEARCH")
+		mode = s.statusBarModeSearch.Render("SEARCH")
 	}
 	title := m.cfg.title
 	if title == "" {
@@ -121,12 +124,12 @@ func (m Model) renderStatusBar() string {
 	if titleBudget < 1 {
 		titleBudget = 1
 	}
-	pathSegment := statusBarPathStyle.Render(" " + ansi.Truncate(title, titleBudget, "…") + " ")
+	pathSegment := s.statusBarPath.Render(" " + ansi.Truncate(title, titleBudget, "…") + " ")
 	gap := innerW - lipgloss.Width(mode) - lipgloss.Width(pathSegment) - lipgloss.Width(right)
 	if gap < 0 {
 		gap = 0
 	}
-	return mode + pathSegment + statusBarStyle.Render(strings.Repeat(" ", gap)) + right
+	return mode + pathSegment + s.statusBar.Render(strings.Repeat(" ", gap)) + right
 }
 
 // statusBarRight selects the right-aligned label. Copy-status wins
@@ -134,8 +137,9 @@ func (m Model) renderStatusBar() string {
 // count wins over scroll-percent (query is the focused interaction);
 // scroll-percent is the default.
 func (m Model) statusBarRight() string {
+	sb := styles().statusBar
 	if m.copyStatus != "" {
-		return statusBarStyle.Render(" " + m.copyStatus + " ")
+		return sb.Render(" " + m.copyStatus + " ")
 	}
 	if m.query != "" {
 		var label string
@@ -144,9 +148,9 @@ func (m Model) statusBarRight() string {
 		} else {
 			label = " " + strconv.Itoa(m.matchIdx+1) + "/" + strconv.Itoa(len(m.matches)) + " "
 		}
-		return statusBarStyle.Render(label)
+		return sb.Render(label)
 	}
-	return statusBarStyle.Render(" " + formatPercent(m.viewport.ScrollPercent()) + " ")
+	return sb.Render(" " + formatPercent(m.viewport.ScrollPercent()) + " ")
 }
 
 // bodyView returns the body slot: either the viewport's rendered
@@ -155,7 +159,7 @@ func (m Model) statusBarRight() string {
 // math stays unchanged.
 func (m Model) bodyView() string {
 	if m.err != nil {
-		return "\n  " + errStyle.Render("Fehler: "+m.err.Error())
+		return "\n  " + styles().err.Render("Fehler: "+m.err.Error())
 	}
 	return m.viewport.View()
 }

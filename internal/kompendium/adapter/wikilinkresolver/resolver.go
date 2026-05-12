@@ -4,11 +4,21 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	flowports "github.com/serverkraken/flow/internal/ports"
 )
+
+// defaultResolveTimeout caps a single store.Get call so a hanging
+// SQLite read (locked WAL, NFS stalls) can't block the markdown render
+// loop indefinitely. The flowports.WikilinkResolver port intentionally
+// has no context parameter — the renderer is a synchronous string
+// transformer and threading a context through every Render-call would
+// ripple through every host (worktime brief, kompendium browse,
+// cheatsheet). Bounded internal timeout is the contained alternative.
+const defaultResolveTimeout = 5 * time.Second
 
 // uriScheme is the URI prefix the resolver returns for valid targets.
 // kompendium's editor launcher recognises this scheme and routes the
@@ -31,6 +41,11 @@ const uriScheme = "kompendium://note/"
 // editor.Edit so a renamed title resolves fresh on the next render.
 type Resolver struct {
 	store ports.NoteStore
+
+	// Timeout overrides defaultResolveTimeout for store.Get calls. Tests
+	// set it to a small value to verify the cancel-path. Zero falls back
+	// to the default.
+	Timeout time.Duration
 
 	mu    sync.RWMutex
 	cache map[string]cachedResolve
@@ -64,7 +79,13 @@ func (r *Resolver) Resolve(target string) (uri, title string, ok bool) {
 		r.remember(target, cachedResolve{})
 		return "", "", false
 	}
-	note, err := r.store.Get(context.Background(), id)
+	timeout := r.Timeout
+	if timeout <= 0 {
+		timeout = defaultResolveTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	note, err := r.store.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, ports.ErrNoteNotFound) {
 			r.remember(target, cachedResolve{})

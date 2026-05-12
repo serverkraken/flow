@@ -43,7 +43,7 @@ func newSearchInput() textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
-	ti.Cursor.Style = cursorStyle
+	ti.Cursor.Style = styles().cursor
 	return ti
 }
 
@@ -156,8 +156,9 @@ func (m Model) composeContent() string {
 		}
 		return strings.Join(out, "\n")
 	}
-	bar := matchBarStyle.Render("▎ ")
-	curBar := matchCurrentBarStyle.Render("▎ ")
+	s := styles()
+	bar := s.matchBar.Render("▎ ")
+	curBar := s.matchCurrentBar.Render("▎ ")
 	cur := -1
 	if m.matchIdx >= 0 && m.matchIdx < len(m.matches) {
 		cur = m.matches[m.matchIdx]
