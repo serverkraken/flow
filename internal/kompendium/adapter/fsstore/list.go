@@ -81,6 +81,16 @@ func (s *Store) entryFor(path string, d fs.DirEntry, filter ports.ListFilter) (p
 	if !ok {
 		return ports.NoteEntry{}, false, nil
 	}
+	// Validate Frontmatter before adding to the listing. readFrontmatterCapped
+	// synthesises a closing `---\n` when the read buffer truncates the
+	// header — that produces a partial Frontmatter that can have empty
+	// id/type, which surfaces in the browse listing without a follow-up
+	// Get-validation. Skip such entries silently rather than rendering
+	// "id=, type= " rows in the browser. Crud.Get still revalidates so
+	// invariant-violations later in the pipeline stay impossible.
+	if err := fm.Validate(); err != nil {
+		return ports.NoteEntry{}, false, nil
+	}
 	if filter.Type != "" && fm.Type != filter.Type {
 		return ports.NoteEntry{}, false, nil
 	}

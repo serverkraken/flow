@@ -191,6 +191,28 @@ func TestDayOffWriter_SyncGermanHolidays_StoreAddErrPropagates(t *testing.T) {
 	}
 }
 
+// TestDayOffWriter_SyncGermanHolidays_AtomicOnError mirrors the
+// AddRange-atomic test: when the underlying store rejects the batch
+// write, zero holiday rows land. Pre-round4 SyncGermanHolidays used
+// a per-holiday Store.Add loop — a disk-full on holiday 7 of 10 left
+// six orphaned rows. Post-round4 the use case collects all holidays
+// into a single AddBatch so failure is all-or-nothing.
+func TestDayOffWriter_SyncGermanHolidays_AtomicOnError(t *testing.T) {
+	store := testutil.NewFakeDayOffStore()
+	store.Err = errors.New("disk full")
+	w := &usecase.DayOffWriter{Store: store}
+	added, _, err := w.SyncGermanHolidays(2026, "NW", time.Local)
+	if err == nil {
+		t.Error("expected error from store")
+	}
+	if added != 0 {
+		t.Errorf("added = %d, want 0 (atomic — no partial state on failure)", added)
+	}
+	if got := store.List(time.Time{}, time.Time{}); len(got) != 0 {
+		t.Errorf("store has %d entries after failed sync; want 0", len(got))
+	}
+}
+
 // TestDayOffWriter_SyncGermanHolidays_RespectsLocation guards the
 // injection contract that the function's doc comment promises. The
 // previous hardcoded time.Local meant CI in a different $TZ saw

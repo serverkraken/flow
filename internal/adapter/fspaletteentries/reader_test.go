@@ -94,6 +94,29 @@ func TestList_FallbackToAllSubdirs_WhenEnabledMissing(t *testing.T) {
 	}
 }
 
+// TestList_RejectsNonLocalPluginNames pins the round4 defense-in-depth
+// guard: a corrupted enabled-plugins file with a `..`-segment entry
+// must not let filepath.Join escape the pluginsDir. Path-traversal via
+// a user-editable config file is the realistic attack vector — the
+// guard refuses the entry silently and processes the rest.
+func TestList_RejectsNonLocalPluginNames(t *testing.T) {
+	pluginsDir := scaffold(t, map[string]string{
+		"good": "★\tOK\trun-shell ok\tMisc\n",
+	})
+	enabled := filepath.Join(filepath.Dir(pluginsDir), "enabled-plugins")
+	body := "good\n../escape\n/abs/escape\n"
+	if err := os.WriteFile(enabled, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := fspaletteentries.New(pluginsDir, enabled).List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Label != "OK" {
+		t.Errorf("non-local plugin names must be skipped; got %+v", got)
+	}
+}
+
 func TestList_SkipPluginsWithoutMenuEntries(t *testing.T) {
 	pluginsDir := scaffold(t, map[string]string{
 		"with":    "★\tHas\trun-shell yes\tMisc\n",

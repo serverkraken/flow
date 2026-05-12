@@ -106,6 +106,13 @@ func (w *DayOffWriter) Remove(date time.Time) error {
 // previous hardcoded time.Local broke that injection contract.
 func (w *DayOffWriter) SyncGermanHolidays(year int, land string, loc *time.Location) (added, skipped int, err error) {
 	hs := domain.GermanHolidays(year, land, loc)
+	// Collect first, write as one batch. The previous per-holiday Add
+	// loop left partial state on failure (disk-full on holiday 7 of 10
+	// kept 6 rows written with no signal which had landed); AddRange
+	// already moved to AddBatch for the same reason. All-or-nothing
+	// matches the user's mental model: "Sync ist durchgelaufen oder
+	// nicht" — kein Halbzustand.
+	var toAdd []domain.DayOff
 	for _, h := range hs {
 		existing, ok := w.Store.Lookup(h.Date)
 		if ok && existing.Kind == domain.KindHoliday && existing.Label == h.Label {
@@ -117,10 +124,13 @@ func (w *DayOffWriter) SyncGermanHolidays(year int, land string, loc *time.Locat
 			skipped++
 			continue
 		}
-		if err := w.Store.Add(domain.DayOff{Date: h.Date, Kind: h.Kind, Label: h.Label}); err != nil {
-			return added, skipped, err
-		}
-		added++
+		toAdd = append(toAdd, domain.DayOff{Date: h.Date, Kind: h.Kind, Label: h.Label})
 	}
-	return added, skipped, nil
+	if len(toAdd) == 0 {
+		return 0, skipped, nil
+	}
+	if err := w.Store.AddBatch(toAdd); err != nil {
+		return 0, skipped, err
+	}
+	return len(toAdd), skipped, nil
 }

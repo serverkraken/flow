@@ -55,6 +55,16 @@ func (r *Reader) List() ([]domain.PaletteEntry, error) {
 		order   = 0
 	)
 	for _, plugin := range plugins {
+		// Plugin-Name kann aus enabled-plugins ODER aus os.ReadDir
+		// (allSubdirs-Fallback) stammen. enabled-plugins ist eine vom
+		// User editierbare Datei — eine korrumpierte Zeile mit
+		// `..`-Segmenten würde via filepath.Join das pluginsDir
+		// verlassen (`../../etc/shadow`). Defense-in-depth: vor dem
+		// Join sicherstellen, dass der Plugin-Name lokal bleibt. Analog
+		// zum filepath.IsLocal-Guard in output.SaveFile.
+		if !filepath.IsLocal(plugin) {
+			continue
+		}
 		path := filepath.Join(r.pluginsDir, plugin, "menu.entries")
 		ee, perr := parseEntriesFile(path, order)
 		if perr != nil {
