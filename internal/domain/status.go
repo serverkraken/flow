@@ -8,6 +8,15 @@ import (
 
 // StatusPalette is the colour set used by tmux #[fg=...] markers in the
 // status-right segment. Hex codes match the tokyonight defaults flow ships.
+//
+// Slot-Semantik (Stand Spec 2026-05-12-unified-dayoff-glyphs):
+//   Green  — Success: Werktag-Ziel erreicht, Urlaubs-Pace-Dot, Streak, ▲ Saldo
+//   Yellow — Approaching/Warning (Doppelnutzung): Endspurt-Banner +
+//            Krank-Pace-Dot. Wird via StatusPaletteFor mit Sem.Warning
+//            gefüttert und rendert Orange-Hex (#ff9e64).
+//   Red    — Danger: massive overtime im Banner
+//   Cyan   — Info: laufende Session-Banner, Feiertag-Pace-Dot, Banner-Glyph
+//   Dim    — idle/missed/unknown-kind
 type StatusPalette struct {
 	Green, Yellow, Red, Cyan, Dim string
 }
