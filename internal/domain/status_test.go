@@ -375,15 +375,16 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
 	fri := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	week := []domain.WeekDay{{Date: fri, Target: 8 * time.Hour}}
+	p := pal()
 
 	tests := []struct {
 		kind  domain.Kind
-		glyph string
+		color string
 	}{
-		{domain.KindHoliday, "★"},
-		{domain.KindVacation, "☼"},
-		{domain.KindSick, "✚"},
-		{domain.Kind("unknown"), "○"},
+		{domain.KindHoliday, p.Cyan},
+		{domain.KindVacation, p.Green},
+		{domain.KindSick, p.Yellow},
+		{domain.Kind("unknown"), p.Dim},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.kind), func(t *testing.T) {
@@ -393,8 +394,8 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 				}
 				return domain.DayOff{}, false
 			}
-			got := domain.BuildPaceDots(week, now, lookup, pal())
-			want := pal().Cyan + "]" + tc.glyph
+			got := domain.BuildPaceDots(week, now, lookup, p)
+			want := tc.color + "]○"
 			if !strings.Contains(got, want) {
 				t.Errorf("kind %q expected %q in %q", tc.kind, want, got)
 			}

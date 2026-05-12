@@ -195,8 +195,9 @@ func monthBurndownPart(rep MonthBurndownReport, pal StatusPalette) []string {
 
 // BuildPaceDots renders Mon–Fri pace dots. Returns "" when no weekday in
 // the week has any activity — avoids a stray segment at the start of an
-// empty week. Day-offs (Feiertag/Urlaub/Krank) get a distinct glyph + cyan
-// tint so the row says "I had a free day" instead of "I missed a target".
+// empty week. Day-offs (Feiertag/Urlaub/Krank) get a ○ in per-kind colour (via
+// KindStatusColor) so the row says "I had a free day" instead of "I
+// missed a target".
 func BuildPaceDots(
 	week []WeekDay, now time.Time,
 	lookup func(time.Time) (DayOff, bool),
@@ -211,7 +212,7 @@ func BuildPaceDots(
 		}
 		if lookup != nil {
 			if dayOff, isOff := lookup(d.Date); isOff {
-				dots = append(dots, dot{dotDayOffGlyph(dayOff.Kind), pal.Cyan})
+				dots = append(dots, dot{"○", KindStatusColor(dayOff.Kind, pal)})
 				any = true
 				continue
 			}
@@ -238,20 +239,6 @@ func BuildPaceDots(
 		parts[i] = fmt.Sprintf("#[fg=%s]%s#[default]", d.color, d.ch)
 	}
 	return strings.Join(parts, "")
-}
-
-// dotDayOffGlyph picks a monospace TUI marker for each kind in the pace-dots
-// row. "○" is the fallback for unknown kinds so the row keeps its column rhythm.
-func dotDayOffGlyph(k Kind) string {
-	switch k {
-	case KindHoliday:
-		return "★"
-	case KindVacation:
-		return "☼"
-	case KindSick:
-		return "✚"
-	}
-	return "○"
 }
 
 // KindStatusColor mappt Kind auf die tmux-StatusPalette. Holiday → Cyan
