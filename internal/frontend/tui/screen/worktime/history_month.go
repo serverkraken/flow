@@ -141,7 +141,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 
 	sem := h.pal.Sem()
 	glyph := glyphs.BulletDot
-	color := h.pal.BgCode
+	var color lipgloss.TerminalColor = h.pal.BgCode
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)
@@ -158,8 +158,8 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 			glyph, color = glyphs.HeatLight, sem.Warning
 		}
 	case isOff:
-		glyph = dayOffGlyph(dayOff.Kind)
-		color = sem.Info
+		glyph = glyphs.Empty
+		color = kindColor(h.pal, dayOff.Kind)
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted
 	}
