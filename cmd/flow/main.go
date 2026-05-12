@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -306,37 +305,14 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 	// previously this function called os.Getwd + Repo.Detect a second
 	// time, duplicating the work and risking drift. (Polish item.)
 	// writeCmd builds the `flow kompendium new <type>` cmd that runs
-	// after the in-process picker harvested a Result. Pre-fix this
-	// spawned `flow kompendium write` which embedded its own
-	// tea.Program — that nested-bubbletea-through-ExecProcess shape
-	// failed at /dev/tty negotiation in bubbletea v1.3.x. The picker
-	// now runs inline inside browse and only the new-note CLI (a
-	// plain non-tea command) gets forked here.
-	writeCmd := func(r kompwritepicker.Result) *exec.Cmd {
-		exe, e := os.Executable()
-		if e != nil || exe == "" {
-			exe = "flow"
-		}
-		var c *exec.Cmd
-		switch r.Choice {
-		case kompwritepicker.ChoiceDaily:
-			c = exec.Command(exe, "kompendium", "new", "daily")
-		case kompwritepicker.ChoiceProject:
-			// Pass current cwd so the new project note inherits the right
-			// repo context. Resolved at click-time (not factory-time) so
-			// the user's pane CWD wins even if it changed since startup.
-			cwd, _ := os.Getwd()
-			c = exec.Command(exe, "kompendium", "new", "project", "--cwd", cwd)
-		case kompwritepicker.ChoiceFree:
-			c = exec.Command(exe, "kompendium", "new", "free", r.Slug)
-		default:
-			return nil
-		}
-		c.Stdin = os.Stdin
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		return c
-	}
+	// after the in-process picker harvested a Result. Dispatch lives
+	// in kompendiumcli so both the standalone `flow kompendium browse`
+	// path and this sidekick-embedded path share one factory — adding
+	// a fourth picker choice should not require touching main.go.
+	// cwd is resolved at click-time inside the factory so the user's
+	// pane CWD wins even if it changed since startup.
+	cwd, _ := os.Getwd()
+	writeCmd := kompendiumcli.BuildWriteCmd(cwd)
 	m := kompbrowse.New(
 		kompDeps.ListNotes,
 		kompDeps.Store,

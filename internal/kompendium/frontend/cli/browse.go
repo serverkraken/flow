@@ -26,7 +26,7 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 		currentRepo = info.URL
 	}
 
-	writeCmd := buildWriteCmd(cwd)
+	writeCmd := BuildWriteCmd(cwd)
 
 	// Live-Palette laden (overlayed @tn_*-tmux-Optionen) und in alle
 	// drei Kompendium-TUI-Packages durchreichen, BEVOR browse.New die
@@ -90,7 +90,7 @@ func indexAgeFromFile(path string) browse.IndexAgeFunc {
 	}
 }
 
-// buildWriteCmd returns a closure that re-spawns the running binary
+// BuildWriteCmd returns a closure that re-spawns the running binary
 // with the matching `kompendium new <type>` subcommand for the
 // picker's harvested Result. Browse runs the picker in-process now
 // (the nested-bubbletea-via-tea.ExecProcess approach failed at TTY
@@ -106,7 +106,11 @@ func indexAgeFromFile(path string) browse.IndexAgeFunc {
 // (the standalone-kompendium-era arg layout), which under flow
 // surfaces as »unknown command "new" for "flow"« and the subprocess
 // exits 1 — exactly the symptom users hit on the n keypress.
-func buildWriteCmd(cwd string) browse.WriteCmdFunc {
+//
+// Exported so the composition root (cmd/flow/main.go) can reuse the
+// same dispatch when wiring the kompendium browse sub-screen into the
+// sidekick — previously the switch was duplicated inline in main.go.
+func BuildWriteCmd(cwd string) browse.WriteCmdFunc {
 	return func(r writepicker.Result) *exec.Cmd {
 		exe, err := os.Executable()
 		if err != nil || exe == "" {
