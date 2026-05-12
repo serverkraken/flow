@@ -57,6 +57,27 @@ func TestSaveFile_CreatesDownloadsDirWhenMissing(t *testing.T) {
 	}
 }
 
+// TestSaveFile_RejectsTraversalBasename pins the defensive
+// filepath.IsLocal guard added per review polish. Production callers
+// pass hardcoded constants for basename/ext, but the parameter is
+// exported — without the guard, a future caller wiring user-supplied
+// names could break out of ~/Downloads via `../../`.
+func TestSaveFile_RejectsTraversalBasename(t *testing.T) {
+	home := t.TempDir()
+	tg := output.New(home, &testutil.FakeTmux{})
+	cases := []struct{ basename, ext string }{
+		{"../etc/passwd", "txt"},
+		{"foo", "../sh"},
+		{"a/b", "txt"},
+		{"/abs", "txt"},
+	}
+	for _, c := range cases {
+		if _, err := tg.SaveFile(c.basename, c.ext, []byte("hi")); err == nil {
+			t.Errorf("SaveFile(%q,%q) accepted non-local component", c.basename, c.ext)
+		}
+	}
+}
+
 func TestSaveFile_DefaultsExtensionToTxt(t *testing.T) {
 	home := t.TempDir()
 	tg := output.New(home, &testutil.FakeTmux{})

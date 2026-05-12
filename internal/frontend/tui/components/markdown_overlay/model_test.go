@@ -11,6 +11,32 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 )
 
+// TestUpdate_MouseMsgFallsThroughToViewport pins the implicit
+// contract that mouse messages (wheel scroll) reach the embedded
+// viewport without being eaten by the key-dispatch switch. The
+// overlay's Update intentionally does not special-case tea.MouseMsg —
+// the default branch hands every non-key msg to viewport.Update.
+// Without this test a future refactor that adds explicit MouseMsg
+// handling could silently break wheel scroll. Review polish item.
+func TestUpdate_MouseMsgFallsThroughToViewport(t *testing.T) {
+	m := markdown_overlay.New(
+		func(_ string, _ int) string {
+			return strings.Repeat("line\n", 50) // tall enough to scroll
+		},
+		markdown_overlay.WithSource("ignored"),
+	).SetSize(40, 10)
+
+	// A non-key msg shape — wheel down. The overlay must not return an
+	// error and must hand the msg to the viewport (Update returns the
+	// viewport's cmd or nil; either is fine for this lock-in).
+	updated, _ := m.Update(tea.MouseMsg{
+		Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown,
+	})
+	if updated.CurrentMode() != markdown_overlay.ModeNormal {
+		t.Errorf("MouseMsg must not flip mode, got %v", updated.CurrentMode())
+	}
+}
+
 // TestNew_HasInitUpdateView pins the bubbletea-style contract: Init
 // returns no startup cmd, Update returns the concrete Model (immutable
 // update convention), View returns a string. Not strict tea.Model

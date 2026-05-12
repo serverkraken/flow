@@ -22,6 +22,15 @@ func (t *Targets) SaveFile(basename, ext string, content []byte) (string, error)
 	if ext == "" {
 		ext = "txt"
 	}
+	// Defense-in-depth: every production caller passes a hardcoded
+	// constant for basename + ext, but the parameter is part of the
+	// adapter's public surface. Rejecting non-local components keeps a
+	// future caller wiring user-supplied filenames from re-introducing a
+	// path-traversal vector (`../../../etc/passwd`). Per review security
+	// follow-up.
+	if !filepath.IsLocal(basename) || !filepath.IsLocal(ext) {
+		return "", fmt.Errorf("savefile: basename/ext must be local path components, got %q.%q", basename, ext)
+	}
 	dir := filepath.Join(t.home, "Downloads")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("savefile mkdir %s: %w", dir, err)
