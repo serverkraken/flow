@@ -101,13 +101,11 @@ type heute struct {
 	// at a session whose siblings may have just been renumbered.
 	actionInFlight bool
 
-	// noteSuggestions / noteSuggCur drive den Kompendium-Note-Attach-
-	// Picker. Beim Öffnen des `n`-Dialogs einmal aus deps.NoteLister
-	// geladen; Up/Down navigiert die nach Input gefilterte Liste; Enter
-	// nimmt die gewählte Suggestion ODER (wenn Liste leer) den
-	// getippten Raw-ID.
-	noteSuggestions []NoteSuggestion
-	noteSuggCur     int
+	// notePicker hosts den `n`-Dialog (Kompendium-Note-Attach). Aktiv
+	// wenn dialog == heuteDialogNoteAttach. Shared widget — history-
+	// drill nutzt denselben Picker-Typ (siehe note_attach_picker.go).
+	// Heute scoped immer auf h.editDate (= Clock.Now() für `n`).
+	notePicker noteAttachPicker
 
 	// noteView ist der integrierte Note-Viewer (`o`-Key,
 	// dialog == heuteDialogNoteView). Pointer-Pattern, weil der
@@ -123,7 +121,12 @@ type heute struct {
 const noteAttachPickerLimit = 8
 
 func newHeute(p theme.Palette, deps Deps) heute {
-	return heute{pal: p, deps: deps, editIdx: -1}
+	return heute{
+		pal:        p,
+		deps:       deps,
+		editIdx:    -1,
+		notePicker: newNoteAttachPicker(deps, p),
+	}
 }
 
 // FilterActive bubbles up to the root so global tab keys don't intercept

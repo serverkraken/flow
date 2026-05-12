@@ -52,19 +52,11 @@ func (h heute) renderDialog() string {
 
 	case heuteDialogNoteAttach:
 		title = "Kompendium-Note anhängen"
-		// Hint hängt davon ab, ob ein Picker verfügbar ist — sonst
-		// liest der User von der nicht-existenten Up/Down-Funktion ab.
-		if len(h.noteSuggestions) > 0 {
-			hint = "↑/↓ → wählen  ·  tippen → filter  ·  Enter → anhängen  ·  Esc → abbrechen"
-		} else {
-			hint = "Enter → anhängen  ·  Esc → abbrechen"
-		}
-		rows = append(rows, picker.SectionHeader("note id", inner, h.pal), "  "+h.input.View())
-		rows = append(rows, h.renderNoteSuggestions(inner)...)
-		if len(h.attachedNotes) > 0 {
-			rows = append(rows, "", stDim(h.pal,
-				"  bereits angehängt:  "+strings.Join(h.attachedNotes, "  ·  ")))
-		}
+		hint = h.notePicker.HintLine()
+		// notePicker.View liefert input + suggestion-list + "bereits
+		// angehängt"-Hint + optionalen Picker-Error. Section-Header
+		// und Title leben weiter auf dem heute-Dialog-Frame.
+		rows = append(rows, h.notePicker.View(inner))
 
 	case heuteDialogEdit:
 		title = "Session bearbeiten"

@@ -8,7 +8,6 @@ package worktime
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -61,47 +60,17 @@ func (h heute) openEditDialog() (tea.Model, tea.Cmd) {
 	return h, textinput.Blink
 }
 
-// openNoteAttachDialog aktiviert den Kompendium-Note-Attach-Picker.
-// Bei vorhandenem deps.NoteLister: zeigt ein Live-gefiltertes Picker-
-// Listing der jüngsten Notes (Up/Down navigiert, Enter wählt).
-// Ohne NoteLister: degradiert zum Pre-Picker-Verhalten (Raw-ID-Eingabe).
+// openNoteAttachDialog aktiviert den Kompendium-Note-Attach-Picker
+// fuer "heute". Delegiert an das geteilte noteAttachPicker-Widget;
+// das Widget liest deps.NoteLister.Recent fuer den Suggestion-Stream
+// und degradiert zur Raw-ID-Eingabe wenn NoteLister nil ist.
 func (h heute) openNoteAttachDialog() (tea.Model, tea.Cmd) {
 	h.editDate = h.deps.Clock.Now()
 	h.dialog = heuteDialogNoteAttach
-	placeholder := "tippen → suchen, oder Note-ID"
-	if h.deps.NoteLister == nil {
-		placeholder = "Note-ID (z.B. 2026-05-03 oder daily-2026-05-03)"
-	}
-	h.input = form.NewTextInput(placeholder, h.pal)
-	h.input.SetValue("")
-	h.input.Focus()
 	h.errMsg = ""
-	h.noteSuggestions = nil
-	h.noteSuggCur = 0
-	if h.deps.NoteLister != nil {
-		h.noteSuggestions = h.deps.NoteLister.Recent(noteAttachPickerLimit)
-	}
-	return h, textinput.Blink
-}
-
-// filteredNoteSuggestions reduziert h.noteSuggestions auf Einträge, die
-// die aktuelle Input-Substring (case-insensitive) in ID oder Title
-// haben. Leere Eingabe = ungefilterte Liste. Aufruf nur in
-// Render/Key-Handling, damit die Quelle (Recent-Snapshot) unverändert
-// bleibt.
-func (h heute) filteredNoteSuggestions() []NoteSuggestion {
-	q := strings.ToLower(strings.TrimSpace(h.input.Value()))
-	if q == "" || len(h.noteSuggestions) == 0 {
-		return h.noteSuggestions
-	}
-	out := make([]NoteSuggestion, 0, len(h.noteSuggestions))
-	for _, s := range h.noteSuggestions {
-		if strings.Contains(strings.ToLower(s.ID), q) ||
-			strings.Contains(strings.ToLower(s.Title), q) {
-			out = append(out, s)
-		}
-	}
-	return out
+	picker, cmd := h.notePicker.Open(h.editDate, h.attachedNotes)
+	h.notePicker = picker
+	return h, cmd
 }
 
 func (h heute) openDeleteDialog() (tea.Model, tea.Cmd) {

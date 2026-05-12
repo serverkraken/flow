@@ -48,18 +48,14 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 		return h.submitEdit()
 
 	case heuteDialogNoteAttach:
-		// Picker-Vorrang: wenn die gefilterte Suggestion-Liste min. einen
-		// Eintrag hat und der Cursor in Range, nimm dessen ID. Andernfalls
-		// fällt es auf die getippte Raw-ID zurück (Pre-Picker-Verhalten).
-		var id string
-		if filt := h.filteredNoteSuggestions(); len(filt) > 0 &&
-			h.noteSuggCur >= 0 && h.noteSuggCur < len(filt) {
-			id = filt[h.noteSuggCur].ID
-		} else {
-			id = strings.TrimSpace(h.input.Value())
-		}
+		// Picker bestimmt die ID via SelectedID (Cursor-Pick gewinnt,
+		// sonst getipptes raw input). Bei leerer Eingabe: errMsg auf
+		// den Picker (nicht auf h.errMsg) — der Picker rendert ihn in
+		// seinem eigenen Body, damit der Dialog-Title-Strip nicht
+		// doppelt blinkt.
+		id := h.notePicker.SelectedID()
 		if id == "" {
-			h.errMsg = "Note-ID darf nicht leer sein"
+			h.notePicker = h.notePicker.SetError("Note-ID darf nicht leer sein")
 			return h, nil
 		}
 		date := h.editDate

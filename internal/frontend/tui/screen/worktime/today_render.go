@@ -144,34 +144,6 @@ func (h heute) renderSummary(inner int, now time.Time) string {
 	return renderFooterHints(h.pal, parts, inner)
 }
 
-// renderNoteSuggestions zeichnet die jüngsten Kompendium-Notes als
-// Picker-Liste unter dem Input. Substring-Filter aus dem Input wird
-// hier appliziert; ein leerer Filter zeigt alle.
-//
-// Wenn Recent eine leere Liste lieferte (kein Index, kein Notebook),
-// kein Block — der User sieht den degradierten Reine-ID-Eingabe-Pfad.
-func (h heute) renderNoteSuggestions(inner int) []string {
-	if len(h.noteSuggestions) == 0 {
-		return nil
-	}
-	filt := h.filteredNoteSuggestions()
-	rows := []string{"", picker.SectionHeader("jüngste notizen", inner, h.pal)}
-	if len(filt) == 0 {
-		rows = append(rows, stDim(h.pal,
-			"  Keine Treffer im Filter — Enter nimmt die getippte ID."))
-		return rows
-	}
-	for i, s := range filt {
-		label := s.ID
-		hint := ""
-		if s.Title != "" && s.Title != s.ID {
-			hint = s.Title
-		}
-		rows = append(rows, picker.Row(i == h.noteSuggCur, label, hint, inner, h.pal))
-	}
-	return rows
-}
-
 // renderAttachedNotes renders the chip line that surfaces today's
 // linked Kompendium notes. Empty result skips the row entirely so
 // the layout doesn't grow a blank gap when nothing is attached.

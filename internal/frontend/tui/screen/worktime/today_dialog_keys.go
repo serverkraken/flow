@@ -2,8 +2,9 @@ package worktime
 
 // Heute dialog key dispatch — Top-Level handleDialogKey verteilt nach
 // h.dialog auf die spezifischen Eingabepfade (Simple-Input für Tag/
-// Notiz/NoteAttach, Form-Navigation für Edit, Confirm-Forward für
-// Delete, Help-Dismiss). Split aus today_dialog.go (Skill §No-Monoliths).
+// Notiz, geteilter noteAttachPicker für NoteAttach, Form-Navigation
+// für Edit, Confirm-Forward für Delete, Help-Dismiss). Split aus
+// today_dialog.go (Skill §No-Monoliths).
 
 import (
 	"github.com/charmbracelet/bubbles/textinput"
@@ -25,7 +26,9 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return h, cmd
 	case heuteDialogEdit:
 		return h.handleFormKey(msg)
-	case heuteDialogTag, heuteDialogNote, heuteDialogNoteAttach:
+	case heuteDialogNoteAttach:
+		return h.handleNoteAttachKey(msg)
+	case heuteDialogTag, heuteDialogNote:
 		return h.handleSimpleInputKey(msg)
 	case heuteDialogHelp:
 		// Help-Overlay schließt explizit auf Esc oder ?. Andere Tasten
@@ -53,56 +56,45 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (h heute) handleSimpleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// NoteAttach im Picker-Modus claimt Up/Down für die Suggestion-
-	// Liste. Tag/Note haben keine Liste, ihre Up/Down fallen auf den
-	// Default-Pfad (Textinput-Cursor — nicht relevant für single-line).
-	if h.dialog == heuteDialogNoteAttach && len(h.noteSuggestions) > 0 {
-		switch msg.String() {
-		case "up", "ctrl+p":
-			filt := h.filteredNoteSuggestions()
-			if n := len(filt); n > 0 {
-				h.noteSuggCur = (h.noteSuggCur + n - 1) % n
-			}
-			return h, nil
-		case "down", "ctrl+n":
-			filt := h.filteredNoteSuggestions()
-			if n := len(filt); n > 0 {
-				h.noteSuggCur = (h.noteSuggCur + 1) % n
-			}
-			return h, nil
-		}
-	}
 	switch msg.Type {
 	case tea.KeyEsc:
 		h.dialog = heuteDialogNone
 		h.input.Blur()
 		h.input.SetValue("")
 		h.errMsg = ""
-		h.noteSuggestions = nil
-		h.noteSuggCur = 0
 		return h, nil
 	case tea.KeyEnter:
 		return h.submitDialog()
 	case tea.KeyTab, tea.KeyShiftTab:
-		// Single-input dialogs (Tag/Note/NoteAttach) have nowhere to
-		// tab to — swallow the key instead of letting bubbles textinput
-		// insert a literal tab character that would survive into the
-		// stored field. The tsvsessions writer now sanitises tab/CR/LF
-		// at write time too, but rejecting at the input boundary is
-		// less surprising for the user.
+		// Single-input dialogs (Tag/Note) have nowhere to tab to —
+		// swallow the key instead of letting bubbles textinput insert
+		// a literal tab character that would survive into the stored
+		// field. The tsvsessions writer now sanitises tab/CR/LF at
+		// write time too, but rejecting at the input boundary is less
+		// surprising for the user.
 		return h, nil
 	}
 	h.errMsg = ""
 	var cmd tea.Cmd
 	h.input, cmd = h.input.Update(msg)
-	// Filter-Reset des Cursors: bei Tippen auf NoteAttach kann der
-	// vorherige cursor-Index out-of-range geraten, wenn das Filter
-	// die Liste verkürzt.
-	if h.dialog == heuteDialogNoteAttach {
-		filt := h.filteredNoteSuggestions()
-		if h.noteSuggCur >= len(filt) {
-			h.noteSuggCur = 0
-		}
+	return h, cmd
+}
+
+// handleNoteAttachKey delegiert an das geteilte noteAttachPicker-
+// Widget. Submit fuehrt durch submitDialog (das die Picker-Daten
+// ueber SelectedID konsumiert); Cancel schliesst den Dialog ohne
+// weitere Aktion. Idle uebernimmt nur den neuen Picker-State
+// (Suggestion-Cursor bewegt, Input getippt, …).
+func (h heute) handleNoteAttachKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	picker, cmd, action := h.notePicker.Update(msg)
+	h.notePicker = picker
+	switch action {
+	case noteAttachActionCancel:
+		h.dialog = heuteDialogNone
+		h.errMsg = ""
+		return h, nil
+	case noteAttachActionSubmit:
+		return h.submitDialog()
 	}
 	return h, cmd
 }
