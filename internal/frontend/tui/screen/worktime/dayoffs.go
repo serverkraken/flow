@@ -513,8 +513,9 @@ func (f frei) renderKindSummary() string {
 	parts := make([]string, 0, len(domain.AllKinds))
 	for _, k := range domain.AllKinds {
 		if c := byKind[k]; c > 0 {
+			labelStyle := lipgloss.NewStyle().Foreground(kindColor(f.pal, k))
 			parts = append(parts,
-				stDim(f.pal, fmt.Sprintf("%s %d", k.LabelDe(), c)))
+				labelStyle.Render(k.LabelDe())+" "+stDim(f.pal, fmt.Sprintf("%d", c)))
 		}
 	}
 	return strings.Join(parts, stDim(f.pal, "  ·  "))
