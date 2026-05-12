@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -593,15 +594,22 @@ func (f frei) renderKindPicker(inner int) string {
 	chips := make([]string, 0, len(domain.AllKinds))
 	kindFocused := f.formCur == f.kindIdx()
 	for i, k := range domain.AllKinds {
-		st := lipgloss.NewStyle().Foreground(f.pal.FgMuted)
+		// Kind-Farbe trägt der führende ○ — auch im unselektierten Zustand
+		// sichtbar. §Color semantics "one accent per row" bleibt gewahrt:
+		// das Label-Style des selektierten Chips überschreibt den Glyph
+		// mit der Selektions-Farbe (Accent).
+		glyphStyle := lipgloss.NewStyle().Foreground(kindColor(f.pal, k))
+		labelStyle := lipgloss.NewStyle().Foreground(f.pal.FgMuted)
 		if i == f.kindCur {
 			if kindFocused {
-				st = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true).Underline(true)
+				labelStyle = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true).Underline(true)
 			} else {
-				st = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true).Underline(true)
+				labelStyle = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true).Underline(true)
 			}
+			glyphStyle = labelStyle
 		}
-		chips = append(chips, st.Render(" "+k.LabelDe()+" "))
+		chips = append(chips,
+			glyphStyle.Render(" "+glyphs.Empty+" ")+labelStyle.Render(k.LabelDe()+" "))
 	}
 	return header + "\n  " + strings.Join(chips, "  ")
 }
