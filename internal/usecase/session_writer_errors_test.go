@@ -217,6 +217,43 @@ func TestSessionWriter_Stop_ClearActiveErr(t *testing.T) {
 	}
 }
 
+// TestSessionWriter_Stop_ClearActiveFailsRetryDoesNotDuplicate pins
+// the round4 idempotency fix: when a prior Stop succeeded at
+// AppendBatch but failed at ClearActive, the session rows are on disk
+// but the active marker stayed set. A retry must NOT re-write those
+// rows (Sessions would carry duplicates of the same instant span).
+// Implemented via dedupeSessionParts inside Stop's closure.
+func TestSessionWriter_Stop_ClearActiveFailsRetryDoesNotDuplicate(t *testing.T) {
+	start := time.Date(2026, 4, 29, 9, 0, 0, 0, time.Local)
+	now := start.Add(2 * time.Hour) // single-part stop, simpler to assert
+	w := mkWriter(now, withActive(start))
+	state := &flakyActiveStore{Active: &start, FailOn: "ClearActive"}
+	w.State = state
+	store := &testutil.FakeSessionStore{}
+	w.Sessions = store
+	w.Reader.Sessions = store
+
+	// First attempt: AppendBatch succeeds, ClearActive fails.
+	if _, err := w.Stop(); err == nil {
+		t.Fatal("expected error from ClearActive on first attempt")
+	}
+	if got := len(store.Sessions); got != 1 {
+		t.Fatalf("first attempt should persist 1 session before ClearActive fails, got %d", got)
+	}
+
+	// Retry against a recovered ClearActive — must NOT duplicate.
+	state.FailOn = ""
+	if _, err := w.Stop(); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if got := len(store.Sessions); got != 1 {
+		t.Errorf("retry: %d sessions on disk, want 1 (dedupe must filter the duplicate)", got)
+	}
+	if state.Active != nil {
+		t.Error("retry: active marker should be cleared")
+	}
+}
+
 func TestSessionWriter_SetTag_LoadErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)

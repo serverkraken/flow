@@ -92,8 +92,24 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		// each part with its own Append; a failure on part N>0 left the
 		// earlier parts on disk and the natural retry — same active
 		// marker, same SplitAtMidnight output — duplicated them.
-		if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, stop)); err != nil {
+		//
+		// Round4: also dedupe against existing sessions. If a previous
+		// Stop succeeded at AppendBatch but failed at ClearActive (e.g.
+		// transient state-store error), the active marker stayed set
+		// and the user's retry would otherwise re-AppendBatch the same
+		// rows. Filter out any part whose (Date, Start) matches an
+		// already-persisted session. After the filter the work is a
+		// no-op AppendBatch — ClearActive is the actual retry step.
+		parts := domain.SplitAtMidnight(*active, stop)
+		existing, err := w.Sessions.LoadAll()
+		if err != nil {
 			return err
+		}
+		toAppend := dedupeSessionParts(parts, existing)
+		if len(toAppend) > 0 {
+			if err := w.Sessions.AppendBatch(toAppend); err != nil {
+				return err
+			}
 		}
 		if err := w.State.ClearActive(); err != nil {
 			return err
@@ -444,4 +460,36 @@ func sanitizeField(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", " ")
 	return s
+}
+
+// dedupeSessionParts returns the subset of parts that don't yet exist
+// in existing. A part is considered "already persisted" when an
+// existing session shares its Date AND Start instant — SplitAtMidnight
+// is deterministic per (start, stop) input, so equality on those two
+// fields uniquely identifies a slice.
+//
+// Used by Stop to make the AppendBatch step idempotent: if a prior
+// Stop succeeded at AppendBatch but failed at ClearActive, a retry
+// sees the same active marker, computes the same parts, and would
+// otherwise duplicate them. With the dedupe, the retry's AppendBatch
+// becomes a no-op and ClearActive is the only step that actually
+// happens.
+func dedupeSessionParts(parts, existing []domain.Session) []domain.Session {
+	if len(existing) == 0 {
+		return parts
+	}
+	keep := make([]domain.Session, 0, len(parts))
+	for _, p := range parts {
+		duplicate := false
+		for _, e := range existing {
+			if e.Date.Equal(p.Date) && e.Start.Equal(p.Start) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			keep = append(keep, p)
+		}
+	}
+	return keep
 }
