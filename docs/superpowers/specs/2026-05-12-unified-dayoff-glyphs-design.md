@@ -2,7 +2,7 @@
 
 **Datum:** 2026-05-12
 **Status:** approved (Option A, full scope)
-**Scope:** TUI worktime — Pace-Strip · Heatmap · Monatsraster · Frei-Tab
+**Scope:** TUI worktime — Pace-Strip · Heatmap · Monatsraster · Frei-Tab · **tmux Status-Segment**
 
 ## Problem
 
@@ -20,11 +20,18 @@ Alle Glyphen sind technisch Single-Cell (Unicode-Breite 1), aber das Auge liest 
 
 Dieselbe `dayOffGlyph()`-Helferin (`internal/frontend/tui/screen/worktime/helpers.go:51`) wird auch in der Heatmap (`history_heatmap.go:84`) und dem Monatsraster (`history_month.go:161`) verwendet. Dort ist der visuelle Bruch geringer (die Nachbar-Glyphen sind `░▒▓█`-Blockschattierungen, also selbst eine eigene Familie), aber das konzeptionelle Problem ist dasselbe.
 
+**Das tmux Status-Segment** (gerendert von `flow worktime status` über `internal/domain/status.go`) trägt das Problem **doppelt**:
+
+1. Die Pace-Dots-Reihe im Status-Right (`BuildPaceDots`, `status.go:199-240`) mischt `●`/`○` für Werktage mit `dotDayOffGlyph(k)` für freie Tage — die liefert wiederum `★/☼/✚` (`status.go:258-268`). Genau derselbe Familien-Bruch wie in der TUI-Pace-Strip, nur dass nur Mo–Fr gerendert wird.
+2. Die `[Frei: …]`-Banner-Spalte am Segment-Anfang (`status.go:67-69`) nutzt `bannerDayOffGlyph(k)` mit derselben `★/☼/✚`-Whitelist (`status.go:244-254`).
+
+Beide Helfer kollabieren die Kind-Information ins Glyph und rendern die Farbe pauschal `pal.Cyan` — das Kind wird in tmux heute überhaupt nicht farblich differenziert.
+
 Zusätzlich: die Heatmap (`history_heatmap.go:86`) und das Monatsraster (`history_month.go:162`) hardcoden die Farbe **jedes** freien Tages auf `Sem.Info` — die Kind-Unterscheidung (Feiertag/Urlaub/Krank) lebt heute **ausschließlich** im Glyph. Wenn wir den Glyph vereinheitlichen, muss die Information auf die Farbachse wandern.
 
 ## Entscheidung: Option A — Eine Glyph-Familie, Farbe trägt die Semantik
 
-Über alle vier Surfaces hinweg gilt:
+Über alle fünf Surfaces hinweg gilt:
 
 - **Genau ein Glyph** für jeden freien Tag: `○` (`glyphs.Empty`).
 - **Die Kind-Information** (Feiertag/Urlaub/Krank) wird **ausschließlich** über die Foreground-Farbe codiert, gemäß der bereits existierenden Sem-Mapping aus `helpers.go:51-69` und `week.go:77-81`:
@@ -43,7 +50,7 @@ Das löst den Familien-Bruch, nutzt das bereits etablierte Farbschema (kein neue
 | B (zwei Lanes über/untereinander)  | verworfen: doppelte vertikale Höhe, bricht Pace-Strip-Layout        |
 | C (gefüllter Kreis für freie Tage) | verworfen: Doppelbedeutung von `●` (Ziel erreicht + Tag abgegolten) |
 
-## Scope: vier Surfaces, ein Patch
+## Scope: fünf Surfaces, ein Patch
 
 ### 1. Pace-Strip (`week.go renderPace`)
 
@@ -117,6 +124,74 @@ Nachher: ○ Feiertag  ○ Urlaub    ○ Krank
 
 Der `kindCell` in `renderEntryRow:526` benutzt bereits `kindColor()` — keine Änderung nötig, schon konsistent.
 
+### 5. tmux Status-Segment (`internal/domain/status.go`)
+
+Das Status-Right-Segment ist die fünfte und in der Hierarchie wichtigste Surface — es ist die Anzeige, die der User **dauerhaft** sieht, auch ohne Worktime-Screen geöffnet zu haben. Hier wirkt der Glyph-Mix am sichtbarsten, weil das Segment in einer einzigen Zeile direkt neben der Uhrzeit, dem Streak-Counter und dem Burndown-Indikator sitzt.
+
+#### Pace-Dots in tmux (`BuildPaceDots`)
+
+**Vorher:**
+
+```
+[Frei: Tag der Arbeit] ⏱ 06:12 ▶ 1:14 ✓ ● ● ★ ○ ●
+                                       gr gr cy dim gr
+```
+
+**Nachher:**
+
+```
+[Frei: Tag der Arbeit] ⏱ 06:12 ▶ 1:14 ✓ ● ● ○ ○ ●
+                                       gr gr cy dim gr
+```
+
+- Werktag hit → `●` `pal.Green`
+- Werktag heute-läuft → `●` `pal.Yellow`
+- Werktag offen → `○` `pal.Dim`
+- Feiertag → `○` `pal.Cyan`
+- Urlaub → `○` `pal.Green`
+- Krank → `○` `pal.Yellow`
+
+**Änderung:** in `status.go:213` wird `dot{dotDayOffGlyph(dayOff.Kind), pal.Cyan}` zu `dot{"○", kindStatusColor(dayOff.Kind, pal)}`. `dotDayOffGlyph()` (`status.go:258-268`) wird gelöscht.
+
+#### Frei-Banner in tmux (`bannerDayOffGlyph`)
+
+**Vorher:** `★ Tag der Arbeit` / `☼ Sommerurlaub` / `✚ Krankmeldung` — Glyph je nach Kind, Farbe immer cyan.
+
+**Nachher:** `○ Tag der Arbeit` / `○ Sommerurlaub` / `○ Krankmeldung` — Glyph immer `○`, Farbe per Kind (cyan/grün/yellow).
+
+**Änderung:** in `status.go:67-69` wird `bannerDayOffGlyph(in.DayOff.Kind), in.Palette.Cyan` zu `"○", kindStatusColor(in.DayOff.Kind, in.Palette)`. `bannerDayOffGlyph()` (`status.go:244-254`) wird gelöscht.
+
+#### Neuer Helfer `kindStatusColor`
+
+Eine einzige neue Funktion in `internal/domain/status.go`, parallel zu der TUI-seitigen `kindColor`/`kindStyle`. Sie mappt `Kind` auf die fünf-feldrige `StatusPalette` (die in der tmux-Welt nur Green/Yellow/Red/Cyan/Dim kennt):
+
+```go
+func kindStatusColor(k Kind, pal StatusPalette) string {
+    switch k {
+    case KindHoliday:  return pal.Cyan    // Info
+    case KindVacation: return pal.Green   // Success
+    case KindSick:     return pal.Yellow  // Warning → der Yellow-Slot der
+                                          // StatusPalette wird heute schon
+                                          // von Sem.Warning gefüttert
+                                          // (theme/status_adapter.go:22),
+                                          // rendert also denselben Orange-Hex
+                                          // wie die TUI.
+    }
+    return pal.Dim
+}
+```
+
+Warum kein neues `Orange`-Feld? Der existierende `StatusPaletteFor`-Adapter (`internal/frontend/tui/theme/status_adapter.go:21-25`) mappt `Yellow → Sem.Warning`. Der "Yellow"-Slot der `StatusPalette` rendert in der Praxis bereits den TUI-Orange-Hex `#ff9e64`. Ein neues Feld würde den Hex duplizieren ohne semantischen Gewinn. Der Name "Yellow" ist im Status-Composer ohnehin nur ein Slot, kein Farbversprechen — die Konvention wird im Doku-Header von `StatusPalette` festgehalten (siehe Doc-Änderung unten).
+
+#### Doc-Update an `StatusPalette`
+
+`status.go:11-13` bekommt einen Kommentar-Zusatz, der die Doppelnutzung des "Yellow"-Slots klarstellt: er trägt sowohl "Endspurt-Approaching" (`statusBanner`) als auch "Krank-Pace-Dot" (`BuildPaceDots`) — beide kontextuell distinkt im Render, beide Sem.Warning auf der TUI-Seite. Wer hier später aufräumt, kann den Slot in `Approaching` umbenennen und einen separaten `Warning` einführen — *out of scope für diesen Spec*.
+
+#### Out of scope auf tmux-Seite
+
+- **Wochenende-Punkte in tmux:** die Pace-Dots in tmux rendern nur Mo–Fr (`status.go:208-210`), die TUI rendert alle sieben Tage. Diese Asymmetrie bleibt. Begründung: der tmux-Segment hat horizontalen Spalten-Druck, fünf Punkte sind ohnehin schon viel.
+- **`@tn_orange` als neue tmux-Option:** das oben begründet — keine Notwendigkeit, der Yellow-Slot trägt den Hex bereits.
+
 ## Architektonische Verschiebung
 
 Heute gibt es zwei parallele Mappings, die dieselbe Aussage treffen:
@@ -128,7 +203,13 @@ Plus `dayOffGlyph(k)` in `helpers.go:59` — der demnächst trivial wird (immer 
 
 Die ersten beiden lassen wir bewusst nebeneinander stehen: `kindColor` ist außerhalb von `week.go` der Konsument (`dayoffs.go:526`), `kindStyle` ist die Hot-Path-Optimierung innerhalb `week.go` (round4-Performance-Arbeit). Beide referenzieren `Sem.Info/Success/Warning` — eine Änderung dort propagiert konsistent.
 
-`dayOffGlyph()` und `dayOffPaceGlyph()` werden gelöscht. `dayOffHeatmapGlyph()` wird zu einer Konstante (`" " + glyphs.Empty + " "`) oder inline. Die Whitelist-Glyphen `Holiday ★`, `Vacation ☼`, `Extra ✚` bleiben in `glyphs.go` definiert (Markdown-Renderer und ggf. zukünftige Konsumenten dürfen sie weiter nutzen), verlieren aber alle Worktime-Aufrufer.
+`dayOffGlyph()` und `dayOffPaceGlyph()` werden gelöscht. `dayOffHeatmapGlyph()` wird zu einer Konstante (`" " + glyphs.Empty + " "`) oder inline. Auf der tmux-Seite werden `bannerDayOffGlyph()` und `dotDayOffGlyph()` (`internal/domain/status.go`) gelöscht und durch den neuen `kindStatusColor()`-Helfer plus konstanten `"○"`-Glyph ersetzt. Die Whitelist-Glyphen `Holiday ★`, `Vacation ☼`, `Extra ✚` bleiben in `glyphs.go` definiert (Markdown-Renderer und ggf. zukünftige Konsumenten dürfen sie weiter nutzen), verlieren aber alle Worktime-Aufrufer.
+
+Damit sammelt sich die Kind-zu-Farbe-Logik in genau zwei Stellen:
+- **TUI-Seite:** `kindColor()` / `kindStyle()` (`week.go`, `helpers.go`) — beide gegen `Sem.Info/Success/Warning`.
+- **tmux-Seite:** `kindStatusColor()` (`status.go`) — gegen `pal.Cyan/Green/Yellow`.
+
+Beide Stellen drücken dasselbe Mapping in den jeweiligen Slot-Vokabularen ihrer Schicht aus. Eine Synchronisation per zentralem Helfer wäre möglich, würde aber die saubere Schichtentrennung (domain kennt keine TUI-Palette, TUI kennt keine fünf-feldrige StatusPalette) brechen.
 
 ## Test-Strategie
 
@@ -136,8 +217,9 @@ Die ersten beiden lassen wir bewusst nebeneinander stehen: `kindColor` ist auße
 2. **Neuer Test** in `week_test.go`: `renderPace` snapshot für eine Woche mit allen drei Kinds. Verifiziert dass alle freien Tage `glyphs.Empty` rendern und die Foreground-Farbe pro Kind unterscheidbar ist (via ANSI-Sequenz-Match).
 3. **`history_month_test.go`** und **`history_heatmap_test.go`** (falls vorhanden — andernfalls neu): verifizieren dass freie Tage in der gewählten Kind-Farbe gerendert werden (nicht mehr pauschal `Sem.Info`).
 4. **`dayoffs_test.go`**: snapshot oder Substring-Check, dass `renderKindSummary` jedes Kind-Label in seiner Sem-Farbe rendert.
-5. **Glyph-Whitelist-Test** (`glyphs_test.go`): nichts ändert sich — die Glyphen bleiben definiert, nur die Worktime-Konsumenten ändern sich.
-6. **Golden-File-Drift:** alle `*_baseline_test.go` und `render_repro_test.go` Snapshots laufen neu — Diff sichten, akzeptieren wenn nur die erwartete Visualänderung drin ist.
+5. **`internal/domain/status_test.go`** (existiert): Snapshot/String-Match-Tests müssen die alten `★/☼/✚`-Erwartungen auf `○` umstellen; neue Assertion: für jedes der drei Kinds liefert `BuildPaceDots` einen `○` mit der erwarteten `#[fg=…]`-Farbe (cyan/green/yellow). Banner-Test analog für `BuildStatusSegment`-Output.
+6. **Glyph-Whitelist-Test** (`glyphs_test.go`): nichts ändert sich — die Glyphen bleiben definiert, nur die Worktime-Konsumenten ändern sich.
+7. **Golden-File-Drift:** alle `*_baseline_test.go` und `render_repro_test.go` Snapshots laufen neu — Diff sichten, akzeptieren wenn nur die erwartete Visualänderung drin ist.
 
 ## Migration / Outstanding Risks
 
@@ -149,14 +231,18 @@ Die ersten beiden lassen wir bewusst nebeneinander stehen: `kindColor` ist auße
 
 Empfehlung für den Implementierungs-Plan (in der Reihenfolge der Abhängigkeiten):
 
-1. `dayOffPaceGlyph` löschen, Aufrufer in `week.go:374` anpassen.
-2. `dayOffGlyph()`/`dayOffHeatmapGlyph()` aufräumen — entweder löschen oder zu Konstanten degradieren.
-3. `history_month.go:160-162`: Glyph auf `glyphs.Empty`, Farbe auf `kindColor(pal, k)`.
-4. `history_heatmap.go:84-86,142`: dito + Legend-Zeile aufsplitten in drei farbige Chips.
-5. `dayoffs.go:517` (`renderKindSummary`): Label in Kind-Farbe, Count in dim.
-6. `dayoffs.go:603` (`renderKindPicker`): führenden `○ ` Glyph in Kind-Farbe vor jeden Chip.
-7. Tests anpassen + Golden-Snapshots regenerieren.
-8. `make ci` grün.
+1. **domain-Schicht zuerst** (`internal/domain/status.go`): neuer `kindStatusColor()`-Helfer, `bannerDayOffGlyph()` und `dotDayOffGlyph()` löschen, Aufrufer in `BuildStatusSegment` (Banner) und `BuildPaceDots` (Pace-Dots) anpassen, Doc-Kommentar auf `StatusPalette` ergänzen.
+2. **`internal/domain/status_test.go`** mit der domain-Änderung gemeinsam: alte `★/☼/✚`-Erwartungen auf `○` umstellen, Farb-Assertions pro Kind hinzufügen.
+3. **TUI-Seite, Helfer-Level:** `dayOffPaceGlyph` löschen, `dayOffGlyph()` löschen, `dayOffHeatmapGlyph()` zu Konstante degradieren.
+4. **TUI-Seite, Render-Stellen:**
+   - `week.go:374` (`renderPace`): `glyphs.Empty` mit `w.styles.kindStyle(k)`.
+   - `history_month.go:160-162` (`renderMonthCell`): Glyph `glyphs.Empty`, Farbe `kindColor(pal, k)`.
+   - `history_heatmap.go:84-86` (`renderHeatmapCell`): Farbe per Kind statt pauschal `Sem.Info`.
+   - `history_heatmap.go:142` (`renderHeatmapLegend`): Legend-Zeile aufsplitten in drei farbige Chips.
+   - `dayoffs.go:517` (`renderKindSummary`): Label in Kind-Farbe, Count in dim.
+   - `dayoffs.go:603` (`renderKindPicker`): führenden `○ ` Glyph in Kind-Farbe vor jeden Chip.
+5. **TUI-Tests** anpassen + Golden-Snapshots regenerieren.
+6. **`make ci` grün**, dann **visueller Smoke-Test** in tmux: `flow worktime status` direkt aufrufen, Output mit erwartetem Banner + Pace-Dots prüfen; tmux refresh `tmux refresh-client -S` und Status-Right ansehen.
 
 ## Out of scope
 
