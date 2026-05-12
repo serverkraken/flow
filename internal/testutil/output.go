@@ -1,6 +1,12 @@
 package testutil
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.Output = (*FakeOutput)(nil)
 
 // FakeOutput records every ports.Output call so tests can assert
 // behaviour without spawning real binaries or touching real files.

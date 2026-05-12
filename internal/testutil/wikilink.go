@@ -1,5 +1,9 @@
 package testutil
 
+import "github.com/serverkraken/flow/internal/ports"
+
+var _ ports.WikilinkResolver = (*FakeWikilinkResolver)(nil)
+
 // FakeWikilinkResolver maps targets to canned (uri, title) pairs.
 // Targets not in the map resolve to ok=false so the renderer reaches
 // its broken-link path.

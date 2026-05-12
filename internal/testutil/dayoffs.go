@@ -5,7 +5,10 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
+
+var _ ports.DayOffStore = (*FakeDayOffStore)(nil)
 
 // FakeDayOffStore is an in-memory ports.DayOffStore keyed by YYYY-MM-DD.
 type FakeDayOffStore struct {

@@ -1,6 +1,6 @@
 # Markdown-Overlay-Component — Design
 
-Status: draft, 2026-05-11
+Status: implemented, 2026-05-12 (Component live unter `internal/frontend/tui/components/markdown_overlay/`; Caller: worktime brief_view, today_note_view, kompendium browse)
 Review-Follow-up: F4 (Component-Lift)
 
 ## Problem

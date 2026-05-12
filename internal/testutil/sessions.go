@@ -1,6 +1,11 @@
 package testutil
 
-import "github.com/serverkraken/flow/internal/domain"
+import (
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.SessionStore = (*FakeSessionStore)(nil)
 
 // FakeSessionStore is an in-memory ports.SessionStore. The slice is
 // returned by reference from LoadAll, so tests can both seed pre-existing

@@ -1,5 +1,9 @@
 package testutil
 
+import "github.com/serverkraken/flow/internal/ports"
+
+var _ ports.CheatsheetReader = (*FakeCheatsheetReader)(nil)
+
 // FakeCheatsheetReader returns the canned content unless Err is set.
 type FakeCheatsheetReader struct {
 	Content string

@@ -1,6 +1,12 @@
 package testutil
 
-import "time"
+import (
+	"time"
+
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.LinkStore = (*FakeLinkStore)(nil)
 
 // FakeLinkStore is an in-memory ports.LinkStore keyed by YYYY-MM-DD.
 // Insertion order per date is preserved (the slice is appended to).

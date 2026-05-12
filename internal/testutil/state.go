@@ -1,6 +1,15 @@
 package testutil
 
-import "time"
+import (
+	"time"
+
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var (
+	_ ports.ActiveSessionStore = (*FakeActiveSessionStore)(nil)
+	_ ports.Lock               = (*FakeLock)(nil)
+)
 
 // FakeActiveSessionStore is an in-memory ports.ActiveSessionStore. The
 // nil-vs-set semantics of GetActive/GetPause are preserved.

@@ -1,5 +1,9 @@
 package testutil
 
+import "github.com/serverkraken/flow/internal/ports"
+
+var _ ports.MarkdownRenderer = (*FakeMarkdownRenderer)(nil)
+
 // FakeMarkdownRenderer wraps the input untouched (or with a "[w=N] "
 // prefix when Width-marking is helpful for the test). Adequate for use
 // cases that just need to know the renderer was called.

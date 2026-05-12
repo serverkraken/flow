@@ -203,9 +203,6 @@ Worktime-Verhalten:
 | Variable                    | Default     | Bedeutung                                      |
 | --------------------------- | ----------- | ---------------------------------------------- |
 | `WORKTIME_TARGET_HOURS`     | `8`         | Tagessoll in Stunden                           |
-| `WORKTIME_MAX_STREAK_MIN`   | `90`        | Minuten bis die Live-Glyph gelb wird           |
-| `WORKTIME_SHOW_WEEKEND`     | unset       | `=1` zeigt Sa/So in der Woche-View             |
-| `WORKTIME_POMODORO_MIN`     | unset       | Pomodoro-Länge für die TUI-Overlay             |
 | `WORKTIME_LAND`             | `NW`        | Default-Bundesland für Feiertags-Sync          |
 
 Per-Weekday-Targets gehen in `~/.tmux/worktime.conf`:
@@ -269,7 +266,7 @@ worktime-menu).
 | `make build`    | Binary nach `bin/flow`                                               |
 | `make install`  | `go install` nach `~/.local/bin`                                     |
 | `make test`     | `go test -race ./...`                                                |
-| `make cover`    | Coverage gegen den 87%-Gate                                          |
+| `make cover`    | Coverage gegen den 85%-Gate                                          |
 | `make lint`     | `golangci-lint run` (depguard, errcheck, staticcheck, revive, …)     |
 | `make fmt`      | `gofumpt` + `goimports`                                              |
 | `make ci`       | `lint cover build` — spiegelt GitHub Actions                         |

@@ -1,6 +1,11 @@
 package testutil
 
-import "github.com/serverkraken/flow/internal/domain"
+import (
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.ProjectScanner = (*FakeProjectScanner)(nil)
 
 // FakeProjectScanner returns the project list supplied by the test.
 // Set Names for a quick path-less list (Path defaults to "/tmp/<name>"),

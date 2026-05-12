@@ -1,6 +1,11 @@
 package testutil
 
-import "github.com/serverkraken/flow/internal/domain"
+import (
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.FlowStateStore = (*FakeFlowStateStore)(nil)
 
 // FakeFlowStateStore is an in-memory FlowStateStore. State is the
 // canonical persisted value; NextScreen is the one-shot deep-link slot.

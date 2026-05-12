@@ -1,6 +1,12 @@
 package testutil
 
-import "time"
+import (
+	"time"
+
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var _ ports.Clock = (*FixedClock)(nil)
 
 // FixedClock implements ports.Clock with a settable, deterministic time.
 // Use Advance to step forward without recreating the clock.

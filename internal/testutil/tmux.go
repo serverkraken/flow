@@ -1,5 +1,9 @@
 package testutil
 
+import "github.com/serverkraken/flow/internal/ports"
+
+var _ ports.Tmux = (*FakeTmux)(nil)
+
 // FakeTmux records every method call so tests can assert behaviour.
 // Methods return zero values / nil unless the corresponding *Err field
 // is set.

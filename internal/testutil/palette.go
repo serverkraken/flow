@@ -1,6 +1,14 @@
 package testutil
 
-import "github.com/serverkraken/flow/internal/domain"
+import (
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+var (
+	_ ports.PaletteEntryReader = (*FakePaletteEntryReader)(nil)
+	_ ports.PaletteStatsStore  = (*FakePaletteStatsStore)(nil)
+)
 
 // FakePaletteEntryReader returns a fixed entry list.
 type FakePaletteEntryReader struct {
