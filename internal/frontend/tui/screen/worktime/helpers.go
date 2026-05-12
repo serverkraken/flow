@@ -12,8 +12,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -46,25 +44,6 @@ func renderFormField(label string, ti textinput.Model, focused bool, inner int, 
 	}
 	rows = append(rows, "    "+v)
 	return rows
-}
-
-// dayOffGlyph mappt domain.Kind auf den kanonischen Single-Cell-Glyph
-// aus der Whitelist. Zentral statt dupliziert (history_heatmap.dayOffHeatmapGlyph,
-// history_month-inline) — eine Whitelist-Änderung schlägt damit konsistent durch.
-//
-// Fallback ist BulletDot (·), nicht Empty (○): "unknown kind" ist eine
-// schwache Aussage, kein "missed goal" wie Empty es semantisch trägt.
-// Konsistent mit dem Heatmap-Pre-Refactor-Verhalten.
-func dayOffGlyph(k domain.Kind) string {
-	switch k {
-	case domain.KindHoliday:
-		return glyphs.Holiday
-	case domain.KindVacation:
-		return glyphs.Vacation
-	case domain.KindSick:
-		return glyphs.Extra
-	}
-	return glyphs.BulletDot
 }
 
 // formatDur formats a duration as "Xh YYm" with zero-padded minutes.

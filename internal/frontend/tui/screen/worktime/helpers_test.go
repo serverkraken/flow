@@ -281,11 +281,6 @@ func TestMonthClampDay(t *testing.T) {
 	}
 }
 
-func TestDayOffHeatmapGlyph(t *testing.T) {
-	// TODO(T8): dayOffHeatmapGlyph removed in T7; delete this test in T8.
-	t.Skip("dayOffHeatmapGlyph removed in T7; test deleted in T8")
-}
-
 func TestTagClockCellGlyph_Levels(t *testing.T) {
 	pal := theme.Palette{}
 	cases := []struct {
