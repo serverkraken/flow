@@ -280,6 +280,70 @@ func TestWithFooterExtras_RendersInFooter(t *testing.T) {
 	}
 }
 
+func TestUpdate_TopBottomKeysJumpViewport(t *testing.T) {
+	// Body with distinct top/bottom markers — viewport height is small
+	// enough (innerH = height - chromeVertical = 12 - 6 = 6) that the
+	// bottom marker only appears after a Bottom jump.
+	var lines []string
+	for i := 0; i < 50; i++ {
+		lines = append(lines, "line-")
+		lines = append(lines, []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}[i%10])
+		lines = append(lines, "\n")
+	}
+	lines = append([]string{"TOPMARK\n"}, lines...)
+	lines = append(lines, "BOTMARK\n")
+	body := strings.Join(lines, "")
+	mk := func(t *testing.T) markdown_overlay.Model {
+		t.Helper()
+		return markdown_overlay.New(
+			func(_ string, _ int) string { return body },
+			markdown_overlay.WithSource("x"),
+		).SetSize(60, 12)
+	}
+	for _, tc := range []struct {
+		name  string
+		key   tea.KeyMsg
+		wants string
+	}{
+		{"G runes", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}, "BOTMARK"},
+		{"end key", tea.KeyMsg{Type: tea.KeyEnd}, "BOTMARK"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := mk(t)
+			out := ansi.Strip(m.View())
+			if strings.Contains(out, "BOTMARK") {
+				t.Fatalf("precondition: bottom marker visible before jump:\n%s", out)
+			}
+			m, _ = m.Update(tc.key)
+			out = ansi.Strip(m.View())
+			if !strings.Contains(out, tc.wants) {
+				t.Errorf("after %s: missing %q:\n%s", tc.name, tc.wants, out)
+			}
+		})
+	}
+	// After Bottom, g/home jumps back to TOPMARK.
+	for _, tc := range []struct {
+		name string
+		key  tea.KeyMsg
+	}{
+		{"g runes", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}},
+		{"home key", tea.KeyMsg{Type: tea.KeyHome}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := mk(t)
+			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+			m, _ = m.Update(tc.key)
+			out := ansi.Strip(m.View())
+			if !strings.Contains(out, "TOPMARK") {
+				t.Errorf("after %s: TOPMARK missing:\n%s", tc.name, out)
+			}
+			if strings.Contains(out, "BOTMARK") {
+				t.Errorf("after %s: BOTMARK should not be visible:\n%s", tc.name, out)
+			}
+		})
+	}
+}
+
 func TestView_StatusBarShowsScrollPercent(t *testing.T) {
 	// Multi-line body wider than viewport-height forces scroll, and the
 	// status bar surfaces the percentage. Initial view shows " 0%".

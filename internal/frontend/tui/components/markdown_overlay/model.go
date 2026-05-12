@@ -12,11 +12,13 @@ import (
 // the border + padding take per line; frameWidthOffset is the slimmer
 // number passed to lipgloss.Style.Width (border only). gutterWidth
 // reserves the two cells the match-bar prefix occupies in search mode.
+// chromeVertical = 2 (border top+bottom) + 1 title + 1 separator
+// + 1 footer + 1 status bar.
 const (
-	chromeVertical    = 2 + 4 // border top+bottom + title + sep + footer + statusBar
-	contentLineBudget = 2 + 2 // border + padding both sides
-	frameWidthOffset  = 2     // border-only; argument to lipgloss.Style.Width
-	gutterWidth       = 2     // reserved for the search match bar
+	chromeVertical    = 6
+	contentLineBudget = 4 // 2 border + 2 padding
+	frameWidthOffset  = 2 // border-only; argument to lipgloss.Style.Width
+	gutterWidth       = 2 // reserved for the search match bar
 )
 
 // Model is the markdown overlay's bubbletea model. Construct via New;
@@ -102,6 +104,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m.cycleMatch(+1), nil
 		case m.cfg.enableSearch && key.Matches(msg, m.keys.PrevMatch):
 			return m.cycleMatch(-1), nil
+		case key.Matches(msg, m.keys.Top):
+			m.viewport.GotoTop()
+			return m, nil
+		case key.Matches(msg, m.keys.Bottom):
+			m.viewport.GotoBottom()
+			return m, nil
 		case m.cfg.enableCodeCopy && key.Matches(msg, m.keys.CopyCode):
 			updated, payload := m.copyNextSnippet()
 			if payload == "" {
