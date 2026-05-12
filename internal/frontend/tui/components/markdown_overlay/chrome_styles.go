@@ -49,6 +49,10 @@ var (
 	errStyle lipgloss.Style
 )
 
+// init seeds the styles from theme.Default so the component renders
+// correctly when imported by tests that don't wire the composition
+// root. Production callers (cmd/flow/main.go) override via SetPalette
+// before constructing the first Model.
 func init() { rebuildStyles() }
 
 func rebuildStyles() {
