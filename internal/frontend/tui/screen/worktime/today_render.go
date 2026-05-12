@@ -91,11 +91,11 @@ func (h heute) renderHeadline(now time.Time) string {
 	if h.day.IsRunning() && h.day.Active != nil && now.Sub(*h.day.Active) < time.Minute {
 		totalText = formatDurLive(total)
 	}
-	totalStr := lipgloss.NewStyle().Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Bold(true).Render(totalText)
+	totalStr := boldStyle.Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Render(totalText)
 	// Status-Badge bold, damit ▶ läuft / ✓ Ziel / ‖ pausiert visuell die
 	// gleiche Stärke hat wie totalStr — vorher hatte der dim pctStr und
 	// der bold totalStr im Vergleich den Status-Glyph erschlagen.
-	statusStr := lipgloss.NewStyle().Foreground(statusColor).Bold(true).Render(statusGlyph + " " + statusLabel)
+	statusStr := boldStyle.Foreground(statusColor).Render(statusGlyph + " " + statusLabel)
 	pctStr := theme.Dim(fmt.Sprintf("Ziel %d%%", pct), h.pal)
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
 	// zwischen den drei Status-Cells.
@@ -234,7 +234,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 			}
 		}
 		prevStop = s.Stop
-		dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
+		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s",
 			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
 		hint := ""

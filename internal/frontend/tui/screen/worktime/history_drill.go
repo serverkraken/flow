@@ -11,7 +11,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
@@ -122,7 +121,7 @@ func (h history) renderDrill() string {
 			}
 		}
 		prevStop = s.Stop
-		dur := lipgloss.NewStyle().Width(8).Render(formatDur(s.Elapsed))
+		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s",
 			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
 		hint := ""

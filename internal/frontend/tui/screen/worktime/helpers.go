@@ -18,6 +18,17 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
+// Shared lipgloss styles for the render hot paths. These have no
+// palette-dependent fields, so a single package-level value is sound
+// — promoting them out of per-render `lipgloss.NewStyle()` calls
+// avoids 2–4 style allocations per session row per frame in Heute /
+// History rendering. Palette-dependent styling stays at the call site
+// (via `.Foreground(c)` on top of these bases).
+var (
+	durationWidth8Style = lipgloss.NewStyle().Width(8)
+	boldStyle           = lipgloss.NewStyle().Bold(true)
+)
+
 // renderFormField liefert die zwei Zeilen für ein Eingabe-Form-Feld:
 // SectionHeader plus entweder den Live-Input (ti.View() bei focused)
 // oder den ungetippten Wert/Placeholder (dim). Pattern C1 aus dem

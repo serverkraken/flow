@@ -30,8 +30,9 @@ var screenBaseline = map[string]int{
 	"palette/render.go":            8,
 	"projects/model.go":            1,
 	"worktime/dayoffs.go":          5,
+	"worktime/helpers.go":          2, // shared bases: NewStyle().Width(8) + NewStyle().Bold(true)
 	"worktime/history.go":          0,
-	"worktime/history_drill.go":    1,
+	"worktime/history_drill.go":    0,
 	"worktime/history_heatmap.go":  8,
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    5,
@@ -41,7 +42,7 @@ var screenBaseline = map[string]int{
 	"worktime/model.go":            1,
 	"worktime/today.go":            0,
 	"worktime/today_dialog.go":     1,
-	"worktime/today_render.go":     3,
+	"worktime/today_render.go":     0,
 	"worktime/week.go":             11,
 }
 
