@@ -1,6 +1,7 @@
 package markdown_overlay_test
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -58,6 +59,35 @@ func TestGolden(t *testing.T) {
 				}
 				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 				return m
+			},
+		},
+		{
+			name: "search_no_matches",
+			build: func() markdown_overlay.Model {
+				render := func(_ string, _ int) string {
+					return "alpha\nbeta\ngamma"
+				}
+				m := markdown_overlay.New(render,
+					markdown_overlay.WithTitle("S"),
+					markdown_overlay.WithSource("x"),
+					markdown_overlay.WithSearch(),
+				).SetSize(50, 12)
+				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+				for _, r := range "xyz" {
+					m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+				}
+				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				return m
+			},
+		},
+		{
+			name: "error_display",
+			build: func() markdown_overlay.Model {
+				return markdown_overlay.New(
+					func(_ string, _ int) string { return "would-be body" },
+					markdown_overlay.WithTitle("E"),
+					markdown_overlay.WithSource("ignored"),
+				).SetSize(50, 12).SetError(errors.New("could not load source"))
 			},
 		},
 		{
