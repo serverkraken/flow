@@ -79,3 +79,65 @@ func (h history) handleDrillNoteViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	h.drillNoteView = &upd
 	return h, cmd
 }
+
+// editDrillNoteCmd oeffnet die erste angehaengte Note im externen
+// Editor (typischerweise tmux split + nvim) via deps.NoteOpener.
+// Spiegelbild von Heute's editAttachedNoteCmd (today_actions.go).
+// Drill-Date-Scope: nutzt h.drillDate fuer die Toast-Bestaetigung;
+// LinkWriter wird nicht angefasst (Open ist read-only auf dem Store).
+func (h history) editDrillNoteCmd() tea.Cmd {
+	if len(h.drillAttached) == 0 {
+		date := h.drillDate
+		return func() tea.Msg {
+			return historyActionDoneMsg{
+				toast: "Keine Notiz angehaengt — `n` haengt eine an",
+				date:  date,
+			}
+		}
+	}
+	id := h.drillAttached[0]
+	date := h.drillDate
+	opener := h.deps.NoteOpener
+	return func() tea.Msg {
+		if opener == nil {
+			return historyActionDoneMsg{err: fmt.Errorf("note-opener nicht verdrahtet"), date: date}
+		}
+		if err := opener.Open(id); err != nil {
+			return historyActionDoneMsg{err: err, date: date}
+		}
+		return historyActionDoneMsg{
+			toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geoeffnet", id),
+			date:  date,
+		}
+	}
+}
+
+// detachDrillNoteCmd entfernt die erste angehaengte Note via
+// LinkWriter.Remove(drillDate, id). Spiegelbild von Heute's
+// detachAttachedNoteCmd. Kein Confirm-Dialog: die Operation ist
+// reversibel (re-attach via `n` mit derselben ID) und der Store ist
+// idempotent (siehe LinkStore.Remove no-op-Vertrag).
+//
+// Nach Erfolg laeuft die uebliche historyActionDoneMsg-Pipeline, die
+// drillLoadCmd nachzieht — drillAttached refreshed automatisch, der
+// Chip verschwindet wenn die letzte Note weg ist.
+func (h history) detachDrillNoteCmd() tea.Cmd {
+	if len(h.drillAttached) == 0 {
+		date := h.drillDate
+		return func() tea.Msg {
+			return historyActionDoneMsg{toast: "Keine Notiz angehaengt", date: date}
+		}
+	}
+	id := h.drillAttached[0]
+	date := h.drillDate
+	writer := h.deps.LinkWriter
+	return func() tea.Msg {
+		if err := writer.Remove(date, id); err != nil {
+			return historyActionDoneMsg{err: err, date: date}
+		}
+		return historyActionDoneMsg{
+			toast: fmt.Sprintf("✓ Note %s entfernt", id),
+			date:  date,
+		}
+	}
+}

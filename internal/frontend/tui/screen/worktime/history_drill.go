@@ -76,6 +76,15 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// `o` (today_note_view.go). Bei leerer drillAttached liefert
 		// openDrillNoteView einen Info-Toast statt eines stillen no-op.
 		return h.openDrillNoteView()
+	case "O":
+		// Externer Editor (NoteOpener) auf die erste angehängte Note.
+		// Analog Heute's `O` in today_actions.go.
+		return h, h.editDrillNoteCmd()
+	case "R":
+		// Detach der ersten angehängten Note. Skill §Keybind grammar:
+		// `R` (uppercase Remove) bleibt von der `D`-Session-Delete-
+		// Kollision frei. Reversible Operation, kein Confirm-Dialog.
+		return h, h.detachDrillNoteCmd()
 	}
 	return h, nil
 }
@@ -193,15 +202,14 @@ func (h history) renderDrill() string {
 // renderDrillAttachedNotes rendert die Chip-Zeile mit den angehängten
 // Kompendium-Note-IDs (analog Heute's renderAttachedNotes in
 // today_render.go). Leere Liste → leerer String, der Caller skipt
-// die Zeile dann komplett. Hint-Suffix erwähnt nur `o` (R/O sind in
-// dieser Runde noch nicht im History-Drill verkabelt).
+// die Zeile dann komplett.
 func (h history) renderDrillAttachedNotes() string {
 	if len(h.drillAttached) == 0 {
 		return ""
 	}
 	label := theme.Highlight("●", h.pal)
 	ids := stDim(h.pal, strings.Join(h.drillAttached, "  ·  "))
-	hint := stDim(h.pal, "  ·  o → ansehen")
+	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  R → entfernen")
 	return "  " + label + "  " + ids + hint
 }
 

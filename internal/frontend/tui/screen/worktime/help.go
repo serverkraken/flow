@@ -78,6 +78,8 @@ func helpSectionsHistory() []help.Section {
 				{"D", "fokussierte Session löschen (y/Enter)"},
 				{"n", "Kompendium-Note an den Tag anhängen"},
 				{"o", "erste angehängte Note inline ansehen"},
+				{"O", "erste angehängte Note im Editor öffnen"},
+				{"R", "erste angehängte Note entfernen"},
 				{"b · Esc", "Drill schließen"},
 			},
 		},

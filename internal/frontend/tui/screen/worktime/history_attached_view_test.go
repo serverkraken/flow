@@ -128,3 +128,81 @@ func TestHistory_DrillO_NoAttached_ShowsToast(t *testing.T) {
 		t.Errorf("o-key without attached should toast »Keine Notiz«, got:\n%s", out)
 	}
 }
+
+// TestHistory_DrillCapO_OpensExternalEditor pinst den `O`-Pfad: ruft
+// deps.NoteOpener.Open(id) genau einmal mit der drillDate-ID auf.
+func TestHistory_DrillCapO_OpensExternalEditor(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	preID := "notes/external-edit"
+	if err := r.links.Add(wed, preID); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = drainCmd(t, m, cmd)
+	// Press O (uppercase) — fires NoteOpener.
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	_ = drainCmd(t, m, cmd)
+	if len(r.noteLauncher.Calls) != 1 {
+		t.Fatalf("NoteOpener should be called once, got %d calls: %+v",
+			len(r.noteLauncher.Calls), r.noteLauncher.Calls)
+	}
+	if want := "open:" + preID; r.noteLauncher.Calls[0] != want {
+		t.Errorf("NoteOpener call = %q, want %q", r.noteLauncher.Calls[0], want)
+	}
+}
+
+// TestHistory_DrillR_DetachesFirstAttachedNote pinst den `R`-Pfad:
+// LinkWriter.Remove(drillDate, firstID) wird gefeuert, der Chip
+// verschwindet im naechsten Render (drillLoadCmd zieht nach).
+func TestHistory_DrillR_DetachesFirstAttachedNote(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	preID := "notes/to-detach"
+	if err := r.links.Add(wed, preID); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = drainCmd(t, m, cmd)
+	// Chip ist sichtbar.
+	if !strings.Contains(m.View(), preID) {
+		t.Fatalf("pre-condition: chip should show preID, got:\n%s", m.View())
+	}
+	// Press R — detach.
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	m = drainCmd(t, m, cmd)
+	// LinkStore leer für wed.
+	if ids := r.links.ByDate[wed.Format("2006-01-02")]; len(ids) != 0 {
+		t.Errorf("LinkStore should be empty for drillDate after R, got: %+v", ids)
+	}
+	// Chip-Marker (●) verschwindet — die preID ist u.U. noch im Toast,
+	// deshalb matchen wir den Chip-spezifischen Prefix statt nur die ID.
+	if strings.Contains(m.View(), "●  "+preID) {
+		t.Errorf("chip line should disappear after R, got:\n%s", m.View())
+	}
+	// Toast erscheint kurz im drillToast-Slot.
+	if !strings.Contains(m.View(), "entfernt") {
+		t.Errorf("toast should confirm »entfernt«, got:\n%s", m.View())
+	}
+}
+
+// TestHistory_DrillR_NoAttached_ShowsToast pinst den Degenerationspfad:
+// `R` ohne angehängte Notes → Info-Toast, kein LinkWriter-Call.
+func TestHistory_DrillR_NoAttached_ShowsToast(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	m := loadedHistory(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = drainCmd(t, m, cmd)
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	m = drainCmd(t, m, cmd)
+	if !strings.Contains(m.View(), "Keine Notiz") {
+		t.Errorf("R without attached should toast »Keine Notiz«, got:\n%s", m.View())
+	}
+}
