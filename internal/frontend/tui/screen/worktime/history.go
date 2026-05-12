@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -30,6 +31,7 @@ type historyLoadedMsg struct {
 type historyDrillLoadedMsg struct {
 	date     time.Time
 	sessions []domain.Session
+	attached []string // Kompendium note IDs linked to date, in insertion order
 	err      error
 }
 
@@ -84,6 +86,7 @@ const (
 	historyDialogDrillAdd        // add a new manual session to the drill day
 	historyDialogDrillDelete     // confirm-delete selected session
 	historyDialogDrillNoteAttach // Kompendium-note attach to drillDate
+	historyDialogDrillNoteView   // inline markdown_overlay viewer for first attached note
 )
 
 // historyActionDoneMsg carries the result of a drill mutation (edit /
@@ -105,7 +108,8 @@ type history struct {
 	pal  theme.Palette
 	deps Deps
 
-	width int
+	width  int
+	height int
 
 	records    []domain.DayRecord
 	monthStats domain.Stats
@@ -136,6 +140,13 @@ type history struct {
 	drillSessions []domain.Session
 	drillCur      int
 	drillErr      error
+	// drillAttached holds the Kompendium note IDs linked to drillDate.
+	// Loaded together with drillSessions; surfaces in renderDrill as a
+	// chip line and gates the `o`-key inline viewer.
+	drillAttached []string
+	// drillNoteView is the inline markdown_overlay for `o` on the drill.
+	// Active when dialog == historyDialogDrillNoteView. nil when closed.
+	drillNoteView *markdown_overlay.Model
 
 	// drillEditIdx is the session row the active drill-edit / drill-
 	// delete dialog targets. -1 in drill-add mode (no row reference).
@@ -208,6 +219,13 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
+		h.height = msg.Height
+		// Forward resize to the inline note viewer if open so the
+		// markdown re-flows with the new pane dimensions.
+		if h.dialog == historyDialogDrillNoteView && h.drillNoteView != nil {
+			upd := h.drillNoteView.SetSize(msg.Width, msg.Height)
+			h.drillNoteView = &upd
+		}
 		return h, nil
 
 	case historyLoadedMsg:
@@ -227,17 +245,32 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// guard the next manual open briefly flashes the stale day's
 		// rows as the in-flight load lands.
 		//
-		// Drill-edit / drill-add / drill-delete dialogs sit ON TOP of
-		// the drill (we only enter them from the drill view), so the
-		// load must accept those modes too — otherwise a dialog open
-		// during an async reload would discard the fresh sessions.
+		// Drill-edit / drill-add / drill-delete / NoteAttach / NoteView
+		// dialogs sit ON TOP of the drill (we only enter them from the
+		// drill view), so the load must accept those modes too —
+		// otherwise a dialog open during an async reload would discard
+		// the fresh sessions.
 		if !h.drillModeActive() || !sameDay(h.drillDate, msg.date) {
 			return h, nil
 		}
 		h.drillErr = msg.err
 		h.drillSessions = msg.sessions
+		h.drillAttached = msg.attached
 		if h.drillCur >= len(h.drillSessions) {
 			h.drillCur = 0
+		}
+		return h, nil
+
+	case markdown_overlay.ExitMsg:
+		// Close-Key (q/esc/b) from the inline note viewer. Drill stays
+		// open with the chip line below the sessions list, so the user
+		// can press `o` again immediately. Other drill-dialog modes
+		// don't consume ExitMsg — markdown_overlay only lives in
+		// drillNoteView.
+		if h.dialog == historyDialogDrillNoteView {
+			h.dialog = historyDialogDrill
+			h.drillNoteView = nil
+			return h, nil
 		}
 		return h, nil
 
@@ -292,13 +325,22 @@ func (h history) loadCmd() tea.Cmd {
 
 func (h history) drillLoadCmd(date time.Time) tea.Cmd {
 	reader := h.deps.Reader
+	linkReader := h.deps.LinkReader
 	from := startOfDay(date)
 	return func() tea.Msg {
 		sessions, err := reader.Range(domain.Range{From: from, To: from.AddDate(0, 0, 1)})
 		if err != nil {
 			return historyDrillLoadedMsg{date: from, err: err}
 		}
-		return historyDrillLoadedMsg{date: from, sessions: sessions}
+		// Note-load errors stay silent — sessions are the primary
+		// surface. A broken LinkReader shouldn't blank the headline;
+		// the chip line just doesn't render. Mirrors today.loadCmd
+		// (heute follows the same pattern).
+		var attached []string
+		if linkReader != nil {
+			attached, _ = linkReader.ListByDate(from)
+		}
+		return historyDrillLoadedMsg{date: from, sessions: sessions, attached: attached}
 	}
 }
 
@@ -362,6 +404,9 @@ func (h history) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if h.dialog == historyDialogDrillNoteAttach {
 		return h.handleDrillNoteAttachKey(msg)
+	}
+	if h.dialog == historyDialogDrillNoteView {
+		return h.handleDrillNoteViewKey(msg)
 	}
 	if h.dialog == historyDialogDrill {
 		return h.handleDrillKey(msg)
@@ -575,13 +620,13 @@ func (h history) View() string {
 }
 
 // drillModeActive reports whether any drill-rooted dialog is open.
-// Edit / Add / Delete / NoteAttach render on top of the drill list, so
-// they all participate in the drill's load/render flow.
+// Edit / Add / Delete / NoteAttach / NoteView render on top of the drill
+// list, so they all participate in the drill's load/render flow.
 func (h history) drillModeActive() bool {
 	switch h.dialog {
 	case historyDialogDrill, historyDialogDrillEdit,
 		historyDialogDrillAdd, historyDialogDrillDelete,
-		historyDialogDrillNoteAttach:
+		historyDialogDrillNoteAttach, historyDialogDrillNoteView:
 		return true
 	}
 	return false

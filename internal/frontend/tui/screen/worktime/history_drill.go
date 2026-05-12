@@ -25,6 +25,8 @@ func (h history) openDrill(date time.Time) (tea.Model, tea.Cmd) {
 	h.drillDate = startOfDay(date)
 	h.drillCur = 0
 	h.drillSessions = nil
+	h.drillAttached = nil
+	h.drillNoteView = nil
 	h.drillErr = nil
 	return h, h.drillLoadCmd(h.drillDate)
 }
@@ -34,6 +36,8 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc", "b":
 		h.dialog = historyDialogNone
 		h.drillSessions = nil
+		h.drillAttached = nil
+		h.drillNoteView = nil
 		h.drillToast = nil
 		return h, nil
 	case "j", "down":
@@ -67,6 +71,11 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// kann trotzdem eine Note an den Tag knüpfen, z.B. um spätere
 		// retrospektive Notizen einzuhängen).
 		return h.openNoteAttachDialog()
+	case "o":
+		// Inline-Viewer der ersten angehängten Note. Analog zu Heute's
+		// `o` (today_note_view.go). Bei leerer drillAttached liefert
+		// openDrillNoteView einen Info-Toast statt eines stillen no-op.
+		return h.openDrillNoteView()
 	}
 	return h, nil
 }
@@ -80,6 +89,14 @@ func (h history) drillOnSession() bool {
 // — drill render —
 
 func (h history) renderDrill() string {
+	// NoteView überdeckt den Drill voll — markdown_overlay rendert sein
+	// eigenes Chrome (Frame + Title + Status-Bar), kein zusätzlicher
+	// Drill-Frame nötig. Schließen via ExitMsg im outer Update bringt
+	// dialog zurück auf historyDialogDrill und die Liste taucht wieder
+	// auf.
+	if h.dialog == historyDialogDrillNoteView && h.drillNoteView != nil {
+		return h.drillNoteView.View()
+	}
 	inner := h.width - 4
 	if inner <= 0 {
 		inner = 80
@@ -93,6 +110,13 @@ func (h history) renderDrill() string {
 	}
 	if len(h.drillSessions) == 0 {
 		rows = append(rows, stDim(h.pal, "  keine Sessions an diesem Tag"))
+		// Auch im leeren Tag darf eine Note dranhängen — die LinkStore-
+		// Keyung ist tagesbasiert. Chip-Zeile direkt unter dem
+		// Empty-State, damit User retrospektiv angehängte Notizen
+		// sehen ohne Sessions zu brauchen.
+		if chip := h.renderDrillAttachedNotes(); chip != "" {
+			rows = append(rows, "", chip)
+		}
 		// Even an empty day allows manual entry — `a` adds the first
 		// session. Without this hint the only visible action is "back",
 		// which would force the user into Heute-just-to-add-an-old-row.
@@ -141,6 +165,15 @@ func (h history) renderDrill() string {
 		}
 	}
 
+	// Chip-Zeile mit angehängten Notizen — analog Heute's
+	// renderAttachedNotes (today_render.go). Leeres drillAttached
+	// rendert KEINE Zeile, damit der Layout-Schwerpunkt bei den
+	// Sessions bleibt und der Drill nicht visuell hin- und herwackelt
+	// wenn der Tag mal Notizen hat und mal nicht.
+	if chip := h.renderDrillAttachedNotes(); chip != "" {
+		rows = append(rows, "", chip)
+	}
+
 	if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
 		rows = append(rows, "")
 		rows = append(rows, dialogRows...)
@@ -155,6 +188,21 @@ func (h history) renderDrill() string {
 	}
 	rows = append(rows, "", h.renderDrillFooter())
 	return strings.Join(rows, "\n")
+}
+
+// renderDrillAttachedNotes rendert die Chip-Zeile mit den angehängten
+// Kompendium-Note-IDs (analog Heute's renderAttachedNotes in
+// today_render.go). Leere Liste → leerer String, der Caller skipt
+// die Zeile dann komplett. Hint-Suffix erwähnt nur `o` (R/O sind in
+// dieser Runde noch nicht im History-Drill verkabelt).
+func (h history) renderDrillAttachedNotes() string {
+	if len(h.drillAttached) == 0 {
+		return ""
+	}
+	label := theme.Highlight("●", h.pal)
+	ids := stDim(h.pal, strings.Join(h.drillAttached, "  ·  "))
+	hint := stDim(h.pal, "  ·  o → ansehen")
+	return "  " + label + "  " + ids + hint
 }
 
 // drillFormHint is the canonical key-hint shown while editing or adding
@@ -195,6 +243,13 @@ func (h history) renderDrillFooter() string {
 	hints := []string{"j/k → bewegen"}
 	if h.drillOnSession() {
 		hints = append(hints, "enter → bearbeiten", "D → löschen")
+	}
+	// `o → ansehen` nur wenn überhaupt was angehängt ist — sonst wäre
+	// der Hint eine Lüge (openDrillNoteView gibt dann den "keine Note"-
+	// Toast aus). `n → Note` ist immer relevant (Attach-Operation
+	// funktioniert auch ohne vorherige Anhänge).
+	if len(h.drillAttached) > 0 {
+		hints = append(hints, "o → ansehen")
 	}
 	hints = append(hints, "n → Note", "a → neu", "b/Esc → zurück")
 	if len(hints) > 4 {
