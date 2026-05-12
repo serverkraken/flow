@@ -66,8 +66,8 @@ func BuildStatusSegment(in StatusInputs) string {
 
 	var parts []string
 	if in.DayOff != nil {
-		parts = append(parts, fmt.Sprintf("#[fg=%s]%s %s#[default]",
-			in.Palette.Cyan, bannerDayOffGlyph(in.DayOff.Kind), in.DayOff.Label))
+		parts = append(parts, fmt.Sprintf("#[fg=%s]○ %s#[default]",
+			KindStatusColor(in.DayOff.Kind, in.Palette), in.DayOff.Label))
 	}
 	parts = append(parts, fmt.Sprintf("#[fg=%s]%s %02d:%02d#[default]",
 		mainAttr, icon, int(total.Hours()), int(total.Minutes())%60))
@@ -240,22 +240,8 @@ func BuildPaceDots(
 	return strings.Join(parts, "")
 }
 
-// bannerDayOffGlyph picks a monospace TUI marker for each kind in the
-// "[Frei: …]" banner. Default "·" when the kind is unknown.
-func bannerDayOffGlyph(k Kind) string {
-	switch k {
-	case KindHoliday:
-		return "★"
-	case KindVacation:
-		return "☼"
-	case KindSick:
-		return "✚"
-	}
-	return "·"
-}
-
-// dotDayOffGlyph mirrors bannerDayOffGlyph but with "○" as the unknown-
-// kind fallback so the pace-dots row keeps its column rhythm.
+// dotDayOffGlyph picks a monospace TUI marker for each kind in the pace-dots
+// row. "○" is the fallback for unknown kinds so the row keeps its column rhythm.
 func dotDayOffGlyph(k Kind) string {
 	switch k {
 	case KindHoliday:

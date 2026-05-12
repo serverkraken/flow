@@ -235,7 +235,7 @@ func TestBuildStatusSegment_DayOffBanner(t *testing.T) {
 		Palette:      pal(),
 	}
 	got := domain.BuildStatusSegment(in)
-	if !strings.Contains(got, "★ Tag der Arbeit") {
+	if !strings.Contains(got, "○ Tag der Arbeit") {
 		t.Errorf("dayoff banner missing: %q", got)
 	}
 }
@@ -404,14 +404,15 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 
 func TestBuildStatusSegment_DayOffBannerGlyphPerKind(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
+	p := pal()
 	tests := []struct {
 		kind  domain.Kind
-		glyph string
+		color string
 	}{
-		{domain.KindHoliday, "★"},
-		{domain.KindVacation, "☼"},
-		{domain.KindSick, "✚"},
-		{domain.Kind("unknown"), "·"},
+		{domain.KindHoliday, p.Cyan},
+		{domain.KindVacation, p.Green},
+		{domain.KindSick, p.Yellow},
+		{domain.Kind("unknown"), p.Dim},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.kind), func(t *testing.T) {
@@ -420,11 +421,12 @@ func TestBuildStatusSegment_DayOffBannerGlyphPerKind(t *testing.T) {
 				Now: now, Day: domain.Day{}, Target: 0,
 				DayOff:       d,
 				LookupDayOff: noLookup,
-				Palette:      pal(),
+				Palette:      p,
 			}
 			got := domain.BuildStatusSegment(in)
-			if !strings.Contains(got, tc.glyph+" Test") {
-				t.Errorf("kind %q expected glyph %q in banner: %q", tc.kind, tc.glyph, got)
+			want := tc.color + "]○ Test"
+			if !strings.Contains(got, want) {
+				t.Errorf("kind %q expected %q in banner: %q", tc.kind, want, got)
 			}
 		})
 	}
