@@ -143,6 +143,65 @@ func TestAggregate_DayOffsListed(t *testing.T) {
 	}
 }
 
+// TestAggregateRange_EmptyRangeReturnsEmpty pinst die Defaultpfad-
+// Garantie (from >= to → leere Stats, kein panic).
+func TestAggregateRange_EmptyRangeReturnsEmpty(t *testing.T) {
+	st := domain.AggregateRange(
+		nil,
+		at(2026, 4, 29), at(2026, 4, 29),
+		allWorkdays,
+		func(time.Time) time.Duration { return 8 * time.Hour },
+		nil,
+	)
+	if st.Days != 0 || st.Workdays != 0 || st.Overtime != 0 {
+		t.Errorf("empty range: %+v", st)
+	}
+}
+
+// TestAggregateRange_UnvisitedWorkdaysCountTowardSaldo unterscheidet
+// AggregateRange von Aggregate: ein Workday im Range ohne DayRecord
+// trägt -targetFor(d) zum Saldo bei. Bei Aggregate fehlt diese
+// Korrektur, weil dort nur die Records selbst gezählt werden.
+func TestAggregateRange_UnvisitedWorkdaysCountTowardSaldo(t *testing.T) {
+	r := rec(at(2026, 4, 27), 8*time.Hour, 8*time.Hour) // Montag voll
+	st := domain.AggregateRange(
+		[]domain.DayRecord{r},
+		at(2026, 4, 27), at(2026, 4, 30), // Mo-Mi (3 Workdays)
+		allWorkdays,
+		func(time.Time) time.Duration { return 8 * time.Hour },
+		nil,
+	)
+	if st.Workdays != 3 {
+		t.Errorf("Workdays = %d, want 3 (range bestimmt, nicht Records)", st.Workdays)
+	}
+	if st.Hits != 1 {
+		t.Errorf("Hits = %d, want 1 (Mo war voll, Di+Mi unbesetzt)", st.Hits)
+	}
+	// Saldo: Mo +0h (Soll erfüllt), Di -8h, Mi -8h = -16h
+	if st.Overtime != -16*time.Hour {
+		t.Errorf("Overtime = %v, want -16h", st.Overtime)
+	}
+}
+
+// TestAggregateRange_TargetZeroWorkdayCountsAsMiss pinst die isHit-
+// Konvention: ein Workday mit Target=0 darf NICHT als Hit zählen
+// (auch wenn Total ≥ 0). Pre-round4 Aggregate-Pfad zählte solche
+// Tage als Hit (Drift gegenüber AggregateRange) — gemeinsame isHit-
+// Funktion in aggregate.go schließt das.
+func TestAggregateRange_TargetZeroWorkdayCountsAsMiss(t *testing.T) {
+	r := rec(at(2026, 4, 27), 0, 0) // Mo: Total=0, Target=0
+	st := domain.AggregateRange(
+		[]domain.DayRecord{r},
+		at(2026, 4, 27), at(2026, 4, 28),
+		allWorkdays,
+		func(time.Time) time.Duration { return 0 },
+		nil,
+	)
+	if st.Hits != 0 {
+		t.Errorf("Target=0 darf nicht als Hit zählen, got Hits=%d", st.Hits)
+	}
+}
+
 func TestFilterRecords(t *testing.T) {
 	records := []domain.DayRecord{
 		{Date: at(2026, 4, 27)},

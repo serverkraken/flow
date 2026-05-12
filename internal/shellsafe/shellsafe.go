@@ -36,6 +36,17 @@ func ChainingOK(s string) bool {
 	return true
 }
 
+// Quote wraps s in single quotes and escapes embedded single quotes via
+// the POSIX 'backslash-single-quote-single-quote-single-quote' sequence
+// so the result reads as a single literal argument under /bin/sh -c.
+// Callers that compose a bash command-line from untrusted-but-validated
+// parts (paths, editor argv tokens, viewer arguments) use this to keep
+// the parts atomic. Used to live duplicated in adapter/output and
+// adapter/editor — kept here as the single canonical implementation.
+func Quote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // UnquotedOK extends ChainingOK by also rejecting ' and ". Use this for
 // strings the caller interpolates verbatim (no surrounding quotes), e.g.
 // a viewer command "less -S" placed at the head of a bash -c line. A

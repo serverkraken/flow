@@ -157,21 +157,25 @@ func (r *WorktimeReader) Range(rng domain.Range) ([]domain.Session, error) {
 // to consider all). Returns the conflicting session as a pointer for the
 // UI to surface a precise hint.
 func (r *WorktimeReader) SessionsOverlap(date, start, stop time.Time, excludeIdx int) (bool, *domain.Session, error) {
-	all, err := r.Sessions.LoadAll()
+	// LoadFiltered limits I/O to the rows of the target day. The previous
+	// LoadAll read every row in sessions.tsv even though all but ~3 were
+	// going to be skipped — on a 2-year history (~1500 rows) every
+	// AddManual paid that scan. The filter predicate runs in the adapter
+	// where it can short-circuit during line parsing.
+	dateStr := date.Format("2006-01-02")
+	dayRows, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+		return s.Date.Format("2006-01-02") == dateStr
+	})
 	if err != nil {
 		return false, nil, err
 	}
-	dateStr := date.Format("2006-01-02")
-	dayIdx := 0
-	for i := range all {
-		s := all[i]
-		if s.Date.Format("2006-01-02") != dateStr {
+	for i, s := range dayRows {
+		if i == excludeIdx {
 			continue
 		}
-		if dayIdx != excludeIdx && start.Before(s.Stop) && s.Start.Before(stop) {
-			return true, &all[i], nil
+		if start.Before(s.Stop) && s.Start.Before(stop) {
+			return true, &dayRows[i], nil
 		}
-		dayIdx++
 	}
 	return false, nil, nil
 }

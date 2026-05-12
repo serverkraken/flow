@@ -65,12 +65,11 @@ func (t *Targets) Pager(content, viewer, ext string) error {
 	return nil
 }
 
-// shellQuote wraps s in single quotes, escaping embedded single quotes
-// via the standard '\” bash idiom. Used by Pager to compose a safe
-// `bash -c` command-line that survives spaces / quotes in TMPDIR.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
+// shellQuote delegates to shellsafe.Quote so the bash-c quoting rule
+// lives in exactly one place. Previously duplicated in adapter/editor
+// — kept the wrapper here for the rest of the file's call sites to
+// stay terse.
+func shellQuote(s string) string { return shellsafe.Quote(s) }
 
 // isSafeViewer guards the unquoted viewer interpolation inside Pager's
 // `bash -c` command-line. Production callers pass hardcoded constants

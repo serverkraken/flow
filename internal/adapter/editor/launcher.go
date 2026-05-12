@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/serverkraken/flow/internal/shellsafe"
 )
 
 // Runner runs name args... and returns combined stdout. Pulled out as
@@ -85,19 +87,15 @@ func (l *Launcher) Open(id string) error {
 	return err
 }
 
-// shellQuote wraps s in single quotes so /bin/sh -c reads it as one
-// literal argument. Embedded single quotes are emitted as the
-// POSIX-portable `'\”` sequence.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// joinShellArgv quotes each argv token and joins with spaces. Empty
-// argv returns "" — callers check for that case before calling.
+// joinShellArgv quotes each argv token via shellsafe.Quote and joins
+// with spaces. Empty argv returns "" — callers check for that case
+// before calling. The quoting rule itself lives in shellsafe so the
+// pager (which composes a bash -c command from a viewer + path pair)
+// shares the exact implementation.
 func joinShellArgv(argv []string) string {
 	parts := make([]string, len(argv))
 	for i, a := range argv {
-		parts[i] = shellQuote(a)
+		parts[i] = shellsafe.Quote(a)
 	}
 	return strings.Join(parts, " ")
 }

@@ -32,5 +32,12 @@ type Tmux interface {
 	// process) returns immediately while tmux executes in the background.
 	// The wrapping is the adapter's responsibility — callers MUST pass
 	// the action without a leading "tmux " prefix.
+	//
+	// Security contract: the action string ends up inside `$SHELL -c`
+	// after tmux forwards it to run-shell. Callers MUST sanitise
+	// untrusted input first. The palette adapter validates incoming
+	// menu.entries via shellsafe.ChainingOK at parse time, which is
+	// flow's canonical guard. Other callers must reuse shellsafe — do
+	// NOT add a second sanitiser variant.
 	RunTmuxAction(action string) error
 }

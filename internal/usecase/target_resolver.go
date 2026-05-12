@@ -42,6 +42,14 @@ func (r *TargetResolver) For(date time.Time) time.Duration {
 	if t, ok := cfg.LookupWeekday(date.Weekday()); ok {
 		return t
 	}
+	// DefaultTarget > 0 distinguishes "user explicitly set a positive
+	// default" from "zero-value Config struct" (e.g. config load
+	// returned the zero default for unsupported keys). The asymmetry
+	// with LookupWeekday's ok-semantic is intentional: an unset
+	// DefaultTarget should NOT silently override the resolver's 8h
+	// safety net. A user who genuinely wants "no work by default" is
+	// expected to configure per-weekday entries (target_mon=0 etc.) —
+	// those go through LookupWeekday which respects explicit zero.
 	if cfg.DefaultTarget > 0 {
 		return cfg.DefaultTarget
 	}
