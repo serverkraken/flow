@@ -39,10 +39,74 @@ type woche struct {
 	cursor int
 	loaded bool
 	err    error
+
+	// styles is a palette-bound cache for the render hot-path. Built
+	// once at constructor — renderDayRow runs once per visible weekday
+	// per frame, renderPace once per frame; previously every call
+	// allocated 4-7 lipgloss.Style values.
+	styles wocheStyles
+}
+
+// wocheStyles caches the palette-dependent lipgloss styles used by
+// week.go. Built once per Model at newWoche().
+type wocheStyles struct {
+	name       lipgloss.Style // Fg + Width(3) — weekday short label
+	date       lipgloss.Style // FgMuted + Width(6) — date column
+	marker     lipgloss.Style // Sem().Accent — cursor bar
+	emptyBar   lipgloss.Style // BgCode — placeholder bar
+	dur        lipgloss.Style // Fg base — total duration (Bold added per-row)
+	greenPace  lipgloss.Style // Sem().Success — hit-day pace dot
+	dimPace    lipgloss.Style // FgMuted — miss-day pace dot
+	yellowPace lipgloss.Style // Sem().Warning — today-running pace dot
+
+	// kinds maps DayOff Kind to its pre-built style. nil-kind (zero
+	// value, default) falls back to Fg. Render loops use
+	// w.styles.kindStyle(k) to avoid map miss on zero-value kinds.
+	kinds        map[domain.Kind]lipgloss.Style
+	kindFallback lipgloss.Style
+
+	// Balance has three colourways selected by sign. Pre-built so
+	// renderKPIs doesn't allocate per call.
+	balPositive lipgloss.Style
+	balZero     lipgloss.Style
+	balNegative lipgloss.Style
+}
+
+func newWocheStyles(p theme.Palette) wocheStyles {
+	sem := p.Sem()
+	kinds := map[domain.Kind]lipgloss.Style{
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(sem.Info),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(sem.Success),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(sem.Warning),
+	}
+	return wocheStyles{
+		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
+		date:         lipgloss.NewStyle().Foreground(p.FgMuted).Width(6),
+		marker:       lipgloss.NewStyle().Foreground(sem.Accent),
+		emptyBar:     lipgloss.NewStyle().Foreground(p.BgCode),
+		dur:          lipgloss.NewStyle().Foreground(p.Fg),
+		greenPace:    lipgloss.NewStyle().Foreground(sem.Success),
+		dimPace:      lipgloss.NewStyle().Foreground(p.FgMuted),
+		yellowPace:   lipgloss.NewStyle().Foreground(sem.Warning),
+		kinds:        kinds,
+		kindFallback: lipgloss.NewStyle().Foreground(p.Fg),
+		balPositive:  lipgloss.NewStyle().Foreground(sem.Success),
+		balZero:      lipgloss.NewStyle().Foreground(p.FgMuted),
+		balNegative:  lipgloss.NewStyle().Foreground(sem.Warning),
+	}
+}
+
+// kindStyle returns the pre-built style for k. Unknown kinds get
+// kindFallback (Fg) — matches the legacy kindColor() behaviour.
+func (s wocheStyles) kindStyle(k domain.Kind) lipgloss.Style {
+	if st, ok := s.kinds[k]; ok {
+		return st
+	}
+	return s.kindFallback
 }
 
 func newWoche(p theme.Palette, deps Deps) woche {
-	return woche{pal: p, deps: deps}
+	return woche{pal: p, deps: deps, styles: newWocheStyles(p)}
 }
 
 // StateCursor reports the focused weekday row for state persistence.
@@ -183,12 +247,11 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 	total := d.Total(now)
 	isWeekend := d.Date.Weekday() == time.Saturday || d.Date.Weekday() == time.Sunday
 
-	name := lipgloss.NewStyle().Foreground(w.pal.Fg).Width(3).Render(domain.WeekdayShortDe(d.Date.Weekday()))
-	date := lipgloss.NewStyle().Foreground(w.pal.FgMuted).Width(6).
-		Render(fmt.Sprintf("%02d.%02d", d.Date.Day(), d.Date.Month()))
+	name := w.styles.name.Render(domain.WeekdayShortDe(d.Date.Weekday()))
+	date := w.styles.date.Render(fmt.Sprintf("%02d.%02d", d.Date.Day(), d.Date.Month()))
 	marker := "  "
 	if idx == w.cursor {
-		marker = lipgloss.NewStyle().Foreground(w.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
+		marker = w.styles.marker.Render(picker.AccentBarRune) + " "
 	}
 
 	dayOff, isOff := w.deps.DayOffStore.Lookup(d.Date)
@@ -198,7 +261,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		return marker + name + " " + date + "  " + stDim(w.pal, "Wochenende")
 
 	case isOff && total == 0:
-		label := lipgloss.NewStyle().Foreground(kindColor(w.pal, dayOff.Kind)).Render(dayOff.Kind.LabelDe())
+		label := w.styles.kindStyle(dayOff.Kind).Render(dayOff.Kind.LabelDe())
 		suffix := ""
 		if dayOff.Label != "" {
 			suffix = "  " + stDim(w.pal, dayOff.Label)
@@ -206,7 +269,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		return marker + name + " " + date + "  " + label + suffix
 
 	case total == 0:
-		emptyBar := lipgloss.NewStyle().Foreground(w.pal.BgCode).Render(strings.Repeat("─", barW))
+		emptyBar := w.styles.emptyBar.Render(strings.Repeat("─", barW))
 		todayMark := ""
 		if d.IsToday {
 			todayMark = "  " + stDim(w.pal, "heute")
@@ -223,7 +286,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		}
 		bar := statusbar.Bar(pct, barW, w.pal)
 		pctStr := stDim(w.pal, fmt.Sprintf("%3d%%", pct))
-		durStr := lipgloss.NewStyle().Foreground(w.pal.Fg).Bold(total >= d.Target).Render(formatDur(total))
+		durStr := w.styles.dur.Bold(total >= d.Target).Render(formatDur(total))
 		extra := ""
 		if d.IsToday && d.Active != nil {
 			extra += "  " + theme.Success(glyphs.Active, w.pal)
@@ -274,15 +337,14 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 		avg = weekTotal / time.Duration(weekdays)
 	}
 	balance := weekTotal - weekTarget
-	sem := w.pal.Sem()
-	balColor := w.pal.FgMuted
+	balStyle := w.styles.balZero
 	switch {
 	case balance > 0:
-		balColor = sem.Success
+		balStyle = w.styles.balPositive
 	case balance < 0:
-		balColor = sem.Warning
+		balStyle = w.styles.balNegative
 	}
-	bal := lipgloss.NewStyle().Foreground(balColor).Render(domain.FmtSignedDuration(balance))
+	bal := balStyle.Render(domain.FmtSignedDuration(balance))
 	chips := []string{
 		stDim(w.pal, fmt.Sprintf("Schnitt %s", formatDur(avg))),
 		stDim(w.pal, fmt.Sprintf("Ziele %d/%d", w.stats.Hits, weekdays)),
@@ -292,10 +354,10 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 }
 
 func (w woche) renderPace(now time.Time) string {
-	sem := w.pal.Sem()
-	greenStyle := lipgloss.NewStyle().Foreground(sem.Success)
-	dimStyle := lipgloss.NewStyle().Foreground(w.pal.FgMuted)
-	yellowStyle := lipgloss.NewStyle().Foreground(sem.Warning)
+	// Cached styles — these used to be allocated per-call before round4.
+	greenStyle := w.styles.greenPace
+	dimStyle := w.styles.dimPace
+	yellowStyle := w.styles.yellowPace
 
 	dots := make([]string, 0, len(w.week))
 	hits, expected, workdays := 0, 0, 0
@@ -309,8 +371,7 @@ func (w woche) renderPace(now time.Time) string {
 
 		switch {
 		case isOff && !isWeekend:
-			dots = append(dots, lipgloss.NewStyle().Foreground(kindColor(w.pal, dayOff.Kind)).
-				Render(dayOffPaceGlyph(dayOff.Kind)))
+			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(dayOffPaceGlyph(dayOff.Kind)))
 		case hit:
 			dots = append(dots, greenStyle.Render(glyphs.Filled))
 		case d.IsToday && d.Active != nil:

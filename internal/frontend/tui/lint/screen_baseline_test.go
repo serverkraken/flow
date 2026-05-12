@@ -26,8 +26,8 @@ import (
 // the same commit so the next PR can't regress past the new floor.
 var screenBaseline = map[string]int{
 	"cheatsheet/model.go":          0,
-	"palette/model.go":             0,
-	"palette/render.go":            8,
+	"palette/model.go":             5, // round4: per-Model paletteStyles cache (constructor) — replaces 4 inline NewStyles in renderRow
+	"palette/render.go":            0,
 	"projects/model.go":            1,
 	"worktime/dayoffs.go":          5,
 	"worktime/helpers.go":          2, // shared bases: NewStyle().Width(8) + NewStyle().Bold(true)
@@ -43,7 +43,7 @@ var screenBaseline = map[string]int{
 	"worktime/today.go":            0,
 	"worktime/today_dialog.go":     1,
 	"worktime/today_render.go":     0,
-	"worktime/week.go":             11,
+	"worktime/week.go":             15, // round4: per-Model wocheStyles cache (constructor) — replaces 4-7 inline NewStyles in render loop
 }
 
 // TestScreenInlineNewStyleBudget walks the internal/frontend/tui/screen

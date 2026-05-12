@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
@@ -97,6 +98,12 @@ type SwitchScreenMsg struct {
 var gotoScreenRe = regexp.MustCompile(`flow/goto\.sh\s+(\w+)`)
 
 // Model is the bubbletea model for the palette screen.
+//
+// styles is the palette-bound style cache. Built once at New().
+// Round4: the render hot-path (renderRow) used to allocate 4
+// lipgloss.Style per visible row per frame; on a typical 20-row
+// palette with 60 fps redraw that came to 240 Style-allocations
+// per keystroke. Cache makes them per-Model, not per-frame.
 type Model struct {
 	all        []domain.PaletteEntry
 	visible    []domain.PaletteEntry
@@ -105,6 +112,7 @@ type Model struct {
 	offset     int
 	filter     textinput.Model
 	pal        theme.Palette
+	styles     paletteStyles
 	width      int
 	height     int
 	err        error
@@ -121,6 +129,34 @@ type Model struct {
 	tmux   ports.Tmux
 
 	mode Mode
+}
+
+// paletteStyles caches the lipgloss styles that depend only on the
+// palette — i.e. don't vary per row or per frame. Build once at New(),
+// reuse on every render.
+type paletteStyles struct {
+	label    lipgloss.Style
+	labelSel lipgloss.Style
+	match    lipgloss.Style
+	matchSel lipgloss.Style
+	hint     lipgloss.Style // FgMuted — shared by row hint, renderPreview text, renderEmptyState dim
+	bar      lipgloss.Style // styles the AccentBarRune for the selected row, also renderPreview arrow
+	border   lipgloss.Style // Sem().Border — separator line + preview arrow
+}
+
+func newPaletteStyles(p theme.Palette) paletteStyles {
+	accent := p.Sem().Accent
+	label := lipgloss.NewStyle().Foreground(p.Fg)
+	match := lipgloss.NewStyle().Foreground(accent).Bold(true)
+	return paletteStyles{
+		label:    label,
+		labelSel: label.Bold(true).Underline(true),
+		match:    match,
+		matchSel: match.Underline(true),
+		hint:     lipgloss.NewStyle().Foreground(p.FgMuted),
+		bar:      lipgloss.NewStyle().Foreground(accent),
+		border:   lipgloss.NewStyle().Foreground(p.Sem().Border),
+	}
 }
 
 // Option mutates a Model after New(). Mit dem Pattern bleibt die
@@ -140,6 +176,7 @@ func New(p theme.Palette, reader *usecase.PaletteReader, writer *usecase.Palette
 	ti := form.NewTextInput("filter…", p)
 	m := Model{
 		pal:     p,
+		styles:  newPaletteStyles(p),
 		filter:  ti,
 		loading: true,
 		reader:  reader,

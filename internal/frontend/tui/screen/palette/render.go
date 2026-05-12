@@ -36,8 +36,7 @@ func (m Model) View() string {
 		prompt = theme.Heading("▶ ", m.pal)
 	}
 	rows = append(rows, prompt+m.filter.View())
-	rows = append(rows, lipgloss.NewStyle().Foreground(m.pal.Sem().Border).
-		Render(strings.Repeat("─", inner)))
+	rows = append(rows, m.styles.border.Render(strings.Repeat("─", inner)))
 
 	switch {
 	case m.loading:
@@ -78,9 +77,7 @@ func (m Model) renderPreview(maxWidth int) string {
 	// path used `runes[:available-1]` which trimmed by rune-count and
 	// blew the row width whenever the action contained wide runes.
 	action = uistrings.Truncate(action, available)
-	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Border)
-	textStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
-	return "  " + arrowStyle.Render(glyphs.Active) + " " + textStyle.Render(action)
+	return "  " + m.styles.border.Render(glyphs.Active) + " " + m.styles.hint.Render(action)
 }
 
 func (m Model) title() string {
@@ -97,7 +94,7 @@ func (m Model) title() string {
 }
 
 func (m Model) renderEmptyState() []string {
-	dim := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
+	dim := m.styles.hint
 	if m.filter.Value() != "" {
 		return []string{
 			"",
@@ -169,15 +166,16 @@ func (m Model) renderEntries(innerWidth int) []string {
 // fuzzy-match emphasis — picker.Row applies a single foreground style
 // across the whole label and would overwrite our inline accent codes.
 func (m Model) renderRow(selected bool, label string, highlight []int, hint string, width int) string {
+	// Pre-built palette styles from m.styles — no NewStyle() allocation
+	// in this hot path (renderRow runs per visible row per frame).
 	bar := " "
-	labelStyle := lipgloss.NewStyle().Foreground(m.pal.Fg)
-	matchStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Bold(true)
+	labelStyle := m.styles.label
+	matchStyle := m.styles.match
 	if selected {
-		bar = lipgloss.NewStyle().Foreground(m.pal.Sem().Accent).Render(picker.AccentBarRune)
-		labelStyle = labelStyle.Bold(true).Underline(true)
-		matchStyle = matchStyle.Underline(true)
+		bar = m.styles.bar.Render(picker.AccentBarRune)
+		labelStyle = m.styles.labelSel
+		matchStyle = m.styles.matchSel
 	}
-	hintStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 
 	hi := make(map[int]bool, len(highlight))
 	for _, idx := range highlight {
@@ -198,5 +196,5 @@ func (m Model) renderRow(selected bool, label string, highlight []int, hint stri
 	if gap < 1 {
 		gap = 1
 	}
-	return bar + " " + rendered + strings.Repeat(" ", gap) + hintStyle.Render(hint)
+	return bar + " " + rendered + strings.Repeat(" ", gap) + m.styles.hint.Render(hint)
 }
