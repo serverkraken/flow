@@ -9,7 +9,10 @@ func (m Model) SetSize(w, h int) Model {
 	return m.rerender()
 }
 
-// SetTitle replaces the title shown in the chrome.
+// SetTitle replaces the title shown in the chrome. Does NOT rerender
+// (asymmetric to SetSource): the title is read live from cfg.title by
+// the chrome on every View(), so the next paint picks up the change
+// without re-flowing the body.
 func (m Model) SetTitle(title string) Model {
 	m.cfg.title = title
 	return m

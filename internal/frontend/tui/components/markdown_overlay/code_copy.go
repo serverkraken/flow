@@ -80,6 +80,9 @@ func isClosingFence(line, openFence string) bool {
 	if len(trimmed) < len(openFence) {
 		return false
 	}
+	// Fence runs are homogeneous (all backticks OR all tildes), so
+	// comparing each position against openFence[0] is equivalent to
+	// comparing against openFence[i].
 	for i := 0; i < len(openFence); i++ {
 		if trimmed[i] != openFence[0] {
 			return false
