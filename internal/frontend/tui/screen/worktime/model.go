@@ -443,6 +443,16 @@ func (m Model) View() string {
 	if m.menu.Active() {
 		body = m.menu.View()
 	} else {
+		// Sub-Models, die einen markdown_overlay als Vollbild rendern
+		// (heute `o`, history-drill `o`), bringen ihr eigenes
+		// rounded-border-Chrome mit. titlebox.Render würde das in
+		// │…│-Pipes wrappen und den rechten Frame-Strich an width-2
+		// abschneiden — Doppel-Border + clipping. fullScreener-Opt-In
+		// laesst die Sub-Model-View hier direkt durch (analog brief am
+		// Worktime-Root oben).
+		if fs, ok := m.subs[m.current].(fullScreener); ok && fs.FullScreen() {
+			return m.subs[m.current].View()
+		}
 		body = m.subs[m.current].View()
 		if body == "" {
 			body = theme.Dim("  (lädt …)", m.pal)
@@ -537,6 +547,15 @@ type cursorStater interface {
 // visible to the user. Returning false drops to the slow tick.
 type fastTicker interface {
 	FastTick(now time.Time) bool
+}
+
+// fullScreener lets a sub-model claim the full worktime render slot,
+// bypassing the titlebox-+-tab-strip wrapping. Used by inline overlays
+// that bring their own border chrome (markdown_overlay-based viewers).
+// Without this opt-in, titlebox would nest the overlay inside its own
+// │…│ pipes and clip the right border at width-2.
+type fullScreener interface {
+	FullScreen() bool
 }
 
 // textInputActiver lets a sub-model report whether a textinput.Model is

@@ -180,6 +180,12 @@ func newHistory(p theme.Palette, deps Deps) history {
 
 func (h history) FilterActive() bool { return h.dialog != historyDialogNone }
 
+// FullScreen reports whether the worktime root should skip its titlebox
+// wrap. True nur fuer den Drill-Note-Viewer (`o` im Drill) — gleicher
+// Grund wie heute.FullScreen: markdown_overlay bringt eigenes Chrome
+// mit, ein zweiter Wrapper produziert Doppelborder + Clipping.
+func (h history) FullScreen() bool { return h.dialog == historyDialogDrillNoteView }
+
 // TextInputActive reports whether History's current dialog has a
 // textinput focused — the filter expression, the drill-edit form, the
 // drill-add form, or the drill note-attach picker. The drill-delete

@@ -1185,6 +1185,70 @@ func TestE2E_StartStopTagAppendsLog(t *testing.T) {
 	}
 }
 
+// TestHeute_NoteView_FullScreen_BypassesTitlebox pinst den Render-Bug
+// aus Round-5b: der `o`-Inline-Viewer rendert ein markdown_overlay mit
+// eigenem Frame (rounded border, title, footer, status bar). Der
+// worktime-Root packte das vorher in titlebox.Render — Doppel-Border,
+// rechte Frame-Spalte abgeschnitten, Tab-Strip oben sichtbar trotz
+// Vollbild-Overlay. Der Fix lässt heute via FullScreen() opt-in, dass
+// die Sub-Model-View direkt zurueckgegeben wird (analog brief am Root).
+func TestHeute_NoteView_FullScreen_BypassesTitlebox(t *testing.T) {
+	r := newRig(t)
+	r.noteReader.Bodies["daily-2026-05-01"] = "# Daily\n\nhello"
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m = drainCmd(t, m, cmd)
+	out := m.View()
+	firstLine := out
+	if i := strings.Index(out, "\n"); i >= 0 {
+		firstLine = out[:i]
+	}
+	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+		if strings.Contains(firstLine, label) {
+			t.Errorf("Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
+				label, firstLine)
+		}
+	}
+	if !strings.Contains(out, "Note · daily-2026-05-01") {
+		t.Errorf("Note-Title sollte sichtbar bleiben, got:\n%s", out)
+	}
+}
+
+// TestHistory_DrillNoteView_FullScreen_BypassesTitlebox spiegelt den
+// Heute-Fall fuer den History-Drill-Viewer (`o` im Drill).
+func TestHistory_DrillNoteView_FullScreen_BypassesTitlebox(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	preID := "notes/full-screen-check"
+	if err := r.links.Add(wed, preID); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = drainCmd(t, m, cmd)
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m = drainCmd(t, m, cmd)
+	out := m.View()
+	firstLine := out
+	if i := strings.Index(out, "\n"); i >= 0 {
+		firstLine = out[:i]
+	}
+	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+		if strings.Contains(firstLine, label) {
+			t.Errorf("Drill-Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
+				label, firstLine)
+		}
+	}
+	if !strings.Contains(out, "Note · "+preID) {
+		t.Errorf("Note-Title sollte sichtbar bleiben, got:\n%s", out)
+	}
+}
+
 // — small test helpers —
 
 type errFake string

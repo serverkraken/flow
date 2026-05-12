@@ -133,6 +133,12 @@ func newHeute(p theme.Palette, deps Deps) heute {
 // while a dialog input is taking text.
 func (h heute) FilterActive() bool { return h.dialog != heuteDialogNone }
 
+// FullScreen reports whether the worktime root should skip its titlebox
+// + tab-strip wrap. True only while the inline note viewer is active —
+// das markdown_overlay bringt eigenes rounded-border-Chrome mit, ein
+// zweiter Wrapper ergaebe Doppelborder + rechte Spalte clipped.
+func (h heute) FullScreen() bool { return h.dialog == heuteDialogNoteView }
+
 // TextInputActive reports whether one of Heute's text-bearing dialogs
 // (tag / note / edit form / kompendium-attach) is currently the focused
 // surface. Lets the worktime root treat 'q' as a literal letter in
