@@ -491,3 +491,23 @@ func TestBuildPaceDots_AllMissedReturnsEmpty(t *testing.T) {
 		t.Errorf("all-missed week should yield empty, got %q", got)
 	}
 }
+
+func TestKindStatusColor_PerKind(t *testing.T) {
+	p := pal()
+	tests := []struct {
+		kind domain.Kind
+		want string
+	}{
+		{domain.KindHoliday, p.Cyan},
+		{domain.KindVacation, p.Green},
+		{domain.KindSick, p.Yellow},
+		{domain.Kind("unknown"), p.Dim},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.kind), func(t *testing.T) {
+			if got := domain.KindStatusColor(tc.kind, p); got != tc.want {
+				t.Errorf("KindStatusColor(%q) = %q, want %q", tc.kind, got, tc.want)
+			}
+		})
+	}
+}

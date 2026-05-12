@@ -36,7 +36,8 @@ type StatusInputs struct {
 	Streak   int                 // current workday streak; rendered when ≥ 3
 	Burndown MonthBurndownReport // monthly saldo light
 	// LookupDayOff returns the dayoff entry for a given date, used by the
-	// pace dots to render free days as ★/☼/✚ instead of a missed-target ○.
+	// pace dots and banner to render free days as ○ in per-kind colour
+	// (Cyan/Green/Yellow via KindStatusColor) instead of a missed-target dim ○.
 	LookupDayOff func(time.Time) (DayOff, bool)
 	Palette      StatusPalette
 	// MaxStreakMin is the active-session threshold (yellow at MaxStreakMin,
@@ -265,4 +266,21 @@ func dotDayOffGlyph(k Kind) string {
 		return "✚"
 	}
 	return "○"
+}
+
+// KindStatusColor mappt Kind auf die tmux-StatusPalette. Holiday → Cyan
+// (Info), Vacation → Green (Success), Sick → Yellow (der "Yellow"-Slot
+// der StatusPalette wird via StatusPaletteFor mit Sem.Warning gefüttert
+// und rendert damit denselben Orange-Hex wie die TUI). Unknown → Dim.
+// Spec: docs/superpowers/specs/2026-05-12-unified-dayoff-glyphs-design.md
+func KindStatusColor(k Kind, pal StatusPalette) string {
+	switch k {
+	case KindHoliday:
+		return pal.Cyan
+	case KindVacation:
+		return pal.Green
+	case KindSick:
+		return pal.Yellow
+	}
+	return pal.Dim
 }
