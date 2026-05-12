@@ -11,8 +11,8 @@ import (
 func TestSync_HappyPath(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	env.remote.url = "git@github.com:foo/bar.git"
-	env.remote.stats = ports.SyncStats{Pulled: true, Pushed: true}
+	env.remote.URL = "git@github.com:foo/bar.git"
+	env.remote.Stats = ports.SyncStats{Pulled: true, Pushed: true}
 
 	stdout, _, err := runCmd(t, env.deps, "sync")
 	if err != nil {
@@ -26,7 +26,7 @@ func TestSync_HappyPath(t *testing.T) {
 func TestSync_NoRemoteHint(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	env.remote.syncErr = ports.ErrNoRemoteConfigured
+	env.remote.SyncErr = ports.ErrNoRemoteConfigured
 
 	_, _, err := runCmd(t, env.deps, "sync")
 	if err == nil {
@@ -41,8 +41,8 @@ func TestSync_PullSucceededPushFailed(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
 	forced := errors.New("forced push error")
-	env.remote.stats = ports.SyncStats{Pulled: true}
-	env.remote.syncErr = forced
+	env.remote.Stats = ports.SyncStats{Pulled: true}
+	env.remote.SyncErr = forced
 
 	_, _, err := runCmd(t, env.deps, "sync")
 	if err == nil {
@@ -53,7 +53,7 @@ func TestSync_PullSucceededPushFailed(t *testing.T) {
 func TestRemote_PrintsNoneWhenUnset(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	env.remote.getErr = ports.ErrNoRemoteConfigured
+	env.remote.GetErr = ports.ErrNoRemoteConfigured
 
 	stdout, _, err := runCmd(t, env.deps, "remote")
 	if err != nil {
@@ -67,7 +67,7 @@ func TestRemote_PrintsNoneWhenUnset(t *testing.T) {
 func TestRemote_PrintsURL(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	env.remote.url = "git@github.com:foo/bar.git"
+	env.remote.URL = "git@github.com:foo/bar.git"
 
 	stdout, _, err := runCmd(t, env.deps, "remote")
 	if err != nil {
@@ -89,8 +89,8 @@ func TestRemote_Set(t *testing.T) {
 	if !strings.Contains(stdout, "https://example.test/notes.git") {
 		t.Errorf("missing URL in confirmation, got %q", stdout)
 	}
-	if env.remote.setURL != "https://example.test/notes.git" {
-		t.Errorf("SetRemote not called with right URL, got %q", env.remote.setURL)
+	if env.remote.SetURL != "https://example.test/notes.git" {
+		t.Errorf("SetRemote not called with right URL, got %q", env.remote.SetURL)
 	}
 }
 

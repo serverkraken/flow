@@ -141,3 +141,42 @@ func TestSyncDir_MissingDir(t *testing.T) {
 		t.Error("expected error for missing dir")
 	}
 }
+
+// TestSyncDir_Success pins the happy path: a real directory fsyncs
+// without error. The other tests exercise SyncDir transitively via
+// WriteFile but never assert it directly — without this, regressing
+// SyncDir to a no-op or silent-error would only fail the durability
+// invariant after a crash.
+func TestSyncDir_Success(t *testing.T) {
+	if err := SyncDir(t.TempDir()); err != nil {
+		t.Errorf("SyncDir on a real directory should succeed, got %v", err)
+	}
+}
+
+// TestAppend_ParentMissing pins the early-error path: the O_CREATE
+// probe at the top of Append fails when the parent directory does not
+// exist, and the function must propagate that error before opening
+// the file for append. Pre-fix this branch was uncovered (review
+// finding TEST-11 — atomicfile.Append error paths).
+func TestAppend_ParentMissing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "missing-subdir", "log.tsv")
+	if err := Append(path, []byte("x"), 0o644); err == nil {
+		t.Fatal("expected error when parent dir is missing")
+	}
+}
+
+// TestAppend_PathIsDirectory exercises the second OpenFile (O_APPEND)
+// error path: when the target path is a directory, the probe fails
+// with IsExist (so Append continues) but the append-mode reopen then
+// fails with EISDIR. Without this test the error-return branch at the
+// "OpenFile O_APPEND" call site is uncovered.
+func TestAppend_PathIsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "x"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := Append(filepath.Join(dir, "x"), []byte("payload\n"), 0o644); err == nil {
+		t.Fatal("expected error when path is a directory")
+	}
+}

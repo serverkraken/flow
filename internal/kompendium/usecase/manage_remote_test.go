@@ -28,15 +28,15 @@ func TestManageRemote_SetRejectsDangerousSchemes(t *testing.T) {
 	for _, url := range cases {
 		t.Run(url, func(t *testing.T) {
 			t.Parallel()
-			rem := &fakeRemote{}
+			rem := &testutil.FakeNotebookRemote{}
 			u := usecase.NewManageRemote(testutil.NewFakeNoteStore(), rem)
 
 			_, err := u.Set(context.Background(), usecase.SetInput{URL: url})
 			if !errors.Is(err, usecase.ErrRemoteURLScheme) {
 				t.Fatalf("URL %q: got %v, want ErrRemoteURLScheme", url, err)
 			}
-			if rem.setURL != "" {
-				t.Errorf("SetRemote must not be called for rejected URL (saw %q)", rem.setURL)
+			if rem.SetURL != "" {
+				t.Errorf("SetRemote must not be called for rejected URL (saw %q)", rem.SetURL)
 			}
 		})
 	}
@@ -58,15 +58,15 @@ func TestManageRemote_SetAcceptsStandardSchemes(t *testing.T) {
 	for _, url := range cases {
 		t.Run(url, func(t *testing.T) {
 			t.Parallel()
-			rem := &fakeRemote{}
+			rem := &testutil.FakeNotebookRemote{}
 			u := usecase.NewManageRemote(testutil.NewFakeNoteStore(), rem)
 
 			out, err := u.Set(context.Background(), usecase.SetInput{URL: url})
 			if err != nil {
 				t.Fatalf("URL %q: %v", url, err)
 			}
-			if out.URL != url || rem.setURL != url {
-				t.Errorf("URL not propagated: out=%q remote=%q", out.URL, rem.setURL)
+			if out.URL != url || rem.SetURL != url {
+				t.Errorf("URL not propagated: out=%q remote=%q", out.URL, rem.SetURL)
 			}
 		})
 	}

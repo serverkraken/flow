@@ -2,13 +2,11 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/cli"
-	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -24,7 +22,7 @@ type testEnv struct {
 	tar    *testutil.FakeTarSnapshot
 	bundle *testutil.FakeNotebookBundle
 	legacy *testutil.FakeLegacySource
-	remote *fakeRemote
+	remote *testutil.FakeNotebookRemote
 	deps   cli.Deps
 }
 
@@ -38,7 +36,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	tar := &testutil.FakeTarSnapshot{}
 	bundle := &testutil.FakeNotebookBundle{}
 	legacy := &testutil.FakeLegacySource{}
-	remote := &fakeRemote{}
+	remote := &testutil.FakeNotebookRemote{}
 	clock := testutil.FixedClock{Time: time.Date(2026, 4, 25, 0, 0, 0, 0, time.UTC)}
 
 	return &testEnv{
@@ -78,36 +76,6 @@ func newTestEnv(t *testing.T) *testEnv {
 		},
 	}
 }
-
-// fakeRemote is the in-test ports.NotebookRemote driving CLI tests for
-// `kompendium sync` / `kompendium remote`. Lives here so it doesn't get
-// confused with the production gitsnapshot.Manager.
-type fakeRemote struct {
-	url     string
-	getErr  error
-	setURL  string
-	setErr  error
-	stats   ports.SyncStats
-	syncErr error
-}
-
-func (f *fakeRemote) GetRemote(_ context.Context, _ string) (string, error) {
-	if f.getErr != nil {
-		return "", f.getErr
-	}
-	return f.url, nil
-}
-
-func (f *fakeRemote) SetRemote(_ context.Context, _, url string) error {
-	f.setURL = url
-	return f.setErr
-}
-
-func (f *fakeRemote) Sync(_ context.Context, _ string) (ports.SyncStats, error) {
-	return f.stats, f.syncErr
-}
-
-var _ ports.NotebookRemote = (*fakeRemote)(nil)
 
 func runCmd(t *testing.T, deps cli.Deps, args ...string) (stdout, stderr string, err error) {
 	t.Helper()

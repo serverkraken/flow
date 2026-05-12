@@ -106,6 +106,28 @@ func TestPager_RejectsViewerWithShellMetacharacters(t *testing.T) {
 	}
 }
 
+// TestPager_TempFileCreateError pins the previously-uncovered branch
+// where os.CreateTemp fails (no writable temp dir). Build the Targets
+// against a real t.TempDir() first, THEN flip TMPDIR to a non-existent
+// path so the subsequent CreateTemp inside Pager fails without
+// breaking the test harness's own temp-dir handling. Review finding
+// TEST-14 (Pager error paths).
+func TestPager_TempFileCreateError(t *testing.T) {
+	tmux := &testutil.FakeTmux{}
+	tg := output.New(t.TempDir(), tmux)
+	t.Setenv("TMPDIR", "/this/path/does/not/exist/zzz")
+	err := tg.Pager("payload", "less", "txt")
+	if err == nil {
+		t.Fatal("expected error when TMPDIR is unwritable")
+	}
+	if !strings.Contains(err.Error(), "temp-file") {
+		t.Errorf("error should mention temp-file, got %v", err)
+	}
+	if len(tmux.Splits) != 0 {
+		t.Errorf("no tmux split must fire when temp-file create fails (got %v)", tmux.Splits)
+	}
+}
+
 func TestPager_PropagatesTmuxSplitError(t *testing.T) {
 	want := errors.New("split-window failed")
 	tmux := &testutil.FakeTmux{SplitErr: want}
