@@ -91,6 +91,16 @@ func TestGolden(t *testing.T) {
 			},
 		},
 		{
+			name: "long_title_truncates",
+			build: func() markdown_overlay.Model {
+				return markdown_overlay.New(
+					func(_ string, _ int) string { return "body" },
+					markdown_overlay.WithTitle("eine-sehr-lange-kompendium-note-die-in-einem-schmalen-pane-nicht-passt"),
+					markdown_overlay.WithSource("x"),
+				).SetSize(40, 10)
+			},
+		},
+		{
 			name: "code_copy_status",
 			build: func() markdown_overlay.Model {
 				body := "intro\n```sh\necho a\n```\n"

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // renderChrome assembles the frame around the body: title row,
@@ -15,7 +16,11 @@ func (m Model) renderChrome() string {
 	if lineW < 1 {
 		lineW = 1
 	}
-	title := titleStyle.Render(m.cfg.title)
+	// Truncate the title before styling: a 200-cell kompendium-note
+	// title blew past the frame width on a narrow tmux pane, breaking
+	// the rounded border. ansi.Truncate is grapheme-aware so wide
+	// characters / OSC sequences in a title survive correctly.
+	title := titleStyle.Render(ansi.Truncate(m.cfg.title, lineW, "…"))
 	sep := separatorStyle.Render(strings.Repeat("─", lineW))
 	body := m.bodyView()
 	footer := m.renderFooter()
@@ -35,7 +40,10 @@ func (m Model) renderChrome() string {
 // renderFooter assembles the footer hint row. In ModeSearch the
 // row hosts the live textinput + Enter/Esc hints. In ModeNormal it
 // lists the available scroll + close keys, plus a search hint when
-// the feature is enabled.
+// the feature is enabled. Below ~30-cell widths the row would wrap
+// onto multiple lines and push the status bar past the chrome budget,
+// floating the bottom border; renderFooter degrades the separator and
+// drops optional hints before that happens.
 func (m Model) renderFooter() string {
 	if m.mode == ModeSearch {
 		view := m.search.View()
@@ -45,20 +53,46 @@ func (m Model) renderFooter() string {
 		return searchActiveLabelStyle.Render("Suche:") + " " + view +
 			"   " + footerStyle.Render("Enter → übernehmen  ·  Esc → abbrechen")
 	}
-	parts := []string{footerStyle.Render("j/k → scrollen")}
+	lineW := m.width - contentLineBudget
+	if lineW < 1 {
+		lineW = 1
+	}
+	scrollHint := footerStyle.Render("j/k → scrollen")
+	closeHint := footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/")) +
+		footerStyle.Render(" → zurück")
+
+	// Optional hints in priority order (search → code-copy → host extras).
+	// Dropped from the right when widths tighten so the host-supplied
+	// extras (typically context-specific) survive longest.
+	var optional []string
 	if m.cfg.enableSearch {
-		parts = append(parts, footerKeyStyle.Render("/")+footerStyle.Render(" → suchen"))
+		optional = append(optional, footerKeyStyle.Render("/")+footerStyle.Render(" → suchen"))
 	}
 	if m.cfg.enableCodeCopy {
-		parts = append(parts, footerKeyStyle.Render("c")+footerStyle.Render(" → Code kopieren"))
+		optional = append(optional, footerKeyStyle.Render("c")+footerStyle.Render(" → Code kopieren"))
 	}
 	for _, x := range m.cfg.footerExtras {
-		parts = append(parts, footerStyle.Render(x))
+		optional = append(optional, footerStyle.Render(x))
 	}
-	parts = append(parts,
-		footerKeyStyle.Render(strings.Join(m.cfg.closeKeys, "/"))+
-			footerStyle.Render(" → zurück"))
-	return strings.Join(parts, "  ·  ")
+
+	// Progressive degrade: prefer wider separators (more visual breathing
+	// room) before dropping optional hints — at most widths the user is
+	// better served by a denser row that keeps every affordance visible.
+	// For each separator try the full hint set first, then drop one
+	// optional hint at a time from the right until the row fits.
+	for _, sep := range []string{"  ·  ", " · ", " "} {
+		for n := len(optional); n >= 0; n-- {
+			parts := append([]string{scrollHint}, optional[:n]...)
+			parts = append(parts, closeHint)
+			joined := strings.Join(parts, sep)
+			if lipgloss.Width(joined) <= lineW {
+				return joined
+			}
+		}
+	}
+	// Pane too narrow even for scroll + close on one line — truncate so
+	// the row stays a single line and the status bar keeps its slot.
+	return ansi.Truncate(scrollHint+" "+closeHint, lineW, "…")
 }
 
 // renderStatusBar produces the bottom row: optional mode badge on the
@@ -78,8 +112,16 @@ func (m Model) renderStatusBar() string {
 	if title == "" {
 		title = "—"
 	}
-	pathSegment := statusBarPathStyle.Render(" " + title + " ")
+	// Title in the bottom status bar shares the line with the mode
+	// badge and the right-aligned counter — clamp it to whatever
+	// horizontal budget is left so a long title never pushes the
+	// counter into the next line.
 	right := m.statusBarRight()
+	titleBudget := innerW - lipgloss.Width(mode) - lipgloss.Width(right) - 2
+	if titleBudget < 1 {
+		titleBudget = 1
+	}
+	pathSegment := statusBarPathStyle.Render(" " + ansi.Truncate(title, titleBudget, "…") + " ")
 	gap := innerW - lipgloss.Width(mode) - lipgloss.Width(pathSegment) - lipgloss.Width(right)
 	if gap < 0 {
 		gap = 0
