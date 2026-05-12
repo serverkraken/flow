@@ -282,18 +282,8 @@ func TestMonthClampDay(t *testing.T) {
 }
 
 func TestDayOffHeatmapGlyph(t *testing.T) {
-	cases := map[domain.Kind]string{
-		domain.KindHoliday:  " ★ ",
-		domain.KindVacation: " ☼ ",
-		domain.KindSick:     " ✚ ",
-		domain.Kind(""):     " · ",
-		domain.Kind("foo"):  " · ",
-	}
-	for k, want := range cases {
-		if got := dayOffHeatmapGlyph(k); got != want {
-			t.Errorf("dayOffHeatmapGlyph(%q) = %q, want %q", k, got, want)
-		}
-	}
+	// TODO(T8): dayOffHeatmapGlyph removed in T7; delete this test in T8.
+	t.Skip("dayOffHeatmapGlyph removed in T7; test deleted in T8")
 }
 
 func TestTagClockCellGlyph_Levels(t *testing.T) {

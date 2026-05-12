@@ -81,9 +81,9 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	}
 	if dayOff, isOff := h.deps.DayOffStore.Lookup(day); isOff {
 		if !hasRec || rec.Target == 0 {
-			cell = dayOffHeatmapGlyph(dayOff.Kind)
+			cell = " " + glyphs.Empty + " "
 		}
-		color = h.pal.Sem().Info
+		color = kindColor(h.pal, dayOff.Kind)
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(color)
 	isCursor := w == h.heatCol && d == h.heatRow
@@ -139,7 +139,9 @@ func (h history) renderHeatmapLegend(inner int) string {
 		stDim(h.pal, "▓ <100%"),
 		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
-		lipgloss.NewStyle().Foreground(sem.Info).Render(glyphs.Holiday + "/" + glyphs.Vacation + "/" + glyphs.Extra + " frei"),
+		lipgloss.NewStyle().Foreground(sem.Info).Render(glyphs.Empty + " Feiertag"),
+		lipgloss.NewStyle().Foreground(sem.Success).Render(glyphs.Empty + " Urlaub"),
+		lipgloss.NewStyle().Foreground(sem.Warning).Render(glyphs.Empty + " Krank"),
 		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
 		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
 		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —
@@ -167,14 +169,6 @@ func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss
 		return " ░ ", sem.Warning
 	}
 	return " · ", pal.BgCode
-}
-
-// dayOffHeatmapGlyph wraps dayOffGlyph mit den Heatmap-Cell-Spaces
-// (jede Heat-Zelle ist 3 Char breit). Zentralisierter Single-Cell-
-// Glyph kommt aus helpers.dayOffGlyph; die Spaces bleiben hier, weil
-// nur die Heatmap pro Cell-Position drei Chars verlangt.
-func dayOffHeatmapGlyph(k domain.Kind) string {
-	return " " + dayOffGlyph(k) + " "
 }
 
 // — heatmap bounds + cursor helpers —
