@@ -25,9 +25,12 @@ type Tmux interface {
 	SwitchClient(name string) error
 	// SplitWindowH spawns a horizontal split running `cmd args...`.
 	SplitWindowH(cmd string, args ...string) error
-	// RunShell schedules a shell command via `tmux run-shell -b` so the
-	// caller (typically a TUI process) can return immediately while tmux
-	// runs the action in the background. Used by the palette screen to
-	// dispatch user-selected actions.
-	RunShell(cmd string) error
+	// RunTmuxAction backgrounds a tmux subcommand (the action argument is
+	// a tmux subcommand string, e.g. "source-file ~/.tmux.conf" or
+	// "display-popup -E 'flow today'"). The adapter wraps it as
+	// `tmux run-shell -b "tmux <action>"` so the caller (typically a TUI
+	// process) returns immediately while tmux executes in the background.
+	// The wrapping is the adapter's responsibility — callers MUST pass
+	// the action without a leading "tmux " prefix.
+	RunTmuxAction(action string) error
 }

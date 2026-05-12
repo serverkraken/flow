@@ -196,6 +196,35 @@ func TestBuildStatusSegment_ETAWhenRunningBelowTarget(t *testing.T) {
 	}
 }
 
+// TestBuildStatusSegment_ETACrossesMidnight pins the midnight-clamp on the
+// ETA computation: when Active is yesterday (session ran across midnight
+// without manual stop), elapsed clamps to today's midnight — and so must
+// the ETA, otherwise the segment renders "→06:00" for a 06:00 already in
+// the past.
+func TestBuildStatusSegment_ETACrossesMidnight(t *testing.T) {
+	now := time.Date(2026, 4, 29, 6, 30, 0, 0, time.Local)
+	// Session started yesterday at 22:00 — Active is unclamped.
+	start := time.Date(2026, 4, 28, 22, 0, 0, 0, time.Local)
+	target := 8 * time.Hour
+	in := domain.StatusInputs{
+		Now: now,
+		Day: domain.Day{
+			Logged: 0, Active: &start, Target: target,
+		},
+		Target:       target,
+		Palette:      pal(),
+		LookupDayOff: noLookup,
+	}
+	got := domain.BuildStatusSegment(in)
+	// Clamped start = today 00:00; etaT = 00:00 + 8h = today 08:00.
+	if !strings.Contains(got, "→08:00") {
+		t.Errorf("ETA should clamp to today's midnight (→08:00), got: %q", got)
+	}
+	if strings.Contains(got, "→06:00") {
+		t.Errorf("ETA must not regress to unclamped yesterday-22:00 + 8h = 06:00: %q", got)
+	}
+}
+
 func TestBuildStatusSegment_DayOffBanner(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
 	dayOff := &domain.DayOff{Date: now, Kind: domain.KindHoliday, Label: "Tag der Arbeit"}

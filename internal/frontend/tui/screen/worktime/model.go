@@ -285,13 +285,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case markdown_overlay.ExitMsg:
-		// Schließsignal aus dem brief- ODER note-Overlay. Hier nur die
-		// brief-Seite; der note-Overlay sitzt im heute-Submodel und
-		// behandelt das Signal lokal in today.go.
+		// Schließsignal aus dem brief- ODER note-Overlay. brief sitzt
+		// am Worktime-Root (m.brief), note sitzt im heute-Submodel.
+		// Wenn brief offen ist, hier konsumieren; sonst ausschließlich
+		// ans aktuelle Sub-Model routen (das ist heute, wenn das
+		// note-Overlay aktiv war). Vorher fiel die Msg in den
+		// generischen Fan-Out durch und alle 4 Sub-Models bekamen sie —
+		// drei davon haben sie stillschweigend gedroppt.
 		if m.brief != nil {
 			m.brief = nil
 			return m, nil
 		}
+		updated, cmd := m.subs[m.current].Update(msg)
+		m.subs[m.current] = updated
+		return m, cmd
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height

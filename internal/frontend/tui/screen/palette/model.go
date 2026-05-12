@@ -39,7 +39,7 @@ type loadedMsg struct {
 // returned tea.Quit; that killed flow's process and made the surrounding
 // sidekick pane flicker on every action.
 //
-// err is non-nil when RunShell or the persist call failed. The view
+// err is non-nil when RunTmuxAction or the persist call failed. The view
 // surfaces it as a danger toast so the user knows the action did NOT
 // take effect — silent failures previously left the user thinking the
 // pin / mark / dispatch had succeeded.

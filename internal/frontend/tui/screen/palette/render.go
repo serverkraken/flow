@@ -74,12 +74,10 @@ func (m Model) renderPreview(maxWidth int) string {
 	if available < 8 {
 		return ""
 	}
-	if lipgloss.Width(action) > available {
-		runes := []rune(action)
-		if available-1 < len(runes) {
-			action = string(runes[:available-1]) + "…"
-		}
-	}
+	// Width-aware truncate (CJK/wide-emoji count as 2 cells). The old
+	// path used `runes[:available-1]` which trimmed by rune-count and
+	// blew the row width whenever the action contained wide runes.
+	action = uistrings.Truncate(action, available)
 	arrowStyle := lipgloss.NewStyle().Foreground(m.pal.Sem().Border)
 	textStyle := lipgloss.NewStyle().Foreground(m.pal.FgMuted)
 	return "  " + arrowStyle.Render(glyphs.Active) + " " + textStyle.Render(action)

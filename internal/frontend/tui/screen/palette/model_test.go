@@ -90,11 +90,13 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 		t.Fatal("enter should produce a tea.Cmd")
 	}
 	msg := cmd()
-	if len(f.tmux.Shells) != 1 {
-		t.Fatalf("expected 1 RunShell call, got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 1 {
+		t.Fatalf("expected 1 RunTmuxAction call, got %d", len(f.tmux.Actions))
 	}
-	if !strings.Contains(f.tmux.Shells[0], "source-file") {
-		t.Errorf("RunShell payload should embed the action, got %q", f.tmux.Shells[0])
+	// The action must round-trip without a "tmux " prefix — the adapter
+	// owns the prefix, callers (and recorded fake-args) stay bare.
+	if got := f.tmux.Actions[0]; got != "source-file ~/.tmux.conf" {
+		t.Errorf("recorded action must equal the raw entry action without 'tmux ' prefix, got %q", got)
 	}
 	// Post-F-WAVE-1: dispatch no longer quits flow. The cmd resolves to a
 	// dispatchedMsg → palette stays open + a transient toast confirms.
@@ -137,8 +139,8 @@ func TestEnter_OnGotoActionEmitsSwitchScreenMsg(t *testing.T) {
 	if sw.Screen != "worktime" {
 		t.Errorf("SwitchScreenMsg.Screen: got %q want worktime", sw.Screen)
 	}
-	if len(f.tmux.Shells) != 0 {
-		t.Errorf("goto action must NOT call RunShell (in-process switch), got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 0 {
+		t.Errorf("goto action must NOT call RunTmuxAction (in-process switch), got %d", len(f.tmux.Actions))
 	}
 }
 
@@ -163,8 +165,8 @@ func TestEnter_OnUnknownGotoScreenFallsThroughToTmux(t *testing.T) {
 	if _, ok := msg.(palette.SwitchScreenMsg); ok {
 		t.Errorf("unknown screen %q should NOT emit SwitchScreenMsg", "nonexistent")
 	}
-	if len(f.tmux.Shells) != 1 {
-		t.Errorf("fallback path should call RunShell once, got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 1 {
+		t.Errorf("fallback path should call RunTmuxAction once, got %d", len(f.tmux.Actions))
 	}
 }
 
@@ -244,7 +246,7 @@ func TestStateRoundtrip(t *testing.T) {
 // TestStandaloneMode_GotoDispatchesAsExternal: im Standalone-Modus
 // (= `flow palette` über tmux-display-popup) emittiert die Palette
 // keine SwitchScreenMsg — auch wenn die Action das goto.sh-Pattern
-// matched. Stattdessen läuft der Action durch tm.RunShell wie jede
+// matched. Stattdessen läuft der Action durch tm.RunTmuxAction wie jede
 // andere tmux-Aktion. Damit verhält sich `flow palette` exakt wie das
 // alte palette.sh im Popup-Kontext (CLAUDE-tmux-migration-plan §3).
 func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
@@ -268,9 +270,9 @@ func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
 	if _, isSwitch := msg.(palette.SwitchScreenMsg); isSwitch {
 		t.Errorf("standalone mode must NOT emit SwitchScreenMsg, got %T", msg)
 	}
-	// FakeTmux.RunShell sollte aufgerufen worden sein.
-	if len(f.tmux.Shells) != 1 {
-		t.Errorf("standalone goto.sh must dispatch via RunShell, got %d calls", len(f.tmux.Shells))
+	// FakeTmux.RunTmuxAction sollte aufgerufen worden sein.
+	if len(f.tmux.Actions) != 1 {
+		t.Errorf("standalone goto.sh must dispatch via RunTmuxAction, got %d calls", len(f.tmux.Actions))
 	}
 }
 

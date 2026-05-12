@@ -16,8 +16,10 @@ type FakeTmux struct {
 	// Splits collects every SplitWindowH invocation as a flat string for
 	// easy comparison: "<cmd> <arg1> <arg2> …".
 	Splits []string
-	// Shells records every RunShell command for assertion.
-	Shells []string
+	// Actions records every RunTmuxAction argument for assertion. The
+	// recorded string is the action without the "tmux " prefix — the
+	// fake mirrors the port contract (caller supplies bare action).
+	Actions []string
 	// New tracks every NewSessionAt invocation as "<name>@<dir>".
 	New []string
 	// Switches tracks every SwitchClient target.
@@ -25,7 +27,7 @@ type FakeTmux struct {
 
 	RefreshErr      error
 	SplitErr        error
-	ShellErr        error
+	ActionErr       error
 	ListSessionsErr error
 	NewSessionErr   error
 	SwitchErr       error
@@ -93,7 +95,7 @@ func (f *FakeTmux) SplitWindowH(cmd string, args ...string) error {
 	return f.SplitErr
 }
 
-func (f *FakeTmux) RunShell(cmd string) error {
-	f.Shells = append(f.Shells, cmd)
-	return f.ShellErr
+func (f *FakeTmux) RunTmuxAction(action string) error {
+	f.Actions = append(f.Actions, action)
+	return f.ActionErr
 }

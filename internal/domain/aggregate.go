@@ -15,6 +15,17 @@ const (
 	ReportMonth ReportRange = 1
 )
 
+// isHit reports whether a day-record counts as a target-hit for Stats.
+// Single owner of the rule so Aggregate and AggregateRange can't drift
+// apart on edge cases (e.g. Target == 0 days). Both callers required
+// Target > 0 historically — Aggregate's branch dropped the guard and a
+// workday with explicit Target = 0 counted as a hit there but not in
+// AggregateRange. Documenting the rule here: a hit requires a positive
+// Target AND Total ≥ Target.
+func isHit(total, target time.Duration) bool {
+	return target > 0 && total >= target
+}
+
 // Aggregate computes Stats over the given DayRecords. Order doesn't matter —
 // records are sorted internally before walking. "Streak" counts back from
 // the newest workday with a session.
@@ -65,7 +76,7 @@ func Aggregate(
 		}
 		if isWorkday(r.Date) {
 			st.Workdays++
-			if r.Total >= r.Target {
+			if isHit(r.Total, r.Target) {
 				st.Hits++
 			}
 			st.Overtime += r.Total - r.Target
@@ -234,7 +245,7 @@ func walkWorkdaysForSaldo(
 		}
 		st.Workdays++
 		if rec, ok := byDate[truncDay(d)]; ok {
-			if rec.Total >= rec.Target && rec.Target > 0 {
+			if isHit(rec.Total, rec.Target) {
 				st.Hits++
 			}
 			st.Overtime += rec.Total - rec.Target

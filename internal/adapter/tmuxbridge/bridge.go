@@ -119,10 +119,15 @@ func (b *Bridge) SplitWindowH(cmd string, args ...string) error {
 	return err
 }
 
-// RunShell schedules a shell command via `tmux run-shell -b` so the
-// caller can continue immediately while tmux executes the action in the
-// background. Used by the palette dispatcher.
-func (b *Bridge) RunShell(cmd string) error {
-	_, err := b.run("tmux", "run-shell", "-b", cmd)
+// RunTmuxAction backgrounds a tmux subcommand. The action is prefixed
+// with "tmux " and dispatched via `tmux run-shell -b` so the caller can
+// continue immediately while tmux executes in the background. The
+// prefix lives here so the caller (palette dispatcher) doesn't add a
+// second "tmux " — review-round4 found the dispatch and adapter both
+// adding the prefix, producing `tmux run-shell -b "tmux …"` which is
+// still correct but redundant (three nested invocations: run-shell →
+// $SHELL -c → tmux subcommand).
+func (b *Bridge) RunTmuxAction(action string) error {
+	_, err := b.run("tmux", "run-shell", "-b", "tmux "+action)
 	return err
 }

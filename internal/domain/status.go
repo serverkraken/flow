@@ -157,7 +157,12 @@ func activeSessionParts(in StatusInputs, achieved bool) []string {
 		streakColor, glyph, int(elapsed.Hours()), int(elapsed.Minutes())%60)}
 
 	if !achieved {
-		etaT := in.Day.Active.Add(in.Target - in.Day.Logged)
+		// ETA uses the same midnight-clamped `start` as elapsed. Without
+		// the clamp a session started yesterday (Active = yesterday 22:00)
+		// would compute etaT = 22:00 + 8h = today 06:00 — a "→06:00" in
+		// the past, while the elapsed display correctly shows the
+		// midnight-clamped portion.
+		etaT := start.Add(in.Target - in.Day.Logged)
 		out = append(out, fmt.Sprintf("#[fg=%s]→%s#[default]",
 			in.Palette.Dim, etaT.Format("15:04")))
 	}

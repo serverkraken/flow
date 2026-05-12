@@ -150,8 +150,8 @@ func TestHandleNormalKey_DigitDirectDispatch(t *testing.T) {
 	if got := m.(palette.Model).StateCursor(); got != 2 {
 		t.Errorf("digit 3 should set cursor to 2 (3-1), got %d", got)
 	}
-	if len(f.tmux.Shells) != 1 {
-		t.Errorf("digit dispatch should call RunShell once, got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 1 {
+		t.Errorf("digit dispatch should call RunTmuxAction once, got %d", len(f.tmux.Actions))
 	}
 }
 
@@ -163,8 +163,8 @@ func TestHandleNormalKey_DigitOutOfRange_NoDispatch(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("digit 9 with 6 entries should not dispatch, got cmd=%v", cmd)
 	}
-	if len(f.tmux.Shells) != 0 {
-		t.Errorf("expected no RunShell calls, got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 0 {
+		t.Errorf("expected no RunTmuxAction calls, got %d", len(f.tmux.Actions))
 	}
 	_ = m
 }
@@ -230,8 +230,8 @@ func TestHandleFilterKey_EnterDispatches(t *testing.T) {
 		t.Fatal("enter from filter should dispatch")
 	}
 	_ = cmd()
-	if len(f.tmux.Shells) != 1 {
-		t.Errorf("expected 1 RunShell call, got %d", len(f.tmux.Shells))
+	if len(f.tmux.Actions) != 1 {
+		t.Errorf("expected 1 RunTmuxAction call, got %d", len(f.tmux.Actions))
 	}
 	_ = m
 }

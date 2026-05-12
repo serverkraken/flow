@@ -8,7 +8,6 @@ package palette
 // (render.go). Same-package — keine Sichtbarkeitsänderung.
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -276,7 +275,7 @@ func (m *Model) jumpSection(dir int) {
 //
 //	(b) hands the action off to tmux via run-shell -b and returns a
 //	    dispatchedMsg so the palette can toast confirmation while staying
-//	    open. RunShell errors (tmux server down, malformed action) now
+//	    open. RunTmuxAction errors (tmux server down, malformed action) now
 //	    surface as a danger toast — previously they were silently dropped
 //	    and the user saw "ausgeführt" even when nothing ran. The earlier
 //	    `sleep 0.15` prefix is gone: it was an undocumented workaround
@@ -306,8 +305,8 @@ func (m Model) dispatch(e domain.PaletteEntry) tea.Cmd {
 	action := e.Action
 	label := e.Label
 	return func() tea.Msg {
-		_ = w.Mark(entry) // persist err is folded into dispatchedMsg.err below if RunShell also fails
-		err := tm.RunShell(fmt.Sprintf("tmux %s", action))
+		_ = w.Mark(entry) // persist err is folded into dispatchedMsg.err below if RunTmuxAction also fails
+		err := tm.RunTmuxAction(action)
 		return dispatchedMsg{label: label, err: err}
 	}
 }
