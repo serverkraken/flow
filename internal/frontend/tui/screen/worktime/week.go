@@ -371,7 +371,7 @@ func (w woche) renderPace(now time.Time) string {
 
 		switch {
 		case isOff && !isWeekend:
-			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(dayOffPaceGlyph(dayOff.Kind)))
+			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(glyphs.Empty))
 		case hit:
 			dots = append(dots, greenStyle.Render(glyphs.Filled))
 		case d.IsToday && d.Active != nil:
@@ -469,11 +469,4 @@ func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
 		return sem.Warning
 	}
 	return p.Fg
-}
-
-// dayOffPaceGlyph delegiert an helpers.dayOffGlyph — selbe Whitelist-
-// Mapping wie history_heatmap und history_month, eine zentrale
-// Wahrheits-Quelle.
-func dayOffPaceGlyph(k domain.Kind) string {
-	return dayOffGlyph(k)
 }

@@ -49,9 +49,8 @@ func renderFormField(label string, ti textinput.Model, focused bool, inner int, 
 }
 
 // dayOffGlyph mappt domain.Kind auf den kanonischen Single-Cell-Glyph
-// aus der Whitelist. Zentral statt 3× dupliziert (week.dayOffPaceGlyph,
-// history_heatmap.dayOffHeatmapGlyph, history_month-inline) — eine
-// Whitelist-Änderung schlägt damit konsistent durch.
+// aus der Whitelist. Zentral statt dupliziert (history_heatmap.dayOffHeatmapGlyph,
+// history_month-inline) — eine Whitelist-Änderung schlägt damit konsistent durch.
 //
 // Fallback ist BulletDot (·), nicht Empty (○): "unknown kind" ist eine
 // schwache Aussage, kein "missed goal" wie Empty es semantisch trägt.
