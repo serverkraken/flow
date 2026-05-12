@@ -60,6 +60,13 @@ func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if h.drillOnSession() {
 			return h.openDrillDelete()
 		}
+	case "n":
+		// Note-Attach hängt an drillDate, nicht an einer Session-Zeile —
+		// die LinkStore-Keyung ist tagesbasiert. Funktioniert auch bei
+		// leerem Tag (es gibt dann nichts zu fokussieren, aber der User
+		// kann trotzdem eine Note an den Tag knüpfen, z.B. um spätere
+		// retrospektive Notizen einzuhängen).
+		return h.openNoteAttachDialog()
 	}
 	return h, nil
 }
@@ -175,20 +182,27 @@ func (h history) renderDrillFooter() string {
 		// der globale Help-Button + Tab-Strip nicht aus dem Layout fällt.
 		return stDim(h.pal, "  y/Enter → löschen  ·  n/Esc → abbrechen")
 	}
+	if h.dialog == historyDialogDrillNoteAttach {
+		return stDim(h.pal, "  "+h.notePicker.HintLine())
+	}
 	// Empty-Day-Empty-State: kein Session-Eintrag → `a → neu` an die
 	// Spitze des Hint-Stacks, weil "navigieren" auf einer leeren Liste
-	// keinen Sinn ergibt.
+	// keinen Sinn ergibt. `n → Note` bleibt aber relevant, weil LinkStore
+	// tagesbasiert ist (auch ohne Sessions).
 	if len(h.drillSessions) == 0 {
-		return stDim(h.pal, "  a → erste Session hinzufügen  ·  b/Esc → zurück")
+		return stDim(h.pal, "  a → erste Session hinzufügen  ·  n → Note  ·  b/Esc → zurück")
 	}
 	hints := []string{"j/k → bewegen"}
 	if h.drillOnSession() {
 		hints = append(hints, "enter → bearbeiten", "D → löschen")
 	}
-	hints = append(hints, "a → neu", "b/Esc → zurück")
+	hints = append(hints, "n → Note", "a → neu", "b/Esc → zurück")
 	if len(hints) > 4 {
 		// 4-Hint-Limit (Skill §Hint format) — bei vorhandener Session
-		// fällt der seltenere "neu" weg, sonst der "back".
+		// fällt "a → neu" als seltenster weg; `n → Note` und Esc bleiben
+		// nach der Priorisierung der häufigeren retrospektiven Aktionen
+		// (Note anhängen ist im History-Drill häufiger als manuelle
+		// Neu-Eingabe, da letztere typischer aus Heute heraus geht).
 		hints = hints[:4]
 	}
 	return stDim(h.pal, "  "+strings.Join(hints, "  ·  "))

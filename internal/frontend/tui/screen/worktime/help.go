@@ -52,21 +52,35 @@ func helpSectionsWoche() []help.Section {
 }
 
 // helpSectionsHistory enumerates the history-tab bindings (list /
-// heatmap / tag-clock / month modes share the same key surface).
+// heatmap / tag-clock / month modes share the same key surface) plus
+// the drill-view sub-keys that operate on a focused past day.
 func helpSectionsHistory() []help.Section {
-	return []help.Section{{
-		Title: "Worktime — History",
-		Keys: [][2]string{
-			{"j/k · g/G", "Cursor / Zeile · oben/unten"},
-			{"Enter", "Drill-Down auf den Tag"},
-			{"v", "Ansicht: Liste → Heatmap → Tag-Clock → Monat"},
-			{"/", "Filter (KW18, 2026, 2026-04, tag:deep, note:standup)"},
-			{"F", "Filter mit Prefix »tag:« vorbelegen"},
-			{"[ / ]", "Filter um eine Einheit zurück / vor"},
-			{"T", "Filter zurücksetzen / aktuelles Fenster"},
-			{"h · l (Heatmap/Tag-Clock/Monat)", "Cursor horizontal"},
+	return []help.Section{
+		{
+			Title: "Worktime — History",
+			Keys: [][2]string{
+				{"j/k · g/G", "Cursor / Zeile · oben/unten"},
+				{"Enter", "Drill-Down auf den Tag"},
+				{"v", "Ansicht: Liste → Heatmap → Tag-Clock → Monat"},
+				{"/", "Filter (KW18, 2026, 2026-04, tag:deep, note:standup)"},
+				{"F", "Filter mit Prefix »tag:« vorbelegen"},
+				{"[ / ]", "Filter um eine Einheit zurück / vor"},
+				{"T", "Filter zurücksetzen / aktuelles Fenster"},
+				{"h · l (Heatmap/Tag-Clock/Monat)", "Cursor horizontal"},
+			},
 		},
-	}}
+		{
+			Title: "Worktime — History · Drill (auf einem Tag)",
+			Keys: [][2]string{
+				{"j/k · g/G", "Session fokussieren"},
+				{"Enter", "fokussierte Session bearbeiten"},
+				{"a", "neue manuelle Session hinzufügen"},
+				{"D", "fokussierte Session löschen (y/Enter)"},
+				{"n", "Kompendium-Note an den Tag anhängen"},
+				{"b · Esc", "Drill schließen"},
+			},
+		},
+	}
 }
 
 // helpSectionsFrei enumerates the dayoffs-tab bindings.

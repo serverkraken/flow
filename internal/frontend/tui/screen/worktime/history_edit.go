@@ -320,6 +320,14 @@ func (h history) renderDrillDialog(inner int) []string {
 			picker.SectionHeader("löschen", inner, h.pal),
 			"  " + h.drillConfirm.View(),
 		}
+	case historyDialogDrillNoteAttach:
+		// notePicker.View liefert input + suggestion-list + "bereits
+		// angehängt"-Hint + optionalen Error. Header wird hier
+		// vorangestellt damit die Drill-Composition klar bleibt.
+		return []string{
+			picker.SectionHeader("Note an "+h.drillDate.Format("2006-01-02")+" anhängen", inner, h.pal),
+			h.notePicker.View(inner),
+		}
 	}
 	return nil
 }

@@ -80,9 +80,10 @@ const (
 	historyDialogNone historyDialog = iota
 	historyDialogFilter
 	historyDialogDrill
-	historyDialogDrillEdit   // edit start/stop/tag/note of selected session
-	historyDialogDrillAdd    // add a new manual session to the drill day
-	historyDialogDrillDelete // confirm-delete selected session
+	historyDialogDrillEdit       // edit start/stop/tag/note of selected session
+	historyDialogDrillAdd        // add a new manual session to the drill day
+	historyDialogDrillDelete     // confirm-delete selected session
+	historyDialogDrillNoteAttach // Kompendium-note attach to drillDate
 )
 
 // historyActionDoneMsg carries the result of a drill mutation (edit /
@@ -149,10 +150,19 @@ type history struct {
 	// drillToast surfaces the result of the last mutation. Vorher als
 	// roher String — der dismisste sich nie. toast.Model dismisst nach 2 s.
 	drillToast *toast.Model
+
+	// notePicker hosts the Kompendium-note attach dialog when triggered
+	// from the drill view. Active when dialog == historyDialogDrillNoteAttach.
+	// Construction is one-shot at newHistory(); state resets per Open call.
+	notePicker noteAttachPicker
 }
 
 func newHistory(p theme.Palette, deps Deps) history {
-	return history{pal: p, deps: deps}
+	return history{
+		pal:        p,
+		deps:       deps,
+		notePicker: newNoteAttachPicker(deps, p),
+	}
 }
 
 // — capability interfaces —
@@ -160,12 +170,13 @@ func newHistory(p theme.Palette, deps Deps) history {
 func (h history) FilterActive() bool { return h.dialog != historyDialogNone }
 
 // TextInputActive reports whether History's current dialog has a
-// textinput focused — the filter expression, the drill-edit form, or
-// the drill-add form. The drill-delete confirm and the bare drill view
-// are intentionally NOT text-input — q from there should exit.
+// textinput focused — the filter expression, the drill-edit form, the
+// drill-add form, or the drill note-attach picker. The drill-delete
+// confirm and the bare drill view are intentionally NOT text-input —
+// q from there should exit.
 func (h history) TextInputActive() bool {
 	switch h.dialog {
-	case historyDialogFilter, historyDialogDrillEdit, historyDialogDrillAdd:
+	case historyDialogFilter, historyDialogDrillEdit, historyDialogDrillAdd, historyDialogDrillNoteAttach:
 		return true
 	}
 	return false
@@ -348,6 +359,9 @@ func (h history) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if h.dialog == historyDialogDrillDelete {
 		return h.handleDrillDeleteKey(msg)
+	}
+	if h.dialog == historyDialogDrillNoteAttach {
+		return h.handleDrillNoteAttachKey(msg)
 	}
 	if h.dialog == historyDialogDrill {
 		return h.handleDrillKey(msg)
@@ -561,12 +575,13 @@ func (h history) View() string {
 }
 
 // drillModeActive reports whether any drill-rooted dialog is open.
-// Edit / Add / Delete render on top of the drill list, so they all
-// participate in the drill's load/render flow.
+// Edit / Add / Delete / NoteAttach render on top of the drill list, so
+// they all participate in the drill's load/render flow.
 func (h history) drillModeActive() bool {
 	switch h.dialog {
 	case historyDialogDrill, historyDialogDrillEdit,
-		historyDialogDrillAdd, historyDialogDrillDelete:
+		historyDialogDrillAdd, historyDialogDrillDelete,
+		historyDialogDrillNoteAttach:
 		return true
 	}
 	return false
