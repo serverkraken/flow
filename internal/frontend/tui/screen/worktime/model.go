@@ -495,16 +495,23 @@ func (m Model) renderTabs(labels []string, sep string) string {
 	return out
 }
 
-// scheduleTick returns a tea.Cmd that fires after the adaptive
-// interval. Fast (1 s) when the active sub-model reports it via
-// FastTick (e.g. Heute during the first minute of a running session);
-// slow (10 s) otherwise.
-func (m Model) scheduleTick() tea.Cmd {
-	d := tickSlow
-	if ft, ok := m.subs[m.current].(fastTicker); ok && ft.FastTick(time.Now()) {
-		d = tickFast
+// tickInterval reports the duration the next tick should fire after.
+// Fast (1 s) when the active sub-model reports it via FastTick (e.g.
+// Heute during the first minute of a running session); slow (10 s)
+// otherwise. Uses the injected Clock so the branch selection stays
+// deterministic under a fake clock in tests. Extracted from
+// scheduleTick so the duration choice is testable without invoking
+// the tea.Tick command (which would block on the real timer).
+func (m Model) tickInterval() time.Duration {
+	if ft, ok := m.subs[m.current].(fastTicker); ok && ft.FastTick(m.deps.Clock.Now()) {
+		return tickFast
 	}
-	return tea.Tick(d, func(t time.Time) tea.Msg { return tickMsg(t) })
+	return tickSlow
+}
+
+// scheduleTick returns a tea.Cmd that fires after tickInterval().
+func (m Model) scheduleTick() tea.Cmd {
+	return tea.Tick(m.tickInterval(), func(t time.Time) tea.Msg { return tickMsg(t) })
 }
 
 // — interfaces sub-models can opt into —
