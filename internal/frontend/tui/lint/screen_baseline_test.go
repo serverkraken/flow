@@ -29,11 +29,11 @@ var screenBaseline = map[string]int{
 	"palette/model.go":             5, // round4: per-Model paletteStyles cache (constructor) — replaces 4 inline NewStyles in renderRow
 	"palette/render.go":            0,
 	"projects/model.go":            1,
-	"worktime/dayoffs.go":          5,
+	"worktime/dayoffs.go":          7, // T9/T10: kindColor per row + renderKindPicker glyph/label styles
 	"worktime/helpers.go":          2, // shared bases: NewStyle().Width(8) + NewStyle().Bold(true)
 	"worktime/history.go":          0,
 	"worktime/history_drill.go":    0,
-	"worktime/history_heatmap.go":  8,
+	"worktime/history_heatmap.go":  10, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank (3 new)
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    5,
 	"worktime/history_tagclock.go": 5,
