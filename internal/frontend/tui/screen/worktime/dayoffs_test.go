@@ -17,7 +17,6 @@ import (
 // bleibt. Spec: 2026-05-12-unified-dayoff-glyphs.
 func TestRenderKindSummary_LabelsInKindColor(t *testing.T) {
 	pal := theme.TokyonightNight
-	sem := pal.Sem()
 	may := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	f := frei{
 		pal: pal,
@@ -36,9 +35,9 @@ func TestRenderKindSummary_LabelsInKindColor(t *testing.T) {
 		label string
 		color string
 	}{
-		{"Feiertag", colorSeq(sem.Info)},
-		{"Urlaub", colorSeq(sem.Success)},
-		{"Krank", colorSeq(sem.Warning)},
+		{"Feiertag", colorSeq(pal.Blue)},
+		{"Urlaub", colorSeq(pal.Purple)},
+		{"Krank", colorSeq(pal.Orange)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.label, func(t *testing.T) {
@@ -58,7 +57,6 @@ func TestRenderKindSummary_LabelsInKindColor(t *testing.T) {
 // Spec: 2026-05-12-unified-dayoff-glyphs.
 func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 	pal := theme.TokyonightNight
-	sem := pal.Sem()
 	colorSeq := func(c lipgloss.Color) string {
 		return termenv.RGBColor(string(c)).Sequence(false)
 	}
@@ -78,9 +76,9 @@ func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 		label string
 		color string
 	}{
-		{"Feiertag", colorSeq(sem.Info)},
-		{"Urlaub", colorSeq(sem.Success)},
-		{"Krank", colorSeq(sem.Warning)},
+		{"Feiertag", colorSeq(pal.Blue)},
+		{"Urlaub", colorSeq(pal.Purple)},
+		{"Krank", colorSeq(pal.Orange)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.label, func(t *testing.T) {
@@ -89,6 +87,48 @@ func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 			}
 			if !strings.Contains(out, tc.color) {
 				t.Errorf("picker missing colour %q for %q: %q", tc.color, tc.label, out)
+			}
+		})
+	}
+}
+
+// TestRenderEntryRow_UserLabelInKindColor: jeder Entry-Row im Frei-Tab
+// rendert das User-Label (z.B. "Tag der Arbeit") in der Kind-Farbe — der
+// Kind-Spalte gleichgesetzt, damit der ganze Zeilen-Identitätsteil
+// einfarbig liest. Datum bleibt FgMuted als kontextuelles Präfix.
+// Spec: 2026-05-13-filled-dayoff-dots-supersede.
+func TestRenderEntryRow_UserLabelInKindColor(t *testing.T) {
+	pal := theme.TokyonightNight
+	colorSeq := func(c lipgloss.Color) string {
+		return termenv.RGBColor(string(c)).Sequence(false)
+	}
+	may := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
+	tests := []struct {
+		kind  domain.Kind
+		label string
+		color string
+	}{
+		{domain.KindHoliday, "Tag der Arbeit", colorSeq(pal.Blue)},
+		{domain.KindVacation, "Brückentag", colorSeq(pal.Purple)},
+		{domain.KindSick, "Grippe", colorSeq(pal.Orange)},
+	}
+	// Cursor weg vom 0. Eintrag, damit die Selektions-Accent-Farbe nicht
+	// die Per-Kind-Farb-Erwartung überschreibt.
+	f := frei{pal: pal, cursor: 99, width: 100}
+	for _, tc := range tests {
+		t.Run(string(tc.kind), func(t *testing.T) {
+			out := f.renderEntryRow(0, domain.DayOff{
+				Date: may, Kind: tc.kind, Label: tc.label,
+			}, 80)
+			if !strings.Contains(out, tc.label) {
+				t.Errorf("row missing label %q: %q", tc.label, out)
+			}
+			// User-Label in Kind-Farbe: das Label-Wort muss vom Kind-
+			// Color-Sequence eingerahmt sein. Eine einfache Substring-
+			// Prüfung "<color><…>label" ist ausreichend, weil lipgloss
+			// jeden Foreground-Span eigenständig schließt.
+			if !strings.Contains(out, tc.color+"m"+tc.label) {
+				t.Errorf("row should colour user label %q with %q, got: %q", tc.label, tc.color, out)
 			}
 		})
 	}

@@ -523,11 +523,20 @@ func (f frei) renderKindSummary() string {
 }
 
 func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
+	// Spec 2026-05-13-filled-dayoff-dots-supersede §Frei-view: alle Kind-
+	// gebundenen Texte (kind label + user label) tragen dieselbe Kind-Farbe.
+	// Datum bleibt FgMuted als kontextuelles Präfix; eine zusätzliche dim-
+	// Farbe verletzt nicht "one accent per row", weil Datum kein Akzent ist.
+	//
+	// kindBase teilen wir zwischen kindCell und labelCell, damit das §2.6
+	// NewStyle-Budget für dayoffs.go nicht aufgepumpt wird.
 	date := domain.WeekdayShortDe(d.Date.Weekday()) + " " + d.Date.Format("02.01.")
+	kindBase := lipgloss.NewStyle().Foreground(kindColor(f.pal, d.Kind))
 	dateCell := lipgloss.NewStyle().Width(10).Foreground(f.pal.FgMuted).Render(date)
-	kindCell := lipgloss.NewStyle().Width(10).Foreground(kindColor(f.pal, d.Kind)).Render(d.Kind.LabelDe())
-	label := dateCell + "  " + kindCell + "  " + d.Label
-	return picker.Row(idx == f.cursor, label, "", inner, f.pal)
+	kindCell := kindBase.Width(10).Render(d.Kind.LabelDe())
+	labelCell := kindBase.Render(d.Label)
+	row := dateCell + "  " + kindCell + "  " + labelCell
+	return picker.Row(idx == f.cursor, row, "", inner, f.pal)
 }
 
 // footerHints — Skill §Hint format: max 4. Top-4 nach Frequenz:
@@ -594,12 +603,16 @@ func (f frei) renderKindPicker(inner int) string {
 	chips := make([]string, 0, len(domain.AllKinds))
 	kindFocused := f.formCur == f.kindIdx()
 	for i, k := range domain.AllKinds {
-		// Kind-Farbe trägt der führende ○ — auch im unselektierten Zustand
-		// sichtbar. §Color semantics "one accent per row" bleibt gewahrt:
-		// das Label-Style des selektierten Chips überschreibt den Glyph
-		// mit der Selektions-Farbe (Accent).
-		glyphStyle := lipgloss.NewStyle().Foreground(kindColor(f.pal, k))
-		labelStyle := lipgloss.NewStyle().Foreground(f.pal.FgMuted)
+		// Spec 2026-05-13-filled-dayoff-dots-supersede §Frei-view: Glyph
+		// und Label des unselektierten Chips teilen die Kind-Farbe — die
+		// Kind-Identität liest sich konsistent über den ganzen Tab. Der
+		// selektierte Chip behält die Accent-Selektions-Behandlung;
+		// §Color semantics "one accent per row" bleibt gewahrt, weil die
+		// Kind-Farbe in unselektierten Chips kein Akzent ist sondern eine
+		// Identitätsfarbe.
+		color := kindColor(f.pal, k)
+		glyphStyle := lipgloss.NewStyle().Foreground(color)
+		labelStyle := lipgloss.NewStyle().Foreground(color)
 		if i == f.kindCur {
 			if kindFocused {
 				labelStyle = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true).Underline(true)

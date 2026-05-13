@@ -30,7 +30,6 @@ func TestRenderPace_FreeDayUsesEmptyGlyphPerKindColor(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local) // Fri
 	fri := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	pal := theme.TokyonightNight
-	sem := pal.Sem()
 
 	// colorSeq converts a lipgloss.Color to its ANSI foreground sequence
 	// as emitted by lipgloss in TrueColor mode.
@@ -38,13 +37,14 @@ func TestRenderPace_FreeDayUsesEmptyGlyphPerKindColor(t *testing.T) {
 		return termenv.RGBColor(string(c)).Sequence(false)
 	}
 
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: direct hue mapping.
 	tests := []struct {
 		kind domain.Kind
 		seq  string
 	}{
-		{domain.KindHoliday, colorSeq(sem.Info)},
-		{domain.KindVacation, colorSeq(sem.Success)},
-		{domain.KindSick, colorSeq(sem.Warning)},
+		{domain.KindHoliday, colorSeq(pal.Blue)},
+		{domain.KindVacation, colorSeq(pal.Purple)},
+		{domain.KindSick, colorSeq(pal.Orange)},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.kind), func(t *testing.T) {

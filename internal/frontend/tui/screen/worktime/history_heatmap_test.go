@@ -21,19 +21,19 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
 	day := time.Date(2026, 5, 4, 0, 0, 0, 0, time.Local) // Mon
 	pal := theme.TokyonightNight
-	sem := pal.Sem()
 
 	colorSeq := func(c lipgloss.Color) string {
 		return termenv.RGBColor(string(c)).Sequence(false)
 	}
 
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: direct hue mapping.
 	tests := []struct {
 		kind  domain.Kind
 		color string
 	}{
-		{domain.KindHoliday, colorSeq(sem.Info)},
-		{domain.KindVacation, colorSeq(sem.Success)},
-		{domain.KindSick, colorSeq(sem.Warning)},
+		{domain.KindHoliday, colorSeq(pal.Blue)},
+		{domain.KindVacation, colorSeq(pal.Purple)},
+		{domain.KindSick, colorSeq(pal.Orange)},
 	}
 	for _, tc := range tests {
 		t.Run(string(tc.kind), func(t *testing.T) {
@@ -64,7 +64,6 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 // separate ○-Chips für die drei Kinds in den jeweiligen Sem-Farben.
 func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
 	pal := theme.TokyonightNight
-	sem := pal.Sem()
 
 	colorSeq := func(c lipgloss.Color) string {
 		return termenv.RGBColor(string(c)).Sequence(false)
@@ -76,9 +75,9 @@ func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
 		label string
 		color string
 	}{
-		{"○ Feiertag", colorSeq(sem.Info)},
-		{"○ Urlaub", colorSeq(sem.Success)},
-		{"○ Krank", colorSeq(sem.Warning)},
+		{"○ Feiertag", colorSeq(pal.Blue)},
+		{"○ Urlaub", colorSeq(pal.Purple)},
+		{"○ Krank", colorSeq(pal.Orange)},
 	}
 	for _, w := range wants {
 		if !strings.Contains(out, w.label) {

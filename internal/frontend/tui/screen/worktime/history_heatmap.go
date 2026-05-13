@@ -139,9 +139,13 @@ func (h history) renderHeatmapLegend(inner int) string {
 		stDim(h.pal, "▓ <100%"),
 		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
-		lipgloss.NewStyle().Foreground(sem.Info).Render(glyphs.Empty + " Feiertag"),
-		lipgloss.NewStyle().Foreground(sem.Success).Render(glyphs.Empty + " Urlaub"),
-		lipgloss.NewStyle().Foreground(sem.Warning).Render(glyphs.Empty + " Krank"),
+		// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
+		// the canonical kindColor mapping via Sem.Schedule/Highlight/Notice.
+		// The heatmap cells (heatmapCellGlyph → kindColor) and the tmux
+		// pace dots (KindStatusColor) all resolve to the same hex values.
+		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Empty + " Feiertag"),
+		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Empty + " Urlaub"),
+		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Empty + " Krank"),
 		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
 		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
 		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —

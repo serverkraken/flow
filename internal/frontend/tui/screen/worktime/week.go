@@ -74,10 +74,15 @@ type wocheStyles struct {
 
 func newWocheStyles(p theme.Palette) wocheStyles {
 	sem := p.Sem()
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: kind-bound Sem tokens
+	// — Schedule (fixed calendar event), Highlight (chosen identity),
+	// Notice (off-pattern warning). The Sem layer guarantees the same
+	// hue lands on the TUI surface and the tmux pace dots (via
+	// theme.StatusPaletteFor / domain.KindStatusColor).
 	kinds := map[domain.Kind]lipgloss.Style{
-		domain.KindHoliday:  lipgloss.NewStyle().Foreground(sem.Info),
-		domain.KindVacation: lipgloss.NewStyle().Foreground(sem.Success),
-		domain.KindSick:     lipgloss.NewStyle().Foreground(sem.Warning),
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(sem.Schedule),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(sem.Highlight),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(sem.Notice),
 	}
 	return wocheStyles{
 		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
@@ -455,18 +460,24 @@ func isoMonday(t time.Time) time.Time {
 // side because the mapping mixes a domain enum with frontend palette
 // concerns. Wave E (Frei tab) reuses this when listing day-offs.
 //
-// Sem-Mapping: Feiertag → Info (legend-style, kein Live-State),
-// Urlaub → Success (positive day, kein Arbeitsdefizit), Krank → Warning
-// (abweichender Tag, aber nicht alarm-rot).
+// Spec 2026-05-13-filled-dayoff-dots-supersede: drei klar getrennte
+// Hue-Familien (Blau / Lavendel / Coral). Konsumiert über Sem-Token,
+// damit der Mapping-Layer im theme-Paket lebt und der screen-hue-lint
+// nicht verletzt wird; das tmux-Bar liest dieselben Hex-Werte via
+// theme.StatusPaletteFor → domain.KindStatusColor.
+//
+//	Feiertag → Sem.Schedule  (fixed scheduled calendar event)
+//	Urlaub   → Sem.Highlight (chosen identity, attention-grabbing mark)
+//	Krank    → Sem.Notice    (off-pattern warning, softer than Danger)
 func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
 	sem := p.Sem()
 	switch k {
 	case domain.KindHoliday:
-		return sem.Info
+		return sem.Schedule
 	case domain.KindVacation:
-		return sem.Success
+		return sem.Highlight
 	case domain.KindSick:
-		return sem.Warning
+		return sem.Notice
 	}
 	return p.Fg
 }

@@ -12,15 +12,16 @@ import (
 // Slot-Semantik (Stand Spec 2026-05-13-filled-dayoff-dots-supersede):
 //
 //	Green  — Success: Werktag-Ziel erreicht, Streak, ▲ Saldo
-//	Yellow — Caution: Endspurt-Banner, Feiertag-Pace-Dot
+//	Yellow — Caution: Endspurt-Banner (transient warm accent)
 //	Red    — Danger: massive overtime im Banner
 //	Cyan   — Active/running/live: laufende Session-Banner + heute-läuft-Dot
+//	Blue   — Info: Feiertag-Pace-Dot (sachlich, fixed scheduled off)
 //	Purple — Identity: Urlaubs-Pace-Dot ("du hast diesen Tag bewusst frei")
 //	Orange — Warning/pending: Krank-Pace-Dot, Banner bei aktiver Session
 //	         über MaxStreakMin
 //	Dim    — idle/missed/unknown-kind
 type StatusPalette struct {
-	Green, Yellow, Red, Cyan, Purple, Orange, Dim string
+	Green, Yellow, Red, Cyan, Blue, Purple, Orange, Dim string
 }
 
 // DefaultStatusPalette returns the tokyonight defaults. Adapters that read
@@ -31,6 +32,7 @@ func DefaultStatusPalette() StatusPalette {
 		Yellow: "#e0af68",
 		Red:    "#f7768e",
 		Cyan:   "#7dcfff",
+		Blue:   "#7aa2f7",
 		Purple: "#bb9af7",
 		Orange: "#ff9e64",
 		Dim:    "#565f89",
@@ -264,9 +266,11 @@ func BuildPaceDots(
 }
 
 // KindStatusColor mappt Kind auf die tmux-StatusPalette. Jede Kind bekommt
-// eine eigenständige, im Bar-Kontext gut unterscheidbare Farbe:
+// eine eigenständige, im Bar-Kontext gut unterscheidbare Farbe — drei
+// klar getrennte Hue-Familien (Blau / Lavendel / Coral) statt drei
+// Warmtöne:
 //
-//	Holiday   → Yellow  (caution / fixed scheduled off)
+//	Holiday   → Blue    (info / sachlich / fixed scheduled off)
 //	Vacation  → Purple  (identity / "you chose this")
 //	Sick      → Orange  (warning / pending state)
 //	Unknown   → Dim     (Glyph-distinct vom missed-workday ○)
@@ -276,7 +280,7 @@ func BuildPaceDots(
 func KindStatusColor(k Kind, pal StatusPalette) string {
 	switch k {
 	case KindHoliday:
-		return pal.Yellow
+		return pal.Blue
 	case KindVacation:
 		return pal.Purple
 	case KindSick:

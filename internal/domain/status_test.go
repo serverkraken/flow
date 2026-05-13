@@ -381,7 +381,7 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 		kind  domain.Kind
 		color string
 	}{
-		{domain.KindHoliday, p.Yellow},
+		{domain.KindHoliday, p.Blue},
 		{domain.KindVacation, p.Purple},
 		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
@@ -410,7 +410,7 @@ func TestBuildStatusSegment_DayOffBannerGlyphPerKind(t *testing.T) {
 		kind  domain.Kind
 		color string
 	}{
-		{domain.KindHoliday, p.Yellow},
+		{domain.KindHoliday, p.Blue},
 		{domain.KindVacation, p.Purple},
 		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
@@ -501,7 +501,7 @@ func TestKindStatusColor_PerKind(t *testing.T) {
 		kind domain.Kind
 		want string
 	}{
-		{domain.KindHoliday, p.Yellow},
+		{domain.KindHoliday, p.Blue},
 		{domain.KindVacation, p.Purple},
 		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
