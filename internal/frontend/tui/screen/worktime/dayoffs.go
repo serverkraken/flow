@@ -622,7 +622,7 @@ func (f frei) renderKindPicker(inner int) string {
 			glyphStyle = labelStyle
 		}
 		chips = append(chips,
-			glyphStyle.Render(" "+glyphs.Empty+" ")+labelStyle.Render(k.LabelDe()+" "))
+			glyphStyle.Render(" "+glyphs.Filled+" ")+labelStyle.Render(k.LabelDe()+" "))
 	}
 	return header + "\n  " + strings.Join(chips, "  ")
 }

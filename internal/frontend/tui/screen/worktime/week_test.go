@@ -22,11 +22,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestRenderPace_FreeDayUsesEmptyGlyphPerKindColor pinnt fest, dass die
-// Pace-Strip für jeden Free-Day-Kind den ○-Glyph (glyphs.Empty) emittiert
-// und die Foreground-Farbe per Kind via Sem-Mapping unterscheidet.
-// Spec: docs/superpowers/specs/2026-05-12-unified-dayoff-glyphs-design.md
-func TestRenderPace_FreeDayUsesEmptyGlyphPerKindColor(t *testing.T) {
+// TestRenderPace_FreeDayUsesFilledGlyphPerKindColor pinnt fest, dass die
+// Pace-Strip für jeden Free-Day-Kind den ●-Glyph (glyphs.Filled) emittiert
+// und die Foreground-Farbe per Kind via Sem.Schedule/Highlight/Notice
+// trägt. Cross-surface identisch mit dem tmux-Bar.
+// Spec: docs/superpowers/specs/2026-05-13-filled-dayoff-dots-supersede.md
+func TestRenderPace_FreeDayUsesFilledGlyphPerKindColor(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local) // Fri
 	fri := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	pal := theme.TokyonightNight
@@ -61,8 +62,10 @@ func TestRenderPace_FreeDayUsesEmptyGlyphPerKindColor(t *testing.T) {
 			w.loaded = true
 			w.width = 80
 			out := w.renderPace(now)
-			if !strings.Contains(out, glyphs.Empty) {
-				t.Errorf("renderPace should contain %q for free day, got: %q", glyphs.Empty, out)
+			// Spec 2026-05-13-filled-dayoff-dots-supersede: ● for day-offs
+			// (cross-surface with tmux); kind colour distinguishes which.
+			if !strings.Contains(out, glyphs.Filled) {
+				t.Errorf("renderPace should contain %q for free day, got: %q", glyphs.Filled, out)
 			}
 			if !strings.Contains(out, tc.seq) {
 				t.Errorf("renderPace should contain ANSI seq %q for kind %q, got: %q", tc.seq, tc.kind, out)

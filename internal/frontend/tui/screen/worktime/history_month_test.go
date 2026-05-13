@@ -50,8 +50,8 @@ func TestRenderMonthCell_FreeDayColoredPerKind(t *testing.T) {
 			h := history{pal: pal, deps: deps, monthCur: 99}
 			byKey := map[string]domain.DayRecord{}
 			out := h.renderMonthCell(day, true, byKey, day)
-			if !strings.Contains(out, glyphs.Empty) {
-				t.Errorf("cell missing %q for kind %q: %q", glyphs.Empty, tc.kind, out)
+			if !strings.Contains(out, glyphs.Filled) {
+				t.Errorf("cell missing %q for kind %q: %q", glyphs.Filled, tc.kind, out)
 			}
 			if !strings.Contains(out, tc.color) {
 				t.Errorf("cell should colour kind %q with %q, got: %q", tc.kind, tc.color, out)

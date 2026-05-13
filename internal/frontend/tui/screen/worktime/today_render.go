@@ -151,7 +151,11 @@ func (h heute) renderAttachedNotes() string {
 	if len(h.attachedNotes) == 0 {
 		return ""
 	}
-	label := theme.Highlight(glyphs.Filled, h.pal)
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: vorher `● Highlight`
+	// (= Purple, jetzt Vacation-Identität). Hier eine reine Info-Marker-
+	// Stelle, kein Kind — also `›` (glyphs.Info) in Sem.Info, damit der
+	// Marker semantisch klar von den Day-Off-Pace-Dots getrennt liest.
+	label := theme.Info(glyphs.Info, h.pal)
 	ids := stDim(h.pal, strings.Join(h.attachedNotes, "  ·  "))
 	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  R → entfernen")
 	return "  " + label + "  " + ids + hint

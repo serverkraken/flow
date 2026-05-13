@@ -153,10 +153,10 @@ Rules:
 | `✗`   | `Failed`     | failure                           |
 | `▲`   | `Up`         | increase / streak                 |
 | `▼`   | `Down`       | decrease                          |
-| `●`   | `Filled`     | achieved goal / today             |
-| `○`   | `Empty`      | missed goal / future              |
-| `★`   | `Holiday`    | public holiday                    |
-| `☼`   | `Vacation`   | vacation / personal-free          |
+| `●`   | `Filled`     | day is "accounted for" — workday hit, today running, OR scheduled day off (Spec 2026-05-13). Colour distinguishes which |
+| `○`   | `Empty`      | workday open / future / missed (nothing happened yet) |
+| `★`   | `Holiday`    | *legacy* — superseded by `Filled` + `Sem.Schedule`. Kept for any markdown/legacy consumer |
+| `☼`   | `Vacation`   | *legacy* — superseded by `Filled` + `Sem.Highlight`. Kept for any markdown/legacy consumer |
 | `✚`   | `Extra`      | extra / additional entry          |
 | `▎`   | `AccentBar`  | selection / focus indicator       |
 | `▰ ▱` | `BarFilled / BarEmpty` | progress bar             |

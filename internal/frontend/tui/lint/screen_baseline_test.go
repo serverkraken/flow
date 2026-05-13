@@ -43,7 +43,7 @@ var screenBaseline = map[string]int{
 	"worktime/today.go":            0,
 	"worktime/today_dialog.go":     1,
 	"worktime/today_render.go":     0,
-	"worktime/week.go":             15, // round4: per-Model wocheStyles cache (constructor) — replaces 4-7 inline NewStyles in render loop
+	"worktime/week.go":             16, // round4 + Spec 2026-05-13: behindPace style split from old yellowPace (today-running → runningPace/Sem.Active, behind → behindPace/Sem.Warning)
 }
 
 // TestScreenInlineNewStyleBudget walks the internal/frontend/tui/screen

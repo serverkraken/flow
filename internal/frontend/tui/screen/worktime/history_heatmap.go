@@ -81,7 +81,8 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	}
 	if dayOff, isOff := h.deps.DayOffStore.Lookup(day); isOff {
 		if !hasRec || rec.Target == 0 {
-			cell = " " + glyphs.Empty + " "
+			// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
+			cell = " " + glyphs.Filled + " "
 		}
 		color = kindColor(h.pal, dayOff.Kind)
 	}
@@ -140,12 +141,11 @@ func (h history) renderHeatmapLegend(inner int) string {
 		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
 		// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
-		// the canonical kindColor mapping via Sem.Schedule/Highlight/Notice.
-		// The heatmap cells (heatmapCellGlyph → kindColor) and the tmux
-		// pace dots (KindStatusColor) all resolve to the same hex values.
-		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Empty + " Feiertag"),
-		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Empty + " Urlaub"),
-		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Empty + " Krank"),
+		// ● + Sem.Schedule/Highlight/Notice. Glyph + Farbe matchen die
+		// heatmap-Zelle UND den tmux-Pace-Dot — cross-surface identity.
+		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Filled + " Feiertag"),
+		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Filled + " Urlaub"),
+		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Filled + " Krank"),
 		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
 		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
 		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —

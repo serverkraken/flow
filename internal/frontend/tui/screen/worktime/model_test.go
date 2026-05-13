@@ -525,7 +525,10 @@ func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
 	}
 	m := loadedHeute(t, r)
 	out := m.View()
-	for _, want := range []string{"●", "daily-2026-05-01", "projects/foo-2026-05-01"} {
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: attached-notes marker
+	// switched from "●" (now Vacation-Identität) to "›" (glyphs.Info) so
+	// the chip line doesn't collide with day-off pace dots.
+	for _, want := range []string{"›", "daily-2026-05-01", "projects/foo-2026-05-01"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("attached-notes chip line should contain %q, got:\n%s", want, out)
 		}

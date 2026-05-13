@@ -50,8 +50,8 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 			h := history{pal: pal, deps: deps}
 			byKey := map[string]domain.DayRecord{}
 			out := h.renderHeatmapCell(day, byKey, 99, 99, now)
-			if !strings.Contains(out, " "+glyphs.Empty+" ") {
-				t.Errorf("cell missing ' %s ' for kind %q: %q", glyphs.Empty, tc.kind, out)
+			if !strings.Contains(out, " "+glyphs.Filled+" ") {
+				t.Errorf("cell missing ' %s ' for kind %q: %q", glyphs.Filled, tc.kind, out)
 			}
 			if !strings.Contains(out, tc.color) {
 				t.Errorf("cell should colour kind %q with %q, got: %q", tc.kind, tc.color, out)
@@ -75,9 +75,9 @@ func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
 		label string
 		color string
 	}{
-		{"○ Feiertag", colorSeq(pal.Blue)},
-		{"○ Urlaub", colorSeq(pal.Purple)},
-		{"○ Krank", colorSeq(pal.Orange)},
+		{"● Feiertag", colorSeq(pal.Blue)},
+		{"● Urlaub", colorSeq(pal.Purple)},
+		{"● Krank", colorSeq(pal.Orange)},
 	}
 	for _, w := range wants {
 		if !strings.Contains(out, w.label) {

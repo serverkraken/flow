@@ -67,10 +67,11 @@ func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 
 	// The glyph and label are rendered as separate lipgloss spans, so we
 	// check each component independently: colour sequence + label text.
-	// The ○ glyph must appear at least once per kind (three total).
-	glyphCount := strings.Count(out, "○")
+	// Spec 2026-05-13: ● glyph (Filled) for every kind chip, cross-surface
+	// with tmux pace dots.
+	glyphCount := strings.Count(out, "●")
 	if glyphCount < 3 {
-		t.Errorf("picker: want >=3 ○ glyphs, got %d: %q", glyphCount, out)
+		t.Errorf("picker: want >=3 ● glyphs, got %d: %q", glyphCount, out)
 	}
 	tests := []struct {
 		label string

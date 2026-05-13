@@ -2,7 +2,7 @@
 
 **Status:** Implemented (2026-05-13).
 **Supersedes:** `2026-05-12-unified-dayoff-glyphs-design.md` (in-tree, kept as historical context).
-**Touches:** `internal/domain/status.go`, `internal/usecase/status_composer.go`, `internal/frontend/tui/theme/status_adapter.go`, `internal/frontend/tui/screen/worktime/{week.go, dayoffs.go, history_heatmap.go}`, related `_test.go`. No changes required in `dotfiles` (`@tn_*` user-options stay optional defaults).
+**Touches:** `internal/domain/status.go`, `internal/usecase/status_composer.go`, `internal/frontend/tui/theme/{semantic.go, status_adapter.go}`, `internal/frontend/tui/screen/worktime/{week.go, dayoffs.go, history_heatmap.go, history_month.go, today_render.go}`, `docs/design-system.md`, related `_test.go`. No changes required in `dotfiles` (`@tn_*` user-options stay optional defaults).
 
 ## Why this revisits the May-12 decision
 
@@ -49,17 +49,34 @@ The day-off triad is now a **triangle on the hue wheel** — Blue (~210°), Purp
 
 ### Cross-surface unification (TUI ↔ Tmux)
 
-The same hex values are used in **both** surfaces:
+**Both glyph and colour are identical across every surface.** A user moving between the tmux bar and the TUI Wochen/History/Frei tabs sees the same `●` in the same hue for the same kind. The visual signal "this day is accounted for" is one mental model, not two.
 
-| Surface | Implementation point | Reads from |
-| ------- | -------------------- | ---------- |
-| Tmux bar (pace dots, banner `[Frei: …]`) | `domain.KindStatusColor` | `StatusPalette.{Blue,Purple,Orange}` |
-| TUI worktime week pace-strip | `wocheStyles.kinds` map | `theme.Palette.{Blue,Purple,Orange}` |
-| TUI history heatmap (cells + legend) | `kindColor` + heatmap legend | `theme.Palette.{Blue,Purple,Orange}` |
-| TUI history month grid | `kindColor` | `theme.Palette.{Blue,Purple,Orange}` |
-| TUI Frei tab (summary, entry rows, picker) | `kindColor` | `theme.Palette.{Blue,Purple,Orange}` |
+| Surface | Implementation point | Glyph | Reads from |
+| ------- | -------------------- | ----- | ---------- |
+| Tmux bar — pace dots | `domain.BuildPaceDots` | `●` for day-off, `○` for open | `KindStatusColor` → `StatusPalette.{Blue,Purple,Orange}` |
+| Tmux bar — `[Frei: …]` banner | `domain.BuildStatusSegment` | `●` | `KindStatusColor` |
+| TUI Wochen — pace-strip | `woche.renderPace` | `●` for day-off & today-running, `○` for open/missed | `wocheStyles.kinds` → `Sem.{Schedule,Highlight,Notice}` |
+| TUI Wochen — KPIs `▼ behind` | `woche.renderPace` track-marker | `▼` (unchanged) | `behindPace` → `Sem.Warning` (Yellow) |
+| TUI History heatmap — cells | `heatmapCell` | `●` for day-off | `kindColor` → `Sem.{Schedule,Highlight,Notice}` |
+| TUI History heatmap — legend | `renderHeatmapLegend` | `●` per kind chip | same |
+| TUI History month grid — cells | `renderMonthCell` | `●` for day-off | `kindColor` |
+| TUI Frei — kind summary, entry rows, picker chips | `dayoffs.{renderKindSummary,renderEntryRow,renderKindPicker}` | `●` per kind | `kindColor` |
+| TUI Heute — attached Kompendium notes marker | `renderAttachedNotes` | `›` (was `●`, swapped to avoid collision) | `Sem.Info` |
 
-The TUI bridge `theme.StatusPaletteFor` now also exposes Blue/Purple/Orange so future TUI-side previews of the tmux bar render with the same hues.
+The TUI bridge `theme.StatusPaletteFor` projects the same Sem tokens into the tmux palette so the `tn_*` overrides cascade uniformly.
+
+### Today-running indicator: TUI moves Yellow → Cyan
+
+The Wochen pace-strip previously rendered the "today, target not yet hit" dot in Yellow (`Sem.Warning`). The tmux bar already moved this to Cyan (`Sem.Active`) per the previous iteration of this spec; the TUI follows. The old `yellowPace` style in `wocheStyles` is split into:
+
+- `runningPace` → `Sem.Active` (Cyan) — for the today-running pace dot
+- `behindPace`  → `Sem.Warning` (Yellow) — for the `▼ behind` track marker
+
+Two semantics, two style slots, no more shared misnomer.
+
+### Attached-notes marker collision fix
+
+`renderAttachedNotes` in `today_render.go` previously rendered `●` in `theme.Highlight` (Purple). With Vacation now claiming Purple `●` in the pace strip, this would have read identically. The marker was swapped to `›` (`glyphs.Info`) in `Sem.Info` (Cyan) — semantically more accurate ("here's some informative content") and visually disjoint from any day-off pace dot.
 
 ### Frei-view rule: text colour matches kind colour
 

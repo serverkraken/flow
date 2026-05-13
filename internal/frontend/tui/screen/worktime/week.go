@@ -55,9 +55,10 @@ type wocheStyles struct {
 	marker     lipgloss.Style // Sem().Accent — cursor bar
 	emptyBar   lipgloss.Style // BgCode — placeholder bar
 	dur        lipgloss.Style // Fg base — total duration (Bold added per-row)
-	greenPace  lipgloss.Style // Sem().Success — hit-day pace dot
-	dimPace    lipgloss.Style // FgMuted — miss-day pace dot
-	yellowPace lipgloss.Style // Sem().Warning — today-running pace dot
+	greenPace   lipgloss.Style // Sem().Success — hit-day pace dot
+	dimPace     lipgloss.Style // FgMuted — miss-day pace dot
+	runningPace lipgloss.Style // Sem().Active — today-running pace dot (spec 2026-05-13)
+	behindPace  lipgloss.Style // Sem().Warning — "▼ behind" track marker
 
 	// kinds maps DayOff Kind to its pre-built style. nil-kind (zero
 	// value, default) falls back to Fg. Render loops use
@@ -92,7 +93,8 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 		dur:          lipgloss.NewStyle().Foreground(p.Fg),
 		greenPace:    lipgloss.NewStyle().Foreground(sem.Success),
 		dimPace:      lipgloss.NewStyle().Foreground(p.FgMuted),
-		yellowPace:   lipgloss.NewStyle().Foreground(sem.Warning),
+		runningPace:  lipgloss.NewStyle().Foreground(sem.Active),
+		behindPace:   lipgloss.NewStyle().Foreground(sem.Warning),
 		kinds:        kinds,
 		kindFallback: lipgloss.NewStyle().Foreground(p.Fg),
 		balPositive:  lipgloss.NewStyle().Foreground(sem.Success),
@@ -362,7 +364,8 @@ func (w woche) renderPace(now time.Time) string {
 	// Cached styles — these used to be allocated per-call before round4.
 	greenStyle := w.styles.greenPace
 	dimStyle := w.styles.dimPace
-	yellowStyle := w.styles.yellowPace
+	runningStyle := w.styles.runningPace
+	behindStyle := w.styles.behindPace
 
 	dots := make([]string, 0, len(w.week))
 	hits, expected, workdays := 0, 0, 0
@@ -376,11 +379,14 @@ func (w woche) renderPace(now time.Time) string {
 
 		switch {
 		case isOff && !isWeekend:
-			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(glyphs.Empty))
+			// Spec 2026-05-13-filled-dayoff-dots-supersede: ● für freie Tage
+			// (gleicher Glyph wie hit-workday), Kind-Farbe trägt die Identität.
+			// Cross-surface mit tmux-Bar identisch.
+			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(glyphs.Filled))
 		case hit:
 			dots = append(dots, greenStyle.Render(glyphs.Filled))
 		case d.IsToday && d.Active != nil:
-			dots = append(dots, yellowStyle.Render(glyphs.Filled))
+			dots = append(dots, runningStyle.Render(glyphs.Filled))
 		default:
 			dots = append(dots, dimStyle.Render(glyphs.Empty))
 		}
@@ -404,7 +410,7 @@ func (w woche) renderPace(now time.Time) string {
 	case hits >= expected:
 		track = greenStyle.Render("▲ on track")
 	default:
-		track = yellowStyle.Render("▼ behind")
+		track = behindStyle.Render("▼ behind")
 	}
 	return strings.Join(dots, " ") + "   " + count + "   " + track
 }
