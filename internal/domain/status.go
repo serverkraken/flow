@@ -9,17 +9,18 @@ import (
 // StatusPalette is the colour set used by tmux #[fg=...] markers in the
 // status-right segment. Hex codes match the tokyonight defaults flow ships.
 //
-// Slot-Semantik (Stand Spec 2026-05-12-unified-dayoff-glyphs):
+// Slot-Semantik (Stand Spec 2026-05-13-filled-dayoff-dots-supersede):
 //
-//	Green  — Success: Werktag-Ziel erreicht, Urlaubs-Pace-Dot, Streak, ▲ Saldo
-//	Yellow — Approaching/Warning (Doppelnutzung): Endspurt-Banner +
-//	         Krank-Pace-Dot. Wird via StatusPaletteFor mit Sem.Warning
-//	         gefüttert und rendert Orange-Hex (#ff9e64).
+//	Green  — Success: Werktag-Ziel erreicht, Streak, ▲ Saldo
+//	Yellow — Caution: Endspurt-Banner, Feiertag-Pace-Dot
 //	Red    — Danger: massive overtime im Banner
-//	Cyan   — Info: laufende Session-Banner, Feiertag-Pace-Dot, Banner-Glyph
+//	Cyan   — Active/running/live: laufende Session-Banner + heute-läuft-Dot
+//	Purple — Identity: Urlaubs-Pace-Dot ("du hast diesen Tag bewusst frei")
+//	Orange — Warning/pending: Krank-Pace-Dot, Banner bei aktiver Session
+//	         über MaxStreakMin
 //	Dim    — idle/missed/unknown-kind
 type StatusPalette struct {
-	Green, Yellow, Red, Cyan, Dim string
+	Green, Yellow, Red, Cyan, Purple, Orange, Dim string
 }
 
 // DefaultStatusPalette returns the tokyonight defaults. Adapters that read
@@ -30,6 +31,8 @@ func DefaultStatusPalette() StatusPalette {
 		Yellow: "#e0af68",
 		Red:    "#f7768e",
 		Cyan:   "#7dcfff",
+		Purple: "#bb9af7",
+		Orange: "#ff9e64",
 		Dim:    "#565f89",
 	}
 }
@@ -58,7 +61,7 @@ type StatusInputs struct {
 // BuildStatusSegment renders the tmux status-right segment string. Returns
 // "" when nothing was tracked today and no week activity exists.
 //
-// Layout: [Frei: …] ⏱ HH:MM ▶ S:MM →HH:MM ✓ ●●●●○ Streak N ▲ +Nh
+// Layout: [● Frei: …] ⏱ HH:MM ▶ S:MM →HH:MM ✓ ●●●●○ Streak N ▲ +Nh
 //
 // Idle state uses the canonical glyph ‖ from the project glyph whitelist
 // (internal/frontend/tui/components/glyphs); ⏸ U+23F8 is emoji-presentation
@@ -76,7 +79,7 @@ func BuildStatusSegment(in StatusInputs) string {
 
 	var parts []string
 	if in.DayOff != nil {
-		parts = append(parts, fmt.Sprintf("#[fg=%s]○ %s#[default]",
+		parts = append(parts, fmt.Sprintf("#[fg=%s]● %s#[default]",
 			KindStatusColor(in.DayOff.Kind, in.Palette), in.DayOff.Label))
 	}
 	parts = append(parts, fmt.Sprintf("#[fg=%s]%s %02d:%02d#[default]",
@@ -205,9 +208,17 @@ func monthBurndownPart(rep MonthBurndownReport, pal StatusPalette) []string {
 
 // BuildPaceDots renders Mon–Fri pace dots. Returns "" when no weekday in
 // the week has any activity — avoids a stray segment at the start of an
-// empty week. Day-offs (Feiertag/Urlaub/Krank) get a ○ in per-kind colour (via
-// KindStatusColor) so the row says "I had a free day" instead of "I
-// missed a target".
+// empty week.
+//
+// Glyph carries shape-of-status, colour carries kind:
+//
+//	●  this day is "accounted for" — workday target met OR scheduled day off
+//	○  workday open / future / missed — nothing happened (yet)
+//
+// Day-offs (Feiertag/Urlaub/Krank) get a filled ● in their per-kind colour
+// (via KindStatusColor) so the row says "I had a free day" with strong
+// in-bar contrast — outlined glyphs lose their colour signal at status-bar
+// font sizes (Spec 2026-05-13-filled-dayoff-dots-supersede).
 func BuildPaceDots(
 	week []WeekDay, now time.Time,
 	lookup func(time.Time) (DayOff, bool),
@@ -222,7 +233,7 @@ func BuildPaceDots(
 		}
 		if lookup != nil {
 			if dayOff, isOff := lookup(d.Date); isOff {
-				dots = append(dots, dot{"○", KindStatusColor(dayOff.Kind, pal)})
+				dots = append(dots, dot{"●", KindStatusColor(dayOff.Kind, pal)})
 				any = true
 				continue
 			}
@@ -233,9 +244,10 @@ func BuildPaceDots(
 			dots = append(dots, dot{"●", pal.Green})
 			any = true
 		case d.IsToday && d.Active != nil:
-			// Same glyph as "hit", colour-differentiated. Half-fill glyphs
-			// like ◐ render at emoji width in some fonts and break alignment.
-			dots = append(dots, dot{"●", pal.Yellow})
+			// Same glyph as "hit", Cyan = active/running/live. Half-fill
+			// glyphs like ◐ render at emoji width in some fonts and break
+			// alignment.
+			dots = append(dots, dot{"●", pal.Cyan})
 			any = true
 		default:
 			dots = append(dots, dot{"○", pal.Dim})
@@ -251,19 +263,24 @@ func BuildPaceDots(
 	return strings.Join(parts, "")
 }
 
-// KindStatusColor mappt Kind auf die tmux-StatusPalette. Holiday → Cyan
-// (Info), Vacation → Green (Success), Sick → Yellow (der "Yellow"-Slot
-// der StatusPalette wird via StatusPaletteFor mit Sem.Warning gefüttert
-// und rendert damit denselben Orange-Hex wie die TUI). Unknown → Dim.
-// Spec: docs/superpowers/specs/2026-05-12-unified-dayoff-glyphs-design.md
+// KindStatusColor mappt Kind auf die tmux-StatusPalette. Jede Kind bekommt
+// eine eigenständige, im Bar-Kontext gut unterscheidbare Farbe:
+//
+//	Holiday   → Yellow  (caution / fixed scheduled off)
+//	Vacation  → Purple  (identity / "you chose this")
+//	Sick      → Orange  (warning / pending state)
+//	Unknown   → Dim     (Glyph-distinct vom missed-workday ○)
+//
+// Spec: docs/superpowers/specs/2026-05-13-filled-dayoff-dots-supersede.md
+// (supersedes 2026-05-12-unified-dayoff-glyphs-design.md).
 func KindStatusColor(k Kind, pal StatusPalette) string {
 	switch k {
 	case KindHoliday:
-		return pal.Cyan
-	case KindVacation:
-		return pal.Green
-	case KindSick:
 		return pal.Yellow
+	case KindVacation:
+		return pal.Purple
+	case KindSick:
+		return pal.Orange
 	}
 	return pal.Dim
 }

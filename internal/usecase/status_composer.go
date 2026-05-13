@@ -80,6 +80,8 @@ func (c *StatusComposer) palette() domain.StatusPalette {
 		Yellow: pick("tn_yellow", def.Yellow),
 		Red:    pick("tn_red", def.Red),
 		Cyan:   pick("tn_cyan", def.Cyan),
+		Purple: pick("tn_purple", def.Purple),
+		Orange: pick("tn_orange", def.Orange),
 		Dim:    pick("tn_dim", def.Dim),
 	}
 }

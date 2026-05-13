@@ -235,7 +235,7 @@ func TestBuildStatusSegment_DayOffBanner(t *testing.T) {
 		Palette:      pal(),
 	}
 	got := domain.BuildStatusSegment(in)
-	if !strings.Contains(got, "○ Tag der Arbeit") {
+	if !strings.Contains(got, "● Tag der Arbeit") {
 		t.Errorf("dayoff banner missing: %q", got)
 	}
 }
@@ -348,7 +348,7 @@ func TestBuildPaceDots_EmptyWeekReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestBuildPaceDots_HitGreenMissedDimRunningYellow(t *testing.T) {
+func TestBuildPaceDots_HitGreenMissedDimRunningCyan(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 30, 0, 0, time.Local) // Wed
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
 	tue := time.Date(2026, 4, 28, 0, 0, 0, 0, time.Local)
@@ -361,9 +361,9 @@ func TestBuildPaceDots_HitGreenMissedDimRunningYellow(t *testing.T) {
 	}
 	got := domain.BuildPaceDots(week, now, noLookup, pal())
 	for _, want := range []string{
-		pal().Green + "]●",  // Mon hit
-		pal().Dim + "]○",    // Tue miss
-		pal().Yellow + "]●", // Wed running below target
+		pal().Green + "]●", // Mon hit
+		pal().Dim + "]○",   // Tue miss
+		pal().Cyan + "]●",  // Wed running below target — Cyan = active/live
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
@@ -381,9 +381,9 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 		kind  domain.Kind
 		color string
 	}{
-		{domain.KindHoliday, p.Cyan},
-		{domain.KindVacation, p.Green},
-		{domain.KindSick, p.Yellow},
+		{domain.KindHoliday, p.Yellow},
+		{domain.KindVacation, p.Purple},
+		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
 	}
 	for _, tc := range tests {
@@ -395,7 +395,7 @@ func TestBuildPaceDots_DayOffGlyphPerKind(t *testing.T) {
 				return domain.DayOff{}, false
 			}
 			got := domain.BuildPaceDots(week, now, lookup, p)
-			want := tc.color + "]○"
+			want := tc.color + "]●"
 			if !strings.Contains(got, want) {
 				t.Errorf("kind %q expected %q in %q", tc.kind, want, got)
 			}
@@ -410,9 +410,9 @@ func TestBuildStatusSegment_DayOffBannerGlyphPerKind(t *testing.T) {
 		kind  domain.Kind
 		color string
 	}{
-		{domain.KindHoliday, p.Cyan},
-		{domain.KindVacation, p.Green},
-		{domain.KindSick, p.Yellow},
+		{domain.KindHoliday, p.Yellow},
+		{domain.KindVacation, p.Purple},
+		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
 	}
 	for _, tc := range tests {
@@ -425,7 +425,7 @@ func TestBuildStatusSegment_DayOffBannerGlyphPerKind(t *testing.T) {
 				Palette:      p,
 			}
 			got := domain.BuildStatusSegment(in)
-			want := tc.color + "]○ Test"
+			want := tc.color + "]● Test"
 			if !strings.Contains(got, want) {
 				t.Errorf("kind %q expected %q in banner: %q", tc.kind, want, got)
 			}
@@ -501,9 +501,9 @@ func TestKindStatusColor_PerKind(t *testing.T) {
 		kind domain.Kind
 		want string
 	}{
-		{domain.KindHoliday, p.Cyan},
-		{domain.KindVacation, p.Green},
-		{domain.KindSick, p.Yellow},
+		{domain.KindHoliday, p.Yellow},
+		{domain.KindVacation, p.Purple},
+		{domain.KindSick, p.Orange},
 		{domain.Kind("unknown"), p.Dim},
 	}
 	for _, tc := range tests {

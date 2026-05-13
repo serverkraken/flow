@@ -73,6 +73,24 @@ func TestStatusComposer_PaletteOverrideViaTmuxOptions(t *testing.T) {
 	}
 }
 
+func TestStatusComposer_PaletteOverrideForPurpleAndOrange(t *testing.T) {
+	// Vacation/Sick day-offs use the new Purple/Orange palette slots; verify
+	// tmux user-options (@tn_purple, @tn_orange) override the defaults.
+	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
+	c := mkComposer(now, nil)
+	c.Tmux = &testutil.FakeTmux{Options: map[string]string{
+		"tn_purple": "#abcabc",
+		"tn_orange": "#fedcba",
+	}}
+	if err := c.DayOffs.Add(domain.DayOff{Date: now, Kind: domain.KindVacation, Label: "Urlaub"}); err != nil {
+		t.Fatalf("seed dayoff: %v", err)
+	}
+	got := c.Compose()
+	if !strings.Contains(got, "#abcabc") {
+		t.Errorf("expected tmux-overridden purple in output, got %q", got)
+	}
+}
+
 func TestStatusComposer_DayOffPicksUpFromStore(t *testing.T) {
 	now := time.Date(2026, 5, 1, 12, 0, 0, 0, time.Local)
 	c := mkComposer(now, nil)
