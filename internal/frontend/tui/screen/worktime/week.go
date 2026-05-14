@@ -50,11 +50,11 @@ type woche struct {
 // wocheStyles caches the palette-dependent lipgloss styles used by
 // week.go. Built once per Model at newWoche().
 type wocheStyles struct {
-	name       lipgloss.Style // Fg + Width(3) — weekday short label
-	date       lipgloss.Style // FgMuted + Width(6) — date column
-	marker     lipgloss.Style // Sem().Accent — cursor bar
-	emptyBar   lipgloss.Style // BgCode — placeholder bar
-	dur        lipgloss.Style // Fg base — total duration (Bold added per-row)
+	name        lipgloss.Style // Fg + Width(3) — weekday short label
+	date        lipgloss.Style // FgMuted + Width(6) — date column
+	marker      lipgloss.Style // Sem().Accent — cursor bar
+	emptyBar    lipgloss.Style // BgCode — placeholder bar
+	dur         lipgloss.Style // Fg base — total duration (Bold added per-row)
 	greenPace   lipgloss.Style // Sem().Success — hit-day pace dot
 	dimPace     lipgloss.Style // FgMuted — miss-day pace dot
 	runningPace lipgloss.Style // Sem().Active — today-running pace dot (spec 2026-05-13)

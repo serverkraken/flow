@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 )
 
@@ -26,7 +27,7 @@ func TestMenu_ColonKeyOpensActionsModal(t *testing.T) {
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("`:` must open the menu (FilterActive should be true)")
 	}
-	out := updated.View()
+	out := ansi.Strip(updated.View())
 	for _, want := range []string{"Aktionen", "Brief Wochenbericht", "Export CSV"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("menu View must include %q, got:\n%s", want, out)
@@ -38,7 +39,7 @@ func TestMenu_TabStripStaysVisibleWhenMenuOpen(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
-	out := updated.View()
+	out := ansi.Strip(updated.View())
 	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("tab strip must remain visible while menu is open; missing %q:\n%s",
@@ -60,7 +61,7 @@ func TestMenu_EscClosesAndRestoresTab(t *testing.T) {
 	}
 	// After close, the active tab body should render again. Heute is
 	// the default tab and shows the loading placeholder before Init.
-	if got := updated.View(); !strings.Contains(got, "Heute lädt") {
+	if got := ansi.Strip(updated.View()); !strings.Contains(got, "Heute lädt") {
 		t.Errorf("after Esc, tab body must render again; got:\n%s", got)
 	}
 }
@@ -73,7 +74,7 @@ func TestMenu_TabSwitchKeysSuspendedWhileMenuOpen(t *testing.T) {
 	// open the keystroke must go to the menu's filter (extending
 	// query) rather than switching tabs.
 	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	out := updated.View()
+	out := ansi.Strip(updated.View())
 	if strings.Contains(out, "Woche lädt") {
 		t.Errorf("`2` while menu open must NOT switch to Woche; got:\n%s", out)
 	}
