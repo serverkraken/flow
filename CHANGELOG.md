@@ -1,5 +1,123 @@
 # Changelog
 
+## [1.2.0](https://github.com/serverkraken/flow/compare/v1.1.0...v1.2.0) (2026-05-14)
+
+
+### Features
+
+* **domain/status:** filled pace-dots with distinct per-kind colours ([e7da013](https://github.com/serverkraken/flow/commit/e7da013b90d4c9ba696ff4d648af79690ad8e2ed))
+* **domain/status:** kindStatusColor helper (Kind → tmux palette slot) ([e684ece](https://github.com/serverkraken/flow/commit/e684eced85788ea10be4a5155c6aa284aa1f08d2))
+* **domain/status:** unify day-off hues across TUI + tmux via Sem tokens ([1b0e21b](https://github.com/serverkraken/flow/commit/1b0e21bc53e6eb8663ad147f7bc7bf9e3f7ba8c1))
+* **kompendium:** Stufe 7+8 — Live-Palette-Wiring (A7) + Italic raus (B7) ([9a8d31f](https://github.com/serverkraken/flow/commit/9a8d31f45305a2ed2a7f0a16629a57cc74b626be))
+* **lint:** Hue-Direktzugriff in Screens verbieten + Cleanup (T2+T3) ([fbbaca5](https://github.com/serverkraken/flow/commit/fbbaca5c49eba68938fa828f41a98dfe56716e97))
+* **lint:** Hue-Lint auf kompendium/frontend ausweiten (F3) ([f76dfb6](https://github.com/serverkraken/flow/commit/f76dfb650fc536ad74a08916923628ea9121caa7))
+* **markdown_overlay:** chrome (frame + title + sep + footer + statusBar) (F4.3) ([1449ce8](https://github.com/serverkraken/flow/commit/1449ce8966ff126a3f55220b810c26cb7661c42f))
+* **markdown_overlay:** close-keys + ExitMsg + Update routing (F4.4) ([e20d8f4](https://github.com/serverkraken/flow/commit/e20d8f4ab787aa1b13ab5c40ad46c3598aaaa98e))
+* **markdown_overlay:** code-copy + OSC52 + clipboard fallback (F4.6) ([d316e39](https://github.com/serverkraken/flow/commit/d316e3949036bba85492d080f8f3fa32599e6b7f))
+* **markdown_overlay:** package skeleton + tea.Model-style contract (F4.1) ([ae29978](https://github.com/serverkraken/flow/commit/ae2997888cc697931e01f1f203dd628219678cec))
+* **markdown_overlay:** search mode + match highlight + counter (F4.5) ([f63e2df](https://github.com/serverkraken/flow/commit/f63e2dfffb4daaeb86f897e27587f23065309ef5))
+* **markdown_overlay:** SetError + WithFooterExtras (F4.7) ([d47ec2c](https://github.com/serverkraken/flow/commit/d47ec2c01a710fdfb93cfa93f4d4e0dde6792a9c))
+* **markdown_overlay:** WithTitle/WithSource + SetSize/SetTitle/SetSource (F4.2) ([05835a3](https://github.com/serverkraken/flow/commit/05835a3e82f7d3ee88983178dcdf72251577a76c))
+* **palette,projects,cli:** Stufe 12 — tmux-Plugin-Migration (palette + projects) ([361257f](https://github.com/serverkraken/flow/commit/361257ff1a083ebed3f2f2ac061d61143e9a67a1))
+* **tui/worktime:** unify pace-dot glyph + colour across all surfaces ([ccbe550](https://github.com/serverkraken/flow/commit/ccbe550170a545cbc9dc3dc960526079a1878650))
+* **tui:** UI/UX-Review-Pass — A11y, Komponenten-Vokabular, Note-Viewer ([c01fba2](https://github.com/serverkraken/flow/commit/c01fba2fa3b07a34f4224586812fa15df4ddcb3c))
+* **worktime/frei:** Kind-Picker mit führendem ○ in Sem-Farbe ([6542bf3](https://github.com/serverkraken/flow/commit/6542bf38a056f1b6684f43ab6638bf7829cc419a))
+* **worktime/history:** angehaengte Notes im Drill sichtbar + `o` zum Anzeigen ([4254622](https://github.com/serverkraken/flow/commit/425462242f2db6f4aa3ad2a2e8ae25008f091d0f))
+* **worktime/history:** Note an vergangene Tage anhaengen via `n` (drill) ([7de23e1](https://github.com/serverkraken/flow/commit/7de23e1483c73c1183d82968b3e44a94d21b6b94))
+* **worktime/history:** Notes-Marker pro Tag in List/Heatmap/Month ([17b2c43](https://github.com/serverkraken/flow/commit/17b2c437a3b0408b286fca730ea3f29a6666eeeb))
+* **worktime/history:** O-Key Editor + R-Key Detach im Drill ([5e5e388](https://github.com/serverkraken/flow/commit/5e5e388917cca47d4394749090b59df9df1b118a))
+* **worktime:** Brief-Split öffnet integrierten Overlay statt glow (G3) ([63cc390](https://github.com/serverkraken/flow/commit/63cc390ad150030961cadd9f0daf574c434cb593))
+
+
+### Bug Fixes
+
+* add .claude to .gitignore ([054c02d](https://github.com/serverkraken/flow/commit/054c02dbc7f30eea2d0569e4f3ddfbfa76c5f5b3))
+* **confirm,kompendium:** Stufe 5 — Sem()-Sweep (B3) ([601b461](https://github.com/serverkraken/flow/commit/601b4617ba07e417e324a0172569afa532e661ed))
+* **dayoffs:** AddRange atomar via Store.AddBatch (L5) ([dfd8706](https://github.com/serverkraken/flow/commit/dfd87065174b7ed7d26cb9148804a1c1157d1675))
+* **dayoffstsv:** Cross-Process-Lock analog linkstsv (S3) ([e9df9cb](https://github.com/serverkraken/flow/commit/e9df9cb7f9c1cdc553c6b2e549f2633fd732f83c))
+* **domain,palette,worktime:** correctness bugs (round4-B) ([6bc7615](https://github.com/serverkraken/flow/commit/6bc76151ad8457e68162d04c5510818b34aa5311))
+* **domain:** parseHumanDuration lehnt negative h/m ab (L1) ([d214079](https://github.com/serverkraken/flow/commit/d214079cb551c58ec3ccdca7903ebac5bfcd9580))
+* **glyphs,worktime,markdown,kompendium,palette:** Stufe 3 — Glyph-Whitelist (B1) ([84b0864](https://github.com/serverkraken/flow/commit/84b0864e8e475639e0019d47cd838e79a76bcf72))
+* **kompendium,markdown_overlay:** context-cancel + race-fix (round4-D) ([39d3439](https://github.com/serverkraken/flow/commit/39d3439bec607e536641e4f934dc9ce1871b17e3))
+* **kompendium/tarsnapshot:** cumulative-bytes-Cap gegen many-entries-Bombs (F6) ([571c6a1](https://github.com/serverkraken/flow/commit/571c6a18b767be7c9548dad3146c45a2f312fa7d))
+* **kompendium:** Stufe 6 — DE-Strings (B4) ([57a8158](https://github.com/serverkraken/flow/commit/57a81582f4d1afb3e66dd71386fae5a5636934e8))
+* **kompendium:** Stufe 9 — Komponenten-Integration partial (B5) ([34ff0f6](https://github.com/serverkraken/flow/commit/34ff0f667c8374e66f7afe1cadc6de3fad84d5ca))
+* **markdown_overlay:** truncate long titles + progressive footer degrade (review-C) ([37b77cf](https://github.com/serverkraken/flow/commit/37b77cf20cf0ab64007c7e710aa5f226bfe3b758))
+* **markdown_overlay:** wire Top/Bottom keys (g/G/home/end) (F4-review) ([3a627e4](https://github.com/serverkraken/flow/commit/3a627e4b06508a4dadb0a52701fcf73f0270d254))
+* **markdown,theme:** Stufe 2 — A11y (A2, A3) ([d236a4b](https://github.com/serverkraken/flow/commit/d236a4b534bbb3f9a3c452410a39668329beb30e))
+* **security:** Palette-Action / Pager-Viewer / Git-Remote-URL härten (S1+S2+S3) ([d995fd3](https://github.com/serverkraken/flow/commit/d995fd3bbe6162a1406bf9449b5dad2b4f046b4c))
+* **security:** Tar-Bombe + YAML-Alias-Amplification kappen (S4) ([a77da34](https://github.com/serverkraken/flow/commit/a77da344415350e9148815a6168b82730d68cf15))
+* **status:** bannerThreshold-Konstanten extrahieren (L2) ([aeb6f4d](https://github.com/serverkraken/flow/commit/aeb6f4d2fa236fad76b47df35fad7c6637157f5e))
+* **strings,worktime,palette,projects:** Stufe 4 — Strings-Sweep (B2) ([224f4b3](https://github.com/serverkraken/flow/commit/224f4b3d37214999cd000c9111e33fc9cb7783fe))
+* **theme,docs:** Stufe 11 — Sem().Border Doku + Test (B8) ([2634510](https://github.com/serverkraken/flow/commit/263451071c7024a3ca568ccb5bc91ceab1be6bb1))
+* **usecase,kompendium,adapter:** data integrity (round4-C) ([3746151](https://github.com/serverkraken/flow/commit/37461516ed64a33b1d59b0f4547fcf6d2b760682))
+* **usecase:** SessionWriter.Stop idempotenter Retry (round4-F) ([d477743](https://github.com/serverkraken/flow/commit/d477743893cb751ba10bd5fe139a41460cc6a793))
+* **worktime,kompendium:** Datenintegrität — atomare Multi-Midnight-Persistenz, Validierung, Lock-Fehler-Surfacing (B1+B2+B3+Q1+Q5+Q3+Q4) ([9ebe6ba](https://github.com/serverkraken/flow/commit/9ebe6ba659f4ca16b8b2d1a9ff2ad9b51b993e4f))
+* **worktime,markdown:** Stufe 1 — Logik-Bugs (A1, A4, A5, A6, A8) ([9d4b4f5](https://github.com/serverkraken/flow/commit/9d4b4f5c228501c03919e05576136f43225c9518))
+* **worktime:** heute-Edit akzeptiert Uppercase-Duration (S1) ([8bbd941](https://github.com/serverkraken/flow/commit/8bbd941f80dd03a3d08b6a076ba333cd41899770))
+* **worktime:** Heute-Note nach tmux-Pane-Resize re-rendern (F1) ([8d15281](https://github.com/serverkraken/flow/commit/8d15281c771df9680f35382ed62adad3e1740399))
+* **worktime:** Note-Viewer rendert ohne Doppel-Border (FullScreen-Opt-In) ([2c794d8](https://github.com/serverkraken/flow/commit/2c794d8f007f06019a86cf3ac1656def60056181))
+* **worktime:** resolve formatting and robustify integration tests ([f1dd30a](https://github.com/serverkraken/flow/commit/f1dd30aebce95a79e9edc91e80450cd2aeba96b7))
+* **worktime:** scheduleTick consults ports.Clock not time.Now (review-B) ([52e9487](https://github.com/serverkraken/flow/commit/52e9487948e7705848e06e30546d8a402d0f5ccc))
+* **worktime:** session.Date bei Midnight-Cross-Stop (S2) ([61d91c1](https://github.com/serverkraken/flow/commit/61d91c15cf43f19432c86bd9aea290cec5146873))
+* **worktime:** SyncGermanHolidays nimmt Location-Parameter (L3) ([2f9bd7e](https://github.com/serverkraken/flow/commit/2f9bd7eff9e63255fbbbe01aac4f7d44881456ea))
+
+
+### Performance
+
+* **palette,worktime:** hot-path style cache (round4-E) ([42a7ccd](https://github.com/serverkraken/flow/commit/42a7ccd62903584d77cc9bae2e27d3bc191704c7))
+* **worktime:** promote NewStyle bases out of render hot path (review-D) ([a489fec](https://github.com/serverkraken/flow/commit/a489fec39b40cbe6fba6267ecb427665b38e9161))
+
+
+### Refactoring
+
+* **adapters:** bash-safety + flock-acquire zentralisiert + Pager-Leak (F2+M1+M3) ([721c1a9](https://github.com/serverkraken/flow/commit/721c1a9aef40f929611cbf6ee278e8c07f420e02))
+* **cheatsheet:** markdown_overlay als 5. Caller (round4-H) ([bba3638](https://github.com/serverkraken/flow/commit/bba363853e514dabeb44291ac5c2f9c105fbaf3f))
+* **cmd/flow,kompendium/cli:** share kompendium write-cmd dispatch (review-E) ([3b81846](https://github.com/serverkraken/flow/commit/3b81846110c03dd183395064ed6758dd403e901e))
+* **composition:** Env-Var-Disziplin — alle os.Getenv im Composition Root (A1) ([b0e49b8](https://github.com/serverkraken/flow/commit/b0e49b8bce97f566f23fb48939c6a92579f6a0d9))
+* **domain/status:** banner uses ○ + kindStatusColor ([824d933](https://github.com/serverkraken/flow/commit/824d933eb0efcfbce626e69194a7c4c1f9f75990))
+* **domain/status:** pace-dots use ○ + kindStatusColor ([e07bcb7](https://github.com/serverkraken/flow/commit/e07bcb7df98eac249282a481ba0313bcbcf71943))
+* **editor,ports:** NoteLauncher.View + externer Note-Viewer entfernt (G2) ([b87ffe3](https://github.com/serverkraken/flow/commit/b87ffe3e84c933d1ff4120a7f113869c07b1d5c7))
+* **kompendium/browse:** markdown_overlay statt eigener view.Model (F4.9) ([d5e75c6](https://github.com/serverkraken/flow/commit/d5e75c6501ac2d593f426b2ea9254ccd85756c7b))
+* **kompendium/browse:** Stufe 10 — model.go Monolith splitten (B6) ([4c2c80c](https://github.com/serverkraken/flow/commit/4c2c80c60c1722d2aa62568b37adc79b4e7cefa1))
+* **kompendium/browse:** view.go → render_root.go (Q1) ([964eab6](https://github.com/serverkraken/flow/commit/964eab63bd091668b05b95f88e748dc4895dcca4))
+* **kompendium:** delete view/ package nach markdown_overlay-Migration (F4.10) ([ee709e2](https://github.com/serverkraken/flow/commit/ee709e2b5fbc3215c0da504e5be390d1a56607ce))
+* **kompendium:** split browse/model.go in fokussierte Files (M1) ([30f9b18](https://github.com/serverkraken/flow/commit/30f9b1834f228720982d5b802d1241f250ce7784))
+* **markdown:** WikiLink-AST-Node-Name entkompendiumieren (C3) ([8558375](https://github.com/serverkraken/flow/commit/855837539d86f58ac3450989293843dad3795f92))
+* **palette:** split palette/model.go in fokussierte Files (M2) ([88e9ebc](https://github.com/serverkraken/flow/commit/88e9ebc23a05815dc161c123cf2cfbfd4bcf5c18))
+* **session_writer:** Pause idempotent auch für ErrStopBeforeStart (M2) ([691b615](https://github.com/serverkraken/flow/commit/691b615b05366ee6f5a62575583e74814fd99d23))
+* **strings:** String-Duplikate in components/strings konsolidieren (C1) ([aa1478e](https://github.com/serverkraken/flow/commit/aa1478ea3b3acfc8c12317aab572dbdbc5d5d839))
+* **usecase,shellsafe,domain:** design touches (round4-G) ([dc7cc81](https://github.com/serverkraken/flow/commit/dc7cc81325b13de5e4aa57dad59ec79339022c11))
+* **usecase:** DayOffReader entfernen (L4) ([43d31db](https://github.com/serverkraken/flow/commit/43d31db8d0ac55381b29a94bcec7f5f06034c751))
+* **worktime,docs:** Stufe 13 — Vereinheitlichung (C1 + C4) ([2591e66](https://github.com/serverkraken/flow/commit/2591e66f748e1dd803504dab25ec10662d631be2))
+* **worktime,markdown_overlay,lint:** mechanical cleanup (review-A) ([551e58c](https://github.com/serverkraken/flow/commit/551e58c0f59ec3afb6c7f1798aa723ed137a5c19))
+* **worktime/brief:** markdown_overlay statt eigener briefView-Struct (F4.11) ([cc206b4](https://github.com/serverkraken/flow/commit/cc206b4f04093ba87e4c6c27cee6079d1c7810ea))
+* **worktime/frei:** Kind-Summary in Sem-Farben ([248d587](https://github.com/serverkraken/flow/commit/248d587ea83d8d741f3e961fb9dd440f70e0b5b8))
+* **worktime/heatmap:** cell + legend use ○ + per-kind colour ([d8fef84](https://github.com/serverkraken/flow/commit/d8fef8450ecf0b67e8be04279cdab208a6aaf36b))
+* **worktime/heute:** NoteAttach auf shared picker konsolidieren ([0f0d4e1](https://github.com/serverkraken/flow/commit/0f0d4e14b28aaea22ecd518a70c5a0d14a018073))
+* **worktime/month:** cell uses ○ + per-kind colour ([e881265](https://github.com/serverkraken/flow/commit/e881265a2ccac42f00ccdfec238957855ebea33d))
+* **worktime/note:** markdown_overlay statt eigener noteView-State (F4.12) ([78894e3](https://github.com/serverkraken/flow/commit/78894e3272140ce74a1d864a8f87a5225a2c0bcc))
+* **worktime/week:** renderPace uses ○ + kindStyle for free days ([82f4a01](https://github.com/serverkraken/flow/commit/82f4a010c5a6c2d53fc41d8f30e8db2ffc4ad2dc))
+* **worktime:** Heatmap-Legend-Glyphen aus Whitelist (C2) ([c7c539f](https://github.com/serverkraken/flow/commit/c7c539f81b8e3c7c58d32c2786cfb1986a5c6a15))
+* **worktime:** Hue-Direktzugriffe auf Sem() umstellen (T1) ([8a0a3a5](https://github.com/serverkraken/flow/commit/8a0a3a513cfda4edf0eea7fa3772834ccd95bf52))
+* **worktime:** split today_dialog.go in fokussierte Files (M3) ([90645b8](https://github.com/serverkraken/flow/commit/90645b8559b86759cc86f333e9a81ded0414b9f5))
+* **worktime:** toten Glow-Fallback im Heute-NoteView entfernen (G1) ([73cb9c5](https://github.com/serverkraken/flow/commit/73cb9c50562ed00ec662e9a47f362a7f02332e64))
+
+
+### Dokumentation
+
+* A1-Plattform-Detection-Ausnahme dokumentieren (Q2) ([55344ca](https://github.com/serverkraken/flow/commit/55344caae7e3c70a816c6998bed18c342462c937))
+* **domain/status:** document StatusPalette slot semantics ([4e109b8](https://github.com/serverkraken/flow/commit/4e109b8d250ef3c53f4e6a0b5f18e2b189699fda))
+* **glow-migration:** glow als Dependency entfernt + Brief-Tests (G4) ([d2d3b04](https://github.com/serverkraken/flow/commit/d2d3b04f146cd38417e80c346c08f0a7c4e6f1d0))
+* **markdown_overlay:** annotate SetTitle + isClosingFence (F4-review) ([22cea50](https://github.com/serverkraken/flow/commit/22cea50ec303615c97c57e9335b2ffd46ddf1aed))
+* **markdown_overlay:** clarify init() palette lifecycle (F4-review) ([e9e82a0](https://github.com/serverkraken/flow/commit/e9e82a042d810e5f4eae5c55e844b20ed9fe55b9))
+* **plans:** implementation plan for unified dayoff glyphs (12 tasks) ([a6ba9c5](https://github.com/serverkraken/flow/commit/a6ba9c5603f94a4b759c9238a151cb4f01f21767))
+* **specs:** extend dayoff-glyphs spec to tmux status segment ([07ea152](https://github.com/serverkraken/flow/commit/07ea152024ca49b0c41d8cb9b697cd68c0275463))
+* **specs:** markdown_overlay-Component-Design (F4) ([f4c70d8](https://github.com/serverkraken/flow/commit/f4c70d82e3f296918b8027373c318154267afa8c))
+* **specs:** markdown_overlay-Implementation-Plan (F4) ([d003b08](https://github.com/serverkraken/flow/commit/d003b08b59c7db105e8eac07908426755b789978))
+* **specs:** unified dayoff glyphs design (Pace/Heatmap/Monat/Frei) ([27089a1](https://github.com/serverkraken/flow/commit/27089a1433e477bf46b904727f4d20e2d6ff1f7b))
+* **worktime,Makefile:** stale Kommentare nach A1/G3 aktualisiert (F7) ([0edee83](https://github.com/serverkraken/flow/commit/0edee8356df0a1550b19d5472a26b0bb57ea086a))
+
 ## [1.1.0](https://github.com/serverkraken/flow/compare/v1.0.0...v1.1.0) (2026-05-09)
 
 
