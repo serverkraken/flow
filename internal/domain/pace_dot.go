@@ -21,6 +21,8 @@ import "time"
 // renderer also wants to know *any-activity* for output suppression.
 type PaceDotKind int
 
+// Pace-dot slot constants — see PaceDotKind doc for the per-slot
+// meaning, glyph and colour rules.
 const (
 	PaceDotMissed PaceDotKind = iota
 	PaceDotHit

@@ -435,7 +435,6 @@ func (w woche) paceDotStyle(k domain.PaceDotKind, dayOff *domain.DayOff) lipglos
 	return w.styles.dimPace
 }
 
-
 func (w woche) countWorkdays() int {
 	n := 0
 	for _, d := range w.week {
@@ -482,4 +481,3 @@ func isoMonday(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).
 		AddDate(0, 0, -(wd - 1))
 }
-

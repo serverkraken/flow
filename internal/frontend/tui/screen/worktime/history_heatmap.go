@@ -44,16 +44,16 @@ func (h history) renderHeatmapWeekHeader(startMon time.Time, weeks int) string {
 	for w := 0; w < weeks; w++ {
 		mon := startMon.AddDate(0, 0, 7*w)
 		yr, wn := mon.ISOWeek()
-		col := h.pal.FgMuted
+		// Jahres-Grenze ist Identity/Highlight, kein Active —
+		// Skill §Color semantics: Cyan ist „live/running", nicht
+		// „diese Spalte markiert was Besonderes". Purple/Highlight
+		// trägt die Kalender-Boundary ohne mit den Running-Dots
+		// zu konkurrieren. Beide Styles sind gecacht in h.styles.
+		st := h.styles.headerWeekNum
 		if prevYear != -1 && yr != prevYear {
-			// Jahres-Grenze ist Identity/Highlight, kein Active —
-			// Skill §Color semantics: Cyan ist „live/running", nicht
-			// „diese Spalte markiert was Besonderes". Purple/Highlight
-			// trägt die Kalender-Boundary ohne mit den Running-Dots
-			// zu konkurrieren.
-			col = h.pal.Sem().Highlight
+			st = h.styles.headerYearChange
 		}
-		header += lipgloss.NewStyle().Foreground(col).Render(fmt.Sprintf("%2d ", wn%100))
+		header += st.Render(fmt.Sprintf("%2d ", wn%100))
 		prevYear = yr
 	}
 	return header
@@ -64,7 +64,7 @@ func (h history) renderHeatmapRows(byKey map[string]domain.DayRecord, startMon t
 	now := h.deps.Clock.Now()
 	out := make([]string, 0, 7)
 	for d := 0; d < 7; d++ {
-		row := "   " + lipgloss.NewStyle().Foreground(h.pal.Fg).Width(3).Render(dayLabels[d]) + "  "
+		row := "   " + h.styles.dayLabelFg.Render(dayLabels[d]) + "  "
 		for w := 0; w < weeks; w++ {
 			day := startMon.AddDate(0, 0, 7*w+d)
 			row += h.renderHeatmapCell(day, byKey, w, d, now)
@@ -96,10 +96,11 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	isToday := sameDay(day, now)
 	switch {
 	case isCursor:
-		// Cursor cell: invert with the accent. Combine the today-underline
-		// when the cursor sits on today so the user still gets the
-		// "this is today" reinforcement instead of an exclusive switch.
-		cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
+		// Cursor cell: invert with the accent (gecachte cursorCell).
+		// Combine the today-underline when the cursor sits on today so
+		// the user still gets the "this is today" reinforcement instead
+		// of an exclusive switch.
+		cellStyle = h.styles.cursorCell
 		if isToday {
 			cellStyle = cellStyle.Underline(true)
 		}
