@@ -84,7 +84,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 			// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 			cell = " " + glyphs.Filled + " "
 		}
-		color = kindColor(h.pal, dayOff.Kind)
+		color = theme.KindColor(h.pal, dayOff.Kind)
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(color)
 	isCursor := w == h.heatCol && d == h.heatRow

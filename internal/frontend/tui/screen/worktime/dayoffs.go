@@ -514,7 +514,7 @@ func (f frei) renderKindSummary() string {
 	parts := make([]string, 0, len(domain.AllKinds))
 	for _, k := range domain.AllKinds {
 		if c := byKind[k]; c > 0 {
-			labelStyle := lipgloss.NewStyle().Foreground(kindColor(f.pal, k))
+			labelStyle := lipgloss.NewStyle().Foreground(theme.KindColor(f.pal,k))
 			parts = append(parts,
 				labelStyle.Render(k.LabelDe())+" "+stDim(f.pal, fmt.Sprintf("%d", c)))
 		}
@@ -531,7 +531,7 @@ func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
 	// kindBase teilen wir zwischen kindCell und labelCell, damit das §2.6
 	// NewStyle-Budget für dayoffs.go nicht aufgepumpt wird.
 	date := domain.WeekdayShortDe(d.Date.Weekday()) + " " + d.Date.Format("02.01.")
-	kindBase := lipgloss.NewStyle().Foreground(kindColor(f.pal, d.Kind))
+	kindBase := lipgloss.NewStyle().Foreground(theme.KindColor(f.pal,d.Kind))
 	dateCell := lipgloss.NewStyle().Width(10).Foreground(f.pal.FgMuted).Render(date)
 	kindCell := kindBase.Width(10).Render(d.Kind.LabelDe())
 	labelCell := kindBase.Render(d.Label)
@@ -610,7 +610,7 @@ func (f frei) renderKindPicker(inner int) string {
 		// §Color semantics "one accent per row" bleibt gewahrt, weil die
 		// Kind-Farbe in unselektierten Chips kein Akzent ist sondern eine
 		// Identitätsfarbe.
-		color := kindColor(f.pal, k)
+		color := theme.KindColor(f.pal,k)
 		glyphStyle := lipgloss.NewStyle().Foreground(color)
 		labelStyle := lipgloss.NewStyle().Foreground(color)
 		if i == f.kindCur {

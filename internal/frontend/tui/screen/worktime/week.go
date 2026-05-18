@@ -75,15 +75,13 @@ type wocheStyles struct {
 
 func newWocheStyles(p theme.Palette) wocheStyles {
 	sem := p.Sem()
-	// Spec 2026-05-13-filled-dayoff-dots-supersede: kind-bound Sem tokens
-	// — Schedule (fixed calendar event), Highlight (chosen identity),
-	// Notice (off-pattern warning). The Sem layer guarantees the same
-	// hue lands on the TUI surface and the tmux pace dots (via
-	// theme.StatusPaletteFor / domain.KindStatusColor).
+	// Kind-Farben kommen aus dem einen kanonischen Mapping theme.KindColor.
+	// Das tmux-Bar liest dieselben Hex-Werte via theme.StatusPaletteFor →
+	// domain.KindStatusColor.
 	kinds := map[domain.Kind]lipgloss.Style{
-		domain.KindHoliday:  lipgloss.NewStyle().Foreground(sem.Schedule),
-		domain.KindVacation: lipgloss.NewStyle().Foreground(sem.Highlight),
-		domain.KindSick:     lipgloss.NewStyle().Foreground(sem.Notice),
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindHoliday)),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindVacation)),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
 	}
 	return wocheStyles{
 		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
@@ -104,7 +102,7 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 }
 
 // kindStyle returns the pre-built style for k. Unknown kinds get
-// kindFallback (Fg) — matches the legacy kindColor() behaviour.
+// kindFallback (Fg) — matches the theme.KindColor fallback.
 func (s wocheStyles) kindStyle(k domain.Kind) lipgloss.Style {
 	if st, ok := s.kinds[k]; ok {
 		return st
@@ -462,28 +460,3 @@ func isoMonday(t time.Time) time.Time {
 		AddDate(0, 0, -(wd - 1))
 }
 
-// kindColor maps a day-off kind to a palette color. Lives on the screen
-// side because the mapping mixes a domain enum with frontend palette
-// concerns. Wave E (Frei tab) reuses this when listing day-offs.
-//
-// Spec 2026-05-13-filled-dayoff-dots-supersede: drei klar getrennte
-// Hue-Familien (Blau / Lavendel / Coral). Konsumiert über Sem-Token,
-// damit der Mapping-Layer im theme-Paket lebt und der screen-hue-lint
-// nicht verletzt wird; das tmux-Bar liest dieselben Hex-Werte via
-// theme.StatusPaletteFor → domain.KindStatusColor.
-//
-//	Feiertag → Sem.Schedule  (fixed scheduled calendar event)
-//	Urlaub   → Sem.Highlight (chosen identity, attention-grabbing mark)
-//	Krank    → Sem.Notice    (off-pattern warning, softer than Danger)
-func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
-	sem := p.Sem()
-	switch k {
-	case domain.KindHoliday:
-		return sem.Schedule
-	case domain.KindVacation:
-		return sem.Highlight
-	case domain.KindSick:
-		return sem.Notice
-	}
-	return p.Fg
-}

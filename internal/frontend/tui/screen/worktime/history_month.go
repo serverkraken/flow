@@ -160,7 +160,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	case isOff:
 		// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 		glyph = glyphs.Filled
-		color = kindColor(h.pal, dayOff.Kind)
+		color = theme.KindColor(h.pal, dayOff.Kind)
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted
 	}
