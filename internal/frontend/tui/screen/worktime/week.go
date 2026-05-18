@@ -75,15 +75,13 @@ type wocheStyles struct {
 
 func newWocheStyles(p theme.Palette) wocheStyles {
 	sem := p.Sem()
-	// Spec 2026-05-13-filled-dayoff-dots-supersede: kind-bound Sem tokens
-	// — Schedule (fixed calendar event), Highlight (chosen identity),
-	// Notice (off-pattern warning). The Sem layer guarantees the same
-	// hue lands on the TUI surface and the tmux pace dots (via
-	// theme.StatusPaletteFor / domain.KindStatusColor).
+	// Kind-Farben kommen aus dem einen kanonischen Mapping theme.KindColor.
+	// Das tmux-Bar liest dieselben Hex-Werte via theme.StatusPaletteFor →
+	// domain.KindStatusColor.
 	kinds := map[domain.Kind]lipgloss.Style{
-		domain.KindHoliday:  lipgloss.NewStyle().Foreground(sem.Schedule),
-		domain.KindVacation: lipgloss.NewStyle().Foreground(sem.Highlight),
-		domain.KindSick:     lipgloss.NewStyle().Foreground(sem.Notice),
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindHoliday)),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindVacation)),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
 	}
 	return wocheStyles{
 		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
@@ -104,7 +102,7 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 }
 
 // kindStyle returns the pre-built style for k. Unknown kinds get
-// kindFallback (Fg) — matches the legacy kindColor() behaviour.
+// kindFallback (Fg) — matches the theme.KindColor fallback.
 func (s wocheStyles) kindStyle(k domain.Kind) lipgloss.Style {
 	if st, ok := s.kinds[k]; ok {
 		return st
@@ -362,9 +360,11 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 
 func (w woche) renderPace(now time.Time) string {
 	// Cached styles — these used to be allocated per-call before round4.
+	// Track-Marker (▲ on track / ▼ behind) und Ziel-Count brauchen
+	// greenStyle/dimStyle/behindStyle direkt; die Dots gehen über
+	// paceDotStyle(kind, dayOff) und cachen via w.styles auch.
 	greenStyle := w.styles.greenPace
 	dimStyle := w.styles.dimPace
-	runningStyle := w.styles.runningPace
 	behindStyle := w.styles.behindPace
 
 	dots := make([]string, 0, len(w.week))
@@ -373,25 +373,27 @@ func (w woche) renderPace(now time.Time) string {
 
 	for _, d := range w.week {
 		isWeekend := d.Date.Weekday() == time.Saturday || d.Date.Weekday() == time.Sunday
-		dayOff, isOff := w.deps.DayOffStore.Lookup(d.Date)
-		total := d.Total(now)
-		hit := d.Target > 0 && total >= d.Target
-
-		switch {
-		case isOff && !isWeekend:
-			// Spec 2026-05-13-filled-dayoff-dots-supersede: ● für freie Tage
-			// (gleicher Glyph wie hit-workday), Kind-Farbe trägt die Identität.
-			// Cross-surface mit tmux-Bar identisch.
-			dots = append(dots, w.styles.kindStyle(dayOff.Kind).Render(glyphs.Filled))
-		case hit:
-			dots = append(dots, greenStyle.Render(glyphs.Filled))
-		case d.IsToday && d.Active != nil:
-			dots = append(dots, runningStyle.Render(glyphs.Filled))
-		default:
-			dots = append(dots, dimStyle.Render(glyphs.Empty))
+		var dayOff *domain.DayOff
+		if entry, isOff := w.deps.DayOffStore.Lookup(d.Date); isOff {
+			dayOff = &entry
 		}
+		// Decision tree shared with the tmux status segment via
+		// domain.PaceDotFor — same kind selection lands on both surfaces.
+		// Style selection stays here because lipgloss styles are cached
+		// in w.styles for the render hot path.
+		kind := domain.PaceDotFor(d, now, dayOff)
+		glyph := domain.PaceDotGlyph(kind)
+		style := w.paceDotStyle(kind, dayOff)
+		// Weekend-Skip ist hier am Renderer, nicht im PaceDotFor — die
+		// week.renderPace-Surface zeigt Mo–Fr-Dots, das Stats-Akkumulat
+		// braucht auch nur Werktage.
+		if isWeekend {
+			continue
+		}
+		dots = append(dots, style.Render(glyph))
 
-		if !isWeekend && !isOff {
+		hit := kind == domain.PaceDotHit
+		if dayOff == nil {
 			workdays++
 			past := d.Date.Before(today)
 			if past || (d.IsToday && hit) {
@@ -413,6 +415,24 @@ func (w woche) renderPace(now time.Time) string {
 		track = behindStyle.Render("▼ behind")
 	}
 	return strings.Join(dots, " ") + "   " + count + "   " + track
+}
+
+// paceDotStyle picks the cached lipgloss style for a pace-dot kind.
+// Mirrors domain.paceDotStatusColor but returns a pre-built lipgloss
+// style from w.styles so the render hot path doesn't allocate.
+func (w woche) paceDotStyle(k domain.PaceDotKind, dayOff *domain.DayOff) lipgloss.Style {
+	switch k {
+	case domain.PaceDotDayOff:
+		if dayOff == nil {
+			return w.styles.dimPace
+		}
+		return w.styles.kindStyle(dayOff.Kind)
+	case domain.PaceDotHit:
+		return w.styles.greenPace
+	case domain.PaceDotRunning:
+		return w.styles.runningPace
+	}
+	return w.styles.dimPace
 }
 
 func (w woche) countWorkdays() int {
@@ -460,30 +480,4 @@ func isoMonday(t time.Time) time.Time {
 	}
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).
 		AddDate(0, 0, -(wd - 1))
-}
-
-// kindColor maps a day-off kind to a palette color. Lives on the screen
-// side because the mapping mixes a domain enum with frontend palette
-// concerns. Wave E (Frei tab) reuses this when listing day-offs.
-//
-// Spec 2026-05-13-filled-dayoff-dots-supersede: drei klar getrennte
-// Hue-Familien (Blau / Lavendel / Coral). Konsumiert über Sem-Token,
-// damit der Mapping-Layer im theme-Paket lebt und der screen-hue-lint
-// nicht verletzt wird; das tmux-Bar liest dieselben Hex-Werte via
-// theme.StatusPaletteFor → domain.KindStatusColor.
-//
-//	Feiertag → Sem.Schedule  (fixed scheduled calendar event)
-//	Urlaub   → Sem.Highlight (chosen identity, attention-grabbing mark)
-//	Krank    → Sem.Notice    (off-pattern warning, softer than Danger)
-func kindColor(p theme.Palette, k domain.Kind) lipgloss.TerminalColor {
-	sem := p.Sem()
-	switch k {
-	case domain.KindHoliday:
-		return sem.Schedule
-	case domain.KindVacation:
-		return sem.Highlight
-	case domain.KindSick:
-		return sem.Notice
-	}
-	return p.Fg
 }

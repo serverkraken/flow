@@ -44,11 +44,16 @@ func (h history) renderHeatmapWeekHeader(startMon time.Time, weeks int) string {
 	for w := 0; w < weeks; w++ {
 		mon := startMon.AddDate(0, 0, 7*w)
 		yr, wn := mon.ISOWeek()
-		col := h.pal.FgMuted
+		// Jahres-Grenze ist Identity/Highlight, kein Active —
+		// Skill §Color semantics: Cyan ist „live/running", nicht
+		// „diese Spalte markiert was Besonderes". Purple/Highlight
+		// trägt die Kalender-Boundary ohne mit den Running-Dots
+		// zu konkurrieren. Beide Styles sind gecacht in h.styles.
+		st := h.styles.headerWeekNum
 		if prevYear != -1 && yr != prevYear {
-			col = h.pal.Sem().Active
+			st = h.styles.headerYearChange
 		}
-		header += lipgloss.NewStyle().Foreground(col).Render(fmt.Sprintf("%2d ", wn%100))
+		header += st.Render(fmt.Sprintf("%2d ", wn%100))
 		prevYear = yr
 	}
 	return header
@@ -59,7 +64,7 @@ func (h history) renderHeatmapRows(byKey map[string]domain.DayRecord, startMon t
 	now := h.deps.Clock.Now()
 	out := make([]string, 0, 7)
 	for d := 0; d < 7; d++ {
-		row := "   " + lipgloss.NewStyle().Foreground(h.pal.Fg).Width(3).Render(dayLabels[d]) + "  "
+		row := "   " + h.styles.dayLabelFg.Render(dayLabels[d]) + "  "
 		for w := 0; w < weeks; w++ {
 			day := startMon.AddDate(0, 0, 7*w+d)
 			row += h.renderHeatmapCell(day, byKey, w, d, now)
@@ -84,17 +89,18 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 			// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 			cell = " " + glyphs.Filled + " "
 		}
-		color = kindColor(h.pal, dayOff.Kind)
+		color = theme.KindColor(h.pal, dayOff.Kind)
 	}
 	cellStyle := lipgloss.NewStyle().Foreground(color)
 	isCursor := w == h.heatCol && d == h.heatRow
 	isToday := sameDay(day, now)
 	switch {
 	case isCursor:
-		// Cursor cell: invert with the accent. Combine the today-underline
-		// when the cursor sits on today so the user still gets the
-		// "this is today" reinforcement instead of an exclusive switch.
-		cellStyle = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
+		// Cursor cell: invert with the accent (gecachte cursorCell).
+		// Combine the today-underline when the cursor sits on today so
+		// the user still gets the "this is today" reinforcement instead
+		// of an exclusive switch.
+		cellStyle = h.styles.cursorCell
 		if isToday {
 			cellStyle = cellStyle.Underline(true)
 		}
@@ -133,11 +139,16 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 
 func (h history) renderHeatmapLegend(inner int) string {
 	sem := h.pal.Sem()
+	// Pace-Skala (5 Chips: leer → █ Ziel) + 3 Day-off-Chips. Der frühere
+	// Text-Chip „_ heute (unterstrichen)" ist raus — er war der einzige
+	// Glyph-lose Eintrag und brach den Rhythmus, und die Heatmap-Zelle
+	// selbst trägt die Underline-Semantik selbsterklärend nach einmaligem
+	// Sehen (Skill §Visual hierarchy: rhythm).
 	legend := []string{
 		stDim(h.pal, "· leer"),
 		stDim(h.pal, "░ <50%"),
 		stDim(h.pal, "▒ <75%"),
-		stDim(h.pal, "▓ <100%"),
+		lipgloss.NewStyle().Foreground(sem.Active).Render("▓ <100%"),
 		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
 		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
 		// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
@@ -146,11 +157,6 @@ func (h history) renderHeatmapLegend(inner int) string {
 		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Filled + " Feiertag"),
 		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Filled + " Urlaub"),
 		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Filled + " Krank"),
-		// Heute-Marker erklärt: Underline auf der Heatmap-Zelle = aktueller
-		// Tag. Statt eine zusätzliche unterstrichene Demo-Zelle (kostete einen
-		// Inline-Style über das §2.6-Budget hinaus) reicht der Text-Hint —
-		// die Heatmap selbst trägt die Underline-Semantik.
-		stDim(h.pal, "_ heute (unterstrichen)"),
 	}
 	return joinWrapped(legend, "  ", "   ", "   ", inner)
 }
@@ -166,7 +172,11 @@ func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss
 	case pct >= 1.0:
 		return " █ ", sem.Success
 	case pct >= 0.75:
-		return " ▓ ", sem.Success
+		// "Auf Kurs, aber noch nicht angekommen" — Sem.Active statt
+		// Success, damit Grün exklusiv für den Hit ≥100% steht. Glyph
+		// ▓ trägt die Differenz zum █-Hit (Skill §Color semantics: ein
+		// klares Meaning pro Token).
+		return " ▓ ", sem.Active
 	case pct >= 0.5:
 		return " ▒ ", sem.Warning
 	case pct > 0:

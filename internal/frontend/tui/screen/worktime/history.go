@@ -12,12 +12,44 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// historyStyles caches the palette-dependent lipgloss styles whose
+// foreground/background don't change per render. Built once at
+// newHistory(); the render hot paths (renderHeatmapRows ~182 cells,
+// renderMonthGridRows ~35 cells) were the canonical wocheStyles-
+// pattern's natural follow-up — pre-builds cut allocations without
+// changing call-site signatures.
+type historyStyles struct {
+	dayLabelFg       lipgloss.Style // Heatmap weekday label — Fg, Width(3)
+	dayLabelMuted    lipgloss.Style // Month weekday label — FgMuted, pad-formatted
+	headerWeekNum    lipgloss.Style // Heatmap week-number column — FgMuted
+	headerYearChange lipgloss.Style // Heatmap year-boundary column — Sem.Highlight
+	cursorCell       lipgloss.Style // Heat/Month cursor cell — Bg-on-Accent, Bold
+	balPositive      lipgloss.Style // Month aggregate Saldo +
+	balZero          lipgloss.Style // Month aggregate Saldo 0
+	balNegative      lipgloss.Style // Month aggregate Saldo -
+}
+
+func newHistoryStyles(p theme.Palette) historyStyles {
+	sem := p.Sem()
+	return historyStyles{
+		dayLabelFg:       lipgloss.NewStyle().Foreground(p.Fg).Width(3),
+		dayLabelMuted:    lipgloss.NewStyle().Foreground(p.FgMuted),
+		headerWeekNum:    lipgloss.NewStyle().Foreground(p.FgMuted),
+		headerYearChange: lipgloss.NewStyle().Foreground(sem.Highlight),
+		cursorCell:       lipgloss.NewStyle().Foreground(p.Bg).Background(sem.Accent).Bold(true),
+		balPositive:      lipgloss.NewStyle().Foreground(sem.Success),
+		balZero:          lipgloss.NewStyle().Foreground(p.FgMuted),
+		balNegative:      lipgloss.NewStyle().Foreground(sem.Warning),
+	}
+}
 
 // — messages —
 
@@ -176,6 +208,10 @@ type history struct {
 	// from the drill view. Active when dialog == historyDialogDrillNoteAttach.
 	// Construction is one-shot at newHistory(); state resets per Open call.
 	notePicker noteAttachPicker
+
+	// styles is a palette-bound cache for the heatmap / month render
+	// hot path (canonical wocheStyles-Pattern).
+	styles historyStyles
 }
 
 func newHistory(p theme.Palette, deps Deps) history {
@@ -183,6 +219,7 @@ func newHistory(p theme.Palette, deps Deps) history {
 		pal:        p,
 		deps:       deps,
 		notePicker: newNoteAttachPicker(deps, p),
+		styles:     newHistoryStyles(p),
 	}
 }
 

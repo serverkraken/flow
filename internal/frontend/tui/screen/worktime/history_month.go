@@ -46,7 +46,7 @@ func (h history) renderMonthDayLabels() string {
 	dayLabels := []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}
 	hdr := "    "
 	for _, lbl := range dayLabels {
-		hdr += lipgloss.NewStyle().Foreground(h.pal.FgMuted).Render(fmt.Sprintf(" %-3s ", lbl))
+		hdr += h.styles.dayLabelMuted.Render(fmt.Sprintf(" %-3s ", lbl))
 	}
 	return hdr
 }
@@ -115,16 +115,14 @@ func (h history) renderMonthAggregate(monthRef, now time.Time) string {
 	if h.monthStats.Days == 0 || monthRef.Year() != now.Year() || monthRef.Month() != now.Month() {
 		return ""
 	}
-	sem := h.pal.Sem()
-	balColor := h.pal.FgMuted
+	balStyle := h.styles.balZero
 	switch {
 	case h.monthStats.Overtime > 0:
-		balColor = sem.Success
+		balStyle = h.styles.balPositive
 	case h.monthStats.Overtime < 0:
-		balColor = sem.Warning
+		balStyle = h.styles.balNegative
 	}
-	bal := lipgloss.NewStyle().Foreground(balColor).
-		Render(domain.FmtSignedDuration(h.monthStats.Overtime))
+	bal := balStyle.Render(domain.FmtSignedDuration(h.monthStats.Overtime))
 	return "   " + stDim(h.pal, fmt.Sprintf("Monat %s  ·  Ziele %d/%d  ·  Saldo ",
 		formatDur(h.monthStats.Total), h.monthStats.Hits, h.monthStats.Workdays)) + bal
 }
@@ -151,7 +149,11 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 		case pct >= 1.0:
 			glyph, color = glyphs.HeatFull, sem.Success
 		case pct >= 0.75:
-			glyph, color = glyphs.HeatDark, sem.Success
+			// "Auf Kurs, aber noch nicht angekommen" — Sem.Active statt
+			// Success (siehe history_heatmap.heatmapCellGlyph für die
+			// Begründung; Glyph + Farbe sind die identische Skala über
+			// beide Surfaces).
+			glyph, color = glyphs.HeatDark, sem.Active
 		case pct >= 0.5:
 			glyph, color = glyphs.HeatMedium, sem.Warning
 		case pct > 0:
@@ -160,7 +162,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	case isOff:
 		// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 		glyph = glyphs.Filled
-		color = kindColor(h.pal, dayOff.Kind)
+		color = theme.KindColor(h.pal, dayOff.Kind)
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted
 	}
@@ -169,7 +171,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 	st := lipgloss.NewStyle().Foreground(color)
 	switch {
 	case isCursor:
-		st = lipgloss.NewStyle().Foreground(h.pal.Bg).Background(h.pal.Sem().Accent).Bold(true)
+		st = h.styles.cursorCell
 	case isToday:
 		st = st.Underline(true).Bold(true)
 	}

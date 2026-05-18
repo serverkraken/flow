@@ -212,15 +212,9 @@ func monthBurndownPart(rep MonthBurndownReport, pal StatusPalette) []string {
 // the week has any activity — avoids a stray segment at the start of an
 // empty week.
 //
-// Glyph carries shape-of-status, colour carries kind:
-//
-//	●  this day is "accounted for" — workday target met OR scheduled day off
-//	○  workday open / future / missed — nothing happened (yet)
-//
-// Day-offs (Feiertag/Urlaub/Krank) get a filled ● in their per-kind colour
-// (via KindStatusColor) so the row says "I had a free day" with strong
-// in-bar contrast — outlined glyphs lose their colour signal at status-bar
-// font sizes (Spec 2026-05-13-filled-dayoff-dots-supersede).
+// Decision tree lives in PaceDotFor / PaceDotGlyph (shared with the
+// in-app week pace strip in worktime/week.renderPace); this function
+// owns the tmux-marker rendering and the activity-suppression guard.
 func BuildPaceDots(
 	week []WeekDay, now time.Time,
 	lookup func(time.Time) (DayOff, bool),
@@ -233,27 +227,19 @@ func BuildPaceDots(
 		if d.Date.Weekday() == time.Saturday || d.Date.Weekday() == time.Sunday {
 			continue
 		}
+		var dayOff *DayOff
 		if lookup != nil {
-			if dayOff, isOff := lookup(d.Date); isOff {
-				dots = append(dots, dot{"●", KindStatusColor(dayOff.Kind, pal)})
-				any = true
-				continue
+			if entry, isOff := lookup(d.Date); isOff {
+				dayOff = &entry
 			}
 		}
-		total := d.Total(now)
-		switch {
-		case total >= d.Target:
-			dots = append(dots, dot{"●", pal.Green})
+		kind := PaceDotFor(d, now, dayOff)
+		glyph := PaceDotGlyph(kind)
+		color := paceDotStatusColor(kind, dayOff, pal)
+		if kind != PaceDotMissed {
 			any = true
-		case d.IsToday && d.Active != nil:
-			// Same glyph as "hit", Cyan = active/running/live. Half-fill
-			// glyphs like ◐ render at emoji width in some fonts and break
-			// alignment.
-			dots = append(dots, dot{"●", pal.Cyan})
-			any = true
-		default:
-			dots = append(dots, dot{"○", pal.Dim})
 		}
+		dots = append(dots, dot{glyph, color})
 	}
 	if !any {
 		return ""
@@ -263,6 +249,27 @@ func BuildPaceDots(
 		parts[i] = fmt.Sprintf("#[fg=%s]%s#[default]", d.color, d.ch)
 	}
 	return strings.Join(parts, "")
+}
+
+// paceDotStatusColor maps a PaceDotKind onto the tmux StatusPalette
+// slot. Kept beside BuildPaceDots because the in-app TUI uses its own
+// theme.Sem-token mapping with the same shape; both must stay in lock-
+// step on which Sem token each slot consumes.
+func paceDotStatusColor(k PaceDotKind, dayOff *DayOff, pal StatusPalette) string {
+	switch k {
+	case PaceDotDayOff:
+		if dayOff == nil {
+			return pal.Dim
+		}
+		return KindStatusColor(dayOff.Kind, pal)
+	case PaceDotHit:
+		return pal.Green
+	case PaceDotRunning:
+		// Cyan = active/running/live. Half-fill glyphs like ◐ render at
+		// emoji width in some fonts and break alignment.
+		return pal.Cyan
+	}
+	return pal.Dim
 }
 
 // KindStatusColor mappt Kind auf die tmux-StatusPalette. Jede Kind bekommt
