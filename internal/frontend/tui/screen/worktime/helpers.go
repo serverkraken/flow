@@ -25,6 +25,10 @@ import (
 var (
 	durationWidth8Style = lipgloss.NewStyle().Width(8)
 	boldStyle           = lipgloss.NewStyle().Bold(true)
+	// fgStyle ist die foreground-only-Base ohne Bold. Wird vom Heute-
+	// Headline gebraucht, damit Total keine Bold+Accent-Adjacency mit
+	// der Status-Pille bildet (Skill §Color semantics).
+	fgStyle = lipgloss.NewStyle()
 )
 
 // renderFormField liefert die zwei Zeilen für ein Eingabe-Form-Feld:

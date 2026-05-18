@@ -30,7 +30,7 @@ var screenBaseline = map[string]int{
 	"palette/render.go":            0,
 	"projects/model.go":            1,
 	"worktime/dayoffs.go":          7, // T9/T10: kindColor per row + renderKindPicker glyph/label styles
-	"worktime/helpers.go":          2, // shared bases: NewStyle().Width(8) + NewStyle().Bold(true)
+	"worktime/helpers.go":          3, // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
 	"worktime/history.go":          0,
 	"worktime/history_drill.go":    0,
 	"worktime/history_heatmap.go":  10, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank (3 new)

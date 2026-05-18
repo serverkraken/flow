@@ -91,10 +91,12 @@ func (h heute) renderHeadline(now time.Time) string {
 	if h.day.IsRunning() && h.day.Active != nil && now.Sub(*h.day.Active) < time.Minute {
 		totalText = formatDurLive(total)
 	}
-	totalStr := boldStyle.Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Render(totalText)
-	// Status-Badge bold, damit ▶ läuft / ✓ Ziel / ‖ pausiert visuell die
-	// gleiche Stärke hat wie totalStr — vorher hatte der dim pctStr und
-	// der bold totalStr im Vergleich den Status-Glyph erschlagen.
+	// Total ohne Bold — Skill §Color semantics: "Never combine bold +
+	// accent on adjacent tokens". Die Status-Pille trägt das Bold (canonical
+	// §Component vocabulary), die Threshold-Farbe trägt das Gewicht für
+	// den Total-Wert.
+	totalStr := fgStyle.Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Render(totalText)
+	// Status-Badge bold (canonical Pill-Behavior).
 	statusStr := boldStyle.Foreground(statusColor).Render(statusGlyph + " " + statusLabel)
 	pctStr := theme.Dim(fmt.Sprintf("Ziel %d%%", pct), h.pal)
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
@@ -262,17 +264,24 @@ func (h heute) footerHints() []string {
 // als Magic-Strings inline — so kann ein Audit gegen den Whitelist greifen
 // und die Bedeutung ist im Identifier dokumentiert.
 //
-// Die Color-Wahl bleibt absichtlich custom (Green für „läuft" + „Ziel" +
-// „läuft ✓"), nicht via PillActive (Cyan): in der Heute-Surface ist Green
-// der Anker für „alles im grünen Bereich" — Cyan würde zwischen „aktiv"
-// (Pille) und „ETA" (Info) wechseln und das Feld optisch unruhig machen.
+// Color-Wahl spiegelt die kanonischen Pace-Dot-Semantiken (Skill
+// §Color semantics, BuildPaceDots / week.renderPace):
+//
+//	running && !achieved → Sem.Active (Cyan) — live/läuft gerade
+//	running &&  achieved → Sem.Success      — läuft & Ziel erreicht
+//	         achieved    → Sem.Success      — Ziel erreicht (idle)
+//	else                 → FgMuted          — pausiert / leer
+//
+// Damit identisches Active=Cyan auf Heute-Headline, Week-Pace-Strip
+// und tmux-Pace-Dot — die gleiche laufende Session liest sich überall
+// gleich.
 func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, lipgloss.TerminalColor) {
 	sem := p.Sem()
 	switch {
 	case running && achieved:
 		return glyphs.Active, "läuft " + glyphs.Done, sem.Success
 	case running:
-		return glyphs.Active, "läuft", sem.Success
+		return glyphs.Active, "läuft", sem.Active
 	case achieved:
 		return glyphs.Done, "Ziel erreicht", sem.Success
 	}
