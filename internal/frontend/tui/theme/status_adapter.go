@@ -10,14 +10,18 @@ import "github.com/serverkraken/flow/internal/domain"
 //
 // Spec 2026-05-13-filled-dayoff-dots-supersede: Blue/Purple/Orange were
 // added for the day-off pace dots (Holiday/Vacation/Sick) so they share
-// the exact hue values with the in-app TUI kindColor mapping.
+// the exact hue values with the in-app TUI theme.KindColor mapping.
 //
 // Mapping:
 //
 //	Green  → Sem.Success     (status-bar achievement / streak)
 //	Yellow → Sem.Warning     (Endspurt-Banner — transient warm accent)
 //	Red    → Sem.Danger      (active-session over hard threshold)
-//	Cyan   → Sem.Info        (live/running indicators)
+//	Cyan   → Sem.Active      (live/running indicators — Heute-läuft-Pace-Dot,
+//	                          Banner bei laufender Session. Sem.Active und
+//	                          Sem.Info zeigen beide auf p.Cyan, runtime
+//	                          identisch — die Konsumenten-Rolle hier ist
+//	                          "active", nicht "informational meta".)
 //	Blue   → Sem.Schedule    (Feiertag pace dot — fixed scheduled off)
 //	Purple → Sem.Highlight   (Urlaub pace dot — chosen identity)
 //	Orange → Sem.Notice      (Krank pace dot — off-pattern warning)
@@ -28,7 +32,7 @@ func StatusPaletteFor(p Palette) domain.StatusPalette {
 		Green:  string(sem.Success),
 		Yellow: string(sem.Warning),
 		Red:    string(sem.Danger),
-		Cyan:   string(sem.Info),
+		Cyan:   string(sem.Active),
 		Blue:   string(sem.Schedule),
 		Purple: string(sem.Highlight),
 		Orange: string(sem.Notice),
