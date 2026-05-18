@@ -152,7 +152,10 @@ func (h heute) renderHelpRows(inner int) []string {
 		title := strings.TrimPrefix(sec.Title, "Worktime — Heute · ")
 		rows = append(rows, picker.SectionHeader(title, inner, h.pal))
 		for _, kv := range sec.Keys {
-			keyCell := lipgloss.NewStyle().Width(theme.KeyHintWidth).Render(theme.Highlight(kv[0], h.pal))
+			// Keys in Fg+Bold (theme.Strong), nicht Purple — matched
+			// die kanonische help.Render (Skill §Color semantics: Purple =
+			// Identity, nicht Keybind-Marker).
+			keyCell := lipgloss.NewStyle().Width(theme.KeyHintWidth).Render(theme.Strong(kv[0], h.pal))
 			rows = append(rows, "  "+keyCell+stDim(h.pal, kv[1]))
 		}
 	}
