@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.2.1](https://github.com/serverkraken/flow/compare/v1.2.0...v1.2.1) (2026-05-18)
+
+
+### Bug Fixes
+
+* **worktime/frei:** tighten add-dialog footer hints ([6923b88](https://github.com/serverkraken/flow/commit/6923b88a078ad6fe18fe8eabcec3c6f5dcabf16b))
+* **worktime/heute:** help keys use Strong (Fg+Bold), not Highlight ([f259f08](https://github.com/serverkraken/flow/commit/f259f08bd5e2b55511ced5c3741902cf83f09c7c))
+* **worktime/heute:** running headline uses Cyan, drop bold from total ([8f8ddf9](https://github.com/serverkraken/flow/commit/8f8ddf98f88830f81c35cd20363598a416cf4b4c))
+* **worktime/history:** heatmap colour discipline + legend rhythm ([d0481f0](https://github.com/serverkraken/flow/commit/d0481f0c4e5201aca0cbd5b016f7454dfd11a574))
+
+
+### Performance
+
+* **worktime/history:** historyStyles cache for heatmap & month hot paths ([0e3376b](https://github.com/serverkraken/flow/commit/0e3376bd49e988cb413ef08a57d12534ece30df1))
+
+
+### Refactoring
+
+* **domain:** single decision tree for pace dots via PaceDotFor ([1932b4f](https://github.com/serverkraken/flow/commit/1932b4fc4d1f6dcc84821c29d478ffcb3e2d41eb))
+* **theme:** single-source Kind→Color via theme.KindColor ([f53d4f4](https://github.com/serverkraken/flow/commit/f53d4f4274d4ba1c4935c098da03725ebea993e9))
+
+
+### Dokumentation
+
+* **theme/status_adapter:** Cyan slot reads as Active, not Info ([c591ff7](https://github.com/serverkraken/flow/commit/c591ff7a8f3808906fe17d3e27a4a61472b677d8))
+
 ## [1.2.0](https://github.com/serverkraken/flow/compare/v1.1.0...v1.2.0) (2026-05-14)
 
 
