@@ -33,7 +33,7 @@ var screenBaseline = map[string]int{
 	"worktime/helpers.go":          3, // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
 	"worktime/history.go":          0,
 	"worktime/history_drill.go":    0,
-	"worktime/history_heatmap.go":  10, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank (3 new)
+	"worktime/history_heatmap.go":  11, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank + Sem.Active für ▓ <100% (Skill §Color: Success exklusiv für Hit ≥100%)
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    5,
 	"worktime/history_tagclock.go": 5,
