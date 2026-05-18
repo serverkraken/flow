@@ -581,11 +581,16 @@ func (f frei) renderAddDialog(inner int) string {
 	if f.errMsg != "" {
 		rows = append(rows, "", theme.Err("  "+f.errMsg, f.pal))
 	}
-	// h/l wirkt nur, wenn der Cursor auf dem Kategorie-Feld steht — der
-	// Hint stellt das jetzt klar, sonst rätseln User warum h/l in
-	// Datums-/Label-Feldern stumm bleibt.
-	rows = append(rows, "", stDim(f.pal,
-		"  Tab/↑↓ → Feld  ·  h/l → Kategorie wechseln (auf Kategorie-Feld)  ·  Enter → weiter / speichern  ·  Esc → abbrechen"))
+	// Form-internal: Tab navigiert Felder (im Input feuert j/k auf die
+	// Buchstaben, deshalb Tab als Primary). h/l wechseln Kategorien —
+	// der Section-Header des Pickers ("kategorie (h/l zum Wechseln)")
+	// sagt schon, wo h/l greift, das Parenthetical ist deshalb raus.
+	rows = append(rows, "", renderFooterHints(f.pal, []string{
+		"Tab → Feld",
+		"h/l → Kategorie",
+		"Enter → weiter / speichern",
+		"Esc → abbrechen",
+	}, inner))
 	return strings.Join(rows, "\n")
 }
 
