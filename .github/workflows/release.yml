@@ -1,20 +1,4 @@
-name: Release
-
-# Triggert auf jeden Push auf main. Zwei-Phasen-Flow:
-#
-#  1. release-please liest die Conventional-Commits seit dem letzten
-#     Tag und entscheidet:
-#       a) Es gibt unveröffentlichte feat/fix-Commits → öffnet bzw.
-#          aktualisiert eine Release-PR mit dem nächsten SemVer und
-#          generiertem Changelog.
-#       b) Die Release-PR wurde gerade gemerged → erstellt einen Tag
-#          (`vX.Y.Z`) und eine GitHub-Release-Entry mit Notes.
-#
-#  2. goreleaser läuft NUR wenn release-please im selben Run einen
-#     Release angelegt hat (`release_created == 'true'`). Es checkt
-#     den frischen Tag aus, baut Cross-Plattform-Binaries und hängt
-#     sie + Checksums an die existierende Release-Entry an.
-
+name: release
 on:
   push:
     branches: [main]
@@ -23,50 +7,20 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  packages: write
+  id-token: write
+  attestations: write
+  security-events: write
+  actions: read
 
 jobs:
   release-please:
-    runs-on: ubuntu-latest
-    outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
-      tag_name: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
-        with:
-          # Wir benutzen einen User-PAT (Repo-Secret RELEASE_PLEASE_TOKEN)
-          # statt des GITHUB_TOKEN: Die Org-Policy auf serverkraken
-          # verbietet GitHub-Actions-erzeugte PRs (per default-workflow-
-          # permissions), erlaubt aber PR-Erstellung durch den User. Der
-          # PAT trägt die `repo`-Scope und umgeht damit die Org-Policy
-          # ohne sie auflockern zu müssen.
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
-          # Config + Manifest liegen im Repo-Root; release-please liest
-          # sie automatisch.
+    uses: serverkraken/reusable-workflows/.github/workflows/semantic-release.yml@v3
+    secrets: inherit
 
   goreleaser:
-    needs: release-please
+    needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          # fetch-depth: 0 + fetch-tags damit goreleaser die Tag-Historie
-          # für Snapshot-/Release-Logik sieht. ref auf das frisch
-          # erzeugte Tag damit der Build deterministisch von dort baut.
-          fetch-depth: 0
-          fetch-tags: true
-          ref: ${{ needs.release-please.outputs.tag_name }}
+    uses: serverkraken/reusable-workflows/.github/workflows/goreleaser.yml@v3
+    secrets: inherit
 
-      - uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache: true
-
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
