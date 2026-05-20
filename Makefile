@@ -1,21 +1,21 @@
 BIN             := flow
 PKG             := ./cmd/flow
 COVER_OUT       := coverage.out
-# 85% is a deliberate slip from the 90% schema target. Reasons:
-#  1. Every CLI verb that launches a tea.Program (`flow sidekick`,
-#     `flow worktime today`, `flow kompendium browse`) carries an
-#     untestable RunE body — tea.NewProgram with WithAltScreen
-#     requires a real /dev/tty, which Go test runners don't provide.
-#     Each new such verb costs ~2-3% on the cli package coverage.
-#  2. Output adapters (output.copy, output.pager) shell out to host
-#     binaries (pbcopy / less) whose execution is tested via fakes;
-#     the production runners themselves stay 0%-covered.
-# Compensating with broad cobra Execute() smoke tests would only
-# paper over the structural reality. Aggregate has settled around
-# 86%; the 85 floor leaves a small buffer above the actual reading
-# without blocking CI on every routine commit. Drop further only
-# with a justification in the corresponding plan file.
-COVER_THRESHOLD := 85
+# 90% target — the project's schema goal. The previous 85% slip was a
+# pragmatic floor before the testutil package and the cancelled-context
+# cobra-RunE pattern brought every CLI verb in reach. Specifically:
+#  1. testutil/* now self-tests its fakes (was 0%, now 99%+).
+#  2. Standalone cobra commands (sidekick / palette / projects /
+#     cheatsheet / markdown / worktime today) run their RunE under an
+#     already-cancelled tea.WithContext, so the full constructor +
+#     theme + factory chain executes without needing a real TTY.
+#  3. cmd/flow's composition root has direct tests for buildDeps /
+#     buildKompendiumDeps / buildNotesScreen / parseEnvHoursDuration —
+#     only main() itself stays uncovered (os.Exit makes it untestable).
+# Aggregate sits around 90% with the `-coverpkg=./internal/...` measure
+# this target uses. Drop the threshold only with a justification in the
+# corresponding plan file.
+COVER_THRESHOLD := 90
 
 # Coverage measurement targets the hexagonal layers under internal/.
 # cmd/flow is the composition root (wiring only, no business logic) and

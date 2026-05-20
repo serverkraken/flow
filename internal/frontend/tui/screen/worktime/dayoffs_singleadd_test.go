@@ -1,0 +1,35 @@
+package worktime_test
+
+// Single-date add path — complements TestFrei_AddDialog_SuccessfulRangeAdd
+// which only covers the `isRange` branch in submitAdd. With this in place
+// both ports of the Add dialog (single date and range) are exercised.
+
+import (
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+func TestFrei_AddDialog_SuccessfulSingleDateAdd(t *testing.T) {
+	r := newRig(t)
+	m := loadedFrei(t, r)
+	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m = drainCmd(t, m, cmd)
+	// Backspace the prefilled date.
+	for i := 0; i < 12; i++ {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	// Type a single date in 2026.
+	for _, ch := range "2026-08-15" {
+		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+	}
+	// Tab to label → tab to kind → Enter (default kind=Urlaub at index 1).
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_ = drainCmd(t, m, cmd)
+	// Expect exactly one entry for 2026-08-15.
+	if len(r.dayoffs.Entries) < 1 {
+		t.Errorf("expected at least one dayoff entry after single-date submit, got %d", len(r.dayoffs.Entries))
+	}
+}

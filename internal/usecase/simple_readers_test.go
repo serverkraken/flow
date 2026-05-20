@@ -33,6 +33,22 @@ func TestLinkReader_PropagatesError(t *testing.T) {
 	}
 }
 
+func TestLinkReader_CountsByDate(t *testing.T) {
+	d := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
+	store := &testutil.FakeLinkStore{ByDate: map[string][]string{
+		d.Format("2006-01-02"):                  {"daily/2026-05-01", "notes/x"},
+		d.AddDate(0, 0, 1).Format("2006-01-02"): {"notes/y"},
+	}}
+	r := &usecase.LinkReader{Store: store}
+	counts, err := r.CountsByDate()
+	if err != nil {
+		t.Fatalf("CountsByDate: %v", err)
+	}
+	if counts[d.Format("2006-01-02")] != 2 {
+		t.Errorf("counts for 2026-05-01: %+v", counts)
+	}
+}
+
 func TestCheatsheetLoader_LoadRaw(t *testing.T) {
 	l := &usecase.CheatsheetLoader{
 		Reader:   &testutil.FakeCheatsheetReader{Content: "# Hello"},
