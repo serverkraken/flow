@@ -1,0 +1,10 @@
+name: prerelease
+on:
+  workflow_dispatch: {}
+
+jobs:
+  # No Dockerfiles detected for this component.
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "No prerelease build artifacts for this repo (no Dockerfiles)."
