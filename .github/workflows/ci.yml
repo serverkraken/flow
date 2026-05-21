@@ -9,15 +9,24 @@ jobs:
       contents: read
       security-events: write
       actions: read
+    with:
+      severity: ${{ vars.SK_TRIVY_SEVERITY || 'HIGH,CRITICAL' }}
+      trivy_version: ${{ vars.SK_TRIVY_VERSION || '' }}
     secrets: inherit
 
   lint-go-root:
     uses: serverkraken/reusable-workflows/.github/workflows/lint-go.yml@v3
     with:
       working_directory: .
+      go_version: ${{ vars.SK_GO_VERSION || '' }}
+      golangci_lint_version: ${{ vars.SK_GOLANGCI_LINT_VERSION || 'v2.12.2' }}
+      cgo_enabled: ${{ fromJSON(vars.SK_CGO_ENABLED || 'false') }}
     secrets: inherit
   test-go-root:
     uses: serverkraken/reusable-workflows/.github/workflows/test-go.yml@v3
     with:
       working_directory: .
+      go_version: ${{ vars.SK_GO_VERSION || '' }}
+      coverage_threshold: ${{ fromJSON(vars.SK_COVERAGE_THRESHOLD || '80') }}
+      cgo_enabled: ${{ fromJSON(vars.SK_CGO_ENABLED || 'false') }}
     secrets: inherit
