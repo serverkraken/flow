@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -177,7 +178,12 @@ func TestBrowse_SearchFiltersOnTitleAndProject(t *testing.T) {
 	for _, r := range "kompendium" {
 		model, _ = model.Update(runeKey(r))
 	}
-	view := model.View().Content
+	// Under lipgloss v2 search-match highlighting wraps the matched
+	// substring in its own SGR block, so the rendered output contains
+	// "kompendium\x1b[…m architecture" and the literal substring no
+	// longer survives a naive strings.Contains. Strip ANSI first so
+	// the assertion looks at the textual content only.
+	view := ansi.Strip(model.View().Content)
 	if !strings.Contains(view, "kompendium architecture") || strings.Contains(view, "Foo work") {
 		t.Errorf("search did not narrow:\n%s", view)
 	}
@@ -210,11 +216,14 @@ func TestBrowse_SearchSpace(t *testing.T) {
 	for _, r := range "two" {
 		model, _ = model.Update(runeKey(r))
 	}
-	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model, _ = model.Update(tea.KeyPressMsg{Text: " "})
 	for _, r := range "wo" {
 		model, _ = model.Update(runeKey(r))
 	}
-	if !strings.Contains(model.View().Content, "two words") {
+	// Same SGR-wraps-match issue as TestBrowse_SearchFiltersOnTitleAndProject —
+	// the search highlight injects ANSI resets between "two wo" and "rds",
+	// so strip first.
+	if !strings.Contains(ansi.Strip(model.View().Content), "two words") {
 		t.Errorf("space-containing search should match:\n%s", model.View().Content)
 	}
 }

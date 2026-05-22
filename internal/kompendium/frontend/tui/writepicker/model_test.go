@@ -106,7 +106,7 @@ func TestPicker_FreeSlug_BackspaceAndSpace(t *testing.T) {
 		m, _ = sendOne(m, runeKey(r))
 	}
 	m, _ = sendOne(m, tea.KeyPressMsg{Code: tea.KeyBackspace})
-	m, _ = sendOne(m, tea.KeyPressMsg{Code: tea.KeySpace})
+	m, _ = sendOne(m, tea.KeyPressMsg{Text: " "})
 	m, _ = sendOne(m, runeKey('d'))
 
 	if !strings.Contains(m.View(), "ab d") {
