@@ -45,6 +45,7 @@ func newSearchInput() textinput.Model {
 	ti.CharLimit = 256
 	tiStyles := ti.Styles()
 	tiStyles.Cursor.Color = styles().cursor.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
 	ti.SetStyles(tiStyles)
 	return ti
 }

@@ -99,6 +99,7 @@ func New(allowProject bool) Model {
 	tiStyles.Focused.Placeholder = dimStyle
 	tiStyles.Blurred.Placeholder = dimStyle
 	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
 	ti.SetStyles(tiStyles)
 
 	return Model{options: opts, slug: ti}

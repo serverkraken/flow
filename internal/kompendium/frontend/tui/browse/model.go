@@ -226,6 +226,7 @@ func New(
 	ti.CharLimit = 256
 	tiStyles := ti.Styles()
 	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
 	ti.SetStyles(tiStyles)
 
 	sp := spinner.New()
