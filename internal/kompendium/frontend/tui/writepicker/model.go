@@ -108,8 +108,14 @@ func (m Model) Init() tea.Cmd { return nil }
 // tea.Quit.
 func (m Model) Result() Result { return m.result }
 
-// Update is the Bubble Tea reducer.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update is the Bubble Tea reducer. Returns concrete writepicker.Model
+// (not tea.Model) so the picker stays a sub-model — the hosting
+// adapter (pickerHost in cli/write.go) implements tea.Model. Under
+// bubbletea v2 tea.Model requires View() tea.View; keeping writepicker
+// as a plain reducer lets us return View() string for in-process
+// composition while the host wraps the rendered content into the
+// program-bound tea.View.
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -123,7 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMenuKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleMenuKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q", "esc":
 		m.quitting = true
@@ -151,7 +157,7 @@ func (m Model) handleMenuKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSlugKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleSlugKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "ctrl+c":
 		m.quitting = true

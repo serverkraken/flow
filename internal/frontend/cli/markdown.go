@@ -73,7 +73,7 @@ func newMarkdownViewCmd() *cobra.Command {
 				markdown_overlay.WithCodeCopy(),
 			)
 			prog := tea.NewProgram(markdownViewerProgram{inner: m},
-				tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+				tea.WithContext(cmd.Context()))
 			_, err = prog.Run()
 			return err
 		},
@@ -104,4 +104,8 @@ func (p markdownViewerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return p, cmd
 }
 
-func (p markdownViewerProgram) View() string { return p.inner.View() }
+func (p markdownViewerProgram) View() tea.View {
+	v := tea.NewView(p.inner.View())
+	v.AltScreen = true
+	return v
+}

@@ -53,7 +53,7 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 			// program's event loop, so a signal tears the TUI down
 			// cleanly and the deferred FlowState.Save below + the
 			// deferred sqlite Close() in main() actually run.
-			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+			prog := tea.NewProgram(m, tea.WithContext(cmd.Context()))
 			final, err := prog.Run()
 			if err != nil {
 				return err

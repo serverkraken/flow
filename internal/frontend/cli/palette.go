@@ -44,7 +44,7 @@ func NewPaletteCmd(deps PaletteDeps) *cobra.Command {
 			tk.Init()
 			pal := tk.Load()
 			m := deps.Screen(pal)
-			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+			prog := tea.NewProgram(m, tea.WithContext(cmd.Context()))
 			_, err := prog.Run()
 			return err
 		},

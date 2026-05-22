@@ -277,7 +277,13 @@ func (m Model) forwardToCurrent(msg tea.Msg) (tea.Model, tea.Cmd) {
 // global tab strip that surfaces which sidekick screen is active. The
 // strip is suppressed when the `?`-overlay owns the surface — help is
 // modal and the strip would compete with the section titles inside it.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.showHelp {
 		return m.renderHelp()
 	}

@@ -56,13 +56,15 @@ func (h pickerHost) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, tea.Quit
 	}
 	next, cmd := h.inner.Update(msg)
-	if pm, ok := next.(writepicker.Model); ok {
-		h.inner = pm
-	}
+	h.inner = next
 	return h, cmd
 }
 
-func (h pickerHost) View() string { return h.inner.View() }
+// View bridges the inner picker's string-typed View into the v2
+// tea.View struct the program loop expects. AltScreen is intentionally
+// off — the picker is a tmux-popup-sized card and would look wrong
+// painted across the full host terminal.
+func (h pickerHost) View() tea.View { return tea.NewView(h.inner.View()) }
 
 func newWriteCmd(deps Deps) *cobra.Command {
 	var cwd string

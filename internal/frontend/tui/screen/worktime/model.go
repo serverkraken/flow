@@ -429,7 +429,13 @@ func (m Model) handleTabRouterKey(msg tea.KeyPressMsg) (Model, bool) {
 // View renders the active sub-model with a tab strip on top. When the
 // action menu is open it replaces the tab body — the tab strip stays
 // so the user keeps the visual anchor of which tab they came from.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
 	}

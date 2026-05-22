@@ -291,7 +291,13 @@ func (m Model) switchToProject(p domain.Project) tea.Cmd {
 }
 
 // View renders the projects screen.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
 	}

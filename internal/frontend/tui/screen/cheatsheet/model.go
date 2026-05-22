@@ -150,7 +150,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the embedded markdown_overlay. The overlay produces the
 // full screen — rounded frame, title, body, footer, status bar — so
 // the cheatsheet wrapper is just a thin host.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
 	}
