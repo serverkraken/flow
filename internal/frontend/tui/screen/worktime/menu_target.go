@@ -112,7 +112,7 @@ type targetEvent struct {
 // handleKey routes a key into the picker. Returns the (possibly
 // updated) picker plus an event describing what happened: nav-only,
 // target picked, or cancel requested.
-func (tp targetPicker) handleKey(msg tea.KeyMsg) (targetPicker, targetEvent) {
+func (tp targetPicker) handleKey(msg tea.KeyPressMsg) (targetPicker, targetEvent) {
 	switch msg.String() {
 	case "esc":
 		return tp, targetEvent{canceled: true}

@@ -36,15 +36,15 @@ func (h history) openFilter(seed string) (tea.Model, tea.Cmd) {
 	return h, textinput.Blink
 }
 
-func (h history) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (h history) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		h.dialog = historyDialogNone
 		h.input.Blur()
 		h.input.SetValue("")
 		h.errMsg = ""
 		return h, nil
-	case tea.KeyEnter:
+	case "enter":
 		q := strings.TrimSpace(h.input.Value())
 		if q != "" {
 			if _, err := domain.ParseRange(h.deps.Clock.Now(), q); err != nil &&

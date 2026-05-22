@@ -30,7 +30,7 @@ func TestNew_ViewContainsDetail(t *testing.T) {
 func TestUpdate_YConfirms(t *testing.T) {
 	t.Parallel()
 	m := confirm.New("Sure?", "", testPalette)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "y"})
 	if cmd == nil {
 		t.Fatal("expected command from 'y' key")
 	}
@@ -47,7 +47,7 @@ func TestUpdate_YConfirms(t *testing.T) {
 func TestUpdate_EnterConfirms(t *testing.T) {
 	t.Parallel()
 	m := confirm.New("Sure?", "", testPalette)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("expected command from Enter key")
 	}
@@ -64,7 +64,7 @@ func TestUpdate_EnterConfirms(t *testing.T) {
 func TestUpdate_NDenies(t *testing.T) {
 	t.Parallel()
 	m := confirm.New("Sure?", "", testPalette)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "n"})
 	if cmd == nil {
 		t.Fatal("expected command from 'n' key")
 	}
@@ -81,7 +81,7 @@ func TestUpdate_NDenies(t *testing.T) {
 func TestUpdate_EscDenies(t *testing.T) {
 	t.Parallel()
 	m := confirm.New("Sure?", "", testPalette)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd == nil {
 		t.Fatal("expected command from Esc key")
 	}
@@ -98,7 +98,7 @@ func TestUpdate_EscDenies(t *testing.T) {
 func TestUpdate_UnknownKeyNoOp(t *testing.T) {
 	t.Parallel()
 	m := confirm.New("Sure?", "", testPalette)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "x"})
 	if cmd != nil {
 		t.Error("expected nil command for unhandled key")
 	}

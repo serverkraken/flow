@@ -72,7 +72,7 @@ func TestPicker_SelectsFree_WithSlug(t *testing.T) {
 		m, _ = sendOne(m, runeKey(r))
 	}
 	// Empty-trim Enter should still apply.
-	m, quit = sendOne(m, tea.KeyMsg{Type: tea.KeyEnter})
+	m, quit = sendOne(m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !quit {
 		t.Fatal("Enter on a non-empty slug should quit")
 	}
@@ -89,7 +89,7 @@ func TestPicker_RejectsEmptySlug(t *testing.T) {
 	m, _ = sendOne(m, key("enter"))
 
 	// Press Enter without typing anything.
-	_, quit := sendOne(m, tea.KeyMsg{Type: tea.KeyEnter})
+	_, quit := sendOne(m, tea.KeyPressMsg{Code: tea.KeyEnter})
 	if quit {
 		t.Error("empty slug must not quit; should re-prompt")
 	}
@@ -105,8 +105,8 @@ func TestPicker_FreeSlug_BackspaceAndSpace(t *testing.T) {
 	for _, r := range "abc" {
 		m, _ = sendOne(m, runeKey(r))
 	}
-	m, _ = sendOne(m, tea.KeyMsg{Type: tea.KeyBackspace})
-	m, _ = sendOne(m, tea.KeyMsg{Type: tea.KeySpace, Runes: []rune(" ")})
+	m, _ = sendOne(m, tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m, _ = sendOne(m, tea.KeyPressMsg{Type: tea.KeySpace, Runes: []rune(" ")})
 	m, _ = sendOne(m, runeKey('d'))
 
 	if !strings.Contains(m.View(), "ab d") {
@@ -131,7 +131,7 @@ func TestPicker_CancelsOnEsc(t *testing.T) {
 	t.Parallel()
 	m := writepicker.New(true)
 
-	m, quit := drive(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	m, quit := drive(t, m, tea.KeyPressMsg{Code: tea.KeyEsc})
 	if !quit {
 		t.Fatal("esc should quit")
 	}
@@ -146,7 +146,7 @@ func TestPicker_CancelsFromSlugMode(t *testing.T) {
 	m, _ = sendOne(m, key("j"))
 	m, _ = sendOne(m, key("enter"))
 
-	m, quit := sendOne(m, tea.KeyMsg{Type: tea.KeyEsc})
+	m, quit := sendOne(m, tea.KeyPressMsg{Code: tea.KeyEsc})
 	if !quit {
 		t.Fatal("esc in slug mode should cancel")
 	}
@@ -195,8 +195,8 @@ const glyphsActive = "▶"
 
 // --- helpers ----------------------------------------------------------------
 
-func key(s string) tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
-func runeKey(r rune) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
+func key(s string) tea.KeyPressMsg   { return tea.KeyPressMsg{Text: s} }
+func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Text: string(r)} }
 
 // sendOne forwards one message into the picker. Returns the updated
 // model and a "done" boolean that's true iff the picker emitted a

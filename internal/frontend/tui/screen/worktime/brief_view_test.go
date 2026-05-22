@@ -34,11 +34,11 @@ func TestBriefView_CloseKeyEmitsExitMsg(t *testing.T) {
 	t.Parallel()
 	bv := newBriefView("t", "body", 80, 30, Deps{})
 	for _, k := range []string{"q", "esc", "b"} {
-		var msg tea.KeyMsg
+		var msg tea.KeyPressMsg
 		if k == "esc" {
-			msg = tea.KeyMsg{Type: tea.KeyEsc}
+			msg = tea.KeyPressMsg{Code: tea.KeyEsc}
 		} else {
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
+			msg = tea.KeyPressMsg{Text: k}
 		}
 		_, cmd := bv.Update(msg)
 		if cmd == nil {

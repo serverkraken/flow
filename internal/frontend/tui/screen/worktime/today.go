@@ -242,7 +242,7 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.actionInFlight = true
 		return h, h.deleteCmd(h.editDate, h.editIdx)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if h.dialog != heuteDialogNone {
 			return h.handleDialogKey(msg)
 		}
@@ -326,7 +326,7 @@ func (h heute) onSession() bool {
 
 // — keymap (no dialog) —
 
-func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h heute) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
 		if total := len(h.day.Sessions); total > 0 {
@@ -378,7 +378,7 @@ func (h heute) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // from handleNormalKey to keep gocyclo under the project ceiling — the
 // session-edit family (t/N/E/⏎/D) plus the day-level Kompendium attach
 // (n) read more naturally as one group anyway.
-func (h heute) handleDialogOpenKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h heute) handleDialogOpenKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "t":
 		if h.onSession() {

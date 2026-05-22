@@ -139,7 +139,7 @@ func (w woche) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return w, w.loadCmd()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return w.handleKey(msg)
 	}
 	return w, nil
@@ -172,7 +172,7 @@ func (w *woche) clampCursor() {
 	}
 }
 
-func (w woche) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (w woche) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	total := len(w.week)
 	switch msg.String() {
 	case "j", "down":

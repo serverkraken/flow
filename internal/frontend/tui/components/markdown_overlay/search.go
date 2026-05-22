@@ -51,13 +51,13 @@ func newSearchInput() textinput.Model {
 // trimmed query (and returns to ModeNormal); Esc cancels without
 // touching the query state; anything else is forwarded to the
 // textinput.
-func (m Model) handleSearchKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m.applyQuery(strings.TrimSpace(m.search.Value())), nil
@@ -70,7 +70,7 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // maybeEnterSearch attempts to enter search-mode for the given KeyMsg.
 // Returns (model, cmd, true) when the key was the search-launcher and
 // the model is now in ModeSearch; (model, nil, false) otherwise.
-func (m Model) maybeEnterSearch(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+func (m Model) maybeEnterSearch(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	if !m.cfg.enableSearch {
 		return m, nil, false
 	}

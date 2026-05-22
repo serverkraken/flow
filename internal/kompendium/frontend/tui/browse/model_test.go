@@ -182,17 +182,17 @@ func TestBrowse_SearchFiltersOnTitleAndProject(t *testing.T) {
 		t.Errorf("search did not narrow:\n%s", view)
 	}
 
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	if !strings.Contains(model.View(), "Suche:") {
 		t.Errorf("search bar lost after backspace:\n%s", model.View())
 	}
 
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if strings.Contains(model.View(), "tippen → filtern") {
 		t.Errorf("enter should leave search mode:\n%s", model.View())
 	}
 	model, _ = model.Update(key("/"))
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	view = model.View()
 	if !strings.Contains(view, "Foo work") {
 		t.Errorf("esc should clear search query (showing all entries):\n%s", view)
@@ -210,7 +210,7 @@ func TestBrowse_SearchSpace(t *testing.T) {
 	for _, r := range "two" {
 		model, _ = model.Update(runeKey(r))
 	}
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeySpace, Runes: []rune(" ")})
+	model, _ = model.Update(tea.KeyPressMsg{Type: tea.KeySpace, Runes: []rune(" ")})
 	for _, r := range "wo" {
 		model, _ = model.Update(runeKey(r))
 	}
@@ -345,7 +345,7 @@ func TestBrowse_EnterRunsEditCmdOnSelected(t *testing.T) {
 
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on a selected entry should return a tea.Cmd")
 	}
@@ -423,7 +423,7 @@ func TestBrowse_EnterNoOpWithoutPather(t *testing.T) {
 	// New() with nil store/editCmd should silently no-op on Enter.
 	m := browse.New(usecase.NewListNotes(store), nil, nil, "", nil, nil)
 	model := initialised(m)
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
 		t.Errorf("Enter without pather/editCmd should be a no-op, got cmd=%v", cmd())
 	}
@@ -437,7 +437,7 @@ func TestBrowse_EnterNoOpOnEmptyList(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
 		t.Errorf("Enter on empty list should be a no-op, got cmd=%v", cmd())
 	}
@@ -634,7 +634,7 @@ func TestBrowse_DCancelOnEsc(t *testing.T) {
 	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('D'))
-	model, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd != nil {
 		t.Errorf("esc on confirm prompt must not schedule a cmd, got %v", cmd())
 	}
@@ -716,9 +716,9 @@ func (e errString) Error() string { return string(e) }
 
 func errForTest(s string) error { return errString(s) }
 
-func key(s string) tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)} }
-func runeKey(r rune) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
-func tabKey() tea.KeyMsg        { return tea.KeyMsg{Type: tea.KeyTab} }
+func key(s string) tea.KeyPressMsg   { return tea.KeyPressMsg{Text: s} }
+func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Text: string(r)} }
+func tabKey() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: tea.KeyTab} }
 
 // newModel returns a Model with the given list use case, a fresh in-memory
 // store, and no-op edit/view/write cmds. Tests that need to assert what

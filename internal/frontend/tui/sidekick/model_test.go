@@ -31,7 +31,7 @@ func (s *fakeScreen) Init() tea.Cmd {
 }
 
 func (s *fakeScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
 		s.keys = append(s.keys, k.String())
 	}
 	return s, nil
@@ -74,19 +74,19 @@ func newDeps() (sidekick.Deps, *fakeScreen, *fakeScreen, *fakeScreen, *fakeScree
 	}, pal, pr, wt, ch, nt
 }
 
-func keyMsg(s string) tea.KeyMsg {
+func keyMsg(s string) tea.KeyPressMsg {
 	if len(s) == 1 {
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune(s[0])}}
+		return tea.KeyPressMsg{Text: string(rune(s[0]))}
 	}
 	switch s {
 	case "ctrl+c":
-		return tea.KeyMsg{Type: tea.KeyCtrlC}
+		return tea.KeyPressMsg{Code: tea.KeyCtrlC}
 	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
+		return tea.KeyPressMsg{Code: tea.KeyEsc}
 	case "?":
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+		return tea.KeyPressMsg{Text: "?"}
 	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+	return tea.KeyPressMsg{Text: s}
 }
 
 func TestNew_DefaultsToPalette(t *testing.T) {
@@ -264,7 +264,7 @@ func TestUpdate_QuitKeys(t *testing.T) {
 	t.Parallel()
 	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
-	for _, k := range []tea.KeyMsg{keyMsg("q"), {Type: tea.KeyCtrlC}} {
+	for _, k := range []tea.KeyPressMsg{keyMsg("q"), {Type: tea.KeyCtrlC}} {
 		_, cmd := m.Update(k)
 		if cmd == nil {
 			t.Errorf("%v: expected quit cmd, got nil", k)

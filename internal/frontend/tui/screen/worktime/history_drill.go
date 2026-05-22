@@ -31,7 +31,7 @@ func (h history) openDrill(date time.Time) (tea.Model, tea.Cmd) {
 	return h, h.drillLoadCmd(h.drillDate)
 }
 
-func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "b":
 		h.dialog = historyDialogNone

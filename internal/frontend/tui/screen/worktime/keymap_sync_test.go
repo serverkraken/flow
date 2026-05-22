@@ -90,7 +90,7 @@ func TestFooterDriftGuard(t *testing.T) {
 			c.setup(r)
 			updated, _ := r.model.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 			loaded := drainCmd(t, updated, updated.Init())
-			loaded, _ = loaded.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(c.tab)})
+			loaded, _ = loaded.Update(tea.KeyPressMsg{Text: c.tab})
 
 			out := loaded.View()
 			footer := lastFooterLines(out)

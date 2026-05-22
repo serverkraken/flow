@@ -41,7 +41,7 @@ func TestPolish_HelpOverlayToggles(t *testing.T) {
 
 	// re-open then close with esc.
 	model, _ = model.Update(runeKey('?'))
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if strings.Contains(model.View(), "Tastenbelegung") {
 		t.Errorf("esc should close help overlay:\n%s", model.View())
 	}
@@ -124,8 +124,8 @@ func TestPolish_PageDownThenPageUp(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 
 	// PageDown then PageUp must end on a valid cursor (some entry rendered).
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
-	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyCtrlD})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyCtrlU})
 	if !strings.Contains(model.View(), "▶") {
 		t.Errorf("page nav left no cursor on screen:\n%s", model.View())
 	}

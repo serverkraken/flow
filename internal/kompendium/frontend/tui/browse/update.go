@@ -82,7 +82,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -92,7 +92,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case ModeSearch:
 		return m.handleSearchKey(msg)
@@ -127,9 +127,9 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
-		if key.Matches(msg, m.keys.Help) || key.Matches(msg, m.keys.Quit) || msg.Type == tea.KeyEsc {
+		if key.Matches(msg, m.keys.Help) || key.Matches(msg, m.keys.Quit) || msg.String() == "esc" {
 			m.showHelp = false
 		}
 		return m, nil
@@ -145,7 +145,7 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleNavKey handles cursor movement keys. Returns handled=true when one
 // of the nav bindings matched so the caller doesn't fall through.
-func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Down):
 		if m.cursor < len(m.visible)-1 {
@@ -182,7 +182,7 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 
 // handleActionKey handles non-navigation bindings (filter, search, edit,
 // view, new, delete, help, quit).
-func (m Model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleActionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		m.quitting = true
@@ -213,16 +213,16 @@ func (m Model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.mode = ModeNormal
 		m.search.SetValue("")
 		m.search.Blur()
 		m.applyFilters()
 		m.refreshPreview()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m, nil
@@ -256,7 +256,7 @@ func (m Model) startConfirmDelete() Model {
 // (Skill §Keybind grammar). Vorher fehlte Enter als Confirm-Variante,
 // was die Konvention der restlichen Codebase (confirm.Model) uneinheitlich
 // machte.
-func (m Model) handleConfirmDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleConfirmDeleteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y", "enter":
 		id := m.deleteTargetID

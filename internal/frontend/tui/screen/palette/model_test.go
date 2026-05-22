@@ -85,7 +85,7 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 		domain.PaletteEntry{Label: "Reload", Action: "source-file ~/.tmux.conf", Section: "System"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd")
 	}
@@ -127,7 +127,7 @@ func TestEnter_OnGotoActionEmitsSwitchScreenMsg(t *testing.T) {
 		},
 	)
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter on goto action should produce a tea.Cmd")
 	}
@@ -157,7 +157,7 @@ func TestEnter_OnUnknownGotoScreenFallsThroughToTmux(t *testing.T) {
 		},
 	)
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd even for unknown screens")
 	}
@@ -177,7 +177,7 @@ func TestPin_ReloadsAndMovesToFavoriten(t *testing.T) {
 	)
 	updated := runUntilLoaded(t, f.model())
 	// Press '.' on entry 0 ("A") to pin
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'.'}})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Text: "."})
 	if cmd == nil {
 		t.Fatal("pin should return a load cmd")
 	}
@@ -200,13 +200,13 @@ func TestSlashFocusesFilter_AppliesFuzzyMatch(t *testing.T) {
 	)
 	updated := runUntilLoaded(t, f.model())
 	// "/" focuses the filter
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
 	if !updated.(palette.Model).FilterActive() {
 		t.Error("FilterActive should be true after '/'")
 	}
 	// Type "rel" — narrows to Reload
 	for _, r := range "rel" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
 	out := updated.View()
 	if !strings.Contains(out, "Reload") {
@@ -222,7 +222,7 @@ func TestEsc_NoOpInNormalMode(t *testing.T) {
 	// not tea.Quit, otherwise the host program tears down too.
 	f := newFixture()
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd != nil {
 		t.Errorf("esc in normal mode must not produce a cmd, got %v", cmd)
 	}
@@ -262,7 +262,7 @@ func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
 	// Enter auf der ersten (einzigen) Aktion — goto.sh-pattern, sollte
 	// aber im Standalone-Modus durch run-shell laufen, nicht als
 	// SwitchScreenMsg.
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}
@@ -286,7 +286,7 @@ func TestEmbeddedMode_GotoEmitsSwitchScreenMsg(t *testing.T) {
 		Section: "Flow",
 	})
 	updated := runUntilLoaded(t, f.model()) // Default = Embedded
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}

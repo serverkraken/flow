@@ -83,7 +83,7 @@ func (m Model) Init() tea.Cmd { return nil }
 
 // Update handles y/Enter (confirm) and n/Esc (deny).
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(msg, m.keys.Confirm):
 			return m, confirmed(true)

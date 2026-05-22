@@ -102,7 +102,7 @@ func TestEnter_SwitchesToProject(t *testing.T) {
 		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd")
 	}
@@ -131,9 +131,9 @@ func TestSlashFiltersFuzzily(t *testing.T) {
 		domain.Project{Name: "beta", Path: "/x/beta"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
 	for _, r := range "alp" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
 	out := updated.View()
 	if !strings.Contains(out, "alpha-service") {

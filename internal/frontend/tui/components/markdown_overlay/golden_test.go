@@ -53,11 +53,11 @@ func TestGolden(t *testing.T) {
 					markdown_overlay.WithSource("x"),
 					markdown_overlay.WithSearch(),
 				).SetSize(50, 12)
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+				m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 				for _, r := range "foo" {
-					m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+					m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 				}
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 				return m
 			},
 		},
@@ -72,11 +72,11 @@ func TestGolden(t *testing.T) {
 					markdown_overlay.WithSource("x"),
 					markdown_overlay.WithSearch(),
 				).SetSize(50, 12)
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+				m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 				for _, r := range "xyz" {
-					m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+					m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 				}
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 				return m
 			},
 		},
@@ -110,7 +110,7 @@ func TestGolden(t *testing.T) {
 					markdown_overlay.WithSource(body),
 					markdown_overlay.WithCodeCopy(),
 				).SetSize(50, 12)
-				m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+				m, _ = m.Update(tea.KeyPressMsg{Text: "c"})
 				return m
 			},
 		},

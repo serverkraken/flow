@@ -18,7 +18,7 @@ func TestFrei_QuickAddTodayAsVacation(t *testing.T) {
 	now := r.clock.T
 	m := loadedFrei(t, r)
 	before := len(r.dayoffs.Entries)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "A"})
 	_ = drainCmd(t, m, cmd)
 	if len(r.dayoffs.Entries) != before+1 {
 		t.Errorf("A should add 1 Vacation, got delta=%d", len(r.dayoffs.Entries)-before)
@@ -34,7 +34,7 @@ func TestFrei_QuickAddTodayAsSick(t *testing.T) {
 	r := newRig(t)
 	now := r.clock.T
 	m := loadedFrei(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("K")})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "K"})
 	_ = drainCmd(t, m, cmd)
 	entry, ok := r.dayoffs.Lookup(now)
 	if !ok || entry.Kind != domain.KindSick {
@@ -47,7 +47,7 @@ func TestFrei_ShiftYear_LeftRight(t *testing.T) {
 	m := loadedFrei(t, r)
 	// h shifts to previous year — view should mention the previous year.
 	prevYear := time.Now().Year() - 1
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "h"})
 	m = drainCmd(t, m, cmd)
 	out := m.View()
 	if !strings.Contains(out, ""+intStr(prevYear)) && !strings.Contains(out, "lädt") {
@@ -55,7 +55,7 @@ func TestFrei_ShiftYear_LeftRight(t *testing.T) {
 		_ = out
 	}
 	// l shifts forward.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "l"})
 	_ = drainCmd(t, m, cmd)
 }
 
@@ -63,9 +63,9 @@ func TestFrei_ResetYearWithT(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
 	// Shift forward then reset.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "l"})
 	m = drainCmd(t, m, cmd)
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "T"})
 	_ = drainCmd(t, m, cmd)
 }
 

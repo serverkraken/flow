@@ -150,7 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = id
 		}
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 	return m.fanOutToAll(msg)
@@ -189,7 +189,7 @@ func (m Model) fanOutToAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 // to the active screen if it owns input → forward if the screen
 // claimed the key → global key dispatch → fall through to the active
 // screen.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
 		// Help schließt explizit auf Esc/?/q. Jede andere Taste
 		// schließt zwar auch, aber wird dann normal verarbeitet —
@@ -232,7 +232,7 @@ func (m Model) screenClaimsKey(key string) bool {
 // handleGlobalKey dispatches the sidekick's own key map (q / ? / b /
 // p / f / w / c / n). ok=false means the key isn't a global; the
 // caller forwards to the active screen.
-func (m Model) handleGlobalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit, true

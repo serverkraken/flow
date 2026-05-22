@@ -92,7 +92,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.SetSize(msg.Width, msg.Height), nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.mode == ModeSearch {
 			return m.handleSearchKey(msg)
 		}
@@ -132,7 +132,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) isCloseKey(msg tea.KeyMsg) bool {
+func (m Model) isCloseKey(msg tea.KeyPressMsg) bool {
 	s := msg.String()
 	for _, k := range m.cfg.closeKeys {
 		if s == k {

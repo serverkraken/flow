@@ -20,7 +20,7 @@ import (
 // returned tea.Cmd resolves to tea.QuitMsg.
 func pressQ(t *testing.T, m tea.Model) (tea.Model, bool) {
 	t.Helper()
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
 	if cmd == nil {
 		return updated, false
 	}
@@ -48,7 +48,7 @@ func TestQuit_FromHeuteIdleQuits(t *testing.T) {
 
 func TestQuit_FromWocheQuits(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "2"})
 	if _, ok := pressQ(t, m); !ok {
 		t.Error("q on Woche tab must return tea.Quit")
 	}
@@ -56,7 +56,7 @@ func TestQuit_FromWocheQuits(t *testing.T) {
 
 func TestQuit_FromHistoryListQuits(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "3"})
 	if _, ok := pressQ(t, m); !ok {
 		t.Error("q on History list must return tea.Quit")
 	}
@@ -64,7 +64,7 @@ func TestQuit_FromHistoryListQuits(t *testing.T) {
 
 func TestQuit_FromFreiQuits(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "4"})
 	if _, ok := pressQ(t, m); !ok {
 		t.Error("q on Frei tab must return tea.Quit")
 	}
@@ -72,7 +72,7 @@ func TestQuit_FromFreiQuits(t *testing.T) {
 
 func TestQuit_FromActionMenuListQuits(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: ":"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("precondition: menu must be open")
 	}
@@ -87,9 +87,9 @@ func TestQuit_FromTargetPickerQuits(t *testing.T) {
 	r := newRig(t)
 	m := withSize(t, r.model)
 	// Open menu, navigate to "Brief Wochenbericht", Enter → Target picker
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: ":"})
 	// Cursor is on first action which is Brief Wochenbericht.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	out := m.View()
 	if !strings.Contains(out, "output-ziel") && !strings.Contains(out, "OUTPUT-ZIEL") {
 		t.Fatalf("precondition: target sub-picker must be visible; got:\n%s", out)
@@ -109,7 +109,7 @@ func TestQuit_FromHeuteDeleteConfirmQuits(t *testing.T) {
 	m := withSize(t, r.model)
 	m = drainCmd(t, m, m.Init())
 	// Press D to open delete confirm.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "D"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("precondition: delete confirm should be open")
 	}
@@ -129,7 +129,7 @@ func TestQuit_DoesNotQuitInHeuteTagDialog(t *testing.T) {
 	}}
 	m := withSize(t, r.model)
 	m = drainCmd(t, m, m.Init())
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "t"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("precondition: tag dialog should be open")
 	}
@@ -145,12 +145,12 @@ func TestQuit_DoesNotQuitInHeuteTagDialog(t *testing.T) {
 
 func TestQuit_DoesNotQuitInMenuRangeForm(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: ":"})
 	// Filter to "Export CSV", then Enter → Range form opens.
 	for _, ch := range "csv" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !strings.Contains(m.View(), "RANGE") {
 		t.Fatalf("precondition: range form should be visible; got:\n%s", m.View())
 	}
@@ -162,8 +162,8 @@ func TestQuit_DoesNotQuitInMenuRangeForm(t *testing.T) {
 
 func TestQuit_DoesNotQuitInHistoryFilterDialog(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "3"})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("precondition: history filter dialog should be open")
 	}
@@ -174,8 +174,8 @@ func TestQuit_DoesNotQuitInHistoryFilterDialog(t *testing.T) {
 
 func TestQuit_DoesNotQuitInFreiAddDialog(t *testing.T) {
 	m := withSize(t, newModel(t))
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "4"})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "a"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("precondition: frei add dialog should be open")
 	}
@@ -191,12 +191,12 @@ func TestQuit_DoesNotQuitInMenuCorrectForm(t *testing.T) {
 	r.active.Active = &start
 	m := withSize(t, r.model)
 	m = drainCmd(t, m, m.Init())
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(":")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: ":"})
 	// Filter to "Start" — narrows to the Korrektur action.
 	for _, ch := range "Start" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if !strings.Contains(m.View(), "STARTZEIT") {
 		t.Fatalf("precondition: correct form should be visible; got:\n%s", m.View())
 	}

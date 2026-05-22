@@ -355,7 +355,7 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return h, h.loadCmd()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return h.handleKey(msg)
 	}
 	return h, nil
@@ -458,7 +458,7 @@ func (h history) clampCursors() history {
 
 // — keymap dispatch —
 
-func (h history) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if h.dialog == historyDialogFilter {
 		return h.handleFilterKey(msg)
 	}
@@ -489,7 +489,7 @@ func (h history) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (h history) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	records := filteredHistory(h.records, h.histQuery, h.deps.Clock.Now())
 	switch msg.String() {
 	case "j", "down":
@@ -532,7 +532,7 @@ func (h history) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h history) handleHeatmapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleHeatmapKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "h", "left":
 		if h.heatCol > 0 {
@@ -583,7 +583,7 @@ func (h history) handleHeatmapKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h history) handleTagClockKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleTagClockKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "h", "left":
 		h.tagClockCol = (h.tagClockCol + 23) % 24
@@ -618,7 +618,7 @@ func (h history) handleTagClockKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h history) handleMonthKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleMonthKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if h.monthRef.IsZero() {
 		now := h.deps.Clock.Now()
 		h.monthRef = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())

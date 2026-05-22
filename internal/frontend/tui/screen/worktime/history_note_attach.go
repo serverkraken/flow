@@ -41,7 +41,7 @@ func (h history) openNoteAttachDialog() (history, tea.Cmd) {
 // auf seine Action-Verdikte: Submit ruft LinkWriter.Add via tea.Cmd
 // (Resultat landet als historyActionDoneMsg), Cancel schließt zurück
 // in den Drill-View, Idle übernimmt nur den neuen Picker-State.
-func (h history) handleDrillNoteAttachKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillNoteAttachKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	picker, cmd, action := h.notePicker.Update(msg)
 	h.notePicker = picker
 	switch action {

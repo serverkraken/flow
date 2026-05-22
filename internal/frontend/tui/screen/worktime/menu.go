@@ -167,7 +167,7 @@ func (m menuModel) Update(msg tea.Msg) (menuModel, tea.Cmd) {
 		return m, nil
 	case menuActionDoneMsg:
 		return m.applyActionDone(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
 	return m, nil
@@ -197,7 +197,7 @@ func (m menuModel) applyActionDone(msg menuActionDoneMsg) (menuModel, tea.Cmd) {
 // handleRangeKey (text input + parse); Target → handleTargetKey
 // (Output sink picker, c/s/f hotkeys); Correct → handleCorrectKey
 // (HH:MM input); Land → handleLandKey (Bundesland picker).
-func (m menuModel) handleKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	switch m.subMode {
 	case menuSubModeRange:
 		return m.handleRangeKey(msg)
@@ -215,7 +215,7 @@ func (m menuModel) handleKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
 // canceled rolls back to the action list; submitted dispatches
 // SessionWriter.CorrectStart and returns to the list — the result
 // lands as menuActionDoneMsg in Update.
-func (m menuModel) handleCorrectKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleCorrectKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	next, cmd, ev := m.correctF.handleKey(msg, m.deps.Clock.Now())
 	m.correctF = next
 	if ev.canceled {
@@ -236,7 +236,7 @@ func (m menuModel) handleCorrectKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
 // handleLandKey forwards a key to the Bundesland picker. canceled
 // rolls back; picked dispatches SyncGermanHolidays for the chosen
 // Land + current year and returns to the list.
-func (m menuModel) handleLandKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleLandKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	next, ev := m.landP.handleKey(msg)
 	m.landP = next
 	if ev.canceled {
@@ -258,7 +258,7 @@ func (m menuModel) handleLandKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
 // rangeEvent.canceled rolls back to the action list (drops pending);
 // rangeEvent.submitted captures rangeExpr and transitions to the
 // output-target picker so the user picks how to read the result.
-func (m menuModel) handleRangeKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleRangeKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	next, cmd, ev := m.rangeF.handleKey(msg, m.deps.Clock.Now())
 	m.rangeF = next
 	if ev.canceled {
@@ -282,7 +282,7 @@ func (m menuModel) handleRangeKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
 // runs the focused action; any other rune extends the query (palette-
 // style live-filter). Rune-handling lives in handleRuneKey to keep
 // cyclomatic complexity within the project budget.
-func (m menuModel) handleListKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleListKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		return m.handleEsc(), nil
@@ -320,7 +320,7 @@ func (m menuModel) handleListKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
 // list filter so the user keeps their place). targetEvent.picked
 // dispatches the pending action through dispatchPending and returns
 // to the list — the result lands as menuActionDoneMsg in Update.
-func (m menuModel) handleTargetKey(msg tea.KeyMsg) (menuModel, tea.Cmd) {
+func (m menuModel) handleTargetKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 	next, ev := m.target.handleKey(msg)
 	m.target = next
 	if ev.canceled {
@@ -399,11 +399,12 @@ func (m menuModel) handleBackspace() menuModel {
 // handleRuneKey extends the filter query by the typed rune unless the
 // rune is a navigation key (j/k/g/G — those take precedence over the
 // filter, matching sidekick-palette muscle memory).
-func (m menuModel) handleRuneKey(msg tea.KeyMsg) menuModel {
-	if msg.Type != tea.KeyRunes || len(msg.Runes) != 1 {
+func (m menuModel) handleRuneKey(msg tea.KeyPressMsg) menuModel {
+	runes := []rune(msg.Text)
+	if len(runes) != 1 {
 		return m
 	}
-	r := msg.Runes[0]
+	r := runes[0]
 	if r == 'j' || r == 'k' || r == 'g' || r == 'G' {
 		return m
 	}

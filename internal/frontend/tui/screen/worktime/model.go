@@ -329,7 +329,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.scheduleTick())
 		return m, tea.Batch(cmds...)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 
@@ -367,7 +367,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 //
 // Split off Update to keep cyclomatic complexity inside the project
 // budget.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
 	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
 	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
@@ -400,7 +400,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // `:` action-menu trigger. Returns (model, true) when the key was
 // claimed; (zero, false) lets the caller forward the key to the active
 // sub-model.
-func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
+func (m Model) handleTabRouterKey(msg tea.KeyPressMsg) (Model, bool) {
 	switch msg.String() {
 	case ":":
 		m.menu = m.menu.openMenu(m.current)
