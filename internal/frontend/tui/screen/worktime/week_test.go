@@ -1,26 +1,19 @@
 package worktime
 
 import (
-	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
-// TestMain forces lipgloss onto a TrueColor profile so that SGR-presence
-// assertions work without a real TTY. Without this, go test detects no
-// terminal and strips all color escape sequences.
-func TestMain(m *testing.M) {
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	os.Exit(m.Run())
-}
+// Under lipgloss v2 Style.Render always emits TrueColor SGR
+// sequences regardless of TTY detection — no TestMain profile
+// override needed.
 
 // TestRenderPace_FreeDayUsesFilledGlyphPerKindColor pinnt fest, dass die
 // Pace-Strip für jeden Free-Day-Kind den ●-Glyph (glyphs.Filled) emittiert
@@ -34,8 +27,8 @@ func TestRenderPace_FreeDayUsesFilledGlyphPerKindColor(t *testing.T) {
 
 	// colorSeq converts a lipgloss.Color to its ANSI foreground sequence
 	// as emitted by lipgloss in TrueColor mode.
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 
 	// Spec 2026-05-13-filled-dayoff-dots-supersede: direct hue mapping.

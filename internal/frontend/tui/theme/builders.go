@@ -23,58 +23,58 @@ import "charm.land/lipgloss/v2"
 
 // Body — default paragraph text. Fg foreground, no extra styling.
 func Body(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Fg)).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Fg).Render(s)
 }
 
 // Dim — secondary / hint text. FgMuted foreground. Use for footer
 // hints, "lädt…" placeholders, scroll-percent indicators.
 func Dim(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted)).Render(s)
+	return lipgloss.NewStyle().Foreground(p.FgMuted).Render(s)
 }
 
 // Strong — bold body text. Same colour as Body, just emphasised.
 func Strong(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Fg)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Fg).Bold(true).Render(s)
 }
 
 // Heading — section / panel title. Bold + Accent (= Blue). Use for
 // box titles and screen-level headers.
 func Heading(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Sem().Accent)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Sem().Accent).Bold(true).Render(s)
 }
 
 // Highlight — purple bold. Use for "this is the active thing" accents
 // (status-bar session-name pill, modal title, attached-note marker).
 func Highlight(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Purple).Bold(true).Render(s)
 }
 
 // Success — green bold. Status / achievement text.
 func Success(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Green)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Green).Bold(true).Render(s)
 }
 
 // Warning — yellow bold. Heads-up / pending text.
 func Warning(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Yellow)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Yellow).Bold(true).Render(s)
 }
 
 // Danger — red bold. Failure / blocking text. Note: error messages in
 // body prose use Err (not bold) — Danger is for short status labels
 // ("FAIL", "✗ Fehler beim Speichern").
 func Danger(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Red)).Bold(true).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Red).Bold(true).Render(s)
 }
 
 // Err — non-bold red prose for error-message paragraphs. Same colour
 // as Danger but without Bold; Bold on a multi-line error reads as
 // shouting. Use Danger for short labels and Err for sentences.
 func Err(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Red)).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Red).Render(s)
 }
 
 // Info — cyan, no bold. Use for informational meta — "läuft seit X",
 // "scrollen mit ↑/↓".
 func Info(s string, p Palette) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Cyan)).Render(s)
+	return lipgloss.NewStyle().Foreground(p.Cyan).Render(s)
 }

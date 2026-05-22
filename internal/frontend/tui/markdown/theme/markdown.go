@@ -106,24 +106,24 @@ const (
 // for a callout kind, painted onto the given palette.
 func CalloutBadge(kind CalloutKind, p canonical.Palette) lipgloss.Style {
 	color := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(p.Bg)).
+		Foreground(p.Bg).
 		Bold(true).
 		Padding(0, 1)
 	switch kind {
 	case CalloutTip, CalloutNote:
-		return color.Background(lipgloss.Color(p.Cyan))
+		return color.Background(p.Cyan)
 	case CalloutInfo:
-		return color.Background(lipgloss.Color(p.Blue))
+		return color.Background(p.Blue)
 	case CalloutWarning:
-		return color.Background(lipgloss.Color(p.Yellow))
+		return color.Background(p.Yellow)
 	case CalloutDanger:
-		return color.Background(lipgloss.Color(p.Red))
+		return color.Background(p.Red)
 	case CalloutImportant:
-		return color.Background(lipgloss.Color(p.Purple))
+		return color.Background(p.Purple)
 	case CalloutSuccess:
-		return color.Background(lipgloss.Color(p.Green))
+		return color.Background(p.Green)
 	}
-	return color.Background(lipgloss.Color(p.FgMuted))
+	return color.Background(p.FgMuted)
 }
 
 // CalloutBar returns the leading │ bar style matched to a callout
@@ -131,52 +131,52 @@ func CalloutBadge(kind CalloutKind, p canonical.Palette) lipgloss.Style {
 func CalloutBar(kind CalloutKind, p canonical.Palette) lipgloss.Style {
 	switch kind {
 	case CalloutTip, CalloutNote:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Cyan))
+		return lipgloss.NewStyle().Foreground(p.Cyan)
 	case CalloutInfo:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Blue))
+		return lipgloss.NewStyle().Foreground(p.Blue)
 	case CalloutWarning:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Yellow))
+		return lipgloss.NewStyle().Foreground(p.Yellow)
 	case CalloutDanger:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Red))
+		return lipgloss.NewStyle().Foreground(p.Red)
 	case CalloutImportant:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Purple))
+		return lipgloss.NewStyle().Foreground(p.Purple)
 	case CalloutSuccess:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(p.Green))
+		return lipgloss.NewStyle().Foreground(p.Green)
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted))
+	return lipgloss.NewStyle().Foreground(p.FgMuted)
 }
 
-// MarkdownRolesFor returns a MarkdownRoles built against the given
-// lipgloss renderer + canonical palette. Pass r =
-// lipgloss.DefaultRenderer() for normal stdout, or a renderer with
-// WithColorProfile(termenv.Ascii) for the NO_COLOR path. The palette
-// argument is a parameter (no Active/SetActive global) so concurrent
-// renders with different palettes — including the NO_COLOR contrast
-// test — never race.
-func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
-	color := r.NewStyle
+// MarkdownRolesFor returns a MarkdownRoles built from a canonical
+// palette. Under lipgloss v2 styles are deterministic and emit
+// TrueColor unconditionally; NO_COLOR is handled by post-processing
+// the final rendered string with ansi.Strip rather than by swapping
+// a renderer profile. The palette argument stays parametric so
+// concurrent renders with different palettes — including the
+// contrast test — never race on a global.
+func MarkdownRolesFor(p canonical.Palette) MarkdownRoles {
+	color := lipgloss.NewStyle
 	return MarkdownRoles{
 		H1Bar: color().
-			Background(lipgloss.Color(p.BgBar)).
-			Foreground(lipgloss.Color(p.Purple)).
+			Background(p.BgBar).
+			Foreground(p.Purple).
 			Bold(true),
 		H1Text: color().
-			Background(lipgloss.Color(p.BgBar)).
-			Foreground(lipgloss.Color(p.Purple)).
+			Background(p.BgBar).
+			Foreground(p.Purple).
 			Bold(true),
 		// H2 wears a subtle BG chip behind the text (BgChip) and a
 		// Purple bold foreground so it visually shares the H1 family
 		// without claiming the full-width banner. Padding keeps the
 		// chip from sitting flush against the prose around it.
 		H2: color().
-			Foreground(lipgloss.Color(p.Purple)).
-			Background(lipgloss.Color(p.BgChip)).
+			Foreground(p.Purple).
+			Background(p.BgChip).
 			Bold(true).
 			Padding(0, 1),
 		// H3 wears bold + cyan + double-bar — distinct family head
 		// (purple H1+H2 → cyan H3+H4) with the loudest bar treatment.
 		H3: color().
-			Foreground(lipgloss.Color(p.Cyan)).
+			Foreground(p.Cyan).
 			Bold(true),
 		// H4 drops the bold and shifts to Blue so the cyan/blue pair
 		// reads as "same family, lower rung". Without this delta H3
@@ -184,9 +184,9 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		// `▌▌` vs `▌` glyph distinguished them, which forced the eye
 		// to count.
 		H4: color().
-			Foreground(lipgloss.Color(p.Blue)),
+			Foreground(p.Blue),
 		H5: color().
-			Foreground(lipgloss.Color(p.FgDim)),
+			Foreground(p.FgDim),
 		// A11y-3 (audit §2.5): no Faint() on prose. Faint dims a
 		// terminal foreground 30–50%, which on top of an already-Muted
 		// FgMuted drops the pair below WCAG AA. Italic alone carries
@@ -194,17 +194,17 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		// monospace fonts is unreliable, so the prefix glyph (·)
 		// carries the level even if the font has no italic face.
 		H6: color().
-			Foreground(lipgloss.Color(p.FgMuted)).
+			Foreground(p.FgMuted).
 			Italic(true),
 		Paragraph: color().
-			Foreground(lipgloss.Color(p.Fg)),
+			Foreground(p.Fg),
 		// HR is structural punctuation, not content — it should
 		// recede, not announce. FgMuted made the rule almost as
 		// bright as body text. BgChip is the same colour the
 		// frontmatter / footnote separators already use, so all
 		// horizontal-rule-like elements share one visual language.
 		HRule: color().
-			Foreground(lipgloss.Color(p.BgChip)),
+			Foreground(p.BgChip),
 
 		Strong: color().Bold(true),
 		Emph:   color().Italic(true),
@@ -216,44 +216,44 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		// The previous green foreground made inline code feel like a
 		// different language than the same identifier in a block.
 		CodeSpan: color().
-			Background(lipgloss.Color(p.BgCode)),
+			Background(p.BgCode),
 		LinkText: color().
-			Foreground(lipgloss.Color(p.Blue)),
+			Foreground(p.Blue),
 
 		CodeFenceBg: color().
-			Background(lipgloss.Color(p.BgCode)).
-			Foreground(lipgloss.Color(p.FgDim)),
+			Background(p.BgCode).
+			Foreground(p.FgDim),
 		// Codeband uses BgChipSoft (a touch lighter than BgCode) so
 		// the band reads as a frame edge rather than a continuation
 		// of the H1 / H2 banners (those use BgBar + BgChip). Without
 		// this delta a code block at the top of a section visually
 		// merged into the H1 banner above it.
 		CodeFenceBand: color().
-			Background(lipgloss.Color(p.BgChipSoft)).
-			Foreground(lipgloss.Color(p.FgMuted)),
+			Background(p.BgChipSoft).
+			Foreground(p.FgMuted),
 		CodeFenceLabel: color().
-			Background(lipgloss.Color(p.BgChipSoft)).
-			Foreground(lipgloss.Color(p.Cyan)).
+			Background(p.BgChipSoft).
+			Foreground(p.Cyan).
 			Bold(true),
 		CodeFencePlain: color().
-			Background(lipgloss.Color(p.BgCode)).
-			Foreground(lipgloss.Color(p.FgDim)),
+			Background(p.BgCode).
+			Foreground(p.FgDim),
 
-		Bullet1:      color().Foreground(lipgloss.Color(p.Blue)).Bold(true),
-		Bullet2:      color().Foreground(lipgloss.Color(p.Cyan)),
-		Bullet3:      color().Foreground(lipgloss.Color(p.Purple)),
-		Bullet4:      color().Foreground(lipgloss.Color(p.FgMuted)),
-		NumberMarker: color().Foreground(lipgloss.Color(p.FgMuted)).Bold(true),
-		TaskOpen:     color().Foreground(lipgloss.Color(p.Yellow)).Bold(true),
-		TaskDone:     color().Foreground(lipgloss.Color(p.Green)).Bold(true),
-		TaskDoneText: color().Foreground(lipgloss.Color(p.FgMuted)).Strikethrough(true),
+		Bullet1:      color().Foreground(p.Blue).Bold(true),
+		Bullet2:      color().Foreground(p.Cyan),
+		Bullet3:      color().Foreground(p.Purple),
+		Bullet4:      color().Foreground(p.FgMuted),
+		NumberMarker: color().Foreground(p.FgMuted).Bold(true),
+		TaskOpen:     color().Foreground(p.Yellow).Bold(true),
+		TaskDone:     color().Foreground(p.Green).Bold(true),
+		TaskDoneText: color().Foreground(p.FgMuted).Strikethrough(true),
 
-		TableBorder: color().Foreground(lipgloss.Color(p.FgMuted)),
-		TableHeader: color().Foreground(lipgloss.Color(p.Cyan)).Bold(true),
-		TableCell:   color().Foreground(lipgloss.Color(p.Fg)),
-		TableRowAlt: color().Background(lipgloss.Color(p.BgChipSoft)).Foreground(lipgloss.Color(p.Fg)),
+		TableBorder: color().Foreground(p.FgMuted),
+		TableHeader: color().Foreground(p.Cyan).Bold(true),
+		TableCell:   color().Foreground(p.Fg),
+		TableRowAlt: color().Background(p.BgChipSoft).Foreground(p.Fg),
 
-		WikilinkValid: color().Foreground(lipgloss.Color(p.Cyan)),
+		WikilinkValid: color().Foreground(p.Cyan),
 		// A11y-3 (audit §2.5): kein Faint() auf Prose. Faint reduziert
 		// die terminal-Foreground-Helligkeit um 30–50 %; auf einem schon
 		// schwachen Red-on-BgBar fällt das unter WCAG AA. Die Brokenness
@@ -262,22 +262,22 @@ func MarkdownRolesFor(r *lipgloss.Renderer, p canonical.Palette) MarkdownRoles {
 		// im NO_COLOR-Profil. Kein zusätzlicher SGR-Modifier — Lipgloss
 		// segmentiert Strikethrough per-Zelle und reißt den Span in
 		// individuelle Zeichen-SGR-Sequenzen auseinander.
-		WikilinkBroken: color().Foreground(lipgloss.Color(p.Red)),
-		ImageChip:      color().Foreground(lipgloss.Color(p.FgMuted)).Background(lipgloss.Color(p.BgChipSoft)),
+		WikilinkBroken: color().Foreground(p.Red),
+		ImageChip:      color().Foreground(p.FgMuted).Background(p.BgChipSoft),
 
-		CardBadgeDaily:   color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Yellow)).Bold(true).Padding(0, 1),
-		CardBadgeProject: color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Purple)).Bold(true).Padding(0, 1),
-		CardBadgeFree:    color().Foreground(lipgloss.Color(p.Bg)).Background(lipgloss.Color(p.Cyan)).Bold(true).Padding(0, 1),
-		CardTitle:        color().Foreground(lipgloss.Color(p.Fg)).Bold(true),
-		CardMeta:         color().Foreground(lipgloss.Color(p.FgMuted)).Italic(true),
-		CardProjectChip:  color().Foreground(lipgloss.Color(p.Green)).Background(lipgloss.Color(p.BgChipSoft)),
-		CardSeparator:    color().Foreground(lipgloss.Color(p.BgChip)),
-		BlockquoteBar:    color().Foreground(lipgloss.Color(p.FgMuted)),
-		BlockquoteText:   color().Foreground(lipgloss.Color(p.FgDim)).Italic(true),
+		CardBadgeDaily:   color().Foreground(p.Bg).Background(p.Yellow).Bold(true).Padding(0, 1),
+		CardBadgeProject: color().Foreground(p.Bg).Background(p.Purple).Bold(true).Padding(0, 1),
+		CardBadgeFree:    color().Foreground(p.Bg).Background(p.Cyan).Bold(true).Padding(0, 1),
+		CardTitle:        color().Foreground(p.Fg).Bold(true),
+		CardMeta:         color().Foreground(p.FgMuted).Italic(true),
+		CardProjectChip:  color().Foreground(p.Green).Background(p.BgChipSoft),
+		CardSeparator:    color().Foreground(p.BgChip),
+		BlockquoteBar:    color().Foreground(p.FgMuted),
+		BlockquoteText:   color().Foreground(p.FgDim).Italic(true),
 
-		FootnoteRef:       color().Foreground(lipgloss.Color(p.Purple)).Bold(true),
-		FootnoteListTitle: color().Foreground(lipgloss.Color(p.Cyan)).Bold(true),
-		FootnoteDef:       color().Foreground(lipgloss.Color(p.FgDim)),
+		FootnoteRef:       color().Foreground(p.Purple).Bold(true),
+		FootnoteListTitle: color().Foreground(p.Cyan).Bold(true),
+		FootnoteDef:       color().Foreground(p.FgDim),
 
 		TagChips: tagChipStyles(color, p),
 	}
@@ -292,8 +292,8 @@ func tagChipStyles(color func() lipgloss.Style, p canonical.Palette) []lipgloss.
 	out := make([]lipgloss.Style, len(p.TagPalette))
 	for i, c := range p.TagPalette {
 		out[i] = color().
-			Foreground(lipgloss.Color(p.Bg)).
-			Background(lipgloss.Color(c)).
+			Foreground(p.Bg).
+			Background(c).
 			Bold(true).
 			Padding(0, 1)
 	}

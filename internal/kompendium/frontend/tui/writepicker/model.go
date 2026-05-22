@@ -186,7 +186,7 @@ func (m Model) View() string {
 	if m.width > 0 && m.height > 0 {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
 			lipgloss.WithWhitespaceChars("·"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color(pal.BgChip)))
+			lipgloss.WithWhitespaceForeground(pal.BgChip))
 	}
 	return card
 }
@@ -239,21 +239,21 @@ func rebuildStyles() {
 		Foreground(sem.Accent).
 		Bold(true)
 	selectedStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
-		Background(lipgloss.Color(pal.BgChip)).
+		Foreground(pal.Fg).
+		Background(pal.BgChip).
 		Bold(true).
 		Padding(0, 1)
 	optionStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
+		Foreground(pal.Fg).
 		Padding(0, 1)
 	iconStyle = lipgloss.NewStyle().
 		Foreground(sem.Active)
 	hintStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	dimStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerKeyStyle = lipgloss.NewStyle().
 		Foreground(sem.Active).
 		Bold(true)

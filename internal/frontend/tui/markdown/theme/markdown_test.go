@@ -1,12 +1,11 @@
 package theme_test
 
 import (
-	"io"
 	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown/theme"
 	canonical "github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -18,8 +17,7 @@ import (
 // indistinguishable from prose. Iterates the fields by hand because
 // reflect-walking a styles struct is over-engineered.
 func TestMarkdownRolesFor_AllStylesPopulated(t *testing.T) {
-	r := lipgloss.DefaultRenderer()
-	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	roles := theme.MarkdownRolesFor(canonical.TokyonightNight)
 	cases := map[string]lipgloss.Style{
 		"H1Bar":          roles.H1Bar,
 		"H1Text":         roles.H1Text,
@@ -74,29 +72,25 @@ func TestCalloutBadgeAndBar_AllKinds(t *testing.T) {
 // and the returned styles must differ.
 func TestMarkdownRolesFor_SwapsPerCall(t *testing.T) {
 	t.Parallel()
-	r := lipgloss.DefaultRenderer()
-	tn := theme.MarkdownRolesFor(r, canonical.TokyonightNight).H2.GetForeground()
-	cp := theme.MarkdownRolesFor(r, canonical.CatppuccinMocha).H2.GetForeground()
+	tn := theme.MarkdownRolesFor(canonical.TokyonightNight).H2.GetForeground()
+	cp := theme.MarkdownRolesFor(canonical.CatppuccinMocha).H2.GetForeground()
 	if tn == cp {
 		t.Errorf("expected H2 colour to change between palettes, got %v == %v", tn, cp)
 	}
 }
 
-// TestMarkdownRolesFor_NoColorPath builds the role bundle through a
-// renderer with the Ascii color profile (the same one Render uses
-// when WithNoColor / NO_COLOR is active) and checks that styled
-// output of meaningful roles is non-empty AND, when the input
-// carries text, the text survives the strip.
-//
-// A11y-4 from docs/design-system-audit.md §2.5: no information may
-// hide in colour alone. If a callout badge in the NO_COLOR profile
-// produced just whitespace, "DANGER" would silently disappear from a
-// terminal forced into Ascii mode.
+// TestMarkdownRolesFor_NoColorPath verifies A11y-4 (docs/design-system-
+// audit.md §2.5): no information may hide in colour alone. Under
+// lipgloss v2 there is no swappable colour-profile renderer; the
+// NO_COLOR path strips SGR codes after rendering via ansi.Strip
+// (markdown.Render does this when noColor is set). The test mirrors
+// that by stripping the rendered output and asserting the text
+// survives — if a role were colour-only, the stripped string would
+// drop the label.
 func TestMarkdownRolesFor_NoColorPath(t *testing.T) {
 	t.Parallel()
-	r := lipgloss.NewRenderer(io.Discard, termenv.WithProfile(termenv.Ascii))
 	p := canonical.TokyonightNight
-	roles := theme.MarkdownRolesFor(r, p)
+	roles := theme.MarkdownRolesFor(p)
 
 	cases := map[string]struct {
 		style lipgloss.Style
@@ -112,10 +106,10 @@ func TestMarkdownRolesFor_NoColorPath(t *testing.T) {
 		"BadgeDaily": {roles.CardBadgeDaily, "DAILY"},
 	}
 	for name, tc := range cases {
-		out := tc.style.Render(tc.input)
-		if !strings.Contains(out, tc.input) {
-			t.Errorf("%s NO_COLOR: rendered output %q does not contain input %q",
-				name, out, tc.input)
+		stripped := ansi.Strip(tc.style.Render(tc.input))
+		if !strings.Contains(stripped, tc.input) {
+			t.Errorf("%s NO_COLOR: stripped output %q does not contain input %q",
+				name, stripped, tc.input)
 		}
 	}
 
@@ -123,9 +117,9 @@ func TestMarkdownRolesFor_NoColorPath(t *testing.T) {
 	// colour was the *whole* signal in the rendered chip.
 	for _, k := range []theme.CalloutKind{theme.CalloutDanger, theme.CalloutWarning, theme.CalloutSuccess} {
 		label := strings.ToUpper(string(k))
-		out := theme.CalloutBadge(k, p).Render(label)
-		if !strings.Contains(out, label) {
-			t.Errorf("CalloutBadge(%q) NO_COLOR: missing label %q in %q", k, label, out)
+		stripped := ansi.Strip(theme.CalloutBadge(k, p).Render(label))
+		if !strings.Contains(stripped, label) {
+			t.Errorf("CalloutBadge(%q) NO_COLOR: stripped output %q drops label %q", k, stripped, label)
 		}
 	}
 }
@@ -135,8 +129,7 @@ func TestMarkdownRolesFor_NoColorPath(t *testing.T) {
 // well-meaning refactor re-adds Faint(true) to H6, this catches it.
 func TestH6_NoFaint(t *testing.T) {
 	t.Parallel()
-	r := lipgloss.DefaultRenderer()
-	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	roles := theme.MarkdownRolesFor(canonical.TokyonightNight)
 	if roles.H6.GetFaint() {
 		t.Error("H6 has Faint() applied — drops below WCAG AA on FgMuted (A11y-3)")
 	}
@@ -148,8 +141,7 @@ func TestH6_NoFaint(t *testing.T) {
 // a second dimming layer.
 func TestWikilinkBroken_NoFaint(t *testing.T) {
 	t.Parallel()
-	r := lipgloss.DefaultRenderer()
-	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	roles := theme.MarkdownRolesFor(canonical.TokyonightNight)
 	if roles.WikilinkBroken.GetFaint() {
 		t.Error("WikilinkBroken has Faint() applied — drops below WCAG AA on Red (A11y-3)")
 	}
@@ -163,15 +155,14 @@ func TestWikilinkBroken_NoFaint(t *testing.T) {
 // nicht, was den Tag-Text auf Bg-on-Bg unsichtbar machte.
 func TestTagChips_NoColorPath(t *testing.T) {
 	t.Parallel()
-	r := lipgloss.NewRenderer(io.Discard, termenv.WithProfile(termenv.Ascii))
-	roles := theme.MarkdownRolesFor(r, canonical.TokyonightNight)
+	roles := theme.MarkdownRolesFor(canonical.TokyonightNight)
 	if len(roles.TagChips) == 0 {
 		t.Fatal("TagChips slot is empty — frontmatter tag-chip rendering would fall back")
 	}
 	for i, st := range roles.TagChips {
-		out := st.Render("#go")
-		if !strings.Contains(out, "#go") {
-			t.Errorf("TagChips[%d] NO_COLOR: rendered output %q drops tag text", i, out)
+		stripped := ansi.Strip(st.Render("#go"))
+		if !strings.Contains(stripped, "#go") {
+			t.Errorf("TagChips[%d] NO_COLOR: stripped output %q drops tag text", i, stripped)
 		}
 	}
 }

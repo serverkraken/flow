@@ -132,26 +132,26 @@ func rebuildStyles() {
 		Foreground(sem.Accent).
 		Bold(true)
 	headerSeparatorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.BgChip))
+		Foreground(pal.BgChip)
 	repoChipStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
-		Background(lipgloss.Color(pal.Teal)).
+		Foreground(pal.Bg).
+		Background(pal.Teal).
 		Bold(true).
 		Padding(0, 1)
 	statusLineStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	statusKeyStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted)).
+		Foreground(pal.FgMuted).
 		Bold(true)
 	statusValueStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgDim))
+		Foreground(pal.FgDim)
 	panelStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color(pal.BgChip))
+		BorderForeground(pal.BgChip)
 	panelTitleStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerKeyStyle = lipgloss.NewStyle().
 		Foreground(sem.Active).
 		Bold(true)
@@ -164,12 +164,12 @@ func rebuildStyles() {
 		Foreground(sem.Active).
 		Bold(true)
 	selectedTitleStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
+		Foreground(pal.Fg).
 		Bold(true)
 	titleStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg))
+		Foreground(pal.Fg)
 	dateStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgDim))
+		Foreground(pal.FgDim)
 	todayDateStyle = lipgloss.NewStyle().
 		Foreground(sem.Warning).
 		Bold(true)
@@ -177,31 +177,31 @@ func rebuildStyles() {
 		Foreground(sem.Warning).
 		Bold(true)
 	excerptStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	matchStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Background(sem.Warning).
 		Bold(true)
 
 	// Badges.
 	badgeDailyStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Background(sem.Accent).
 		Bold(true).
 		Padding(0, 1)
 	badgeProjectStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Background(sem.Success).
 		Bold(true).
 		Padding(0, 1)
 	badgeFreeStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Background(sem.Highlight).
 		Bold(true).
 		Padding(0, 1)
 	badgeUnknownStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
-		Background(lipgloss.Color(pal.FgMuted)).
+		Foreground(pal.Fg).
+		Background(pal.FgMuted).
 		Bold(true).
 		Padding(0, 1)
 
@@ -221,23 +221,23 @@ func rebuildStyles() {
 		Foreground(sem.Warning).
 		Bold(true)
 	searchPassiveLabelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	searchValueStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg))
+		Foreground(pal.Fg)
 
 	// Modal.
 	modalDangerStyle = lipgloss.NewStyle().
 		Foreground(sem.Danger).
 		Bold(true)
 	modalQuestionStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
+		Foreground(pal.Fg).
 		Bold(true)
 	modalHintStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 
 	// Misc.
 	dimStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	errorStyle = lipgloss.NewStyle().
 		Foreground(sem.Danger).
 		Bold(true)
@@ -245,39 +245,39 @@ func rebuildStyles() {
 		Foreground(sem.Accent).
 		Bold(true)
 	emptyTitleStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgDim)).
+		Foreground(pal.FgDim).
 		Bold(true)
 	emptyHintStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	spinnerStyle = lipgloss.NewStyle().
 		Foreground(sem.Active)
 	paginatorActiveDotStyle = lipgloss.NewStyle().
 		Foreground(sem.Active)
 	paginatorInactiveDotStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.BgChip))
+		Foreground(pal.BgChip)
 	paginatorCounterStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 
 	// Status bar.
 	statusBarStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(pal.BgChip)).
-		Foreground(lipgloss.Color(pal.FgDim))
+		Background(pal.BgChip).
+		Foreground(pal.FgDim)
 	statusBarModeSearchStyle = lipgloss.NewStyle().
 		Background(sem.Warning).
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Bold(true).
 		Padding(0, 1)
 	statusBarModeDeleteStyle = lipgloss.NewStyle().
 		Background(sem.Danger).
-		Foreground(lipgloss.Color(pal.Bg)).
+		Foreground(pal.Bg).
 		Bold(true).
 		Padding(0, 1)
 	statusBarPathStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(pal.BgChip)).
-		Foreground(lipgloss.Color(pal.Fg))
+		Background(pal.BgChip).
+		Foreground(pal.Fg)
 	statusBarMetaStyle = lipgloss.NewStyle().
-		Background(lipgloss.Color(pal.BgChip)).
-		Foreground(lipgloss.Color(pal.FgDim))
+		Background(pal.BgChip).
+		Foreground(pal.FgDim)
 }
 
 // tagChipStyle returns a chip styled with a palette color picked from a
@@ -287,8 +287,8 @@ func rebuildStyles() {
 func tagChipStyle(tag string) lipgloss.Style {
 	bg := pal.TagPalette[tagColorIdx(tag)]
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Bg)).
-		Background(lipgloss.Color(bg)).
+		Foreground(pal.Bg).
+		Background(bg).
 		Bold(true).
 		Padding(0, 1)
 }

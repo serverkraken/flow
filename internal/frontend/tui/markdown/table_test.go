@@ -6,7 +6,6 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
 const minimalTable = "| Name | Status |\n|------|--------|\n| a    | ok     |\n| b    | fail   |\n"
@@ -163,16 +162,10 @@ func TestRender_Table_WrapsLongCellsAcrossLines(t *testing.T) {
 // against `cellStyle.Render` being skipped on continuation lines or
 // against lipgloss-Render swallowing the bg on a multi-line input.
 func TestRender_Table_WrappedRowKeepsBackground(t *testing.T) {
-	// NO t.Parallel(): this test mutates the global lipgloss color
-	// profile to force SGR emission. Other table tests rely on the
-	// default Ascii profile (no SGRs) so they're racy with our flip.
-	// Force truecolor so lipgloss doesn't strip SGR codes when run
-	// outside a TTY (test runner has no terminal). Without this every
-	// `;48;` would be elided by lipgloss's Ascii profile and the test
-	// would silently always pass.
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+	t.Parallel()
+	// Lipgloss v2 emits TrueColor SGR sequences unconditionally —
+	// no profile override needed to make the `;48;` background
+	// assertions land.
 
 	// Two body rows: first is row-index 0 (TableCell, no bg). Second
 	// is row-index 1 (TableRowAlt, with bg). Both wrap because the
@@ -231,9 +224,9 @@ func TestRender_Table_WrappedRowKeepsBackground(t *testing.T) {
 // inside the wrapped line. This test pins that the alt bg survives
 // past every internal reset on every physical line of the row.
 func TestRender_Table_AltRowKeepsBgAcrossInlineCodeReset(t *testing.T) {
-	prev := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.SetColorProfile(prev) })
+	t.Parallel()
+	// Lipgloss v2 always emits TrueColor SGRs — no profile override
+	// needed to make the alt-row background assertions land.
 
 	// Row index 0 → non-alt; row index 1 → alt. The alt row's Decision
 	// cell carries an inline-code span that wraps mid-token, exactly

@@ -5,9 +5,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-
-	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
 )
 
 // tmuxKeys ist die 1:1-Liste der vom Adapter konsumierten tmux-Optionen.
@@ -40,7 +37,7 @@ func Load() Palette {
 	cache := loadTmuxCache()
 	overlay := []struct {
 		key  string
-		dest *lipgloss.Color
+		dest *Color
 	}{
 		{"@tn_bg", &p.Bg},
 		{"@tn_fg", &p.Fg},
@@ -56,42 +53,22 @@ func Load() Palette {
 	}
 	for _, o := range overlay {
 		if v := cache[o.key]; v != "" {
-			*o.dest = lipgloss.Color(v)
+			*o.dest = Color(v)
 		}
 	}
 	return p
 }
 
-// Init configures the lipgloss default renderer for TrueColor output
-// when the terminal can render it. Two paths:
-//
-//  1. Inside tmux, TERM=screen-256color causes termenv to downgrade
-//     auto-detected to ANSI256 even though tmux passes through 24-bit
-//     colour from the host. Force TrueColor unconditionally.
-//  2. Outside tmux, COLORTERM=truecolor (gesetzt von Ghostty / iTerm2 /
-//     Alacritty / WezTerm / Kitty / Modern xterm) verlangt TrueColor —
-//     vorher hat Init() die Detektion termenv überlassen, was bei nicht
-//     korrekt-gesetztem TERM (z.B. xterm-256color) auf ANSI256 fiel.
-//
-// TMUX/COLORTERM are read here (and in loadTmuxCache below) rather
-// than via main.go's Env: they describe the runtime terminal, not
-// app config. See the A1 platform-detection carve-out in
-// cmd/flow/main.go's Env doc.
-//
-// Init must be called once at program startup, before any lipgloss
-// styles are rendered.
-func Init() {
-	switch {
-	case os.Getenv("TMUX") != "":
-	case strings.EqualFold(os.Getenv("COLORTERM"), "truecolor"):
-	case strings.EqualFold(os.Getenv("COLORTERM"), "24bit"):
-	default:
-		return
-	}
-	lipgloss.SetDefaultRenderer(
-		lipgloss.NewRenderer(os.Stdout, termenv.WithProfile(termenv.TrueColor)),
-	)
-}
+// Init is a no-op under lipgloss v2: Style.Render() always emits
+// 24-bit TrueColor escape sequences, and bubbletea v2 handles
+// downsampling at the output layer based on the terminal's actual
+// capability. The legacy v1 implementation forced TrueColor on the
+// default Renderer to work around tmux's TERM=screen-256color, which
+// caused termenv to downsample. v2 has no global Renderer to mutate;
+// the function is kept as a stable startup hook for future profile
+// tuning and so existing call-sites in cmd/flow/main.go and CLI entry
+// points stay valid.
+func Init() {}
 
 var (
 	tmuxCacheOnce sync.Once

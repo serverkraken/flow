@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -27,8 +25,8 @@ func TestRenderKindSummary_LabelsInKindColor(t *testing.T) {
 			{Date: may.AddDate(0, 0, 3), Kind: domain.KindSick, Label: "K"},
 		},
 	}
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 	out := f.renderKindSummary()
 	tests := []struct {
@@ -57,8 +55,8 @@ func TestRenderKindSummary_LabelsInKindColor(t *testing.T) {
 // Spec: 2026-05-12-unified-dayoff-glyphs.
 func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 	pal := theme.TokyonightNight
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 	// kindCur=-1 (out of range) so NO chip is selected and all three
 	// carry their Kind-Farbe. This allows asserting all three Sem-colours.
@@ -100,8 +98,8 @@ func TestRenderKindPicker_LeadingColoredGlyph(t *testing.T) {
 // Spec: 2026-05-13-filled-dayoff-dots-supersede.
 func TestRenderEntryRow_UserLabelInKindColor(t *testing.T) {
 	pal := theme.TokyonightNight
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 	may := time.Date(2026, 5, 1, 0, 0, 0, 0, time.Local)
 	tests := []struct {

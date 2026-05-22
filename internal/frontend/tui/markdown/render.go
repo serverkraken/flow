@@ -9,11 +9,10 @@ package markdown
 
 import (
 	"bytes"
-	"io"
+	"os"
 	"strings"
 
-	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
@@ -37,7 +36,6 @@ type options struct {
 	resolver    ports.WikilinkResolver
 	noColor     bool
 	nerdFont    bool
-	lip         *lipgloss.Renderer
 	// palette is the canonical color set the renderer reads from.
 	// Defaulted in buildOptions when the caller omits WithPalette so
 	// existing call-sites don't need to change.
@@ -63,9 +61,9 @@ func WithWikilinks(r ports.WikilinkResolver) Option {
 	return func(o *options) { o.resolver = r }
 }
 
-// WithNoColor forces ANSI colour output off. NO_COLOR env var is also
-// honoured implicitly via termenv. Use this option to override env
-// (e.g. in tests).
+// WithNoColor forces ANSI colour output off. The NO_COLOR env var is
+// also honoured implicitly (buildOptions reads it). Use this option
+// to override env (e.g. in tests).
 func WithNoColor(noColor bool) Option {
 	return func(o *options) { o.noColor = noColor }
 }
@@ -123,23 +121,28 @@ func Render(source string, width int, opts ...Option) (string, error) {
 	if footer := nr.renderBacklinksFooter(o.backlinks); footer != "" {
 		body = strings.TrimRight(body, "\n") + footer
 	}
+	// NO_COLOR / WithNoColor: lipgloss v2 has no Renderer to swap, so
+	// strip SGR codes after rendering. The glyph + whitespace
+	// hierarchy still carries the layout. OSC 8 hyperlinks survive —
+	// ansi.Strip removes CSI/SGR sequences but leaves OSC 8 link
+	// wrappers intact.
+	if o.noColor {
+		body = ansi.Strip(body)
+	}
 	return body, nil
 }
 
-// buildOptions collects opts, fills in defaults, and resolves the
-// effective lipgloss renderer. NO_COLOR (env or option) selects an
-// Ascii-profile renderer so styled.Render() emits no SGR codes; the
-// glyph + whitespace hierarchy still carries the layout.
+// buildOptions collects opts, fills in defaults, and resolves NO_COLOR.
+// The env var is read here (not in WithNoColor) so an explicit
+// WithNoColor(false) cannot accidentally re-enable color when the user
+// asked for none via env.
 func buildOptions(opts []Option) options {
 	o := options{}
 	for _, fn := range opts {
 		fn(&o)
 	}
-	noColor := o.noColor || termenv.EnvNoColor()
-	if noColor {
-		o.lip = lipgloss.NewRenderer(io.Discard, termenv.WithProfile(termenv.Ascii))
-	} else {
-		o.lip = lipgloss.DefaultRenderer()
+	if os.Getenv("NO_COLOR") != "" {
+		o.noColor = true
 	}
 	// Empty Palette name signals "caller didn't pick one"; default to
 	// the canonical so legacy call-sites stay one-line.

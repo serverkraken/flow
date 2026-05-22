@@ -23,7 +23,7 @@ func Bar(pct, cells int, p theme.Palette) string {
 	empty := cells - filled
 	sem := p.Sem()
 
-	f := lipgloss.NewStyle().Foreground(lipgloss.Color(sem.Accent)).Render(strings.Repeat(glyphs.BarFilled, filled))
+	f := lipgloss.NewStyle().Foreground(sem.Accent).Render(strings.Repeat(glyphs.BarFilled, filled))
 	e := lipgloss.NewStyle().Foreground(sem.Border).Render(strings.Repeat(glyphs.BarEmpty, empty))
 	return f + e
 }

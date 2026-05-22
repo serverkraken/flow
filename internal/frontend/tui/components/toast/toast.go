@@ -180,15 +180,15 @@ func SlotRows(t *Model, indent string) []string {
 // single switch so a future Kind addition is one block to extend.
 // Glyphen kommen aus der Whitelist; ein Drift im Whitelist-Set ändert
 // hier mit, was eine Inline-String-Variante nicht täte.
-func (m Model) glyphAndColor() (string, lipgloss.Color) {
+func (m Model) glyphAndColor() (string, theme.Color) {
 	switch m.kind {
 	case KindWarning:
-		return glyphs.Up, lipgloss.Color(m.theme.Yellow)
+		return glyphs.Up, m.theme.Yellow
 	case KindDanger:
-		return glyphs.Failed, lipgloss.Color(m.theme.Red)
+		return glyphs.Failed, m.theme.Red
 	case KindInfo:
-		return glyphs.Info, lipgloss.Color(m.theme.Cyan)
+		return glyphs.Info, m.theme.Cyan
 	default:
-		return glyphs.Done, lipgloss.Color(m.theme.Green)
+		return glyphs.Done, m.theme.Green
 	}
 }

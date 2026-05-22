@@ -1,24 +1,16 @@
 package markdown
 
 import (
-	"os"
 	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
-// TestMain forces lipgloss's default renderer onto a TrueColor
-// profile so SGR-presence assertions work without a TTY. Without
-// this go test detects no terminal and downgrades the renderer to
-// Ascii — which would make every "expected SGR sequence" assertion
-// fail for the wrong reason.
-func TestMain(m *testing.M) {
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	os.Exit(m.Run())
-}
+// Lipgloss v2's Style.Render always emits 24-bit TrueColor SGR
+// sequences regardless of TTY detection — no TestMain profile
+// override needed.
 
 // TestRender_ZeroWidthReturnsEmpty: width <= 0 short-circuits to "".
 // Callers (browse preview pane on a too-narrow terminal) rely on this

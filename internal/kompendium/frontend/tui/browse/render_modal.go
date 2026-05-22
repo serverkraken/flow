@@ -84,5 +84,5 @@ func overlay(base, top string, width, height int) string {
 	}
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, top,
 		lipgloss.WithWhitespaceChars("·"),
-		lipgloss.WithWhitespaceForeground(lipgloss.Color(pal.BgChip)))
+		lipgloss.WithWhitespaceForeground(pal.BgChip))
 }
