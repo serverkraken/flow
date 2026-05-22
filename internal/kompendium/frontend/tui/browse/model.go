@@ -224,13 +224,15 @@ func New(
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
-	ti.Cursor.Style = cursorStyle
+	tiStyles := ti.Styles()
+	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	ti.SetStyles(tiStyles)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Points
 	sp.Style = spinnerStyle
 
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 
 	h := help.New()
 	h.ShowAll = false

@@ -49,7 +49,7 @@ func TestFrei_ShiftYear_LeftRight(t *testing.T) {
 	prevYear := time.Now().Year() - 1
 	m, cmd := m.Update(tea.KeyPressMsg{Text: "h"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, ""+intStr(prevYear)) && !strings.Contains(out, "lädt") {
 		// Allow loading state during async refresh.
 		_ = out

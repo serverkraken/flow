@@ -25,7 +25,7 @@ func TestHistory_DrillNoteAttach_NOpensPicker(t *testing.T) {
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("note-attach picker should leave FilterActive=true (TextInputActive proxy)")
 	}
-	out := m.View()
+	out := m.View().Content
 	// View should announce the date the picker is scoped to. The
 	// section header is uppercased by picker.SectionHeader, so the
 	// date itself is the stable substring to match against.
@@ -101,7 +101,7 @@ func TestHistory_DrillNoteAttach_EmptyIDSurfacesError(t *testing.T) {
 	if !m.(worktime.Model).FilterActive() {
 		t.Error("picker should stay open after empty-ID error")
 	}
-	if !strings.Contains(m.View(), "Note-ID darf nicht leer sein") {
-		t.Errorf("picker should surface the empty-ID error, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "Note-ID darf nicht leer sein") {
+		t.Errorf("picker should surface the empty-ID error, got:\n%s", m.View().Content)
 	}
 }

@@ -457,9 +457,9 @@ func (m Model) viewContent() string {
 		// laesst die Sub-Model-View hier direkt durch (analog brief am
 		// Worktime-Root oben).
 		if fs, ok := m.subs[m.current].(fullScreener); ok && fs.FullScreen() {
-			return m.subs[m.current].View()
+			return m.subs[m.current].View().Content
 		}
-		body = m.subs[m.current].View()
+		body = m.subs[m.current].View().Content
 		if body == "" {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}

@@ -67,7 +67,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadEntriesCmd(m.list, m.currentRepo)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		m.layoutViewport()
 		// Invalidate the cached preview AND drop previewID so
 		// refreshPreview's `if previewID == e.ID { return }` short-
@@ -80,7 +80,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.spin.Tick
 		}
 		return m, nil
-	case tea.MouseMsg:
+	case tea.MouseWheelMsg:
 		return m.handleMouse(msg)
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -110,7 +110,7 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		m.layoutViewport()
 		m.previewCached = map[domain.ID]string{}
 		m.previewID = ""
@@ -303,9 +303,9 @@ func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		next, cmd := m.picker.Update(msg)
-		m.picker = next.(writepicker.Model)
+		m.picker = next
 		return m, cmd
 	case writepicker.DoneMsg:
 		m.mode = ModeNormal
@@ -320,6 +320,6 @@ func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, runViaExecCapture(cmd)
 	}
 	next, cmd := m.picker.Update(msg)
-	m.picker = next.(writepicker.Model)
+	m.picker = next
 	return m, cmd
 }

@@ -130,7 +130,7 @@ func TestHeute_EditDialog_OpensTabsAndSubmits(t *testing.T) {
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("Edit dialog should activate FilterActive")
 	}
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Session bearbeiten") {
 		t.Errorf("Edit dialog should render its title, got:\n%s", out)
 	}
@@ -141,8 +141,8 @@ func TestHeute_EditDialog_OpensTabsAndSubmits(t *testing.T) {
 	// Enter on the last field submits — the form has 4 fields so the
 	// Enter route must hit submitDialog. Land on the tag field (index 2)
 	// and provide a fresh value.
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyShiftTab})
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyShiftTab})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	// Down + Up wrap-arounds also exercise the navigation branches.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -245,8 +245,8 @@ func TestFrei_AddDialog_TabCyclesIncludingKindPicker(t *testing.T) {
 		m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
 	// And back via shift-tab
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyShiftTab})
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyShiftTab})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
 	// Up/Down also navigate
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
@@ -337,7 +337,7 @@ func TestFrei_DeleteConfirm_RendersConfirmDialog(t *testing.T) {
 	m := loadedFrei(t, r)
 	m, cmd := m.Update(tea.KeyPressMsg{Text: "D"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "löschen") {
 		t.Errorf("delete confirm dialog should mention »löschen«, got:\n%s", out)
 	}
@@ -445,7 +445,7 @@ func TestHistory_TagClockKey_AllNavigation(t *testing.T) {
 	// v → month switches mode. Probe via the month-grid header (Slice E
 	// removed the "Ansicht (...)" footer hint — see Review-Punkt M5).
 	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
-	if got := m.View(); !strings.Contains(got, "Apr 2026") {
+	if got := m.View().Content; !strings.Contains(got, "Apr 2026") {
 		t.Errorf("expected month grid header »Apr 2026« in View after v, got:\n%s", got)
 	}
 }

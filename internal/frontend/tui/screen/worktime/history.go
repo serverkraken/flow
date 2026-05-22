@@ -663,7 +663,9 @@ func (h history) handleMonthKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // — view root —
 
-func (h history) View() string {
+func (h history) View() tea.View { return tea.NewView(h.viewContent()) }
+
+func (h history) viewContent() string {
 	if h.width == 0 {
 		return ""
 	}

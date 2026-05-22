@@ -287,7 +287,7 @@ func (m Model) viewContent() string {
 	if m.showHelp {
 		return m.renderHelp()
 	}
-	return m.renderTabStrip() + "\n" + m.screens[m.current].View()
+	return m.renderTabStrip() + "\n" + m.screens[m.current].View().Content
 }
 
 // tabStripEntry is one cell of the global strip. Key is the global

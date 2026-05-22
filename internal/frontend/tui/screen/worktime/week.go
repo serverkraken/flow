@@ -195,7 +195,9 @@ func (w woche) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // — render —
 
-func (w woche) View() string {
+func (w woche) View() tea.View { return tea.NewView(w.viewContent()) }
+
+func (w woche) viewContent() string {
 	if w.width == 0 {
 		return ""
 	}

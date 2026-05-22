@@ -28,7 +28,7 @@ func TestBrowse_WithIndexAgeAndBacklinks_BuilderChain(t *testing.T) {
 	m = m.WithBacklinks(func(domain.ID) []usecase.BacklinkRef {
 		return []usecase.BacklinkRef{{ID: "x", Title: "X"}}
 	})
-	if got := m.View(); got == "" {
+	if got := m.View().Content; got == "" {
 		t.Errorf("post-setter View() should still produce output")
 	}
 }
@@ -61,7 +61,7 @@ func TestBrowse_NavigatesCursor(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(key("j"))
 
-	view := model.View()
+	view := model.View().Content
 	if !cursorOnLineWith(view, "second") {
 		t.Errorf("cursor did not move to second entry:\n%s", view)
 	}
@@ -93,8 +93,8 @@ func TestBrowse_CursorClampedAtEdges(t *testing.T) {
 	for range 10 {
 		model, _ = model.Update(key("j"))
 	}
-	if !strings.Contains(model.View(), "▶") {
-		t.Errorf("cursor disappeared after edge navigation:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "▶") {
+		t.Errorf("cursor disappeared after edge navigation:\n%s", model.View().Content)
 	}
 }
 
@@ -108,13 +108,13 @@ func TestBrowse_GoToTopAndBottom(t *testing.T) {
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(key("G"))
-	if !cursorOnLineWith(model.View(), "third") {
-		t.Errorf("G should move to last entry, got\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "third") {
+		t.Errorf("G should move to last entry, got\n%s", model.View().Content)
 	}
 
 	model, _ = model.Update(key("g"))
-	if !cursorOnLineWith(model.View(), "first") {
-		t.Errorf("g should move to first entry, got\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "first") {
+		t.Errorf("g should move to first entry, got\n%s", model.View().Content)
 	}
 }
 
@@ -128,12 +128,12 @@ func TestBrowse_FilterCyclesByType(t *testing.T) {
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
-	if !strings.Contains(model.View(), "the daily") || !strings.Contains(model.View(), "the project") {
-		t.Errorf("All filter should show every entry:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "the daily") || !strings.Contains(model.View().Content, "the project") {
+		t.Errorf("All filter should show every entry:\n%s", model.View().Content)
 	}
 
 	model, _ = model.Update(tabKey())
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "the daily") || strings.Contains(view, "the project") {
 		t.Errorf("Daily filter wrong:\n%s", view)
 	}
@@ -142,19 +142,19 @@ func TestBrowse_FilterCyclesByType(t *testing.T) {
 	}
 
 	model, _ = model.Update(tabKey())
-	view = model.View()
+	view = model.View().Content
 	if !strings.Contains(view, "the project") || strings.Contains(view, "the daily") {
 		t.Errorf("Project filter wrong:\n%s", view)
 	}
 
 	model, _ = model.Update(tabKey())
-	view = model.View()
+	view = model.View().Content
 	if !strings.Contains(view, "the free") || strings.Contains(view, "the daily") {
 		t.Errorf("Free filter wrong:\n%s", view)
 	}
 
 	model, _ = model.Update(tabKey())
-	view = model.View()
+	view = model.View().Content
 	if !strings.Contains(view, "the daily") || !strings.Contains(view, "the project") {
 		t.Errorf("filter wrap to All wrong:\n%s", view)
 	}
@@ -170,30 +170,30 @@ func TestBrowse_SearchFiltersOnTitleAndProject(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
 	model, _ = model.Update(key("/"))
-	if !strings.Contains(model.View(), "Suche:") {
-		t.Errorf("search bar should appear:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "Suche:") {
+		t.Errorf("search bar should appear:\n%s", model.View().Content)
 	}
 
 	for _, r := range "kompendium" {
 		model, _ = model.Update(runeKey(r))
 	}
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "kompendium architecture") || strings.Contains(view, "Foo work") {
 		t.Errorf("search did not narrow:\n%s", view)
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	if !strings.Contains(model.View(), "Suche:") {
-		t.Errorf("search bar lost after backspace:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "Suche:") {
+		t.Errorf("search bar lost after backspace:\n%s", model.View().Content)
 	}
 
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if strings.Contains(model.View(), "tippen → filtern") {
-		t.Errorf("enter should leave search mode:\n%s", model.View())
+	if strings.Contains(model.View().Content, "tippen → filtern") {
+		t.Errorf("enter should leave search mode:\n%s", model.View().Content)
 	}
 	model, _ = model.Update(key("/"))
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	view = model.View()
+	view = model.View().Content
 	if !strings.Contains(view, "Foo work") {
 		t.Errorf("esc should clear search query (showing all entries):\n%s", view)
 	}
@@ -210,12 +210,12 @@ func TestBrowse_SearchSpace(t *testing.T) {
 	for _, r := range "two" {
 		model, _ = model.Update(runeKey(r))
 	}
-	model, _ = model.Update(tea.KeyPressMsg{Type: tea.KeySpace, Runes: []rune(" ")})
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
 	for _, r := range "wo" {
 		model, _ = model.Update(runeKey(r))
 	}
-	if !strings.Contains(model.View(), "two words") {
-		t.Errorf("space-containing search should match:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "two words") {
+		t.Errorf("space-containing search should match:\n%s", model.View().Content)
 	}
 }
 
@@ -229,8 +229,8 @@ func TestBrowse_NavigationLiteralInSearchMode(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(key("/"))
 	model, _ = model.Update(runeKey('j'))
-	if !strings.Contains(model.View(), "Suche: j") {
-		t.Errorf("j should land in search query, not move the cursor:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "Suche: j") {
+		t.Errorf("j should land in search query, not move the cursor:\n%s", model.View().Content)
 	}
 }
 
@@ -239,8 +239,8 @@ func TestBrowse_EmptyStateHints(t *testing.T) {
 
 	// Welle 4: Empty-State-Hint ist deutsch („keine Treffer").
 	model := initialised(newModel(usecase.NewListNotes(testutil.NewFakeNoteStore())))
-	if !strings.Contains(model.View(), "keine Treffer") {
-		t.Errorf("missing empty-state hint:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "keine Treffer") {
+		t.Errorf("missing empty-state hint:\n%s", model.View().Content)
 	}
 }
 
@@ -251,8 +251,8 @@ func TestBrowse_LoadError(t *testing.T) {
 	store.ListErr = errForTest("forced list err")
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
-	if !strings.Contains(model.View(), "Fehler:") {
-		t.Errorf("missing error indicator in view:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "Fehler:") {
+		t.Errorf("missing error indicator in view:\n%s", model.View().Content)
 	}
 }
 
@@ -261,8 +261,8 @@ func TestBrowse_QuittingViewIsEmpty(t *testing.T) {
 
 	m := newModel(usecase.NewListNotes(testutil.NewFakeNoteStore()))
 	model, _ := m.Update(key("q"))
-	if model.View() != "" {
-		t.Errorf("quitting view should be empty, got %q", model.View())
+	if model.View().Content != "" {
+		t.Errorf("quitting view should be empty, got %q", model.View().Content)
 	}
 }
 
@@ -271,8 +271,8 @@ func TestBrowse_LoadingState(t *testing.T) {
 
 	// Welle 4: Loading-Label ist deutsch („lädt…").
 	m := newModel(usecase.NewListNotes(testutil.NewFakeNoteStore()))
-	if !strings.Contains(m.View(), "lädt") {
-		t.Errorf("missing loading state in initial view: %q", m.View())
+	if !strings.Contains(m.View().Content, "lädt") {
+		t.Errorf("missing loading state in initial view: %q", m.View().Content)
 	}
 }
 
@@ -281,7 +281,7 @@ func TestBrowse_WindowResize(t *testing.T) {
 
 	m := newModel(usecase.NewListNotes(testutil.NewFakeNoteStore()))
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
-	if model.View() == "" {
+	if model.View().Content == "" {
 		t.Error("WindowSizeMsg should not blank the view")
 	}
 }
@@ -321,7 +321,7 @@ func TestBrowse_SearchMatchesBodyContent(t *testing.T) {
 	for _, r := range "feldspar" {
 		model, _ = model.Update(runeKey(r))
 	}
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "daily/2026-04-25") {
 		t.Errorf("body match should keep the matching note visible:\n%s", view)
 	}
@@ -383,8 +383,8 @@ func TestBrowse_VOpensInProcessViewer(t *testing.T) {
 	if bm.CurrentMode() != browse.ModeView {
 		t.Errorf("after v, mode = %v, want ModeView", bm.CurrentMode())
 	}
-	if !strings.Contains(model.View(), "today") {
-		t.Errorf("viewer should render note title 'today'\n%s", model.View())
+	if !strings.Contains(model.View().Content, "today") {
+		t.Errorf("viewer should render note title 'today'\n%s", model.View().Content)
 	}
 }
 
@@ -550,7 +550,7 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("D should only switch mode, not schedule a cmd, got %v", cmd())
 	}
-	view := model.View()
+	view := model.View().Content
 	// Welle 4: Modal vereinfacht — single-question + DE-Hint, keine
 	// vierfache Affordance. Note-ID erscheint im Modal, der Hint ist
 	// die kanonische y/Enter-Variante.
@@ -588,7 +588,7 @@ func TestBrowse_DConfirmDeletesAndReloads(t *testing.T) {
 	}
 	model, _ = model.Update(cmd())
 
-	view := model.View()
+	view := model.View().Content
 	if strings.Contains(view, "daily/2026-04-25") {
 		t.Errorf("note should be gone after delete, got:\n%s", view)
 	}
@@ -613,7 +613,7 @@ func TestBrowse_DCancelOnN(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("n on confirm prompt must not schedule a cmd, got %v", cmd())
 	}
-	view := model.View()
+	view := model.View().Content
 	if strings.Contains(view, "Delete daily/2026-04-25?") {
 		t.Errorf("confirm prompt should be dismissed:\n%s", view)
 	}
@@ -638,8 +638,8 @@ func TestBrowse_DCancelOnEsc(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("esc on confirm prompt must not schedule a cmd, got %v", cmd())
 	}
-	if strings.Contains(model.View(), "Delete daily/2026-04-25?") {
-		t.Errorf("confirm prompt should be dismissed by esc:\n%s", model.View())
+	if strings.Contains(model.View().Content, "Delete daily/2026-04-25?") {
+		t.Errorf("confirm prompt should be dismissed by esc:\n%s", model.View().Content)
 	}
 }
 
@@ -657,8 +657,8 @@ func TestBrowse_DNoOpWithoutDeleteUC(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("D without delete usecase should be a no-op, got %v", cmd())
 	}
-	if strings.Contains(model.View(), "Delete daily/2026-04-25?") {
-		t.Errorf("D should not open prompt when delete usecase is nil:\n%s", model.View())
+	if strings.Contains(model.View().Content, "Delete daily/2026-04-25?") {
+		t.Errorf("D should not open prompt when delete usecase is nil:\n%s", model.View().Content)
 	}
 }
 
@@ -676,8 +676,8 @@ func TestBrowse_DNoOpOnEmptyList(t *testing.T) {
 	if cmd != nil {
 		t.Errorf("D on empty list should be a no-op, got %v", cmd())
 	}
-	if strings.Contains(model.View(), "Delete") {
-		t.Errorf("D on empty list should not open a confirm prompt:\n%s", model.View())
+	if strings.Contains(model.View().Content, "Delete") {
+		t.Errorf("D on empty list should not open a confirm prompt:\n%s", model.View().Content)
 	}
 }
 
@@ -702,7 +702,7 @@ func TestBrowse_DDeleteErrorSurfacesInView(t *testing.T) {
 	if followUp != nil {
 		t.Errorf("delete error should not schedule another cmd, got %v", followUp)
 	}
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "Fehler beim Bearbeiten") || !strings.Contains(view, "disk full") {
 		t.Errorf("delete error should surface in view, got:\n%s", view)
 	}
@@ -732,7 +732,7 @@ func newModel(list *usecase.ListNotes) browse.Model {
 func drive(t *testing.T, m browse.Model) string {
 	t.Helper()
 	model, _ := m.Update(m.Init()())
-	return model.View()
+	return model.View().Content
 }
 
 func initialised(m browse.Model) tea.Model {

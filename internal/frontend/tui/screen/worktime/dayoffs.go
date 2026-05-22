@@ -438,7 +438,9 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 
 // — render —
 
-func (f frei) View() string {
+func (f frei) View() tea.View { return tea.NewView(f.viewContent()) }
+
+func (f frei) viewContent() string {
 	if f.width == 0 {
 		return ""
 	}

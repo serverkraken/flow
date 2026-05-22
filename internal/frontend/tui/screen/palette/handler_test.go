@@ -76,11 +76,11 @@ func TestHandleNormalKey_PgDownPgUp(t *testing.T) {
 func TestHandleNormalKey_CtrlDCtrlU(t *testing.T) {
 	f := makeFixtureWithSections()
 	m := runUntilLoaded(t, f.model())
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyCtrlD})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	if got := m.(palette.Model).StateCursor(); got <= 0 {
 		t.Errorf("ctrl+d should move cursor forward, got %d", got)
 	}
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyCtrlU})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if got := m.(palette.Model).StateCursor(); got != 0 {
 		t.Errorf("ctrl+u should clamp to 0, got %d", got)
 	}
@@ -264,7 +264,7 @@ func TestHandleFilterKey_BackspaceEditsValue(t *testing.T) {
 func TestRenderEmptyState_NoEntries_RendersHint(t *testing.T) {
 	f := newFixture()
 	m := runUntilLoaded(t, f.model())
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "noch keine Aktionen geladen") {
 		t.Errorf("empty entries should render the no-plugins hint, got:\n%s", out)
 	}
@@ -277,7 +277,7 @@ func TestRenderEmptyState_FilteredToZero_RendersHint(t *testing.T) {
 	for _, r := range "zzzzz" {
 		m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "keine Treffer für") {
 		t.Errorf("filtered empty should render »keine Treffer«, got:\n%s", out)
 	}

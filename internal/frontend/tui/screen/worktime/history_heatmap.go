@@ -6,6 +6,7 @@ package worktime
 // Handler aufrufen.
 
 import (
+	"image/color"
 	"fmt"
 	"strings"
 	"time"
@@ -80,7 +81,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	// vorher mischte `.` (baseline) für Werktag mit `·` (middle-dot) für
 	// Wochenende, was die Spalten optisch unruhig wirken ließ.
 	cell := " · "
-	var color lipgloss.TerminalColor = h.pal.BgCode
+	var color color.Color = h.pal.BgCode
 	if hasRec && rec.Target > 0 {
 		cell, color = heatmapCellGlyph(h.pal, rec)
 	}
@@ -161,7 +162,7 @@ func (h history) renderHeatmapLegend(inner int) string {
 	return joinWrapped(legend, "  ", "   ", "   ", inner)
 }
 
-func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, lipgloss.TerminalColor) {
+func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, color.Color) {
 	sem := pal.Sem()
 	pct := float64(rec.Total) / float64(rec.Target)
 	switch {

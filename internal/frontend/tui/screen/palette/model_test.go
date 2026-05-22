@@ -48,7 +48,7 @@ func runUntilLoaded(t *testing.T, m palette.Model) tea.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	f := newFixture()
-	if got := f.model().View(); got != "" {
+	if got := f.model().View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 }
@@ -59,7 +59,7 @@ func TestInit_LoadsAndRendersEntries(t *testing.T) {
 		domain.PaletteEntry{Icon: "★", Label: "Pin demo", Action: "display 'pinned'", Section: "Misc"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(out, "Reload") || !strings.Contains(out, "Pin demo") {
 		t.Errorf("View should list both entries, got:\n%s", out)
 	}
@@ -75,7 +75,7 @@ func TestInit_LoadError_DisplaysError(t *testing.T) {
 	f := newFixture()
 	f.entries.Err = errors.New("plugins gone")
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View(); !strings.Contains(got, "plugins gone") {
+	if got := updated.View().Content; !strings.Contains(got, "plugins gone") {
 		t.Errorf("View should surface load error, got:\n%s", got)
 	}
 }
@@ -105,7 +105,7 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 		t.Fatalf("dispatch must not return tea.QuitMsg post-F-WAVE-1, got %T", msg)
 	}
 	updated2, _ := updated.Update(msg)
-	view := updated2.View()
+	view := updated2.View().Content
 	if !strings.Contains(view, "Reload") {
 		t.Errorf("toast should mention the action label »Reload«; view:\n%s", view)
 	}
@@ -187,7 +187,7 @@ func TestPin_ReloadsAndMovesToFavoriten(t *testing.T) {
 	if !pinned {
 		t.Error("A should be pinned in persisted stats")
 	}
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(strings.ToLower(out), "favoriten") {
 		t.Errorf("View after pin should show Favoriten section, got:\n%s", out)
 	}
@@ -208,7 +208,7 @@ func TestSlashFocusesFilter_AppliesFuzzyMatch(t *testing.T) {
 	for _, r := range "rel" {
 		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(out, "Reload") {
 		t.Errorf("filtered view should still show Reload, got:\n%s", out)
 	}

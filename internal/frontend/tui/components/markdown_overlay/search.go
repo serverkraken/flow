@@ -43,7 +43,9 @@ func newSearchInput() textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
-	ti.Cursor.Style = styles().cursor
+	tiStyles := ti.Styles()
+	tiStyles.Cursor.Color = styles().cursor.GetForeground()
+	ti.SetStyles(tiStyles)
 	return ti
 }
 
@@ -132,7 +134,7 @@ func (m Model) scrollToCurrent() Model {
 		return m
 	}
 	line := m.matches[m.matchIdx]
-	target := line - m.viewport.Height/3
+	target := line - m.viewport.Height()/3
 	if target < 0 {
 		target = 0
 	}

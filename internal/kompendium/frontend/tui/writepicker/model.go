@@ -95,8 +95,11 @@ func New(allowProject bool) Model {
 	ti.Prompt = ""
 	ti.CharLimit = 64
 	ti.Placeholder = "slug"
-	ti.Cursor.Style = cursorStyle
-	ti.PlaceholderStyle = dimStyle
+	tiStyles := ti.Styles()
+	tiStyles.Focused.Placeholder = dimStyle
+	tiStyles.Blurred.Placeholder = dimStyle
+	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	ti.SetStyles(tiStyles)
 
 	return Model{options: opts, slug: ti}
 }
@@ -192,7 +195,7 @@ func (m Model) View() string {
 	if m.width > 0 && m.height > 0 {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
 			lipgloss.WithWhitespaceChars("·"),
-			lipgloss.WithWhitespaceForeground(pal.BgChip))
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(pal.BgChip)))
 	}
 	return card
 }

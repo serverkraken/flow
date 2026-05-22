@@ -29,21 +29,21 @@ func TestPolish_HelpOverlayToggles(t *testing.T) {
 
 	// `?` opens the overlay; the overlay carries the "Tastenbelegung" header.
 	model, _ = model.Update(runeKey('?'))
-	if !strings.Contains(model.View(), "Tastenbelegung") {
-		t.Errorf("? should open help overlay:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "Tastenbelegung") {
+		t.Errorf("? should open help overlay:\n%s", model.View().Content)
 	}
 
 	// `?` again closes it.
 	model, _ = model.Update(runeKey('?'))
-	if strings.Contains(model.View(), "Tastenbelegung") {
-		t.Errorf("? again should close help overlay:\n%s", model.View())
+	if strings.Contains(model.View().Content, "Tastenbelegung") {
+		t.Errorf("? again should close help overlay:\n%s", model.View().Content)
 	}
 
 	// re-open then close with esc.
 	model, _ = model.Update(runeKey('?'))
 	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if strings.Contains(model.View(), "Tastenbelegung") {
-		t.Errorf("esc should close help overlay:\n%s", model.View())
+	if strings.Contains(model.View().Content, "Tastenbelegung") {
+		t.Errorf("esc should close help overlay:\n%s", model.View().Content)
 	}
 }
 
@@ -69,7 +69,7 @@ func TestPolish_TwoPanePreviewWithSize(t *testing.T) {
 	}
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 140, Height: 40})
 
-	view := model.View()
+	view := model.View().Content
 	if !strings.Contains(view, "vorschau") {
 		t.Errorf("two-pane layout should render the preview pane title:\n%s", view)
 	}
@@ -89,12 +89,12 @@ func TestPolish_MouseWheelNavigatesCursor(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
 	model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-	if !cursorOnLineWith(model.View(), "second") {
-		t.Errorf("wheel down should move cursor down:\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "second") {
+		t.Errorf("wheel down should move cursor down:\n%s", model.View().Content)
 	}
 	model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
-	if !cursorOnLineWith(model.View(), "first") {
-		t.Errorf("wheel up should move cursor up:\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "first") {
+		t.Errorf("wheel up should move cursor up:\n%s", model.View().Content)
 	}
 }
 
@@ -115,8 +115,8 @@ func TestPolish_MouseClicksIgnored(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(tea.MouseClickMsg{Button: tea.MouseLeft})
 	model, _ = model.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft})
-	if !cursorOnLineWith(model.View(), "first") {
-		t.Errorf("non-wheel mouse events should not move the cursor:\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "first") {
+		t.Errorf("non-wheel mouse events should not move the cursor:\n%s", model.View().Content)
 	}
 }
 
@@ -132,10 +132,10 @@ func TestPolish_PageDownThenPageUp(t *testing.T) {
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 
 	// PageDown then PageUp must end on a valid cursor (some entry rendered).
-	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyCtrlD})
-	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyCtrlU})
-	if !strings.Contains(model.View(), "▶") {
-		t.Errorf("page nav left no cursor on screen:\n%s", model.View())
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	model, _ = model.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	if !strings.Contains(model.View().Content, "▶") {
+		t.Errorf("page nav left no cursor on screen:\n%s", model.View().Content)
 	}
 }
 
@@ -154,12 +154,12 @@ func TestPolish_GotoBottomThenTopWithScroll(t *testing.T) {
 	// Long lists carry a paginator dot indicator + an "N/M" counter; the
 	// older "showing N–M of K" textual line was dropped when the dots
 	// went in.
-	if !strings.Contains(model.View(), "/25") {
-		t.Errorf("paginator counter missing on bottom of long list:\n%s", model.View())
+	if !strings.Contains(model.View().Content, "/25") {
+		t.Errorf("paginator counter missing on bottom of long list:\n%s", model.View().Content)
 	}
 	model, _ = model.Update(runeKey('g'))
-	if !cursorOnLineWith(model.View(), "row01") {
-		t.Errorf("g should jump to the first row, got:\n%s", model.View())
+	if !cursorOnLineWith(model.View().Content, "row01") {
+		t.Errorf("g should jump to the first row, got:\n%s", model.View().Content)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"

@@ -90,7 +90,7 @@ func TestQuit_FromTargetPickerQuits(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Text: ":"})
 	// Cursor is on first action which is Brief Wochenbericht.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "output-ziel") && !strings.Contains(out, "OUTPUT-ZIEL") {
 		t.Fatalf("precondition: target sub-picker must be visible; got:\n%s", out)
 	}
@@ -138,8 +138,8 @@ func TestQuit_DoesNotQuitInHeuteTagDialog(t *testing.T) {
 		t.Error("q in tag textinput must NOT quit — the user is typing")
 	}
 	// Sanity: q ended up in the input — surface it via View().
-	if !strings.Contains(updated.View(), "q") {
-		t.Errorf("q should have landed in the tag input; got:\n%s", updated.View())
+	if !strings.Contains(updated.View().Content, "q") {
+		t.Errorf("q should have landed in the tag input; got:\n%s", updated.View().Content)
 	}
 }
 
@@ -151,8 +151,8 @@ func TestQuit_DoesNotQuitInMenuRangeForm(t *testing.T) {
 		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !strings.Contains(m.View(), "RANGE") {
-		t.Fatalf("precondition: range form should be visible; got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "RANGE") {
+		t.Fatalf("precondition: range form should be visible; got:\n%s", m.View().Content)
 	}
 	_, isQuit := pressQ(t, m)
 	if isQuit {
@@ -197,8 +197,8 @@ func TestQuit_DoesNotQuitInMenuCorrectForm(t *testing.T) {
 		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !strings.Contains(m.View(), "STARTZEIT") {
-		t.Fatalf("precondition: correct form should be visible; got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "STARTZEIT") {
+		t.Fatalf("precondition: correct form should be visible; got:\n%s", m.View().Content)
 	}
 	if _, isQuit := pressQ(t, m); isQuit {
 		t.Error("q in correct HH:MM form must NOT quit")

@@ -37,8 +37,8 @@ func (m Model) pageJump() int {
 // window size.
 func (m *Model) layoutViewport() {
 	w, h := m.previewSize()
-	m.preview.Width = max(0, w)
-	m.preview.Height = max(0, h)
+	m.preview.SetWidth(max(0, w))
+	m.preview.SetHeight(max(0, h))
 }
 
 // previewPaneWidth is the OUTER width of the preview pane — including

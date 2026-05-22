@@ -43,7 +43,7 @@ func TestRenderAtNarrowWidth_NoOverflow(t *testing.T) {
 				loaded := drainCmd(t, updated, updated.Init())
 				loaded, _ = loaded.Update(tea.KeyPressMsg{Text: c.tab})
 
-				out := loaded.View()
+				out := loaded.View().Content
 				lines := strings.Split(out, "\n")
 				over := 0
 				for i, ln := range lines {

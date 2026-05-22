@@ -106,7 +106,7 @@ func TestPicker_FreeSlug_BackspaceAndSpace(t *testing.T) {
 		m, _ = sendOne(m, runeKey(r))
 	}
 	m, _ = sendOne(m, tea.KeyPressMsg{Code: tea.KeyBackspace})
-	m, _ = sendOne(m, tea.KeyPressMsg{Type: tea.KeySpace, Runes: []rune(" ")})
+	m, _ = sendOne(m, tea.KeyPressMsg{Code: tea.KeySpace})
 	m, _ = sendOne(m, runeKey('d'))
 
 	if !strings.Contains(m.View(), "ab d") {
@@ -205,8 +205,10 @@ func runeKey(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Text: string(r)} }
 // custom message so it can be embedded inside another bubbletea
 // program (kompendium browse) without forcing a tea.Quit on the host.
 func sendOne(m writepicker.Model, msg tea.Msg) (writepicker.Model, bool) {
-	model, cmd := m.Update(msg)
-	pm := model.(writepicker.Model)
+	// writepicker.Update returns concrete Model under v2 (so it can
+	// stay a sub-model without implementing tea.Model). No type
+	// assertion needed.
+	pm, cmd := m.Update(msg)
 	if cmd == nil {
 		return pm, false
 	}

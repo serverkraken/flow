@@ -49,8 +49,8 @@ func TestEditFinishedReloadsPreview(t *testing.T) {
 	}
 	m.layoutViewport()
 	m.refreshPreview()
-	if !strings.Contains(m.View(), "original-body-marker") {
-		t.Fatalf("baseline preview should show original body:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "original-body-marker") {
+		t.Fatalf("baseline preview should show original body:\n%s", m.View().Content)
 	}
 
 	// Mutate the store underneath — simulates the editor saving
@@ -73,7 +73,7 @@ func TestEditFinishedReloadsPreview(t *testing.T) {
 	if cmd != nil {
 		model, _ = model.Update(cmd())
 	}
-	got := model.View()
+	got := model.View().Content
 	if strings.Contains(got, "original-body-marker") {
 		t.Errorf("preview still shows original body after editFinishedMsg:\n%s", got)
 	}
@@ -118,13 +118,13 @@ func TestResizeReloadsPreview(t *testing.T) {
 	}
 	m.layoutViewport()
 	m.refreshPreview()
-	wide := m.View()
+	wide := m.View().Content
 
 	// Resize within the two-pane regime (both widths >= twoPaneMinWidth)
 	// so the preview pane stays visible — otherwise the assertion would
 	// catch the layout collapse instead of the wrap-cache bug.
 	model, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	narrow := model.View()
+	narrow := model.View().Content
 
 	if wide == narrow {
 		t.Errorf("View output unchanged after resize 140 → 100; resize ignored")

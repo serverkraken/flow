@@ -38,7 +38,7 @@ func (m Model) renderHelpOverlay() string {
 	title := modalQuestionStyle.Render("Tastenbelegung")
 	hForm := help.New()
 	hForm.ShowAll = true
-	hForm.Width = 70
+	hForm.SetWidth(70)
 	hForm.Styles = m.helpUI.Styles
 	body := hForm.View(m.keys)
 	hint := modalHintStyle.Render("? / Esc → schließen")
@@ -84,5 +84,5 @@ func overlay(base, top string, width, height int) string {
 	}
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, top,
 		lipgloss.WithWhitespaceChars("·"),
-		lipgloss.WithWhitespaceForeground(pal.BgChip))
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(pal.BgChip)))
 }

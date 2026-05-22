@@ -92,7 +92,7 @@ func TestFooterDriftGuard(t *testing.T) {
 			loaded := drainCmd(t, updated, updated.Init())
 			loaded, _ = loaded.Update(tea.KeyPressMsg{Text: c.tab})
 
-			out := loaded.View()
+			out := loaded.View().Content
 			footer := lastFooterLines(out)
 			for _, k := range c.keys {
 				if !containsKey(footer, k) {

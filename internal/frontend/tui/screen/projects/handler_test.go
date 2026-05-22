@@ -81,8 +81,8 @@ func TestHandleNormalKey_PgDownPgUpAndCtrl(t *testing.T) {
 	if got := m.(projects.Model).StateCursor(); got != 0 {
 		t.Errorf("pgdown then pgup should land at 0, got %d", got)
 	}
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyCtrlD})
-	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyCtrlU})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	if got := m.(projects.Model).StateCursor(); got != 0 {
 		t.Errorf("ctrl+d then ctrl+u should land at 0, got %d", got)
 	}

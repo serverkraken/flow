@@ -91,7 +91,7 @@ func TestView_PreservesOSC8ThroughLipglossAndViewport(t *testing.T) {
 	}
 	m.layoutViewport()
 	m.refreshPreview()
-	view := m.View()
+	view := m.View().Content
 
 	if !strings.Contains(view, "\x1b]8;") {
 		t.Errorf("Model.View output missing any OSC 8 marker — link lost in render pipeline\n%q", view)

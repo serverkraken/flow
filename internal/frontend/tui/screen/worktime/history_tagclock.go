@@ -6,6 +6,7 @@ package worktime
 // to the largest cell (so the contrast survives sparse data sets).
 
 import (
+	"image/color"
 	"fmt"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func tagClockGrid(records []domain.DayRecord) ([7][24]time.Duration, time.Durati
 	return grid, maxCell
 }
 
-func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, lipgloss.TerminalColor) {
+func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, color.Color) {
 	sem := pal.Sem()
 	switch {
 	case cell == 0:

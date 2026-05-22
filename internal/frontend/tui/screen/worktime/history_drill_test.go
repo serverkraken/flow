@@ -32,13 +32,13 @@ func TestDrill_AddDialog_OpensAndCancelsWithEsc(t *testing.T) {
 	m := drillOpened(t, r)
 	m, cmd := m.Update(tea.KeyPressMsg{Text: "a"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(strings.ToLower(out), "neue session") {
 		t.Errorf("drill add dialog should render its title, got:\n%s", out)
 	}
 	// Esc returns to the plain drill view (dialog cleared).
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
-	if strings.Contains(strings.ToLower(m.View()), "neue session") {
+	if strings.Contains(strings.ToLower(m.View().Content), "neue session") {
 		t.Errorf("Esc should close the add dialog")
 	}
 }
@@ -50,7 +50,7 @@ func TestDrill_EditDialog_OpensAndSubmits(t *testing.T) {
 	// already on session index 0).
 	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(strings.ToLower(out), "session bearbeiten") {
 		t.Errorf("drill edit dialog should render its title, got:\n%s", out)
 	}
@@ -61,8 +61,8 @@ func TestDrill_EditDialog_OpensAndSubmits(t *testing.T) {
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, m, cmd)
 	// After submit the drill view should be back without the dialog.
-	if strings.Contains(strings.ToLower(m.View()), "session bearbeiten") {
-		t.Errorf("after Enter submit the edit dialog should close, got:\n%s", m.View())
+	if strings.Contains(strings.ToLower(m.View().Content), "session bearbeiten") {
+		t.Errorf("after Enter submit the edit dialog should close, got:\n%s", m.View().Content)
 	}
 }
 
@@ -85,8 +85,8 @@ func TestDrill_AddDialog_SubmitBadStartKeepsDialog(t *testing.T) {
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, m, cmd)
 	// Bad start should keep the dialog open.
-	if !strings.Contains(strings.ToLower(m.View()), "neue session") {
-		t.Errorf("invalid start should keep add dialog open, got:\n%s", m.View())
+	if !strings.Contains(strings.ToLower(m.View().Content), "neue session") {
+		t.Errorf("invalid start should keep add dialog open, got:\n%s", m.View().Content)
 	}
 }
 
@@ -107,8 +107,8 @@ func TestDrill_AddDialog_FillsValidEntry(t *testing.T) {
 	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, m, cmd)
 	// After successful submit dialog should be closed.
-	if strings.Contains(strings.ToLower(m.View()), "neue session") {
-		t.Errorf("successful submit should close the dialog, got:\n%s", m.View())
+	if strings.Contains(strings.ToLower(m.View().Content), "neue session") {
+		t.Errorf("successful submit should close the dialog, got:\n%s", m.View().Content)
 	}
 }
 
@@ -117,13 +117,13 @@ func TestDrill_DeleteDialog_OpensAndCancels(t *testing.T) {
 	m := drillOpened(t, r)
 	m, cmd := m.Update(tea.KeyPressMsg{Text: "D"})
 	m = drainCmd(t, m, cmd)
-	if !strings.Contains(m.View(), "löschen") {
-		t.Errorf("drill delete dialog should render löschen, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "löschen") {
+		t.Errorf("drill delete dialog should render löschen, got:\n%s", m.View().Content)
 	}
 	// "n" cancels the confirm.
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "n"})
 	m = drainCmd(t, m, cmd)
-	if strings.Contains(m.View(), "Session 1") && strings.Contains(strings.ToLower(m.View()), "löschen?") {
+	if strings.Contains(m.View().Content, "Session 1") && strings.Contains(strings.ToLower(m.View().Content), "löschen?") {
 		t.Errorf("after `n` the confirm should be closed")
 	}
 }

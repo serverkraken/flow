@@ -5,6 +5,7 @@ package worktime
 // Tag-Cursor-Clamp-Helper, die bei Mode-Switches und Refreshes greifen.
 
 import (
+	"image/color"
 	"fmt"
 	"strings"
 	"time"
@@ -139,7 +140,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 
 	sem := h.pal.Sem()
 	glyph := glyphs.BulletDot
-	var color lipgloss.TerminalColor = h.pal.BgCode
+	var color color.Color = h.pal.BgCode
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)

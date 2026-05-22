@@ -172,8 +172,8 @@ func (m Model) rerender() Model {
 	innerW, innerH := m.contentSize()
 	if innerW <= 0 || innerH <= 0 {
 		m.rendered = ""
-		m.viewport.Width = 0
-		m.viewport.Height = 0
+		m.viewport.SetWidth(0)
+		m.viewport.SetHeight(0)
 		return m
 	}
 	m.rendered = m.render(m.cfg.source, innerW)
@@ -184,8 +184,8 @@ func (m Model) rerender() Model {
 	if m.query != "" {
 		m = m.recomputeMatches()
 	}
-	m.viewport.Width = innerW + gutterWidth
-	m.viewport.Height = innerH
+	m.viewport.SetWidth(innerW + gutterWidth)
+	m.viewport.SetHeight(innerH)
 	m.viewport.SetContent(m.composeContent())
 	return m
 }

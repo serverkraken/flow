@@ -134,7 +134,7 @@ func drainCmd(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	m := newModel(t)
-	if got := m.View(); got != "" {
+	if got := m.View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 }
@@ -142,7 +142,7 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 func TestView_RendersTabStripAndStub(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	out := updated.View()
+	out := updated.View().Content
 	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("tab strip should contain %q, got:\n%s", label, out)
@@ -170,7 +170,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 	}
 	for _, c := range cases {
 		updated, _ = updated.Update(tea.KeyPressMsg{Text: c.key})
-		if got := updated.View(); !strings.Contains(got, c.want) {
+		if got := updated.View().Content; !strings.Contains(got, c.want) {
 			t.Errorf("after key %q expected %q in View, got:\n%s", c.key, c.want, got)
 		}
 	}
@@ -182,7 +182,7 @@ func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "Heute lädt"}
 	for _, w := range wants {
 		updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-		if got := updated.View(); !strings.Contains(got, w) {
+		if got := updated.View().Content; !strings.Contains(got, w) {
 			t.Errorf("tab cycle expected %q, got:\n%s", w, got)
 		}
 	}
@@ -203,7 +203,7 @@ func TestB_FallsThroughToParentFromAnyTab(t *testing.T) {
 	// wäre, würde er entweder zur History cyclen oder Worktime-internes
 	// State ändern. Wir asserten daher: View bleibt Frei.
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: "b"})
-	if got := updated.View(); !strings.Contains(got, "Frei") {
+	if got := updated.View().Content; !strings.Contains(got, "Frei") {
 		t.Errorf("b on Frei must NOT cycle tabs (must fall through to parent); got:\n%s", got)
 	}
 }
@@ -256,7 +256,7 @@ func loadedHeute(t *testing.T, r rig) tea.Model {
 func TestHeute_LoadRendersIdleState(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Noch nichts erfasst") {
 		t.Errorf("idle Heute should hint at empty state, got:\n%s", out)
 	}
@@ -270,7 +270,7 @@ func TestHeute_LoadRendersRunningState(t *testing.T) {
 	start := r.clock.T.Add(-30 * time.Minute)
 	r.active.Active = &start
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	for _, want := range []string{"läuft", "▶", start.Format("15:04")} {
 		if !strings.Contains(out, want) {
 			t.Errorf("running Heute should contain %q, got:\n%s", want, out)
@@ -283,7 +283,7 @@ func TestHeute_LoadRendersPausedState(t *testing.T) {
 	pausedAt := r.clock.T.Add(-15 * time.Minute)
 	r.active.Pause = &pausedAt
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "in Pause") {
 		t.Errorf("paused Heute should surface »in Pause«, got:\n%s", out)
 	}
@@ -457,7 +457,7 @@ func TestHeute_DialogActivatesFilter_GatesTabKeys(t *testing.T) {
 	// "2" is the Woche-tab key — but with FilterActive=true it must reach
 	// the textinput, not switch tabs.
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: "2"})
-	if strings.Contains(updated.View(), "Woche lädt") {
+	if strings.Contains(updated.View().Content, "Woche lädt") {
 		t.Error("`2` while a Heute dialog is open must not switch to Woche")
 	}
 }
@@ -524,7 +524,7 @@ func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	// Spec 2026-05-13-filled-dayoff-dots-supersede: attached-notes marker
 	// switched from "●" (now Vacation-Identität) to "›" (glyphs.Info) so
 	// the chip line doesn't collide with day-off pace dots.
@@ -631,7 +631,7 @@ func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("`?` should open the help overlay (FilterActive=true)")
 	}
-	out := updated.View()
+	out := updated.View().Content
 	// picker.SectionHeader uppercases its title; sniff the upper form.
 	for _, want := range []string{
 		"Heute · Hilfe",
@@ -706,7 +706,7 @@ func loadedWoche(t *testing.T, r rig) tea.Model {
 func TestWoche_LoadRendersWeekHeaderAndDayRows(t *testing.T) {
 	r := newRig(t)
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	// May 1, 2026 is Friday in ISO week 18.
 	if !strings.Contains(out, "KW 18") {
 		t.Errorf("Woche header should contain ISO week, got:\n%s", out)
@@ -726,7 +726,7 @@ func TestWoche_TodayActive_RendersRunningGlyph(t *testing.T) {
 	start := r.clock.T.Add(-30 * time.Minute)
 	r.active.Active = &start
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	// "▶" appears both in pace dots (today active) and the row extra; one
 	// of either presence is enough proof the running state is wired.
 	if !strings.Contains(out, "▶") {
@@ -741,7 +741,7 @@ func TestWoche_DayOff_RendersFeiertagLabel(t *testing.T) {
 		t.Fatalf("seed day-off: %v", err)
 	}
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Feiertag") {
 		t.Errorf("Wednesday should render »Feiertag«, got:\n%s", out)
 	}
@@ -784,7 +784,7 @@ func TestWoche_LoadError_RendersErrPath(t *testing.T) {
 	r := newRig(t)
 	r.sessions.Err = errFake("kaputt")
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "kaputt") {
 		t.Errorf("Woche should surface the load error, got:\n%s", out)
 	}
@@ -836,7 +836,7 @@ func TestHistory_LoadRendersListWithKW(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "KW ") {
 		t.Errorf("history list should contain KW header, got:\n%s", out)
 	}
@@ -848,7 +848,7 @@ func TestHistory_LoadRendersListWithKW(t *testing.T) {
 func TestHistory_LoadEmpty_RendersHint(t *testing.T) {
 	r := newRig(t)
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Keine Treffer") {
 		t.Errorf("empty history should hint »Keine Treffer«, got:\n%s", out)
 	}
@@ -871,7 +871,7 @@ func TestHistory_VCyclesModes(t *testing.T) {
 	}
 	for _, want := range steps {
 		m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
-		got := m.View()
+		got := m.View().Content
 		if !strings.Contains(got, want.anchor) {
 			t.Errorf("v cycle expected %s mode body anchor %q, got:\n%s", want.name, want.anchor, got)
 		}
@@ -889,7 +889,7 @@ func TestHistory_FilterDialog_TogglesFilterActive(t *testing.T) {
 	}
 	// Tab keys must not switch tabs while a dialog is open.
 	m, _ = m.Update(tea.KeyPressMsg{Text: "2"})
-	if strings.Contains(m.View(), "Woche lädt") {
+	if strings.Contains(m.View().Content, "Woche lädt") {
 		t.Error("`2` while filter dialog is open must not switch to Woche")
 	}
 	// Esc closes the dialog.
@@ -911,7 +911,7 @@ func TestHistory_FilterTag_RendersChip(t *testing.T) {
 	if m.(worktime.Model).FilterActive() {
 		t.Fatal("Enter should commit the filter and close the dialog")
 	}
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "filter:") || !strings.Contains(out, "tag:deep") {
 		t.Errorf("filter chip should appear in header, got:\n%s", out)
 	}
@@ -924,7 +924,7 @@ func TestHistory_HeatmapNavigates(t *testing.T) {
 	m, _ = m.Update(tea.KeyPressMsg{Text: "v"}) // → heatmap
 	// Move cursor down one row — should still render.
 	m, _ = m.Update(tea.KeyPressMsg{Text: "j"})
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "█ Ziel") {
 		t.Errorf("heatmap mode expected (legend »█ Ziel«), got:\n%s", out)
 	}
@@ -945,7 +945,7 @@ func TestHistory_DrillOpensAndClosesReadOnly(t *testing.T) {
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("drill should report FilterActive=true so tab keys don't intercept")
 	}
-	out := m.View()
+	out := m.View().Content
 	// picker.SectionHeader uppercases — match against the case it actually renders.
 	if !strings.Contains(strings.ToLower(out), "sessions") || !strings.Contains(out, "→") {
 		t.Errorf("drill view should list day's sessions, got:\n%s", out)
@@ -968,7 +968,7 @@ func TestHistory_ResetFilterT(t *testing.T) {
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m, _ = m.Update(tea.KeyPressMsg{Text: "T"})
-	out := m.View()
+	out := m.View().Content
 	if strings.Contains(out, "filter: ") {
 		t.Errorf("T should clear filter, got:\n%s", out)
 	}
@@ -978,7 +978,7 @@ func TestHistory_LoadError_RendersErrPath(t *testing.T) {
 	r := newRig(t)
 	r.sessions.Err = errFake("kaputt")
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "kaputt") {
 		t.Errorf("History should surface the load error, got:\n%s", out)
 	}
@@ -999,7 +999,7 @@ func loadedFrei(t *testing.T, r rig) tea.Model {
 func TestFrei_LoadEmpty_RendersHint(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Noch keine Daten") {
 		t.Errorf("empty Frei should hint at empty year, got:\n%s", out)
 	}
@@ -1017,7 +1017,7 @@ func TestFrei_LoadEntries_RendersKindAndLabel(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedFrei(t, r)
-	out := m.View()
+	out := m.View().Content
 	for _, want := range []string{"Feiertag", "Tag der Arbeit"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Frei should render %q, got:\n%s", want, out)
@@ -1067,7 +1067,7 @@ func TestFrei_AddDialog_GatesTabKeys(t *testing.T) {
 		t.Fatal("`a` should activate the add form")
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Text: "2"})
-	if strings.Contains(m.View(), "Woche lädt") {
+	if strings.Contains(m.View().Content, "Woche lädt") {
 		t.Error("`2` while add dialog is open must not switch to Woche")
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -1122,13 +1122,13 @@ func TestFrei_YearNav_ShowsPreviousYearEntries(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedFrei(t, r)
-	if strings.Contains(m.View(), "Weihnachten") {
-		t.Fatalf("default 2026 view should not show 2025 entry, got:\n%s", m.View())
+	if strings.Contains(m.View().Content, "Weihnachten") {
+		t.Fatalf("default 2026 view should not show 2025 entry, got:\n%s", m.View().Content)
 	}
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Text: "h"})
 	loaded := drainCmd(t, updated, cmd)
-	out := loaded.View()
+	out := loaded.View().Content
 	if !strings.Contains(out, "Weihnachten") {
 		t.Errorf("after `h`, 2025 entry should be visible, got:\n%s", out)
 	}
@@ -1204,7 +1204,7 @@ func TestHeute_NoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	m := loadedHeute(t, r)
 	m, cmd := m.Update(tea.KeyPressMsg{Text: "o"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	firstLine := out
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
@@ -1236,7 +1236,7 @@ func TestHistory_DrillNoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	m = drainCmd(t, m, cmd)
 	m, cmd = m.Update(tea.KeyPressMsg{Text: "o"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	firstLine := out
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]

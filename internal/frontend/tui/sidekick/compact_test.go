@@ -21,7 +21,7 @@ func TestRenderTabStrip_NarrowWidthDegradesToCompact(t *testing.T) {
 	// Tight width — full strip would exceed it. View() composes the
 	// tab strip into the render.
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 12, Height: 24})
-	out := updated.View()
+	out := updated.View().Content
 	// Compact form has bracketed keys: `[p]` for active.
 	if !strings.Contains(out, "[p]") && !strings.Contains(out, "(p)") {
 		t.Errorf("narrow-width tab strip should use compact bracketed form, got:\n%s", out)
