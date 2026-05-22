@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
@@ -214,9 +217,14 @@ func TestStatusBar_TruncatesLongPath(t *testing.T) {
 		height:  24,
 	}
 	view := m.View().Content
+	// Under lipgloss v2 every styled cell emits a full 24-bit SGR
+	// sequence (38;2;R;G;B;) regardless of TTY detection — that alone
+	// pushes a 60-cell row past the 200-byte budget even when the
+	// visible width is fine. Strip ANSI first and check the actual
+	// cell width via lipgloss.Width.
 	for _, line := range strings.Split(view, "\n") {
-		if len(line) > 200 {
-			t.Errorf("status bar line ran past sane width — wrap risk:\n%q", line)
+		if w := lipgloss.Width(line); w > 60 {
+			t.Errorf("status bar line ran past frame width — wrap risk (cells=%d):\n%q", w, ansi.Strip(line))
 		}
 	}
 	if !strings.Contains(view, "…") {

@@ -7,17 +7,28 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// Chrome budget. Two horizontal numbers because lipgloss splits padding
-// vs. border when sizing a styled block. contentLineBudget is the room
-// the border + padding take per line; frameWidthOffset is the slimmer
-// number passed to lipgloss.Style.Width (border only). gutterWidth
-// reserves the two cells the match-bar prefix occupies in search mode.
+// Chrome budget.
+//
+// contentLineBudget is the room the border + padding take per line
+// (used when sizing inline content like the title and the separator
+// rule, both of which sit INSIDE the frame's content area).
+//
+// frameWidthOffset is the value subtracted from m.width when calling
+// lipgloss.Style.Width on the outer frame. Under lipgloss v2 the
+// Width(n) parameter is the TOTAL outer width (border + padding +
+// content all included) — a silent change from v1, where Width was
+// the content-only width and border/padding added on top. We pass
+// m.width directly, so the offset is zero.
+//
+// gutterWidth reserves the two cells the match-bar prefix occupies
+// in search mode.
+//
 // chromeVertical = 2 (border top+bottom) + 1 title + 1 separator
 // + 1 footer + 1 status bar.
 const (
 	chromeVertical    = 6
 	contentLineBudget = 4 // 2 border + 2 padding
-	frameWidthOffset  = 2 // border-only; argument to lipgloss.Style.Width
+	frameWidthOffset  = 0 // v2 Width() is outer-total, no border offset
 	gutterWidth       = 2 // reserved for the search match bar
 )
 

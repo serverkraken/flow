@@ -7,6 +7,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -59,7 +61,11 @@ func TestInit_LoadsAndRendersEntries(t *testing.T) {
 		domain.PaletteEntry{Icon: "★", Label: "Pin demo", Action: "display 'pinned'", Section: "Misc"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	out := updated.View().Content
+	// Each entry label is rendered cell-by-cell with per-char SGR
+	// under lipgloss v2 (the active-row underline + bold splits
+	// "Reload" into "[m]R[m]e[m]l…"). Strip ANSI so substring
+	// matches see the plain text.
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "Reload") || !strings.Contains(out, "Pin demo") {
 		t.Errorf("View should list both entries, got:\n%s", out)
 	}
@@ -208,7 +214,8 @@ func TestSlashFocusesFilter_AppliesFuzzyMatch(t *testing.T) {
 	for _, r := range "rel" {
 		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := updated.View().Content
+	// Same v2 per-cell SGR pattern — strip ANSI for substring match.
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "Reload") {
 		t.Errorf("filtered view should still show Reload, got:\n%s", out)
 	}

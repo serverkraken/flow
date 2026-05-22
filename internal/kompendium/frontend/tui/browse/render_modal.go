@@ -58,8 +58,7 @@ func frameContent(width, height int, content string) string {
 	if width <= 0 || height <= 0 {
 		return content
 	}
-	innerW := width - 2
-	if innerW <= 0 {
+	if width-2 <= 0 {
 		return content
 	}
 	targetLines := height - 2 // top + bottom border
@@ -69,7 +68,12 @@ func frameContent(width, height int, content string) string {
 			content += strings.Repeat("\n", targetLines-contentLines)
 		}
 	}
-	return frameStyle.Width(innerW).Render(content)
+	// Lipgloss v2's Width(n) is the OUTER total (border + padding +
+	// content), unlike v1 where Width was content-only. Pass the full
+	// terminal width so the rounded frame's outer edges sit flush with
+	// the screen edges; content is already sized to width-2 by the
+	// per-section renderers.
+	return frameStyle.Width(width).Render(content)
 }
 
 // overlay places `top` centered over a dotted backdrop. lipgloss in this

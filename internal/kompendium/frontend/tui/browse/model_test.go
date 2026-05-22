@@ -238,7 +238,10 @@ func TestBrowse_NavigationLiteralInSearchMode(t *testing.T) {
 	model := initialised(newModel(usecase.NewListNotes(store)))
 	model, _ = model.Update(key("/"))
 	model, _ = model.Update(runeKey('j'))
-	if !strings.Contains(model.View().Content, "Suche: j") {
+	// The "Suche:" label and the rendered cursor-styled "j" sit in
+	// separate SGR blocks under lipgloss v2, breaking the literal
+	// substring match. Strip ANSI first.
+	if !strings.Contains(ansi.Strip(model.View().Content), "Suche: j") {
 		t.Errorf("j should land in search query, not move the cursor:\n%s", model.View().Content)
 	}
 }
