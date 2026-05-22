@@ -7,7 +7,7 @@ package worktime_test
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestHistory_EmptyList_NavigationKeysSafe(t *testing.T) {

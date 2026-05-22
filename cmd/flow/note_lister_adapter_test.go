@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	flowtheme "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"

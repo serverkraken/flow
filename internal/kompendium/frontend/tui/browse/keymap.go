@@ -1,6 +1,6 @@
 package browse
 
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 // keyMap is the central registry of bindings the browse view answers to.
 // Every binding carries its own help label so the `?` overlay (bubbles/help)

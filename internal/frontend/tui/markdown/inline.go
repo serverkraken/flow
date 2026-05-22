@@ -6,7 +6,7 @@
 package markdown
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/muesli/termenv"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/util"

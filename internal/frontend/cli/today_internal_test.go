@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 

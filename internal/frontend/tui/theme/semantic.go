@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Semantic is the consumer-facing view of a Palette: aliases that name
 // the *role* a color plays, not the hue. Components read Semantic, not

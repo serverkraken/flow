@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // PillKind selects the pill's semantic flavour. Each kind carries a
 // glyph in addition to its colour so the pill is readable in NO_COLOR

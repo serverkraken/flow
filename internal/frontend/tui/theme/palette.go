@@ -12,7 +12,7 @@
 // stdlib only. tmux option lookup lives in load.go.
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Palette is the canonical color set for one theme. Surface tokens
 // (Bg, BgPanel, …) sit at the top; foreground tokens (Fg, FgDim,

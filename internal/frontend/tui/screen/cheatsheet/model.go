@@ -15,7 +15,7 @@
 package cheatsheet
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"

@@ -13,7 +13,7 @@ package worktime
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // openNoteAttachDialog aktiviert den Note-Attach-Picker für den

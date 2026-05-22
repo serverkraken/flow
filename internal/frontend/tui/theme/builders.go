@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Style builders — pure (string, Palette) → string transforms. They
 // replace the bulk of inline lipgloss.NewStyle() chains in screens and

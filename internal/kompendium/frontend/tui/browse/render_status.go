@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )

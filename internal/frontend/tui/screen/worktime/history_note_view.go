@@ -20,7 +20,7 @@ package worktime
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 )

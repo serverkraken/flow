@@ -11,7 +11,7 @@ import (
 // library. The NewStyle budget pins the package name "lipgloss" by
 // literal identifier; any import that binds the package to a
 // different name lets call sites slip past the counter.
-const lipglossImportPath = "github.com/charmbracelet/lipgloss"
+const lipglossImportPath = "charm.land/lipgloss/v2"
 
 // lipglossAlias is a detector hit: the non-canonical name a file uses
 // for the lipgloss package, plus the line of the import spec.
