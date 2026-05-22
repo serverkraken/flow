@@ -6,8 +6,8 @@ package worktime
 // to the largest cell (so the contrast survives sparse data sets).
 
 import (
-	"image/color"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 

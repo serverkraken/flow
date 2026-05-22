@@ -5,8 +5,8 @@ package worktime
 // Tag-Cursor-Clamp-Helper, die bei Mode-Switches und Refreshes greifen.
 
 import (
-	"image/color"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 

@@ -6,8 +6,8 @@ package worktime
 // Handler aufrufen.
 
 import (
-	"image/color"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 

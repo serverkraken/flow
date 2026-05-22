@@ -27,9 +27,9 @@ linters:
   #                  frontend/tui/components/theme + frontend/tui/sidekick.
   #                  bubbletea + theme stay because SidekickDeps factories
   #                  are typed `func(theme.Palette) tea.Model`.
-  #   frontend/tui → domain (read-only) + ports + usecase + bubbletea +
-  #                  lipgloss + bubbles/* + glamour + termenv + sahilm/fuzzy
-  #                  + frontend/tui/components. Sibling-screen imports are
+  #   frontend/tui → domain (read-only) + ports + usecase + bubbletea v2 +
+  #                  lipgloss v2 + bubbles v2/* + x/ansi + sahilm/fuzzy +
+  #                  frontend/tui/components. Sibling-screen imports are
   #                  denied via strict mode; the sidekick root composes
   #                  screens as tea.Model.
   # cmd/flow is intentionally outside the rule set: it is the composition
@@ -162,7 +162,7 @@ linters:
             # durchschlagen.
             - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/theme
-            - github.com/charmbracelet/bubbletea
+            - charm.land/bubbletea/v2
             - github.com/spf13/cobra
         # The kompendium-frontend-tui rule mirrors flow's frontend-tui
         # rule but for the kompendium subtree. Allowlist: stdlib +
@@ -204,15 +204,15 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/frontend/tui/components/strings
             - github.com/serverkraken/flow/internal/ports
-            - github.com/charmbracelet/bubbletea
-            - github.com/charmbracelet/bubbles
-            - github.com/charmbracelet/lipgloss
+            - charm.land/bubbletea/v2
+            - charm.land/bubbles/v2
+            - charm.land/lipgloss/v2
             - github.com/charmbracelet/x/ansi
             - github.com/charmbracelet/x/cellbuf
         # The markdown rule covers both the renderer at
         # internal/frontend/tui/markdown/ and its sibling theme subpackage.
         # Allowlist is tight: stdlib + the WikilinkResolver port +
-        # goldmark + chroma + lipgloss + cellbuf + termenv + ansi. No
+        # goldmark + chroma + lipgloss v2 + cellbuf + ansi. No
         # kompendium imports — the renderer is fully decoupled from
         # the kompendium subtree per K3.B's exit criteria. Test files
         # are excluded so white-box tests can poke at unexported helpers.
@@ -241,10 +241,9 @@ linters:
             - github.com/yuin/goldmark/util
             - github.com/alecthomas/chroma/v2
             - github.com/alecthomas/chroma/v2/lexers
-            - github.com/charmbracelet/lipgloss
+            - charm.land/lipgloss/v2
             - github.com/charmbracelet/x/ansi
             - github.com/charmbracelet/x/cellbuf
-            - github.com/muesli/termenv
         adapter:
           list-mode: strict
           files:
@@ -297,7 +296,7 @@ linters:
             # cheatsheet.go (`flow cheatsheet` standalone command, F-WAVE)
             # constructs the cheatsheet screen directly because the verb
             # is a one-screen program — sidekick would be overkill.
-            - github.com/charmbracelet/bubbletea
+            - charm.land/bubbletea/v2
             - github.com/serverkraken/flow/internal/frontend/tui/theme
             - github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet
             - github.com/serverkraken/flow/internal/frontend/tui/sidekick
@@ -306,14 +305,14 @@ linters:
             # file gets the same render pipeline (glamour + OSC 8 + search
             # + code-snippet copy) as a kompendium note. Wikilink resolver
             # is passed nil — free-floating files have no notebook context.
-            # The tui/markdown + lipgloss + termenv imports cover the
-            # `--raw` mode: bypass the TUI, force truecolor (otherwise
-            # lipgloss detects Ascii on a piped stdout and strips every
-            # SGR), and write pre-rendered ANSI to stdout.
+            # The tui/markdown + lipgloss imports cover the `--raw` mode:
+            # bypass the TUI and write pre-rendered ANSI to stdout.
+            # Under lipgloss v2 Style.Render unconditionally emits
+            # 24-bit TrueColor SGRs (no TTY-detection downsample), so
+            # the v1-era termenv override is no longer needed.
             - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/markdown
-            - github.com/charmbracelet/lipgloss
-            - github.com/muesli/termenv
+            - charm.land/lipgloss/v2
         # The markdown rule below claims internal/frontend/tui/markdown/**
         # for itself (renderer + theme subpackage); excluding it here lets
         # those files keep a tight goldmark/chroma allowlist without
@@ -358,22 +357,21 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/screen/palette
             # The bubbletea + lipgloss UI vocabulary — bubbles wraps the
             # widget primitives screens hold directly (textinput.Model,
-            # viewport.Model, spinner.Model). termenv configures TrueColor
-            # for theme.Init; sahilm/fuzzy is the ranking primitive used
-            # by the palette and projects screens. Markdown rendering is
+            # viewport.Model, spinner.Model). sahilm/fuzzy is the
+            # ranking primitive used by the palette and projects screens.
+            # Markdown rendering is
             # served by the dedicated markdown rule (above). Sibling-
             # screen imports stay denied: strict mode rejects anything
             # not on this list, including frontend/tui/screen/<name>
             # peers (with the documented sidekick-only exception above).
-            - github.com/charmbracelet/bubbletea
-            - github.com/charmbracelet/bubbles
-            - github.com/charmbracelet/lipgloss
+            - charm.land/bubbletea/v2
+            - charm.land/bubbles/v2
+            - charm.land/lipgloss/v2
             # x/ansi: ANSI-Strip + OSC 52 escape sequences. Needed by
             # markdown_overlay for search match scanning (lower-cased
             # ANSI-stripped line cache) and the OSC 52 clipboard
             # wrap. Mirrors the kompendium-frontend-tui allow.
             - github.com/charmbracelet/x/ansi
-            - github.com/muesli/termenv
             - github.com/sahilm/fuzzy
     gocyclo:
       min-complexity: 20
