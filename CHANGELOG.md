@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/serverkraken/flow/compare/v1.2.2...v1.3.0) (2026-05-22)
+
+
+### Features
+
+* **tui:** migrate to lipgloss/bubbletea/bubbles v2 ([#25](https://github.com/serverkraken/flow/issues/25)) ([0a85d3b](https://github.com/serverkraken/flow/commit/0a85d3b497a918412209f22c9bb9cb5da95097de))
+
 ## [1.2.2](https://github.com/serverkraken/flow/compare/v1.2.1...v1.2.2) (2026-05-22)
 
 
