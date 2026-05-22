@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 )
 
@@ -18,14 +18,14 @@ func TestHistory_DrillNoteAttach_NOpensPicker(t *testing.T) {
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
 	// Open drill on the focused row (cursor 0 — most recent session).
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// Press n to open note-attach.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("note-attach picker should leave FilterActive=true (TextInputActive proxy)")
 	}
-	out := m.View()
+	out := m.View().Content
 	// View should announce the date the picker is scoped to. The
 	// section header is uppercased by picker.SectionHeader, so the
 	// date itself is the stable substring to match against.
@@ -38,17 +38,17 @@ func TestHistory_DrillNoteAttach_EnterAttachesIDToDrillDate(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	// Type a note ID.
 	id := "daily/2026-04-28"
 	for _, ch := range id {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
 	// Enter submits — picker has no suggestions wired (newRig didn't set
 	// NoteLister), so the raw input wins.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, m, cmd)
 
 	// Exactly one date received the attach — and the ID matches.
@@ -67,14 +67,14 @@ func TestHistory_DrillNoteAttach_EscCancelsWithoutAttach(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	// Type something then bail with Esc — LinkStore must stay clean.
 	for _, ch := range "foo" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if len(r.links.ByDate) != 0 {
 		t.Errorf("Esc must NOT write to LinkStore, got %+v", r.links.ByDate)
 	}
@@ -89,19 +89,19 @@ func TestHistory_DrillNoteAttach_EmptyIDSurfacesError(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	// Enter with empty input — picker should set its own errMsg and
 	// stay open. No LinkStore mutation.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if len(r.links.ByDate) != 0 {
 		t.Errorf("empty ID must NOT call LinkWriter, got %+v", r.links.ByDate)
 	}
 	if !m.(worktime.Model).FilterActive() {
 		t.Error("picker should stay open after empty-ID error")
 	}
-	if !strings.Contains(m.View(), "Note-ID darf nicht leer sein") {
-		t.Errorf("picker should surface the empty-ID error, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "Note-ID darf nicht leer sein") {
+		t.Errorf("picker should surface the empty-ID error, got:\n%s", m.View().Content)
 	}
 }

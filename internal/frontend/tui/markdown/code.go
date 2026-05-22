@@ -10,9 +10,9 @@ package markdown
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/cellbuf"
 	"github.com/yuin/goldmark/ast"
@@ -245,7 +245,7 @@ func (r *nodeRenderer) chromaStyle(t chroma.TokenType) lipgloss.Style {
 //
 // The cases are ordered most-specific-first so InCategory checks at
 // the bottom don't shadow the precise types above.
-func chromaTokenColor(t chroma.TokenType, p canonical.Palette) lipgloss.Color {
+func chromaTokenColor(t chroma.TokenType, p canonical.Palette) canonical.Color {
 	switch t {
 	case chroma.KeywordType:
 		return p.Blue

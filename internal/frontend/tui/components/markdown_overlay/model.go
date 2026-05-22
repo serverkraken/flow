@@ -1,23 +1,34 @@
 package markdown_overlay
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 )
 
-// Chrome budget. Two horizontal numbers because lipgloss splits padding
-// vs. border when sizing a styled block. contentLineBudget is the room
-// the border + padding take per line; frameWidthOffset is the slimmer
-// number passed to lipgloss.Style.Width (border only). gutterWidth
-// reserves the two cells the match-bar prefix occupies in search mode.
+// Chrome budget.
+//
+// contentLineBudget is the room the border + padding take per line
+// (used when sizing inline content like the title and the separator
+// rule, both of which sit INSIDE the frame's content area).
+//
+// frameWidthOffset is the value subtracted from m.width when calling
+// lipgloss.Style.Width on the outer frame. Under lipgloss v2 the
+// Width(n) parameter is the TOTAL outer width (border + padding +
+// content all included) — a silent change from v1, where Width was
+// the content-only width and border/padding added on top. We pass
+// m.width directly, so the offset is zero.
+//
+// gutterWidth reserves the two cells the match-bar prefix occupies
+// in search mode.
+//
 // chromeVertical = 2 (border top+bottom) + 1 title + 1 separator
 // + 1 footer + 1 status bar.
 const (
 	chromeVertical    = 6
 	contentLineBudget = 4 // 2 border + 2 padding
-	frameWidthOffset  = 2 // border-only; argument to lipgloss.Style.Width
+	frameWidthOffset  = 0 // v2 Width() is outer-total, no border offset
 	gutterWidth       = 2 // reserved for the search match bar
 )
 
@@ -92,7 +103,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.SetSize(msg.Width, msg.Height), nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.mode == ModeSearch {
 			return m.handleSearchKey(msg)
 		}
@@ -132,7 +143,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) isCloseKey(msg tea.KeyMsg) bool {
+func (m Model) isCloseKey(msg tea.KeyPressMsg) bool {
 	s := msg.String()
 	for _, k := range m.cfg.closeKeys {
 		if s == k {
@@ -172,8 +183,8 @@ func (m Model) rerender() Model {
 	innerW, innerH := m.contentSize()
 	if innerW <= 0 || innerH <= 0 {
 		m.rendered = ""
-		m.viewport.Width = 0
-		m.viewport.Height = 0
+		m.viewport.SetWidth(0)
+		m.viewport.SetHeight(0)
 		return m
 	}
 	m.rendered = m.render(m.cfg.source, innerW)
@@ -184,8 +195,8 @@ func (m Model) rerender() Model {
 	if m.query != "" {
 		m = m.recomputeMatches()
 	}
-	m.viewport.Width = innerW + gutterWidth
-	m.viewport.Height = innerH
+	m.viewport.SetWidth(innerW + gutterWidth)
+	m.viewport.SetHeight(innerH)
 	m.viewport.SetContent(m.composeContent())
 	return m
 }

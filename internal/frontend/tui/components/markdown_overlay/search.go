@@ -3,9 +3,9 @@ package markdown_overlay
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -43,7 +43,10 @@ func newSearchInput() textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
-	ti.Cursor.Style = styles().cursor
+	tiStyles := ti.Styles()
+	tiStyles.Cursor.Color = styles().cursor.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
+	ti.SetStyles(tiStyles)
 	return ti
 }
 
@@ -51,13 +54,13 @@ func newSearchInput() textinput.Model {
 // trimmed query (and returns to ModeNormal); Esc cancels without
 // touching the query state; anything else is forwarded to the
 // textinput.
-func (m Model) handleSearchKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m.applyQuery(strings.TrimSpace(m.search.Value())), nil
@@ -70,7 +73,7 @@ func (m Model) handleSearchKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // maybeEnterSearch attempts to enter search-mode for the given KeyMsg.
 // Returns (model, cmd, true) when the key was the search-launcher and
 // the model is now in ModeSearch; (model, nil, false) otherwise.
-func (m Model) maybeEnterSearch(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+func (m Model) maybeEnterSearch(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	if !m.cfg.enableSearch {
 		return m, nil, false
 	}
@@ -132,7 +135,7 @@ func (m Model) scrollToCurrent() Model {
 		return m
 	}
 	line := m.matches[m.matchIdx]
-	target := line - m.viewport.Height/3
+	target := line - m.viewport.Height()/3
 	if target < 0 {
 		target = 0
 	}

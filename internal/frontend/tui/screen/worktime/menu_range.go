@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
@@ -63,11 +63,11 @@ type rangeEvent struct {
 // Empty expression is accepted — downstream callers (export, stats)
 // interpret it as "all time" by virtue of domain.ParseRange returning
 // the zero-Range.
-func (r rangeForm) handleKey(msg tea.KeyMsg, now time.Time) (rangeForm, tea.Cmd, rangeEvent) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (r rangeForm) handleKey(msg tea.KeyPressMsg, now time.Time) (rangeForm, tea.Cmd, rangeEvent) {
+	switch msg.String() {
+	case "esc":
 		return r, nil, rangeEvent{canceled: true}
-	case tea.KeyEnter:
+	case "enter":
 		expr := strings.TrimSpace(r.input.Value())
 		if expr != "" {
 			if _, err := domain.ParseRange(now, expr); err != nil {

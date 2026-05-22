@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 )
 
@@ -19,7 +19,7 @@ func TestWithState_RestoresHistoryTab(t *testing.T) {
 	restored := m.WithState("tab=history", 0)
 	// Drive a WindowSizeMsg so the View() can produce something.
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(out, "History") {
 		t.Errorf("WithState(tab=history) should land on History tab, got:\n%s", out)
 	}
@@ -30,7 +30,7 @@ func TestWithState_RestoresWocheTab(t *testing.T) {
 	m := r.model
 	restored := m.WithState("tab=woche", 0)
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	if !strings.Contains(updated.View(), "Woche") {
+	if !strings.Contains(updated.View().Content, "Woche") {
 		t.Errorf("expected Woche tab after restore")
 	}
 }
@@ -40,7 +40,7 @@ func TestWithState_RestoresFreiTab(t *testing.T) {
 	m := r.model
 	restored := m.WithState("tab=frei", 0)
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	if !strings.Contains(updated.View(), "Frei") {
+	if !strings.Contains(updated.View().Content, "Frei") {
 		t.Errorf("expected Frei tab after restore")
 	}
 }
@@ -50,7 +50,7 @@ func TestWithState_RestoresHeuteAsDefault(t *testing.T) {
 	// Unknown tab name → falls through, current stays at Heute.
 	restored := r.model.WithState("tab=mystery", 0)
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	if !strings.Contains(updated.View(), "Heute") {
+	if !strings.Contains(updated.View().Content, "Heute") {
 		t.Errorf("unknown tab name should fall back to Heute")
 	}
 }
@@ -74,7 +74,7 @@ func TestWithState_EmptyFilterStaysOnDefault(t *testing.T) {
 	r := newRig(t)
 	restored := r.model.WithState("", 0)
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	if !strings.Contains(updated.View(), "Heute") {
+	if !strings.Contains(updated.View().Content, "Heute") {
 		t.Errorf("empty filter should keep Heute as default")
 	}
 }

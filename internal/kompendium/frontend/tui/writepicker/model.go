@@ -7,9 +7,9 @@ package writepicker
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -95,8 +95,12 @@ func New(allowProject bool) Model {
 	ti.Prompt = ""
 	ti.CharLimit = 64
 	ti.Placeholder = "slug"
-	ti.Cursor.Style = cursorStyle
-	ti.PlaceholderStyle = dimStyle
+	tiStyles := ti.Styles()
+	tiStyles.Focused.Placeholder = dimStyle
+	tiStyles.Blurred.Placeholder = dimStyle
+	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
+	ti.SetStyles(tiStyles)
 
 	return Model{options: opts, slug: ti}
 }
@@ -108,13 +112,19 @@ func (m Model) Init() tea.Cmd { return nil }
 // tea.Quit.
 func (m Model) Result() Result { return m.result }
 
-// Update is the Bubble Tea reducer.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update is the Bubble Tea reducer. Returns concrete writepicker.Model
+// (not tea.Model) so the picker stays a sub-model — the hosting
+// adapter (pickerHost in cli/write.go) implements tea.Model. Under
+// bubbletea v2 tea.Model requires View() tea.View; keeping writepicker
+// as a plain reducer lets us return View() string for in-process
+// composition while the host wraps the rendered content into the
+// program-bound tea.View.
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.askingSlug {
 			return m.handleSlugKey(msg)
 		}
@@ -123,7 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleMenuKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q", "esc":
 		m.quitting = true
@@ -151,13 +161,13 @@ func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleSlugKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc, tea.KeyCtrlC:
+func (m Model) handleSlugKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "ctrl+c":
 		m.quitting = true
 		m.result = Result{Choice: ChoiceCancel}
 		return m, doneCmd(m.result)
-	case tea.KeyEnter:
+	case "enter":
 		if strings.TrimSpace(m.slug.Value()) == "" {
 			return m, nil
 		}
@@ -186,7 +196,7 @@ func (m Model) View() string {
 	if m.width > 0 && m.height > 0 {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card,
 			lipgloss.WithWhitespaceChars("·"),
-			lipgloss.WithWhitespaceForeground(lipgloss.Color(pal.BgChip)))
+			lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Foreground(pal.BgChip)))
 	}
 	return card
 }
@@ -239,21 +249,21 @@ func rebuildStyles() {
 		Foreground(sem.Accent).
 		Bold(true)
 	selectedStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
-		Background(lipgloss.Color(pal.BgChip)).
+		Foreground(pal.Fg).
+		Background(pal.BgChip).
 		Bold(true).
 		Padding(0, 1)
 	optionStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.Fg)).
+		Foreground(pal.Fg).
 		Padding(0, 1)
 	iconStyle = lipgloss.NewStyle().
 		Foreground(sem.Active)
 	hintStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	dimStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(pal.FgMuted))
+		Foreground(pal.FgMuted)
 	footerKeyStyle = lipgloss.NewStyle().
 		Foreground(sem.Active).
 		Bold(true)

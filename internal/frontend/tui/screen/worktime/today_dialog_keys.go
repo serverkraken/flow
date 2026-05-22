@@ -7,11 +7,11 @@ package worktime
 // today_dialog.go (Skill §No-Monoliths).
 
 import (
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 )
 
-func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h heute) handleDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch h.dialog {
 	case heuteDialogDelete:
 		// Confirm-Dialog forwarded an die kanonische confirm.Model. Der
@@ -55,17 +55,17 @@ func (h heute) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return h, nil
 }
 
-func (h heute) handleSimpleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (h heute) handleSimpleInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		h.dialog = heuteDialogNone
 		h.input.Blur()
 		h.input.SetValue("")
 		h.errMsg = ""
 		return h, nil
-	case tea.KeyEnter:
+	case "enter":
 		return h.submitDialog()
-	case tea.KeyTab, tea.KeyShiftTab:
+	case "tab", "shift+tab":
 		// Single-input dialogs (Tag/Note) have nowhere to tab to —
 		// swallow the key instead of letting bubbles textinput insert
 		// a literal tab character that would survive into the stored
@@ -85,7 +85,7 @@ func (h heute) handleSimpleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // ueber SelectedID konsumiert); Cancel schliesst den Dialog ohne
 // weitere Aktion. Idle uebernimmt nur den neuen Picker-State
 // (Suggestion-Cursor bewegt, Input getippt, …).
-func (h heute) handleNoteAttachKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h heute) handleNoteAttachKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	picker, cmd, action := h.notePicker.Update(msg)
 	h.notePicker = picker
 	switch action {
@@ -99,30 +99,30 @@ func (h heute) handleNoteAttachKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return h, cmd
 }
 
-func (h heute) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h heute) handleFormKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	maxCur := len(h.form) - 1
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		h.dialog = heuteDialogNone
 		h.form = nil
 		h.formCur = 0
 		h.errMsg = ""
 		return h, nil
-	case tea.KeyTab, tea.KeyDown:
+	case "tab", "down":
 		next := h.formCur + 1
 		if next > maxCur {
 			next = 0
 		}
 		h.focusForm(next)
 		return h, textinput.Blink
-	case tea.KeyShiftTab, tea.KeyUp:
+	case "shift+tab", "up":
 		next := h.formCur - 1
 		if next < 0 {
 			next = maxCur
 		}
 		h.focusForm(next)
 		return h, textinput.Blink
-	case tea.KeyEnter:
+	case "enter":
 		if h.formCur < maxCur {
 			h.focusForm(h.formCur + 1)
 			return h, textinput.Blink

@@ -64,7 +64,7 @@ type nodeRenderer struct {
 // per-call overrides (WithPalette) reach every helper.
 func newNodeRenderer(width int, opts options) *nodeRenderer {
 	return &nodeRenderer{
-		roles:   theme.MarkdownRolesFor(opts.lip, opts.palette),
+		roles:   theme.MarkdownRolesFor(opts.palette),
 		palette: opts.palette,
 		width:   width,
 		opts:    opts,

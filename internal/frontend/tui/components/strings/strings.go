@@ -10,7 +10,7 @@
 // or more places.
 package strings
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Hint strings — short, single-line, comma-separated keys. Used in
 // status-bar Hints components and footer rows.

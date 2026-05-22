@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
@@ -45,16 +45,21 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 	if deps.RenderBacklinks != nil {
 		m = m.WithBacklinks(backlinksFromUsecase(ctx, deps.RenderBacklinks))
 	}
-	// Note: tea.WithMouseCellMotion was deliberately removed —
-	// enabling DEC mode 1002 puts the terminal in a state where
-	// drag-to-select text gets eaten by the program instead of
-	// reaching the terminal/tmux selection engine. The user couldn't
-	// copy text out of a note any more. Keyboard scroll (j/k,
-	// ctrl+u/d) covers the only navigation the mouse-wheel handler
-	// did, and tmux/terminal handle wheel scrolling natively.
+	// Note: mouse cell motion (DEC 1002) is deliberately left disabled —
+	// enabling it puts the terminal in a state where drag-to-select text
+	// gets eaten by the program instead of reaching the terminal/tmux
+	// selection engine. The user couldn't copy text out of a note any
+	// more. Keyboard scroll (j/k, ctrl+u/d) covers the only navigation
+	// the mouse-wheel handler did, and tmux/terminal handle wheel
+	// scrolling natively. Under bubbletea v2 there is no
+	// tea.WithMouseCellMotion option to opt out of — the default is
+	// MouseModeNone unless the view explicitly opts in.
+	//
+	// AltScreen toggle has moved out of NewProgram options entirely
+	// (browse.Model.View() sets v.AltScreen = true on the returned
+	// tea.View).
 	p := tea.NewProgram(
 		m,
-		tea.WithAltScreen(),
 		tea.WithContext(ctx),
 	)
 	_, err := p.Run()

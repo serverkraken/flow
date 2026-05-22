@@ -12,8 +12,8 @@ package sidekick
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -150,7 +150,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.current = id
 		}
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 	return m.fanOutToAll(msg)
@@ -189,7 +189,7 @@ func (m Model) fanOutToAll(msg tea.Msg) (tea.Model, tea.Cmd) {
 // to the active screen if it owns input → forward if the screen
 // claimed the key → global key dispatch → fall through to the active
 // screen.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
 		// Help schließt explizit auf Esc/?/q. Jede andere Taste
 		// schließt zwar auch, aber wird dann normal verarbeitet —
@@ -232,7 +232,7 @@ func (m Model) screenClaimsKey(key string) bool {
 // handleGlobalKey dispatches the sidekick's own key map (q / ? / b /
 // p / f / w / c / n). ok=false means the key isn't a global; the
 // caller forwards to the active screen.
-func (m Model) handleGlobalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit, true
@@ -277,11 +277,17 @@ func (m Model) forwardToCurrent(msg tea.Msg) (tea.Model, tea.Cmd) {
 // global tab strip that surfaces which sidekick screen is active. The
 // strip is suppressed when the `?`-overlay owns the surface — help is
 // modal and the strip would compete with the section titles inside it.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.showHelp {
 		return m.renderHelp()
 	}
-	return m.renderTabStrip() + "\n" + m.screens[m.current].View()
+	return m.renderTabStrip() + "\n" + m.screens[m.current].View().Content
 }
 
 // tabStripEntry is one cell of the global strip. Key is the global

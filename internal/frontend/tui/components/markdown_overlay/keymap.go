@@ -1,6 +1,6 @@
 package markdown_overlay
 
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 // keyMap collects the key bindings for opt-in features. Close keys are
 // matched dynamically against config (they're configurable per call

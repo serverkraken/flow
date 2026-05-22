@@ -14,8 +14,8 @@ package worktime
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -112,7 +112,7 @@ type targetEvent struct {
 // handleKey routes a key into the picker. Returns the (possibly
 // updated) picker plus an event describing what happened: nav-only,
 // target picked, or cancel requested.
-func (tp targetPicker) handleKey(msg tea.KeyMsg) (targetPicker, targetEvent) {
+func (tp targetPicker) handleKey(msg tea.KeyPressMsg) (targetPicker, targetEvent) {
 	switch msg.String() {
 	case "esc":
 		return tp, targetEvent{canceled: true}

@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
@@ -85,30 +85,30 @@ func (h history) openDrillDelete() (tea.Model, tea.Cmd) {
 // handleDrillFormKey forwards keystrokes to the Edit / Add form.
 // Tab / Shift-Tab / Up / Down move between fields; Enter advances
 // until the last field, then submits.
-func (h history) handleDrillFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillFormKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	maxCur := len(h.drillForm) - 1
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		h.dialog = historyDialogDrill
 		h.drillForm = nil
 		h.drillFormCur = 0
 		h.errMsg = ""
 		return h, nil
-	case tea.KeyTab, tea.KeyDown:
+	case "tab", "down":
 		next := h.drillFormCur + 1
 		if next > maxCur {
 			next = 0
 		}
 		h.focusDrillForm(next)
 		return h, textinput.Blink
-	case tea.KeyShiftTab, tea.KeyUp:
+	case "shift+tab", "up":
 		next := h.drillFormCur - 1
 		if next < 0 {
 			next = maxCur
 		}
 		h.focusDrillForm(next)
 		return h, textinput.Blink
-	case tea.KeyEnter:
+	case "enter":
 		if h.drillFormCur < maxCur {
 			h.focusDrillForm(h.drillFormCur + 1)
 			return h, textinput.Blink
@@ -138,7 +138,7 @@ func (h *history) focusDrillForm(i int) {
 // handleDrillDeleteKey forwards to the canonical confirm.Model. The
 // model emits a confirm.ResultMsg via tea.Cmd which the history's
 // outer Update consumes — same pattern as today.go's delete dialog.
-func (h history) handleDrillDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillDeleteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if h.drillConfirm == nil {
 		h.dialog = historyDialogDrill
 		return h, nil

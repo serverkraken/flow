@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
@@ -173,7 +173,7 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return f, f.loadCmd(f.currentYear())
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if f.dialog != freiDialogNone {
 			return f.handleDialogKey(msg)
 		}
@@ -203,7 +203,7 @@ func (f *frei) clampCursor() {
 
 // — keymap (no dialog) —
 
-func (f frei) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (f frei) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
 		if total := len(f.entries); total > 0 {
@@ -316,7 +316,7 @@ func (f frei) openAdd() (tea.Model, tea.Cmd) {
 
 // — dialog dispatch —
 
-func (f frei) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (f frei) handleDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch f.dialog {
 	case freiDialogConfirm:
 		// confirm.Model konsumiert y/Enter (ja) und n/Esc (nein); Result
@@ -341,29 +341,29 @@ func (f frei) handleDialogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // be exactly two text fields.
 func (f frei) kindIdx() int { return len(f.form) }
 
-func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (f frei) handleAddFormKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	last := f.kindIdx()
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		f.dialog = freiDialogNone
 		f.form = nil
 		f.errMsg = ""
 		return f, nil
-	case tea.KeyTab, tea.KeyDown:
+	case "tab", "down":
 		next := f.formCur + 1
 		if next > last {
 			next = 0
 		}
 		f.focusForm(next)
 		return f, textinput.Blink
-	case tea.KeyShiftTab, tea.KeyUp:
+	case "shift+tab", "up":
 		next := f.formCur - 1
 		if next < 0 {
 			next = last
 		}
 		f.focusForm(next)
 		return f, textinput.Blink
-	case tea.KeyEnter:
+	case "enter":
 		if f.formCur < last {
 			f.focusForm(f.formCur + 1)
 			return f, textinput.Blink
@@ -382,7 +382,7 @@ func (f frei) handleAddFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return f, nil
 }
 
-func (f frei) handleKindCycle(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (f frei) handleKindCycle(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "h", "left":
 		if f.kindCur > 0 {
@@ -438,7 +438,9 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 
 // — render —
 
-func (f frei) View() string {
+func (f frei) View() tea.View { return tea.NewView(f.viewContent()) }
+
+func (f frei) viewContent() string {
 	if f.width == 0 {
 		return ""
 	}

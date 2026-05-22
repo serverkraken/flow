@@ -7,10 +7,11 @@ package worktime
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -49,7 +50,7 @@ func tagClockGrid(records []domain.DayRecord) ([7][24]time.Duration, time.Durati
 	return grid, maxCell
 }
 
-func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, lipgloss.TerminalColor) {
+func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, color.Color) {
 	sem := pal.Sem()
 	switch {
 	case cell == 0:

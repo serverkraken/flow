@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -48,7 +50,7 @@ func runUntilLoaded(t *testing.T, m palette.Model) tea.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	f := newFixture()
-	if got := f.model().View(); got != "" {
+	if got := f.model().View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 }
@@ -59,7 +61,11 @@ func TestInit_LoadsAndRendersEntries(t *testing.T) {
 		domain.PaletteEntry{Icon: "★", Label: "Pin demo", Action: "display 'pinned'", Section: "Misc"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	out := updated.View()
+	// Each entry label is rendered cell-by-cell with per-char SGR
+	// under lipgloss v2 (the active-row underline + bold splits
+	// "Reload" into "[m]R[m]e[m]l…"). Strip ANSI so substring
+	// matches see the plain text.
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "Reload") || !strings.Contains(out, "Pin demo") {
 		t.Errorf("View should list both entries, got:\n%s", out)
 	}
@@ -75,7 +81,7 @@ func TestInit_LoadError_DisplaysError(t *testing.T) {
 	f := newFixture()
 	f.entries.Err = errors.New("plugins gone")
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View(); !strings.Contains(got, "plugins gone") {
+	if got := updated.View().Content; !strings.Contains(got, "plugins gone") {
 		t.Errorf("View should surface load error, got:\n%s", got)
 	}
 }
@@ -85,7 +91,7 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 		domain.PaletteEntry{Label: "Reload", Action: "source-file ~/.tmux.conf", Section: "System"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd")
 	}
@@ -105,7 +111,7 @@ func TestEnter_DispatchesViaTmux(t *testing.T) {
 		t.Fatalf("dispatch must not return tea.QuitMsg post-F-WAVE-1, got %T", msg)
 	}
 	updated2, _ := updated.Update(msg)
-	view := updated2.View()
+	view := updated2.View().Content
 	if !strings.Contains(view, "Reload") {
 		t.Errorf("toast should mention the action label »Reload«; view:\n%s", view)
 	}
@@ -127,7 +133,7 @@ func TestEnter_OnGotoActionEmitsSwitchScreenMsg(t *testing.T) {
 		},
 	)
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter on goto action should produce a tea.Cmd")
 	}
@@ -157,7 +163,7 @@ func TestEnter_OnUnknownGotoScreenFallsThroughToTmux(t *testing.T) {
 		},
 	)
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd even for unknown screens")
 	}
@@ -177,7 +183,7 @@ func TestPin_ReloadsAndMovesToFavoriten(t *testing.T) {
 	)
 	updated := runUntilLoaded(t, f.model())
 	// Press '.' on entry 0 ("A") to pin
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'.'}})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Text: "."})
 	if cmd == nil {
 		t.Fatal("pin should return a load cmd")
 	}
@@ -187,7 +193,7 @@ func TestPin_ReloadsAndMovesToFavoriten(t *testing.T) {
 	if !pinned {
 		t.Error("A should be pinned in persisted stats")
 	}
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(strings.ToLower(out), "favoriten") {
 		t.Errorf("View after pin should show Favoriten section, got:\n%s", out)
 	}
@@ -200,15 +206,16 @@ func TestSlashFocusesFilter_AppliesFuzzyMatch(t *testing.T) {
 	)
 	updated := runUntilLoaded(t, f.model())
 	// "/" focuses the filter
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
 	if !updated.(palette.Model).FilterActive() {
 		t.Error("FilterActive should be true after '/'")
 	}
 	// Type "rel" — narrows to Reload
 	for _, r := range "rel" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := updated.View()
+	// Same v2 per-cell SGR pattern — strip ANSI for substring match.
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "Reload") {
 		t.Errorf("filtered view should still show Reload, got:\n%s", out)
 	}
@@ -222,7 +229,7 @@ func TestEsc_NoOpInNormalMode(t *testing.T) {
 	// not tea.Quit, otherwise the host program tears down too.
 	f := newFixture()
 	updated := runUntilLoaded(t, f.model())
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if cmd != nil {
 		t.Errorf("esc in normal mode must not produce a cmd, got %v", cmd)
 	}
@@ -262,7 +269,7 @@ func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
 	// Enter auf der ersten (einzigen) Aktion — goto.sh-pattern, sollte
 	// aber im Standalone-Modus durch run-shell laufen, nicht als
 	// SwitchScreenMsg.
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}
@@ -286,7 +293,7 @@ func TestEmbeddedMode_GotoEmitsSwitchScreenMsg(t *testing.T) {
 		Section: "Flow",
 	})
 	updated := runUntilLoaded(t, f.model()) // Default = Embedded
-	_, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on goto.sh entry should produce a dispatch cmd")
 	}

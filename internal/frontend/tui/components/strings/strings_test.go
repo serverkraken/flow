@@ -3,7 +3,7 @@ package strings_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
 

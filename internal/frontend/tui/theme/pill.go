@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // PillKind selects the pill's semantic flavour. Each kind carries a
 // glyph in addition to its colour so the pill is readable in NO_COLOR
@@ -29,17 +29,17 @@ const (
 // here so the kind switch stays a single, readable table.
 type pillSpec struct {
 	glyph string
-	color func(p Palette) lipgloss.Color
+	color func(p Palette) Color
 }
 
 var pillSpecs = map[PillKind]pillSpec{
-	PillNeutral: {"·", func(p Palette) lipgloss.Color { return p.FgMuted }},
-	PillSuccess: {"✓", func(p Palette) lipgloss.Color { return p.Green }},
-	PillWarning: {"▲", func(p Palette) lipgloss.Color { return p.Yellow }},
-	PillDanger:  {"✗", func(p Palette) lipgloss.Color { return p.Red }},
-	PillActive:  {"▶", func(p Palette) lipgloss.Color { return p.Cyan }},
-	PillInfo:    {"›", func(p Palette) lipgloss.Color { return p.Sem().Accent }},
-	PillSkip:    {"○", func(p Palette) lipgloss.Color { return p.FgMuted }},
+	PillNeutral: {"·", func(p Palette) Color { return p.FgMuted }},
+	PillSuccess: {"✓", func(p Palette) Color { return p.Green }},
+	PillWarning: {"▲", func(p Palette) Color { return p.Yellow }},
+	PillDanger:  {"✗", func(p Palette) Color { return p.Red }},
+	PillActive:  {"▶", func(p Palette) Color { return p.Cyan }},
+	PillInfo:    {"›", func(p Palette) Color { return p.Sem().Accent }},
+	PillSkip:    {"○", func(p Palette) Color { return p.FgMuted }},
 }
 
 // RenderPill returns "{glyph} {label}" coloured by kind. The visible
@@ -83,7 +83,7 @@ func Pill(state string, p Palette) string {
 	return lipgloss.NewStyle().Foreground(c).Bold(true).Width(PillWidth).Render(state)
 }
 
-func pillStateColor(state string, p Palette) lipgloss.Color {
+func pillStateColor(state string, p Palette) Color {
 	switch state {
 	case "OK":
 		return p.Green

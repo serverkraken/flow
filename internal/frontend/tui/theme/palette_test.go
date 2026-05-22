@@ -3,7 +3,6 @@ package theme_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -28,7 +27,7 @@ func TestSem_MapsToHues(t *testing.T) {
 	p := theme.TokyonightNight
 	sem := p.Sem()
 	cases := []struct {
-		got, want lipgloss.Color
+		got, want theme.Color
 		name      string
 	}{
 		{sem.Accent, p.Blue, "Accent → Blue"},
@@ -52,7 +51,7 @@ func TestSem_MapsToHues(t *testing.T) {
 func TestPalette_NoEmptyFields(t *testing.T) {
 	for _, p := range []theme.Palette{theme.TokyonightNight, theme.CatppuccinMocha} {
 		t.Run(p.Name, func(t *testing.T) {
-			fields := map[string]lipgloss.Color{
+			fields := map[string]theme.Color{
 				"Bg": p.Bg, "BgPanel": p.BgPanel, "BgCode": p.BgCode,
 				"BgChip": p.BgChip, "BgChipSoft": p.BgChipSoft, "BgBar": p.BgBar,
 				"BgDanger": p.BgDanger, "BgSuccess": p.BgSuccess,

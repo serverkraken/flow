@@ -3,7 +3,6 @@ package theme_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -17,7 +16,7 @@ func TestKindColor_TokyonightNight(t *testing.T) {
 	sem := p.Sem()
 	cases := []struct {
 		kind domain.Kind
-		want lipgloss.TerminalColor
+		want theme.Color
 		name string
 	}{
 		{domain.KindHoliday, sem.Schedule, "Holiday → Schedule"},
@@ -52,7 +51,7 @@ func TestKindColor_CrossSurfaceWithKindStatusColor(t *testing.T) {
 	p := theme.TokyonightNight
 	statusPal := theme.StatusPaletteFor(p)
 	for _, k := range []domain.Kind{domain.KindHoliday, domain.KindVacation, domain.KindSick} {
-		inApp := string(theme.KindColor(p, k).(lipgloss.Color))
+		inApp := string(theme.KindColor(p, k).(theme.Color))
 		tmux := domain.KindStatusColor(k, statusPal)
 		if inApp != tmux {
 			t.Errorf("kind %v: in-app %q vs tmux %q", k, inApp, tmux)

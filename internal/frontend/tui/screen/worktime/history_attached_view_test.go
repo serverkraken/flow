@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // TestHistory_DrillAttached_ChipShowsAfterAttach pinst die Sichtbarkeit:
@@ -19,17 +19,17 @@ func TestHistory_DrillAttached_ChipShowsAfterAttach(t *testing.T) {
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
 	// Open drill on the focused row.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// Attach a note.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	id := "daily/2026-04-28"
 	for _, ch := range id {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, id) {
 		t.Errorf("Drill should show attached note ID %q in chip line, got:\n%s", id, out)
 	}
@@ -59,9 +59,9 @@ func TestHistory_DrillAttached_LoadedOnOpen(t *testing.T) {
 	}
 	m := loadedHistory(t, r)
 	// Cursor is 0 on the most recent record; verify which date Enter drills into.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, preID) {
 		t.Logf("note: drill cursor may not have hit the pre-seeded date — view was:\n%s", out)
 		// Soft-fail: at least one of the seeded dates should drill to wed.
@@ -86,11 +86,11 @@ func TestHistory_DrillO_OpensInlineViewer(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// Press o — opens markdown_overlay.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
-	out := m.View()
+	m, _ = m.Update(tea.KeyPressMsg{Text: "o"})
+	out := m.View().Content
 	// markdown_overlay renders title via "Note · <id>". Search for the
 	// stable suffix (the · separator + ID).
 	if !strings.Contains(out, "Note · "+preID) {
@@ -98,9 +98,9 @@ func TestHistory_DrillO_OpensInlineViewer(t *testing.T) {
 	}
 	// Esc closes the viewer — markdown_overlay emits ExitMsg via cmd,
 	// drain so the worktime root sees it and routes back into history.
-	m, cmd2 := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, cmd2 := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	m = drainCmd(t, m, cmd2)
-	out = m.View()
+	out = m.View().Content
 	if strings.Contains(out, "Note · "+preID) {
 		t.Errorf("Esc should close the viewer, got:\n%s", out)
 	}
@@ -115,12 +115,12 @@ func TestHistory_DrillO_NoAttached_ShowsToast(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// No attach happened — press o.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "o"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	if strings.Contains(out, "Note ·") {
 		t.Errorf("o-key without attached should NOT open viewer, got:\n%s", out)
 	}
@@ -141,10 +141,10 @@ func TestHistory_DrillCapO_OpensExternalEditor(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// Press O (uppercase) — fires NoteOpener.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "O"})
 	_ = drainCmd(t, m, cmd)
 	if len(r.noteLauncher.Calls) != 1 {
 		t.Fatalf("NoteOpener should be called once, got %d calls: %+v",
@@ -168,14 +168,14 @@ func TestHistory_DrillR_DetachesFirstAttachedNote(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	// Chip ist sichtbar.
-	if !strings.Contains(m.View(), preID) {
-		t.Fatalf("pre-condition: chip should show preID, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, preID) {
+		t.Fatalf("pre-condition: chip should show preID, got:\n%s", m.View().Content)
 	}
 	// Press R — detach.
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "R"})
 	m = drainCmd(t, m, cmd)
 	// LinkStore leer für wed.
 	if ids := r.links.ByDate[wed.Format("2006-01-02")]; len(ids) != 0 {
@@ -183,12 +183,12 @@ func TestHistory_DrillR_DetachesFirstAttachedNote(t *testing.T) {
 	}
 	// Chip-Marker (●) verschwindet — die preID ist u.U. noch im Toast,
 	// deshalb matchen wir den Chip-spezifischen Prefix statt nur die ID.
-	if strings.Contains(m.View(), "●  "+preID) {
-		t.Errorf("chip line should disappear after R, got:\n%s", m.View())
+	if strings.Contains(m.View().Content, "●  "+preID) {
+		t.Errorf("chip line should disappear after R, got:\n%s", m.View().Content)
 	}
 	// Toast erscheint kurz im drillToast-Slot.
-	if !strings.Contains(m.View(), "entfernt") {
-		t.Errorf("toast should confirm »entfernt«, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "entfernt") {
+		t.Errorf("toast should confirm »entfernt«, got:\n%s", m.View().Content)
 	}
 }
 
@@ -212,7 +212,7 @@ func TestHistory_List_ShowsAttachedNotesMarker(t *testing.T) {
 		t.Fatalf("seed wed-b: %v", err)
 	}
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	// Mon: 1 Note → ● (kein Count).
 	monLine := lineContaining(t, out, mon.Format("02.01.06"))
 	if !strings.Contains(monLine, "●") || strings.Contains(monLine, "● 2") {
@@ -248,10 +248,10 @@ func TestHistory_Heatmap_StatusShowsAttachedNotesMarker(t *testing.T) {
 	}
 	m := loadedHistory(t, r)
 	// `v` von Liste → Heatmap.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
 	// Cursor steht initial auf der jüngsten Session (wed) — siehe
 	// handleListKey "v" branch der den heatCol/heatRow vorbelegt.
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "● 2") {
 		t.Errorf("Heatmap-Status sollte »● 2« zeigen, got:\n%s", out)
 	}
@@ -274,9 +274,9 @@ func TestHistory_Month_StatusShowsAttachedNotesMarker(t *testing.T) {
 	m := loadedHistory(t, r)
 	// Liste → Heatmap → TagClock → Monat (3× v).
 	for i := 0; i < 3; i++ {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+		m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
 	}
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "●") {
 		t.Errorf("Monats-Cursor-Status sollte ●-Marker zeigen wenn Notes da sind, got:\n%s", out)
 	}
@@ -302,11 +302,11 @@ func TestHistory_DrillR_NoAttached_ShowsToast(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "R"})
 	m = drainCmd(t, m, cmd)
-	if !strings.Contains(m.View(), "Keine Notiz") {
-		t.Errorf("R without attached should toast »Keine Notiz«, got:\n%s", m.View())
+	if !strings.Contains(m.View().Content, "Keine Notiz") {
+		t.Errorf("R without attached should toast »Keine Notiz«, got:\n%s", m.View().Content)
 	}
 }

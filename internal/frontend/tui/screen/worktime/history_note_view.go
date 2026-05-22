@@ -20,7 +20,7 @@ package worktime
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 )
@@ -70,7 +70,7 @@ func (h history) openDrillNoteView() (tea.Model, tea.Cmd) {
 // Overlay konsumiert q/esc/b als Close-Keys und emittiert ExitMsg,
 // der vom Outer-Update-Switch in history.go aufgefangen wird —
 // dieser Handler muss den ExitMsg-Pfad NICHT selbst behandeln.
-func (h history) handleDrillNoteViewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillNoteViewKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if h.drillNoteView == nil {
 		h.dialog = historyDialogDrill
 		return h, nil

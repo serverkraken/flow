@@ -12,13 +12,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 )
 
 // View renders the current model as a string.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.quitting {
 		return ""
 	}

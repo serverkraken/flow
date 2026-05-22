@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
@@ -139,7 +139,7 @@ func (w woche) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return w, w.loadCmd()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return w.handleKey(msg)
 	}
 	return w, nil
@@ -172,7 +172,7 @@ func (w *woche) clampCursor() {
 	}
 }
 
-func (w woche) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (w woche) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	total := len(w.week)
 	switch msg.String() {
 	case "j", "down":
@@ -195,7 +195,9 @@ func (w woche) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // — render —
 
-func (w woche) View() string {
+func (w woche) View() tea.View { return tea.NewView(w.viewContent()) }
+
+func (w woche) viewContent() string {
 	if w.width == 0 {
 		return ""
 	}

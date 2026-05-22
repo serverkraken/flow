@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -95,7 +95,7 @@ type landEvent struct {
 
 // handleKey routes a key into the picker. Esc cancels; j/k/Up/Down
 // navigate; g/G jump to first/last; Enter picks the focused row.
-func (lp landPicker) handleKey(msg tea.KeyMsg) (landPicker, landEvent) {
+func (lp landPicker) handleKey(msg tea.KeyPressMsg) (landPicker, landEvent) {
 	switch msg.String() {
 	case "esc":
 		return lp, landEvent{canceled: true}

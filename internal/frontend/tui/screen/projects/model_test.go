@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/projects"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -55,7 +55,7 @@ func runUntilLoaded(t *testing.T, m projects.Model) tea.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	f := newFixture()
-	if got := f.model().View(); got != "" {
+	if got := f.model().View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 }
@@ -66,7 +66,7 @@ func TestInit_LoadsAndAnnotatesSessions(t *testing.T) {
 		domain.Project{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(out, "alpha") || !strings.Contains(out, "existing") {
 		t.Errorf("View should list both projects, got:\n%s", out)
 	}
@@ -84,7 +84,7 @@ func TestInit_LoadError_DisplaysMessage(t *testing.T) {
 	f := newFixture()
 	f.scanner.err = errors.New("scan failed")
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View(); !strings.Contains(got, "scan failed") {
+	if got := updated.View().Content; !strings.Contains(got, "scan failed") {
 		t.Errorf("View should surface load error, got:\n%s", got)
 	}
 }
@@ -92,7 +92,7 @@ func TestInit_LoadError_DisplaysMessage(t *testing.T) {
 func TestEmpty_AfterLoad_ShowsHelp(t *testing.T) {
 	f := newFixture()
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View(); !strings.Contains(got, "$SOURCECODE_ROOT prüfen") {
+	if got := updated.View().Content; !strings.Contains(got, "$SOURCECODE_ROOT prüfen") {
 		t.Errorf("empty View should hint at $SOURCECODE_ROOT, got:\n%s", got)
 	}
 }
@@ -102,7 +102,7 @@ func TestEnter_SwitchesToProject(t *testing.T) {
 		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("enter should produce a tea.Cmd")
 	}
@@ -131,11 +131,11 @@ func TestSlashFiltersFuzzily(t *testing.T) {
 		domain.Project{Name: "beta", Path: "/x/beta"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
 	for _, r := range "alp" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := updated.View()
+	out := updated.View().Content
 	if !strings.Contains(out, "alpha-service") {
 		t.Errorf("filter should keep alpha-service, got:\n%s", out)
 	}

@@ -3,14 +3,13 @@ package theme_test
 import (
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-// hex extracts the underlying string from a lipgloss.Color so the
-// contrast assertions can read it (Color is `type Color string` after
-// the P4 closure; ContrastRatio takes raw hex strings).
-func hex(c lipgloss.Color) string { return string(c) }
+// hex extracts the underlying string from a theme.Color so the
+// contrast assertions can read it (Color is `type Color string`; the
+// ContrastRatio helper takes raw hex strings).
+func hex(c theme.Color) string { return string(c) }
 
 // TestPalettesPassWCAG_AA enforces A11y-1 from docs/design-system-audit.md:
 // a palette doesn't ship unless every text/glyph-on-surface pair meets the

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
@@ -31,13 +31,13 @@ func (s *fakeScreen) Init() tea.Cmd {
 }
 
 func (s *fakeScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if k, ok := msg.(tea.KeyMsg); ok {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
 		s.keys = append(s.keys, k.String())
 	}
 	return s, nil
 }
 
-func (s *fakeScreen) View() string { return s.name + ":view" }
+func (s *fakeScreen) View() tea.View { return tea.NewView(s.name + ":view") }
 
 func (s *fakeScreen) FilterActive() bool  { return s.filterActive }
 func (s *fakeScreen) StateFilter() string { return s.filter }
@@ -74,27 +74,27 @@ func newDeps() (sidekick.Deps, *fakeScreen, *fakeScreen, *fakeScreen, *fakeScree
 	}, pal, pr, wt, ch, nt
 }
 
-func keyMsg(s string) tea.KeyMsg {
+func keyMsg(s string) tea.KeyPressMsg {
 	if len(s) == 1 {
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune(s[0])}}
+		return tea.KeyPressMsg{Text: string(rune(s[0]))}
 	}
 	switch s {
 	case "ctrl+c":
-		return tea.KeyMsg{Type: tea.KeyCtrlC}
+		return tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	case "esc":
-		return tea.KeyMsg{Type: tea.KeyEsc}
+		return tea.KeyPressMsg{Code: tea.KeyEsc}
 	case "?":
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'?'}}
+		return tea.KeyPressMsg{Text: "?"}
 	}
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+	return tea.KeyPressMsg{Text: s}
 }
 
 func TestNew_DefaultsToPalette(t *testing.T) {
 	t.Parallel()
 	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
-	if !strings.Contains(m.View(), "palette:view") {
-		t.Errorf("View() = %q, want palette screen", m.View())
+	if !strings.Contains(m.View().Content, "palette:view") {
+		t.Errorf("View() = %q, want palette screen", m.View().Content)
 	}
 }
 
@@ -102,8 +102,8 @@ func TestNew_RestoresActiveScreenFromState(t *testing.T) {
 	t.Parallel()
 	deps, _, _, wt, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
-	if !strings.Contains(m.View(), "worktime:view") {
-		t.Errorf("View() = %q, want worktime active", m.View())
+	if !strings.Contains(m.View().Content, "worktime:view") {
+		t.Errorf("View() = %q, want worktime active", m.View().Content)
 	}
 	_ = wt
 }
@@ -168,8 +168,8 @@ func TestUpdate_TabKeys_SwitchScreens(t *testing.T) {
 	for _, tc := range cases {
 		updated, _ := m.Update(keyMsg(tc.key))
 		m = updated.(sidekick.Model)
-		if !strings.Contains(m.View(), tc.want) {
-			t.Errorf("after %q: View() = %q, want %q", tc.key, m.View(), tc.want)
+		if !strings.Contains(m.View().Content, tc.want) {
+			t.Errorf("after %q: View() = %q, want %q", tc.key, m.View().Content, tc.want)
 		}
 	}
 }
@@ -178,8 +178,8 @@ func TestNew_RestoresNotesScreen(t *testing.T) {
 	t.Parallel()
 	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenNotes}, deps)
-	if !strings.Contains(m.View(), "notes:view") {
-		t.Errorf("View() = %q, want notes active", m.View())
+	if !strings.Contains(m.View().Content, "notes:view") {
+		t.Errorf("View() = %q, want notes active", m.View().Content)
 	}
 	got := m.CurrentState()
 	if got.Screen != domain.ScreenNotes {
@@ -193,8 +193,8 @@ func TestUpdate_BJumpsToPaletteByDefault(t *testing.T) {
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(keyMsg("b"))
 	m = updated.(sidekick.Model)
-	if !strings.Contains(m.View(), "palette:view") {
-		t.Errorf("after b: View() = %q, want palette", m.View())
+	if !strings.Contains(m.View().Content, "palette:view") {
+		t.Errorf("after b: View() = %q, want palette", m.View().Content)
 	}
 }
 
@@ -211,8 +211,8 @@ func TestUpdate_BConsumedByBackHandler(t *testing.T) {
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(keyMsg("b"))
 	m = updated.(sidekick.Model)
-	if !strings.Contains(m.View(), "worktime:view") {
-		t.Errorf("backHandler should have kept worktime active; View() = %q", m.View())
+	if !strings.Contains(m.View().Content, "worktime:view") {
+		t.Errorf("backHandler should have kept worktime active; View() = %q", m.View().Content)
 	}
 	if len(wt.keys) == 0 || wt.keys[len(wt.keys)-1] != "b" {
 		t.Errorf("worktime did not receive b key; got %v", wt.keys)
@@ -234,8 +234,8 @@ func TestUpdate_FilterActive_RoutesKeysToScreen(t *testing.T) {
 	// filter is on — the key must reach palette and the screen must stay.
 	updated, _ := m.Update(keyMsg("w"))
 	m = updated.(sidekick.Model)
-	if !strings.Contains(m.View(), "palette:view") {
-		t.Errorf("filter-active palette should not have lost focus; View() = %q", m.View())
+	if !strings.Contains(m.View().Content, "palette:view") {
+		t.Errorf("filter-active palette should not have lost focus; View() = %q", m.View().Content)
 	}
 	if len(pal.keys) == 0 || pal.keys[len(pal.keys)-1] != "w" {
 		t.Errorf("palette did not receive w; got %v", pal.keys)
@@ -250,12 +250,12 @@ func TestUpdate_HelpToggle(t *testing.T) {
 	m = updated.(sidekick.Model)
 	updated, _ = m.Update(keyMsg("?"))
 	m = updated.(sidekick.Model)
-	if !strings.Contains(m.View(), "Hilfe") {
-		t.Errorf("after ?: View() should contain Hilfe; got %q", m.View())
+	if !strings.Contains(m.View().Content, "Hilfe") {
+		t.Errorf("after ?: View() should contain Hilfe; got %q", m.View().Content)
 	}
 	updated, _ = m.Update(keyMsg("p"))
 	m = updated.(sidekick.Model)
-	if strings.Contains(m.View(), "Hilfe") {
+	if strings.Contains(m.View().Content, "Hilfe") {
 		t.Errorf("after dismiss key: help still showing")
 	}
 }
@@ -264,7 +264,7 @@ func TestUpdate_QuitKeys(t *testing.T) {
 	t.Parallel()
 	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
-	for _, k := range []tea.KeyMsg{keyMsg("q"), {Type: tea.KeyCtrlC}} {
+	for _, k := range []tea.KeyPressMsg{keyMsg("q"), {Code: 'c', Mod: tea.ModCtrl}} {
 		_, cmd := m.Update(k)
 		if cmd == nil {
 			t.Errorf("%v: expected quit cmd, got nil", k)
@@ -307,7 +307,7 @@ func TestUpdate_AsyncMsg_FansOut(t *testing.T) {
 	// fakeScreen only records keys; assert the screens stayed alive
 	// after the fan-out (no panic, View still works).
 	for _, s := range []*fakeScreen{pal, pr, wt, ch} {
-		if s.View() == "" {
+		if s.View().Content == "" {
 			t.Errorf("%s broken after async fan-out", s.name)
 		}
 	}
@@ -337,9 +337,9 @@ func TestUpdate_SwitchScreenMsg_SwitchesActiveScreen(t *testing.T) {
 				t.Errorf("SwitchScreenMsg should produce no follow-up cmd, got %v", cmd)
 			}
 			m = updated.(sidekick.Model)
-			if !strings.Contains(m.View(), tc.want) {
+			if !strings.Contains(m.View().Content, tc.want) {
 				t.Errorf("after SwitchScreenMsg(%q): View() = %q, want %q",
-					tc.screen, m.View(), tc.want)
+					tc.screen, m.View().Content, tc.want)
 			}
 		})
 	}
@@ -351,10 +351,10 @@ func TestUpdate_SwitchScreenMsg_UnknownIsNoop(t *testing.T) {
 	t.Parallel()
 	deps, _, _, _, _, _ := newDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
-	before := m.View()
+	before := m.View().Content
 	updated, _ := m.Update(palette.SwitchScreenMsg{Screen: "nonexistent"})
-	if updated.View() != before {
+	if updated.View().Content != before {
 		t.Errorf("unknown screen should be a no-op; before=%q after=%q",
-			before, updated.View())
+			before, updated.View().Content)
 	}
 }

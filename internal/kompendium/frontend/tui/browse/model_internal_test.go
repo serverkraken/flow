@@ -50,8 +50,8 @@ func TestEditFinishedMsg_Error_StoredAndShownInView(t *testing.T) {
 	}
 	// Force loaded so View renders; otherwise it short-circuits to „lädt…".
 	pm.loaded = true
-	if !contains(pm.View(), "Fehler beim Bearbeiten") {
-		t.Errorf("editErr should surface in View, got:\n%s", pm.View())
+	if !contains(pm.View().Content, "Fehler beim Bearbeiten") {
+		t.Errorf("editErr should surface in View, got:\n%s", pm.View().Content)
 	}
 }
 

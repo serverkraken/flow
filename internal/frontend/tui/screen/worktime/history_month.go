@@ -6,10 +6,11 @@ package worktime
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -139,7 +140,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 
 	sem := h.pal.Sem()
 	glyph := glyphs.BulletDot
-	var color lipgloss.TerminalColor = h.pal.BgCode
+	var color color.Color = h.pal.BgCode
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)

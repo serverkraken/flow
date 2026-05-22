@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
@@ -51,11 +51,11 @@ type correctEvent struct {
 // against domain.ParseHM, anchors the duration on today's date and
 // returns submitted=true with the resolved time.Time. Other keys go
 // through the underlying textinput.
-func (c correctForm) handleKey(msg tea.KeyMsg, today time.Time) (correctForm, tea.Cmd, correctEvent) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (c correctForm) handleKey(msg tea.KeyPressMsg, today time.Time) (correctForm, tea.Cmd, correctEvent) {
+	switch msg.String() {
+	case "esc":
 		return c, nil, correctEvent{canceled: true}
-	case tea.KeyEnter:
+	case "enter":
 		v := strings.TrimSpace(c.input.Value())
 		if v == "" {
 			c.errMsg = "Zeit darf nicht leer sein"

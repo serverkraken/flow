@@ -1,7 +1,5 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
-
 // Semantic is the consumer-facing view of a Palette: aliases that name
 // the *role* a color plays, not the hue. Components read Semantic, not
 // the raw hues — so a palette swap shifts the whole UI in lockstep
@@ -11,18 +9,18 @@ import "github.com/charmbracelet/lipgloss"
 // Yellow directly; if a future palette redefines "warning" as orange,
 // the confirm dialog follows automatically.
 type Semantic struct {
-	Accent       lipgloss.Color // primary interactive accent
-	Active       lipgloss.Color // currently running / live thing
-	Success      lipgloss.Color
-	Warning      lipgloss.Color // mild approaching state (Endspurt-class)
-	Notice       lipgloss.Color // softer than Danger, firmer than Warning — off-pattern but not alarming (Krank-class)
-	Danger       lipgloss.Color
-	Info         lipgloss.Color // informative without action
-	Schedule     lipgloss.Color // fixed scheduled marker — calendar event, day-off Feiertag-class
-	Highlight    lipgloss.Color // attention-grabbing, non-actionable mark (also: Urlaub-identity)
-	Border       lipgloss.Color // panel border / horizontal rule / dim separator
-	BorderSubtle lipgloss.Color // selection-row tint, lighter than Border
-	BorderStrong lipgloss.Color // load-bearing border (modal, focused panel)
+	Accent       Color // primary interactive accent
+	Active       Color // currently running / live thing
+	Success      Color
+	Warning      Color // mild approaching state (Endspurt-class)
+	Notice       Color // softer than Danger, firmer than Warning — off-pattern but not alarming (Krank-class)
+	Danger       Color
+	Info         Color // informative without action
+	Schedule     Color // fixed scheduled marker — calendar event, day-off Feiertag-class
+	Highlight    Color // attention-grabbing, non-actionable mark (also: Urlaub-identity)
+	Border       Color // panel border / horizontal rule / dim separator
+	BorderSubtle Color // selection-row tint, lighter than Border
+	BorderStrong Color // load-bearing border (modal, focused panel)
 }
 
 // Sem returns the semantic alias view of p. The mapping is fixed across

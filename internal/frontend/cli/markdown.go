@@ -5,9 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -51,10 +49,11 @@ func newMarkdownViewCmd() *cobra.Command {
 				// Bypass the TUI: render the markdown to ANSI text and
 				// write straight to stdout. Useful for diagnostics
 				// (`flow markdown view --raw -w 100 f.md | xxd`) and for
-				// piping into pagers / less. Force truecolor so SGRs
-				// emit even though stdout is a pipe (lipgloss otherwise
-				// detects Ascii and strips every colour code).
-				lipgloss.SetColorProfile(termenv.TrueColor)
+				// piping into pagers / less. Under lipgloss v2,
+				// Style.Render() unconditionally emits TrueColor SGR
+				// sequences regardless of stdout being a pipe, so no
+				// profile override is needed; NO_COLOR is still honoured
+				// inside markdown.Render via post-process strip.
 				out, rerr := markdown.Render(string(source), rawWidth)
 				if rerr != nil {
 					return fmt.Errorf("render: %w", rerr)
@@ -74,7 +73,7 @@ func newMarkdownViewCmd() *cobra.Command {
 				markdown_overlay.WithCodeCopy(),
 			)
 			prog := tea.NewProgram(markdownViewerProgram{inner: m},
-				tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+				tea.WithContext(cmd.Context()))
 			_, err = prog.Run()
 			return err
 		},
@@ -105,4 +104,8 @@ func (p markdownViewerProgram) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return p, cmd
 }
 
-func (p markdownViewerProgram) View() string { return p.inner.View() }
+func (p markdownViewerProgram) View() tea.View {
+	v := tea.NewView(p.inner.View())
+	v.AltScreen = true
+	return v
+}

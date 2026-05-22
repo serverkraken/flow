@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
@@ -29,9 +29,7 @@ func TestUpdate_MouseMsgFallsThroughToViewport(t *testing.T) {
 	// A non-key msg shape — wheel down. The overlay must not return an
 	// error and must hand the msg to the viewport (Update returns the
 	// viewport's cmd or nil; either is fine for this lock-in).
-	updated, _ := m.Update(tea.MouseMsg{
-		Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown,
-	})
+	updated, _ := m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	if updated.CurrentMode() != markdown_overlay.ModeNormal {
 		t.Errorf("MouseMsg must not flip mode, got %v", updated.CurrentMode())
 	}
@@ -47,7 +45,7 @@ func TestNew_HasInitUpdateView(t *testing.T) {
 	if cmd := m.Init(); cmd != nil {
 		t.Errorf("Init: got non-nil cmd, want nil")
 	}
-	updated, cmd := m.Update(tea.KeyMsg{})
+	updated, cmd := m.Update(tea.KeyPressMsg{})
 	if cmd != nil {
 		t.Errorf("Update on empty model: got cmd %v, want nil", cmd)
 	}
@@ -102,12 +100,12 @@ func TestUpdate_CloseKeyEmitsExitMsg(t *testing.T) {
 		markdown_overlay.WithSource("x"),
 	).SetSize(40, 10)
 	for _, key := range []string{"q", "esc", "b"} {
-		var msg tea.KeyMsg
+		var msg tea.KeyPressMsg
 		switch key {
 		case "esc":
-			msg = tea.KeyMsg{Type: tea.KeyEsc}
+			msg = tea.KeyPressMsg{Code: tea.KeyEsc}
 		default:
-			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
+			msg = tea.KeyPressMsg{Text: key}
 		}
 		_, cmd := m.Update(msg)
 		if cmd == nil {
@@ -124,7 +122,7 @@ func TestUpdate_NonCloseKeyDoesNotExit(t *testing.T) {
 		func(s string, _ int) string { return s },
 		markdown_overlay.WithSource("body"),
 	).SetSize(40, 10)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "j"})
 	if cmd != nil {
 		if _, ok := cmd().(markdown_overlay.ExitMsg); ok {
 			t.Error("non-close key emitted ExitMsg")
@@ -138,13 +136,13 @@ func TestWithCloseKeys_OverridesDefault(t *testing.T) {
 		markdown_overlay.WithSource("x"),
 		markdown_overlay.WithCloseKeys("x"),
 	).SetSize(40, 10)
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
 	if cmd != nil {
 		if _, ok := cmd().(markdown_overlay.ExitMsg); ok {
 			t.Error("q exited despite custom CloseKeys=[x]")
 		}
 	}
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	_, cmd = m.Update(tea.KeyPressMsg{Text: "x"})
 	if cmd == nil {
 		t.Fatal("x expected to emit ExitMsg with custom CloseKeys")
 	}
@@ -158,7 +156,7 @@ func TestSearch_DisabledByDefault(t *testing.T) {
 		func(s string, _ int) string { return s },
 		markdown_overlay.WithSource("x"),
 	).SetSize(40, 10)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	if m.CurrentMode() != markdown_overlay.ModeNormal {
 		t.Errorf("/ activated search without WithSearch(); mode=%v", m.CurrentMode())
 	}
@@ -173,14 +171,14 @@ func TestSearch_EnabledFindsMatches(t *testing.T) {
 		markdown_overlay.WithSource("ignored"),
 		markdown_overlay.WithSearch(),
 	).SetSize(60, 12)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	if m.CurrentMode() != markdown_overlay.ModeSearch {
 		t.Fatalf("expected ModeSearch after /, got %v", m.CurrentMode())
 	}
 	for _, r := range "foo" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if got := m.Query(); got != "foo" {
 		t.Errorf("query: got %q, want %q", got, "foo")
 	}
@@ -198,11 +196,11 @@ func TestSearch_EscCancelsWithoutApplying(t *testing.T) {
 		markdown_overlay.WithSource("x"),
 		markdown_overlay.WithSearch(),
 	).SetSize(60, 12)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	for _, r := range "foo" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if got := m.Query(); got != "" {
 		t.Errorf("Esc applied query %q; expected empty", got)
 	}
@@ -218,19 +216,19 @@ func TestSearch_CycleMatchesWithNandShiftN(t *testing.T) {
 		markdown_overlay.WithSearch(),
 	).SetSize(60, 12)
 	// open / type foo / enter
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	for _, r := range "foo" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if got := m.MatchIndex(); got != 0 {
 		t.Errorf("initial MatchIndex: got %d, want 0", got)
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "n"})
 	if got := m.MatchIndex(); got != 1 {
 		t.Errorf("after n: got %d, want 1", got)
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "N"})
 	if got := m.MatchIndex(); got != 0 {
 		t.Errorf("after N: got %d, want 0", got)
 	}
@@ -242,7 +240,7 @@ func TestCodeCopy_DisabledByDefault(t *testing.T) {
 		func(s string, _ int) string { return s },
 		markdown_overlay.WithSource(body),
 	).SetSize(40, 10)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "c"})
 	if m.CopyStatus() != "" {
 		t.Errorf("c without WithCodeCopy should not set status; got %q", m.CopyStatus())
 	}
@@ -255,11 +253,11 @@ func TestCodeCopy_EnabledCyclesSnippets(t *testing.T) {
 		markdown_overlay.WithSource(body),
 		markdown_overlay.WithCodeCopy(),
 	).SetSize(60, 12)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "c"})
 	if !strings.Contains(m.CopyStatus(), "1/2") {
 		t.Errorf("first c: got status %q, want contains 1/2", m.CopyStatus())
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "c"})
 	if !strings.Contains(m.CopyStatus(), "2/2") {
 		t.Errorf("second c: got status %q, want contains 2/2", m.CopyStatus())
 	}
@@ -328,11 +326,11 @@ func TestUpdate_TopBottomKeysJumpViewport(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name  string
-		key   tea.KeyMsg
+		key   tea.KeyPressMsg
 		wants string
 	}{
-		{"G runes", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}}, "BOTMARK"},
-		{"end key", tea.KeyMsg{Type: tea.KeyEnd}, "BOTMARK"},
+		{"G runes", tea.KeyPressMsg{Text: "G"}, "BOTMARK"},
+		{"end key", tea.KeyPressMsg{Code: tea.KeyEnd}, "BOTMARK"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := mk(t)
@@ -350,14 +348,14 @@ func TestUpdate_TopBottomKeysJumpViewport(t *testing.T) {
 	// After Bottom, g/home jumps back to TOPMARK.
 	for _, tc := range []struct {
 		name string
-		key  tea.KeyMsg
+		key  tea.KeyPressMsg
 	}{
-		{"g runes", tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}}},
-		{"home key", tea.KeyMsg{Type: tea.KeyHome}},
+		{"g runes", tea.KeyPressMsg{Text: "g"}},
+		{"home key", tea.KeyPressMsg{Code: tea.KeyHome}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := mk(t)
-			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+			m, _ = m.Update(tea.KeyPressMsg{Text: "G"})
 			m, _ = m.Update(tc.key)
 			out := ansi.Strip(m.View())
 			if !strings.Contains(out, "TOPMARK") {

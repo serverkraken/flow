@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/serverkraken/flow/internal/frontend/cli"
@@ -27,7 +27,7 @@ type stubModel struct{}
 
 func (stubModel) Init() tea.Cmd                       { return nil }
 func (stubModel) Update(tea.Msg) (tea.Model, tea.Cmd) { return stubModel{}, nil }
-func (stubModel) View() string                        { return "" }
+func (stubModel) View() tea.View                      { return tea.NewView("") }
 
 func runStandaloneCancelled(t *testing.T, cmd *cobra.Command, args []string) {
 	t.Helper()

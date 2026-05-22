@@ -8,10 +8,12 @@ package worktime
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
@@ -20,7 +22,9 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
-func (h heute) View() string {
+func (h heute) View() tea.View { return tea.NewView(h.viewContent()) }
+
+func (h heute) viewContent() string {
 	if h.width == 0 {
 		return ""
 	}
@@ -275,7 +279,7 @@ func (h heute) footerHints() []string {
 // Damit identisches Active=Cyan auf Heute-Headline, Week-Pace-Strip
 // und tmux-Pace-Dot — die gleiche laufende Session liest sich überall
 // gleich.
-func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, lipgloss.TerminalColor) {
+func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, color.Color) {
 	sem := p.Sem()
 	switch {
 	case running && achieved:
@@ -291,7 +295,7 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 // totalThresholdColor picks the today-total foreground based on running
 // state and target progress. Red is reserved for "really a lot" so a
 // normal hour of overtime doesn't look like an alarm.
-func totalThresholdColor(p theme.Palette, total, target time.Duration, running bool) lipgloss.TerminalColor {
+func totalThresholdColor(p theme.Palette, total, target time.Duration, running bool) color.Color {
 	sem := p.Sem()
 	switch {
 	case total >= target+4*time.Hour:

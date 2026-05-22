@@ -1,9 +1,9 @@
 package worktime
 
 import (
+	"image/color"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -31,7 +31,7 @@ func TestTodayStatusBadge(t *testing.T) {
 		achieved  bool
 		wantGlyph string
 		wantLabel string
-		wantColor lipgloss.TerminalColor
+		wantColor color.Color
 	}{
 		{"running not achieved", true, false, glyphs.Active, "läuft", sem.Active},
 		{"running achieved", true, true, glyphs.Active, "läuft " + glyphs.Done, sem.Success},

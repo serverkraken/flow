@@ -10,6 +10,7 @@ package markdown
 import (
 	"strconv"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -144,10 +145,15 @@ func (r *nodeRenderer) styleWikiLink(display, uri string, valid bool) string {
 // that already verified the link is broken don't need to special-
 // case here. The id parameter lets terminals join multi-line wraps
 // of the same link into one click target.
+//
+// Implementation routes through charmbracelet/x/ansi (the same
+// package lipgloss v2 and bubbletea v2 use internally) so the
+// emitted byte sequence stays in lockstep with the rest of the v2
+// stack; the previous hand-rolled `\x1b]8;…\x07` string was a single
+// point that could drift if the upstream OSC 8 format ever changed.
 func osc8Wrap(uri string, id int, text string) string {
 	if uri == "" {
 		return text
 	}
-	open := "\x1b]8;id=" + strconv.Itoa(id) + ";" + uri + "\x07"
-	return open + text + "\x1b]8;;\x07"
+	return ansi.SetHyperlink(uri, "id="+strconv.Itoa(id)) + text + ansi.ResetHyperlink()
 }

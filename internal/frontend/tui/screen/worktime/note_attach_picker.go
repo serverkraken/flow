@@ -32,8 +32,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -128,7 +128,7 @@ func (p noteAttachPicker) HintLine() string {
 // Update routes one KeyMsg into the picker. Returns the updated picker,
 // any tea.Cmd produced (textinput.Blink etc.), and an action verdict
 // for the host (Idle / Submit / Cancel).
-func (p noteAttachPicker) Update(msg tea.KeyMsg) (noteAttachPicker, tea.Cmd, noteAttachAction) {
+func (p noteAttachPicker) Update(msg tea.KeyPressMsg) (noteAttachPicker, tea.Cmd, noteAttachAction) {
 	// Picker-list navigation claims up/down when there are suggestions.
 	// Without the guard, up/down would fall to textinput's no-op (single-
 	// line input) and the picker cursor wouldn't move.
@@ -146,12 +146,12 @@ func (p noteAttachPicker) Update(msg tea.KeyMsg) (noteAttachPicker, tea.Cmd, not
 			return p, nil, noteAttachActionIdle
 		}
 	}
-	switch msg.Type {
-	case tea.KeyEsc:
+	switch msg.String() {
+	case "esc":
 		return p, nil, noteAttachActionCancel
-	case tea.KeyEnter:
+	case "enter":
 		return p, nil, noteAttachActionSubmit
-	case tea.KeyTab, tea.KeyShiftTab:
+	case "tab", "shift+tab":
 		// Single-input dialog — nothing to tab to. Swallow so bubbles
 		// textinput doesn't insert a literal tab character that would
 		// otherwise survive into the typed ID.

@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
 	"github.com/serverkraken/flow/internal/adapter/dayoffstsv"
 	"github.com/serverkraken/flow/internal/adapter/editor"

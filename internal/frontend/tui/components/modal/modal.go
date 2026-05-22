@@ -15,7 +15,7 @@
 package modal
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -67,7 +67,7 @@ func Render(content string, opts Opts, p theme.Palette) string {
 }
 
 // borderColor picks the semantic border color for a modal kind.
-func borderColor(k Kind, p theme.Palette) lipgloss.Color {
+func borderColor(k Kind, p theme.Palette) theme.Color {
 	sem := p.Sem()
 	switch k {
 	case KindDanger:

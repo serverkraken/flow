@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -20,7 +20,7 @@ func newModel(t *testing.T, content string, renderErr error) cheatsheet.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	m := newModel(t, "# hi", nil)
-	if got := m.View(); got != "" {
+	if got := m.View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 	if m.FilterActive() || m.StateFilter() != "" || m.StateCursor() != 0 {
@@ -37,7 +37,7 @@ func TestInit_LoadsViaPort(t *testing.T) {
 	msg := cmd()
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	updated, _ = updated.Update(msg)
-	if got := updated.View(); !strings.Contains(got, "[r] # Cheatsheet") {
+	if got := updated.View().Content; !strings.Contains(got, "[r] # Cheatsheet") {
 		t.Errorf("View should contain renderer-prefixed content, got:\n%s", got)
 	}
 }
@@ -49,7 +49,7 @@ func TestInit_LoadError_DisplaysFehler(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	cmd := m.Init()
 	updated, _ = updated.Update(cmd())
-	if got := updated.View(); !strings.Contains(got, "Fehler: boom") {
+	if got := updated.View().Content; !strings.Contains(got, "Fehler: boom") {
 		t.Errorf("View should surface load error, got:\n%s", got)
 	}
 }
@@ -59,7 +59,7 @@ func TestRendererErrorFallsBackToRaw(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	cmd := m.Init()
 	updated, _ = updated.Update(cmd())
-	if got := updated.View(); !strings.Contains(got, "raw content") {
+	if got := updated.View().Content; !strings.Contains(got, "raw content") {
 		t.Errorf("on renderer failure View should show raw content, got:\n%s", got)
 	}
 }
@@ -69,7 +69,7 @@ func TestView_NonPanicSmoke(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	cmd := m.Init()
 	updated, _ = updated.Update(cmd())
-	out := updated.View()
+	out := updated.View().Content
 	if out == "" {
 		t.Error("View() must produce output once loaded + sized")
 	}

@@ -7,9 +7,9 @@
 package confirm
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -83,7 +83,7 @@ func (m Model) Init() tea.Cmd { return nil }
 
 // Update handles y/Enter (confirm) and n/Esc (deny).
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(msg, m.keys.Confirm):
 			return m, confirmed(true)
@@ -107,7 +107,7 @@ func (m Model) View() string {
 		Render(m.question)
 	var detail string
 	if m.detail != "" {
-		detail = "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Render(m.detail)
+		detail = "\n" + lipgloss.NewStyle().Foreground(m.theme.Fg).Render(m.detail)
 	}
 	// A11y: Default-Action explizit als `[y/Enter]` (bold + bracketed) gegen
 	// die Cancel-Action (dim, ohne Brackets) absetzen. Brackets sind ein
@@ -118,8 +118,8 @@ func (m Model) View() string {
 	// gegenüber strings.HintConfirm (footer-/statusbar-form ohne Brackets).
 	// Beide Wordings sind synchronisiert; Änderungen am DE-Wording müssen
 	// hier UND in components/strings.HintConfirm passieren.
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.FgMuted))
-	primary := lipgloss.NewStyle().Foreground(lipgloss.Color(m.theme.Fg)).Bold(true)
+	dim := lipgloss.NewStyle().Foreground(m.theme.FgMuted)
+	primary := lipgloss.NewStyle().Foreground(m.theme.Fg).Bold(true)
 	hint := primary.Render("[y/Enter] → ja") + dim.Render("  ·  n/Esc → nein")
 	return q + detail + "\n\n" + hint
 }
@@ -128,7 +128,7 @@ func (m Model) View() string {
 // — über den semantischen Alias statt Yellow/Red direkt zuzugreifen,
 // damit ein Palette-Swap, der "Warning" auf einen anderen Hue mapt
 // (z. B. eine High-Contrast-Variante), das Confirm-Modal mitnimmt.
-func (m Model) questionColor() lipgloss.Color {
+func (m Model) questionColor() theme.Color {
 	sem := m.theme.Sem()
 	if m.kind == KindDanger {
 		return sem.Danger

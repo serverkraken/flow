@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -22,8 +20,8 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 	day := time.Date(2026, 5, 4, 0, 0, 0, 0, time.Local) // Mon
 	pal := theme.TokyonightNight
 
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 
 	// Spec 2026-05-13-filled-dayoff-dots-supersede: direct hue mapping.
@@ -65,8 +63,8 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
 	pal := theme.TokyonightNight
 
-	colorSeq := func(c lipgloss.Color) string {
-		return termenv.RGBColor(string(c)).Sequence(false)
+	colorSeq := func(c theme.Color) string {
+		return ansiFG(c)
 	}
 
 	h := history{pal: pal}

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -134,7 +134,7 @@ func drainCmd(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	m := newModel(t)
-	if got := m.View(); got != "" {
+	if got := m.View().Content; got != "" {
 		t.Errorf("View before WindowSizeMsg should be empty, got %q", got)
 	}
 }
@@ -142,7 +142,7 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 func TestView_RendersTabStripAndStub(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	out := updated.View()
+	out := updated.View().Content
 	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("tab strip should contain %q, got:\n%s", label, out)
@@ -169,8 +169,8 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 		{"1", "Heute lädt"},
 	}
 	for _, c := range cases {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(c.key)})
-		if got := updated.View(); !strings.Contains(got, c.want) {
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: c.key})
+		if got := updated.View().Content; !strings.Contains(got, c.want) {
 			t.Errorf("after key %q expected %q in View, got:\n%s", c.key, c.want, got)
 		}
 	}
@@ -181,8 +181,8 @@ func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "Heute lädt"}
 	for _, w := range wants {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
-		if got := updated.View(); !strings.Contains(got, w) {
+		updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		if got := updated.View().Content; !strings.Contains(got, w) {
 			t.Errorf("tab cycle expected %q, got:\n%s", w, got)
 		}
 	}
@@ -197,13 +197,13 @@ func TestTabSwitching_TabCyclesForward(t *testing.T) {
 func TestB_FallsThroughToParentFromAnyTab(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "4"})
 	// 'b' on Frei: Worktime gibt es weiter — sub-model ignoriert es
 	// (kein Frei-Keybind), Tab bleibt auf Frei. Wenn der Key konsumiert
 	// wäre, würde er entweder zur History cyclen oder Worktime-internes
 	// State ändern. Wir asserten daher: View bleibt Frei.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
-	if got := updated.View(); !strings.Contains(got, "Frei") {
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "b"})
+	if got := updated.View().Content; !strings.Contains(got, "Frei") {
 		t.Errorf("b on Frei must NOT cycle tabs (must fall through to parent); got:\n%s", got)
 	}
 }
@@ -217,7 +217,7 @@ func TestHandlesBack_AlwaysFalse(t *testing.T) {
 		t.Error("HandlesBack must be false on Heute")
 	}
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "3"})
 	if hb, ok := updated.(worktime.Model); !ok || hb.HandlesBack() {
 		t.Error("HandlesBack must be false on every tab — `b` is global")
 	}
@@ -256,7 +256,7 @@ func loadedHeute(t *testing.T, r rig) tea.Model {
 func TestHeute_LoadRendersIdleState(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Noch nichts erfasst") {
 		t.Errorf("idle Heute should hint at empty state, got:\n%s", out)
 	}
@@ -270,7 +270,7 @@ func TestHeute_LoadRendersRunningState(t *testing.T) {
 	start := r.clock.T.Add(-30 * time.Minute)
 	r.active.Active = &start
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	for _, want := range []string{"läuft", "▶", start.Format("15:04")} {
 		if !strings.Contains(out, want) {
 			t.Errorf("running Heute should contain %q, got:\n%s", want, out)
@@ -283,7 +283,7 @@ func TestHeute_LoadRendersPausedState(t *testing.T) {
 	pausedAt := r.clock.T.Add(-15 * time.Minute)
 	r.active.Pause = &pausedAt
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "in Pause") {
 		t.Errorf("paused Heute should surface »in Pause«, got:\n%s", out)
 	}
@@ -295,7 +295,7 @@ func TestHeute_LoadRendersPausedState(t *testing.T) {
 func TestHeute_StartKey_StartsSession(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
 	_ = drainCmd(t, updated, cmd)
 	if r.active.Active == nil {
 		t.Fatal("expected active session marker after `s` from idle")
@@ -310,7 +310,7 @@ func TestHeute_StopKey_StopsRunningSession(t *testing.T) {
 	start := r.clock.T.Add(-90 * time.Minute)
 	r.active.Active = &start
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
 	_ = drainCmd(t, updated, cmd)
 	if r.active.Active != nil {
 		t.Error("expected ClearActive after `s` while running")
@@ -331,7 +331,7 @@ func TestHeute_PauseKey_RecordsPauseMarker(t *testing.T) {
 	start := r.clock.T.Add(-45 * time.Minute)
 	r.active.Active = &start
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("p")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "p"})
 	_ = drainCmd(t, updated, cmd)
 	if r.active.Active != nil {
 		t.Error("Pause should clear the active marker")
@@ -349,7 +349,7 @@ func TestHeute_ResumeKey_OnPaused(t *testing.T) {
 	pausedAt := r.clock.T.Add(-15 * time.Minute)
 	r.active.Pause = &pausedAt
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
 	_ = drainCmd(t, updated, cmd)
 	if r.active.Active == nil {
 		t.Fatal("Resume should set Active")
@@ -377,14 +377,14 @@ func TestHeute_TagDialog_SetsTag(t *testing.T) {
 	m := seedSessionAndLoad(t, r, s)
 
 	// Open tag dialog, type "deep", press Enter.
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "t"})
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("tag dialog should set FilterActive=true")
 	}
 	for _, ch := range "deep" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	final := drainCmd(t, updated, cmd)
 	if fa := final.(worktime.Model); fa.FilterActive() {
 		t.Error("dialog should be closed after submit")
@@ -403,11 +403,11 @@ func TestHeute_NoteDialog_SetsNote(t *testing.T) {
 	}
 	m := seedSessionAndLoad(t, r, s)
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("N")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "N"})
 	for _, ch := range "Standup" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if got := r.sessions.Sessions[0].Note; got != "Standup" {
 		t.Errorf("Note = %q, want %q", got, "Standup")
@@ -427,15 +427,15 @@ func TestHeute_DeleteDialog_RequiresExplicitConfirm(t *testing.T) {
 	// confirm.Model bindet y/Enter → ja, n/Esc → nein.
 	//
 	// Esc cancelt den Dialog ohne Löschen.
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "D"})
+	updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if len(r.sessions.Sessions) != 1 {
 		t.Errorf("Esc on delete dialog should cancel, sessions=%d", len(r.sessions.Sessions))
 	}
 
 	// Erneut öffnen, mit Enter bestätigen → Session weg.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "D"})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.sessions.Sessions) != 0 {
 		t.Errorf("Enter on delete dialog should confirm and delete, got %d remaining", len(r.sessions.Sessions))
@@ -450,14 +450,14 @@ func TestHeute_DialogActivatesFilter_GatesTabKeys(t *testing.T) {
 		Elapsed: time.Hour,
 	}
 	m := seedSessionAndLoad(t, r, s)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "t"})
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("FilterActive should be true once the tag dialog is open")
 	}
 	// "2" is the Woche-tab key — but with FilterActive=true it must reach
 	// the textinput, not switch tabs.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	if strings.Contains(updated.View(), "Woche lädt") {
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "2"})
+	if strings.Contains(updated.View().Content, "Woche lädt") {
 		t.Error("`2` while a Heute dialog is open must not switch to Woche")
 	}
 }
@@ -470,8 +470,8 @@ func TestHeute_EscClosesDialog(t *testing.T) {
 		Elapsed: time.Hour,
 	}
 	m := seedSessionAndLoad(t, r, s)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "t"})
+	updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if updated.(worktime.Model).FilterActive() {
 		t.Error("Esc should close the tag dialog")
 	}
@@ -482,14 +482,14 @@ func TestHeute_EscClosesDialog(t *testing.T) {
 func TestHeute_AttachDialog_AddsNoteToLinkStore(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("attach dialog should set FilterActive=true")
 	}
 	for _, ch := range "daily-2026-05-01" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	final := drainCmd(t, updated, cmd)
 	if fa := final.(worktime.Model); fa.FilterActive() {
 		t.Error("dialog should be closed after submit")
@@ -503,9 +503,9 @@ func TestHeute_AttachDialog_AddsNoteToLinkStore(t *testing.T) {
 func TestHeute_AttachDialog_RejectsEmpty(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("n")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	// Submit without typing anything → errMsg, dialog stays open, no link added.
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if !updated.(worktime.Model).FilterActive() {
 		t.Error("dialog should stay open when submission was rejected")
@@ -524,7 +524,7 @@ func TestHeute_AttachedNotes_RenderAsChipLine(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	out := m.View()
+	out := m.View().Content
 	// Spec 2026-05-13-filled-dayoff-dots-supersede: attached-notes marker
 	// switched from "●" (now Vacation-Identität) to "›" (glyphs.Info) so
 	// the chip line doesn't collide with day-off pace dots.
@@ -542,7 +542,7 @@ func TestHeute_OpenKey_OpensIntegratedNoteView(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "o"})
 	updated = drainCmd(t, updated, cmd)
 	// `o` opens the inline note-view dialog (FilterActive=true). The
 	// external NoteLauncher.View path was retired in the glow-migration
@@ -558,7 +558,7 @@ func TestHeute_OpenKey_OpensIntegratedNoteView(t *testing.T) {
 func TestHeute_OpenKey_NoAttachedNotes_IsNoop(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "o"})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.noteLauncher.Calls) != 0 {
 		t.Errorf("`o` with no attached notes must not launch the viewer, got Calls=%v", r.noteLauncher.Calls)
@@ -573,7 +573,7 @@ func TestHeute_OpenUppercase_LaunchesEditor(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "O"})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.noteLauncher.Calls) != 1 || r.noteLauncher.Calls[0] != "open:daily-2026-05-01" {
 		t.Errorf("`O` should call NoteLauncher.Open, got Calls=%v", r.noteLauncher.Calls)
@@ -583,7 +583,7 @@ func TestHeute_OpenUppercase_LaunchesEditor(t *testing.T) {
 func TestHeute_OpenUppercase_NoAttachedNotes_IsNoop(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("O")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "O"})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.noteLauncher.Calls) != 0 {
 		t.Errorf("`O` with no attached notes must not launch the editor, got Calls=%v", r.noteLauncher.Calls)
@@ -601,7 +601,7 @@ func TestHeute_R_DetachesFirstAttachedNote(t *testing.T) {
 	m := loadedHeute(t, r)
 	// `R` (Remove) statt vorherigem Ctrl+D — Ctrl+D ist die Terminal-EOF-
 	// /Process-Kill-Sequenz und las als „destructive" alarmierend.
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "R"})
 	_ = drainCmd(t, updated, cmd)
 	got := r.links.ByDate[r.clock.T.Format("2006-01-02")]
 	if len(got) != 1 || got[0] != "projects/foo-2026-05-01" {
@@ -612,7 +612,7 @@ func TestHeute_R_DetachesFirstAttachedNote(t *testing.T) {
 func TestHeute_R_NoAttachedNotes_IsNoop(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "R"})
 	final := drainCmd(t, updated, cmd)
 	// Sanity: no panic, no link store mutation, no session deletion either
 	// (R must NOT collide with `D`-delete-session).
@@ -627,11 +627,11 @@ func TestHeute_R_NoAttachedNotes_IsNoop(t *testing.T) {
 func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "?"})
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("`?` should open the help overlay (FilterActive=true)")
 	}
-	out := updated.View()
+	out := updated.View().Content
 	// picker.SectionHeader uppercases its title; sniff the upper form.
 	for _, want := range []string{
 		"Heute · Hilfe",
@@ -649,11 +649,11 @@ func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
 func TestHeute_HelpOverlay_AnyKeyCloses(t *testing.T) {
 	r := newRig(t)
 	m := loadedHeute(t, r)
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "?"})
 	// Any key dismisses — pick something that would otherwise have its own
 	// behaviour in normal mode (`s` toggles start/stop) to prove the help
 	// dialog ate the key first.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "s"})
 	if updated.(worktime.Model).FilterActive() {
 		t.Error("any key on help overlay should close it")
 	}
@@ -677,8 +677,8 @@ func TestHeute_DDelete_StillDeletesSessionWhenNotesAttached(t *testing.T) {
 	}
 	m := seedSessionAndLoad(t, r, s)
 
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "D"})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.sessions.Sessions) != 0 {
 		t.Errorf("D + Enter must still delete the focused session, got %d remaining", len(r.sessions.Sessions))
@@ -699,14 +699,14 @@ func loadedWoche(t *testing.T, r rig) tea.Model {
 	t.Helper()
 	updated, _ := r.model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	loaded := drainCmd(t, updated, updated.Init())
-	loaded, _ = loaded.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	loaded, _ = loaded.Update(tea.KeyPressMsg{Text: "2"})
 	return loaded
 }
 
 func TestWoche_LoadRendersWeekHeaderAndDayRows(t *testing.T) {
 	r := newRig(t)
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	// May 1, 2026 is Friday in ISO week 18.
 	if !strings.Contains(out, "KW 18") {
 		t.Errorf("Woche header should contain ISO week, got:\n%s", out)
@@ -726,7 +726,7 @@ func TestWoche_TodayActive_RendersRunningGlyph(t *testing.T) {
 	start := r.clock.T.Add(-30 * time.Minute)
 	r.active.Active = &start
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	// "▶" appears both in pace dots (today active) and the row extra; one
 	// of either presence is enough proof the running state is wired.
 	if !strings.Contains(out, "▶") {
@@ -741,7 +741,7 @@ func TestWoche_DayOff_RendersFeiertagLabel(t *testing.T) {
 		t.Fatalf("seed day-off: %v", err)
 	}
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Feiertag") {
 		t.Errorf("Wednesday should render »Feiertag«, got:\n%s", out)
 	}
@@ -754,12 +754,12 @@ func TestWoche_CursorJK_TracksStateCursor(t *testing.T) {
 	if got := m.(worktime.Model).StateCursor(); got != 0 {
 		t.Errorf("StateCursor before move = %d, want 0", got)
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "j"})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "j"})
 	if got := m.(worktime.Model).StateCursor(); got != 2 {
 		t.Errorf("StateCursor after 2× j = %d, want 2", got)
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("k")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "k"})
 	if got := m.(worktime.Model).StateCursor(); got != 1 {
 		t.Errorf("StateCursor after 2j+1k = %d, want 1", got)
 	}
@@ -770,11 +770,11 @@ func TestWoche_GotoEndsCursor(t *testing.T) {
 	m := loadedWoche(t, r)
 	// G jumps to last row. Empty-sessions week renders Mo–Fr (5 rows) for
 	// the rig's clock (Friday May 1, 2026), so the last index is 4.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("G")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "G"})
 	if got := m.(worktime.Model).StateCursor(); got != 4 {
 		t.Errorf("StateCursor after G = %d, want 4 (Fr)", got)
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "g"})
 	if got := m.(worktime.Model).StateCursor(); got != 0 {
 		t.Errorf("StateCursor after g = %d, want 0", got)
 	}
@@ -784,7 +784,7 @@ func TestWoche_LoadError_RendersErrPath(t *testing.T) {
 	r := newRig(t)
 	r.sessions.Err = errFake("kaputt")
 	m := loadedWoche(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "kaputt") {
 		t.Errorf("Woche should surface the load error, got:\n%s", out)
 	}
@@ -798,7 +798,7 @@ func loadedHistory(t *testing.T, r rig) tea.Model {
 	t.Helper()
 	updated, _ := r.model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	loaded := drainCmd(t, updated, updated.Init())
-	loaded, _ = loaded.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")})
+	loaded, _ = loaded.Update(tea.KeyPressMsg{Text: "3"})
 	return loaded
 }
 
@@ -836,7 +836,7 @@ func TestHistory_LoadRendersListWithKW(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "KW ") {
 		t.Errorf("history list should contain KW header, got:\n%s", out)
 	}
@@ -848,7 +848,7 @@ func TestHistory_LoadRendersListWithKW(t *testing.T) {
 func TestHistory_LoadEmpty_RendersHint(t *testing.T) {
 	r := newRig(t)
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Keine Treffer") {
 		t.Errorf("empty history should hint »Keine Treffer«, got:\n%s", out)
 	}
@@ -870,8 +870,8 @@ func TestHistory_VCyclesModes(t *testing.T) {
 		{"Liste", "KW 18 / 2026"},
 	}
 	for _, want := range steps {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
-		got := m.View()
+		m, _ = m.Update(tea.KeyPressMsg{Text: "v"})
+		got := m.View().Content
 		if !strings.Contains(got, want.anchor) {
 			t.Errorf("v cycle expected %s mode body anchor %q, got:\n%s", want.name, want.anchor, got)
 		}
@@ -883,17 +883,17 @@ func TestHistory_FilterDialog_TogglesFilterActive(t *testing.T) {
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
 	// "/" opens the filter dialog and FilterActive becomes true.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("/ should activate the history filter dialog")
 	}
 	// Tab keys must not switch tabs while a dialog is open.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	if strings.Contains(m.View(), "Woche lädt") {
+	m, _ = m.Update(tea.KeyPressMsg{Text: "2"})
+	if strings.Contains(m.View().Content, "Woche lädt") {
 		t.Error("`2` while filter dialog is open must not switch to Woche")
 	}
 	// Esc closes the dialog.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if m.(worktime.Model).FilterActive() {
 		t.Error("Esc should close the filter dialog")
 	}
@@ -903,15 +903,15 @@ func TestHistory_FilterTag_RendersChip(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	for _, ch := range "tag:deep" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if m.(worktime.Model).FilterActive() {
 		t.Fatal("Enter should commit the filter and close the dialog")
 	}
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "filter:") || !strings.Contains(out, "tag:deep") {
 		t.Errorf("filter chip should appear in header, got:\n%s", out)
 	}
@@ -921,10 +921,10 @@ func TestHistory_HeatmapNavigates(t *testing.T) {
 	r := newRig(t)
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")}) // → heatmap
+	m, _ = m.Update(tea.KeyPressMsg{Text: "v"}) // → heatmap
 	// Move cursor down one row — should still render.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	out := m.View()
+	m, _ = m.Update(tea.KeyPressMsg{Text: "j"})
+	out := m.View().Content
 	if !strings.Contains(out, "█ Ziel") {
 		t.Errorf("heatmap mode expected (legend »█ Ziel«), got:\n%s", out)
 	}
@@ -940,18 +940,18 @@ func TestHistory_DrillOpensAndClosesReadOnly(t *testing.T) {
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
 	// Enter on the focused list row opens the drill.
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("drill should report FilterActive=true so tab keys don't intercept")
 	}
-	out := m.View()
+	out := m.View().Content
 	// picker.SectionHeader uppercases — match against the case it actually renders.
 	if !strings.Contains(strings.ToLower(out), "sessions") || !strings.Contains(out, "→") {
 		t.Errorf("drill view should list day's sessions, got:\n%s", out)
 	}
 	// b dismisses the drill.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("b")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "b"})
 	if m.(worktime.Model).FilterActive() {
 		t.Error("`b` should close the drill")
 	}
@@ -962,13 +962,13 @@ func TestHistory_ResetFilterT(t *testing.T) {
 	seedHistorySessions(r)
 	m := loadedHistory(t, r)
 	// Set a filter, then T resets.
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "/"})
 	for _, ch := range "tag:deep" {
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("T")})
-	out := m.View()
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "T"})
+	out := m.View().Content
 	if strings.Contains(out, "filter: ") {
 		t.Errorf("T should clear filter, got:\n%s", out)
 	}
@@ -978,7 +978,7 @@ func TestHistory_LoadError_RendersErrPath(t *testing.T) {
 	r := newRig(t)
 	r.sessions.Err = errFake("kaputt")
 	m := loadedHistory(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "kaputt") {
 		t.Errorf("History should surface the load error, got:\n%s", out)
 	}
@@ -992,14 +992,14 @@ func loadedFrei(t *testing.T, r rig) tea.Model {
 	t.Helper()
 	updated, _ := r.model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	loaded := drainCmd(t, updated, updated.Init())
-	loaded, _ = loaded.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("4")})
+	loaded, _ = loaded.Update(tea.KeyPressMsg{Text: "4"})
 	return loaded
 }
 
 func TestFrei_LoadEmpty_RendersHint(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	out := m.View()
+	out := m.View().Content
 	if !strings.Contains(out, "Noch keine Daten") {
 		t.Errorf("empty Frei should hint at empty year, got:\n%s", out)
 	}
@@ -1017,7 +1017,7 @@ func TestFrei_LoadEntries_RendersKindAndLabel(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedFrei(t, r)
-	out := m.View()
+	out := m.View().Content
 	for _, want := range []string{"Feiertag", "Tag der Arbeit"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("Frei should render %q, got:\n%s", want, out)
@@ -1032,7 +1032,7 @@ func TestFrei_LoadEntries_RendersKindAndLabel(t *testing.T) {
 func TestFrei_QuickAddA_MarksTodayAsVacation(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("A")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "A"})
 	_ = drainCmd(t, updated, cmd)
 	today := r.clock.T.Format("2006-01-02")
 	entry, ok := r.dayoffs.Entries[today]
@@ -1047,7 +1047,7 @@ func TestFrei_QuickAddA_MarksTodayAsVacation(t *testing.T) {
 func TestFrei_QuickAddK_MarksTodayAsSick(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("K")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "K"})
 	_ = drainCmd(t, updated, cmd)
 	today := r.clock.T.Format("2006-01-02")
 	entry, ok := r.dayoffs.Entries[today]
@@ -1062,15 +1062,15 @@ func TestFrei_QuickAddK_MarksTodayAsSick(t *testing.T) {
 func TestFrei_AddDialog_GatesTabKeys(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	m, _ = m.Update(tea.KeyPressMsg{Text: "a"})
 	if !m.(worktime.Model).FilterActive() {
 		t.Fatal("`a` should activate the add form")
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
-	if strings.Contains(m.View(), "Woche lädt") {
+	m, _ = m.Update(tea.KeyPressMsg{Text: "2"})
+	if strings.Contains(m.View().Content, "Woche lädt") {
 		t.Error("`2` while add dialog is open must not switch to Woche")
 	}
-	m, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if m.(worktime.Model).FilterActive() {
 		t.Error("Esc should close the add dialog")
 	}
@@ -1088,15 +1088,15 @@ func TestFrei_DeleteConfirm_RequiresExplicitConfirm(t *testing.T) {
 
 	// Skill §Keybind grammar: `D` (uppercase) öffnet die destructive Action,
 	// confirm.Model: y/Enter → ja, n/Esc → nein.
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "D"})
+	updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	if len(r.dayoffs.Entries) != 1 {
 		t.Errorf("Esc on delete confirm should cancel, got %d entries", len(r.dayoffs.Entries))
 	}
 
 	// Erneut öffnen, mit Enter bestätigen.
-	updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("D")})
-	updated, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "D"})
+	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.dayoffs.Entries) != 0 {
 		t.Errorf("Enter on delete confirm should delete the entry, got %d remaining", len(r.dayoffs.Entries))
@@ -1106,7 +1106,7 @@ func TestFrei_DeleteConfirm_RequiresExplicitConfirm(t *testing.T) {
 func TestFrei_SyncGermanHolidays_PopulatesEntries(t *testing.T) {
 	r := newRig(t)
 	m := loadedFrei(t, r)
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("B")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "B"})
 	_ = drainCmd(t, updated, cmd)
 	if len(r.dayoffs.Entries) == 0 {
 		t.Errorf("`B` should populate gesetzliche Feiertage for the displayed year, got 0 entries")
@@ -1122,13 +1122,13 @@ func TestFrei_YearNav_ShowsPreviousYearEntries(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedFrei(t, r)
-	if strings.Contains(m.View(), "Weihnachten") {
-		t.Fatalf("default 2026 view should not show 2025 entry, got:\n%s", m.View())
+	if strings.Contains(m.View().Content, "Weihnachten") {
+		t.Fatalf("default 2026 view should not show 2025 entry, got:\n%s", m.View().Content)
 	}
 
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "h"})
 	loaded := drainCmd(t, updated, cmd)
-	out := loaded.View()
+	out := loaded.View().Content
 	if !strings.Contains(out, "Weihnachten") {
 		t.Errorf("after `h`, 2025 entry should be visible, got:\n%s", out)
 	}
@@ -1149,7 +1149,7 @@ func TestE2E_StartStopTagAppendsLog(t *testing.T) {
 	m := loadedHeute(t, r)
 
 	// 1. Start.
-	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
 	m = drainCmd(t, updated, cmd)
 	if r.active.Active == nil {
 		t.Fatal("after `s` from idle: active marker should be set")
@@ -1159,7 +1159,7 @@ func TestE2E_StartStopTagAppendsLog(t *testing.T) {
 	r.clock.T = r.clock.T.Add(45 * time.Minute)
 
 	// 3. Stop.
-	updated, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	updated, cmd = m.Update(tea.KeyPressMsg{Text: "s"})
 	m = drainCmd(t, updated, cmd)
 	if r.active.Active != nil {
 		t.Fatal("after `s` while running: active marker should be cleared")
@@ -1169,14 +1169,14 @@ func TestE2E_StartStopTagAppendsLog(t *testing.T) {
 	}
 
 	// 4. Open tag dialog, type "deep", commit.
-	updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("t")})
+	updated, _ = m.Update(tea.KeyPressMsg{Text: "t"})
 	if !updated.(worktime.Model).FilterActive() {
 		t.Fatal("`t` on logged session should open the tag dialog")
 	}
 	for _, ch := range "deep" {
-		updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
-	updated, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cmd = updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	final := drainCmd(t, updated, cmd)
 
 	// 5. Assert the log row carries the tag and the dialog closed.
@@ -1202,9 +1202,9 @@ func TestHeute_NoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 		t.Fatalf("seed link: %v", err)
 	}
 	m := loadedHeute(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "o"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	firstLine := out
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
@@ -1232,11 +1232,11 @@ func TestHistory_DrillNoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	m := loadedHistory(t, r)
-	m, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = drainCmd(t, m, cmd)
-	m, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")})
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "o"})
 	m = drainCmd(t, m, cmd)
-	out := m.View()
+	out := m.View().Content
 	firstLine := out
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]

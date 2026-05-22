@@ -10,8 +10,8 @@ package palette
 import (
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 )
@@ -73,7 +73,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.toast = nil
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.filter.Focused() {
 			return m.handleFilterKey(msg)
 		}
@@ -87,7 +87,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // split would hide the structure behind helper indirection.
 //
 //nolint:gocyclo
-func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	s := msg.String()
 	switch s {
 	case "/":
@@ -172,9 +172,9 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		// Esc with a non-empty filter clears the value AND blurs so j/k
 		// (which are normal-mode navigation keys) reach the list. The
 		// older two-stage "clear, keep focus, second esc quits" combined
@@ -192,7 +192,7 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// run standalone). The host's q-key owns program quit.
 		m.filter.Blur()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.filter.Blur()
 		if len(m.visible) > 0 {
 			return m, m.dispatch(m.visible[m.cursor])

@@ -6,8 +6,6 @@
 package markdown
 
 import (
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/util"
 )
@@ -84,23 +82,12 @@ func (r *nodeRenderer) renderStrikethrough(w util.BufWriter, source []byte, n as
 	if err != nil {
 		return ast.WalkStop, err
 	}
-	if r.opts.noColor || isASCIIProfile(r.opts.lip) {
+	if r.opts.noColor {
 		_, _ = w.WriteString(inner)
 		return ast.WalkSkipChildren, nil
 	}
 	_, _ = w.WriteString("\x1b[9m" + inner + "\x1b[29m")
 	return ast.WalkSkipChildren, nil
-}
-
-// isASCIIProfile reports whether the lipgloss renderer sits on the
-// Ascii color profile (NO_COLOR path). The renderer's exposed
-// ColorProfile method is the authoritative read; nil renderer falls
-// back to "non-ascii" so the caller emits SGR by default.
-func isASCIIProfile(r *lipgloss.Renderer) bool {
-	if r == nil {
-		return false
-	}
-	return r.ColorProfile() == termenv.Ascii
 }
 
 // renderCodeSpan emits inline `code` with a coloured BG span and
@@ -139,7 +126,7 @@ func (r *nodeRenderer) renderLink(w util.BufWriter, source []byte, n ast.Node, e
 		return ast.WalkStop, err
 	}
 	dest := string(link.Destination)
-	if dest != "" && (r.opts.noColor || isASCIIProfile(r.opts.lip)) && inner != dest {
+	if dest != "" && r.opts.noColor && inner != dest {
 		// Inner ist der angezeigte Text (z.B. "Hier klicken"); auf Ascii-
 		// Profilen ergänzen wir " (URL)" damit die Destination sichtbar
 		// bleibt.
@@ -160,9 +147,10 @@ func (r *nodeRenderer) renderAutoLink(w util.BufWriter, source []byte, n ast.Nod
 	}
 	a := n.(*ast.AutoLink)
 	url := string(a.URL(source))
-	if r.opts.noColor || isASCIIProfile(r.opts.lip) {
-		// Auf Ascii-Profilen reicht der reine URL-Text — OSC 8 würde dort
-		// vom Terminal ohnehin entfernt; der Text ist die Information.
+	if r.opts.noColor {
+		// Im NO_COLOR-Pfad reicht der reine URL-Text — OSC 8 wird im
+		// Post-Process nicht gestrippt, aber der Style drumherum ist
+		// ohnehin weg; der Text ist die Information.
 		_, _ = w.WriteString(url)
 		return ast.WalkSkipChildren, nil
 	}

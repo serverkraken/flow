@@ -19,12 +19,12 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/paginator"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/paginator"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
@@ -224,13 +224,16 @@ func New(
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
-	ti.Cursor.Style = cursorStyle
+	tiStyles := ti.Styles()
+	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	tiStyles.Cursor.Shape = tea.CursorBar
+	ti.SetStyles(tiStyles)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Points
 	sp.Style = spinnerStyle
 
-	vp := viewport.New(0, 0)
+	vp := viewport.New()
 
 	h := help.New()
 	h.ShowAll = false

@@ -9,10 +9,10 @@ package browse
 // (commands.go).
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -67,7 +67,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadEntriesCmd(m.list, m.currentRepo)
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		m.layoutViewport()
 		// Invalidate the cached preview AND drop previewID so
 		// refreshPreview's `if previewID == e.ID { return }` short-
@@ -80,9 +80,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.spin.Tick
 		}
 		return m, nil
-	case tea.MouseMsg:
+	case tea.MouseWheelMsg:
 		return m.handleMouse(msg)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -92,7 +92,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case ModeSearch:
 		return m.handleSearchKey(msg)
@@ -110,7 +110,7 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		m.layoutViewport()
 		m.previewCached = map[domain.ID]string{}
 		m.previewID = ""
@@ -127,9 +127,9 @@ func (m Model) updateViewer(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
-		if key.Matches(msg, m.keys.Help) || key.Matches(msg, m.keys.Quit) || msg.Type == tea.KeyEsc {
+		if key.Matches(msg, m.keys.Help) || key.Matches(msg, m.keys.Quit) || msg.String() == "esc" {
 			m.showHelp = false
 		}
 		return m, nil
@@ -145,7 +145,7 @@ func (m Model) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleNavKey handles cursor movement keys. Returns handled=true when one
 // of the nav bindings matched so the caller doesn't fall through.
-func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleNavKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Down):
 		if m.cursor < len(m.visible)-1 {
@@ -182,7 +182,7 @@ func (m Model) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 
 // handleActionKey handles non-navigation bindings (filter, search, edit,
 // view, new, delete, help, quit).
-func (m Model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
+func (m Model) handleActionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	switch {
 	case key.Matches(msg, m.keys.Quit):
 		m.quitting = true
@@ -213,16 +213,16 @@ func (m Model) handleActionKey(msg tea.KeyMsg) (tea.Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-func (m Model) handleSearchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
+func (m Model) handleSearchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
 		m.mode = ModeNormal
 		m.search.SetValue("")
 		m.search.Blur()
 		m.applyFilters()
 		m.refreshPreview()
 		return m, nil
-	case tea.KeyEnter:
+	case "enter":
 		m.mode = ModeNormal
 		m.search.Blur()
 		return m, nil
@@ -256,7 +256,7 @@ func (m Model) startConfirmDelete() Model {
 // (Skill §Keybind grammar). Vorher fehlte Enter als Confirm-Variante,
 // was die Konvention der restlichen Codebase (confirm.Model) uneinheitlich
 // machte.
-func (m Model) handleConfirmDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleConfirmDeleteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y", "enter":
 		id := m.deleteTargetID
@@ -270,17 +270,18 @@ func (m Model) handleConfirmDeleteKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if msg.Action != tea.MouseActionPress {
-		return m, nil
-	}
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
+// handleMouse handles wheel scrolling. Under bubbletea v2, wheel
+// events arrive as a dedicated tea.MouseWheelMsg (no separate press /
+// release flavours — a wheel notch is atomic), so the v1 check
+// `msg.Action != MouseActionPress` evaporates.
+func (m Model) handleMouse(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
+	switch msg.Mouse().Button {
+	case tea.MouseWheelUp:
 		if m.cursor > 0 {
 			m.cursor--
 			m.refreshPreview()
 		}
-	case tea.MouseButtonWheelDown:
+	case tea.MouseWheelDown:
 		if m.cursor < len(m.visible)-1 {
 			m.cursor++
 			m.refreshPreview()
@@ -302,9 +303,9 @@ func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.Width = m.width
+		m.helpUI.SetWidth(m.width)
 		next, cmd := m.picker.Update(msg)
-		m.picker = next.(writepicker.Model)
+		m.picker = next
 		return m, cmd
 	case writepicker.DoneMsg:
 		m.mode = ModeNormal
@@ -319,6 +320,6 @@ func (m Model) updatePicker(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, runViaExecCapture(cmd)
 	}
 	next, cmd := m.picker.Update(msg)
-	m.picker = next.(writepicker.Model)
+	m.picker = next
 	return m, cmd
 }

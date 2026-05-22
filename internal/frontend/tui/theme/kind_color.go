@@ -1,7 +1,8 @@
 package theme
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -24,8 +25,9 @@ import (
 // Adding a Kind requires one edit here plus the parallel slot in
 // domain.KindStatusColor — the two functions are intentionally kept in
 // lockstep, not collapsed, because the tmux side returns hex strings
-// while the in-app side returns a lipgloss.TerminalColor.
-func KindColor(p Palette, k domain.Kind) lipgloss.TerminalColor {
+// while the in-app side returns a theme.Color (which satisfies
+// image/color.Color for direct lipgloss consumption).
+func KindColor(p Palette, k domain.Kind) color.Color {
 	sem := p.Sem()
 	switch k {
 	case domain.KindHoliday:

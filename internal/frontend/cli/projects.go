@@ -6,7 +6,7 @@ package cli
 // plan.md dokumentiert.
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -36,7 +36,7 @@ func NewProjectsCmd(deps ProjectsDeps) *cobra.Command {
 			tk.Init()
 			pal := tk.Load()
 			m := deps.Screen(pal)
-			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+			prog := tea.NewProgram(m, tea.WithContext(cmd.Context()))
 			_, err := prog.Run()
 			return err
 		},

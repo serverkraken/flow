@@ -4,7 +4,7 @@ package picker
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -33,12 +33,12 @@ const AccentBarRune = glyphs.AccentBar
 func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 	sem := p.Sem()
 	bar := " "
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.Fg))
+	labelStyle := lipgloss.NewStyle().Foreground(p.Fg)
 	if selected {
-		bar = lipgloss.NewStyle().Foreground(lipgloss.Color(sem.Accent)).Render(AccentBarRune)
-		labelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(p.Fg)).Bold(true)
+		bar = lipgloss.NewStyle().Foreground(sem.Accent).Render(AccentBarRune)
+		labelStyle = lipgloss.NewStyle().Foreground(p.Fg).Bold(true)
 	}
-	hintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted))
+	hintStyle := lipgloss.NewStyle().Foreground(p.FgMuted)
 
 	// Reserved cells: bar(1) + space(1) + min-gap(1) = 3.
 	const reserved = 3
@@ -66,7 +66,7 @@ func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 // SectionHeader renders an uppercased section name with trailing dash fill.
 // width is the available inner width.
 func SectionHeader(name string, width int, p theme.Palette) string {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(p.FgMuted)).Bold(true).Padding(0, 0, 0, 1)
+	style := lipgloss.NewStyle().Foreground(p.FgMuted).Bold(true).Padding(0, 0, 0, 1)
 	rendered := style.Render(strings.ToUpper(name))
 	dashStyle := lipgloss.NewStyle().Foreground(p.Sem().Border)
 

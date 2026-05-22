@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
@@ -31,7 +31,7 @@ func (h history) openDrill(date time.Time) (tea.Model, tea.Cmd) {
 	return h, h.drillLoadCmd(h.drillDate)
 }
 
-func (h history) handleDrillKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (h history) handleDrillKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "b":
 		h.dialog = historyDialogNone

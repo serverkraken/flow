@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -329,7 +329,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.scheduleTick())
 		return m, tea.Batch(cmds...)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
 
@@ -367,7 +367,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 //
 // Split off Update to keep cyclomatic complexity inside the project
 // budget.
-func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
 	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
 	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
@@ -400,7 +400,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // `:` action-menu trigger. Returns (model, true) when the key was
 // claimed; (zero, false) lets the caller forward the key to the active
 // sub-model.
-func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
+func (m Model) handleTabRouterKey(msg tea.KeyPressMsg) (Model, bool) {
 	switch msg.String() {
 	case ":":
 		m.menu = m.menu.openMenu(m.current)
@@ -429,7 +429,13 @@ func (m Model) handleTabRouterKey(msg tea.KeyMsg) (Model, bool) {
 // View renders the active sub-model with a tab strip on top. When the
 // action menu is open it replaces the tab body — the tab strip stays
 // so the user keeps the visual anchor of which tab they came from.
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	v := tea.NewView(m.viewContent())
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
 	}
@@ -451,9 +457,9 @@ func (m Model) View() string {
 		// laesst die Sub-Model-View hier direkt durch (analog brief am
 		// Worktime-Root oben).
 		if fs, ok := m.subs[m.current].(fullScreener); ok && fs.FullScreen() {
-			return m.subs[m.current].View()
+			return m.subs[m.current].View().Content
 		}
-		body = m.subs[m.current].View()
+		body = m.subs[m.current].View().Content
 		if body == "" {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}

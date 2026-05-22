@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // TestRenderAtNarrowWidth_NoOverflow renders every tab (and a running-state
@@ -41,9 +41,9 @@ func TestRenderAtNarrowWidth_NoOverflow(t *testing.T) {
 				c.setup(r)
 				updated, _ := r.model.Update(tea.WindowSizeMsg{Width: w, Height: 30})
 				loaded := drainCmd(t, updated, updated.Init())
-				loaded, _ = loaded.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(c.tab)})
+				loaded, _ = loaded.Update(tea.KeyPressMsg{Text: c.tab})
 
-				out := loaded.View()
+				out := loaded.View().Content
 				lines := strings.Split(out, "\n")
 				over := 0
 				for i, ln := range lines {

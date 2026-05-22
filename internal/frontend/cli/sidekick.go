@@ -1,7 +1,7 @@
 package cli
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -53,7 +53,7 @@ func NewSidekickCmd(deps SidekickDeps) *cobra.Command {
 			// program's event loop, so a signal tears the TUI down
 			// cleanly and the deferred FlowState.Save below + the
 			// deferred sqlite Close() in main() actually run.
-			prog := tea.NewProgram(m, tea.WithAltScreen(), tea.WithContext(cmd.Context()))
+			prog := tea.NewProgram(m, tea.WithContext(cmd.Context()))
 			final, err := prog.Run()
 			if err != nil {
 				return err

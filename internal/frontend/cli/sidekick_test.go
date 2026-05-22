@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -22,7 +22,7 @@ type stubScreen struct{}
 
 func (stubScreen) Init() tea.Cmd                       { return nil }
 func (stubScreen) Update(tea.Msg) (tea.Model, tea.Cmd) { return stubScreen{}, nil }
-func (stubScreen) View() string                        { return "" }
+func (stubScreen) View() tea.View                      { return tea.NewView("") }
 
 func makeSidekickDeps(state *testutil.FakeFlowStateStore) SidekickDeps {
 	factory := func(tk.Palette) tea.Model { return stubScreen{} }

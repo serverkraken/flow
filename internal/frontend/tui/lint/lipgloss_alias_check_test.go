@@ -11,7 +11,7 @@ import (
 // TestFindLipglossAliasImports_MetaTest pins the detector that closes
 // the Q3 gap in TestScreenInlineNewStyleBudget: countLipglossNewStyle
 // matches `lipgloss.NewStyle()` by literal package identifier, so a
-// file importing `lg "github.com/charmbracelet/lipgloss"` would bypass
+// file importing `lg "charm.land/lipgloss/v2"` would bypass
 // the budget. The walker test below catches that drift on real files;
 // this meta-test pins the detector itself so the walker can be trusted.
 func TestFindLipglossAliasImports_MetaTest(t *testing.T) {
@@ -31,7 +31,7 @@ func F() { fmt.Println("hi") }
 		{
 			name: "canonical import — no alias drift",
 			body: `package x
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 var s = lipgloss.NewStyle()
 `,
 			wantAliases: nil,
@@ -39,7 +39,7 @@ var s = lipgloss.NewStyle()
 		{
 			name: "explicit canonical alias — still no drift",
 			body: `package x
-import lipgloss "github.com/charmbracelet/lipgloss"
+import lipgloss "charm.land/lipgloss/v2"
 var s = lipgloss.NewStyle()
 `,
 			wantAliases: nil,
@@ -47,7 +47,7 @@ var s = lipgloss.NewStyle()
 		{
 			name: "short alias drifts",
 			body: `package x
-import lg "github.com/charmbracelet/lipgloss"
+import lg "charm.land/lipgloss/v2"
 var s = lg.NewStyle()
 `,
 			wantAliases: []string{"lg"},
@@ -55,7 +55,7 @@ var s = lg.NewStyle()
 		{
 			name: "dot import drifts",
 			body: `package x
-import . "github.com/charmbracelet/lipgloss"
+import . "charm.land/lipgloss/v2"
 var s = NewStyle()
 `,
 			wantAliases: []string{"."},
@@ -63,7 +63,7 @@ var s = NewStyle()
 		{
 			name: "blank import drifts",
 			body: `package x
-import _ "github.com/charmbracelet/lipgloss"
+import _ "charm.land/lipgloss/v2"
 `,
 			wantAliases: []string{"_"},
 		},
@@ -72,7 +72,7 @@ import _ "github.com/charmbracelet/lipgloss"
 			body: `package x
 import (
     "fmt"
-    lg "github.com/charmbracelet/lipgloss"
+    lg "charm.land/lipgloss/v2"
     "strings"
 )
 var _ = fmt.Sprintf("%s", strings.ToLower("x"))

@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
@@ -88,7 +88,7 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 var runWorktimeToday = func(ctx context.Context, deps WorktimeDeps) error {
 	tk.Init()
 	pal := tk.Load()
-	prog := tea.NewProgram(deps.Screen(pal), tea.WithAltScreen(), tea.WithContext(ctx))
+	prog := tea.NewProgram(deps.Screen(pal), tea.WithContext(ctx))
 	_, err := prog.Run()
 	return err
 }

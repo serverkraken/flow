@@ -35,7 +35,7 @@ func F() string { return "" }
 		{
 			name: "single call",
 			body: `package x
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 var s = lipgloss.NewStyle()
 `,
 			want: 1,
@@ -43,7 +43,7 @@ var s = lipgloss.NewStyle()
 		{
 			name: "three calls",
 			body: `package x
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 var (
     a = lipgloss.NewStyle()
     b = lipgloss.NewStyle().Bold(true)
@@ -70,7 +70,7 @@ var s = "lipgloss.NewStyle()"
 		{
 			name: "different alias does not count",
 			body: `package x
-import lg "github.com/charmbracelet/lipgloss"
+import lg "charm.land/lipgloss/v2"
 var s = lg.NewStyle()
 `,
 			want: 0,
@@ -78,7 +78,7 @@ var s = lg.NewStyle()
 		{
 			name: "chained calls count once",
 			body: `package x
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 var s = lipgloss.NewStyle().Bold(true).Width(40).Padding(1, 2)
 `,
 			want: 1,

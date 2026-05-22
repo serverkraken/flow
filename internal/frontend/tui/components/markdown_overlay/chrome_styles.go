@@ -3,7 +3,7 @@ package markdown_overlay
 import (
 	"sync/atomic"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -67,26 +67,26 @@ func buildStyles(p theme.Palette) *chromeStyles {
 			Bold(true),
 
 		separator: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(p.BgChip)),
+			Foreground(p.BgChip),
 
 		footer: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(p.FgMuted)),
+			Foreground(p.FgMuted),
 
 		footerKey: lipgloss.NewStyle().
 			Foreground(sem.Active).
 			Bold(true),
 
 		statusBar: lipgloss.NewStyle().
-			Background(lipgloss.Color(p.BgChip)).
-			Foreground(lipgloss.Color(p.FgDim)),
+			Background(p.BgChip).
+			Foreground(p.FgDim),
 
 		statusBarPath: lipgloss.NewStyle().
-			Background(lipgloss.Color(p.BgChip)).
-			Foreground(lipgloss.Color(p.Fg)),
+			Background(p.BgChip).
+			Foreground(p.Fg),
 
 		statusBarModeSearch: lipgloss.NewStyle().
 			Background(sem.Warning).
-			Foreground(lipgloss.Color(p.Bg)).
+			Foreground(p.Bg).
 			Bold(true).
 			Padding(0, 1),
 
@@ -109,7 +109,7 @@ func buildStyles(p theme.Palette) *chromeStyles {
 		// Orange alias (Orange is a Markdown-domain hue, not a semantic
 		// token); pal.Orange stays direct.
 		matchCurrentBar: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(p.Orange)).
+			Foreground(p.Orange).
 			Bold(true),
 
 		err: lipgloss.NewStyle().

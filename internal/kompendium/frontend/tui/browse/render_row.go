@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -431,16 +431,16 @@ func (m Model) renderPreviewPane() string {
 		body = dimStyle.Render("(leer)")
 	}
 	inner := lipgloss.JoinVertical(lipgloss.Left, titleLine, body)
-	// lipgloss Style.Width sets the *content* width; the NormalBorder
-	// adds 1 cell on each side on top of that. Pass paneW-2 so the
-	// rendered pane is exactly paneW wide overall — otherwise the body
-	// row gets two cells too wide and lipgloss wraps every line in
-	// half, doubling the visible height of a long Markdown preview.
-	innerW := paneW - 2
-	if innerW < 1 {
-		innerW = 1
+	// lipgloss v2 Style.Width(n) is the OUTER total (border + padding
+	// + content). Pass paneW directly so the rendered pane is exactly
+	// paneW wide overall — the NormalBorder still adds 1 cell on each
+	// side, but it now comes out of paneW rather than on top of it.
+	// (v1 semantics were the opposite — content-only Width with border
+	// added; passing paneW-2 produced the same outer width back then.)
+	if paneW < 1 {
+		paneW = 1
 	}
-	return panelStyle.Width(innerW).Render(inner)
+	return panelStyle.Width(paneW).Render(inner)
 }
 
 // badgeFor returns the colored type pill shown in the list row.
