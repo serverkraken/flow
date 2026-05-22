@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/serverkraken/flow/compare/v1.2.1...v1.2.2) (2026-05-22)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/charmbracelet/x/ansi to v0.11.7 ([#7](https://github.com/serverkraken/flow/issues/7)) ([ad3aa83](https://github.com/serverkraken/flow/commit/ad3aa83c6acee68813c7d7b7c43ef73444f445fd))
+
 ## [1.2.1](https://github.com/serverkraken/flow/compare/v1.2.0...v1.2.1) (2026-05-18)
 
 
