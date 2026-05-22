@@ -88,17 +88,24 @@ func TestPolish_MouseWheelNavigatesCursor(t *testing.T) {
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
 
-	model, _ = model.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown})
+	model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	if !cursorOnLineWith(model.View(), "second") {
 		t.Errorf("wheel down should move cursor down:\n%s", model.View())
 	}
-	model, _ = model.Update(tea.MouseMsg{Action: tea.MouseActionPress, Button: tea.MouseButtonWheelUp})
+	model, _ = model.Update(tea.MouseWheelMsg{Button: tea.MouseWheelUp})
 	if !cursorOnLineWith(model.View(), "first") {
 		t.Errorf("wheel up should move cursor up:\n%s", model.View())
 	}
 }
 
-func TestPolish_MouseNonPressIgnored(t *testing.T) {
+// TestPolish_MouseClicksIgnored locks in that non-wheel mouse events
+// (click press/release on any button other than the wheel) do NOT
+// move the cursor. Under bubbletea v2 the wheel is its own dedicated
+// message type (MouseWheelMsg), so the v1 "Action != Press" filter
+// is gone — the type-switch in Update is the gate instead. This test
+// asserts that gate by feeding a left-click and a release and
+// verifying the cursor stays put.
+func TestPolish_MouseClicksIgnored(t *testing.T) {
 	t.Parallel()
 
 	store := testutil.NewFakeNoteStore()
@@ -106,9 +113,10 @@ func TestPolish_MouseNonPressIgnored(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-22", domain.TypeDaily, "second"), time.Unix(1, 0))
 
 	model := initialised(newModel(usecase.NewListNotes(store)))
-	model, _ = model.Update(tea.MouseMsg{Action: tea.MouseActionRelease, Button: tea.MouseButtonWheelDown})
+	model, _ = model.Update(tea.MouseClickMsg{Button: tea.MouseLeft})
+	model, _ = model.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft})
 	if !cursorOnLineWith(model.View(), "first") {
-		t.Errorf("non-press mouse events should not move the cursor:\n%s", model.View())
+		t.Errorf("non-wheel mouse events should not move the cursor:\n%s", model.View())
 	}
 }
 

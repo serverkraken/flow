@@ -29,9 +29,7 @@ func TestUpdate_MouseMsgFallsThroughToViewport(t *testing.T) {
 	// A non-key msg shape — wheel down. The overlay must not return an
 	// error and must hand the msg to the viewport (Update returns the
 	// viewport's cmd or nil; either is fine for this lock-in).
-	updated, _ := m.Update(tea.MouseMsg{
-		Action: tea.MouseActionPress, Button: tea.MouseButtonWheelDown,
-	})
+	updated, _ := m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown})
 	if updated.CurrentMode() != markdown_overlay.ModeNormal {
 		t.Errorf("MouseMsg must not flip mode, got %v", updated.CurrentMode())
 	}

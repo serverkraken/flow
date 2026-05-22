@@ -270,17 +270,18 @@ func (m Model) handleConfirmDeleteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 	return m, nil
 }
 
-func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if msg.Action != tea.MouseActionPress {
-		return m, nil
-	}
-	switch msg.Button {
-	case tea.MouseButtonWheelUp:
+// handleMouse handles wheel scrolling. Under bubbletea v2, wheel
+// events arrive as a dedicated tea.MouseWheelMsg (no separate press /
+// release flavours — a wheel notch is atomic), so the v1 check
+// `msg.Action != MouseActionPress` evaporates.
+func (m Model) handleMouse(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
+	switch msg.Mouse().Button {
+	case tea.MouseWheelUp:
 		if m.cursor > 0 {
 			m.cursor--
 			m.refreshPreview()
 		}
-	case tea.MouseButtonWheelDown:
+	case tea.MouseWheelDown:
 		if m.cursor < len(m.visible)-1 {
 			m.cursor++
 			m.refreshPreview()
