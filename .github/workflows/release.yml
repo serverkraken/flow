@@ -16,12 +16,12 @@ permissions:
 
 jobs:
   release-please:
-    uses: serverkraken/reusable-workflows/.github/workflows/semantic-release.yml@v3
+    uses: serverkraken/reusable-workflows/.github/workflows/semantic-release.yml@v4
     secrets: inherit
 
   goreleaser:
     needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'
-    uses: serverkraken/reusable-workflows/.github/workflows/goreleaser.yml@v3
+    uses: serverkraken/reusable-workflows/.github/workflows/goreleaser.yml@v4
     secrets: inherit
 
