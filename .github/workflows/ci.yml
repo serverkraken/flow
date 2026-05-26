@@ -4,7 +4,7 @@ on:
 
 jobs:
   secscan:
-    uses: serverkraken/reusable-workflows/.github/workflows/trivy-fs.yml@v3
+    uses: serverkraken/reusable-workflows/.github/workflows/trivy-fs.yml@v4
     permissions:
       contents: read
       security-events: write
@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
 
   lint-go-root:
-    uses: serverkraken/reusable-workflows/.github/workflows/lint-go.yml@v3
+    uses: serverkraken/reusable-workflows/.github/workflows/lint-go.yml@v4
     with:
       working_directory: .
       go_version: ${{ vars.SK_GO_VERSION || '' }}
@@ -23,7 +23,7 @@ jobs:
       cgo_enabled: ${{ fromJSON(vars.SK_CGO_ENABLED || 'false') }}
     secrets: inherit
   test-go-root:
-    uses: serverkraken/reusable-workflows/.github/workflows/test-go.yml@v3
+    uses: serverkraken/reusable-workflows/.github/workflows/test-go.yml@v4
     with:
       working_directory: .
       go_version: ${{ vars.SK_GO_VERSION || '' }}
