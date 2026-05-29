@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/serverkraken/flow/compare/v1.4.1...v1.4.2) (2026-05-29)
+
+
+### Bug Fixes
+
+* **tui:** resolve design-review findings (heatmap, glyphs, writepicker, callouts) ([#36](https://github.com/serverkraken/flow/issues/36)) ([8e9a87f](https://github.com/serverkraken/flow/commit/8e9a87f0653df6109d21e03004eded80952933e4))
+
 ## [1.4.1](https://github.com/serverkraken/flow/compare/v1.4.0...v1.4.1) (2026-05-29)
 
 
