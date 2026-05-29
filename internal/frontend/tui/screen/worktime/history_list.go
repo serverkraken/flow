@@ -14,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -42,6 +43,7 @@ func (h history) renderMain() string {
 			rows = append(rows, h.renderList(records, inner))
 		}
 	}
+	rows = append(rows, toast.SlotRows(h.listToast, "  ")...)
 	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
 	return strings.Join(rows, "\n")
 }
