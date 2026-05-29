@@ -58,7 +58,7 @@ type wocheStyles struct {
 	greenPace   lipgloss.Style // Sem().Success — hit-day pace dot
 	dimPace     lipgloss.Style // FgMuted — miss-day pace dot
 	runningPace lipgloss.Style // Sem().Active — today-running pace dot (spec 2026-05-13)
-	behindPace  lipgloss.Style // Sem().Warning — "▼ behind" track marker
+	behindPace  lipgloss.Style // Sem().Warning — "▼ im Rückstand" track marker
 
 	// kinds maps DayOff Kind to its pre-built style. nil-kind (zero
 	// value, default) falls back to Fg. Render loops use
@@ -362,7 +362,7 @@ func (w woche) renderKPIs(now time.Time, inner int) string {
 
 func (w woche) renderPace(now time.Time) string {
 	// Cached styles — these used to be allocated per-call before round4.
-	// Track-Marker (▲ on track / ▼ behind) und Ziel-Count brauchen
+	// Track-Marker (▲ auf Kurs / ▼ im Rückstand) und Ziel-Count brauchen
 	// greenStyle/dimStyle/behindStyle direkt; die Dots gehen über
 	// paceDotStyle(kind, dayOff) und cachen via w.styles auch.
 	greenStyle := w.styles.greenPace
@@ -412,9 +412,9 @@ func (w woche) renderPace(now time.Time) string {
 	switch {
 	case expected == 0:
 	case hits >= expected:
-		track = greenStyle.Render("▲ on track")
+		track = greenStyle.Render("▲ auf Kurs")
 	default:
-		track = behindStyle.Render("▼ behind")
+		track = behindStyle.Render("▼ im Rückstand")
 	}
 	return strings.Join(dots, " ") + "   " + count + "   " + track
 }

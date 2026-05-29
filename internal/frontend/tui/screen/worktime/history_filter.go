@@ -99,7 +99,7 @@ func (h history) renderFilterDialog() string {
 		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
 	}
 	rows = append(rows, "", stDim(h.pal,
-		"  Enter=anwenden  ·  leer=alles  ·  Esc=abbrechen"))
+		"  Enter → anwenden  ·  leer → alles  ·  Esc → abbrechen"))
 	return strings.Join(rows, "\n")
 }
 

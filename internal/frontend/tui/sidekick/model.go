@@ -315,7 +315,7 @@ func (m Model) renderTabStrip() string {
 		{"f", "Projekte", screenProjects},
 		{"w", "Worktime", screenWorktime},
 		{"c", "Cheatsheet", screenCheatsheet},
-		{"n", "Notes", screenNotes},
+		{"n", "Notizen", screenNotes},
 	}
 	full := m.renderTabStripFull(entries)
 	if m.width == 0 || lipgloss.Width(full) <= m.width {
