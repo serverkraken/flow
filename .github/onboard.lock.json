@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "catalog_version": "v4",
-  "rendered_at": "2026-05-29T08:59:09Z",
+  "rendered_at": "2026-05-29T09:20:41Z",
   "files": {
     ".github/workflows/ci.yml": "sha256:1f2686d91a2c6ecb54a33664d6b10e20e0f095f4537da4ee831482736f706a90",
     ".github/workflows/release.yml": "sha256:4ca4ccc3f11c6951327ffc2fe9e3341e0b8a0d61068c0ebb94ed32bde438e74d",
