@@ -627,27 +627,29 @@ func (f frei) renderKindPicker(inner int) string {
 	header := picker.SectionHeader("kategorie", inner, f.pal)
 	chips := make([]string, 0, len(domain.AllKinds))
 	kindFocused := f.formCur == f.kindIdx()
+	accent := f.pal.Sem().Accent
 	for i, k := range domain.AllKinds {
-		// Spec 2026-05-13-filled-dayoff-dots-supersede §Frei-view: Glyph
-		// und Label des unselektierten Chips teilen die Kind-Farbe — die
-		// Kind-Identität liest sich konsistent über den ganzen Tab. Der
-		// selektierte Chip behält die Accent-Selektions-Behandlung;
-		// §Color semantics "one accent per row" bleibt gewahrt, weil die
-		// Kind-Farbe in unselektierten Chips kein Akzent ist sondern eine
-		// Identitätsfarbe.
+		// Glyph und Label tragen die Kind-Identitätsfarbe — die Identität
+		// liest sich konsistent über den ganzen Tab. Selektion über
+		// Accent-Bar (▎) + Bold + Underline (NO_COLOR A11y), NICHT über
+		// einen Background-Block — Skill §Color semantics "Bg stays Bg.
+		// Don't paint backgrounds for blocks." Der vorige
+		// Foreground(Bg).Background(Accent)-Treatment stach optisch aus
+		// dem Frei-Tab heraus und brach das restliche Vokabular.
 		color := theme.KindColor(f.pal, k)
 		glyphStyle := lipgloss.NewStyle().Foreground(color)
 		labelStyle := lipgloss.NewStyle().Foreground(color)
+		bar := "  "
 		if i == f.kindCur {
-			if kindFocused {
-				labelStyle = lipgloss.NewStyle().Foreground(f.pal.Bg).Background(f.pal.Sem().Accent).Bold(true).Underline(true)
-			} else {
-				labelStyle = lipgloss.NewStyle().Foreground(f.pal.Sem().Accent).Bold(true).Underline(true)
-			}
+			bar = lipgloss.NewStyle().Foreground(accent).Render(picker.AccentBarRune) + " "
+			// Unter Fokus zusätzlich Bold+Underline auf das Label — hebt
+			// es gegen die anderen Kind-Chips ab, ohne einen fremden Hue
+			// einzubringen (die Identitätsfarbe bleibt).
+			labelStyle = labelStyle.Bold(true).Underline(kindFocused)
 			glyphStyle = labelStyle
 		}
 		chips = append(chips,
-			glyphStyle.Render(" "+glyphs.Filled+" ")+labelStyle.Render(k.LabelDe()+" "))
+			bar+glyphStyle.Render(glyphs.Filled+" ")+labelStyle.Render(k.LabelDe()))
 	}
 	return header + "\n  " + strings.Join(chips, "  ")
 }

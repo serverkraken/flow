@@ -134,7 +134,12 @@ func (h heute) renderProgressBar(inner int, now time.Time) string {
 	if barCells < 4 {
 		barCells = 4
 	}
-	return "  " + statusbar.Bar(pct, barCells, h.pal)
+	// BarColored mit totalThresholdColor: die Bar liest sich wie der
+	// Status-Badge daneben (Cyan running · Green achieved · Red weit
+	// drüber). Vorher Accent-Blau unabhängig vom Zustand — die Bar als
+	// primäres Progress-Signal sagte nichts über Erfolg/Drüber-Status.
+	barColor := totalThresholdColor(h.pal, total, target, h.day.IsRunning())
+	return "  " + statusbar.BarColored(pct, barCells, barColor, h.pal)
 }
 
 // renderSummary teilt `now` mit Headline und Progressbar (siehe

@@ -260,7 +260,7 @@ func (m *Model) applyFilter() {
 }
 
 func (m Model) maxVisible() int {
-	return max(1, m.height-6)
+	return max(1, m.height-theme.PickerChromeRows)
 }
 
 func (m *Model) ensureCursorVisible() {

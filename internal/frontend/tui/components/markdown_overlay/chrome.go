@@ -60,18 +60,17 @@ func (m Model) renderFooter() string {
 		lineW = 1
 	}
 	scrollHint := s.footer.Render("j/k → scrollen")
-	closeHint := s.footerKey.Render(strings.Join(m.cfg.closeKeys, "/")) +
-		s.footer.Render(" → zurück")
+	closeHint := s.footer.Render(strings.Join(m.cfg.closeKeys, "/") + " → zurück")
 
 	// Optional hints in priority order (search → code-copy → host extras).
 	// Dropped from the right when widths tighten so the host-supplied
 	// extras (typically context-specific) survive longest.
 	var optional []string
 	if m.cfg.enableSearch {
-		optional = append(optional, s.footerKey.Render("/")+s.footer.Render(" → suchen"))
+		optional = append(optional, s.footer.Render("/ → suchen"))
 	}
 	if m.cfg.enableCodeCopy {
-		optional = append(optional, s.footerKey.Render("c")+s.footer.Render(" → Code kopieren"))
+		optional = append(optional, s.footer.Render("c → Code kopieren"))
 	}
 	for _, x := range m.cfg.footerExtras {
 		optional = append(optional, s.footer.Render(x))

@@ -23,7 +23,6 @@ type chromeStyles struct {
 	title               lipgloss.Style
 	separator           lipgloss.Style
 	footer              lipgloss.Style
-	footerKey           lipgloss.Style
 	statusBar           lipgloss.Style
 	statusBarPath       lipgloss.Style
 	statusBarModeSearch lipgloss.Style
@@ -69,12 +68,14 @@ func buildStyles(p theme.Palette) *chromeStyles {
 		separator: lipgloss.NewStyle().
 			Foreground(p.BgChip),
 
+		// footer renders the whole hint row — keys AND actions — in one
+		// dim color, matching the app-wide statusbar.Hints convention
+		// (Skill §Hint format: "All-dim (FgMuted)"). Keys carried a
+		// cyan-bold footerKey before, which made the footer compete with
+		// the cyan title/cursor and broke the single-accent-per-row rule;
+		// the search-mode badge (searchActiveLabel) stays the one accent.
 		footer: lipgloss.NewStyle().
 			Foreground(p.FgMuted),
-
-		footerKey: lipgloss.NewStyle().
-			Foreground(sem.Active).
-			Bold(true),
 
 		statusBar: lipgloss.NewStyle().
 			Background(p.BgChip).
