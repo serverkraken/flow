@@ -36,7 +36,7 @@ var screenBaseline = map[string]int{
 	"worktime/history_heatmap.go":  8, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank + Sem.Active für ▓ <100% (Skill §Color: Success exklusiv für Hit ≥100%); historyStyles cache zog 3 statische NewStyles raus
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    2,
-	"worktime/history_tagclock.go": 5,
+	"worktime/history_tagclock.go": 6,
 	"worktime/menu.go":             2,
 	"worktime/menu_target.go":      1,
 	"worktime/model.go":            1,

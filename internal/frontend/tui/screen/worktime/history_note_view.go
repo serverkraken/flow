@@ -29,7 +29,7 @@ func (h history) openDrillNoteView() (tea.Model, tea.Cmd) {
 	if len(h.drillAttached) == 0 {
 		return h, func() tea.Msg {
 			return historyActionDoneMsg{
-				toast: "Keine Notiz angehaengt — `n` haengt eine an",
+				toast: "Keine Notiz angehängt — `n` hängt eine an",
 				date:  h.drillDate,
 			}
 		}
@@ -90,7 +90,7 @@ func (h history) editDrillNoteCmd() tea.Cmd {
 		date := h.drillDate
 		return func() tea.Msg {
 			return historyActionDoneMsg{
-				toast: "Keine Notiz angehaengt — `n` haengt eine an",
+				toast: "Keine Notiz angehängt — `n` hängt eine an",
 				date:  date,
 			}
 		}
@@ -106,7 +106,7 @@ func (h history) editDrillNoteCmd() tea.Cmd {
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
-			toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geoeffnet", id),
+			toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geöffnet", id),
 			date:  date,
 		}
 	}
@@ -125,7 +125,7 @@ func (h history) detachDrillNoteCmd() tea.Cmd {
 	if len(h.drillAttached) == 0 {
 		date := h.drillDate
 		return func() tea.Msg {
-			return historyActionDoneMsg{toast: "Keine Notiz angehaengt", date: date}
+			return historyActionDoneMsg{toast: "Keine Notiz angehängt", date: date}
 		}
 	}
 	id := h.drillAttached[0]

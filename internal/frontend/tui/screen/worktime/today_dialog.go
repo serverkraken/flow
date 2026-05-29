@@ -91,7 +91,7 @@ func (h heute) renderDialog() string {
 
 	case heuteDialogHelp:
 		title = "Heute · Hilfe"
-		hint = "beliebige Taste schließt"
+		hint = "beliebige Taste → schließen"
 		rows = append(rows, h.renderHelpRows(inner)...)
 	}
 

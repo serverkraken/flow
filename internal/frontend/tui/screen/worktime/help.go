@@ -62,6 +62,7 @@ func helpSectionsHistory() []help.Section {
 				{"j/k · g/G", "Cursor / Zeile · oben/unten"},
 				{"Enter", "Drill-Down auf den Tag"},
 				{"v", "Ansicht: Liste → Heatmap → Tag-Clock → Monat"},
+				{"a", "Session nachbuchen (beliebiges Datum)"},
 				{"/", "Filter (KW18, 2026, 2026-04, tag:deep, note:standup)"},
 				{"F", "Filter mit Prefix »tag:« vorbelegen"},
 				{"[ / ]", "Filter um eine Einheit zurück / vor"},

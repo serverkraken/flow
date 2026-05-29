@@ -223,7 +223,7 @@ const drillFormHint = "  " + uistrings.HintFormNav
 // branch has nothing else to advertise (error path). The plain drill
 // footer composes its own multi-hint strip; this constant is for the
 // degenerate case where only "back" is meaningful.
-const drillBackHint = "  b/Esc zurück"
+const drillBackHint = "  b/Esc → zurück"
 
 // renderDrillFooter picks the hint line for the active drill dialog
 // mode. Each mode advertises its own keys; the bare drill view

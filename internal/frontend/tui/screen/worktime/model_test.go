@@ -638,7 +638,7 @@ func TestHeute_HelpOverlay_OpensWithQuestionMark(t *testing.T) {
 		"CURSOR & ACTION",
 		"KOMPENDIUM",
 		"n", "R", "o", "O",
-		"beliebige Taste schließt",
+		"beliebige Taste → schließen",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("help overlay should contain %q, got:\n%s", want, out)

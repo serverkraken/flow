@@ -124,6 +124,7 @@ const (
 	historyDialogDrillDelete     // confirm-delete selected session
 	historyDialogDrillNoteAttach // Kompendium-note attach to drillDate
 	historyDialogDrillNoteView   // inline markdown_overlay viewer for first attached note
+	historyDialogListAdd         // list-level add: nachbuchen for any past date
 )
 
 // historyActionDoneMsg carries the result of a drill mutation (edit /
@@ -209,6 +210,14 @@ type history struct {
 	// Construction is one-shot at newHistory(); state resets per Open call.
 	notePicker noteAttachPicker
 
+	// listAddForm drives the list-level add ("nachbuchen") dialog.
+	// 5 fields: [date, start, stop, tag, note].
+	listAddForm    []textinput.Model
+	listAddFormCur int
+	// listToast surfaces the result of a list-level add mutation.
+	// Separate from drillToast so the list view can render it.
+	listToast *toast.Model
+
 	// styles is a palette-bound cache for the heatmap / month render
 	// hot path (canonical wocheStyles-Pattern).
 	styles historyStyles
@@ -240,7 +249,7 @@ func (h history) FullScreen() bool { return h.dialog == historyDialogDrillNoteVi
 // q from there should exit.
 func (h history) TextInputActive() bool {
 	switch h.dialog {
-	case historyDialogFilter, historyDialogDrillEdit, historyDialogDrillAdd, historyDialogDrillNoteAttach:
+	case historyDialogFilter, historyDialogDrillEdit, historyDialogDrillAdd, historyDialogDrillNoteAttach, historyDialogListAdd:
 		return true
 	}
 	return false
@@ -334,19 +343,21 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return h, nil
 		}
 		t := toast.NewDefault(msg.toast, h.pal)
-		h.drillToast = &t
-		// Mutations change day totals → reload the outer history list
-		// so the bar / pct of this day stay in sync. The drill load
-		// reloads the session list visible in the dialog.
 		var cmds []tea.Cmd
-		if !msg.date.IsZero() {
-			cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
+		if h.drillModeActive() {
+			h.drillToast = &t
+			if !msg.date.IsZero() {
+				cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
+			}
+		} else {
+			h.listToast = &t
 		}
 		cmds = append(cmds, h.loadCmd(), t.Init())
 		return h, tea.Batch(cmds...)
 
 	case toast.DismissedMsg:
 		h.drillToast = nil
+		h.listToast = nil
 		return h, nil
 
 	case confirm.ResultMsg:
@@ -462,6 +473,9 @@ func (h history) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if h.dialog == historyDialogFilter {
 		return h.handleFilterKey(msg)
 	}
+	if h.dialog == historyDialogListAdd {
+		return h.handleListAddKey(msg)
+	}
 	if h.dialog == historyDialogDrillEdit || h.dialog == historyDialogDrillAdd {
 		return h.handleDrillFormKey(msg)
 	}
@@ -524,6 +538,8 @@ func (h history) handleListKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "T":
 		h.histQuery = ""
 		h.listCur = 0
+	case "a":
+		return h.openListAdd()
 	case "enter":
 		if h.listCur >= 0 && h.listCur < len(records) {
 			return h.openDrill(records[h.listCur].Date)
@@ -671,6 +687,9 @@ func (h history) viewContent() string {
 	}
 	if h.dialog == historyDialogFilter {
 		return h.renderFilterDialog()
+	}
+	if h.dialog == historyDialogListAdd {
+		return h.renderListAddDialog()
 	}
 	if h.drillModeActive() {
 		// Edit / Add / Delete modes render on top of the drill body
