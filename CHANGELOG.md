@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/serverkraken/flow/compare/v1.4.0...v1.4.1) (2026-05-29)
+
+
+### Bug Fixes
+
+* **tui:** scale worktime tabs to terminal height ([#34](https://github.com/serverkraken/flow/issues/34)) ([04d02ba](https://github.com/serverkraken/flow/commit/04d02ba1f93bbaf1ea69dd30644bcea683a6fc3a))
+
 ## [1.4.0](https://github.com/serverkraken/flow/compare/v1.3.0...v1.4.0) (2026-05-29)
 
 
