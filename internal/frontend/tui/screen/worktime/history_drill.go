@@ -110,31 +110,14 @@ func (h history) renderDrill() string {
 	if inner <= 0 {
 		inner = 80
 	}
-	rows := []string{theme.Heading("  Tag "+h.drillDate.Format("2006-01-02")+" ("+
-		domain.WeekdayShortDe(h.drillDate.Weekday())+")", h.pal), ""}
+	title := theme.Heading("  Tag "+h.drillDate.Format("2006-01-02")+" ("+
+		domain.WeekdayShortDe(h.drillDate.Weekday())+")", h.pal)
 	if h.drillErr != nil {
-		rows = append(rows, stErr(h.pal, h.drillErr.Error()))
-		rows = append(rows, "", stDim(h.pal, drillBackHint))
+		rows := []string{title, "", stErr(h.pal, h.drillErr.Error()), "", stDim(h.pal, drillBackHint)}
 		return strings.Join(rows, "\n")
 	}
 	if len(h.drillSessions) == 0 {
-		rows = append(rows, stDim(h.pal, "  keine Sessions an diesem Tag"))
-		// Auch im leeren Tag darf eine Note dranhängen — die LinkStore-
-		// Keyung ist tagesbasiert. Chip-Zeile direkt unter dem
-		// Empty-State, damit User retrospektiv angehängte Notizen
-		// sehen ohne Sessions zu brauchen.
-		if chip := h.renderDrillAttachedNotes(); chip != "" {
-			rows = append(rows, "", chip)
-		}
-		// Even an empty day allows manual entry — `a` adds the first
-		// session. Without this hint the only visible action is "back",
-		// which would force the user into Heute-just-to-add-an-old-row.
-		if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
-			rows = append(rows, "")
-			rows = append(rows, dialogRows...)
-		}
-		rows = append(rows, "", h.renderDrillFooter())
-		return strings.Join(rows, "\n")
+		return h.renderDrillEmpty(title, inner)
 	}
 	target := h.deps.Stats.Targets.For(h.drillDate)
 	var total time.Duration
@@ -145,18 +128,53 @@ func (h history) renderDrill() string {
 	if target > 0 {
 		pct = int(total * 100 / target)
 	}
-	rows = append(rows, "  "+theme.Strong(formatDur(total), h.pal)+
-		"  "+stDim(h.pal, fmt.Sprintf("/ %s  ·  %d%%", formatDur(target), pct)))
-	rows = append(rows, "")
-	rows = append(rows, picker.SectionHeader(
-		fmt.Sprintf("sessions (%d)", len(h.drillSessions)), inner, h.pal,
-	))
+	// Day title + total/target line + section header pin at the top; the
+	// session list is the scrollable middle; chip / dialog / toast / hints
+	// pin at the bottom so edit dialogs stay visible above a windowed list.
+	header := []string{
+		title,
+		"",
+		"  " + theme.Strong(formatDur(total), h.pal) +
+			"  " + stDim(h.pal, fmt.Sprintf("/ %s  ·  %d%%", formatDur(target), pct)),
+		"",
+		picker.SectionHeader(fmt.Sprintf("sessions (%d)", len(h.drillSessions)), inner, h.pal),
+	}
+
+	mid, focus := h.renderDrillSessionRows(inner)
+	footer := h.renderDrillFooterRows(inner)
+	return fitHeight(header, mid, footer, focus, bodyBudget(h.height), h.pal)
+}
+
+// renderDrillEmpty renders the "keine Sessions" state: day title, the
+// empty hint, an optional attached-note chip (the LinkStore is day-keyed,
+// so a note can hang on a session-less day — retrospective notes show
+// without needing sessions), the add dialog when open (an empty day still
+// allows `a` to add the first session, so the user isn't forced into
+// Heute), and the footer.
+func (h history) renderDrillEmpty(title string, inner int) string {
+	rows := []string{title, "", stDim(h.pal, "  keine Sessions an diesem Tag")}
+	if chip := h.renderDrillAttachedNotes(); chip != "" {
+		rows = append(rows, "", chip)
+	}
+	if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
+		rows = append(rows, "")
+		rows = append(rows, dialogRows...)
+	}
+	rows = append(rows, "", h.renderDrillFooter())
+	return strings.Join(rows, "\n")
+}
+
+// renderDrillSessionRows builds the scrollable session list: one
+// picker.Row per session, a dim pause separator between non-contiguous
+// sessions, and an optional dim note line under a row. Returns the rows
+// plus the index of the cursor row so fitHeight keeps the selection
+// visible when the list overflows the terminal height.
+func (h history) renderDrillSessionRows(inner int) (mid []string, focus int) {
 	prevStop := time.Time{}
 	for i, s := range h.drillSessions {
 		if !prevStop.IsZero() {
-			pause := s.Start.Sub(prevStop)
-			if pause > 0 {
-				rows = append(rows, stDim(h.pal,
+			if pause := s.Start.Sub(prevStop); pause > 0 {
+				mid = append(mid, stDim(h.pal,
 					fmt.Sprintf("       ─ %s Pause ─", formatDur(pause))))
 			}
 		}
@@ -168,35 +186,39 @@ func (h history) renderDrill() string {
 		if s.Tag != "" {
 			hint = "[" + s.Tag + "]"
 		}
-		rows = append(rows, picker.Row(i == h.drillCur, label, hint, inner, h.pal))
+		if i == h.drillCur {
+			focus = len(mid)
+		}
+		mid = append(mid, picker.Row(i == h.drillCur, label, hint, inner, h.pal))
 		if s.Note != "" {
-			rows = append(rows, stDim(h.pal, "       "+s.Note))
+			mid = append(mid, stDim(h.pal, "       "+s.Note))
 		}
 	}
+	return mid, focus
+}
 
-	// Chip-Zeile mit angehängten Notizen — analog Heute's
-	// renderAttachedNotes (today_render.go). Leeres drillAttached
-	// rendert KEINE Zeile, damit der Layout-Schwerpunkt bei den
-	// Sessions bleibt und der Drill nicht visuell hin- und herwackelt
-	// wenn der Tag mal Notizen hat und mal nicht.
+// renderDrillFooterRows assembles the pinned bottom block: attached-note
+// chip, the active edit/add/delete dialog, a transient toast slot, an
+// inline error, and the hint strip — in that order so dialogs stay
+// visible above a windowed session list. The chip and toast slot collapse
+// to nothing when empty so the layout doesn't wobble between days.
+func (h history) renderDrillFooterRows(inner int) []string {
+	var footer []string
 	if chip := h.renderDrillAttachedNotes(); chip != "" {
-		rows = append(rows, "", chip)
+		footer = append(footer, "", chip)
 	}
-
 	if dialogRows := h.renderDrillDialog(inner); len(dialogRows) > 0 {
-		rows = append(rows, "")
-		rows = append(rows, dialogRows...)
+		footer = append(footer, "")
+		footer = append(footer, dialogRows...)
 	}
-	// Toast-Slot via SlotRows — kollabiert auf nichts, wenn kein Toast
-	// aktiv ist, statt eine reservierte Leerzeile zu zeigen.
 	if h.dialog == historyDialogDrill {
-		rows = append(rows, toast.SlotRows(h.drillToast, "  ")...)
+		footer = append(footer, toast.SlotRows(h.drillToast, "  ")...)
 	}
 	if h.errMsg != "" {
-		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
+		footer = append(footer, "", theme.Err("  "+h.errMsg, h.pal))
 	}
-	rows = append(rows, "", h.renderDrillFooter())
-	return strings.Join(rows, "\n")
+	footer = append(footer, "", h.renderDrillFooter())
+	return footer
 }
 
 // renderDrillAttachedNotes rendert die Chip-Zeile mit den angehängten
