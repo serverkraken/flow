@@ -24,28 +24,38 @@ func (h history) renderMain() string {
 		inner = 80
 	}
 	records := filteredHistory(h.records, h.histQuery, h.deps.Clock.Now())
-	rows := []string{h.renderHeader(records, inner), ""}
+
+	// Header (volumen / performance strip) pinned at the top, footer
+	// (toast + hints) at the bottom; the day list / grid in between is the
+	// scrollable middle fitHeight windows around the cursor when the
+	// terminal is too short to show every row at once.
+	header := append(strings.Split(h.renderHeader(records, inner), "\n"), "")
+
+	var mid []string
+	focus := 0
 	switch h.mode {
 	case historyModeHeatmap:
-		rows = append(rows, h.renderHeatmap(records, inner))
+		mid = strings.Split(h.renderHeatmap(records, inner), "\n")
 	case historyModeTagClock:
-		rows = append(rows, h.renderTagClock(records, inner))
+		mid = strings.Split(h.renderTagClock(records, inner), "\n")
 	case historyModeMonth:
-		rows = append(rows, h.renderMonth(records, inner))
+		mid = strings.Split(h.renderMonth(records, inner), "\n")
 	default:
 		if len(records) == 0 {
 			msg := "  Keine Treffer."
 			if h.histQuery != "" {
 				msg += "  ·  T → Filter zurücksetzen"
 			}
-			rows = append(rows, stDim(h.pal, msg))
+			mid = []string{stDim(h.pal, msg)}
 		} else {
-			rows = append(rows, h.renderList(records, inner))
+			mid, focus = h.renderListRows(records, inner)
 		}
 	}
-	rows = append(rows, toast.SlotRows(h.listToast, "  ")...)
-	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
-	return strings.Join(rows, "\n")
+
+	footer := toast.SlotRows(h.listToast, "  ")
+	footer = append(footer, "", renderFooterHints(h.pal, h.footerHints(), inner))
+
+	return fitHeight(header, mid, footer, focus, bodyBudget(h.height), h.pal)
 }
 
 func (h history) renderHeader(records []domain.DayRecord, inner int) string {
@@ -106,9 +116,11 @@ func (h history) renderHeader(records []domain.DayRecord, inner int) string {
 	return header
 }
 
-func (h history) renderList(records []domain.DayRecord, inner int) string {
+// renderListRows builds the per-day list rows (grouped by ISO week) and
+// reports the index of the row carrying the cursor, so fitHeight can keep
+// the selected day visible when the list overflows the terminal height.
+func (h history) renderListRows(records []domain.DayRecord, inner int) (lines []string, focus int) {
 	const barW = 12
-	var lines []string
 	prevWeek := -1
 	prevYear := -1
 	for i, rec := range records {
@@ -145,11 +157,12 @@ func (h history) renderList(records []domain.DayRecord, inner int) string {
 		marker := "  "
 		if i == h.listCur {
 			marker = lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(picker.AccentBarRune) + " "
+			focus = len(lines)
 		}
 		notes := h.attachedChip(rec.Date)
 		lines = append(lines, marker+name+" "+date+"  "+bar+"  "+pctStr+"  "+durStr+done+notes)
 	}
-	return strings.Join(lines, "\n")
+	return lines, focus
 }
 
 // attachedChip rendert den Note-Indikator-Suffix einer Zeile, leer wenn

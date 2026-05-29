@@ -32,7 +32,8 @@ type woche struct {
 	pal  theme.Palette
 	deps Deps
 
-	width int
+	width  int
+	height int
 
 	week   []domain.WeekDay
 	stats  domain.Stats
@@ -124,6 +125,7 @@ func (w woche) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		w.width = msg.Width
+		w.height = msg.Height
 		return w, nil
 
 	case wocheLoadedMsg:
@@ -211,16 +213,25 @@ func (w woche) viewContent() string {
 	inner := w.width - 4
 	now := w.deps.Clock.Now()
 
-	rows := []string{w.renderHeader(now), ""}
-	rows = append(rows, w.renderDays(inner, now)...)
-	rows = append(rows, "")
-	rows = append(rows, w.renderTotals(inner, now)...)
-	rows = append(rows, "")
-	rows = append(rows, picker.SectionHeader("kennzahlen", inner, w.pal))
-	rows = append(rows, w.renderKPIs(now, inner))
-	rows = append(rows, "  "+w.renderPace(now))
-	rows = append(rows, "", renderFooterHints(w.pal, w.footerHints(), inner))
-	return strings.Join(rows, "\n")
+	// KW heading pins at the top, footer hints at the bottom. The day rows
+	// plus the totals + kennzahlen block form the scrollable middle, with
+	// the selected day as the windowing anchor — on a short terminal you
+	// scroll from the days down into the summary while the week identity
+	// (KW) and the hints stay put.
+	header := []string{w.renderHeader(now), ""}
+
+	mid := w.renderDays(inner, now)
+	focus := w.cursor
+	mid = append(mid, "")
+	mid = append(mid, w.renderTotals(inner, now)...)
+	mid = append(mid, "")
+	mid = append(mid, picker.SectionHeader("kennzahlen", inner, w.pal))
+	mid = append(mid, w.renderKPIs(now, inner))
+	mid = append(mid, "  "+w.renderPace(now))
+
+	footer := []string{"", renderFooterHints(w.pal, w.footerHints(), inner)}
+
+	return fitHeight(header, mid, footer, focus, bodyBudget(w.height), w.pal)
 }
 
 func (w woche) renderHeader(now time.Time) string {

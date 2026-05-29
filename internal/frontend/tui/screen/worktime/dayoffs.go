@@ -53,7 +53,8 @@ type frei struct {
 	pal  theme.Palette
 	deps Deps
 
-	width int
+	width  int
+	height int
 
 	entries []domain.DayOff
 	cursor  int
@@ -112,6 +113,7 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		f.width = msg.Width
+		f.height = msg.Height
 		return f, nil
 
 	case freiLoadedMsg:
@@ -461,13 +463,33 @@ func (f frei) renderBody() string {
 	if inner <= 0 {
 		inner = 80
 	}
-	rows := []string{f.renderHeader(), ""}
-	rows = append(rows, f.renderEntries(inner)...)
+	header := []string{f.renderHeader(), ""}
 	// Toast-Slot via SlotRows — kollabiert, wenn kein Toast aktiv ist,
 	// statt drei Leerzeilen unter der Liste zu hinterlassen.
-	rows = append(rows, toast.SlotRows(f.toast, "  ")...)
-	rows = append(rows, "", renderFooterHints(f.pal, f.footerHints(), inner))
-	return strings.Join(rows, "\n")
+	footer := toast.SlotRows(f.toast, "  ")
+	footer = append(footer, "", renderFooterHints(f.pal, f.footerHints(), inner))
+
+	if len(f.entries) == 0 {
+		// Empty state is a short fixed block (incl. its own first-action
+		// hints); no windowing needed, just pin header + footer around it.
+		rows := append(append([]string(nil), header...), f.renderEntriesEmpty(inner)...)
+		rows = append(rows, footer...)
+		return strings.Join(rows, "\n")
+	}
+
+	// Kind summary + section header pin under the year heading; the entry
+	// list is the scrollable middle fitHeight windows around the cursor.
+	header = append(header, "  "+f.renderKindSummary(), "",
+		picker.SectionHeader(fmt.Sprintf("einträge (%d)", len(f.entries)), inner, f.pal))
+	var mid []string
+	focus := 0
+	for i, d := range f.entries {
+		if i == f.cursor {
+			focus = len(mid)
+		}
+		mid = append(mid, f.renderEntryRow(i, d, inner))
+	}
+	return fitHeight(header, mid, footer, focus, bodyBudget(f.height), f.pal)
 }
 
 func (f frei) renderHeader() string {
@@ -480,32 +502,28 @@ func (f frei) renderHeader() string {
 	return "  " + left
 }
 
-func (f frei) renderEntries(inner int) []string {
-	if len(f.entries) == 0 {
-		// Empty-state: B-Sync (gesetzliche Feiertage) ist die häufigste
-		// First-Action und steht deshalb visuell vorne — Hervorhebung mit
-		// Highlight statt Dim, plus Bundesland-Hint aus WORKTIME_LAND damit
-		// der User sofort sieht *was* gesynct wird. a/A/K liegen darunter
-		// als sekundäre Hints im 4-Hint-Slot.
-		land := landOrDefault(f.deps.Land)
-		bSyncHint := theme.Highlight("B", f.pal) + theme.Dim(
-			fmt.Sprintf("  → gesetzliche Feiertage für %s importieren", land), f.pal,
-		)
-		hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank"}
-		return []string{
-			stDim(f.pal, "  Noch keine Daten in diesem Jahr."),
-			"",
-			"  " + bSyncHint,
-			"",
-			renderFooterHints(f.pal, hint, inner),
-		}
+// renderEntriesEmpty renders the no-data-this-year block: an empty-state
+// line plus the highlighted B-sync first-action hint. Pulled out of the
+// old renderEntries so the non-empty path can be windowed by fitHeight
+// (renderBody) while this short fixed block stays a plain join.
+func (f frei) renderEntriesEmpty(inner int) []string {
+	// Empty-state: B-Sync (gesetzliche Feiertage) ist die häufigste
+	// First-Action und steht deshalb visuell vorne — Hervorhebung mit
+	// Highlight statt Dim, plus Bundesland-Hint aus WORKTIME_LAND damit
+	// der User sofort sieht *was* gesynct wird. a/A/K liegen darunter
+	// als sekundäre Hints im 4-Hint-Slot.
+	land := landOrDefault(f.deps.Land)
+	bSyncHint := theme.Highlight("B", f.pal) + theme.Dim(
+		fmt.Sprintf("  → gesetzliche Feiertage für %s importieren", land), f.pal,
+	)
+	hint := []string{"a → anlegen", "A → heute=Urlaub", "K → heute=krank"}
+	return []string{
+		stDim(f.pal, "  Noch keine Daten in diesem Jahr."),
+		"",
+		"  " + bSyncHint,
+		"",
+		renderFooterHints(f.pal, hint, inner),
 	}
-	rows := []string{"  " + f.renderKindSummary(), ""}
-	rows = append(rows, picker.SectionHeader(fmt.Sprintf("einträge (%d)", len(f.entries)), inner, f.pal))
-	for i, d := range f.entries {
-		rows = append(rows, f.renderEntryRow(i, d, inner))
-	}
-	return rows
 }
 
 func (f frei) renderKindSummary() string {

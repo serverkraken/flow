@@ -54,21 +54,28 @@ func (h heute) renderBody() string {
 	}
 	now := h.deps.Clock.Now()
 
-	rows := []string{h.renderDateLine(now), h.renderHeadline(now), "", h.renderProgressBar(inner, now), h.renderSummary(inner, now)}
+	// Header pinned at the top (date / headline / progress / summary +
+	// optional note + pause context); footer pinned at the bottom (toast
+	// slot + hints). The sessions list is the scrollable middle that
+	// fitHeight windows around the cursor when the terminal is too short.
+	header := []string{h.renderDateLine(now), h.renderHeadline(now), "", h.renderProgressBar(inner, now), h.renderSummary(inner, now)}
 	if line := h.renderAttachedNotes(); line != "" {
-		rows = append(rows, "", line)
+		header = append(header, "", line)
 	}
 	if line := h.renderPauseHint(now); line != "" {
-		rows = append(rows, "", line)
+		header = append(header, "", line)
 	}
-	rows = append(rows, h.renderSessionsList(inner, now)...)
+
+	mid, focus := h.renderSessionsList(inner, now)
+
 	// SlotRows kollabiert auf nichts, wenn kein Toast aktiv ist — der
 	// dominante Idle-State zeigt nur eine Leerzeile vor dem Footer
 	// statt drei. Transient toasts (2s default) drücken den Footer
 	// kurz um 2 Zeilen runter; akzeptabler Trade-off für den Flash.
-	rows = append(rows, toast.SlotRows(h.toast, "  ")...)
-	rows = append(rows, "", renderFooterHints(h.pal, h.footerHints(), inner))
-	return strings.Join(rows, "\n")
+	footer := toast.SlotRows(h.toast, "  ")
+	footer = append(footer, "", renderFooterHints(h.pal, h.footerHints(), inner))
+
+	return fitHeight(header, mid, footer, focus, bodyBudget(h.height), h.pal)
 }
 
 // renderDateLine zeichnet "Mo · 01.05.2026" als kleine Anker-Zeile über
@@ -177,19 +184,23 @@ func (h heute) renderPauseHint(now time.Time) string {
 			h.day.PausedAt.Format("15:04"), formatDur(now.Sub(*h.day.PausedAt))))
 }
 
-func (h heute) renderSessionsList(inner int, now time.Time) []string {
+// renderSessionsList returns the scrollable session rows plus the index
+// (within those rows) of the row carrying the cursor, so fitHeight can
+// keep the focused session visible when the list overflows the terminal
+// height. focus is 0 when no session is focused (empty / running-only).
+func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focus int) {
 	totalRows := len(h.day.Sessions)
 	if h.day.IsRunning() {
 		totalRows++
 	}
 	if totalRows == 0 {
 		if h.day.IsPaused() {
-			return nil
+			return nil, 0
 		}
-		return []string{"", stDim(h.pal, "  Noch nichts erfasst — `s` startet")}
+		return []string{"", stDim(h.pal, "  Noch nichts erfasst — `s` startet")}, 0
 	}
 
-	rows := []string{"", picker.SectionHeader(
+	rows = []string{"", picker.SectionHeader(
 		fmt.Sprintf("sessions heute (%d)", totalRows), inner, h.pal,
 	)}
 
@@ -223,12 +234,15 @@ func (h heute) renderSessionsList(inner int, now time.Time) []string {
 		if s.Tag != "" {
 			hint = "[" + s.Tag + "]"
 		}
+		if i == h.cursor {
+			focus = len(rows)
+		}
 		rows = append(rows, picker.Row(i == h.cursor, label, hint, inner, h.pal))
 		if s.Note != "" {
 			rows = append(rows, stDim(h.pal, "       "+s.Note))
 		}
 	}
-	return rows
+	return rows, focus
 }
 
 // footerHints liefert max 4 Hints, priorisiert nach Frequenz (Skill §Hint
