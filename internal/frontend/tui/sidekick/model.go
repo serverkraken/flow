@@ -382,7 +382,7 @@ func helpSectionsGlobal() help.Section {
 			{"f", "Projekte"},
 			{"w", "Worktime"},
 			{"c", "Cheatsheet"},
-			{"n", "Notes (Kompendium)"},
+			{"n", "Notizen (Kompendium)"},
 			{"?", "Hilfe (diese Ansicht)"},
 			{"q / Ctrl+C", "Beenden"},
 		},

@@ -356,7 +356,7 @@ func (m menuModel) dispatchPending(target outputTarget) tea.Cmd {
 	}
 	label := m.pending.label
 	return func() tea.Msg {
-		return menuActionDoneMsg{toast: "TODO: " + label}
+		return menuActionDoneMsg{toast: label + " — noch nicht verfügbar"}
 	}
 }
 
@@ -469,7 +469,7 @@ func (m menuModel) runAction(a menuAction) (menuModel, tea.Cmd) {
 		m.toast = nil
 		return m, nil
 	}
-	t := toast.NewDefault("TODO: "+a.label, m.pal)
+	t := toast.NewDefault(a.label+" — noch nicht verfügbar", m.pal)
 	m.toast = &t
 	return m, t.Init()
 }

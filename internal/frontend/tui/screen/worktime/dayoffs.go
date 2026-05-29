@@ -590,7 +590,7 @@ func (f frei) renderAddDialog(inner int) string {
 	rows = append(rows, "", renderFooterHints(f.pal, []string{
 		"Tab → Feld",
 		"h/l → Kategorie",
-		"Enter → weiter / speichern",
+		"Enter → speichern",
 		"Esc → abbrechen",
 	}, inner))
 	return strings.Join(rows, "\n")
@@ -606,7 +606,7 @@ func (f frei) renderAddFields(inner int) []string {
 }
 
 func (f frei) renderKindPicker(inner int) string {
-	header := picker.SectionHeader("kategorie  (h/l zum Wechseln)", inner, f.pal)
+	header := picker.SectionHeader("kategorie", inner, f.pal)
 	chips := make([]string, 0, len(domain.AllKinds))
 	kindFocused := f.formCur == f.kindIdx()
 	for i, k := range domain.AllKinds {

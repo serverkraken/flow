@@ -58,11 +58,11 @@ func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (str
 	case frac >= 0.75:
 		return "██", sem.Success
 	case frac >= 0.5:
-		return "▓▓", sem.Success
+		return "▓▓", sem.Active
 	case frac >= 0.25:
 		return "▒▒", sem.Warning
 	case frac > 0:
-		return "░░", sem.Warning
+		return "░░", pal.FgMuted
 	}
 	return "··", pal.BgCode
 }
@@ -144,10 +144,10 @@ func (h history) renderTagClock(records []domain.DayRecord, inner int) string {
 	}
 	legend := []string{
 		stDim(h.pal, "·· keine"),
-		stDim(h.pal, "░░ <25%"),
-		stDim(h.pal, "▒▒ <50%"),
-		stDim(h.pal, "▓▓ <75%"),
-		stDim(h.pal, "██ ≥75%"),
+		lipgloss.NewStyle().Foreground(h.pal.FgMuted).Render("░░ <25%"),
+		theme.Warning("▒▒ <50%", h.pal),
+		theme.Info("▓▓ <75%", h.pal),
+		theme.Success("██ ≥75%", h.pal),
 	}
 	lines = append(lines, joinWrapped(legend, "  ", "   ", "   ", inner))
 	return strings.Join(lines, "\n")

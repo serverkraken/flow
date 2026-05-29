@@ -17,6 +17,7 @@ import (
 	"github.com/sahilm/fuzzy"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -320,7 +321,7 @@ func (m Model) viewContent() string {
 	case len(m.all) == 0:
 		rows = append(rows, theme.Dim("  keine Projekte gefunden — $SOURCECODE_ROOT prüfen", m.pal))
 	case len(m.visible) == 0:
-		rows = append(rows, theme.Dim("  keine Treffer", m.pal))
+		rows = append(rows, theme.Dim("  "+uistrings.LabelEmpty, m.pal))
 	default:
 		vis := m.maxVisible()
 		end := min(m.offset+vis, len(m.visible))
@@ -334,7 +335,7 @@ func (m Model) viewContent() string {
 				// Active-tmux-session-Marker im Hint-Slot statt im Label —
 				// picker.Row truncated nur das Label und garantiert dass der
 				// Marker rechtsbündig erhalten bleibt, auch bei langen Namen.
-				hint = lipgloss.NewStyle().Foreground(m.pal.Sem().Success).Render("●")
+				hint = lipgloss.NewStyle().Foreground(m.pal.Sem().Active).Render(glyphs.Active)
 			}
 			rows = append(rows, picker.Row(i == m.cursor, p.Name, hint, inner, m.pal))
 		}

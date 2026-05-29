@@ -89,7 +89,7 @@ func (h history) renderFilterDialog() string {
 	val := strings.ToLower(strings.TrimSpace(h.input.Value()))
 	if strings.HasPrefix(val, "tag:") && len(h.topTags) > 0 {
 		rows = append(rows, "")
-		rows = append(rows, stDim(h.pal, "  top tags:"))
+		rows = append(rows, stDim(h.pal, "  häufigste Tags:"))
 		rows = append(rows, "  "+strings.Join(h.topTags, "  ·  "))
 	}
 	rows = append(rows, "")
