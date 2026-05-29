@@ -147,7 +147,7 @@ func (m Model) renderEntries(innerWidth int) []string {
 
 	var rows []string
 	if m.offset > 0 {
-		rows = append(rows, theme.Dim(fmt.Sprintf("  ↑ %d vorherige…", m.offset), m.pal))
+		rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d vorherige…", glyphs.Up, m.offset), m.pal))
 	}
 	lastSection := ""
 	for i := m.offset; i < end; i++ {
@@ -164,7 +164,7 @@ func (m Model) renderEntries(innerWidth int) []string {
 		rows = append(rows, m.renderRow(i == m.cursor, e.Label, m.highlights[i], e.Keybind, innerWidth))
 	}
 	if end < len(m.visible) {
-		rows = append(rows, theme.Dim(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end), m.pal))
+		rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d weitere…", glyphs.Down, len(m.visible)-end), m.pal))
 	}
 	return rows
 }

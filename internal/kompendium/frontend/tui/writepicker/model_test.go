@@ -164,7 +164,7 @@ func TestPicker_CursorClampedAtEdges(t *testing.T) {
 	for range 5 {
 		m, _ = sendOne(m, key("j"))
 	}
-	if !strings.Contains(m.View(), glyphsActive) {
+	if !strings.Contains(m.View(), glyphsAccentBar) {
 		t.Errorf("cursor disappeared after edge navigation:\n%s", m.View())
 	}
 }
@@ -187,11 +187,11 @@ func TestPicker_IgnoresNonKeyMessages(t *testing.T) {
 	}
 }
 
-// glyphsActive ist die String-Form von glyphs.Active, hier dupliziert
-// damit der Test nicht das interne glyphs-Package importieren muss
-// (würde gegen die Test-Konvention verstoßen, dass Tests nur das
-// Public-API des Packages-under-test berühren).
-const glyphsActive = "▶"
+// glyphsAccentBar ist die String-Form von glyphs.AccentBar (der
+// Selektions-Marker), hier dupliziert damit der Test nicht das interne
+// glyphs-Package importieren muss (Test-Konvention: nur Public-API des
+// Packages-under-test berühren).
+const glyphsAccentBar = "▎"
 
 // --- helpers ----------------------------------------------------------------
 

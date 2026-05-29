@@ -213,15 +213,28 @@ needs styled output for one cell of the layout.
 | Component | API                                                 | Variants                       | Notes |
 |-----------|-----------------------------------------------------|--------------------------------|-------|
 | `titlebox` (legacy `box`) | `Render(title, body string, width int, p Palette)` | rounded                        | Wraps a body in a rounded-border box with a title strip. |
-| `chip`    | `Render(Opts{Label, Color, Variant}, p Palette)` + `Hash(s, palette)` | Solid, Outline                 | Tag chip. `Hash` picks a stable colour from `p.TagPalette`. |
-| `card`    | `Render(Opts{Badge, Title, Meta, Body, Width, Separator}, p)` | with/without badge / separator | Compact two-row header used in markdown frontmatter and worktime. |
-| `tabs`    | `Render(items, active int, width int, variant, p)` | Underline (default), Pill     | Active tab = bold + accent + underline rule (A11y-2). |
 | `modal`   | `Render(content string, Opts{Title, Kind, Width}, p)` | KindDefault, KindDanger, KindSafe | DoubleBorder + BgPanel + PadMD/PadSM. |
 | `statusbar.Hints` | `Hints(text string, p Palette)`             | inline                         | Footer hint strip. |
 | `statusbar.Bar`   | `Bar(pct, cells int, p Palette)`            | filled/empty                   | Progress bar via `▰` / `▱`. |
 | `picker.Row`      | `Row(selected bool, label, hint string, width int, p)` | with hint                | Selection row with `▎` accent bar + bold-on-selected. |
 | `picker.SectionHeader` | `SectionHeader(title string, width int, p)`     | —                              | Dim section divider. |
 | `help`    | `Render(title string, sections, keyWidth, boxWidth int, p)` | overlay                        | `?`-overlay; uses `KeyHintWidth` for key column. |
+
+**Rendered inline, not extracted (yet).** Three recurring looks are *not*
+standalone components — they are rendered inline at their one or two
+call-sites and pull their glyphs/colours from `glyphs` + `Sem()` like any
+component would:
+
+- **Tab strip** — the worktime sub-tabs (`screen/worktime/model.go`) and the
+  sidekick view tabs (`sidekick/model.go`). Active tab = bold + `Sem().Accent`
+  + underline rule (the NO_COLOR cue).
+- **Tag chip** — markdown frontmatter tags and worktime tag labels, coloured
+  by a stable hash over `TagPalette`.
+- **Card** — the markdown frontmatter header block (`markdown` renderer).
+
+Extract any of these into `components/<name>/` once a third unrelated
+call-site appears (§"When to add a component" in the skill); until then the
+inline render is the source of truth.
 
 ### `tea.Model` components
 
@@ -230,13 +243,12 @@ messages.
 
 | Component | Constructor                                  | Variants / Kinds                              | KeyMap Export | Notes |
 |-----------|----------------------------------------------|-----------------------------------------------|---------------|-------|
-| `spinner` | `New(label string, p Palette)`               | Dot                                           | —             | bubbles/spinner wrapper. |
 | `toast`   | `New / NewSuccess / NewWarning / NewDanger / NewInfo` | Success ✓, Warning ▲, Danger ✗, Info › | —             | DefaultDuration = 2 s. Glyph + colour, never colour alone. |
 | `confirm` | `New / NewDanger`                            | KindDefault (yellow), KindDanger (red)        | `Keys() KeyMap` (A11y-5) | y/Enter → confirm, n/Esc → cancel. Hint via `strings.HintConfirm`. |
 | `form.TextInput` | `New(opts InputOpts, p)`              | default                                       | —             | Cursor + focus styled via Sem.Accent. |
-| `viewport` | bubbles wrapper                             | —                                             | —             | Scroll glyph + border styled from palette. |
+| `markdown_overlay` | `New(render RenderFunc, opts ...Option)` | `WithSearch`, `WithCodeCopy`, `WithCloseKeys`, `WithFooterExtras`, `WithTitle`/`WithSource` | `Keys() KeyMap` | Scrollable markdown viewer (`?`-cheatsheet, note preview, design-doc). Wraps the bubbles viewport + the shared markdown renderer. |
 
-### Pill (in `components/theme`)
+### Pill (in `theme`)
 
 `RenderPill(kind PillKind, label string, p Palette) string` — glyph +
 colour status indicator. Kinds: `PillSuccess ✓`, `PillWarning ▲`,

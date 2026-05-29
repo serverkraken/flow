@@ -13,6 +13,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -50,21 +51,34 @@ func tagClockGrid(records []domain.DayRecord) ([7][24]time.Duration, time.Durati
 	return grid, maxCell
 }
 
+// tagClockStep ties one density bucket to its glyph, legend label and
+// color. The cell renderer and the legend both iterate tagClockScale,
+// so glyph + Farbe je Bucket können nicht auseinanderdriften. Die Zelle
+// rendert den Glyph doppelt (zwei Zellen breit). Reihenfolge high→low.
+type tagClockStep struct {
+	minFrac float64
+	glyph   string
+	label   string
+	color   func(theme.Palette) color.Color
+}
+
+var tagClockScale = []tagClockStep{
+	{0.75, glyphs.HeatFull, "≥75%", func(p theme.Palette) color.Color { return p.Sem().Success }},
+	{0.5, glyphs.HeatDark, "<75%", func(p theme.Palette) color.Color { return p.Sem().Active }},
+	{0.25, glyphs.HeatMedium, "<50%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
+	{0, glyphs.HeatLight, "<25%", func(p theme.Palette) color.Color { return p.FgMuted }},
+}
+
 func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, color.Color) {
-	sem := pal.Sem()
-	switch {
-	case cell == 0:
-		return "··", pal.BgCode
-	case frac >= 0.75:
-		return "██", sem.Success
-	case frac >= 0.5:
-		return "▓▓", sem.Active
-	case frac >= 0.25:
-		return "▒▒", sem.Warning
-	case frac > 0:
-		return "░░", pal.FgMuted
+	if cell == 0 {
+		return strings.Repeat(glyphs.BulletDot, 2), pal.BgCode
 	}
-	return "··", pal.BgCode
+	for _, s := range tagClockScale {
+		if frac >= s.minFrac {
+			return strings.Repeat(s.glyph, 2), s.color(pal)
+		}
+	}
+	return strings.Repeat(glyphs.BulletDot, 2), pal.BgCode
 }
 
 func (h history) renderTagClockHeader() string {
@@ -142,12 +156,11 @@ func (h history) renderTagClock(records []domain.DayRecord, inner int) string {
 	if status := h.renderTagClockStatus(grid, maxCell, dayLabels); status != "" {
 		lines = append(lines, status)
 	}
-	legend := []string{
-		stDim(h.pal, "·· keine"),
-		lipgloss.NewStyle().Foreground(h.pal.FgMuted).Render("░░ <25%"),
-		theme.Warning("▒▒ <50%", h.pal),
-		theme.Info("▓▓ <75%", h.pal),
-		theme.Success("██ ≥75%", h.pal),
+	legend := []string{stDim(h.pal, strings.Repeat(glyphs.BulletDot, 2)+" keine")}
+	for i := len(tagClockScale) - 1; i >= 0; i-- {
+		s := tagClockScale[i]
+		legend = append(legend,
+			lipgloss.NewStyle().Foreground(s.color(h.pal)).Render(strings.Repeat(s.glyph, 2)+" "+s.label))
 	}
 	lines = append(lines, joinWrapped(legend, "  ", "   ", "   ", inner))
 	return strings.Join(lines, "\n")

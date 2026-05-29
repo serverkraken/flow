@@ -105,45 +105,40 @@ const (
 // CalloutBadge returns the styled badge chip ("NOTE", "WARNING", …)
 // for a callout kind, painted onto the given palette.
 func CalloutBadge(kind CalloutKind, p canonical.Palette) lipgloss.Style {
-	color := lipgloss.NewStyle().
+	return lipgloss.NewStyle().
 		Foreground(p.Bg).
 		Bold(true).
-		Padding(0, 1)
-	switch kind {
-	case CalloutTip, CalloutNote:
-		return color.Background(p.Cyan)
-	case CalloutInfo:
-		return color.Background(p.Blue)
-	case CalloutWarning:
-		return color.Background(p.Yellow)
-	case CalloutDanger:
-		return color.Background(p.Red)
-	case CalloutImportant:
-		return color.Background(p.Purple)
-	case CalloutSuccess:
-		return color.Background(p.Green)
-	}
-	return color.Background(p.FgMuted)
+		Padding(0, 1).
+		Background(calloutColor(kind, p))
 }
 
 // CalloutBar returns the leading │ bar style matched to a callout
 // kind so the bar colour reinforces the badge.
 func CalloutBar(kind CalloutKind, p canonical.Palette) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(calloutColor(kind, p))
+}
+
+// calloutColor maps a callout kind to its semantic color (Skill §Color
+// semantics: consume p.Sem(), nicht die rohe Hue). note/tip/info teilen
+// sich Sem().Info — alle drei sind „informativ ohne Aktion", die Badge-
+// Beschriftung (NOTE/TIP/INFO) trägt die Differenzierung statt der Farbe;
+// info wechselt damit von Blau auf das Info-Cyan. important = Highlight
+// (Identität), Rest auf die passende Sem-Rolle.
+func calloutColor(kind CalloutKind, p canonical.Palette) canonical.Color {
+	sem := p.Sem()
 	switch kind {
-	case CalloutTip, CalloutNote:
-		return lipgloss.NewStyle().Foreground(p.Cyan)
-	case CalloutInfo:
-		return lipgloss.NewStyle().Foreground(p.Blue)
+	case CalloutTip, CalloutNote, CalloutInfo:
+		return sem.Info
 	case CalloutWarning:
-		return lipgloss.NewStyle().Foreground(p.Yellow)
+		return sem.Warning
 	case CalloutDanger:
-		return lipgloss.NewStyle().Foreground(p.Red)
+		return sem.Danger
 	case CalloutImportant:
-		return lipgloss.NewStyle().Foreground(p.Purple)
+		return sem.Highlight
 	case CalloutSuccess:
-		return lipgloss.NewStyle().Foreground(p.Green)
+		return sem.Success
 	}
-	return lipgloss.NewStyle().Foreground(p.FgMuted)
+	return p.FgMuted
 }
 
 // MarkdownRolesFor returns a MarkdownRoles built from a canonical

@@ -159,12 +159,18 @@ func (h heute) StateFilter() string { return "" }
 func (h heute) StateCursor() int { return h.cursor }
 
 // ConsumesKeys lists letter keys Heute claims away from the sidekick's
-// global navigation. `n` is kompendium-attach (advertised in the
-// `?`-overlay); `p` is pause-the-running-session. Both keys would
-// otherwise be eaten by the sidekick to switch screens — the bindings
-// would be tot in sidekick mode, only working in `flow worktime today`
-// standalone.
-func (h heute) ConsumesKeys() []string { return []string{"n", "p"} }
+// global navigation. `n` (kompendium-attach) is always claimed. `p`
+// (pause) wird nur beansprucht, solange eine Session läuft — sonst
+// no-op't der Handler und würde das globale `p → Palette` still
+// verschlucken (toter Key). So bleibt die Palette aus Heute erreichbar,
+// wann immer Pause bedeutungslos ist.
+func (h heute) ConsumesKeys() []string {
+	keys := []string{"n"}
+	if h.day.IsRunning() {
+		keys = append(keys, "p")
+	}
+	return keys
+}
 
 // FastTick reports whether the root should schedule the fast (1 s) tick.
 // True during the first minute of an active session — the live elapsed

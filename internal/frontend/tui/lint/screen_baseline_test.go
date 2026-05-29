@@ -33,7 +33,7 @@ var screenBaseline = map[string]int{
 	"worktime/helpers.go":          3, // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
 	"worktime/history.go":          8, // historyStyles cache (newHistoryStyles): pre-built dayLabel/header/cursor/bal styles für renderHeatmap* & renderMonth* hot paths
 	"worktime/history_drill.go":    0,
-	"worktime/history_heatmap.go":  8, // T7: legend uses ○ + kindColor for Feiertag/Urlaub/Krank + Sem.Active für ▓ <100% (Skill §Color: Success exklusiv für Hit ≥100%); historyStyles cache zog 3 statische NewStyles raus
+	"worktime/history_heatmap.go":  6, // heatScale-Refactor: ein geteiltes Step-Slice speist Zelle + Legende (kein Farb-Mismatch mehr), Legende loopt die Skala mit einem NewStyle-Site statt je-Chip; day-off-Chips (Schedule/Highlight/Notice) bleiben
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    2,
 	"worktime/history_tagclock.go": 6,
