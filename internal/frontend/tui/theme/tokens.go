@@ -22,6 +22,13 @@ const (
 	WideBox       = 80 // full-width screens
 )
 
+// PickerChromeRows is the vertical chrome budget a filterable picker
+// (palette, projects) reserves around its scrollable list: title +
+// filter input + separator + toast slot + hint footer + one buffer row.
+// Lifted from the bare `height-6` literal that appeared in two pickers so
+// the magic number reads as intent, not arithmetic.
+const PickerChromeRows = 6
+
 // Layer is an ordering hint, not a real z-axis. Components use it to
 // pick consistent border kinds and padding scales for "how prominent is
 // this surface" — surface < panel < hover < selected < overlay < modal.

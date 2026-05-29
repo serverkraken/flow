@@ -111,8 +111,15 @@ func (h history) renderDrill() string {
 	if inner <= 0 {
 		inner = 80
 	}
-	title := theme.Heading("  Tag "+h.drillDate.Format("2006-01-02")+" ("+
+	// Drill ist ein Sub-State der History (man steigt aus der Tag-Liste
+	// hinein). Ein Highlight-Bar (▎) + "Drill"-Badge in Purple signalisiert
+	// "das ist ein eigener Layer", konsistent zum Identity-Vokabular
+	// (Skill §Color: Highlight = Identity/Titles). Das Datum bleibt Heading.
+	bar := theme.Highlight(picker.AccentBarRune, h.pal)
+	badge := theme.Highlight("Drill", h.pal)
+	dateLabel := theme.Heading("Tag "+h.drillDate.Format("2006-01-02")+" ("+
 		domain.WeekdayShortDe(h.drillDate.Weekday())+")", h.pal)
+	title := " " + bar + " " + badge + stDim(h.pal, " · ") + dateLabel
 	if h.drillErr != nil {
 		rows := []string{title, "", stErr(h.pal, h.drillErr.Error()), "", stDim(h.pal, drillBackHint)}
 		return strings.Join(rows, "\n")

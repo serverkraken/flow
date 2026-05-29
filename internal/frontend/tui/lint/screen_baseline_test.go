@@ -29,7 +29,7 @@ var screenBaseline = map[string]int{
 	"palette/model.go":             5, // round4: per-Model paletteStyles cache (constructor) — replaces 4 inline NewStyles in renderRow
 	"palette/render.go":            0,
 	"projects/model.go":            1,
-	"worktime/dayoffs.go":          7, // T9/T10: kindColor per row + renderKindPicker glyph/label styles
+	"worktime/dayoffs.go":          6, // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
 	"worktime/helpers.go":          3, // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
 	"worktime/history.go":          8, // historyStyles cache (newHistoryStyles): pre-built dayLabel/header/cursor/bal styles für renderHeatmap* & renderMonth* hot paths
 	"worktime/history_drill.go":    0,

@@ -402,7 +402,11 @@ func (m Model) renderHelp() string {
 			sections = append(sections, hp.HelpSections()...)
 		}
 	}
-	box := help.Render("Hilfe · Tastenbelegung", sections, 22, m.width, m.pal)
+	// keyWidth 36, nicht 22: helpSectionsHistory enthält die längste
+	// Key-Combo "h · l (Heatmap/Tag-Clock/Monat)" (≈31 Zellen). Bei 22
+	// lief der Key in fg.Width() um und schob die Description in eine
+	// zweite Zeile — die Spalte muss die längste Bindung mit Slack fassen.
+	box := help.Render("Hilfe · Tastenbelegung", sections, 36, m.width, m.pal)
 	footer := statusbar.Hints("beliebige Taste → zurück", m.pal)
 	return box + "\n" + footer
 }

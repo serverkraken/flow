@@ -18,7 +18,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
-	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -83,7 +82,6 @@ func (Model) HelpSections() []help.Section {
 			{"g / G", "Anfang / Ende"},
 			{"/", "Im Cheatsheet suchen"},
 			{"c", "Code-Block kopieren"},
-			{"b", uistrings.ActionBackToPalette},
 			{"q", "Schließen (im Standalone)"},
 		},
 	}}
