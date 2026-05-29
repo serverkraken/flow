@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/serverkraken/flow/compare/v1.3.0...v1.4.0) (2026-05-29)
+
+
+### Features
+
+* **tui:** german UI strings, design-review fixes, session nachbuchen ([#32](https://github.com/serverkraken/flow/issues/32)) ([8096c30](https://github.com/serverkraken/flow/commit/8096c30cae09d0f3981e245f9cabd1bd473a5a25))
+
 ## [1.3.0](https://github.com/serverkraken/flow/compare/v1.2.2...v1.3.0) (2026-05-22)
 
 
