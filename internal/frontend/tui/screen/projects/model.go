@@ -326,7 +326,7 @@ func (m Model) viewContent() string {
 		vis := m.maxVisible()
 		end := min(m.offset+vis, len(m.visible))
 		if m.offset > 0 {
-			rows = append(rows, theme.Dim(fmt.Sprintf("  ↑ %d vorherige…", m.offset), m.pal))
+			rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d vorherige…", glyphs.Up, m.offset), m.pal))
 		}
 		for i := m.offset; i < end; i++ {
 			p := m.visible[i]
@@ -340,7 +340,7 @@ func (m Model) viewContent() string {
 			rows = append(rows, picker.Row(i == m.cursor, p.Name, hint, inner, m.pal))
 		}
 		if end < len(m.visible) {
-			rows = append(rows, theme.Dim(fmt.Sprintf("  ↓ %d weitere…", len(m.visible)-end), m.pal))
+			rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d weitere…", glyphs.Down, len(m.visible)-end), m.pal))
 		}
 	}
 

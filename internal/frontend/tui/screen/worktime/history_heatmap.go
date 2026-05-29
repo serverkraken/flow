@@ -80,7 +80,7 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	// Einheitlicher Empty-Glyph (· middle-dot) für Werktag und Wochenende —
 	// vorher mischte `.` (baseline) für Werktag mit `·` (middle-dot) für
 	// Wochenende, was die Spalten optisch unruhig wirken ließ.
-	cell := " · "
+	cell := " " + glyphs.BulletDot + " "
 	var color color.Color = h.pal.BgCode
 	if hasRec && rec.Target > 0 {
 		cell, color = heatmapCellGlyph(h.pal, rec)
@@ -140,50 +140,57 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 
 func (h history) renderHeatmapLegend(inner int) string {
 	sem := h.pal.Sem()
-	// Pace-Skala (5 Chips: leer → █ Ziel) + 3 Day-off-Chips. Der frühere
+	// Pace-Chips aus heatScale (low→high) generiert, damit Legende und
+	// Zelle denselben Glyph + dieselbe Farbe je Bucket tragen. Der frühere
 	// Text-Chip „_ heute (unterstrichen)" ist raus — er war der einzige
-	// Glyph-lose Eintrag und brach den Rhythmus, und die Heatmap-Zelle
-	// selbst trägt die Underline-Semantik selbsterklärend nach einmaligem
-	// Sehen (Skill §Visual hierarchy: rhythm).
-	legend := []string{
-		stDim(h.pal, "· leer"),
-		stDim(h.pal, "░ <50%"),
-		stDim(h.pal, "▒ <75%"),
-		lipgloss.NewStyle().Foreground(sem.Active).Render("▓ <100%"),
-		lipgloss.NewStyle().Foreground(sem.Success).Render("█ Ziel"),
-		lipgloss.NewStyle().Foreground(sem.Danger).Render("▲ ≥150%"),
-		// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
-		// ● + Sem.Schedule/Highlight/Notice. Glyph + Farbe matchen die
-		// heatmap-Zelle UND den tmux-Pace-Dot — cross-surface identity.
-		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Filled + " Feiertag"),
-		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Filled + " Urlaub"),
-		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Filled + " Krank"),
+	// Glyph-lose Eintrag und brach den Rhythmus (Skill §Visual hierarchy).
+	legend := []string{stDim(h.pal, glyphs.BulletDot+" leer")}
+	for i := len(heatScale) - 1; i >= 0; i-- {
+		s := heatScale[i]
+		legend = append(legend,
+			lipgloss.NewStyle().Foreground(s.color(h.pal)).Render(s.glyph+" "+s.label))
 	}
+	// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
+	// ● + Sem.Schedule/Highlight/Notice. Glyph + Farbe matchen die
+	// heatmap-Zelle UND den tmux-Pace-Dot — cross-surface identity.
+	legend = append(legend,
+		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Filled+" Feiertag"),
+		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Filled+" Urlaub"),
+		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Filled+" Krank"),
+	)
 	return joinWrapped(legend, "  ", "   ", "   ", inner)
 }
 
+// heatStep ties one density bucket to its glyph, legend label and
+// semantic color. The cell renderer and the legend both iterate
+// heatScale, so a bucket can never drift between the two surfaces —
+// vorher waren ░/▒ in der Zelle Warning-gefärbt, in der Legende aber
+// dim (A11y-1 Glyph↔Legende-Mismatch). Reihenfolge high→low.
+// ▲ (≥150%) trägt Glyph + Farbe (A11y-2: nie nur Farbe); ▓ statt █ ab
+// 75% hält Grün exklusiv für den Hit ≥100% (Skill §Color semantics).
+type heatStep struct {
+	minPct float64
+	glyph  string
+	label  string
+	color  func(theme.Palette) color.Color
+}
+
+var heatScale = []heatStep{
+	{1.5, glyphs.Up, "≥150%", func(p theme.Palette) color.Color { return p.Sem().Danger }},
+	{1.0, glyphs.HeatFull, "Ziel", func(p theme.Palette) color.Color { return p.Sem().Success }},
+	{0.75, glyphs.HeatDark, "<100%", func(p theme.Palette) color.Color { return p.Sem().Active }},
+	{0.5, glyphs.HeatMedium, "<75%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
+	{0, glyphs.HeatLight, "<50%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
+}
+
 func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, color.Color) {
-	sem := pal.Sem()
 	pct := float64(rec.Total) / float64(rec.Target)
-	switch {
-	case pct >= 1.5:
-		// ≥150% bekommt einen distinkten Glyph (▲ = "Up" aus dem Whitelist),
-		// damit die A11y-2-Regel hält: Glyph + Farbe, niemals nur Farbe.
-		return " ▲ ", sem.Danger
-	case pct >= 1.0:
-		return " █ ", sem.Success
-	case pct >= 0.75:
-		// "Auf Kurs, aber noch nicht angekommen" — Sem.Active statt
-		// Success, damit Grün exklusiv für den Hit ≥100% steht. Glyph
-		// ▓ trägt die Differenz zum █-Hit (Skill §Color semantics: ein
-		// klares Meaning pro Token).
-		return " ▓ ", sem.Active
-	case pct >= 0.5:
-		return " ▒ ", sem.Warning
-	case pct > 0:
-		return " ░ ", sem.Warning
+	for _, s := range heatScale {
+		if pct > 0 && pct >= s.minPct {
+			return " " + s.glyph + " ", s.color(pal)
+		}
 	}
-	return " · ", pal.BgCode
+	return " " + glyphs.BulletDot + " ", pal.BgCode
 }
 
 // — heatmap bounds + cursor helpers —

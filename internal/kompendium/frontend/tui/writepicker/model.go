@@ -222,17 +222,16 @@ func SetPalette(p theme.Palette) {
 }
 
 var (
-	frameStyle     lipgloss.Style
-	headerStyle    lipgloss.Style
-	cursorStyle    lipgloss.Style
-	selectedStyle  lipgloss.Style
-	optionStyle    lipgloss.Style
-	iconStyle      lipgloss.Style
-	hintStyle      lipgloss.Style
-	dimStyle       lipgloss.Style
-	footerStyle    lipgloss.Style
-	footerKeyStyle lipgloss.Style
-	slugBoxStyle   lipgloss.Style
+	frameStyle    lipgloss.Style
+	headerStyle   lipgloss.Style
+	cursorStyle   lipgloss.Style
+	selectedStyle lipgloss.Style
+	optionStyle   lipgloss.Style
+	iconStyle     lipgloss.Style
+	hintStyle     lipgloss.Style
+	dimStyle      lipgloss.Style
+	footerStyle   lipgloss.Style
+	slugBoxStyle  lipgloss.Style
 )
 
 func init() { rebuildStyles() }
@@ -264,12 +263,11 @@ func rebuildStyles() {
 		Foreground(pal.FgMuted)
 	footerStyle = lipgloss.NewStyle().
 		Foreground(pal.FgMuted)
-	footerKeyStyle = lipgloss.NewStyle().
-		Foreground(sem.Active).
-		Bold(true)
+	// Input-Box-Border = Accent (interaktiv/fokussiert), nicht Warning —
+	// ein Eingabefeld ist kein Caution-Zustand (Skill §Color semantics).
 	slugBoxStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(sem.Warning).
+		BorderForeground(sem.Accent).
 		Padding(0, 1)
 }
 
@@ -284,7 +282,9 @@ func menuCard(opts []option, cursor int) string {
 			row = row + "  " + hintStyle.Render(opt.hint)
 		}
 		if i == cursor {
-			sb.WriteString(cursorStyle.Render(glyphs.Active + " "))
+			// Selektion = Accent-Bar (▎), nicht ▶ (Active = „läuft/live").
+			// Gleiches Vokabular wie picker.Row (Skill §Color semantics).
+			sb.WriteString(cursorStyle.Render(glyphs.AccentBar + " "))
 			sb.WriteString(selectedStyle.Render(row))
 		} else {
 			sb.WriteString("  ")
@@ -319,10 +319,15 @@ func slugCard(slugView string) string {
 
 type hintEntry struct{ key, desc string }
 
+// footerLine renders the canonical hint strip (Skill §Hint format):
+// `key → action  ·  key → action`, durchgehend dim (FgMuted). Connector
+// ` → ` (Space-Pfeil-Space), Trenner `  ·  `. Vorher war der Key
+// Active-bold und der Trenner ` · ` mit nur einem Space — beides
+// entsprach nicht der app-weiten statusbar.Hints-Konvention.
 func footerLine(entries []hintEntry) string {
 	parts := make([]string, 0, len(entries))
 	for _, e := range entries {
-		parts = append(parts, footerKeyStyle.Render(e.key)+footerStyle.Render(" "+e.desc))
+		parts = append(parts, e.key+" → "+e.desc)
 	}
-	return strings.Join(parts, footerStyle.Render(" · "))
+	return footerStyle.Render(strings.Join(parts, "  ·  "))
 }

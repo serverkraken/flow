@@ -176,9 +176,9 @@ func (h history) attachedChip(date time.Time) string {
 	if n <= 0 {
 		return ""
 	}
-	label := "●"
+	label := glyphs.Filled
 	if n > 1 {
-		label = fmt.Sprintf("● %d", n)
+		label = fmt.Sprintf("%s %d", glyphs.Filled, n)
 	}
 	return "  " + theme.Highlight(label, h.pal)
 }

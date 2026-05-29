@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
@@ -229,7 +230,7 @@ func (h history) renderDrillAttachedNotes() string {
 	if len(h.drillAttached) == 0 {
 		return ""
 	}
-	label := theme.Highlight("●", h.pal)
+	label := theme.Highlight(glyphs.Filled, h.pal)
 	ids := stDim(h.pal, strings.Join(h.drillAttached, "  ·  "))
 	hint := stDim(h.pal, "  ·  o/O → ansehen/bearbeiten  ·  R → entfernen")
 	return "  " + label + "  " + ids + hint
