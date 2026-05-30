@@ -163,7 +163,7 @@ func (h history) handleDrillConfirmResult(msg confirm.ResultMsg) (tea.Model, tea
 		return h, nil
 	}
 	sw := h.deps.SessionWriter
-	return h, func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := sw.Delete(date, idx); err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
@@ -172,6 +172,7 @@ func (h history) handleDrillConfirmResult(msg confirm.ResultMsg) (tea.Model, tea
 			date:  date,
 		}
 	}
+	return h, tea.Batch(mut, emitWorktimeChanged(date))
 }
 
 // — submit —
@@ -192,13 +193,19 @@ func (h history) submitDrillForm() (tea.Model, tea.Cmd) {
 		h.dialog = historyDialogDrill
 		h.drillForm = nil
 		h.drillFormCur = 0
-		return h, dispatchDrillAdd(h.deps.SessionWriter, date, fields)
+		return h, tea.Batch(
+			dispatchDrillAdd(h.deps.SessionWriter, date, fields),
+			emitWorktimeChanged(date),
+		)
 	}
 	idx := h.drillEditIdx
 	h.dialog = historyDialogDrill
 	h.drillForm = nil
 	h.drillFormCur = 0
-	return h, dispatchDrillEdit(h.deps.SessionWriter, date, idx, fields)
+	return h, tea.Batch(
+		dispatchDrillEdit(h.deps.SessionWriter, date, idx, fields),
+		emitWorktimeChanged(date),
+	)
 }
 
 // drillFormFields holds the parsed + validated drill-form values. Only

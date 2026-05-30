@@ -142,6 +142,12 @@ func (w woche) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return w, w.loadCmd()
 
+	case ChangedMsg:
+		// Cross-tab mutation signal: a sibling tab edited / added a
+		// session or day-off entry. Reload so the week strip + KPIs
+		// reflect the new state when the user switches back.
+		return w, w.loadCmd()
+
 	case tea.KeyPressMsg:
 		return w.handleKey(msg)
 	}

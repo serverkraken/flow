@@ -329,6 +329,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.scheduleTick())
 		return m, tea.Batch(cmds...)
 
+	case ChangedMsg:
+		// Cross-tab state sync (§1.7 / P9): a sub-tab (or the action
+		// menu) committed a mutation and emitted ChangedMsg.
+		// Fan it out to all four sub-tabs so each can decide whether
+		// to reload — the catch-all fan-out below would also reach
+		// every sub-tab, but the explicit case makes the contract
+		// readable and lets us skip the action-menu (which holds no
+		// data view and would just drop the message anyway).
+		var cmds []tea.Cmd
+		for i, s := range m.subs {
+			updated, cmd := s.Update(msg)
+			m.subs[i] = updated
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
+
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}

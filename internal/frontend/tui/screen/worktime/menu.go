@@ -13,6 +13,7 @@ package worktime
 
 import (
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -228,7 +229,7 @@ func (m menuModel) handleCorrectKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 		m.subMode = menuSubModeList
 		m.pending = menuAction{}
 		m.correctF = correctForm{}
-		return m, correctCmd(m.deps, ev.parsed)
+		return m, tea.Batch(correctCmd(m.deps, ev.parsed), emitWorktimeChanged(ev.parsed))
 	}
 	return m, cmd
 }
@@ -249,7 +250,9 @@ func (m menuModel) handleLandKey(msg tea.KeyPressMsg) (menuModel, tea.Cmd) {
 		m.subMode = menuSubModeList
 		m.pending = menuAction{}
 		m.landP = landPicker{}
-		return m, landSyncCmd(m.deps, ev.entry.code)
+		// Year-wide Feiertage-sync — broadcast with zero date so
+		// every sub-tab reloads unconditionally.
+		return m, tea.Batch(landSyncCmd(m.deps, ev.entry.code), emitWorktimeChanged(time.Time{}))
 	}
 	return m, nil
 }

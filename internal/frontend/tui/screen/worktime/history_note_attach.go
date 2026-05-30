@@ -61,7 +61,7 @@ func (h history) handleDrillNoteAttachKey(msg tea.KeyPressMsg) (tea.Model, tea.C
 		date := h.drillDate
 		writer := h.deps.LinkWriter
 		h.dialog = historyDialogDrill
-		return h, func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := writer.Add(date, id); err != nil {
 				return historyActionDoneMsg{err: err, date: date}
 			}
@@ -70,6 +70,7 @@ func (h history) handleDrillNoteAttachKey(msg tea.KeyPressMsg) (tea.Model, tea.C
 				toast: fmt.Sprintf("Note %s angehängt an %s", id, date.Format("2006-01-02")),
 			}
 		}
+		return h, tea.Batch(mut, emitWorktimeChanged(date))
 	}
 	return h, cmd
 }

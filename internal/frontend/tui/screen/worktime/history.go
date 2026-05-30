@@ -371,27 +371,7 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case historyActionDoneMsg:
-		// Async-Mutationsfehler erscheinen als Danger-Toast: die
-		// Form-Dialog-Fenster schließen vor dem Dispatch (siehe submitDrillForm
-		// / submitListAddForm), darum hätte h.errMsg im List-Mode keinen
-		// Render-Pfad. Toast landet im selben Slot wie der Erfolgsfall.
-		var t toast.Model
-		if msg.err != nil {
-			t = toast.NewDanger(msg.err.Error(), h.pal)
-		} else {
-			t = toast.NewSuccess(msg.toast, h.pal)
-		}
-		var cmds []tea.Cmd
-		if h.drillModeActive() {
-			h.drillToast = &t
-			if !msg.date.IsZero() {
-				cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
-			}
-		} else {
-			h.listToast = &t
-		}
-		cmds = append(cmds, h.loadCmd(), t.Init())
-		return h, tea.Batch(cmds...)
+		return h.handleActionDone(msg)
 
 	case toast.DismissedMsg:
 		h.drillToast = nil
@@ -402,12 +382,56 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h.handleDrillConfirmResult(msg)
 
 	case dayRefreshMsg:
+		// Periodic tick — light reload of the records list. The drill's
+		// own loaded state survives because drillLoadCmd isn't triggered
+		// here; ChangedMsg is the path that touches the drill.
 		return h, h.loadCmd()
+	case ChangedMsg:
+		return h.handleChangedMsg(msg)
 
 	case tea.KeyPressMsg:
 		return h.handleKey(msg)
 	}
 	return h, nil
+}
+
+// handleActionDone routes the result of an async mutation (drill edit/
+// add/delete, list-level add, drill note attach/detach). On success
+// the toast lands in drillToast (drill mode) or listToast (list mode);
+// on error the same slots carry a Danger toast — the form dialogs
+// closed before dispatch, so h.errMsg has no render path in list mode.
+// Extracted from Update so Update stays inside the gocyclo budget.
+func (h history) handleActionDone(msg historyActionDoneMsg) (tea.Model, tea.Cmd) {
+	var t toast.Model
+	if msg.err != nil {
+		t = toast.NewDanger(msg.err.Error(), h.pal)
+	} else {
+		t = toast.NewSuccess(msg.toast, h.pal)
+	}
+	var cmds []tea.Cmd
+	if h.drillModeActive() {
+		h.drillToast = &t
+		if !msg.date.IsZero() {
+			cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
+		}
+	} else {
+		h.listToast = &t
+	}
+	cmds = append(cmds, h.loadCmd(), t.Init())
+	return h, tea.Batch(cmds...)
+}
+
+// handleChangedMsg responds to the cross-tab ChangedMsg by reloading
+// the records + month stats + top tags. When the drill is open on the
+// affected date, the drill's session list refreshes too so the open
+// day-detail stays accurate. Extracted from Update so Update stays
+// inside the project's gocyclo budget.
+func (h history) handleChangedMsg(msg ChangedMsg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{h.loadCmd()}
+	if h.drillModeActive() && !msg.Date.IsZero() && sameDay(h.drillDate, msg.Date) {
+		cmds = append(cmds, h.drillLoadCmd(h.drillDate))
+	}
+	return h, tea.Batch(cmds...)
 }
 
 func (h history) loadCmd() tea.Cmd {

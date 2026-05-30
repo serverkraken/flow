@@ -131,7 +131,7 @@ func (h history) detachDrillNoteCmd() tea.Cmd {
 	id := h.drillAttached[0]
 	date := h.drillDate
 	writer := h.deps.LinkWriter
-	return func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := writer.Remove(date, id); err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
@@ -140,4 +140,5 @@ func (h history) detachDrillNoteCmd() tea.Cmd {
 			date:  date,
 		}
 	}
+	return tea.Batch(mut, emitWorktimeChanged(date))
 }

@@ -217,16 +217,13 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 
-	case dayRefreshMsg:
-		// While a dialog is open OR an async action is in flight,
-		// suppress the periodic refresh: the frozen editIdx would
-		// point at a different session if the reload re-numbered the
-		// list (manual edit from another shell, or a session that
-		// ended elsewhere).
-		if h.dialog != heuteDialogNone || h.actionInFlight {
-			return h, nil
-		}
-		return h, h.loadCmd()
+	case dayRefreshMsg, ChangedMsg:
+		// Periodic tick (dayRefreshMsg) and cross-tab mutation signal
+		// (ChangedMsg) both ask for the same response: reload today.
+		// Suppressed while a dialog is open OR an async action is in
+		// flight, because a reload mid-edit would shift editIdx onto
+		// a different session if the list got re-numbered.
+		return h.reloadIfIdle()
 
 	case heuteActionDoneMsg:
 		return h.handleActionDone(msg)
@@ -296,6 +293,17 @@ func (h heute) handleActionDone(msg heuteActionDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	h.toast = &t
 	return h, tea.Batch(h.loadCmd(), t.Init())
+}
+
+// reloadIfIdle returns (h, loadCmd()) when no dialog is open and no
+// async action is mid-flight; otherwise drops the reload to protect
+// the dialog's editIdx invariants. Shared by dayRefreshMsg and the
+// cross-tab ChangedMsg.
+func (h heute) reloadIfIdle() (tea.Model, tea.Cmd) {
+	if h.dialog != heuteDialogNone || h.actionInFlight {
+		return h, nil
+	}
+	return h, h.loadCmd()
 }
 
 func (h heute) loadCmd() tea.Cmd {

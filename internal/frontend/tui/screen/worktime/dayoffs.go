@@ -174,14 +174,21 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		date := f.entries[f.cursor].Date
 		writer := f.deps.DayOffWriter
-		return f, func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := writer.Remove(date); err != nil {
 				return freiActionDoneMsg{err: err}
 			}
 			return freiActionDoneMsg{toast: "Eintrag entfernt für " + date.Format("2006-01-02")}
 		}
+		return f, tea.Batch(mut, emitWorktimeChanged(date))
 
 	case dayRefreshMsg:
+		return f, f.loadCmd(f.currentYear())
+
+	case ChangedMsg:
+		// Cross-tab mutation signal: somebody changed sessions / day-offs
+		// in another sub-tab. Frei reloads its year so the row count and
+		// Kind chips stay accurate.
 		return f, f.loadCmd(f.currentYear())
 
 	case tea.KeyPressMsg:
@@ -279,7 +286,7 @@ func (f frei) shiftYear(delta int) (tea.Model, tea.Cmd) {
 func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
 	writer := f.deps.DayOffWriter
 	now := f.deps.Clock.Now()
-	return func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := writer.Add(now, kind, ""); err != nil {
 			return freiActionDoneMsg{err: err}
 		}
@@ -293,19 +300,24 @@ func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
 				kind.LabelDe(), now.Format("2006-01-02")),
 		}
 	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
 func (f frei) syncHolidaysCmd() tea.Cmd {
 	writer := f.deps.DayOffWriter
 	year := f.currentYear()
 	land := landOrDefault(f.deps.Land)
-	return func() tea.Msg {
+	mut := func() tea.Msg {
 		added, _, err := writer.SyncGermanHolidays(year, land, time.Local)
 		if err != nil {
 			return freiActionDoneMsg{err: err}
 		}
 		return freiActionDoneMsg{toast: fmt.Sprintf("%d Feiertag(e) für %s/%d", added, land, year)}
 	}
+	// Year-wide sync — broadcast with zero date so sub-tabs reload
+	// unconditionally (the change touches an arbitrary number of days
+	// across the year).
+	return tea.Batch(mut, emitWorktimeChanged(time.Time{}))
 }
 
 // — add dialog —
@@ -429,7 +441,7 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 	kind := domain.AllKinds[f.kindCur%len(domain.AllKinds)]
 	writer := f.deps.DayOffWriter
 	if isRange {
-		return f, func() tea.Msg {
+		mut := func() tea.Msg {
 			n, err := writer.AddRange(from, to, kind, label)
 			if err != nil {
 				return freiActionDoneMsg{err: err}
@@ -437,14 +449,18 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 			return freiActionDoneMsg{toast: fmt.Sprintf("%d Tag(e) als %s eingetragen",
 				n, kind.LabelDe())}
 		}
+		// Range mutation can touch arbitrary dates — broadcast with
+		// zero date so all sub-tabs reload unconditionally.
+		return f, tea.Batch(mut, emitWorktimeChanged(time.Time{}))
 	}
-	return f, func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := writer.Add(from, kind, label); err != nil {
 			return freiActionDoneMsg{err: err}
 		}
 		return freiActionDoneMsg{toast: fmt.Sprintf("%s eingetragen für %s",
 			kind.LabelDe(), from.Format("2006-01-02"))}
 	}
+	return f, tea.Batch(mut, emitWorktimeChanged(from))
 }
 
 // — render —

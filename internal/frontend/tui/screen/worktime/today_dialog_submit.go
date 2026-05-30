@@ -21,7 +21,7 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 	case heuteDialogTag:
 		tag := strings.TrimSpace(h.input.Value())
 		date, idx := h.editDate, h.editIdx
-		return h, func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := sw.SetTag(date, idx, tag); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
@@ -30,11 +30,12 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 			}
 			return heuteActionDoneMsg{toast: fmt.Sprintf("Tag »%s« gesetzt (Session %d)", tag, idx+1)}
 		}
+		return h, tea.Batch(mut, emitWorktimeChanged(date))
 
 	case heuteDialogNote:
 		note := strings.TrimSpace(h.input.Value())
 		date, idx := h.editDate, h.editIdx
-		return h, func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := sw.SetNote(date, idx, note); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
@@ -43,6 +44,7 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 			}
 			return heuteActionDoneMsg{toast: fmt.Sprintf("Notiz gespeichert (Session %d)", idx+1)}
 		}
+		return h, tea.Batch(mut, emitWorktimeChanged(date))
 
 	case heuteDialogEdit:
 		return h.submitEdit()
@@ -60,12 +62,13 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 		}
 		date := h.editDate
 		writer := h.deps.LinkWriter
-		return h, func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := writer.Add(date, id); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
 			return heuteActionDoneMsg{toast: fmt.Sprintf("Note %s angehängt", id)}
 		}
+		return h, tea.Batch(mut, emitWorktimeChanged(date))
 	}
 	return h, nil
 }
@@ -107,7 +110,7 @@ func (h heute) submitEdit() (tea.Model, tea.Cmd) {
 
 	sw := h.deps.SessionWriter
 	date, idx := h.editDate, h.editIdx
-	return h, func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := sw.Edit(date, idx, startTime, stopTime); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
@@ -119,4 +122,5 @@ func (h heute) submitEdit() (tea.Model, tea.Cmd) {
 		}
 		return heuteActionDoneMsg{toast: fmt.Sprintf("Session %d aktualisiert", idx+1)}
 	}
+	return h, tea.Batch(mut, emitWorktimeChanged(date))
 }
