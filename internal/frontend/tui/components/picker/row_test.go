@@ -47,6 +47,33 @@ func TestRowWithMatch_HighlightsAtIndices(t *testing.T) {
 	}
 }
 
+// TestRowWithMatch_HintPreStyled_NotWrapped proves that when
+// HintPreStyled is true, the hint string is passed through unchanged
+// (no FgMuted wrapping). Projects relies on this so the Sem.Active
+// tmux-session marker keeps its own color instead of being dimmed.
+func TestRowWithMatch_HintPreStyled_NotWrapped(t *testing.T) {
+	t.Parallel()
+	p := theme.TokyonightNight
+	// A pre-styled hint that already carries a Sem.Active SGR sequence.
+	preStyled := "\x1b[38;2;1;2;3mX\x1b[m"
+	out := picker.RowWithMatch(picker.RowWithMatchOpts{
+		Selected:      true,
+		Label:         "abc",
+		Hint:          preStyled,
+		Width:         20,
+		Match:         []int{0},
+		HintPreStyled: true,
+	}, p)
+	// The exact pre-styled sequence must appear unaltered in the output.
+	if !strings.Contains(out, preStyled) {
+		t.Errorf("HintPreStyled: expected hint to be passed through, got %q", out)
+	}
+	// And the FgMuted SGR must NOT wrap the hint slot.
+	if containsSemSGR(out, p.FgMuted) {
+		t.Errorf("HintPreStyled: unexpected FgMuted wrap, got %q", out)
+	}
+}
+
 // containsSemSGR checks the truecolor SGR triplet for c appears
 // somewhere in out — matches lipgloss v2 ANSI emission.
 func containsSemSGR(out string, c theme.Color) bool {

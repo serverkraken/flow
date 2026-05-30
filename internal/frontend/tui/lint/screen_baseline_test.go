@@ -28,7 +28,7 @@ var screenBaseline = map[string]int{
 	"cheatsheet/model.go":          0,
 	"palette/model.go":             3, // P7: row-specific styles (label/labelSel/match/matchSel) absorbed by picker.RowWithMatch; only preview hint/bar + separator border remain
 	"palette/render.go":            0,
-	"projects/model.go":            5,  // H4: per-Model projectsStyles cache (newProjectsStyles) mirrors palette/model.go — label/match/bar/border/marker for per-rune fuzzy-highlight renderRow
+	"projects/model.go":            2,  // P7: row-specific styles (label/labelSel/match/matchSel/bar) absorbed by picker.RowWithMatch; only the filter separator border and the Sem.Active tmux-session marker remain
 	"worktime/dayoffs.go":          6,  // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
 	"worktime/helpers.go":          3,  // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
 	"worktime/history.go":          14, // P5.1: historyStyles cache zog die per-cell-Allokation aus renderHeatmapCell hierher — heatStepStyle-Loop (5) + day-off-Triade (3) + heatEmpty/heatRecorded + cursor + bestehende dayLabel/header/bal styles

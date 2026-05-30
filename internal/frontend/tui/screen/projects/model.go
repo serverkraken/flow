@@ -86,30 +86,20 @@ const (
 )
 
 // projectsStyles caches the palette-derived lipgloss styles used by the
-// row renderer. Mirrors palette.paletteStyles so both pickers share the
-// same visual contract; built once at New(), reused every frame.
+// row renderer. P7 (RowWithMatch) absorbed the label/labelSel/match/
+// matchSel/bar quartet; what remains is the filter separator border and
+// the per-row tmux-session marker (Sem.Active, pre-rendered into the
+// RowWithMatch hint slot via HintPreStyled).
 type projectsStyles struct {
-	label    lipgloss.Style
-	labelSel lipgloss.Style
-	match    lipgloss.Style
-	matchSel lipgloss.Style
-	bar      lipgloss.Style // AccentBarRune for the selected row
-	border   lipgloss.Style // Sem().Border — filter separator rule
-	marker   lipgloss.Style // Sem().Active — tmux-session hint glyph
+	border lipgloss.Style // Sem.Border — filter separator rule
+	marker lipgloss.Style // Sem.Active — tmux-session hint glyph
 }
 
 func newProjectsStyles(p theme.Palette) projectsStyles {
 	sem := p.Sem()
-	label := lipgloss.NewStyle().Foreground(p.Fg)
-	match := lipgloss.NewStyle().Foreground(sem.Accent).Bold(true)
 	return projectsStyles{
-		label:    label,
-		labelSel: label.Bold(true).Underline(true),
-		match:    match,
-		matchSel: match.Underline(true),
-		bar:      lipgloss.NewStyle().Foreground(sem.Accent),
-		border:   lipgloss.NewStyle().Foreground(sem.Border),
-		marker:   lipgloss.NewStyle().Foreground(sem.Active),
+		border: lipgloss.NewStyle().Foreground(sem.Border),
+		marker: lipgloss.NewStyle().Foreground(sem.Active),
 	}
 }
 
@@ -432,44 +422,23 @@ func (m Model) viewContent() string {
 }
 
 // renderRow paints one project row: accent bar, fuzzy-matched name with
-// per-rune emphasis, and a right-aligned tmux-session marker. Mirrors
-// palette/renderRow — the match emphasis is why projects can't use the
-// plain picker.Row (which styles the whole label uniformly).
+// per-rune emphasis, and a right-aligned tmux-session marker. Delegates
+// to picker.RowWithMatch — the marker is pre-rendered with Sem.Active
+// and passed via HintPreStyled so the row-default FgMuted hint wrap
+// doesn't dim it back down.
 func (m Model) renderRow(selected bool, p domain.Project, highlight []int, width int) string {
-	bar := " "
-	labelStyle := m.styles.label
-	matchStyle := m.styles.match
-	if selected {
-		bar = m.styles.bar.Render(picker.AccentBarRune)
-		labelStyle = m.styles.labelSel
-		matchStyle = m.styles.matchSel
-	}
-
-	hi := make(map[int]bool, len(highlight))
-	for _, idx := range highlight {
-		hi[idx] = true
-	}
-	var b strings.Builder
-	for i, r := range []rune(p.Name) {
-		if hi[i] {
-			b.WriteString(matchStyle.Render(string(r)))
-		} else {
-			b.WriteString(labelStyle.Render(string(r)))
-		}
-	}
-	rendered := b.String()
-
-	// Active-tmux-session marker stays right-aligned in the hint slot so a
-	// long name never pushes it off — the gap absorbs the slack.
 	hint := ""
 	if p.HasTmuxSession {
 		hint = m.styles.marker.Render(glyphs.Active)
 	}
-	gap := width - 1 - lipgloss.Width(p.Name) - lipgloss.Width(hint) - 1
-	if gap < 1 {
-		gap = 1
-	}
-	return bar + " " + rendered + strings.Repeat(" ", gap) + hint
+	return picker.RowWithMatch(picker.RowWithMatchOpts{
+		Selected:      selected,
+		Label:         p.Name,
+		Hint:          hint,
+		Width:         width,
+		Match:         highlight,
+		HintPreStyled: true,
+	}, m.pal)
 }
 
 // renderEmptyState is the no-match block: echoes the query plus the two

@@ -74,6 +74,11 @@ type RowWithMatchOpts struct {
 	Hint     string
 	Width    int
 	Match    []int // rune indices in Label to render in match style
+	// HintPreStyled signals that Hint already carries ANSI styling and
+	// should NOT be wrapped in the default FgMuted hint-style. Used by
+	// projects (Sem.Active tmux-session marker) so the marker keeps its
+	// own color instead of being dimmed by the row-default hint chain.
+	HintPreStyled bool
 }
 
 // RowWithMatch renders a picker row identical to Row, but applies a
@@ -111,12 +116,15 @@ func RowWithMatch(opts RowWithMatchOpts, p theme.Palette) string {
 		}
 	}
 	rendered := b.String()
-	hintStyle := lipgloss.NewStyle().Foreground(p.FgMuted)
 	gap := opts.Width - 1 - lipgloss.Width(opts.Label) - lipgloss.Width(opts.Hint) - 1
 	if gap < 1 {
 		gap = 1
 	}
-	return bar + " " + rendered + strings.Repeat(" ", gap) + hintStyle.Render(opts.Hint)
+	hint := opts.Hint
+	if !opts.HintPreStyled {
+		hint = lipgloss.NewStyle().Foreground(p.FgMuted).Render(opts.Hint)
+	}
+	return bar + " " + rendered + strings.Repeat(" ", gap) + hint
 }
 
 // SectionHeader renders an uppercased section name with trailing dash fill.

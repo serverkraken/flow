@@ -464,6 +464,12 @@ func (s browseStyles) badgeFor(t domain.NoteType) string {
 // highlightMatch wraps the substring `q` (case-insensitive) in `match`
 // styling, leaving the surrounding text in `base`. q == "" returns the
 // base-styled text untouched.
+//
+// Stays kompendium-internal — picker.RowWithMatch covers the
+// single-column picker case (palette, projects), but the kompendium
+// browse row layout (stripe + caret + date + badge + title + excerpt)
+// is too multi-cell to fit through it. The two paths share the same
+// intent: matched substring rendered in match style, base else.
 func highlightMatch(text, q string, base, match lipgloss.Style) string {
 	if q == "" {
 		return base.Render(text)
