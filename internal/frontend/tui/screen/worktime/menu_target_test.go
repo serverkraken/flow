@@ -112,7 +112,7 @@ func TestTargetPicker_ViewRendersAllThreeTargets(t *testing.T) {
 		"less -S",
 		"pbcopy",
 		"c · s · f",
-		"esc → zurück",
+		"Esc → zurück",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("target picker view missing %q in:\n%s", want, out)

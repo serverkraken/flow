@@ -85,7 +85,7 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
 	}
 	return wocheStyles{
-		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
+		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(theme.DayLabelWidth),
 		date:         lipgloss.NewStyle().Foreground(p.FgMuted).Width(6),
 		marker:       lipgloss.NewStyle().Foreground(sem.Accent),
 		emptyBar:     lipgloss.NewStyle().Foreground(sem.Border),
@@ -307,7 +307,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		durStr := w.styles.dur.Bold(total >= d.Target).Render(formatDur(total))
 		extra := ""
 		if d.IsToday && d.Active != nil {
-			extra += "  " + theme.Success(glyphs.Active, w.pal)
+			extra += "  " + w.styles.runningPace.Render(glyphs.Active)
 		}
 		if total >= d.Target {
 			extra += "  " + theme.Success(glyphs.Done, w.pal)
@@ -339,7 +339,7 @@ func (w woche) renderTotals(inner int, now time.Time) []string {
 	totals := "  " + theme.Strong(formatDur(weekTotal), w.pal) +
 		"  " + stDim(w.pal, "/ "+formatDur(weekTarget))
 	bar := "  " + statusbar.Bar(pct, barW, w.pal) + "  " +
-		theme.Heading(fmt.Sprintf("%3d%%", pct), w.pal)
+		theme.Strong(fmt.Sprintf("%3d%%", pct), w.pal)
 	return []string{
 		picker.SectionHeader("woche gesamt", inner, w.pal),
 		totals,

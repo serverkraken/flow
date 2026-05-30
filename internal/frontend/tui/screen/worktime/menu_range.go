@@ -18,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -91,7 +92,7 @@ func (r rangeForm) view(pal theme.Palette, inner int) string {
 	rows := []string{
 		theme.Highlight("  Aktion · "+r.parent, pal),
 		"",
-		picker.SectionHeader("range", inner, pal),
+		picker.SectionHeader("zeitraum", inner, pal),
 		"  " + r.input.View(),
 		"",
 		theme.Dim("  Beispiele:  today  ·  week  ·  month  ·  2026  ·  2026-04  ·  2026-04-01..2026-04-30", pal),
@@ -102,7 +103,7 @@ func (r rangeForm) view(pal theme.Palette, inner int) string {
 	rows = append(rows, "", renderFooterHints(pal, []string{
 		"enter → weiter",
 		"leer → alles",
-		"esc → zurück",
+		uistrings.HintBack,
 	}, inner))
 	return strings.Join(rows, "\n")
 }

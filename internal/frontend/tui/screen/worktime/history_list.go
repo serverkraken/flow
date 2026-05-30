@@ -21,7 +21,7 @@ import (
 func (h history) renderMain() string {
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	records := filteredHistory(h.records, h.histQuery, h.deps.Clock.Now())
 
@@ -142,9 +142,9 @@ func (h history) renderListRows(records []domain.DayRecord, inner int) (lines []
 				pct = 100
 			}
 		}
-		name := lipgloss.NewStyle().Foreground(h.pal.Fg).Width(3).
+		name := lipgloss.NewStyle().Foreground(h.pal.Fg).Width(theme.DayLabelWidth).
 			Render(domain.WeekdayShortDe(rec.Date.Weekday()))
-		date := lipgloss.NewStyle().Foreground(h.pal.FgMuted).Width(9).
+		date := lipgloss.NewStyle().Foreground(h.pal.FgMuted).Width(theme.DateColWidth).
 			Render(fmt.Sprintf("%02d.%02d.%02d", rec.Date.Day(), rec.Date.Month(), rec.Date.Year()%100))
 		bar := statusbar.Bar(pct, barW, h.pal)
 		pctStr := stDim(h.pal, fmt.Sprintf("%3d%%", pct))
@@ -192,7 +192,7 @@ func (h history) attachedChip(date time.Time) string {
 func (h history) footerHints() []string {
 	return []string{
 		"j/k → bewegen",
-		"enter → drill",
+		"enter → öffnen",
 		"v → " + h.mode.next().label(),
 		"/ → filter",
 	}

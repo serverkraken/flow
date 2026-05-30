@@ -48,9 +48,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// knows the action didn't actually run.
 		var t toast.Model
 		if msg.err != nil {
-			t = toast.NewDanger("dispatch fehlgeschlagen: "+msg.err.Error(), m.pal)
+			t = toast.NewDanger("Aktion fehlgeschlagen: "+msg.err.Error(), m.pal)
 		} else {
-			t = toast.New("ausgeführt: "+msg.label, 2*time.Second, m.pal)
+			t = toast.New("Ausgeführt: "+msg.label, 2*time.Second, m.pal)
 		}
 		m.toast = &t
 		// Standalone-Mode: nach erfolgreichem Dispatch quittet der Popup.

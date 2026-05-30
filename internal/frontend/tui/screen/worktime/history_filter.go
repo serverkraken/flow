@@ -81,7 +81,7 @@ func (h history) stepFilter(dir int) (tea.Model, tea.Cmd) {
 func (h history) renderFilterDialog() string {
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	rows := []string{
 		picker.SectionHeader("filter", inner, h.pal),

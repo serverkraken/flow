@@ -143,7 +143,7 @@ func TestView_RendersTabStripAndStub(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := updated.View().Content
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("tab strip should contain %q, got:\n%s", label, out)
 		}
@@ -161,7 +161,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 		want string
 	}{
 		{"2", "Woche lädt"},
-		{"3", "History lädt"},
+		{"3", "Verlauf lädt"},
 		{"4", "Frei lädt"},
 		// Heute (wave B) renders the live screen — no wave-letter sentinel.
 		// Sniff the loading marker, since Init hasn't run for the sub-models
@@ -179,7 +179,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "Heute lädt"}
+	wants := []string{"Woche lädt", "Verlauf lädt", "Frei lädt", "Heute lädt"}
 	for _, w := range wants {
 		updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 		if got := updated.View().Content; !strings.Contains(got, w) {
@@ -1209,7 +1209,7 @@ func TestHeute_NoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if strings.Contains(firstLine, label) {
 			t.Errorf("Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
 				label, firstLine)
@@ -1241,7 +1241,7 @@ func TestHistory_DrillNoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if strings.Contains(firstLine, label) {
 			t.Errorf("Drill-Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
 				label, firstLine)

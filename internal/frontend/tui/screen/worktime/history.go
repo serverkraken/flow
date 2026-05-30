@@ -703,7 +703,7 @@ func (h history) viewContent() string {
 		return h.renderDrill()
 	}
 	if !h.loaded {
-		return stDim(h.pal, "  History lädt …")
+		return stDim(h.pal, "  Verlauf lädt …")
 	}
 	if h.err != nil {
 		return stErr(h.pal, h.err.Error())

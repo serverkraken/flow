@@ -18,6 +18,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -598,7 +599,7 @@ func (m menuModel) renderFooter(inner int) string {
 		"j/k → bewegen",
 		"enter → öffnen",
 		"tippen → filter",
-		"esc → zurück",
+		uistrings.HintBack,
 	}
 	return renderFooterHints(m.pal, hints, inner)
 }

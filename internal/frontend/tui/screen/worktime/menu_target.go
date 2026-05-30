@@ -17,6 +17,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -147,7 +148,7 @@ func (tp targetPicker) view(parentLabel string, pal theme.Palette, inner int) st
 	rows := []string{
 		theme.Highlight("  Aktion · "+parentLabel, pal),
 		"",
-		picker.SectionHeader("output-ziel", inner, pal),
+		picker.SectionHeader("ausgabe-ziel", inner, pal),
 	}
 	// Underline zusätzlich zum Accent: unter NO_COLOR fällt der Foreground
 	// weg und der Hotkey-Buchstabe wäre nur noch bold — Underline hält das
@@ -167,7 +168,7 @@ func (tp targetPicker) view(parentLabel string, pal theme.Palette, inner int) st
 	rows = append(rows, "", renderFooterHints(pal, []string{
 		"c · s · f → direkt",
 		"enter → ausführen",
-		"esc → zurück",
+		uistrings.HintBack,
 	}, inner))
 	return strings.Join(rows, "\n")
 }

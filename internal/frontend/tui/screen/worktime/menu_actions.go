@@ -91,19 +91,19 @@ var menuActionRegistry = []menuAction{
 		kind:    menuActionExportCSV,
 		section: menuSectionGeneral,
 		label:   "Export CSV",
-		hint:    "Range wählbar",
+		hint:    "Zeitraum wählbar",
 	},
 	{
 		kind:    menuActionExportJSON,
 		section: menuSectionGeneral,
 		label:   "Export JSON",
-		hint:    "Range wählbar",
+		hint:    "Zeitraum wählbar",
 	},
 	{
 		kind:    menuActionStats,
 		section: menuSectionGeneral,
-		label:   "Stats für Range",
-		hint:    "Range wählbar",
+		label:   "Stats für Zeitraum",
+		hint:    "Zeitraum wählbar",
 	},
 	{
 		kind:    menuActionLand,

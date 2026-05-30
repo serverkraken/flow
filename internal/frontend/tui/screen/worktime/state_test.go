@@ -20,8 +20,8 @@ func TestWithState_RestoresHistoryTab(t *testing.T) {
 	// Drive a WindowSizeMsg so the View() can produce something.
 	updated, _ := restored.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := updated.View().Content
-	if !strings.Contains(out, "History") {
-		t.Errorf("WithState(tab=history) should land on History tab, got:\n%s", out)
+	if !strings.Contains(out, "Verlauf") {
+		t.Errorf("WithState(tab=history) should land on Verlauf tab, got:\n%s", out)
 	}
 }
 

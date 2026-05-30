@@ -192,7 +192,7 @@ func (p noteAttachPicker) filtered() []NoteSuggestion {
 // message — separated by newlines.
 func (p noteAttachPicker) View(inner int) string {
 	var rows []string
-	rows = append(rows, picker.SectionHeader("note id", inner, p.pal), "  "+p.input.View())
+	rows = append(rows, picker.SectionHeader("notiz-id", inner, p.pal), "  "+p.input.View())
 	rows = append(rows, p.renderSuggestions(inner)...)
 	if len(p.attached) > 0 {
 		rows = append(rows, "", stDim(p.pal,

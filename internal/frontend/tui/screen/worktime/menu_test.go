@@ -83,7 +83,7 @@ func TestMenu_GeneralActionsAlwaysPresent(t *testing.T) {
 		"Brief Monatsbericht",
 		"Export CSV",
 		"Export JSON",
-		"Stats für Range",
+		"Stats für Zeitraum",
 		"Land für Feiertage",
 	} {
 		var found bool
