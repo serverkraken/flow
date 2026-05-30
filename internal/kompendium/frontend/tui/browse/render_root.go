@@ -115,9 +115,9 @@ func (m Model) renderTypeCounts() string {
 		}
 	}
 	parts := []string{
-		countDailyStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", d)) + dimStyle.Render(" täglich"),
-		countProjectStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", p)) + dimStyle.Render(" projekt"),
-		countFreeStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", f)) + dimStyle.Render(" frei"),
+		countDailyStyle.Render(fmt.Sprintf(glyphs.CountDaily+" %d", d)) + dimStyle.Render(" täglich"),
+		countProjectStyle.Render(fmt.Sprintf(glyphs.CountProject+" %d", p)) + dimStyle.Render(" projekt"),
+		countFreeStyle.Render(fmt.Sprintf(glyphs.CountFree+" %d", f)) + dimStyle.Render(" frei"),
 	}
 	return strings.Join(parts, "  ")
 }
