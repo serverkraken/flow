@@ -138,7 +138,7 @@ func rebuildStyles() {
 		Foreground(sem.Accent).
 		Bold(true)
 	headerSeparatorStyle = lipgloss.NewStyle().
-		Foreground(pal.BgChip)
+		Foreground(sem.Border)
 	repoChipStyle = lipgloss.NewStyle().
 		Foreground(pal.Bg).
 		Background(pal.Teal).
@@ -251,8 +251,7 @@ func rebuildStyles() {
 	dimStyle = lipgloss.NewStyle().
 		Foreground(pal.FgMuted)
 	errorStyle = lipgloss.NewStyle().
-		Foreground(sem.Danger).
-		Bold(true)
+		Foreground(sem.Danger)
 	emptyGlyphStyle = lipgloss.NewStyle().
 		Foreground(sem.Accent).
 		Bold(true)
