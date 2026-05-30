@@ -244,7 +244,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 			pause := s.Start.Sub(prevStop)
 			if pause > 0 {
 				rows = append(rows, stDim(h.pal,
-					fmt.Sprintf("       ─ %s Pause ─", formatDur(pause))))
+					fmt.Sprintf("       %s Pause %s", glyphs.BulletDot, formatDur(pause))))
 			}
 		}
 		prevStop = s.Stop
