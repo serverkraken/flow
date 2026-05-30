@@ -14,17 +14,23 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
 
 func (m Model) renderFooter() string {
 	switch m.mode {
 	case ModeSearch:
-		return footerStyle.Render("tippen → filtern  ·  Enter → anwenden  ·  " + uistrings.HintCancel)
+		// Wording aus components/strings.HintSearchInput; Rendering aus
+		// components/statusbar.Hints — Skill §Hint format: "Hints render
+		// at the bottom of every screen via components/statusbar.Hints".
+		// Vorher footerStyle + footerKeyStyle (key in sem.Active+Bold) —
+		// letzteres brach single-accent-per-row (Audit-§Color).
+		return statusbar.Hints(uistrings.HintSearchInput, pal)
 	case ModeConfirmDelete:
 		// Wording aus components/strings.HintConfirm — confirm-Modal-
 		// Hint und Footer-Hint synchron, ein DE-Drift fällt sofort auf.
-		return footerStyle.Render(uistrings.HintConfirm)
+		return statusbar.Hints(uistrings.HintConfirm, pal)
 	}
 	return m.helpUI.View(m.keys)
 }
