@@ -20,7 +20,10 @@ const (
 	HintHelp    = "? → Hilfe"
 	HintQuit    = "q → schließen"
 	HintNav     = "j/k → navigieren  ·  Enter → wählen"
-	HintConfirm = "y/Enter → ja  ·  n/Esc → nein"
+	// HintConfirm: brackets um die default-Action `[y/Enter]` — A11y-6
+	// non-color cue. Mirrors confirm.Model.View() one-to-one so a y/n
+	// dialog and a hint-strip never disagree.
+	HintConfirm = "[y/Enter] → ja  ·  n/Esc → nein"
 	// HintFormNav steht für mehrfeldige Eingabedialoge (today_dialog
 	// edit-form, dayoffs add-form, history_drill edit-form). Vorher
 	// dreifach wortgleich inline kopiert.
