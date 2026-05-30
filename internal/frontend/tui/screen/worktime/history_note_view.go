@@ -106,7 +106,7 @@ func (h history) editDrillNoteCmd() tea.Cmd {
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
-			toast: fmt.Sprintf("✓ Note %s zum Bearbeiten geöffnet", id),
+			toast: fmt.Sprintf("Note %s zum Bearbeiten geöffnet", id),
 			date:  date,
 		}
 	}
@@ -136,7 +136,7 @@ func (h history) detachDrillNoteCmd() tea.Cmd {
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
-			toast: fmt.Sprintf("✓ Note %s entfernt", id),
+			toast: fmt.Sprintf("Note %s entfernt", id),
 			date:  date,
 		}
 	}

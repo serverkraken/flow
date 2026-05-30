@@ -73,7 +73,7 @@ func (h history) openDrillDelete() (tea.Model, tea.Cmd) {
 		h.drillCur+1, h.drillDate.Format("2006-01-02"))
 	detail := fmt.Sprintf("%s → %s   %s",
 		s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed))
-	cm := confirm.New(question, detail, h.pal)
+	cm := confirm.NewDanger(question, detail, h.pal)
 	h.drillConfirm = &cm
 	h.errMsg = ""
 	h.drillToast = nil
@@ -168,7 +168,7 @@ func (h history) handleDrillConfirmResult(msg confirm.ResultMsg) (tea.Model, tea
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
-			toast: fmt.Sprintf("✓ Session %d gelöscht", idx+1),
+			toast: fmt.Sprintf("Session %d gelöscht", idx+1),
 			date:  date,
 		}
 	}
@@ -250,7 +250,7 @@ func dispatchDrillAdd(sw *usecase.SessionWriter, date time.Time, f drillFormFiel
 		if err := sw.AddManual(date, f.startTime, f.stopTime); err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}
-		toast := fmt.Sprintf("✓ Session am %s angelegt", date.Format("2006-01-02"))
+		toast := fmt.Sprintf("Session am %s angelegt", date.Format("2006-01-02"))
 		if f.tag == "" && f.note == "" {
 			return historyActionDoneMsg{toast: toast, date: date}
 		}
@@ -281,7 +281,7 @@ func dispatchDrillEdit(sw *usecase.SessionWriter, date time.Time, idx int, f dri
 			return historyActionDoneMsg{err: err, date: date}
 		}
 		return historyActionDoneMsg{
-			toast: fmt.Sprintf("✓ Session %d aktualisiert", idx+1),
+			toast: fmt.Sprintf("Session %d aktualisiert", idx+1),
 			date:  date,
 		}
 	}

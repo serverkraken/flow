@@ -13,6 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -132,14 +133,22 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		f.formCur = 0
 		f.confirmModel = nil
 		f.errMsg = ""
-		f.err = msg.err
-		if msg.err == nil && msg.year != 0 && msg.year != f.currentYear() {
+		f.err = nil
+		if msg.err != nil {
+			// Action-Fehler erscheinen als Danger-Toast über der weiter
+			// sichtbaren Liste; f.err bleibt für Load-Fehler reserviert, die
+			// den Body komplett ersetzen.
+			t := toast.NewDanger(msg.err.Error(), f.pal)
+			f.toast = &t
+			return f, tea.Batch(f.loadCmd(f.currentYear()), t.Init())
+		}
+		if msg.year != 0 && msg.year != f.currentYear() {
 			f.year = msg.year
 			f.cursor = 0
 			f.loaded = false
 		}
-		if msg.err == nil && msg.toast != "" {
-			t := toast.NewDefault(msg.toast, f.pal)
+		if msg.toast != "" {
+			t := toast.NewSuccess(msg.toast, f.pal)
 			f.toast = &t
 			return f, tea.Batch(f.loadCmd(f.currentYear()), t.Init())
 		}
@@ -169,7 +178,7 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := writer.Remove(date); err != nil {
 				return freiActionDoneMsg{err: err}
 			}
-			return freiActionDoneMsg{toast: "✓ Eintrag entfernt für " + date.Format("2006-01-02")}
+			return freiActionDoneMsg{toast: "Eintrag entfernt für " + date.Format("2006-01-02")}
 		}
 
 	case dayRefreshMsg:
@@ -240,7 +249,7 @@ func (f frei) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			question := "Eintrag löschen?"
 			detail := fmt.Sprintf("%s  %s  %s",
 				d.Date.Format("2006-01-02"), d.Kind.LabelDe(), d.Label)
-			cm := confirm.New(question, detail, f.pal)
+			cm := confirm.NewDanger(question, detail, f.pal)
 			f.confirmModel = &cm
 			return f, cm.Init()
 		}
@@ -280,7 +289,7 @@ func (f frei) quickAddTodayCmd(kind domain.Kind) tea.Cmd {
 		// eingetragen" while the empty 2024 grid stares back.
 		return freiActionDoneMsg{
 			year: now.Year(),
-			toast: fmt.Sprintf("✓ %s eingetragen für %s",
+			toast: fmt.Sprintf("%s eingetragen für %s",
 				kind.LabelDe(), now.Format("2006-01-02")),
 		}
 	}
@@ -295,7 +304,7 @@ func (f frei) syncHolidaysCmd() tea.Cmd {
 		if err != nil {
 			return freiActionDoneMsg{err: err}
 		}
-		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %d Feiertag(e) für %s/%d", added, land, year)}
+		return freiActionDoneMsg{toast: fmt.Sprintf("%d Feiertag(e) für %s/%d", added, land, year)}
 	}
 }
 
@@ -425,7 +434,7 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 			if err != nil {
 				return freiActionDoneMsg{err: err}
 			}
-			return freiActionDoneMsg{toast: fmt.Sprintf("✓ %d Tag(e) als %s eingetragen",
+			return freiActionDoneMsg{toast: fmt.Sprintf("%d Tag(e) als %s eingetragen",
 				n, kind.LabelDe())}
 		}
 	}
@@ -433,7 +442,7 @@ func (f frei) submitAdd() (tea.Model, tea.Cmd) {
 		if err := writer.Add(from, kind, label); err != nil {
 			return freiActionDoneMsg{err: err}
 		}
-		return freiActionDoneMsg{toast: fmt.Sprintf("✓ %s eingetragen für %s",
+		return freiActionDoneMsg{toast: fmt.Sprintf("%s eingetragen für %s",
 			kind.LabelDe(), from.Format("2006-01-02"))}
 	}
 }
@@ -609,7 +618,7 @@ func (f frei) renderAddDialog(inner int) string {
 		"Tab → Feld",
 		"h/l → Kategorie",
 		"Enter → speichern",
-		"Esc → abbrechen",
+		uistrings.HintCancel,
 	}, inner))
 	return strings.Join(rows, "\n")
 }
