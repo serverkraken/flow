@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/serverkraken/flow/compare/v1.4.3...v1.5.0) (2026-05-30)
+
+
+### Features
+
+* **tui:** UX-review cleanup — all 25 findings, 10 phases ([#43](https://github.com/serverkraken/flow/issues/43)) ([f008fbb](https://github.com/serverkraken/flow/commit/f008fbbb0c978755f669f8d87ee83e265caaa883))
+
+
+### Bug Fixes
+
+* **tui:** resolve round-2 design-review findings (German UI, color se… ([#41](https://github.com/serverkraken/flow/issues/41)) ([79c9bc5](https://github.com/serverkraken/flow/commit/79c9bc556c22021eb8f735390e401bec1d3f11dc))
+* **worktime:** Phase-10 follow-up — sub-tab title + complete footer hints ([#44](https://github.com/serverkraken/flow/issues/44)) ([65dc4d1](https://github.com/serverkraken/flow/commit/65dc4d1d30f2e28c95c06285368cb571dc1c989f))
+* **worktime:** restore tab strip in titlebox title ([#45](https://github.com/serverkraken/flow/issues/45)) ([b0ba60e](https://github.com/serverkraken/flow/commit/b0ba60e44fe9cf8173685e4447e2aff0b603c580))
+
 ## [1.4.3](https://github.com/serverkraken/flow/compare/v1.4.2...v1.4.3) (2026-05-30)
 
 
