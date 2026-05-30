@@ -21,6 +21,19 @@ import "charm.land/lipgloss/v2"
 // Success → Sem.Success, …); raw hues are used only where there is
 // no semantic alias (Highlight = Purple, Info = Cyan).
 
+// Active renders s with Sem.Active (Cyan) + Bold — the canonical
+// "running / live / in-progress" foreground. Distinct from Info
+// (same hex, different role: Info is informational-without-action,
+// Active marks a process that is currently happening). Skill
+// §Color semantics requires the role-name in code so a palette swap
+// that redefines Active without touching Info stays coherent.
+func Active(s string, p Palette) string {
+	return lipgloss.NewStyle().
+		Foreground(p.Sem().Active).
+		Bold(true).
+		Render(s)
+}
+
 // Body — default paragraph text. Fg foreground, no extra styling.
 func Body(s string, p Palette) string {
 	return lipgloss.NewStyle().Foreground(p.Fg).Render(s)
