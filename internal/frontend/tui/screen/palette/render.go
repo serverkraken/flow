@@ -36,12 +36,13 @@ func (m Model) viewContent() string {
 
 	var rows []string
 
-	// Focused: filled ▶ in Accent-Bold; unfocused: dim ›. Non-color
-	// signal für Filter-Focus — reine Cursor-Blink-Sichtbarkeit reichte
-	// bei statischen Screenshots / langsamem Cursor nicht.
+	// Focus-Signal: gleicher Glyph (›), aber Dim → Heading (Accent+Bold).
+	// Non-color cue via Bold, damit NO_COLOR-User den Wechsel sehen. Der
+	// alte Glyph-Swap (›→▶) war Skill §Glyph-whitelist-falsch: ▶ heißt
+	// "running/live", nicht "Focus".
 	prompt := theme.Dim(glyphs.Info+" ", m.pal)
 	if m.filter.Focused() {
-		prompt = theme.Heading(glyphs.Active+" ", m.pal)
+		prompt = theme.Heading(glyphs.Info+" ", m.pal)
 	}
 	rows = append(rows, prompt+m.filter.View())
 	rows = append(rows, m.styles.border.Render(strings.Repeat("─", inner)))
@@ -76,7 +77,7 @@ func (m Model) renderPreview(maxWidth int) string {
 		return ""
 	}
 	action := m.visible[m.cursor].Action
-	prefix := "  " + glyphs.Active + " "
+	prefix := "  " + glyphs.AccentBar + " "
 	available := maxWidth - lipgloss.Width(prefix)
 	if available < 8 {
 		return ""
@@ -85,7 +86,10 @@ func (m Model) renderPreview(maxWidth int) string {
 	// path used `runes[:available-1]` which trimmed by rune-count and
 	// blew the row width whenever the action contained wide runes.
 	action = uistrings.Truncate(action, available)
-	return "  " + m.styles.border.Render(glyphs.Active) + " " + m.styles.hint.Render(action)
+	// AccentBar (▎) via bar-style — same marker the selected row uses.
+	// Skill §Glyph whitelist: ▶ Active = "running/live"; eine Preview-
+	// Zeile zeigt die *nächste* Aktion, nicht die laufende.
+	return "  " + m.styles.bar.Render(glyphs.AccentBar) + " " + m.styles.hint.Render(action)
 }
 
 func (m Model) title() string {
