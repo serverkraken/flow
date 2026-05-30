@@ -339,9 +339,11 @@ func (m Model) renderTabStrip() string {
 	if m.width > 0 && lipgloss.Width(mainStrip) > m.width {
 		mainStrip = m.renderTabStripCompact(entries)
 	}
-	if host, ok := m.screens[m.current].(subTabHost); ok {
-		return m.composeStripWithSubTabs(mainStrip, host)
-	}
+	// Sub-Tab-Pills hier bewusst NICHT mehr appendend: die hostende
+	// Screen (worktime) trägt die Sub-Tab-Strip wieder in ihrem eigenen
+	// titlebox-Title — eine redundante Pill-Reihe rechts oben war
+	// visueller Overhead ohne Mehrwert. Der subTabHost-Contract bleibt
+	// für das numeric-key-Routing (1-4 → SwitchSubTab) erhalten.
 	return mainStrip
 }
 

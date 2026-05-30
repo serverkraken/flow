@@ -14,6 +14,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -485,13 +486,63 @@ func (m Model) viewContent() string {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}
 	}
-	// Active sub-tab name as the titlebox title — the sidekick pills
-	// (right-aligned in the global strip) signal navigation, this anchors
-	// the frame to the current view. Was empty post-Phase-10 but users
-	// lost the "you are here" cue inside the frame; pre-Phase-10 the
-	// title was the strip itself, this is the lighter replacement.
-	title := m.SubTabs()[int(m.current)]
-	return titlebox.Render(title, body, m.width, m.pal)
+	// Tab-Strip als titlebox-title — alle 4 sub-tabs sichtbar, aktiver
+	// unterstrichen + bold + Accent. Die Phase-10-Variante mit nur dem
+	// aktiven Tab-Namen (PR #44 v1) verlor den Hinweis welche anderen
+	// Tabs es überhaupt gibt; Strip im Title liefert beides: aktive
+	// Position UND Navigations-Affordanz.
+	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
+}
+
+// tabStrip renders the four-tab navigation as the titlebox title.
+// Three-step degradation keeps the strip inside the titlebox budget on
+// narrow tmux panes: full labels with "  ·  " spacing → compact "·"
+// separators → single-char fallback ("H · W · V · F"). titlebox.Render
+// reserves "╭─ " (3) + " " (1) + "╮" (1) + ≥1 right-dash = 6 chars for
+// borders; the title fits in width-6 chars.
+func (m Model) tabStrip(width int) string {
+	labels := m.SubTabs()
+	short := []string{"H", "W", "V", "F"}
+	budget := width - 6
+	if budget < 1 {
+		budget = 1
+	}
+	for _, opt := range []struct {
+		labels []string
+		sep    string
+	}{
+		{labels, "  ·  "},
+		{labels, " · "},
+		{short, " · "},
+	} {
+		if out := m.renderTabs(opt.labels, opt.sep); lipgloss.Width(out) <= budget {
+			return out
+		}
+	}
+	return m.renderTabs(short, " ")
+}
+
+func (m Model) renderTabs(labels []string, sep string) string {
+	// A11y-2 — der aktive Tab kriegt zusätzlich zum Bold+Accent-Foreground
+	// einen Underline-SGR. Glyph + Color allein liefen Gefahr, in NO_COLOR /
+	// Color-Blind-Settings ohne Identifier dazustehen; ein Unterstrich ist
+	// der etablierte Identifier (Skill §Tabs „Underline (default)").
+	activeStyle := lipgloss.NewStyle().
+		Foreground(m.pal.Sem().Accent).
+		Bold(true).
+		Underline(true)
+	out := ""
+	for i, l := range labels {
+		if i > 0 {
+			out += theme.Dim(sep, m.pal)
+		}
+		if tab(i) == m.current {
+			out += activeStyle.Render(l)
+		} else {
+			out += theme.Dim(l, m.pal)
+		}
+	}
+	return out
 }
 
 // SubTabs returns the worktime sub-tab labels in display order. Part
