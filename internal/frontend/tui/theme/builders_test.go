@@ -23,6 +23,7 @@ func TestBuilders_PreserveContent(t *testing.T) {
 		name string
 		fn   func(string, theme.Palette) string
 	}{
+		{"Active", theme.Active},
 		{"Body", theme.Body},
 		{"Dim", theme.Dim},
 		{"Strong", theme.Strong},
