@@ -417,31 +417,28 @@ func newSubHostDeps() (sidekick.Deps, *subHostScreen) {
 	}, wt
 }
 
-// TestRenderTabStrip_WithSubTabHost — the View on a sub-tab-host-active
-// screen must include both the main tab labels AND the host's sub-tab
-// pills (prefixed with their numeric shortcut), and the active sub-tab
-// must be visually distinct via the bracket form "[1 Heute]" (the
-// inactive pills wear parens "(2 Woche)" — same A11y-2 grammar as the
-// main strip's compact form).
+// TestRenderTabStrip_WithSubTabHost — even when the active screen is a
+// subTabHost (e.g. worktime), the sidekick View must NOT render any
+// sub-tab pills. The pills were removed: the host (worktime) draws its
+// own strip in its own titlebox-title, so a sidekick-level pill row
+// would be visually redundant. The subTabHost contract is now purely
+// for numeric-key routing.
 func TestRenderTabStrip_WithSubTabHost(t *testing.T) {
 	t.Parallel()
 	deps, _ := newSubHostDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m = updated.(sidekick.Model)
-	// ANSI strip — the active-tab style (Bold + Accent + Underline)
-	// injects SGR sequences mid-pill that would break substring matches
-	// like "[1 Heute]" otherwise.
 	out := ansi.Strip(m.View().Content)
 	// Main strip — worktime active label still present.
 	if !strings.Contains(out, "Worktime") {
 		t.Errorf("View should contain main strip Worktime label; got:\n%s", out)
 	}
-	// Sub-tab pills — Heute is the default active sub-tab → "[1 Heute]"
-	// in active style; "(2 Woche)" etc. in dim parens.
-	for _, want := range []string{"[1 Heute]", "(2 Woche)", "(3 History)", "(4 Frei)"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("View should render sub-tab pill %q; got:\n%s", want, out)
+	// Sub-tab pills must NOT appear at the sidekick level — only in the
+	// host's own frame.
+	for _, unwanted := range []string{"[1 Heute]", "(2 Woche)", "(3 History)", "(4 Frei)"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("View must not render sub-tab pill %q (drawn by host instead); got:\n%s", unwanted, out)
 		}
 	}
 }
@@ -465,22 +462,30 @@ func TestRenderTabStrip_NoSubTabHost(t *testing.T) {
 }
 
 // TestNumericKeyRoutes_ToSubTabHost — pressing "2" while worktime is
-// active routes SwitchSubTab(1) to the host. The host's activeIndex
-// reflects the move and SubTabIndex on the updated model reports 1.
+// active is consumed by the sidekick (routed to host.SwitchSubTab),
+// NOT forwarded to the screen. We probe the negative: the worktime
+// fakeScreen must not have recorded "2" — the key was claimed before
+// it could fall through.
+//
+// (We can't assert on rendered pills anymore because sidekick no
+// longer renders them; we can't assert on host.activeIndex either
+// because subHostScreen.SwitchSubTab is a value receiver and the
+// mutation lives on the COPY the sidekick stores internally. The
+// "didn't reach the screen" assertion is the cleanest residual
+// observation that the routing did happen.)
 func TestNumericKeyRoutes_ToSubTabHost(t *testing.T) {
 	t.Parallel()
-	deps, _ := newSubHostDeps()
+	deps, wt := newSubHostDeps()
 	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	updated, _ = updated.Update(keyMsg("2"))
-	m = updated.(sidekick.Model)
-	out := ansi.Strip(m.View().Content)
-	// After "2": Woche is active, Heute is inactive.
-	if !strings.Contains(out, "[2 Woche]") {
-		t.Errorf("after `2`: Woche pill should be active-styled; got:\n%s", out)
-	}
-	if !strings.Contains(out, "(1 Heute)") {
-		t.Errorf("after `2`: Heute pill should be inactive-styled; got:\n%s", out)
+	_ = updated
+	// "2" is in range (1..4) for the host's 4 sub-tabs → sidekick must
+	// claim it. If it reached worktime, the fake would have recorded "2".
+	for _, k := range wt.keys {
+		if k == "2" {
+			t.Errorf("in-range numeric `2` should be consumed by sidekick, but worktime recorded keys=%v", wt.keys)
+		}
 	}
 }
 
