@@ -112,7 +112,7 @@ func TestCorrectForm_EscCancels(t *testing.T) {
 func TestCorrectForm_ViewRendersInputAndHints(t *testing.T) {
 	r := newCorrectForm(pal(), "Startzeit korrigieren", "09:30")
 	out := r.view(pal(), 100)
-	for _, want := range []string{"Startzeit korrigieren", "STARTZEIT", "09:30", "enter → speichern", "esc → zurück"} {
+	for _, want := range []string{"Startzeit korrigieren", "STARTZEIT", "09:30", "enter → speichern", "Esc → zurück"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("view missing %q in:\n%s", want, out)
 		}

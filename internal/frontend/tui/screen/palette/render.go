@@ -85,7 +85,7 @@ func (m Model) renderPreview(maxWidth int) string {
 	// path used `runes[:available-1]` which trimmed by rune-count and
 	// blew the row width whenever the action contained wide runes.
 	action = uistrings.Truncate(action, available)
-	return "  " + m.styles.border.Render(glyphs.Active) + " " + m.styles.hint.Render(action)
+	return "  " + m.styles.hint.Render(glyphs.Active) + " " + m.styles.hint.Render(action)
 }
 
 func (m Model) title() string {
@@ -108,7 +108,7 @@ func (m Model) renderEmptyState() []string {
 			"",
 			dim.Render("  keine Treffer für »" + m.filter.Value() + "«"),
 			"",
-			dim.Render("  esc → filter leeren  ·  ctrl+u → ganz zurücksetzen"),
+			dim.Render("  " + uistrings.HintClearFilter),
 		}
 	}
 	return []string{

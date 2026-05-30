@@ -91,7 +91,7 @@ func TestQuit_FromTargetPickerQuits(t *testing.T) {
 	// Cursor is on first action which is Brief Wochenbericht.
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	out := m.View().Content
-	if !strings.Contains(out, "output-ziel") && !strings.Contains(out, "OUTPUT-ZIEL") {
+	if !strings.Contains(out, "ausgabe-ziel") && !strings.Contains(out, "AUSGABE-ZIEL") {
 		t.Fatalf("precondition: target sub-picker must be visible; got:\n%s", out)
 	}
 	if _, ok := pressQ(t, m); !ok {
@@ -151,7 +151,7 @@ func TestQuit_DoesNotQuitInMenuRangeForm(t *testing.T) {
 		m, _ = m.Update(tea.KeyPressMsg{Text: string(ch)})
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !strings.Contains(m.View().Content, "RANGE") {
+	if !strings.Contains(m.View().Content, "ZEITRAUM") {
 		t.Fatalf("precondition: range form should be visible; got:\n%s", m.View().Content)
 	}
 	_, isQuit := pressQ(t, m)

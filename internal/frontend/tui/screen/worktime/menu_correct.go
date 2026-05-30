@@ -15,6 +15,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -90,7 +91,7 @@ func (c correctForm) view(p theme.Palette, inner int) string {
 	}
 	rows = append(rows, "", renderFooterHints(p, []string{
 		"enter → speichern",
-		"esc → zurück",
+		uistrings.HintBack,
 	}, inner))
 	return strings.Join(rows, "\n")
 }

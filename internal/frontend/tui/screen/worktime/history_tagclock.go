@@ -78,7 +78,7 @@ func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (str
 			return strings.Repeat(s.glyph, 2), s.color(pal)
 		}
 	}
-	return strings.Repeat(glyphs.BulletDot, 2), pal.BgCode
+	return strings.Repeat(glyphs.BulletDot, 2), pal.Sem().Border
 }
 
 func (h history) renderTagClockHeader() string {
@@ -131,7 +131,7 @@ func (h history) renderTagClockStatus(grid [7][24]time.Duration, maxCell time.Du
 		status = fmt.Sprintf("   %s  %02d:00–%02d:00  %s  (%d%% des Maximums)",
 			dayLabels[row], col, (col+1)%24, formatDur(dur), pct)
 	}
-	return lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	return theme.Strong(status, h.pal)
 }
 
 func (h history) renderTagClock(records []domain.DayRecord, inner int) string {

@@ -124,7 +124,7 @@ func (h history) submitListAddForm() (tea.Model, tea.Cmd) {
 func (h history) renderListAddDialog() string {
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	rows := []string{
 		picker.SectionHeader("session nachbuchen", inner, h.pal),

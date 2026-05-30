@@ -470,12 +470,12 @@ func (m Model) viewContent() string {
 // tabStrip renders the four-tab navigation. Three-step degradation keeps
 // the strip inside the titlebox budget on narrow tmux panes: full labels
 // with "  ·  " spacing → compact "·" separators → single-char fallback
-// ("H · W · Hi · F"). titlebox.Render reserves "╭─ " (3) + " " (1) +
+// ("H · W · V · F"). titlebox.Render reserves "╭─ " (3) + " " (1) +
 // "╮" (1) + ≥1 right-dash = 6 chars for borders; the title fits in
 // width-6 chars.
 func (m Model) tabStrip(width int) string {
-	labels := []string{"Heute", "Woche", "History", "Frei"}
-	short := []string{"H", "W", "Hi", "F"}
+	labels := []string{"Heute", "Woche", "Verlauf", "Frei"}
+	short := []string{"H", "W", "V", "F"}
 	budget := width - 6
 	if budget < 1 {
 		budget = 1

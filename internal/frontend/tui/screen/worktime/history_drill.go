@@ -109,7 +109,7 @@ func (h history) renderDrill() string {
 	}
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	// Drill ist ein Sub-State der History (man steigt aus der Tag-Liste
 	// hinein). Ein Highlight-Bar (▎) + "Drill"-Badge in Purple signalisiert

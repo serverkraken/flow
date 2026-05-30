@@ -14,6 +14,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -128,7 +129,7 @@ func (lp landPicker) view(parentLabel string, p theme.Palette, inner int) string
 	rows = append(rows, "", renderFooterHints(p, []string{
 		"j/k → bewegen",
 		"enter → syncen",
-		"esc → zurück",
+		uistrings.HintBack,
 	}, inner))
 	return strings.Join(rows, "\n")
 }

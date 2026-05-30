@@ -40,7 +40,7 @@ func TestMenu_TabStripStaysVisibleWhenMenuOpen(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: ":"})
 	out := ansi.Strip(updated.View().Content)
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if !strings.Contains(out, label) {
 			t.Errorf("tab strip must remain visible while menu is open; missing %q:\n%s",
 				label, out)

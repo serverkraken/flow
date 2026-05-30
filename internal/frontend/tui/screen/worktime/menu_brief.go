@@ -62,7 +62,7 @@ func briefCmd(deps Deps, target outputTarget, scope domain.ReportRange) tea.Cmd 
 // vor ihm liegt.
 func briefOverlayTitle(scope domain.ReportRange, ref time.Time) string {
 	if scope == domain.ReportMonth {
-		return fmt.Sprintf("Brief · %s %04d", ref.Month().String(), ref.Year())
+		return fmt.Sprintf("Brief · %s %04d", domain.MonthShortDe(ref.Month()), ref.Year())
 	}
 	_, w := ref.ISOWeek()
 	return fmt.Sprintf("Brief · KW %02d %04d", w, ref.Year())

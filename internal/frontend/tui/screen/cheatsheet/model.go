@@ -82,7 +82,7 @@ func (Model) HelpSections() []help.Section {
 			{"g / G", "Anfang / Ende"},
 			{"/", "Im Cheatsheet suchen"},
 			{"c", "Code-Block kopieren"},
-			{"q", "Schließen (im Standalone)"},
+			{"q", "Schließen (nur im Popup)"},
 		},
 	}}
 }
