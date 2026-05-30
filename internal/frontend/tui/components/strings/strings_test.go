@@ -1,11 +1,24 @@
 package strings_test
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
+
+func TestHintSearchInput_HasCanonicalShape(t *testing.T) {
+	got := tuistrings.HintSearchInput
+	for _, want := range []string{"tippen", "Enter", "anwenden", "Esc", "abbrechen", "→"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("HintSearchInput %q missing %q", got, want)
+		}
+	}
+	if !strings.Contains(got, "  ·  ") {
+		t.Errorf("HintSearchInput missing canonical `  ·  ` separator")
+	}
+}
 
 func TestTruncate_NoOpWhenWithinWidth(t *testing.T) {
 	t.Parallel()

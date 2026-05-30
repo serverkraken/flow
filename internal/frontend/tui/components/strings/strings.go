@@ -32,6 +32,11 @@ const (
 	// Sub-Views (Heute-NoteView, Brief-Overlay, Cheatsheet). Wird
 	// typischerweise mit einem Close-Fragment kombiniert.
 	HintScroll = "↑/↓ · PgUp/PgDn → scrollen"
+	// HintSearchInput ist der canonical Footer für Live-Filter-Inputs
+	// (Kompendium Such-Modus, künftige Such-Surfaces). "tippen → filtern"
+	// statt "/" weil die Surface den Filter bereits aktiv hat — der User
+	// braucht das Trigger-Key nicht mehr, sondern die Apply/Abort-Verben.
+	HintSearchInput = "tippen → filtern  ·  Enter → anwenden  ·  Esc → abbrechen"
 )
 
 // Label strings — block-level text rendered inside boxes / cards.
