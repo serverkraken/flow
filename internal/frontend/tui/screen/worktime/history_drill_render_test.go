@@ -40,3 +40,25 @@ func TestRenderDrill_PauseSeparatorUsesBulletDot(t *testing.T) {
 		t.Errorf("drill pause separator: should not use ─ dashes anymore; expected · BulletDot pattern. got: %q", joined)
 	}
 }
+
+// TestHistory_FooterHints_IncludesHelp mirrors week.TestFooterHints_ContainsHelp
+// for the Verlauf (History) sub-tab: Skill §Keybind grammar pins `?` as
+// a fixed-slot key that must be discoverable from every screen footer.
+// Phase-10 follow-up to the 2026-05-30 UX-Review-Cleanup; the `/`-filter
+// hint moved to the `?`-overlay (still a universal-fixed-slot key)
+// to make room for HintHelp inside the 4-cap.
+func TestHistory_FooterHints_IncludesHelp(t *testing.T) {
+	pal := theme.TokyonightNight
+	h := history{pal: pal}
+	hints := h.footerHints()
+	found := false
+	for _, x := range hints {
+		if strings.Contains(x, "? → Hilfe") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("History footerHints: expected ?-help hint, got %v", hints)
+	}
+}

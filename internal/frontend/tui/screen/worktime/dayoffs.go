@@ -585,16 +585,18 @@ func (f frei) renderEntryRow(idx int, d domain.DayOff, inner int) string {
 }
 
 // footerHints — Skill §Hint format: max 4. Top-4 nach Frequenz:
-// navigieren, Eintrag anlegen, löschen, Aktions-Menü. A/K/B/T und das
-// Jahr-Blättern (h/l/[/]) leben im `?`-Overlay, das Aktions-Menü
-// erlaubt sowieso einen Land-spezifischen Sync außerhalb des `B`-
-// Default-Pfads.
+// navigieren, Eintrag anlegen, löschen, ?-Hilfe. A/K/B/T und das
+// Jahr-Blättern (h/l/[/]) leben im `?`-Overlay; das Aktions-Menü
+// (`:`) bleibt via Palette und ?-Overlay erreichbar, dafür muss
+// `? → Hilfe` selbst im Footer stehen (Skill §Keybind grammar:
+// `?` ist ein fixed-slot key und muss von jedem Screen aus
+// auffindbar sein).
 func (f frei) footerHints() []string {
 	return []string{
 		"j/k → bewegen",
 		"a → anlegen",
 		"D → löschen",
-		": → aktionen",
+		uistrings.HintHelp,
 	}
 }
 

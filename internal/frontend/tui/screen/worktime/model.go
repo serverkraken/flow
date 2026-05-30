@@ -447,8 +447,9 @@ func (m Model) handleTabRouterKey(msg tea.KeyPressMsg) (Model, bool) {
 // Woche / History / Frei strip is hosted by the sidekick's main tab
 // strip (right-aligned pills via the subTabHost interface, see
 // sidekick/sub_tabs.go) — Worktime no longer renders it locally. The
-// titlebox stays for the rounded outer frame; its title field is empty
-// so the top border degrades to a plain corner line.
+// titlebox stays for the rounded outer frame; its title is the active
+// sub-tab name (Heute / Woche / Verlauf / Frei) as the in-frame "you
+// are here" anchor.
 func (m Model) View() tea.View {
 	v := tea.NewView(m.viewContent())
 	v.AltScreen = true
@@ -484,11 +485,13 @@ func (m Model) viewContent() string {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}
 	}
-	// Empty title — sub-tab strip migrated to sidekick (Phase 10 of the
-	// 2026-05-30 UX-Review-Cleanup). titlebox degrades to a title-less
-	// top border ("╭───╮") so the outer frame stays consistent with the
-	// other screens that wrap in titlebox.
-	return titlebox.Render("", body, m.width, m.pal)
+	// Active sub-tab name as the titlebox title — the sidekick pills
+	// (right-aligned in the global strip) signal navigation, this anchors
+	// the frame to the current view. Was empty post-Phase-10 but users
+	// lost the "you are here" cue inside the frame; pre-Phase-10 the
+	// title was the strip itself, this is the lighter replacement.
+	title := m.SubTabs()[int(m.current)]
+	return titlebox.Render(title, body, m.width, m.pal)
 }
 
 // SubTabs returns the worktime sub-tab labels in display order. Part

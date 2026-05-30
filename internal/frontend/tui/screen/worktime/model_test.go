@@ -145,7 +145,9 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 // History / Frei) was lifted to the sidekick.subTabHost contract in
 // Phase 10 of the 2026-05-30 UX-Review-Cleanup — see
 // TestSubTabHost_LabelsAndIndex below for the strip exposed via the
-// interface — so the local View() no longer renders the labels.
+// interface. The titlebox title is now the *active* sub-tab name as
+// the in-frame "you are here" anchor (Phase-10 follow-up); only the
+// current label belongs in the top border, the other three do not.
 func TestView_RendersBodyAndStub(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
@@ -153,18 +155,20 @@ func TestView_RendersBodyAndStub(t *testing.T) {
 	if !strings.Contains(out, "lädt") {
 		t.Errorf("Heute should show its loading indicator before Init runs, got:\n%s", out)
 	}
-	// Phase 10: the sub-tab strip is hosted by sidekick — worktime's
-	// titlebox top border (first line of the View) must NOT carry the
-	// labels anymore. The body lines may still mention them (Heute's
-	// loading placeholder reads "Heute lädt …"), which is fine — the
-	// stack-budget regression we guard against is in the top row.
 	topLine := out
 	if i := strings.Index(out, "\n"); i >= 0 {
 		topLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
+	// Phase-10 follow-up: the active sub-tab name MUST appear in the
+	// top border as the in-frame anchor. Default tab is Heute.
+	if !strings.Contains(topLine, "Heute") {
+		t.Errorf("Phase-10 follow-up: expected active sub-tab name 'Heute' in top border, got %q", topLine)
+	}
+	// The other three labels are sidekick-hosted pills — they must NOT
+	// land in the worktime top border (stack-budget regression guard).
+	for _, label := range []string{"Woche", "Verlauf", "Frei"} {
 		if strings.Contains(topLine, label) {
-			t.Errorf("Phase 10: worktime top border must not render sub-tab label (%q found in topLine=%q)",
+			t.Errorf("Phase 10: worktime top border must not carry non-active sub-tab label (%q found in topLine=%q)",
 				label, topLine)
 		}
 	}

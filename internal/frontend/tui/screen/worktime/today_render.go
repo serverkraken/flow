@@ -18,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -273,10 +274,11 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 //  2. j/k → bewegen — Zeilennavigation. g/G (Sprung oben/unten) lebt im
 //     `?`-Overlay (today_dialog.go HelpSections), konsistent mit den
 //     Schwester-Screens history/frei, die ebenfalls nur `j/k → bewegen`
-//     im Footer führen — ein gemischter `·` neben dem Hint-Separator
-//     `  ·  ` las sich mehrdeutig.
-//  3. : → aktionen — Worktime-Aktions-Menü.
-//  4. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
+//     im Footer führen.
+//  3. enter → bearbeiten (auf Session) oder : → aktionen (off-Session).
+//  4. ? → Hilfe — Skill §Keybind grammar: `?` ist ein fixed-slot key und
+//     muss aus jedem Footer auffindbar sein. Verdrängt den `:`-Hint auf
+//     on-Session (Aktions-Menü bleibt via Palette + ?-Overlay erreichbar).
 //
 // D → löschen, Tag, Note und Pause leben im `?`-Overlay; das 4-Hint-
 // Limit verdrängt die destructive Action in den Hilfetext.
@@ -291,9 +293,9 @@ func (h heute) footerHints() []string {
 		actions = append(actions, "s → starten")
 	}
 	if h.onSession() {
-		actions = append(actions, "j/k → bewegen", "enter → bearbeiten", ": → aktionen")
+		actions = append(actions, "j/k → bewegen", "enter → bearbeiten", uistrings.HintHelp)
 	} else {
-		actions = append(actions, "j/k → bewegen", ": → aktionen")
+		actions = append(actions, "j/k → bewegen", ": → aktionen", uistrings.HintHelp)
 	}
 	if len(actions) > 4 {
 		actions = actions[:4]
