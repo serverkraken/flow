@@ -7,8 +7,9 @@ import (
 )
 
 func TestHeaderSeparator_UsesSemBorderNotBgChip(t *testing.T) {
-	SetPalette(theme.TokyonightNight)
-	got := headerSeparatorStyle.GetForeground()
+	t.Parallel()
+	s := newBrowseStyles(theme.TokyonightNight)
+	got := s.headerSeparator.GetForeground()
 	want := theme.TokyonightNight.Sem().Border
 	if got != want {
 		t.Errorf("headerSeparator fg = %v, want %v (Sem.Border)", got, want)
@@ -16,11 +17,12 @@ func TestHeaderSeparator_UsesSemBorderNotBgChip(t *testing.T) {
 }
 
 func TestErrorStyle_NotBold(t *testing.T) {
-	SetPalette(theme.TokyonightNight)
+	t.Parallel()
 	// Skill §Builder catalog: Err = Red, "no Bold; not a label".
-	// errorStyle wird als Paragraph-Surface verwendet ("Fehler beim
+	// errorPara wird als Paragraph-Surface verwendet ("Fehler beim
 	// Bearbeiten: ..."), nicht als Pille — darf nicht bold sein.
-	if errorStyle.GetBold() {
-		t.Error("errorStyle: must not be Bold (Skill §Builder catalog: Err is paragraph, not label)")
+	s := newBrowseStyles(theme.TokyonightNight)
+	if s.errorPara.GetBold() {
+		t.Error("errorPara: must not be Bold (Skill §Builder catalog: Err is paragraph, not label)")
 	}
 }

@@ -60,7 +60,7 @@ func TestPolish_TwoPanePreviewWithSize(t *testing.T) {
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 
 	// Drive entries → bodies, then resize wide enough to enable the two-pane layout.
 	model, cmd := m.Update(m.Init()())

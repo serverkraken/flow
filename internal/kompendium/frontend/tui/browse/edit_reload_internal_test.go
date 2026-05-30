@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
@@ -38,6 +39,7 @@ func TestEditFinishedReloadsPreview(t *testing.T) {
 
 	entry := ports.NoteEntry{ID: domain.ID(id), Meta: original.Meta}
 	m := Model{
+		styles:        newBrowseStyles(theme.TokyonightNight),
 		store:         store,
 		previewCached: map[domain.ID]string{},
 		all:           []ports.NoteEntry{entry},
@@ -107,6 +109,7 @@ func TestResizeReloadsPreview(t *testing.T) {
 
 	entry := ports.NoteEntry{ID: domain.ID(id), Meta: note.Meta}
 	m := Model{
+		styles:        newBrowseStyles(theme.TokyonightNight),
 		store:         store,
 		previewCached: map[domain.ID]string{},
 		all:           []ports.NoteEntry{entry},

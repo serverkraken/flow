@@ -26,8 +26,9 @@ func noteEntry(t domain.NoteType) ports.NoteEntry {
 // carries its own whitelisted single-cell glyph (●, ◆, ○), so the
 // shared Filled (●) appears at most once.
 func TestRenderTypeCounts_GlyphsAreDistinctPerKind(t *testing.T) {
-	SetPalette(theme.TokyonightNight)
+	t.Parallel()
 	m := Model{
+		styles:  newBrowseStyles(theme.TokyonightNight),
 		all:     []ports.NoteEntry{noteEntry(domain.TypeDaily), noteEntry(domain.TypeProject), noteEntry(domain.TypeFree)},
 		visible: []ports.NoteEntry{noteEntry(domain.TypeDaily), noteEntry(domain.TypeProject), noteEntry(domain.TypeFree)},
 	}
@@ -43,8 +44,8 @@ func TestRenderTypeCounts_GlyphsAreDistinctPerKind(t *testing.T) {
 // „Filter:  · Suche: …". Wenn der Type-Filter leer ist (label() == ""),
 // muss die Status-Line das Label komplett weglassen.
 func TestRenderStatusLine_HidesFilterLabelWhenEmpty(t *testing.T) {
-	SetPalette(theme.TokyonightNight)
-	m := Model{} // zero-value Filter == FilterAll → label() ist "".
+	t.Parallel()
+	m := Model{styles: newBrowseStyles(theme.TokyonightNight)} // zero-value Filter == FilterAll → label() ist "".
 	out := m.renderStatusLine()
 	if strings.Contains(out, "Filter:") {
 		t.Errorf("statusLine with empty filter: must not render `Filter:` label, got %q", out)
