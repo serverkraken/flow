@@ -49,7 +49,6 @@ var (
 	panelTitleStyle      lipgloss.Style
 	panelTitleFocusStyle lipgloss.Style
 	footerStyle          lipgloss.Style
-	footerKeyStyle       lipgloss.Style
 )
 
 // List items.
@@ -99,7 +98,6 @@ var (
 var (
 	dimStyle                  lipgloss.Style
 	errorStyle                lipgloss.Style
-	emptyGlyphStyle           lipgloss.Style
 	emptyTitleStyle           lipgloss.Style
 	emptyHintStyle            lipgloss.Style
 	spinnerStyle              lipgloss.Style
@@ -164,9 +162,6 @@ func rebuildStyles() {
 		Bold(true)
 	footerStyle = lipgloss.NewStyle().
 		Foreground(pal.FgMuted)
-	footerKeyStyle = lipgloss.NewStyle().
-		Foreground(sem.Active).
-		Bold(true)
 
 	// List items.
 	cursorStyle = lipgloss.NewStyle().
@@ -252,9 +247,6 @@ func rebuildStyles() {
 		Foreground(pal.FgMuted)
 	errorStyle = lipgloss.NewStyle().
 		Foreground(sem.Danger)
-	emptyGlyphStyle = lipgloss.NewStyle().
-		Foreground(sem.Accent).
-		Bold(true)
 	emptyTitleStyle = lipgloss.NewStyle().
 		Foreground(pal.FgDim).
 		Bold(true)

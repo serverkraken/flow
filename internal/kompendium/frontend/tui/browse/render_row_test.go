@@ -22,3 +22,18 @@ func TestRowStripeAndCaret_SelectedHasNoActiveGlyph(t *testing.T) {
 		t.Errorf("selected: expected glyphs.AccentBar (▎) as selection marker; got %q", combined)
 	}
 }
+
+// UX-Review §4.2: der alte Empty-State war ein 5-zeiliger Hero-Block
+// (Glyph + Leerzeile + Titel + 2 Hinweis-Zeilen). Andere Surfaces
+// (palette/projects/heute) halten ihre Empty-States auf einer Zeile
+// — der 5-Zeiler stach raus. Reduktion auf Titel + eine Hinweiszeile
+// macht den Browse-Empty-State konsistent.
+func TestRenderEmptyState_AtMostTwoLines(t *testing.T) {
+	SetPalette(theme.TokyonightNight)
+	m := Model{visible: nil}
+	out := m.renderEmptyState(60)
+	lines := strings.Count(out, "\n") + 1
+	if lines > 2 {
+		t.Errorf("empty state: at most 2 lines, got %d (lines=%v)", lines, strings.Split(out, "\n"))
+	}
+}

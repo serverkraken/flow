@@ -72,6 +72,12 @@ const (
 
 // label returns the human-readable filter label rendered in the status bar.
 // Skill §German UI: User-facing-Strings auf Deutsch.
+//
+// FilterAll bewusst leer: UX-Review §4.4 wollte „Typ:" nur sehen, wenn der
+// Nutzer aktiv nach Type gefiltert hat. Im Default-Zustand (Alle Typen)
+// macht das Label keinen Informationsgewinn — die Type-Counts im Header
+// kommunizieren das ohnehin —, also Label leer und renderStatusLine
+// suppress't den ganzen Eintrag.
 func (f Filter) label() string {
 	switch f {
 	case FilterDaily:
@@ -81,7 +87,7 @@ func (f Filter) label() string {
 	case FilterFree:
 		return "Frei"
 	}
-	return "Alle"
+	return ""
 }
 
 // CmdFunc returns an unstarted *exec.Cmd that takes over the terminal

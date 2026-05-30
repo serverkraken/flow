@@ -142,11 +142,17 @@ func (m Model) renderSeparator() string {
 	return headerSeparatorStyle.Render(strings.Repeat("─", w))
 }
 
-// renderStatusLine renders the second header row: filter label and the
-// (optionally bordered) search bar.
+// renderStatusLine renders the second header row: type filter label und
+// die (optional umrandete) Suchleiste. UX-Review §4.4 + §1.8: vorher
+// hieß das Label „Filter:" und wurde immer gezeigt — auch wenn weder
+// Type-Filter noch Suche aktiv waren, was den Drei-Doppelpunkt-Mismatch
+// „Filter:  · Suche: …" produzierte. Jetzt: Label „Typ:" (das ist der
+// type-cycle täglich/projekt/frei, kein Text-Filter) und der ganze
+// Eintrag wird suppressed, wenn der Type-Filter leer ist.
 func (m Model) renderStatusLine() string {
-	parts := []string{
-		statusKeyStyle.Render("Filter:") + " " + statusValueStyle.Render(m.filter.label()),
+	var parts []string
+	if label := m.filter.label(); label != "" {
+		parts = append(parts, statusKeyStyle.Render("Typ:")+" "+statusValueStyle.Render(label))
 	}
 	if search := m.renderSearchSegment(); search != "" {
 		parts = append(parts, search)

@@ -397,20 +397,16 @@ func (m Model) renderTags(tags []string) string {
 	return strings.Join(parts, " ")
 }
 
+// renderEmptyState ist der Browse-Zero-Result. UX-Review §4.2: vorher
+// ein 5-zeiliger Hero (○-Glyph + Leerzeile + Titel + zwei Hinweis-Zeilen)
+// — andere Surfaces (palette/projects/heute) halten ihre Empty-States
+// auf einer Zeile. Reduktion auf Titel + eine knappe Hinweiszeile macht
+// den Block konsistent mit dem Rest der App.
 func (m Model) renderEmptyState(width int) string {
-	// glyphs.Empty (○) als „nichts gefunden"-Hero — ✺ war nicht auf der
-	// Whitelist (Risiko Emoji-Breite, audit §2.1).
-	glyph := emptyGlyphStyle.Render(glyphs.Empty)
-	title := emptyTitleStyle.Render("keine Treffer")
 	newKey := keyLabel(m.keys.New)
-	searchKey := keyLabel(m.keys.Search)
-	filterKey := keyLabel(m.keys.Filter)
-	hint := footerKeyStyle.Render(newKey) +
-		emptyHintStyle.Render(" → neue Notiz anlegen")
-	tail := footerKeyStyle.Render(filterKey) +
-		emptyHintStyle.Render(" → Filter wechseln  ·  ") + footerKeyStyle.Render(searchKey) +
-		emptyHintStyle.Render(" → Suche zurücksetzen")
-	stack := lipgloss.JoinVertical(lipgloss.Center, glyph, "", title, hint, tail)
+	title := emptyTitleStyle.Render("keine Treffer.")
+	hint := emptyHintStyle.Render(newKey + " → neue Notiz · Esc → Filter leeren")
+	stack := lipgloss.JoinVertical(lipgloss.Left, title, hint)
 	if width <= 0 {
 		return stack
 	}

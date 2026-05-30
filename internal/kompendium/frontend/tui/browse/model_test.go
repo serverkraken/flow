@@ -139,7 +139,7 @@ func TestBrowse_FilterCyclesByType(t *testing.T) {
 	if !strings.Contains(view, "the daily") || strings.Contains(view, "the project") {
 		t.Errorf("Daily filter wrong:\n%s", view)
 	}
-	if !strings.Contains(view, "Filter:") || !strings.Contains(view, "Daily") {
+	if !strings.Contains(view, "Typ:") || !strings.Contains(view, "Daily") {
 		t.Errorf("filter label not Daily:\n%s", view)
 	}
 

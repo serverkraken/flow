@@ -37,3 +37,19 @@ func TestRenderTypeCounts_GlyphsAreDistinctPerKind(t *testing.T) {
 		t.Errorf("renderTypeCounts: glyphs.Filled used %d times — Skill A11y-2 wants distinct glyphs per kind", gFilled)
 	}
 }
+
+// UX-Review §4.4 + §1.8: ohne aktiven Type-Filter (FilterAll) ist „Filter:"
+// resp. „Typ:" semantisch leer und produziert den Drei-Doppelpunkt-Mismatch
+// „Filter:  · Suche: …". Wenn der Type-Filter leer ist (label() == ""),
+// muss die Status-Line das Label komplett weglassen.
+func TestRenderStatusLine_HidesFilterLabelWhenEmpty(t *testing.T) {
+	SetPalette(theme.TokyonightNight)
+	m := Model{} // zero-value Filter == FilterAll → label() ist "".
+	out := m.renderStatusLine()
+	if strings.Contains(out, "Filter:") {
+		t.Errorf("statusLine with empty filter: must not render `Filter:` label, got %q", out)
+	}
+	if strings.Contains(out, "Typ:") {
+		t.Errorf("statusLine with empty filter: must not render `Typ:` label, got %q", out)
+	}
+}
