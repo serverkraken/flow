@@ -44,6 +44,13 @@ var screenBaseline = map[string]int{
 	"worktime/today_dialog.go":     1,
 	"worktime/today_render.go":     0,
 	"worktime/week.go":             16, // round4 + Spec 2026-05-13: behindPace style split from old yellowPace (today-running → runningPace/Sem.Active, behind → behindPace/Sem.Warning)
+
+	// Kompendium browse — same per-Model style cache pattern as
+	// palette/projects/worktime (P6.1+P6.2 in fc8c580). styles_struct.go
+	// holds the full builder; the lone render_modal.go NewStyle is the
+	// lipgloss.WithWhitespaceStyle backdrop for the bubbles list overlay.
+	"kompendium/frontend/tui/browse/render_modal.go":  1,
+	"kompendium/frontend/tui/browse/styles_struct.go": 47,
 }
 
 // TestScreenInlineNewStyleBudget walks the internal/frontend/tui/screen
@@ -58,6 +65,13 @@ func TestScreenInlineNewStyleBudget(t *testing.T) {
 
 	root := findScreensDir(t)
 	files := walkScreenFiles(t, root)
+	// Also walk the kompendium browse package — it now uses a per-Model
+	// style cache (P6.1+P6.2, fc8c580) like palette/projects/worktime,
+	// so the same lint-floor applies. Keys are prefixed so they don't
+	// collide with the screen tree (which is rooted at the screen dir).
+	for rel, abs := range walkKompendiumBrowseFiles(t) {
+		files["kompendium/frontend/tui/browse/"+rel] = abs
+	}
 
 	for relpath, fpath := range files {
 		got := countLipglossNewStyle(t, fpath)
@@ -114,6 +128,35 @@ func findScreensDir(t *testing.T) string {
 	}
 	t.Fatalf("could not find internal/frontend/tui/screen above %q", wd)
 	return ""
+}
+
+// walkKompendiumBrowseFiles walks the kompendium browse package and
+// returns "<file>.go" → absolute path entries. Callers prefix the keys
+// to match the baseline map's namespace ("kompendium/frontend/tui/
+// browse/…"). Kept narrow on purpose — only browse uses per-Model
+// styles today; view/writepicker stay outside the lint floor until
+// they get the same treatment.
+func walkKompendiumBrowseFiles(t *testing.T) map[string]string {
+	t.Helper()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	cur := wd
+	for {
+		candidate := filepath.Join(cur, "internal", "kompendium", "frontend", "tui", "browse")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return walkScreenFiles(t, candidate)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			break
+		}
+		cur = parent
+	}
+	t.Fatalf("could not find internal/kompendium/frontend/tui/browse above %q", wd)
+	return nil
 }
 
 // walkScreenFiles returns a map of "<screen>/<file>.go" → absolute
