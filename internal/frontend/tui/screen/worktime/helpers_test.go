@@ -49,6 +49,26 @@ func containsFgSGR(out string, c theme.Color) bool {
 	return strings.Contains(out, fmt.Sprintf("38;2;%d;%d;%d", r, g, b))
 }
 
+// countFgSGR returns how many times an ANSI foreground-SGR sequence
+// matching c appears in out. Peer of containsFgSGR — same hex→RGB
+// decoder, but strings.Count instead of Contains. Used when a single
+// rendered line legitimately carries the colour once (e.g. the
+// statusbar.Bar filled cells use Sem.Accent) and the test needs to
+// pin that an *adjacent* element does NOT also paint in the same
+// hue. A binary contains-check would always pass; counting separates
+// "the bar alone" from "the bar plus a neighbouring Accent run".
+func countFgSGR(out string, c theme.Color) int {
+	hex := strings.TrimPrefix(fmt.Sprintf("%v", c), "#")
+	if len(hex) != 6 {
+		return 0
+	}
+	var r, g, b int
+	if _, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return 0
+	}
+	return strings.Count(out, fmt.Sprintf("38;2;%d;%d;%d", r, g, b))
+}
+
 // — history.go pure helpers —
 
 func TestFilteredHistory_EmptyQueryReturnsAll(t *testing.T) {

@@ -339,7 +339,7 @@ func (w woche) renderTotals(inner int, now time.Time) []string {
 	totals := "  " + theme.Strong(formatDur(weekTotal), w.pal) +
 		"  " + stDim(w.pal, "/ "+formatDur(weekTarget))
 	bar := "  " + statusbar.Bar(pct, barW, w.pal) + "  " +
-		theme.Heading(fmt.Sprintf("%3d%%", pct), w.pal)
+		theme.Strong(fmt.Sprintf("%3d%%", pct), w.pal)
 	return []string{
 		picker.SectionHeader("woche gesamt", inner, w.pal),
 		totals,
