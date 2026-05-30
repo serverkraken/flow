@@ -30,7 +30,10 @@ func TestFooterDriftGuard(t *testing.T) {
 			name:  "heute_idle",
 			setup: func(_ rig) {},
 			tab:   "1",
-			keys:  []string{"s", "j/k", ":"},
+			// Off-session: `s, j/k, :, ?` — Phase-10 follow-up added
+			// `? → Hilfe` (Skill §Keybind: ?-help must be discoverable
+			// from every footer).
+			keys: []string{"s", "j/k", ":", "?"},
 		},
 		{
 			name: "heute_running",
@@ -40,8 +43,9 @@ func TestFooterDriftGuard(t *testing.T) {
 			},
 			tab: "1",
 			// Skill §Hint format ≤4: Top-Frequenz-Hints; `p` (pause)
-			// wandert in den `?`-Overlay.
-			keys: []string{"s", "j/k", ":"},
+			// wandert in den `?`-Overlay. Running ohne fokussierte
+			// Session = off-session-Branch.
+			keys: []string{"s", "j/k", ":", "?"},
 		},
 		{
 			name: "heute_on_session",
@@ -53,9 +57,10 @@ func TestFooterDriftGuard(t *testing.T) {
 				}}
 			},
 			tab: "1",
-			// Top-4 (s, j/k, :, enter). D wandert in den `?`-Overlay,
-			// das Aktions-Menü (`:`) verdrängt die destructive Action.
-			keys: []string{"s", "j/k", ":", "enter"},
+			// Top-4 (s, j/k, enter, ?). Phase-10 follow-up: `:` wandert
+			// in den `?`-Overlay, damit `? → Hilfe` selbst im Footer
+			// stehen kann (Skill §Keybind: ?-help fixed slot).
+			keys: []string{"s", "j/k", "enter", "?"},
 		},
 		{
 			name:  "woche",
@@ -63,25 +68,27 @@ func TestFooterDriftGuard(t *testing.T) {
 			tab:   "2",
 			// Tab-Navigation 1/2/3/4 ist parent-level — gehört nicht in den
 			// screen-level Footer (Skill §Hint format „context-relevant").
-			keys: []string{"j/k", "g/G", ":"},
+			keys: []string{"j/k", "g/G", ":", "?"},
 		},
 		{
 			name:  "history",
 			setup: func(_ rig) {},
 			tab:   "3",
-			// `v` zeigt den nächsten Mode-Cycle als zentrale Discoverability
-			// für 4 Ansichten; `:` lebt im `?`-Overlay (Aktions-Menü
-			// universell verfügbar). Vorher umgekehrt — UI-Review hat das
-			// als versteckt-aber-wertvolles Feature flag-gegeben.
-			keys: []string{"j/k", "enter", "v", "/"},
+			// Phase-10 follow-up: `/` (filter) wandert in den `?`-Overlay
+			// (universal-fixed-slot key, via `?` discoverable), damit
+			// `? → Hilfe` selbst im Footer stehen kann. `:`-Aktions-Menü
+			// und `T`/`F` bleiben ebenfalls im `?`-Overlay.
+			keys: []string{"j/k", "enter", "v", "?"},
 		},
 		{
 			name:  "frei",
 			setup: func(_ rig) {},
 			tab:   "4",
-			// Top-4: navigieren, anlegen, löschen (D), Aktions-Menü.
+			// Phase-10 follow-up: `:`-Aktions-Menü wandert in den
+			// `?`-Overlay (über Palette + `?` weiterhin erreichbar),
+			// damit `? → Hilfe` selbst im Footer stehen kann.
 			// h/l/[/], A/K/B/T sind im `?`-Overlay.
-			keys: []string{"j/k", "a", "D", ":"},
+			keys: []string{"j/k", "a", "D", "?"},
 		},
 	}
 	for _, c := range cases {

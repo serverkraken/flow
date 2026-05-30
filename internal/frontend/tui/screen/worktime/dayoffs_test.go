@@ -132,3 +132,24 @@ func TestRenderEntryRow_UserLabelInKindColor(t *testing.T) {
 		})
 	}
 }
+
+// TestFrei_FooterHints_IncludesHelp mirrors week.TestFooterHints_ContainsHelp
+// for the Frei sub-tab: Skill §Keybind grammar pins `?` as a fixed-slot
+// key that must be discoverable from every screen footer. Phase-10
+// follow-up to the 2026-05-30 UX-Review-Cleanup; the `:`-actions hint
+// moved to the `?`-overlay (action menu still reachable via Palette
+// and ?-overlay) to make room for HintHelp inside the 4-cap.
+func TestFrei_FooterHints_IncludesHelp(t *testing.T) {
+	f := frei{pal: theme.TokyonightNight}
+	hints := f.footerHints()
+	found := false
+	for _, x := range hints {
+		if strings.Contains(x, "? → Hilfe") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Frei footerHints: expected ?-help hint, got %v", hints)
+	}
+}
