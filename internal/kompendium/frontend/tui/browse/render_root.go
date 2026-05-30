@@ -40,11 +40,11 @@ func (m Model) viewContent() string {
 		return m.picker.View()
 	}
 	if m.loadErr != nil {
-		return frameContent(m.width, m.height, errorStyle.Render("Fehler: "+m.loadErr.Error()))
+		return m.frameContent(m.width, m.height, m.styles.errorPara.Render("Fehler: "+m.loadErr.Error()))
 	}
 	if !m.loaded {
-		loading := lipgloss.JoinHorizontal(lipgloss.Center, m.spin.View(), " ", dimStyle.Render("lädt…"))
-		return frameContent(m.width, m.height, loading)
+		loading := lipgloss.JoinHorizontal(lipgloss.Center, m.spin.View(), " ", m.styles.dim.Render("lädt…"))
+		return m.frameContent(m.width, m.height, loading)
 	}
 
 	header := m.renderHeader()
@@ -53,13 +53,13 @@ func (m Model) viewContent() string {
 	statusBar := m.renderStatusBar()
 
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", body, "", footer, statusBar)
-	base := frameContent(m.width, m.height, content)
+	base := m.frameContent(m.width, m.height, content)
 
 	switch {
 	case m.showHelp:
-		return overlay(base, m.renderHelpOverlay(), m.width, m.height)
+		return m.overlay(base, m.renderHelpOverlay(), m.width, m.height)
 	case m.mode == ModeConfirmDelete:
-		return overlay(base, m.renderDeleteModal(), m.width, m.height)
+		return m.overlay(base, m.renderDeleteModal(), m.width, m.height)
 	}
 	return base
 }
@@ -70,13 +70,13 @@ func (m Model) viewContent() string {
 // padding-injecting badges) so test asserts on the contiguous
 // "kompendium — N/M notes" substring still match.
 func (m Model) renderHeader() string {
-	headline := headlineStyle.Render(
+	headline := m.styles.headline.Render(
 		fmt.Sprintf("kompendium — %d/%d Notizen", len(m.visible), len(m.all)),
 	)
 
 	headlineRow := []string{headline}
 	if breakdown := m.renderTypeCounts(); breakdown != "" {
-		headlineRow = append(headlineRow, statusLineStyle.Render("  ·  "), breakdown)
+		headlineRow = append(headlineRow, m.styles.statusLine.Render("  ·  "), breakdown)
 	}
 	if repo := m.renderRepoChip(); repo != "" {
 		headlineRow = append(headlineRow, "  ", repo)
@@ -90,7 +90,7 @@ func (m Model) renderHeader() string {
 	headerBlock := lipgloss.JoinVertical(lipgloss.Left, headlineLine, separator, statusLine)
 	if m.editErr != nil {
 		headerBlock = lipgloss.JoinVertical(lipgloss.Left, headerBlock,
-			errorStyle.Render("Fehler beim Bearbeiten: "+m.editErr.Error()))
+			m.styles.errorPara.Render("Fehler beim Bearbeiten: "+m.editErr.Error()))
 	}
 	return headerBlock
 }
@@ -115,9 +115,9 @@ func (m Model) renderTypeCounts() string {
 		}
 	}
 	parts := []string{
-		countDailyStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", d)) + dimStyle.Render(" täglich"),
-		countProjectStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", p)) + dimStyle.Render(" projekt"),
-		countFreeStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", f)) + dimStyle.Render(" frei"),
+		m.styles.countDaily.Render(fmt.Sprintf(glyphs.CountDaily+" %d", d)) + m.styles.dim.Render(" täglich"),
+		m.styles.countProject.Render(fmt.Sprintf(glyphs.CountProject+" %d", p)) + m.styles.dim.Render(" projekt"),
+		m.styles.countFree.Render(fmt.Sprintf(glyphs.CountFree+" %d", f)) + m.styles.dim.Render(" frei"),
 	}
 	return strings.Join(parts, "  ")
 }
@@ -128,7 +128,7 @@ func (m Model) renderRepoChip() string {
 	if m.currentRepo == "" {
 		return ""
 	}
-	return repoChipStyle.Render(shortProjectLabel(string(m.currentRepo)))
+	return m.styles.repoChip.Render(shortProjectLabel(string(m.currentRepo)))
 }
 
 // renderSeparator draws a soft horizontal rule under the headline. Width
@@ -139,19 +139,25 @@ func (m Model) renderSeparator() string {
 	if w <= 0 {
 		w = 60
 	}
-	return headerSeparatorStyle.Render(strings.Repeat("─", w))
+	return m.styles.headerSeparator.Render(strings.Repeat("─", w))
 }
 
-// renderStatusLine renders the second header row: filter label and the
-// (optionally bordered) search bar.
+// renderStatusLine renders the second header row: type filter label und
+// die (optional umrandete) Suchleiste. UX-Review §4.4 + §1.8: vorher
+// hieß das Label „Filter:" und wurde immer gezeigt — auch wenn weder
+// Type-Filter noch Suche aktiv waren, was den Drei-Doppelpunkt-Mismatch
+// „Filter:  · Suche: …" produzierte. Jetzt: Label „Typ:" (das ist der
+// type-cycle täglich/projekt/frei, kein Text-Filter) und der ganze
+// Eintrag wird suppressed, wenn der Type-Filter leer ist.
 func (m Model) renderStatusLine() string {
-	parts := []string{
-		statusKeyStyle.Render("Filter:") + " " + statusValueStyle.Render(m.filter.label()),
+	var parts []string
+	if label := m.filter.label(); label != "" {
+		parts = append(parts, m.styles.statusKey.Render("Typ:")+" "+m.styles.statusValue.Render(label))
 	}
 	if search := m.renderSearchSegment(); search != "" {
 		parts = append(parts, search)
 	}
-	return strings.Join(parts, statusLineStyle.Render("  ·  "))
+	return strings.Join(parts, m.styles.statusLine.Render("  ·  "))
 }
 
 // renderSearchSegment is the inline search affordance: nothing when
@@ -169,10 +175,10 @@ func (m Model) renderSearchSegment() string {
 		if view == "" {
 			view = glyphs.AccentBar
 		}
-		return searchActiveLabelStyle.Render("Suche:") + " " + view
+		return m.styles.searchActiveLabel.Render("Suche:") + " " + view
 	}
 	if v := m.search.Value(); v != "" {
-		return searchPassiveLabelStyle.Render("Suche:") + " " + searchValueStyle.Render(v)
+		return m.styles.searchPassiveLabel.Render("Suche:") + " " + m.styles.searchValue.Render(v)
 	}
 	return ""
 }
@@ -202,9 +208,9 @@ func (m Model) renderListPane() string {
 	// Im Zwei-Pane-Layout trägt die Liste den Fokus-Titel (Fg+Bold), die
 	// Vorschau bleibt muted — so liest sich, welche Pane interaktiv ist
 	// (UX-Review L3). Single-Pane braucht den Cue nicht.
-	titleStyle := panelTitleStyle
+	titleStyle := m.styles.panelTitle
 	if m.twoPane() {
-		titleStyle = panelTitleFocusStyle
+		titleStyle = m.styles.panelTitleFocus
 	}
 	header := titleStyle.Render("notizen")
 	if len(m.visible) == 0 {
@@ -234,6 +240,6 @@ func (m Model) renderPaginator() string {
 	p.SetTotalPages(len(m.visible))
 	p.Page = m.cursor / perPage
 	dots := p.View()
-	counter := paginatorCounterStyle.Render(fmt.Sprintf("%d/%d", m.cursor+1, len(m.visible)))
+	counter := m.styles.paginatorCounter.Render(fmt.Sprintf("%d/%d", m.cursor+1, len(m.visible)))
 	return dots + "  " + counter
 }

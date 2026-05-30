@@ -133,29 +133,21 @@ type Model struct {
 
 // paletteStyles caches the lipgloss styles that depend only on the
 // palette — i.e. don't vary per row or per frame. Build once at New(),
-// reuse on every render.
+// reuse on every render. P7 (RowWithMatch) absorbed the row-specific
+// label/match/labelSel/matchSel pairs; what stays is the preview row
+// (hint + bar) and the separator border above the entry list.
 type paletteStyles struct {
-	label    lipgloss.Style
-	labelSel lipgloss.Style
-	match    lipgloss.Style
-	matchSel lipgloss.Style
-	hint     lipgloss.Style // FgMuted — shared by row hint, renderPreview text, renderEmptyState dim
-	bar      lipgloss.Style // styles the AccentBarRune for the selected row, also renderPreview arrow
-	border   lipgloss.Style // Sem().Border — separator line + preview arrow
+	hint   lipgloss.Style // FgMuted — preview text + renderEmptyState dim
+	bar    lipgloss.Style // Sem.Accent — preview ▎ glyph
+	border lipgloss.Style // Sem.Border — separator line
 }
 
 func newPaletteStyles(p theme.Palette) paletteStyles {
-	accent := p.Sem().Accent
-	label := lipgloss.NewStyle().Foreground(p.Fg)
-	match := lipgloss.NewStyle().Foreground(accent).Bold(true)
+	sem := p.Sem()
 	return paletteStyles{
-		label:    label,
-		labelSel: label.Bold(true).Underline(true),
-		match:    match,
-		matchSel: match.Underline(true),
-		hint:     lipgloss.NewStyle().Foreground(p.FgMuted),
-		bar:      lipgloss.NewStyle().Foreground(accent),
-		border:   lipgloss.NewStyle().Foreground(p.Sem().Border),
+		hint:   lipgloss.NewStyle().Foreground(p.FgMuted),
+		bar:    lipgloss.NewStyle().Foreground(sem.Accent),
+		border: lipgloss.NewStyle().Foreground(sem.Border),
 	}
 }
 

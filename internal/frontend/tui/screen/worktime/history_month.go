@@ -154,9 +154,8 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 			glyph, color = glyphs.HeatFull, sem.Success
 		case pct >= 0.75:
 			// "Auf Kurs, aber noch nicht angekommen" — Sem.Active statt
-			// Success (siehe history_heatmap.heatmapCellGlyph für die
-			// Begründung; Glyph + Farbe sind die identische Skala über
-			// beide Surfaces).
+			// Success (siehe history_heatmap.heatScale für die Begründung;
+			// Glyph + Farbe sind die identische Skala über beide Surfaces).
 			glyph, color = glyphs.HeatDark, sem.Active
 		case pct >= 0.5:
 			glyph, color = glyphs.HeatMedium, sem.Warning

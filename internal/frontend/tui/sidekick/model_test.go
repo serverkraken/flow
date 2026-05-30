@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/sidekick"
@@ -356,5 +357,170 @@ func TestUpdate_SwitchScreenMsg_UnknownIsNoop(t *testing.T) {
 	if updated.View().Content != before {
 		t.Errorf("unknown screen should be a no-op; before=%q after=%q",
 			before, updated.View().Content)
+	}
+}
+
+// — Phase 10 sub-tab host routing —
+//
+// subHostScreen embeds fakeScreen plus the sidekick.subTabHost contract.
+// SwitchSubTab returns a wrapped fakeScreen pointer so subsequent
+// View() / SubTabIndex() observations reflect the index change. Used by
+// the tab-strip rendering and numeric-key routing tests below.
+
+type subHostScreen struct {
+	*fakeScreen
+	tabs        []string
+	activeIndex int
+	switchCalls []int
+}
+
+func (s subHostScreen) SubTabs() []string { return s.tabs }
+func (s subHostScreen) SubTabIndex() int  { return s.activeIndex }
+func (s subHostScreen) SwitchSubTab(i int) tea.Model {
+	// Record the call on the embedded fakeScreen so callers can assert
+	// against it through their kept pointer to the underlying fake.
+	s.switchCalls = append(s.switchCalls, i)
+	s.activeIndex = i
+	return s
+}
+
+// Update overrides the promoted *fakeScreen.Update so the returned
+// tea.Model preserves the subHostScreen wrapper (and with it the
+// subTabHost interface). Without this override, fanOutToAll would
+// replace the stored screen with the bare *fakeScreen and the host
+// would silently disappear after the first WindowSizeMsg — the same
+// trap a real screen would hit if its sub-tab host wrapper relied on
+// promotion-only Update.
+func (s subHostScreen) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := s.fakeScreen.Update(msg)
+	return s, cmd
+}
+
+// newSubHostDeps builds Deps where Worktime is a subTabHost with four
+// sub-tabs. Returns the deps plus the worktime host pointer so tests
+// can read activeIndex / switchCalls after Update().
+func newSubHostDeps() (sidekick.Deps, *subHostScreen) {
+	pal := &fakeScreen{name: "palette"}
+	pr := &fakeScreen{name: "projects"}
+	wt := &subHostScreen{
+		fakeScreen: &fakeScreen{name: "worktime"},
+		tabs:       []string{"Heute", "Woche", "History", "Frei"},
+	}
+	ch := &fakeScreen{name: "cheatsheet"}
+	nt := &fakeScreen{name: "notes"}
+	return sidekick.Deps{
+		Palette:    pal,
+		Projects:   pr,
+		Worktime:   *wt,
+		Cheatsheet: ch,
+		Notes:      nt,
+	}, wt
+}
+
+// TestRenderTabStrip_WithSubTabHost — the View on a sub-tab-host-active
+// screen must include both the main tab labels AND the host's sub-tab
+// pills (prefixed with their numeric shortcut), and the active sub-tab
+// must be visually distinct via the bracket form "[1 Heute]" (the
+// inactive pills wear parens "(2 Woche)" — same A11y-2 grammar as the
+// main strip's compact form).
+func TestRenderTabStrip_WithSubTabHost(t *testing.T) {
+	t.Parallel()
+	deps, _ := newSubHostDeps()
+	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = updated.(sidekick.Model)
+	// ANSI strip — the active-tab style (Bold + Accent + Underline)
+	// injects SGR sequences mid-pill that would break substring matches
+	// like "[1 Heute]" otherwise.
+	out := ansi.Strip(m.View().Content)
+	// Main strip — worktime active label still present.
+	if !strings.Contains(out, "Worktime") {
+		t.Errorf("View should contain main strip Worktime label; got:\n%s", out)
+	}
+	// Sub-tab pills — Heute is the default active sub-tab → "[1 Heute]"
+	// in active style; "(2 Woche)" etc. in dim parens.
+	for _, want := range []string{"[1 Heute]", "(2 Woche)", "(3 History)", "(4 Frei)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("View should render sub-tab pill %q; got:\n%s", want, out)
+		}
+	}
+}
+
+// TestRenderTabStrip_NoSubTabHost — when the active screen is NOT a
+// subTabHost (e.g. palette), the View must NOT carry any "[N Label]"
+// pills. Guards against a regression where the renderer accidentally
+// renders an empty pill row for non-host screens.
+func TestRenderTabStrip_NoSubTabHost(t *testing.T) {
+	t.Parallel()
+	deps, _ := newSubHostDeps()
+	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = updated.(sidekick.Model)
+	out := ansi.Strip(m.View().Content)
+	for _, unwanted := range []string{"[1 Heute]", "(2 Woche)"} {
+		if strings.Contains(out, unwanted) {
+			t.Errorf("palette-active View should not render sub-tab pill %q; got:\n%s", unwanted, out)
+		}
+	}
+}
+
+// TestNumericKeyRoutes_ToSubTabHost — pressing "2" while worktime is
+// active routes SwitchSubTab(1) to the host. The host's activeIndex
+// reflects the move and SubTabIndex on the updated model reports 1.
+func TestNumericKeyRoutes_ToSubTabHost(t *testing.T) {
+	t.Parallel()
+	deps, _ := newSubHostDeps()
+	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	updated, _ = updated.Update(keyMsg("2"))
+	m = updated.(sidekick.Model)
+	out := ansi.Strip(m.View().Content)
+	// After "2": Woche is active, Heute is inactive.
+	if !strings.Contains(out, "[2 Woche]") {
+		t.Errorf("after `2`: Woche pill should be active-styled; got:\n%s", out)
+	}
+	if !strings.Contains(out, "(1 Heute)") {
+		t.Errorf("after `2`: Heute pill should be inactive-styled; got:\n%s", out)
+	}
+}
+
+// TestNumericKeyOutOfRange_FallsThroughToScreen — pressing "5" while
+// worktime is active (only 4 sub-tabs) is out-of-range; the sidekick
+// must let the key fall through to worktime so the screen can ignore
+// it or repurpose it (palette uses 1-9 for direct-pick). We probe by
+// asserting the worktime fakeScreen recorded the key.
+func TestNumericKeyOutOfRange_FallsThroughToScreen(t *testing.T) {
+	t.Parallel()
+	deps, wt := newSubHostDeps()
+	m := sidekick.New(theme.Palette{}, domain.FlowState{Screen: domain.ScreenWorktime}, deps)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	updated, _ = updated.Update(keyMsg("5"))
+	_ = updated
+	got := wt.keys
+	if len(got) == 0 || got[len(got)-1] != "5" {
+		t.Errorf("out-of-range numeric should fall through to worktime; recorded keys=%v", got)
+	}
+}
+
+// TestNumericKeyFallthrough_WhenNotSubTabHost — pressing "2" while
+// palette (not a subTabHost) is active must reach palette, not the
+// sidekick's sub-tab handler. Palette uses 1-9 for direct-pick of the
+// first nine visible filter results; the fall-through path is load-
+// bearing.
+func TestNumericKeyFallthrough_WhenNotSubTabHost(t *testing.T) {
+	t.Parallel()
+	pal := &fakeScreen{name: "palette"}
+	deps := sidekick.Deps{
+		Palette:    pal,
+		Projects:   &fakeScreen{name: "projects"},
+		Worktime:   &fakeScreen{name: "worktime"}, // not a subTabHost
+		Cheatsheet: &fakeScreen{name: "cheatsheet"},
+		Notes:      &fakeScreen{name: "notes"},
+	}
+	m := sidekick.New(theme.Palette{}, domain.DefaultFlowState(), deps)
+	updated, _ := m.Update(keyMsg("2"))
+	_ = updated
+	if len(pal.keys) == 0 || pal.keys[len(pal.keys)-1] != "2" {
+		t.Errorf("palette-active sidekick must forward `2` to the active screen; got keys=%v", pal.keys)
 	}
 }

@@ -293,11 +293,11 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 // outside a git repo the project promotion just stays off.
 func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL) tea.Model {
 	// Sidekick-Notes-Tab: pal kommt vom Sidekick-Root (tk.Load() in
-	// cli/sidekick.go) durch — vor dem ersten Render in alle drei
-	// Kompendium-TUI-Packages SetPalette propagieren, damit der User-
-	// tmux-Overlay (@tn_*) durchschlägt. Mehrfach-Aufrufe pro Run
-	// sind idempotent.
-	kompbrowse.SetPalette(pal)
+	// cli/sidekick.go) durch — markdown_overlay und writepicker
+	// behalten ihre SetPalette-Bridges (zwei eigenständige Refactors
+	// stehen noch aus), kompbrowse läuft seit Phase 6 per-Model:
+	// pal wird als erstes New()-Arg übergeben und in newBrowseStyles
+	// gecached, kein Package-State mehr.
 	markdown_overlay.SetPalette(pal)
 	kompwritepicker.SetPalette(pal)
 
@@ -314,6 +314,7 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 	cwd, _ := os.Getwd()
 	writeCmd := kompendiumcli.BuildWriteCmd(cwd)
 	m := kompbrowse.New(
+		pal,
 		kompDeps.ListNotes,
 		kompDeps.Store,
 		kompDeps.DeleteNote,

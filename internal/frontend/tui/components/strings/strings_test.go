@@ -1,11 +1,32 @@
 package strings_test
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
 	tuistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
+
+func TestHintConfirm_UsesBracketedDefault(t *testing.T) {
+	// A11y-6: default-Action bracketed `[y/Enter]` als non-color cue.
+	// HintConfirm und confirm.View müssen denselben Stil sprechen.
+	if !strings.Contains(tuistrings.HintConfirm, "[y/Enter]") {
+		t.Errorf("HintConfirm: expected `[y/Enter]` brackets to match confirm.View, got %q", tuistrings.HintConfirm)
+	}
+}
+
+func TestHintSearchInput_HasCanonicalShape(t *testing.T) {
+	got := tuistrings.HintSearchInput
+	for _, want := range []string{"tippen", "Enter", "anwenden", "Esc", "abbrechen", "→"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("HintSearchInput %q missing %q", got, want)
+		}
+	}
+	if !strings.Contains(got, "  ·  ") {
+		t.Errorf("HintSearchInput missing canonical `  ·  ` separator")
+	}
+}
 
 func TestTruncate_NoOpWhenWithinWidth(t *testing.T) {
 	t.Parallel()

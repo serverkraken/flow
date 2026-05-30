@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
@@ -71,15 +72,15 @@ func computeListWindow(heights []int, cursor, budget int) (int, int) {
 
 func (m Model) renderRow(idx int, e ports.NoteEntry, rowWidth int) string {
 	selected := idx == m.cursor
-	stripe, caret := rowStripeAndCaret(selected)
-	dateRendered, todayMark := renderDateCell(e)
-	badge := badgeFor(e.Meta.Type)
+	stripe, caret := m.styles.rowStripeAndCaret(selected)
+	dateRendered, todayMark := m.styles.renderDateCell(e)
+	badge := m.styles.badgeFor(e.Meta.Type)
 	title := m.titleForRow(e, stripe, caret, todayMark, dateRendered, badge, rowWidth, selected)
 
 	mainLine := lipgloss.JoinHorizontal(lipgloss.Top,
 		stripe, caret, todayMark, dateRendered, "  ", badge, "  ", title)
 
-	hang := rowHangPrefix(selected)
+	hang := m.styles.rowHangPrefix(selected)
 	excerptLines := m.excerptParagraph(e, rowWidth-lipgloss.Width(hang)-1, 2)
 	tagLine := m.renderTags(e.Meta.Tags)
 	if len(excerptLines) == 0 && tagLine == "" {
@@ -89,7 +90,7 @@ func (m Model) renderRow(idx int, e ports.NoteEntry, rowWidth int) string {
 	q := strings.ToLower(m.search.Value())
 	lines := []string{mainLine}
 	for _, el := range excerptLines {
-		lines = append(lines, hang+styleExcerptLine(el, q))
+		lines = append(lines, hang+m.styles.styleExcerptLine(el, q))
 	}
 	if tagLine != "" {
 		lines = append(lines, hang+tagLine)
@@ -98,32 +99,35 @@ func (m Model) renderRow(idx int, e ports.NoteEntry, rowWidth int) string {
 }
 
 // rowStripeAndCaret returns the two two-cell prefix columns at the row's
-// left edge: a vertical stripe and a cursor caret. Both stay constant
-// width so excerpt + tag lines hang under the title cleanly, and the
-// test's `▶`-on-the-line check still holds.
-func rowStripeAndCaret(selected bool) (string, string) {
+// left edge: a vertical stripe in Accent + bold (selected) or two blanks
+// (unselected). The second column previously carried a duplicate ▶ caret
+// painted in another Accent — same row had two competing accents and
+// ▶ semantically conflicted with the row's own running-session glyphs.
+// Now: bar carries the selection, second column carries blank space —
+// width and excerpt-hang behaviour unchanged.
+func (s browseStyles) rowStripeAndCaret(selected bool) (string, string) {
 	if selected {
-		return cursorStripeStyle.Render(glyphs.AccentBar + " "), cursorStyle.Render(glyphs.Active + " ")
+		return s.cursorStripe.Render(glyphs.AccentBar + " "), "  "
 	}
 	return "  ", "  "
 }
 
 // renderDateCell formats the row's date column and returns the colored
 // date plus the today-marker glyph (● when today, blank otherwise).
-func renderDateCell(e ports.NoteEntry) (string, string) {
+func (s browseStyles) renderDateCell(e ports.NoteEntry) (string, string) {
 	date := e.Meta.Date
 	if date == "" {
 		date = e.Mtime.Format("2006-01-02")
 	}
 	today := isToday(date)
-	dateRendered := dateStyle.Render(date)
+	dateRendered := s.date.Render(date)
 	if today {
-		dateRendered = todayDateStyle.Render(date)
+		dateRendered = s.todayDate.Render(date)
 	}
 	if today {
 		// glyphs.Filled (●) ist der kanonische Today-Marker laut
 		// Whitelist; ★ ist semantisch Holiday und wäre ein Drift.
-		return dateRendered, todayMarkerStyle.Render(glyphs.Filled + " ")
+		return dateRendered, s.todayMarker.Render(glyphs.Filled + " ")
 	}
 	return dateRendered, "  "
 }
@@ -144,31 +148,31 @@ func (m Model) titleForRow(e ports.NoteEntry, stripe, caret, todayMark, dateRend
 			title = truncateText(title, avail)
 		}
 	}
-	base := titleStyle
+	base := m.styles.title
 	if selected {
-		base = selectedTitleStyle
+		base = m.styles.selectedTitle
 	}
-	return highlightMatch(title, strings.ToLower(m.search.Value()), base, matchStyle)
+	return highlightMatch(title, strings.ToLower(m.search.Value()), base, m.styles.match)
 }
 
 // rowHangPrefix is the soft indent under the title used for excerpt and
 // tag lines. Selected rows get the stripe so the whole entry reads as
 // one block; non-selected rows just indent.
-func rowHangPrefix(selected bool) string {
+func (s browseStyles) rowHangPrefix(selected bool) string {
 	if selected {
-		return cursorStripeStyle.Render(glyphs.AccentBar+" ") + "      "
+		return s.cursorStripe.Render(glyphs.AccentBar+" ") + theme.Gap(theme.PadMD*2)
 	}
-	return "        "
+	return theme.Gap(theme.PadMD*2 + theme.PadSM)
 }
 
 // styleExcerptLine renders one wrapped excerpt line with the muted
 // excerpt style, layering the search-match highlight on top when the
 // user has a query.
-func styleExcerptLine(line, q string) string {
+func (s browseStyles) styleExcerptLine(line, q string) string {
 	if q == "" {
-		return excerptStyle.Render(line)
+		return s.excerpt.Render(line)
 	}
-	return highlightMatch(line, q, excerptStyle, matchStyle)
+	return highlightMatch(line, q, s.excerpt, s.match)
 }
 
 // excerptParagraph builds a multi-line, soft-wrapped excerpt for the
@@ -388,25 +392,21 @@ func (m Model) renderTags(tags []string) string {
 	}
 	var parts []string
 	for _, t := range tags {
-		parts = append(parts, tagChipStyle(t).Render(t))
+		parts = append(parts, m.styles.tagChipStyle(t).Render(t))
 	}
 	return strings.Join(parts, " ")
 }
 
+// renderEmptyState ist der Browse-Zero-Result. UX-Review §4.2: vorher
+// ein 5-zeiliger Hero (○-Glyph + Leerzeile + Titel + zwei Hinweis-Zeilen)
+// — andere Surfaces (palette/projects/heute) halten ihre Empty-States
+// auf einer Zeile. Reduktion auf Titel + eine knappe Hinweiszeile macht
+// den Block konsistent mit dem Rest der App.
 func (m Model) renderEmptyState(width int) string {
-	// glyphs.Empty (○) als „nichts gefunden"-Hero — ✺ war nicht auf der
-	// Whitelist (Risiko Emoji-Breite, audit §2.1).
-	glyph := emptyGlyphStyle.Render(glyphs.Empty)
-	title := emptyTitleStyle.Render("keine Treffer")
 	newKey := keyLabel(m.keys.New)
-	searchKey := keyLabel(m.keys.Search)
-	filterKey := keyLabel(m.keys.Filter)
-	hint := footerKeyStyle.Render(newKey) +
-		emptyHintStyle.Render(" → neue Notiz anlegen")
-	tail := footerKeyStyle.Render(filterKey) +
-		emptyHintStyle.Render(" → Filter wechseln  ·  ") + footerKeyStyle.Render(searchKey) +
-		emptyHintStyle.Render(" → Suche zurücksetzen")
-	stack := lipgloss.JoinVertical(lipgloss.Center, glyph, "", title, hint, tail)
+	title := m.styles.emptyTitle.Render("keine Treffer.")
+	hint := m.styles.emptyHint.Render(newKey + " → neue Notiz · Esc → Filter leeren")
+	stack := lipgloss.JoinVertical(lipgloss.Left, title, hint)
 	if width <= 0 {
 		return stack
 	}
@@ -427,10 +427,10 @@ func (m Model) renderPreviewPane() string {
 	if paneW <= 0 {
 		return ""
 	}
-	titleLine := panelTitleStyle.Render("vorschau")
+	titleLine := m.styles.panelTitle.Render("vorschau")
 	body := m.preview.View()
 	if body == "" {
-		body = dimStyle.Render("(leer)")
+		body = m.styles.dim.Render("(leer)")
 	}
 	inner := lipgloss.JoinVertical(lipgloss.Left, titleLine, body)
 	// lipgloss v2 Style.Width(n) is the OUTER total (border + padding
@@ -442,28 +442,34 @@ func (m Model) renderPreviewPane() string {
 	if paneW < 1 {
 		paneW = 1
 	}
-	return panelStyle.Width(paneW).Render(inner)
+	return m.styles.panel.Width(paneW).Render(inner)
 }
 
 // badgeFor returns the colored type pill shown in the list row.
 // Skill §German UI: Badges sind user-facing — DE-Kurzformen statt EN.
 // Width-Padding auf einheitliche 5 Zellen, damit die Type-Pille die
 // Listen-Spalten nicht ungleichmäßig schiebt.
-func badgeFor(t domain.NoteType) string {
+func (s browseStyles) badgeFor(t domain.NoteType) string {
 	switch t {
 	case domain.TypeDaily:
-		return badgeDailyStyle.Render("TÄGL.")
+		return s.badgeDaily.Render("TÄGL.")
 	case domain.TypeProject:
-		return badgeProjectStyle.Render("PROJ.")
+		return s.badgeProject.Render("PROJ.")
 	case domain.TypeFree:
-		return badgeFreeStyle.Render("FREI ")
+		return s.badgeFree.Render("FREI ")
 	}
-	return badgeUnknownStyle.Render("  ?  ")
+	return s.badgeUnknown.Render("  ?  ")
 }
 
 // highlightMatch wraps the substring `q` (case-insensitive) in `match`
 // styling, leaving the surrounding text in `base`. q == "" returns the
 // base-styled text untouched.
+//
+// Stays kompendium-internal — picker.RowWithMatch covers the
+// single-column picker case (palette, projects), but the kompendium
+// browse row layout (stripe + caret + date + badge + title + excerpt)
+// is too multi-cell to fit through it. The two paths share the same
+// intent: matched substring rendered in match style, base else.
 func highlightMatch(text, q string, base, match lipgloss.Style) string {
 	if q == "" {
 		return base.Render(text)

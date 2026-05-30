@@ -49,12 +49,13 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 	id := h.attachedNotes[0]
 	date := h.deps.Clock.Now()
 	writer := h.deps.LinkWriter
-	return func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := writer.Remove(date, id); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
 		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Note %s entfernt", glyphs.Done, id)}
 	}
+	return tea.Batch(mut, emitWorktimeChanged(date))
 }
 
 // toggleStartStopCmd mappt den `s`-Key auf das simpelste sinnvolle
@@ -63,50 +64,56 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 func (h heute) toggleStartStopCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
 	clock := h.deps.Clock
+	now := clock.Now()
 	switch {
 	case h.day.IsRunning():
-		return func() tea.Msg {
+		mut := func() tea.Msg {
 			s, err := sw.Stop()
 			if err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
 			return heuteActionDoneMsg{toast: fmt.Sprintf("%s Gestoppt — Session %s", glyphs.Stopped, formatDur(s.Elapsed))}
 		}
+		return tea.Batch(mut, emitWorktimeChanged(now))
 	case h.day.IsPaused():
-		return func() tea.Msg {
+		mut := func() tea.Msg {
 			if err := sw.Resume(); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
 			return heuteActionDoneMsg{toast: glyphs.Active + " Worktime fortgesetzt"}
 		}
+		return tea.Batch(mut, emitWorktimeChanged(now))
 	default:
-		return func() tea.Msg {
-			now := clock.Now()
+		mut := func() tea.Msg {
 			if err := sw.Start(now); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
 			return heuteActionDoneMsg{toast: glyphs.Active + " Worktime gestartet — " + now.Format("15:04")}
 		}
+		return tea.Batch(mut, emitWorktimeChanged(now))
 	}
 }
 
 func (h heute) pauseCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
-	return func() tea.Msg {
+	now := h.deps.Clock.Now()
+	mut := func() tea.Msg {
 		s, err := sw.Pause()
 		if err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
 		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Pausiert nach %s", glyphs.Paused, formatDur(s.Elapsed))}
 	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
 func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 	sw := h.deps.SessionWriter
-	return func() tea.Msg {
+	mut := func() tea.Msg {
 		if err := sw.Delete(date, idx); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
 		return heuteActionDoneMsg{toast: fmt.Sprintf("%s Session %d gelöscht", glyphs.Done, idx+1)}
 	}
+	return tea.Batch(mut, emitWorktimeChanged(date))
 }

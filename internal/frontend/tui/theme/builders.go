@@ -1,6 +1,10 @@
 package theme
 
-import "charm.land/lipgloss/v2"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Style builders — pure (string, Palette) → string transforms. They
 // replace the bulk of inline lipgloss.NewStyle() chains in screens and
@@ -20,6 +24,19 @@ import "charm.land/lipgloss/v2"
 // Sem() aliases where the mapping is fixed (Heading → Sem.Accent,
 // Success → Sem.Success, …); raw hues are used only where there is
 // no semantic alias (Highlight = Purple, Info = Cyan).
+
+// Active renders s with Sem.Active (Cyan) + Bold — the canonical
+// "running / live / in-progress" foreground. Distinct from Info
+// (same hex, different role: Info is informational-without-action,
+// Active marks a process that is currently happening). Skill
+// §Color semantics requires the role-name in code so a palette swap
+// that redefines Active without touching Info stays coherent.
+func Active(s string, p Palette) string {
+	return lipgloss.NewStyle().
+		Foreground(p.Sem().Active).
+		Bold(true).
+		Render(s)
+}
 
 // Body — default paragraph text. Fg foreground, no extra styling.
 func Body(s string, p Palette) string {
@@ -77,4 +94,16 @@ func Err(s string, p Palette) string {
 // "scrollen mit ↑/↓".
 func Info(s string, p Palette) string {
 	return lipgloss.NewStyle().Foreground(p.Cyan).Render(s)
+}
+
+// Gap returns a string of n spaces. Use with theme.PadXS / PadSM / PadMD
+// instead of inline `"  "` string literals — makes the Skill §Spacing
+// "discrete scale, never free integer" rule mechanically enforceable
+// and a grep for raw space-strings in render code becomes meaningful.
+// n ≤ 0 returns "" so a Gap(maxWidth - usedWidth) can collapse safely.
+func Gap(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat(" ", n)
 }

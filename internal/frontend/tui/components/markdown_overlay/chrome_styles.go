@@ -58,11 +58,11 @@ func buildStyles(p theme.Palette) *chromeStyles {
 	return &chromeStyles{
 		frame: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(sem.Accent).
+			BorderForeground(sem.BorderStrong).
 			Padding(0, 1),
 
 		title: lipgloss.NewStyle().
-			Foreground(sem.Accent).
+			Foreground(sem.Highlight).
 			Bold(true),
 
 		separator: lipgloss.NewStyle().

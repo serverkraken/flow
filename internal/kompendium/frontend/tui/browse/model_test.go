@@ -10,12 +10,19 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
+
+// testPalette is the deterministic palette used by all browse_test.go
+// constructors. Tokyonight-Night mirrors the per-screen test pattern
+// in palette/projects/worktime.
+func testPalette() theme.Palette { return theme.TokyonightNight }
 
 // TestBrowse_WithIndexAgeAndBacklinks_BuilderChain confirms the
 // optional WithIndexAge / WithBacklinks setters return a Model
@@ -24,7 +31,7 @@ import (
 func TestBrowse_WithIndexAgeAndBacklinks_BuilderChain(t *testing.T) {
 	t.Parallel()
 	store := testutil.NewFakeNoteStore()
-	m := browse.New(usecase.NewListNotes(store), nil, nil, "", nil, nil)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), nil, nil, "", nil, nil)
 	m = m.WithIndexAge(func() time.Time { return time.Unix(42, 0) })
 	m = m.WithBacklinks(func(domain.ID) []usecase.BacklinkRef {
 		return []usecase.BacklinkRef{{ID: "x", Title: "X"}}
@@ -94,7 +101,7 @@ func TestBrowse_CursorClampedAtEdges(t *testing.T) {
 	for range 10 {
 		model, _ = model.Update(key("j"))
 	}
-	if !strings.Contains(model.View().Content, "▶") {
+	if !strings.Contains(model.View().Content, "▎") {
 		t.Errorf("cursor disappeared after edge navigation:\n%s", model.View().Content)
 	}
 }
@@ -138,7 +145,7 @@ func TestBrowse_FilterCyclesByType(t *testing.T) {
 	if !strings.Contains(view, "the daily") || strings.Contains(view, "the project") {
 		t.Errorf("Daily filter wrong:\n%s", view)
 	}
-	if !strings.Contains(view, "Filter:") || !strings.Contains(view, "Daily") {
+	if !strings.Contains(view, "Typ:") || !strings.Contains(view, "Daily") {
 		t.Errorf("filter label not Daily:\n%s", view)
 	}
 
@@ -319,7 +326,7 @@ func TestBrowse_SearchMatchesBodyContent(t *testing.T) {
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 
 	// Init → entriesLoadedMsg → loadBodiesCmd → bodiesLoadedMsg.
 	model, cmd := m.Update(m.Init()())
@@ -355,7 +362,7 @@ func TestBrowse_EnterRunsEditCmdOnSelected(t *testing.T) {
 	}
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
@@ -383,7 +390,7 @@ func TestBrowse_VOpensInProcessViewer(t *testing.T) {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	model, _ = model.Update(runeKey('v'))
@@ -413,7 +420,7 @@ func TestBrowse_VViewerExitReturnsToNormal(t *testing.T) {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	model, _ = model.Update(runeKey('v'))
@@ -433,7 +440,7 @@ func TestBrowse_EnterNoOpWithoutPather(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "x"), time.Unix(1, 0))
 	// New() with nil store/editCmd should silently no-op on Enter.
-	m := browse.New(usecase.NewListNotes(store), nil, nil, "", nil, nil)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), nil, nil, "", nil, nil)
 	model := initialised(m)
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
@@ -447,7 +454,7 @@ func TestBrowse_EnterNoOpOnEmptyList(t *testing.T) {
 	editCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	store := testutil.NewFakeNoteStore()
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
@@ -472,7 +479,7 @@ func TestBrowse_NEntersWritePickerAndDispatchesOnDone(t *testing.T) {
 		return exec.Command("true")
 	}
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
 	model := initialised(m)
 	// Press `n` → enters ModeWritePicker; the writeCmd MUST NOT have run yet.
 	model, _ = model.Update(runeKey('n'))
@@ -512,7 +519,7 @@ func TestBrowse_NWritePickerCancelIsNoOp(t *testing.T) {
 		return exec.Command("true")
 	}
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, writeCmd)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('n'))
 	model, cmd := model.Update(writepicker.DoneMsg{Result: writepicker.Result{Choice: writepicker.ChoiceCancel}})
@@ -533,7 +540,7 @@ func TestBrowse_NNoOpWithoutWriteCmd(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "x"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, nil)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, nil)
 	model := initialised(m)
 	// `n` still enters ModeWritePicker; resolving the picker with no
 	// writeCmd wired must leave the model harmless (no panic, no cmd).
@@ -556,7 +563,7 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, cmd := model.Update(runeKey('D'))
 	if cmd != nil {
@@ -565,15 +572,16 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	view := model.View().Content
 	// Welle 4: Modal vereinfacht — single-question + DE-Hint, keine
 	// vierfache Affordance. Note-ID erscheint im Modal, der Hint ist
-	// die kanonische y/Enter-Variante.
+	// die kanonische uistrings.HintConfirm-Variante (A11y-6 bracketed
+	// default action), drift-frei via Konstante geprüft.
 	if !strings.Contains(view, "daily/2026-04-25") {
 		t.Errorf("confirm prompt should render the note ID:\n%s", view)
 	}
 	if !strings.Contains(view, "Notiz löschen?") {
 		t.Errorf("confirm prompt not rendered:\n%s", view)
 	}
-	if !strings.Contains(view, "y/Enter → ja") {
-		t.Errorf("confirm footer hint missing:\n%s", view)
+	if !strings.Contains(view, uistrings.HintConfirm) {
+		t.Errorf("confirm footer hint missing canonical HintConfirm %q:\n%s", uistrings.HintConfirm, view)
 	}
 }
 
@@ -586,7 +594,7 @@ func TestBrowse_DConfirmDeletesAndReloads(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('D'))
 	model, cmd := model.Update(runeKey('y'))
@@ -618,7 +626,7 @@ func TestBrowse_DCancelOnN(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('D'))
 	model, cmd := model.Update(runeKey('n'))
@@ -643,7 +651,7 @@ func TestBrowse_DCancelOnEsc(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('D'))
 	model, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -663,7 +671,7 @@ func TestBrowse_DNoOpWithoutDeleteUC(t *testing.T) {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, cmd := model.Update(runeKey('D'))
 	if cmd != nil {
@@ -682,7 +690,7 @@ func TestBrowse_DNoOpOnEmptyList(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, cmd := model.Update(runeKey('D'))
 	if cmd != nil {
@@ -703,7 +711,7 @@ func TestBrowse_DDeleteErrorSurfacesInView(t *testing.T) {
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
 	deleteUC := usecase.NewDeleteNote(store, nil)
 
-	m := browse.New(usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
 	model, _ = model.Update(runeKey('D'))
 	model, cmd := model.Update(runeKey('y'))
@@ -738,7 +746,7 @@ func tabKey() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: tea.KeyTab} 
 func newModel(list *usecase.ListNotes) browse.Model {
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	return browse.New(list, testutil.NewFakeNoteStore(), nil, "", noopCmd, noopWrite)
+	return browse.New(testPalette(), list, testutil.NewFakeNoteStore(), nil, "", noopCmd, noopWrite)
 }
 
 func drive(t *testing.T, m browse.Model) string {
@@ -753,8 +761,11 @@ func initialised(m browse.Model) tea.Model {
 }
 
 func cursorOnLineWith(view, want string) bool {
+	// Selection marker is glyphs.AccentBar (▎); see render_row.go
+	// rowStripeAndCaret. ▶ used to be a duplicate caret next to the
+	// stripe — now removed (Skill §Glyph whitelist: ▶ = "running").
 	for _, line := range strings.Split(view, "\n") {
-		if strings.Contains(line, "▶") && strings.Contains(line, want) {
+		if strings.Contains(line, "▎") && strings.Contains(line, want) {
 			return true
 		}
 	}

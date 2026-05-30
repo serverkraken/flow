@@ -5,10 +5,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
+
+// testPalette returns the deterministic palette tests construct
+// Models against. Tokyonight-Night is the canonical palette used
+// across the screen suites.
+func testPalette() theme.Palette { return theme.TokyonightNight }
 
 // editFinishedMsg is unexported, so the reload-after-edit assertion lives
 // in this internal test rather than the external _test.go.
@@ -19,7 +25,7 @@ func TestEditFinishedMsg_Success_TriggersReload(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	store.Seed(mustValidNote("daily/2026-04-25"), time.Unix(1, 0))
 
-	m := New(usecase.NewListNotes(store), store, nil, "", nil, nil)
+	m := New(testPalette(), usecase.NewListNotes(store), store, nil, "", nil, nil)
 	model, cmd := m.Update(editFinishedMsg{err: nil})
 	if cmd == nil {
 		t.Fatal("editFinishedMsg{nil} should schedule a reload cmd")
@@ -39,7 +45,7 @@ func TestEditFinishedMsg_Error_StoredAndShownInView(t *testing.T) {
 	t.Parallel()
 
 	forced := errors.New("nvim crashed")
-	m := New(usecase.NewListNotes(testutil.NewFakeNoteStore()), nil, nil, "", nil, nil)
+	m := New(testPalette(), usecase.NewListNotes(testutil.NewFakeNoteStore()), nil, nil, "", nil, nil)
 	model, cmd := m.Update(editFinishedMsg{err: forced})
 	if cmd != nil {
 		t.Errorf("editFinishedMsg with err must not schedule another cmd, got %v", cmd)

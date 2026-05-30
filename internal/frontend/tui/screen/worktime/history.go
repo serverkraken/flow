@@ -35,19 +35,52 @@ type historyStyles struct {
 	balPositive      lipgloss.Style // Month aggregate Saldo +
 	balZero          lipgloss.Style // Month aggregate Saldo 0
 	balNegative      lipgloss.Style // Month aggregate Saldo -
+
+	// Heatmap-Style-Cache (P5.1): vorher allokierte jede Heatmap-Zelle
+	// pro Frame ein lipgloss.NewStyle() — bei 26×7 = 182 calls. Jetzt:
+	// pre-built map keyed by heatScale.minPct, plus die zwei Special-
+	// Cases (cursor + today) und der day-off-Kind-Triade.
+	heatStepStyle   map[float64]lipgloss.Style     // %-Bucket → Foreground-Style
+	heatEmptyStyle  lipgloss.Style                 // Sem.Border für · (BulletDot)
+	heatDayOffStyle map[domain.Kind]lipgloss.Style // Schedule/Highlight/Notice
+	heatCursorToday lipgloss.Style                 // Cursor + Today combo (cursorCell + Underline)
+	heatRecorded    lipgloss.Style                 // Sem.Info — Filled ohne Tagesziel
 }
 
 func newHistoryStyles(p theme.Palette) historyStyles {
 	sem := p.Sem()
+	cursor := lipgloss.NewStyle().Foreground(p.Bg).Background(sem.Accent).Bold(true)
+
+	// Build heat-step style map keyed by heatScale.minPct so renderHeatmapCell
+	// can look up its Foreground in O(1) instead of allocating per cell.
+	heatStepStyle := make(map[float64]lipgloss.Style, len(heatScale))
+	for _, s := range heatScale {
+		heatStepStyle[s.minPct] = lipgloss.NewStyle().Foreground(s.color(p))
+	}
+
+	// Day-off-Kind style map — Foreground per theme.KindColor, identisch zur
+	// Legende und zum tmux-Pace-Dot (cross-surface identity, Spec
+	// 2026-05-13-filled-dayoff-dots-supersede).
+	heatDayOff := map[domain.Kind]lipgloss.Style{
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindHoliday)),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindVacation)),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
+	}
+
 	return historyStyles{
 		dayLabelFg:       lipgloss.NewStyle().Foreground(p.Fg).Width(3),
 		dayLabelMuted:    lipgloss.NewStyle().Foreground(p.FgMuted),
 		headerWeekNum:    lipgloss.NewStyle().Foreground(p.FgMuted),
 		headerYearChange: lipgloss.NewStyle().Foreground(sem.Highlight),
-		cursorCell:       lipgloss.NewStyle().Foreground(p.Bg).Background(sem.Accent).Bold(true),
+		cursorCell:       cursor,
 		balPositive:      lipgloss.NewStyle().Foreground(sem.Success),
 		balZero:          lipgloss.NewStyle().Foreground(p.FgMuted),
 		balNegative:      lipgloss.NewStyle().Foreground(sem.Warning),
+		heatStepStyle:    heatStepStyle,
+		heatEmptyStyle:   lipgloss.NewStyle().Foreground(sem.Border),
+		heatDayOffStyle:  heatDayOff,
+		heatCursorToday:  cursor.Underline(true),
+		heatRecorded:     lipgloss.NewStyle().Foreground(sem.Info),
 	}
 }
 
@@ -338,27 +371,7 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case historyActionDoneMsg:
-		// Async-Mutationsfehler erscheinen als Danger-Toast: die
-		// Form-Dialog-Fenster schließen vor dem Dispatch (siehe submitDrillForm
-		// / submitListAddForm), darum hätte h.errMsg im List-Mode keinen
-		// Render-Pfad. Toast landet im selben Slot wie der Erfolgsfall.
-		var t toast.Model
-		if msg.err != nil {
-			t = toast.NewDanger(msg.err.Error(), h.pal)
-		} else {
-			t = toast.NewSuccess(msg.toast, h.pal)
-		}
-		var cmds []tea.Cmd
-		if h.drillModeActive() {
-			h.drillToast = &t
-			if !msg.date.IsZero() {
-				cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
-			}
-		} else {
-			h.listToast = &t
-		}
-		cmds = append(cmds, h.loadCmd(), t.Init())
-		return h, tea.Batch(cmds...)
+		return h.handleActionDone(msg)
 
 	case toast.DismissedMsg:
 		h.drillToast = nil
@@ -369,12 +382,56 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h.handleDrillConfirmResult(msg)
 
 	case dayRefreshMsg:
+		// Periodic tick — light reload of the records list. The drill's
+		// own loaded state survives because drillLoadCmd isn't triggered
+		// here; ChangedMsg is the path that touches the drill.
 		return h, h.loadCmd()
+	case ChangedMsg:
+		return h.handleChangedMsg(msg)
 
 	case tea.KeyPressMsg:
 		return h.handleKey(msg)
 	}
 	return h, nil
+}
+
+// handleActionDone routes the result of an async mutation (drill edit/
+// add/delete, list-level add, drill note attach/detach). On success
+// the toast lands in drillToast (drill mode) or listToast (list mode);
+// on error the same slots carry a Danger toast — the form dialogs
+// closed before dispatch, so h.errMsg has no render path in list mode.
+// Extracted from Update so Update stays inside the gocyclo budget.
+func (h history) handleActionDone(msg historyActionDoneMsg) (tea.Model, tea.Cmd) {
+	var t toast.Model
+	if msg.err != nil {
+		t = toast.NewDanger(msg.err.Error(), h.pal)
+	} else {
+		t = toast.NewSuccess(msg.toast, h.pal)
+	}
+	var cmds []tea.Cmd
+	if h.drillModeActive() {
+		h.drillToast = &t
+		if !msg.date.IsZero() {
+			cmds = append(cmds, h.drillLoadCmd(startOfDay(msg.date)))
+		}
+	} else {
+		h.listToast = &t
+	}
+	cmds = append(cmds, h.loadCmd(), t.Init())
+	return h, tea.Batch(cmds...)
+}
+
+// handleChangedMsg responds to the cross-tab ChangedMsg by reloading
+// the records + month stats + top tags. When the drill is open on the
+// affected date, the drill's session list refreshes too so the open
+// day-detail stays accurate. Extracted from Update so Update stays
+// inside the project's gocyclo budget.
+func (h history) handleChangedMsg(msg ChangedMsg) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{h.loadCmd()}
+	if h.drillModeActive() && !msg.Date.IsZero() && sameDay(h.drillDate, msg.Date) {
+		cmds = append(cmds, h.drillLoadCmd(h.drillDate))
+	}
+	return h, tea.Batch(cmds...)
 }
 
 func (h history) loadCmd() tea.Cmd {

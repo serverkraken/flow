@@ -118,7 +118,10 @@ func (h history) submitListAddForm() (tea.Model, tea.Cmd) {
 	h.errMsg = ""
 
 	f := drillFormFields{startTime: startTime, stopTime: stopTime, tag: tag, note: note}
-	return h, dispatchDrillAdd(h.deps.SessionWriter, date, f)
+	return h, tea.Batch(
+		dispatchDrillAdd(h.deps.SessionWriter, date, f),
+		emitWorktimeChanged(date),
+	)
 }
 
 func (h history) renderListAddDialog() string {

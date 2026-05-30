@@ -49,6 +49,17 @@ const (
 	HeatLight  = "░" // >0 %   — light shade
 )
 
+// Count glyphs — distinct per-kind markers for type-breakdown chips
+// (Kompendium browse: daily/projekt/frei). Skill A11y-2 wants glyph
+// + colour, never colour alone — so each kind gets its own shape, not
+// just its own colour. All three are already-whitelisted single-cell
+// runes (●/◆/○), aliased here for semantic clarity at the call site.
+const (
+	CountDaily   = "●" // alias of Filled — daily is a per-day bucket
+	CountProject = "◆" // diamond — discrete project unit
+	CountFree    = "○" // alias of Empty — free notes are the "open" bucket
+)
+
 // Markdown glyphs — used by the markdown renderer for list bullets,
 // task checkboxes, and heading bars. Same single-cell, monospace-only,
 // no-emoji rules as the rest of the whitelist (audit §2.1). Lives in

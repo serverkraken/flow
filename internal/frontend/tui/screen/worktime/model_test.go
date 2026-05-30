@@ -139,17 +139,80 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 	}
 }
 
-func TestView_RendersTabStripAndStub(t *testing.T) {
+// TestView_RendersBodyAndStub guarantees the worktime View still
+// surfaces the active sub-model's body (here: the Heute loading
+// indicator before Init runs). The sub-tab strip (Heute / Woche /
+// History / Frei) was lifted to the sidekick.subTabHost contract in
+// Phase 10 of the 2026-05-30 UX-Review-Cleanup — see
+// TestSubTabHost_LabelsAndIndex below for the strip exposed via the
+// interface — so the local View() no longer renders the labels.
+func TestView_RendersBodyAndStub(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	out := updated.View().Content
-	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
-		if !strings.Contains(out, label) {
-			t.Errorf("tab strip should contain %q, got:\n%s", label, out)
-		}
-	}
 	if !strings.Contains(out, "lädt") {
 		t.Errorf("Heute should show its loading indicator before Init runs, got:\n%s", out)
+	}
+	// Phase 10: the sub-tab strip is hosted by sidekick — worktime's
+	// titlebox top border (first line of the View) must NOT carry the
+	// labels anymore. The body lines may still mention them (Heute's
+	// loading placeholder reads "Heute lädt …"), which is fine — the
+	// stack-budget regression we guard against is in the top row.
+	topLine := out
+	if i := strings.Index(out, "\n"); i >= 0 {
+		topLine = out[:i]
+	}
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
+		if strings.Contains(topLine, label) {
+			t.Errorf("Phase 10: worktime top border must not render sub-tab label (%q found in topLine=%q)",
+				label, topLine)
+		}
+	}
+}
+
+// TestSubTabHost_LabelsAndIndex pins the worktime → sidekick contract:
+// SubTabs returns the four sub-tab labels in display order, SubTabIndex
+// returns the active sub-tab as a 0-based index. The sidekick consumes
+// both to render the right-aligned pill strip.
+func TestSubTabHost_LabelsAndIndex(t *testing.T) {
+	m := newModel(t)
+	got := m.SubTabs()
+	want := []string{"Heute", "Woche", "Verlauf", "Frei"}
+	if len(got) != len(want) {
+		t.Fatalf("SubTabs len = %d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("SubTabs[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if idx := m.SubTabIndex(); idx != 0 {
+		t.Errorf("SubTabIndex default = %d, want 0 (Heute)", idx)
+	}
+}
+
+// TestSubTabHost_SwitchSubTabUpdatesIndex confirms SwitchSubTab(i)
+// returns a new worktime.Model whose SubTabIndex reflects the request,
+// and that out-of-range indices are a no-op (defense-in-depth — the
+// sidekick already validates but the host invariant stays local).
+func TestSubTabHost_SwitchSubTabUpdatesIndex(t *testing.T) {
+	m := newModel(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	wt := updated.(worktime.Model)
+	for i := 0; i < 4; i++ {
+		next := wt.SwitchSubTab(i).(worktime.Model)
+		if idx := next.SubTabIndex(); idx != i {
+			t.Errorf("SwitchSubTab(%d): SubTabIndex = %d, want %d", i, idx, i)
+		}
+	}
+	// Out-of-range: returns the same model with index unchanged.
+	guard := wt.SwitchSubTab(-1).(worktime.Model)
+	if idx := guard.SubTabIndex(); idx != wt.SubTabIndex() {
+		t.Errorf("SwitchSubTab(-1) must be a no-op; index changed from %d to %d", wt.SubTabIndex(), idx)
+	}
+	guard = wt.SwitchSubTab(4).(worktime.Model)
+	if idx := guard.SubTabIndex(); idx != wt.SubTabIndex() {
+		t.Errorf("SwitchSubTab(4) must be a no-op; index changed from %d to %d", wt.SubTabIndex(), idx)
 	}
 }
 

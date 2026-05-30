@@ -12,12 +12,19 @@ import (
 // referenced and the reason — drift is caught by the symmetric strict
 // check in TestKompendiumFrontendSemanticOnly.
 //
-// browse/styles.go documents Teal as "Repo-Chip-Hue" — no Sem-Slot
-// covers the chip's distinctive background today (line 22-23 of the
-// file). Adding a Sem-Slot is a separate audit; until then this is the
-// canonical allowlist entry.
+// browse/styles_struct.go documents Teal as "Repo-Chip-Hue" — no
+// Sem-Slot covers the chip's distinctive background today. Adding a
+// Sem-Slot is a separate audit; until then this is the canonical
+// allowlist entry.
+//
+// Note on the other raw-ish references in browse/styles_struct.go that
+// are NOT in this map: pal.TagPalette (deliberate per-tag hash
+// rotation), pal.Bg and pal.BgChip (surface tokens used as fg-on-accent
+// backgrounds, contrast-tested separately) are not part of the rawHues
+// set the check forbids — they're scaffold/palette tokens with no
+// Sem-Slot competition, so no exception is required.
 var kompendiumHueExceptions = map[string]map[string]struct{}{
-	"browse/styles.go": {"Teal": {}},
+	"browse/styles_struct.go": {"Teal": {}},
 }
 
 // TestKompendiumFrontendSemanticOnly extends the screen-tree hue check

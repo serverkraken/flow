@@ -60,7 +60,7 @@ func TestPolish_TwoPanePreviewWithSize(t *testing.T) {
 
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	m := browse.New(usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
+	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", noopCmd, noopWrite)
 
 	// Drive entries → bodies, then resize wide enough to enable the two-pane layout.
 	model, cmd := m.Update(m.Init()())
@@ -134,7 +134,7 @@ func TestPolish_PageDownThenPageUp(t *testing.T) {
 	// PageDown then PageUp must end on a valid cursor (some entry rendered).
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
 	model, _ = model.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-	if !strings.Contains(model.View().Content, "▶") {
+	if !strings.Contains(model.View().Content, "▎") {
 		t.Errorf("page nav left no cursor on screen:\n%s", model.View().Content)
 	}
 }

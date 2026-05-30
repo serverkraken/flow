@@ -11,8 +11,8 @@
 //   - commands.go : tea.Cmd-Konstruktoren + zugehörige *Msg-Types +
 //     runViaExecCapture.
 //   - picker.go   : openWritePicker / runOnSelected.
-//   - keymap.go   : Key-Bindings + defaultKeys().
-//   - styles.go   : lipgloss-Style-Konstanten.
+//   - keymap.go        : Key-Bindings + defaultKeys().
+//   - styles_struct.go : per-Model browseStyles cache + tagChipStyle.
 package browse
 
 import (
@@ -29,6 +29,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
@@ -72,6 +73,12 @@ const (
 
 // label returns the human-readable filter label rendered in the status bar.
 // Skill §German UI: User-facing-Strings auf Deutsch.
+//
+// FilterAll bewusst leer: UX-Review §4.4 wollte „Typ:" nur sehen, wenn der
+// Nutzer aktiv nach Type gefiltert hat. Im Default-Zustand (Alle Typen)
+// macht das Label keinen Informationsgewinn — die Type-Counts im Header
+// kommunizieren das ohnehin —, also Label leer und renderStatusLine
+// suppress't den ganzen Eintrag.
 func (f Filter) label() string {
 	switch f {
 	case FilterDaily:
@@ -81,7 +88,7 @@ func (f Filter) label() string {
 	case FilterFree:
 		return "Frei"
 	}
-	return "Alle"
+	return ""
 }
 
 // CmdFunc returns an unstarted *exec.Cmd that takes over the terminal
@@ -124,6 +131,12 @@ type BacklinksFunc func(id domain.ID) []usecase.BacklinkRef
 const twoPaneMinWidth = 84
 
 // Model is the Bubble Tea state for the browse view.
+//
+// styles is the palette-bound style cache. Built once at New() from
+// the palette passed in by the composition root (cmd/flow/main.go or
+// kompendium/frontend/cli/browse.go). Mirrors palette/projects/worktime
+// — eliminates the SetPalette() global-mutation bridge and keeps the
+// render hot-path allocation-free.
 type Model struct {
 	list        *usecase.ListNotes
 	store       ports.NoteStore
@@ -131,6 +144,8 @@ type Model struct {
 	currentRepo domain.CanonicalURL
 	editCmd     CmdFunc
 	writeCmd    WriteCmdFunc
+
+	styles browseStyles
 
 	viewer markdown_overlay.Model
 	picker writepicker.Model
@@ -225,13 +240,16 @@ func helpSections() []flowhelp.Section {
 	}
 }
 
-// New returns a Model wired with the list use case, the note store (for
+// New returns a Model wired with the palette (drives every chrome and
+// row style — composition root passes tk.Load() so a tmux @tn_*
+// overlay flows through), the list use case, the note store (for
 // body loading + path resolution), an optional delete use case (D + y/N
 // confirm), the currently detected repo URL (empty when not in a repo),
 // and the editor / write-picker command builders. Read-only viewing
 // (`v`) is handled in-process by internal/frontend/tui/view, no
 // CmdFunc needed.
 func New(
+	p theme.Palette,
 	list *usecase.ListNotes,
 	store ports.NoteStore,
 	deleteUC *usecase.DeleteNote,
@@ -239,33 +257,35 @@ func New(
 	editCmd CmdFunc,
 	writeCmd WriteCmdFunc,
 ) Model {
+	styles := newBrowseStyles(p)
+
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.CharLimit = 256
 	tiStyles := ti.Styles()
-	tiStyles.Cursor.Color = cursorStyle.GetForeground()
+	tiStyles.Cursor.Color = styles.cursor.GetForeground()
 	tiStyles.Cursor.Shape = tea.CursorBar
 	ti.SetStyles(tiStyles)
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Points
-	sp.Style = spinnerStyle
+	sp.Style = styles.spinner
 
 	vp := viewport.New()
 
 	h := help.New()
 	h.ShowAll = false
-	h.Styles.ShortKey = statusKeyStyle
-	h.Styles.ShortDesc = statusValueStyle
-	h.Styles.ShortSeparator = statusLineStyle
-	h.Styles.FullKey = statusKeyStyle
-	h.Styles.FullDesc = statusValueStyle
-	h.Styles.FullSeparator = statusLineStyle
+	h.Styles.ShortKey = styles.statusKey
+	h.Styles.ShortDesc = styles.statusValue
+	h.Styles.ShortSeparator = styles.statusLine
+	h.Styles.FullKey = styles.statusKey
+	h.Styles.FullDesc = styles.statusValue
+	h.Styles.FullSeparator = styles.statusLine
 
 	pg := paginator.New()
 	pg.Type = paginator.Dots
-	pg.ActiveDot = paginatorActiveDotStyle.Render(glyphs.Filled)
-	pg.InactiveDot = paginatorInactiveDotStyle.Render(glyphs.Empty)
+	pg.ActiveDot = styles.paginatorActive.Render(glyphs.Filled)
+	pg.InactiveDot = styles.paginatorInactive.Render(glyphs.Empty)
 
 	return Model{
 		list:          list,
@@ -274,6 +294,7 @@ func New(
 		currentRepo:   currentRepo,
 		editCmd:       editCmd,
 		writeCmd:      writeCmd,
+		styles:        styles,
 		search:        ti,
 		spin:          sp,
 		preview:       vp,

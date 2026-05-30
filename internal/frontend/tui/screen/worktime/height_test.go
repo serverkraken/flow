@@ -56,7 +56,11 @@ func TestHeightInvariant_Heute(t *testing.T) {
 		})
 	}
 	m := loadedHeute(t, r)
-	assertHeightInvariant(t, m, "01.05.2026", "bewegen")
+	// Phase 8: Heute date line ist jetzt Short ("Fr., 1. Mai") via
+	// domain.FmtDateDe — der alte Anker "01.05.2026" existiert nicht
+	// mehr; Identity-Anchor zieht jetzt am Monatsnamen, der über alle
+	// Heights stabil bleibt.
+	assertHeightInvariant(t, m, "1. Mai", "bewegen")
 }
 
 func TestHeightInvariant_Woche(t *testing.T) {

@@ -28,17 +28,20 @@ var runBrowse = func(ctx context.Context, deps Deps, cwd string) error {
 
 	writeCmd := BuildWriteCmd(cwd)
 
-	// Live-Palette laden (overlayed @tn_*-tmux-Optionen) und in alle
-	// drei Kompendium-TUI-Packages durchreichen, BEVOR browse.New die
-	// Styles konsumiert. theme.Init() konfiguriert den TrueColor-
+	// Live-Palette laden (overlayed @tn_*-tmux-Optionen) und an die
+	// Kompendium-TUI-Packages durchreichen, BEVOR der erste Render
+	// die Styles konsumiert. theme.Init() konfiguriert den TrueColor-
 	// Renderer für tmux/Ghostty etc.; theme.Load() liest @tn_* einmal.
+	// browse hat seit Phase 6 keine SetPalette mehr — pal kommt als
+	// erstes New()-Arg und wird im per-Model browseStyles-Cache
+	// gespeichert. markdown_overlay und writepicker tragen ihre
+	// SetPalette-Bridge noch (separater Refactor offen).
 	tk.Init()
 	pal := tk.Load()
-	browse.SetPalette(pal)
 	markdown_overlay.SetPalette(pal)
 	writepicker.SetPalette(pal)
 
-	m := browse.New(deps.ListNotes, deps.Store, deps.DeleteNote, currentRepo, deps.EditCmd, writeCmd)
+	m := browse.New(pal, deps.ListNotes, deps.Store, deps.DeleteNote, currentRepo, deps.EditCmd, writeCmd)
 	if deps.IndexPath != "" {
 		m = m.WithIndexAge(indexAgeFromFile(deps.IndexPath))
 	}

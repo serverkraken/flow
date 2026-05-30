@@ -82,8 +82,7 @@ func (h heute) renderBody() string {
 // der Headline. Die Heute-Surface zeigt sonst nirgends das Datum — wer
 // History parallel offen hat, hat keinen Anhaltspunkt was „heute" bedeutet.
 func (h heute) renderDateLine(now time.Time) string {
-	return "  " + theme.Dim(fmt.Sprintf("%s · %s",
-		domain.WeekdayShortDe(now.Weekday()), now.Format("02.01.2006")), h.pal)
+	return theme.Gap(theme.PadSM) + theme.Dim(domain.FmtDateDe(now, domain.DateShort), h.pal)
 }
 
 // pctOfTarget returns total as an integer percentage of target, clamped
@@ -129,7 +128,8 @@ func (h heute) renderHeadline(now time.Time) string {
 	}
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
 	// zwischen den drei Status-Cells.
-	return "  " + totalStr + "    " + statusStr + "    " + pctStr
+	gap4 := theme.Gap(theme.PadMD + theme.PadXS)
+	return theme.Gap(theme.PadSM) + totalStr + gap4 + statusStr + gap4 + pctStr
 }
 
 // renderProgressBar nimmt `now` als Parameter, damit Headline,
@@ -230,7 +230,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 		// Trailing „läuft" weggelassen — Headline trägt den Status bereits
 		// als ▶-Pille (renderHeadline → todayStatusBadge). Hier dupliziert
 		// es nur Information und kostet 6+ Zeichen Platz für ein Tag-Slot.
-		rows = append(rows, theme.Success(
+		rows = append(rows, theme.Active(
 			fmt.Sprintf("  %s %s → …   %s",
 				glyphs.Active, h.day.Active.Format("15:04"), formatDur(elapsed)), h.pal,
 		))
@@ -244,7 +244,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 			pause := s.Start.Sub(prevStop)
 			if pause > 0 {
 				rows = append(rows, stDim(h.pal,
-					fmt.Sprintf("       ─ %s Pause ─", formatDur(pause))))
+					fmt.Sprintf("%s%s Pause %s", theme.Gap(theme.PadMD*2+theme.PadXS), glyphs.BulletDot, formatDur(pause))))
 			}
 		}
 		prevStop = s.Stop

@@ -11,8 +11,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// _ guard ensures any future re-wording of HintConfirm forces a
+// review of this file's split render too.
+var _ = uistrings.HintConfirm
 
 // Kind selects the dialog's semantic flavour.
 type Kind int

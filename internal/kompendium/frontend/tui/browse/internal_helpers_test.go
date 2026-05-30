@@ -84,12 +84,13 @@ func TestBrowseResolver_Resolve(t *testing.T) {
 	}
 }
 
-// SetPalette is the package-level palette swap. Just verify it doesn't
-// panic with theme.Default.
-func TestSetPalette_NoPanic(t *testing.T) {
+// newBrowseStyles replaces the legacy SetPalette package-level swap —
+// pal lives per-Model now. Verify the constructor doesn't panic for
+// both the static default and the live (potentially overlaid) palette.
+func TestNewBrowseStyles_NoPanic(t *testing.T) {
 	t.Parallel()
-	SetPalette(theme.Default)
-	SetPalette(theme.Load())
+	_ = newBrowseStyles(theme.Default)
+	_ = newBrowseStyles(theme.Load())
 }
 
 func TestModel_HelpSections_NonEmpty(t *testing.T) {

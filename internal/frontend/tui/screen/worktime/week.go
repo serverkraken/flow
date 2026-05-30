@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -141,6 +142,12 @@ func (w woche) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case dayRefreshMsg:
 		return w, w.loadCmd()
 
+	case ChangedMsg:
+		// Cross-tab mutation signal: a sibling tab edited / added a
+		// session or day-off entry. Reload so the week strip + KPIs
+		// reflect the new state when the user switches back.
+		return w, w.loadCmd()
+
 	case tea.KeyPressMsg:
 		return w.handleKey(msg)
 	}
@@ -239,10 +246,8 @@ func (w woche) renderHeader(now time.Time) string {
 	sunday := monday.AddDate(0, 0, 6)
 	_, weekNum := monday.ISOWeek()
 	left := theme.Heading(fmt.Sprintf("KW %d", weekNum), w.pal)
-	right := stDim(w.pal, fmt.Sprintf("%02d. %s – %02d. %s",
-		monday.Day(), domain.MonthShortDe(monday.Month()),
-		sunday.Day(), domain.MonthShortDe(sunday.Month())))
-	return "  " + left + "   " + right
+	right := stDim(w.pal, domain.FmtDateRangeDe(monday, sunday))
+	return theme.Gap(theme.PadSM) + left + theme.Gap(theme.PadMD) + right
 }
 
 func (w woche) renderDays(inner int, now time.Time) []string {
@@ -307,7 +312,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		durStr := w.styles.dur.Bold(total >= d.Target).Render(formatDur(total))
 		extra := ""
 		if d.IsToday && d.Active != nil {
-			extra += "  " + w.styles.runningPace.Render(glyphs.Active)
+			extra += "  " + theme.Active(glyphs.Active, w.pal)
 		}
 		if total >= d.Target {
 			extra += "  " + theme.Success(glyphs.Done, w.pal)
@@ -427,7 +432,7 @@ func (w woche) renderPace(now time.Time) string {
 	default:
 		track = behindStyle.Render(glyphs.Down + " im Rückstand")
 	}
-	return strings.Join(dots, " ") + "   " + count + "   " + track
+	return strings.Join(dots, " ") + theme.Gap(theme.PadMD) + count + theme.Gap(theme.PadMD) + track
 }
 
 // paceDotStyle picks the cached lipgloss style for a pace-dot kind.
@@ -479,7 +484,12 @@ func (w woche) totals(now time.Time) (total, target time.Duration) {
 // den Screen-Footer; `:` öffnet das Aktions-Menü und ist auf jeder
 // Worktime-Surface gleich.
 func (w woche) footerHints() []string {
-	return []string{"j/k → bewegen", "g/G → erste/letzte", ": → aktionen"}
+	return []string{
+		"j/k → bewegen",
+		"g/G → erste/letzte",
+		": → aktionen",
+		uistrings.HintHelp,
+	}
 }
 
 // — small helpers (private to package) —

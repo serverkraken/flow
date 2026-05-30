@@ -175,8 +175,10 @@ func TestMenu_LandFlowSyncsHolidays(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Land pick should return a dispatch tea.Cmd")
 	}
-	msg := cmd()
-	done := msg.(menuActionDoneMsg)
+	// landSyncCmd is wrapped in tea.Batch alongside emitWorktimeChanged
+	// since the §1.7 cross-tab sync wave — extract the menuActionDoneMsg
+	// out of the batch so the assertion stays focused on the sync path.
+	done := extractMenuActionDone(t, cmd())
 	if done.err != nil {
 		t.Fatalf("dispatch err = %v", done.err)
 	}

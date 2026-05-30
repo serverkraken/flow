@@ -14,7 +14,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -329,6 +328,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, m.scheduleTick())
 		return m, tea.Batch(cmds...)
 
+	case ChangedMsg:
+		// Cross-tab state sync (§1.7 / P9): a sub-tab (or the action
+		// menu) committed a mutation and emitted ChangedMsg.
+		// Fan it out to all four sub-tabs so each can decide whether
+		// to reload — the catch-all fan-out below would also reach
+		// every sub-tab, but the explicit case makes the contract
+		// readable and lets us skip the action-menu (which holds no
+		// data view and would just drop the message anyway).
+		var cmds []tea.Cmd
+		for i, s := range m.subs {
+			updated, cmd := s.Update(msg)
+			m.subs[i] = updated
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
+
 	case tea.KeyPressMsg:
 		return m.handleKeyMsg(msg)
 	}
@@ -426,9 +443,12 @@ func (m Model) handleTabRouterKey(msg tea.KeyPressMsg) (Model, bool) {
 	return Model{}, false
 }
 
-// View renders the active sub-model with a tab strip on top. When the
-// action menu is open it replaces the tab body — the tab strip stays
-// so the user keeps the visual anchor of which tab they came from.
+// View renders the active sub-model wrapped in a titlebox. The Heute /
+// Woche / History / Frei strip is hosted by the sidekick's main tab
+// strip (right-aligned pills via the subTabHost interface, see
+// sidekick/sub_tabs.go) — Worktime no longer renders it locally. The
+// titlebox stays for the rounded outer frame; its title field is empty
+// so the top border degrades to a plain corner line.
 func (m Model) View() tea.View {
 	v := tea.NewView(m.viewContent())
 	v.AltScreen = true
@@ -464,58 +484,38 @@ func (m Model) viewContent() string {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}
 	}
-	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
+	// Empty title — sub-tab strip migrated to sidekick (Phase 10 of the
+	// 2026-05-30 UX-Review-Cleanup). titlebox degrades to a title-less
+	// top border ("╭───╮") so the outer frame stays consistent with the
+	// other screens that wrap in titlebox.
+	return titlebox.Render("", body, m.width, m.pal)
 }
 
-// tabStrip renders the four-tab navigation. Three-step degradation keeps
-// the strip inside the titlebox budget on narrow tmux panes: full labels
-// with "  ·  " spacing → compact "·" separators → single-char fallback
-// ("H · W · V · F"). titlebox.Render reserves "╭─ " (3) + " " (1) +
-// "╮" (1) + ≥1 right-dash = 6 chars for borders; the title fits in
-// width-6 chars.
-func (m Model) tabStrip(width int) string {
-	labels := []string{"Heute", "Woche", "Verlauf", "Frei"}
-	short := []string{"H", "W", "V", "F"}
-	budget := width - 6
-	if budget < 1 {
-		budget = 1
-	}
-	for _, opt := range []struct {
-		labels []string
-		sep    string
-	}{
-		{labels, "  ·  "},
-		{labels, " · "},
-		{short, " · "},
-	} {
-		if out := m.renderTabs(opt.labels, opt.sep); lipgloss.Width(out) <= budget {
-			return out
-		}
-	}
-	return m.renderTabs(short, " ")
+// SubTabs returns the worktime sub-tab labels in display order. Part
+// of the sidekick.subTabHost contract — the sidekick renders these as
+// right-aligned pills in the global tab strip and routes numeric keys
+// 1-N back via SwitchSubTab.
+//
+// "Verlauf" statt "History" — German UI consistency aus PR #41
+// (round-2 design-review), übernommen beim Merge.
+func (m Model) SubTabs() []string {
+	return []string{"Heute", "Woche", "Verlauf", "Frei"}
 }
 
-func (m Model) renderTabs(labels []string, sep string) string {
-	// A11y-2 — der aktive Tab kriegt zusätzlich zum Bold+Accent-Foreground
-	// einen Underline-SGR. Glyph + Color allein liefen Gefahr, in NO_COLOR /
-	// Color-Blind-Settings ohne Identifier dazustehen; ein Unterstrich ist
-	// der etablierte Identifier (Skill §Tabs „Underline (default)").
-	activeStyle := lipgloss.NewStyle().
-		Foreground(m.pal.Sem().Accent).
-		Bold(true).
-		Underline(true)
-	out := ""
-	for i, l := range labels {
-		if i > 0 {
-			out += theme.Dim(sep, m.pal)
-		}
-		if tab(i) == m.current {
-			out += activeStyle.Render(l)
-		} else {
-			out += theme.Dim(l, m.pal)
-		}
+// SubTabIndex returns the currently active sub-tab as a 0-based index
+// into SubTabs(). Part of the sidekick.subTabHost contract.
+func (m Model) SubTabIndex() int { return int(m.current) }
+
+// SwitchSubTab is invoked by the sidekick when a numeric key (1-N) was
+// pressed while worktime is the active screen. Out-of-range indices
+// are no-ops — the sidekick already validates against len(SubTabs())
+// but the guard here keeps the invariant local to the host.
+func (m Model) SwitchSubTab(i int) tea.Model {
+	if i < 0 || i >= 4 {
+		return m
 	}
-	return out
+	m.current = tab(i)
+	return m
 }
 
 // tickInterval reports the duration the next tick should fire after.

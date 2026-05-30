@@ -14,17 +14,23 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
 
 func (m Model) renderFooter() string {
 	switch m.mode {
 	case ModeSearch:
-		return footerStyle.Render("tippen → filtern  ·  Enter → anwenden  ·  " + uistrings.HintCancel)
+		// Wording aus components/strings.HintSearchInput; Rendering aus
+		// components/statusbar.Hints — Skill §Hint format: "Hints render
+		// at the bottom of every screen via components/statusbar.Hints".
+		// Vorher footerStyle + footerKeyStyle (key in sem.Active+Bold) —
+		// letzteres brach single-accent-per-row (Audit-§Color).
+		return statusbar.Hints(uistrings.HintSearchInput, m.styles.pal)
 	case ModeConfirmDelete:
 		// Wording aus components/strings.HintConfirm — confirm-Modal-
 		// Hint und Footer-Hint synchron, ein DE-Drift fällt sofort auf.
-		return footerStyle.Render(uistrings.HintConfirm)
+		return statusbar.Hints(uistrings.HintConfirm, m.styles.pal)
 	}
 	return m.helpUI.View(m.keys)
 }
@@ -55,12 +61,12 @@ func (m Model) renderStatusBar() string {
 		path = truncateText(path, avail)
 	}
 
-	pathSegment := statusBarPathStyle.Render(" " + path)
+	pathSegment := m.styles.statusBarPath.Render(" " + path)
 	gap := width - lipgloss.Width(mode) - lipgloss.Width(pathSegment) - lipgloss.Width(meta)
 	if gap < 0 {
 		gap = 0
 	}
-	return mode + pathSegment + statusBarStyle.Render(strings.Repeat(" ", gap)) + meta
+	return mode + pathSegment + m.styles.statusBar.Render(strings.Repeat(" ", gap)) + meta
 }
 
 // statusBarMode returns the transient-mode badge — only Search and
@@ -71,9 +77,9 @@ func (m Model) renderStatusBar() string {
 func (m Model) statusBarMode() string {
 	switch m.mode {
 	case ModeSearch:
-		return statusBarModeSearchStyle.Render("SUCHE")
+		return m.styles.statusBarModeSearch.Render("SUCHE")
 	case ModeConfirmDelete:
-		return statusBarModeDeleteStyle.Render("LÖSCHEN")
+		return m.styles.statusBarModeDelete.Render("LÖSCHEN")
 	}
 	return ""
 }
@@ -102,8 +108,8 @@ func (m Model) statusBarMeta() string {
 	if t.IsZero() {
 		return ""
 	}
-	label := statusBarMetaStyle.Render("Index " + humanizeAge(time.Since(t)))
-	return statusBarStyle.Render(" ") + label + statusBarStyle.Render(" ")
+	label := m.styles.statusBarMeta.Render("Index " + humanizeAge(time.Since(t)))
+	return m.styles.statusBar.Render(" ") + label + m.styles.statusBar.Render(" ")
 }
 
 // humanizeAge renders a duration as a compact "5s" / "12m" / "3h" /

@@ -15,12 +15,15 @@ import "charm.land/lipgloss/v2"
 // Hint strings — short, single-line, comma-separated keys. Used in
 // status-bar Hints components and footer rows.
 const (
-	HintCancel  = "Esc → abbrechen"
-	HintFilter  = "/ → suchen"
-	HintHelp    = "? → Hilfe"
-	HintQuit    = "q → schließen"
-	HintNav     = "j/k → navigieren  ·  Enter → wählen"
-	HintConfirm = "y/Enter → ja  ·  n/Esc → nein"
+	HintCancel = "Esc → abbrechen"
+	HintFilter = "/ → suchen"
+	HintHelp   = "? → Hilfe"
+	HintQuit   = "q → schließen"
+	HintNav    = "j/k → navigieren  ·  Enter → wählen"
+	// HintConfirm: brackets um die default-Action `[y/Enter]` — A11y-6
+	// non-color cue. Mirrors confirm.Model.View() one-to-one so a y/n
+	// dialog and a hint-strip never disagree.
+	HintConfirm = "[y/Enter] → ja  ·  n/Esc → nein"
 	// HintBack steht für das Zurückspringen aus einem Sub-State in den
 	// Eltern-State (menu-Sub-Picker, range/target/land/correct). Semantisch
 	// verschieden von HintCancel ("abbrechen" verwirft, "zurück" navigiert).
@@ -40,6 +43,11 @@ const (
 	// Sub-Views (Heute-NoteView, Brief-Overlay, Cheatsheet). Wird
 	// typischerweise mit einem Close-Fragment kombiniert.
 	HintScroll = "↑/↓ · PgUp/PgDn → scrollen"
+	// HintSearchInput ist der canonical Footer für Live-Filter-Inputs
+	// (Kompendium Such-Modus, künftige Such-Surfaces). "tippen → filtern"
+	// statt "/" weil die Surface den Filter bereits aktiv hat — der User
+	// braucht das Trigger-Key nicht mehr, sondern die Apply/Abort-Verben.
+	HintSearchInput = "tippen → filtern  ·  Enter → anwenden  ·  Esc → abbrechen"
 )
 
 // Label strings — block-level text rendered inside boxes / cards.

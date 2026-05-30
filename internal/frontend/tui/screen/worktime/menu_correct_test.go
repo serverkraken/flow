@@ -7,10 +7,35 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+// extractMenuActionDone walks msg (a tea.Cmd's result) and returns the
+// first menuActionDoneMsg it finds. The Korrektur submit path returns
+// tea.Batch(correctCmd, emitWorktimeChanged) after the §1.7 wave, so a
+// plain type assertion against the top-level msg lands on tea.BatchMsg.
+func extractMenuActionDone(t *testing.T, msg tea.Msg) menuActionDoneMsg {
+	t.Helper()
+	switch v := msg.(type) {
+	case menuActionDoneMsg:
+		return v
+	case tea.BatchMsg:
+		for _, c := range v {
+			if c == nil {
+				continue
+			}
+			if done, ok := c().(menuActionDoneMsg); ok {
+				return done
+			}
+		}
+		t.Fatalf("no menuActionDoneMsg found in batch (size=%d)", len(v))
+	}
+	t.Fatalf("unexpected msg type %T, want menuActionDoneMsg or tea.BatchMsg", msg)
+	return menuActionDoneMsg{}
+}
 
 // runningRig wires a worktime stack with an active session, so the
 // Korrektur predicate passes and SessionWriter.CorrectStart has
@@ -207,8 +232,10 @@ func TestMenu_KorrekturFlowEndsWithCorrectStart(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("submit should return a tea.Cmd")
 	}
-	msg := cmd()
-	done := msg.(menuActionDoneMsg)
+	// Submit returns tea.Batch(correctCmd, emitWorktimeChanged) since
+	// the §1.7 cross-tab sync wave — extract the menuActionDoneMsg from
+	// the batch so the assertion stays focused on the correct path.
+	done := extractMenuActionDone(t, cmd())
 	if done.err != nil {
 		t.Fatalf("dispatch err = %v", done.err)
 	}

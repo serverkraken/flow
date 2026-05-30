@@ -36,12 +36,13 @@ func (m Model) viewContent() string {
 
 	var rows []string
 
-	// Focused: filled ▶ in Accent-Bold; unfocused: dim ›. Non-color
-	// signal für Filter-Focus — reine Cursor-Blink-Sichtbarkeit reichte
-	// bei statischen Screenshots / langsamem Cursor nicht.
+	// Focus-Signal: gleicher Glyph (›), aber Dim → Heading (Accent+Bold).
+	// Non-color cue via Bold, damit NO_COLOR-User den Wechsel sehen. Der
+	// alte Glyph-Swap (›→▶) war Skill §Glyph-whitelist-falsch: ▶ heißt
+	// "running/live", nicht "Focus".
 	prompt := theme.Dim(glyphs.Info+" ", m.pal)
 	if m.filter.Focused() {
-		prompt = theme.Heading(glyphs.Active+" ", m.pal)
+		prompt = theme.Heading(glyphs.Info+" ", m.pal)
 	}
 	rows = append(rows, prompt+m.filter.View())
 	rows = append(rows, m.styles.border.Render(strings.Repeat("─", inner)))
@@ -76,7 +77,7 @@ func (m Model) renderPreview(maxWidth int) string {
 		return ""
 	}
 	action := m.visible[m.cursor].Action
-	prefix := "  " + glyphs.Active + " "
+	prefix := "  " + glyphs.AccentBar + " "
 	available := maxWidth - lipgloss.Width(prefix)
 	if available < 8 {
 		return ""
@@ -85,7 +86,10 @@ func (m Model) renderPreview(maxWidth int) string {
 	// path used `runes[:available-1]` which trimmed by rune-count and
 	// blew the row width whenever the action contained wide runes.
 	action = uistrings.Truncate(action, available)
-	return "  " + m.styles.hint.Render(glyphs.Active) + " " + m.styles.hint.Render(action)
+	// AccentBar (▎) via bar-style — same marker the selected row uses.
+	// Skill §Glyph whitelist: ▶ Active = "running/live"; eine Preview-
+	// Zeile zeigt die *nächste* Aktion, nicht die laufende.
+	return "  " + m.styles.bar.Render(glyphs.AccentBar) + " " + m.styles.hint.Render(action)
 }
 
 func (m Model) title() string {
@@ -169,40 +173,15 @@ func (m Model) renderEntries(innerWidth int) []string {
 	return rows
 }
 
-// renderRow paints one entry row. Mirrors picker.Row's layout (bar ·
-// label · gap · hint) but supports per-rune highlight indices for
-// fuzzy-match emphasis — picker.Row applies a single foreground style
-// across the whole label and would overwrite our inline accent codes.
+// renderRow delegates to picker.RowWithMatch — the component captures
+// the per-rune fuzzy-match emphasis pattern that palette/projects (and
+// historically kompendium) each reproduced locally before P7.
 func (m Model) renderRow(selected bool, label string, highlight []int, hint string, width int) string {
-	// Pre-built palette styles from m.styles — no NewStyle() allocation
-	// in this hot path (renderRow runs per visible row per frame).
-	bar := " "
-	labelStyle := m.styles.label
-	matchStyle := m.styles.match
-	if selected {
-		bar = m.styles.bar.Render(picker.AccentBarRune)
-		labelStyle = m.styles.labelSel
-		matchStyle = m.styles.matchSel
-	}
-
-	hi := make(map[int]bool, len(highlight))
-	for _, idx := range highlight {
-		hi[idx] = true
-	}
-
-	var b strings.Builder
-	for i, r := range []rune(label) {
-		if hi[i] {
-			b.WriteString(matchStyle.Render(string(r)))
-		} else {
-			b.WriteString(labelStyle.Render(string(r)))
-		}
-	}
-	rendered := b.String()
-
-	gap := width - 1 - lipgloss.Width(label) - lipgloss.Width(hint) - 1
-	if gap < 1 {
-		gap = 1
-	}
-	return bar + " " + rendered + strings.Repeat(" ", gap) + m.styles.hint.Render(hint)
+	return picker.RowWithMatch(picker.RowWithMatchOpts{
+		Selected: selected,
+		Label:    label,
+		Hint:     hint,
+		Width:    width,
+		Match:    highlight,
+	}, m.pal)
 }

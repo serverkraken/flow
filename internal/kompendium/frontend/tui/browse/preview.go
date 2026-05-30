@@ -95,7 +95,7 @@ func (m *Model) refreshPreview() {
 		return
 	}
 	if m.cursor < 0 || m.cursor >= len(m.visible) {
-		m.preview.SetContent(dimStyle.Render("(keine Notiz ausgewählt)"))
+		m.preview.SetContent(m.styles.dim.Render("(keine Notiz ausgewählt)"))
 		m.previewID = ""
 		return
 	}

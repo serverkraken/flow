@@ -366,6 +366,31 @@ the duplication it avoids.
 
 ---
 
+## Action-Menu (`:`) — Policy
+
+Worktime führt ein `:`-Aktions-Menü (range-export, target-switch,
+correct, bundesland-sync). Stand 2026-05: bewusst Worktime-
+exklusiv — Heute/Woche/History/Frei haben eng-zusammenhängende
+Aktionen, die in einem Menü Platz haben; die anderen Screens
+(Palette, Projects, Kompendium, Cheatsheet) haben entweder schon
+ein Action-Vocabulary (Palette IS the menu) oder kommen mit
+direct-keys aus (Kompendium: n, D, /, Tab).
+
+Ein neuer `:`-Trigger auf einem anderen Screen erfordert eine
+explizite Begründung im `?`-Overlay-Header "(`:` action menu —
+nur Worktime/Heute hat das)" — gleiches Pattern wie der Skill
+"Earned keybind"-Regel.
+
+Hintergrund: das `:`-Verb ist über die Sidekick-Schicht als
+`ConsumesKeys`-Eintrag von Worktime registriert; andere Screens
+geben es nicht her. Ein Drittscreen, der `:` zukünftig haben will,
+müsste den Eintrag explizit beanspruchen UND eine entsprechende
+"Menü-Welt" mitbringen, die mehr ist als eine Re-Sortierung des
+direct-key-Vokabulars (sonst kollidiert das Konzept mit der Palette
+und dem `?`-Overlay).
+
+---
+
 ## Lint regression baseline
 
 `internal/frontend/tui/lint/screen_baseline_test.go` pins the maximum

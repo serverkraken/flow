@@ -28,6 +28,7 @@ func TestAllGlyphsSingleWidth(t *testing.T) {
 		"BarFilled": glyphs.BarFilled, "BarEmpty": glyphs.BarEmpty,
 		"Info": glyphs.Info, "BulletDot": glyphs.BulletDot, "BarThick": glyphs.BarThick,
 		"Bullet1": glyphs.Bullet1, "Bullet2": glyphs.Bullet2, "Bullet3": glyphs.Bullet3, "Bullet4": glyphs.Bullet4,
+		"CountDaily": glyphs.CountDaily, "CountProject": glyphs.CountProject, "CountFree": glyphs.CountFree,
 		"TaskOpen": glyphs.TaskOpen, "TaskDone": glyphs.TaskDone,
 		"HeatFull": glyphs.HeatFull, "HeatDark": glyphs.HeatDark, "HeatMedium": glyphs.HeatMedium, "HeatLight": glyphs.HeatLight,
 		"BoxRoundedTL": glyphs.BoxRoundedTL, "BoxRoundedTR": glyphs.BoxRoundedTR,
