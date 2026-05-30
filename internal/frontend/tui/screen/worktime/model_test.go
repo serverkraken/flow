@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -159,17 +160,15 @@ func TestView_RendersBodyAndStub(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		topLine = out[:i]
 	}
-	// Phase-10 follow-up: the active sub-tab name MUST appear in the
-	// top border as the in-frame anchor. Default tab is Heute.
-	if !strings.Contains(topLine, "Heute") {
-		t.Errorf("Phase-10 follow-up: expected active sub-tab name 'Heute' in top border, got %q", topLine)
-	}
-	// The other three labels are sidekick-hosted pills — they must NOT
-	// land in the worktime top border (stack-budget regression guard).
-	for _, label := range []string{"Woche", "Verlauf", "Frei"} {
-		if strings.Contains(topLine, label) {
-			t.Errorf("Phase 10: worktime top border must not carry non-active sub-tab label (%q found in topLine=%q)",
-				label, topLine)
+	// Tab-Strip im title: alle 4 sub-tabs müssen im top border erscheinen,
+	// damit der User Heute/Woche/Verlauf/Frei als Navigations-Affordanz
+	// erkennt. Aktiver Tab ist Heute (default). ansi.Strip macht den
+	// SGR-per-Rune Bold+Underline-Stil des aktiven Tabs für die Substring-
+	// Assertion sichtbar.
+	topPlain := ansi.Strip(topLine)
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
+		if !strings.Contains(topPlain, label) {
+			t.Errorf("worktime top border: expected sub-tab label %q in strip, got %q", label, topPlain)
 		}
 	}
 }
