@@ -142,12 +142,12 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 	}
 	var status string
 	if rec, hit := byKey[d.Format("2006-01-02")]; hit {
-		status = fmt.Sprintf("   %s  %s  %s / %s",
-			domain.WeekdayShortDe(d.Weekday()), d.Format("2006-01-02"),
+		status = fmt.Sprintf("%s%s  %s / %s",
+			theme.Gap(theme.PadMD), domain.FmtDateDe(d, domain.DateLong),
 			formatDur(rec.Total), formatDur(rec.Target))
 	} else {
-		status = fmt.Sprintf("   %s  %s  —",
-			domain.WeekdayShortDe(d.Weekday()), d.Format("2006-01-02"))
+		status = fmt.Sprintf("%s%s  —",
+			theme.Gap(theme.PadMD), domain.FmtDateDe(d, domain.DateLong))
 	}
 	if dayOff, doh := h.deps.DayOffStore.Lookup(d); doh {
 		status += "  ·  " + dayOff.Kind.LabelDe()

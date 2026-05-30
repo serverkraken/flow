@@ -240,9 +240,7 @@ func (w woche) renderHeader(now time.Time) string {
 	sunday := monday.AddDate(0, 0, 6)
 	_, weekNum := monday.ISOWeek()
 	left := theme.Heading(fmt.Sprintf("KW %d", weekNum), w.pal)
-	right := stDim(w.pal, fmt.Sprintf("%02d. %s – %02d. %s",
-		monday.Day(), domain.MonthShortDe(monday.Month()),
-		sunday.Day(), domain.MonthShortDe(sunday.Month())))
+	right := stDim(w.pal, domain.FmtDateRangeDe(monday, sunday))
 	return theme.Gap(theme.PadSM) + left + theme.Gap(theme.PadMD) + right
 }
 

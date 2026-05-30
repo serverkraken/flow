@@ -82,8 +82,7 @@ func (h heute) renderBody() string {
 // der Headline. Die Heute-Surface zeigt sonst nirgends das Datum — wer
 // History parallel offen hat, hat keinen Anhaltspunkt was „heute" bedeutet.
 func (h heute) renderDateLine(now time.Time) string {
-	return "  " + theme.Dim(fmt.Sprintf("%s · %s",
-		domain.WeekdayShortDe(now.Weekday()), now.Format("02.01.2006")), h.pal)
+	return theme.Gap(theme.PadSM) + theme.Dim(domain.FmtDateDe(now, domain.DateShort), h.pal)
 }
 
 // pctOfTarget returns total as an integer percentage of target, clamped

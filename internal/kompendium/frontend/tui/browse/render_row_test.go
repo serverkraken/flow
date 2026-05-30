@@ -9,6 +9,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
+	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
 
 // Skill §Glyph whitelist + Skill "one accent per row": die Selection-
@@ -46,6 +47,20 @@ func TestBadgeFor_FixedWidthAcrossKinds(t *testing.T) {
 	if wDaily != wProject || wProject != wFree {
 		t.Errorf("badges not equal width: Daily=%d Project=%d Free=%d",
 			wDaily, wProject, wFree)
+	}
+}
+
+// Phase 8 / pin: die Kompendium-Row zeigt das Datum bewusst als Numeric
+// ("2026-05-28") — sortable, monospace-aligned, intentional contrast zu
+// den Natural-Language-Surfaces (Heute/Woche/History). Dieser Pin
+// verhindert dass jemand later auf "Mi., 28. Mai" drüber-refactored.
+func TestRenderDateCell_UsesDateNumeric(t *testing.T) {
+	t.Parallel()
+	e := ports.NoteEntry{Meta: domain.Frontmatter{Date: "2026-05-28"}}
+	s := newBrowseStyles(theme.TokyonightNight)
+	got, _ := s.renderDateCell(e)
+	if !strings.Contains(got, "2026-05-28") {
+		t.Errorf("date cell should show numeric date, got %q", got)
 	}
 }
 
