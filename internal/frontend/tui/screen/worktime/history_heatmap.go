@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -81,39 +80,59 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	// vorher mischte `.` (baseline) für Werktag mit `·` (middle-dot) für
 	// Wochenende, was die Spalten optisch unruhig wirken ließ.
 	cell := " " + glyphs.BulletDot + " "
-	var color color.Color = h.pal.Sem().Border
+	cellStyle := h.styles.heatEmptyStyle
 	if hasRec && rec.Target > 0 {
-		cell, color = heatmapCellGlyph(h.pal, rec)
+		glyph, key := heatmapCellGlyphKey(rec)
+		cell = " " + glyph + " "
+		if s, ok := h.styles.heatStepStyle[key]; ok {
+			cellStyle = s
+		}
 	} else if hasRec && rec.Total > 0 {
 		// Erfasste Zeit ohne Tagesziel (z.B. target_sat=0) fiel sonst auf
 		// die leere ·-Zelle und versteckte die Arbeit — Info-Punkt (Cyan ●)
 		// wie im Monatsraster, ohne eine Ziel-Erfüllung zu behaupten.
-		cell, color = " "+glyphs.Filled+" ", h.pal.Sem().Info
+		cell = " " + glyphs.Filled + " "
+		cellStyle = h.styles.heatRecorded
 	}
 	if dayOff, isOff := h.deps.DayOffStore.Lookup(day); isOff {
 		if !hasRec || rec.Target == 0 {
 			// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 			cell = " " + glyphs.Filled + " "
 		}
-		color = theme.KindColor(h.pal, dayOff.Kind)
+		if s, ok := h.styles.heatDayOffStyle[dayOff.Kind]; ok {
+			cellStyle = s
+		}
 	}
-	cellStyle := lipgloss.NewStyle().Foreground(color)
 	isCursor := w == h.heatCol && d == h.heatRow
 	isToday := sameDay(day, now)
 	switch {
+	case isCursor && isToday:
+		// Cursor + Today: gecachte Cursor+Underline-Kombi. Vorher legten
+		// wir die Underline pro Render dazu — jetzt ein vorgebackener Style.
+		cellStyle = h.styles.heatCursorToday
 	case isCursor:
 		// Cursor cell: invert with the accent (gecachte cursorCell).
-		// Combine the today-underline when the cursor sits on today so
-		// the user still gets the "this is today" reinforcement instead
-		// of an exclusive switch.
 		cellStyle = h.styles.cursorCell
-		if isToday {
-			cellStyle = cellStyle.Underline(true)
-		}
 	case isToday:
+		// Today (ohne Cursor) ist die einzige verbleibende Layer-Operation:
+		// 1 Style-Mod pro Render, nicht 1 pro Zelle. Acceptable.
 		cellStyle = cellStyle.Underline(true).Bold(true)
 	}
 	return cellStyle.Render(cell)
+}
+
+// heatmapCellGlyphKey returns the heatScale step's glyph and the minPct
+// that keys the pre-built style cache in historyStyles.heatStepStyle.
+// Returns BulletDot + -1 for empty / unfilled days; the caller falls
+// back to heatEmptyStyle in that case.
+func heatmapCellGlyphKey(rec domain.DayRecord) (string, float64) {
+	pct := float64(rec.Total) / float64(rec.Target)
+	for _, s := range heatScale {
+		if pct > 0 && pct >= s.minPct {
+			return s.glyph, s.minPct
+		}
+	}
+	return glyphs.BulletDot, -1
 }
 
 func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
@@ -148,7 +167,6 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 }
 
 func (h history) renderHeatmapLegend(inner int) string {
-	sem := h.pal.Sem()
 	// Pace-Chips aus heatScale (low→high) generiert, damit Legende und
 	// Zelle denselben Glyph + dieselbe Farbe je Bucket tragen. Der frühere
 	// Text-Chip „_ heute (unterstrichen)" ist raus — er war der einzige
@@ -156,16 +174,16 @@ func (h history) renderHeatmapLegend(inner int) string {
 	legend := []string{stDim(h.pal, glyphs.BulletDot+" leer")}
 	for i := len(heatScale) - 1; i >= 0; i-- {
 		s := heatScale[i]
-		legend = append(legend,
-			lipgloss.NewStyle().Foreground(s.color(h.pal)).Render(s.glyph+" "+s.label))
+		legend = append(legend, h.styles.heatStepStyle[s.minPct].Render(s.glyph+" "+s.label))
 	}
 	// Spec 2026-05-13-filled-dayoff-dots-supersede: Day-off legend uses
 	// ● + Sem.Schedule/Highlight/Notice. Glyph + Farbe matchen die
 	// heatmap-Zelle UND den tmux-Pace-Dot — cross-surface identity.
-	legend = append(legend,
-		lipgloss.NewStyle().Foreground(sem.Schedule).Render(glyphs.Filled+" Feiertag"),
-		lipgloss.NewStyle().Foreground(sem.Highlight).Render(glyphs.Filled+" Urlaub"),
-		lipgloss.NewStyle().Foreground(sem.Notice).Render(glyphs.Filled+" Krank"),
+	legend = append(
+		legend,
+		h.styles.heatDayOffStyle[domain.KindHoliday].Render(glyphs.Filled+" Feiertag"),
+		h.styles.heatDayOffStyle[domain.KindVacation].Render(glyphs.Filled+" Urlaub"),
+		h.styles.heatDayOffStyle[domain.KindSick].Render(glyphs.Filled+" Krank"),
 	)
 	return joinWrapped(legend, "  ", "   ", "   ", inner)
 }
@@ -194,16 +212,6 @@ var heatScale = []heatStep{
 	// (UX-Review H5). Glyph ░ hält sie vom ●-Krank-Chip (auch Notice) getrennt.
 	{0.5, glyphs.HeatMedium, "<75%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
 	{0, glyphs.HeatLight, "<50%", func(p theme.Palette) color.Color { return p.Sem().Notice }},
-}
-
-func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, color.Color) {
-	pct := float64(rec.Total) / float64(rec.Target)
-	for _, s := range heatScale {
-		if pct > 0 && pct >= s.minPct {
-			return " " + s.glyph + " ", s.color(pal)
-		}
-	}
-	return " " + glyphs.BulletDot + " ", pal.Sem().Border
 }
 
 // — heatmap bounds + cursor helpers —

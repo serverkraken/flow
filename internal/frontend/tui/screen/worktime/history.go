@@ -35,19 +35,52 @@ type historyStyles struct {
 	balPositive      lipgloss.Style // Month aggregate Saldo +
 	balZero          lipgloss.Style // Month aggregate Saldo 0
 	balNegative      lipgloss.Style // Month aggregate Saldo -
+
+	// Heatmap-Style-Cache (P5.1): vorher allokierte jede Heatmap-Zelle
+	// pro Frame ein lipgloss.NewStyle() — bei 26×7 = 182 calls. Jetzt:
+	// pre-built map keyed by heatScale.minPct, plus die zwei Special-
+	// Cases (cursor + today) und der day-off-Kind-Triade.
+	heatStepStyle   map[float64]lipgloss.Style     // %-Bucket → Foreground-Style
+	heatEmptyStyle  lipgloss.Style                 // Sem.Border für · (BulletDot)
+	heatDayOffStyle map[domain.Kind]lipgloss.Style // Schedule/Highlight/Notice
+	heatCursorToday lipgloss.Style                 // Cursor + Today combo (cursorCell + Underline)
+	heatRecorded    lipgloss.Style                 // Sem.Info — Filled ohne Tagesziel
 }
 
 func newHistoryStyles(p theme.Palette) historyStyles {
 	sem := p.Sem()
+	cursor := lipgloss.NewStyle().Foreground(p.Bg).Background(sem.Accent).Bold(true)
+
+	// Build heat-step style map keyed by heatScale.minPct so renderHeatmapCell
+	// can look up its Foreground in O(1) instead of allocating per cell.
+	heatStepStyle := make(map[float64]lipgloss.Style, len(heatScale))
+	for _, s := range heatScale {
+		heatStepStyle[s.minPct] = lipgloss.NewStyle().Foreground(s.color(p))
+	}
+
+	// Day-off-Kind style map — Foreground per theme.KindColor, identisch zur
+	// Legende und zum tmux-Pace-Dot (cross-surface identity, Spec
+	// 2026-05-13-filled-dayoff-dots-supersede).
+	heatDayOff := map[domain.Kind]lipgloss.Style{
+		domain.KindHoliday:  lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindHoliday)),
+		domain.KindVacation: lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindVacation)),
+		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
+	}
+
 	return historyStyles{
 		dayLabelFg:       lipgloss.NewStyle().Foreground(p.Fg).Width(3),
 		dayLabelMuted:    lipgloss.NewStyle().Foreground(p.FgMuted),
 		headerWeekNum:    lipgloss.NewStyle().Foreground(p.FgMuted),
 		headerYearChange: lipgloss.NewStyle().Foreground(sem.Highlight),
-		cursorCell:       lipgloss.NewStyle().Foreground(p.Bg).Background(sem.Accent).Bold(true),
+		cursorCell:       cursor,
 		balPositive:      lipgloss.NewStyle().Foreground(sem.Success),
 		balZero:          lipgloss.NewStyle().Foreground(p.FgMuted),
 		balNegative:      lipgloss.NewStyle().Foreground(sem.Warning),
+		heatStepStyle:    heatStepStyle,
+		heatEmptyStyle:   lipgloss.NewStyle().Foreground(sem.Border),
+		heatDayOffStyle:  heatDayOff,
+		heatCursorToday:  cursor.Underline(true),
+		heatRecorded:     lipgloss.NewStyle().Foreground(sem.Info),
 	}
 }
 

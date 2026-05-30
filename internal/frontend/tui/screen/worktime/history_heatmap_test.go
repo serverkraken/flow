@@ -45,7 +45,7 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 			}
 			// Cursor weg vom Test-Day (w=99, d=99), damit Cursor-Style
 			// nicht die Per-Kind-Farb-Erwartung überschreibt.
-			h := history{pal: pal, deps: deps}
+			h := history{pal: pal, deps: deps, styles: newHistoryStyles(pal)}
 			byKey := map[string]domain.DayRecord{}
 			out := h.renderHeatmapCell(day, byKey, 99, 99, now)
 			if !strings.Contains(out, " "+glyphs.Filled+" ") {
@@ -58,6 +58,27 @@ func TestRenderHeatmapCell_FreeDayColoredPerKind(t *testing.T) {
 	}
 }
 
+// TestHeatmapCell_NoPerCellStyleAllocation pins the P5.1 perf refactor:
+// the per-cell `lipgloss.NewStyle()` in renderHeatmapCell (was 26×7 = 182
+// allocs per heatmap frame) is replaced by a pre-built style cache on
+// historyStyles. The test asserts the cache fields exist and carry the
+// correct Sem-token foregrounds so any future palette swap propagates.
+func TestHeatmapCell_NoPerCellStyleAllocation(t *testing.T) {
+	pal := theme.TokyonightNight
+	h := history{
+		pal:    pal,
+		styles: newHistoryStyles(pal),
+	}
+	if h.styles.heatStepStyle[1.0].GetForeground() != pal.Sem().Success {
+		t.Errorf("heatStepStyle[1.0]: expected Sem.Success preloaded, got %v",
+			h.styles.heatStepStyle[1.0].GetForeground())
+	}
+	if h.styles.heatEmptyStyle.GetForeground() != pal.Sem().Border {
+		t.Errorf("heatEmptyStyle: expected Sem.Border preloaded, got %v",
+			h.styles.heatEmptyStyle.GetForeground())
+	}
+}
+
 // TestRenderHeatmapLegend_ThreeColoredKindChips: Legende zeigt drei
 // separate ○-Chips für die drei Kinds in den jeweiligen Sem-Farben.
 func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
@@ -67,7 +88,7 @@ func TestRenderHeatmapLegend_ThreeColoredKindChips(t *testing.T) {
 		return ansiFG(c)
 	}
 
-	h := history{pal: pal}
+	h := history{pal: pal, styles: newHistoryStyles(pal)}
 	out := h.renderHeatmapLegend(120)
 	wants := []struct {
 		label string

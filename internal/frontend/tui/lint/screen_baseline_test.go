@@ -28,12 +28,12 @@ var screenBaseline = map[string]int{
 	"cheatsheet/model.go":          0,
 	"palette/model.go":             5, // round4: per-Model paletteStyles cache (constructor) — replaces 4 inline NewStyles in renderRow
 	"palette/render.go":            0,
-	"projects/model.go":            5, // H4: per-Model projectsStyles cache (newProjectsStyles) mirrors palette/model.go — label/match/bar/border/marker for per-rune fuzzy-highlight renderRow
-	"worktime/dayoffs.go":          6, // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
-	"worktime/helpers.go":          3, // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
-	"worktime/history.go":          8, // historyStyles cache (newHistoryStyles): pre-built dayLabel/header/cursor/bal styles für renderHeatmap* & renderMonth* hot paths
+	"projects/model.go":            5,  // H4: per-Model projectsStyles cache (newProjectsStyles) mirrors palette/model.go — label/match/bar/border/marker for per-rune fuzzy-highlight renderRow
+	"worktime/dayoffs.go":          6,  // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
+	"worktime/helpers.go":          3,  // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
+	"worktime/history.go":          14, // P5.1: historyStyles cache zog die per-cell-Allokation aus renderHeatmapCell hierher — heatStepStyle-Loop (5) + day-off-Triade (3) + heatEmpty/heatRecorded + cursor + bestehende dayLabel/header/bal styles
 	"worktime/history_drill.go":    0,
-	"worktime/history_heatmap.go":  6, // heatScale-Refactor: ein geteiltes Step-Slice speist Zelle + Legende (kein Farb-Mismatch mehr), Legende loopt die Skala mit einem NewStyle-Site statt je-Chip; day-off-Chips (Schedule/Highlight/Notice) bleiben
+	"worktime/history_heatmap.go":  0, // P5.1: renderHeatmapCell + renderHeatmapLegend lesen jetzt vorgebackene Styles aus historyStyles statt pro Zelle/Chip ein NewStyle zu allokieren
 	"worktime/history_list.go":     8,
 	"worktime/history_month.go":    2,
 	"worktime/history_tagclock.go": 6,
