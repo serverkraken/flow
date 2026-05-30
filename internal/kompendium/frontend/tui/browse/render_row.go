@@ -15,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
@@ -159,9 +160,9 @@ func (m Model) titleForRow(e ports.NoteEntry, stripe, caret, todayMark, dateRend
 // one block; non-selected rows just indent.
 func rowHangPrefix(selected bool) string {
 	if selected {
-		return cursorStripeStyle.Render(glyphs.AccentBar+" ") + "      "
+		return cursorStripeStyle.Render(glyphs.AccentBar+" ") + theme.Gap(theme.PadMD*2)
 	}
-	return "        "
+	return theme.Gap(theme.PadMD*2 + theme.PadSM)
 }
 
 // styleExcerptLine renders one wrapped excerpt line with the muted
