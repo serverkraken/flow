@@ -13,20 +13,23 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // renderDeleteModal — Skill §Component vocabulary + §Visual hierarchy:
 // Single-Question + Single-Hint statt vierfacher Bestätigungs-Affordance
 // (vorher: Headline, Target-ID, Prompt, Key-Pillen, Hint — zu dicht).
-// Wording deutsch, kanonisches y/Enter → ja, n/Esc → nein. Frame
-// kommt aus components/modal (Kind = Danger → Red DoubleBorder); die
-// internen Style-Vars (modalDangerStyle, modalQuestionStyle,
-// modalHintStyle) bleiben für die Inhalts-Hierarchie.
+// Wording deutsch, Hint via uistrings.HintConfirm (A11y-6 bracketed
+// default action, drift-frei mit confirm.Model.View und allen anderen
+// destructive confirms). Frame kommt aus components/modal (Kind =
+// Danger → Red DoubleBorder); die internen Style-Vars
+// (modalDangerStyle, modalQuestionStyle, modalHintStyle) bleiben für
+// die Inhalts-Hierarchie.
 func (m Model) renderDeleteModal() string {
 	headline := modalDangerStyle.Render(glyphs.Failed + "  Notiz löschen?")
 	target := modalQuestionStyle.Render(m.deleteTargetID.String())
-	hint := modalHintStyle.Render("y/Enter → ja  ·  n/Esc → nein")
+	hint := modalHintStyle.Render(uistrings.HintConfirm)
 	body := lipgloss.JoinVertical(lipgloss.Center, headline, "", target, "", hint)
 	return modal.Render(body, modal.Opts{Kind: modal.KindDanger}, pal)
 }

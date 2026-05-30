@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
 	"github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
@@ -565,15 +566,16 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	view := model.View().Content
 	// Welle 4: Modal vereinfacht — single-question + DE-Hint, keine
 	// vierfache Affordance. Note-ID erscheint im Modal, der Hint ist
-	// die kanonische y/Enter-Variante.
+	// die kanonische uistrings.HintConfirm-Variante (A11y-6 bracketed
+	// default action), drift-frei via Konstante geprüft.
 	if !strings.Contains(view, "daily/2026-04-25") {
 		t.Errorf("confirm prompt should render the note ID:\n%s", view)
 	}
 	if !strings.Contains(view, "Notiz löschen?") {
 		t.Errorf("confirm prompt not rendered:\n%s", view)
 	}
-	if !strings.Contains(view, "y/Enter → ja") {
-		t.Errorf("confirm footer hint missing:\n%s", view)
+	if !strings.Contains(view, uistrings.HintConfirm) {
+		t.Errorf("confirm footer hint missing canonical HintConfirm %q:\n%s", uistrings.HintConfirm, view)
 	}
 }
 
