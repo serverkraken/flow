@@ -86,7 +86,7 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 		domain.KindSick:     lipgloss.NewStyle().Foreground(theme.KindColor(p, domain.KindSick)),
 	}
 	return wocheStyles{
-		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
+		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(theme.DayLabelWidth),
 		date:         lipgloss.NewStyle().Foreground(p.FgMuted).Width(6),
 		marker:       lipgloss.NewStyle().Foreground(sem.Accent),
 		emptyBar:     lipgloss.NewStyle().Foreground(sem.Border),

@@ -15,12 +15,12 @@ import (
 var fixedNowForRange = time.Date(2026, 5, 6, 12, 0, 0, 0, time.Local)
 
 func TestRangeForm_NewPrefillsDefault(t *testing.T) {
-	r := newRangeForm(pal(), "month", "Stats für Range")
+	r := newRangeForm(pal(), "month", "Stats für Zeitraum")
 	if r.input.Value() != "month" {
 		t.Errorf("default = %q, want month", r.input.Value())
 	}
-	if r.parent != "Stats für Range" {
-		t.Errorf("parent = %q, want Stats für Range", r.parent)
+	if r.parent != "Stats für Zeitraum" {
+		t.Errorf("parent = %q, want Stats für Zeitraum", r.parent)
 	}
 	if r.errMsg != "" {
 		t.Errorf("fresh form should have no errMsg; got %q", r.errMsg)

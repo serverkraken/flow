@@ -162,7 +162,7 @@ func TestView_RendersBodyAndStub(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		topLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if strings.Contains(topLine, label) {
 			t.Errorf("Phase 10: worktime top border must not render sub-tab label (%q found in topLine=%q)",
 				label, topLine)
@@ -177,7 +177,7 @@ func TestView_RendersBodyAndStub(t *testing.T) {
 func TestSubTabHost_LabelsAndIndex(t *testing.T) {
 	m := newModel(t)
 	got := m.SubTabs()
-	want := []string{"Heute", "Woche", "History", "Frei"}
+	want := []string{"Heute", "Woche", "Verlauf", "Frei"}
 	if len(got) != len(want) {
 		t.Fatalf("SubTabs len = %d, want %d (%v)", len(got), len(want), got)
 	}
@@ -224,7 +224,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 		want string
 	}{
 		{"2", "Woche lädt"},
-		{"3", "History lädt"},
+		{"3", "Verlauf lädt"},
 		{"4", "Frei lädt"},
 		// Heute (wave B) renders the live screen — no wave-letter sentinel.
 		// Sniff the loading marker, since Init hasn't run for the sub-models
@@ -242,7 +242,7 @@ func TestTabSwitching_NumberKeys(t *testing.T) {
 func TestTabSwitching_TabCyclesForward(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	wants := []string{"Woche lädt", "History lädt", "Frei lädt", "Heute lädt"}
+	wants := []string{"Woche lädt", "Verlauf lädt", "Frei lädt", "Heute lädt"}
 	for _, w := range wants {
 		updated, _ = updated.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 		if got := updated.View().Content; !strings.Contains(got, w) {
@@ -1272,7 +1272,7 @@ func TestHeute_NoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if strings.Contains(firstLine, label) {
 			t.Errorf("Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
 				label, firstLine)
@@ -1304,7 +1304,7 @@ func TestHistory_DrillNoteView_FullScreen_BypassesTitlebox(t *testing.T) {
 	if i := strings.Index(out, "\n"); i >= 0 {
 		firstLine = out[:i]
 	}
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
+	for _, label := range []string{"Heute", "Woche", "Verlauf", "Frei"} {
 		if strings.Contains(firstLine, label) {
 			t.Errorf("Drill-Note-Viewer Vollbild: erste Zeile darf KEIN Worktime-Tab-Strip enthalten (%q gefunden), got firstLine=%q",
 				label, firstLine)

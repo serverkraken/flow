@@ -112,7 +112,7 @@ func (m Model) renderEmptyState() []string {
 			"",
 			dim.Render("  keine Treffer für »" + m.filter.Value() + "«"),
 			"",
-			dim.Render("  esc → filter leeren  ·  ctrl+u → ganz zurücksetzen"),
+			dim.Render("  " + uistrings.HintClearFilter),
 		}
 	}
 	return []string{

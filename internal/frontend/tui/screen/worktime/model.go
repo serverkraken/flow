@@ -495,8 +495,11 @@ func (m Model) viewContent() string {
 // of the sidekick.subTabHost contract — the sidekick renders these as
 // right-aligned pills in the global tab strip and routes numeric keys
 // 1-N back via SwitchSubTab.
+//
+// "Verlauf" statt "History" — German UI consistency aus PR #41
+// (round-2 design-review), übernommen beim Merge.
 func (m Model) SubTabs() []string {
-	return []string{"Heute", "Woche", "History", "Frei"}
+	return []string{"Heute", "Woche", "Verlauf", "Frei"}
 }
 
 // SubTabIndex returns the currently active sub-tab as a 0-based index

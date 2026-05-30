@@ -52,7 +52,7 @@ func TestMenu_SubTabHostStaysExposedWhenMenuOpen(t *testing.T) {
 		t.Fatal("precondition: menu must be open")
 	}
 	got := updated.(worktime.Model).SubTabs()
-	want := []string{"Heute", "Woche", "History", "Frei"}
+	want := []string{"Heute", "Woche", "Verlauf", "Frei"}
 	if len(got) != len(want) {
 		t.Fatalf("SubTabs while menu open: len=%d, want %d (%v)", len(got), len(want), got)
 	}

@@ -486,7 +486,7 @@ func (f frei) viewContent() string {
 func (f frei) renderBody() string {
 	inner := f.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	header := []string{f.renderHeader(), ""}
 	// Toast-Slot via SlotRows — kollabiert, wenn kein Toast aktiv ist,
@@ -603,7 +603,7 @@ func (f frei) footerHints() []string {
 func (f frei) renderDialog() string {
 	inner := f.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	switch f.dialog {
 	case freiDialogAdd:

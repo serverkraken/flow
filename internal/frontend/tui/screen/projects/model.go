@@ -195,7 +195,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Body-Fehlerzeile, damit die Projekt-Liste mit Cursor-Position
 		// + Filter sichtbar bleibt — der User kann direkt erneut wählen.
 		if msg.err != nil {
-			t := toast.NewDanger("dispatch fehlgeschlagen: "+msg.err.Error(), m.pal)
+			t := toast.NewDanger("Aktion fehlgeschlagen: "+msg.err.Error(), m.pal)
 			m.switchToast = &t
 			return m, t.Init()
 		}
@@ -449,7 +449,7 @@ func (m Model) renderEmptyState() []string {
 		"",
 		theme.Dim("  keine Treffer für »"+m.filter.Value()+"«", m.pal),
 		"",
-		theme.Dim("  esc → filter leeren  ·  ctrl+u → ganz zurücksetzen", m.pal),
+		theme.Dim("  "+uistrings.HintClearFilter, m.pal),
 	}
 }
 

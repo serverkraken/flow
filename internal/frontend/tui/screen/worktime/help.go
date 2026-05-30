@@ -32,7 +32,7 @@ func helpSectionsTabs() help.Section {
 	return help.Section{
 		Title: "Worktime — Tabs",
 		Keys: [][2]string{
-			{"1 · 2 · 3 · 4", "Heute · Woche · History · Frei"},
+			{"1 · 2 · 3 · 4", "Heute · Woche · Verlauf · Frei"},
 			{"Tab", "Nächster Tab"},
 			{"b", uistrings.ActionBackToPalette},
 			{":", "Aktions-Menü (Brief · Export · Stats · Korrektur · Land)"},
@@ -57,7 +57,7 @@ func helpSectionsWoche() []help.Section {
 func helpSectionsHistory() []help.Section {
 	return []help.Section{
 		{
-			Title: "Worktime — History",
+			Title: "Worktime — Verlauf",
 			Keys: [][2]string{
 				{"j/k · g/G", "Cursor / Zeile · oben/unten"},
 				{"Enter", "Drill-Down auf den Tag"},
@@ -71,7 +71,7 @@ func helpSectionsHistory() []help.Section {
 			},
 		},
 		{
-			Title: "Worktime — History · Drill (auf einem Tag)",
+			Title: "Worktime — Verlauf · Drill (auf einem Tag)",
 			Keys: [][2]string{
 				{"j/k · g/G", "Session fokussieren"},
 				{"Enter", "fokussierte Session bearbeiten"},
@@ -109,13 +109,13 @@ func helpSectionsMenu() help.Section {
 		Title: "Worktime — Aktions-Menü (`:`)",
 		Keys: [][2]string{
 			{"Brief Wochen-/Monatsbericht", "Markdown im integrierten Viewer / clipboard / ~/Downloads"},
-			{"Export CSV / JSON", "Range-Form + Output-Target"},
-			{"Stats für Range", "Aggregate über StatsComputer"},
+			{"Export CSV / JSON", "Zeitraum-Auswahl + Ausgabe-Ziel"},
+			{"Stats für Zeitraum", "Aggregate über StatsComputer"},
 			{"Startzeit korrigieren", "Heute, nur wenn Session läuft"},
 			{"Land für Feiertage", "Bundesland-Picker → SyncGermanHolidays"},
 			{"j/k · g/G · enter · esc", "Im Menü navigieren / picken / abbrechen"},
 			{"tippen", "Live-Filter über die Aktions-Liste"},
-			{"c · s · f", "Output-Target direkt: Clipboard / Split / Datei"},
+			{"c · s · f", "Ausgabe-Ziel direkt: Clipboard / Split / Datei"},
 		},
 	}
 }

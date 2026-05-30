@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 )
 
 // Mode is the overlay's input mode. ModeSearch is reachable only when
@@ -160,8 +161,8 @@ func (m Model) composeContent() string {
 		return strings.Join(out, "\n")
 	}
 	s := styles()
-	bar := s.matchBar.Render("▎ ")
-	curBar := s.matchCurrentBar.Render("▎ ")
+	bar := s.matchBar.Render(glyphs.AccentBar + " ")
+	curBar := s.matchCurrentBar.Render(glyphs.AccentBar + " ")
 	cur := -1
 	if m.matchIdx >= 0 && m.matchIdx < len(m.matches) {
 		cur = m.matches[m.matchIdx]

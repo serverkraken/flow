@@ -50,7 +50,7 @@ func (h heute) renderBody() string {
 
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 	now := h.deps.Clock.Now()
 
@@ -270,8 +270,11 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 // format: „Maximum 4 hints in a permanent footer; if more apply, the surplus
 // belongs in the `?` overlay"). Reihenfolge:
 //  1. s → start/stop/resume — globaler Default-State, immer relevant.
-//  2. j/k → bewegen ODER j/k · g/G — wenn auf Session, kombiniert mit
-//     g/G-Sprung (vorher nur in `?`-Overlay, kaum auffindbar).
+//  2. j/k → bewegen — Zeilennavigation. g/G (Sprung oben/unten) lebt im
+//     `?`-Overlay (today_dialog.go HelpSections), konsistent mit den
+//     Schwester-Screens history/frei, die ebenfalls nur `j/k → bewegen`
+//     im Footer führen — ein gemischter `·` neben dem Hint-Separator
+//     `  ·  ` las sich mehrdeutig.
 //  3. : → aktionen — Worktime-Aktions-Menü.
 //  4. ⏎ → bearbeiten — wenn auf Session, häufigste Edit-Action.
 //
@@ -288,9 +291,9 @@ func (h heute) footerHints() []string {
 		actions = append(actions, "s → starten")
 	}
 	if h.onSession() {
-		actions = append(actions, "j/k · g/G → bewegen", "enter → bearbeiten", ": → aktionen")
+		actions = append(actions, "j/k → bewegen", "enter → bearbeiten", ": → aktionen")
 	} else {
-		actions = append(actions, "j/k · g/G → bewegen", ": → aktionen")
+		actions = append(actions, "j/k → bewegen", ": → aktionen")
 	}
 	if len(actions) > 4 {
 		actions = actions[:4]

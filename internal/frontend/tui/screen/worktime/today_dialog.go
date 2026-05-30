@@ -33,7 +33,7 @@ import (
 func (h heute) renderDialog() string {
 	inner := h.width - 4
 	if inner <= 0 {
-		inner = 80
+		inner = theme.WideBox
 	}
 
 	var rows []string

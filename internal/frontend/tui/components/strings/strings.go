@@ -24,6 +24,14 @@ const (
 	// non-color cue. Mirrors confirm.Model.View() one-to-one so a y/n
 	// dialog and a hint-strip never disagree.
 	HintConfirm = "[y/Enter] → ja  ·  n/Esc → nein"
+	// HintBack steht für das Zurückspringen aus einem Sub-State in den
+	// Eltern-State (menu-Sub-Picker, range/target/land/correct). Semantisch
+	// verschieden von HintCancel ("abbrechen" verwirft, "zurück" navigiert).
+	HintBack = "Esc → zurück"
+	// HintClearFilter steht für die zweistufige Filter-Escape in
+	// fuzzy-Pickern (palette, projects): Esc leert den Filtertext,
+	// Ctrl+U setzt zusätzlich Cursor + Pin zurück.
+	HintClearFilter = "Esc → Filter leeren  ·  Ctrl+U → ganz zurücksetzen"
 	// HintFormNav steht für mehrfeldige Eingabedialoge (today_dialog
 	// edit-form, dayoffs add-form, history_drill edit-form). Vorher
 	// dreifach wortgleich inline kopiert.
