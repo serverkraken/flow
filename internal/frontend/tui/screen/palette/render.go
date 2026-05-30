@@ -39,9 +39,9 @@ func (m Model) viewContent() string {
 	// Focused: filled ▶ in Accent-Bold; unfocused: dim ›. Non-color
 	// signal für Filter-Focus — reine Cursor-Blink-Sichtbarkeit reichte
 	// bei statischen Screenshots / langsamem Cursor nicht.
-	prompt := theme.Dim("› ", m.pal)
+	prompt := theme.Dim(glyphs.Info+" ", m.pal)
 	if m.filter.Focused() {
-		prompt = theme.Heading("▶ ", m.pal)
+		prompt = theme.Heading(glyphs.Active+" ", m.pal)
 	}
 	rows = append(rows, prompt+m.filter.View())
 	rows = append(rows, m.styles.border.Render(strings.Repeat("─", inner)))

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/projects"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -66,14 +67,12 @@ func TestInit_LoadsAndAnnotatesSessions(t *testing.T) {
 		domain.Project{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
 	)
 	updated := runUntilLoaded(t, f.model())
-	out := updated.View().Content
+	// Row labels are rendered rune-by-rune (fuzzy-match emphasis), so the
+	// ANSI escapes interleave the letters — strip them before substring
+	// checks (mirror palette/model_test.go).
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "alpha") || !strings.Contains(out, "existing") {
 		t.Errorf("View should list both projects, got:\n%s", out)
-	}
-	// "existing" matches a fake tmux session — bullet should appear on
-	// that row only.
-	if !strings.Contains(out, "existing") {
-		t.Errorf("session marker should appear on existing, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Sourcecode · 2") {
 		t.Errorf("title should report '… · 2', got:\n%s", out)
@@ -135,7 +134,7 @@ func TestSlashFiltersFuzzily(t *testing.T) {
 	for _, r := range "alp" {
 		updated, _ = updated.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	out := updated.View().Content
+	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "alpha-service") {
 		t.Errorf("filter should keep alpha-service, got:\n%s", out)
 	}
