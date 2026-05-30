@@ -26,9 +26,9 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 				return heuteActionDoneMsg{err: err}
 			}
 			if tag == "" {
-				return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Tag entfernt (Session %d)", idx+1)}
+				return heuteActionDoneMsg{toast: fmt.Sprintf("Tag entfernt (Session %d)", idx+1)}
 			}
-			return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Tag »%s« gesetzt (Session %d)", tag, idx+1)}
+			return heuteActionDoneMsg{toast: fmt.Sprintf("Tag »%s« gesetzt (Session %d)", tag, idx+1)}
 		}
 
 	case heuteDialogNote:
@@ -39,9 +39,9 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 				return heuteActionDoneMsg{err: err}
 			}
 			if note == "" {
-				return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Notiz entfernt (Session %d)", idx+1)}
+				return heuteActionDoneMsg{toast: fmt.Sprintf("Notiz entfernt (Session %d)", idx+1)}
 			}
-			return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Notiz gespeichert (Session %d)", idx+1)}
+			return heuteActionDoneMsg{toast: fmt.Sprintf("Notiz gespeichert (Session %d)", idx+1)}
 		}
 
 	case heuteDialogEdit:
@@ -64,7 +64,7 @@ func (h heute) submitDialog() (tea.Model, tea.Cmd) {
 			if err := writer.Add(date, id); err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
-			return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Note %s angehängt", id)}
+			return heuteActionDoneMsg{toast: fmt.Sprintf("Note %s angehängt", id)}
 		}
 	}
 	return h, nil
@@ -117,6 +117,6 @@ func (h heute) submitEdit() (tea.Model, tea.Cmd) {
 		if err := sw.SetNote(date, idx, note); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}
-		return heuteActionDoneMsg{toast: fmt.Sprintf("✓ Session %d aktualisiert", idx+1)}
+		return heuteActionDoneMsg{toast: fmt.Sprintf("Session %d aktualisiert", idx+1)}
 	}
 }

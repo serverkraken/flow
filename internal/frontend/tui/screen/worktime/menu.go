@@ -185,7 +185,7 @@ func (m menuModel) applyActionDone(msg menuActionDoneMsg) (menuModel, tea.Cmd) {
 	}
 	m.errMsg = ""
 	if msg.toast != "" {
-		t := toast.NewDefault(msg.toast, m.pal)
+		t := toast.NewSuccess(msg.toast, m.pal)
 		m.toast = &t
 		return m, t.Init()
 	}
@@ -469,7 +469,7 @@ func (m menuModel) runAction(a menuAction) (menuModel, tea.Cmd) {
 		m.toast = nil
 		return m, nil
 	}
-	t := toast.NewDefault(a.label+" — noch nicht verfügbar", m.pal)
+	t := toast.NewInfo(a.label+" — noch nicht verfügbar", m.pal)
 	m.toast = &t
 	return m, t.Init()
 }

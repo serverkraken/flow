@@ -106,7 +106,7 @@ func TestHumanizeAge(t *testing.T) {
 		d    time.Duration
 		want string
 	}{
-		{d: 200 * time.Millisecond, want: "now"},
+		{d: 200 * time.Millisecond, want: "<1s"},
 		{d: 5 * time.Second, want: "5s"},
 		{d: 90 * time.Second, want: "1m"},
 		{d: 90 * time.Minute, want: "1h"},

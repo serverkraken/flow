@@ -71,7 +71,7 @@ var tagClockScale = []tagClockStep{
 
 func tagClockCellGlyph(pal theme.Palette, cell time.Duration, frac float64) (string, color.Color) {
 	if cell == 0 {
-		return strings.Repeat(glyphs.BulletDot, 2), pal.BgCode
+		return strings.Repeat(glyphs.BulletDot, 2), pal.Sem().Border
 	}
 	for _, s := range tagClockScale {
 		if frac >= s.minFrac {

@@ -150,7 +150,7 @@ func landSyncCmd(deps Deps, code string) tea.Cmd {
 			return menuActionDoneMsg{err: fmt.Errorf("sync %s/%d: %w", code, year, err)}
 		}
 		return menuActionDoneMsg{
-			toast: fmt.Sprintf("✓ %s/%d: %d Feiertag(e) ergänzt, %d übersprungen",
+			toast: fmt.Sprintf("%s/%d: %d Feiertag(e) ergänzt, %d übersprungen",
 				code, year, added, skipped),
 		}
 	}

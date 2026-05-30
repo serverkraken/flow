@@ -67,7 +67,7 @@ func (h history) handleDrillNoteAttachKey(msg tea.KeyPressMsg) (tea.Model, tea.C
 			}
 			return historyActionDoneMsg{
 				date:  date,
-				toast: fmt.Sprintf("✓ Note %s angehängt an %s", id, date.Format("2006-01-02")),
+				toast: fmt.Sprintf("Note %s angehängt an %s", id, date.Format("2006-01-02")),
 			}
 		}
 	}

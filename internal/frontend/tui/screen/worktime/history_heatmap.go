@@ -81,9 +81,14 @@ func (h history) renderHeatmapCell(day time.Time, byKey map[string]domain.DayRec
 	// vorher mischte `.` (baseline) für Werktag mit `·` (middle-dot) für
 	// Wochenende, was die Spalten optisch unruhig wirken ließ.
 	cell := " " + glyphs.BulletDot + " "
-	var color color.Color = h.pal.BgCode
+	var color color.Color = h.pal.Sem().Border
 	if hasRec && rec.Target > 0 {
 		cell, color = heatmapCellGlyph(h.pal, rec)
+	} else if hasRec && rec.Total > 0 {
+		// Erfasste Zeit ohne Tagesziel (z.B. target_sat=0) fiel sonst auf
+		// die leere ·-Zelle und versteckte die Arbeit — Info-Punkt (Cyan ●)
+		// wie im Monatsraster, ohne eine Ziel-Erfüllung zu behaupten.
+		cell, color = " "+glyphs.Filled+" ", h.pal.Sem().Info
 	}
 	if dayOff, isOff := h.deps.DayOffStore.Lookup(day); isOff {
 		if !hasRec || rec.Target == 0 {
@@ -131,7 +136,11 @@ func (h history) renderHeatmapStatus(byKey map[string]domain.DayRecord) string {
 			status += " " + dayOff.Label
 		}
 	}
-	rendered := lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	// Focused-cell readout: Strong (Fg + bold), not Accent. The grid
+	// already marks the selection with cursorCell; painting the whole
+	// detail line in the interactive Accent diluted that token (UX-Review
+	// M7 Accent-overuse). Bold keeps it legible as the focused readout.
+	rendered := theme.Strong(status, h.pal)
 	if chip := h.attachedChip(d); chip != "" {
 		rendered += chip
 	}
@@ -179,8 +188,12 @@ var heatScale = []heatStep{
 	{1.5, glyphs.Up, "≥150%", func(p theme.Palette) color.Color { return p.Sem().Danger }},
 	{1.0, glyphs.HeatFull, "Ziel", func(p theme.Palette) color.Color { return p.Sem().Success }},
 	{0.75, glyphs.HeatDark, "<100%", func(p theme.Palette) color.Color { return p.Sem().Active }},
+	// Behind-Pace eskaliert mit der Dichte: ▒ <75% mild (Warning/Gelb),
+	// ░ <50% deutlich darunter (Notice/Orange — laut Sem „firmer than
+	// Warning"). Vorher trugen beide Buckets Warning, der Gradient kollabierte
+	// (UX-Review H5). Glyph ░ hält sie vom ●-Krank-Chip (auch Notice) getrennt.
 	{0.5, glyphs.HeatMedium, "<75%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
-	{0, glyphs.HeatLight, "<50%", func(p theme.Palette) color.Color { return p.Sem().Warning }},
+	{0, glyphs.HeatLight, "<50%", func(p theme.Palette) color.Color { return p.Sem().Notice }},
 }
 
 func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, color.Color) {
@@ -190,7 +203,7 @@ func heatmapCellGlyph(pal theme.Palette, rec domain.DayRecord) (string, color.Co
 			return " " + s.glyph + " ", s.color(pal)
 		}
 	}
-	return " " + glyphs.BulletDot + " ", pal.BgCode
+	return " " + glyphs.BulletDot + " ", pal.Sem().Border
 }
 
 // — heatmap bounds + cursor helpers —

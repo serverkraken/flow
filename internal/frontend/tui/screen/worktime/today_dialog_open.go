@@ -82,7 +82,7 @@ func (h heute) openDeleteDialog() (tea.Model, tea.Cmd) {
 	question := fmt.Sprintf("Session %d löschen?", h.cursor+1)
 	detail := fmt.Sprintf("%s → %s   %s",
 		s.Start.Format("15:04"), s.Stop.Format("15:04"), formatDur(s.Elapsed))
-	cm := confirm.New(question, detail, h.pal)
+	cm := confirm.NewDanger(question, detail, h.pal)
 	h.confirmModel = &cm
 	return h, cm.Init()
 }

@@ -6,6 +6,9 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 )
 
 // renderChrome assembles the frame around the body: title row,
@@ -50,10 +53,10 @@ func (m Model) renderFooter() string {
 	if m.mode == ModeSearch {
 		view := m.search.View()
 		if view == "" {
-			view = "▎"
+			view = glyphs.AccentBar
 		}
 		return s.searchActiveLabel.Render("Suche:") + " " + view +
-			"   " + s.footer.Render("Enter → übernehmen  ·  Esc → abbrechen")
+			"   " + s.footer.Render("Enter → übernehmen  ·  "+uistrings.HintCancel)
 	}
 	lineW := m.width - contentLineBudget
 	if lineW < 1 {
@@ -67,7 +70,7 @@ func (m Model) renderFooter() string {
 	// extras (typically context-specific) survive longest.
 	var optional []string
 	if m.cfg.enableSearch {
-		optional = append(optional, s.footer.Render("/ → suchen"))
+		optional = append(optional, s.footer.Render(uistrings.HintFilter))
 	}
 	if m.cfg.enableCodeCopy {
 		optional = append(optional, s.footer.Render("c → Code kopieren"))

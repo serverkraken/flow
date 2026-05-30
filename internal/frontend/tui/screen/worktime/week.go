@@ -54,7 +54,7 @@ type wocheStyles struct {
 	name        lipgloss.Style // Fg + Width(3) — weekday short label
 	date        lipgloss.Style // FgMuted + Width(6) — date column
 	marker      lipgloss.Style // Sem().Accent — cursor bar
-	emptyBar    lipgloss.Style // BgCode — placeholder bar
+	emptyBar    lipgloss.Style // Sem().Border — placeholder bar (leerer Tag)
 	dur         lipgloss.Style // Fg base — total duration (Bold added per-row)
 	greenPace   lipgloss.Style // Sem().Success — hit-day pace dot
 	dimPace     lipgloss.Style // FgMuted — miss-day pace dot
@@ -88,7 +88,7 @@ func newWocheStyles(p theme.Palette) wocheStyles {
 		name:         lipgloss.NewStyle().Foreground(p.Fg).Width(3),
 		date:         lipgloss.NewStyle().Foreground(p.FgMuted).Width(6),
 		marker:       lipgloss.NewStyle().Foreground(sem.Accent),
-		emptyBar:     lipgloss.NewStyle().Foreground(p.BgCode),
+		emptyBar:     lipgloss.NewStyle().Foreground(sem.Border),
 		dur:          lipgloss.NewStyle().Foreground(p.Fg),
 		greenPace:    lipgloss.NewStyle().Foreground(sem.Success),
 		dimPace:      lipgloss.NewStyle().Foreground(p.FgMuted),
@@ -419,13 +419,13 @@ func (w woche) renderPace(now time.Time) string {
 	}
 
 	count := dimStyle.Render(fmt.Sprintf("%d/%d Ziele", hits, workdays))
-	track := dimStyle.Render("·")
+	track := dimStyle.Render(glyphs.BulletDot)
 	switch {
 	case expected == 0:
 	case hits >= expected:
-		track = greenStyle.Render("▲ auf Kurs")
+		track = greenStyle.Render(glyphs.Up + " auf Kurs")
 	default:
-		track = behindStyle.Render("▼ im Rückstand")
+		track = behindStyle.Render(glyphs.Down + " im Rückstand")
 	}
 	return strings.Join(dots, " ") + "   " + count + "   " + track
 }

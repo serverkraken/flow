@@ -16,6 +16,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -99,7 +100,7 @@ func (h history) renderFilterDialog() string {
 		rows = append(rows, "", theme.Err("  "+h.errMsg, h.pal))
 	}
 	rows = append(rows, "", stDim(h.pal,
-		"  Enter → anwenden  ·  leer → alles  ·  Esc → abbrechen"))
+		"  Enter → anwenden  ·  leer → alles  ·  "+uistrings.HintCancel))
 	return strings.Join(rows, "\n")
 }
 

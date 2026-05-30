@@ -26,6 +26,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -116,10 +117,11 @@ type IndexAgeFunc func() time.Time
 type BacklinksFunc func(id domain.ID) []usecase.BacklinkRef
 
 // twoPaneMinWidth is the threshold above which the preview pane appears to
-// the right of the list. Below it, the list takes the full width. Tuned
-// for a typical tmux sidekick split: panes < 90 cols stay single-pane,
-// wider terminals get the live Glamour preview.
-const twoPaneMinWidth = 90
+// the right of the list. Below it, the list takes the full width. Lowered
+// 90→84 (UX-Review L3) so a standard ~80-col-plus split already surfaces
+// the live Glamour preview instead of hiding it behind an uncommon width;
+// at 84 the preview still keeps ~46 inner cols (see listPaneWidth).
+const twoPaneMinWidth = 84
 
 // Model is the Bubble Tea state for the browse view.
 type Model struct {
@@ -188,23 +190,39 @@ func (m Model) WithBacklinks(fn BacklinksFunc) Model {
 func (m Model) CurrentMode() Mode { return m.mode }
 
 // HelpSections exposes the kompendium-browse key bindings to the
-// sidekick `?`-overlay aggregator. The standalone overlay (kompendium
-// browse `?`) renders its own bubbles/help-driven view from the
-// internal keymap; this method mirrors that surface for the sidekick
-// aggregation, which expects flow's components/help.Section shape.
-func (Model) HelpSections() []flowhelp.Section {
-	return []flowhelp.Section{{
-		Title: "Notes (Kompendium)",
-		Keys: [][2]string{
+// sidekick `?`-overlay aggregator. Both this aggregated surface and the
+// standalone overlay (render_modal.renderHelpOverlay) read from the same
+// helpSections() inventory so the two cannot drift — the standalone
+// overlay strips the "Notizen · " title prefix that identifies the
+// screen inside the sidekick aggregate.
+func (Model) HelpSections() []flowhelp.Section { return helpSections() }
+
+// helpSections is the canonical kompendium-browse key-binding inventory,
+// grouped for the multi-section help overlay. Titles carry a "Notizen · "
+// prefix so the sidekick aggregator can attribute each group to this
+// screen; the standalone overlay trims it. Mirrors the keymap.go
+// bindings — kept in lockstep by hand (the footer short-help still reads
+// the keyMap directly via helpUI).
+func helpSections() []flowhelp.Section {
+	return []flowhelp.Section{
+		{Title: "Notizen · Navigation", Keys: [][2]string{
 			{"j / k · ↑ / ↓", "Eintrag fokussieren"},
-			{"Enter", "Note öffnen / View-Modus"},
-			{"/", "Suche öffnen"},
-			{"Esc", "Suche schließen / View verlassen"},
-			{"o", "Note in Editor öffnen ($EDITOR)"},
-			{"r", "Liste neu laden"},
-			{"?", "Standalone-Hilfe (im Browser-TUI)"},
-		},
-	}}
+			{"g / G", "Anfang / Ende"},
+			{"ctrl+u / ctrl+d", "Seite hoch / runter"},
+		}},
+		{Title: "Notizen · Note", Keys: [][2]string{
+			{"Enter", "bearbeiten ($EDITOR)"},
+			{"v", "Vorschau (Markdown-Viewer)"},
+			{"n", "neue Note"},
+			{"D", "löschen (y/Enter bestätigt)"},
+		}},
+		{Title: "Notizen · Ansicht", Keys: [][2]string{
+			{"tab", "Filter wechseln"},
+			{"/", "Suche"},
+			{"?", "Hilfe"},
+			{"q", "schließen"},
+		}},
+	}
 }
 
 // New returns a Model wired with the list use case, the note store (for
@@ -246,8 +264,8 @@ func New(
 
 	pg := paginator.New()
 	pg.Type = paginator.Dots
-	pg.ActiveDot = paginatorActiveDotStyle.Render("●")
-	pg.InactiveDot = paginatorInactiveDotStyle.Render("○")
+	pg.ActiveDot = paginatorActiveDotStyle.Render(glyphs.Filled)
+	pg.InactiveDot = paginatorInactiveDotStyle.Render(glyphs.Empty)
 
 	return Model{
 		list:          list,

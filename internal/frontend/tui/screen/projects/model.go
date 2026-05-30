@@ -38,18 +38,25 @@ type switchedMsg struct {
 }
 
 // Model is the bubbletea model for the project-switcher screen.
+//
+// styles is built once at New() — projects mirrors palette's row
+// contract (accent-bar + fuzzy-match emphasis) so the two sibling
+// pickers read identically; the cache keeps the per-row render path
+// allocation-free, same rationale as palette/Model.styles.
 type Model struct {
-	all     []domain.Project
-	visible []domain.Project
-	cursor  int
-	offset  int
-	filter  textinput.Model
-	pal     theme.Palette
-	width   int
-	height  int
-	err     error
-	loading bool
-	rootDir string
+	all        []domain.Project
+	visible    []domain.Project
+	highlights [][]int // name-rune-indices to emphasise per visible project
+	cursor     int
+	offset     int
+	filter     textinput.Model
+	pal        theme.Palette
+	styles     projectsStyles
+	width      int
+	height     int
+	err        error
+	loading    bool
+	rootDir    string
 
 	// switchToast surfacet tmux-Dispatch-Fehler ohne den Body zu
 	// überschreiben; ohne ihn ginge der Listen-Kontext (Cursor-Position,
@@ -78,6 +85,34 @@ const (
 	ModeStandalone
 )
 
+// projectsStyles caches the palette-derived lipgloss styles used by the
+// row renderer. Mirrors palette.paletteStyles so both pickers share the
+// same visual contract; built once at New(), reused every frame.
+type projectsStyles struct {
+	label    lipgloss.Style
+	labelSel lipgloss.Style
+	match    lipgloss.Style
+	matchSel lipgloss.Style
+	bar      lipgloss.Style // AccentBarRune for the selected row
+	border   lipgloss.Style // Sem().Border — filter separator rule
+	marker   lipgloss.Style // Sem().Active — tmux-session hint glyph
+}
+
+func newProjectsStyles(p theme.Palette) projectsStyles {
+	sem := p.Sem()
+	label := lipgloss.NewStyle().Foreground(p.Fg)
+	match := lipgloss.NewStyle().Foreground(sem.Accent).Bold(true)
+	return projectsStyles{
+		label:    label,
+		labelSel: label.Bold(true).Underline(true),
+		match:    match,
+		matchSel: match.Underline(true),
+		bar:      lipgloss.NewStyle().Foreground(sem.Accent),
+		border:   lipgloss.NewStyle().Foreground(sem.Border),
+		marker:   lipgloss.NewStyle().Foreground(sem.Active),
+	}
+}
+
 // Option mutates a Model after New().
 type Option func(*Model)
 
@@ -92,6 +127,7 @@ func New(p theme.Palette, rootDir string, reader *usecase.ProjectsReader, switch
 	ti := form.NewTextInput("filter…", p)
 	m := Model{
 		pal:      p,
+		styles:   newProjectsStyles(p),
 		filter:   ti,
 		rootDir:  rootDir,
 		loading:  true,
@@ -111,10 +147,11 @@ func (Model) HelpSections() []help.Section {
 	return []help.Section{{
 		Title: "Projekte",
 		Keys: [][2]string{
+			{"a–z (außer j/k/g/G)", "tippen → Filter direkt"},
+			{"/", "Filter explizit öffnen"},
 			{"j / k / ↑ / ↓", "Navigieren"},
 			{"G / g", "Ende / Anfang"},
 			{"Ctrl+D / Ctrl+U", "Seite vor / zurück"},
-			{"/", "Filter öffnen"},
 			{"Esc", "Filter löschen"},
 			{"Enter", "Wechseln"},
 		},
@@ -188,6 +225,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Every handled case returns explicitly so navigation keys (j/k/g/G/…)
+	// never fall through into the type-to-filter block below — they are
+	// single printable runes too (mirror palette/handleNormalKey).
 	switch msg.String() {
 	case "/":
 		m.filter.Focus()
@@ -197,27 +237,50 @@ func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.cursor++
 			m.ensureCursorVisible()
 		}
+		return m, nil
 	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
 			m.ensureCursorVisible()
 		}
+		return m, nil
 	case "G":
 		m.cursor = max(0, len(m.visible)-1)
 		m.ensureCursorVisible()
+		return m, nil
 	case "g":
 		m.cursor = 0
 		m.ensureCursorVisible()
+		return m, nil
 	case "pgdown", "ctrl+d":
 		m.cursor = min(len(m.visible)-1, m.cursor+m.maxVisible())
 		m.ensureCursorVisible()
+		return m, nil
 	case "pgup", "ctrl+u":
 		m.cursor = max(0, m.cursor-m.maxVisible())
 		m.ensureCursorVisible()
+		return m, nil
 	case "enter":
 		if len(m.visible) > 0 {
 			return m, m.switchToProject(m.visible[m.cursor])
 		}
+		return m, nil
+	}
+
+	// Type-to-filter: any other single printable character auto-focuses
+	// the filter and routes the keystroke into it, saving the explicit
+	// "/" before searching (mirror palette/handleNormalKey). Special keys
+	// (tab, ctrl-combos, …) have multi-char names and fall through.
+	s := msg.String()
+	if len(s) == 1 && s[0] >= ' ' && s[0] < 127 {
+		m.filter.Focus()
+		var cmd tea.Cmd
+		prev := m.filter.Value()
+		m.filter, cmd = m.filter.Update(msg)
+		if m.filter.Value() != prev {
+			m.applyFilter()
+		}
+		return m, tea.Batch(cmd, textinput.Blink)
 	}
 	return m, nil
 }
@@ -249,6 +312,7 @@ func (m *Model) applyFilter() {
 	q := m.filter.Value()
 	if q == "" {
 		m.visible = m.all
+		m.highlights = make([][]int, len(m.visible))
 	} else {
 		names := make([]string, len(m.all))
 		for i, p := range m.all {
@@ -256,8 +320,10 @@ func (m *Model) applyFilter() {
 		}
 		matches := fuzzy.Find(q, names)
 		m.visible = make([]domain.Project, len(matches))
+		m.highlights = make([][]int, len(matches))
 		for i, match := range matches {
 			m.visible[i] = m.all[match.Index]
+			m.highlights[i] = match.MatchedIndexes
 		}
 	}
 	if m.cursor >= len(m.visible) {
@@ -307,11 +373,14 @@ func (m Model) viewContent() string {
 	var rows []string
 	// Focused: filled ▶ Accent-Bold; unfocused: dim › — non-color signal
 	// für Filter-Focus, mirror palette/View.
-	prompt := theme.Dim("› ", m.pal)
+	prompt := theme.Dim(glyphs.Info+" ", m.pal)
 	if m.filter.Focused() {
-		prompt = theme.Heading("▶ ", m.pal)
+		prompt = theme.Heading(glyphs.Active+" ", m.pal)
 	}
-	rows = append(rows, prompt+m.filter.View(), "")
+	rows = append(rows, prompt+m.filter.View())
+	// Separator rule under the filter — same chrome as palette/View so the
+	// two pickers frame their input identically.
+	rows = append(rows, m.styles.border.Render(strings.Repeat("─", inner)))
 
 	switch {
 	case m.loading:
@@ -321,7 +390,7 @@ func (m Model) viewContent() string {
 	case len(m.all) == 0:
 		rows = append(rows, theme.Dim("  keine Projekte gefunden — $SOURCECODE_ROOT prüfen", m.pal))
 	case len(m.visible) == 0:
-		rows = append(rows, theme.Dim("  "+uistrings.LabelEmpty, m.pal))
+		rows = append(rows, m.renderEmptyState()...)
 	default:
 		vis := m.maxVisible()
 		end := min(m.offset+vis, len(m.visible))
@@ -329,15 +398,7 @@ func (m Model) viewContent() string {
 			rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d vorherige…", glyphs.Up, m.offset), m.pal))
 		}
 		for i := m.offset; i < end; i++ {
-			p := m.visible[i]
-			hint := ""
-			if p.HasTmuxSession {
-				// Active-tmux-session-Marker im Hint-Slot statt im Label —
-				// picker.Row truncated nur das Label und garantiert dass der
-				// Marker rechtsbündig erhalten bleibt, auch bei langen Namen.
-				hint = lipgloss.NewStyle().Foreground(m.pal.Sem().Active).Render(glyphs.Active)
-			}
-			rows = append(rows, picker.Row(i == m.cursor, p.Name, hint, inner, m.pal))
+			rows = append(rows, m.renderRow(i == m.cursor, m.visible[i], m.highlights[i], inner))
 		}
 		if end < len(m.visible) {
 			rows = append(rows, theme.Dim(fmt.Sprintf("  %s %d weitere…", glyphs.Down, len(m.visible)-end), m.pal))
@@ -368,6 +429,59 @@ func (m Model) viewContent() string {
 	// Toast-Slot zwischen Box und Footer: hält den Footer auf konstanter
 	// Bildschirmzeile, egal ob ein Toast aktiv ist (mirror palette/View).
 	return box + "\n" + toast.SlotLine(m.switchToast, "  ") + "\n" + footer
+}
+
+// renderRow paints one project row: accent bar, fuzzy-matched name with
+// per-rune emphasis, and a right-aligned tmux-session marker. Mirrors
+// palette/renderRow — the match emphasis is why projects can't use the
+// plain picker.Row (which styles the whole label uniformly).
+func (m Model) renderRow(selected bool, p domain.Project, highlight []int, width int) string {
+	bar := " "
+	labelStyle := m.styles.label
+	matchStyle := m.styles.match
+	if selected {
+		bar = m.styles.bar.Render(picker.AccentBarRune)
+		labelStyle = m.styles.labelSel
+		matchStyle = m.styles.matchSel
+	}
+
+	hi := make(map[int]bool, len(highlight))
+	for _, idx := range highlight {
+		hi[idx] = true
+	}
+	var b strings.Builder
+	for i, r := range []rune(p.Name) {
+		if hi[i] {
+			b.WriteString(matchStyle.Render(string(r)))
+		} else {
+			b.WriteString(labelStyle.Render(string(r)))
+		}
+	}
+	rendered := b.String()
+
+	// Active-tmux-session marker stays right-aligned in the hint slot so a
+	// long name never pushes it off — the gap absorbs the slack.
+	hint := ""
+	if p.HasTmuxSession {
+		hint = m.styles.marker.Render(glyphs.Active)
+	}
+	gap := width - 1 - lipgloss.Width(p.Name) - lipgloss.Width(hint) - 1
+	if gap < 1 {
+		gap = 1
+	}
+	return bar + " " + rendered + strings.Repeat(" ", gap) + hint
+}
+
+// renderEmptyState is the no-match block: echoes the query plus the two
+// recovery keys, mirroring palette/renderEmptyState so a fruitless filter
+// always shows a way out instead of a bare "keine Einträge".
+func (m Model) renderEmptyState() []string {
+	return []string{
+		"",
+		theme.Dim("  keine Treffer für »"+m.filter.Value()+"«", m.pal),
+		"",
+		theme.Dim("  esc → filter leeren  ·  ctrl+u → ganz zurücksetzen", m.pal),
+	}
 }
 
 func lastSegment(p string) string {

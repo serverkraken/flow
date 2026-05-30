@@ -107,7 +107,7 @@ func correctCmd(deps Deps, ts time.Time) tea.Cmd {
 		if err := deps.SessionWriter.CorrectStart(ts); err != nil {
 			return menuActionDoneMsg{err: err}
 		}
-		return menuActionDoneMsg{toast: fmt.Sprintf("✓ Startzeit auf %s korrigiert", ts.Format("15:04"))}
+		return menuActionDoneMsg{toast: fmt.Sprintf("Startzeit auf %s korrigiert", ts.Format("15:04"))}
 	}
 }
 

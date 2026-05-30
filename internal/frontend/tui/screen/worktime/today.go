@@ -292,7 +292,7 @@ func (h heute) handleActionDone(msg heuteActionDoneMsg) (tea.Model, tea.Cmd) {
 	if msg.info {
 		t = toast.NewInfo(msg.toast, h.pal)
 	} else {
-		t = toast.NewDefault(msg.toast, h.pal)
+		t = toast.NewSuccess(msg.toast, h.pal)
 	}
 	h.toast = &t
 	return h, tea.Batch(h.loadCmd(), t.Init())

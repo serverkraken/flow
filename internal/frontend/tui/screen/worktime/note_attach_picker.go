@@ -36,6 +36,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/form"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -120,9 +121,9 @@ func (p noteAttachPicker) SelectedID() string {
 // depend on whether the suggestion list is populated.
 func (p noteAttachPicker) HintLine() string {
 	if len(p.suggs) > 0 {
-		return "↑/↓ → wählen  ·  tippen → filter  ·  Enter → anhängen  ·  Esc → abbrechen"
+		return "↑/↓ → wählen  ·  tippen → filter  ·  Enter → anhängen  ·  " + uistrings.HintCancel
 	}
-	return "Enter → anhängen  ·  Esc → abbrechen"
+	return "Enter → anhängen  ·  " + uistrings.HintCancel
 }
 
 // Update routes one KeyMsg into the picker. Returns the updated picker,

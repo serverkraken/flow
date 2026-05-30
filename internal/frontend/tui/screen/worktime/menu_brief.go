@@ -95,18 +95,18 @@ func dispatchToTarget(out ports.Output, target outputTarget, content, basename, 
 		if err := out.Copy(content); err != nil {
 			return menuActionDoneMsg{err: err}
 		}
-		return menuActionDoneMsg{toast: "✓ in Zwischenablage"}
+		return menuActionDoneMsg{toast: "in Zwischenablage"}
 	case outputTargetSplit:
 		if err := out.Pager(content, viewer, ext); err != nil {
 			return menuActionDoneMsg{err: err}
 		}
-		return menuActionDoneMsg{toast: "✓ in tmux-Split geöffnet"}
+		return menuActionDoneMsg{toast: "in tmux-Split geöffnet"}
 	case outputTargetFile:
 		path, err := out.SaveFile(basename, ext, []byte(content))
 		if err != nil {
 			return menuActionDoneMsg{err: err}
 		}
-		return menuActionDoneMsg{toast: "✓ gespeichert: " + tildePath(path, home)}
+		return menuActionDoneMsg{toast: "gespeichert: " + tildePath(path, home)}
 	}
 	return menuActionDoneMsg{err: fmt.Errorf("unbekanntes output-target: %d", target)}
 }

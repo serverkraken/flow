@@ -338,11 +338,16 @@ func (h history) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, nil
 
 	case historyActionDoneMsg:
+		// Async-Mutationsfehler erscheinen als Danger-Toast: die
+		// Form-Dialog-Fenster schließen vor dem Dispatch (siehe submitDrillForm
+		// / submitListAddForm), darum hätte h.errMsg im List-Mode keinen
+		// Render-Pfad. Toast landet im selben Slot wie der Erfolgsfall.
+		var t toast.Model
 		if msg.err != nil {
-			h.errMsg = msg.err.Error()
-			return h, nil
+			t = toast.NewDanger(msg.err.Error(), h.pal)
+		} else {
+			t = toast.NewSuccess(msg.toast, h.pal)
 		}
-		t := toast.NewDefault(msg.toast, h.pal)
 		var cmds []tea.Cmd
 		if h.drillModeActive() {
 			h.drillToast = &t
