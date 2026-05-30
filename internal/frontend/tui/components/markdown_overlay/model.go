@@ -121,6 +121,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Bottom):
 			m.viewport.GotoBottom()
 			return m, nil
+		case key.Matches(msg, m.keys.PageUp):
+			m.viewport.PageUp()
+			return m, nil
+		case key.Matches(msg, m.keys.PageDown):
+			m.viewport.PageDown()
+			return m, nil
 		case m.cfg.enableCodeCopy && key.Matches(msg, m.keys.CopyCode):
 			updated, payload := m.copyNextSnippet()
 			if payload == "" {

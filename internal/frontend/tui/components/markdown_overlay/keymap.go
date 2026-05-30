@@ -12,6 +12,8 @@ type keyMap struct {
 	PrevMatch key.Binding
 	Top       key.Binding
 	Bottom    key.Binding
+	PageUp    key.Binding
+	PageDown  key.Binding
 	CopyCode  key.Binding
 }
 
@@ -22,6 +24,14 @@ func defaultKeys() keyMap {
 		PrevMatch: key.NewBinding(key.WithKeys("N")),
 		Top:       key.NewBinding(key.WithKeys("g", "home")),
 		Bottom:    key.NewBinding(key.WithKeys("G", "end")),
-		CopyCode:  key.NewBinding(key.WithKeys("c")),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup", "ctrl+u"),
+			key.WithHelp("PgUp / Ctrl+U", "seite zurück"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown", "ctrl+d"),
+			key.WithHelp("PgDn / Ctrl+D", "seite weiter"),
+		),
+		CopyCode: key.NewBinding(key.WithKeys("c")),
 	}
 }
