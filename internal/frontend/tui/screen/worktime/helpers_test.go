@@ -7,12 +7,47 @@ package worktime
 // raise per-package coverage above the per-layer 70% target.
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
+
+// — shared test helpers for the worktime package —
+
+// mustTime parses an RFC3339 timestamp or panics with a descriptive
+// message. Test-only convenience for building fixed clocks; promoted
+// here so every *_test.go file in the package can share one helper
+// instead of redefining it locally (cf. plan tasks 1.3/1.4/1.5).
+func mustTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(fmt.Sprintf("mustTime: cannot parse %q as RFC3339: %v", s, err))
+	}
+	return t
+}
+
+// containsFgSGR reports whether a rendered string carries an ANSI
+// foreground-SGR sequence matching the given theme color. lipgloss v2
+// emits truecolor as `38;2;R;G;B`; the `#rrggbb` form is what `%v`
+// prints but never appears literally in the output. We decode the hex
+// to RGB and search for the `;38;2;R;G;B` / `[38;2;R;G;B` substring.
+// Mirrors theme/builders_test.go:containsForeground but lives here so
+// the worktime tests don't reach into a sibling package.
+func containsFgSGR(out string, c theme.Color) bool {
+	hex := strings.TrimPrefix(fmt.Sprintf("%v", c), "#")
+	if len(hex) != 6 {
+		return false
+	}
+	var r, g, b int
+	if _, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b); err != nil {
+		return false
+	}
+	return strings.Contains(out, fmt.Sprintf("38;2;%d;%d;%d", r, g, b))
+}
 
 // — history.go pure helpers —
 

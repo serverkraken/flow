@@ -8,42 +8,12 @@ package worktime
 // be conflated across surfaces.
 
 import (
-	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
-
-// mustParseTime parses RFC3339 or panics — test-only helper for
-// constructing fixed clocks. Local to this file to keep blast-radius
-// small; if a second worktime test file needs the same shape it can
-// be promoted to helpers_test.go.
-func mustParseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
-// containsFgSGR mirrors theme.builders_test.containsForeground —
-// lipgloss v2 emits truecolor as `38;2;R;G;B`, the `#rrggbb` form is
-// what `%v` prints but never appears literally in the rendered
-// output. Decode hex → RGB and look for the SGR triplet instead.
-func containsFgSGR(out string, c theme.Color) bool {
-	hex := strings.TrimPrefix(fmt.Sprintf("%v", c), "#")
-	if len(hex) != 6 {
-		return false
-	}
-	var r, g, b int
-	if _, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b); err != nil {
-		return false
-	}
-	return strings.Contains(out, fmt.Sprintf("38;2;%d;%d;%d", r, g, b))
-}
 
 // TestRenderSessionsList_RunningSessionUsesActiveNotSuccess pins
 // the running-session row's foreground to Sem.Active (Cyan), not
@@ -60,8 +30,8 @@ func containsFgSGR(out string, c theme.Color) bool {
 // a stray Success render on the badge line.
 func TestRenderSessionsList_RunningSessionUsesActiveNotSuccess(t *testing.T) {
 	pal := theme.TokyonightNight
-	now := mustParseTime("2026-05-30T10:30:00+02:00")
-	active := mustParseTime("2026-05-30T09:00:00+02:00")
+	now := mustTime("2026-05-30T10:30:00+02:00")
+	active := mustTime("2026-05-30T09:00:00+02:00")
 	h := heute{
 		pal:    pal,
 		width:  80,
