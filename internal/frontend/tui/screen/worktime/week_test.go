@@ -39,6 +39,9 @@ func TestRenderDayRow_TodayRunningUsesActive_AchievedUsesSuccess(t *testing.T) {
 	if !containsFgSGR(rowRun, sem.Active) {
 		t.Errorf("today+running: expected Sem.Active (%v) fg SGR in row, got %q", sem.Active, rowRun)
 	}
+	if containsFgSGR(rowRun, pal.Sem().Success) {
+		t.Errorf("today+running: Sem.Success must not appear on running row, got %q", rowRun)
+	}
 
 	// Today + achieved → Success (Green) for the Done glyph.
 	dDone := domain.WeekDay{
