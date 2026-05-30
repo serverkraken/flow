@@ -230,7 +230,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 		// Trailing „läuft" weggelassen — Headline trägt den Status bereits
 		// als ▶-Pille (renderHeadline → todayStatusBadge). Hier dupliziert
 		// es nur Information und kostet 6+ Zeichen Platz für ein Tag-Slot.
-		rows = append(rows, theme.Success(
+		rows = append(rows, theme.Active(
 			fmt.Sprintf("  %s %s → …   %s",
 				glyphs.Active, h.day.Active.Format("15:04"), formatDur(elapsed)), h.pal,
 		))
