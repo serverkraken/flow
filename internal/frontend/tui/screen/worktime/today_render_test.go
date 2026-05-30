@@ -88,3 +88,41 @@ func TestRenderSessionsList_PauseSeparatorUsesBulletDotNotEmDash(t *testing.T) {
 		t.Errorf("pause separator: should not use ─ dashes anymore; expected · BulletDot pattern. got: %q", joined)
 	}
 }
+
+// TestHeute_FooterHints_IncludesHelp mirrors week.TestFooterHints_ContainsHelp
+// for the Heute sub-tab: Skill §Keybind grammar pins `?` as a fixed-slot
+// key that must be discoverable from every screen footer. Both Heute
+// branches (on-session / off-session) must carry the HintHelp entry.
+// Phase-10 follow-up to the 2026-05-30 UX-Review-Cleanup.
+func TestHeute_FooterHints_IncludesHelp(t *testing.T) {
+	pal := theme.TokyonightNight
+	session := domain.Session{
+		Start:   mustTime("2026-05-30T09:00:00+02:00"),
+		Stop:    mustTime("2026-05-30T10:00:00+02:00"),
+		Elapsed: time.Hour,
+	}
+	cases := []struct {
+		name   string
+		day    domain.Day
+		cursor int
+	}{
+		{name: "off-session idle", day: domain.Day{}, cursor: 0},
+		{name: "on-session focused on logged row", day: domain.Day{Sessions: []domain.Session{session}}, cursor: 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			h := heute{pal: pal, day: c.day, cursor: c.cursor}
+			hints := h.footerHints()
+			found := false
+			for _, x := range hints {
+				if strings.Contains(x, "? → Hilfe") {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Heute footerHints (%s): expected ?-help hint, got %v", c.name, hints)
+			}
+		})
+	}
+}

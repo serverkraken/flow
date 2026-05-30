@@ -14,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -184,16 +185,17 @@ func (h history) attachedChip(date time.Time) string {
 }
 
 // footerHints — Skill §Hint format max 4. Top-4 nach Frequenz:
-// navigieren, drill, Ansicht-Cycle, filter. Der `v`-Hint zeigt den
+// navigieren, drill, Ansicht-Cycle, ?-Hilfe. Der `v`-Hint zeigt den
 // *nächsten* Mode statt des aktuellen — sonst muss der User raten,
-// was er drückt. `:` (Aktions-Menü), `[/]`, `T` und `F` leben im
-// `?`-Overlay; die View-Modi sind das wertvollste verborgene Feature
-// und gehören in den Footer.
+// was er drückt. `:` (Aktions-Menü), `[/]`, `T`, `F` und `/`-Filter
+// leben im `?`-Overlay; `/` ist ein universal-fixed-slot key, der
+// via `?`-Overlay discoverable bleibt, dafür muss `? → Hilfe` selbst
+// im Footer stehen (Skill §Keybind grammar).
 func (h history) footerHints() []string {
 	return []string{
 		"j/k → bewegen",
 		"enter → öffnen",
 		"v → " + h.mode.next().label(),
-		"/ → filter",
+		uistrings.HintHelp,
 	}
 }
