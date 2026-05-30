@@ -39,9 +39,15 @@ func Render(title, body string, width int, p theme.Palette) string {
 	// titleBudget was clamped to 1, breaking the alignment with the body.
 	titleBudget := width - 6
 	var top string
-	if titleBudget < 1 {
+	switch {
+	case title == "":
+		// Empty title — degrade to a clean corner-line top border so
+		// callers that no longer carry a title (worktime, post-Phase-10)
+		// don't render a stray "─  ─" gap where the title used to sit.
 		top = border.Render("╭" + strings.Repeat("─", inner) + "╮")
-	} else {
+	case titleBudget < 1:
+		top = border.Render("╭" + strings.Repeat("─", inner) + "╮")
+	default:
 		titleR := titleStyle.Render(tuistrings.Truncate(title, titleBudget))
 		used := 3 + lipgloss.Width(titleR) + 2
 		dashes := width - used

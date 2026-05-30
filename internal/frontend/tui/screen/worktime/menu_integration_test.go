@@ -35,15 +35,30 @@ func TestMenu_ColonKeyOpensActionsModal(t *testing.T) {
 	}
 }
 
-func TestMenu_TabStripStaysVisibleWhenMenuOpen(t *testing.T) {
+// TestMenu_SubTabHostStaysExposedWhenMenuOpen pins the Phase 10
+// invariant in the worktime-package boundary: even while the action
+// menu owns the View, the worktime model continues to advertise its
+// sub-tab labels via the sidekick.subTabHost contract. The sidekick
+// renders the strip from those values, so the user keeps the visual
+// anchor of which tab they came from regardless of menu state.
+//
+// (The strip itself no longer renders inside worktime View — see
+// TestView_RendersBodyAndStub.)
+func TestMenu_SubTabHostStaysExposedWhenMenuOpen(t *testing.T) {
 	m := newModel(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: ":"})
-	out := ansi.Strip(updated.View().Content)
-	for _, label := range []string{"Heute", "Woche", "History", "Frei"} {
-		if !strings.Contains(out, label) {
-			t.Errorf("tab strip must remain visible while menu is open; missing %q:\n%s",
-				label, out)
+	if !updated.(worktime.Model).FilterActive() {
+		t.Fatal("precondition: menu must be open")
+	}
+	got := updated.(worktime.Model).SubTabs()
+	want := []string{"Heute", "Woche", "History", "Frei"}
+	if len(got) != len(want) {
+		t.Fatalf("SubTabs while menu open: len=%d, want %d (%v)", len(got), len(want), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("SubTabs[%d] while menu open = %q, want %q", i, got[i], want[i])
 		}
 	}
 }

@@ -10,6 +10,7 @@
 package sidekick
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -261,6 +262,23 @@ func (m Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case "n":
 		m.current = screenNotes
 		return m, nil, true
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		// Numeric keys route to the active screen's sub-tabs when the
+		// screen is a subTabHost (today only worktime) AND the index is
+		// in range. Out-of-range OR a non-host screen falls through to
+		// forwardToCurrent — palette uses 1-9 for direct-pick of the
+		// first nine visible entries, so the fall-through path is
+		// load-bearing.
+		host, ok := m.screens[m.current].(subTabHost)
+		if !ok {
+			return m, nil, false
+		}
+		i, err := strconv.Atoi(msg.String())
+		if err != nil || i-1 < 0 || i-1 >= len(host.SubTabs()) {
+			return m, nil, false
+		}
+		m.screens[m.current] = host.SwitchSubTab(i - 1)
+		return m, nil, true
 	}
 	return m, nil, false
 }
@@ -317,11 +335,14 @@ func (m Model) renderTabStrip() string {
 		{"c", "Cheatsheet", screenCheatsheet},
 		{"n", "Notizen", screenNotes},
 	}
-	full := m.renderTabStripFull(entries)
-	if m.width == 0 || lipgloss.Width(full) <= m.width {
-		return full
+	mainStrip := m.renderTabStripFull(entries)
+	if m.width > 0 && lipgloss.Width(mainStrip) > m.width {
+		mainStrip = m.renderTabStripCompact(entries)
 	}
-	return m.renderTabStripCompact(entries)
+	if host, ok := m.screens[m.current].(subTabHost); ok {
+		return m.composeStripWithSubTabs(mainStrip, host)
+	}
+	return mainStrip
 }
 
 // activeTabStyle is Bold + Accent + Underline — A11y-2 (Skill §Tabs):

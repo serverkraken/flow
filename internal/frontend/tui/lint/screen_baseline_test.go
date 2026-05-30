@@ -39,7 +39,7 @@ var screenBaseline = map[string]int{
 	"worktime/history_tagclock.go": 6,
 	"worktime/menu.go":             2,
 	"worktime/menu_target.go":      1,
-	"worktime/model.go":            1,
+	"worktime/model.go":            0, // Phase 10: sub-tab strip + activeStyle lifted to sidekick/sub_tabs.go; titlebox call uses empty title
 	"worktime/today.go":            0,
 	"worktime/today_dialog.go":     1,
 	"worktime/today_render.go":     0,
