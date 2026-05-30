@@ -183,7 +183,7 @@ func (h history) renderDrillSessionRows(inner int) (mid []string, focus int) {
 		if !prevStop.IsZero() {
 			if pause := s.Start.Sub(prevStop); pause > 0 {
 				mid = append(mid, stDim(h.pal,
-					fmt.Sprintf("       ─ %s Pause ─", formatDur(pause))))
+					fmt.Sprintf("       %s Pause %s", glyphs.BulletDot, formatDur(pause))))
 			}
 		}
 		prevStop = s.Stop
