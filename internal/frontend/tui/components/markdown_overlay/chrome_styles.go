@@ -106,11 +106,13 @@ func buildStyles(p theme.Palette) *chromeStyles {
 		matchBar: lipgloss.NewStyle().
 			Foreground(sem.Warning),
 
-		// matchCurrentBar marks the cursor's current match. Sem has no
-		// Orange alias (Orange is a Markdown-domain hue, not a semantic
-		// token); pal.Orange stays direct.
+		// matchCurrentBar marks the cursor's current match — brighter than
+		// the Warning-toned sibling bars (matchBar) so the focused hit
+		// stands out. Routed through Sem.SearchCurrent rather than the raw
+		// hue, keeping this component on the same Sem-only contract the
+		// screens follow.
 		matchCurrentBar: lipgloss.NewStyle().
-			Foreground(p.Orange).
+			Foreground(sem.SearchCurrent).
 			Bold(true),
 
 		err: lipgloss.NewStyle().
