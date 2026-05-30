@@ -20,7 +20,7 @@ import (
 func (m Model) renderFooter() string {
 	switch m.mode {
 	case ModeSearch:
-		return footerStyle.Render("tippen → filtern  ·  Enter → anwenden  ·  Esc → abbrechen")
+		return footerStyle.Render("tippen → filtern  ·  Enter → anwenden  ·  " + uistrings.HintCancel)
 	case ModeConfirmDelete:
 		// Wording aus components/strings.HintConfirm — confirm-Modal-
 		// Hint und Footer-Hint synchron, ein DE-Drift fällt sofort auf.
@@ -107,10 +107,11 @@ func (m Model) statusBarMeta() string {
 }
 
 // humanizeAge renders a duration as a compact "5s" / "12m" / "3h" /
-// "4d" string. Anything under one second collapses to "now".
+// "4d" string. Anything under one second collapses to "<1s" — bleibt
+// in der Zahl+Einheit-Reihe (kein EN-„now"-Leak in der DE-Statusbar).
 func humanizeAge(d time.Duration) string {
 	if d < time.Second {
-		return "now"
+		return "<1s"
 	}
 	if d < time.Minute {
 		return fmt.Sprintf("%ds", int(d.Seconds()))

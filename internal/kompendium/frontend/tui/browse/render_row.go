@@ -394,7 +394,9 @@ func (m Model) renderTags(tags []string) string {
 }
 
 func (m Model) renderEmptyState(width int) string {
-	glyph := emptyGlyphStyle.Render("✺")
+	// glyphs.Empty (○) als „nichts gefunden"-Hero — ✺ war nicht auf der
+	// Whitelist (Risiko Emoji-Breite, audit §2.1).
+	glyph := emptyGlyphStyle.Render(glyphs.Empty)
 	title := emptyTitleStyle.Render("keine Treffer")
 	newKey := keyLabel(m.keys.New)
 	searchKey := keyLabel(m.keys.Search)
@@ -402,7 +404,7 @@ func (m Model) renderEmptyState(width int) string {
 	hint := footerKeyStyle.Render(newKey) +
 		emptyHintStyle.Render(" → neue Notiz anlegen")
 	tail := footerKeyStyle.Render(filterKey) +
-		emptyHintStyle.Render(" → Filter wechseln · ") + footerKeyStyle.Render(searchKey) +
+		emptyHintStyle.Render(" → Filter wechseln  ·  ") + footerKeyStyle.Render(searchKey) +
 		emptyHintStyle.Render(" → Suche zurücksetzen")
 	stack := lipgloss.JoinVertical(lipgloss.Center, glyph, "", title, hint, tail)
 	if width <= 0 {

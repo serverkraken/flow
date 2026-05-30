@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 )
 
@@ -114,9 +115,9 @@ func (m Model) renderTypeCounts() string {
 		}
 	}
 	parts := []string{
-		countDailyStyle.Render(fmt.Sprintf("● %d", d)) + dimStyle.Render(" daily"),
-		countProjectStyle.Render(fmt.Sprintf("● %d", p)) + dimStyle.Render(" projekt"),
-		countFreeStyle.Render(fmt.Sprintf("● %d", f)) + dimStyle.Render(" frei"),
+		countDailyStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", d)) + dimStyle.Render(" täglich"),
+		countProjectStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", p)) + dimStyle.Render(" projekt"),
+		countFreeStyle.Render(fmt.Sprintf(glyphs.Filled+" %d", f)) + dimStyle.Render(" frei"),
 	}
 	return strings.Join(parts, "  ")
 }
@@ -166,7 +167,7 @@ func (m Model) renderSearchSegment() string {
 	if m.mode == ModeSearch {
 		view := m.search.View()
 		if view == "" {
-			view = "▎"
+			view = glyphs.AccentBar
 		}
 		return searchActiveLabelStyle.Render("Suche:") + " " + view
 	}
@@ -198,7 +199,14 @@ func (m Model) renderBody() string {
 // bottom border.
 func (m Model) renderListPane() string {
 	w := m.listPaneWidth()
-	header := panelTitleStyle.Render("notizen")
+	// Im Zwei-Pane-Layout trägt die Liste den Fokus-Titel (Fg+Bold), die
+	// Vorschau bleibt muted — so liest sich, welche Pane interaktiv ist
+	// (UX-Review L3). Single-Pane braucht den Cue nicht.
+	titleStyle := panelTitleStyle
+	if m.twoPane() {
+		titleStyle = panelTitleFocusStyle
+	}
+	header := titleStyle.Render("notizen")
 	if len(m.visible) == 0 {
 		return lipgloss.JoinVertical(lipgloss.Left, header, "", m.renderEmptyState(w), "")
 	}

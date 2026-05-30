@@ -101,7 +101,11 @@ func (m Model) listPaneWidth() int {
 	if !m.twoPane() {
 		return m.contentWidth()
 	}
-	w := m.contentWidth() * 4 / 10
+	// 1/3 für die Liste statt vormals 4/10 (UX-Review L3): die Vorschau
+	// ist der eigentliche Lese-Inhalt und profitiert von Breite, während
+	// die Liste mit Titeln + Badges schmaler auskommt. min 30 hält die
+	// Titel nahe der Schwelle lesbar, ohne die Preview zu strangulieren.
+	w := m.contentWidth() / 3
 	if w < 30 {
 		w = 30
 	}

@@ -47,6 +47,7 @@ var (
 	statusValueStyle     lipgloss.Style
 	panelStyle           lipgloss.Style
 	panelTitleStyle      lipgloss.Style
+	panelTitleFocusStyle lipgloss.Style
 	footerStyle          lipgloss.Style
 	footerKeyStyle       lipgloss.Style
 )
@@ -124,9 +125,14 @@ func init() { rebuildStyles() }
 // dann von den Render-Sites direkt konsumiert (kein Per-Render-Build).
 func rebuildStyles() {
 	// Layout / chrome.
+	// Der äußere App-Frame ist tragende Chrome, kein interaktiver Akzent —
+	// BorderStrong (load-bearing) statt sem.Accent. So bleibt Accent für
+	// Cursor/Badges/Counts reserviert und konkurriert nicht mit dem Rahmen
+	// (UX-Review H5: Border-Gewicht). Innen-Pane trägt BorderSubtle, eine
+	// Stufe darunter — klare Hierarchie außen→innen.
 	frameStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(sem.Accent).
+		BorderForeground(sem.BorderStrong).
 		Padding(0, 1)
 	headlineStyle = lipgloss.NewStyle().
 		Foreground(sem.Accent).
@@ -147,9 +153,15 @@ func rebuildStyles() {
 		Foreground(pal.FgDim)
 	panelStyle = lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(pal.BgChip)
+		BorderForeground(sem.BorderSubtle)
 	panelTitleStyle = lipgloss.NewStyle().
 		Foreground(pal.FgMuted)
+	// Fokussierte Pane (die Liste ist im Zwei-Pane die einzige bediente
+	// Surface): Titel in Fg+Bold statt muted, damit die aktive Pane sich
+	// gegen die passiv-mute betitelte Vorschau abhebt (UX-Review L3).
+	panelTitleFocusStyle = lipgloss.NewStyle().
+		Foreground(pal.Fg).
+		Bold(true)
 	footerStyle = lipgloss.NewStyle().
 		Foreground(pal.FgMuted)
 	footerKeyStyle = lipgloss.NewStyle().

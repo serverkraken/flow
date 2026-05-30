@@ -8,11 +8,12 @@ package browse
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	flowhelp "github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/modal"
+	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
 // renderDeleteModal — Skill §Component vocabulary + §Visual hierarchy:
@@ -30,22 +31,22 @@ func (m Model) renderDeleteModal() string {
 	return modal.Render(body, modal.Opts{Kind: modal.KindDanger}, pal)
 }
 
-// renderHelpOverlay nutzt components/modal in der Default-Variante
-// (Accent-Border) — der Help-Inhalt ist informativ, nicht safe-/danger-
-// markiert. Der Inline-Title („Tastenbelegung") bleibt in body, weil
-// modal.Opts.Title unter dem Border sitzt und doppelt wäre.
+// renderHelpOverlay renders the standalone `?` overlay through the
+// canonical components/help.Render (titlebox + accent section titles +
+// fg-key/dim-desc rows), so it matches the sidekick's aggregated `?`
+// overlay instead of the old bubbles/help flat-column look. Sections
+// come from helpSections() with the screen-identifying "Notizen · "
+// prefix stripped — inside this overlay the kompendium context is
+// implicit. A trailing all-dim hint strip (footerStyle, the package-local
+// FgMuted style — kompendium-frontend darf statusbar nicht importieren,
+// depguard) mirrors the sidekick footer.
 func (m Model) renderHelpOverlay() string {
-	title := modalQuestionStyle.Render("Tastenbelegung")
-	hForm := help.New()
-	hForm.ShowAll = true
-	hForm.SetWidth(70)
-	hForm.Styles = m.helpUI.Styles
-	body := hForm.View(m.keys)
-	hint := modalHintStyle.Render("? / Esc → schließen")
-	return modal.Render(
-		lipgloss.JoinVertical(lipgloss.Left, title, "", body, "", hint),
-		modal.Opts{}, pal,
-	)
+	sections := helpSections()
+	for i := range sections {
+		sections[i].Title = strings.TrimPrefix(sections[i].Title, "Notizen · ")
+	}
+	box := flowhelp.Render("Tastenbelegung", sections, theme.KeyHintWidth, 70, pal)
+	return box + "\n" + footerStyle.Render("? / Esc → schließen")
 }
 
 // frameContent wraps content in the rounded outer frame and explicitly
