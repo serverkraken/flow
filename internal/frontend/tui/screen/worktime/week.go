@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
+	uistrings "github.com/serverkraken/flow/internal/frontend/tui/components/strings"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
 
@@ -479,7 +480,12 @@ func (w woche) totals(now time.Time) (total, target time.Duration) {
 // den Screen-Footer; `:` öffnet das Aktions-Menü und ist auf jeder
 // Worktime-Surface gleich.
 func (w woche) footerHints() []string {
-	return []string{"j/k → bewegen", "g/G → erste/letzte", ": → aktionen"}
+	return []string{
+		"j/k → bewegen",
+		"g/G → erste/letzte",
+		": → aktionen",
+		uistrings.HintHelp,
+	}
 }
 
 // — small helpers (private to package) —

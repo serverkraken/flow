@@ -117,6 +117,29 @@ func TestRenderTotals_PercentUsesStrongNotAccent(t *testing.T) {
 	}
 }
 
+// TestFooterHints_ContainsHelp pinnt fest, dass der Woche-Footer den
+// ?-Hilfe-Hint führt — Konsistenz mit Heute/Palette/Projects, die alle
+// `? → Hilfe` als vierten Cap-Hint im permanenten Footer haben. Vor dem
+// Fix lieferte footerHints() nur 3 Einträge (j/k, g/G, :) und der User
+// musste aus muscle-memory `?` drücken ohne visuellen Hinweis.
+func TestFooterHints_ContainsHelp(t *testing.T) {
+	w := newWoche(theme.TokyonightNight, Deps{
+		DayOffStore: testutil.NewFakeDayOffStore(),
+		Clock:       &testutil.FixedClock{T: time.Now()},
+	})
+	hints := w.footerHints()
+	found := false
+	for _, h := range hints {
+		if strings.Contains(h, "? → Hilfe") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("footerHints: expected ?-help hint, got %v", hints)
+	}
+}
+
 // TestRenderPace_FreeDayUsesFilledGlyphPerKindColor pinnt fest, dass die
 // Pace-Strip für jeden Free-Day-Kind den ●-Glyph (glyphs.Filled) emittiert
 // und die Foreground-Farbe per Kind via Sem.Schedule/Highlight/Notice
