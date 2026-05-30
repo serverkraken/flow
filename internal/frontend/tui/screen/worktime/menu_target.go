@@ -149,7 +149,10 @@ func (tp targetPicker) view(parentLabel string, pal theme.Palette, inner int) st
 		"",
 		picker.SectionHeader("output-ziel", inner, pal),
 	}
-	hkStyle := lipgloss.NewStyle().Foreground(pal.Sem().Accent).Bold(true)
+	// Underline zusätzlich zum Accent: unter NO_COLOR fällt der Foreground
+	// weg und der Hotkey-Buchstabe wäre nur noch bold — Underline hält das
+	// c/s/f auch ohne Farbe als Hotkey erkennbar (A11y: nie nur Farbe).
+	hkStyle := lipgloss.NewStyle().Foreground(pal.Sem().Accent).Bold(true).Underline(true)
 	for i := 0; i < targetCount; i++ {
 		t := outputTarget(i)
 		hint := t.hint(tp.viewer)

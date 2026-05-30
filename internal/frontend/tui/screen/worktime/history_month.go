@@ -105,7 +105,10 @@ func (h history) renderMonthCursorStatus(first time.Time, byKey map[string]domai
 			status += " " + dayOff.Label
 		}
 	}
-	rendered := lipgloss.NewStyle().Foreground(h.pal.Sem().Accent).Render(status)
+	// Focused-day readout: Strong (Fg + bold), not Accent — the calendar
+	// grid already marks the cursor cell, so the Accent here was redundant
+	// emphasis (UX-Review M7 Accent-overuse). Mirrors renderHeatmapStatus.
+	rendered := theme.Strong(status, h.pal)
 	if chip := h.attachedChip(cursorDate); chip != "" {
 		rendered += chip
 	}
@@ -140,7 +143,7 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 
 	sem := h.pal.Sem()
 	glyph := glyphs.BulletDot
-	var color color.Color = h.pal.BgCode
+	var color color.Color = sem.Border
 	switch {
 	case hasRec && rec.Target > 0:
 		pct := float64(rec.Total) / float64(rec.Target)
@@ -158,12 +161,21 @@ func (h history) renderMonthCell(day time.Time, inMonth bool, byKey map[string]d
 		case pct >= 0.5:
 			glyph, color = glyphs.HeatMedium, sem.Warning
 		case pct > 0:
-			glyph, color = glyphs.HeatLight, sem.Warning
+			// <50% trägt Notice (Orange), nicht Warning — identische Skala
+			// wie history_heatmap.heatScale (UX-Review H5: Gradient kollabierte
+			// sonst auf zwei gleichfarbige Buckets).
+			glyph, color = glyphs.HeatLight, sem.Notice
 		}
 	case isOff:
 		// Spec 2026-05-13: ● für day-off (cross-surface mit tmux + week).
 		glyph = glyphs.Filled
 		color = theme.KindColor(h.pal, dayOff.Kind)
+	case hasRec && rec.Total > 0:
+		// Erfasste Zeit ohne Tagesziel (z.B. target_sat=0) fiel sonst auf
+		// die leere Wochenend-/Default-Zelle und versteckte die Arbeit.
+		// Info-Punkt (Cyan ●) zeigt „hier wurde gearbeitet" ohne eine
+		// Ziel-Erfüllung zu behaupten — farblich getrennt von den Day-Off-●.
+		glyph, color = glyphs.Filled, sem.Info
 	case isWeekend:
 		glyph, color = " ", h.pal.FgMuted
 	}

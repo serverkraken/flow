@@ -86,17 +86,30 @@ func (h heute) renderDateLine(now time.Time) string {
 		domain.WeekdayShortDe(now.Weekday()), now.Format("02.01.2006")), h.pal)
 }
 
+// pctOfTarget returns total as an integer percentage of target, clamped
+// to [0,100]. target<=0 → 0 (no goal set). Shared by renderHeadline and
+// renderProgressBar so the headline "Ziel N%", the bar fill, and the
+// percentage label can never disagree — they previously duplicated this
+// calc, and a Total() change on a frame boundary could desync them.
+func pctOfTarget(total, target time.Duration) int {
+	if target <= 0 {
+		return 0
+	}
+	pct := int(total * 100 / target)
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
+}
+
 func (h heute) renderHeadline(now time.Time) string {
 	total := h.day.Total(now)
 	target := h.day.Target
-	pct := 0
-	if target > 0 {
-		pct = int(total * 100 / target)
-		if pct > 100 {
-			pct = 100
-		}
-	}
-	statusGlyph, statusLabel, statusColor := todayStatusBadge(h.pal, h.day.IsRunning(), target == 0 || total >= target)
+	// achieved nur mit echtem Ziel — sonst meldete ein target==0-Tag
+	// „Ziel erreicht ✓" selbst bei 0:00 erfasst (target==0 erfüllte
+	// total>=target immer). Ohne Ziel fällt der Badge auf den Timer-Status
+	// (läuft / pausiert) zurück, wie jeder andere unfertige Idle-Tag.
+	statusGlyph, statusLabel, statusColor := todayStatusBadge(h.pal, h.day.IsRunning(), target > 0 && total >= target)
 
 	totalText := formatDur(total)
 	if h.day.IsRunning() && h.day.Active != nil && now.Sub(*h.day.Active) < time.Minute {
@@ -109,7 +122,11 @@ func (h heute) renderHeadline(now time.Time) string {
 	totalStr := fgStyle.Foreground(totalThresholdColor(h.pal, total, target, h.day.IsRunning())).Render(totalText)
 	// Status-Badge bold (canonical Pill-Behavior).
 	statusStr := boldStyle.Foreground(statusColor).Render(statusGlyph + " " + statusLabel)
-	pctStr := theme.Dim(fmt.Sprintf("Ziel %d%%", pct), h.pal)
+	// Ohne Tagesziel ist „Ziel N%" bedeutungslos — würde „Ziel 0%" zeigen.
+	pctStr := theme.Dim("kein Ziel", h.pal)
+	if target > 0 {
+		pctStr = theme.Dim(fmt.Sprintf("Ziel %d%%", pctOfTarget(total, target)), h.pal)
+	}
 	// Skill §Spacing: discrete scale {0,1,2,4} — 2-Cell-Indent links, 4-Cell-Gaps
 	// zwischen den drei Status-Cells.
 	return "  " + totalStr + "    " + statusStr + "    " + pctStr
@@ -123,13 +140,7 @@ func (h heute) renderHeadline(now time.Time) string {
 func (h heute) renderProgressBar(inner int, now time.Time) string {
 	target := h.day.Target
 	total := h.day.Total(now)
-	pct := 0
-	if target > 0 {
-		pct = int(total * 100 / target)
-		if pct > 100 {
-			pct = 100
-		}
-	}
+	pct := pctOfTarget(total, target)
 	barCells := inner - 4
 	if barCells < 4 {
 		barCells = 4
@@ -146,6 +157,11 @@ func (h heute) renderProgressBar(inner int, now time.Time) string {
 // renderProgressBar-Comment).
 func (h heute) renderSummary(inner int, now time.Time) string {
 	target := h.day.Target
+	if target <= 0 {
+		// Ohne Tagesziel sind „Ziel/noch/ETA" alle bedeutungslos (zeigten
+		// „Ziel 0:00  ·  noch 0:00"); ein Platzhalter liest ehrlicher.
+		return renderFooterHints(h.pal, []string{"kein Tagesziel"}, inner)
+	}
 	total := h.day.Total(now)
 	remaining := target - total
 	if remaining < 0 {
