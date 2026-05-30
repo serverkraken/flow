@@ -202,6 +202,7 @@ linters:
             # package from F4).
             - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
+            - github.com/serverkraken/flow/internal/frontend/tui/components/statusbar
             - github.com/serverkraken/flow/internal/frontend/tui/components/strings
             - github.com/serverkraken/flow/internal/ports
             - charm.land/bubbletea/v2

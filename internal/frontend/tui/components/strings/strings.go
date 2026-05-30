@@ -15,11 +15,11 @@ import "charm.land/lipgloss/v2"
 // Hint strings — short, single-line, comma-separated keys. Used in
 // status-bar Hints components and footer rows.
 const (
-	HintCancel  = "Esc → abbrechen"
-	HintFilter  = "/ → suchen"
-	HintHelp    = "? → Hilfe"
-	HintQuit    = "q → schließen"
-	HintNav     = "j/k → navigieren  ·  Enter → wählen"
+	HintCancel = "Esc → abbrechen"
+	HintFilter = "/ → suchen"
+	HintHelp   = "? → Hilfe"
+	HintQuit   = "q → schließen"
+	HintNav    = "j/k → navigieren  ·  Enter → wählen"
 	// HintConfirm: brackets um die default-Action `[y/Enter]` — A11y-6
 	// non-color cue. Mirrors confirm.Model.View() one-to-one so a y/n
 	// dialog and a hint-strip never disagree.
