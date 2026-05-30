@@ -63,6 +63,62 @@ func Row(selected bool, label, hint string, width int, p theme.Palette) string {
 	return bar + " " + labelStyle.Render(label) + strings.Repeat(" ", gap) + hintStyle.Render(hint)
 }
 
+// RowWithMatchOpts holds options for RowWithMatch — adds Match (matched
+// rune indices in Label) on top of the Row contract. A struct, not
+// positional args, because the param list would cluster: Selected /
+// Label / Hint / Width / Match is exactly the threshold where a named
+// struct reads better at the call site.
+type RowWithMatchOpts struct {
+	Selected bool
+	Label    string
+	Hint     string
+	Width    int
+	Match    []int // rune indices in Label to render in match style
+}
+
+// RowWithMatch renders a picker row identical to Row, but applies a
+// per-rune match emphasis (Sem.Accent + Bold) on the rune indices in
+// Match. When Match is empty, the output is byte-identical to
+// Row(opts.Selected, opts.Label, opts.Hint, opts.Width, p).
+//
+// Plain Row applies a single foreground style across the whole label,
+// which would overwrite any inline accent codes — that's why palette
+// and projects each carried their own per-rune implementation before
+// this component existed.
+func RowWithMatch(opts RowWithMatchOpts, p theme.Palette) string {
+	if len(opts.Match) == 0 {
+		return Row(opts.Selected, opts.Label, opts.Hint, opts.Width, p)
+	}
+	sem := p.Sem()
+	bar := " "
+	labelStyle := lipgloss.NewStyle().Foreground(p.Fg)
+	matchStyle := lipgloss.NewStyle().Foreground(sem.Accent).Bold(true)
+	if opts.Selected {
+		bar = lipgloss.NewStyle().Foreground(sem.Accent).Render(AccentBarRune)
+		labelStyle = labelStyle.Bold(true).Underline(true)
+		matchStyle = matchStyle.Underline(true)
+	}
+	hi := make(map[int]bool, len(opts.Match))
+	for _, idx := range opts.Match {
+		hi[idx] = true
+	}
+	var b strings.Builder
+	for i, r := range []rune(opts.Label) {
+		if hi[i] {
+			b.WriteString(matchStyle.Render(string(r)))
+		} else {
+			b.WriteString(labelStyle.Render(string(r)))
+		}
+	}
+	rendered := b.String()
+	hintStyle := lipgloss.NewStyle().Foreground(p.FgMuted)
+	gap := opts.Width - 1 - lipgloss.Width(opts.Label) - lipgloss.Width(opts.Hint) - 1
+	if gap < 1 {
+		gap = 1
+	}
+	return bar + " " + rendered + strings.Repeat(" ", gap) + hintStyle.Render(opts.Hint)
+}
+
 // SectionHeader renders an uppercased section name with trailing dash fill.
 // width is the available inner width.
 func SectionHeader(name string, width int, p theme.Palette) string {
