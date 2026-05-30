@@ -11,6 +11,48 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
+// TestRenderDayRow_TodayRunningUsesActive_AchievedUsesSuccess pins the
+// colour contract of the Woche day-row trailer: the running marker
+// (▶, today + Active != nil) must paint in Sem.Active (Cyan), the
+// achievement glyph (✓, total >= target) in Sem.Success (Green).
+// Skill §Color semantics — running/live = Active, achievement =
+// Success; the two must not collide in green. Mirror of the Heute
+// fix in today_render.go (commit 8c9f118).
+func TestRenderDayRow_TodayRunningUsesActive_AchievedUsesSuccess(t *testing.T) {
+	pal := theme.TokyonightNight
+	now := mustTime("2026-05-30T10:00:00+02:00")
+	w := newWoche(pal, Deps{
+		DayOffStore: testutil.NewFakeDayOffStore(),
+		Clock:       &testutil.FixedClock{T: now},
+	})
+
+	// Today + running + below target → Active (Cyan), no Success.
+	dRun := domain.WeekDay{
+		Date:    now,
+		IsToday: true,
+		Active:  &now,
+		Logged:  1 * time.Hour,
+		Target:  8 * time.Hour,
+	}
+	rowRun := w.renderDayRow(0, dRun, 12, now)
+	sem := pal.Sem()
+	if !containsFgSGR(rowRun, sem.Active) {
+		t.Errorf("today+running: expected Sem.Active (%v) fg SGR in row, got %q", sem.Active, rowRun)
+	}
+
+	// Today + achieved → Success (Green) for the Done glyph.
+	dDone := domain.WeekDay{
+		Date:    now,
+		IsToday: true,
+		Logged:  9 * time.Hour,
+		Target:  8 * time.Hour,
+	}
+	rowDone := w.renderDayRow(0, dDone, 12, now)
+	if !containsFgSGR(rowDone, sem.Success) {
+		t.Errorf("today+achieved: expected Sem.Success (%v) fg SGR in row, got %q", sem.Success, rowDone)
+	}
+}
+
 // Under lipgloss v2 Style.Render always emits TrueColor SGR
 // sequences regardless of TTY detection — no TestMain profile
 // override needed.

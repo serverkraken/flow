@@ -307,7 +307,7 @@ func (w woche) renderDayRow(idx int, d domain.WeekDay, barW int, now time.Time) 
 		durStr := w.styles.dur.Bold(total >= d.Target).Render(formatDur(total))
 		extra := ""
 		if d.IsToday && d.Active != nil {
-			extra += "  " + theme.Success(glyphs.Active, w.pal)
+			extra += "  " + theme.Active(glyphs.Active, w.pal)
 		}
 		if total >= d.Target {
 			extra += "  " + theme.Success(glyphs.Done, w.pal)
