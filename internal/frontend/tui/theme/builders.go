@@ -1,6 +1,10 @@
 package theme
 
-import "charm.land/lipgloss/v2"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Style builders — pure (string, Palette) → string transforms. They
 // replace the bulk of inline lipgloss.NewStyle() chains in screens and
@@ -90,4 +94,16 @@ func Err(s string, p Palette) string {
 // "scrollen mit ↑/↓".
 func Info(s string, p Palette) string {
 	return lipgloss.NewStyle().Foreground(p.Cyan).Render(s)
+}
+
+// Gap returns a string of n spaces. Use with theme.PadXS / PadSM / PadMD
+// instead of inline `"  "` string literals — makes the Skill §Spacing
+// "discrete scale, never free integer" rule mechanically enforceable
+// and a grep for raw space-strings in render code becomes meaningful.
+// n ≤ 0 returns "" so a Gap(maxWidth - usedWidth) can collapse safely.
+func Gap(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat(" ", n)
 }

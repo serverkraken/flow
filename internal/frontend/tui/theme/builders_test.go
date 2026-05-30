@@ -68,6 +68,27 @@ func TestActive_RendersCyanBold(t *testing.T) {
 	}
 }
 
+func TestGap_ReturnsRepeatedSpaces(t *testing.T) {
+	if got := theme.Gap(theme.PadXS); got != " " {
+		t.Errorf("Gap(PadXS=1) = %q, want %q", got, " ")
+	}
+	if got := theme.Gap(theme.PadSM); got != "  " {
+		t.Errorf("Gap(PadSM=2) = %q, want %q", got, "  ")
+	}
+	if got := theme.Gap(theme.PadMD); got != "   " {
+		t.Errorf("Gap(PadMD=3) = %q, want %q", got, "   ")
+	}
+}
+
+func TestGap_ZeroAndNegative_ReturnEmpty(t *testing.T) {
+	if theme.Gap(0) != "" {
+		t.Error("Gap(0) should return empty")
+	}
+	if theme.Gap(-1) != "" {
+		t.Error("Gap(-1) should return empty")
+	}
+}
+
 // containsForeground checks whether out contains the truecolor
 // foreground SGR for c (lipgloss v2 emits `38;2;R;G;B`). The
 // hex-string form (`#rrggbb`) is what %v prints but does NOT appear
