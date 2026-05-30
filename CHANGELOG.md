@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.3](https://github.com/serverkraken/flow/compare/v1.4.2...v1.4.3) (2026-05-30)
+
+
+### Bug Fixes
+
+* **tui:** design-review follow-ups (progress bar, picker chrome, all-dim footer) ([#38](https://github.com/serverkraken/flow/issues/38)) ([91c7772](https://github.com/serverkraken/flow/commit/91c7772463f8fc3d26f4e62667d374f35d16e0e7))
+* **tui:** resolve all 16 UI/UX design-review findings ([#40](https://github.com/serverkraken/flow/issues/40)) ([5e0cbb6](https://github.com/serverkraken/flow/commit/5e0cbb622b8f9a330b83234ef62e11e7c83b8244))
+
 ## [1.4.2](https://github.com/serverkraken/flow/compare/v1.4.1...v1.4.2) (2026-05-29)
 
 
