@@ -98,12 +98,15 @@ func (m Model) renderRow(idx int, e ports.NoteEntry, rowWidth int) string {
 }
 
 // rowStripeAndCaret returns the two two-cell prefix columns at the row's
-// left edge: a vertical stripe and a cursor caret. Both stay constant
-// width so excerpt + tag lines hang under the title cleanly, and the
-// test's `▶`-on-the-line check still holds.
+// left edge: a vertical stripe in Accent + bold (selected) or two blanks
+// (unselected). The second column previously carried a duplicate ▶ caret
+// painted in another Accent — same row had two competing accents and
+// ▶ semantically conflicted with the row's own running-session glyphs.
+// Now: bar carries the selection, second column carries blank space —
+// width and excerpt-hang behaviour unchanged.
 func rowStripeAndCaret(selected bool) (string, string) {
 	if selected {
-		return cursorStripeStyle.Render(glyphs.AccentBar + " "), cursorStyle.Render(glyphs.Active + " ")
+		return cursorStripeStyle.Render(glyphs.AccentBar + " "), "  "
 	}
 	return "  ", "  "
 }

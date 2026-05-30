@@ -94,7 +94,7 @@ func TestBrowse_CursorClampedAtEdges(t *testing.T) {
 	for range 10 {
 		model, _ = model.Update(key("j"))
 	}
-	if !strings.Contains(model.View().Content, "▶") {
+	if !strings.Contains(model.View().Content, "▎") {
 		t.Errorf("cursor disappeared after edge navigation:\n%s", model.View().Content)
 	}
 }
@@ -753,8 +753,11 @@ func initialised(m browse.Model) tea.Model {
 }
 
 func cursorOnLineWith(view, want string) bool {
+	// Selection marker is glyphs.AccentBar (▎); see render_row.go
+	// rowStripeAndCaret. ▶ used to be a duplicate caret next to the
+	// stripe — now removed (Skill §Glyph whitelist: ▶ = "running").
 	for _, line := range strings.Split(view, "\n") {
-		if strings.Contains(line, "▶") && strings.Contains(line, want) {
+		if strings.Contains(line, "▎") && strings.Contains(line, want) {
 			return true
 		}
 	}
