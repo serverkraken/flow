@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  dex:
+    image: ghcr.io/dexidp/dex:v2.41.1
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex-config.yaml:/etc/dex/config.yaml:Z
+    ports:
+      - "5556:5556"
+
+  flow-server:
+    build:
+      context: ../..
+      dockerfile: deploy/podman/Dockerfile.server
+    env_file: .env
+    depends_on:
+      - dex
+    ports:
+      - "8080:8080"

@@ -1,0 +1,15 @@
+# Multi-stage: build with full Go toolchain, run on distroless.
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+    -o /out/flow-server ./cmd/flow-server
+
+FROM gcr.io/distroless/static:nonroot
+USER nonroot:nonroot
+COPY --from=build /out/flow-server /flow-server
+EXPOSE 8080
+ENTRYPOINT ["/flow-server"]
