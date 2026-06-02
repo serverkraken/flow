@@ -4,5 +4,9 @@ package migrations
 
 import "embed"
 
+// FS contains all SQL migration files used by sqliteclient.Open at startup.
+// The embed directive bundles every *.sql in this directory into the binary
+// so deployment doesn't need to ship the migration files separately.
+//
 //go:embed *.sql
 var FS embed.FS
