@@ -19,7 +19,8 @@ staticClients:
 enablePasswordDB: true
 staticPasswords:
   - email: "alice@example.com"
-    # bcrypt hash of "password"
-    hash: "$2a$10$2b2cu2a5yhHRk6PEpvb8d.O4WXuOdQ8KW58SOOJq.fxvKPVqMjyy."
+    # bcrypt hash of "password" (cost 10). Regenerate with:
+    #   htpasswd -nbBC 10 "" "password" | cut -d: -f2 | sed 's/^\$2y\$/\$2a\$/'
+    hash: "$2a$10$bhvG9HCDGplxsd2kzgbrMOXIyEqe7hbEUoXXbXp1ZALCXOFMABl3."
     username: "alice"
     userID: "alice-static-uid"

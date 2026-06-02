@@ -37,7 +37,8 @@ COVER_THRESHOLD := 89
 COVER_PKG       := ./internal/...
 
 .PHONY: build install test cover lint fmt clean ci \
-        build-server test-server test-integration
+        build-server test-server test-integration \
+        dex-up dex-down dex-logs run-server
 
 build:
 	@mkdir -p bin
@@ -84,3 +85,22 @@ test-integration:
 	        ./internal/adapter/httpserver/... \
 	        ./internal/adapter/oidcserver/... \
 	        ./internal/testutil/oidctest/...
+
+# Local dev convenience: dex stack via podman-compose. dex serves on
+# localhost:5556; static credentials are alice@example.com / password (see
+# deploy/podman/dex-config.yaml).
+dex-up:
+	cd deploy/podman && podman-compose up -d dex
+
+dex-down:
+	cd deploy/podman && podman-compose down dex
+
+dex-logs:
+	cd deploy/podman && podman-compose logs -f dex
+
+# Local-dev launcher that loads sensible FLOW_* defaults matching the dex
+# stack from `make dex-up`. Cookie keys persist in .flow-cookie-keys
+# (gitignored) so sessions stay valid across restarts. Override any var by
+# exporting before invocation.
+run-server: build-server
+	./scripts/run-flow-server.sh
