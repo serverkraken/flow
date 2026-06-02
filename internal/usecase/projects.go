@@ -29,6 +29,11 @@ func (p *Projects) ListActive(userID string) ([]domain.Project, error) {
 	return p.projects.ListActive(userID)
 }
 
+// ListAll returns all Projects including archived ones, used by `flow projects list --archived`.
+func (p *Projects) ListAll(userID string) ([]domain.Project, error) {
+	return p.projects.ListAll(userID)
+}
+
 // Create creates a new Project with auto-generated slug.
 //
 // Slug rules: lowercase ASCII, spaces → "-", non-[a-z0-9-] stripped,

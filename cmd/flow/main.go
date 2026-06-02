@@ -23,6 +23,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
 	"github.com/serverkraken/flow/internal/adapter/output"
+	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
 	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
@@ -63,6 +64,7 @@ type Paths struct {
 	SourceCodeRoot     string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
 	KompendiumNotebook string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
 	KompendiumIndex    string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
+	CacheDB            string // $FLOW_CACHE_DB or $XDG_DATA_HOME/flow/cache.db — worktime projects / sessions sqlite store (Task 13+).
 }
 
 // Env bundles configuration values resolved from environment variables.
@@ -88,6 +90,7 @@ type Paths struct {
 type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
+	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — local OIDC sub for EnsureBySub (default "local"; real OIDC: Task 23)
 }
 
 // Deps is the wired dependency graph. K4.B extends it with the
@@ -121,8 +124,40 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	linkStore := linkstsv.New(filepath.Join(p.TmuxDir, "worktime-links.tsv"))
 	outputTargets := output.New(p.Home, tmux)
 
+	// SQLite store for Worktime Projects (Task 13+). Path falls back to
+	// CacheDir/flow.db when CacheDB is not set (e.g. in tests that do not
+	// set CacheDB explicitly).
+	cacheDBPath := p.CacheDB
+	if cacheDBPath == "" {
+		cacheDBPath = filepath.Join(p.CacheDir, "flow.db")
+	}
+	if err := os.MkdirAll(filepath.Dir(cacheDBPath), 0o755); err != nil {
+		return Deps{}, nil, fmt.Errorf("flow cache db dir: %w", err)
+	}
+	cacheStore, err := sqliteclient.Open(cacheDBPath)
+	if err != nil {
+		return Deps{}, nil, fmt.Errorf("flow cache db: %w", err)
+	}
+
+	// Resolve the local user for CRUD operations.
+	// TODO(Task 23): replace with real OIDC resolution from the HTTP-server
+	// users-ensure middleware once auth is wired.
+	localSub := env.LocalUserSub
+	if localSub == "" {
+		localSub = "local"
+	}
+	cacheUsers := sqliteclient.NewUsers(cacheStore)
+	localUser, err := cacheUsers.EnsureBySub(localSub, "", "")
+	if err != nil {
+		_ = cacheStore.Close()
+		return Deps{}, nil, fmt.Errorf("flow local user: %w", err)
+	}
+	cacheProjects := sqliteclient.NewProjects(cacheStore)
+	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
+
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
+		_ = cacheStore.Close()
 		return Deps{}, nil, err
 	}
 
@@ -227,61 +262,70 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	}
 
 	return Deps{
-		Worktime: cli.WorktimeDeps{
-			Clock:          clock,
-			Tmux:           tmux,
-			SessionWriter:  sessionWriter,
-			StatusComposer: statusComposer,
-			Reporter:       reporter,
-			Stats:          stats,
-			DayOffWriter:   dayoffWriter,
-			DayOffStore:    dayoffStore,
-			Reader:         reader,
-			Screen:         worktimeScreen,
-		},
-		Sidekick: cli.SidekickDeps{
-			FlowState: flowState,
-			Cheatsheet: func(pal theme.Palette) tea.Model {
-				return cheatsheet.New(pal, cheatsheetReader, mdRenderer)
+			Worktime: cli.WorktimeDeps{
+				Clock:          clock,
+				Tmux:           tmux,
+				SessionWriter:  sessionWriter,
+				StatusComposer: statusComposer,
+				Reporter:       reporter,
+				Stats:          stats,
+				DayOffWriter:   dayoffWriter,
+				DayOffStore:    dayoffStore,
+				Reader:         reader,
+				Screen:         worktimeScreen,
 			},
-			Palette: func(pal theme.Palette) tea.Model {
-				return palette.New(pal, paletteReader, paletteWriter, tmux)
+			Sidekick: cli.SidekickDeps{
+				FlowState: flowState,
+				Cheatsheet: func(pal theme.Palette) tea.Model {
+					return cheatsheet.New(pal, cheatsheetReader, mdRenderer)
+				},
+				Palette: func(pal theme.Palette) tea.Model {
+					return palette.New(pal, paletteReader, paletteWriter, tmux)
+				},
+				Projects: func(pal theme.Palette) tea.Model {
+					return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
+				},
+				Worktime: worktimeScreen,
+				Notes: func(pal theme.Palette) tea.Model {
+					return buildNotesScreen(p, pal, kompDeps, currentRepo)
+				},
 			},
-			Projects: func(pal theme.Palette) tea.Model {
-				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
+			// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
+			// Sidekick-Tab — identische Render-Pipeline, identische Theme,
+			// keine Drift zwischen Popup und Tab.
+			Cheatsheet: cli.CheatsheetDeps{
+				Reader:   cheatsheetReader,
+				Renderer: mdRenderer,
 			},
-			Worktime: worktimeScreen,
-			Notes: func(pal theme.Palette) tea.Model {
-				return buildNotesScreen(p, pal, kompDeps, currentRepo)
+			// Standalone-Palette für `flow palette` — tmux-display-popup-
+			// Aufruf (CLAUDE-tmux-migration-plan.md). WithStandalone()
+			// schaltet die Dispatch-Semantik um (goto.sh → run-shell statt
+			// SwitchScreenMsg) und quittet nach erfolgreichem Dispatch.
+			Palette: cli.PaletteDeps{
+				Screen: func(pal theme.Palette) tea.Model {
+					return palette.New(pal, paletteReader, paletteWriter, tmux, palette.WithStandalone())
+				},
 			},
-		},
-		// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
-		// Sidekick-Tab — identische Render-Pipeline, identische Theme,
-		// keine Drift zwischen Popup und Tab.
-		Cheatsheet: cli.CheatsheetDeps{
-			Reader:   cheatsheetReader,
-			Renderer: mdRenderer,
-		},
-		// Standalone-Palette für `flow palette` — tmux-display-popup-
-		// Aufruf (CLAUDE-tmux-migration-plan.md). WithStandalone()
-		// schaltet die Dispatch-Semantik um (goto.sh → run-shell statt
-		// SwitchScreenMsg) und quittet nach erfolgreichem Dispatch.
-		Palette: cli.PaletteDeps{
-			Screen: func(pal theme.Palette) tea.Model {
-				return palette.New(pal, paletteReader, paletteWriter, tmux, palette.WithStandalone())
+			// Standalone-Projects für `flow projects`. tmux switch-client
+			// hängt den Client um, nach Erfolg quittet die TUI — identisch
+			// zum Sidekick-Verhalten, daher genügt die API-Symmetrie via
+			// projects.WithStandalone(). CRUD subcommands (list/create/rename/archive)
+			// are wired via the CRUD field; the Screen launcher is unchanged.
+			Projects: cli.ProjectsDeps{
+				Screen: func(pal theme.Palette) tea.Model {
+					return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projects.WithStandalone())
+				},
+				CRUD: &cli.ProjectsCRUDDeps{
+					Projects: projectsUC,
+					UserID:   localUser.ID,
+				},
+				ProjectStore: cacheProjects,
 			},
-		},
-		// Standalone-Projects für `flow projects`. tmux switch-client
-		// hängt den Client um, nach Erfolg quittet die TUI — identisch
-		// zum Sidekick-Verhalten, daher genügt die API-Symmetrie via
-		// projects.WithStandalone().
-		Projects: cli.ProjectsDeps{
-			Screen: func(pal theme.Palette) tea.Model {
-				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projects.WithStandalone())
-			},
-		},
-		Kompendium: kompDeps,
-	}, kompCleanup, nil
+			Kompendium: kompDeps,
+		}, func() {
+			kompCleanup()
+			_ = cacheStore.Close()
+		}, nil
 }
 
 // buildNotesScreen constructs the kompendium browse model wired into
@@ -447,15 +491,22 @@ func main() {
 	if notebookRoot == "" {
 		notebookRoot = filepath.Join(home, "notes")
 	}
-	indexDir := os.Getenv("XDG_DATA_HOME")
-	if indexDir == "" {
-		indexDir = filepath.Join(home, ".local", "share")
+	xdgDataHome := os.Getenv("XDG_DATA_HOME")
+	if xdgDataHome == "" {
+		xdgDataHome = filepath.Join(home, ".local", "share")
 	}
-	indexPath := filepath.Join(indexDir, "kompendium", "index.db")
+	indexPath := filepath.Join(xdgDataHome, "kompendium", "index.db")
+
+	// CacheDB: $FLOW_CACHE_DB → $XDG_DATA_HOME/flow/cache.db → ~/.local/share/flow/cache.db
+	cacheDB := os.Getenv("FLOW_CACHE_DB")
+	if cacheDB == "" {
+		cacheDB = filepath.Join(xdgDataHome, "flow", "cache.db")
+	}
 
 	env := Env{
 		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
+		LocalUserSub:        os.Getenv("FLOW_LOCAL_USER_SUB"),
 	}
 
 	deps, cleanup, err := buildDeps(Paths{
@@ -469,6 +520,7 @@ func main() {
 		SourceCodeRoot:     sourceRoot,
 		KompendiumNotebook: notebookRoot,
 		KompendiumIndex:    indexPath,
+		CacheDB:            cacheDB,
 	}, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
