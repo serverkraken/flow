@@ -476,6 +476,7 @@ func main() {
 	}
 	defer cleanup()
 
+	rootCmd.AddCommand(newLoginCmd())
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
