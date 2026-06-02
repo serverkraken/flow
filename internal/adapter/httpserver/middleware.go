@@ -49,3 +49,30 @@ func NewAuthMiddleware(sess ports.BrowserSessionStore, cookieName string) func(h
 		})
 	}
 }
+
+// NewBearerMiddleware enforces Authorization: Bearer <jwt>. Verifies via
+// AuthProvider, runs AccessChecker, attaches identity to context.
+func NewBearerMiddleware(prov ports.AuthProvider, access ports.AccessChecker) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := r.Header.Get("Authorization")
+			const prefix = "Bearer "
+			if len(h) <= len(prefix) || h[:len(prefix)] != prefix {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			token := h[len(prefix):]
+			id, err := prov.Verify(r.Context(), token)
+			if err != nil {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			if !access.Allow(id) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			sv := sessionValue{Sub: id.Sub, Email: id.Email, Name: id.Name}
+			next.ServeHTTP(w, r.WithContext(WithSub(r.Context(), sv)))
+		})
+	}
+}

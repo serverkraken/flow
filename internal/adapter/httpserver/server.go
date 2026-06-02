@@ -45,6 +45,12 @@ func NewWithAuth(d AuthDeps) *Server {
 		rr.Get("/api/v1/me", NewMeHandler().ServeHTTP)
 	})
 
+	// Bearer-protected variant for CLI/MCP. Same handler, different auth proof.
+	r.Group(func(rr chi.Router) {
+		rr.Use(NewBearerMiddleware(d.Provider, d.Access))
+		rr.Get("/api/v1/me-bearer", NewMeHandler().ServeHTTP)
+	})
+
 	return &Server{router: r, baseURL: d.BaseURL}
 }
 
