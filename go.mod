@@ -11,6 +11,7 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.15
 	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/go-chi/chi/v5 v5.2.1
+	github.com/gorilla/securecookie v1.1.2
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/spf13/cobra v1.10.0
 	github.com/testcontainers/testcontainers-go v0.32.0
