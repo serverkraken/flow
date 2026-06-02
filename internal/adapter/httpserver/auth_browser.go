@@ -3,6 +3,7 @@ package httpserver
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -134,9 +135,18 @@ func (ab *authBrowser) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ab.deps.Access.Allow(id) {
+		slog.Warn("auth: identity not in allowlist (403)",
+			slog.String("sub", id.Sub),
+			slog.String("email", id.Email),
+			slog.String("hint", "add this sub to FLOW_ALLOWED_SUBS to permit"),
+		)
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+	slog.Info("auth: login ok",
+		slog.String("sub", id.Sub),
+		slog.String("email", id.Email),
+	)
 
 	enc, err := ab.deps.Session.Encode(ab.deps.Cookie.Name, sessionValue{
 		Sub:       id.Sub,
