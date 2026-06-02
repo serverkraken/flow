@@ -15,7 +15,17 @@ COVER_OUT       := coverage.out
 # Aggregate sits around 90% with the `-coverpkg=./internal/...` measure
 # this target uses. Drop the threshold only with a justification in the
 # corresponding plan file.
-COVER_THRESHOLD := 90
+#
+# Phase-1 M1 (2026-06-02) drops the gate to 89% temporarily: the new auth
+# code (oidcserver.Provider, real keyringadapter.Keyring, testutil/oidctest)
+# is integration-tested only (//go:build integration against dex
+# testcontainers + real Authentik per docs/runbook/m1-smoke-test.md) — Unit
+# coverage on these surfaces would require either OS-keychain access in CI
+# or a Docker daemon, neither of which `make ci` provides. M2/M3
+# (sqliteclient + sync use cases) is expected to bring the aggregate back
+# above 90%; raise this threshold then. Plan reference:
+# docs/superpowers/plans/2026-06-02-flow-phase1-m1-server-skeleton-oidc.md
+COVER_THRESHOLD := 89
 
 # Coverage measurement targets the hexagonal layers under internal/.
 # cmd/flow is the composition root (wiring only, no business logic) and
