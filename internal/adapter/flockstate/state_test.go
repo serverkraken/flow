@@ -14,6 +14,7 @@ import (
 // Compile-time checks.
 var (
 	_ ports.LegacyActiveStore = (*flockstate.State)(nil)
+	_ ports.PauseStore        = (*flockstate.State)(nil)
 	_ ports.Lock              = (*flockstate.Lock)(nil)
 )
 

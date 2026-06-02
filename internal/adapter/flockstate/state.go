@@ -11,9 +11,10 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 )
 
-// State implements ports.LegacyActiveStore by storing one Unix epoch per
-// file: the active-session start (worktime.state) and the last-pause
-// stop time (worktime.pause). A missing file means "not set".
+// State implements ports.PauseStore (and ports.LegacyActiveStore via
+// legacy_active.go) by storing one Unix epoch per file: the active-session
+// start (worktime.state) and the last-pause stop time (worktime.pause). A
+// missing file means "not set".
 type State struct {
 	activePath string
 	pausePath  string
@@ -24,17 +25,6 @@ type State struct {
 func NewState(activePath, pausePath string) *State {
 	return &State{activePath: activePath, pausePath: pausePath}
 }
-
-// GetActive returns the active-session start time, or nil when no
-// session is running.
-func (s *State) GetActive() (*time.Time, error) { return readEpoch(s.activePath) }
-
-// SetActive writes the active-session start time.
-func (s *State) SetActive(t time.Time) error { return writeEpoch(s.activePath, t) }
-
-// ClearActive removes the active marker. Idempotent: removing a missing
-// file is not an error.
-func (s *State) ClearActive() error { return removeIfExists(s.activePath) }
 
 // GetPause returns the pause start time, or nil when not paused.
 func (s *State) GetPause() (*time.Time, error) { return readEpoch(s.pausePath) }
