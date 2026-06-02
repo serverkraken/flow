@@ -28,7 +28,13 @@ export FLOW_SERVER_BASE_URL="${FLOW_SERVER_BASE_URL:-http://localhost:8080}"
 export FLOW_OIDC_ISSUER="${FLOW_OIDC_ISSUER:-http://localhost:5556}"
 export FLOW_OIDC_CLIENT_ID="${FLOW_OIDC_CLIENT_ID:-flow-server}"
 export FLOW_OIDC_CLIENT_SECRET="${FLOW_OIDC_CLIENT_SECRET:-flow-server-secret}"
-export FLOW_ALLOWED_SUBS="${FLOW_ALLOWED_SUBS:-alice-static-uid}"
+# dex wrappt static-password userID + connector-id als protobuf und gibt
+# das base64url-encodet als JWT-sub aus — NICHT die rohe userID. Für die
+# dex-Config (userID "alice-static-uid", connector "local") ergibt das
+# folgenden festen Wert. Mit `make run-server` gegen die mitgelieferte
+# dex-Config funktioniert der Login darum direkt; bei Authentik
+# (Phase-2-Setup) ist sub die echte Authentik-UID, dann hier überschreiben.
+export FLOW_ALLOWED_SUBS="${FLOW_ALLOWED_SUBS:-ChBhbGljZS1zdGF0aWMtdWlkEgVsb2NhbA}"
 
 # Cookie keys persist across runs in .flow-cookie-keys (gitignored) so the
 # session cookie stays valid between restarts. Generate once if missing.
