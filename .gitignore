@@ -4,6 +4,12 @@ dist/
 coverage.out
 coverage.html
 
+# go build artifacts from smoke tests (the new server / mcp binaries land in
+# the worktree root; the legacy `flow` binary at repo root is intentionally
+# tracked).
+/flow-server
+/flow-mcp
+
 # macOS Finder noise.
 .DS_Store
 
