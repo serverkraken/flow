@@ -6,7 +6,9 @@ import (
 )
 
 func TestUnit_LoadConfig_Defaults_WhenEnvUnset(t *testing.T) {
-	// Truly unset all FLOW_ env vars so defaults kick in.
+	// Set all FLOW_ env vars to empty — LoadConfig treats empty == unset, so
+	// defaults kick in. (testing.T has no Unsetenv; t.Setenv("X","") is the
+	// closest pattern, and it matches LoadConfig's semantics.)
 	envs := []string{
 		"FLOW_SERVER_ADDR", "FLOW_SERVER_BASE_URL",
 		"FLOW_OIDC_ISSUER", "FLOW_OIDC_CLIENT_ID", "FLOW_OIDC_CLIENT_SECRET",
