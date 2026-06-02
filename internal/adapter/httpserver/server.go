@@ -39,6 +39,12 @@ func NewWithAuth(d AuthDeps) *Server {
 	r.Get("/auth/callback", ab.handleCallback)
 	r.Get("/logout", ab.handleLogout)
 
+	// /api/v1/me requires a valid session cookie.
+	r.Group(func(rr chi.Router) {
+		rr.Use(NewAuthMiddleware(d.Session, d.Cookie.Name))
+		rr.Get("/api/v1/me", NewMeHandler().ServeHTTP)
+	})
+
 	return &Server{router: r, baseURL: d.BaseURL}
 }
 
