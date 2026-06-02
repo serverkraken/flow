@@ -10,6 +10,7 @@ staticClients:
   - id: flow-server
     redirectURIs:
       - 'http://localhost:8080/auth/callback'
+      - 'DEX_REDIRECT_URI_PLACEHOLDER'
     name: 'Flow Server'
     secret: flow-server-secret
   - id: flow-cli

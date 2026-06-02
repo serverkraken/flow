@@ -38,10 +38,29 @@ type StaticUser struct {
 	Sub      string
 }
 
+// Option is a functional option for StartDex.
+type Option func(*options)
+
+type options struct {
+	extraRedirectURI string
+}
+
+// WithRedirectURI registers an additional redirect URI in the dex static
+// client config. Use this in integration tests where the httptest server
+// listens on a random port.
+func WithRedirectURI(uri string) Option {
+	return func(o *options) { o.extraRedirectURI = uri }
+}
+
 // StartDex boots a dex container and returns an Instance. Cleanup is
 // registered with t.Cleanup. Requires Docker (or Podman with Docker socket).
-func StartDex(t *testing.T) *Instance {
+func StartDex(t *testing.T, opts ...Option) *Instance {
 	t.Helper()
+
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
 
 	// Find a free port on the host so we can wire the dex issuer URL before
 	// starting the container (Approach C — no chicken-and-egg with MappedPort).
@@ -55,6 +74,12 @@ func StartDex(t *testing.T) *Instance {
 		"DEX_ISSUER_PLACEHOLDER",
 		fmt.Sprintf("localhost:%d", hostPort),
 	)
+	if o.extraRedirectURI != "" {
+		configured = strings.ReplaceAll(configured, "DEX_REDIRECT_URI_PLACEHOLDER", o.extraRedirectURI)
+	} else {
+		// Remove the placeholder line entirely when no extra URI is needed.
+		configured = strings.ReplaceAll(configured, "\n      - 'DEX_REDIRECT_URI_PLACEHOLDER'", "")
+	}
 
 	ctx := context.Background()
 
@@ -79,6 +104,14 @@ func StartDex(t *testing.T) *Instance {
 		Started:          true,
 	})
 	if err != nil {
+		// Skip rather than fail when Docker is simply not available. This lets
+		// the integration test run cleanly in CI without Docker and avoids a
+		// hard failure that obscures other test output.
+		if strings.Contains(err.Error(), "Cannot connect to the Docker daemon") ||
+			strings.Contains(err.Error(), "docker: command not found") ||
+			strings.Contains(err.Error(), "no such file or directory") {
+			t.Skipf("oidctest: Docker unavailable — skipping integration test (%v); run manual smoke test (docs/runbook/m1-smoke-test.md)", err)
+		}
 		t.Fatalf("oidctest: start dex container: %v", err)
 	}
 	t.Cleanup(func() {
