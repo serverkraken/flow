@@ -104,6 +104,7 @@ type Deps struct {
 	Cheatsheet cli.CheatsheetDeps
 	Palette    cli.PaletteDeps
 	Projects   cli.ProjectsDeps
+	Sync       cli.SyncDeps
 	Kompendium kompendiumcli.Deps
 }
 
@@ -157,6 +158,8 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	cacheSessions := sqliteclient.NewSessions(cacheStore)
 	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
 	cacheWriteQueue := sqliteclient.NewWriteQueue(cacheStore)
+	cacheSyncState := sqliteclient.NewSyncState(cacheStore)
+	syncUC := usecase.NewSyncStatus(cacheWriteQueue, cacheSyncState)
 
 	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
 	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
@@ -348,6 +351,9 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 					UserID:   localUser.ID,
 				},
 				ProjectStore: cacheProjects,
+			},
+			Sync: cli.SyncDeps{
+				Controller: syncUC,
 			},
 			Kompendium: kompDeps,
 		}, func() {
@@ -562,6 +568,7 @@ func main() {
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
 	rootCmd.AddCommand(cli.NewPaletteCmd(deps.Palette))
 	rootCmd.AddCommand(cli.NewProjectsCmd(deps.Projects))
+	rootCmd.AddCommand(cli.NewSyncCmd(deps.Sync))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 
