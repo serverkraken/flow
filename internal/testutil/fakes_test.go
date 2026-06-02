@@ -376,13 +376,13 @@ func TestFakeSessionStore_LoadAndFilter(t *testing.T) {
 	s := &FakeSessionStore{Sessions: []domain.Session{
 		{Tag: "a"}, {Tag: "b"}, {Tag: "a"},
 	}}
-	all, err := s.LoadAll()
+	all, err := s.LoadAllLegacy()
 	if err != nil || len(all) != 3 {
-		t.Errorf("LoadAll = (%+v, %v)", all, err)
+		t.Errorf("LoadAllLegacy = (%+v, %v)", all, err)
 	}
-	got, _ := s.LoadFiltered(func(x domain.Session) bool { return x.Tag == "a" })
+	got, _ := s.LoadFilteredLegacy(func(x domain.Session) bool { return x.Tag == "a" })
 	if len(got) != 2 {
-		t.Errorf("LoadFiltered tag=a should return 2, got %d", len(got))
+		t.Errorf("LoadFilteredLegacy tag=a should return 2, got %d", len(got))
 	}
 }
 
@@ -404,11 +404,11 @@ func TestFakeSessionStore_AppendRewriteAndErr(t *testing.T) {
 		t.Errorf("After Rewrite: %+v", s.Sessions)
 	}
 	s.Err = errInjected
-	if _, err := s.LoadAll(); err == nil {
-		t.Errorf("LoadAll with Err should fail")
+	if _, err := s.LoadAllLegacy(); err == nil {
+		t.Errorf("LoadAllLegacy with Err should fail")
 	}
-	if _, err := s.LoadFiltered(func(domain.Session) bool { return true }); err == nil {
-		t.Errorf("LoadFiltered with Err should fail")
+	if _, err := s.LoadFilteredLegacy(func(domain.Session) bool { return true }); err == nil {
+		t.Errorf("LoadFilteredLegacy with Err should fail")
 	}
 	if err := s.Append(domain.Session{}); err == nil {
 		t.Errorf("Append with Err should fail")

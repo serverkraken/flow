@@ -21,7 +21,7 @@ func (t *Tagger) Recent(n int) ([]string, error) {
 	if n <= 0 {
 		return nil, nil
 	}
-	sessions, err := t.Sessions.LoadAll()
+	sessions, err := t.Sessions.Load("")
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (t *Tagger) TopUsage(n int) ([]string, error) {
 	if n <= 0 {
 		return nil, nil
 	}
-	sessions, err := t.Sessions.LoadAll()
+	sessions, err := t.Sessions.Load("")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (t *Tagger) RecentTemplates(n int) ([]domain.SessionTemplate, error) {
 	if n <= 0 {
 		return nil, nil
 	}
-	sessions, err := t.Sessions.LoadAll()
+	sessions, err := t.Sessions.Load("")
 	if err != nil {
 		return nil, err
 	}

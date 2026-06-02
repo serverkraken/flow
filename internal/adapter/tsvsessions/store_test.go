@@ -42,7 +42,7 @@ func mkSession(t *testing.T, day, start, stop string, elapsedSec int, tag, note 
 
 func TestLoadAll_MissingFile(t *testing.T) {
 	s := tsvsessions.New(filepath.Join(t.TempDir(), "missing.log"))
-	got, err := s.LoadAll()
+	got, err := s.LoadAllLegacy()
 	if err != nil {
 		t.Fatalf("LoadAll on missing file: %v", err)
 	}
@@ -63,9 +63,9 @@ func TestLoadAll_MixedColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := tsvsessions.New(path).LoadAll()
+	got, err := tsvsessions.New(path).LoadAllLegacy()
 	if err != nil {
-		t.Fatalf("LoadAll: %v", err)
+		t.Fatalf("LoadAllLegacy: %v", err)
 	}
 	if len(got) != 3 {
 		t.Fatalf("want 3 sessions, got %d", len(got))
@@ -102,9 +102,9 @@ func TestLoadAll_SkipsInvalidLines(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := tsvsessions.New(path).LoadAll()
+	got, err := tsvsessions.New(path).LoadAllLegacy()
 	if err != nil {
-		t.Fatalf("LoadAll: %v", err)
+		t.Fatalf("LoadAllLegacy: %v", err)
 	}
 	if len(got) != 2 {
 		t.Fatalf("want 2 valid sessions, got %d: %+v", len(got), got)
@@ -123,11 +123,11 @@ func TestLoadFiltered(t *testing.T) {
 	}
 
 	target, _ := time.ParseInLocation("2006-01-02", "2026-04-29", time.Local)
-	got, err := tsvsessions.New(path).LoadFiltered(func(s domain.Session) bool {
+	got, err := tsvsessions.New(path).LoadFilteredLegacy(func(s domain.Session) bool {
 		return s.Date.Equal(target)
 	})
 	if err != nil {
-		t.Fatalf("LoadFiltered: %v", err)
+		t.Fatalf("LoadFilteredLegacy: %v", err)
 	}
 	if len(got) != 1 {
 		t.Fatalf("want 1 session, got %d", len(got))
@@ -184,9 +184,9 @@ func TestAppend_FormatVariants(t *testing.T) {
 			}
 
 			// Round-trip read must yield identical values.
-			got, err := store.LoadAll()
+			got, err := store.LoadAllLegacy()
 			if err != nil {
-				t.Fatalf("LoadAll: %v", err)
+				t.Fatalf("LoadAllLegacy: %v", err)
 			}
 			if len(got) != 1 {
 				t.Fatalf("want 1 session, got %d", len(got))
@@ -233,7 +233,7 @@ func TestRewrite(t *testing.T) {
 		t.Fatalf("Rewrite: %v", err)
 	}
 
-	got, err := store.LoadAll()
+	got, err := store.LoadAllLegacy()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +258,7 @@ func TestRewrite_Empty(t *testing.T) {
 		t.Fatalf("Rewrite(nil): %v", err)
 	}
 
-	got, err := store.LoadAll()
+	got, err := store.LoadAllLegacy()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +301,7 @@ func TestRewrite_Multiple(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rewrite: %v", err)
 	}
-	got, err := store.LoadAll()
+	got, err := store.LoadAllLegacy()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func pathUnderRegularFile(t *testing.T, leaf string) string {
 
 func TestLoadAll_OpenError(t *testing.T) {
 	store := tsvsessions.New(pathUnderRegularFile(t, "child"))
-	_, err := store.LoadAll()
+	_, err := store.LoadAllLegacy()
 	if err == nil {
 		t.Fatal("want error, got nil")
 	}

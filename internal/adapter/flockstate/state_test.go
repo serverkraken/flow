@@ -13,8 +13,8 @@ import (
 
 // Compile-time checks.
 var (
-	_ ports.ActiveSessionStore = (*flockstate.State)(nil)
-	_ ports.Lock               = (*flockstate.Lock)(nil)
+	_ ports.LegacyActiveStore = (*flockstate.State)(nil)
+	_ ports.Lock              = (*flockstate.Lock)(nil)
 )
 
 func newState(t *testing.T) (*flockstate.State, string) {

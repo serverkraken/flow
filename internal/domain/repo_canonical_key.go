@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
-	"path/filepath"
 	"strings"
 )
 
@@ -42,9 +41,13 @@ func RepoCanonicalKeyFromRemote(remote string) string {
 
 // RepoCanonicalKeyFromPath returns `path:<sha256-hex>` of the absolute
 // path. Used when a directory has no git remote — only the same absolute
-// path on the same device matches.
+// path on the same device matches. Trailing slashes are stripped so
+// "/foo/bar" and "/foo/bar/" hash identically.
 func RepoCanonicalKeyFromPath(absPath string) string {
-	clean := filepath.Clean(absPath)
+	clean := strings.TrimRight(absPath, "/")
+	if clean == "" {
+		clean = "/"
+	}
 	sum := sha256.Sum256([]byte(clean))
 	return "path:" + hex.EncodeToString(sum[:])
 }

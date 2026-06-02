@@ -28,15 +28,82 @@ func New(path string) *Store {
 	return &Store{path: path}
 }
 
-// LoadAll returns every session in the log, oldest first. A missing file
+// LoadAllLegacy returns every session in the log, oldest first. A missing file
 // returns (nil, nil) — first launch is normal, not a failure.
-func (s *Store) LoadAll() ([]domain.Session, error) {
+//
+// This is the legacy 0-arg form. New code should call Load(userID) instead.
+// Deleted in Task 19 when the tsvsessions adapter is removed entirely.
+func (s *Store) LoadAllLegacy() ([]domain.Session, error) {
 	return s.read(nil)
 }
 
-// LoadFiltered returns sessions for which keep returns true.
-func (s *Store) LoadFiltered(keep func(domain.Session) bool) ([]domain.Session, error) {
+// LoadFilteredLegacy returns sessions for which keep returns true.
+//
+// This is the legacy 1-arg form. New code should call LoadFiltered(userID, keep)
+// instead. Deleted in Task 19 when the tsvsessions adapter is removed entirely.
+func (s *Store) LoadFilteredLegacy(keep func(domain.Session) bool) ([]domain.Session, error) {
 	return s.read(keep)
+}
+
+// Load implements the new ports.SessionStore (Task 3 of M2-M3 Plan B).
+// This shim translates Upsert/Delete back to the legacy LoadAllLegacy/Rewrite
+// semantics. Adapter is deleted entirely in Task 19 of Plan B.
+func (s *Store) Load(_ string) ([]domain.Session, error) {
+	return s.LoadAllLegacy()
+}
+
+// LoadFiltered implements the new ports.SessionStore (Task 3 of M2-M3 Plan B).
+func (s *Store) LoadFiltered(_ string, keep func(domain.Session) bool) ([]domain.Session, error) {
+	all, err := s.LoadAllLegacy()
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, x := range all {
+		if keep(x) {
+			out = append(out, x)
+		}
+	}
+	return out, nil
+}
+
+// Upsert implements the new ports.SessionStore (Task 3 of M2-M3 Plan B).
+// Matches on (Date, Start) since legacy rows have no ID.
+func (s *Store) Upsert(in domain.Session) error {
+	cur, err := s.LoadAllLegacy()
+	if err != nil {
+		return err
+	}
+	idx := -1
+	for i := range cur {
+		if cur[i].Date.Equal(in.Date) && cur[i].Start.Equal(in.Start) {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		cur[idx] = in
+	} else {
+		cur = append(cur, in)
+	}
+	return s.Rewrite(cur)
+}
+
+// UpsertBatch implements the new ports.SessionStore (Task 3 of M2-M3 Plan B).
+func (s *Store) UpsertBatch(in []domain.Session) error {
+	for _, ss := range in {
+		if err := s.Upsert(ss); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Delete implements the new ports.SessionStore (Task 3 of M2-M3 Plan B).
+// Legacy adapter cannot delete by ID — silently no-op. The TUI's
+// Delete path goes through the use case which loads → filters → Rewrite.
+func (s *Store) Delete(_, _ string) error {
+	return nil
 }
 
 // Append writes a single session row. The parent directory is created on

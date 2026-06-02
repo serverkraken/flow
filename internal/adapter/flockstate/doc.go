@@ -1,7 +1,7 @@
 // Package flockstate implements the active-session markers and the
 // process-level mutex on top of ~/.tmux/.
 //
-// State satisfies ports.ActiveSessionStore via two single-line files
+// State satisfies ports.LegacyActiveStore via two single-line files
 // (worktime.state, worktime.pause), each holding a Unix epoch.
 //
 // Lock satisfies ports.Lock via syscall.Flock on a configurable path

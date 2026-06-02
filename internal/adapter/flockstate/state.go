@@ -11,7 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/atomicfile"
 )
 
-// State implements ports.ActiveSessionStore by storing one Unix epoch per
+// State implements ports.LegacyActiveStore by storing one Unix epoch per
 // file: the active-session start (worktime.state) and the last-pause
 // stop time (worktime.pause). A missing file means "not set".
 type State struct {

@@ -20,8 +20,8 @@ func TestAppendBatch_EmptyIsNoop(t *testing.T) {
 	if err := s.AppendBatch(nil); err != nil {
 		t.Errorf("AppendBatch(nil): %v", err)
 	}
-	if _, err := s.LoadAll(); err != nil {
-		t.Errorf("LoadAll after empty batch: %v", err)
+	if _, err := s.LoadAllLegacy(); err != nil {
+		t.Errorf("LoadAllLegacy after empty batch: %v", err)
 	}
 }
 
@@ -37,9 +37,9 @@ func TestAppendBatch_PersistsAllSessions(t *testing.T) {
 	if err := s.AppendBatch(batch); err != nil {
 		t.Fatalf("AppendBatch: %v", err)
 	}
-	got, err := s.LoadAll()
+	got, err := s.LoadAllLegacy()
 	if err != nil {
-		t.Fatalf("LoadAll: %v", err)
+		t.Fatalf("LoadAllLegacy: %v", err)
 	}
 	if len(got) != 3 {
 		t.Errorf("got %d sessions, want 3", len(got))
@@ -61,9 +61,9 @@ func TestAppendBatch_AppendsToExistingFile(t *testing.T) {
 	if err := s.AppendBatch(second); err != nil {
 		t.Fatalf("AppendBatch second: %v", err)
 	}
-	got, err := s.LoadAll()
+	got, err := s.LoadAllLegacy()
 	if err != nil {
-		t.Fatalf("LoadAll: %v", err)
+		t.Fatalf("LoadAllLegacy: %v", err)
 	}
 	if len(got) != 2 {
 		t.Errorf("expected accumulation, got %d sessions", len(got))

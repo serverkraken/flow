@@ -17,7 +17,7 @@ import (
 // uniform.
 type SessionWriter struct {
 	Sessions ports.SessionStore
-	State    ports.ActiveSessionStore
+	State    ports.LegacyActiveStore
 	Lock     ports.Lock
 	Reader   *WorktimeReader
 	Clock    ports.Clock
@@ -101,7 +101,7 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		// already-persisted session. After the filter the work is a
 		// no-op AppendBatch — ClearActive is the actual retry step.
 		parts := domain.SplitAtMidnight(*active, stop)
-		existing, err := w.Sessions.LoadAll()
+		existing, err := w.Sessions.Load("")
 		if err != nil {
 			return err
 		}
@@ -366,7 +366,7 @@ func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Tim
 // success — same contract Edit / SetTag / SetNote already enforce.
 func (w *SessionWriter) Delete(date time.Time, idx int) error {
 	return w.Lock.With(func() error {
-		all, err := w.Sessions.LoadAll()
+		all, err := w.Sessions.Load("")
 		if err != nil {
 			return err
 		}
@@ -425,7 +425,7 @@ func (w *SessionWriter) rewriteAtIndex(date time.Time, idx int, fn func(domain.S
 // that day — without this signal the rewrite was a silent no-op for
 // stale CLI input like `flow worktime tag 99 deep`.
 func (w *SessionWriter) rewriteAtIndexLocked(date time.Time, idx int, fn func(domain.Session) domain.Session) error {
-	all, err := w.Sessions.LoadAll()
+	all, err := w.Sessions.Load("")
 	if err != nil {
 		return err
 	}

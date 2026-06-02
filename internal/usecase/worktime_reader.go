@@ -12,7 +12,7 @@ import (
 // All four read shapes (today, week, history, range) come through here.
 type WorktimeReader struct {
 	Sessions ports.SessionStore
-	State    ports.ActiveSessionStore
+	State    ports.LegacyActiveStore
 	Targets  *TargetResolver
 	Clock    ports.Clock
 
@@ -44,7 +44,7 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 		}
 	}
 
-	sessions, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	sessions, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
 		return domain.SameDay(s.Date, now)
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 		AddDate(0, 0, -(wd - 1))
 	sunday := monday.AddDate(0, 0, 6)
 
-	allSessions, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	allSessions, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
 		return !s.Date.Before(monday) && !s.Date.After(sunday)
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 
 // History returns every day with at least one session, newest first.
 func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
-	sessions, err := r.Sessions.LoadAll()
+	sessions, err := r.Sessions.Load("")
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +145,9 @@ func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
 // "all sessions".
 func (r *WorktimeReader) Range(rng domain.Range) ([]domain.Session, error) {
 	if rng.From.IsZero() && rng.To.IsZero() {
-		return r.Sessions.LoadAll()
+		return r.Sessions.Load("")
 	}
-	return r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	return r.Sessions.LoadFiltered("", func(s domain.Session) bool {
 		return rng.ContainsDate(s.Date)
 	})
 }
@@ -163,7 +163,7 @@ func (r *WorktimeReader) SessionsOverlap(date, start, stop time.Time, excludeIdx
 	// AddManual paid that scan. The filter predicate runs in the adapter
 	// where it can short-circuit during line parsing.
 	dateStr := date.Format("2006-01-02")
-	dayRows, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	dayRows, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
 		return s.Date.Format("2006-01-02") == dateStr
 	})
 	if err != nil {
