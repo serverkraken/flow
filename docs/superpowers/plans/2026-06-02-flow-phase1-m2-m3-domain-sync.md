@@ -10,7 +10,7 @@
 
 **Reference spec:** `docs/superpowers/specs/2026-06-02-flow-phase1-m2-m3-domain-sync-design.md` (commit `6ed4194` on main).
 
-**Prerequisite:** M1 PR merged to main first. This plan starts from `main` after `36d5cda` (or its squashed equivalent post-merge). Do NOT run this in parallel with M1 review — Worktime-Project-rename would conflict.
+**Prerequisite:** Lives on the long-lived `next` integration branch (see memory `long-lived-integration-branch`). `next` currently has M1 at `36d5cda`. Phase 1 milestones (M2-M9) stack on `next`; one fat-merge to `main` happens when the whole Phase 1 is done. Worktree at `/Users/msoent/SourceCode/serverkraken/flow-phase1-m1` (directory name is historical — branch is `next` now).
 
 ---
 
