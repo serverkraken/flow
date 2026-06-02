@@ -34,6 +34,8 @@ func NewWithAuth(d AuthDeps) *Server {
 	r.Handle("/healthz", NewHealthzHandler())
 	r.Handle("/readyz", NewReadyzHandler(d.Ready))
 
+	r.Handle("/api/v1/oidc/config", NewOIDCConfigHandler(d.OIDCConfig))
+
 	ab := newAuthBrowser(d)
 	r.Get("/login", ab.handleLogin)
 	r.Get("/auth/callback", ab.handleCallback)
