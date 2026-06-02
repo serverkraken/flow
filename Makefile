@@ -26,7 +26,8 @@ COVER_THRESHOLD := 90
 # are.
 COVER_PKG       := ./internal/...
 
-.PHONY: build install test cover lint fmt clean ci
+.PHONY: build install test cover lint fmt clean ci \
+        build-server test-server test-integration
 
 build:
 	@mkdir -p bin
@@ -59,3 +60,17 @@ clean:
 	rm -rf bin/ dist/ $(COVER_OUT) coverage.html
 
 ci: lint cover build
+
+build-server:
+	@mkdir -p bin
+	go build -o bin/flow-server ./cmd/flow-server
+
+test-server:
+	go test ./internal/adapter/httpserver/... ./internal/adapter/oidcserver/... \
+	        ./internal/adapter/oidcclient/... ./internal/adapter/keyringadapter/...
+
+test-integration:
+	go test -tags integration -count=1 -timeout 120s \
+	        ./internal/adapter/httpserver/... \
+	        ./internal/adapter/oidcserver/... \
+	        ./internal/testutil/oidctest/...
