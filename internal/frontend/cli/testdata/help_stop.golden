@@ -1,7 +1,14 @@
-Stop current worktime session (optional: custom stop time)
+Stoppt die aktive Session.
+
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Session-Tag (z.B. "deep", "review").
+  --note       Freitext-Notiz zur Session.
 
 Usage:
   worktime stop [HH:MM] [flags]
 
 Flags:
-  -h, --help   help for stop
+  -h, --help             help for stop
+      --note string      Freitext-Notiz zur Session
+      --project string   Projekt-Slug oder UUID; sonst smart-default
+      --tag string       Session-Tag (z.B. deep, review)

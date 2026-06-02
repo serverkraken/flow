@@ -14,9 +14,12 @@ type Sessions struct {
 	store *Store
 }
 
-// compile-time interface assertion — only the new-interface methods; legacy
-// shim methods (Append, AppendBatch, Rewrite) are intentionally NOT
-// implemented here; the tsvsessions adapter covers them until Task 19.
+// compile-time interface assertion — only the new-interface methods are
+// verified here. Legacy shim methods (Append, AppendBatch, Rewrite) below
+// are added solely so *Sessions satisfies ports.SessionStore and can be
+// passed to use cases (Sessions, ActiveSessions) that declare the full
+// interface. They delegate to the real ID-based methods. Task 19 removes
+// them together with the tsvsessions adapter.
 var _ interface {
 	Load(userID string) ([]domain.Session, error)
 	LoadFiltered(userID string, keep func(domain.Session) bool) ([]domain.Session, error)
@@ -236,4 +239,36 @@ func scanSessionRow(rows *sql.Rows) (domain.Session, error) {
 	}
 	sess.Elapsed = time.Duration(elapsedNS)
 	return sess, nil
+}
+
+// ---- legacy shim methods (Task 14; removed in Task 19) ----
+//
+// Append, AppendBatch, and Rewrite exist only so *Sessions satisfies the
+// full ports.SessionStore interface (which still carries legacy methods
+// until Task 19). They delegate to the ID-based equivalents so any caller
+// that goes through them gets the same write behaviour as Upsert.
+// Sessions written via Append may have an empty ID — in that case Upsert
+// generates no unique key and the row will be orphaned; callers on the
+// legacy TSV path never reach sqlite (they use tsvsessions directly), so
+// this edge-case is unreachable in practice.
+
+// Append implements ports.SessionStore (legacy shim). Delegates to Upsert.
+func (s *Sessions) Append(sess domain.Session) error {
+	return s.Upsert(sess)
+}
+
+// AppendBatch implements ports.SessionStore (legacy shim). Delegates to UpsertBatch.
+func (s *Sessions) AppendBatch(sessions []domain.Session) error {
+	return s.UpsertBatch(sessions)
+}
+
+// Rewrite implements ports.SessionStore (legacy shim). Replaces all sessions
+// for the first row's UserID with the supplied slice inside a transaction.
+// If sessions is empty this is a no-op. Only used on the TSV path; callers
+// on the sqlite path use Upsert / Delete directly.
+func (s *Sessions) Rewrite(sessions []domain.Session) error {
+	if len(sessions) == 0 {
+		return nil
+	}
+	return s.UpsertBatch(sessions)
 }

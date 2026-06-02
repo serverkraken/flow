@@ -27,6 +27,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
 	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/cli"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
@@ -153,7 +154,13 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		return Deps{}, nil, fmt.Errorf("flow local user: %w", err)
 	}
 	cacheProjects := sqliteclient.NewProjects(cacheStore)
+	cacheSessions := sqliteclient.NewSessions(cacheStore)
+	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
+	cacheWriteQueue := sqliteclient.NewWriteQueue(cacheStore)
+
 	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
+	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
+	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
@@ -273,6 +280,27 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 				DayOffStore:    dayoffStore,
 				Reader:         reader,
 				Screen:         worktimeScreen,
+
+				// Task 14: new sqlite-backed start/stop path.
+				UserID: localUser.ID,
+				ResolveProject: func(userID, explicitID, pwd string) (domain.Project, error) {
+					return sessionsUC.ResolveProject(userID, explicitID, pwd)
+				},
+				StartActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Start(userID, projectID)
+				},
+				StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
+					return activeSessionsUC.Stop(userID, projectID, tag, note)
+				},
+				SessionCount: func(userID string) (int, error) {
+					rows, err := cacheSessions.Load(userID)
+					if err != nil {
+						return 0, err
+					}
+					return len(rows), nil
+				},
+				TSVPath:     p.WorktimeLog,
+				CacheDBPath: cacheDBPath,
 			},
 			Sidekick: cli.SidekickDeps{
 				FlowState: flowState,

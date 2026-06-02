@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -41,6 +42,13 @@ func fprintln(w io.Writer, args ...any) {
 // verb can run flow's worktime TUI as a standalone bubbletea program
 // without cli/worktime importing the screen package directly (depguard
 // keeps frontend-cli decoupled from frontend/tui/screen/<name>).
+//
+// New in Task 14: ProjectID-aware start/stop path. When ResolveProject,
+// StartActiveSession and StopActiveSession are non-nil the new sqlite
+// path is active; otherwise start/stop fall back to the legacy TSV
+// SessionWriter path. TSVPath and CacheDBPath are used by the guard that
+// blocks write-commands when the legacy log exists but the sqlite cache
+// has no sessions yet (prompt to run migrate-from-tsv).
 type WorktimeDeps struct {
 	Clock          ports.Clock
 	Tmux           ports.Tmux
@@ -52,6 +60,37 @@ type WorktimeDeps struct {
 	DayOffStore    ports.DayOffStore
 	Reader         *usecase.WorktimeReader
 	Screen         func(tk.Palette) tea.Model
+
+	// New-path fields (Task 14). Nil → legacy SessionWriter path is used.
+
+	// UserID is the resolved local user's ID for all project/session operations.
+	UserID string
+
+	// ResolveProject implements the 4-step smart-default cascade:
+	// explicit → PWD-basename slug → MRU → auto-create "Allgemein".
+	ResolveProject func(userID, explicitID, pwd string) (domain.Project, error)
+
+	// StartActiveSession writes an ActiveSession locally and queues a
+	// server-start push. Returns ErrActiveSessionExists when one is already
+	// running for (userID, projectID).
+	StartActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+
+	// StopActiveSession closes the active session, creates a finished Session
+	// row and queues a server-stop push.
+	StopActiveSession func(userID, projectID, tag, note string) (domain.Session, error)
+
+	// SessionCount returns the number of sessions stored for userID in the
+	// sqlite cache. Used by the TSV migration guard (option b: Load+len so
+	// no new port method is needed).
+	SessionCount func(userID string) (int, error)
+
+	// TSVPath is the absolute path to the legacy worktime.log TSV file.
+	// Guard checks os.Stat on this path; empty means guard is disabled.
+	TSVPath string
+
+	// CacheDBPath is the absolute path to the sqlite cache.db shown in the
+	// guard error message so users know which file is "empty".
+	CacheDBPath string
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -61,6 +100,38 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Worktime subcommands",
 		SilenceUsage: true,
 	}
+
+	// TSV migration guard: if the legacy worktime.log exists AND the sqlite
+	// cache has zero sessions for this user, block all worktime subcommands
+	// until the user runs `flow worktime migrate-from-tsv`.
+	//
+	// Rationale: guard is on PersistentPreRunE of the parent so every
+	// sub-command (start, stop, status …) is covered without repetition.
+	// Option (b) from the task spec: use SessionCount (Load+len) instead of
+	// a new port method to keep the port surface small.
+	if deps.TSVPath != "" && deps.SessionCount != nil {
+		worktimeCmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
+			if _, err := os.Stat(deps.TSVPath); os.IsNotExist(err) {
+				return nil // no legacy log → no guard needed
+			}
+			n, err := deps.SessionCount(deps.UserID)
+			if err != nil {
+				return fmt.Errorf("worktime guard: count sessions: %w", err)
+			}
+			if n > 0 {
+				return nil // already migrated → allow through
+			}
+			cacheHint := deps.CacheDBPath
+			if cacheHint == "" {
+				cacheHint = "cache.db"
+			}
+			return fmt.Errorf(
+				"TSV detected at %s but %s has no sessions yet — run `flow worktime migrate-from-tsv` first",
+				deps.TSVPath, cacheHint,
+			)
+		}
+	}
+
 	worktimeCmd.AddCommand(
 		newStatusCmd(deps),
 		newStartCmd(deps),
@@ -152,15 +223,30 @@ func newStatusCmd(deps WorktimeDeps) *cobra.Command {
 
 func newStartCmd(deps WorktimeDeps) *cobra.Command {
 	var force bool
+	var projectFlag, tagFlag, noteFlag string
 	cmd := &cobra.Command{
 		Use:   "start [zeit]",
 		Short: "Start worktime session (jetzt, HH:MM, -Nm, -NhMMm)",
 		Long: `Startet eine Session.
 
-  --force    überschreibt eine bereits laufende Session (Default: Fehler).`,
+  --force      überschreibt eine bereits laufende Session (Default: Fehler).
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Intent-Tag für die Session (wird beim Stop übernommen wenn angegeben).
+  --note       Freitext-Notiz (Vorab-Notiz; beim Stop ergänzen oder überschreiben).`,
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// New sqlite path: use when ResolveProject + StartActiveSession
+			// are wired in the composition root (Task 14+).
+			if deps.ResolveProject != nil && deps.StartActiveSession != nil {
+				// tagFlag and noteFlag are accepted but not yet stored in
+				// ActiveSession (domain.ActiveSession has no Tag/Note fields).
+				// They are available for future Tasks that extend ActiveSession.
+				_ = tagFlag
+				_ = noteFlag
+				return runStartNew(cmd, deps, projectFlag)
+			}
+			// Legacy TSV path: used by existing tests and pre-migration installs.
 			arg := ""
 			if len(args) > 0 {
 				arg = args[0]
@@ -191,7 +277,34 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "läuft bereits → trotzdem überschreiben")
+	cmd.Flags().StringVar(&projectFlag, "project", "", "Projekt-Slug oder UUID; sonst smart-default")
+	cmd.Flags().StringVar(&tagFlag, "tag", "", "Intent-Tag (für future-Tasks; noch nicht in ActiveSession gespeichert)")
+	cmd.Flags().StringVar(&noteFlag, "note", "", "Vorab-Notiz (für future-Tasks; noch nicht in ActiveSession gespeichert)")
 	return cmd
+}
+
+// runStartNew handles the new sqlite-backed start path (Task 14).
+// Resolves the project via the smart-default cascade, then records an
+// ActiveSession locally and queues a server-start push. The legacy
+// time-argument (HH:MM backdate) is not supported on the new path yet —
+// ActiveSessions.Start always uses time.Now (consistent with the spec).
+func runStartNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag string) error {
+	pwd, _ := os.Getwd()
+	pr, err := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+	if err != nil {
+		return err
+	}
+	if _, err := deps.StartActiveSession(deps.UserID, pr.ID); err != nil {
+		if errors.Is(err, usecase.ErrActiveSessionExists) {
+			// Idempotent: already running is a soft no-op like the legacy path.
+			fprintf(cmd.ErrOrStderr(), "Session auf '%s' läuft bereits\n", pr.Name)
+			return nil
+		}
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintf(cmd.ErrOrStderr(), "Worktime läuft seit %s auf '%s'\n", deps.Clock.Now().Format("15:04"), pr.Name)
+	return nil
 }
 
 func newPauseCmd(deps WorktimeDeps) *cobra.Command {
@@ -288,12 +401,24 @@ Beispiele:
 }
 
 func newStopCmd(deps WorktimeDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:          "stop [HH:MM]",
-		Short:        "Stop current worktime session (optional: custom stop time)",
+	var projectFlag, tagFlag, noteFlag string
+	cmd := &cobra.Command{
+		Use:   "stop [HH:MM]",
+		Short: "Stop current worktime session (optional: custom stop time)",
+		Long: `Stoppt die aktive Session.
+
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Session-Tag (z.B. "deep", "review").
+  --note       Freitext-Notiz zur Session.`,
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// New sqlite path: use when ResolveProject + StopActiveSession
+			// are wired in the composition root (Task 14+).
+			if deps.ResolveProject != nil && deps.StopActiveSession != nil {
+				return runStopNew(cmd, deps, projectFlag, tagFlag, noteFlag)
+			}
+			// Legacy TSV path.
 			var s domain.Session
 			var err error
 			if len(args) > 0 {
@@ -320,6 +445,34 @@ func newStopCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&projectFlag, "project", "", "Projekt-Slug oder UUID; sonst smart-default")
+	cmd.Flags().StringVar(&tagFlag, "tag", "", "Session-Tag (z.B. deep, review)")
+	cmd.Flags().StringVar(&noteFlag, "note", "", "Freitext-Notiz zur Session")
+	return cmd
+}
+
+// runStopNew handles the new sqlite-backed stop path (Task 14).
+// Resolves the project, then closes the active session, creates a finished
+// Session row locally and queues a server-stop push.
+func runStopNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note string) error {
+	pwd, _ := os.Getwd()
+	pr, err := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+	if err != nil {
+		return err
+	}
+	sess, err := deps.StopActiveSession(deps.UserID, pr.ID, tag, note)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		// Idempotent: nothing running for this project is a soft no-op.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	h := int(sess.Elapsed.Hours())
+	m := int(sess.Elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm auf '%s'\n", h, m, pr.Name)
+	return nil
 }
 
 func newToggleCmd(deps WorktimeDeps) *cobra.Command {

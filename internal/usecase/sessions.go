@@ -49,16 +49,28 @@ func NewSessions(
 
 // ResolveProject implements the smart-default cascade from the spec:
 //
-//  1. explicitID != "" → GetByID; error if missing.
+//  1. explicitID != "" → try GetByID first; if not found try GetBySlug
+//     (allows callers to pass either a UUID or a human-readable slug).
 //  2. pwd != "" → derive slug from filepath.Base(pwd), call GetBySlug.
 //     SourceDirScanner is not consulted here (basename→slug is sufficient
 //     for Task 11; Task 12 can add the scanner confirmation if desired).
 //  3. ListActive[0] (MRU first).
 //  4. EnsureBySlug(userID, "Allgemein", "allgemein").
 func (s *Sessions) ResolveProject(userID, explicitID, pwd string) (domain.Project, error) {
-	// Step 1: explicit override.
+	// Step 1: explicit override — try ID first, then slug as fallback.
+	// This lets CLI callers pass either a UUID ("abc-123") or a slug
+	// ("smoke-project") in --project without requiring them to know which
+	// form the system expects.
 	if explicitID != "" {
-		return s.projects.GetByID(userID, explicitID)
+		p, err := s.projects.GetByID(userID, explicitID)
+		if err == nil {
+			return p, nil
+		}
+		if !errors.Is(err, ports.ErrProjectNotFound) {
+			return domain.Project{}, err
+		}
+		// Not found as ID — try as slug.
+		return s.projects.GetBySlug(userID, explicitID)
 	}
 
 	// Step 2: PWD-based slug lookup.

@@ -1,10 +1,16 @@
 Startet eine Session.
 
-  --force    überschreibt eine bereits laufende Session (Default: Fehler).
+  --force      überschreibt eine bereits laufende Session (Default: Fehler).
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Intent-Tag für die Session (wird beim Stop übernommen wenn angegeben).
+  --note       Freitext-Notiz (Vorab-Notiz; beim Stop ergänzen oder überschreiben).
 
 Usage:
   worktime start [zeit] [flags]
 
 Flags:
-      --force   läuft bereits → trotzdem überschreiben
-  -h, --help    help for start
+      --force            läuft bereits → trotzdem überschreiben
+  -h, --help             help for start
+      --note string      Vorab-Notiz (für future-Tasks; noch nicht in ActiveSession gespeichert)
+      --project string   Projekt-Slug oder UUID; sonst smart-default
+      --tag string       Intent-Tag (für future-Tasks; noch nicht in ActiveSession gespeichert)
