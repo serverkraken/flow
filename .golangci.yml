@@ -292,6 +292,13 @@ linters:
             - github.com/gorilla/securecookie
             # OS-Keychain TokenStore for CLI/MCP OIDC tokens (M1).
             - github.com/zalando/go-keyring
+            # SQLite client+server cache (Phase-1 M2-M3 — see
+            # docs/superpowers/specs/2026-06-02-flow-phase1-m2-m3-domain-sync-design.md).
+            - modernc.org/sqlite
+            - github.com/pressly/goose/v3
+            - github.com/google/uuid
+            - github.com/serverkraken/flow/internal/adapter/sqliteclient/migrations
+            - github.com/serverkraken/flow/internal/adapter/sqliteserver/migrations
         frontend-cli:
           list-mode: strict
           files:
