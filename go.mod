@@ -9,6 +9,7 @@ require (
 	github.com/alecthomas/chroma/v2 v2.20.0
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/cellbuf v0.0.15
+	github.com/go-chi/chi/v5 v5.2.1
 	github.com/sahilm/fuzzy v0.1.1
 	github.com/spf13/cobra v1.10.0
 	github.com/yuin/goldmark v1.7.13
@@ -27,7 +28,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/go-chi/chi/v5 v5.2.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect

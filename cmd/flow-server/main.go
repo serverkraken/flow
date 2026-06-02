@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,7 +27,7 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	logger.Info("flow-server starting", slog.String("addr", addr))
-	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server crashed", slog.Any("err", err))
 		os.Exit(1)
 	}
