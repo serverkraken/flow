@@ -14,7 +14,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	srv := httpserver.New()
+	srv := httpserver.New(func() error { return nil })
 
 	addr := os.Getenv("FLOW_SERVER_ADDR")
 	if addr == "" {

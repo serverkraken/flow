@@ -13,9 +13,13 @@ type Server struct {
 	router chi.Router
 }
 
-func New() *Server {
+// New constructs the server with the supplied readiness check. The check is
+// run on every /readyz request; pass `func() error { return nil }` when no
+// dependencies have been wired up yet.
+func New(readyCheck ReadinessCheck) *Server {
 	r := chi.NewRouter()
 	r.Handle("/healthz", NewHealthzHandler())
+	r.Handle("/readyz", NewReadyzHandler(readyCheck))
 	return &Server{router: r}
 }
 
