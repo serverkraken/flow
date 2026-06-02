@@ -17,7 +17,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/editor"
 	"github.com/serverkraken/flow/internal/adapter/flockstate"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
-	"github.com/serverkraken/flow/internal/adapter/fsprojects"
+	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/adapter/iniconfig"
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
@@ -150,7 +150,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		filepath.Join(p.TmuxDir, "enabled-plugins"),
 	)
 	paletteStats := jsonpalettestats.New(filepath.Join(p.StateDir, "palette-stats.json"))
-	projectScanner := fsprojects.New(p.SourceCodeRoot)
+	projectScanner := fssourcedirs.New(p.SourceCodeRoot)
 
 	targets := &usecase.TargetResolver{Config: configReader, DayOffs: dayoffStore, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: sessionStore, State: activeStore, Targets: targets, Clock: clock}

@@ -14,10 +14,10 @@ import (
 
 func makeFixtureWithProjects() *fixture {
 	return newFixture(
-		domain.Project{Name: "alpha", Path: "/p/alpha"},
-		domain.Project{Name: "beta", Path: "/p/beta"},
-		domain.Project{Name: "gamma", Path: "/p/gamma"},
-		domain.Project{Name: "delta", Path: "/p/delta"},
+		domain.SourceDir{Name: "alpha", Path: "/p/alpha"},
+		domain.SourceDir{Name: "beta", Path: "/p/beta"},
+		domain.SourceDir{Name: "gamma", Path: "/p/gamma"},
+		domain.SourceDir{Name: "delta", Path: "/p/delta"},
 	)
 }
 

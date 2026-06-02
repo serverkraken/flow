@@ -29,7 +29,7 @@ import (
 )
 
 type loadedMsg struct {
-	projects []domain.Project
+	projects []domain.SourceDir
 	err      error
 }
 
@@ -44,8 +44,8 @@ type switchedMsg struct {
 // pickers read identically; the cache keeps the per-row render path
 // allocation-free, same rationale as palette/Model.styles.
 type Model struct {
-	all        []domain.Project
-	visible    []domain.Project
+	all        []domain.SourceDir
+	visible    []domain.SourceDir
 	highlights [][]int // name-rune-indices to emphasise per visible project
 	cursor     int
 	offset     int
@@ -309,7 +309,7 @@ func (m *Model) applyFilter() {
 			names[i] = p.Name
 		}
 		matches := fuzzy.Find(q, names)
-		m.visible = make([]domain.Project, len(matches))
+		m.visible = make([]domain.SourceDir, len(matches))
 		m.highlights = make([][]int, len(matches))
 		for i, match := range matches {
 			m.visible[i] = m.all[match.Index]
@@ -340,7 +340,7 @@ func (m *Model) ensureCursorVisible() {
 // quits so the operator sees the new tmux session in the foreground;
 // on failure the err propagates back as switchedMsg.err and surfaces
 // in the loaded-error row.
-func (m Model) switchToProject(p domain.Project) tea.Cmd {
+func (m Model) switchToProject(p domain.SourceDir) tea.Cmd {
 	sw := m.switcher
 	return func() tea.Msg {
 		return switchedMsg{err: sw.Switch(p)}
@@ -426,7 +426,7 @@ func (m Model) viewContent() string {
 // to picker.RowWithMatch — the marker is pre-rendered with Sem.Active
 // and passed via HintPreStyled so the row-default FgMuted hint wrap
 // doesn't dim it back down.
-func (m Model) renderRow(selected bool, p domain.Project, highlight []int, width int) string {
+func (m Model) renderRow(selected bool, p domain.SourceDir, highlight []int, width int) string {
 	hint := ""
 	if p.HasTmuxSession {
 		hint = m.styles.marker.Render(glyphs.Active)

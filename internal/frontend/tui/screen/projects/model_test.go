@@ -15,15 +15,15 @@ import (
 )
 
 type fakeScanner struct {
-	out []domain.Project
+	out []domain.SourceDir
 	err error
 }
 
-func (f *fakeScanner) List() ([]domain.Project, error) {
+func (f *fakeScanner) List() ([]domain.SourceDir, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make([]domain.Project, len(f.out))
+	out := make([]domain.SourceDir, len(f.out))
 	copy(out, f.out)
 	return out, nil
 }
@@ -33,9 +33,9 @@ type fixture struct {
 	tmux    *testutil.FakeTmux
 }
 
-func newFixture(p ...domain.Project) *fixture {
+func newFixture(p ...domain.SourceDir) *fixture {
 	return &fixture{
-		scanner: &fakeScanner{out: append([]domain.Project(nil), p...)},
+		scanner: &fakeScanner{out: append([]domain.SourceDir(nil), p...)},
 		tmux:    &testutil.FakeTmux{Sessions: []string{"existing"}},
 	}
 }
@@ -63,8 +63,8 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 
 func TestInit_LoadsAndAnnotatesSessions(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
-		domain.Project{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
+		domain.SourceDir{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
+		domain.SourceDir{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	// Row labels are rendered rune-by-rune (fuzzy-match emphasis), so the
@@ -98,7 +98,7 @@ func TestEmpty_AfterLoad_ShowsHelp(t *testing.T) {
 
 func TestEnter_SwitchesToProject(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
+		domain.SourceDir{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -126,8 +126,8 @@ func TestEnter_SwitchesToProject(t *testing.T) {
 
 func TestSlashFiltersFuzzily(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha-service", Path: "/x/alpha-service"},
-		domain.Project{Name: "beta", Path: "/x/beta"},
+		domain.SourceDir{Name: "alpha-service", Path: "/x/alpha-service"},
+		domain.SourceDir{Name: "beta", Path: "/x/beta"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})

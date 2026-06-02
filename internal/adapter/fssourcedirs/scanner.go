@@ -1,4 +1,4 @@
-package fsprojects
+package fssourcedirs
 
 import (
 	"io/fs"
@@ -35,7 +35,7 @@ func New(root string) *Scanner {
 // silently here — the projects screen prefers showing some projects
 // over showing none. ListWithSkipped is the diagnostic-aware variant
 // for callers that want to surface skipped paths to the user.
-func (s *Scanner) List() ([]domain.Project, error) {
+func (s *Scanner) List() ([]domain.SourceDir, error) {
 	out, _, err := s.ListWithSkipped()
 	return out, err
 }
@@ -45,7 +45,7 @@ func (s *Scanner) List() ([]domain.Project, error) {
 // denied). Callers that want to surface "couldn't read foo/bar" to
 // the user use this variant; the bare List swallows the diagnostic
 // to keep the projects screen lossless on transient permission gaps.
-func (s *Scanner) ListWithSkipped() ([]domain.Project, []string, error) {
+func (s *Scanner) ListWithSkipped() ([]domain.SourceDir, []string, error) {
 	info, err := os.Stat(s.root)
 	if err != nil || !info.IsDir() {
 		return nil, nil, nil
@@ -89,9 +89,9 @@ func (s *Scanner) ListWithSkipped() ([]domain.Project, []string, error) {
 	}
 
 	sort.Strings(rel)
-	projects := make([]domain.Project, 0, len(rel))
+	projects := make([]domain.SourceDir, 0, len(rel))
 	for _, name := range rel {
-		projects = append(projects, domain.Project{
+		projects = append(projects, domain.SourceDir{
 			Name: name,
 			Path: filepath.Join(s.root, name),
 		})

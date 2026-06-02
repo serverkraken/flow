@@ -358,7 +358,7 @@ func TestFakeProjectScanner(t *testing.T) {
 		t.Errorf("List Names path = (%+v, %v)", got, err)
 	}
 	// Projects path
-	s2 := &FakeProjectScanner{Projects: []domain.Project{{Name: "x", Path: "/srv/x"}}}
+	s2 := &FakeProjectScanner{Projects: []domain.SourceDir{{Name: "x", Path: "/srv/x"}}}
 	got2, _ := s2.List()
 	if len(got2) != 1 || got2[0].Path != "/srv/x" {
 		t.Errorf("List Projects path = %+v", got2)

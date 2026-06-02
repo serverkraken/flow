@@ -1,4 +1,4 @@
-package fsprojects_test
+package fssourcedirs_test
 
 import (
 	"os"
@@ -6,11 +6,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/serverkraken/flow/internal/adapter/fsprojects"
+	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-var _ ports.ProjectScanner = (*fsprojects.Scanner)(nil)
+var _ ports.SourceDirScanner = (*fssourcedirs.Scanner)(nil)
 
 func mkRepo(t *testing.T, root, rel string) {
 	t.Helper()
@@ -38,7 +38,7 @@ func mkWorktree(t *testing.T, root, rel string) {
 }
 
 func TestList_MissingRoot(t *testing.T) {
-	got, err := fsprojects.New(filepath.Join(t.TempDir(), "missing")).List()
+	got, err := fssourcedirs.New(filepath.Join(t.TempDir(), "missing")).List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestList_RootIsFile(t *testing.T) {
 	if err := os.WriteFile(regular, []byte(""), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	got, err := fsprojects.New(regular).List()
+	got, err := fssourcedirs.New(regular).List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestList_FlatRepos(t *testing.T) {
 	mkRepo(t, root, "alpha")
 	mkRepo(t, root, "bravo")
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func TestList_NestedRepos(t *testing.T) {
 	mkRepo(t, root, "owner/repo-b")
 	mkRepo(t, root, "standalone")
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestList_GitFileWorktree(t *testing.T) {
 	root := t.TempDir()
 	mkWorktree(t, root, "wt")
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestList_DoesNotDescendIntoGitDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestList_RespectsMaxDepth(t *testing.T) {
 	mkRepo(t, root, deep)
 	mkRepo(t, root, "shallow")
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestList_TolerantToUnreadableSubtree(t *testing.T) {
 		_ = os.Chmod(blocked, 0o755) // restore so TempDir cleanup works
 	})
 
-	got, err := fsprojects.New(root).List()
+	got, err := fssourcedirs.New(root).List()
 	if err != nil {
 		t.Fatalf("want tolerant scan, got %v", err)
 	}
@@ -187,7 +187,7 @@ func TestList_PathHandling_TrailingSlashRoot(t *testing.T) {
 
 	// New should normalise the root via Clean — trailing slash must
 	// not double up in subsequent path arithmetic.
-	s := fsprojects.New(root + string(filepath.Separator))
+	s := fssourcedirs.New(root + string(filepath.Separator))
 	got, err := s.List()
 	if err != nil {
 		t.Fatal(err)
