@@ -11,6 +11,9 @@ type ReadinessCheck func() error
 // NewReadyzHandler returns a readiness probe. It runs the injected check
 // on every request — wrap in caching if the check is expensive.
 func NewReadyzHandler(check ReadinessCheck) http.Handler {
+	if check == nil {
+		panic("httpserver: ReadinessCheck must not be nil")
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if err := check(); err != nil {
 			http.Error(w, "not ready: "+err.Error(), http.StatusServiceUnavailable)
