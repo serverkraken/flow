@@ -21,6 +21,8 @@ type Tokens struct {
 	cfg TokensConfig
 }
 
+// NewTokens constructs a Tokens facade wired to the given store and refresh
+// function. If RefreshLeeway is zero it defaults to 60 s.
 func NewTokens(c TokensConfig) *Tokens {
 	if c.RefreshLeeway == 0 {
 		c.RefreshLeeway = 60 * time.Second

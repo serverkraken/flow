@@ -18,8 +18,10 @@ const service = "flow"
 // Each slot is a separate keychain entry; values are JSON-encoded.
 type Keyring struct{}
 
+// New returns a Keyring backed by the OS keychain via zalando/go-keyring.
 func New() *Keyring { return &Keyring{} }
 
+// Get retrieves tokens for slot from the OS keychain.
 func (Keyring) Get(slot string) (ports.Tokens, error) {
 	raw, err := keyring.Get(service, slot)
 	if errors.Is(err, keyring.ErrNotFound) {
@@ -35,6 +37,7 @@ func (Keyring) Get(slot string) (ports.Tokens, error) {
 	return t, nil
 }
 
+// Put JSON-encodes t and stores it under slot in the OS keychain.
 func (Keyring) Put(slot string, t ports.Tokens) error {
 	b, err := json.Marshal(t)
 	if err != nil {
@@ -43,6 +46,7 @@ func (Keyring) Put(slot string, t ports.Tokens) error {
 	return keyring.Set(service, slot, string(b))
 }
 
+// Delete removes slot from the OS keychain (no-op if the entry is absent).
 func (Keyring) Delete(slot string) error {
 	err := keyring.Delete(service, slot)
 	if errors.Is(err, keyring.ErrNotFound) {

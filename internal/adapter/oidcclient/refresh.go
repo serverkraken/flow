@@ -13,6 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
+// RefreshConfig holds the parameters for a refresh-token exchange.
 type RefreshConfig struct {
 	ClientID     string
 	ClientSecret string
@@ -49,7 +50,7 @@ func Refresh(ctx context.Context, c RefreshConfig) (ports.Tokens, error) {
 	if err != nil {
 		return ports.Tokens{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(resp.Body)
 		return ports.Tokens{}, fmt.Errorf("refresh: status %d: %s", resp.StatusCode, string(b))

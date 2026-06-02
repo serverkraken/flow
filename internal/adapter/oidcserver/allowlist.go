@@ -13,6 +13,8 @@ type SubAllowlist struct {
 	set map[string]struct{}
 }
 
+// NewSubAllowlist builds a SubAllowlist from a slice of OIDC subject values.
+// Empty strings are silently ignored; an empty slice rejects everyone.
 func NewSubAllowlist(subs []string) *SubAllowlist {
 	m := make(map[string]struct{}, len(subs))
 	for _, s := range subs {
@@ -24,6 +26,7 @@ func NewSubAllowlist(subs []string) *SubAllowlist {
 	return &SubAllowlist{set: m}
 }
 
+// Allow reports whether the OIDC subject in id is on the allowlist.
 func (a *SubAllowlist) Allow(id ports.Identity) bool {
 	_, ok := a.set[id.Sub]
 	return ok

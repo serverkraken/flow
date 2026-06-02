@@ -15,10 +15,14 @@ type Session struct {
 	sc *securecookie.SecureCookie
 }
 
+// NewSession creates a Session backed by a securecookie using the supplied
+// HMAC hash key and AES block key.
 func NewSession(hashKey, blockKey []byte) *Session {
 	return &Session{sc: securecookie.New(hashKey, blockKey)}
 }
 
+// NewSessionFromHex is like NewSession but decodes the keys from hex strings
+// (as supplied by FLOW_COOKIE_HASH_KEY / FLOW_COOKIE_BLOCK_KEY env vars).
 func NewSessionFromHex(hashHex, blockHex string) (*Session, error) {
 	hashKey, err := hex.DecodeString(hashHex)
 	if err != nil {
@@ -31,10 +35,12 @@ func NewSessionFromHex(hashHex, blockHex string) (*Session, error) {
 	return NewSession(hashKey, blockKey), nil
 }
 
+// Encode serialises value into a signed+encrypted cookie string under name.
 func (s *Session) Encode(name string, value any) (string, error) {
 	return s.sc.Encode(name, value)
 }
 
+// Decode verifies and decrypts a cookie string produced by Encode into out.
 func (s *Session) Decode(name, raw string, out any) error {
 	return s.sc.Decode(name, raw, out)
 }

@@ -42,6 +42,7 @@ type DeviceFlow struct {
 	cfg Config
 }
 
+// NewDeviceFlow returns a DeviceFlow client ready to drive the RFC-8628 dance.
 func NewDeviceFlow(c Config) *DeviceFlow {
 	if c.HTTPClient == nil {
 		c.HTTPClient = http.DefaultClient
@@ -70,7 +71,7 @@ func (d *DeviceFlow) Init(ctx context.Context) (Codes, error) {
 	if err != nil {
 		return Codes{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode/100 != 2 {
 		b, _ := io.ReadAll(resp.Body)
 		return Codes{}, fmt.Errorf("device_authorization: status %d: %s", resp.StatusCode, string(b))
@@ -157,7 +158,7 @@ func (d *DeviceFlow) exchange(ctx context.Context, deviceCode string) (ports.Tok
 	if err != nil {
 		return ports.Tokens{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var raw struct {
 		AccessToken  string `json:"access_token"`

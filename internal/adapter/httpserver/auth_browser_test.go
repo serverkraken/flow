@@ -112,6 +112,7 @@ func (f fakeProvider) Verify(_ context.Context, _ string) (ports.Identity, error
 	}
 	return f.id, nil
 }
+
 func (fakeProvider) Endpoint() (authURL, tokenURL string) {
 	return "https://idp.example/auth", "https://idp.example/token"
 }

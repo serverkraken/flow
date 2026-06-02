@@ -24,6 +24,7 @@ func New(readyCheck ReadinessCheck) *Server {
 	return &Server{router: r}
 }
 
+// Handler returns the underlying http.Handler for use with http.Server.
 func (s *Server) Handler() http.Handler { return s.router }
 
 // NewWithAuth assembles the Phase-1-M1 server: healthz + readyz + browser

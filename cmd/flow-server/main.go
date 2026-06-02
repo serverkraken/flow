@@ -1,3 +1,6 @@
+// flow-server is the multi-device sync HTTP server for flow. See
+// docs/superpowers/specs/2026-06-02-flow-client-server-phase1-design.md for
+// the M1 design.
 package main
 
 import (

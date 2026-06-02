@@ -63,7 +63,7 @@ func TestUnit_BearerMiddleware_ValidToken_PassesThrough(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("Authorization", "Bearer faketoken")
 	got := ""
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		got = SubFromContext(r.Context())
 	})).ServeHTTP(rr, req)
 	if got != "u-1" {

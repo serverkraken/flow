@@ -12,8 +12,10 @@ type Fake struct {
 	data map[string]ports.Tokens
 }
 
+// NewFake creates an empty in-memory TokenStore suitable for tests.
 func NewFake() *Fake { return &Fake{data: make(map[string]ports.Tokens)} }
 
+// Get returns the tokens stored under slot, or ports.ErrTokenNotFound.
 func (f *Fake) Get(slot string) (ports.Tokens, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -24,6 +26,7 @@ func (f *Fake) Get(slot string) (ports.Tokens, error) {
 	return t, nil
 }
 
+// Put stores t under slot, overwriting any existing value.
 func (f *Fake) Put(slot string, t ports.Tokens) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -31,6 +34,7 @@ func (f *Fake) Put(slot string, t ports.Tokens) error {
 	return nil
 }
 
+// Delete removes the tokens stored under slot (no-op if absent).
 func (f *Fake) Delete(slot string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

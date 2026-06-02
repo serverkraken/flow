@@ -279,6 +279,19 @@ linters:
             #                 review finding M3)
             - github.com/serverkraken/flow/internal/shellsafe
             - github.com/serverkraken/flow/internal/flockutil
+            # OIDC + OAuth2 client/server (Phase-1 M1 — see
+            # docs/superpowers/specs/2026-06-02-flow-client-server-phase1-design.md).
+            # Used by oidcserver (JWT verify) and oidcclient (device flow).
+            - github.com/coreos/go-oidc/v3/oidc
+            - golang.org/x/oauth2
+            # HTTP router for flow-server (M1). Chi was chosen for stdlib
+            # net/http compat + idiomatic middleware composition.
+            - github.com/go-chi/chi/v5
+            # Signed+encrypted session cookies for the browser auth-code
+            # flow (M1). Avoids server-side session storage in Phase 1.
+            - github.com/gorilla/securecookie
+            # OS-Keychain TokenStore for CLI/MCP OIDC tokens (M1).
+            - github.com/zalando/go-keyring
         frontend-cli:
           list-mode: strict
           files:

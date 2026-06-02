@@ -46,7 +46,7 @@ func runLogin(ctx context.Context, c loginConfig) error {
 	if err != nil {
 		return fmt.Errorf("device init: %w", err)
 	}
-	fmt.Fprintf(c.Out, "\nUm flow zu autorisieren:\n  1. öffne %s\n  2. gib den Code ein: %s\n\n",
+	_, _ = fmt.Fprintf(c.Out, "\nUm flow zu autorisieren:\n  1. öffne %s\n  2. gib den Code ein: %s\n\n",
 		codes.VerificationURI, codes.UserCode)
 	if c.OpenBrowser != nil {
 		u := codes.VerificationURIComplete
@@ -62,7 +62,7 @@ func runLogin(ctx context.Context, c loginConfig) error {
 	if err := c.Store.Put(c.SlotName, tok); err != nil {
 		return fmt.Errorf("token store: %w", err)
 	}
-	fmt.Fprintln(c.Out, "✓ Login erfolgreich, Token im Keychain gespeichert.")
+	_, _ = fmt.Fprintln(c.Out, "✓ Login erfolgreich, Token im Keychain gespeichert.")
 	return nil
 }
 
@@ -89,7 +89,7 @@ func resolveOIDCEndpoints(ctx context.Context, serverURL string) (deviceURL, tok
 	if err != nil {
 		return "", "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("oidc/config: status %s", resp.Status)
 	}
