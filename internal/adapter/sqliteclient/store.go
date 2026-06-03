@@ -1,8 +1,8 @@
 package sqliteclient
 
 import (
+	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/pressly/goose/v3"
@@ -33,15 +33,18 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("sqliteclient: ping: %w", err)
 	}
 
-	goose.SetBaseFS(migrations.FS)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	p, err := goose.NewProvider(goose.DialectSQLite3, db, migrations.FS)
+	if err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("sqliteclient: dialect: %w", err)
+		return nil, fmt.Errorf("sqliteclient: provider: %w", err)
 	}
-	if err := goose.Up(db, "."); err != nil && !errors.Is(err, goose.ErrNoNextVersion) {
+	if _, err := p.Up(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqliteclient: migrate: %w", err)
 	}
+	// SQLite only supports one concurrent writer. Serialise all writes through
+	// a single connection so the driver never races for the write lock.
+	db.SetMaxOpenConns(1)
 
 	return &Store{db: db}, nil
 }
