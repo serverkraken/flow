@@ -18,12 +18,13 @@ import (
 // write_queue (the queue's payload is the new ActiveSession row JSON; sync
 // worker handles the 409 race).
 type ActiveSessions struct {
-	users    ports.UserStore // reserved for future callers (Task 32 wiring)
-	projects ports.ProjectStore
-	active   ports.ActiveSessionStore
-	sessions ports.SessionStore
-	queue    ports.WriteQueue
-	device   string // hostname; informational in ActiveSession.StartedOnDevice
+	users      ports.UserStore // reserved for future callers (Task 32 wiring)
+	projects   ports.ProjectStore
+	active     ports.ActiveSessionStore
+	sessions   ports.SessionStore
+	queue      ports.WriteQueue
+	device     string // hostname; informational in ActiveSession.StartedOnDevice
+	pushSignal func() // optional; called after Enqueue to wake the worker immediately
 }
 
 // NewActiveSessions constructs an ActiveSessions use case. users may be nil
@@ -43,6 +44,21 @@ func NewActiveSessions(
 		sessions: sessions,
 		queue:    queue,
 		device:   host,
+	}
+}
+
+// SetPushSignal attaches a callback that is invoked after each Enqueue call so
+// the sync worker can drain the queue immediately rather than waiting for its
+// next poll tick. Called by the composition root after the worker is started.
+// nil-tolerant: if fn is nil the method is a no-op.
+func (a *ActiveSessions) SetPushSignal(fn func()) {
+	a.pushSignal = fn
+}
+
+// signalPush calls the push-signal callback if one is set.
+func (a *ActiveSessions) signalPush() {
+	if a.pushSignal != nil {
+		a.pushSignal()
 	}
 }
 
@@ -80,6 +96,7 @@ func (a *ActiveSessions) Start(userID, projectID string) (domain.ActiveSession, 
 	if _, err := a.queue.Enqueue("active_sessions", projectID, payload, 0); err != nil {
 		return domain.ActiveSession{}, err
 	}
+	a.signalPush()
 	return row, nil
 }
 
@@ -128,6 +145,7 @@ func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Sessi
 	// Queue active-stop signal with the known server version for If-Match.
 	stopPayload := []byte(`{"action":"stop","version":` + strconv.FormatInt(cur.Version, 10) + `}`)
 	_, _ = a.queue.Enqueue("active_sessions_stop", projectID, stopPayload, cur.Version)
+	a.signalPush()
 
 	return sess, nil
 }

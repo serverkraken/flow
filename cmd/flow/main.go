@@ -18,9 +18,11 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/flockstate"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
+	"github.com/serverkraken/flow/internal/adapter/httpsync"
 	"github.com/serverkraken/flow/internal/adapter/iniconfig"
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
+	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
 	"github.com/serverkraken/flow/internal/adapter/output"
 	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
@@ -92,6 +94,7 @@ type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
 	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — local OIDC sub for EnsureBySub (default "local"; real OIDC: Task 23)
+	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL for httpsync (default "http://localhost:8080")
 }
 
 // Deps is the wired dependency graph. K4.B extends it with the
@@ -108,7 +111,7 @@ type Deps struct {
 	Kompendium kompendiumcli.Deps
 }
 
-func buildDeps(p Paths, env Env) (Deps, func(), error) {
+func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	clock := systemclock.New()
 	tmux := tmuxbridge.New()
 
@@ -161,9 +164,34 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	cacheSyncState := sqliteclient.NewSyncState(cacheStore)
 	syncUC := usecase.NewSyncStatus(cacheWriteQueue, cacheSyncState)
 
+	// httpsync wiring: client → queue adapter → worker.
+	// keyring is shared with the login/logout commands; the slot is
+	// per-server so the user can log into multiple flow-servers independently.
+	serverURL := env.ServerURL
+	keyring := keyringadapter.New()
+	keyringSlot := "tokens:" + serverURL
+	syncClient := httpsync.NewClient(serverURL, keyring, keyringSlot)
+	syncQueueAdapter := httpsync.NewQueue(cacheWriteQueue)
+	syncWorker := httpsync.NewWorker(
+		syncClient,
+		cacheSessions,
+		cacheProjects,
+		cacheActiveSessions,
+		cacheSyncState, // satisfies ports.SyncWatermarkStore
+		syncQueueAdapter,
+		localUser.ID,
+	)
+	// Wire ForcePull delegation: SyncStatus.ForcePull() calls syncWorker.ForcePull().
+	syncUC.WithForcePuller(syncWorker)
+	// Start the background pull/push loop. It will log unreachable-server warnings
+	// when no FLOW_SERVER_URL is reachable — expected in offline / no-auth scenarios.
+	syncWorker.Start(ctx)
+
 	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
 	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
 	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
+	// Wire push-signal so Start/Stop enqueue ops wake the worker immediately.
+	activeSessionsUC.SetPushSignal(syncWorker.SignalPush)
 	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
@@ -269,6 +297,14 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			Output:           outputTargets,
 			HomeDir:          p.Home,
 			Land:             env.WorktimeLand,
+			// Task 17: new sqlite-backed start/stop picker path.
+			Projects:       projectsUC,
+			ActiveSessions: activeSessionsUC,
+			UserID:         localUser.ID,
+			// Task 31/32: conflict channel from the sync worker.
+			Conflicts: syncWorker.Conflicts(),
+			// Task 32: sync controller for conflict resolution actions.
+			Sync: syncUC,
 		})
 	}
 
@@ -316,7 +352,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 					return palette.New(pal, paletteReader, paletteWriter, tmux)
 				},
 				Projects: func(pal theme.Palette) tea.Model {
-					return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, cacheSessions, localUser.ID)
 				},
 				Worktime: worktimeScreen,
 				Notes: func(pal theme.Palette) tea.Model {
@@ -346,7 +382,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			// are wired via the CRUD field; the Screen launcher is unchanged.
 			Projects: cli.ProjectsDeps{
 				Screen: func(pal theme.Palette) tea.Model {
-					return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projects.WithStandalone())
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, cacheSessions, localUser.ID, projects.WithStandalone())
 				},
 				CRUD: &cli.ProjectsCRUDDeps{
 					Projects: projectsUC,
@@ -359,6 +395,9 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			},
 			Kompendium: kompDeps,
 		}, func() {
+			// Stop the sync worker BEFORE closing the cache store so the
+			// worker's in-flight writes don't touch a closed DB handle.
+			syncWorker.Stop()
 			kompCleanup()
 			_ = cacheStore.Close()
 		}, nil
@@ -543,9 +582,16 @@ func main() {
 		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
 		LocalUserSub:        os.Getenv("FLOW_LOCAL_USER_SUB"),
+		ServerURL:           envOrDefault("FLOW_SERVER_URL", "http://localhost:8080"),
 	}
 
-	deps, cleanup, err := buildDeps(Paths{
+	// Signal-aware context for buildDeps (sync worker needs ctx at Start time).
+	// This context also covers long-running subcommands (status --watch, markdown
+	// view, kompendium browse) — they shut down cleanly on Ctrl+C / SIGTERM.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	deps, cleanup, err := buildDeps(ctx, Paths{
 		Home:               home,
 		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
 		TmuxDir:            tmuxDir,
@@ -573,13 +619,6 @@ func main() {
 	rootCmd.AddCommand(cli.NewSyncCmd(deps.Sync))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
-
-	// Signal-aware context so long-running subcommands (status --watch,
-	// markdown view, kompendium browse) can shut down cleanly. Without
-	// this, defers don't run on Ctrl+C / SIGTERM and the kompendium
-	// sqlite WAL is left without a final checkpoint.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)

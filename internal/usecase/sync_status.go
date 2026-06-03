@@ -22,21 +22,38 @@ var knownResources = []string{
 	"repo_notes",
 }
 
+// ForcePuller is a narrow interface satisfied by httpsync.Worker.
+// It lets SyncStatus delegate ForcePull to the real worker without
+// importing the httpsync package (avoids cycle: usecase → httpsync → ports → usecase).
+type ForcePuller interface {
+	ForcePull()
+}
+
 // SyncStatus provides a minimal implementation of ports.SyncController.
 // It surfaces WriteQueue length and per-resource watermarks via the Status()
-// method. ForcePull, AcceptServerVersion, and OverwriteServerVersion return
-// ErrSyncWorkerNotWired until the real worker is wired in Task 29.
+// method. When puller is non-nil, ForcePull delegates to it; otherwise it
+// returns ErrSyncWorkerNotWired. AcceptServerVersion and OverwriteServerVersion
+// return ErrSyncWorkerNotWired until a future task wires queue manipulation.
 type SyncStatus struct {
 	queue      ports.WriteQueue
 	watermarks ports.SyncWatermarkStore
+	puller     ForcePuller // optional — nil-tolerant
 }
 
 // compile-time assertion: SyncStatus must satisfy ports.SyncController.
 var _ ports.SyncController = (*SyncStatus)(nil)
 
-// NewSyncStatus constructs a SyncStatus use case.
+// NewSyncStatus constructs a SyncStatus use case. Pass nil for puller to keep
+// ForcePull as a stub (pre-wiring state).
 func NewSyncStatus(queue ports.WriteQueue, watermarks ports.SyncWatermarkStore) *SyncStatus {
 	return &SyncStatus{queue: queue, watermarks: watermarks}
+}
+
+// WithForcePuller attaches the real worker so ForcePull delegates instead of
+// returning ErrSyncWorkerNotWired. Called by the composition root after the
+// worker is constructed.
+func (s *SyncStatus) WithForcePuller(p ForcePuller) {
+	s.puller = p
 }
 
 // Status returns the current WriteQueue length and per-resource watermarks.
@@ -65,9 +82,14 @@ func (s *SyncStatus) Status() (ports.SyncStatus, error) {
 	}, nil
 }
 
-// ForcePull is a stub — returns ErrSyncWorkerNotWired until Task 29.
+// ForcePull signals the background worker to run an immediate pull cycle.
+// Returns ErrSyncWorkerNotWired if no worker has been wired via WithForcePuller.
 func (s *SyncStatus) ForcePull() error {
-	return ErrSyncWorkerNotWired
+	if s.puller == nil {
+		return ErrSyncWorkerNotWired
+	}
+	s.puller.ForcePull()
+	return nil
 }
 
 // AcceptServerVersion is a stub — returns ErrSyncWorkerNotWired until Task 29.

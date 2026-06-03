@@ -270,7 +270,7 @@ func TestBuildDeps_HappyPath(t *testing.T) {
 		KompendiumNotebook: notebook,
 		KompendiumIndex:    index,
 	}
-	deps, cleanup, err := buildDeps(p, Env{WorktimeTargetHours: 8 * time.Hour, WorktimeLand: "BE"})
+	deps, cleanup, err := buildDeps(context.Background(), p, Env{WorktimeTargetHours: 8 * time.Hour, WorktimeLand: "BE", ServerURL: "http://localhost:0"})
 	if err != nil {
 		t.Fatalf("buildDeps: %v", err)
 	}

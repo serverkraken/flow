@@ -40,6 +40,7 @@ type Worker struct {
 
 	conflicts  chan ports.ConflictMsg
 	pushSignal chan struct{}
+	pullSignal chan struct{} // buffered(1); drained by loop alongside pushSignal
 	done       chan struct{} // closed by loop when it exits
 	stop       context.CancelFunc
 
@@ -71,6 +72,7 @@ func NewWorker(
 		userID:       userID,
 		conflicts:    make(chan ports.ConflictMsg, 16),
 		pushSignal:   make(chan struct{}, 1),
+		pullSignal:   make(chan struct{}, 1),
 		done:         make(chan struct{}),
 		PullInterval: 30 * time.Second,
 	}
@@ -91,6 +93,16 @@ func (w *Worker) Done() <-chan struct{} { return w.done }
 func (w *Worker) SignalPush() {
 	select {
 	case w.pushSignal <- struct{}{}:
+	default:
+	}
+}
+
+// ForcePull triggers an immediate pull cycle (called by SyncStatus.ForcePull
+// which is invoked from the `flow sync force-pull` CLI or the TUI conflict
+// overlay). Non-blocking — coalesces with a pending pull signal.
+func (w *Worker) ForcePull() {
+	select {
+	case w.pullSignal <- struct{}{}:
 	default:
 	}
 }
@@ -133,6 +145,9 @@ func (w *Worker) loop(ctx context.Context) {
 			w.runPull(ctx)
 			w.runDrain(ctx)
 		case <-w.pushSignal:
+			w.runDrain(ctx)
+		case <-w.pullSignal:
+			w.runPull(ctx)
 			w.runDrain(ctx)
 		}
 	}
