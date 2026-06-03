@@ -9,11 +9,13 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/oidcserver"
+	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 )
 
 // cliClientID is the OIDC client used by the CLI/MCP device-flow. Separate
@@ -37,6 +39,30 @@ func main() {
 		logger.Error("config validation failed", slog.Any("err", err))
 		os.Exit(1)
 	}
+
+	// --- SQLite server store -------------------------------------------------
+
+	if err := os.MkdirAll(filepath.Dir(cfg.ServerDBPath), 0o755); err != nil {
+		logger.Error("server db dir", slog.Any("err", err))
+		os.Exit(1)
+	}
+	serverDB, err := sqliteserver.Open(cfg.ServerDBPath)
+	if err != nil {
+		logger.Error("open server db", slog.Any("err", err))
+		os.Exit(1)
+	}
+	defer func() {
+		if err := serverDB.Close(); err != nil {
+			logger.Error("server db close", slog.Any("err", err))
+		}
+	}()
+
+	users := sqliteserver.NewUsers(serverDB)
+	projects := sqliteserver.NewProjects(serverDB)
+	sessions := sqliteserver.NewSessions(serverDB)
+	activeStore := sqliteserver.NewActiveSessions(serverDB)
+
+	// --- OIDC + session cookie -----------------------------------------------
 
 	ctx := context.Background()
 	provider, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
@@ -66,15 +92,19 @@ func main() {
 
 	secure := strings.HasPrefix(cfg.BaseURL, "https://")
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
-		Provider:     provider,
-		Access:       access,
-		Session:      session,
-		BaseURL:      cfg.BaseURL,
-		OIDCClientID: cfg.OIDCClientID,
-		OIDCSecret:   cfg.OIDCClientSecret,
-		Cookie:       httpserver.CookieConfig{Name: "flow_session", Secure: secure},
-		Ready:        func() error { return nil },
-		OIDCConfig:   oidcCfg,
+		Provider:       provider,
+		Access:         access,
+		Session:        session,
+		Users:          users,
+		ProjectsServer: projects,
+		SessionsServer: sessions,
+		ActiveServer:   activeStore,
+		BaseURL:        cfg.BaseURL,
+		OIDCClientID:   cfg.OIDCClientID,
+		OIDCSecret:     cfg.OIDCClientSecret,
+		Cookie:         httpserver.CookieConfig{Name: "flow_session", Secure: secure},
+		Ready:          func() error { return serverDB.DB().Ping() },
+		OIDCConfig:     oidcCfg,
 	})
 
 	httpSrv := &http.Server{

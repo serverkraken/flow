@@ -17,6 +17,7 @@ type Config struct {
 	CookieHashKey    string   // FLOW_COOKIE_HASH_KEY (hex, 64 chars = 32 bytes)
 	CookieBlockKey   string   // FLOW_COOKIE_BLOCK_KEY (hex, 32 or 64 chars)
 	AllowedSubs      []string // FLOW_ALLOWED_SUBS (comma-separated OIDC 'sub' values)
+	ServerDBPath     string   // FLOW_SERVER_DB (default /var/lib/flow/server.db)
 }
 
 // LoadConfig reads the configuration from environment variables. Returns an
@@ -32,6 +33,7 @@ func LoadConfig() (Config, error) {
 		CookieHashKey:    os.Getenv("FLOW_COOKIE_HASH_KEY"),
 		CookieBlockKey:   os.Getenv("FLOW_COOKIE_BLOCK_KEY"),
 		AllowedSubs:      splitCSV(os.Getenv("FLOW_ALLOWED_SUBS")),
+		ServerDBPath:     envOrDefault("FLOW_SERVER_DB", "/var/lib/flow/server.db"),
 	}, nil
 }
 
