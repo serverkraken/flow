@@ -25,25 +25,27 @@ import (
 // suite — the test logs the new lower count. Update the baseline in
 // the same commit so the next PR can't regress past the new floor.
 var screenBaseline = map[string]int{
-	"cheatsheet/model.go":          0,
-	"palette/model.go":             3, // P7: row-specific styles (label/labelSel/match/matchSel) absorbed by picker.RowWithMatch; only preview hint/bar + separator border remain
-	"palette/render.go":            0,
-	"projects/model.go":            2,  // P7: row-specific styles (label/labelSel/match/matchSel/bar) absorbed by picker.RowWithMatch; only the filter separator border and the Sem.Active tmux-session marker remain
-	"worktime/dayoffs.go":          6,  // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
-	"worktime/helpers.go":          3,  // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
-	"worktime/history.go":          14, // P5.1: historyStyles cache zog die per-cell-Allokation aus renderHeatmapCell hierher — heatStepStyle-Loop (5) + day-off-Triade (3) + heatEmpty/heatRecorded + cursor + bestehende dayLabel/header/bal styles
-	"worktime/history_drill.go":    0,
-	"worktime/history_heatmap.go":  0, // P5.1: renderHeatmapCell + renderHeatmapLegend lesen jetzt vorgebackene Styles aus historyStyles statt pro Zelle/Chip ein NewStyle zu allokieren
-	"worktime/history_list.go":     8,
-	"worktime/history_month.go":    2,
-	"worktime/history_tagclock.go": 6,
-	"worktime/menu.go":             2,
-	"worktime/menu_target.go":      1,
-	"worktime/model.go":            1, // Phase-10-followup: tabStrip-as-title restored — renderTabs builds activeStyle (Accent+Bold+Underline) inline
-	"worktime/today.go":            0,
-	"worktime/today_dialog.go":     1,
-	"worktime/today_render.go":     0,
-	"worktime/week.go":             16, // round4 + Spec 2026-05-13: behindPace style split from old yellowPace (today-running → runningPace/Sem.Active, behind → behindPace/Sem.Warning)
+	"cheatsheet/model.go":           0,
+	"palette/model.go":              3, // P7: row-specific styles (label/labelSel/match/matchSel) absorbed by picker.RowWithMatch; only preview hint/bar + separator border remain
+	"palette/render.go":             0,
+	"projects/model.go":             1,  // Task 18: host model — only renderTabs activeStyle (Accent+Bold+Underline); per-row styles moved to source_dirs.go
+	"projects/source_dirs.go":       2,  // Task 18: Quellverzeichnisse sub-model — border separator + Sem.Active tmux-session marker (mirror old projects/model.go)
+	"projects/worktime_projects.go": 4,  // Task 18: Worktime-Projekte sub-model — border + dimSep + archived (Sem.Notice) + countHint (FgMuted) styles
+	"worktime/dayoffs.go":           6,  // kindColor per row + renderKindPicker glyph/label/accent-bar styles (Bg-Block-Selektion durch Accent-Bar ersetzt: -1 Site)
+	"worktime/helpers.go":           3,  // shared bases: NewStyle().Width(8) + .Bold(true) + .Foreground-only base (Skill §Color semantics: total ohne Bold-Adjacency)
+	"worktime/history.go":           14, // P5.1: historyStyles cache zog die per-cell-Allokation aus renderHeatmapCell hierher — heatStepStyle-Loop (5) + day-off-Triade (3) + heatEmpty/heatRecorded + cursor + bestehende dayLabel/header/bal styles
+	"worktime/history_drill.go":     0,
+	"worktime/history_heatmap.go":   0, // P5.1: renderHeatmapCell + renderHeatmapLegend lesen jetzt vorgebackene Styles aus historyStyles statt pro Zelle/Chip ein NewStyle zu allokieren
+	"worktime/history_list.go":      8,
+	"worktime/history_month.go":     1,
+	"worktime/history_tagclock.go":  5,
+	"worktime/menu.go":              2,
+	"worktime/menu_target.go":       1,
+	"worktime/model.go":             1, // Phase-10-followup: tabStrip-as-title restored — renderTabs builds activeStyle (Accent+Bold+Underline) inline
+	"worktime/today.go":             0,
+	"worktime/today_dialog.go":      1,
+	"worktime/today_render.go":      0,
+	"worktime/week.go":              16, // round4 + Spec 2026-05-13: behindPace style split from old yellowPace (today-running → runningPace/Sem.Active, behind → behindPace/Sem.Warning)
 
 	// Kompendium browse — same per-Model style cache pattern as
 	// palette/projects/worktime (P6.1+P6.2 in fc8c580). styles_struct.go
