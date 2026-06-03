@@ -185,3 +185,48 @@ func TestUnit_ServerSessions_Upsert_Concurrent_DistinctVersions(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestUnit_ServerSessions_GetByID_HappyPath(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-get1")
+	p := serverTestProject(t, store, u.ID, "ssess-get-proj")
+	sessions := NewSessions(store)
+
+	stored, err := sessions.Upsert(mkServerSession(u.ID, p.ID), 0)
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	got, err := sessions.GetByID(u.ID, stored.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.ID != stored.ID {
+		t.Errorf("ID: got %q, want %q", got.ID, stored.ID)
+	}
+	if got.Tag != "deep" {
+		t.Errorf("Tag: got %q, want %q", got.Tag, "deep")
+	}
+	if got.Note != "test" {
+		t.Errorf("Note: got %q, want %q", got.Note, "test")
+	}
+	if got.Version != stored.Version {
+		t.Errorf("Version: got %d, want %d", got.Version, stored.Version)
+	}
+	if got.Elapsed != time.Hour {
+		t.Errorf("Elapsed: got %v, want %v", got.Elapsed, time.Hour)
+	}
+}
+
+func TestUnit_ServerSessions_GetByID_NotFound(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-get2")
+	sessions := NewSessions(store)
+
+	_, err := sessions.GetByID(u.ID, "00000000-0000-0000-0000-000000000000")
+	if !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Errorf("want ErrSessionNotFound, got %v", err)
+	}
+}

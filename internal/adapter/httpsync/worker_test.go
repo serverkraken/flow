@@ -627,6 +627,207 @@ func (d *drainableQueue) lastErrorAt(i int) string {
 }
 
 // contains is a simple substring helper to avoid importing strings in test file.
+// TestWorker_DrainActiveStart_HappyPath verifies that an active_sessions
+// queue entry produced by encodeActiveStart is correctly dispatched to the
+// server's POST /api/v1/active/{id}/start and removed on a 2xx response.
+func TestWorker_DrainActiveStart_HappyPath(t *testing.T) {
+	inner := &drainableQueue{}
+	payload, _ := json.Marshal(struct {
+		Action          string `json:"action"`
+		ProjectID       string `json:"project_id"`
+		StartedOnDevice string `json:"started_on_device"`
+		Tag             string `json:"tag"`
+		Note            string `json:"note"`
+	}{"start", "proj-1", "laptop", "deep", "kicked-off"})
+	_ = inner.enqueueRaw("active_sessions", "proj-1", payload, 0)
+
+	var sawStart atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && contains(r.URL.Path, "/active/proj-1/start") {
+			sawStart.Add(1)
+			_ = json.NewEncoder(w).Encode(domain.ActiveSession{
+				ProjectID: "proj-1", StartedOnDevice: "laptop", Version: 11,
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	if !eventually(func() bool {
+		entries, _ := inner.Peek(10)
+		return sawStart.Load() >= 1 && len(entries) == 0
+	}, 1500*time.Millisecond) {
+		entries, _ := inner.Peek(10)
+		t.Fatalf("expected start drained: sawStart=%d remaining=%d", sawStart.Load(), len(entries))
+	}
+	w.Stop()
+	<-w.Done()
+}
+
+// TestWorker_DrainActiveStop_HappyPath verifies that an active_sessions_stop
+// queue entry is dispatched to DELETE /api/v1/active/{id} with the right
+// If-Match header and tag/note body.
+func TestWorker_DrainActiveStop_HappyPath(t *testing.T) {
+	inner := &drainableQueue{}
+	stopBody, _ := json.Marshal(struct {
+		Action string `json:"action"`
+		Tag    string `json:"tag"`
+		Note   string `json:"note"`
+	}{"stop", "shipped", "great session"})
+	_ = inner.enqueueRaw("active_sessions_stop", "proj-X", stopBody, 7)
+
+	var sawStop atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodDelete && contains(r.URL.Path, "/active/proj-X") {
+			sawStop.Add(1)
+			if r.Header.Get("If-Match") != "7" {
+				t.Errorf("If-Match: got %q, want 7", r.Header.Get("If-Match"))
+			}
+			_ = json.NewEncoder(w).Encode(domain.Session{ID: "stopped-sess", Version: 12})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	if !eventually(func() bool {
+		entries, _ := inner.Peek(10)
+		return sawStop.Load() >= 1 && len(entries) == 0
+	}, 1500*time.Millisecond) {
+		entries, _ := inner.Peek(10)
+		t.Fatalf("expected stop drained: sawStop=%d remaining=%d", sawStop.Load(), len(entries))
+	}
+	w.Stop()
+	<-w.Done()
+}
+
+// TestWorker_ForcePull_TriggersImmediatePullCycle verifies that calling
+// ForcePull pokes the worker's pullSignal channel, causing a pull cycle to
+// run before the next regular tick. We use a sleepy pull-interval so a
+// signal-driven cycle is unmistakable.
+func TestWorker_ForcePull_TriggersImmediatePullCycle(t *testing.T) {
+	var sessCallCount atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && contains(r.URL.Path, "/sessions") {
+			sessCallCount.Add(1)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	ss := &testutil.FakeSessionStore{}
+	ps := &testutil.FakeProjectStore{}
+	as := &testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}}
+	ws := &testutil.FakeSyncWatermarkStore{}
+
+	c := newClient(srv, "tok")
+	q := httpsync.NewQueue(&drainableQueue{})
+	w := httpsync.NewWorker(c, ss, ps, as, ws, q, "user1")
+	w.PullInterval = 1 * time.Hour // effectively disable tick-driven pulls
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	w.Start(ctx)
+
+	// Initial pull on Start consumes the first signal-or-tick path; wait for it
+	// to land so ForcePull's signal is distinguishable from startup noise.
+	if !eventually(func() bool { return sessCallCount.Load() >= 1 }, 500*time.Millisecond) {
+		t.Fatal("initial pull did not happen")
+	}
+	before := sessCallCount.Load()
+
+	w.ForcePull()
+	if !eventually(func() bool { return sessCallCount.Load() > before }, 500*time.Millisecond) {
+		t.Fatalf("ForcePull did not trigger a pull: before=%d after=%d", before, sessCallCount.Load())
+	}
+}
+
+// TestWorker_ForcePull_Coalesces verifies that multiple back-to-back ForcePull
+// calls do not block — the channel is buffered-1 with select-default in the
+// implementation, so excess signals are dropped rather than queued.
+func TestWorker_ForcePull_Coalesces(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	c := newClient(srv, "tok")
+	q := httpsync.NewQueue(&drainableQueue{})
+	w := httpsync.NewWorker(
+		c,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		q,
+		"user1",
+	)
+	// Worker not Started; ForcePull pokes the channel but no consumer. The
+	// select-default branch must keep the call non-blocking even when the
+	// buffer is full.
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 100; i++ {
+			w.ForcePull()
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("ForcePull blocked despite coalescing")
+	}
+}
+
+// eventually polls cond until it returns true or timeout elapses.
+func eventually(cond func() bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return cond()
+}
+
 func contains(s, sub string) bool {
 	if len(sub) == 0 {
 		return true

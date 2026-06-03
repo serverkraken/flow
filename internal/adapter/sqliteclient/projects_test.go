@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -143,5 +144,69 @@ func TestUnit_Projects_GetByID_NotFound(t *testing.T) {
 	_, err = projects.GetByID(u.ID, "00000000-0000-0000-0000-000000000000")
 	if !errors.Is(err, ports.ErrProjectNotFound) {
 		t.Errorf("want ErrProjectNotFound, got %v", err)
+	}
+}
+
+func TestUnit_Projects_Upsert_InsertAndUpdate(t *testing.T) {
+	t.Parallel()
+	store := mustOpen(t)
+	users := NewUsers(store)
+	projects := NewProjects(store)
+
+	u, err := users.EnsureBySub("sub|proj-up", "user@example.com", "User")
+	if err != nil {
+		t.Fatalf("EnsureBySub: %v", err)
+	}
+
+	// Insert path — Upsert against an id that does not exist yet.
+	archived := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	now := time.Now().UTC().Truncate(time.Second)
+	inserted := domain.Project{
+		ID:         "11111111-1111-1111-1111-111111111111",
+		UserID:     u.ID,
+		Name:       "Orig",
+		Slug:       "orig",
+		CreatedAt:  now,
+		LastUsedAt: now,
+		ArchivedAt: &archived,
+		Version:    7,
+	}
+	if err := projects.Upsert(inserted); err != nil {
+		t.Fatalf("Upsert insert: %v", err)
+	}
+	got, err := projects.GetByID(u.ID, inserted.ID)
+	if err != nil {
+		t.Fatalf("GetByID after insert: %v", err)
+	}
+	if got.Name != "Orig" || got.Slug != "orig" || got.Version != 7 {
+		t.Errorf("inserted mismatch: %+v", got)
+	}
+	if got.ArchivedAt == nil {
+		t.Error("ArchivedAt nil after insert with non-nil archived_at")
+	}
+
+	// Update path — same id, new values.
+	updated := domain.Project{
+		ID:         inserted.ID,
+		UserID:     u.ID,
+		Name:       "Renamed",
+		Slug:       "renamed",
+		CreatedAt:  got.CreatedAt,
+		LastUsedAt: now.Add(time.Minute),
+		ArchivedAt: nil,
+		Version:    9,
+	}
+	if err := projects.Upsert(updated); err != nil {
+		t.Fatalf("Upsert update: %v", err)
+	}
+	got2, err := projects.GetByID(u.ID, inserted.ID)
+	if err != nil {
+		t.Fatalf("GetByID after update: %v", err)
+	}
+	if got2.Name != "Renamed" || got2.Slug != "renamed" || got2.Version != 9 {
+		t.Errorf("updated mismatch: %+v", got2)
+	}
+	if got2.ArchivedAt != nil {
+		t.Error("ArchivedAt not cleared by update with nil archived_at")
 	}
 }

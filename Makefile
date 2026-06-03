@@ -22,7 +22,7 @@ COVER_OUT       := coverage.out
 # require OS-keychain access in CI or a Docker daemon, neither of which
 # `make ci` provides.
 #
-# Phase-1 M2/M3 (2026-06-03) drops the gate further to 85%. M2/M3 added
+# Phase-1 M2/M3 (2026-06-03) drops the gate further to 84%. M2/M3 added
 # substantial integration-heavy surface area (sqliteserver atomic Stop
 # transaction, httpserver projects/sessions/active handlers, httpsync
 # Client/Queue/Worker, TUI conflict_overlay + worktime listener). Most
@@ -31,10 +31,22 @@ COVER_OUT       := coverage.out
 # Restoration to ≥89% is tracked as a Phase-2 follow-up — see the new
 # scripts/smoke-m2-m3.sh + docs/runbook/m2-m3-smoke-test.md which provide
 # end-to-end coverage outside the unit-coverage gate.
+#
+# Phase-2 follow-up #4 (2026-06-03) restored aggregate from 84.8% to 85.2%
+# via targeted tests on sqliteserver.Projects (ListActive/ListAll/Touch/
+# Archive/PullSince-empty), sqliteserver.Sessions.GetByID, sqliteclient
+# .Projects.Upsert, sqliteclient.Sessions legacy shims, httpserver.Server
+# wiring, and httpsync.Worker.ForcePull + drainActive{Start,Stop}.
+# Reaching ≥89% would require unit coverage on the auth-browser callback
+# path (12% — needs an OIDC stub) and the TUI screen view/update fanout
+# (501 of ~1180 uncovered internal funcs live under frontend/tui/), both
+# substantially larger than the M2/M3 follow-up budget. 85% is the new
+# honest floor; bump only after the auth or TUI test infrastructure is in
+# place to support it.
 # Plan references:
 #   docs/superpowers/plans/2026-06-02-flow-phase1-m1-server-skeleton-oidc.md
 #   docs/superpowers/plans/2026-06-02-flow-phase1-m2-m3-domain-sync.md
-COVER_THRESHOLD := 84
+COVER_THRESHOLD := 85
 
 # Coverage measurement targets the hexagonal layers under internal/.
 # cmd/flow is the composition root (wiring only, no business logic) and

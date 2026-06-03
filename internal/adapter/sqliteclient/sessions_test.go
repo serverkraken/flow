@@ -240,3 +240,50 @@ func TestUnit_Sessions_Upsert_RequiresIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestUnit_Sessions_LegacyShims_DelegateToUpsert(t *testing.T) {
+	t.Parallel()
+	store := mustOpen(t)
+	sessions := NewSessions(store)
+
+	u := testUser(t, store, "sess-shim")
+	p := testProject(t, store, u.ID, "proj-shim")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	mk := func(id string) domain.Session {
+		return domain.Session{
+			ID: id, UserID: u.ID, ProjectID: p.ID,
+			Date: now, Start: now, Stop: now.Add(time.Hour),
+			Elapsed: time.Hour, UpdatedAt: now,
+		}
+	}
+
+	// Append → single row inserted.
+	if err := sessions.Append(mk(uuid.NewString())); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	// AppendBatch → all rows inserted.
+	batch := []domain.Session{mk(uuid.NewString()), mk(uuid.NewString())}
+	if err := sessions.AppendBatch(batch); err != nil {
+		t.Fatalf("AppendBatch: %v", err)
+	}
+
+	// Rewrite with empty slice → no-op, no error.
+	if err := sessions.Rewrite(nil); err != nil {
+		t.Fatalf("Rewrite(nil): %v", err)
+	}
+
+	// Rewrite with rows → delegates to UpsertBatch.
+	if err := sessions.Rewrite([]domain.Session{mk(uuid.NewString())}); err != nil {
+		t.Fatalf("Rewrite: %v", err)
+	}
+
+	got, err := sessions.Load(u.ID)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(got) != 4 {
+		t.Errorf("session count after shims: got %d, want 4", len(got))
+	}
+}

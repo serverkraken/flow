@@ -264,3 +264,134 @@ func TestUnit_ServerProjects_GetByID_NotFound(t *testing.T) {
 		t.Errorf("want ErrProjectNotFound, got %v", err)
 	}
 }
+
+func TestUnit_ServerProjects_ListActive_ExcludesArchived(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sproj-la")
+	projects := NewProjects(store)
+
+	_ = serverTestProject(t, store, u.ID, "active-1")
+	archived := serverTestProject(t, store, u.ID, "archived-1")
+	if err := projects.Archive(u.ID, archived.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	got, err := projects.ListActive(u.ID)
+	if err != nil {
+		t.Fatalf("ListActive: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("ListActive len = %d, want 1", len(got))
+	}
+	if got[0].Slug != "active-1" {
+		t.Errorf("ListActive slug = %q, want active-1", got[0].Slug)
+	}
+}
+
+func TestUnit_ServerProjects_ListAll_IncludesArchived(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sproj-laa")
+	projects := NewProjects(store)
+
+	_ = serverTestProject(t, store, u.ID, "all-1")
+	archived := serverTestProject(t, store, u.ID, "all-archived")
+	if err := projects.Archive(u.ID, archived.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	got, err := projects.ListAll(u.ID)
+	if err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("ListAll len = %d, want 2", len(got))
+	}
+	var sawArchived bool
+	for _, p := range got {
+		if p.Slug == "all-archived" {
+			if p.ArchivedAt == nil {
+				t.Error("ArchivedAt is nil on archived row")
+			}
+			sawArchived = true
+		}
+	}
+	if !sawArchived {
+		t.Error("ListAll did not include archived row")
+	}
+}
+
+func TestUnit_ServerProjects_TouchLastUsed_BumpsTimestamp(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sproj-touch")
+	projects := NewProjects(store)
+
+	p := serverTestProject(t, store, u.ID, "touch-1")
+	beforeTouch := p.LastUsedAt
+	time.Sleep(2 * time.Millisecond)
+
+	if err := projects.TouchLastUsed(u.ID, p.ID); err != nil {
+		t.Fatalf("TouchLastUsed: %v", err)
+	}
+
+	got, err := projects.GetByID(u.ID, p.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if !got.LastUsedAt.After(beforeTouch) {
+		t.Errorf("LastUsedAt did not advance: before=%v after=%v", beforeTouch, got.LastUsedAt)
+	}
+}
+
+func TestUnit_ServerProjects_Archive_SetsArchivedAt(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sproj-arch")
+	projects := NewProjects(store)
+
+	p := serverTestProject(t, store, u.ID, "arch-1")
+	if err := projects.Archive(u.ID, p.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	got, err := projects.GetByID(u.ID, p.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.ArchivedAt == nil {
+		t.Fatal("ArchivedAt is nil after Archive")
+	}
+	if got.ArchivedAt.IsZero() {
+		t.Error("ArchivedAt is zero time")
+	}
+}
+
+func TestUnit_ServerProjects_PullSince_NoNewRows_HighWatermarkUnchanged(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sproj-pull0")
+	projects := NewProjects(store)
+
+	p := serverTestProject(t, store, u.ID, "pull-1")
+	// EnsureBySlug inserts via raw SQL with version=0 — bump it so we have a
+	// non-zero version to PullSince past.
+	if _, err := projects.Upsert(p, 0); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+
+	rows, high, hasMore, err := projects.PullSince(u.ID, 999, 10)
+	if err != nil {
+		t.Fatalf("PullSince: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("rows len = %d, want 0", len(rows))
+	}
+	if high != 999 {
+		t.Errorf("high = %d, want 999 (unchanged)", high)
+	}
+	if hasMore {
+		t.Error("hasMore = true, want false")
+	}
+}
