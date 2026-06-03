@@ -15,6 +15,7 @@ package worktime
 // legacy path — no change to their expectations.
 
 import (
+	"errors"
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
@@ -135,7 +136,7 @@ func (h heute) activeSessionsStartCmd(projectID, projectName string) tea.Cmd {
 			// user picked a project that started running on another device
 			// between the picker opening and the Enter press. Surface it as a
 			// warning toast and let the user pick again.
-			if err == usecase.ErrActiveSessionExists {
+			if errors.Is(err, usecase.ErrActiveSessionExists) {
 				return heuteActionDoneMsg{
 					toast: glyphs.Active + " " + projectName + " läuft bereits",
 					info:  true,
@@ -165,7 +166,7 @@ func (h heute) projectsCreateThenStartCmd(name string) tea.Cmd {
 			return heuteActionDoneMsg{err: fmt.Errorf("projekt anlegen: %w", err)}
 		}
 		if _, err := as.Start(userID, created.ID); err != nil {
-			if err == usecase.ErrActiveSessionExists {
+			if errors.Is(err, usecase.ErrActiveSessionExists) {
 				return heuteActionDoneMsg{
 					toast: glyphs.Active + " " + created.Name + " läuft bereits",
 					info:  true,
