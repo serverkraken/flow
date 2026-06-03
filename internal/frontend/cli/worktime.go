@@ -91,6 +91,11 @@ type WorktimeDeps struct {
 	// CacheDBPath is the absolute path to the sqlite cache.db shown in the
 	// guard error message so users know which file is "empty".
 	CacheDBPath string
+
+	// Migrate is the TSV-to-SQLite migration use case (Task 19).
+	// Nil until the composition root wires it; the subcommand's RunE
+	// surfaces a clear error when unset.
+	Migrate *usecase.MigrateTSV
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -110,7 +115,11 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 	// Option (b) from the task spec: use SessionCount (Load+len) instead of
 	// a new port method to keep the port surface small.
 	if deps.TSVPath != "" && deps.SessionCount != nil {
-		worktimeCmd.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
+		worktimeCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+			// migrate-from-tsv is exempt: it IS the fix, not a guarded command.
+			if cmd.Name() == "migrate-from-tsv" {
+				return nil
+			}
 			if _, err := os.Stat(deps.TSVPath); os.IsNotExist(err) {
 				return nil // no legacy log → no guard needed
 			}
@@ -147,6 +156,10 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		newTagCmd(deps),
 		newNoteCmd(deps),
 		newDayOffCmd(deps),
+		newMigrateTSVCmd(MigrateTSVDeps{
+			MigrateTSV: deps.Migrate,
+			UserID:     deps.UserID,
+		}),
 	)
 	return worktimeCmd
 }

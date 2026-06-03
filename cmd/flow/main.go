@@ -164,6 +164,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
 	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
 	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
+	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
@@ -304,6 +305,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 				},
 				TSVPath:     p.WorktimeLog,
 				CacheDBPath: cacheDBPath,
+				Migrate:     migrateTSVUC,
 			},
 			Sidekick: cli.SidekickDeps{
 				FlowState: flowState,
