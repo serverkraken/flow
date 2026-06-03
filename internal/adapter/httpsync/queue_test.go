@@ -3,6 +3,7 @@ package httpsync_test
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/httpsync"
@@ -22,12 +23,19 @@ type drainEntry struct {
 	removed         bool
 }
 
+// drainableQueue is a concurrency-safe in-memory ports.WriteQueue used in
+// both queue_test.go and worker_test.go. A mutex guards all field accesses so
+// that the worker goroutine and test goroutine can read/write concurrently
+// under -race without false positives.
 type drainableQueue struct {
+	mu      sync.Mutex
 	entries []*drainEntry
 	nextSeq int64
 }
 
 func (d *drainableQueue) Enqueue(resource, rowID string, payload []byte, expectedVersion int64) (int64, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.nextSeq++
 	d.entries = append(d.entries, &drainEntry{
 		seq:             d.nextSeq,
@@ -40,6 +48,8 @@ func (d *drainableQueue) Enqueue(resource, rowID string, payload []byte, expecte
 }
 
 func (d *drainableQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	var out []ports.WriteQueueEntry
 	for _, e := range d.entries {
 		if e.removed {
@@ -61,6 +71,8 @@ func (d *drainableQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
 }
 
 func (d *drainableQueue) Remove(seq int64) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for _, e := range d.entries {
 		if e.seq == seq {
 			e.removed = true
@@ -71,6 +83,8 @@ func (d *drainableQueue) Remove(seq int64) error {
 }
 
 func (d *drainableQueue) SetError(seq int64, errMsg string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for _, e := range d.entries {
 		if e.seq == seq {
 			e.lastError = errMsg
