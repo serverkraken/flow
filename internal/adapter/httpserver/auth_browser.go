@@ -40,17 +40,21 @@ type oidcserverProvider interface {
 // EnsureBySub on every authenticated request (with sub-level caching) and
 // injects domain.User into the request context for downstream handlers.
 // Task 33 (server wiring) will populate this field; leave nil until then.
+//
+// ProjectsServer is optional (nil disables /api/v1/projects routes). Task 33
+// wires the concrete *sqliteserver.Projects here.
 type AuthDeps struct {
-	Provider     oidcserverProvider
-	Access       ports.AccessChecker
-	Session      ports.BrowserSessionStore
-	Users        ports.UserStore // optional; nil disables user-ensure in bearer MW
-	BaseURL      string
-	OIDCClientID string
-	OIDCSecret   string
-	Cookie       CookieConfig
-	Ready        ReadinessCheck
-	OIDCConfig   OIDCConfigResponse // populated by main; consumed by Task 17 handler
+	Provider       oidcserverProvider
+	Access         ports.AccessChecker
+	Session        ports.BrowserSessionStore
+	Users          ports.UserStore // optional; nil disables user-ensure in bearer MW
+	ProjectsServer ProjectsServer  // optional; nil disables /api/v1/projects routes (Task 33 wires)
+	BaseURL        string
+	OIDCClientID   string
+	OIDCSecret     string
+	Cookie         CookieConfig
+	Ready          ReadinessCheck
+	OIDCConfig     OIDCConfigResponse // populated by main; consumed by Task 17 handler
 }
 
 // authBrowser holds the OAuth2 config + deps for the three browser endpoints.

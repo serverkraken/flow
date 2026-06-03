@@ -52,6 +52,10 @@ func NewWithAuth(d AuthDeps) *Server {
 	r.Group(func(rr chi.Router) {
 		rr.Use(NewBearerMiddleware(d.Provider, d.Access, d.Users))
 		rr.Get("/api/v1/me-bearer", NewMeHandler().ServeHTTP)
+		if d.ProjectsServer != nil {
+			rr.Get("/api/v1/projects", NewProjectsPullHandler(d.ProjectsServer).ServeHTTP)
+			rr.Put("/api/v1/projects/{id}", NewProjectsPushHandler(d.ProjectsServer).ServeHTTP)
+		}
 	})
 
 	return &Server{router: r, baseURL: d.BaseURL}
