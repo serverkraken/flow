@@ -12,7 +12,7 @@ import (
 
 func TestUnit_BearerMiddleware_NoHeader_Returns401(t *testing.T) {
 	t.Parallel()
-	mw := NewBearerMiddleware(stubProv{}, stubAccessAll{allow: true})
+	mw := NewBearerMiddleware(stubProv{}, stubAccessAll{allow: true}, nil)
 	rr := httptest.NewRecorder()
 	mw(http.NotFoundHandler()).ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/x", nil))
 	if rr.Code != http.StatusUnauthorized {
@@ -22,7 +22,7 @@ func TestUnit_BearerMiddleware_NoHeader_Returns401(t *testing.T) {
 
 func TestUnit_BearerMiddleware_WrongScheme_Returns401(t *testing.T) {
 	t.Parallel()
-	mw := NewBearerMiddleware(stubProv{}, stubAccessAll{allow: true})
+	mw := NewBearerMiddleware(stubProv{}, stubAccessAll{allow: true}, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
@@ -34,7 +34,7 @@ func TestUnit_BearerMiddleware_WrongScheme_Returns401(t *testing.T) {
 
 func TestUnit_BearerMiddleware_VerifyFails_Returns401(t *testing.T) {
 	t.Parallel()
-	mw := NewBearerMiddleware(stubProv{err: errors.New("bad jwt")}, stubAccessAll{allow: true})
+	mw := NewBearerMiddleware(stubProv{err: errors.New("bad jwt")}, stubAccessAll{allow: true}, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("Authorization", "Bearer faketoken")
@@ -46,7 +46,7 @@ func TestUnit_BearerMiddleware_VerifyFails_Returns401(t *testing.T) {
 
 func TestUnit_BearerMiddleware_ValidTokenAccessDenied_Returns403(t *testing.T) {
 	t.Parallel()
-	mw := NewBearerMiddleware(stubProv{id: ports.Identity{Sub: "u-1"}}, stubAccessAll{allow: false})
+	mw := NewBearerMiddleware(stubProv{id: ports.Identity{Sub: "u-1"}}, stubAccessAll{allow: false}, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("Authorization", "Bearer faketoken")
@@ -58,7 +58,7 @@ func TestUnit_BearerMiddleware_ValidTokenAccessDenied_Returns403(t *testing.T) {
 
 func TestUnit_BearerMiddleware_ValidToken_PassesThrough(t *testing.T) {
 	t.Parallel()
-	mw := NewBearerMiddleware(stubProv{id: ports.Identity{Sub: "u-1", Email: "u@x"}}, stubAccessAll{allow: true})
+	mw := NewBearerMiddleware(stubProv{id: ports.Identity{Sub: "u-1", Email: "u@x"}}, stubAccessAll{allow: true}, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.Header.Set("Authorization", "Bearer faketoken")

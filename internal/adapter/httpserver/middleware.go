@@ -52,7 +52,13 @@ func NewAuthMiddleware(sess ports.BrowserSessionStore, cookieName string) func(h
 
 // NewBearerMiddleware enforces Authorization: Bearer <jwt>. Verifies via
 // AuthProvider, runs AccessChecker, attaches identity to context.
-func NewBearerMiddleware(prov ports.AuthProvider, access ports.AccessChecker) func(http.Handler) http.Handler {
+//
+// When users is non-nil the middleware also calls users.EnsureBySub so that
+// a User row always exists before the request reaches a handler; the resolved
+// domain.User is injected via WithUser / UserFromContext. Pass nil to retain
+// the original M1 behaviour (no DB call, no user in context).
+func NewBearerMiddleware(prov ports.AuthProvider, access ports.AccessChecker, users ports.UserStore) func(http.Handler) http.Handler {
+	cache := &userCache{}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := r.Header.Get("Authorization")
@@ -72,7 +78,15 @@ func NewBearerMiddleware(prov ports.AuthProvider, access ports.AccessChecker) fu
 				return
 			}
 			sv := sessionValue{Sub: id.Sub, Email: id.Email, Name: id.Name}
-			next.ServeHTTP(w, r.WithContext(WithSub(r.Context(), sv)))
+			ctx := WithSub(r.Context(), sv)
+			if users != nil {
+				u, ok := ensureUser(w, r, users, cache, id.Sub, id.Email, id.Name)
+				if !ok {
+					return
+				}
+				ctx = WithUser(ctx, u)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

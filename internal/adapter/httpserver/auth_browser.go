@@ -35,10 +35,16 @@ type oidcserverProvider interface {
 //
 // OIDCConfig is populated even in Task 10 (used by /api/v1/oidc/config in
 // Task 17). It's safe to leave the zero-value if no one calls that endpoint.
+//
+// Users is optional (nil-safe). When set, the bearer middleware calls
+// EnsureBySub on every authenticated request (with sub-level caching) and
+// injects domain.User into the request context for downstream handlers.
+// Task 33 (server wiring) will populate this field; leave nil until then.
 type AuthDeps struct {
 	Provider     oidcserverProvider
 	Access       ports.AccessChecker
 	Session      ports.BrowserSessionStore
+	Users        ports.UserStore // optional; nil disables user-ensure in bearer MW
 	BaseURL      string
 	OIDCClientID string
 	OIDCSecret   string
