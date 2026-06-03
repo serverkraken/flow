@@ -39,6 +39,9 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("sqliteserver migrate: %w", err)
 	}
+	// SQLite only supports one concurrent writer. Serialise all writes through
+	// a single connection so the driver never races for the write lock.
+	db.SetMaxOpenConns(1)
 	return &Store{db: db}, nil
 }
 

@@ -17,3 +17,7 @@ type ProjectStore interface {
 
 // ErrProjectNotFound is returned by ProjectStore when the requested project does not exist.
 var ErrProjectNotFound = errSentinel("flow: project not found")
+
+// ErrProjectVersionConflict is returned by the server-side Projects.Upsert when the
+// stored version differs from the client's expectedVersion (OCC reject).
+var ErrProjectVersionConflict = errSentinel("flow: project version conflict")
