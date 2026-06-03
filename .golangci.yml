@@ -360,6 +360,7 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/frontend/tui/components/picker
+            - github.com/serverkraken/flow/internal/frontend/tui/components/project_picker
             - github.com/serverkraken/flow/internal/frontend/tui/components/statusbar
             - github.com/serverkraken/flow/internal/frontend/tui/components/strings
             - github.com/serverkraken/flow/internal/frontend/tui/components/titlebox

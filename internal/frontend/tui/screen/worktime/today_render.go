@@ -29,6 +29,12 @@ func (h heute) viewContent() string {
 	if h.width == 0 {
 		return ""
 	}
+	// Projekt-Picker übernimmt den gesamten Bildschirm (eigene titlebox +
+	// footer). FullScreen() gibt true zurück solange pp != nil, damit der
+	// worktime-Root keinen zweiten titlebox-Wrapper aufbaut.
+	if h.pp != nil {
+		return h.pp.View()
+	}
 	if h.dialog == heuteDialogNoteView && h.noteView != nil {
 		// Note-Viewer ist ein Vollbild-Sub-Screen via markdown_overlay
 		// — eigenes frame + statusBar + footer, keine Dialog-Header-
@@ -60,6 +66,9 @@ func (h heute) renderBody() string {
 	// slot + hints). The sessions list is the scrollable middle that
 	// fitHeight windows around the cursor when the terminal is too short.
 	header := []string{h.renderDateLine(now), h.renderHeadline(now), "", h.renderProgressBar(inner, now), h.renderSummary(inner, now)}
+	if line := h.renderActiveSessionsIndicator(now); line != "" {
+		header = append(header, "", line)
+	}
 	if line := h.renderAttachedNotes(); line != "" {
 		header = append(header, "", line)
 	}
@@ -330,6 +339,38 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 		return glyphs.Done, "Ziel erreicht", sem.Success
 	}
 	return glyphs.Paused, "pausiert", p.FgMuted
+}
+
+// renderActiveSessionsIndicator renders the multi-project running-indicator
+// line that appears in the header when the new ActiveSessions path is wired
+// and at least one session is in flight.
+//
+// Format: `▶ Projektname 2h 30m  ·  Projektname2 0h 12m`
+//
+// The indicator is only visible in new-path mode (h.activeSessions != nil).
+// In legacy mode (h.activeSessions == nil) this returns "" so the legacy
+// header is unchanged.
+//
+// Project names come from h.activeSessions[i].ProjectID for now — the domain
+// model carries the name only after the Projects.Get join that Task 21 will
+// add to the sqlite store. Until then we display a short ID suffix.
+func (h heute) renderActiveSessionsIndicator(now time.Time) string {
+	if len(h.activeSessions) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, as := range h.activeSessions {
+		elapsed := now.Sub(as.StartedAt)
+		// Use project name when available (non-empty), else fall back to the
+		// last 8 chars of the ID for readability.
+		name := as.ProjectID
+		if len(name) > 8 {
+			name = name[len(name)-8:]
+		}
+		parts = append(parts, fmt.Sprintf("%s %s  %s", glyphs.Active, name, formatDur(elapsed)))
+	}
+	line := strings.Join(parts, stDim(h.pal, "  ·  "))
+	return "  " + theme.Active(line, h.pal)
 }
 
 // totalThresholdColor picks the today-total foreground based on running

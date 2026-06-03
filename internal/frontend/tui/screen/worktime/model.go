@@ -73,6 +73,23 @@ type Deps struct {
 	// its menu_actions don't reach for env vars directly. Empty string
 	// falls back to "NW" inside the helpers.
 	Land string
+
+	// — new-path ActiveSessions deps (Task 17) —
+	//
+	// When both ActiveSessions and UserID are set the `s`-key opens the
+	// project_picker instead of the legacy SessionWriter path. When either is
+	// nil/empty the screen degrades to the legacy SessionWriter path — all
+	// existing tests and sidekick-without-sync-deps stay green.
+	//
+	// Projects feeds the picker's initial item list (MRU-sorted, active only).
+	// ActiveSessions.Start/ListActive drive the session lifecycle.
+	// UserID scopes every store call to the authenticated user.
+	//
+	// TODO(Task 32): wire these in cmd/flow/main.go once the sqlite stores and
+	// httpsync.Queue are assembled in the composition root.
+	Projects       *usecase.Projects
+	ActiveSessions *usecase.ActiveSessions
+	UserID         string
 }
 
 // tab identifies one of the four worktime sub-screens.
