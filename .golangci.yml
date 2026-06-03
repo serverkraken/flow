@@ -354,6 +354,10 @@ linters:
             # silently importable from every screen on day one. Matches the
             # enumeration shape of kompendium-frontend-tui.
             - github.com/serverkraken/flow/internal/frontend/tui/components/confirm
+            # conflict_overlay: sync-conflict resolution popup (Task 30+31).
+            # Consumed by worktime root (screen/worktime) to display push-409
+            # conflicts to the user.
+            - github.com/serverkraken/flow/internal/frontend/tui/components/conflict_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/form
             - github.com/serverkraken/flow/internal/frontend/tui/components/glyphs
             - github.com/serverkraken/flow/internal/frontend/tui/components/help

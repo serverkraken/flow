@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/conflict_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
@@ -90,6 +91,19 @@ type Deps struct {
 	Projects       *usecase.Projects
 	ActiveSessions *usecase.ActiveSessions
 	UserID         string
+
+	// — sync-conflict deps (Task 31) —
+	//
+	// Conflicts receives sync conflicts from the httpsync.Worker. Nil-tolerant:
+	// when nil, no listener goroutine is spawned and conflict overlays never
+	// fire. Wire in Task 32 via SidekickDeps.
+	Conflicts <-chan ports.ConflictMsg
+	// Sync exposes operator controls for conflict resolution (AcceptServerVersion /
+	// OverwriteServerVersion). Nil in M2 mode — Task 33 wires a real
+	// implementation. When nil, [s]/[l] in the sessions-conflict overlay emit a
+	// toast "(Sync-Aktion in Task 33 verdrahtet)" and close the overlay without
+	// making any state change.
+	Sync ports.SyncController
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -133,6 +147,15 @@ type Model struct {
 	// Bei nil läuft der reguläre Tab-Body; sonst übernimmt brief
 	// Input + Render bis ein ExitMsg vom Overlay zurückkommt.
 	brief *markdown_overlay.Model
+
+	// conflictOverlay — optionaler Fullscreen-Overlay für Sync-Konflikte
+	// (sessions 409 / active_sessions race). Gesetzt von conflictReceivedMsg,
+	// gelöscht wenn der User eine Auflösung wählt oder Esc drückt. Geht über
+	// brief und regulären Tab-Body, weil Konflikte jederzeit feuern können.
+	conflictOverlay *conflict_overlay.Model
+	// currentConflict merkt sich die ConflictMsg die den Overlay ausgelöst
+	// hat — für die Auflösungs-Handler (AcceptServerVersion / ForceTakeover).
+	currentConflict ports.ConflictMsg
 }
 
 // New constructs the worktime root model with the four sub-models
@@ -175,11 +198,14 @@ func (m Model) WithState(filter string, cursor int) tea.Model {
 	return m
 }
 
-// FilterActive returns whether either the action menu, the brief
-// overlay, or the active sub-model is currently consuming text input.
-// The Worktime root, sidekick parent, and tab-switching keys all check
-// this before claiming letter keys back.
+// FilterActive returns whether either the action menu, the brief overlay,
+// the conflict overlay, or the active sub-model is currently consuming input.
+// The Worktime root, sidekick parent, and tab-switching keys all check this
+// before claiming letter keys back.
 func (m Model) FilterActive() bool {
+	if m.conflictOverlay != nil {
+		return true
+	}
 	if m.brief != nil {
 		return true
 	}
@@ -274,10 +300,13 @@ func (m Model) ConsumesKeys() []string {
 	return keys
 }
 
-// Init starts every sub-model concurrently and schedules the first
-// tick.
+// Init starts every sub-model concurrently, schedules the first tick, and
+// arms the conflict-channel listener when Deps.Conflicts is non-nil.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.scheduleTick()}
+	if cmd := listenForConflicts(m.deps.Conflicts); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 	for _, s := range m.subs {
 		if cmd := s.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -317,12 +346,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.subs[m.current] = updated
 		return m, cmd
 
+	case conflictReceivedMsg,
+		conflictResolveServerMsg,
+		conflictResolveLocalMsg,
+		conflictTakeoverMsg,
+		conflictParallelMsg,
+		conflict_overlay.CancelMsg:
+		// Sync-conflict messages — delegate to handleConflictMsg so Update
+		// stays within the gocognit budget.
+		return m.handleConflictMsg(msg)
+
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.menu = m.menu.SetSize(msg.Width, msg.Height)
 		if m.brief != nil {
 			bv := m.brief.SetSize(msg.Width, msg.Height)
 			m.brief = &bv
+		}
+		if m.conflictOverlay != nil {
+			ov := m.conflictOverlay.SetSize(msg.Width, msg.Height)
+			m.conflictOverlay = &ov
 		}
 		var cmds []tea.Cmd
 		for i, s := range m.subs {
@@ -403,6 +446,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Split off Update to keep cyclomatic complexity inside the project
 // budget.
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// Conflict-Overlay claimt alle Tasten zuerst — ein Sync-Konflikt muss
+	// aufgelöst werden bevor der User weitermachen kann. Die Auflösungs-Msgs
+	// kommen als tea.Cmd zurück und landen im Top-Level Update-Switch.
+	if m.conflictOverlay != nil {
+		next, cmd := m.conflictOverlay.Update(msg)
+		m.conflictOverlay = &next
+		return m, cmd
+	}
+
 	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
 	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
 	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
@@ -477,6 +529,12 @@ func (m Model) View() tea.View {
 func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
+	}
+	// Conflict-Overlay hat höchste Priorität — ein ungelöster Sync-Konflikt
+	// ersetzt das komplette Worktime-Outer (kein Tab-Strip, keine titlebox).
+	// Der Overlay bringt seinen eigenen Rahmen mit (conflict_overlay.View).
+	if m.conflictOverlay != nil {
+		return m.conflictOverlay.View()
 	}
 	// Brief-Overlay ersetzt das Worktime-Outer komplett — kein Tab-
 	// Strip, keine titlebox-Umhüllung außenrum. Der Overlay bringt
