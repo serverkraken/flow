@@ -31,7 +31,10 @@ func NewActiveSessions(s *Store) *ActiveSessions { return &ActiveSessions{store:
 // expectedVersion = 0 means "must not exist"; any other value means
 // "force-takeover — the caller holds version N, so replace it". Returns
 // ErrActiveSessionConflict if the stored version does not match.
-func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion int64) (domain.ActiveSession, error) {
+//
+// tag/note are persisted on the active row so Stop can carry them onto the
+// finished Session even if the stopping device differs from the starting one.
+func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error) {
 	tx, err := a.store.DB().Begin()
 	if err != nil {
 		return domain.ActiveSession{}, err
@@ -60,13 +63,15 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 	}
 	now := time.Now().UTC()
 	if _, err := tx.Exec(`
-		INSERT INTO active_sessions (user_id, project_id, started_at, started_on_device, version)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO active_sessions (user_id, project_id, started_at, started_on_device, tag, note, version)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(user_id, project_id) DO UPDATE SET
 			started_at = excluded.started_at,
 			started_on_device = excluded.started_on_device,
+			tag = excluded.tag,
+			note = excluded.note,
 			version = excluded.version`,
-		userID, projectID, now.Format(time.RFC3339), device, v); err != nil {
+		userID, projectID, now.Format(time.RFC3339), device, tag, note, v); err != nil {
 		return domain.ActiveSession{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -74,13 +79,18 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 	}
 	return domain.ActiveSession{
 		UserID: userID, ProjectID: projectID,
-		StartedAt: now, StartedOnDevice: device, Version: v,
+		StartedAt: now, StartedOnDevice: device,
+		Tag: tag, Note: note, Version: v,
 	}, nil
 }
 
 // Stop is atomic: in one transaction, deletes the active_sessions row AND
 // inserts a finished sessions row spanning [started_at, now). Both operations
 // get distinct Lamport versions so pull-since clients see both updates.
+//
+// Empty tag/note inherit the values stored on the active row at start time;
+// non-empty values from the caller override. This lets `flow worktime start
+// --tag deep` carry the tag through Stop without re-typing it.
 //
 // Returns ErrActiveSessionConflict if expectedVersion does not match the
 // stored row, or ErrActiveSessionNotFound if no row exists.
@@ -91,11 +101,11 @@ func (a *ActiveSessions) Stop(userID, projectID string, expectedVersion int64, t
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var startedAt string
+	var startedAt, startTag, startNote string
 	var curVersion int64
 	if err := tx.QueryRow(
-		`SELECT started_at, version FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		userID, projectID).Scan(&startedAt, &curVersion); err != nil {
+		`SELECT started_at, tag, note, version FROM active_sessions WHERE user_id = ? AND project_id = ?`,
+		userID, projectID).Scan(&startedAt, &startTag, &startNote, &curVersion); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Session{}, ports.ErrActiveSessionNotFound
 		}
@@ -103,6 +113,12 @@ func (a *ActiveSessions) Stop(userID, projectID string, expectedVersion int64, t
 	}
 	if curVersion != expectedVersion {
 		return domain.Session{}, ports.ErrActiveSessionConflict
+	}
+	if tag == "" {
+		tag = startTag
+	}
+	if note == "" {
+		note = startNote
 	}
 
 	start, _ := time.Parse(time.RFC3339, startedAt)
@@ -152,7 +168,7 @@ func (a *ActiveSessions) Stop(userID, projectID string, expectedVersion int64, t
 // ListByUser returns all active sessions for the given user.
 func (a *ActiveSessions) ListByUser(userID string) ([]domain.ActiveSession, error) {
 	rows, err := a.store.DB().Query(`
-		SELECT user_id, project_id, started_at, started_on_device, version
+		SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		FROM active_sessions WHERE user_id = ?
 		ORDER BY started_at ASC`, userID)
 	if err != nil {
@@ -177,10 +193,10 @@ func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, er
 	var as domain.ActiveSession
 	var startedAt string
 	err := a.store.DB().QueryRow(`
-		SELECT user_id, project_id, started_at, started_on_device, version
+		SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		FROM active_sessions WHERE user_id = ? AND project_id = ?`,
 		userID, projectID).Scan(
-		&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Version)
+		&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ActiveSession{}, ports.ErrActiveSessionNotFound
@@ -196,7 +212,7 @@ func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, er
 // version in the result, or since if no rows).
 func (a *ActiveSessions) PullSince(userID string, since int64) ([]domain.ActiveSession, int64, error) {
 	rows, err := a.store.DB().Query(`
-		SELECT user_id, project_id, started_at, started_on_device, version
+		SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		FROM active_sessions WHERE user_id = ? AND version > ?
 		ORDER BY version ASC`, userID, since)
 	if err != nil {
@@ -226,7 +242,7 @@ func (a *ActiveSessions) PullSince(userID string, since int64) ([]domain.ActiveS
 func scanActiveSession(r interface{ Scan(...any) error }) (domain.ActiveSession, error) {
 	var as domain.ActiveSession
 	var startedAt string
-	if err := r.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Version); err != nil {
+	if err := r.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version); err != nil {
 		return domain.ActiveSession{}, err
 	}
 	as.StartedAt, _ = time.Parse(time.RFC3339, startedAt)

@@ -15,5 +15,7 @@ type ActiveSession struct {
 	ProjectID       string
 	StartedAt       time.Time
 	StartedOnDevice string
-	Version         int64 // Optimistic-Concurrency token, server-incremented
+	Tag             string // Intent-Tag set at start; carried over to the finished Session on Stop unless overridden.
+	Note            string // Free-text note set at start; merged into the finished Session on Stop.
+	Version         int64  // Optimistic-Concurrency token, server-incremented
 }

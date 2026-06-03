@@ -67,9 +67,13 @@ func (a *ActiveSessions) signalPush() {
 // allowed; this method assumes the caller (CLI or TUI picker) already
 // resolved exactly one ProjectID.
 //
+// tag and note are stored on the local ActiveSession row and forwarded to
+// the server so Stop (possibly from another device) can carry them over to
+// the finished Session even when no flags are passed at stop time.
+//
 // If an ActiveSession for (userID, projectID) already exists locally,
 // returns ErrActiveSessionExists — caller shows the conflict overlay.
-func (a *ActiveSessions) Start(userID, projectID string) (domain.ActiveSession, error) {
+func (a *ActiveSessions) Start(userID, projectID, tag, note string) (domain.ActiveSession, error) {
 	if _, err := a.active.Get(userID, projectID); err == nil {
 		return domain.ActiveSession{}, ErrActiveSessionExists
 	} else if !errors.Is(err, ports.ErrActiveSessionNotFound) {
@@ -81,6 +85,8 @@ func (a *ActiveSessions) Start(userID, projectID string) (domain.ActiveSession, 
 		ProjectID:       projectID,
 		StartedAt:       time.Now().UTC(),
 		StartedOnDevice: a.device,
+		Tag:             tag,
+		Note:            note,
 		Version:         0, // server assigns
 	}
 	if err := a.active.Upsert(row); err != nil {
@@ -113,6 +119,15 @@ func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Sessi
 	cur, err := a.active.Get(userID, projectID)
 	if err != nil {
 		return domain.Session{}, err
+	}
+
+	// Empty caller args inherit from the start-time row: `flow worktime start
+	// --tag deep` followed by `flow worktime stop` carries "deep" through.
+	if tag == "" {
+		tag = cur.Tag
+	}
+	if note == "" {
+		note = cur.Note
 	}
 
 	now := time.Now().UTC()
@@ -197,11 +212,18 @@ func newUUID() string {
 // take over or leave the existing session running.
 var ErrActiveSessionExists = errors.New("flow: active session for this project already exists")
 
-// encodeActiveStart marshals a domain.ActiveSession to JSON for the write queue.
-// Returns an error if marshaling fails (struct fields are simple types, so
-// failures indicate a serious environment issue).
+// encodeActiveStart produces the queue payload for an active-session start.
+// The shape matches httpsync.Worker's activeStartBody (snake_case JSON);
+// json.Marshal-ing domain.ActiveSession directly would yield PascalCase keys
+// the worker silently ignores.
 func encodeActiveStart(row domain.ActiveSession) ([]byte, error) {
-	return json.Marshal(row)
+	return json.Marshal(struct {
+		Action          string `json:"action"`
+		ProjectID       string `json:"project_id"`
+		StartedOnDevice string `json:"started_on_device"`
+		Tag             string `json:"tag"`
+		Note            string `json:"note"`
+	}{"start", row.ProjectID, row.StartedOnDevice, row.Tag, row.Note})
 }
 
 // encodeSession marshals a domain.Session to JSON for the write queue.

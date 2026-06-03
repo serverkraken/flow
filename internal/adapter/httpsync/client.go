@@ -294,11 +294,15 @@ func (c *Client) PullActive(ctx context.Context, since int64) ([]domain.ActiveSe
 
 // StartActive starts tracking on the server (POST /api/v1/active/{project_id}/start).
 // expectedVersion is 0 when no active session is expected to exist.
+// tag and note are persisted on the server's active row so Stop can carry
+// them over to the finished Session even from a different device.
 // Returns *ConflictError (wrapping ports.ErrActiveSessionConflict) on 409.
-func (c *Client) StartActive(ctx context.Context, projectID, device string, expectedVersion int64) (domain.ActiveSession, error) {
+func (c *Client) StartActive(ctx context.Context, projectID, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error) {
 	body, err := json.Marshal(struct {
 		StartedOnDevice string `json:"started_on_device"`
-	}{device})
+		Tag             string `json:"tag"`
+		Note            string `json:"note"`
+	}{device, tag, note})
 	if err != nil {
 		return domain.ActiveSession{}, err
 	}

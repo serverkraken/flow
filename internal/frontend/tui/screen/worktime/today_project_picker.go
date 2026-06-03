@@ -131,7 +131,9 @@ func (h heute) activeSessionsStartCmd(projectID, projectName string) tea.Cmd {
 	userID := h.deps.UserID
 	now := h.deps.Clock.Now()
 	mut := func() tea.Msg {
-		if _, err := as.Start(userID, projectID); err != nil {
+		// TUI picker does not yet prompt for tag/note; pass empty strings.
+		// The Stop dialog (today_dialog_submit) can still attach tag/note.
+		if _, err := as.Start(userID, projectID, "", ""); err != nil {
 			// ErrActiveSessionExists is not a hard error — it just means the
 			// user picked a project that started running on another device
 			// between the picker opening and the Enter press. Surface it as a
@@ -165,7 +167,7 @@ func (h heute) projectsCreateThenStartCmd(name string) tea.Cmd {
 		if err != nil {
 			return heuteActionDoneMsg{err: fmt.Errorf("projekt anlegen: %w", err)}
 		}
-		if _, err := as.Start(userID, created.ID); err != nil {
+		if _, err := as.Start(userID, created.ID, "", ""); err != nil {
 			if errors.Is(err, usecase.ErrActiveSessionExists) {
 				return heuteActionDoneMsg{
 					toast: glyphs.Active + " " + created.Name + " läuft bereits",

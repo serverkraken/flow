@@ -163,7 +163,7 @@ func TestQueue_EnqueueProject(t *testing.T) {
 func TestQueue_EnqueueActiveStart(t *testing.T) {
 	inner := &drainableQueue{}
 	q := httpsync.NewQueue(inner)
-	_, err := q.EnqueueActiveStart("p1", "laptop", 0)
+	_, err := q.EnqueueActiveStart("p1", "laptop", "", "", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

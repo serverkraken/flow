@@ -25,7 +25,7 @@ func NewActiveSessions(store *Store) *ActiveSessions { return &ActiveSessions{st
 // ListByUser returns all in-progress sessions for the given user.
 func (a *ActiveSessions) ListByUser(userID string) ([]domain.ActiveSession, error) {
 	rows, err := a.store.DB().Query(
-		`SELECT user_id, project_id, started_at, started_on_device, version
+		`SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		   FROM active_sessions
 		  WHERE user_id = ?`,
 		userID,
@@ -53,14 +53,14 @@ func (a *ActiveSessions) ListByUser(userID string) ([]domain.ActiveSession, erro
 // Returns ports.ErrActiveSessionNotFound when no such session exists.
 func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, error) {
 	row := a.store.DB().QueryRow(
-		`SELECT user_id, project_id, started_at, started_on_device, version
+		`SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		   FROM active_sessions
 		  WHERE user_id = ? AND project_id = ?`,
 		userID, projectID,
 	)
 	var as domain.ActiveSession
 	var startedAt string
-	err := row.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Version)
+	err := row.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version)
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.ActiveSession{}, ports.ErrActiveSessionNotFound
 	}
@@ -79,13 +79,15 @@ func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, er
 func (a *ActiveSessions) Upsert(as domain.ActiveSession) error {
 	startedAt := as.StartedAt.UTC().Format(time.RFC3339)
 	_, err := a.store.DB().Exec(
-		`INSERT INTO active_sessions (user_id, project_id, started_at, started_on_device, version)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO active_sessions (user_id, project_id, started_at, started_on_device, tag, note, version)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(user_id, project_id) DO UPDATE SET
 		   started_at        = excluded.started_at,
 		   started_on_device = excluded.started_on_device,
+		   tag               = excluded.tag,
+		   note              = excluded.note,
 		   version           = excluded.version`,
-		as.UserID, as.ProjectID, startedAt, as.StartedOnDevice, as.Version,
+		as.UserID, as.ProjectID, startedAt, as.StartedOnDevice, as.Tag, as.Note, as.Version,
 	)
 	if err != nil {
 		return fmt.Errorf("sqliteclient.ActiveSessions.Upsert: %w", err)
@@ -108,7 +110,7 @@ func (a *ActiveSessions) Delete(userID, projectID string) error {
 func scanActiveSession(rows *sql.Rows) (domain.ActiveSession, error) {
 	var as domain.ActiveSession
 	var startedAt string
-	err := rows.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Version)
+	err := rows.Scan(&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version)
 	if err != nil {
 		return domain.ActiveSession{}, fmt.Errorf("sqliteclient.ActiveSessions: scan: %w", err)
 	}

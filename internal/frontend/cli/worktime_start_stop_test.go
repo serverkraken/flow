@@ -240,8 +240,8 @@ func (f *newPathFixture) deps() cli.WorktimeDeps {
 		ResolveProject: func(userID, explicitID, pwd string) (domain.Project, error) {
 			return sessionsUC.ResolveProject(userID, explicitID, pwd)
 		},
-		StartActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
-			return activeUC.Start(userID, projectID)
+		StartActiveSession: func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+			return activeUC.Start(userID, projectID, tag, note)
 		},
 		StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
 			return activeUC.Stop(userID, projectID, tag, note)

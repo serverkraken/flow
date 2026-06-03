@@ -18,7 +18,7 @@ import (
 // Kept local to avoid polluting ports.ActiveSessionStore with server-only
 // signatures (Start/Stop with OCC params).
 type ActiveServer interface {
-	Start(userID, projectID, device string, expectedVersion int64) (domain.ActiveSession, error)
+	Start(userID, projectID, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error)
 	Stop(userID, projectID string, expectedVersion int64, tag, note string) (domain.Session, error)
 	Get(userID, projectID string) (domain.ActiveSession, error)
 	ListByUser(userID string) ([]domain.ActiveSession, error)
@@ -60,7 +60,7 @@ func NewActiveListHandler(store ActiveServer) http.Handler {
 
 // NewActiveStartHandler returns a handler for POST /api/v1/active/{project_id}/start.
 //
-// Body (optional JSON): {"started_on_device": "..."}
+// Body (optional JSON): {"started_on_device": "...", "tag": "...", "note": "..."}
 // If-Match header: 0 (must not exist) or version (force-takeover).
 func NewActiveStartHandler(store ActiveServer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,10 +70,12 @@ func NewActiveStartHandler(store ActiveServer) http.Handler {
 
 		var body struct {
 			StartedOnDevice string `json:"started_on_device"`
+			Tag             string `json:"tag"`
+			Note            string `json:"note"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 
-		a, err := store.Start(user.ID, projectID, body.StartedOnDevice, expected)
+		a, err := store.Start(user.ID, projectID, body.StartedOnDevice, expected, body.Tag, body.Note)
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
 			cur, _ := store.Get(user.ID, projectID)
 			w.Header().Set("Content-Type", "application/json")

@@ -71,9 +71,11 @@ type WorktimeDeps struct {
 	ResolveProject func(userID, explicitID, pwd string) (domain.Project, error)
 
 	// StartActiveSession writes an ActiveSession locally and queues a
-	// server-start push. Returns ErrActiveSessionExists when one is already
-	// running for (userID, projectID).
-	StartActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+	// server-start push. tag and note are persisted on the row so a later
+	// Stop can carry them through even when no flags are passed at stop time.
+	// Returns ErrActiveSessionExists when one is already running for
+	// (userID, projectID).
+	StartActiveSession func(userID, projectID, tag, note string) (domain.ActiveSession, error)
 
 	// StopActiveSession closes the active session, creates a finished Session
 	// row and queues a server-stop push.
@@ -252,12 +254,7 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 			// New sqlite path: use when ResolveProject + StartActiveSession
 			// are wired in the composition root (Task 14+).
 			if deps.ResolveProject != nil && deps.StartActiveSession != nil {
-				// tagFlag and noteFlag are accepted but not yet stored in
-				// ActiveSession (domain.ActiveSession has no Tag/Note fields).
-				// They are available for future Tasks that extend ActiveSession.
-				_ = tagFlag
-				_ = noteFlag
-				return runStartNew(cmd, deps, projectFlag)
+				return runStartNew(cmd, deps, projectFlag, tagFlag, noteFlag)
 			}
 			// Legacy TSV path: used by existing tests and pre-migration installs.
 			arg := ""
@@ -291,8 +288,8 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "läuft bereits → trotzdem überschreiben")
 	cmd.Flags().StringVar(&projectFlag, "project", "", "Projekt-Slug oder UUID; sonst smart-default")
-	cmd.Flags().StringVar(&tagFlag, "tag", "", "Intent-Tag (für future-Tasks; noch nicht in ActiveSession gespeichert)")
-	cmd.Flags().StringVar(&noteFlag, "note", "", "Vorab-Notiz (für future-Tasks; noch nicht in ActiveSession gespeichert)")
+	cmd.Flags().StringVar(&tagFlag, "tag", "", "Intent-Tag (wird beim Stop übernommen wenn dort nicht überschrieben)")
+	cmd.Flags().StringVar(&noteFlag, "note", "", "Vorab-Notiz (wird beim Stop übernommen wenn dort nicht überschrieben)")
 	return cmd
 }
 
@@ -301,13 +298,13 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 // ActiveSession locally and queues a server-start push. The legacy
 // time-argument (HH:MM backdate) is not supported on the new path yet —
 // ActiveSessions.Start always uses time.Now (consistent with the spec).
-func runStartNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag string) error {
+func runStartNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note string) error {
 	pwd, _ := os.Getwd()
 	pr, err := deps.ResolveProject(deps.UserID, projectFlag, pwd)
 	if err != nil {
 		return err
 	}
-	if _, err := deps.StartActiveSession(deps.UserID, pr.ID); err != nil {
+	if _, err := deps.StartActiveSession(deps.UserID, pr.ID, tag, note); err != nil {
 		if errors.Is(err, usecase.ErrActiveSessionExists) {
 			// Idempotent: already running is a soft no-op like the legacy path.
 			fprintf(cmd.ErrOrStderr(), "Session auf '%s' läuft bereits\n", pr.Name)

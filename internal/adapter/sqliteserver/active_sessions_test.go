@@ -16,7 +16,7 @@ func TestUnit_ServerActiveSessions_Start_NewRow_Succeeds(t *testing.T) {
 	p := serverTestProject(t, store, u.ID, "sas-proj1")
 	as := NewActiveSessions(store)
 
-	got, err := as.Start(u.ID, p.ID, "laptop", 0)
+	got, err := as.Start(u.ID, p.ID, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -51,11 +51,11 @@ func TestUnit_ServerActiveSessions_Start_RowExists_ZeroExpected_Conflict(t *test
 	p := serverTestProject(t, store, u.ID, "sas-proj2")
 	as := NewActiveSessions(store)
 
-	if _, err := as.Start(u.ID, p.ID, "laptop", 0); err != nil {
+	if _, err := as.Start(u.ID, p.ID, "laptop", 0, "", ""); err != nil {
 		t.Fatalf("first Start: %v", err)
 	}
 
-	_, err := as.Start(u.ID, p.ID, "phone", 0)
+	_, err := as.Start(u.ID, p.ID, "phone", 0, "", "")
 	if !errors.Is(err, ports.ErrActiveSessionConflict) {
 		t.Errorf("want ErrActiveSessionConflict, got %v", err)
 	}
@@ -69,12 +69,12 @@ func TestUnit_ServerActiveSessions_Start_Takeover_MatchingVersion_Succeeds(t *te
 	p := serverTestProject(t, store, u.ID, "sas-proj3")
 	as := NewActiveSessions(store)
 
-	first, err := as.Start(u.ID, p.ID, "laptop", 0)
+	first, err := as.Start(u.ID, p.ID, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("first Start: %v", err)
 	}
 
-	second, err := as.Start(u.ID, p.ID, "phone", first.Version)
+	second, err := as.Start(u.ID, p.ID, "phone", first.Version, "", "")
 	if err != nil {
 		t.Fatalf("takeover Start: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestUnit_ServerActiveSessions_Start_NoRow_NonZeroExpected_Conflict(t *testi
 	p := serverTestProject(t, store, u.ID, "sas-proj4")
 	as := NewActiveSessions(store)
 
-	_, err := as.Start(u.ID, p.ID, "laptop", 42)
+	_, err := as.Start(u.ID, p.ID, "laptop", 42, "", "")
 	if !errors.Is(err, ports.ErrActiveSessionConflict) {
 		t.Errorf("want ErrActiveSessionConflict for non-zero expected on absent row, got %v", err)
 	}
@@ -117,7 +117,7 @@ func TestUnit_ServerActiveSessions_Stop_HappyPath(t *testing.T) {
 	p := serverTestProject(t, store, u.ID, "sas-proj5")
 	as := NewActiveSessions(store)
 
-	started, err := as.Start(u.ID, p.ID, "laptop", 0)
+	started, err := as.Start(u.ID, p.ID, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestUnit_ServerActiveSessions_Stop_Atomicity(t *testing.T) {
 	p := serverTestProject(t, store, u.ID, "sas-proj6")
 	as := NewActiveSessions(store)
 
-	started, err := as.Start(u.ID, p.ID, "laptop", 0)
+	started, err := as.Start(u.ID, p.ID, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestUnit_ServerActiveSessions_Stop_WrongVersion_Conflict_NoSideEffects(t *t
 	p := serverTestProject(t, store, u.ID, "sas-proj8")
 	as := NewActiveSessions(store)
 
-	started, err := as.Start(u.ID, p.ID, "laptop", 0)
+	started, err := as.Start(u.ID, p.ID, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestUnit_ServerActiveSessions_ListByUser_MultipleProjects(t *testing.T) {
 	as := NewActiveSessions(store)
 
 	for i, pID := range []string{p1.ID, p2.ID, p3.ID} {
-		if _, err := as.Start(u.ID, pID, "device", 0); err != nil {
+		if _, err := as.Start(u.ID, pID, "device", 0, "", ""); err != nil {
 			t.Fatalf("Start project %d: %v", i, err)
 		}
 	}
@@ -324,7 +324,7 @@ func TestUnit_ServerActiveSessions_PullSince_ReturnsOnlyGreaterVersions(t *testi
 
 	var versions []int64
 	for _, pID := range []string{p1.ID, p2.ID, p3.ID} {
-		a, err := as.Start(u.ID, pID, "device", 0)
+		a, err := as.Start(u.ID, pID, "device", 0, "", "")
 		if err != nil {
 			t.Fatalf("Start: %v", err)
 		}

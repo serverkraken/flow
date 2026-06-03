@@ -34,12 +34,14 @@ func (q *Queue) EnqueueProject(p domain.Project, expectedVersion int64) (int64, 
 }
 
 // EnqueueActiveStart enqueues an active-session start action.
-func (q *Queue) EnqueueActiveStart(projectID, device string, expectedVersion int64) (int64, error) {
+func (q *Queue) EnqueueActiveStart(projectID, device, tag, note string, expectedVersion int64) (int64, error) {
 	payload, err := json.Marshal(struct {
 		Action          string `json:"action"`
 		ProjectID       string `json:"project_id"`
 		StartedOnDevice string `json:"started_on_device"`
-	}{"start", projectID, device})
+		Tag             string `json:"tag"`
+		Note            string `json:"note"`
+	}{"start", projectID, device, tag, note})
 	if err != nil {
 		return 0, err
 	}

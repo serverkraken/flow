@@ -281,7 +281,7 @@ func TestStartActive_HappyPath(t *testing.T) {
 	defer srv.Close()
 
 	c := newClient(srv, "tok")
-	got, err := c.StartActive(context.Background(), "p1", "laptop", 0)
+	got, err := c.StartActive(context.Background(), "p1", "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestStartActive_409_ConflictError(t *testing.T) {
 	defer srv.Close()
 
 	c := newClient(srv, "tok")
-	_, err := c.StartActive(context.Background(), "p1", "laptop", 0)
+	_, err := c.StartActive(context.Background(), "p1", "laptop", 0, "", "")
 	if !errors.Is(err, ports.ErrActiveSessionConflict) {
 		t.Errorf("expected ErrActiveSessionConflict, got %v", err)
 	}

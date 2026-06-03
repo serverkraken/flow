@@ -11,6 +11,6 @@ Usage:
 Flags:
       --force            läuft bereits → trotzdem überschreiben
   -h, --help             help for start
-      --note string      Vorab-Notiz (für future-Tasks; noch nicht in ActiveSession gespeichert)
+      --note string      Vorab-Notiz (wird beim Stop übernommen wenn dort nicht überschrieben)
       --project string   Projekt-Slug oder UUID; sonst smart-default
-      --tag string       Intent-Tag (für future-Tasks; noch nicht in ActiveSession gespeichert)
+      --tag string       Intent-Tag (wird beim Stop übernommen wenn dort nicht überschrieben)

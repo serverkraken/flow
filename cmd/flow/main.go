@@ -326,8 +326,8 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				ResolveProject: func(userID, explicitID, pwd string) (domain.Project, error) {
 					return sessionsUC.ResolveProject(userID, explicitID, pwd)
 				},
-				StartActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
-					return activeSessionsUC.Start(userID, projectID)
+				StartActiveSession: func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Start(userID, projectID, tag, note)
 				},
 				StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
 					return activeSessionsUC.Stop(userID, projectID, tag, note)

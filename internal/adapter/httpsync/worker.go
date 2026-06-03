@@ -297,6 +297,8 @@ type activeStartBody struct {
 	Action          string `json:"action"`
 	ProjectID       string `json:"project_id"`
 	StartedOnDevice string `json:"started_on_device"`
+	Tag             string `json:"tag"`
+	Note            string `json:"note"`
 }
 
 func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
@@ -304,7 +306,7 @@ func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) 
 	if err := json.Unmarshal(e.Payload, &body); err != nil {
 		return false, err
 	}
-	_, err := w.client.StartActive(ctx, e.RowID, body.StartedOnDevice, e.ExpectedVersion)
+	_, err := w.client.StartActive(ctx, e.RowID, body.StartedOnDevice, e.ExpectedVersion, body.Tag, body.Note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
 		w.emitConflictFromError(ctx, "active_sessions", e.RowID, e.Seq, body, err)
 		return false, nil

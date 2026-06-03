@@ -269,7 +269,7 @@ func TestUnit_ActiveSessions_Start_HappyPath(t *testing.T) {
 	uc := mkActiveSessions(active, projects, sessions, queue)
 
 	before := time.Now().UTC()
-	row, err := uc.Start("u1", "p1")
+	row, err := uc.Start("u1", "p1", "", "")
 	after := time.Now().UTC()
 	if err != nil {
 		t.Fatalf("Start: unexpected error: %v", err)
@@ -346,7 +346,7 @@ func TestUnit_ActiveSessions_Start_AlreadyRunning(t *testing.T) {
 
 	uc := mkActiveSessions(active, projects, sessions, queue)
 
-	_, err := uc.Start("u1", "p1")
+	_, err := uc.Start("u1", "p1", "", "")
 	if !errors.Is(err, usecase.ErrActiveSessionExists) {
 		t.Fatalf("expected ErrActiveSessionExists, got %v", err)
 	}
@@ -373,7 +373,7 @@ func TestUnit_ActiveSessions_Start_GetUnexpectedError(t *testing.T) {
 
 	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, &fakeWriteQueue{})
 
-	_, err := uc.Start("u1", "p1")
+	_, err := uc.Start("u1", "p1", "", "")
 	if !errors.Is(err, unexpectedErr) {
 		t.Fatalf("expected disk error to bubble, got %v", err)
 	}
