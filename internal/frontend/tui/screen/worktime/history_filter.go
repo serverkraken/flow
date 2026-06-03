@@ -117,6 +117,9 @@ func filteredHistory(records []domain.DayRecord, query string, now time.Time) []
 	if out, ok := filterByNote(records, q); ok {
 		return out
 	}
+	if out, ok := filterByProject(records, q); ok {
+		return out
+	}
 	if out, ok := filterByISOWeek(records, q, now); ok {
 		return out
 	}
@@ -124,6 +127,37 @@ func filteredHistory(records []domain.DayRecord, query string, now time.Time) []
 		return out
 	}
 	return records
+}
+
+// filterByProject keeps only sessions whose ProjectID matches the value
+// after "project:". Used by the cross-screen entry from Worktime-Projekte
+// (Plan-B follow-up #2) where the producer hands the canonical project
+// UUID — exact-match is fine because the producer holds the ID.
+func filterByProject(records []domain.DayRecord, q string) ([]domain.DayRecord, bool) {
+	if !strings.HasPrefix(strings.ToLower(q), "project:") {
+		return nil, false
+	}
+	want := strings.TrimSpace(q[len("project:"):])
+	if want == "" {
+		return records, true
+	}
+	out := make([]domain.DayRecord, 0, len(records))
+	for _, rec := range records {
+		var keep []domain.Session
+		var total time.Duration
+		for _, s := range rec.Sessions {
+			if s.ProjectID == want {
+				keep = append(keep, s)
+				total += s.Elapsed
+			}
+		}
+		if len(keep) > 0 {
+			out = append(out, domain.DayRecord{
+				Date: rec.Date, Sessions: keep, Total: total, Target: rec.Target,
+			})
+		}
+	}
+	return out, true
 }
 
 func filterByTag(records []domain.DayRecord, q string) ([]domain.DayRecord, bool) {
@@ -214,7 +248,8 @@ func filterByRange(records []domain.DayRecord, q string, now time.Time) ([]domai
 
 func isTagOrNote(q string) bool {
 	low := strings.ToLower(q)
-	return strings.HasPrefix(low, "tag:") || strings.HasPrefix(low, "note:")
+	return strings.HasPrefix(low, "tag:") || strings.HasPrefix(low, "note:") ||
+		strings.HasPrefix(low, "project:")
 }
 
 func isISOWeek(q string) bool {

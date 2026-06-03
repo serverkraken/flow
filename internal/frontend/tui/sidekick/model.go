@@ -146,9 +146,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case palette.SwitchScreenMsg:
 		// In-process screen switch — the palette emits this when a picked
 		// entry's action matches the goto.sh deep-link pattern. No subshell,
-		// no flow restart, no flicker.
+		// no flow restart, no flicker. When the message carries a Filter,
+		// it is replayed onto the target screen via WithState so cross-
+		// screen producers (projects → worktime) can deep-link into the
+		// right sub-tab with the right filter (see Plan-B follow-up #2).
 		if id, ok := screenIDForName(msg.Screen); ok {
 			m.current = id
+			if msg.Filter != "" {
+				if sr, ok := m.screens[id].(stateRestorer); ok {
+					m.screens[id] = sr.WithState(msg.Filter, 0)
+				}
+			}
 		}
 		return m, nil
 	case tea.KeyPressMsg:

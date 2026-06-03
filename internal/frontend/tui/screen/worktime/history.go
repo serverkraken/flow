@@ -295,6 +295,25 @@ func (h history) StateFilter() string {
 	return h.mode.label()
 }
 
+// WithState restores the persisted (or cross-screen-supplied) filter +
+// cursor. Empty filter is a no-op; otherwise the query becomes histQuery
+// and the listCur is seeded from cursor. Implements the stateRestorer
+// interface the worktime root checks via type assertion.
+//
+// Cross-screen entry path (Plan-B follow-up #2): pressing Enter on a
+// Worktime-Projekte row emits palette.SwitchScreenMsg with
+// Filter="tab=history|project:<id>"; the worktime root strips the
+// "tab=history|" prefix and forwards "project:<id>" here.
+// See filterByProject in history_filter.go for the matching predicate.
+func (h history) WithState(filter string, cursor int) tea.Model {
+	if filter == "" {
+		return h
+	}
+	h.histQuery = filter
+	h.listCur = cursor
+	return h
+}
+
 func (h history) StateCursor() int {
 	switch h.mode {
 	case historyModeHeatmap:

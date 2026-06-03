@@ -138,6 +138,70 @@ func TestFilterByNote_CaseInsensitiveSubstring(t *testing.T) {
 	}
 }
 
+func TestFilterByProject_NotProjectPrefix(t *testing.T) {
+	if _, ok := filterByProject(nil, "tag:foo"); ok {
+		t.Errorf("non-project prefix must return ok=false")
+	}
+}
+
+func TestFilterByProject_EmptyAfterColon_PassesThrough(t *testing.T) {
+	recs := []domain.DayRecord{
+		{Sessions: []domain.Session{{ProjectID: "p1"}, {ProjectID: "p2"}}},
+	}
+	out, ok := filterByProject(recs, "project:")
+	if !ok {
+		t.Fatalf("ok=false unexpected")
+	}
+	if len(out) != 1 || len(out[0].Sessions) != 2 {
+		t.Errorf("empty filter must pass records through unchanged: %+v", out)
+	}
+}
+
+func TestFilterByProject_KeepsOnlyMatchingProjectSessions(t *testing.T) {
+	now := time.Now()
+	recs := []domain.DayRecord{
+		{
+			Date: now,
+			Sessions: []domain.Session{
+				{ProjectID: "proj-A", Elapsed: time.Hour},
+				{ProjectID: "proj-B", Elapsed: 2 * time.Hour},
+				{ProjectID: "proj-A", Elapsed: 30 * time.Minute},
+			},
+		},
+		{
+			Date:     now.Add(-24 * time.Hour),
+			Sessions: []domain.Session{{ProjectID: "proj-B", Elapsed: time.Hour}},
+		},
+	}
+	out, ok := filterByProject(recs, "project:proj-A")
+	if !ok {
+		t.Fatalf("ok=false unexpected")
+	}
+	if len(out) != 1 {
+		t.Fatalf("expected one record with proj-A sessions, got %d", len(out))
+	}
+	if len(out[0].Sessions) != 2 {
+		t.Errorf("expected 2 proj-A sessions kept, got %d", len(out[0].Sessions))
+	}
+	if out[0].Total != 90*time.Minute {
+		t.Errorf("Total: got %v, want 90m", out[0].Total)
+	}
+}
+
+func TestFilteredHistory_RoutesProjectPrefixToFilterByProject(t *testing.T) {
+	now := time.Now()
+	recs := []domain.DayRecord{
+		{Sessions: []domain.Session{
+			{ProjectID: "p1", Elapsed: time.Hour},
+			{ProjectID: "p2", Elapsed: time.Hour},
+		}},
+	}
+	got := filteredHistory(recs, "project:p1", now)
+	if len(got) != 1 || len(got[0].Sessions) != 1 || got[0].Sessions[0].ProjectID != "p1" {
+		t.Errorf("project:p1 filter should keep only p1 sessions, got %+v", got)
+	}
+}
+
 func TestFilterByISOWeek_NotKWPrefix(t *testing.T) {
 	if _, ok := filterByISOWeek(nil, "2026", time.Now()); ok {
 		t.Errorf("non-KW prefix must return ok=false")

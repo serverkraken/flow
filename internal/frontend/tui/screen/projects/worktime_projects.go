@@ -237,6 +237,24 @@ func (m worktimeProjectsModel) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 	return m.handleNormalKey(msg)
 }
 
+// openHistoryFilteredCmd builds the SwitchScreenMsg that deep-links into
+// worktime's Verlauf sub-tab, pre-filtered to the highlighted project
+// (Plan-B follow-up #2). The sidekick replays the Filter via WithState so
+// the user lands on Verlauf with project:<id> active. When no row is
+// highlighted (empty list), a plain switch with no filter is enough.
+func (m worktimeProjectsModel) openHistoryFilteredCmd() tea.Cmd {
+	filter := ""
+	if m.cursor >= 0 && m.cursor < len(m.visible) {
+		filter = "tab=history|project:" + m.visible[m.cursor].ID
+	}
+	return func() tea.Msg {
+		return palette.SwitchScreenMsg{
+			Screen: domain.ScreenWorktime,
+			Filter: filter,
+		}
+	}
+}
+
 func (m worktimeProjectsModel) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
@@ -281,13 +299,7 @@ func (m worktimeProjectsModel) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, 
 		m.loading = true
 		return m, m.loadCmd()
 	case "enter":
-		// Switch to worktime screen. Full filter handoff (to verlauf sub-tab
-		// filtered by this project) requires worktime.WithState changes that
-		// are out of Task 18 scope — documented as DONE_WITH_CONCERNS.
-		// The sidekick catches palette.SwitchScreenMsg and switches the screen.
-		return m, func() tea.Msg {
-			return palette.SwitchScreenMsg{Screen: domain.ScreenWorktime}
-		}
+		return m, m.openHistoryFilteredCmd()
 	}
 
 	// Type-to-filter: single printable character auto-focuses filter.
