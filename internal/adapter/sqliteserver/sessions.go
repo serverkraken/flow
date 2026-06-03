@@ -110,6 +110,30 @@ func (s *Sessions) Upsert(in domain.Session, expectedVersion int64) (domain.Sess
 	return in, nil
 }
 
+// GetByID returns the session with the given ID scoped to userID.
+// Returns ports.ErrSessionNotFound when no row exists.
+func (s *Sessions) GetByID(userID, id string) (domain.Session, error) {
+	row := s.store.DB().QueryRow(`
+		SELECT id, user_id, project_id, date, start, stop, elapsed_ns, tag, note, version, updated_at
+		FROM sessions WHERE user_id = ? AND id = ?`, userID, id)
+	var sess domain.Session
+	var dateStr, startStr, stopStr, updStr string
+	var elapsedNs int64
+	err := row.Scan(&sess.ID, &sess.UserID, &sess.ProjectID, &dateStr, &startStr, &stopStr, &elapsedNs, &sess.Tag, &sess.Note, &sess.Version, &updStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Session{}, ports.ErrSessionNotFound
+	}
+	if err != nil {
+		return domain.Session{}, err
+	}
+	sess.Date, _ = time.Parse("2006-01-02", dateStr)
+	sess.Start, _ = time.Parse(time.RFC3339, startStr)
+	sess.Stop, _ = time.Parse(time.RFC3339, stopStr)
+	sess.UpdatedAt, _ = time.Parse(time.RFC3339, updStr)
+	sess.Elapsed = time.Duration(elapsedNs)
+	return sess, nil
+}
+
 func scanServerSession(r interface{ Scan(...any) error }) (domain.Session, error) {
 	var s domain.Session
 	var dateStr, startStr, stopStr, updStr string

@@ -43,12 +43,20 @@ type oidcserverProvider interface {
 //
 // ProjectsServer is optional (nil disables /api/v1/projects routes). Task 33
 // wires the concrete *sqliteserver.Projects here.
+//
+// SessionsServer is optional (nil disables /api/v1/sessions routes). Task 33
+// wires the concrete *sqliteserver.Sessions here.
+//
+// ActiveServer is optional (nil disables /api/v1/active routes). Task 33
+// wires the concrete *sqliteserver.ActiveSessions here.
 type AuthDeps struct {
 	Provider       oidcserverProvider
 	Access         ports.AccessChecker
 	Session        ports.BrowserSessionStore
 	Users          ports.UserStore // optional; nil disables user-ensure in bearer MW
 	ProjectsServer ProjectsServer  // optional; nil disables /api/v1/projects routes (Task 33 wires)
+	SessionsServer SessionsServer  // optional; nil disables /api/v1/sessions routes (Task 33 wires)
+	ActiveServer   ActiveServer    // optional; nil disables /api/v1/active routes (Task 33 wires)
 	BaseURL        string
 	OIDCClientID   string
 	OIDCSecret     string
@@ -145,7 +153,8 @@ func (ab *authBrowser) handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ab.deps.Access.Allow(id) {
-		slog.Warn("auth: identity not in allowlist (403)",
+		slog.Warn(
+			"auth: identity not in allowlist (403)",
 			slog.String("sub", id.Sub),
 			slog.String("email", id.Email),
 			slog.String("hint", "add this sub to FLOW_ALLOWED_SUBS to permit"),
@@ -153,7 +162,8 @@ func (ab *authBrowser) handleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	slog.Info("auth: login ok",
+	slog.Info(
+		"auth: login ok",
 		slog.String("sub", id.Sub),
 		slog.String("email", id.Email),
 	)

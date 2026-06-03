@@ -49,6 +49,10 @@ type SessionStore interface {
 // server version differs from the client's expected version (OCC reject).
 var ErrSessionVersionConflict = errSentinel("flow: session version conflict")
 
+// ErrSessionNotFound is returned by the server-side Sessions.GetByID when no
+// row exists for the given (userID, id) pair.
+var ErrSessionNotFound = errSentinel("flow: session not found")
+
 // LegacyActiveStore manages the small per-process state markers:
 // worktime.state (currently running session start time) and worktime.pause
 // (last pause stop time). Both are tiny and read very frequently; the

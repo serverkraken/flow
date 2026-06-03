@@ -56,6 +56,15 @@ func NewWithAuth(d AuthDeps) *Server {
 			rr.Get("/api/v1/projects", NewProjectsPullHandler(d.ProjectsServer).ServeHTTP)
 			rr.Put("/api/v1/projects/{id}", NewProjectsPushHandler(d.ProjectsServer).ServeHTTP)
 		}
+		if d.SessionsServer != nil {
+			rr.Get("/api/v1/sessions", NewSessionsPullHandler(d.SessionsServer).ServeHTTP)
+			rr.Put("/api/v1/sessions/{id}", NewSessionsPushHandler(d.SessionsServer).ServeHTTP)
+		}
+		if d.ActiveServer != nil {
+			rr.Get("/api/v1/active", NewActiveListHandler(d.ActiveServer).ServeHTTP)
+			rr.Post("/api/v1/active/{project_id}/start", NewActiveStartHandler(d.ActiveServer).ServeHTTP)
+			rr.Delete("/api/v1/active/{project_id}", NewActiveStopHandler(d.ActiveServer).ServeHTTP)
+		}
 	})
 
 	return &Server{router: r, baseURL: d.BaseURL}
