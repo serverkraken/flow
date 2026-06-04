@@ -99,34 +99,3 @@ func (f *FakeSessionStore) Delete(_ string, id string) error {
 	return nil
 }
 
-// — legacy helpers kept for callers that have not yet migrated —
-
-// Append adds a single session. Used by existing tests and usecases that
-// have not yet migrated to Upsert.
-func (f *FakeSessionStore) Append(s domain.Session) error {
-	if f.Err != nil {
-		return f.Err
-	}
-	f.Sessions = append(f.Sessions, s)
-	return nil
-}
-
-// AppendBatch appends multiple sessions. Used by existing tests and
-// usecases that have not yet migrated to UpsertBatch.
-func (f *FakeSessionStore) AppendBatch(sessions []domain.Session) error {
-	if f.Err != nil {
-		return f.Err
-	}
-	f.Sessions = append(f.Sessions, sessions...)
-	return nil
-}
-
-// Rewrite replaces the entire session list atomically.
-func (f *FakeSessionStore) Rewrite(sessions []domain.Session) error {
-	if f.Err != nil {
-		return f.Err
-	}
-	f.Sessions = make([]domain.Session, len(sessions))
-	copy(f.Sessions, sessions)
-	return nil
-}

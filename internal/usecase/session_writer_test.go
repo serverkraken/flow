@@ -98,34 +98,6 @@ func (f *flakySessionStore) Delete(_ string, id string) error {
 	return nil
 }
 
-// Deprecated legacy methods — kept to satisfy the transitional interface
-// until Task 19 removes the tsvsessions adapter.
-
-func (f *flakySessionStore) Append(s domain.Session) error {
-	if f.FailOn == "Append" {
-		return errors.New("boom")
-	}
-	f.Sessions = append(f.Sessions, s)
-	return nil
-}
-
-func (f *flakySessionStore) AppendBatch(sessions []domain.Session) error {
-	if f.FailOn == "AppendBatch" || f.FailOn == "Append" {
-		return errors.New("boom")
-	}
-	f.Sessions = append(f.Sessions, sessions...)
-	return nil
-}
-
-func (f *flakySessionStore) Rewrite(sessions []domain.Session) error {
-	if f.FailOn == "Rewrite" {
-		return errors.New("boom")
-	}
-	f.Sessions = make([]domain.Session, len(sessions))
-	copy(f.Sessions, sessions)
-	return nil
-}
-
 // flakyActiveStore fails only on the named method.
 type flakyActiveStore struct {
 	Active *time.Time

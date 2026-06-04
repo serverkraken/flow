@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,7 +106,10 @@ func session(date time.Time, startH, startM, stopH, stopM int, tag, note string)
 	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
 	start := time.Date(date.Year(), date.Month(), date.Day(), startH, startM, 0, 0, time.Local)
 	stop := time.Date(date.Year(), date.Month(), date.Day(), stopH, stopM, 0, 0, time.Local)
-	return domain.Session{Date: d, Start: start, Stop: stop, Elapsed: stop.Sub(start), Tag: tag, Note: note}
+	// Stable deterministic ID — tests just need uniqueness within the seed
+	// after Plan-B follow-up #1 made ports.SessionStore strictly ID-based.
+	id := fmt.Sprintf("cli-%s-%02d%02d", d.Format("20060102"), startH, startM)
+	return domain.Session{ID: id, Date: d, Start: start, Stop: stop, Elapsed: stop.Sub(start), Tag: tag, Note: note}
 }
 
 // TestHelp captures the cobra-generated --help output for the worktime
@@ -353,9 +357,9 @@ func TestBrief(t *testing.T) {
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
 	tue := mon.AddDate(0, 0, 1)
 	wed := mon.AddDate(0, 0, 2)
-	must(t, f.sessions.Append(session(mon, 9, 0, 12, 30, "build", "")))
-	must(t, f.sessions.Append(session(tue, 8, 30, 17, 0, "review", "PRs gemerged")))
-	must(t, f.sessions.Append(session(wed, 9, 15, 12, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 12, 30, "build", "")))
+	must(t, f.sessions.Upsert(session(tue, 8, 30, 17, 0, "review", "PRs gemerged")))
+	must(t, f.sessions.Upsert(session(wed, 9, 15, 12, 0, "build", "")))
 	stdout, _, err := f.run("brief")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -396,8 +400,8 @@ func TestBrief_UnknownScope(t *testing.T) {
 func TestExport_CSV(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 11, 0, "build", "")))
-	must(t, f.sessions.Append(session(mon.AddDate(0, 0, 1), 14, 0, 16, 30, "review", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon.AddDate(0, 0, 1), 14, 0, 16, 30, "review", "")))
 	stdout, _, err := f.run("export", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -408,7 +412,7 @@ func TestExport_CSV(t *testing.T) {
 func TestExport_JSON(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 11, 0, "build", "")))
 	stdout, _, err := f.run("export", "--format", "json", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -441,8 +445,8 @@ func TestStats_Empty(t *testing.T) {
 func TestStats_Text(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 17, 0, "build", "")))
-	must(t, f.sessions.Append(session(mon.AddDate(0, 0, 1), 9, 0, 17, 30, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 17, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon.AddDate(0, 0, 1), 9, 0, 17, 30, "build", "")))
 	stdout, _, err := f.run("stats", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -453,7 +457,7 @@ func TestStats_Text(t *testing.T) {
 func TestStats_JSON(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 17, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 17, 0, "build", "")))
 	stdout, _, err := f.run("stats", "--format", "json", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -464,7 +468,7 @@ func TestStats_JSON(t *testing.T) {
 func TestTag_SetsTag(t *testing.T) {
 	f := newFixture()
 	today := fixedNow
-	must(t, f.sessions.Append(session(today, 9, 0, 11, 0, "", "")))
+	must(t, f.sessions.Upsert(session(today, 9, 0, 11, 0, "", "")))
 	_, _, err := f.run("tag", "1", "build")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -485,7 +489,7 @@ func TestTag_InvalidIdx(t *testing.T) {
 func TestNote_SetsNote(t *testing.T) {
 	f := newFixture()
 	today := fixedNow
-	must(t, f.sessions.Append(session(today, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(today, 9, 0, 11, 0, "build", "")))
 	_, _, err := f.run("note", "1", "morning sprint")
 	if err != nil {
 		t.Fatalf("run: %v", err)

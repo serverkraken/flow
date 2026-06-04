@@ -499,7 +499,8 @@ func TestGuard_TSVExists_CachePopulated_Passthrough(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Seed one session so SessionCount returns 1.
-	_ = g.base.sessions.Append(domain.Session{
+	_ = g.base.sessions.Upsert(domain.Session{
+		ID:    "guard-seed",
 		Date:  time.Now(),
 		Start: time.Now().Add(-time.Hour),
 		Stop:  time.Now(),

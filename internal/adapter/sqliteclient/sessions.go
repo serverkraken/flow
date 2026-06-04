@@ -241,34 +241,3 @@ func scanSessionRow(rows *sql.Rows) (domain.Session, error) {
 	return sess, nil
 }
 
-// ---- legacy shim methods (Task 14; removed in Task 19) ----
-//
-// Append, AppendBatch, and Rewrite exist only so *Sessions satisfies the
-// full ports.SessionStore interface (which still carries legacy methods
-// until Task 19). They delegate to the ID-based equivalents so any caller
-// that goes through them gets the same write behaviour as Upsert.
-// Sessions written via Append may have an empty ID — in that case Upsert
-// generates no unique key and the row will be orphaned; callers on the
-// legacy TSV path never reach sqlite (they use tsvsessions directly), so
-// this edge-case is unreachable in practice.
-
-// Append implements ports.SessionStore (legacy shim). Delegates to Upsert.
-func (s *Sessions) Append(sess domain.Session) error {
-	return s.Upsert(sess)
-}
-
-// AppendBatch implements ports.SessionStore (legacy shim). Delegates to UpsertBatch.
-func (s *Sessions) AppendBatch(sessions []domain.Session) error {
-	return s.UpsertBatch(sessions)
-}
-
-// Rewrite implements ports.SessionStore (legacy shim). Replaces all sessions
-// for the first row's UserID with the supplied slice inside a transaction.
-// If sessions is empty this is a no-op. Only used on the TSV path; callers
-// on the sqlite path use Upsert / Delete directly.
-func (s *Sessions) Rewrite(sessions []domain.Session) error {
-	if len(sessions) == 0 {
-		return nil
-	}
-	return s.UpsertBatch(sessions)
-}

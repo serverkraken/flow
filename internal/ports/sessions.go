@@ -6,10 +6,8 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// SessionStore reads and mutates the sessions log. The new interface is
-// ID-based (Upsert/Delete) and user-scoped (userID param). Implementations
-// persist to SQLite (sqliteclient); the tsvsessions adapter satisfies this
-// interface via a shim until Task 19 removes it.
+// SessionStore reads and mutates the sessions log. ID-based (Upsert/Delete)
+// and user-scoped (userID param); the sole implementation is sqliteclient.
 //
 // All methods may be called from inside a Lock.With callback so concurrent
 // CLI/TUI writers serialise; Load/LoadFiltered are deliberately unlocked
@@ -30,19 +28,6 @@ type SessionStore interface {
 
 	// Delete removes by ID.
 	Delete(userID, id string) error
-
-	// Append writes a single session row. Legacy path; replaced by Upsert
-	// in Task 10. Deleted together with the tsvsessions adapter in Task 19.
-	Append(s domain.Session) error
-
-	// AppendBatch writes multiple session rows atomically. Legacy path;
-	// replaced by UpsertBatch in Task 10. Deleted in Task 19.
-	AppendBatch(sessions []domain.Session) error
-
-	// Rewrite replaces the entire log atomically. Legacy path; the
-	// ID-based interface has no direct equivalent. Callers will be
-	// refactored in Task 10. Deleted in Task 19.
-	Rewrite(sessions []domain.Session) error
 }
 
 // ErrSessionVersionConflict is returned by SessionStore.Upsert when the
