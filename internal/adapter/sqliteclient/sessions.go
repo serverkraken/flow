@@ -14,12 +14,7 @@ type Sessions struct {
 	store *Store
 }
 
-// compile-time interface assertion — only the new-interface methods are
-// verified here. Legacy shim methods (Append, AppendBatch, Rewrite) below
-// are added solely so *Sessions satisfies ports.SessionStore and can be
-// passed to use cases (Sessions, ActiveSessions) that declare the full
-// interface. They delegate to the real ID-based methods. Task 19 removes
-// them together with the tsvsessions adapter.
+// compile-time interface assertion against ports.SessionStore.
 var _ interface {
 	Load(userID string) ([]domain.Session, error)
 	LoadFiltered(userID string, keep func(domain.Session) bool) ([]domain.Session, error)
@@ -240,4 +235,3 @@ func scanSessionRow(rows *sql.Rows) (domain.Session, error) {
 	sess.Elapsed = time.Duration(elapsedNS)
 	return sess, nil
 }
-

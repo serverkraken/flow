@@ -98,4 +98,3 @@ func (f *FakeSessionStore) Delete(_ string, id string) error {
 	f.Sessions = out
 	return nil
 }
-
