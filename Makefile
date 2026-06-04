@@ -66,7 +66,7 @@ COVER_THRESHOLD := 83
 COVER_PKG       := ./internal/...
 
 .PHONY: build install test cover lint fmt clean ci \
-        build-server test-server test-integration \
+        build-server build-mcp test-server test-integration \
         dex-up dex-down dex-logs run-server
 
 build:
@@ -104,6 +104,10 @@ ci: lint cover build
 build-server:
 	@mkdir -p bin
 	go build -o bin/flow-server ./cmd/flow-server
+
+build-mcp:
+	@mkdir -p bin
+	go build -o bin/flow-mcp ./cmd/flow-mcp
 
 test-server:
 	go test ./internal/adapter/httpserver/... ./internal/adapter/oidcserver/... \
