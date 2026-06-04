@@ -123,5 +123,5 @@ func scanRepoNoteCommon(s rowScanner) (domain.RepoNote, error) {
 	return n, nil
 }
 
-func scanRepoNoteRow(row *sql.Row) (domain.RepoNote, error)       { return scanRepoNoteCommon(row) }
-func scanRepoNoteRows(rows *sql.Rows) (domain.RepoNote, error)    { return scanRepoNoteCommon(rows) }
+func scanRepoNoteRow(row *sql.Row) (domain.RepoNote, error)    { return scanRepoNoteCommon(row) }
+func scanRepoNoteRows(rows *sql.Rows) (domain.RepoNote, error) { return scanRepoNoteCommon(rows) }

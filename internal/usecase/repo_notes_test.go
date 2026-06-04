@@ -13,9 +13,9 @@ import (
 // ---- fakes ----
 
 type fakeRepoStore struct {
-	mu    sync.Mutex
-	rows  map[string]domain.Repo // keyed by ID
-	byKey map[string]string      // userID|key → repoID
+	mu     sync.Mutex
+	rows   map[string]domain.Repo // keyed by ID
+	byKey  map[string]string      // userID|key → repoID
 	nextID int
 }
 
@@ -56,7 +56,7 @@ func (f *fakeRepoStore) Upsert(r domain.Repo) error {
 	return nil
 }
 
-func (f *fakeRepoStore) PullSince(userID string, since int64, limit int) ([]domain.Repo, int64, bool, error) {
+func (f *fakeRepoStore) PullSince(userID string, since int64, _ int) ([]domain.Repo, int64, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []domain.Repo
@@ -74,9 +74,9 @@ func (f *fakeRepoStore) PullSince(userID string, since int64, limit int) ([]doma
 }
 
 type fakeRepoNoteStore struct {
-	mu      sync.Mutex
-	byID    map[string]domain.RepoNote
-	byRepo  map[string]string // userID|repoID → noteID
+	mu     sync.Mutex
+	byID   map[string]domain.RepoNote
+	byRepo map[string]string // userID|repoID → noteID
 }
 
 func newFakeRepoNoteStore() *fakeRepoNoteStore {
@@ -112,7 +112,7 @@ func (f *fakeRepoNoteStore) Delete(userID, id string) error {
 	return nil
 }
 
-func (f *fakeRepoNoteStore) PullSince(userID string, since int64, limit int) ([]domain.RepoNote, int64, bool, error) {
+func (f *fakeRepoNoteStore) PullSince(userID string, since int64, _ int) ([]domain.RepoNote, int64, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []domain.RepoNote
@@ -210,7 +210,7 @@ type erroringNoteStore struct {
 	err error
 }
 
-func (e *erroringNoteStore) Upsert(n domain.RepoNote) error { return e.err }
+func (e *erroringNoteStore) Upsert(_ domain.RepoNote) error { return e.err }
 
 // fakeResolverPkg replicates the resolver fake in canonical_key_test.go but for
 // the *_test package boundary. The real ports.RemoteResolver is unexported in

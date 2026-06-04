@@ -151,5 +151,5 @@ func scanRepoCommon(s rowScanner) (domain.Repo, error) {
 	return repo, nil
 }
 
-func scanRepo(row *sql.Row) (domain.Repo, error)        { return scanRepoCommon(row) }
+func scanRepo(row *sql.Row) (domain.Repo, error)           { return scanRepoCommon(row) }
 func scanRepoFromRows(rows *sql.Rows) (domain.Repo, error) { return scanRepoCommon(rows) }
