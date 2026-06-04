@@ -352,6 +352,127 @@ func TestMCPTools_StopSession_HappyPath(t *testing.T) {
 	}
 }
 
+// ---- Resources ----
+
+func TestMCPTools_Resources_EmptyWhenNoRepos(t *testing.T) {
+	t.Parallel()
+	m, _, _, _, _ := mkTools(t, true)
+	if got := m.ResourceCatalog(); len(got) != 0 {
+		t.Errorf("ResourceCatalog: got %d entries, want 0", len(got))
+	}
+}
+
+func TestMCPTools_Resources_OneEntryPerRepo(t *testing.T) {
+	t.Parallel()
+	m, repos, _, _, _ := mkTools(t, true)
+	r1, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/widget", "widget")
+	r2, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/gadget", "gadget")
+	// Bump versions so PullSince(0) returns them.
+	repos.rows[r1.ID] = domain.Repo{ID: r1.ID, UserID: "u1", CanonicalKey: r1.CanonicalKey, DisplayName: r1.DisplayName, Version: 1}
+	repos.rows[r2.ID] = domain.Repo{ID: r2.ID, UserID: "u1", CanonicalKey: r2.CanonicalKey, DisplayName: r2.DisplayName, Version: 2}
+
+	got := m.ResourceCatalog()
+	if len(got) != 2 {
+		t.Fatalf("ResourceCatalog: got %d entries, want 2", len(got))
+	}
+	for _, r := range got {
+		if !strings.HasPrefix(r.URI, "flow://repos/") || !strings.HasSuffix(r.URI, "/note") {
+			t.Errorf("bad URI shape: %q", r.URI)
+		}
+		if r.MimeType != "text/markdown" {
+			t.Errorf("MimeType: %q", r.MimeType)
+		}
+	}
+}
+
+func TestMCPTools_Resources_URLEscapesCanonicalKey(t *testing.T) {
+	t.Parallel()
+	m, repos, _, _, _ := mkTools(t, true)
+	// CanonicalKey contains "/" which must be percent-encoded.
+	key := "git:github.com/acme/space project"
+	r, _ := repos.EnsureByCanonicalKey("u1", key, "space project")
+	repos.rows[r.ID] = domain.Repo{ID: r.ID, UserID: "u1", CanonicalKey: key, DisplayName: r.DisplayName, Version: 1}
+
+	got := m.ResourceCatalog()
+	if len(got) != 1 {
+		t.Fatalf("ResourceCatalog: got %d entries, want 1", len(got))
+	}
+	uri := got[0].URI
+	if !strings.Contains(uri, "%20") {
+		t.Errorf("URI %q missing %%20 for space", uri)
+	}
+	if !strings.Contains(uri, "%2F") && !strings.Contains(uri, "%2f") {
+		t.Errorf("URI %q missing %%2F for slash", uri)
+	}
+}
+
+func TestMCPTools_Resources_ReadByURI_ReturnsNote(t *testing.T) {
+	t.Parallel()
+	m, repos, _, _, _ := mkTools(t, true)
+	if _, err := m.Notes.Save("u1", "/home/me/code/widget", "# rules"); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	for id, r := range repos.rows {
+		r.Version = 1
+		repos.rows[id] = r
+	}
+	cat := m.ResourceCatalog()
+	if len(cat) != 1 {
+		t.Fatalf("cat: %d", len(cat))
+	}
+	content, err := m.ReadResource(cat[0].URI)
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if content.Text != "# rules" {
+		t.Errorf("body = %q", content.Text)
+	}
+	if content.MimeType != "text/markdown" {
+		t.Errorf("MimeType: %q", content.MimeType)
+	}
+}
+
+func TestMCPTools_Resources_ReadByURI_NoNoteYet(t *testing.T) {
+	t.Parallel()
+	m, repos, _, _, _ := mkTools(t, true)
+	r, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/widget", "widget")
+	repos.rows[r.ID] = domain.Repo{ID: r.ID, UserID: "u1", CanonicalKey: r.CanonicalKey, DisplayName: r.DisplayName, Version: 1}
+	cat := m.ResourceCatalog()
+	if len(cat) != 1 {
+		t.Fatalf("cat: %d", len(cat))
+	}
+	content, err := m.ReadResource(cat[0].URI)
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if content.Text != "" {
+		t.Errorf("expected empty body for no-note, got %q", content.Text)
+	}
+}
+
+func TestMCPTools_Resources_ReadByURI_UnknownReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	m, _, _, _, _ := mkTools(t, true)
+	_, err := m.ReadResource("flow://repos/does-not-exist/note")
+	if err == nil {
+		t.Fatal("expected error for unknown URI")
+	}
+	if err != usecase.ErrResourceNotFound {
+		t.Errorf("error = %v, want ErrResourceNotFound", err)
+	}
+}
+
+func TestMCPTools_Resources_ReadByURI_MalformedReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	m, _, _, _, _ := mkTools(t, true)
+	for _, uri := range []string{"", "flow://nope", "flow://repos//note", "http://foo"} {
+		_, err := m.ReadResource(uri)
+		if err != usecase.ErrResourceNotFound {
+			t.Errorf("uri=%q: err=%v, want ErrResourceNotFound", uri, err)
+		}
+	}
+}
+
 func TestMCPTools_StopSession_NotRunning(t *testing.T) {
 	t.Parallel()
 	m, _, _, _, projects := mkTools(t, true)
