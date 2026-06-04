@@ -33,6 +33,24 @@ func (q *Queue) EnqueueProject(p domain.Project, expectedVersion int64) (int64, 
 	return q.inner.Enqueue("projects", p.ID, payload, expectedVersion)
 }
 
+// EnqueueRepo enqueues a repo Upsert push.
+func (q *Queue) EnqueueRepo(r domain.Repo, expectedVersion int64) (int64, error) {
+	payload, err := json.Marshal(r)
+	if err != nil {
+		return 0, err
+	}
+	return q.inner.Enqueue("repos", r.ID, payload, expectedVersion)
+}
+
+// EnqueueRepoNote enqueues a repo-note Upsert push.
+func (q *Queue) EnqueueRepoNote(n domain.RepoNote, expectedVersion int64) (int64, error) {
+	payload, err := json.Marshal(n)
+	if err != nil {
+		return 0, err
+	}
+	return q.inner.Enqueue("repo_notes", n.ID, payload, expectedVersion)
+}
+
 // EnqueueActiveStart enqueues an active-session start action.
 func (q *Queue) EnqueueActiveStart(projectID, device, tag, note string, expectedVersion int64) (int64, error) {
 	payload, err := json.Marshal(struct {

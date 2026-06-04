@@ -34,6 +34,8 @@ type Worker struct {
 	sessions   ports.SessionStore
 	projects   ports.ProjectStore
 	active     ports.ActiveSessionStore
+	repos      ports.RepoStore     // optional — Plan C; nil when caller skips repo/note sync
+	notes      ports.RepoNoteStore // optional — Plan C
 	watermarks ports.SyncWatermarkStore
 	queue      *Queue
 	userID     string
@@ -53,6 +55,11 @@ type Worker struct {
 }
 
 // NewWorker creates a Worker. The worker does not start until Start is called.
+//
+// Plan-C resource fields (repos, notes) are set via SetRepoStores after
+// construction rather than added to NewWorker's signature — keeps the
+// existing call sites green and signals that those stores are optional
+// (the worker silently skips repo/note pull+drain when nil).
 func NewWorker(
 	client *Client,
 	ss ports.SessionStore,
@@ -76,6 +83,14 @@ func NewWorker(
 		done:         make(chan struct{}),
 		PullInterval: 30 * time.Second,
 	}
+}
+
+// SetRepoStores wires the Plan-C resource stores onto the worker. Both
+// args must be non-nil for the repo/note sync paths to be active; passing
+// nil keeps the original (sessions+projects+active) behaviour.
+func (w *Worker) SetRepoStores(repos ports.RepoStore, notes ports.RepoNoteStore) {
+	w.repos = repos
+	w.notes = notes
 }
 
 // Conflicts returns the read-only channel on which ports.ConflictMsg values
@@ -163,6 +178,16 @@ func (w *Worker) runPull(ctx context.Context) {
 	if err := w.pullResource(ctx, "active_sessions"); err != nil {
 		slog.Warn("sync: pull active_sessions", slog.Any("err", err))
 	}
+	if w.repos != nil {
+		if err := w.pullResource(ctx, "repos"); err != nil {
+			slog.Warn("sync: pull repos", slog.Any("err", err))
+		}
+	}
+	if w.notes != nil {
+		if err := w.pullResource(ctx, "repo_notes"); err != nil {
+			slog.Warn("sync: pull repo_notes", slog.Any("err", err))
+		}
+	}
 }
 
 // pullResource handles one resource type: fetch the current watermark, GET the
@@ -195,9 +220,39 @@ func (w *Worker) pullResourcePage(ctx context.Context, resource string) (hi int6
 		return w.pullProjectsPage(ctx, wm)
 	case "active_sessions":
 		return w.pullActivePage(ctx, wm)
+	case "repos":
+		return w.pullReposPage(ctx, wm)
+	case "repo_notes":
+		return w.pullRepoNotesPage(ctx, wm)
 	default:
 		return 0, false, nil
 	}
+}
+
+func (w *Worker) pullReposPage(ctx context.Context, since int64) (int64, bool, error) {
+	items, hi, more, err := w.client.PullRepos(ctx, since, 200)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, r := range items {
+		if err := w.repos.Upsert(r); err != nil {
+			return 0, false, err
+		}
+	}
+	return hi, more, nil
+}
+
+func (w *Worker) pullRepoNotesPage(ctx context.Context, since int64) (int64, bool, error) {
+	items, hi, more, err := w.client.PullRepoNotes(ctx, since, 200)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, n := range items {
+		if err := w.notes.Upsert(n); err != nil {
+			return 0, false, err
+		}
+	}
+	return hi, more, nil
 }
 
 func (w *Worker) pullSessionsPage(ctx context.Context, since int64) (int64, bool, error) {
@@ -248,6 +303,10 @@ func (w *Worker) runDrain(ctx context.Context) {
 			return w.drainActiveStart(ctx, e)
 		case "active_sessions_stop":
 			return w.drainActiveStop(ctx, e)
+		case "repos":
+			return w.drainRepo(ctx, e)
+		case "repo_notes":
+			return w.drainRepoNote(ctx, e)
 		}
 		return false, nil
 	})
@@ -289,6 +348,46 @@ func (w *Worker) drainProject(ctx context.Context, e ports.WriteQueueEntry) (boo
 	}
 	p.Version = newV
 	_ = w.projects.Upsert(p)
+	return true, nil
+}
+
+func (w *Worker) drainRepo(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+	var r domain.Repo
+	if err := json.Unmarshal(e.Payload, &r); err != nil {
+		return false, err
+	}
+	newV, err := w.client.PushRepo(ctx, r, e.ExpectedVersion)
+	if errors.Is(err, ports.ErrRepoVersionConflict) {
+		w.emitConflictFromError(ctx, "repos", r.ID, e.Seq, r, err)
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	r.Version = newV
+	if w.repos != nil {
+		_ = w.repos.Upsert(r)
+	}
+	return true, nil
+}
+
+func (w *Worker) drainRepoNote(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+	var n domain.RepoNote
+	if err := json.Unmarshal(e.Payload, &n); err != nil {
+		return false, err
+	}
+	newV, err := w.client.PushRepoNote(ctx, n, e.ExpectedVersion)
+	if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
+		w.emitConflictFromError(ctx, "repo_notes", n.ID, e.Seq, n, err)
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	n.Version = newV
+	if w.notes != nil {
+		_ = w.notes.Upsert(n)
+	}
 	return true, nil
 }
 

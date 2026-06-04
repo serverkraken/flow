@@ -257,6 +257,151 @@ func (c *Client) PushProject(ctx context.Context, p domain.Project, expectedVers
 	return out.Version, nil
 }
 
+// PullRepos fetches repos with version > since, up to limit rows.
+func (c *Client) PullRepos(ctx context.Context, since int64, limit int) ([]domain.Repo, int64, bool, error) {
+	url := fmt.Sprintf("%s/api/v1/repos?since=%d&limit=%d", c.base, since, limit)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if handled, herr := handleCommonErrors(resp.StatusCode, body); handled {
+		return nil, 0, false, herr
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, false, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+	}
+	var out pullResponse[domain.Repo]
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, 0, false, err
+	}
+	return out.Items, out.HighWatermark, out.HasMore, nil
+}
+
+// PushRepo sends a single repo to the server (PUT /api/v1/repos/{id}).
+// Returns *ConflictError wrapping ports.ErrRepoVersionConflict on 409.
+func (c *Client) PushRepo(ctx context.Context, r domain.Repo, expectedVersion int64) (int64, error) {
+	buf, err := json.Marshal(r)
+	if err != nil {
+		return 0, err
+	}
+	url := fmt.Sprintf("%s/api/v1/repos/%s", c.base, r.ID)
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(buf))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", strconv.FormatInt(expectedVersion, 10))
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+	body, err := readBody(resp)
+	if err != nil {
+		return 0, err
+	}
+	if handled, herr := handleCommonErrors(resp.StatusCode, body); handled {
+		return 0, herr
+	}
+	if resp.StatusCode == http.StatusConflict {
+		var raw struct {
+			Current json.RawMessage `json:"current"`
+		}
+		_ = json.Unmarshal(body, &raw)
+		return 0, &ConflictError{Sentinel: ports.ErrRepoVersionConflict, Current: raw.Current}
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+	}
+	var out struct {
+		Version int64 `json:"version"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return 0, err
+	}
+	return out.Version, nil
+}
+
+// PullRepoNotes fetches repo-notes with version > since, up to limit rows.
+func (c *Client) PullRepoNotes(ctx context.Context, since int64, limit int) ([]domain.RepoNote, int64, bool, error) {
+	url := fmt.Sprintf("%s/api/v1/repo-notes?since=%d&limit=%d", c.base, since, limit)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	body, err := readBody(resp)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if handled, herr := handleCommonErrors(resp.StatusCode, body); handled {
+		return nil, 0, false, herr
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, false, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+	}
+	var out pullResponse[domain.RepoNote]
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, 0, false, err
+	}
+	return out.Items, out.HighWatermark, out.HasMore, nil
+}
+
+// PushRepoNote sends a single repo-note to the server
+// (PUT /api/v1/repos/{repo_id}/note).
+// Returns *ConflictError wrapping ports.ErrRepoNoteVersionConflict on 409.
+func (c *Client) PushRepoNote(ctx context.Context, n domain.RepoNote, expectedVersion int64) (int64, error) {
+	buf, err := json.Marshal(n)
+	if err != nil {
+		return 0, err
+	}
+	url := fmt.Sprintf("%s/api/v1/repos/%s/note", c.base, n.RepoID)
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(buf))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("If-Match", strconv.FormatInt(expectedVersion, 10))
+	resp, err := c.do(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+	body, err := readBody(resp)
+	if err != nil {
+		return 0, err
+	}
+	if handled, herr := handleCommonErrors(resp.StatusCode, body); handled {
+		return 0, herr
+	}
+	if resp.StatusCode == http.StatusConflict {
+		var raw struct {
+			Current json.RawMessage `json:"current"`
+		}
+		_ = json.Unmarshal(body, &raw)
+		return 0, &ConflictError{Sentinel: ports.ErrRepoNoteVersionConflict, Current: raw.Current}
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+	}
+	var out struct {
+		Version int64 `json:"version"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return 0, err
+	}
+	return out.Version, nil
+}
+
 // PullActive fetches active sessions. When since > 0, uses the ?since=N form
 // which returns {"items": [...], "high_watermark": N}. When since == 0, omits
 // the query param and returns all active sessions for the user.

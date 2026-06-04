@@ -18,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/flockstate"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
+	"github.com/serverkraken/flow/internal/adapter/gitremote"
 	"github.com/serverkraken/flow/internal/adapter/httpsync"
 	"github.com/serverkraken/flow/internal/adapter/iniconfig"
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
@@ -107,6 +108,7 @@ type Deps struct {
 	Palette    cli.PaletteDeps
 	Projects   cli.ProjectsDeps
 	Sync       cli.SyncDeps
+	Repo       cli.RepoDeps
 	Kompendium kompendiumcli.Deps
 }
 
@@ -163,6 +165,8 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	// pulls from.
 	sessionStore := cacheSessions
 	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
+	cacheRepos := sqliteclient.NewRepos(cacheStore)
+	cacheRepoNotes := sqliteclient.NewRepoNotes(cacheStore)
 	cacheWriteQueue := sqliteclient.NewWriteQueue(cacheStore)
 	cacheSyncState := sqliteclient.NewSyncState(cacheStore)
 	syncUC := usecase.NewSyncStatus(cacheWriteQueue, cacheSyncState)
@@ -184,6 +188,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		syncQueueAdapter,
 		localUser.ID,
 	)
+	// Wire Plan-C resource stores on the worker so pull+drain cover repos
+	// and repo_notes alongside the existing sessions/projects/active paths.
+	syncWorker.SetRepoStores(cacheRepos, cacheRepoNotes)
 	// Wire ForcePull delegation: SyncStatus.ForcePull() calls syncWorker.ForcePull().
 	syncUC.WithForcePuller(syncWorker)
 	// Start the background pull/push loop. It will log unreachable-server warnings
@@ -195,6 +202,10 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
 	// Wire push-signal so Start/Stop enqueue ops wake the worker immediately.
 	activeSessionsUC.SetPushSignal(syncWorker.SignalPush)
+	// Plan-C: RepoNotes use case + git-remote resolver. Use case is also
+	// the surface for the future flow-mcp server (Plan D).
+	repoNotesUC := usecase.NewRepoNotes(cacheRepos, cacheRepoNotes, cacheWriteQueue, gitremote.New())
+	repoNotesUC.SetPushSignal(syncWorker.SignalPush)
 	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
@@ -396,6 +407,10 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			},
 			Sync: cli.SyncDeps{
 				Controller: syncUC,
+			},
+			Repo: cli.RepoDeps{
+				UserID: localUser.ID,
+				Notes:  repoNotesUC,
 			},
 			Kompendium: kompDeps,
 		}, func() {
@@ -621,6 +636,7 @@ func main() {
 	rootCmd.AddCommand(cli.NewPaletteCmd(deps.Palette))
 	rootCmd.AddCommand(cli.NewProjectsCmd(deps.Projects))
 	rootCmd.AddCommand(cli.NewSyncCmd(deps.Sync))
+	rootCmd.AddCommand(cli.NewRepoCmd(deps.Repo))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
 

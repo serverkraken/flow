@@ -65,6 +65,14 @@ func NewWithAuth(d AuthDeps) *Server {
 			rr.Post("/api/v1/active/{project_id}/start", NewActiveStartHandler(d.ActiveServer).ServeHTTP)
 			rr.Delete("/api/v1/active/{project_id}", NewActiveStopHandler(d.ActiveServer).ServeHTTP)
 		}
+		if d.ReposServer != nil {
+			rr.Get("/api/v1/repos", NewReposPullHandler(d.ReposServer).ServeHTTP)
+			rr.Put("/api/v1/repos/{id}", NewReposPushHandler(d.ReposServer).ServeHTTP)
+		}
+		if d.RepoNotesServer != nil {
+			rr.Get("/api/v1/repo-notes", NewRepoNotesPullHandler(d.RepoNotesServer).ServeHTTP)
+			rr.Put("/api/v1/repos/{repo_id}/note", NewRepoNotePushHandler(d.RepoNotesServer).ServeHTTP)
+		}
 	})
 
 	return &Server{router: r, baseURL: d.BaseURL}

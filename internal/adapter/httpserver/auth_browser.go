@@ -49,20 +49,25 @@ type oidcserverProvider interface {
 //
 // ActiveServer is optional (nil disables /api/v1/active routes). Task 33
 // wires the concrete *sqliteserver.ActiveSessions here.
+//
+// ReposServer + RepoNotesServer are Plan-C optional (nil disables
+// /api/v1/repos and /api/v1/repo-notes routes). Wired in the M4 task.
 type AuthDeps struct {
-	Provider       oidcserverProvider
-	Access         ports.AccessChecker
-	Session        ports.BrowserSessionStore
-	Users          ports.UserStore // optional; nil disables user-ensure in bearer MW
-	ProjectsServer ProjectsServer  // optional; nil disables /api/v1/projects routes (Task 33 wires)
-	SessionsServer SessionsServer  // optional; nil disables /api/v1/sessions routes (Task 33 wires)
-	ActiveServer   ActiveServer    // optional; nil disables /api/v1/active routes (Task 33 wires)
-	BaseURL        string
-	OIDCClientID   string
-	OIDCSecret     string
-	Cookie         CookieConfig
-	Ready          ReadinessCheck
-	OIDCConfig     OIDCConfigResponse // populated by main; consumed by Task 17 handler
+	Provider        oidcserverProvider
+	Access          ports.AccessChecker
+	Session         ports.BrowserSessionStore
+	Users           ports.UserStore // optional; nil disables user-ensure in bearer MW
+	ProjectsServer  ProjectsServer  // optional; nil disables /api/v1/projects routes (Task 33 wires)
+	SessionsServer  SessionsServer  // optional; nil disables /api/v1/sessions routes (Task 33 wires)
+	ActiveServer    ActiveServer    // optional; nil disables /api/v1/active routes (Task 33 wires)
+	ReposServer     ReposServer     // optional; nil disables /api/v1/repos routes (Plan C)
+	RepoNotesServer RepoNotesServer // optional; nil disables /api/v1/repo-notes routes (Plan C)
+	BaseURL         string
+	OIDCClientID    string
+	OIDCSecret      string
+	Cookie          CookieConfig
+	Ready           ReadinessCheck
+	OIDCConfig      OIDCConfigResponse // populated by main; consumed by Task 17 handler
 }
 
 // authBrowser holds the OAuth2 config + deps for the three browser endpoints.

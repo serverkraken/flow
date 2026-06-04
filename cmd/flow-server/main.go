@@ -61,6 +61,8 @@ func main() {
 	projects := sqliteserver.NewProjects(serverDB)
 	sessions := sqliteserver.NewSessions(serverDB)
 	activeStore := sqliteserver.NewActiveSessions(serverDB)
+	repos := sqliteserver.NewRepos(serverDB)
+	repoNotes := sqliteserver.NewRepoNotes(serverDB)
 
 	// --- OIDC + session cookie -----------------------------------------------
 
@@ -92,19 +94,21 @@ func main() {
 
 	secure := strings.HasPrefix(cfg.BaseURL, "https://")
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
-		Provider:       provider,
-		Access:         access,
-		Session:        session,
-		Users:          users,
-		ProjectsServer: projects,
-		SessionsServer: sessions,
-		ActiveServer:   activeStore,
-		BaseURL:        cfg.BaseURL,
-		OIDCClientID:   cfg.OIDCClientID,
-		OIDCSecret:     cfg.OIDCClientSecret,
-		Cookie:         httpserver.CookieConfig{Name: "flow_session", Secure: secure},
-		Ready:          func() error { return serverDB.DB().Ping() },
-		OIDCConfig:     oidcCfg,
+		Provider:        provider,
+		Access:          access,
+		Session:         session,
+		Users:           users,
+		ProjectsServer:  projects,
+		SessionsServer:  sessions,
+		ActiveServer:    activeStore,
+		ReposServer:     repos,
+		RepoNotesServer: repoNotes,
+		BaseURL:         cfg.BaseURL,
+		OIDCClientID:    cfg.OIDCClientID,
+		OIDCSecret:      cfg.OIDCClientSecret,
+		Cookie:          httpserver.CookieConfig{Name: "flow_session", Secure: secure},
+		Ready:           func() error { return serverDB.DB().Ping() },
+		OIDCConfig:      oidcCfg,
 	})
 
 	httpSrv := &http.Server{
@@ -112,7 +116,8 @@ func main() {
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	logger.Info("flow-server starting",
+	logger.Info(
+		"flow-server starting",
 		slog.String("addr", cfg.Addr),
 		slog.String("base_url", cfg.BaseURL),
 		slog.String("issuer", cfg.OIDCIssuer),
