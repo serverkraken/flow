@@ -170,13 +170,13 @@ func TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate(t *testing.T) {
 	}
 }
 
-func TestSessionWriter_Delete_RewriteErr(t *testing.T) {
+func TestSessionWriter_Delete_StoreErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	store := &flakySessionStore{
-		Sessions: []domain.Session{{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
-		FailOn:   "Rewrite",
+		Sessions: []domain.Session{{ID: "delerr-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
+		FailOn:   "Delete",
 	}
 	w.Sessions = store
 	if err := w.Delete(d, 0); err == nil {
@@ -184,13 +184,13 @@ func TestSessionWriter_Delete_RewriteErr(t *testing.T) {
 	}
 }
 
-func TestSessionWriter_SetTag_RewriteErr(t *testing.T) {
+func TestSessionWriter_SetTag_StoreErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	store := &flakySessionStore{
-		Sessions: []domain.Session{{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
-		FailOn:   "Rewrite",
+		Sessions: []domain.Session{{ID: "settagerr-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
+		FailOn:   "Upsert",
 	}
 	w.Sessions = store
 	if err := w.SetTag(d, 0, "foo"); err == nil {

@@ -876,7 +876,13 @@ func seedHistorySessions(r rig) {
 	mk := func(day time.Time, startH, dur int, tag, note string) domain.Session {
 		start := day.Add(time.Duration(startH) * time.Hour)
 		stop := start.Add(time.Duration(dur) * time.Hour)
+		// Stable deterministic ID per (date, startH) so the ID-based
+		// Delete / Upsert paths in SessionWriter find a non-empty key.
+		// Real sessions always have a UUID v4; tests just need
+		// uniqueness within the seed.
+		id := fmt.Sprintf("seed-%s-h%02d", day.Format("20060102"), startH)
 		return domain.Session{
+			ID:   id,
 			Date: day, Start: start, Stop: stop,
 			Elapsed: stop.Sub(start), Tag: tag, Note: note,
 		}
