@@ -321,10 +321,7 @@ func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 					conflict.Stop.Format("15:04"))
 			}
 		}
-		// AppendBatch (review finding B1): same partial-failure
-		// reasoning as stopAt — a manual entry crossing midnight must
-		// either land entirely or not at all.
-		return w.Sessions.AppendBatch(parts)
+		return w.upsertParts(parts)
 	})
 }
 
