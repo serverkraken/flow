@@ -17,4 +17,5 @@ type Repo struct {
 	CanonicalKey string
 	DisplayName  string
 	CreatedAt    time.Time
+	Version      int64 // server-incremented Lamport; 0 until first server roundtrip
 }
