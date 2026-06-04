@@ -112,10 +112,8 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 			return err
 		}
 		toAppend := dedupeSessionParts(parts, existing)
-		if len(toAppend) > 0 {
-			if err := w.Sessions.AppendBatch(toAppend); err != nil {
-				return err
-			}
+		if err := w.upsertParts(toAppend); err != nil {
+			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
 			return err
@@ -176,8 +174,7 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
 		}
-		// AppendBatch (review finding B1): see SessionWriter.stopAt.
-		if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, stop)); err != nil {
+		if err := w.upsertParts(domain.SplitAtMidnight(*active, stop)); err != nil {
 			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
@@ -250,8 +247,7 @@ func (w *SessionWriter) Toggle() (string, error) {
 				Stop:    now,
 				Elapsed: now.Sub(*active),
 			}
-			// AppendBatch (review finding B1): see SessionWriter.stopAt.
-			if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, now)); err != nil {
+			if err := w.upsertParts(domain.SplitAtMidnight(*active, now)); err != nil {
 				return err
 			}
 			if err := w.State.ClearActive(); err != nil {
@@ -457,6 +453,31 @@ func (w *SessionWriter) rewriteAtIndexLocked(date time.Time, idx int, fn func(do
 // startOfDay returns t truncated to 00:00 in t's location.
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// upsertParts assigns a fresh UUID + the writer's UserID + an UpdatedAt
+// stamp to each row before writing it through Sessions.Upsert one-by-one.
+// Replaces the legacy AppendBatch call that lifecycle paths used while
+// the TSV adapter still satisfied ports.SessionStore.
+//
+// Empty slice is a no-op — keeps stopAt's dedupe-yielded-empty branch
+// quiet without a wrapping len() check at the call site.
+func (w *SessionWriter) upsertParts(parts []domain.Session) error {
+	if len(parts) == 0 {
+		return nil
+	}
+	now := w.Clock.Now().UTC()
+	for i := range parts {
+		if parts[i].ID == "" {
+			parts[i].ID = newUUID()
+		}
+		parts[i].UserID = w.UserID
+		parts[i].UpdatedAt = now
+		if err := w.Sessions.Upsert(parts[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // sanitizeField strips characters that would break the TSV format.
