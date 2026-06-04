@@ -28,7 +28,6 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
-	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/cli"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
@@ -115,7 +114,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	clock := systemclock.New()
 	tmux := tmuxbridge.New()
 
-	sessionStore := tsvsessions.New(p.WorktimeLog)
 	fileLock := flockstate.NewLock(filepath.Join(p.TmuxDir, "worktime.lock"))
 	activeStore := flockstate.NewState(
 		filepath.Join(p.TmuxDir, "worktime.state"),
@@ -159,6 +157,11 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	}
 	cacheProjects := sqliteclient.NewProjects(cacheStore)
 	cacheSessions := sqliteclient.NewSessions(cacheStore)
+	// sessionStore is the unified session backend after Plan-B follow-up #1
+	// retired the tsvsessions adapter. SessionWriter / WorktimeReader /
+	// Tagger all read+write the same sqlite cache that the sync worker
+	// pulls from.
+	sessionStore := cacheSessions
 	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
 	cacheWriteQueue := sqliteclient.NewWriteQueue(cacheStore)
 	cacheSyncState := sqliteclient.NewSyncState(cacheStore)
@@ -247,6 +250,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		Lock:     fileLock,
 		Reader:   reader,
 		Clock:    clock,
+		UserID:   localUser.ID,
 	}
 	statusComposer := &usecase.StatusComposer{
 		Reader:  reader,
