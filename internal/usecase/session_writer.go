@@ -21,6 +21,12 @@ type SessionWriter struct {
 	Lock     ports.Lock
 	Reader   *WorktimeReader
 	Clock    ports.Clock
+
+	// UserID scopes every Sessions.Load / Sessions.Delete / Sessions.Upsert
+	// call so the sqliteclient backend can multiplex multiple users in the
+	// same cache.db. Set by the composition root at construction time;
+	// SessionWriter itself never mutates it.
+	UserID string
 }
 
 // — lifecycle —
@@ -101,7 +107,7 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		// already-persisted session. After the filter the work is a
 		// no-op AppendBatch — ClearActive is the actual retry step.
 		parts := domain.SplitAtMidnight(*active, stop)
-		existing, err := w.Sessions.Load("")
+		existing, err := w.Sessions.Load(w.UserID)
 		if err != nil {
 			return err
 		}
@@ -366,7 +372,7 @@ func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Tim
 // success — same contract Edit / SetTag / SetNote already enforce.
 func (w *SessionWriter) Delete(date time.Time, idx int) error {
 	return w.Lock.With(func() error {
-		all, err := w.Sessions.Load("")
+		all, err := w.Sessions.Load(w.UserID)
 		if err != nil {
 			return err
 		}
@@ -425,7 +431,7 @@ func (w *SessionWriter) rewriteAtIndex(date time.Time, idx int, fn func(domain.S
 // that day — without this signal the rewrite was a silent no-op for
 // stale CLI input like `flow worktime tag 99 deep`.
 func (w *SessionWriter) rewriteAtIndexLocked(date time.Time, idx int, fn func(domain.Session) domain.Session) error {
-	all, err := w.Sessions.Load("")
+	all, err := w.Sessions.Load(w.UserID)
 	if err != nil {
 		return err
 	}
