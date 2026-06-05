@@ -1,0 +1,56 @@
+package layout
+
+// PageMeta carries everything chrome (nav, flash, spine) needs to render.
+// Handlers populate this struct before calling Base().
+type PageMeta struct {
+	Title       string
+	CurrentPath string
+	UserLabel   string // "alice@example.com" or empty for landing
+	Flash       Flash
+	Spine       SpineState
+	HideSpine   bool // true for the unauthenticated landing page
+	HideNav     bool // true for the unauthenticated landing page
+}
+
+// Base is the full HTML shell. Body is a sub-template (usually
+// `Index(...)` / `Today(...)` etc.) that the handler renders inside.
+templ Base(m PageMeta, body templ.Component) {
+	<!DOCTYPE html>
+	<html lang="de" class="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="dark"/>
+			<title>
+				if m.Title != "" {
+					{ m.Title } — flow
+				} else {
+					flow
+				}
+			</title>
+			<link rel="stylesheet" href="/static/styles.css"/>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<script src="/static/htmx.min.js"></script>
+			<script src="/static/htmx-sse.min.js"></script>
+			<script src="/static/alpine.min.js" defer></script>
+		</head>
+		<body hx-boost="true" hx-history="false">
+			if !m.HideSpine {
+				@Spine(m.Spine)
+			}
+			if !m.HideNav {
+				@Nav(m.CurrentPath, m.UserLabel)
+			}
+			<main class="max-w-6xl mx-auto px-6 py-8" style="margin-left:max(1.5rem, calc(50vw - 36rem))">
+				@FlashStrip(m.Flash)
+				@body
+			</main>
+		</body>
+	</html>
+}
+
+// BarePage renders the HTML shell without nav / spine — used for the login
+// landing.
+templ BarePage(title string, body templ.Component) {
+	@Base(PageMeta{Title: title, HideNav: true, HideSpine: true}, body)
+}

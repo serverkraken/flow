@@ -1,0 +1,48 @@
+package layout
+
+import "fmt"
+
+// SpineState renders the always-visible 8px status spine on the left edge of
+// authenticated pages. See DESIGN.md "Status spine".
+//
+// AnyActive   — true if at least one session is currently running
+// HourMask    — 24-element slice; each value is 0 (no work) or 1 (work in
+//               that hour of today, local-time)
+// NowHour     — 0..23, the current local hour (highlighted as `.is-now`)
+// SyncState   — "ok" / "warn" / "idle" — drives the bottom sync dot
+type SpineState struct {
+	AnyActive bool
+	HourMask  [24]int
+	NowHour   int
+	SyncState string
+}
+
+templ Spine(s SpineState) {
+	<aside class="spine" aria-hidden="true">
+		if s.AnyActive {
+			<span class="spine-glyph is-active" title="Aktive Session">▶</span>
+		} else {
+			<span class="spine-glyph" title="Keine aktive Session">▰</span>
+		}
+		<div class="spine-bars">
+			for h := 0; h < 24; h++ {
+				if h == s.NowHour && s.HourMask[h] > 0 {
+					<div class="spine-bar has-work is-now" title={ fmt.Sprintf("%02d:00 (jetzt)", h) }></div>
+				} else if s.HourMask[h] > 0 {
+					<div class="spine-bar has-work" title={ fmt.Sprintf("%02d:00", h) }></div>
+				} else if h == s.NowHour {
+					<div class="spine-bar is-now" title={ fmt.Sprintf("%02d:00 (jetzt)", h) }></div>
+				} else {
+					<div class="spine-bar" title={ fmt.Sprintf("%02d:00", h) }></div>
+				}
+			}
+		</div>
+		if s.SyncState == "ok" {
+			<span class="spine-sync is-active" title="Sync OK">●</span>
+		} else if s.SyncState == "warn" {
+			<span class="spine-sync is-warn" title="Sync stale">●</span>
+		} else {
+			<span class="spine-sync" title="Sync idle">●</span>
+		}
+	</aside>
+}

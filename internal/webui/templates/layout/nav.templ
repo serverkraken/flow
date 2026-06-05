@@ -1,0 +1,65 @@
+package layout
+
+import "strings"
+
+type NavItem struct {
+	Label string
+	Href  string
+	Icon  func() templ.Component
+}
+
+func navItems() []NavItem {
+	return []NavItem{
+		{Label: "Dashboard", Href: "/", Icon: IconDashboard},
+		{Label: "Worktime", Href: "/worktime", Icon: IconWorktime},
+		{Label: "Projekte", Href: "/projects", Icon: IconProjects},
+		{Label: "Notes", Href: "/notes", Icon: IconNotes},
+		{Label: "Repos", Href: "/repos", Icon: IconRepos},
+		{Label: "Settings", Href: "/settings", Icon: IconSettings},
+	}
+}
+
+func isActive(itemHref, currentPath string) bool {
+	if itemHref == "/" {
+		return currentPath == "/"
+	}
+	return strings.HasPrefix(currentPath, itemHref)
+}
+
+templ Nav(currentPath string, userLabel string) {
+	<header class="border-b border-[color:var(--color-muted)] bg-[color:var(--color-bg)] sticky top-0 z-40">
+		<div class="max-w-6xl mx-auto pl-6 pr-4 flex items-center gap-8">
+			<a href="/" class="flex items-baseline gap-2 py-3" aria-label="flow — Dashboard">
+				<span class="display-md font-thin tracking-tight">flow</span>
+				<span class="eyebrow text-[color:var(--color-fg-dim)]">multi-device</span>
+			</a>
+			<nav class="flex items-center gap-1 flex-1" aria-label="primary">
+				for _, item := range navItems() {
+					if isActive(item.Href, currentPath) {
+						<a href={ templ.SafeURL(item.Href) } class="nav-link is-active">
+							@item.Icon()
+							<span>{ item.Label }</span>
+						</a>
+					} else {
+						<a href={ templ.SafeURL(item.Href) } class="nav-link">
+							@item.Icon()
+							<span>{ item.Label }</span>
+						</a>
+					}
+				}
+			</nav>
+			<div class="flex items-center gap-3 py-3 text-xs text-[color:var(--color-fg-dim)]">
+				if userLabel != "" {
+					<span class="hidden md:inline">{ userLabel }</span>
+				}
+				<a href="/logout" class="nav-link" title="Abmelden">
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+						<polyline points="16 17 21 12 16 7"/>
+						<line x1="21" y1="12" x2="9" y2="12"/>
+					</svg>
+				</a>
+			</div>
+		</div>
+	</header>
+}
