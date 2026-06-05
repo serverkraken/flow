@@ -67,7 +67,8 @@ COVER_PKG       := ./internal/...
 
 .PHONY: build install test cover lint fmt clean ci \
         build-server build-mcp test-server test-integration \
-        dex-up dex-down dex-logs run-server
+        dex-up dex-down dex-logs run-server \
+        webui webui-templ webui-css webui-css-watch webui-check
 
 build:
 	@mkdir -p bin
@@ -137,3 +138,36 @@ dex-logs:
 # exporting before invocation.
 run-server: build-server
 	./scripts/run-flow-server.sh
+
+# ---------------------------------------------------------------------------
+# WebUI codegen (Plan E / M6+M7). The generated artifacts (templ-.go and the
+# minified styles.css) are COMMITTED so that `go build` works on a host
+# without Node — CI uses `webui-check` to detect a stale tree.
+# ---------------------------------------------------------------------------
+
+webui-templ:
+	go run github.com/a-h/templ/cmd/templ@v0.3.857 generate ./internal/webui/...
+
+webui-css:
+	cd tools/tailwind && npm install --silent --no-audit --no-fund
+	cd tools/tailwind && ./node_modules/.bin/tailwindcss \
+	  -i input.css \
+	  -o ../../internal/webui/static/styles.css \
+	  --minify
+
+webui-css-watch:
+	cd tools/tailwind && ./node_modules/.bin/tailwindcss \
+	  -i input.css \
+	  -o ../../internal/webui/static/styles.css \
+	  --watch
+
+webui: webui-templ webui-css
+
+# CI helper: regenerate and refuse to merge if the working tree changes.
+# Run AFTER `make webui` locally. Requires Node + npm on the runner.
+webui-check: webui
+	@if ! git diff --quiet -- internal/webui/static/styles.css internal/webui/templates; then \
+	  echo "[webui-check] generated artifacts are out of date — run \`make webui\` and commit"; \
+	  git --no-pager diff -- internal/webui/static/styles.css internal/webui/templates; \
+	  exit 1; \
+	fi
