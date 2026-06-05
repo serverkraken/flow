@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" fill="#1a1b26"/>
+  <!-- f = "flow", weight 100, slightly oversized -->
+  <text x="16" y="24" font-family="JetBrains Mono, ui-monospace, Menlo, monospace"
+        font-size="26" font-weight="200" fill="#7aa2f7" text-anchor="middle">f</text>
+  <!-- accent dot bottom-right echoes the status spine -->
+  <circle cx="26" cy="26" r="2" fill="#9ece6a"/>
+</svg>

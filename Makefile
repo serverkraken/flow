@@ -68,7 +68,7 @@ COVER_PKG       := ./internal/...
 .PHONY: build install test cover lint fmt clean ci \
         build-server build-mcp test-server test-integration \
         dex-up dex-down dex-logs run-server \
-        webui webui-templ webui-css webui-css-watch webui-check
+        webui webui-templ webui-css webui-css-watch webui-check webui-vendor
 
 build:
 	@mkdir -p bin
@@ -171,3 +171,16 @@ webui-check: webui
 	  git --no-pager diff -- internal/webui/static/styles.css internal/webui/templates; \
 	  exit 1; \
 	fi
+
+# Re-vendor the static third-party JS/CSS pinned in
+# internal/webui/static/VERSIONS.md, then rebuild the CodeMirror bundle.
+# Run when bumping a vendored library; the resulting diff is the audit
+# trail.
+webui-vendor:
+	@cd internal/webui/static && \
+	  curl -fsSL "https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"                          -o alpine.min.js     && \
+	  curl -fsSL "https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"                          -o htmx.min.js       && \
+	  curl -fsSL "https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"                                -o htmx-sse.min.js   && \
+	  curl -fsSL "https://cdn.jsdelivr.net/npm/apexcharts@4.3.0/dist/apexcharts.min.js"       -o apexcharts.min.js && \
+	  curl -fsSL "https://cdn.jsdelivr.net/npm/apexcharts@4.3.0/dist/apexcharts.css"          -o apexcharts.min.css
+	cd tools/codemirror && npm install --silent --no-audit --no-fund && node build.mjs
