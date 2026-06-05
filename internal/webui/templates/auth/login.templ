@@ -1,0 +1,47 @@
+package auth
+
+import "github.com/serverkraken/flow/internal/webui/templates/layout"
+
+// Login renders the unauthenticated landing page — the only HTML surface
+// available before OIDC sign-in. Anything else under `/` redirects here.
+templ Login(issuerLabel string) {
+	@layout.BarePage("Anmelden", LoginBody(issuerLabel))
+}
+
+templ LoginBody(issuerLabel string) {
+	<div class="min-h-[80vh] flex items-center justify-center px-6">
+		<div class="w-full max-w-md">
+			<div class="text-center">
+				<div class="display-xl text-[color:var(--color-fg)] mb-3">flow</div>
+				<div class="eyebrow mb-12">multi-device worktime · repo notes</div>
+			</div>
+			<div class="border border-[color:var(--color-muted)] p-8">
+				<div class="eyebrow mb-3">Anmeldung</div>
+				<p class="text-[color:var(--color-fg-dim)] text-sm mb-6 leading-relaxed">
+					flow nutzt OpenID Connect über
+					if issuerLabel != "" {
+						<span class="text-[color:var(--color-fg)]"> { issuerLabel } </span>
+					} else {
+						<span class="text-[color:var(--color-fg)]"> deinen Identity-Provider </span>
+					}
+					für die Browser-Sitzung. Tokens landen in einem httpOnly-Cookie und werden lokal nie geloggt.
+				</p>
+				<a
+					href="/login"
+					class="btn btn-primary w-full justify-center"
+					data-action="oidc-login"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+						<polyline points="10 17 15 12 10 7"/>
+						<line x1="15" y1="12" x2="3" y2="12"/>
+					</svg>
+					<span>Mit OIDC anmelden</span>
+				</a>
+			</div>
+			<div class="mt-8 text-center eyebrow text-[color:var(--color-muted)]">
+				flow · phase 1 · m6/m7
+			</div>
+		</div>
+	</div>
+}
