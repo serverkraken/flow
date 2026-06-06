@@ -414,6 +414,18 @@ func mergeSessionUpdate(existing domain.Session, r *http.Request, loc *time.Loca
 		}
 		out.Stop = combineDateTime(out.Date, t, loc)
 	}
+	// If only the date changed (start/stop weren't re-submitted), re-anchor
+	// the preserved wall-clock times to the new date so the date column
+	// agrees with the start column. Without this the row stays anchored
+	// to the OLD date and looks inconsistent in the UI.
+	if dateStr != "" {
+		if startStr == "" {
+			out.Start = combineDateTime(out.Date, out.Start, loc)
+		}
+		if stopStr == "" {
+			out.Stop = combineDateTime(out.Date, out.Stop, loc)
+		}
+	}
 	out.Tag = tag
 	out.Note = note
 	// Defensive: stop before start → swap or reject? Reject is safer so

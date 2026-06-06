@@ -6,8 +6,11 @@ package partials
 // Soenne choose which one wins:
 //
 //   - "Server übernehmen" → reloads the row from the server (HTMX GET).
-//   - "Lokal überschreiben" → re-submits with the server's expectedVersion
-//     so the PUT/DELETE succeeds.
+//   - PUT mode: "Erneut bearbeiten" → re-opens the edit form against the
+//     current server version. Local edits are lost; Phase 2 will preserve
+//     submitted values pre-filled.
+//   - DELETE mode: "Lokal überschreiben (löschen)" → re-submits the
+//     DELETE with the server's expectedVersion via If-Match so it succeeds.
 //
 // The overlay replaces the original <tr> inline so it stays in the
 // table column flow without an actual modal.
@@ -68,12 +71,20 @@ templ ConflictOverlay(vm ConflictOverlayVM) {
 						hx-swap="outerHTML swap:200ms"
 					>Lokal überschreiben (löschen)</button>
 				} else {
+					// TODO Phase 2: properly preserve local edits across
+					// conflict (emit form pre-filled with submitted values +
+					// current version). For now the "Erneut bearbeiten" path
+					// resets to server values — same as "Server übernehmen"
+					// followed by a re-edit, but kept as a distinct affordance
+					// so the conflict overlay still offers two clear next
+					// steps (accept vs. re-edit).
 					<button
 						class="btn btn-sm btn-primary"
+						title="Form mit aktueller Server-Version erneut öffnen"
 						hx-get={ "/worktime/sessions/" + vm.ID + "/edit" }
 						hx-target="closest tr"
 						hx-swap="outerHTML"
-					>Lokal überschreiben</button>
+					>Erneut bearbeiten</button>
 				}
 			</div>
 		</td>

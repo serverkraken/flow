@@ -245,6 +245,56 @@ func TestSessionPut_BadInput_BadRequest_RendersForm(t *testing.T) {
 	})
 }
 
+func TestSessionPut_DateOnlyChange_ReAnchorsTimes(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "sa-put-date-only")
+	p := seedProject(t, store, u.ID, "webui-mockups")
+	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
+	sessions := sqliteserver.NewSessions(store)
+	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+
+	d := mkActionsDeps(store, now)
+	h := handlers.NewSessionPut(d)
+
+	// Submit ONLY a new date — leave start/stop unset. The handler must
+	// re-anchor the preserved wall-clock times to the new date so the row
+	// stays internally consistent (date column == start.Date()).
+	form := url.Values{}
+	form.Set("date", "2026-06-05")
+	form.Set("version", strconv.FormatInt(s.Version, 10))
+
+	rr := httptest.NewRecorder()
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), u, map[string]string{"id": s.ID})
+	h.ServeHTTP(rr, r)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
+	}
+
+	saved, err := sessions.GetByID(u.ID, s.ID)
+	if err != nil {
+		t.Fatalf("re-read session: %v", err)
+	}
+	wantDate := time.Date(2026, 6, 5, 0, 0, 0, 0, time.UTC)
+	if !saved.Date.Equal(wantDate) {
+		t.Errorf("Date: got %s, want %s", saved.Date, wantDate)
+	}
+	if y, m, day := saved.Start.Date(); y != 2026 || m != time.June || day != 5 {
+		t.Errorf("Start.Date(): got %04d-%02d-%02d, want 2026-06-05", y, m, day)
+	}
+	if y, m, day := saved.Stop.Date(); y != 2026 || m != time.June || day != 5 {
+		t.Errorf("Stop.Date(): got %04d-%02d-%02d, want 2026-06-05", y, m, day)
+	}
+	// Wall-clock times preserved.
+	if saved.Start.Hour() != 9 || saved.Start.Minute() != 0 {
+		t.Errorf("Start time: got %02d:%02d, want 09:00", saved.Start.Hour(), saved.Start.Minute())
+	}
+	if saved.Stop.Hour() != 10 || saved.Stop.Minute() != 0 {
+		t.Errorf("Stop time: got %02d:%02d, want 10:00", saved.Stop.Hour(), saved.Stop.Minute())
+	}
+}
+
 func TestSessionPut_CrossTenant_404(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServerStore(t)

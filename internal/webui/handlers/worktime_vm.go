@@ -72,6 +72,7 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 			ElapsedLabel: worktime.FormatElapsedHumane(now.Sub(active.StartedAt)),
 			StartedAt:    active.StartedAt.In(now.Location()).Format("15:04"),
 			SinceLabel:   "→ läuft",
+			StopHref:     "/worktime/active/stop",
 		}
 	}
 
