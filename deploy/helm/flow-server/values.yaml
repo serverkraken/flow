@@ -72,7 +72,12 @@ ingress:
   enabled: true
   className: nginx
   host: flow.example.com
-  # Extra annotations for the Ingress object. Add cert-manager hooks here.
+  # cert-manager ClusterIssuer name used for automatic TLS provisioning.
+  # The chart adds the cert-manager.io/cluster-issuer annotation for you;
+  # override here if you use a Namespace-scoped Issuer or staging issuer.
+  certManagerIssuer: letsencrypt-prod
+  # Extra annotations merged into the Ingress object. Use for nginx-specific
+  # tunings (proxy-body-size, etc.) or to override the cert-manager hook.
   annotations: {}
   tls:
     enabled: true
@@ -102,6 +107,8 @@ metrics:
     enabled: false
     # Prometheus scrape interval. Only used when serviceMonitor.enabled=true.
     interval: 30s
+    # Hard timeout for a single scrape. Must be < interval.
+    scrapeTimeout: 10s
     labels: {}
 
 # Pod-level overrides. Empty by default; useful for nodeSelector/tolerations

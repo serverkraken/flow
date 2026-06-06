@@ -1,0 +1,22 @@
+{{/*
+ConfigMap holding the non-secret FLOW_* runtime env. Keys map 1:1 onto
+container env var names because the Deployment wires this in via
+envFrom: configMapRef. Renaming a key here renames the env var in the
+running container — keep the FLOW_* names verbatim.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "flow-server.fullname" . }}-config
+  labels:
+    {{- include "flow-server.labels" . | nindent 4 }}
+data:
+  FLOW_SERVER_ADDR: {{ .Values.flow.serverAddr | quote }}
+  FLOW_SERVER_BASE_URL: {{ .Values.flow.serverBaseURL | quote }}
+  FLOW_SERVER_DB: {{ .Values.flow.serverDBPath | quote }}
+  FLOW_OIDC_ISSUER: {{ .Values.flow.oidcIssuer | quote }}
+  FLOW_OIDC_CLIENT_ID: {{ .Values.flow.oidcClientID | quote }}
+  FLOW_ALLOWED_SUBS: {{ required "flow.allowedSubs is required — comma-separated OIDC sub values that may log in" .Values.flow.allowedSubs | quote }}
+  {{- if .Values.flow.notebookRoot }}
+  FLOW_NOTEBOOK_ROOT: {{ .Values.flow.notebookRoot | quote }}
+  {{- end }}

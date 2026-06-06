@@ -1,0 +1,26 @@
+{{/*
+PersistentVolumeClaim backing the SQLite store at /var/lib/flow.
+ReadWriteOnce is correct: flow-server and the litestream sidecar share the
+volume *within the same Pod*, never across Pods (replicas: 1, Recreate
+strategy). RWO is what every default storage class supports.
+
+Skipped when persistence.enabled=false — the Deployment falls back to an
+emptyDir, which is fine for ephemeral test installs.
+*/}}
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "flow-server.fullname" . }}-data
+  labels:
+    {{- include "flow-server.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | default "4Gi" }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}
