@@ -81,14 +81,14 @@ func NewNotesView(d NotesDeps) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 
 		idStr := chi.URLParam(r, "*")
-		if idStr == "" {
-			// No chi context — derive from request path so direct
-			// httptest.NewRequest("/notes/foo/bar") still resolves.
+		if idStr != "" {
+			// chi stores raw percent-encoded values; decode here.
+			if dec, err := url.PathUnescape(idStr); err == nil {
+				idStr = dec
+			}
+		} else {
+			// Direct ServeHTTP without router — r.URL.Path is already decoded by net/http.
 			idStr = strings.TrimPrefix(r.URL.Path, "/notes/")
-		}
-		// URL-decode in case the caller percent-encoded the ID.
-		if dec, err := url.PathUnescape(idStr); err == nil {
-			idStr = dec
 		}
 		if idStr == "" {
 			renderNotesNotFound(w, r, "")

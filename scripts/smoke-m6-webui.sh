@@ -66,11 +66,23 @@ info "start flow-server (background)"
 SERVER_PID=$!
 trap 'kill "${SERVER_PID}" 2>/dev/null || true' EXIT
 
-# Give the server a moment to bind. A polling loop is overkill for a
-# 5-route smoke; 2 s is comfortably more than the SQLite migration cost.
-sleep 2
-
 BASE="${FLOW_SERVER_BASE_URL:-http://localhost:8080}"
+
+# Wait up to 10s for server to come up. OIDC discovery can stall on cold
+# DNS — fail loudly with a hint rather than hammering a dead port.
+for i in $(seq 1 10); do
+    if curl -sf "${BASE}/healthz" -o /dev/null 2>/dev/null; then
+        break
+    fi
+    sleep 1
+    if [ "$i" -eq 10 ]; then
+        echo "FAIL: flow-server did not respond on ${BASE}/healthz within 10s"
+        echo "      (check FLOW_OIDC_ISSUER reachability and FLOW_* env)"
+        exit 1
+    fi
+done
+
+echo "[1] healthz reachable"
 
 # ---- 1. healthz still works (bearer routes untouched) -----------------------
 

@@ -84,10 +84,17 @@ func NewRepoNote(d ReposDeps) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 
-		escapedKey := chi.URLParam(r, "key")
-		if escapedKey == "" {
-			// No chi context — parse from path so direct
-			// httptest.NewRequest("/repos/<key>/note") still resolves.
+		var canonicalKey string
+		if escapedKey := chi.URLParam(r, "key"); escapedKey != "" {
+			// chi stores raw percent-encoded values; decode here.
+			dec, err := url.PathUnescape(escapedKey)
+			if err != nil {
+				renderReposNoteNotFound(w, r, escapedKey)
+				return
+			}
+			canonicalKey = dec
+		} else {
+			// Direct ServeHTTP without router — r.URL.Path is already decoded by net/http.
 			tail := strings.TrimPrefix(r.URL.Path, "/repos")
 			tail = strings.TrimPrefix(tail, "/")
 			key, action, ok := splitNoteTail(tail)
@@ -95,12 +102,7 @@ func NewRepoNote(d ReposDeps) http.Handler {
 				renderReposNoteNotFound(w, r, key)
 				return
 			}
-			escapedKey = key
-		}
-		canonicalKey, err := url.PathUnescape(escapedKey)
-		if err != nil {
-			renderReposNoteNotFound(w, r, escapedKey)
-			return
+			canonicalKey = key
 		}
 		renderReposNoteView(w, r, d, u.ID, canonicalKey)
 	})
