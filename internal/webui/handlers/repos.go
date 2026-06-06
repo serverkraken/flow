@@ -1,10 +1,11 @@
 // Package handlers — see dashboard.go for the per-handler-Deps
-// convention. The repos handler is mounted at /repos and
-// /repos/{escaped-canonical-key}/note. Both branches are served by
-// NewRepos() and dispatched on the URL path inside the returned
-// http.Handler — we use net/http path matching (not chi) so the
-// handler is consistent with the existing notes handler shape and the
-// composition root (Task 10) doesn't need to thread a router in.
+// convention. The repos routes split into two constructors:
+//   - NewReposIndex serves /repos (list)
+//   - NewRepoNote   serves /repos/{key}/note (single-repo note view)
+//
+// chi captures the canonical key via {key}; the handler URL-decodes it
+// before looking up the Repo. NewRepos is kept as a thin path-dispatch
+// wrapper for tests + back-compat.
 package handlers
 
 import (
@@ -13,6 +14,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
@@ -49,19 +52,29 @@ const indexLimit = 200
 // meta strip — the server doesn't track per-device sync yet (M7+).
 const devicesPlaceholder = "1 / 1 ✓"
 
-// NewRepos returns the http.Handler mounted at /repos and
-// /repos/{escaped-canonical-key}/note. The BrowserAuthMiddleware
-// guarantees a domain.User in context; the handler fails closed with
-// 401 if it's absent.
+// NewReposIndex returns the http.Handler mounted at /repos. The
+// BrowserAuthMiddleware guarantees a domain.User in context; the
+// handler fails closed with 401 if it's absent.
+func NewReposIndex(d ReposDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		renderReposIndex(w, r, d, u.ID)
+	})
+}
+
+// NewRepoNote returns the http.Handler mounted at /repos/{key}/note.
+// chi exposes the {key} segment via URLParam; the handler URL-decodes
+// it before looking up the Repo.
 //
-// Dispatch:
-//   - /repos                    → index (sidebar list, full-width)
-//   - /repos/{key}/note         → single-repo note view
-//   - anything else under /repos → 404
-//
-// The {key} segment is the URL-escaped CanonicalKey. The handler
-// decodes it before looking up the Repo.
-func NewRepos(d ReposDeps) http.Handler {
+// Falls back to the M6 path-suffix dispatch when no chi route context is
+// present (older tests, direct ServeHTTP without a router).
+func NewRepoNote(d ReposDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := httpserver.UserFromContext(r.Context())
 		if !ok {
@@ -71,19 +84,18 @@ func NewRepos(d ReposDeps) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 
-		tail := strings.TrimPrefix(r.URL.Path, "/repos")
-		tail = strings.TrimPrefix(tail, "/")
-		if tail == "" {
-			renderReposIndex(w, r, d, u.ID)
-			return
-		}
-		// We only accept /repos/{key}/note as the second branch. Other
-		// shapes (e.g. /repos/{key} or extra segments) 404 explicitly so
-		// the URL surface stays small.
-		escapedKey, action, ok := splitNoteTail(tail)
-		if !ok || action != "note" {
-			renderReposNoteNotFound(w, r, escapedKey)
-			return
+		escapedKey := chi.URLParam(r, "key")
+		if escapedKey == "" {
+			// No chi context — parse from path so direct
+			// httptest.NewRequest("/repos/<key>/note") still resolves.
+			tail := strings.TrimPrefix(r.URL.Path, "/repos")
+			tail = strings.TrimPrefix(tail, "/")
+			key, action, ok := splitNoteTail(tail)
+			if !ok || action != "note" {
+				renderReposNoteNotFound(w, r, key)
+				return
+			}
+			escapedKey = key
 		}
 		canonicalKey, err := url.PathUnescape(escapedKey)
 		if err != nil {
@@ -91,6 +103,23 @@ func NewRepos(d ReposDeps) http.Handler {
 			return
 		}
 		renderReposNoteView(w, r, d, u.ID, canonicalKey)
+	})
+}
+
+// NewRepos is a back-compat dispatch wrapper for tests + standalone
+// callers. Production code uses the chi-mounted NewReposIndex +
+// NewRepoNote pair.
+func NewRepos(d ReposDeps) http.Handler {
+	index := NewReposIndex(d)
+	note := NewRepoNote(d)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tail := strings.TrimPrefix(r.URL.Path, "/repos")
+		tail = strings.TrimPrefix(tail, "/")
+		if tail == "" {
+			index.ServeHTTP(w, r)
+			return
+		}
+		note.ServeHTTP(w, r)
 	})
 }
 

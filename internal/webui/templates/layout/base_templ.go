@@ -67,7 +67,7 @@ func Base(m PageMeta, body templ.Component) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</title><link rel=\"stylesheet\" href=\"/static/styles.css\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\"><script src=\"/static/htmx.min.js\"></script><script src=\"/static/htmx-sse.min.js\"></script><script src=\"/static/alpine.min.js\" defer></script></head><body hx-boost=\"true\" hx-history=\"false\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</title><link rel=\"stylesheet\" href=\"/static/styles.css\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/favicon.svg\"><script src=\"/static/htmx.min.js\"></script><script src=\"/static/htmx-sse.min.js\"></script><script src=\"/static/alpine.min.js\" defer></script><!-- ApexCharts MUST load before charts-init.js (which the\n\t\t\t     Worktime/Woche sub-tab pulls in per-page). Without the\n\t\t\t     vendored bundle here, the chart-divs render empty. --><script src=\"/static/apexcharts.min.js\" defer></script></head><body hx-boost=\"true\" hx-history=\"false\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

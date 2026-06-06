@@ -14,8 +14,16 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
+	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
+	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/adapter/oidcserver"
 	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/systemclock"
+	"github.com/serverkraken/flow/internal/usecase"
+	"github.com/serverkraken/flow/internal/webui"
+	"github.com/serverkraken/flow/internal/webui/handlers"
+	webuimarkdown "github.com/serverkraken/flow/internal/webui/markdown"
 )
 
 // cliClientID is the OIDC client used by the CLI/MCP device-flow. Separate
@@ -93,6 +101,24 @@ func main() {
 	}
 
 	secure := strings.HasPrefix(cfg.BaseURL, "https://")
+
+	// --- WebUI handlers (Plan E · Task 10) ---------------------------------
+	//
+	// Constructing the per-route handlers once here and passing them as a
+	// single WebUIHandlers bag keeps server.go a pure router-wiring file.
+	// Every handler depends on the same Clock + sqliteserver adapters
+	// that already exist above, so the new wiring is additive — no
+	// existing dependency needs to change shape.
+	webuiHandlers := buildWebUIHandlers(
+		logger,
+		cfg,
+		sessions,
+		activeStore,
+		projects,
+		repos,
+		repoNotes,
+	)
+
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
 		Provider:        provider,
 		Access:          access,
@@ -103,6 +129,7 @@ func main() {
 		ActiveServer:    activeStore,
 		ReposServer:     repos,
 		RepoNotesServer: repoNotes,
+		WebUI:           webuiHandlers,
 		BaseURL:         cfg.BaseURL,
 		OIDCClientID:    cfg.OIDCClientID,
 		OIDCSecret:      cfg.OIDCClientSecret,
@@ -126,6 +153,117 @@ func main() {
 	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server crashed", slog.Any("err", err))
 		os.Exit(1)
+	}
+}
+
+// buildWebUIHandlers assembles the WebUIHandlers bag handed to
+// httpserver.NewWithAuth. Each per-route handler carries its own *Deps
+// (per-handler-Deps convention — see internal/webui/handlers/dashboard.go);
+// this function is the one place where the full set of concrete adapters
+// + the markdown renderer + the clock get bound to the right routes.
+//
+// Notebook root (FLOW_NOTEBOOK_ROOT) is optional. When unset, the Notes
+// handler renders a "Notes nicht konfiguriert" placeholder rather than
+// 500ing — we log a single warning at boot so the operator sees the gap
+// without losing the rest of the WebUI.
+func buildWebUIHandlers(
+	logger *slog.Logger,
+	cfg httpserver.Config,
+	sessions *sqliteserver.Sessions,
+	activeStore *sqliteserver.ActiveSessions,
+	projects *sqliteserver.Projects,
+	repos *sqliteserver.Repos,
+	repoNotes *sqliteserver.RepoNotes,
+) *httpserver.WebUIHandlers {
+	clock := systemclock.New()
+	mdRenderer := webuimarkdown.New()
+
+	// Notebook is optional — Notes handler renders a placeholder when
+	// Store + Lister are nil. Log once at boot so the gap is visible.
+	var (
+		notesStore  kompports.NoteStore
+		notesLister *kompusecase.ListNotes
+	)
+	if cfg.NotebookRoot != "" {
+		ns, err := kompfsstore.New(cfg.NotebookRoot)
+		if err != nil {
+			logger.Warn(
+				"notes: fsstore init failed; /notes will render placeholder",
+				slog.String("root", cfg.NotebookRoot),
+				slog.Any("err", err),
+			)
+		} else {
+			notesStore = ns
+			notesLister = kompusecase.NewListNotes(ns)
+		}
+	} else {
+		logger.Warn(
+			"notes: FLOW_NOTEBOOK_ROOT unset; /notes will render placeholder",
+		)
+	}
+
+	// One shared ServerWorktimeView is used by both Dashboard and
+	// Worktime — the underlying SQL aggregations are cheap, but a single
+	// view simplifies test seam-points (one Clock, one DefaultTarget).
+	worktimeView := &usecase.ServerWorktimeView{
+		Sessions:      sessions,
+		Active:        activeStore,
+		Clock:         clock,
+		DefaultTarget: 8 * time.Hour,
+	}
+
+	startTime := time.Now()
+
+	notesDeps := handlers.NotesDeps{
+		Store:    notesStore,
+		Lister:   notesLister,
+		Markdown: mdRenderer,
+		Clock:    clock,
+	}
+	reposDeps := handlers.ReposDeps{
+		Repos:     repos,
+		RepoNotes: repoNotes,
+		Markdown:  mdRenderer,
+		Clock:     clock,
+	}
+
+	return &httpserver.WebUIHandlers{
+		Dashboard: handlers.NewDashboard(handlers.DashboardDeps{
+			View:        worktimeView,
+			Active:      activeStore,
+			Sessions:    sessions,
+			Projects:    projects,
+			Clock:       clock,
+			ActivityMax: 7,
+		}),
+		Worktime: handlers.NewWorktime(handlers.WorktimeDeps{
+			View:     worktimeView,
+			Active:   activeStore,
+			Sessions: sessions,
+			Projects: projects,
+			Clock:    clock,
+		}),
+		NotesIndex: handlers.NewNotesIndex(notesDeps),
+		NotesView:  handlers.NewNotesView(notesDeps),
+		ReposIndex: handlers.NewReposIndex(reposDeps),
+		RepoNote:   handlers.NewRepoNote(reposDeps),
+		Projects: handlers.NewProjects(handlers.ProjectsDeps{
+			Projects: projects,
+			Sessions: sessions,
+			Active:   activeStore,
+			Clock:    clock,
+		}),
+		Settings: handlers.NewSettings(handlers.SettingsDeps{
+			ServerBaseURL: cfg.BaseURL,
+			OIDCIssuer:    cfg.OIDCIssuer,
+			ServerDBPath:  cfg.ServerDBPath,
+			StartTime:     startTime,
+			Clock:         clock,
+		}),
+		AuthLanding: handlers.NewLanding(handlers.AuthDeps{
+			IssuerLabel: cfg.OIDCIssuer,
+		}),
+		StaticFS: webui.StaticFS(),
 	}
 }
 

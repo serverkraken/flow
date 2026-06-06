@@ -52,6 +52,11 @@ type oidcserverProvider interface {
 //
 // ReposServer + RepoNotesServer are Plan-C optional (nil disables
 // /api/v1/repos and /api/v1/repo-notes routes). Wired in the M4 task.
+//
+// WebUI is Plan-E optional (nil disables every browser/cookie route —
+// /, /worktime, /notes, /repos, /projects, /settings, /static, and
+// /auth/landing — without touching the bearer-protected /api/v1/*
+// surface). Wired in cmd/flow-server (Plan E · Task 10).
 type AuthDeps struct {
 	Provider        oidcserverProvider
 	Access          ports.AccessChecker
@@ -62,6 +67,7 @@ type AuthDeps struct {
 	ActiveServer    ActiveServer    // optional; nil disables /api/v1/active routes (Task 33 wires)
 	ReposServer     ReposServer     // optional; nil disables /api/v1/repos routes (Plan C)
 	RepoNotesServer RepoNotesServer // optional; nil disables /api/v1/repo-notes routes (Plan C)
+	WebUI           *WebUIHandlers  // optional; nil disables the WebUI route group (Plan E · Task 10)
 	BaseURL         string
 	OIDCClientID    string
 	OIDCSecret      string

@@ -1,7 +1,12 @@
 // Package handlers — see dashboard.go for the per-handler-Deps
-// convention. The notes handler is mounted at /notes and /notes/{id};
-// both branches are served by NewNotes() and dispatched on the URL
-// path inside the returned http.Handler.
+// convention. The notes routes split into two constructors:
+//   - NewNotesIndex serves /notes (list)
+//   - NewNotesView serves /notes/* (single-note view; chi wildcard so the
+//     multi-segment kompendium ID like "projects/serverkraken/flow/x" is
+//     captured intact)
+//
+// NewNotes is kept as a thin path-dispatcher for tests + back-compat: it
+// uses the same URL-prefix logic that ran in M6 prior to chi wiring.
 package handlers
 
 import (
@@ -9,8 +14,11 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -39,16 +47,30 @@ type NotesDeps struct {
 	Clock    flowports.Clock
 }
 
-// NewNotes returns the http.Handler mounted at /notes and /notes/{id}.
-// The BrowserAuthMiddleware guarantees a domain.User in context; the
+// NewNotesIndex returns the http.Handler mounted at /notes (list). The
+// BrowserAuthMiddleware guarantees a domain.User in context; the
 // handler fails closed with 401 if it's absent.
+func NewNotesIndex(d NotesDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := httpserver.UserFromContext(r.Context()); !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		renderNotesIndex(w, r, d)
+	})
+}
+
+// NewNotesView returns the http.Handler mounted at /notes/* — the
+// wildcard captures the kompendium note ID (which may span multiple
+// slash-separated segments, e.g. "projects/serverkraken/flow/foo").
 //
-// Dispatch: an empty path tail (after the /notes prefix) renders the
-// index; a non-empty tail is parsed as a note ID and routed to the
-// single-note view. The route registration in flow-server (Task 10)
-// uses one ServeMux pattern "/notes" plus a separate "/notes/" so the
-// trailing-slash split is well-defined.
-func NewNotes(d NotesDeps) http.Handler {
+// The handler reads the wildcard via chi.URLParam(r, "*"); when not
+// running under a chi route context (older tests, direct ServeHTTP),
+// it falls back to stripping the "/notes/" prefix manually so the
+// handler stays usable standalone.
+func NewNotesView(d NotesDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := httpserver.UserFromContext(r.Context())
 		if !ok {
@@ -58,13 +80,39 @@ func NewNotes(d NotesDeps) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 
+		idStr := chi.URLParam(r, "*")
+		if idStr == "" {
+			// No chi context — derive from request path so direct
+			// httptest.NewRequest("/notes/foo/bar") still resolves.
+			idStr = strings.TrimPrefix(r.URL.Path, "/notes/")
+		}
+		// URL-decode in case the caller percent-encoded the ID.
+		if dec, err := url.PathUnescape(idStr); err == nil {
+			idStr = dec
+		}
+		if idStr == "" {
+			renderNotesNotFound(w, r, "")
+			return
+		}
+		renderNotesView(w, r, d, u.ID, idStr)
+	})
+}
+
+// NewNotes is a back-compat dispatch wrapper. Production code uses the
+// chi-mounted NewNotesIndex / NewNotesView pair; this constructor
+// keeps the M6 handler tests usable as-is (they call h.ServeHTTP on
+// both /notes and /notes/<id> URLs).
+func NewNotes(d NotesDeps) http.Handler {
+	index := NewNotesIndex(d)
+	view := NewNotesView(d)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		tail := strings.TrimPrefix(r.URL.Path, "/notes")
 		tail = strings.TrimPrefix(tail, "/")
 		if tail == "" {
-			renderNotesIndex(w, r, d)
+			index.ServeHTTP(w, r)
 			return
 		}
-		renderNotesView(w, r, d, u.ID, tail)
+		view.ServeHTTP(w, r)
 	})
 }
 

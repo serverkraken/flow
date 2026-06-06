@@ -75,6 +75,60 @@ func NewWithAuth(d AuthDeps) *Server {
 		}
 	})
 
+	// WebUI routes — cookie session, browser auth. Each handler field is
+	// nil-guarded so partial wiring (e.g. notebook root unset) doesn't
+	// crash the rest of the WebUI.
+	if d.WebUI != nil {
+		w := d.WebUI
+
+		// Static assets sit OUTSIDE the cookie group: the login landing
+		// itself needs /static/styles.css to render usefully, and the
+		// embedded fonts/JS bundles are public anyway.
+		if w.StaticFS != nil {
+			r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(w.StaticFS))))
+		}
+
+		r.Group(func(rr chi.Router) {
+			rr.Use(NewBrowserAuthMiddleware(d.Session, d.Cookie.Name, d.Users))
+			if w.Dashboard != nil {
+				rr.Method(http.MethodGet, "/", w.Dashboard)
+			}
+			if w.Worktime != nil {
+				rr.Method(http.MethodGet, "/worktime", w.Worktime)
+			}
+			if w.NotesIndex != nil {
+				rr.Method(http.MethodGet, "/notes", w.NotesIndex)
+			}
+			if w.NotesView != nil {
+				// Multi-segment IDs like projects/serverkraken/flow/foo
+				// require chi's wildcard, captured via URLParam(r, "*").
+				rr.Method(http.MethodGet, "/notes/*", w.NotesView)
+			}
+			if w.ReposIndex != nil {
+				rr.Method(http.MethodGet, "/repos", w.ReposIndex)
+			}
+			if w.RepoNote != nil {
+				rr.Method(http.MethodGet, "/repos/{key}/note", w.RepoNote)
+			}
+			if w.Projects != nil {
+				rr.Method(http.MethodGet, "/projects", w.Projects)
+			}
+			if w.Settings != nil {
+				rr.Method(http.MethodGet, "/settings", w.Settings)
+			}
+		})
+
+		// Auth landing is mounted OUTSIDE the cookie group — the
+		// middleware redirects unauthenticated traffic here, so it
+		// MUST be reachable without a session cookie (chicken/egg).
+		// The BrowserAuthMiddleware's internal LandingPath bypass is
+		// defence in depth; this explicit out-of-group registration
+		// is the real escape hatch.
+		if w.AuthLanding != nil {
+			r.Method(http.MethodGet, LandingPath, w.AuthLanding)
+		}
+	}
+
 	return &Server{router: r, baseURL: d.BaseURL}
 }
 

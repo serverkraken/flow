@@ -33,6 +33,10 @@ templ Base(m PageMeta, body templ.Component) {
 			<script src="/static/htmx.min.js"></script>
 			<script src="/static/htmx-sse.min.js"></script>
 			<script src="/static/alpine.min.js" defer></script>
+			<!-- ApexCharts MUST load before charts-init.js (which the
+			     Worktime/Woche sub-tab pulls in per-page). Without the
+			     vendored bundle here, the chart-divs render empty. -->
+			<script src="/static/apexcharts.min.js" defer></script>
 		</head>
 		<body hx-boost="true" hx-history="false">
 			if !m.HideSpine {
