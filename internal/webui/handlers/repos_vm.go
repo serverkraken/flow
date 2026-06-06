@@ -119,7 +119,9 @@ func buildReposNoteVM(d ReposDeps, repo domain.Repo, note domain.RepoNote, hasNo
 		if d.Clock != nil {
 			now = d.Clock.Now()
 		}
-		vm.ModifiedLabel = format.HumanRelativeTime(note.UpdatedAt, now)
+		if rel := format.HumanRelativeTime(note.UpdatedAt, now); rel != "" {
+			vm.ModifiedLabel = rel
+		}
 		if d.Markdown != nil && note.Content != "" {
 			html, err := d.Markdown.Render([]byte(note.Content))
 			if err != nil {

@@ -8,8 +8,9 @@ type IndexVM struct {
 	// TotalLabel is the eyebrow above the page title — e.g.
 	// "18 Repos · 7 mit Notes". Pre-formatted in the handler.
 	TotalLabel string
-	// Rows is the rendered list of repos. Sorted in the handler;
-	// templates never re-sort.
+	// Rows is the rendered list of repos in PullSince order
+	// (version ASC). Display-name or activity-DESC sort lands when
+	// Phase 2 introduces a richer index view.
 	Rows []IndexRow
 	// HasRepos discriminates the empty-state from the populated list.
 	// Kept as an explicit flag so the template doesn't need to check

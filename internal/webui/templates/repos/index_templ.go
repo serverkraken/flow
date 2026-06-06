@@ -16,8 +16,9 @@ type IndexVM struct {
 	// TotalLabel is the eyebrow above the page title — e.g.
 	// "18 Repos · 7 mit Notes". Pre-formatted in the handler.
 	TotalLabel string
-	// Rows is the rendered list of repos. Sorted in the handler;
-	// templates never re-sort.
+	// Rows is the rendered list of repos in PullSince order
+	// (version ASC). Display-name or activity-DESC sort lands when
+	// Phase 2 introduces a richer index view.
 	Rows []IndexRow
 	// HasRepos discriminates the empty-state from the populated list.
 	// Kept as an explicit flag so the template doesn't need to check
@@ -122,7 +123,7 @@ func pageHead(vm IndexVM) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(vm.TotalLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 58, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 59, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -164,7 +165,7 @@ func list(vm IndexVM) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(countLabel(len(vm.Rows)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 74, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 75, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -225,7 +226,7 @@ func repoRow(row IndexRow) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(row.DisplayName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 84, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 85, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -243,7 +244,7 @@ func repoRow(row IndexRow) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(row.Subtitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 86, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 87, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -261,7 +262,7 @@ func repoRow(row IndexRow) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(row.Subtitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 88, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 89, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -280,7 +281,7 @@ func repoRow(row IndexRow) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(row.MetaLeft)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 92, Col: 24}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 93, Col: 24}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -293,7 +294,7 @@ func repoRow(row IndexRow) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(row.MetaRight)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 93, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/repos/index.templ`, Line: 94, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
