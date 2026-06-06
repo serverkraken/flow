@@ -1,0 +1,97 @@
+package partials
+
+// SessionFormVM is the view-model for the inline edit form rendered as
+// a single <tr> swap-replacing a SessionRow. All inputs are
+// pre-populated from the stored session; the handler turns them back
+// into a SessionRow on a successful PUT.
+//
+// CSRF: defer to Phase 2 — single-user hobby app, low priority. TODO
+// once we have audit logging in place.
+type SessionFormVM struct {
+	ID          string
+	StartLabel  string // "08:02" — HH:MM
+	StopLabel   string // "09:13" — HH:MM
+	DateLabel   string // "2026-06-06" — yyyy-mm-dd for <input type="date">
+	ProjectName string
+	Tag         string
+	Note        string
+	Duration    string // "1:11" — read-only, recomputed on save
+	Version     int64
+}
+
+// SessionForm renders the inline-edit form. Submit goes to
+// PUT /worktime/sessions/{id} via hx-put; cancel restores the row by
+// GETting /worktime/sessions/{id}/edit?cancel=1 — handler interprets
+// the cancel flag and returns the read-only SessionRow.
+templ SessionForm(f SessionFormVM) {
+	<tr data-testid="session-form" data-session-id={ f.ID }>
+		<td colspan="5" style="padding: 0.75rem;">
+			<form
+				class="session-form"
+				hx-put={ "/worktime/sessions/" + f.ID }
+				hx-headers={ "{\"If-Match\":\"" + intToStr(f.Version) + "\"}" }
+				hx-target="closest tr"
+				hx-swap="outerHTML"
+				style="display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 0.5rem; align-items: center;"
+			>
+				<input type="hidden" name="version" value={ intToStr(f.Version) }/>
+				<label class="eyebrow" for={ "f-date-" + f.ID }>Datum</label>
+				<input
+					type="date"
+					id={ "f-date-" + f.ID }
+					name="date"
+					value={ f.DateLabel }
+					class="input"
+					style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;"
+				/>
+				<div style="display: flex; gap: 0.5rem; align-items: center;">
+					<input
+						type="time"
+						name="start"
+						value={ f.StartLabel }
+						required
+						aria-label="Start"
+						style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;"
+					/>
+					<span style="color: var(--color-fg-dim);">—</span>
+					<input
+						type="time"
+						name="stop"
+						value={ f.StopLabel }
+						required
+						aria-label="Stop"
+						style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;"
+					/>
+				</div>
+				<div style="display: flex; gap: 0.5rem; align-items: center;">
+					<input
+						type="text"
+						name="tag"
+						value={ f.Tag }
+						placeholder="tag"
+						aria-label="Tag"
+						style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; width: 6rem; font-family: inherit;"
+					/>
+					<input
+						type="text"
+						name="note"
+						value={ f.Note }
+						placeholder="Notiz"
+						aria-label="Notiz"
+						style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; flex: 1; font-family: inherit;"
+					/>
+				</div>
+				<div style="display: flex; gap: 0.25rem;">
+					<button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+					<button
+						type="button"
+						class="btn btn-sm"
+						hx-get={ "/worktime/sessions/" + f.ID + "/edit?cancel=1" }
+						hx-target="closest tr"
+						hx-swap="outerHTML"
+					>Abbrechen</button>
+				</div>
+			</form>
+		</td>
+	</tr>
+}

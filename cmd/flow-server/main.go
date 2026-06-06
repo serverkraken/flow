@@ -227,6 +227,16 @@ func buildWebUIHandlers(
 		Clock:     clock,
 	}
 
+	// All five M7 session-action handlers share the same Deps bag.
+	sessionActionsDeps := handlers.SessionActionsDeps{
+		Sessions:    sessions,
+		Active:      activeStore,
+		Projects:    projects,
+		View:        worktimeView,
+		Clock:       clock,
+		DeviceLabel: "web",
+	}
+
 	return &httpserver.WebUIHandlers{
 		Dashboard: handlers.NewDashboard(handlers.DashboardDeps{
 			View:        worktimeView,
@@ -243,6 +253,11 @@ func buildWebUIHandlers(
 			Projects: projects,
 			Clock:    clock,
 		}),
+		SessionEdit:   handlers.NewSessionEdit(sessionActionsDeps),
+		SessionPut:    handlers.NewSessionPut(sessionActionsDeps),
+		SessionDelete: handlers.NewSessionDelete(sessionActionsDeps),
+		ActiveStart:   handlers.NewActiveStart(sessionActionsDeps),
+		ActiveStop:    handlers.NewActiveStop(sessionActionsDeps),
 		NotesIndex: handlers.NewNotesIndex(notesDeps),
 		NotesView:  handlers.NewNotesView(notesDeps),
 		ReposIndex: handlers.NewReposIndex(reposDeps),

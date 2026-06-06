@@ -92,6 +92,17 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 	vm.TagShares = worktime.AggregateTagShares(today.Sessions, now, active)
 	vm.SyncDeviceLabel = d.DeviceLabel
 
+	// Project picker for "Neue Session" start form. Empty list → button
+	// renders disabled; the handler-side actions enforce existence too.
+	projs, err := d.Projects.ListActive(u.ID)
+	if err != nil {
+		return nil, layout.SpineState{}, fmt.Errorf("projects list: %w", err)
+	}
+	vm.Projects = make([]worktime.ProjectOption, 0, len(projs))
+	for _, p := range projs {
+		vm.Projects = append(vm.Projects, worktime.ProjectOption{ID: p.ID, Name: p.Name})
+	}
+
 	spine := layout.SpineState{
 		AnyActive: vm.HasActive,
 		HourMask:  vm.DayBar,

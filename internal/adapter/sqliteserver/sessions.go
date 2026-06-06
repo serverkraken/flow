@@ -138,6 +138,37 @@ func (s *Sessions) ListByUserDateRange(userID string, from, to time.Time) ([]dom
 	return out, rows.Err()
 }
 
+// Delete removes the session with the given ID for userID, with optimistic
+// concurrency: if the stored row's version differs from expectedVersion,
+// returns ports.ErrSessionVersionConflict. If no row exists for the
+// (userID, id) pair, returns ports.ErrSessionNotFound.
+//
+// User-isolation: a row owned by a different user behaves as "not found"
+// for the caller — the cross-tenant existence is not leaked.
+func (s *Sessions) Delete(userID, id string, expectedVersion int64) error {
+	tx, err := s.store.DB().Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var curVersion int64
+	row := tx.QueryRow(`SELECT version FROM sessions WHERE user_id = ? AND id = ?`, userID, id)
+	switch err := row.Scan(&curVersion); {
+	case errors.Is(err, sql.ErrNoRows):
+		return ports.ErrSessionNotFound
+	case err != nil:
+		return err
+	}
+	if curVersion != expectedVersion {
+		return ports.ErrSessionVersionConflict
+	}
+	if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND id = ?`, userID, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // GetByID returns the session with the given ID scoped to userID.
 // Returns ports.ErrSessionNotFound when no row exists.
 func (s *Sessions) GetByID(userID, id string) (domain.Session, error) {

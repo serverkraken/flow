@@ -33,4 +33,14 @@ type WebUIHandlers struct {
 	Settings    http.Handler
 	AuthLanding http.Handler
 	StaticFS    fs.FS
+
+	// M7 — Plan E · Task 11. HTMX write surface for the worktime today
+	// tab. Each handler returns a templ partial fragment; HTMX swaps
+	// the targeted DOM node in-place. All five share the same
+	// SessionActionsDeps bag in cmd/flow-server/main.go.
+	SessionEdit   http.Handler
+	SessionPut    http.Handler
+	SessionDelete http.Handler
+	ActiveStart   http.Handler
+	ActiveStop    http.Handler
 }

@@ -116,6 +116,31 @@ func NewWithAuth(d AuthDeps) *Server {
 			if w.Settings != nil {
 				rr.Method(http.MethodGet, "/settings", w.Settings)
 			}
+
+			// — M7 session write surface ----------------------------
+			// All five routes share the cookie-auth group; each
+			// handler is nil-guarded so partial wiring degrades
+			// gracefully.
+			if w.SessionEdit != nil {
+				rr.Method(http.MethodGet, "/worktime/sessions/{id}/edit", w.SessionEdit)
+			}
+			if w.SessionPut != nil {
+				rr.Method(http.MethodPut, "/worktime/sessions/{id}", w.SessionPut)
+			}
+			if w.SessionDelete != nil {
+				rr.Method(http.MethodDelete, "/worktime/sessions/{id}", w.SessionDelete)
+			}
+			if w.ActiveStart != nil {
+				// Both path-style and body-style accepted; the inline
+				// "Neue Session" picker uses /worktime/active/start
+				// with project_id in the form, the API-shaped path
+				// is kept for parity.
+				rr.Method(http.MethodPost, "/worktime/active/start", w.ActiveStart)
+				rr.Method(http.MethodPost, "/worktime/active/{project_id}/start", w.ActiveStart)
+			}
+			if w.ActiveStop != nil {
+				rr.Method(http.MethodPost, "/worktime/active/stop", w.ActiveStop)
+			}
 		})
 
 		// Auth landing is mounted OUTSIDE the cookie group — the

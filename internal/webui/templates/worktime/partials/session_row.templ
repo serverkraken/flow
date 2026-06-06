@@ -1,0 +1,134 @@
+// Package partials holds the M7 HTMX-target templ partials for the
+// /worktime surface. Each partial renders a single self-contained
+// fragment (a <tr>, a <form>, a banner container) so the HTMX swap
+// targets stay stable across edit/save/delete cycles.
+//
+// Why a dedicated sub-package: the partials are imported both by
+// templates/worktime/today.templ (page-initial render) and by the
+// internal/webui/handlers/session_actions.go handlers (HTMX swap
+// responses). Living in worktime's same package would create an import
+// cycle with handlers; living in shared/ would over-export. A sibling
+// sub-package keeps the surface local without the cycle.
+package partials
+
+import "github.com/serverkraken/flow/internal/webui/templates/shared"
+
+// SessionRowVM is the view-model for one session row inside the
+// /worktime?tab=heute Sessions table. Pre-formatted by the handler so
+// the template stays markup-only and trivially testable.
+//
+// EditURL + DeleteURL are the HTMX targets — never empty in M7;
+// callers build them from the session ID. The partial does not encode
+// any routing knowledge itself.
+type SessionRowVM struct {
+	ID          string
+	TimeLabel   string // "08:02 — 09:13" or "09:28 — jetzt"
+	ProjectName string
+	Tag         string
+	Note        string
+	Duration    string // "1:11" or "2:14"
+	IsActive    bool   // → flash-row + active duration color
+
+	// Version is forwarded into the edit form so PUT can carry it as
+	// expectedVersion. Zero on insert-style rows (none today).
+	Version int64
+}
+
+// SessionRow renders the read-only row used in both the initial page
+// render and as the HTMX response after a successful PUT.
+templ SessionRow(s SessionRowVM) {
+	if s.IsActive {
+		<tr class="flash-row" data-testid="session-row-active" data-session-id={ s.ID }>
+			<td class="col-num">
+				<span style="color: var(--color-active);">▶</span> { s.TimeLabel }
+			</td>
+			<td class="col-proj">{ s.ProjectName }</td>
+			<td class="col-tag">
+				if s.Tag != "" {
+					<span class="pill pill-muted">{ s.Tag }</span>
+				}
+				if s.Note != "" {
+					&nbsp; <span style="color: var(--color-fg-dim);">{ s.Note }</span>
+				}
+			</td>
+			<td class="col-num">
+				<span class="live-pulse" style="color: var(--color-active); font-weight: 600;">{ s.Duration }</span>
+			</td>
+			<td class="col-num">
+				<!-- Active row: no edit/delete; Stop happens via the live banner. -->
+			</td>
+		</tr>
+	} else {
+		<tr data-testid="session-row" data-session-id={ s.ID }>
+			<td class="col-num">{ s.TimeLabel }</td>
+			<td class="col-proj">{ s.ProjectName }</td>
+			<td class="col-tag">
+				if s.Tag != "" {
+					<span class="pill pill-muted">{ s.Tag }</span>
+				}
+				if s.Note != "" {
+					&nbsp; <span style="color: var(--color-fg-dim);">{ s.Note }</span>
+				}
+			</td>
+			<td class="col-num">{ s.Duration }</td>
+			<td class="col-num">
+				<button
+					class="btn btn-sm"
+					hx-get={ "/worktime/sessions/" + s.ID + "/edit" }
+					hx-target="closest tr"
+					hx-swap="outerHTML"
+					aria-label="Session bearbeiten"
+					title="Bearbeiten"
+				>✎</button>
+				<button
+					class="btn btn-sm btn-danger"
+					hx-delete={ "/worktime/sessions/" + s.ID }
+					hx-headers={ "{\"If-Match\":\"" + intToStr(s.Version) + "\"}" }
+					hx-target="closest tr"
+					hx-swap="outerHTML swap:200ms"
+					hx-confirm="Session wirklich löschen?"
+					aria-label="Session löschen"
+					title="Löschen"
+				>✕</button>
+			</td>
+		</tr>
+	}
+}
+
+// PauseRowVM is the pause-divider VM. Kept here so the today.templ
+// loop can swap pause + session rows uniformly through partials.
+type PauseRowVM struct {
+	StartLabel string // "12:00"
+	EndLabel   string // "13:30"
+	Duration   string // "1:30"
+}
+
+// PauseRow renders the pause divider — column-spanning hairline row.
+templ PauseRow(p PauseRowVM) {
+	<tr data-testid="pause-row">
+		<td class="col-num" colspan="5" style="padding: 1.5rem 0.75rem; color: var(--color-fg-dim); border-bottom: 0; text-align: center; font-size: 0.8125rem;">
+			<span class="eyebrow" style="letter-spacing: 0.2em;">— Pause · { p.StartLabel } — { p.EndLabel } ({ p.Duration }) —</span>
+		</td>
+	</tr>
+}
+
+// LiveBannerContainerVM is the swap-target wrapper around the shared
+// live banner. The handler returns this fragment from POST
+// /worktime/active/{project_id}/start so HTMX swaps the outer container
+// (id="live-banner-container") with the new banner. Empty Banner.ProjectLabel
+// → empty container (after Stop).
+type LiveBannerContainerVM struct {
+	HasActive bool
+	Banner    shared.LiveBanner
+}
+
+// LiveBannerContainer is the stable swap target wrapping shared.LiveBannerCard.
+// The id MUST stay "live-banner-container" — start/stop handlers target it
+// via hx-target.
+templ LiveBannerContainer(vm LiveBannerContainerVM) {
+	<div id="live-banner-container">
+		if vm.HasActive {
+			@shared.LiveBannerCard(vm.Banner)
+		}
+	</div>
+}

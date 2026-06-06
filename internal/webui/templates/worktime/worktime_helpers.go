@@ -18,7 +18,24 @@ import (
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/webui/format"
+	"github.com/serverkraken/flow/internal/webui/templates/worktime/partials"
 )
+
+// sessionRowToPartial bridges the worktime-local SessionRow VM to the
+// partials sub-package shape. Kept as a thin mapper so the partials
+// package stays unaware of the worktime aggregation logic.
+func sessionRowToPartial(s SessionRow) partials.SessionRowVM {
+	return partials.SessionRowVM{
+		ID:          s.ID,
+		TimeLabel:   s.TimeLabel,
+		ProjectName: s.ProjectName,
+		Tag:         s.Tag,
+		Note:        s.Note,
+		Duration:    s.Duration,
+		IsActive:    s.IsActive,
+		Version:     s.Version,
+	}
+}
 
 // FormatElapsedHumane renders a duration as "2h 14m 06s" / "42m" / "8s".
 // Differs from format.FormatHHMM: drops zero-leading hours and exposes
@@ -262,6 +279,11 @@ type SessionRow struct {
 	Note        string
 	Duration    string // "1:11" or "2:14"
 	IsActive    bool   // → row gets flash-row + active duration color
+
+	// Version is forwarded into the partial for OCC-aware HTMX requests
+	// (PUT/DELETE carry it as If-Match). Zero for the active-session
+	// row (it has no Sessions.version yet).
+	Version int64
 }
 
 // PauseRow is a divider between two sessions when the gap exceeds the
@@ -329,6 +351,7 @@ func BuildSessionRows(
 				Tag:         s.Tag,
 				Note:        s.Note,
 				Duration:    format.FormatHHMM(s.Elapsed),
+				Version:     s.Version,
 			},
 		})
 		prevStop = s.Stop

@@ -335,6 +335,78 @@ func TestUnit_ServerSessions_ListByUserDateRange_UserIsolation(t *testing.T) {
 	}
 }
 
+func TestUnit_ServerSessions_Delete_HappyPath(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-del1")
+	p := serverTestProject(t, store, u.ID, "ssess-del-proj1")
+	sessions := NewSessions(store)
+
+	s, err := sessions.Upsert(mkServerSession(u.ID, p.ID), 0)
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	if err := sessions.Delete(u.ID, s.ID, s.Version); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := sessions.GetByID(u.ID, s.ID); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Errorf("expected ErrSessionNotFound after delete, got %v", err)
+	}
+}
+
+func TestUnit_ServerSessions_Delete_WrongVersion_ConflictError(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-del2")
+	p := serverTestProject(t, store, u.ID, "ssess-del-proj2")
+	sessions := NewSessions(store)
+
+	s, err := sessions.Upsert(mkServerSession(u.ID, p.ID), 0)
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	if err := sessions.Delete(u.ID, s.ID, s.Version+99); !errors.Is(err, ports.ErrSessionVersionConflict) {
+		t.Errorf("expected ErrSessionVersionConflict, got %v", err)
+	}
+	// Row must still exist.
+	if _, err := sessions.GetByID(u.ID, s.ID); err != nil {
+		t.Errorf("row should still exist after conflict, got %v", err)
+	}
+}
+
+func TestUnit_ServerSessions_Delete_NotFound(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-del3")
+	sessions := NewSessions(store)
+
+	if err := sessions.Delete(u.ID, "00000000-0000-0000-0000-000000000000", 0); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Errorf("expected ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestUnit_ServerSessions_Delete_CrossTenant_NotFound(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	uA := serverTestUser(t, store, "ssess-del-uA")
+	uB := serverTestUser(t, store, "ssess-del-uB")
+	pA := serverTestProject(t, store, uA.ID, "ssess-del-pA")
+	sessions := NewSessions(store)
+
+	s, err := sessions.Upsert(mkServerSession(uA.ID, pA.ID), 0)
+	if err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	// User B tries to delete user A's session — must look like not found.
+	if err := sessions.Delete(uB.ID, s.ID, s.Version); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Errorf("cross-tenant delete should be ErrSessionNotFound, got %v", err)
+	}
+	// Row must still exist for owner.
+	if _, err := sessions.GetByID(uA.ID, s.ID); err != nil {
+		t.Errorf("row should still exist for owner after cross-tenant delete attempt, got %v", err)
+	}
+}
+
 func TestUnit_ServerSessions_ListByUserDateRange_EmptyWhenNoMatch(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServer(t)

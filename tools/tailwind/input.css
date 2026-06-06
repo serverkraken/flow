@@ -182,6 +182,26 @@
   .htmx-swapping { opacity: 0; transition: opacity 100ms ease-out; }
   .htmx-settling { opacity: 1; transition: opacity 100ms ease-in; }
 
+  /* M7 session inline edit form — input baseline. The form inputs use
+     mostly inline styles to stay self-contained, but a shared base
+     keeps focus-rings consistent across the partial set. */
+  .session-form input,
+  .session-form select,
+  .start-session-form select {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+  .session-form input:focus-visible,
+  .session-form select:focus-visible,
+  .start-session-form select:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+  /* Conflict-overlay row — warn-tinted hairline with no rounded chrome. */
+  .conflict-overlay td {
+    border-bottom: 0;
+  }
+
   /* Live session banner — at the top of the dashboard when a session is
      running. Hairline border, accent left-stripe, big elapsed readout
      on the right, single-row layout. M7 will wire the Stop button to
