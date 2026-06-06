@@ -110,6 +110,34 @@ func (s *Sessions) Upsert(in domain.Session, expectedVersion int64) (domain.Sess
 	return in, nil
 }
 
+// ListByUserDateRange returns sessions for userID whose date column falls in
+// [from, to] (inclusive), ordered by start ASC. The date column is stored as
+// the lexicographically sortable "YYYY-MM-DD" text, so a string range scan is
+// safe and avoids parsing every row.
+func (s *Sessions) ListByUserDateRange(userID string, from, to time.Time) ([]domain.Session, error) {
+	fromStr := from.Format("2006-01-02")
+	toStr := to.Format("2006-01-02")
+	rows, err := s.store.DB().Query(`
+		SELECT id, user_id, project_id, date, start, stop, elapsed_ns, tag, note, version, updated_at
+		FROM sessions
+		WHERE user_id = ? AND date >= ? AND date <= ?
+		ORDER BY start ASC`, userID, fromStr, toStr)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []domain.Session
+	for rows.Next() {
+		ss, err := scanServerSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ss)
+	}
+	return out, rows.Err()
+}
+
 // GetByID returns the session with the given ID scoped to userID.
 // Returns ports.ErrSessionNotFound when no row exists.
 func (s *Sessions) GetByID(userID, id string) (domain.Session, error) {

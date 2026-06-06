@@ -230,3 +230,123 @@ func TestUnit_ServerSessions_GetByID_NotFound(t *testing.T) {
 		t.Errorf("want ErrSessionNotFound, got %v", err)
 	}
 }
+
+// mkSessionOnDate builds a session on a specific calendar date for date-range tests.
+func mkSessionOnDate(userID, projectID string, date time.Time, dur time.Duration) domain.Session {
+	day := time.Date(date.Year(), date.Month(), date.Day(), 9, 0, 0, 0, time.UTC)
+	return domain.Session{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		ProjectID: projectID,
+		Date:      day,
+		Start:     day,
+		Stop:      day.Add(dur),
+		Elapsed:   dur,
+		Tag:       "deep",
+		Note:      "test",
+	}
+}
+
+func TestUnit_ServerSessions_ListByUserDateRange_FiltersByDate(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-range1")
+	p := serverTestProject(t, store, u.ID, "ssess-range-proj")
+	sessions := NewSessions(store)
+
+	base := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+	// Three sessions on different days.
+	for i := -2; i <= 0; i++ {
+		if _, err := sessions.Upsert(mkSessionOnDate(u.ID, p.ID, base.AddDate(0, 0, i), time.Hour), 0); err != nil {
+			t.Fatalf("Upsert: %v", err)
+		}
+	}
+
+	// Range [base-1d, base] → 2 sessions.
+	got, err := sessions.ListByUserDateRange(u.ID, base.AddDate(0, 0, -1), base)
+	if err != nil {
+		t.Fatalf("ListByUserDateRange: %v", err)
+	}
+	if len(got) != 2 {
+		t.Errorf("want 2 sessions in range, got %d", len(got))
+	}
+}
+
+func TestUnit_ServerSessions_ListByUserDateRange_OrderedByStartAsc(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-range2")
+	p := serverTestProject(t, store, u.ID, "ssess-range-proj2")
+	sessions := NewSessions(store)
+
+	base := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+	// Insert out-of-order; expect ordering by start ASC.
+	later := mkSessionOnDate(u.ID, p.ID, base, time.Hour)
+	later.Start = base.Add(15 * time.Hour)
+	later.Stop = later.Start.Add(time.Hour)
+	earlier := mkSessionOnDate(u.ID, p.ID, base, time.Hour)
+	earlier.Start = base.Add(9 * time.Hour)
+	earlier.Stop = earlier.Start.Add(time.Hour)
+	if _, err := sessions.Upsert(later, 0); err != nil {
+		t.Fatalf("Upsert later: %v", err)
+	}
+	if _, err := sessions.Upsert(earlier, 0); err != nil {
+		t.Fatalf("Upsert earlier: %v", err)
+	}
+
+	got, err := sessions.ListByUserDateRange(u.ID, base, base)
+	if err != nil {
+		t.Fatalf("ListByUserDateRange: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("want 2 sessions, got %d", len(got))
+	}
+	if !got[0].Start.Before(got[1].Start) {
+		t.Errorf("want sessions ordered by start ASC, got %v then %v", got[0].Start, got[1].Start)
+	}
+}
+
+func TestUnit_ServerSessions_ListByUserDateRange_UserIsolation(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	uA := serverTestUser(t, store, "ssess-range-uA")
+	uB := serverTestUser(t, store, "ssess-range-uB")
+	pA := serverTestProject(t, store, uA.ID, "ssess-range-pA")
+	pB := serverTestProject(t, store, uB.ID, "ssess-range-pB")
+	sessions := NewSessions(store)
+
+	base := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+	if _, err := sessions.Upsert(mkSessionOnDate(uA.ID, pA.ID, base, time.Hour), 0); err != nil {
+		t.Fatalf("Upsert A: %v", err)
+	}
+	if _, err := sessions.Upsert(mkSessionOnDate(uB.ID, pB.ID, base, time.Hour), 0); err != nil {
+		t.Fatalf("Upsert B: %v", err)
+	}
+
+	got, err := sessions.ListByUserDateRange(uA.ID, base, base)
+	if err != nil {
+		t.Fatalf("ListByUserDateRange uA: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("want 1 session for uA, got %d", len(got))
+	}
+	if got[0].UserID != uA.ID {
+		t.Errorf("returned row leaks userID %q (want %q)", got[0].UserID, uA.ID)
+	}
+}
+
+func TestUnit_ServerSessions_ListByUserDateRange_EmptyWhenNoMatch(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "ssess-range3")
+	sessions := NewSessions(store)
+
+	base := time.Date(2026, 4, 29, 0, 0, 0, 0, time.UTC)
+	got, err := sessions.ListByUserDateRange(u.ID, base, base)
+	if err != nil {
+		t.Fatalf("ListByUserDateRange: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("want empty result, got %d rows", len(got))
+	}
+}
