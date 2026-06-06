@@ -226,6 +226,41 @@ func TestWorktime_TabVerlauf_MissingDate_DefaultsToYesterday(t *testing.T) {
 	if !strings.Contains(body, "flow") {
 		t.Errorf("verlauf default-day: project name missing")
 	}
+	// Jump-header uses relative-day vocabulary: for date=yesterday the
+	// strip should read "< vorgestern · gestern · heute >".
+	if !strings.Contains(body, "vorgestern") {
+		t.Errorf("verlauf default-day: PrevLabel should be 'vorgestern'\nbody=%s", body[:min(1200, len(body))])
+	}
+	if !strings.Contains(body, "gestern") {
+		t.Errorf("verlauf default-day: SelectedLabel should be 'gestern'")
+	}
+	if !strings.Contains(body, "heute") {
+		t.Errorf("verlauf default-day: NextLabel should be 'heute' (since selected=yesterday, next=today)")
+	}
+}
+
+func TestWorktime_TabVerlauf_FarPastDate_UsesShortGermanFormat(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "wt-verlauf-far-past")
+	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
+
+	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	rr := httptest.NewRecorder()
+	// 2026-01-15 is Thursday → "Do · 15.01.2026".
+	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=verlauf&date=2026-01-15", nil)
+	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	h.ServeHTTP(rr, r)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d", rr.Code)
+	}
+	body := rr.Body.String()
+	// SelectedLabel should fall back to short German date for a date
+	// > 2 days away from now.
+	if !strings.Contains(body, "Do · 15.01.2026") {
+		t.Errorf("verlauf far-past: SelectedLabel should be 'Do · 15.01.2026'\nbody=%s", body[:min(1200, len(body))])
+	}
 }
 
 func TestWorktime_TabVerlauf_InvalidDate_FallsBackToYesterday(t *testing.T) {

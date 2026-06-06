@@ -6,11 +6,19 @@ type HistoryVM struct {
 	Header PageHeader
 
 	// Date jump-back navigation.
-	DayLabel    string // "Donnerstag · 04. Juni 2026"
-	PrevHref    string // "/worktime?tab=verlauf&date=2026-06-03"
-	NextHref    string // "/worktime?tab=verlauf&date=2026-06-05" — empty if "today" or future
-	TodayHref   string // "/worktime?tab=verlauf&date=2026-06-06"
-	IsToday     bool   // hides Next link (no future history)
+	DayLabel  string // "Donnerstag · 04. Juni 2026" — long form, eyebrow
+	PrevHref  string // "/worktime?tab=verlauf&date=2026-06-03"
+	NextHref  string // "/worktime?tab=verlauf&date=2026-06-05" — empty if "today" or future
+	TodayHref string // "/worktime?tab=verlauf&date=2026-06-06"
+	IsToday   bool   // hides Next link (no future history)
+
+	// Relative-day labels for the jump header — pre-computed so the
+	// template stays markup-only. SelectedLabel is the centerpiece
+	// ("gestern" / "heute" / "Sa · 06.06.2026"); Prev/Next mirror the
+	// vocabulary for the neighbours.
+	PrevLabel     string
+	SelectedLabel string
+	NextLabel     string
 
 	// Day-summary stripe.
 	DayTotal    string
@@ -50,13 +58,11 @@ templ historyJumpHeader(vm HistoryVM) {
 		</div>
 		<div class="pill-row">
 			if vm.PrevHref != "" {
-				<a href={ templ.SafeURL(vm.PrevHref) } class="btn btn-sm" aria-label="vorheriger Tag">◀ vorheriger</a>
+				<a href={ templ.SafeURL(vm.PrevHref) } class="btn btn-sm" aria-label="vorheriger Tag">{ "< " + vm.PrevLabel }</a>
 			}
-			if vm.TodayHref != "" && !vm.IsToday {
-				<a href={ templ.SafeURL(vm.TodayHref) } class="btn btn-sm">heute</a>
-			}
+			<span class="btn btn-sm" aria-current="page" style="opacity: 0.7;">{ vm.SelectedLabel }</span>
 			if vm.NextHref != "" && !vm.IsToday {
-				<a href={ templ.SafeURL(vm.NextHref) } class="btn btn-sm" aria-label="nächster Tag">nächster ▶</a>
+				<a href={ templ.SafeURL(vm.NextHref) } class="btn btn-sm" aria-label="nächster Tag">{ vm.NextLabel + " >" }</a>
 			}
 		</div>
 	</div>

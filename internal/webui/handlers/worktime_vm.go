@@ -197,17 +197,24 @@ func renderHistory(r *http.Request, d WorktimeDeps, u domain.User, now time.Time
 		IsToday:  isToday,
 	}
 	yesterday := date.AddDate(0, 0, -1)
+	tomorrow := date.AddDate(0, 0, 1)
 	vm.PrevHref = fmt.Sprintf("/worktime?tab=verlauf&date=%s", yesterday.Format(historyDateFormat))
 	vm.TodayHref = fmt.Sprintf("/worktime?tab=verlauf&date=%s",
 		time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Format(historyDateFormat))
 	if !isToday {
-		tomorrow := date.AddDate(0, 0, 1)
 		// Don't allow navigation into the future.
 		todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 		if !tomorrow.After(todayStart) {
 			vm.NextHref = fmt.Sprintf("/worktime?tab=verlauf&date=%s", tomorrow.Format(historyDateFormat))
 		}
 	}
+	// Relative-day vocabulary for the jump-header — "gestern · heute ·
+	// morgen" reads better than "vorheriger / heute / nächster" for
+	// dates near today, and falls back to a short German date further
+	// out.
+	vm.PrevLabel = worktime.RelativeDayLabel(yesterday, now)
+	vm.SelectedLabel = worktime.RelativeDayLabel(date, now)
+	vm.NextLabel = worktime.RelativeDayLabel(tomorrow, now)
 
 	sessions, err := d.Sessions.ListByUserDateRange(u.ID, dayStart, dayStart)
 	if err != nil {

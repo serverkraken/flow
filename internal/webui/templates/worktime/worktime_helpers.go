@@ -150,6 +150,39 @@ func FormatGermanDayLabel(t time.Time) string {
 	)
 }
 
+// FormatGermanDayShort renders "Sa · 06.06.2026" — compact form used by
+// the Verlauf jump-header for non-relative dates.
+func FormatGermanDayShort(t time.Time) string {
+	return fmt.Sprintf("%s · %02d.%02d.%d",
+		germanWeekdayShort(t.Weekday()),
+		t.Day(),
+		int(t.Month()),
+		t.Year(),
+	)
+}
+
+// RelativeDayLabel returns a relative-day vocabulary label for `target`
+// against `now` (vorgestern / gestern / heute / morgen / übermorgen),
+// falling back to a short German date ("Sa · 06.06.2026") for anything
+// further out. Used by the Verlauf jump-header to give Soenne a quick
+// orientation around the current day.
+func RelativeDayLabel(target, now time.Time) string {
+	switch {
+	case domain.SameDay(target, now.AddDate(0, 0, -2)):
+		return "vorgestern"
+	case domain.SameDay(target, now.AddDate(0, 0, -1)):
+		return "gestern"
+	case domain.SameDay(target, now):
+		return "heute"
+	case domain.SameDay(target, now.AddDate(0, 0, 1)):
+		return "morgen"
+	case domain.SameDay(target, now.AddDate(0, 0, 2)):
+		return "übermorgen"
+	default:
+		return FormatGermanDayShort(target)
+	}
+}
+
 func germanWeekdayShort(w time.Weekday) string {
 	switch w {
 	case time.Monday:
