@@ -181,6 +181,112 @@
   /* HTMX swap-in transition. Targets element being swapped. */
   .htmx-swapping { opacity: 0; transition: opacity 100ms ease-out; }
   .htmx-settling { opacity: 1; transition: opacity 100ms ease-in; }
+
+  /* Live session banner — at the top of the dashboard when a session is
+     running. Hairline border, accent left-stripe, big elapsed readout
+     on the right, single-row layout. M7 will wire the Stop button to
+     hx-post=/worktime/active/stop. */
+  .live-banner {
+    border: 1px solid var(--color-muted);
+    border-left: 2px solid var(--color-active);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .live-banner .live-dot     { color: var(--color-active); font-size: 0.75rem; }
+  .live-banner .live-project { font-size: 1rem; color: var(--color-fg); }
+  .live-banner .live-elapsed { font-variant-numeric: tabular-nums; font-size: 1.375rem; font-weight: 600; color: var(--color-active); }
+  .live-banner .live-since   { color: var(--color-fg-dim); font-size: 0.75rem; }
+
+  /* 24-cell horizontal day-bar — one cell per hour of the day. Used on
+     the dashboard and (later, M6) the worktime detail page. */
+  .daybar {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 1px;
+    height: 36px;
+    align-items: stretch;
+  }
+  .daybar .cell           { background: var(--color-muted-soft); position: relative; }
+  .daybar .cell.has-work  { background: var(--color-accent); opacity: 0.7; }
+  .daybar .cell.is-now    { background: var(--color-active); opacity: 1; }
+
+  /* Mini-card used in the dashboard 3-up footer row. Hairline border,
+     eyebrow + big readout + dimmed sub-label. */
+  .mini-card {
+    border: 1px solid var(--color-muted);
+    padding: 1.125rem 1.25rem;
+  }
+  .mini-card .mini-sub {
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Activity stream — vertical timeline list with a hairline rail on
+     the left and per-item dot indicating event kind (active / done /
+     warn / accent). */
+  .activity-stream {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-left: 1px solid var(--color-muted-soft);
+    margin-left: 0.5rem;
+  }
+  .activity-stream .item {
+    padding: 0.625rem 0 0.625rem 1.25rem;
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .activity-stream .item .dot {
+    position: absolute;
+    left: -4px;
+    top: 0.875rem;
+    width: 7px;
+    height: 7px;
+    background: var(--color-muted);
+  }
+  .activity-stream .item .dot.is-active { background: var(--color-active); }
+  .activity-stream .item .dot.is-accent { background: var(--color-accent); opacity: 0.6; }
+  .activity-stream .item .dot.is-warn   { background: var(--color-warn); }
+  .activity-stream .item .glyph {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 0.875rem;
+  }
+  .activity-stream .item .glyph.is-active { color: var(--color-active); }
+  .activity-stream .item .when {
+    margin-left: auto;
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+  }
+
+  /* Inline keyboard-cap style for inline glyphs and command hints.
+     Used by the activity stream and the dashboard footer hint row. */
+  .kbd {
+    background: var(--color-bg-soft);
+    color: var(--color-fg);
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-muted-soft);
+  }
+
+  /* Footer hint row at the bottom of full-page surfaces. Dim, hairline
+     rule on top, key-hints right-aligned. */
+  .page-footer-note {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-muted-soft);
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+  }
 }
 
 @keyframes spine-pulse {

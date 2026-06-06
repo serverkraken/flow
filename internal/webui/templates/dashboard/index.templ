@@ -1,0 +1,225 @@
+package dashboard
+
+import (
+	"fmt"
+	"time"
+)
+
+// ViewModel is the dashboard page's view-only payload. The handler does
+// all data resolution (project name lookups, hour-mask, activity feed,
+// week aggregates) and hands the template a flat struct so the template
+// stays markup-only and trivially renderable.
+type ViewModel struct {
+	Now              time.Time
+	HeaderLine       string // "Sa · 06. Juni · KW 23"
+	HeaderTitle      string // "Heute · Übersicht"
+	HasActive        bool
+	ActiveProject    string
+	ActiveTag        string
+	ActiveElapsed    string // "2h 14m" — human formatted
+	ActiveStartedAt  string // "09:28"
+	TodayTotal       string // "8:14"
+	TodayTarget      string // "8:00"
+	TodaySaldo       string // "+0:14"
+	TodaySaldoPos    bool
+	WeekSaldo        string // "+12:42" — week logged − week target
+	WeekSaldoPos     bool
+	WeekLogged       string // "36:08"
+	WeekTarget       string // "40:00"
+	DayBar           [24]int
+	NowHour          int
+	Activity         []ActivityEvent
+	TopProjectName   string
+	TopProjectTotal  string // "14h 22m"
+	TopProjectShare  string // "40% der Woche"
+	WeekSessionCount int    // total weekly sessions
+	WeekSinceMon     int    // sessions whose Date is ≥ monday (same as WeekSessionCount in M6; kept for clarity)
+	LastActivityText string // "vor 8s · session geändert"
+}
+
+// Index is the dashboard page body. layout.Base() supplies the chrome
+// (spine, nav, flash, html shell); this template renders only the main
+// content. Visual reference: /tmp/flow-mockups/dashboard-b.html.
+templ Index(vm ViewModel) {
+	if vm.HasActive {
+		@liveBanner(vm)
+	}
+	<div class="mb-8">
+		<div class="eyebrow" style="margin-bottom: 0.25rem;">{ vm.HeaderLine }</div>
+		<h1 class="display-md" style="margin: 0;">{ vm.HeaderTitle }</h1>
+	</div>
+	@twoUpNumerics(vm)
+	@dayBarSection(vm)
+	@activityStream(vm)
+	@miniCards(vm)
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m6</span>
+		<span>
+			<code class="kbd">s</code> zum Stoppen · <code class="kbd">n</code> für neue Session
+		</span>
+	</div>
+}
+
+templ liveBanner(vm ViewModel) {
+	<div class="live-banner">
+		<span class="live-dot live-pulse">▶</span>
+		<div style="flex: 1;">
+			<div class="eyebrow" style="margin-bottom: 0.25rem;">aktive session</div>
+			<div class="live-project">
+				{ vm.ActiveProject }
+				if vm.ActiveTag != "" {
+					<span style="color: var(--color-fg-dim); font-weight: 400;"> · </span>
+					<span style="color: var(--color-fg-dim);">{ vm.ActiveTag }</span>
+				}
+			</div>
+		</div>
+		<div style="text-align: right;">
+			<div class="live-elapsed live-pulse">{ vm.ActiveElapsed }</div>
+			<div class="live-since">seit { vm.ActiveStartedAt }</div>
+		</div>
+		<!-- M7: wire hx-post=/worktime/active/stop -->
+		<button class="btn btn-danger btn-sm" disabled aria-disabled="true" title="Stop (kommt in M7)">
+			<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<rect x="6" y="6" width="12" height="12"></rect>
+			</svg>
+			<span>Stop</span>
+		</button>
+	</div>
+}
+
+templ twoUpNumerics(vm ViewModel) {
+	<section style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2.5rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.5rem;">Heute</div>
+			<div style="display: flex; align-items: baseline; gap: 0.75rem;">
+				if vm.TodaySaldoPos {
+					<div class="readout-xl" style="font-size: 3rem; color: var(--color-active);">{ vm.TodayTotal }</div>
+				} else {
+					<div class="readout-xl" style="font-size: 3rem; color: var(--color-err);">{ vm.TodayTotal }</div>
+				}
+				<div style="color: var(--color-fg-dim); font-size: 0.8125rem;">/ { vm.TodayTarget } Soll</div>
+			</div>
+			<div style="margin-top: 0.75rem;">
+				if vm.TodaySaldoPos {
+					<span class="pill pill-active">{ vm.TodaySaldo }</span>
+				} else {
+					<span class="pill pill-err">{ vm.TodaySaldo }</span>
+				}
+			</div>
+		</div>
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.5rem;">Saldo Woche</div>
+			<div style="display: flex; align-items: baseline; gap: 0.75rem;">
+				if vm.WeekSaldoPos {
+					<div class="readout-xl" style="font-size: 3rem; color: var(--color-active);">{ vm.WeekSaldo }</div>
+				} else {
+					<div class="readout-xl" style="font-size: 3rem; color: var(--color-err);">{ vm.WeekSaldo }</div>
+				}
+			</div>
+			<div style="margin-top: 0.75rem; color: var(--color-fg-dim); font-size: 0.75rem;">
+				Woche { vm.WeekLogged } / { vm.WeekTarget }
+			</div>
+		</div>
+	</section>
+}
+
+templ dayBarSection(vm ViewModel) {
+	<section style="margin-bottom: 2.5rem;">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">Verlauf 00 — 24</div>
+		<div class="daybar" data-testid="daybar">
+			for h := 0; h < 24; h++ {
+				@dayBarCell(h, vm.DayBar[h] > 0, h == vm.NowHour)
+			}
+		</div>
+	</section>
+}
+
+templ dayBarCell(hour int, hasWork, isNow bool) {
+	if hasWork && isNow {
+		<div class="cell has-work is-now" title={ fmt.Sprintf("%02d:00 (jetzt)", hour) }></div>
+	} else if hasWork {
+		<div class="cell has-work" title={ fmt.Sprintf("%02d:00", hour) }></div>
+	} else if isNow {
+		<div class="cell is-now" title={ fmt.Sprintf("%02d:00 (jetzt)", hour) }></div>
+	} else {
+		<div class="cell" title={ fmt.Sprintf("%02d:00", hour) }></div>
+	}
+}
+
+templ activityStream(vm ViewModel) {
+	<section style="margin-bottom: 2.5rem;">
+		<div class="section-head">
+			<h2 style="font-size: 1.375rem; font-weight: 300;">Aktivität</h2>
+			<span class="eyebrow">letzte sessions</span>
+		</div>
+		if len(vm.Activity) == 0 {
+			<p style="color: var(--color-fg-dim); font-size: 0.875rem;">
+				Noch keine Sessions diese Woche.
+			</p>
+		} else {
+			<!-- TODO M6+: extend to non-session event types (Note bearbeitet, Sync-Konflikt) once an EventLog exists. -->
+			<ol class="activity-stream">
+				for _, ev := range vm.Activity {
+					@activityItem(ev, vm.Now)
+				}
+			</ol>
+		}
+	</section>
+}
+
+templ activityItem(ev ActivityEvent, now time.Time) {
+	if ev.Kind == ActivitySessionStarted {
+		<li class="item">
+			<span class="dot is-active"></span>
+			<code class="kbd glyph is-active">▶</code>
+			<span>
+				Session gestartet · <span style="color: var(--color-fg);">{ ev.ProjectName }</span>
+				if ev.Tag != "" {
+					<span style="color: var(--color-fg-dim);"> · { ev.Tag }</span>
+				}
+			</span>
+			<span class="when">{ HumanRelativeTime(ev.When, now) }</span>
+		</li>
+	} else {
+		<li class="item">
+			<span class="dot"></span>
+			<code class="kbd glyph">✓</code>
+			<span>
+				Session beendet · <span style="color: var(--color-fg);">{ ev.ProjectName }</span>
+				<span style="color: var(--color-fg-dim);"> · { FormatHHMM(ev.Duration) }</span>
+			</span>
+			<span class="when">{ HumanRelativeTime(ev.When, now) }</span>
+		</li>
+	}
+}
+
+templ miniCards(vm ViewModel) {
+	<!-- Phase 2: re-add "Devices online" + "Sync-Latenz" cards when telemetry exists server-side. -->
+	<section style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; margin-bottom: 2.5rem;">
+		<div class="mini-card">
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">Top Projekt · Woche</div>
+			if vm.TopProjectName != "" {
+				<div class="readout-lg">{ vm.TopProjectName }</div>
+				<div class="mini-sub">{ vm.TopProjectTotal } · { vm.TopProjectShare }</div>
+			} else {
+				<div class="readout-lg" style="color: var(--color-fg-dim);">—</div>
+				<div class="mini-sub">noch keine Sessions</div>
+			}
+		</div>
+		<div class="mini-card">
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">Sessions Woche</div>
+			<div class="readout-lg">{ fmt.Sprintf("%d", vm.WeekSessionCount) }</div>
+			<div class="mini-sub">seit Montag</div>
+		</div>
+		<div class="mini-card">
+			<div class="eyebrow" style="margin-bottom: 0.625rem;">Letzte Aktivität</div>
+			if vm.LastActivityText != "" {
+				<div class="readout-lg" style="color: var(--color-active); font-size: 1rem;">{ vm.LastActivityText }</div>
+				<div class="mini-sub">automatisch aktualisiert</div>
+			} else {
+				<div class="readout-lg" style="color: var(--color-fg-dim);">—</div>
+				<div class="mini-sub">noch nichts geloggt</div>
+			}
+		</div>
+	</section>
+}
