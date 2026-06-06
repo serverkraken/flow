@@ -13,6 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
+	"github.com/serverkraken/flow/internal/webui/format"
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 	"github.com/serverkraken/flow/internal/webui/templates/worktime"
 )
@@ -154,7 +155,7 @@ func todaySpine(d WorktimeDeps, userID string, active *domain.ActiveSession, now
 	}
 	return layout.SpineState{
 		AnyActive: active != nil,
-		HourMask:  worktime.HourMask(today.Sessions, activeStartPtr(active), now),
+		HourMask:  format.HourMask(today.Sessions, activeStartPtr(active), now),
 		NowHour:   now.Hour(),
 		SyncState: "ok",
 	}, nil
@@ -231,7 +232,7 @@ func sessionLengthExtremes(sessions []domain.Session, loc *time.Location) (longe
 			minIdx = i
 		}
 	}
-	longest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[maxIdx].Elapsed), worktime.GermanWeekdayShort(sessions[maxIdx].Date.In(loc).Weekday()))
-	shortest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[minIdx].Elapsed), worktime.GermanWeekdayShort(sessions[minIdx].Date.In(loc).Weekday()))
+	longest = fmt.Sprintf("%s · %s", format.FormatHHMM(sessions[maxIdx].Elapsed), format.GermanWeekdayShort(sessions[maxIdx].Date.In(loc).Weekday()))
+	shortest = fmt.Sprintf("%s · %s", format.FormatHHMM(sessions[minIdx].Elapsed), format.GermanWeekdayShort(sessions[minIdx].Date.In(loc).Weekday()))
 	return longest, shortest
 }

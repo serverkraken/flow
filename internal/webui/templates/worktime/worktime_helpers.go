@@ -3,11 +3,12 @@
 // resolution happens in the handler; templates only render formatted
 // strings off a flat view-model.
 //
-// TODO: when a third handler needs the FormatHHMM / FormatSignedHHMM /
-// HumanRelativeTime / HourMask / MondayOf / FormatGermanDateHeader
-// helpers, promote them to internal/webui/format/ (or similar). For
-// Task 6 we deliberately copy from dashboard to keep this PR focused;
-// the duplication is intentional and tracked.
+// Shared format helpers (HHMM / signed-HHMM / hour-mask / Monday-of /
+// German date headers / weekday-short / month table) live in
+// internal/webui/format/. This file keeps worktime-specific aggregators
+// (session rows, week-chart bars, saldo sparkline, project/tag shares)
+// + the German labels that only the worktime surface uses
+// (long weekday, day-label, week-range, relative-day).
 package worktime
 
 import (
@@ -16,37 +17,13 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/webui/format"
 )
 
-// FormatHHMM renders a duration as "H:MM" (with no leading sign).
-// Negative durations are clamped to 0.
-func FormatHHMM(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	h := int(d / time.Hour)
-	m := int((d % time.Hour) / time.Minute)
-	return fmt.Sprintf("%d:%02d", h, m)
-}
-
-// FormatSignedHHMM renders a duration as "+H:MM" / "-H:MM" / "0:00".
-func FormatSignedHHMM(d time.Duration) string {
-	if d == 0 {
-		return "0:00"
-	}
-	sign := "+"
-	if d < 0 {
-		sign = "-"
-		d = -d
-	}
-	h := int(d / time.Hour)
-	m := int((d % time.Hour) / time.Minute)
-	return fmt.Sprintf("%s%d:%02d", sign, h, m)
-}
-
 // FormatElapsedHumane renders a duration as "2h 14m 06s" / "42m" / "8s".
-// Differs from FormatHHMM: drops zero-leading hours and exposes seconds
-// when the elapsed time is under a minute. Used for the live-banner.
+// Differs from format.FormatHHMM: drops zero-leading hours and exposes
+// seconds when the elapsed time is under a minute. Used for the
+// live-banner.
 func FormatElapsedHumane(d time.Duration) string {
 	if d < 0 {
 		d = 0
@@ -63,80 +40,18 @@ func FormatElapsedHumane(d time.Duration) string {
 	return fmt.Sprintf("%dh %02dm %02ds", h, m, s)
 }
 
-// HourMask returns a 24-element array where mask[h]=1 if any session in
-// `sessions` overlaps the [h:00, h+1:00) window of `now`'s local day, or
-// if `active` started during that hour (or earlier today and the hour is
-// ≤ now's hour). Hours outside today's range are 0.
-func HourMask(sessions []domain.Session, active *time.Time, now time.Time) [24]int {
-	var mask [24]int
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	dayEnd := dayStart.AddDate(0, 0, 1)
-
-	for _, s := range sessions {
-		start := s.Start
-		stop := s.Stop
-		if !stop.After(dayStart) || !start.Before(dayEnd) {
-			continue
-		}
-		if start.Before(dayStart) {
-			start = dayStart
-		}
-		if stop.After(dayEnd) {
-			stop = dayEnd
-		}
-		for h := start.Hour(); h <= stop.Hour() && h < 24; h++ {
-			if h == stop.Hour() && stop.Minute() == 0 && stop.Second() == 0 && h != start.Hour() {
-				continue
-			}
-			mask[h] = 1
-		}
-	}
-
-	if active != nil {
-		start := *active
-		if start.Before(dayStart) {
-			start = dayStart
-		}
-		if !start.Before(dayEnd) {
-			return mask
-		}
-		for h := start.Hour(); h <= now.Hour() && h < 24; h++ {
-			mask[h] = 1
-		}
-	}
-	return mask
-}
-
-// MondayOf returns 00:00 of t's ISO Monday in t's location.
-func MondayOf(t time.Time) time.Time {
-	wd := int(t.Weekday())
-	if wd == 0 {
-		wd = 7
-	}
-	day := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-	return day.AddDate(0, 0, -(wd - 1))
-}
-
-// FormatGermanDateHeader renders "Sa · 06. Juni · KW 23".
-func FormatGermanDateHeader(t time.Time) string {
-	wd := GermanWeekdayShort(t.Weekday())
-	month := germanMonth(t.Month())
-	_, week := t.ISOWeek()
-	return fmt.Sprintf("%s · %02d. %s · KW %d", wd, t.Day(), month, week)
-}
-
 // FormatGermanWeekRange renders "KW 23 · 01. — 07. Juni" — used by the
 // /worktime?tab=woche header eyebrow.
 func FormatGermanWeekRange(monday time.Time) string {
 	sunday := monday.AddDate(0, 0, 6)
 	_, week := monday.ISOWeek()
 	if monday.Month() == sunday.Month() {
-		return fmt.Sprintf("KW %d · %02d. — %02d. %s", week, monday.Day(), sunday.Day(), germanMonth(monday.Month()))
+		return fmt.Sprintf("KW %d · %02d. — %02d. %s", week, monday.Day(), sunday.Day(), format.GermanMonth(monday.Month()))
 	}
 	return fmt.Sprintf("KW %d · %02d. %s — %02d. %s",
 		week,
-		monday.Day(), germanMonth(monday.Month()),
-		sunday.Day(), germanMonth(sunday.Month()),
+		monday.Day(), format.GermanMonth(monday.Month()),
+		sunday.Day(), format.GermanMonth(sunday.Month()),
 	)
 }
 
@@ -145,7 +60,7 @@ func FormatGermanDayLabel(t time.Time) string {
 	return fmt.Sprintf("%s · %02d. %s %d",
 		germanWeekdayLong(t.Weekday()),
 		t.Day(),
-		germanMonth(t.Month()),
+		format.GermanMonth(t.Month()),
 		t.Year(),
 	)
 }
@@ -154,7 +69,7 @@ func FormatGermanDayLabel(t time.Time) string {
 // the Verlauf jump-header for non-relative dates.
 func FormatGermanDayShort(t time.Time) string {
 	return fmt.Sprintf("%s · %02d.%02d.%d",
-		GermanWeekdayShort(t.Weekday()),
+		format.GermanWeekdayShort(t.Weekday()),
 		t.Day(),
 		int(t.Month()),
 		t.Year(),
@@ -183,28 +98,6 @@ func RelativeDayLabel(target, now time.Time) string {
 	}
 }
 
-// GermanWeekdayShort renders a weekday as a two-letter German abbreviation
-// (Mo / Di / Mi / Do / Fr / Sa / So). Exported so the worktime handler can
-// share the lookup without duplicating it.
-func GermanWeekdayShort(w time.Weekday) string {
-	switch w {
-	case time.Monday:
-		return "Mo"
-	case time.Tuesday:
-		return "Di"
-	case time.Wednesday:
-		return "Mi"
-	case time.Thursday:
-		return "Do"
-	case time.Friday:
-		return "Fr"
-	case time.Saturday:
-		return "Sa"
-	default:
-		return "So"
-	}
-}
-
 func germanWeekdayLong(w time.Weekday) string {
 	switch w {
 	case time.Monday:
@@ -221,35 +114,6 @@ func germanWeekdayLong(w time.Weekday) string {
 		return "Samstag"
 	default:
 		return "Sonntag"
-	}
-}
-
-func germanMonth(m time.Month) string {
-	switch m {
-	case time.January:
-		return "Januar"
-	case time.February:
-		return "Februar"
-	case time.March:
-		return "März"
-	case time.April:
-		return "April"
-	case time.May:
-		return "Mai"
-	case time.June:
-		return "Juni"
-	case time.July:
-		return "Juli"
-	case time.August:
-		return "August"
-	case time.September:
-		return "September"
-	case time.October:
-		return "Oktober"
-	case time.November:
-		return "November"
-	default:
-		return "Dezember"
 	}
 }
 
@@ -316,7 +180,7 @@ func AggregateProjectShares(
 			}
 			out = append(out, ProjectShareRow{
 				Label:     name(e.id),
-				Total:     FormatHHMM(e.total),
+				Total:     format.FormatHHMM(e.total),
 				SharePct:  pct,
 				IsRunning: runningIDs[e.id],
 			})
@@ -331,7 +195,7 @@ func AggregateProjectShares(
 		}
 		out = append(out, ProjectShareRow{
 			Label:    "übrige",
-			Total:    FormatHHMM(rest),
+			Total:    format.FormatHHMM(rest),
 			SharePct: pct,
 		})
 	}
@@ -382,7 +246,7 @@ func AggregateTagShares(sessions []domain.Session, now time.Time, active *domain
 		}
 		out = append(out, TagShareRow{
 			Label:    e.tag,
-			Total:    FormatHHMM(e.total),
+			Total:    format.FormatHHMM(e.total),
 			SharePct: pct,
 		})
 	}
@@ -452,7 +316,7 @@ func BuildSessionRows(
 					Pause: PauseRow{
 						StartLabel: prevStop.In(loc).Format("15:04"),
 						EndLabel:   s.Start.In(loc).Format("15:04"),
-						Duration:   FormatHHMM(gap),
+						Duration:   format.FormatHHMM(gap),
 					},
 				})
 			}
@@ -464,7 +328,7 @@ func BuildSessionRows(
 				ProjectName: name(s.ProjectID),
 				Tag:         s.Tag,
 				Note:        s.Note,
-				Duration:    FormatHHMM(s.Elapsed),
+				Duration:    format.FormatHHMM(s.Elapsed),
 			},
 		})
 		prevStop = s.Stop
@@ -478,7 +342,7 @@ func BuildSessionRows(
 					Pause: PauseRow{
 						StartLabel: prevStop.In(loc).Format("15:04"),
 						EndLabel:   active.StartedAt.In(loc).Format("15:04"),
-						Duration:   FormatHHMM(gap),
+						Duration:   format.FormatHHMM(gap),
 					},
 				})
 			}
@@ -489,7 +353,7 @@ func BuildSessionRows(
 				ProjectName: name(active.ProjectID),
 				Tag:         active.Tag,
 				Note:        active.Note,
-				Duration:    FormatHHMM(now.Sub(active.StartedAt)),
+				Duration:    format.FormatHHMM(now.Sub(active.StartedAt)),
 				IsActive:    true,
 			},
 		})
@@ -530,9 +394,9 @@ func BuildWeekBars(week []domain.WeekDay, monday time.Time, now time.Time) []Wee
 			isToday = domain.SameDay(d, now)
 		}
 		out[i] = WeekBar{
-			Label:   fmt.Sprintf("%s · %02d.%02d", GermanWeekdayShort(d.Weekday()), d.Day(), int(d.Month())),
+			Label:   fmt.Sprintf("%s · %02d.%02d", format.GermanWeekdayShort(d.Weekday()), d.Day(), int(d.Month())),
 			Hours:   hours.Hours(),
-			HHMM:    FormatHHMM(hours),
+			HHMM:    format.FormatHHMM(hours),
 			IsToday: isToday,
 		}
 	}
@@ -574,8 +438,8 @@ func BuildWeekSaldoSeries(
 		logged[fmt.Sprintf("%d-W%02d", y, w)] += s.Elapsed
 	}
 	// Iterate week starts Mo across the [from, to] range.
-	cursor := MondayOf(from)
-	end := MondayOf(to)
+	cursor := format.MondayOf(from)
+	end := format.MondayOf(to)
 	out := []WeekSaldoBar{}
 	nowY, nowW := now.ISOWeek()
 	for !cursor.After(end) {

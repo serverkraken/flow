@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
+	"github.com/serverkraken/flow/internal/webui/format"
 	"github.com/serverkraken/flow/internal/webui/templates/dashboard"
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 )
@@ -112,7 +113,7 @@ func NewDashboard(d DashboardDeps) http.Handler {
 func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.ViewModel, error) {
 	vm := dashboard.ViewModel{
 		Now:         now,
-		HeaderLine:  dashboard.FormatGermanDateHeader(now),
+		HeaderLine:  format.FormatGermanDateHeader(now),
 		HeaderTitle: "Heute · Übersicht",
 		NowHour:     now.Hour(),
 	}
@@ -123,9 +124,9 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 	}
 	todayTotal := today.Total(now)
 	saldoToday := todayTotal - today.Target
-	vm.TodayTotal = dashboard.FormatHHMM(todayTotal)
-	vm.TodayTarget = dashboard.FormatHHMM(today.Target)
-	vm.TodaySaldo = dashboard.FormatSignedHHMM(saldoToday)
+	vm.TodayTotal = format.FormatHHMM(todayTotal)
+	vm.TodayTarget = format.FormatHHMM(today.Target)
+	vm.TodaySaldo = format.FormatSignedHHMM(saldoToday)
 	vm.TodaySaldoPos = saldoToday >= 0
 
 	// Week saldo aggregates the WeekDay rows.
@@ -135,10 +136,10 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 	}
 	weekLogged, weekTarget := dashboard.WeekTotals(week, now)
 	saldoWeek := weekLogged - weekTarget
-	vm.WeekSaldo = dashboard.FormatSignedHHMM(saldoWeek)
+	vm.WeekSaldo = format.FormatSignedHHMM(saldoWeek)
 	vm.WeekSaldoPos = saldoWeek >= 0
-	vm.WeekLogged = dashboard.FormatHHMM(weekLogged)
-	vm.WeekTarget = dashboard.FormatHHMM(weekTarget)
+	vm.WeekLogged = format.FormatHHMM(weekLogged)
+	vm.WeekTarget = format.FormatHHMM(weekTarget)
 
 	// Active session lookup. Server enforces ≤1 per user; pick first.
 	activeRows, err := d.Active.ListByUser(u.ID)
@@ -163,12 +164,12 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 	}
 
 	// Day-bar mask from today's sessions + active tail.
-	vm.DayBar = dashboard.HourMask(today.Sessions, today.Active, now)
+	vm.DayBar = format.HourMask(today.Sessions, today.Active, now)
 
 	// Activity feed — server has no EventLog yet, so M6 only emits
 	// session-stopped + session-started rows. Fetch this week's sessions
 	// for the feed (newest first).
-	monday := dashboard.MondayOf(now)
+	monday := format.MondayOf(now)
 	sunday := monday.AddDate(0, 0, 6)
 	weekSessions, err := d.Sessions.ListByUserDateRange(u.ID, monday, sunday)
 	if err != nil {
@@ -200,7 +201,7 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 		if ev.Kind == dashboard.ActivitySessionStarted {
 			label = "session gestartet"
 		}
-		vm.LastActivityText = fmt.Sprintf("%s · %s", dashboard.HumanRelativeTime(ev.When, now), label)
+		vm.LastActivityText = fmt.Sprintf("%s · %s", format.HumanRelativeTime(ev.When, now), label)
 	}
 
 	return vm, nil

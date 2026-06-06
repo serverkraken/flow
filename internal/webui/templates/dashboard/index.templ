@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/serverkraken/flow/internal/webui/format"
 	"github.com/serverkraken/flow/internal/webui/templates/shared"
 )
 
@@ -159,7 +160,7 @@ templ activityItem(ev ActivityEvent, now time.Time) {
 					<span style="color: var(--color-fg-dim);"> · { ev.Tag }</span>
 				}
 			</span>
-			<span class="when">{ HumanRelativeTime(ev.When, now) }</span>
+			<span class="when">{ format.HumanRelativeTime(ev.When, now) }</span>
 		</li>
 	} else {
 		<li class="item">
@@ -167,9 +168,9 @@ templ activityItem(ev ActivityEvent, now time.Time) {
 			<code class="kbd glyph">✓</code>
 			<span>
 				Session beendet · <span style="color: var(--color-fg);">{ ev.ProjectName }</span>
-				<span style="color: var(--color-fg-dim);"> · { FormatHHMM(ev.Duration) }</span>
+				<span style="color: var(--color-fg-dim);"> · { format.FormatHHMM(ev.Duration) }</span>
 			</span>
-			<span class="when">{ HumanRelativeTime(ev.When, now) }</span>
+			<span class="when">{ format.HumanRelativeTime(ev.When, now) }</span>
 		</li>
 	}
 }
