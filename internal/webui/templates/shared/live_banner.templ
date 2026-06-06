@@ -24,6 +24,14 @@ type LiveBanner struct {
 	// Worktime/Heute uses "→ läuft" to differ visually. Falls back to
 	// "seit {StartedAt}" via the template if empty.
 	StopHref string // M6: "" → button rendered disabled. M7: real route.
+
+	// StartedUnix is the absolute Unix timestamp at which the active
+	// session started. Rendered into the `.live-elapsed` element's
+	// `data-started` attribute so the SSE tick handler in worktime/today
+	// can recompute the elapsed label client-side once per second
+	// without a round trip. Zero → attribute is omitted; callers that
+	// don't need live recomputation can leave it at the zero value.
+	StartedUnix int64
 }
 
 // LiveBannerCard is the rendered banner. Handlers gate the call with
@@ -48,7 +56,11 @@ templ LiveBannerCard(b LiveBanner) {
 			</div>
 		</div>
 		<div style="text-align: right;">
-			<div class="live-elapsed live-pulse">{ b.ElapsedLabel }</div>
+			if b.StartedUnix > 0 {
+				<div class="live-elapsed live-pulse" data-started={ liveBannerStartedAttr(b.StartedUnix) }>{ b.ElapsedLabel }</div>
+			} else {
+				<div class="live-elapsed live-pulse">{ b.ElapsedLabel }</div>
+			}
 			<div class="live-since">
 				if b.SinceLabel != "" {
 					{ b.SinceLabel }

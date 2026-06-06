@@ -24,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/webui"
 	"github.com/serverkraken/flow/internal/webui/handlers"
 	webuimarkdown "github.com/serverkraken/flow/internal/webui/markdown"
+	"github.com/serverkraken/flow/internal/webui/sse"
 )
 
 // cliClientID is the OIDC client used by the CLI/MCP device-flow. Separate
@@ -102,6 +103,22 @@ func main() {
 
 	secure := strings.HasPrefix(cfg.BaseURL, "https://")
 
+	// --- SSE broadcaster + 1Hz ticker (Plan E · Task 14) -------------------
+	//
+	// One broadcaster, shared by the mutating WebUI handlers (publish
+	// session.* / project.* / note.*) and the SSE handler (subscribe).
+	// The ticker goroutine fans out a per-second "tick" event so open
+	// dashboards refresh their "läuft seit MM:SS" counters without
+	// polling. Background goroutine — cancelled on shutdown via the
+	// runCtx context. M7 uses ListenAndServe (blocks until crash); the
+	// ticker leaks at process exit which is fine for a long-lived
+	// server. Phase 2 swaps to a graceful-shutdown loop that calls
+	// cancel() before exit.
+	broadcaster := sse.New()
+	runCtx, runCancel := context.WithCancel(context.Background())
+	defer runCancel()
+	go runTicker(runCtx, broadcaster)
+
 	// --- WebUI handlers (Plan E · Task 10) ---------------------------------
 	//
 	// Constructing the per-route handlers once here and passing them as a
@@ -117,6 +134,7 @@ func main() {
 		projects,
 		repos,
 		repoNotes,
+		broadcaster,
 	)
 
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
@@ -174,6 +192,7 @@ func buildWebUIHandlers(
 	projects *sqliteserver.Projects,
 	repos *sqliteserver.Repos,
 	repoNotes *sqliteserver.RepoNotes,
+	broadcaster *sse.Broadcaster,
 ) *httpserver.WebUIHandlers {
 	clock := systemclock.New()
 	mdRenderer := webuimarkdown.New()
@@ -235,6 +254,7 @@ func buildWebUIHandlers(
 		View:        worktimeView,
 		Clock:       clock,
 		DeviceLabel: "web",
+		Bus:         broadcaster,
 	}
 
 	// M7 / Task 12 — note + repo-note editing handlers share their
@@ -245,6 +265,7 @@ func buildWebUIHandlers(
 		Repos:     repos,
 		RepoNotes: repoNotes,
 		Clock:     clock,
+		Bus:       broadcaster,
 	}
 
 	// M7 / Task 13 — project create/rename/archive. Smaller deps bag —
@@ -252,6 +273,7 @@ func buildWebUIHandlers(
 	projectActionsDeps := handlers.ProjectActionsDeps{
 		Projects: projects,
 		Clock:    clock,
+		Bus:      broadcaster,
 	}
 
 	return &httpserver.WebUIHandlers{
@@ -299,6 +321,9 @@ func buildWebUIHandlers(
 		ProjectEdit:      handlers.NewProjectEdit(projectActionsDeps),
 		ProjectPut:       handlers.NewProjectPut(projectActionsDeps),
 		ProjectArchive:   handlers.NewProjectArchive(projectActionsDeps),
+
+		// M7 / Task 14 — SSE live updates.
+		Events: handlers.NewEvents(broadcaster),
 		Settings: handlers.NewSettings(handlers.SettingsDeps{
 			ServerBaseURL: cfg.BaseURL,
 			OIDCIssuer:    cfg.OIDCIssuer,
@@ -310,6 +335,28 @@ func buildWebUIHandlers(
 			IssuerLabel: cfg.OIDCIssuer,
 		}),
 		StaticFS: webui.StaticFS(),
+	}
+}
+
+// runTicker fans a "tick" event out to every subscribed dashboard once a
+// second. Lets clients refresh "läuft seit MM:SS" without polling — the
+// frontend JS handler in dashboard/index.templ + worktime/today.templ
+// reads the tick and recomputes the elapsed label client-side.
+//
+// The 1Hz rate is intentional: granular enough that the counter doesn't
+// look frozen, coarse enough that a few dozen open tabs don't pummel
+// the goroutine. Drop policy in the broadcaster ensures a stuck tab
+// can't slow this loop down.
+func runTicker(ctx context.Context, b *sse.Broadcaster) {
+	t := time.NewTicker(1 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-t.C:
+			b.PublishAll(sse.Event{Type: "tick", Data: now.Unix()})
+		}
 	}
 }
 

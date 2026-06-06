@@ -45,6 +45,7 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/serverkraken/flow/internal/webui/format"
+	"github.com/serverkraken/flow/internal/webui/sse"
 	projectspartials "github.com/serverkraken/flow/internal/webui/templates/projects/partials"
 )
 
@@ -55,6 +56,19 @@ import (
 type ProjectActionsDeps struct {
 	Projects *sqliteserver.Projects
 	Clock    ports.Clock
+
+	// Bus broadcasts project.* events to the SSE stream. Optional — nil
+	// makes publish a silent no-op so handler tests that don't care
+	// about the bus stay tight.
+	Bus *sse.Broadcaster
+}
+
+// publish is the nil-safe wrapper, mirroring SessionActionsDeps.publish.
+func (d ProjectActionsDeps) publish(userID, eventType string, data any) {
+	if d.Bus == nil {
+		return
+	}
+	d.Bus.Publish(userID, sse.Event{Type: eventType, Data: data})
 }
 
 // — GET /projects/new --------------------------------------------------------
@@ -169,6 +183,12 @@ func NewProjectCreate(d ProjectActionsDeps) http.Handler {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "project.created", map[string]any{
+			"id":   created.ID,
+			"slug": created.Slug,
+			"name": created.Name,
+		})
 
 		row := buildProjectRowVM(created, d.Clock.Now())
 		// Main swap: restore the button so the user can immediately add another.
@@ -321,6 +341,12 @@ func NewProjectPut(d ProjectActionsDeps) http.Handler {
 			return
 		}
 
+		d.publish(u.ID, "project.renamed", map[string]any{
+			"id":   saved.ID,
+			"slug": saved.Slug,
+			"name": saved.Name,
+		})
+
 		_ = projectspartials.ProjectRow(buildProjectRowVM(saved, d.Clock.Now())).Render(r.Context(), w)
 	})
 }
@@ -379,6 +405,12 @@ func NewProjectArchive(d ProjectActionsDeps) http.Handler {
 			http.Error(w, "internal", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "project.archived", map[string]any{
+			"id":   updated.ID,
+			"slug": updated.Slug,
+		})
+
 		_ = projectspartials.ProjectRow(buildProjectRowVM(updated, d.Clock.Now())).Render(r.Context(), w)
 	})
 }

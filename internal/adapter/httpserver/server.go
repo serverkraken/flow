@@ -183,6 +183,15 @@ func NewWithAuth(d AuthDeps) *Server {
 			if w.ActiveStop != nil {
 				rr.Method(http.MethodPost, "/worktime/active/stop", w.ActiveStop)
 			}
+
+			// — M7 / Task 14. Server-Sent-Events stream for live
+			// dashboard updates. Sits inside the cookie group so the
+			// browser's EventSource authenticates with the session
+			// cookie; bearer-clients have their own surface and
+			// don't need SSE in phase 1.
+			if w.Events != nil {
+				rr.Method(http.MethodGet, "/api/v1/events", w.Events)
+			}
 		})
 
 		// Auth landing is mounted OUTSIDE the cookie group — the

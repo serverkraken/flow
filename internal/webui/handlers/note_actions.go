@@ -42,6 +42,7 @@ import (
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/webui/sse"
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 	notestmpl "github.com/serverkraken/flow/internal/webui/templates/notes"
 	repostmpl "github.com/serverkraken/flow/internal/webui/templates/repos"
@@ -58,6 +59,19 @@ type NoteActionsDeps struct {
 	Repos     *sqliteserver.Repos
 	RepoNotes *sqliteserver.RepoNotes
 	Clock     ports.Clock
+
+	// Bus broadcasts note.* / repo_note.* events to the SSE stream.
+	// Optional — nil silently no-ops the publish calls.
+	Bus *sse.Broadcaster
+}
+
+// publish wraps Bus.Publish with a nil-guard. Mirrors the helper on
+// SessionActionsDeps + ProjectActionsDeps so the call sites stay terse.
+func (d NoteActionsDeps) publish(userID, eventType string, data any) {
+	if d.Bus == nil {
+		return
+	}
+	d.Bus.Publish(userID, sse.Event{Type: eventType, Data: data})
 }
 
 // — kompendium note edit form (GET /notes/{*}/edit) -------------------------
@@ -199,6 +213,8 @@ func NewNotePut(d NoteActionsDeps) http.Handler {
 			http.Error(w, "save failed", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "note.updated", map[string]any{"id": id.String()})
 
 		http.Redirect(w, r, "/notes/"+id.String(), http.StatusSeeOther)
 	})
@@ -362,7 +378,7 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 		}
 		input.Content = content
 
-		_, err = d.RepoNotes.Upsert(input, version)
+		saved, err := d.RepoNotes.Upsert(input, version)
 		if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
 			renderRepoNoteConflict(w, r, d, u.ID, repo, content)
 			return
@@ -376,6 +392,12 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 			http.Error(w, "save failed", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "repo_note.updated", map[string]any{
+			"id":            saved.ID,
+			"repo_id":       saved.RepoID,
+			"canonical_key": repo.CanonicalKey,
+		})
 
 		http.Redirect(w, r, repostmpl.NoteHref(repo.CanonicalKey), http.StatusSeeOther)
 	})

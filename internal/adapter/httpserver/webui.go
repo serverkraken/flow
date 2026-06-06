@@ -65,4 +65,11 @@ type WebUIHandlers struct {
 	ProjectEdit      http.Handler
 	ProjectPut       http.Handler
 	ProjectArchive   http.Handler
+
+	// M7 — Plan E · Task 14. Server-Sent-Events stream for live
+	// dashboard updates. Mounted at GET /api/v1/events?stream=ui
+	// inside the cookie-auth group (browser flow, not bearer). The
+	// handler subscribes to the per-user broadcaster and pushes
+	// session.* / project.* / note.* / tick events as they happen.
+	Events http.Handler
 }

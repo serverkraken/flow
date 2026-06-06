@@ -53,21 +53,83 @@ type TodayVM struct {
 }
 
 // Today renders the /worktime?tab=heute body.
+//
+// M7 / Task 14: wraps the page in an `hx-ext="sse"` consumer connected
+// to /api/v1/events?stream=ui. The inline script at the bottom handles
+// two events:
+//
+//   - tick (1Hz): recomputes the live-banner elapsed label client-side
+//     so the "läuft seit MM:SS" counter advances without a server round
+//     trip.
+//   - session.*: full-page reload — same M7-minimum approach the
+//     dashboard uses. Phase 2 swaps to per-row partials.
 templ Today(vm TodayVM) {
-	@pageHead(vm.Header)
-	@subTabs(TabHeute)
-	@partials.LiveBannerContainer(partials.LiveBannerContainerVM{
-		HasActive: vm.HasActive,
-		Banner:    vm.Live,
-	})
-	@todaySaldoStripe(vm)
-	<div class="page-grid">
-		<div>
-			@todaySessionsSection(vm)
+	<div hx-ext="sse" sse-connect="/api/v1/events?stream=ui">
+		@pageHead(vm.Header)
+		@subTabs(TabHeute)
+		@partials.LiveBannerContainer(partials.LiveBannerContainerVM{
+			HasActive: vm.HasActive,
+			Banner:    vm.Live,
+		})
+		@todaySaldoStripe(vm)
+		<div class="page-grid">
+			<div>
+				@todaySessionsSection(vm)
+			</div>
+			@todayRail(vm)
 		</div>
-		@todayRail(vm)
+		@footerNote("s session · n note · j/k auf/ab")
+		@sseTodayScript()
 	</div>
-	@footerNote("s session · n note · j/k auf/ab")
+}
+
+// sseTodayScript reacts to SSE frames on the worktime/today surface.
+// Same approach as the dashboard script — kept inline so the page is
+// self-contained. The tick handler refreshes the visible elapsed label
+// inside `.live-banner .live-elapsed` (a stable selector — the partial
+// renders the same class regardless of payload), reading the start
+// time from the banner's `data-started` attribute.
+//
+// session.* triggers a full-page reload (coalesced via setTimeout) so
+// the entries table + saldo stripe re-render from the canonical server
+// state.
+templ sseTodayScript() {
+	<script>
+	(function() {
+		function fmt(secs) {
+			if (secs < 0) secs = 0;
+			var h = Math.floor(secs / 3600);
+			var m = Math.floor((secs % 3600) / 60);
+			var s = secs % 60;
+			var two = function(n) { return n < 10 ? '0' + n : '' + n; };
+			if (h > 0) return h + 'h ' + two(m) + 'm ' + two(s) + 's';
+			if (m > 0) return m + 'm ' + two(s) + 's';
+			return s + 's';
+		}
+		var reloadPending = false;
+		document.body.addEventListener('htmx:sseMessage', function(ev) {
+			var t = ev.detail && ev.detail.type;
+			if (!t) return;
+			if (t === 'tick') {
+				var el = document.querySelector('.live-banner .live-elapsed');
+				if (!el) return;
+				var startedAttr = el.getAttribute('data-started');
+				if (!startedAttr) return;
+				var started = parseInt(startedAttr, 10);
+				if (isNaN(started)) return;
+				var elapsed = Math.floor(Date.now() / 1000) - started;
+				el.textContent = fmt(elapsed);
+				return;
+			}
+			if (t === 'session.started' || t === 'session.stopped' ||
+				t === 'session.updated' || t === 'session.deleted') {
+				if (reloadPending) return;
+				reloadPending = true;
+				setTimeout(function() { window.location.reload(); }, 50);
+			}
+		});
+	})();
+	</script>
 }
 
 templ todaySaldoStripe(vm TodayVM) {

@@ -42,31 +42,71 @@ type ViewModel struct {
 // Index is the dashboard page body. layout.Base() supplies the chrome
 // (spine, nav, flash, html shell); this template renders only the main
 // content. Visual reference: /tmp/flow-mockups/dashboard-b.html.
+//
+// M7 / Task 14: the whole body sits inside an `hx-ext="sse"` wrapper
+// that connects to /api/v1/events?stream=ui. The inline script at the
+// bottom listens for tick events (1Hz) + session.* events (mutation)
+// and triggers a full-page reload on the latter — the simplest correct
+// behaviour for M7. Phase 2 swaps to per-row partial swaps.
 templ Index(vm ViewModel) {
-	if vm.HasActive {
-		@shared.LiveBannerCard(shared.LiveBanner{
-			ProjectLabel: vm.ActiveProject,
-			Tag:          vm.ActiveTag,
-			ElapsedLabel: vm.ActiveElapsed,
-			StartedAt:    vm.ActiveStartedAt,
-			// Dashboard variant keeps the eyebrow plain ("aktive session"); the
-			// banner falls back to "seit HH:MM" in the right-hand readout.
-		})
-	}
-	<div class="mb-8">
-		<div class="eyebrow" style="margin-bottom: 0.25rem;">{ vm.HeaderLine }</div>
-		<h1 class="display-md" style="margin: 0;">{ vm.HeaderTitle }</h1>
+	<div hx-ext="sse" sse-connect="/api/v1/events?stream=ui">
+		if vm.HasActive {
+			@shared.LiveBannerCard(shared.LiveBanner{
+				ProjectLabel: vm.ActiveProject,
+				Tag:          vm.ActiveTag,
+				ElapsedLabel: vm.ActiveElapsed,
+				StartedAt:    vm.ActiveStartedAt,
+				// Dashboard variant keeps the eyebrow plain ("aktive session"); the
+				// banner falls back to "seit HH:MM" in the right-hand readout.
+			})
+		}
+		<div class="mb-8">
+			<div class="eyebrow" style="margin-bottom: 0.25rem;">{ vm.HeaderLine }</div>
+			<h1 class="display-md" style="margin: 0;">{ vm.HeaderTitle }</h1>
+		</div>
+		@twoUpNumerics(vm)
+		@dayBarSection(vm)
+		@activityStream(vm)
+		@miniCards(vm)
+		<div class="page-footer-note">
+			<span>flow · phase 1 · m7</span>
+			<span>
+				<code class="kbd">s</code> zum Stoppen · <code class="kbd">n</code> für neue Session
+			</span>
+		</div>
+		@sseDashboardScript()
 	</div>
-	@twoUpNumerics(vm)
-	@dayBarSection(vm)
-	@activityStream(vm)
-	@miniCards(vm)
-	<div class="page-footer-note">
-		<span>flow · phase 1 · m6</span>
-		<span>
-			<code class="kbd">s</code> zum Stoppen · <code class="kbd">n</code> für neue Session
-		</span>
-	</div>
+}
+
+// sseDashboardScript is the tiny inline handler that reacts to SSE
+// frames. Lives in the template (not /static/) so the dashboard surface
+// stays self-contained and the script is gzipped with the rest of the
+// page. Two responsibilities:
+//
+//   - on session.* event: reload the page (M7 minimum — Phase 2 swaps
+//     to per-row partials). The reload runs through htmx history off,
+//     so back/forward isn't muddied.
+//   - on tick: no-op on the dashboard (no live-elapsed span here).
+//
+// The HTMX SSE extension fires `htmx:sseMessage` for every event with
+// `ev.detail.type` set to the SSE event name.
+templ sseDashboardScript() {
+	<script>
+	(function() {
+		var reloadPending = false;
+		document.body.addEventListener('htmx:sseMessage', function(ev) {
+			var t = ev.detail && ev.detail.type;
+			if (!t) return;
+			if (t === 'session.started' || t === 'session.stopped' ||
+				t === 'session.updated' || t === 'session.deleted') {
+				if (reloadPending) return;
+				reloadPending = true;
+				// Defer so multiple events within one tick coalesce.
+				setTimeout(function() { window.location.reload(); }, 50);
+			}
+		});
+	})();
+	</script>
 }
 
 templ twoUpNumerics(vm ViewModel) {

@@ -39,6 +39,7 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/serverkraken/flow/internal/webui/format"
+	"github.com/serverkraken/flow/internal/webui/sse"
 	"github.com/serverkraken/flow/internal/webui/templates/shared"
 	"github.com/serverkraken/flow/internal/webui/templates/worktime/partials"
 )
@@ -58,6 +59,22 @@ type SessionActionsDeps struct {
 	// started_on_device so the conflict-overlay can show "running on
 	// mac-soenne". Optional; empty falls back to "web".
 	DeviceLabel string
+
+	// Bus broadcasts session.* events to the SSE stream so other open
+	// dashboards refresh without polling. Optional — when nil, the
+	// publish calls are silent no-ops. Tests inject a real broadcaster
+	// + a recording subscriber to assert the right events fire.
+	Bus *sse.Broadcaster
+}
+
+// publish is a nil-safe wrapper around Bus.Publish. Keeps the call sites
+// in the action handlers terse — `d.publish(u.ID, "session.updated", …)`
+// instead of `if d.Bus != nil { d.Bus.Publish(…) }`.
+func (d SessionActionsDeps) publish(userID, eventType string, data any) {
+	if d.Bus == nil {
+		return
+	}
+	d.Bus.Publish(userID, sse.Event{Type: eventType, Data: data})
 }
 
 // — GET /worktime/sessions/{id}/edit -----------------------------------------
@@ -183,6 +200,12 @@ func NewSessionPut(d SessionActionsDeps) http.Handler {
 			return
 		}
 
+		d.publish(u.ID, "session.updated", map[string]any{
+			"id":         saved.ID,
+			"project_id": saved.ProjectID,
+			"duration":   int64(saved.Elapsed.Seconds()),
+		})
+
 		row := buildSessionRowVM(d, u.ID, saved)
 		_ = partials.SessionRow(row).Render(r.Context(), w)
 	})
@@ -231,6 +254,9 @@ func NewSessionDelete(d SessionActionsDeps) http.Handler {
 			http.Error(w, "internal", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "session.deleted", map[string]any{"id": id})
+
 		// Empty body — HTMX outerHTML swap removes the row.
 		w.WriteHeader(http.StatusOK)
 	})
@@ -305,6 +331,12 @@ func NewActiveStart(d SessionActionsDeps) http.Handler {
 			return
 		}
 
+		d.publish(u.ID, "session.started", map[string]any{
+			"project_id": a.ProjectID,
+			"started_at": a.StartedAt.Unix(),
+			"tag":        a.Tag,
+		})
+
 		vm := buildBannerContainerVM(d, u.ID, &a, d.Clock.Now())
 		_ = partials.LiveBannerContainer(vm).Render(r.Context(), w)
 	})
@@ -341,7 +373,7 @@ func NewActiveStop(d SessionActionsDeps) http.Handler {
 			return
 		}
 		ar := rows[0]
-		_, err = d.Active.Stop(u.ID, ar.ProjectID, ar.Version, "", "")
+		stopped, err := d.Active.Stop(u.ID, ar.ProjectID, ar.Version, "", "")
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
 			// Rare — another device stopped it. Re-render the empty container.
 			_ = partials.LiveBannerContainer(partials.LiveBannerContainerVM{}).Render(r.Context(), w)
@@ -352,6 +384,13 @@ func NewActiveStop(d SessionActionsDeps) http.Handler {
 			http.Error(w, "internal", http.StatusInternalServerError)
 			return
 		}
+
+		d.publish(u.ID, "session.stopped", map[string]any{
+			"id":         stopped.ID,
+			"project_id": stopped.ProjectID,
+			"duration":   int64(stopped.Elapsed.Seconds()),
+		})
+
 		_ = partials.LiveBannerContainer(partials.LiveBannerContainerVM{}).Render(r.Context(), w)
 	})
 }
@@ -538,6 +577,10 @@ func buildBannerContainerVM(d SessionActionsDeps, userID string, active *domain.
 			StartedAt:    active.StartedAt.In(now.Location()).Format("15:04"),
 			SinceLabel:   "→ läuft",
 			StopHref:     "/worktime/active/stop",
+			// SSE tick consumer in worktime/today reads this off the
+			// rendered `.live-elapsed` data attribute to advance the
+			// counter client-side.
+			StartedUnix: active.StartedAt.Unix(),
 		},
 	}
 }

@@ -73,6 +73,10 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 			StartedAt:    active.StartedAt.In(now.Location()).Format("15:04"),
 			SinceLabel:   "→ läuft",
 			StopHref:     "/worktime/active/stop",
+			// SSE tick handler in worktime/today.templ reads this from
+			// the `data-started` attribute to recompute the elapsed
+			// label client-side once per second without a round trip.
+			StartedUnix: active.StartedAt.Unix(),
 		}
 	}
 
