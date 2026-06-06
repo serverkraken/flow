@@ -1,0 +1,22 @@
+# litestream continuous-replication config for the local compose stack.
+#
+# Source: the SQLite file flow-server writes (FLOW_SERVER_DB).
+# Sink:   the minio bucket `flow-backups` (created on first up by minio-setup).
+#
+# The access-key envs are read from .env via the compose `env_file:` directive
+# on the litestream service. Don't commit real keys here.
+#
+# For prod, replace this with a Helm-managed config that targets the real
+# S3/Hetzner Object Storage bucket (see Plan F · Task 4).
+
+dbs:
+  - path: /var/lib/flow/server.db
+    replicas:
+      - type: s3
+        bucket: flow-backups
+        path: server.db
+        endpoint: http://minio:9000
+        region: us-east-1
+        force-path-style: true
+        # access-key-id + secret-access-key are read from
+        # LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY in .env.

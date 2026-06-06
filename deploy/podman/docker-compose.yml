@@ -1,6 +1,36 @@
-version: "3.9"
+# flow-server local dev stack.
+#
+# Components:
+#   flow-server   - the HTTP API + WebUI (distroless runtime, port 8080)
+#   dex           - local OIDC issuer for browser + device-flow logins
+#   minio         - S3-compatible object store, sink for litestream
+#   minio-setup   - one-shot, creates the `flow-backups` bucket if missing
+#   litestream    - continuously replicates server.db to minio
+#
+# Healthcheck note:
+#   The distroless runtime has no shell, no curl, and no flow-server CLI flag
+#   for self-probing. So compose-level HEALTHCHECK is dropped here; the
+#   /healthz HTTP endpoint is reachable from outside (curl http://localhost:8080/healthz)
+#   and in K8s the Ingress probe handles it. See README.md.
+#
+# Volumes flow-data + minio-data are named — `podman compose down` keeps
+# them, `podman compose down -v` wipes them.
 
 services:
+  flow-server:
+    build:
+      context: ../..
+      dockerfile: deploy/podman/Dockerfile.server
+    image: flow-server:dev
+    env_file: .env
+    depends_on:
+      - dex
+      - minio
+    ports:
+      - "8080:8080"
+    volumes:
+      - flow-data:/var/lib/flow
+
   dex:
     image: ghcr.io/dexidp/dex:v2.41.1
     command: ["dex", "serve", "/etc/dex/config.yaml"]
@@ -9,12 +39,45 @@ services:
     ports:
       - "5556:5556"
 
-  flow-server:
-    build:
-      context: ../..
-      dockerfile: deploy/podman/Dockerfile.server
-    env_file: .env
-    depends_on:
-      - dex
+  minio:
+    image: minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    command: ["server", "/data", "--console-address", ":9001"]
     ports:
-      - "8080:8080"
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  minio-setup:
+    # One-shot: wait for minio, create the litestream bucket if missing.
+    # Idempotent — `mc mb --ignore-existing` is a no-op on re-run.
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+        until mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; do
+          echo 'waiting for minio...'; sleep 1;
+        done;
+        mc mb --ignore-existing local/flow-backups;
+        echo 'bucket flow-backups ready';
+      "
+    restart: "no"
+
+  litestream:
+    image: litestream/litestream:0.3.13
+    depends_on:
+      - flow-server
+      - minio-setup
+    env_file: .env
+    volumes:
+      - flow-data:/var/lib/flow
+      - ./litestream.yml:/etc/litestream.yml:Z
+    command: ["replicate", "-config", "/etc/litestream.yml"]
+
+volumes:
+  flow-data: {}
+  minio-data: {}
