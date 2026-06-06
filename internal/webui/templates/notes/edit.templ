@@ -46,6 +46,10 @@ templ editForm(vm EditVM) {
 	<form
 		method="POST"
 		action={ noteFormAction(vm.ID) }
+		hx-put={ string(noteFormAction(vm.ID)) }
+		hx-target="body"
+		hx-swap="outerHTML"
+		hx-confirm="Speichern und schließen?"
 		data-testid="note-edit-form"
 		style="display: flex; flex-direction: column; gap: 1rem;"
 	>

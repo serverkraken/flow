@@ -49,6 +49,12 @@ templ Base(m PageMeta, body templ.Component) {
 			     as apexcharts above — the per-page DOMContentLoaded init
 			     hooks run after this script is parsed. -->
 			<script src="/static/codemirror.bundle.js" defer></script>
+			<!-- codemirror-init.js defines window.initNoteEditor which the
+			     per-page boot script in notes/edit.templ +
+			     repos/note_edit.templ calls. Must load AFTER the bundle
+			     above (initNoteEditor reads window.CM) and BEFORE the
+			     per-page boot fires (defer keeps both in document order). -->
+			<script src="/static/codemirror-init.js" defer></script>
 		</head>
 		<body hx-boost="true" hx-history="false">
 			if !m.HideSpine {

@@ -167,29 +167,42 @@ func editForm(vm EditVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" data-testid=\"note-edit-form\" style=\"display: flex; flex-direction: column; gap: 1rem;\"><!-- HTML forms cannot natively PUT; the handler accepts a\n\t\t     POST with _method=PUT for the no-JS fallback. The standard\n\t\t     path is via the hx-put attribute below, which HTMX upgrades\n\t\t     to a true PUT when JS is available. --><input type=\"hidden\" name=\"_method\" value=\"PUT\"><div class=\"editor-surface\" data-testid=\"note-edit-surface\"><textarea id=\"cm-content\" name=\"content\" rows=\"20\" spellcheck=\"false\" style=\"width: 100%; min-height: 24rem; background: var(--color-bg-dark); color: var(--color-fg); border: 0; padding: 0.75rem 1rem; font-family: var(--font-mono); font-size: 0.875rem; resize: vertical;\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" hx-put=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Content)
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(string(noteFormAction(vm.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 64, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 49, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</textarea><div id=\"cm-editor\" data-testid=\"cm-editor\"></div></div><div style=\"display: flex; gap: 0.5rem;\"><button class=\"btn btn-primary\" type=\"submit\">Speichern</button> <a class=\"btn\" href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" hx-target=\"body\" hx-swap=\"outerHTML\" hx-confirm=\"Speichern und schließen?\" data-testid=\"note-edit-form\" style=\"display: flex; flex-direction: column; gap: 1rem;\"><!-- HTML forms cannot natively PUT; the handler accepts a\n\t\t     POST with _method=PUT for the no-JS fallback. The standard\n\t\t     path is via the hx-put attribute below, which HTMX upgrades\n\t\t     to a true PUT when JS is available. --><input type=\"hidden\" name=\"_method\" value=\"PUT\"><div class=\"editor-surface\" data-testid=\"note-edit-surface\"><textarea id=\"cm-content\" name=\"content\" rows=\"20\" spellcheck=\"false\" style=\"width: 100%; min-height: 24rem; background: var(--color-bg-dark); color: var(--color-fg); border: 0; padding: 0.75rem 1rem; font-family: var(--font-mono); font-size: 0.875rem; resize: vertical;\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var9 templ.SafeURL = noteViewHref(vm.ID)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var9)))
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Content)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 68, Col: 16}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">Abbrechen</a></div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</textarea><div id=\"cm-editor\" data-testid=\"cm-editor\"></div></div><div style=\"display: flex; gap: 0.5rem;\"><button class=\"btn btn-primary\" type=\"submit\">Speichern</button> <a class=\"btn\" href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 templ.SafeURL = noteViewHref(vm.ID)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var10)))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">Abbrechen</a></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -213,12 +226,12 @@ func editFooter() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"page-footer-note\"><span>flow · phase 1 · m7 · notes · edit</span> <span>letzter Schreibgewinn (last-write-wins) — Phase 2 ergänzt OCC</span></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"page-footer-note\"><span>flow · phase 1 · m7 · notes · edit</span> <span>letzter Schreibgewinn (last-write-wins) — Phase 2 ergänzt OCC</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -248,12 +261,12 @@ func editBootScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var11 == nil {
-			templ_7745c5c3_Var11 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<script>\n\t\t(function () {\n\t\t\tfunction boot() {\n\t\t\t\tif (window.initNoteEditor) {\n\t\t\t\t\twindow.initNoteEditor(\"cm-editor\", \"cm-content\");\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (document.readyState === \"loading\") {\n\t\t\t\tdocument.addEventListener(\"DOMContentLoaded\", boot);\n\t\t\t} else {\n\t\t\t\tboot();\n\t\t\t}\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<script>\n\t\t(function () {\n\t\t\tfunction boot() {\n\t\t\t\tif (window.initNoteEditor) {\n\t\t\t\t\twindow.initNoteEditor(\"cm-editor\", \"cm-content\");\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (document.readyState === \"loading\") {\n\t\t\t\tdocument.addEventListener(\"DOMContentLoaded\", boot);\n\t\t\t} else {\n\t\t\t\tboot();\n\t\t\t}\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
