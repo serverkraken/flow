@@ -72,7 +72,8 @@ func NewDashboard(d DashboardDeps) http.Handler {
 
 		vm, err := buildDashboardVM(d, u, now)
 		if err != nil {
-			slog.Error("dashboard: build view-model failed",
+			slog.Error(
+				"dashboard: build view-model failed",
 				slog.String("user_id", u.ID),
 				slog.String("error", err.Error()),
 			)
@@ -94,7 +95,8 @@ func NewDashboard(d DashboardDeps) http.Handler {
 			},
 		}
 		if err := layout.Base(meta, dashboard.Index(vm)).Render(r.Context(), w); err != nil {
-			slog.Error("dashboard: render failed",
+			slog.Error(
+				"dashboard: render failed",
 				slog.String("user_id", u.ID),
 				slog.String("error", err.Error()),
 			)
@@ -113,7 +115,7 @@ func NewDashboard(d DashboardDeps) http.Handler {
 func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.ViewModel, error) {
 	vm := dashboard.ViewModel{
 		Now:         now,
-		HeaderLine:  format.FormatGermanDateHeader(now),
+		HeaderLine:  format.GermanDateHeader(now),
 		HeaderTitle: "Heute · Übersicht",
 		NowHour:     now.Hour(),
 	}
@@ -124,9 +126,9 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 	}
 	todayTotal := today.Total(now)
 	saldoToday := todayTotal - today.Target
-	vm.TodayTotal = format.FormatHHMM(todayTotal)
-	vm.TodayTarget = format.FormatHHMM(today.Target)
-	vm.TodaySaldo = format.FormatSignedHHMM(saldoToday)
+	vm.TodayTotal = format.HHMM(todayTotal)
+	vm.TodayTarget = format.HHMM(today.Target)
+	vm.TodaySaldo = format.SignedHHMM(saldoToday)
 	vm.TodaySaldoPos = saldoToday >= 0
 
 	// Week saldo aggregates the WeekDay rows.
@@ -136,10 +138,10 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 	}
 	weekLogged, weekTarget := dashboard.WeekTotals(week, now)
 	saldoWeek := weekLogged - weekTarget
-	vm.WeekSaldo = format.FormatSignedHHMM(saldoWeek)
+	vm.WeekSaldo = format.SignedHHMM(saldoWeek)
 	vm.WeekSaldoPos = saldoWeek >= 0
-	vm.WeekLogged = format.FormatHHMM(weekLogged)
-	vm.WeekTarget = format.FormatHHMM(weekTarget)
+	vm.WeekLogged = format.HHMM(weekLogged)
+	vm.WeekTarget = format.HHMM(weekTarget)
 
 	// Active session lookup. Server enforces ≤1 per user; pick first.
 	activeRows, err := d.Active.ListByUser(u.ID)

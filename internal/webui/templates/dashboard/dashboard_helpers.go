@@ -18,8 +18,8 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// ActivityEvent is one row in the activity stream. Kind switches the
-// dot color + glyph and the localised verb in the renderer. M6 only
+// ActivityKind tags each row in the activity stream. The kind switches
+// the dot color + glyph and the localised verb in the renderer. M6 only
 // emits SessionStarted / SessionStopped — Note + Conflict event types
 // land later when an EventLog table exists.
 type ActivityKind int

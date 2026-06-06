@@ -61,7 +61,8 @@ func (m Model) openViewer() Model {
 		out, _ := markdown.Render(src, w, opts...)
 		return out
 	}
-	v := markdown_overlay.New(render,
+	v := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle(title),
 		markdown_overlay.WithSource(source),
 		markdown_overlay.WithSearch(),

@@ -88,11 +88,11 @@ func TestProjectCreate_HappyPath_RestoresButtonAndOOBRow(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain(t, body, []string{
-		`data-testid="new-project-btn"`,           // button restored
-		`hx-swap-oob="afterbegin"`,                // OOB row swap
-		`data-testid="projects-row"`,              // new row
-		`Flow Refactor`,                           // name rendered
-		`flow-refactor`,                           // slug rendered
+		`data-testid="new-project-btn"`, // button restored
+		`hx-swap-oob="afterbegin"`,      // OOB row swap
+		`data-testid="projects-row"`,    // new row
+		`Flow Refactor`,                 // name rendered
+		`flow-refactor`,                 // slug rendered
 	})
 
 	// Persisted with the slugified slug.
@@ -440,8 +440,8 @@ func TestProjectArchive_HappyPath_ReturnsArchivedRow(t *testing.T) {
 	body := rr.Body.String()
 	mustContain(t, body, []string{
 		`data-testid="projects-row"`,
-		`archiviert`,        // the row's "Zuletzt" cell renders the archive label
-		`is-archived`,       // glyph + name pick up the archived class
+		`archiviert`,  // the row's "Zuletzt" cell renders the archive label
+		`is-archived`, // glyph + name pick up the archived class
 	})
 
 	// Persistence: archived_at is now set.
@@ -583,7 +583,7 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 
 	client := &http.Client{
 		Jar: jar,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			// Stop on the first redirect — a redirect to /auth/landing
 			// means the middleware rejected the cookie (test bug).
 			return http.ErrUseLastResponse
@@ -597,7 +597,7 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("POST /projects: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("POST /projects status: got %d, want 200 — wiring regression?", resp.StatusCode)
@@ -629,6 +629,7 @@ type fakeProvider struct {
 func (f fakeProvider) Verify(_ context.Context, _ string) (ports.Identity, error) {
 	return f.id, nil
 }
+
 func (fakeProvider) Endpoint() (authURL, tokenURL string) {
 	return "https://idp.example/auth", "https://idp.example/token"
 }

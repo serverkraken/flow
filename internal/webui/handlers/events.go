@@ -15,6 +15,7 @@
 // Reconnect is the browser's job — EventSource auto-reconnects on
 // disconnect with a `retry:` interval we don't override. The handler
 // returns immediately on context cancel; no goroutine leaks.
+
 package handlers
 
 import (

@@ -125,9 +125,9 @@ func TestDashboard_RendersExpectedShape(t *testing.T) {
 
 	body := rr.Body.String()
 	mustContain := []string{
-		"webui-mockups",       // project name in live banner / activity row
-		"▶",                   // active marker glyph
-		"daybar",              // day-bar section rendered
+		"webui-mockups", // project name in live banner / activity row
+		"▶",             // active marker glyph
+		"daybar",        // day-bar section rendered
 		"data-testid=\"daybar\"",
 		"Heute · Übersicht",   // tiny header title
 		"aktive session",      // banner eyebrow

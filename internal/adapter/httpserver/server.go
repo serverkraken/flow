@@ -76,136 +76,152 @@ func NewWithAuth(d AuthDeps) *Server {
 		}
 	})
 
-	// WebUI routes — cookie session, browser auth. Each handler field is
-	// nil-guarded so partial wiring (e.g. notebook root unset) doesn't
-	// crash the rest of the WebUI.
-	if d.WebUI != nil {
-		w := d.WebUI
-
-		// Static assets sit OUTSIDE the cookie group: the login landing
-		// itself needs /static/styles.css to render usefully, and the
-		// embedded fonts/JS bundles are public anyway.
-		if w.StaticFS != nil {
-			r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(w.StaticFS))))
-		}
-
-		r.Group(func(rr chi.Router) {
-			rr.Use(NewBrowserAuthMiddleware(d.Session, d.Cookie.Name, d.Users))
-			if w.Dashboard != nil {
-				rr.Method(http.MethodGet, "/", w.Dashboard)
-			}
-			if w.Worktime != nil {
-				rr.Method(http.MethodGet, "/worktime", w.Worktime)
-			}
-			if w.NotesIndex != nil {
-				rr.Method(http.MethodGet, "/notes", w.NotesIndex)
-			}
-			if w.NotesView != nil {
-				// Multi-segment IDs like projects/serverkraken/flow/foo
-				// require chi's wildcard, captured via URLParam(r, "*").
-				// M7 (Task 12) reuses the same wildcard for the edit
-				// form (suffix `/edit`) — chi cannot disambiguate a
-				// wildcard from a literal trailing segment, so we
-				// dispatch at the handler level via notesGetDispatch.
-				rr.Method(http.MethodGet, "/notes/*", notesGetDispatch(w.NotesView, w.NoteEdit))
-			}
-			if w.NotePut != nil {
-				// PUT shares the same wildcard so multi-segment IDs
-				// route to the right place. method-mux discriminates
-				// GET vs PUT, so there's no conflict with NotesView.
-				rr.Method(http.MethodPut, "/notes/*", w.NotePut)
-			}
-			if w.ReposIndex != nil {
-				rr.Method(http.MethodGet, "/repos", w.ReposIndex)
-			}
-			if w.RepoNote != nil {
-				rr.Method(http.MethodGet, "/repos/{key}/note", w.RepoNote)
-			}
-			if w.RepoNoteEdit != nil {
-				rr.Method(http.MethodGet, "/repos/{key}/note/edit", w.RepoNoteEdit)
-			}
-			if w.RepoNotePut != nil {
-				rr.Method(http.MethodPut, "/repos/{key}/note", w.RepoNotePut)
-			}
-			if w.Projects != nil {
-				rr.Method(http.MethodGet, "/projects", w.Projects)
-			}
-			if w.Settings != nil {
-				rr.Method(http.MethodGet, "/settings", w.Settings)
-			}
-
-			// — M7 project write surface ----------------------------
-			// Each handler is nil-guarded so partial wiring degrades
-			// gracefully. The /projects/new + /projects/new/cancel
-			// routes power the button↔form swap; /projects POST
-			// creates; /projects/{id}/edit + PUT /projects/{id}
-			// rename; POST /projects/{id}/archive soft-deletes.
-			if w.ProjectNewForm != nil {
-				rr.Method(http.MethodGet, "/projects/new", w.ProjectNewForm)
-			}
-			if w.ProjectNewCancel != nil {
-				rr.Method(http.MethodGet, "/projects/new/cancel", w.ProjectNewCancel)
-			}
-			if w.ProjectCreate != nil {
-				rr.Method(http.MethodPost, "/projects", w.ProjectCreate)
-			}
-			if w.ProjectEdit != nil {
-				rr.Method(http.MethodGet, "/projects/{id}/edit", w.ProjectEdit)
-			}
-			if w.ProjectPut != nil {
-				rr.Method(http.MethodPut, "/projects/{id}", w.ProjectPut)
-			}
-			if w.ProjectArchive != nil {
-				rr.Method(http.MethodPost, "/projects/{id}/archive", w.ProjectArchive)
-			}
-
-			// — M7 session write surface ----------------------------
-			// All five routes share the cookie-auth group; each
-			// handler is nil-guarded so partial wiring degrades
-			// gracefully.
-			if w.SessionEdit != nil {
-				rr.Method(http.MethodGet, "/worktime/sessions/{id}/edit", w.SessionEdit)
-			}
-			if w.SessionPut != nil {
-				rr.Method(http.MethodPut, "/worktime/sessions/{id}", w.SessionPut)
-			}
-			if w.SessionDelete != nil {
-				rr.Method(http.MethodDelete, "/worktime/sessions/{id}", w.SessionDelete)
-			}
-			if w.ActiveStart != nil {
-				// Both path-style and body-style accepted; the inline
-				// "Neue Session" picker uses /worktime/active/start
-				// with project_id in the form, the API-shaped path
-				// is kept for parity.
-				rr.Method(http.MethodPost, "/worktime/active/start", w.ActiveStart)
-				rr.Method(http.MethodPost, "/worktime/active/{project_id}/start", w.ActiveStart)
-			}
-			if w.ActiveStop != nil {
-				rr.Method(http.MethodPost, "/worktime/active/stop", w.ActiveStop)
-			}
-
-			// — M7 / Task 14. Server-Sent-Events stream for live
-			// dashboard updates. Sits inside the cookie group so the
-			// browser's EventSource authenticates with the session
-			// cookie; bearer-clients have their own surface and
-			// don't need SSE in phase 1.
-			if w.Events != nil {
-				rr.Method(http.MethodGet, "/api/v1/events", w.Events)
-			}
-		})
-
-		// Auth landing is mounted OUTSIDE the cookie group — the
-		// middleware redirects unauthenticated traffic here, so it
-		// MUST be reachable without a session cookie (chicken/egg).
-		// The BrowserAuthMiddleware's internal LandingPath bypass is
-		// defence in depth; this explicit out-of-group registration
-		// is the real escape hatch.
-		if w.AuthLanding != nil {
-			r.Method(http.MethodGet, LandingPath, w.AuthLanding)
-		}
-	}
+	mountWebUI(r, d)
 
 	return &Server{router: r, baseURL: d.BaseURL}
+}
+
+// mountWebUI wires the WebUI surface onto r. Split out of NewWithAuth to
+// keep the composition root's cognitive complexity below the lint gate;
+// the function is purely declarative (each `if` is a nil-guard around a
+// single route registration). Each handler field is nil-guarded so
+// partial wiring (e.g. notebook root unset) doesn't crash the rest of
+// the WebUI.
+func mountWebUI(r chi.Router, d AuthDeps) {
+	if d.WebUI == nil {
+		return
+	}
+	w := d.WebUI
+
+	// Static assets sit OUTSIDE the cookie group: the login landing
+	// itself needs /static/styles.css to render usefully, and the
+	// embedded fonts/JS bundles are public anyway.
+	if w.StaticFS != nil {
+		r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(w.StaticFS))))
+	}
+
+	r.Group(func(rr chi.Router) {
+		rr.Use(NewBrowserAuthMiddleware(d.Session, d.Cookie.Name, d.Users))
+		mountWebUIRead(rr, w)
+		mountWebUIProjectWrites(rr, w)
+		mountWebUISessionWrites(rr, w)
+
+		// — M7 / Task 14. Server-Sent-Events stream for live
+		// dashboard updates. Sits inside the cookie group so the
+		// browser's EventSource authenticates with the session
+		// cookie; bearer-clients have their own surface and
+		// don't need SSE in phase 1.
+		if w.Events != nil {
+			rr.Method(http.MethodGet, "/api/v1/events", w.Events)
+		}
+	})
+
+	// Auth landing is mounted OUTSIDE the cookie group — the
+	// middleware redirects unauthenticated traffic here, so it
+	// MUST be reachable without a session cookie (chicken/egg).
+	// The BrowserAuthMiddleware's internal LandingPath bypass is
+	// defence in depth; this explicit out-of-group registration
+	// is the real escape hatch.
+	if w.AuthLanding != nil {
+		r.Method(http.MethodGet, LandingPath, w.AuthLanding)
+	}
+}
+
+// mountWebUIRead wires the read-only WebUI routes (dashboard, worktime,
+// notes, repos, projects, settings).
+func mountWebUIRead(rr chi.Router, w *WebUIHandlers) {
+	if w.Dashboard != nil {
+		rr.Method(http.MethodGet, "/", w.Dashboard)
+	}
+	if w.Worktime != nil {
+		rr.Method(http.MethodGet, "/worktime", w.Worktime)
+	}
+	if w.NotesIndex != nil {
+		rr.Method(http.MethodGet, "/notes", w.NotesIndex)
+	}
+	if w.NotesView != nil {
+		// Multi-segment IDs like projects/serverkraken/flow/foo
+		// require chi's wildcard, captured via URLParam(r, "*").
+		// M7 (Task 12) reuses the same wildcard for the edit
+		// form (suffix `/edit`) — chi cannot disambiguate a
+		// wildcard from a literal trailing segment, so we
+		// dispatch at the handler level via notesGetDispatch.
+		rr.Method(http.MethodGet, "/notes/*", notesGetDispatch(w.NotesView, w.NoteEdit))
+	}
+	if w.NotePut != nil {
+		// PUT shares the same wildcard so multi-segment IDs
+		// route to the right place. method-mux discriminates
+		// GET vs PUT, so there's no conflict with NotesView.
+		rr.Method(http.MethodPut, "/notes/*", w.NotePut)
+	}
+	if w.ReposIndex != nil {
+		rr.Method(http.MethodGet, "/repos", w.ReposIndex)
+	}
+	if w.RepoNote != nil {
+		rr.Method(http.MethodGet, "/repos/{key}/note", w.RepoNote)
+	}
+	if w.RepoNoteEdit != nil {
+		rr.Method(http.MethodGet, "/repos/{key}/note/edit", w.RepoNoteEdit)
+	}
+	if w.RepoNotePut != nil {
+		rr.Method(http.MethodPut, "/repos/{key}/note", w.RepoNotePut)
+	}
+	if w.Projects != nil {
+		rr.Method(http.MethodGet, "/projects", w.Projects)
+	}
+	if w.Settings != nil {
+		rr.Method(http.MethodGet, "/settings", w.Settings)
+	}
+}
+
+// mountWebUIProjectWrites wires the M7 project write surface. The
+// /projects/new + /projects/new/cancel routes power the button↔form
+// swap; /projects POST creates; /projects/{id}/edit + PUT /projects/{id}
+// rename; POST /projects/{id}/archive soft-deletes.
+func mountWebUIProjectWrites(rr chi.Router, w *WebUIHandlers) {
+	if w.ProjectNewForm != nil {
+		rr.Method(http.MethodGet, "/projects/new", w.ProjectNewForm)
+	}
+	if w.ProjectNewCancel != nil {
+		rr.Method(http.MethodGet, "/projects/new/cancel", w.ProjectNewCancel)
+	}
+	if w.ProjectCreate != nil {
+		rr.Method(http.MethodPost, "/projects", w.ProjectCreate)
+	}
+	if w.ProjectEdit != nil {
+		rr.Method(http.MethodGet, "/projects/{id}/edit", w.ProjectEdit)
+	}
+	if w.ProjectPut != nil {
+		rr.Method(http.MethodPut, "/projects/{id}", w.ProjectPut)
+	}
+	if w.ProjectArchive != nil {
+		rr.Method(http.MethodPost, "/projects/{id}/archive", w.ProjectArchive)
+	}
+}
+
+// mountWebUISessionWrites wires the M7 session write surface — five
+// routes for session edit/put/delete and active start/stop.
+func mountWebUISessionWrites(rr chi.Router, w *WebUIHandlers) {
+	if w.SessionEdit != nil {
+		rr.Method(http.MethodGet, "/worktime/sessions/{id}/edit", w.SessionEdit)
+	}
+	if w.SessionPut != nil {
+		rr.Method(http.MethodPut, "/worktime/sessions/{id}", w.SessionPut)
+	}
+	if w.SessionDelete != nil {
+		rr.Method(http.MethodDelete, "/worktime/sessions/{id}", w.SessionDelete)
+	}
+	if w.ActiveStart != nil {
+		// Both path-style and body-style accepted; the inline
+		// "Neue Session" picker uses /worktime/active/start
+		// with project_id in the form, the API-shaped path
+		// is kept for parity.
+		rr.Method(http.MethodPost, "/worktime/active/start", w.ActiveStart)
+		rr.Method(http.MethodPost, "/worktime/active/{project_id}/start", w.ActiveStart)
+	}
+	if w.ActiveStop != nil {
+		rr.Method(http.MethodPost, "/worktime/active/stop", w.ActiveStop)
+	}
 }
 
 // SetBaseURL allows tests to swap baseURL after the server is constructed

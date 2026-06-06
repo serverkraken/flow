@@ -62,7 +62,8 @@ func NewBrowserAuthMiddleware(
 // (i.e. unauthenticated request that slipped past the middleware).
 func SessionValueFromContext(ctx interface {
 	Value(any) any
-}) (sub, email, name string, ok bool) {
+},
+) (sub, email, name string, ok bool) {
 	sv, ok := ctx.Value(ctxKeySession).(sessionValue)
 	if !ok {
 		return "", "", "", false

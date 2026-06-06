@@ -8,6 +8,7 @@
 // WebUI may be nil — the WebUI route group is gated on `if d.WebUI != nil`
 // so the existing /api/v1/* bearer routes still work when the WebUI is
 // not configured (e.g. headless smoke tests).
+
 package httpserver
 
 import (

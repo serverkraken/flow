@@ -22,18 +22,21 @@ func formatSessionEditBody(local, server domain.Session) string {
 	var sb strings.Builder
 
 	sb.WriteString("Lokal:                      Server:\n")
-	fmt.Fprintf(&sb, "  %-28s%s\n",
+	fmt.Fprintf(
+		&sb, "  %-28s%s\n",
 		formatSessionTime(local),
 		formatSessionTime(server),
 	)
 	if local.Tag != "" || server.Tag != "" {
-		fmt.Fprintf(&sb, "  %-28s%s\n",
+		fmt.Fprintf(
+			&sb, "  %-28s%s\n",
 			truncate28(local.Tag),
 			server.Tag,
 		)
 	}
 	if local.Note != "" || server.Note != "" {
-		fmt.Fprintf(&sb, "  %-28s%s\n",
+		fmt.Fprintf(
+			&sb, "  %-28s%s\n",
 			truncate28(local.Note),
 			server.Note,
 		)
@@ -58,7 +61,8 @@ func formatActiveRaceBody(s domain.ActiveSession) string {
 		fmt.Fprintf(&sb, "  Projekt: %s\n", s.ProjectID)
 	}
 	since := time.Since(s.StartedAt)
-	fmt.Fprintf(&sb, "  Gestartet: %s (vor %s)\n",
+	fmt.Fprintf(
+		&sb, "  Gestartet: %s (vor %s)\n",
 		s.StartedAt.Format("15:04"),
 		formatDuration(since),
 	)
@@ -79,7 +83,8 @@ func formatSessionTime(s domain.Session) string {
 	if s.Elapsed > 0 {
 		elapsed = s.Elapsed
 	}
-	return fmt.Sprintf("%s – %s · %s",
+	return fmt.Sprintf(
+		"%s – %s · %s",
 		s.Start.Format("15:04"),
 		s.Stop.Format("15:04"),
 		formatDuration(elapsed),

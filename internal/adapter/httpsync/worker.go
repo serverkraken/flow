@@ -482,7 +482,8 @@ func (w *Worker) emitConflictFromError(_ context.Context, resource, rowID string
 	select {
 	case w.conflicts <- msg:
 	default:
-		slog.Warn("sync: conflict channel full, dropping",
+		slog.Warn(
+			"sync: conflict channel full, dropping",
 			slog.String("resource", resource),
 			slog.String("row_id", rowID),
 		)

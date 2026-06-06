@@ -54,13 +54,13 @@ func TestSettings_RendersIdentityFromContext(t *testing.T) {
 	body := rr.Body.String()
 	mustContain := []string{
 		`data-testid="settings-identity"`,
-		"alice@example.test",      // email shows in Identität + eyebrow
-		"sub|alice",               // sub shows in Identität
-		"Alice",                   // display name
-		"authentik.example.test",  // issuer URL
-		"openid · email",          // hardcoded scopes
-		"Phase 1 · M6/M7",         // Phase label
-		"3d 14h 22m",              // uptime label
+		"alice@example.test",     // email shows in Identität + eyebrow
+		"sub|alice",              // sub shows in Identität
+		"Alice",                  // display name
+		"authentik.example.test", // issuer URL
+		"openid · email",         // hardcoded scopes
+		"Phase 1 · M6/M7",        // Phase label
+		"3d 14h 22m",             // uptime label
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {

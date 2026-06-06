@@ -33,17 +33,6 @@ func mkWorktimeDeps(store *sqliteserver.Store, now time.Time) handlers.WorktimeD
 	}
 }
 
-func wtReq(t *testing.T, target string, withUser bool, store *sqliteserver.Store, suffix string) (*http.Request, *sqliteserver.Store) {
-	t.Helper()
-	r := httptest.NewRequest(http.MethodGet, target, nil)
-	if withUser {
-		u := seedUser(t, store, suffix)
-		ctx := httpserver.WithUser(r.Context(), u)
-		r = r.WithContext(ctx)
-	}
-	return r, store
-}
-
 // — Heute —
 
 func TestWorktime_TabHeute_WithActiveSession_RendersBannerAndTable(t *testing.T) {
@@ -73,14 +62,14 @@ func TestWorktime_TabHeute_WithActiveSession_RendersBannerAndTable(t *testing.T)
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		"webui-mockups",          // project name appears
-		"aktive session",         // live banner eyebrow
-		"sessions-table",         // table rendered
-		"data-testid=\"daybar\"", // rail daybar
-		"saldo-stripe",           // saldo-stripe class
-		"Sessions heute",         // section heading
-		"Heute · Ist",            // first saldo cell label
-		"Saldo · Jahr",           // third saldo cell label
+		"webui-mockups",            // project name appears
+		"aktive session",           // live banner eyebrow
+		"sessions-table",           // table rendered
+		"data-testid=\"daybar\"",   // rail daybar
+		"saldo-stripe",             // saldo-stripe class
+		"Sessions heute",           // section heading
+		"Heute · Ist",              // first saldo cell label
+		"Saldo · Jahr",             // third saldo cell label
 		`class="subtab is-active"`, // active sub-tab
 	}
 	for _, s := range mustContain {
@@ -141,17 +130,17 @@ func TestWorktime_TabWoche_RendersChartAndSaldo(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		`id="week-chart-data"`,                // JSON block exists
-		`type="application/json"`,             // JSON block type
-		`initWeekChart`,                       // init script reference
-		`/static/charts-init.js`,              // js include
-		"Verteilung · Mo — So",                // chart section heading
-		"Nach Projekt",                         // proj list heading
-		"Nach Tag",                            // tag list heading
-		"12-Wochen-Saldo",                     // rail head
-		`id="week-saldo-data"`,                // sparkline JSON block
-		"Ist · Woche",                         // saldo stripe label
-		"Soll · Woche",                        // saldo stripe label
+		`id="week-chart-data"`,    // JSON block exists
+		`type="application/json"`, // JSON block type
+		`initWeekChart`,           // init script reference
+		`/static/charts-init.js`,  // js include
+		"Verteilung · Mo — So",    // chart section heading
+		"Nach Projekt",            // proj list heading
+		"Nach Tag",                // tag list heading
+		"12-Wochen-Saldo",         // rail head
+		`id="week-saldo-data"`,    // sparkline JSON block
+		"Ist · Woche",             // saldo stripe label
+		"Soll · Woche",            // saldo stripe label
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {

@@ -1,6 +1,8 @@
-// helpers.go — small string helpers usable from the templ files in
-// this package. Kept minimal; per the per-handler-Deps convention these
-// templates never touch I/O or business logic.
+// Package partials holds the templ-generated worktime partials plus the
+// tiny string helpers they call inline (e.g. intToStr for hx-headers
+// JSON, hidden version inputs). The package never touches I/O or
+// business logic — view-models are built upstream in the handlers
+// package per the per-handler-Deps convention.
 package partials
 
 import "strconv"

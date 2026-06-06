@@ -100,7 +100,8 @@ func (m Model) handleConflictMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if err := m.deps.ActiveSessions.ForceTakeover(
 				msg.userID, msg.projectID, msg.currentServerVersion,
 			); err != nil {
-				slog.Warn("worktime: ForceTakeover failed",
+				slog.Warn(
+					"worktime: ForceTakeover failed",
 					"userID", msg.userID,
 					"projectID", msg.projectID,
 					"err", err,
@@ -148,7 +149,8 @@ func (m Model) buildConflictOverlay(msg ports.ConflictMsg) (*conflict_overlay.Mo
 		local, lok := msg.Local.(domain.Session)
 		server, sok := msg.Server.(domain.Session)
 		if !lok || !sok {
-			slog.Warn("worktime: sessions conflict has unexpected payload types",
+			slog.Warn(
+				"worktime: sessions conflict has unexpected payload types",
 				"local_type", fmt.Sprintf("%T", msg.Local),
 				"server_type", fmt.Sprintf("%T", msg.Server),
 				"row_id", msg.RowID,
@@ -171,7 +173,8 @@ func (m Model) buildConflictOverlay(msg ports.ConflictMsg) (*conflict_overlay.Mo
 	case "active_sessions", "active_sessions_stop":
 		server, ok := msg.Server.(domain.ActiveSession)
 		if !ok {
-			slog.Warn("worktime: active_sessions conflict has unexpected Server type",
+			slog.Warn(
+				"worktime: active_sessions conflict has unexpected Server type",
 				"server_type", fmt.Sprintf("%T", msg.Server),
 				"row_id", msg.RowID,
 			)

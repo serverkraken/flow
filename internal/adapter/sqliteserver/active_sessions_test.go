@@ -185,7 +185,8 @@ func TestUnit_ServerActiveSessions_Stop_Atomicity(t *testing.T) {
 	var activeCount int
 	if err := store.DB().QueryRow(
 		`SELECT COUNT(*) FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		u.ID, p.ID).Scan(&activeCount); err != nil {
+		u.ID, p.ID,
+	).Scan(&activeCount); err != nil {
 		t.Fatalf("count active_sessions: %v", err)
 	}
 	if activeCount != 0 {
@@ -195,7 +196,8 @@ func TestUnit_ServerActiveSessions_Stop_Atomicity(t *testing.T) {
 	// sessions row must exist.
 	var sessCount int
 	if err := store.DB().QueryRow(
-		`SELECT COUNT(*) FROM sessions WHERE id = ?`, sess.ID).Scan(&sessCount); err != nil {
+		`SELECT COUNT(*) FROM sessions WHERE id = ?`, sess.ID,
+	).Scan(&sessCount); err != nil {
 		t.Fatalf("count sessions: %v", err)
 	}
 	if sessCount != 1 {
@@ -253,12 +255,14 @@ func TestUnit_ServerActiveSessions_Stop_WrongVersion_Conflict_NoSideEffects(t *t
 	var activeBefore, sessBefore int
 	if err := store.DB().QueryRow(
 		`SELECT COUNT(*) FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		u.ID, p.ID).Scan(&activeBefore); err != nil {
+		u.ID, p.ID,
+	).Scan(&activeBefore); err != nil {
 		t.Fatalf("count active_sessions before: %v", err)
 	}
 	if err := store.DB().QueryRow(
 		`SELECT COUNT(*) FROM sessions WHERE user_id = ? AND project_id = ?`,
-		u.ID, p.ID).Scan(&sessBefore); err != nil {
+		u.ID, p.ID,
+	).Scan(&sessBefore); err != nil {
 		t.Fatalf("count sessions before: %v", err)
 	}
 
@@ -271,12 +275,14 @@ func TestUnit_ServerActiveSessions_Stop_WrongVersion_Conflict_NoSideEffects(t *t
 	var activeAfter, sessAfter int
 	if err := store.DB().QueryRow(
 		`SELECT COUNT(*) FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		u.ID, p.ID).Scan(&activeAfter); err != nil {
+		u.ID, p.ID,
+	).Scan(&activeAfter); err != nil {
 		t.Fatalf("count active_sessions after: %v", err)
 	}
 	if err := store.DB().QueryRow(
 		`SELECT COUNT(*) FROM sessions WHERE user_id = ? AND project_id = ?`,
-		u.ID, p.ID).Scan(&sessAfter); err != nil {
+		u.ID, p.ID,
+	).Scan(&sessAfter); err != nil {
 		t.Fatalf("count sessions after: %v", err)
 	}
 	if activeAfter != activeBefore {

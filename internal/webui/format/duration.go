@@ -13,10 +13,10 @@ import (
 	"time"
 )
 
-// FormatHHMM renders a duration as "H:MM" (with no leading sign).
+// HHMM renders a duration as "H:MM" (with no leading sign).
 // Negative durations are clamped to 0 — callers that want a signed
-// readout should call FormatSignedHHMM instead.
-func FormatHHMM(d time.Duration) string {
+// readout should call SignedHHMM instead.
+func HHMM(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
@@ -25,9 +25,9 @@ func FormatHHMM(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d", h, m)
 }
 
-// FormatSignedHHMM renders a duration as "+H:MM" / "-H:MM" / "0:00".
+// SignedHHMM renders a duration as "+H:MM" / "-H:MM" / "0:00".
 // Used for saldo readouts where the sign carries meaning.
-func FormatSignedHHMM(d time.Duration) string {
+func SignedHHMM(d time.Duration) string {
 	if d == 0 {
 		return "0:00"
 	}

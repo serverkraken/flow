@@ -48,7 +48,8 @@ func TestGolden(t *testing.T) {
 				render := func(_ string, _ int) string {
 					return "alpha foo bar\nbeta foo qux\ngamma"
 				}
-				m := markdown_overlay.New(render,
+				m := markdown_overlay.New(
+					render,
 					markdown_overlay.WithTitle("S"),
 					markdown_overlay.WithSource("x"),
 					markdown_overlay.WithSearch(),
@@ -67,7 +68,8 @@ func TestGolden(t *testing.T) {
 				render := func(_ string, _ int) string {
 					return "alpha\nbeta\ngamma"
 				}
-				m := markdown_overlay.New(render,
+				m := markdown_overlay.New(
+					render,
 					markdown_overlay.WithTitle("S"),
 					markdown_overlay.WithSource("x"),
 					markdown_overlay.WithSearch(),

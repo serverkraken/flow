@@ -103,15 +103,15 @@ func buildNotesViewVM(d NotesDeps, note domain.Note) (notestmpl.ViewVM, error) {
 		html = ""
 	}
 	vm := notestmpl.ViewVM{
-		ID:           note.ID.String(),
-		Title:        notestmpl.TitleOf(note.Meta.Title, note.Body, note.ID.String()),
-		Path:         note.ID.Path(),
-		TypeLabel:    notestmpl.GermanTypeLabel(note.Meta.Type),
-		Tags:         append([]string(nil), note.Meta.Tags...),
-		HTML:         html,
-		CreatedLabel: formatCreatedLabel(note.Meta),
+		ID:            note.ID.String(),
+		Title:         notestmpl.TitleOf(note.Meta.Title, note.Body, note.ID.String()),
+		Path:          note.ID.Path(),
+		TypeLabel:     notestmpl.GermanTypeLabel(note.Meta.Type),
+		Tags:          append([]string(nil), note.Meta.Tags...),
+		HTML:          html,
+		CreatedLabel:  formatCreatedLabel(note.Meta),
 		ModifiedLabel: formatModifiedLabel(d, note),
-		SyncLabel:    "lokal · phase 2",
+		SyncLabel:     "lokal · phase 2",
 		BreadcrumbHrefs: notestmpl.Breadcrumb{
 			NotesHref: "/notes",
 			TypeHref:  breadcrumbTypeHref(note.Meta.Type),
@@ -172,4 +172,3 @@ func breadcrumbTypeHref(t domain.NoteType) string {
 		return "/notes?type=alle"
 	}
 }
-

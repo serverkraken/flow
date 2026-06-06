@@ -30,7 +30,7 @@ import (
 func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) (templ.Component, layout.SpineState, error) {
 	vm := worktime.TodayVM{
 		Header: worktime.PageHeader{
-			Eyebrow: format.FormatGermanDateHeader(now),
+			Eyebrow: format.GermanDateHeader(now),
 			Title:   "Worktime",
 		},
 		NowHour: now.Hour(),
@@ -42,9 +42,9 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 	}
 	todayTotal := today.Total(now)
 	saldoToday := todayTotal - today.Target
-	vm.TodayTotal = format.FormatHHMM(todayTotal)
-	vm.TodayTarget = format.FormatHHMM(today.Target)
-	vm.TodaySaldo = format.FormatSignedHHMM(saldoToday)
+	vm.TodayTotal = format.HHMM(todayTotal)
+	vm.TodayTarget = format.HHMM(today.Target)
+	vm.TodaySaldo = format.SignedHHMM(saldoToday)
 	vm.TodaySaldoPos = saldoToday >= 0
 
 	week, err := d.View.Week(u.ID)
@@ -52,8 +52,8 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 		return nil, layout.SpineState{}, fmt.Errorf("week: %w", err)
 	}
 	weekLogged, weekTarget := weekTotals(week, now)
-	vm.WeekLogged = format.FormatHHMM(weekLogged)
-	vm.WeekTarget = format.FormatHHMM(weekTarget)
+	vm.WeekLogged = format.HHMM(weekLogged)
+	vm.WeekTarget = format.HHMM(weekTarget)
 
 	active, err := firstActiveSession(d, u.ID)
 	if err != nil {
@@ -84,7 +84,7 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 	// year aggregate. M6 reuses the week-saldo so the third stripe cell
 	// renders something deterministic and the layout doesn't shift.
 	yearSaldo := weekLogged - weekTarget
-	vm.YearSaldo = format.FormatSignedHHMM(yearSaldo)
+	vm.YearSaldo = format.SignedHHMM(yearSaldo)
 	vm.YearSaldoPos = yearSaldo >= 0
 	vm.YearSubLabel = "M6: zeigt Woche-Saldo, Jahres-Aggregat folgt in Phase 2"
 
@@ -134,9 +134,9 @@ func renderWeek(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) (
 	}
 	weekLogged, weekTarget := weekTotals(week, now)
 	saldoWeek := weekLogged - weekTarget
-	vm.WeekLogged = format.FormatHHMM(weekLogged)
-	vm.WeekTarget = format.FormatHHMM(weekTarget)
-	vm.WeekSaldo = format.FormatSignedHHMM(saldoWeek)
+	vm.WeekLogged = format.HHMM(weekLogged)
+	vm.WeekTarget = format.HHMM(weekTarget)
+	vm.WeekSaldo = format.SignedHHMM(saldoWeek)
 	vm.WeekSaldoPos = saldoWeek >= 0
 	vm.DaysBooked = countBookedDays(week, now)
 
@@ -170,7 +170,7 @@ func renderWeek(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) (
 	var grand time.Duration
 	vm.ProjectShares, grand = worktime.AggregateProjectShares(weekSessions, now, active, resolveName, 5)
 	vm.TagShares = worktime.AggregateTagShares(weekSessions, now, active)
-	vm.ProjectsTotal = format.FormatHHMM(grand)
+	vm.ProjectsTotal = format.HHMM(grand)
 
 	vm.SessionsCount = len(weekSessions)
 	if active != nil {
@@ -207,7 +207,7 @@ func renderHistory(r *http.Request, d WorktimeDeps, u domain.User, now time.Time
 
 	vm := worktime.HistoryVM{
 		Header: worktime.PageHeader{
-			Eyebrow: format.FormatGermanDateHeader(date),
+			Eyebrow: format.GermanDateHeader(date),
 			Title:   "Worktime",
 		},
 		DayLabel: worktime.FormatGermanDayLabel(date),
@@ -240,9 +240,9 @@ func renderHistory(r *http.Request, d WorktimeDeps, u domain.User, now time.Time
 	target := defaultTargetFor(date, d.View.DefaultTarget)
 	total := worktime.SumDurations(sessions)
 	saldo := total - target
-	vm.DayTotal = format.FormatHHMM(total)
-	vm.DayTarget = format.FormatHHMM(target)
-	vm.DaySaldo = format.FormatSignedHHMM(saldo)
+	vm.DayTotal = format.HHMM(total)
+	vm.DayTarget = format.HHMM(target)
+	vm.DaySaldo = format.SignedHHMM(saldo)
 	vm.DaySaldoPos = saldo >= 0
 	vm.DaySessions = len(sessions)
 
@@ -269,7 +269,7 @@ func renderFrei(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) (
 	// TODO Phase 2: wire DayOffStore on server side, replace placeholder with list.
 	vm := worktime.FreiVM{
 		Header: worktime.PageHeader{
-			Eyebrow: format.FormatGermanDateHeader(now),
+			Eyebrow: format.GermanDateHeader(now),
 			Title:   "Worktime",
 		},
 	}

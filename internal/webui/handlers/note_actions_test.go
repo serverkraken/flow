@@ -318,8 +318,8 @@ func TestRepoNoteEdit_GET_NoExistingNote_RendersEmptyFormVersion0(t *testing.T) 
 	body := rr.Body.String()
 	mustContain(t, body, []string{
 		`data-testid="repo-note-edit-form"`,
-		`value="0"`,            // version=0 for first save
-		`note anlegen`,         // IsNew branch tail in breadcrumb
+		`value="0"`,    // version=0 for first save
+		`note anlegen`, // IsNew branch tail in breadcrumb
 	})
 }
 

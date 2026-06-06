@@ -65,7 +65,8 @@ func mustRun(t *testing.T, dir, name string, args ...string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	// Suppress the default GIT_CONFIG_NOSYSTEM noise by isolating HOME.
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(
+		os.Environ(),
 		"HOME="+filepath.Join(dir, ".home"),
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_SYSTEM=/dev/null",

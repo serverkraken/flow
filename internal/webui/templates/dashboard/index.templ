@@ -208,7 +208,7 @@ templ activityItem(ev ActivityEvent, now time.Time) {
 			<code class="kbd glyph">✓</code>
 			<span>
 				Session beendet · <span style="color: var(--color-fg);">{ ev.ProjectName }</span>
-				<span style="color: var(--color-fg-dim);"> · { format.FormatHHMM(ev.Duration) }</span>
+				<span style="color: var(--color-fg-dim);"> · { format.HHMM(ev.Duration) }</span>
 			</span>
 			<span class="when">{ format.HumanRelativeTime(ev.When, now) }</span>
 		</li>

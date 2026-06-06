@@ -129,12 +129,12 @@ func TestNotesIndex_TypeAlle_ListsAllNotes(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		"Freitag",                       // daily title
-		"flow phase 1 review",           // project title
-		"setup walkthrough",             // free title
-		"4 Notes",                       // total label
-		"data-testid=\"note-list\"",   // list rendered (not empty)
-		`class="subtab is-active"`,      // active sub-tab
+		"Freitag",                   // daily title
+		"flow phase 1 review",       // project title
+		"setup walkthrough",         // free title
+		"4 Notes",                   // total label
+		"data-testid=\"note-list\"", // list rendered (not empty)
+		`class="subtab is-active"`,  // active sub-tab
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {
@@ -254,13 +254,13 @@ func TestNotesView_ValidID_RendersTitleAndBody(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		"flow phase 1 review",                  // title
-		"<article",                             // prose-flow article
-		"data-testid=\"notes-article\"",        // article test marker
-		"data-testid=\"notes-breadcrumb\"",     // breadcrumb test marker
-		"Project",                              // type label in breadcrumb
-		"Phase 2 · Indexer",                    // backlinks placeholder
-		"Metadaten",                            // rail head
+		"flow phase 1 review",              // title
+		"<article",                         // prose-flow article
+		"data-testid=\"notes-article\"",    // article test marker
+		"data-testid=\"notes-breadcrumb\"", // breadcrumb test marker
+		"Project",                          // type label in breadcrumb
+		"Phase 2 · Indexer",                // backlinks placeholder
+		"Metadaten",                        // rail head
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {

@@ -91,13 +91,13 @@ func TestReposIndex_ListsUserRepos_WithNotePresence(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		"flow",                          // display name
-		"dotfiles",                      // second repo
-		"2 Repos · 1 mit Notes",         // total label
-		`data-testid="repo-list"`,       // populated branch
-		`data-testid="repo-item"`,       // at least one row
-		"note ✓",                        // note-presence marker
-		"git@gh.com:serverkraken/flow",  // SSH-style remote display
+		"flow",                         // display name
+		"dotfiles",                     // second repo
+		"2 Repos · 1 mit Notes",        // total label
+		`data-testid="repo-list"`,      // populated branch
+		`data-testid="repo-item"`,      // at least one row
+		"note ✓",                       // note-presence marker
+		"git@gh.com:serverkraken/flow", // SSH-style remote display
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {
@@ -182,12 +182,12 @@ func TestReposNoteView_ValidKey_RendersMarkdownHTML(t *testing.T) {
 		`data-testid="repos-breadcrumb"`,
 		`data-testid="repos-note-meta"`,
 		`data-testid="repos-note-article"`,
-		"<h2",                              // rendered markdown heading
-		"Setup",                            // heading text
-		"<code>make ci</code>",             // inline code rendered
-		"Canonical key",                    // meta strip label
-		key,                                // raw canonical key in the strip
-		"Bearbeiten",                       // M7 / Task 12 — enabled
+		"<h2",                               // rendered markdown heading
+		"Setup",                             // heading text
+		"<code>make ci</code>",              // inline code rendered
+		"Canonical key",                     // meta strip label
+		key,                                 // raw canonical key in the strip
+		"Bearbeiten",                        // M7 / Task 12 — enabled
 		`data-testid="repo-note-edit-link"`, // M7 link to edit form
 	}
 	for _, s := range mustContain {

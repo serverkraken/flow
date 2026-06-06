@@ -17,10 +17,10 @@ func MondayOf(t time.Time) time.Time {
 	return day.AddDate(0, 0, -(wd - 1))
 }
 
-// FormatGermanDateHeader renders "Sa · 06. Juni · KW 23" for the tiny
+// GermanDateHeader renders "Sa · 06. Juni · KW 23" for the tiny
 // header above the two-up numerics. Plain Go date formatting with a
 // hand-rolled German weekday + month table — i18n stays out of M6.
-func FormatGermanDateHeader(t time.Time) string {
+func GermanDateHeader(t time.Time) string {
 	wd := GermanWeekdayShort(t.Weekday())
 	month := GermanMonth(t.Month())
 	_, week := t.ISOWeek()

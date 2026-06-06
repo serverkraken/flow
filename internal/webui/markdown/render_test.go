@@ -53,13 +53,13 @@ func TestRenderer_AllElements(t *testing.T) {
 	body := string(out)
 
 	mustContain := []string{
-		"<h1",                     // h1
-		"Title One",               // h1 text
-		"<h2",                     // h2
-		"Section A",               //
-		"<h3",                     // h3
-		"<strong>bold</strong>",   // bold
-		"<em>italic</em>",         // italic
+		"<h1",                               // h1
+		"Title One",                         // h1 text
+		"<h2",                               // h2
+		"Section A",                         //
+		"<h3",                               // h3
+		"<strong>bold</strong>",             // bold
+		"<em>italic</em>",                   // italic
 		`href="https://flow.example/notes"`, // link href preserved
 		"flow link",                         // link visible text
 		"<code>code</code>",                 // inline code (default goldmark)

@@ -87,7 +87,8 @@ func (s *Sessions) Upsert(in domain.Session, expectedVersion int64) (domain.Sess
 		return domain.Session{}, err
 	}
 	now := time.Now().UTC()
-	if _, err := tx.Exec(`
+	if _, err := tx.Exec(
+		`
 		INSERT INTO sessions (id, user_id, project_id, date, start, stop, elapsed_ns, tag, note, version, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET

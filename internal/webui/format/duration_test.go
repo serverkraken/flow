@@ -20,7 +20,7 @@ func TestFormatHHMM(t *testing.T) {
 		{-time.Hour, "0:00"}, // clamped
 	}
 	for _, c := range cases {
-		if got := format.FormatHHMM(c.in); got != c.want {
+		if got := format.HHMM(c.in); got != c.want {
 			t.Errorf("FormatHHMM(%v): got %q, want %q", c.in, got, c.want)
 		}
 	}
@@ -39,7 +39,7 @@ func TestFormatSignedHHMM(t *testing.T) {
 		{-(8*time.Hour + 0*time.Minute), "-8:00"},
 	}
 	for _, c := range cases {
-		if got := format.FormatSignedHHMM(c.in); got != c.want {
+		if got := format.SignedHHMM(c.in); got != c.want {
 			t.Errorf("FormatSignedHHMM(%v): got %q, want %q", c.in, got, c.want)
 		}
 	}

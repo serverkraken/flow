@@ -57,7 +57,8 @@ func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer) M
 	// can't navigate out of the cheatsheet via b while sidekick is
 	// the host. In standalone mode (flow cheatsheet popup), q closes
 	// via the ExitMsg → tea.Quit path in Update.
-	overlay := markdown_overlay.New(render,
+	overlay := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("Cheatsheet"),
 		markdown_overlay.WithSearch(),
 		markdown_overlay.WithCodeCopy(),

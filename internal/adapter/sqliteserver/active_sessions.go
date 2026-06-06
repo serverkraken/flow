@@ -44,7 +44,8 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 	var curVersion int64
 	switch err := tx.QueryRow(
 		`SELECT version FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		userID, projectID).Scan(&curVersion); {
+		userID, projectID,
+	).Scan(&curVersion); {
 	case errors.Is(err, sql.ErrNoRows):
 		if expectedVersion != 0 {
 			return domain.ActiveSession{}, ports.ErrActiveSessionConflict
@@ -105,7 +106,8 @@ func (a *ActiveSessions) Stop(userID, projectID string, expectedVersion int64, t
 	var curVersion int64
 	if err := tx.QueryRow(
 		`SELECT started_at, tag, note, version FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		userID, projectID).Scan(&startedAt, &startTag, &startNote, &curVersion); err != nil {
+		userID, projectID,
+	).Scan(&startedAt, &startTag, &startNote, &curVersion); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.Session{}, ports.ErrActiveSessionNotFound
 		}
@@ -156,7 +158,8 @@ func (a *ActiveSessions) Stop(userID, projectID string, expectedVersion int64, t
 
 	if _, err := tx.Exec(
 		`DELETE FROM active_sessions WHERE user_id = ? AND project_id = ?`,
-		userID, projectID); err != nil {
+		userID, projectID,
+	); err != nil {
 		return domain.Session{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -196,7 +199,8 @@ func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, er
 		SELECT user_id, project_id, started_at, started_on_device, tag, note, version
 		FROM active_sessions WHERE user_id = ? AND project_id = ?`,
 		userID, projectID).Scan(
-		&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version)
+		&as.UserID, &as.ProjectID, &startedAt, &as.StartedOnDevice, &as.Tag, &as.Note, &as.Version,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ActiveSession{}, ports.ErrActiveSessionNotFound

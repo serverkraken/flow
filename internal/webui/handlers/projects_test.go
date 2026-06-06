@@ -69,20 +69,20 @@ func TestProjectsIndex_ListsActiveAndArchived(t *testing.T) {
 	}
 	body := rr.Body.String()
 	mustContain := []string{
-		"webui-mockups",                       // active row name
-		"inbox-zero",                          // archived row name
-		`data-testid="projects-list"`,         // populated branch
-		`data-testid="projects-totals"`,       // eyebrow
-		"2 Projekte",                          // total label
-		"2 aktiv letzte 7 Tage",               // eyebrow active count
-		"aktiv letzte 7 Tage",                 // eyebrow tail
+		"webui-mockups",                      // active row name
+		"inbox-zero",                         // archived row name
+		`data-testid="projects-list"`,        // populated branch
+		`data-testid="projects-totals"`,      // eyebrow
+		"2 Projekte",                         // total label
+		"2 aktiv letzte 7 Tage",              // eyebrow active count
+		"aktiv letzte 7 Tage",                // eyebrow tail
 		"Zuletzt", "Diese Woche", "Sessions", // grid header
-		"is-archived",                         // archived styling marker
-		"2:30",                                // 1h30 + 1h = 2:30 active week sum
-		`+ Neues Projekt`,                     // M7 disabled button
-		`aria-disabled="true"`,                // disabled M7 button
-		"Worktime-Projekte",                   // sub-tab label
-		"Quellverzeichnisse",                  // sub-tab label
+		"is-archived",          // archived styling marker
+		"2:30",                 // 1h30 + 1h = 2:30 active week sum
+		`+ Neues Projekt`,      // M7 disabled button
+		`aria-disabled="true"`, // disabled M7 button
+		"Worktime-Projekte",    // sub-tab label
+		"Quellverzeichnisse",   // sub-tab label
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {

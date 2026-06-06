@@ -150,7 +150,7 @@ func projectRow(
 	}
 
 	if weekStats.Count > 0 {
-		row.WeekDuration = format.FormatHHMM(weekStats.Total)
+		row.WeekDuration = format.HHMM(weekStats.Total)
 		row.WeekDurationDim = false
 		row.WeekCount = fmt.Sprintf("%d", weekStats.Count)
 	}

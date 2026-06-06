@@ -19,6 +19,7 @@
 // Per-handler-Deps convention: SessionActionsDeps bundles the concrete
 // adapter set the five handlers share. Constructed in
 // cmd/flow-server/main.go alongside Dashboard + Worktime.
+
 package handlers
 
 import (
@@ -121,7 +122,7 @@ func NewSessionEdit(d SessionActionsDeps) http.Handler {
 			ProjectName: projectNameFor(d.Projects, u.ID, s.ProjectID),
 			Tag:         s.Tag,
 			Note:        s.Note,
-			Duration:    format.FormatHHMM(s.Elapsed),
+			Duration:    format.HHMM(s.Elapsed),
 			Version:     s.Version,
 		}
 		if err := partials.SessionForm(form).Render(r.Context(), w); err != nil {
@@ -494,7 +495,7 @@ func buildSessionRowVM(d SessionActionsDeps, userID string, s domain.Session) pa
 		ProjectName: projectNameFor(d.Projects, userID, s.ProjectID),
 		Tag:         s.Tag,
 		Note:        s.Note,
-		Duration:    format.FormatHHMM(s.Elapsed),
+		Duration:    format.HHMM(s.Elapsed),
 		Version:     s.Version,
 	}
 }
@@ -511,7 +512,7 @@ func renderEditFormFromUpdate(ctx context.Context, w http.ResponseWriter, d Sess
 		ProjectName: projectNameFor(d.Projects, userID, s.ProjectID),
 		Tag:         s.Tag,
 		Note:        s.Note,
-		Duration:    format.FormatHHMM(s.Elapsed),
+		Duration:    format.HHMM(s.Elapsed),
 		Version:     version,
 	}
 	_ = partials.SessionForm(form).Render(ctx, w)
@@ -538,7 +539,7 @@ func conflictSideOf(s domain.Session, label string, loc *time.Location) partials
 		DateLabel:  s.Date.In(loc).Format("2006-01-02"),
 		Tag:        s.Tag,
 		Note:       s.Note,
-		DurationS:  format.FormatHHMM(s.Elapsed),
+		DurationS:  format.HHMM(s.Elapsed),
 		StartLabel: s.Start.In(loc).Format("15:04"),
 		StopLabel:  s.Stop.In(loc).Format("15:04"),
 	}

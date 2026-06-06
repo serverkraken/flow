@@ -143,7 +143,8 @@ func splitNoteTail(tail string) (key, action string, ok bool) {
 func renderReposIndex(w http.ResponseWriter, r *http.Request, d ReposDeps, userID string) {
 	repos, _, _, err := d.Repos.PullSince(userID, 0, indexLimit)
 	if err != nil {
-		slog.Error("repos: PullSince failed",
+		slog.Error(
+			"repos: PullSince failed",
 			slog.String("user_id", userID),
 			slog.String("error", err.Error()),
 		)
@@ -173,7 +174,8 @@ func renderReposNoteView(w http.ResponseWriter, r *http.Request, d ReposDeps, us
 		return
 	}
 	if err != nil {
-		slog.Error("repos: GetByCanonicalKey failed",
+		slog.Error(
+			"repos: GetByCanonicalKey failed",
 			slog.String("user_id", userID),
 			slog.String("canonical_key", canonicalKey),
 			slog.String("error", err.Error()),
@@ -189,7 +191,8 @@ func renderReposNoteView(w http.ResponseWriter, r *http.Request, d ReposDeps, us
 	case errors.Is(noteErr, flowports.ErrRepoNoteNotFound):
 		// render the "noch keine Note" branch — vm.HasNote stays false.
 	default:
-		slog.Error("repos: GetByRepo failed",
+		slog.Error(
+			"repos: GetByRepo failed",
 			slog.String("user_id", userID),
 			slog.String("repo_id", repo.ID),
 			slog.String("error", noteErr.Error()),
@@ -207,7 +210,8 @@ func renderReposNoteView(w http.ResponseWriter, r *http.Request, d ReposDeps, us
 		Spine:       layout.SpineState{SyncState: "ok"},
 	}
 	if err := layout.Base(meta, repostmpl.View(vm)).Render(r.Context(), w); err != nil {
-		slog.Error("repos: render view failed",
+		slog.Error(
+			"repos: render view failed",
 			slog.String("canonical_key", canonicalKey),
 			slog.String("error", err.Error()),
 		)

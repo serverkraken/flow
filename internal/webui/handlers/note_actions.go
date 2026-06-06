@@ -23,6 +23,7 @@
 //
 // CSRF: deferred to Phase 2 — single-user hobby surface. Same TODO as
 // session_actions.go.
+
 package handlers
 
 import (
@@ -114,7 +115,8 @@ func NewNoteEdit(d NoteActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("note edit: store.Get failed",
+			slog.Error(
+				"note edit: store.Get failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", idStr),
 				slog.String("err", err.Error()),
@@ -135,7 +137,8 @@ func NewNoteEdit(d NoteActionsDeps) http.Handler {
 			Spine:       layout.SpineState{SyncState: "ok"},
 		}
 		if err := layout.Base(meta, notestmpl.Edit(vm)).Render(r.Context(), w); err != nil {
-			slog.Error("note edit: render failed",
+			slog.Error(
+				"note edit: render failed",
 				slog.String("id", idStr),
 				slog.String("err", err.Error()),
 			)
@@ -189,7 +192,8 @@ func NewNotePut(d NoteActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("note put: store.Get failed",
+			slog.Error(
+				"note put: store.Get failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", idStr),
 				slog.String("err", err.Error()),
@@ -205,7 +209,8 @@ func NewNotePut(d NoteActionsDeps) http.Handler {
 		// single-writer in practice.
 		existing.Body = []byte(content)
 		if err := d.NoteStore.Put(r.Context(), existing); err != nil {
-			slog.Error("note put: store.Put failed",
+			slog.Error(
+				"note put: store.Put failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", idStr),
 				slog.String("err", err.Error()),
@@ -249,7 +254,8 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("repo note edit: GetByCanonicalKey failed",
+			slog.Error(
+				"repo note edit: GetByCanonicalKey failed",
 				slog.String("user_id", u.ID),
 				slog.String("canonical_key", canonicalKey),
 				slog.String("err", err.Error()),
@@ -271,7 +277,8 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 		case errors.Is(nerr, ports.ErrRepoNoteNotFound):
 			isNew = true
 		default:
-			slog.Error("repo note edit: GetByRepo failed",
+			slog.Error(
+				"repo note edit: GetByRepo failed",
 				slog.String("user_id", u.ID),
 				slog.String("repo_id", repo.ID),
 				slog.String("err", nerr.Error()),
@@ -294,7 +301,8 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 			Spine:       layout.SpineState{SyncState: "ok"},
 		}
 		if err := layout.Base(meta, repostmpl.EditNote(vm)).Render(r.Context(), w); err != nil {
-			slog.Error("repo note edit: render failed",
+			slog.Error(
+				"repo note edit: render failed",
 				slog.String("canonical_key", canonicalKey),
 				slog.String("err", err.Error()),
 			)
@@ -341,7 +349,8 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("repo note put: GetByCanonicalKey failed",
+			slog.Error(
+				"repo note put: GetByCanonicalKey failed",
 				slog.String("user_id", u.ID),
 				slog.String("canonical_key", canonicalKey),
 				slog.String("err", err.Error()),
@@ -368,7 +377,8 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 			// doesn't exist yet → treat as fresh insert.
 			version = 0
 		default:
-			slog.Error("repo note put: GetByRepo failed",
+			slog.Error(
+				"repo note put: GetByRepo failed",
 				slog.String("user_id", u.ID),
 				slog.String("repo_id", repo.ID),
 				slog.String("err", nerr.Error()),
@@ -384,7 +394,8 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("repo note put: Upsert failed",
+			slog.Error(
+				"repo note put: Upsert failed",
 				slog.String("user_id", u.ID),
 				slog.String("repo_id", repo.ID),
 				slog.String("err", err.Error()),
@@ -502,7 +513,8 @@ func renderRepoNoteConflict(
 		serverContent = note.Content
 		serverVersion = note.Version
 	} else if !errors.Is(err, ports.ErrRepoNoteNotFound) {
-		slog.Error("repo note put: conflict re-read failed",
+		slog.Error(
+			"repo note put: conflict re-read failed",
 			slog.String("user_id", userID),
 			slog.String("repo_id", repo.ID),
 			slog.String("err", err.Error()),
@@ -525,9 +537,9 @@ func renderRepoNoteConflict(
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusConflict)
 	if err := layout.Base(meta, repostmpl.EditNoteConflict(vm)).Render(r.Context(), w); err != nil {
-		slog.Error("repo note conflict: render failed",
+		slog.Error(
+			"repo note conflict: render failed",
 			slog.String("err", err.Error()),
 		)
 	}
 }
-

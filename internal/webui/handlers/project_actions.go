@@ -25,6 +25,7 @@
 // Per-handler-Deps convention: ProjectActionsDeps bundles the concrete
 // adapters the six handlers share. Constructed in
 // cmd/flow-server/main.go alongside the other M7 deps bags.
+
 package handlers
 
 import (
@@ -76,7 +77,7 @@ func (d ProjectActionsDeps) publish(userID, eventType string, data any) {
 // NewProjectNewForm returns the handler for GET /projects/new. Renders
 // the inline create form which swap-replaces the "+ Neues Projekt"
 // button. Stateless — no DB read needed.
-func NewProjectNewForm(d ProjectActionsDeps) http.Handler {
+func NewProjectNewForm(_ ProjectActionsDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := httpserver.UserFromContext(r.Context()); !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -93,7 +94,7 @@ func NewProjectNewForm(d ProjectActionsDeps) http.Handler {
 // NewProjectNewCancel returns the handler for GET /projects/new/cancel.
 // Renders the button so the user can re-open the form. Symmetric with
 // NewProjectNewForm — same swap target, opposite direction.
-func NewProjectNewCancel(d ProjectActionsDeps) http.Handler {
+func NewProjectNewCancel(_ ProjectActionsDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := httpserver.UserFromContext(r.Context()); !ok {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -144,7 +145,8 @@ func NewProjectCreate(d ProjectActionsDeps) http.Handler {
 
 		slug, err := uniqueSlugFor(d.Projects, u.ID, name)
 		if err != nil {
-			slog.Error("project create: slug resolve failed",
+			slog.Error(
+				"project create: slug resolve failed",
 				slog.String("user_id", u.ID),
 				slog.String("name", name),
 				slog.String("err", err.Error()),
@@ -163,7 +165,8 @@ func NewProjectCreate(d ProjectActionsDeps) http.Handler {
 			// problem that warrants a real adapter-level fix.
 			slug2, slugErr := uniqueSlugFor(d.Projects, u.ID, name)
 			if slugErr != nil {
-				slog.Error("project create: slug resolve failed on retry",
+				slog.Error(
+					"project create: slug resolve failed on retry",
 					slog.String("user_id", u.ID),
 					slog.String("name", name),
 					slog.String("err", slugErr.Error()),
@@ -175,7 +178,8 @@ func NewProjectCreate(d ProjectActionsDeps) http.Handler {
 			created, err = d.Projects.EnsureBySlug(u.ID, name, slug)
 		}
 		if err != nil {
-			slog.Error("project create: EnsureBySlug failed",
+			slog.Error(
+				"project create: EnsureBySlug failed",
 				slog.String("user_id", u.ID),
 				slog.String("slug", slug),
 				slog.String("err", err.Error()),
@@ -218,7 +222,8 @@ func NewProjectEdit(d ProjectActionsDeps) http.Handler {
 			return
 		}
 		if err != nil {
-			slog.Error("project edit: GetByID failed",
+			slog.Error(
+				"project edit: GetByID failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", id),
 				slog.String("err", err.Error()),
@@ -376,7 +381,8 @@ func NewProjectArchive(d ProjectActionsDeps) http.Handler {
 				http.NotFound(w, r)
 				return
 			}
-			slog.Error("project archive: GetByID failed",
+			slog.Error(
+				"project archive: GetByID failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", id),
 				slog.String("err", err.Error()),
@@ -389,7 +395,8 @@ func NewProjectArchive(d ProjectActionsDeps) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 
 		if err := d.Projects.Archive(u.ID, id); err != nil {
-			slog.Error("project archive: Archive failed",
+			slog.Error(
+				"project archive: Archive failed",
 				slog.String("user_id", u.ID),
 				slog.String("id", id),
 				slog.String("err", err.Error()),

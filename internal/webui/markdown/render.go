@@ -49,11 +49,11 @@ func New() *Renderer {
 			parser.WithAutoHeadingID(),
 		),
 		goldmark.WithRendererOptions(
-			// HTML5 output (no XHTML self-closing on void elements).
-			// Hard-wrap stays off: notes break paragraphs with blank
-			// lines explicitly.
-			// Explicitly do NOT set html.WithUnsafe — literal HTML in
-			// notes must stay escaped.
+		// HTML5 output (no XHTML self-closing on void elements).
+		// Hard-wrap stays off: notes break paragraphs with blank
+		// lines explicitly.
+		// Explicitly do NOT set html.WithUnsafe — literal HTML in
+		// notes must stay escaped.
 		),
 	)
 	// Replace goldmark's built-in FencedCodeBlock renderer with a
@@ -248,10 +248,10 @@ func (c *codeBlockRenderer) writeChroma(w util.BufWriter, src []byte, lang strin
 	if err != nil {
 		// Fall back to escaped <pre><code> on tokenize failure so a
 		// broken lexer can't take the whole render down.
-		fmt.Fprintf(w, "<pre><code>%s</code></pre>", template.HTMLEscapeString(string(src)))
+		_, _ = fmt.Fprintf(w, "<pre><code>%s</code></pre>", template.HTMLEscapeString(string(src)))
 		return
 	}
 	if err := formatter.Format(w, style, iter); err != nil {
-		fmt.Fprintf(w, "<pre><code>%s</code></pre>", template.HTMLEscapeString(string(src)))
+		_, _ = fmt.Fprintf(w, "<pre><code>%s</code></pre>", template.HTMLEscapeString(string(src)))
 	}
 }

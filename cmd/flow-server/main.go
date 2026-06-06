@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
-	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
-	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/adapter/oidcserver"
 	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
+	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
+	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/serverkraken/flow/internal/webui"
 	"github.com/serverkraken/flow/internal/webui/handlers"
@@ -297,10 +297,10 @@ func buildWebUIHandlers(
 		SessionDelete: handlers.NewSessionDelete(sessionActionsDeps),
 		ActiveStart:   handlers.NewActiveStart(sessionActionsDeps),
 		ActiveStop:    handlers.NewActiveStop(sessionActionsDeps),
-		NotesIndex: handlers.NewNotesIndex(notesDeps),
-		NotesView:  handlers.NewNotesView(notesDeps),
-		ReposIndex: handlers.NewReposIndex(reposDeps),
-		RepoNote:   handlers.NewRepoNote(reposDeps),
+		NotesIndex:    handlers.NewNotesIndex(notesDeps),
+		NotesView:     handlers.NewNotesView(notesDeps),
+		ReposIndex:    handlers.NewReposIndex(reposDeps),
+		RepoNote:      handlers.NewRepoNote(reposDeps),
 
 		// M7 / Task 12 — note + repo-note editing.
 		NoteEdit:     handlers.NewNoteEdit(noteActionsDeps),

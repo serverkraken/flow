@@ -133,7 +133,8 @@ func renderNotesIndex(w http.ResponseWriter, r *http.Request, d NotesDeps) {
 			Type: tab.AsNoteType(),
 		})
 		if err != nil {
-			slog.Error("notes: list failed",
+			slog.Error(
+				"notes: list failed",
 				slog.String("tab", string(tab)),
 				slog.String("error", err.Error()),
 			)
@@ -222,7 +223,8 @@ func renderNotesView(w http.ResponseWriter, r *http.Request, d NotesDeps, userID
 			renderNotesNotFound(w, r, idStr)
 			return
 		}
-		slog.Error("notes: store.Get failed",
+		slog.Error(
+			"notes: store.Get failed",
 			slog.String("user_id", userID),
 			slog.String("id", idStr),
 			slog.String("error", err.Error()),
@@ -233,7 +235,8 @@ func renderNotesView(w http.ResponseWriter, r *http.Request, d NotesDeps, userID
 
 	vm, err := buildNotesViewVM(d, note)
 	if err != nil {
-		slog.Error("notes: build view-model failed",
+		slog.Error(
+			"notes: build view-model failed",
 			slog.String("id", idStr),
 			slog.String("error", err.Error()),
 		)
@@ -248,7 +251,8 @@ func renderNotesView(w http.ResponseWriter, r *http.Request, d NotesDeps, userID
 		Spine:       layout.SpineState{SyncState: "ok"},
 	}
 	if err := layout.Base(meta, notestmpl.View(vm)).Render(r.Context(), w); err != nil {
-		slog.Error("notes: render view failed",
+		slog.Error(
+			"notes: render view failed",
 			slog.String("id", idStr),
 			slog.String("error", err.Error()),
 		)
@@ -278,4 +282,3 @@ func userLabelFromContext(ctx context.Context) string {
 	}
 	return userLabel(u)
 }
-

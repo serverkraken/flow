@@ -131,7 +131,8 @@ func NewSettings(d SettingsDeps) http.Handler {
 			Spine:       layout.SpineState{SyncState: "ok"},
 		}
 		if err := layout.Base(meta, settingstmpl.Index(vm)).Render(r.Context(), w); err != nil {
-			slog.Error("settings: render failed",
+			slog.Error(
+				"settings: render failed",
 				slog.String("user_id", u.ID),
 				slog.String("error", err.Error()),
 			)

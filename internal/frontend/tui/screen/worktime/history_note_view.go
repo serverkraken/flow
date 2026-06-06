@@ -50,7 +50,8 @@ func (h history) openDrillNoteView() (tea.Model, tea.Cmd) {
 		}
 		return out
 	}
-	overlay := markdown_overlay.New(render,
+	overlay := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("Note · "+id),
 		markdown_overlay.WithSearch(),
 		markdown_overlay.WithCodeCopy(),

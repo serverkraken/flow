@@ -93,7 +93,8 @@ func renderTab(
 ) {
 	body, spine, err := build(r, d, u, now)
 	if err != nil {
-		slog.Error("worktime: build view-model failed",
+		slog.Error(
+			"worktime: build view-model failed",
 			slog.String("user_id", u.ID),
 			slog.String("tab", string(tab)),
 			slog.String("error", err.Error()),
@@ -108,7 +109,8 @@ func renderTab(
 		Spine:       spine,
 	}
 	if err := layout.Base(meta, body).Render(r.Context(), w); err != nil {
-		slog.Error("worktime: render failed",
+		slog.Error(
+			"worktime: render failed",
 			slog.String("user_id", u.ID),
 			slog.String("tab", string(tab)),
 			slog.String("error", err.Error()),
@@ -232,7 +234,7 @@ func sessionLengthExtremes(sessions []domain.Session, loc *time.Location) (longe
 			minIdx = i
 		}
 	}
-	longest = fmt.Sprintf("%s · %s", format.FormatHHMM(sessions[maxIdx].Elapsed), format.GermanWeekdayShort(sessions[maxIdx].Date.In(loc).Weekday()))
-	shortest = fmt.Sprintf("%s · %s", format.FormatHHMM(sessions[minIdx].Elapsed), format.GermanWeekdayShort(sessions[minIdx].Date.In(loc).Weekday()))
+	longest = fmt.Sprintf("%s · %s", format.HHMM(sessions[maxIdx].Elapsed), format.GermanWeekdayShort(sessions[maxIdx].Date.In(loc).Weekday()))
+	shortest = fmt.Sprintf("%s · %s", format.HHMM(sessions[minIdx].Elapsed), format.GermanWeekdayShort(sessions[minIdx].Date.In(loc).Weekday()))
 	return longest, shortest
 }

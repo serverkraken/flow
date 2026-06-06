@@ -4,10 +4,23 @@ import (
 	"sort"
 	"time"
 
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
+
+// ServerSessionsReader is the narrow read surface the WebUI ServerWorktimeView
+// needs from a session store. Declared locally so the usecase layer stays
+// adapter-free; `*sqliteserver.Sessions` satisfies it structurally.
+type ServerSessionsReader interface {
+	ListByUserDateRange(userID string, from, to time.Time) ([]domain.Session, error)
+}
+
+// ServerActiveSessionsReader is the narrow read surface ServerWorktimeView
+// needs from an active-session store. Same hexagonal rationale as
+// ServerSessionsReader.
+type ServerActiveSessionsReader interface {
+	ListByUser(userID string) ([]domain.ActiveSession, error)
+}
 
 // ServerWorktimeView is the multi-tenant, server-side read entry point used by
 // the WebUI (M6/M7). It mirrors the four read shapes of the client-side
@@ -30,8 +43,8 @@ import (
 // ports.ActiveSessionStore — see notes in sqliteserver/sessions.go and
 // active_sessions.go).
 type ServerWorktimeView struct {
-	Sessions      *sqliteserver.Sessions
-	Active        *sqliteserver.ActiveSessions
+	Sessions      ServerSessionsReader
+	Active        ServerActiveSessionsReader
 	Clock         ports.Clock
 	DefaultTarget time.Duration
 

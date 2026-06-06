@@ -100,7 +100,8 @@ func (p *Projects) Upsert(in domain.Project, expectedVersion int64) (domain.Proj
 		archivedAt = in.ArchivedAt.UTC().Format(time.RFC3339)
 	}
 
-	if _, err := tx.Exec(`
+	if _, err := tx.Exec(
+		`
 		INSERT INTO projects (id, user_id, name, slug, created_at, last_used_at, archived_at, version)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET

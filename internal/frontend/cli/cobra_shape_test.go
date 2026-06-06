@@ -87,7 +87,8 @@ func TestMarkdownViewerProgram_DelegatesToOverlay(t *testing.T) {
 	// Build an overlay around a no-op renderer. Init/Update/View should
 	// proxy unchanged to the embedded markdown_overlay.Model.
 	render := func(src string, _ int) string { return src }
-	overlay := markdown_overlay.New(render,
+	overlay := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("t"),
 		markdown_overlay.WithSource("# hello"),
 	)

@@ -81,7 +81,8 @@ func NewProjects(d ProjectsDeps) http.Handler {
 
 		vm, err := buildProjectsIndexVM(d, u.ID, tab, now)
 		if err != nil {
-			slog.Error("projects: build view-model failed",
+			slog.Error(
+				"projects: build view-model failed",
 				slog.String("user_id", u.ID),
 				slog.String("error", err.Error()),
 			)
@@ -96,7 +97,8 @@ func NewProjects(d ProjectsDeps) http.Handler {
 			Spine:       layout.SpineState{SyncState: "ok"},
 		}
 		if err := layout.Base(meta, projectstmpl.Index(vm)).Render(r.Context(), w); err != nil {
-			slog.Error("projects: render failed",
+			slog.Error(
+				"projects: render failed",
 				slog.String("user_id", u.ID),
 				slog.String("error", err.Error()),
 			)

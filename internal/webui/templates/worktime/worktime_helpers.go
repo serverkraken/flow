@@ -38,7 +38,7 @@ func sessionRowToPartial(s SessionRow) partials.SessionRowVM {
 }
 
 // FormatElapsedHumane renders a duration as "2h 14m 06s" / "42m" / "8s".
-// Differs from format.FormatHHMM: drops zero-leading hours and exposes
+// Differs from format.HHMM: drops zero-leading hours and exposes
 // seconds when the elapsed time is under a minute. Used for the
 // live-banner.
 func FormatElapsedHumane(d time.Duration) string {
@@ -65,7 +65,8 @@ func FormatGermanWeekRange(monday time.Time) string {
 	if monday.Month() == sunday.Month() {
 		return fmt.Sprintf("KW %d · %02d. — %02d. %s", week, monday.Day(), sunday.Day(), format.GermanMonth(monday.Month()))
 	}
-	return fmt.Sprintf("KW %d · %02d. %s — %02d. %s",
+	return fmt.Sprintf(
+		"KW %d · %02d. %s — %02d. %s",
 		week,
 		monday.Day(), format.GermanMonth(monday.Month()),
 		sunday.Day(), format.GermanMonth(sunday.Month()),
@@ -74,7 +75,8 @@ func FormatGermanWeekRange(monday time.Time) string {
 
 // FormatGermanDayLabel renders "Sa · 06. Juni 2026" for a long history row.
 func FormatGermanDayLabel(t time.Time) string {
-	return fmt.Sprintf("%s · %02d. %s %d",
+	return fmt.Sprintf(
+		"%s · %02d. %s %d",
 		germanWeekdayLong(t.Weekday()),
 		t.Day(),
 		format.GermanMonth(t.Month()),
@@ -85,7 +87,8 @@ func FormatGermanDayLabel(t time.Time) string {
 // FormatGermanDayShort renders "Sa · 06.06.2026" — compact form used by
 // the Verlauf jump-header for non-relative dates.
 func FormatGermanDayShort(t time.Time) string {
-	return fmt.Sprintf("%s · %02d.%02d.%d",
+	return fmt.Sprintf(
+		"%s · %02d.%02d.%d",
 		format.GermanWeekdayShort(t.Weekday()),
 		t.Day(),
 		int(t.Month()),
@@ -197,7 +200,7 @@ func AggregateProjectShares(
 			}
 			out = append(out, ProjectShareRow{
 				Label:     name(e.id),
-				Total:     format.FormatHHMM(e.total),
+				Total:     format.HHMM(e.total),
 				SharePct:  pct,
 				IsRunning: runningIDs[e.id],
 			})
@@ -212,7 +215,7 @@ func AggregateProjectShares(
 		}
 		out = append(out, ProjectShareRow{
 			Label:    "übrige",
-			Total:    format.FormatHHMM(rest),
+			Total:    format.HHMM(rest),
 			SharePct: pct,
 		})
 	}
@@ -263,7 +266,7 @@ func AggregateTagShares(sessions []domain.Session, now time.Time, active *domain
 		}
 		out = append(out, TagShareRow{
 			Label:    e.tag,
-			Total:    format.FormatHHMM(e.total),
+			Total:    format.HHMM(e.total),
 			SharePct: pct,
 		})
 	}
@@ -338,7 +341,7 @@ func BuildSessionRows(
 					Pause: PauseRow{
 						StartLabel: prevStop.In(loc).Format("15:04"),
 						EndLabel:   s.Start.In(loc).Format("15:04"),
-						Duration:   format.FormatHHMM(gap),
+						Duration:   format.HHMM(gap),
 					},
 				})
 			}
@@ -350,7 +353,7 @@ func BuildSessionRows(
 				ProjectName: name(s.ProjectID),
 				Tag:         s.Tag,
 				Note:        s.Note,
-				Duration:    format.FormatHHMM(s.Elapsed),
+				Duration:    format.HHMM(s.Elapsed),
 				Version:     s.Version,
 			},
 		})
@@ -365,7 +368,7 @@ func BuildSessionRows(
 					Pause: PauseRow{
 						StartLabel: prevStop.In(loc).Format("15:04"),
 						EndLabel:   active.StartedAt.In(loc).Format("15:04"),
-						Duration:   format.FormatHHMM(gap),
+						Duration:   format.HHMM(gap),
 					},
 				})
 			}
@@ -376,7 +379,7 @@ func BuildSessionRows(
 				ProjectName: name(active.ProjectID),
 				Tag:         active.Tag,
 				Note:        active.Note,
-				Duration:    format.FormatHHMM(now.Sub(active.StartedAt)),
+				Duration:    format.HHMM(now.Sub(active.StartedAt)),
 				IsActive:    true,
 			},
 		})
@@ -419,7 +422,7 @@ func BuildWeekBars(week []domain.WeekDay, monday time.Time, now time.Time) []Wee
 		out[i] = WeekBar{
 			Label:   fmt.Sprintf("%s · %02d.%02d", format.GermanWeekdayShort(d.Weekday()), d.Day(), int(d.Month())),
 			Hours:   hours.Hours(),
-			HHMM:    format.FormatHHMM(hours),
+			HHMM:    format.HHMM(hours),
 			IsToday: isToday,
 		}
 	}

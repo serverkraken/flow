@@ -60,7 +60,8 @@ func ensureUser(
 	}
 	u, err := store.EnsureBySub(sub, email, name)
 	if err != nil {
-		slog.Error("bearer: EnsureBySub failed",
+		slog.Error(
+			"bearer: EnsureBySub failed",
 			slog.String("sub", sub),
 			slog.String("error", err.Error()),
 		)
