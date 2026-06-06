@@ -18,6 +18,13 @@ type Config struct {
 	CookieBlockKey   string   // FLOW_COOKIE_BLOCK_KEY (hex, 32 or 64 chars)
 	AllowedSubs      []string // FLOW_ALLOWED_SUBS (comma-separated OIDC 'sub' values)
 	ServerDBPath     string   // FLOW_SERVER_DB (default /var/lib/flow/server.db)
+	// NotebookRoot points at a kompendium notebook directory the WebUI
+	// renders read-only under /notes. Empty (default) — the /notes
+	// handler shows a "Notes nicht konfiguriert" placeholder instead of
+	// 500ing. Phase 1 is single-user (allowed-subs gate), so one notebook
+	// root per server is sufficient. Wired in cmd/flow-server/main.go
+	// (Plan E · Task 10).
+	NotebookRoot string // FLOW_NOTEBOOK_ROOT (empty default → /notes shows placeholder)
 }
 
 // LoadConfig reads the configuration from environment variables. Returns an
@@ -34,6 +41,7 @@ func LoadConfig() (Config, error) {
 		CookieBlockKey:   os.Getenv("FLOW_COOKIE_BLOCK_KEY"),
 		AllowedSubs:      splitCSV(os.Getenv("FLOW_ALLOWED_SUBS")),
 		ServerDBPath:     envOrDefault("FLOW_SERVER_DB", "/var/lib/flow/server.db"),
+		NotebookRoot:     os.Getenv("FLOW_NOTEBOOK_ROOT"),
 	}, nil
 }
 

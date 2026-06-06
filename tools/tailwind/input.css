@@ -416,6 +416,44 @@
   .rail .rail-item:last-child { border-bottom: 0; }
   .rail .rail-item .label { color: var(--color-fg); }
 
+  /* ---------------------------------------------------------------------
+   * Notes index list rows (Plan E · Task 7).
+   * One row per note; title + meta + preview stacked, hairline divider.
+   * The row is a single link surface so the whole card is clickable.
+   * ------------------------------------------------------------------- */
+  .note-list { list-style: none; padding: 0; margin: 0; }
+  .note-row { border-bottom: 1px solid var(--color-muted-soft); }
+  .note-row:last-child { border-bottom: 0; }
+  .note-row-link {
+    display: block;
+    padding: 0.875rem 0.25rem 0.875rem 0.25rem;
+    color: var(--color-fg);
+  }
+  .note-row-link:hover { background: var(--color-bg-soft); }
+  .note-row-link:hover .note-row-title { color: var(--color-accent); }
+  .note-row-title {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--color-fg);
+    margin-bottom: 0.25rem;
+  }
+  .note-row-meta {
+    font-size: 0.75rem;
+    color: var(--color-fg-dim);
+    margin-bottom: 0.375rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+  .note-row-preview {
+    color: var(--color-fg-dim);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 70ch;
+  }
+
   /* Horizontal bar rows (Nach Projekt / Nach Tag on the Woche tab).
      Three columns: label · bar · numeric total. Hairline bottom. */
   .proj-row {

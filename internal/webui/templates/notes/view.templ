@@ -1,0 +1,149 @@
+package notes
+
+import "html/template"
+
+// ViewVM is the /notes/:id view-model. The handler resolves frontmatter,
+// renders markdown via internal/webui/markdown, and builds the rail
+// items so the templ surface stays formatting-only.
+type ViewVM struct {
+	ID           string
+	Title        string
+	Path         string // notebook-relative ".md" path for the rail
+	TypeLabel    string // German label for the breadcrumb
+	Tags         []string
+	HTML         template.HTML // rendered markdown body, pre-sanitised
+	CreatedLabel string        // "2026-06-04"
+	ModifiedLabel string       // "heute · 09:02"
+	SyncLabel    string        // M6 always "lokal · phase 2"
+	Headings     []HeadingItem // table of contents (h2/h3 only)
+	BreadcrumbHrefs Breadcrumb
+}
+
+// HeadingItem mirrors markdown.Heading but kept local to the
+// view-model package so templates don't import the renderer.
+type HeadingItem struct {
+	Level  int
+	Text   string
+	Anchor string // empty when no in-page anchor exists
+}
+
+// Breadcrumb holds the URLs the breadcrumb at the top links to.
+type Breadcrumb struct {
+	NotesHref string // always "/notes"
+	TypeHref  string // "/notes?type=daily" etc.
+}
+
+// View renders the /notes/:id body. layout.Base() supplies the chrome
+// (spine, nav). No live-banner — reading is the focus.
+templ View(vm ViewVM) {
+	@viewBreadcrumb(vm)
+	<div class="page-grid">
+		@viewArticle(vm)
+		@viewRail(vm)
+	</div>
+	@viewFooter()
+}
+
+templ viewBreadcrumb(vm ViewVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem;">
+		<div class="eyebrow" data-testid="notes-breadcrumb">
+			<a href={ templ.SafeURL(vm.BreadcrumbHrefs.NotesHref) } style="color: var(--color-fg-dim); border-bottom: 1px dotted var(--color-muted);">Notes</a>
+			&nbsp;/&nbsp;
+			<a href={ templ.SafeURL(vm.BreadcrumbHrefs.TypeHref) } style="color: var(--color-fg-dim); border-bottom: 1px dotted var(--color-muted);">{ vm.TypeLabel }</a>
+			&nbsp;/&nbsp;
+			<span style="color: var(--color-fg);">{ vm.ID }</span>
+		</div>
+		<div class="pill-row">
+			for _, tag := range vm.Tags {
+				<span class="pill pill-muted">{ tag }</span>
+			}
+			<!-- M7: hx-get=/notes/<id>/edit -->
+			<button class="btn btn-sm" disabled aria-disabled="true" title="Bearbeiten (kommt in M7)" style="margin-left: 0.5rem;">Bearbeiten</button>
+		</div>
+	</div>
+}
+
+templ viewArticle(vm ViewVM) {
+	<article class="prose-flow" style="max-width: 70ch;" data-testid="notes-article">
+		<h1 style="margin-top: 0;">{ vm.Title }</h1>
+		@templ.Raw(vm.HTML)
+	</article>
+}
+
+templ viewRail(vm ViewVM) {
+	<aside class="rail">
+		<div class="rail-head">Metadaten</div>
+		<div class="rail-item">
+			<span class="label">Pfad</span>
+			<span style="font-family: var(--font-mono); font-size: 0.6875rem;">{ vm.Path }</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Erstellt</span>
+			<span>{ vm.CreatedLabel }</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Geändert</span>
+			<span>{ vm.ModifiedLabel }</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Sync</span>
+			<span>{ vm.SyncLabel }</span>
+		</div>
+		<div class="rail-head" style="margin-top: 2rem;">Backlinks</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">Phase 2 · Indexer</span>
+			<span>—</span>
+		</div>
+		if len(vm.Headings) > 0 {
+			<div class="rail-head" style="margin-top: 2rem;">Inhalt</div>
+			for _, h := range vm.Headings {
+				@tocItem(h)
+			}
+		}
+	</aside>
+}
+
+templ tocItem(h HeadingItem) {
+	if h.Anchor != "" {
+		<a href={ templ.SafeURL("#" + h.Anchor) } class="rail-item">
+			<span class="label">
+				if h.Level == 3 {
+					<span style="color: var(--color-fg-dim);">›&nbsp;</span>
+				}
+				{ h.Text }
+			</span>
+		</a>
+	} else {
+		<div class="rail-item">
+			<span class="label">{ h.Text }</span>
+		</div>
+	}
+}
+
+templ viewFooter() {
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m6 · notes · view</span>
+		<span>
+			<code class="kbd">e</code> bearbeiten (m7) · <code class="kbd">[</code> / <code class="kbd">]</code> vor/zurück
+		</span>
+	</div>
+}
+
+// ViewNotFound renders the 404 body for a missing note ID. layout.Base
+// supplies the chrome.
+templ ViewNotFound(id string) {
+	<div style="margin-bottom: 1.5rem;">
+		<div class="eyebrow" style="margin-bottom: 0.25rem;">404 · note nicht gefunden</div>
+		<h1 class="display-lg" style="margin: 0;">Note nicht gefunden</h1>
+	</div>
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="notes-not-found">
+		<p style="color: var(--color-fg); margin: 0 0 0.75rem; max-width: 60ch;">
+			Es gibt keine Note mit der ID <code class="kbd">{ id }</code> in diesem Notebook.
+		</p>
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem; margin: 0;">
+			Vielleicht wurde sie umbenannt oder noch nicht synchronisiert.
+			<a href="/notes" style="color: var(--color-accent); border-bottom: 1px dotted var(--color-accent);">Zurück zur Übersicht</a>
+		</p>
+	</section>
+	@viewFooter()
+}
