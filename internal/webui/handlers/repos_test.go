@@ -187,8 +187,8 @@ func TestReposNoteView_ValidKey_RendersMarkdownHTML(t *testing.T) {
 		"<code>make ci</code>",             // inline code rendered
 		"Canonical key",                    // meta strip label
 		key,                                // raw canonical key in the strip
-		"Bearbeiten",                       // M7 button (disabled)
-		"aria-disabled=\"true\"",           // M7 button is disabled
+		"Bearbeiten",                       // M7 / Task 12 — enabled
+		`data-testid="repo-note-edit-link"`, // M7 link to edit form
 	}
 	for _, s := range mustContain {
 		if !strings.Contains(body, s) {

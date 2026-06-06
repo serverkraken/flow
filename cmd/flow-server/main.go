@@ -237,6 +237,16 @@ func buildWebUIHandlers(
 		DeviceLabel: "web",
 	}
 
+	// M7 / Task 12 — note + repo-note editing handlers share their
+	// own Deps bag. NoteStore stays nil-tolerant: when the notebook is
+	// unconfigured the kompendium handlers return 404 rather than 500.
+	noteActionsDeps := handlers.NoteActionsDeps{
+		NoteStore: notesStore,
+		Repos:     repos,
+		RepoNotes: repoNotes,
+		Clock:     clock,
+	}
+
 	return &httpserver.WebUIHandlers{
 		Dashboard: handlers.NewDashboard(handlers.DashboardDeps{
 			View:        worktimeView,
@@ -262,6 +272,12 @@ func buildWebUIHandlers(
 		NotesView:  handlers.NewNotesView(notesDeps),
 		ReposIndex: handlers.NewReposIndex(reposDeps),
 		RepoNote:   handlers.NewRepoNote(reposDeps),
+
+		// M7 / Task 12 — note + repo-note editing.
+		NoteEdit:     handlers.NewNoteEdit(noteActionsDeps),
+		NotePut:      handlers.NewNotePut(noteActionsDeps),
+		RepoNoteEdit: handlers.NewRepoNoteEdit(noteActionsDeps),
+		RepoNotePut:  handlers.NewRepoNotePut(noteActionsDeps),
 		Projects: handlers.NewProjects(handlers.ProjectsDeps{
 			Projects: projects,
 			Sessions: sessions,

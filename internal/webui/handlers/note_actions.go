@@ -1,0 +1,491 @@
+// note_actions.go — Plan E · Task 12 (M7).
+//
+// Browser-side write handlers for the two markdown-editing surfaces:
+//
+//   - GET /notes/{*}/edit            → kompendium note edit form
+//   - PUT /notes/{*}                 → kompendium note save
+//   - GET /repos/{key}/note/edit     → repo-note edit form
+//   - PUT /repos/{key}/note          → repo-note save (OCC + Lamport)
+//
+// Kompendium notes are file-backed via kompports.NoteStore — there is
+// no Lamport version, so the WebUI is last-write-wins for M7. The
+// TODO at the PUT handler tracks adding OCC once kompendium gains
+// server sync (Phase 2).
+//
+// Repo-notes ARE OCC-versioned via sqliteserver.RepoNotes.Upsert. The
+// PUT handler renders a two-column conflict overlay (server | dein
+// stand) when expectedVersion is stale, mirroring the worktime
+// session conflict shape but rendered as a full page (the form is a
+// standalone surface, not an HTMX row swap).
+//
+// All four handlers fail closed with 401 when no user is in context.
+// Cross-tenant access returns 404 to avoid leaking row existence.
+//
+// CSRF: deferred to Phase 2 — single-user hobby surface. Same TODO as
+// session_actions.go.
+package handlers
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
+	"github.com/serverkraken/flow/internal/adapter/httpserver"
+	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/domain"
+	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
+	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/webui/templates/layout"
+	notestmpl "github.com/serverkraken/flow/internal/webui/templates/notes"
+	repostmpl "github.com/serverkraken/flow/internal/webui/templates/repos"
+)
+
+// NoteActionsDeps bundles the adapters every note-edit handler shares.
+// NoteStore may be nil — the kompendium handlers return 404 in that
+// case so the operator sees a deterministic "notebook not configured"
+// shape rather than a 500. Repos + RepoNotes are concrete sqliteserver
+// adapters; their Upsert carries expectedVersion and so does not
+// satisfy the client-side ports — same shape as session_actions.go.
+type NoteActionsDeps struct {
+	NoteStore kompports.NoteStore
+	Repos     *sqliteserver.Repos
+	RepoNotes *sqliteserver.RepoNotes
+	Clock     ports.Clock
+}
+
+// — kompendium note edit form (GET /notes/{*}/edit) -------------------------
+
+// NewNoteEdit returns the handler for GET /notes/{*}/edit. The
+// wildcard captures everything after /notes/ including the trailing
+// /edit segment; the handler strips the suffix and resolves the rest
+// as a kompendium ID.
+//
+// When NoteStore is nil (notebook not configured) the handler returns
+// 404 with the standard "not found" body so the gap is visible.
+func NewNoteEdit(d NoteActionsDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+
+		if d.NoteStore == nil {
+			renderNotesNotFound(w, r, "")
+			return
+		}
+
+		idStr := noteIDFromEditPath(r)
+		if idStr == "" {
+			renderNotesNotFound(w, r, "")
+			return
+		}
+		id, err := kompdomain.ParseID(idStr)
+		if err != nil {
+			renderNotesNotFound(w, r, idStr)
+			return
+		}
+		note, err := d.NoteStore.Get(r.Context(), id)
+		if errors.Is(err, kompports.ErrNoteNotFound) {
+			renderNotesNotFound(w, r, idStr)
+			return
+		}
+		if err != nil {
+			slog.Error("note edit: store.Get failed",
+				slog.String("user_id", u.ID),
+				slog.String("id", idStr),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		vm := notestmpl.EditVM{
+			ID:      note.ID.String(),
+			Title:   notestmpl.TitleOf(note.Meta.Title, note.Body, note.ID.String()),
+			Content: string(note.Body),
+		}
+		meta := layout.PageMeta{
+			Title:       "Notes · " + vm.Title + " · bearbeiten",
+			CurrentPath: "/notes",
+			UserLabel:   userLabelFromContext(r.Context()),
+			Spine:       layout.SpineState{SyncState: "ok"},
+		}
+		if err := layout.Base(meta, notestmpl.Edit(vm)).Render(r.Context(), w); err != nil {
+			slog.Error("note edit: render failed",
+				slog.String("id", idStr),
+				slog.String("err", err.Error()),
+			)
+		}
+	})
+}
+
+// — kompendium note PUT (PUT /notes/{*}) ------------------------------------
+
+// NewNotePut returns the handler for PUT /notes/{*}. Reads the
+// form-encoded `content` field, writes through NoteStore.Put preserving
+// the existing frontmatter, then 303s back to the view page so the
+// user lands on a fresh GET (avoids resubmit-on-refresh on the PUT URL).
+//
+// Last-write-wins for M7 — kompendium notes are file-backed and have
+// no version field. Phase 2 will add OCC once kompendium gains server
+// sync; the TODO below tracks the surface.
+func NewNotePut(d NoteActionsDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if d.NoteStore == nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		idStr := noteIDFromPath(r)
+		if idStr == "" {
+			http.NotFound(w, r)
+			return
+		}
+		id, err := kompdomain.ParseID(idStr)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
+		content := r.FormValue("content")
+
+		// Load the existing note so we preserve frontmatter + id.
+		existing, err := d.NoteStore.Get(r.Context(), id)
+		if errors.Is(err, kompports.ErrNoteNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			slog.Error("note put: store.Get failed",
+				slog.String("user_id", u.ID),
+				slog.String("id", idStr),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// TODO Phase 2 — once kompendium notes carry a version field,
+		// fold an expectedVersion read into the Put call so concurrent
+		// edits from a second device surface as 409 instead of
+		// last-write-wins. M7 ships file-backed notes; the WebUI is
+		// single-writer in practice.
+		existing.Body = []byte(content)
+		if err := d.NoteStore.Put(r.Context(), existing); err != nil {
+			slog.Error("note put: store.Put failed",
+				slog.String("user_id", u.ID),
+				slog.String("id", idStr),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "save failed", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/notes/"+id.String(), http.StatusSeeOther)
+	})
+}
+
+// — repo-note edit form (GET /repos/{key}/note/edit) ------------------------
+
+// NewRepoNoteEdit returns the handler for GET /repos/{key}/note/edit.
+// chi captures {key} URL-encoded; the handler decodes it and looks up
+// the repo + (optional) existing note. When no note exists yet the
+// form opens with empty content + version=0, which the handler maps
+// to a fresh insert on PUT.
+func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+
+		canonicalKey, err := decodeRepoKey(r)
+		if err != nil || canonicalKey == "" {
+			renderReposNoteNotFound(w, r, canonicalKey)
+			return
+		}
+
+		repo, err := d.Repos.GetByCanonicalKey(u.ID, canonicalKey)
+		if errors.Is(err, ports.ErrRepoNotFound) {
+			renderReposNoteNotFound(w, r, canonicalKey)
+			return
+		}
+		if err != nil {
+			slog.Error("repo note edit: GetByCanonicalKey failed",
+				slog.String("user_id", u.ID),
+				slog.String("canonical_key", canonicalKey),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		var (
+			content string
+			version int64
+			isNew   bool
+		)
+		note, nerr := d.RepoNotes.GetByRepo(u.ID, repo.ID)
+		switch {
+		case nerr == nil:
+			content = note.Content
+			version = note.Version
+		case errors.Is(nerr, ports.ErrRepoNoteNotFound):
+			isNew = true
+		default:
+			slog.Error("repo note edit: GetByRepo failed",
+				slog.String("user_id", u.ID),
+				slog.String("repo_id", repo.ID),
+				slog.String("err", nerr.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		vm := repostmpl.NoteEditVM{
+			DisplayName:  repostmpl.DisplayNameOr(repo.DisplayName, repo.CanonicalKey),
+			CanonicalKey: repo.CanonicalKey,
+			Content:      content,
+			Version:      version,
+			IsNew:        isNew,
+		}
+		meta := layout.PageMeta{
+			Title:       "Repos · " + vm.DisplayName + " · note",
+			CurrentPath: "/repos",
+			UserLabel:   userLabelFromContext(r.Context()),
+			Spine:       layout.SpineState{SyncState: "ok"},
+		}
+		if err := layout.Base(meta, repostmpl.EditNote(vm)).Render(r.Context(), w); err != nil {
+			slog.Error("repo note edit: render failed",
+				slog.String("canonical_key", canonicalKey),
+				slog.String("err", err.Error()),
+			)
+		}
+	})
+}
+
+// — repo-note PUT (PUT /repos/{key}/note) -----------------------------------
+
+// NewRepoNotePut returns the handler for PUT /repos/{key}/note. Reads
+// the form-encoded `content` + `version` fields, calls
+// sqliteserver.RepoNotes.Upsert with expectedVersion. On success
+// 303s to the view page. On version conflict renders the two-column
+// overlay (server | dein stand) so Soenne picks a branch.
+//
+// First save: existing note absent → version=0 in the form, the
+// handler synthesises a fresh RepoNote with a new UUID and passes
+// expectedVersion=0 to Upsert (which inserts a brand-new row at
+// version 1).
+func NewRepoNotePut(d NoteActionsDeps) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		canonicalKey, err := decodeRepoKey(r)
+		if err != nil || canonicalKey == "" {
+			http.NotFound(w, r)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "invalid form", http.StatusBadRequest)
+			return
+		}
+		content := r.FormValue("content")
+		version := parseVersion(r.FormValue("version"))
+
+		repo, err := d.Repos.GetByCanonicalKey(u.ID, canonicalKey)
+		if errors.Is(err, ports.ErrRepoNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			slog.Error("repo note put: GetByCanonicalKey failed",
+				slog.String("user_id", u.ID),
+				slog.String("canonical_key", canonicalKey),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		// Resolve the existing note shape — either preserve the
+		// stored ID + UserID + RepoID (update path), or synthesise a
+		// new RepoNote for the insert path.
+		var input domain.RepoNote
+		existing, nerr := d.RepoNotes.GetByRepo(u.ID, repo.ID)
+		switch {
+		case nerr == nil:
+			input = existing
+		case errors.Is(nerr, ports.ErrRepoNoteNotFound):
+			input = domain.RepoNote{
+				ID:     newRepoNoteID(),
+				RepoID: repo.ID,
+				UserID: u.ID,
+			}
+			// Defensive: form sent stale version for a row that
+			// doesn't exist yet → treat as fresh insert.
+			version = 0
+		default:
+			slog.Error("repo note put: GetByRepo failed",
+				slog.String("user_id", u.ID),
+				slog.String("repo_id", repo.ID),
+				slog.String("err", nerr.Error()),
+			)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		input.Content = content
+
+		_, err = d.RepoNotes.Upsert(input, version)
+		if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
+			renderRepoNoteConflict(w, r, d, u.ID, repo, content)
+			return
+		}
+		if err != nil {
+			slog.Error("repo note put: Upsert failed",
+				slog.String("user_id", u.ID),
+				slog.String("repo_id", repo.ID),
+				slog.String("err", err.Error()),
+			)
+			http.Error(w, "save failed", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, repostmpl.NoteHref(repo.CanonicalKey), http.StatusSeeOther)
+	})
+}
+
+// — helpers -----------------------------------------------------------------
+
+// noteIDFromPath extracts the kompendium ID from a chi wildcard route
+// captured under "*". Falls back to stripping the "/notes/" prefix
+// when no chi context exists (direct ServeHTTP in tests).
+func noteIDFromPath(r *http.Request) string {
+	if raw := chi.URLParam(r, "*"); raw != "" {
+		if dec, err := url.PathUnescape(raw); err == nil {
+			return dec
+		}
+		return raw
+	}
+	return strings.TrimPrefix(r.URL.Path, "/notes/")
+}
+
+// noteIDFromEditPath does the same as noteIDFromPath but additionally
+// strips the trailing "/edit" segment so the kompendium-ID parse sees
+// just the note ID.
+func noteIDFromEditPath(r *http.Request) string {
+	raw := noteIDFromPath(r)
+	return strings.TrimSuffix(raw, "/edit")
+}
+
+// decodeRepoKey reads the chi {key} URL param, URL-decodes it, and
+// returns the canonical key. Falls back to splitting the path tail when
+// no chi context exists. Mirrors the dispatch shape used by repos.go.
+func decodeRepoKey(r *http.Request) (string, error) {
+	if escaped := chi.URLParam(r, "key"); escaped != "" {
+		return url.PathUnescape(escaped)
+	}
+	// Direct ServeHTTP fallback — peel "/repos/<key>/note(/edit)?"
+	tail := strings.TrimPrefix(r.URL.Path, "/repos/")
+	for _, suffix := range []string{"/note/edit", "/note"} {
+		if strings.HasSuffix(tail, suffix) {
+			tail = strings.TrimSuffix(tail, suffix)
+			break
+		}
+	}
+	return url.PathUnescape(tail)
+}
+
+// parseVersion folds a form field into the int64 expectedVersion. Empty
+// or invalid input → 0 (matches the "first save" branch the PUT handler
+// then disambiguates by reading the stored row).
+func parseVersion(raw string) int64 {
+	if raw == "" {
+		return 0
+	}
+	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// newRepoNoteID generates a fresh primary key for a RepoNote insert.
+// We use the same google/uuid surface other adapters use; isolated in
+// a helper so a future ID strategy change (e.g. ULID) only touches one
+// site.
+func newRepoNoteID() string {
+	return uuid.NewString()
+}
+
+// renderRepoNoteConflict fetches the server's current note state and
+// renders the two-column overlay so Soenne picks a branch.
+func renderRepoNoteConflict(
+	w http.ResponseWriter,
+	r *http.Request,
+	d NoteActionsDeps,
+	userID string,
+	repo domain.Repo,
+	localContent string,
+) {
+	serverContent := ""
+	serverVersion := int64(0)
+	if note, err := d.RepoNotes.GetByRepo(userID, repo.ID); err == nil {
+		serverContent = note.Content
+		serverVersion = note.Version
+	} else if !errors.Is(err, ports.ErrRepoNoteNotFound) {
+		slog.Error("repo note put: conflict re-read failed",
+			slog.String("user_id", userID),
+			slog.String("repo_id", repo.ID),
+			slog.String("err", err.Error()),
+		)
+	}
+	vm := repostmpl.NoteConflictVM{
+		DisplayName:   repostmpl.DisplayNameOr(repo.DisplayName, repo.CanonicalKey),
+		CanonicalKey:  repo.CanonicalKey,
+		ServerContent: serverContent,
+		LocalContent:  localContent,
+		ServerVersion: serverVersion,
+	}
+	meta := layout.PageMeta{
+		Title:       "Repos · " + vm.DisplayName + " · Konflikt",
+		CurrentPath: "/repos",
+		UserLabel:   userLabelFromContext(r.Context()),
+		Spine:       layout.SpineState{SyncState: "ok"},
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusConflict)
+	if err := layout.Base(meta, repostmpl.EditNoteConflict(vm)).Render(r.Context(), w); err != nil {
+		slog.Error("repo note conflict: render failed",
+			slog.String("err", err.Error()),
+		)
+	}
+}
+

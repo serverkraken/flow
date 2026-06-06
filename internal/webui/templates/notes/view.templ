@@ -57,8 +57,10 @@ templ viewBreadcrumb(vm ViewVM) {
 			for _, tag := range vm.Tags {
 				<span class="pill pill-muted">{ tag }</span>
 			}
-			<!-- M7: hx-get=/notes/<id>/edit -->
-			<button class="btn btn-sm" disabled aria-disabled="true" title="Bearbeiten (kommt in M7)" style="margin-left: 0.5rem;">Bearbeiten</button>
+			<!-- M7 · Plan E · Task 12: direct link to the edit form. The
+			     form is server-rendered; CodeMirror hydrates into it on
+			     load via /static/codemirror-init.js. -->
+			<a class="btn btn-sm" href={ templ.SafeURL("/notes/" + vm.ID + "/edit") } data-testid="notes-edit-link" style="margin-left: 0.5rem;">Bearbeiten</a>
 		</div>
 	</div>
 }
@@ -122,9 +124,9 @@ templ tocItem(h HeadingItem) {
 
 templ viewFooter() {
 	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · notes · view</span>
+		<span>flow · phase 1 · m7 · notes · view</span>
 		<span>
-			<code class="kbd">e</code> bearbeiten (m7) · <code class="kbd">[</code> / <code class="kbd">]</code> vor/zurück
+			<code class="kbd">e</code> bearbeiten · <code class="kbd">[</code> / <code class="kbd">]</code> vor/zurück
 		</span>
 	</div>
 }

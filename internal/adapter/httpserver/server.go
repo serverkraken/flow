@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -102,13 +103,29 @@ func NewWithAuth(d AuthDeps) *Server {
 			if w.NotesView != nil {
 				// Multi-segment IDs like projects/serverkraken/flow/foo
 				// require chi's wildcard, captured via URLParam(r, "*").
-				rr.Method(http.MethodGet, "/notes/*", w.NotesView)
+				// M7 (Task 12) reuses the same wildcard for the edit
+				// form (suffix `/edit`) — chi cannot disambiguate a
+				// wildcard from a literal trailing segment, so we
+				// dispatch at the handler level via notesGetDispatch.
+				rr.Method(http.MethodGet, "/notes/*", notesGetDispatch(w.NotesView, w.NoteEdit))
+			}
+			if w.NotePut != nil {
+				// PUT shares the same wildcard so multi-segment IDs
+				// route to the right place. method-mux discriminates
+				// GET vs PUT, so there's no conflict with NotesView.
+				rr.Method(http.MethodPut, "/notes/*", w.NotePut)
 			}
 			if w.ReposIndex != nil {
 				rr.Method(http.MethodGet, "/repos", w.ReposIndex)
 			}
 			if w.RepoNote != nil {
 				rr.Method(http.MethodGet, "/repos/{key}/note", w.RepoNote)
+			}
+			if w.RepoNoteEdit != nil {
+				rr.Method(http.MethodGet, "/repos/{key}/note/edit", w.RepoNoteEdit)
+			}
+			if w.RepoNotePut != nil {
+				rr.Method(http.MethodPut, "/repos/{key}/note", w.RepoNotePut)
 			}
 			if w.Projects != nil {
 				rr.Method(http.MethodGet, "/projects", w.Projects)
@@ -160,3 +177,24 @@ func NewWithAuth(d AuthDeps) *Server {
 // SetBaseURL allows tests to swap baseURL after the server is constructed
 // (so RedirectURL matches httptest's random port).
 func (s *Server) SetBaseURL(u string) { s.baseURL = u }
+
+// notesGetDispatch routes GET /notes/* requests between the view
+// handler and the edit handler based on the path suffix. Chi v5
+// cannot mix a wildcard pattern with a literal trailing segment, so we
+// disambiguate at the handler level. The wildcard captures multi-segment
+// kompendium IDs (e.g. "projects/serverkraken/flow/foo") which may
+// themselves end with `/edit` only when the user is asking for the
+// edit form — Soenne owns the kompendium namespace, so the suffix
+// hijack is safe.
+//
+// edit may be nil — degrade to the view handler (the edit form simply
+// isn't mounted), which surfaces as a 404 on the kompendium-ID parse.
+func notesGetDispatch(view, edit http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if edit != nil && strings.HasSuffix(r.URL.Path, "/edit") {
+			edit.ServeHTTP(w, r)
+			return
+		}
+		view.ServeHTTP(w, r)
+	})
+}

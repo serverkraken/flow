@@ -43,4 +43,13 @@ type WebUIHandlers struct {
 	SessionDelete http.Handler
 	ActiveStart   http.Handler
 	ActiveStop    http.Handler
+
+	// M7 — Plan E · Task 12. CodeMirror-backed markdown editing for
+	// kompendium notes (file-backed, last-write-wins for M7) and
+	// repo-notes (DB-synced with OCC). Each handler shares the same
+	// NoteActionsDeps bag in cmd/flow-server/main.go.
+	NoteEdit     http.Handler
+	NotePut      http.Handler
+	RepoNoteEdit http.Handler
+	RepoNotePut  http.Handler
 }

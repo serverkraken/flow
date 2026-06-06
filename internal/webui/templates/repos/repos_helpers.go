@@ -14,7 +14,41 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/a-h/templ"
 )
+
+// NoteEditHref returns the URL of the repo-note edit form for a given
+// canonical key. The CanonicalKey may contain slashes ("git:gh.com/o/r")
+// so we URL-escape the path segment.
+func NoteEditHref(canonicalKey string) string {
+	return "/repos/" + url.PathEscape(canonicalKey) + "/note/edit"
+}
+
+// noteHrefSafe wraps NoteHref in a templ.SafeURL so the templ surface
+// can use the helper inside href attributes without further escaping.
+func noteHrefSafe(canonicalKey string) templ.SafeURL {
+	return templ.SafeURL(NoteHref(canonicalKey))
+}
+
+// noteEditFormAction returns the URL the edit form posts to. Same path
+// as the view, with the HTML form using POST + _method=PUT for the
+// no-JS fallback (HTMX upgrades the request to a true PUT when available).
+func noteEditFormAction(canonicalKey string) templ.SafeURL {
+	return templ.SafeURL("/repos/" + url.PathEscape(canonicalKey) + "/note")
+}
+
+// noteEditHrefSafe wraps NoteEditHref for templ href attributes.
+func noteEditHrefSafe(canonicalKey string) templ.SafeURL {
+	return templ.SafeURL(NoteEditHref(canonicalKey))
+}
+
+// formatVersion converts an int64 OCC version to its decimal string
+// for hidden form fields. Kept inline (no fmt import) so the templ
+// package stays lean.
+func formatVersion(v int64) string {
+	return strconv.FormatInt(v, 10)
+}
 
 // FormatRepoTotal returns the page-header count pill. German uses
 // "Repo" for both singular and plural to stay compact.

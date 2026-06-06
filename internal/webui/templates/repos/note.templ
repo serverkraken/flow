@@ -40,7 +40,7 @@ templ View(vm NoteVM) {
 	if vm.HasNote {
 		@viewArticle(vm)
 	} else {
-		@viewNoNotePlaceholder()
+		@viewNoNotePlaceholder(vm.CanonicalKey)
 	}
 	@viewFooter()
 }
@@ -59,8 +59,10 @@ templ viewHeader(vm NoteVM) {
 	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
 		<h2 class="display-md" style="margin: 0;">{ vm.DisplayName }</h2>
 		<div class="pill-row">
-			<!-- M7: hx-get=/repos/{key}/note/edit -->
-			<button class="btn btn-sm" disabled aria-disabled="true" title="Bearbeiten (kommt in M7)">Bearbeiten</button>
+			<!-- M7 · Plan E · Task 12: direct link to the edit form. The
+			     form is server-rendered; CodeMirror hydrates into it on
+			     load via /static/codemirror-init.js. -->
+			<a class="btn btn-sm" href={ noteEditHrefSafe(vm.CanonicalKey) } data-testid="repo-note-edit-link">Bearbeiten</a>
 		</div>
 	</div>
 	<p style="color: var(--color-fg-dim); font-size: 0.8125rem; font-family: var(--font-mono); margin: 0 0 1.25rem;">
@@ -100,22 +102,23 @@ templ viewArticle(vm NoteVM) {
 	</article>
 }
 
-templ viewNoNotePlaceholder() {
+templ viewNoNotePlaceholder(canonicalKey string) {
 	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="repos-note-missing">
 		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine note</div>
 		<p style="color: var(--color-fg); margin: 0 0 0.75rem; max-width: 60ch;">
-			Dieses Repo hat noch keine Note. Lege sie in der TUI mit <code class="kbd">n</code> an oder warte auf die WebUI-Note-Editor-Route (M7).
+			Dieses Repo hat noch keine Note. Lege sie in der TUI mit <code class="kbd">n</code> oder hier direkt im Editor an.
 		</p>
-		<!-- M7: hx-get=/repos/{key}/note/new -->
-		<button class="btn btn-sm" disabled aria-disabled="true" title="Note anlegen (kommt in M7)">+ Note anlegen</button>
+		<!-- M7 · Plan E · Task 12: open the same edit form; first save
+		     starts at version 0 which the handler maps to a fresh insert. -->
+		<a class="btn btn-sm" href={ noteEditHrefSafe(canonicalKey) } data-testid="repo-note-new-link">+ Note anlegen</a>
 	</section>
 }
 
 templ viewFooter() {
 	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · repos · note</span>
+		<span>flow · phase 1 · m7 · repos · note</span>
 		<span>
-			<code class="kbd">e</code> bearbeiten (m7) · <code class="kbd">[</code> / <code class="kbd">]</code> Repo wechseln
+			<code class="kbd">e</code> bearbeiten · <code class="kbd">[</code> / <code class="kbd">]</code> Repo wechseln
 		</span>
 	</div>
 }

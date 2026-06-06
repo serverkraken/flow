@@ -11,8 +11,26 @@ package notes
 import (
 	"strings"
 
+	"github.com/a-h/templ"
+
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 )
+
+// noteViewHref returns the canonical /notes/:id link wrapped in a
+// templ.SafeURL so the templ surface can use it in href attributes
+// without further escaping. The kompendium ID may contain `/` (e.g.
+// "projects/serverkraken/flow/foo") — net/http's mux decodes path
+// segments per-segment, so we pass the raw ID through.
+func noteViewHref(id string) templ.SafeURL {
+	return templ.SafeURL("/notes/" + id)
+}
+
+// noteFormAction returns the URL the edit form posts to. Same path as
+// the view, with the HTML form using POST + _method=PUT for the no-JS
+// fallback (HTMX upgrades the request to a true PUT when available).
+func noteFormAction(id string) templ.SafeURL {
+	return templ.SafeURL("/notes/" + id)
+}
 
 // SubTab identifies the active notes index sub-tab. Values are
 // lower-case and map to `?type=` query values so the URL reads

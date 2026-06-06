@@ -43,6 +43,12 @@ templ Base(m PageMeta, body templ.Component) {
 			     Worktime/Woche sub-tab pulls in per-page). Without the
 			     vendored bundle here, the chart-divs render empty. -->
 			<script src="/static/apexcharts.min.js" defer></script>
+			<!-- CodeMirror bundle (Plan E · Task 12). Loaded site-wide so
+			     /notes/{id}/edit + /repos/{key}/note/edit can boot the
+			     editor without an extra round-trip. Same defer-load order
+			     as apexcharts above — the per-page DOMContentLoaded init
+			     hooks run after this script is parsed. -->
+			<script src="/static/codemirror.bundle.js" defer></script>
 		</head>
 		<body hx-boost="true" hx-history="false">
 			if !m.HideSpine {
