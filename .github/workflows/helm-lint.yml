@@ -1,0 +1,64 @@
+name: Helm lint
+
+# Lints the flow-server Helm chart and verifies that the required-field
+# guards in templates trip cleanly when the operator forgets to set them.
+#
+# Two-stage verification:
+#   1. `helm template` without --set MUST fail. If it succeeds, one of the
+#      `required` guards in templates/secret.yaml or templates/configmap.yaml
+#      has regressed — better to catch in CI than in production.
+#   2. `helm template` with dummy values for all four required fields MUST
+#      succeed and emit a non-empty manifest covering the expected kinds.
+#
+# Triggers on pull_request touching deploy/helm/** (gate merges) plus push
+# to next/main (catch regressions that slipped past PR review).
+
+on:
+  pull_request:
+    paths: ['deploy/helm/**', '.github/workflows/helm-lint.yml']
+  push:
+    branches: [next, main]
+    paths: ['deploy/helm/**', '.github/workflows/helm-lint.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: helm lint
+        run: helm lint deploy/helm/flow-server
+
+      - name: helm template — required fields fail-fast
+        run: |
+          set -euo pipefail
+          # Without required fields → must fail. If it succeeds, the
+          # `required` guards in templates regressed and we'd be shipping
+          # a chart that installs into a broken state.
+          if helm template deploy/helm/flow-server > /dev/null 2>&1; then
+            echo "ERROR: helm template succeeded without required fields — required: guards broken"
+            exit 1
+          fi
+          echo "OK: required-field guards trip without --set"
+
+      - name: helm template — with dummy required fields
+        run: |
+          set -euo pipefail
+          helm template deploy/helm/flow-server \
+            --set secret.oidcClientSecret=dummy \
+            --set secret.cookieHashKey=$(printf '%064d' 0) \
+            --set secret.cookieBlockKey=$(printf '%064d' 1) \
+            --set flow.allowedSubs=dummy-sub \
+            > /tmp/helm-out.yaml
+          wc -l /tmp/helm-out.yaml
+          # downstream of yaml output, grep is fine here (no fd/rg scope).
+          grep "^kind:" /tmp/helm-out.yaml | sort -u
