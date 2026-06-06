@@ -1,0 +1,210 @@
+package projects
+
+// IndexVM is the /projects view-model. The handler builds it; the
+// template only renders.
+type IndexVM struct {
+	// ActiveTab is "worktime" or "quellen". "quellen" renders the
+	// TUI-only placeholder; the grid is shown for "worktime".
+	ActiveTab string
+	// TotalLabel is the page eyebrow — "42 Projekte · 4 aktiv letzte 7
+	// Tage". Pre-formatted in the handler.
+	TotalLabel string
+	// HasProjects discriminates the empty-state from the populated list.
+	HasProjects bool
+	// Rows are the rendered project rows. Order matches Projects.ListAll
+	// (MRU-first by last_used_at, then created_at).
+	Rows []IndexRow
+}
+
+// IndexRow is one project row in the grid. All fields are pre-rendered
+// strings so the templ surface only formats.
+type IndexRow struct {
+	// Name is the user-chosen project name (domain.Project.Name).
+	Name string
+	// Slug is the canonical project slug — shown in the secondary meta
+	// line so the user can correlate with `flow start` shortcuts.
+	Slug string
+	// Archived dims the row (archived projects render with fg-dim).
+	Archived bool
+	// HasActive is true for the row carrying the user's currently-
+	// running session — gets the ▶ glyph + "jetzt" relative label.
+	HasActive bool
+	// LiveAccent paints the Zuletzt + Diese-Woche cells in
+	// var(--color-active) when the row is the active session's row.
+	LiveAccent bool
+	// LastLabel is the "Zuletzt" relative-time cell — "jetzt" /
+	// "heute · HH:MM" / "vor N Tagen · HH:MM" / "archiviert" / "—".
+	LastLabel string
+	// LastDim is true when LastLabel is the muted "—" / "archiviert"
+	// fallback — the template uses it to apply fg-dim styling.
+	LastDim bool
+	// WeekDuration is the "Diese Woche" cell — formatted HH:MM or "—"
+	// when no sessions ran this week.
+	WeekDuration string
+	// WeekDurationDim is true when WeekDuration is "—" so the template
+	// applies fg-dim to the cell.
+	WeekDurationDim bool
+	// WeekCount is the per-row session count as a string ("4" / "0").
+	WeekCount string
+	// StatusLabel is a short hint used for hover/aria — "letzte
+	// aktivität" by default; "läuft seit …" for active. Optional.
+	StatusLabel string
+}
+
+// Index renders the /projects body. layout.Base() supplies the chrome
+// (spine, nav).
+templ Index(vm IndexVM) {
+	@pageHead(vm)
+	@subTabs(vm.ActiveTab)
+	@filterRow(vm)
+	if vm.ActiveTab == "quellen" {
+		@quellenPlaceholder()
+	} else if !vm.HasProjects {
+		@emptyState()
+	} else {
+		@gridHeader()
+		<section data-testid="projects-list">
+			for _, row := range vm.Rows {
+				@projectRow(row)
+			}
+		</section>
+	}
+	@footerNote()
+}
+
+templ pageHead(vm IndexVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.25rem;" data-testid="projects-totals">{ vm.TotalLabel }</div>
+			<h1 class="display-lg" style="margin: 0;">Projekte</h1>
+		</div>
+		<!-- M7 (Task 13): wire to /projects/new -->
+		<button class="btn btn-primary" disabled aria-disabled="true" title="Neues Projekt (kommt in M7)">+ Neues Projekt</button>
+	</div>
+}
+
+templ subTabs(active string) {
+	<div class="mk-tabs">
+		@projectsSubTabLink("Worktime-Projekte", "/projects?tab=worktime", active != "quellen")
+		@projectsSubTabLink("Quellverzeichnisse", "/projects?tab=quellen", active == "quellen")
+	</div>
+}
+
+templ projectsSubTabLink(label, href string, active bool) {
+	if active {
+		<a href={ templ.SafeURL(href) } class="subtab is-active" aria-current="page">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="subtab">{ label }</a>
+	}
+}
+
+templ filterRow(vm IndexVM) {
+	<!-- Visual-only filter row for M6 — Phase 2 wires the real filter
+	     so the URL surface stays read-only for now. -->
+	<div class="proj-filter-row" data-testid="projects-filter">
+		<span aria-hidden="true" style="color: var(--color-fg-dim);">⌕</span>
+		<input class="proj-filter-search" placeholder="filtern · /pattern/ regex · #tag · @device" disabled aria-disabled="true" autocomplete="off"/>
+		<div class="pill-row">
+			<span class="pill pill-active">alle</span>
+			<span class="pill pill-muted">aktiv</span>
+			<span class="pill pill-muted">archiv</span>
+		</div>
+	</div>
+}
+
+templ gridHeader() {
+	<div class="proj-grid-row is-header" data-testid="projects-grid-head">
+		<span></span>
+		<span>Projekt · Slug</span>
+		<span class="num">Zuletzt</span>
+		<span class="num">Diese Woche</span>
+		<span class="num">Sessions</span>
+		<span></span>
+	</div>
+}
+
+templ projectRow(row IndexRow) {
+	<div class="proj-grid-row" data-testid="projects-row">
+		@rowGlyph(row)
+		@rowNameCell(row)
+		@rowLastCell(row)
+		@rowWeekCell(row)
+		<span class="num">{ row.WeekCount }</span>
+		<!-- M7: actions menu — disabled placeholder for M6 -->
+		<button
+			class="proj-row-actions"
+			disabled
+			aria-disabled="true"
+			aria-label="Aktionen (kommt in M7)"
+			title="Aktionen (kommt in M7)"
+		>⋯</button>
+	</div>
+}
+
+templ rowGlyph(row IndexRow) {
+	if row.HasActive {
+		<span class="proj-glyph is-running live-pulse" aria-label="läuft">▶</span>
+	} else if row.Archived {
+		<span class="proj-glyph is-archived" aria-label="archiviert">○</span>
+	} else {
+		<span class="proj-glyph" aria-hidden="true">●</span>
+	}
+}
+
+templ rowNameCell(row IndexRow) {
+	<div>
+		if row.Archived {
+			<div class="proj-name is-archived">{ row.Name }</div>
+		} else {
+			<div class="proj-name">{ row.Name }</div>
+		}
+		<div class="proj-meta">{ row.Slug }</div>
+	</div>
+}
+
+templ rowLastCell(row IndexRow) {
+	if row.LiveAccent {
+		<span class="num is-running">{ row.LastLabel }</span>
+	} else if row.LastDim {
+		<span class="num is-dim">{ row.LastLabel }</span>
+	} else {
+		<span class="num">{ row.LastLabel }</span>
+	}
+}
+
+templ rowWeekCell(row IndexRow) {
+	if row.LiveAccent {
+		<span class="num is-running">{ row.WeekDuration }</span>
+	} else if row.WeekDurationDim {
+		<span class="num is-dim">{ row.WeekDuration }</span>
+	} else {
+		<span class="num">{ row.WeekDuration }</span>
+	}
+}
+
+templ emptyState() {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem; margin-top: 0.5rem;" data-testid="projects-empty">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine projekte</div>
+		<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+			Noch keine Projekte synchronisiert — wenn du <code class="kbd">flow start</code> in einem Verzeichnis aufrufst, wird das Projekt automatisch angelegt.
+		</p>
+	</section>
+}
+
+templ quellenPlaceholder() {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem; margin-top: 0.5rem;" data-testid="projects-quellen-placeholder">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">quellverzeichnisse · tui-only</div>
+		<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+			Quellverzeichnisse werden über die TUI gepflegt. Die WebUI-Sicht folgt in einer späteren Phase.
+		</p>
+	</section>
+}
+
+templ footerNote() {
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m6 · projekte</span>
+		<span>
+			<code class="kbd">/</code> filter · <code class="kbd">+</code> neu · <code class="kbd">⏎</code> öffnen
+		</span>
+	</div>
+}

@@ -1,0 +1,217 @@
+package settings
+
+// IndexVM is the /settings view-model. The handler builds it; the
+// template only renders. All fields are pre-formatted strings so the
+// templ surface stays markup-only.
+type IndexVM struct {
+	// Eyebrow is the small label above the page title (typically the
+	// logged-in user's email).
+	Eyebrow string
+
+	// Identity is the OIDC session section — real values from the
+	// cookie payload + config.
+	Identity IdentitySection
+
+	// DeviceLabel is the placeholder Geräte-row label (typically the
+	// User-Agent). Phase 2 will replace this with real device-id +
+	// Lamport counter rows.
+	DeviceLabel string
+
+	// ServerBaseURL is the Sync section's "Server" row — from
+	// FLOW_SERVER_BASE_URL.
+	ServerBaseURL string
+
+	// ServerDBPath is the Export/Import section's stub readout —
+	// reflects the on-disk server.db so the user knows where state
+	// lives.
+	ServerDBPath string
+
+	// Phase is the Version section's "Phase" row — hardcoded
+	// "Phase 1 · M6/M7" for M6.
+	Phase string
+
+	// CommitShort is the short git SHA from runtime/debug.ReadBuildInfo.
+	// Falls back to "dev" when build info is unavailable (test
+	// binaries).
+	CommitShort string
+
+	// GoVersion is the Go runtime version from BuildInfo. Best-effort.
+	GoVersion string
+
+	// Uptime is the formatted boot-relative duration ("3d 14h 22m").
+	Uptime string
+}
+
+// IdentitySection holds the Identität rows — populated from the
+// cookie's session value and the server's OIDC issuer URL.
+type IdentitySection struct {
+	Email             string
+	Sub               string
+	DisplayName       string
+	Issuer            string
+	CookieExpiryLabel string
+	Scopes            string
+}
+
+// Index renders the /settings body. layout.Base() supplies the chrome
+// (spine, nav).
+templ Index(vm IndexVM) {
+	@pageHead(vm)
+	@deviceSection(vm)
+	@syncSection(vm)
+	@identitySection(vm)
+	@exportSection(vm)
+	@versionSection(vm)
+	@footerNote()
+}
+
+templ pageHead(vm IndexVM) {
+	<div style="margin-bottom: 0.75rem;">
+		<div class="eyebrow" style="margin-bottom: 0.25rem;" data-testid="settings-eyebrow">{ vm.Eyebrow }</div>
+		<h1 class="display-lg" style="margin: 0;">Settings</h1>
+	</div>
+	<p style="color: var(--color-fg-dim); font-size: 0.875rem; max-width: 60ch; margin: 0 0 1rem;">
+		Persistenter State zwischen TUI, WebUI und flow-mcp. Alles hier landet im
+		selben Use-Case-Layer — was du im Browser änderst, sieht die TUI nach dem
+		nächsten Sync-Tick.
+	</p>
+}
+
+templ deviceSection(vm IndexVM) {
+	<div class="setting-section" data-testid="settings-devices">
+		<div class="setting-side">
+			<h3>Geräte</h3>
+			<p>Jedes Gerät bekommt beim Anmelden ein Lamport-Counter und einen
+				kurzen Namen. In Phase 1 läuft nur dieses Gerät —
+				Geräte-Telemetrie kommt in Phase 2.</p>
+		</div>
+		<div class="setting-body">
+			<div class="device is-here" data-testid="settings-device-here">
+				<div class="device-dot"></div>
+				<div>
+					<div class="device-name">aktuelle session
+						<span class="pill pill-active" style="margin-left: 0.5rem;">hier</span>
+					</div>
+					<div class="device-meta">{ vm.DeviceLabel }</div>
+				</div>
+				<div class="device-stat">
+					<span class="device-stat-label">Phase</span>
+					Phase 1
+				</div>
+			</div>
+			<div style="margin-top: 0.75rem; color: var(--color-fg-dim); font-size: 0.75rem;">
+				Geräte-Liste + Lamport-Counter folgen in Phase 2.
+			</div>
+		</div>
+	</div>
+}
+
+templ syncSection(vm IndexVM) {
+	<div class="setting-section" data-testid="settings-sync">
+		<div class="setting-side">
+			<h3>Sync</h3>
+			<p>Push/Pull-Worker läuft im flow-server. Die Pull-Telemetrie pro
+				Gerät — Intervall, letzter Push, Konflikte — kommt in Phase 2.</p>
+		</div>
+		<div class="setting-body">
+			@kv("Server", vm.ServerBaseURL, "")
+			@kv("Pull-Intervall", "—", "Phase 2")
+			@kv("Letzter Push", "—", "Phase 2")
+			@kv("Letzter Pull", "—", "Phase 2")
+			@kv("Konflikte (30 Tage)", "—", "Phase 2")
+			@kv("SSE-Stream", "—", "Phase 2")
+		</div>
+	</div>
+}
+
+templ identitySection(vm IndexVM) {
+	<div class="setting-section" data-testid="settings-identity">
+		<div class="setting-side">
+			<h3>Identität</h3>
+			<p>OIDC-Sitzung via Authentik. Die Web-Session läuft in einem
+				<code class="kbd">httpOnly</code>-Cookie; TUI und MCP nutzen
+				Bearer-Tokens.</p>
+		</div>
+		<div class="setting-body">
+			@kv("E-Mail", vm.Identity.Email, "")
+			@kv("Sub", vm.Identity.Sub, "")
+			@kv("Anzeigename", vm.Identity.DisplayName, "")
+			@kv("Issuer", vm.Identity.Issuer, "")
+			@kv("Cookie · läuft ab", vm.Identity.CookieExpiryLabel, "")
+			@kv("Scopes", vm.Identity.Scopes, "")
+
+			<form method="post" action="/logout" style="margin-top: 1rem;" data-testid="settings-logout-form">
+				<button type="submit" class="btn btn-sm btn-danger">
+					<span aria-hidden="true">⏻</span>
+					<span>Abmelden</span>
+				</button>
+			</form>
+		</div>
+	</div>
+}
+
+templ exportSection(vm IndexVM) {
+	<div class="setting-section" data-testid="settings-export">
+		<div class="setting-side">
+			<h3>Export / Import</h3>
+			<p>Alles lokal verfügbar — die WebUI ist eine zweite Sicht auf die
+				gleiche SQLite, die auch die TUI nutzt.</p>
+		</div>
+		<div class="setting-body">
+			@kv("server.db", vm.ServerDBPath, "")
+			<div class="kv">
+				<span class="kv-k">SQLite-Backup</span>
+				<span class="kv-v">—</span>
+				<button class="btn btn-sm" disabled aria-disabled="true" title="kommt in Phase 2">↓ herunterladen</button>
+			</div>
+			<div class="kv">
+				<span class="kv-k">TSV-Sessions</span>
+				<span class="kv-v">—</span>
+				<button class="btn btn-sm" disabled aria-disabled="true" title="kommt in Phase 2">↓ CSV</button>
+			</div>
+			<div class="kv">
+				<span class="kv-k">Repo-Notes</span>
+				<span class="kv-v">—</span>
+				<button class="btn btn-sm" disabled aria-disabled="true" title="kommt in Phase 2">↓ Markdown-Tar</button>
+			</div>
+		</div>
+	</div>
+}
+
+templ versionSection(vm IndexVM) {
+	<div class="setting-section" data-testid="settings-version">
+		<div class="setting-side">
+			<h3>Version</h3>
+			<p>Build-Info — was wirklich läuft, nicht was im Repo steht.</p>
+		</div>
+		<div class="setting-body">
+			@kv("flow-server commit", vm.CommitShort, "")
+			@kv("Go-Runtime", vm.GoVersion, "")
+			@kv("Phase", vm.Phase, "")
+			@kv("Uptime", vm.Uptime, "")
+		</div>
+	</div>
+}
+
+// kv renders one key/value row in a settings section. The trailing
+// suffix is rendered dim — usually "Phase 2" for placeholder rows.
+templ kv(k, v, suffix string) {
+	<div class="kv">
+		<span class="kv-k">{ k }</span>
+		<span class="kv-v">{ v }</span>
+		if suffix != "" {
+			<span class="kv-suffix">{ suffix }</span>
+		} else {
+			<span></span>
+		}
+	</div>
+}
+
+templ footerNote() {
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m6 · settings</span>
+		<span>
+			<code class="kbd">⌘ K</code> palette · <code class="kbd">g</code> goto
+		</span>
+	</div>
+}
