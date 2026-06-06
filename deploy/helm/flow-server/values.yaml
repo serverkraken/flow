@@ -1,0 +1,141 @@
+# Default values for flow-server.
+# See deploy/helm/flow-server/README.md (Task 4) for the full reference.
+
+image:
+  repository: ghcr.io/serverkraken/flow-server
+  # tag falls back to .Chart.AppVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# SQLite is single-writer — NEVER bump this above 1. The Deployment template
+# hard-codes replicas: 1 regardless of this value to make the constraint
+# visible in `helm template` output, but we keep the knob here for symmetry.
+replicaCount: 1
+
+# flow-server runtime config. All values land in a ConfigMap (Task 4) and are
+# wired into the container via envFrom. The names mirror the FLOW_* env vars
+# read by internal/adapter/httpserver/config.go.
+flow:
+  # FLOW_SERVER_ADDR — listen address inside the pod.
+  serverAddr: ":8080"
+  # FLOW_SERVER_BASE_URL — public URL the OIDC redirect-handler advertises.
+  # Must match the Authentik client's redirect-uri (BaseURL + /auth/callback).
+  serverBaseURL: "https://flow.example.com"
+  # FLOW_SERVER_DB — SQLite path inside the pod; mounted on the PVC.
+  serverDBPath: "/var/lib/flow/server.db"
+  # FLOW_OIDC_ISSUER — Authentik application URL (trailing slash matters).
+  oidcIssuer: "https://auth.example.com/application/o/flow/"
+  # FLOW_OIDC_CLIENT_ID — the confidential client ID used by the WebUI.
+  oidcClientID: "flow-server"
+  # FLOW_ALLOWED_SUBS — comma-separated OIDC 'sub' values that may log in.
+  # Required; set via --set flow.allowedSubs=... or a values override.
+  allowedSubs: ""
+  # FLOW_NOTEBOOK_ROOT — optional kompendium notebook path; empty means
+  # /notes renders the "Notes nicht konfiguriert" placeholder.
+  notebookRoot: ""
+
+# Secret-only values. These land in a Kubernetes Secret (Task 4) and are
+# wired into the container via envFrom: secretRef.
+secret:
+  # FLOW_OIDC_CLIENT_SECRET — Authentik client secret. Required.
+  oidcClientSecret: ""
+  # FLOW_COOKIE_HASH_KEY — 64 hex chars (32 bytes). Generate with:
+  #   openssl rand -hex 32
+  cookieHashKey: ""
+  # FLOW_COOKIE_BLOCK_KEY — 64 hex chars (32 bytes). Generate with:
+  #   openssl rand -hex 32
+  cookieBlockKey: ""
+  # Litestream S3 credentials. Required if litestream.enabled=true.
+  litestreamAccessKeyID: ""
+  litestreamSecretAccessKey: ""
+
+# PersistentVolumeClaim for the SQLite store. Mounted at /var/lib/flow on
+# both containers.
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 4Gi
+  accessMode: ReadWriteOnce
+
+# Litestream sidecar continuously replicates server.db to S3. Disable only
+# if you handle backups some other way (cron snapshots, etc.).
+litestream:
+  enabled: true
+  image: litestream/litestream:0.3.13
+  # s3://bucket/path — required when enabled. Example:
+  #   s3://flow-backups.s3.eu-central-1.amazonaws.com/server.db
+  replicaURL: ""
+  syncInterval: 1s
+  retention: 168h
+
+ingress:
+  enabled: true
+  className: nginx
+  host: flow.example.com
+  # Extra annotations for the Ingress object. Add cert-manager hooks here.
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: flow-server-tls
+
+resources:
+  flowServer:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  litestream:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# /metrics is wired in Plan F · Task 6. Flip metrics.enabled to true once
+# that lands.
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    # Prometheus scrape interval. Only used when serviceMonitor.enabled=true.
+    interval: 30s
+    labels: {}
+
+# Pod-level overrides. Empty by default; useful for nodeSelector/tolerations
+# when running on dedicated nodes.
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# securityContext applied to the pod. Distroless nonroot is uid/gid 65532.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+# Container-level securityContext applied to both flow-server and litestream.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+serviceAccount:
+  # Skip ServiceAccount creation in the skeleton; Task 4 may add it.
+  create: false
+  name: ""
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Override the chart's name + fullname computations. Empty means use the
+# defaults from _helpers.tpl.
+nameOverride: ""
+fullnameOverride: ""

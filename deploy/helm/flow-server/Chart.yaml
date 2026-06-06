@@ -1,0 +1,32 @@
+apiVersion: v2
+name: flow-server
+description: |
+  flow-server — multi-device sync HTTP API + WebUI for flow.
+  Phase 1 single-replica deployment with a litestream sidecar that
+  continuously replicates the SQLite store to S3-compatible storage.
+type: application
+
+# Chart version follows independently of the app — bump on chart changes.
+version: 0.1.0
+
+# Image tag falls back to .Chart.AppVersion when values.image.tag is empty.
+# Keep this in sync with the latest flow release tag.
+appVersion: "1.4.3"
+
+# SQLite is a single-writer engine. Bumping replicas corrupts the database.
+# The Helm chart enforces this via a hard-coded replicas: 1 in the
+# Deployment spec (see templates/deployment.yaml).
+maintainers:
+  - name: serverkraken
+    url: https://github.com/serverkraken/flow
+
+home: https://github.com/serverkraken/flow
+sources:
+  - https://github.com/serverkraken/flow
+
+keywords:
+  - flow
+  - worktime
+  - sqlite
+  - litestream
+  - selfhosted
