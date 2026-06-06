@@ -204,6 +204,68 @@ func TestProjectEdit_GET_CancelReturnsRow(t *testing.T) {
 	}
 }
 
+func TestProjectEdit_Archived_Returns400(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "pa-edit-archived")
+	p := seedProject(t, store, u.ID, "archived-project")
+	projects := sqliteserver.NewProjects(store)
+	if err := projects.Archive(u.ID, p.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
+	d := mkProjectActionsDeps(store, now)
+	h := handlers.NewProjectEdit(d)
+
+	rr := httptest.NewRecorder()
+	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit", "", u, map[string]string{"id": p.ID})
+	h.ServeHTTP(rr, r)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400; body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestProjectPut_Archived_Returns400(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "pa-put-archived")
+	projects := sqliteserver.NewProjects(store)
+	p, err := projects.EnsureBySlug(u.ID, "To Archive", "to-archive")
+	if err != nil {
+		t.Fatalf("EnsureBySlug: %v", err)
+	}
+	if err := projects.Archive(u.ID, p.ID); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
+	d := mkProjectActionsDeps(store, now)
+	h := handlers.NewProjectPut(d)
+
+	form := url.Values{}
+	form.Set("name", "Renamed After Archive")
+	form.Set("version", strconv.FormatInt(p.Version, 10))
+
+	rr := httptest.NewRecorder()
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	h.ServeHTTP(rr, r)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d, want 400; body=%s", rr.Code, rr.Body.String())
+	}
+
+	// Name must NOT have been changed.
+	saved, err := projects.GetByID(u.ID, p.ID)
+	if err != nil {
+		t.Fatalf("post-read: %v", err)
+	}
+	if saved.Name != "To Archive" {
+		t.Errorf("archived project name changed: got %q, want %q", saved.Name, "To Archive")
+	}
+}
+
 func TestProjectEdit_GET_Unauthorized_401(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServerStore(t)
@@ -511,19 +573,9 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
-	// Encode a session cookie. The decode side reads it into the
-	// unexported sessionValue struct via gob — gob keys on field
-	// names + types, so an exported struct with the same shape
-	// round-trips correctly.
-	cookieVal, err := sess.Encode("flow_session", testSessionValue{
-		Sub:       "u-router-test",
-		Email:     "router@example",
-		Name:      "router",
-		ExpiresAt: time.Now().Add(time.Hour).Unix(),
-	})
-	if err != nil {
-		t.Fatalf("encode session cookie: %v", err)
-	}
+	// Encode a session cookie. Helper lives in sessioncookie_test.go
+	// so Task 14's router-level tests can reuse the same shape.
+	cookieVal := encodeTestSession(t, sess, "flow_session", "u-router-test", "router@example", "router", time.Hour)
 
 	jar, _ := cookiejar.New(nil)
 	tsURL, _ := url.Parse(ts.URL)
@@ -564,17 +616,6 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	if got.Name != "Router Wiring Smoke" {
 		t.Errorf("created row name: got %q, want %q", got.Name, "Router Wiring Smoke")
 	}
-}
-
-// testSessionValue mirrors httpserver.sessionValue field-for-field.
-// gob keys on field names + types, not on the Go type identity, so
-// encoding this exported struct and decoding into the unexported
-// original works as long as the shape matches.
-type testSessionValue struct {
-	Sub       string
-	Email     string
-	Name      string
-	ExpiresAt int64
 }
 
 // fakeProvider + fakeAccess satisfy the AuthDeps interfaces without

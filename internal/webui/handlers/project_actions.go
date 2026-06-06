@@ -140,6 +140,26 @@ func NewProjectCreate(d ProjectActionsDeps) http.Handler {
 		}
 
 		created, err := d.Projects.EnsureBySlug(u.ID, name, slug)
+		if err != nil && isUniqueConstraintErr(err) {
+			// TOCTOU race: another concurrent request grabbed `slug`
+			// between uniqueSlugFor's probe and EnsureBySlug's INSERT.
+			// Walk the suffix loop once more (now seeing the taken slug)
+			// and retry. Capped at 1 retry — a second collision under
+			// the same race would indicate a much larger contention
+			// problem that warrants a real adapter-level fix.
+			slug2, slugErr := uniqueSlugFor(d.Projects, u.ID, name)
+			if slugErr != nil {
+				slog.Error("project create: slug resolve failed on retry",
+					slog.String("user_id", u.ID),
+					slog.String("name", name),
+					slog.String("err", slugErr.Error()),
+				)
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			slug = slug2
+			created, err = d.Projects.EnsureBySlug(u.ID, name, slug)
+		}
 		if err != nil {
 			slog.Error("project create: EnsureBySlug failed",
 				slog.String("user_id", u.ID),
@@ -190,9 +210,19 @@ func NewProjectEdit(d ProjectActionsDeps) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 
-		// cancel=1 → render the read-only row.
+		// cancel=1 → render the read-only row. Cancel works on archived
+		// rows too — restoring the row view is harmless either way.
 		if r.URL.Query().Get("cancel") == "1" {
 			_ = projectspartials.ProjectRow(buildProjectRowVM(p, d.Clock.Now())).Render(r.Context(), w)
+			return
+		}
+
+		// Block rename of archived projects. The UI already hides the
+		// pencil for archived rows, but a direct GET to
+		// /projects/{id}/edit must also be rejected so the server is the
+		// single source of truth for the invariant.
+		if p.ArchivedAt != nil {
+			http.Error(w, "archivierte Projekte können nicht umbenannt werden", http.StatusBadRequest)
 			return
 		}
 
@@ -238,6 +268,13 @@ func NewProjectPut(d ProjectActionsDeps) http.Handler {
 		if err != nil {
 			slog.Error("project put: GetByID failed", slog.String("id", id), slog.String("err", err.Error()))
 			http.Error(w, "internal", http.StatusInternalServerError)
+			return
+		}
+
+		// Server-side guard mirroring NewProjectEdit: archived projects
+		// can't be renamed even if a client crafts a direct PUT.
+		if existing.ArchivedAt != nil {
+			http.Error(w, "archivierte Projekte können nicht umbenannt werden", http.StatusBadRequest)
 			return
 		}
 
@@ -354,6 +391,15 @@ func NewProjectArchive(d ProjectActionsDeps) http.Handler {
 // usecase variant lives behind the ports.ProjectStore interface; this
 // helper reuses the SlugFromName rule directly so the WebUI doesn't
 // take a circular dependency on usecase.Projects.
+//
+// TOCTOU note: this probe is NOT transactional with the subsequent
+// EnsureBySlug insert. Two concurrent POST /projects with the same
+// name can both see the slug free here, then the second INSERT fails
+// with the (user_id, slug) UNIQUE constraint. NewProjectCreate
+// detects that error via isUniqueConstraintErr and retries the walk
+// once before giving up. A proper fix would push the slug walk into
+// the adapter and do it inside a single transaction, but that's a
+// larger refactor — deferred.
 func uniqueSlugFor(p *sqliteserver.Projects, userID, name string) (string, error) {
 	base := usecase.SlugFromName(name)
 	slug := base
@@ -366,12 +412,29 @@ func uniqueSlugFor(p *sqliteserver.Projects, userID, name string) (string, error
 			return "", fmt.Errorf("uniqueSlugFor lookup: %w", err)
 		}
 		slug = base + "-" + strconv.Itoa(i)
-		// Defensive cap — never spin forever. 1000 collisions would be
-		// pathological; the user can rename to escape.
+		// Defensive cap — never spin forever. 1000 collision attempts
+		// would be pathological; the user can rename to escape.
 		if i > 1000 {
 			return "", fmt.Errorf("uniqueSlugFor: collision cap exceeded for %q", base)
 		}
 	}
+}
+
+// isUniqueConstraintErr detects sqlite UNIQUE-constraint violations
+// surfaced from EnsureBySlug. modernc.org/sqlite returns errors like
+// "constraint failed: UNIQUE constraint failed: projects.user_id,
+// projects.slug (2067)"; either substring matches.
+//
+// String-matching is brittle but the alternative — depending on
+// modernc.org/sqlite's error types directly from the handler package —
+// would bake a driver choice into the WebUI layer. The narrow
+// fallback target (UNIQUE on user_id+slug) keeps the surface small.
+func isUniqueConstraintErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "UNIQUE constraint") || strings.Contains(msg, "constraint failed")
 }
 
 // parseProjectVersion folds a form field into the int64 expectedVersion.
