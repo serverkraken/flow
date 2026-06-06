@@ -33,7 +33,6 @@ type ViewModel struct {
 	TopProjectTotal  string // "14h 22m"
 	TopProjectShare  string // "40% der Woche"
 	WeekSessionCount int    // total weekly sessions
-	WeekSinceMon     int    // sessions whose Date is ≥ monday (same as WeekSessionCount in M6; kept for clarity)
 	LastActivityText string // "vor 8s · session geändert"
 }
 
@@ -78,7 +77,7 @@ templ liveBanner(vm ViewModel) {
 			<div class="live-since">seit { vm.ActiveStartedAt }</div>
 		</div>
 		<!-- M7: wire hx-post=/worktime/active/stop -->
-		<button class="btn btn-danger btn-sm" disabled aria-disabled="true" title="Stop (kommt in M7)">
+		<button class="btn btn-danger btn-sm" disabled aria-disabled="true" aria-label="Stop — wird in M7 aktiv" title="Stop (kommt in M7)">
 			<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 				<rect x="6" y="6" width="12" height="12"></rect>
 			</svg>

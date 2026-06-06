@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -16,11 +15,26 @@ import (
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 )
 
-// DashboardDeps wires the read-side dependencies the dashboard page needs.
-// All four are concrete sqliteserver / usecase types — the sqliteserver
-// adapters intentionally don't satisfy ports.SessionStore / ProjectStore
-// because their signatures carry expectedVersion (server-side
-// optimistic-concurrency) which the client-side ports don't have.
+// DashboardDeps bundles exactly the data sources this handler needs.
+//
+// The webui handlers each carry their own *Deps struct rather than
+// sharing a single fat webui.ServerDeps bag. Rationale: each handler
+// then expresses its data dependencies in its type signature
+// (compile-time documentation), and a handler can be tested with stubs
+// that satisfy only its own interfaces. The wiring in
+// cmd/flow-server/main.go is the one place where the full set of
+// sqliteserver adapters and usecases is assembled — which keeps it as
+// the composition root.
+//
+// If a future handler needs more than ~5 fields here, that is a smell —
+// either the page is doing too much or there is a missing aggregation
+// usecase that should fold several store calls into one.
+//
+// All four data fields are concrete sqliteserver / usecase types — the
+// sqliteserver adapters intentionally don't satisfy ports.SessionStore /
+// ProjectStore because their signatures carry expectedVersion
+// (server-side optimistic-concurrency) which the client-side ports
+// don't have.
 //
 // Clock is exposed so tests can pin "now" and exercise hour-mask / week
 // boundaries deterministically; in production wire a real clock.
@@ -55,7 +69,7 @@ func NewDashboard(d DashboardDeps) http.Handler {
 		}
 		now := clock.Now()
 
-		vm, err := buildDashboardVM(r.Context(), d, u, now)
+		vm, err := buildDashboardVM(d, u, now)
 		if err != nil {
 			slog.Error("dashboard: build view-model failed",
 				slog.String("user_id", u.ID),
@@ -90,7 +104,12 @@ func NewDashboard(d DashboardDeps) http.Handler {
 // buildDashboardVM is split out so the test can exercise the data-shape
 // glue without going through http. All DB reads happen here; the templ
 // renderer only formats.
-func buildDashboardVM(_ context.Context, d DashboardDeps, u domain.User, now time.Time) (dashboard.ViewModel, error) {
+//
+// No context.Context parameter: the sqliteserver adapters this function
+// calls (Active, Sessions, Projects, View) don't accept ctx today, so a
+// dead `_ context.Context` would only obscure that limitation. Thread
+// ctx through here once those adapters grow ctx-aware methods.
+func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.ViewModel, error) {
 	vm := dashboard.ViewModel{
 		Now:         now,
 		HeaderLine:  dashboard.FormatGermanDateHeader(now),
@@ -173,7 +192,6 @@ func buildDashboardVM(_ context.Context, d DashboardDeps, u domain.User, now tim
 
 	// Mini-card: session count.
 	vm.WeekSessionCount = len(weekSessions)
-	vm.WeekSinceMon = dashboard.SessionsSinceMonday(weekSessions, monday)
 
 	// Mini-card: last activity. Newest event from the unified feed.
 	if len(vm.Activity) > 0 {

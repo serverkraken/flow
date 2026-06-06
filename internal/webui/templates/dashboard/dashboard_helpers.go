@@ -210,16 +210,6 @@ func TopProjectOfWeek(sessions []domain.Session) (projectID string, total time.D
 	return projectID, total
 }
 
-// SumDuration is a small helper used by the saldo computation — returns
-// the sum of elapsed across `sessions`.
-func SumDuration(sessions []domain.Session) time.Duration {
-	var sum time.Duration
-	for _, s := range sessions {
-		sum += s.Elapsed
-	}
-	return sum
-}
-
 // WeekTotals sums logged + target across a slice of WeekDays.
 func WeekTotals(week []domain.WeekDay, now time.Time) (logged, target time.Duration) {
 	for _, wd := range week {
@@ -227,18 +217,6 @@ func WeekTotals(week []domain.WeekDay, now time.Time) (logged, target time.Durat
 		target += wd.Target
 	}
 	return logged, target
-}
-
-// SessionsSinceMonday counts sessions whose Date is ≥ monday.
-func SessionsSinceMonday(sessions []domain.Session, monday time.Time) int {
-	monStart := time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, monday.Location())
-	n := 0
-	for _, s := range sessions {
-		if !s.Date.Before(monStart) {
-			n++
-		}
-	}
-	return n
 }
 
 // MondayOf returns 00:00 of t's ISO Monday in t's location.
