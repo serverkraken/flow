@@ -68,7 +68,8 @@ COVER_PKG       := ./internal/...
 .PHONY: build install test cover lint fmt clean ci \
         build-server build-mcp test-server test-integration \
         dex-up dex-down dex-logs run-server \
-        webui webui-templ webui-css webui-css-watch webui-check webui-vendor
+        webui webui-templ webui-css webui-css-watch webui-check webui-vendor \
+        smoke-webui
 
 build:
 	@mkdir -p bin
@@ -184,3 +185,13 @@ webui-vendor:
 	  curl -fsSL "https://cdn.jsdelivr.net/npm/apexcharts@4.3.0/dist/apexcharts.min.js"       -o apexcharts.min.js && \
 	  curl -fsSL "https://cdn.jsdelivr.net/npm/apexcharts@4.3.0/dist/apexcharts.css"          -o apexcharts.min.css
 	cd tools/codemirror && npm install --silent --no-audit --no-fund && node build.mjs
+
+# Manual-trigger end-to-end smoke for the WebUI. Builds bin/flow-server,
+# boots it, and exercises the M6 read paths + M7 write paths. NOT part of
+# `make ci` — the boot sequence needs FLOW_OIDC_ISSUER reachable (the
+# dex stack from `make dex-up`, or a real Authentik). The M7 mutation
+# probes additionally SKIP unless FLOW_SMOKE_OIDC_ID_TOKEN is exported.
+# Coverage parity with the curl probes is documented in tools/playwright/README.md.
+smoke-webui:
+	bash scripts/smoke-m6-webui.sh
+	bash scripts/smoke-m7-webui-write.sh
