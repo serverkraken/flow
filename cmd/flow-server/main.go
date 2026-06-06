@@ -148,6 +148,7 @@ func main() {
 		ReposServer:     repos,
 		RepoNotesServer: repoNotes,
 		WebUI:           webuiHandlers,
+		Logger:          logger,
 		BaseURL:         cfg.BaseURL,
 		OIDCClientID:    cfg.OIDCClientID,
 		OIDCSecret:      cfg.OIDCClientSecret,

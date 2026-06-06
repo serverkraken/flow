@@ -68,6 +68,7 @@ type AuthDeps struct {
 	ReposServer     ReposServer     // optional; nil disables /api/v1/repos routes (Plan C)
 	RepoNotesServer RepoNotesServer // optional; nil disables /api/v1/repo-notes routes (Plan C)
 	WebUI           *WebUIHandlers  // optional; nil disables the WebUI route group (Plan E · Task 10)
+	Logger          *slog.Logger    // optional; nil falls back to slog.Default() inside the log middleware (Plan F · Task 7)
 	BaseURL         string
 	OIDCClientID    string
 	OIDCSecret      string

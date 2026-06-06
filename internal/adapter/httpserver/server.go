@@ -38,6 +38,11 @@ func NewWithAuth(d AuthDeps) *Server {
 	// in flow_http_requests_total. The middleware skips /metrics
 	// internally to avoid self-observation.
 	r.Use(NewMetricsMiddleware)
+	// Structured JSON request log (Plan F · Task 7). Sits between
+	// metrics and auth so its status field reflects the post-auth
+	// outcome (401/403 verdicts show up in the log) while still
+	// being observed by the metrics counter above.
+	r.Use(NewLogMiddleware(d.Logger))
 
 	// /metrics is intentionally UNAUTHENTICATED. Prometheus scrapes
 	// anonymously; access control belongs at the network layer
