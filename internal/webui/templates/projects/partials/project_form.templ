@@ -1,0 +1,69 @@
+package partials
+
+import "strconv"
+
+// ProjectFormVM is the view-model for the inline rename form. Replaces a
+// ProjectRow via outerHTML swap when the user clicks Edit. Save returns
+// the updated ProjectRow; Cancel re-fetches the read-only row.
+type ProjectFormVM struct {
+	ID      string
+	Name    string
+	Slug    string
+	Version int64
+
+	// Error is the optional inline error label rendered above the input
+	// when the previous submit failed validation (empty name, etc.).
+	// Empty string → no error block.
+	Error string
+}
+
+// ProjectForm renders the inline-edit row. Submit triggers PUT
+// /projects/{id} with the new name + version; cancel restores the row
+// via GET /projects/{id}/edit?cancel=1.
+templ ProjectForm(f ProjectFormVM) {
+	<div class="proj-grid-row" data-testid="project-form" data-project-id={ f.ID }>
+		<span class="proj-glyph" aria-hidden="true">●</span>
+		<div>
+			<form
+				class="proj-edit-form"
+				hx-put={ "/projects/" + f.ID }
+				hx-target="closest .proj-grid-row"
+				hx-swap="outerHTML"
+				style="display: flex; gap: 0.5rem; align-items: center;"
+			>
+				<input type="hidden" name="version" value={ intToStr(f.Version) }/>
+				<input
+					type="text"
+					name="name"
+					value={ f.Name }
+					required
+					aria-label="Projektname"
+					placeholder="Projektname"
+					autofocus
+					autocomplete="off"
+					style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; flex: 1; font-family: inherit;"
+				/>
+				<button type="submit" class="btn btn-sm btn-primary">Speichern</button>
+				<button
+					type="button"
+					class="btn btn-sm"
+					hx-get={ "/projects/" + f.ID + "/edit?cancel=1" }
+					hx-target="closest .proj-grid-row"
+					hx-swap="outerHTML"
+				>Abbrechen</button>
+			</form>
+			if f.Error != "" {
+				<div class="proj-meta" style="color: var(--color-err); margin-top: 0.25rem;" data-testid="project-form-error">{ f.Error }</div>
+			} else {
+				<div class="proj-meta">{ f.Slug } <span style="color: var(--color-fg-dim);">— slug bleibt stabil</span></div>
+			}
+		</div>
+		<span></span>
+		<span></span>
+		<span></span>
+		<span></span>
+	</div>
+}
+
+// intToStr renders int64 as decimal for the hidden version field.
+func intToStr(v int64) string { return strconv.FormatInt(v, 10) }

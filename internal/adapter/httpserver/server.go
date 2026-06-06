@@ -134,6 +134,31 @@ func NewWithAuth(d AuthDeps) *Server {
 				rr.Method(http.MethodGet, "/settings", w.Settings)
 			}
 
+			// — M7 project write surface ----------------------------
+			// Each handler is nil-guarded so partial wiring degrades
+			// gracefully. The /projects/new + /projects/new/cancel
+			// routes power the button↔form swap; /projects POST
+			// creates; /projects/{id}/edit + PUT /projects/{id}
+			// rename; POST /projects/{id}/archive soft-deletes.
+			if w.ProjectNewForm != nil {
+				rr.Method(http.MethodGet, "/projects/new", w.ProjectNewForm)
+			}
+			if w.ProjectNewCancel != nil {
+				rr.Method(http.MethodGet, "/projects/new/cancel", w.ProjectNewCancel)
+			}
+			if w.ProjectCreate != nil {
+				rr.Method(http.MethodPost, "/projects", w.ProjectCreate)
+			}
+			if w.ProjectEdit != nil {
+				rr.Method(http.MethodGet, "/projects/{id}/edit", w.ProjectEdit)
+			}
+			if w.ProjectPut != nil {
+				rr.Method(http.MethodPut, "/projects/{id}", w.ProjectPut)
+			}
+			if w.ProjectArchive != nil {
+				rr.Method(http.MethodPost, "/projects/{id}/archive", w.ProjectArchive)
+			}
+
 			// — M7 session write surface ----------------------------
 			// All five routes share the cookie-auth group; each
 			// handler is nil-guarded so partial wiring degrades

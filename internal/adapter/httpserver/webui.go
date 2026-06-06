@@ -52,4 +52,17 @@ type WebUIHandlers struct {
 	NotePut      http.Handler
 	RepoNoteEdit http.Handler
 	RepoNotePut  http.Handler
+
+	// M7 — Plan E · Task 13. HTMX write surface for the /projects
+	// page: create new projects via inline form, rename via inline
+	// per-row form, soft-delete (archive) via per-row button. Each
+	// handler returns a templ partial fragment; HTMX swaps the
+	// targeted DOM node in-place. All six share the same
+	// ProjectActionsDeps bag in cmd/flow-server/main.go.
+	ProjectNewForm   http.Handler
+	ProjectNewCancel http.Handler
+	ProjectCreate    http.Handler
+	ProjectEdit      http.Handler
+	ProjectPut       http.Handler
+	ProjectArchive   http.Handler
 }

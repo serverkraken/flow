@@ -247,6 +247,13 @@ func buildWebUIHandlers(
 		Clock:     clock,
 	}
 
+	// M7 / Task 13 — project create/rename/archive. Smaller deps bag —
+	// projects don't need Sessions/Active/View like session-actions do.
+	projectActionsDeps := handlers.ProjectActionsDeps{
+		Projects: projects,
+		Clock:    clock,
+	}
+
 	return &httpserver.WebUIHandlers{
 		Dashboard: handlers.NewDashboard(handlers.DashboardDeps{
 			View:        worktimeView,
@@ -284,6 +291,14 @@ func buildWebUIHandlers(
 			Active:   activeStore,
 			Clock:    clock,
 		}),
+
+		// M7 / Task 13 — project create/rename/archive.
+		ProjectNewForm:   handlers.NewProjectNewForm(projectActionsDeps),
+		ProjectNewCancel: handlers.NewProjectNewCancel(projectActionsDeps),
+		ProjectCreate:    handlers.NewProjectCreate(projectActionsDeps),
+		ProjectEdit:      handlers.NewProjectEdit(projectActionsDeps),
+		ProjectPut:       handlers.NewProjectPut(projectActionsDeps),
+		ProjectArchive:   handlers.NewProjectArchive(projectActionsDeps),
 		Settings: handlers.NewSettings(handlers.SettingsDeps{
 			ServerBaseURL: cfg.BaseURL,
 			OIDCIssuer:    cfg.OIDCIssuer,

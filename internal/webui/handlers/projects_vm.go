@@ -7,6 +7,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/webui/format"
 	projectstmpl "github.com/serverkraken/flow/internal/webui/templates/projects"
+	projectspartials "github.com/serverkraken/flow/internal/webui/templates/projects/partials"
 )
 
 // buildProjectsIndexVM resolves the data for the /projects index. It
@@ -59,7 +60,7 @@ func buildProjectsIndexVM(d ProjectsDeps, userID string, tab projectsSubTab, now
 	weekByProject := aggregateWeekByProject(weekSessions)
 	lastByProject := lastActivityByProject(sevenDay)
 
-	vm.Rows = make([]projectstmpl.IndexRow, 0, len(allProjects))
+	vm.Rows = make([]projectspartials.ProjectRowVM, 0, len(allProjects))
 	for _, p := range allProjects {
 		row := projectRow(p, activeProjectID, lastByProject, weekByProject, now)
 		vm.Rows = append(vm.Rows, row)
@@ -129,16 +130,18 @@ func projectRow(
 	lastByProject map[string]time.Time,
 	weekByProject map[string]projectWeekStats,
 	now time.Time,
-) projectstmpl.IndexRow {
+) projectspartials.ProjectRowVM {
 	isActive := activeProjectID == p.ID
 	isArchived := p.ArchivedAt != nil
 	weekStats := weekByProject[p.ID]
 
-	row := projectstmpl.IndexRow{
+	row := projectspartials.ProjectRowVM{
+		ID:              p.ID,
 		Name:            p.Name,
 		Slug:            p.Slug,
 		Archived:        isArchived,
 		HasActive:       isActive,
+		Version:         p.Version,
 		WeekDuration:    "—",
 		WeekCount:       "0",
 		LastLabel:       "—",
