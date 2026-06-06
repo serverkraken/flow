@@ -454,6 +454,88 @@
     max-width: 70ch;
   }
 
+  /* ---------------------------------------------------------------------
+   * Repos index list (Plan E · Task 8).
+   * Compact dense list — one row per repo: name + remote + meta line.
+   * The mockup's left "repo-sidebar" lives as a full-width column here
+   * (the WebUI splits list + detail across routes /repos and
+   * /repos/{key}/note); the visual idiom is preserved.
+   * ------------------------------------------------------------------- */
+  .repo-list {
+    display: block;
+    margin-top: 1rem;
+  }
+  .repo-side-head {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-muted);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .repo-item {
+    display: block;
+    padding: 0.625rem 0.5rem;
+    border-left: 2px solid transparent;
+    margin-left: -0.5rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+    transition: background 80ms, border-color 80ms;
+    color: var(--color-fg);
+  }
+  .repo-item:hover {
+    background: var(--color-bg-soft);
+    border-left-color: var(--color-accent);
+  }
+  .repo-item.is-active {
+    border-left-color: var(--color-accent);
+    background: var(--color-bg-soft);
+  }
+  .repo-item .nm {
+    font-size: 0.9375rem;
+    color: var(--color-fg);
+  }
+  .repo-item .hs {
+    font-size: 0.75rem;
+    color: var(--color-fg-dim);
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.125rem;
+  }
+  .repo-item .hs.has-note { color: var(--color-accent); }
+  .repo-item .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--color-fg-dim);
+  }
+
+  /* Repo note "meta strip" — replaces the right rail on the note view. */
+  .note-meta {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+  }
+  .note-meta .item { display: flex; gap: 0.5rem; }
+  .note-meta .item .label {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.625rem;
+  }
+  .note-meta .item .value {
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+  }
+
   /* Horizontal bar rows (Nach Projekt / Nach Tag on the Woche tab).
      Three columns: label · bar · numeric total. Hairline bottom. */
   .proj-row {

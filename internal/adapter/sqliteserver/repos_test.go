@@ -65,6 +65,57 @@ func TestUnit_ServerRepos_Upsert_StaleVersionConflict(t *testing.T) {
 	}
 }
 
+func TestUnit_ServerRepos_GetByCanonicalKey_HappyPath(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "srepo-gbck1")
+	repos := NewRepos(store)
+
+	created, err := repos.EnsureByCanonicalKey(u.ID, "git:gh.com/o/getbykey", "getbykey")
+	if err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+
+	got, err := repos.GetByCanonicalKey(u.ID, "git:gh.com/o/getbykey")
+	if err != nil {
+		t.Fatalf("GetByCanonicalKey: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("ID mismatch: got %q, want %q", got.ID, created.ID)
+	}
+	if got.CanonicalKey != "git:gh.com/o/getbykey" {
+		t.Errorf("CanonicalKey mismatch: got %q", got.CanonicalKey)
+	}
+}
+
+func TestUnit_ServerRepos_GetByCanonicalKey_WrongUserIsolated(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	owner := serverTestUser(t, store, "srepo-gbck2-owner")
+	other := serverTestUser(t, store, "srepo-gbck2-other")
+	repos := NewRepos(store)
+
+	if _, err := repos.EnsureByCanonicalKey(owner.ID, "git:gh.com/iso/repo", "iso"); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	_, err := repos.GetByCanonicalKey(other.ID, "git:gh.com/iso/repo")
+	if !errors.Is(err, ports.ErrRepoNotFound) {
+		t.Errorf("cross-tenant lookup: want ErrRepoNotFound, got %v", err)
+	}
+}
+
+func TestUnit_ServerRepos_GetByCanonicalKey_UnknownKey(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "srepo-gbck3")
+	repos := NewRepos(store)
+
+	_, err := repos.GetByCanonicalKey(u.ID, "git:gh.com/does/not/exist")
+	if !errors.Is(err, ports.ErrRepoNotFound) {
+		t.Errorf("want ErrRepoNotFound, got %v", err)
+	}
+}
+
 func TestUnit_ServerRepos_PullSince_AscendingOrder(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServer(t)

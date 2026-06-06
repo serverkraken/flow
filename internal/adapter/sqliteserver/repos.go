@@ -119,6 +119,14 @@ func (r *Repos) getByKey(userID, key string) (domain.Repo, error) {
 	return scanServerRepo(row)
 }
 
+// GetByCanonicalKey returns the Repo for (userID, canonicalKey) without
+// inserting on miss. Returns ports.ErrRepoNotFound for an unknown key —
+// read-only counterpart to EnsureByCanonicalKey used by the WebUI repo
+// pages where we never want to materialise a fresh row off a URL miss.
+func (r *Repos) GetByCanonicalKey(userID, canonicalKey string) (domain.Repo, error) {
+	return r.getByKey(userID, canonicalKey)
+}
+
 // PullSince returns repos with Version > since, ordered ASC.
 func (r *Repos) PullSince(userID string, since int64, limit int) ([]domain.Repo, int64, bool, error) {
 	rows, err := r.store.DB().Query(
