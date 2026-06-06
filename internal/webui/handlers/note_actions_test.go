@@ -162,6 +162,31 @@ func TestNoteEdit_GET_Unauthorized_401(t *testing.T) {
 	}
 }
 
+// TestNoteEdit_GET_IDEndingInEdit_NotFound guards the dispatch-collision
+// case: the GET /notes/* router hijacks any path ending in /edit and
+// forwards it to NewNoteEdit. A kompendium note literally named
+// ".../edit" would therefore be unreachable via the view route AND its
+// own edit form would resolve to the wrong ID. The handler defensively
+// returns 404 when the stripped ID itself still ends in /edit so the
+// user does not silently mismatch-dispatch onto a sibling note.
+func TestNoteEdit_GET_IDEndingInEdit_NotFound(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "ne-edit-collision")
+	root, _ := seedKompNotebook(t)
+	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)
+	d := mkNoteActionsDeps(t, store, root, now)
+	h := handlers.NewNoteEdit(d)
+	rr := httptest.NewRecorder()
+	// chi captures "some/path/edit/edit" — after the trailing /edit
+	// strip, the residual ID still ends in /edit → handler returns 404.
+	r := naReq(t, http.MethodGet, "/notes/some/path/edit/edit", "", u, map[string]string{"*": "some/path/edit/edit"})
+	h.ServeHTTP(rr, r)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("status: got %d, want 404", rr.Code)
+	}
+}
+
 // — kompendium note PUT tests ------------------------------------------------
 
 func TestNotePut_HappyPath_303AndWritesContent(t *testing.T) {

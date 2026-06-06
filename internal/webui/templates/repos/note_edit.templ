@@ -59,18 +59,12 @@ templ editNoteBreadcrumb(vm NoteEditVM) {
 templ editNoteForm(vm NoteEditVM) {
 	<h1 class="display-md" style="margin: 0 0 1.25rem;">{ vm.DisplayName }</h1>
 	<form
-		method="POST"
-		action={ noteEditFormAction(vm.CanonicalKey) }
 		hx-put={ string(noteEditFormAction(vm.CanonicalKey)) }
 		hx-target="body"
 		hx-swap="outerHTML"
-		hx-confirm="Speichern und schließen?"
 		data-testid="repo-note-edit-form"
 		style="display: flex; flex-direction: column; gap: 1rem;"
 	>
-		<!-- HTML forms cannot natively PUT; the handler accepts a
-		     POST with _method=PUT for the no-JS fallback. -->
-		<input type="hidden" name="_method" value="PUT"/>
 		<input type="hidden" name="version" value={ formatVersion(vm.Version) }/>
 		<div class="editor-surface" data-testid="repo-note-edit-surface">
 			<textarea

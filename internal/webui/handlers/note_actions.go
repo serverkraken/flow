@@ -398,10 +398,30 @@ func noteIDFromPath(r *http.Request) string {
 
 // noteIDFromEditPath does the same as noteIDFromPath but additionally
 // strips the trailing "/edit" segment so the kompendium-ID parse sees
-// just the note ID.
+// just the note ID. Delegates the actual suffix strip + dispatch-guard
+// to stripEditSuffix so the rule stays unit-testable on a plain string.
 func noteIDFromEditPath(r *http.Request) string {
-	raw := noteIDFromPath(r)
-	return strings.TrimSuffix(raw, "/edit")
+	return stripEditSuffix(noteIDFromPath(r))
+}
+
+// stripEditSuffix removes the trailing "/edit" segment from a kompendium
+// path captured under the chi "*" wildcard.
+//
+// Reject IDs that would collide with the dispatch convention: a
+// kompendium note literally named ".../edit" would be hijacked by the
+// GET dispatcher (notesGetDispatch routes "*/edit" → NoteEdit). The
+// single-user namespace makes the clash rare in practice, but a
+// defensive guard is cheap. Callers treat the empty return as "not
+// found".
+func stripEditSuffix(raw string) string {
+	if !strings.HasSuffix(raw, "/edit") {
+		return ""
+	}
+	stripped := strings.TrimSuffix(raw, "/edit")
+	if stripped == "edit" || strings.HasSuffix(stripped, "/edit") {
+		return ""
+	}
+	return stripped
 }
 
 // decodeRepoKey reads the chi {key} URL param, URL-decodes it, and
