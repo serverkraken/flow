@@ -203,6 +203,54 @@ func TestServerWorktimeView_Week_SpansMonToSun_FlagsToday(t *testing.T) {
 	}
 }
 
+func TestServerWorktimeView_Week_ActiveSessionOnTodayRow(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "swv-week-active")
+	p := seedProject(t, store, u.ID, "swv-week-active-proj")
+	sessions := sqliteserver.NewSessions(store)
+
+	// Wednesday 2026-04-29: week is Mon 27 - Sun 03/May.
+	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
+	// Monday 04-27 + Wednesday 04-29 sessions (same shape as the spans test).
+	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 27, 9, 0, 0, 0, time.UTC), 4*time.Hour)
+	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour)
+
+	// Start an active session — server clock is "now", so StartedAt ≈ now.
+	act, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, "laptop", 0, "", "")
+	if err != nil {
+		t.Fatalf("Start active: %v", err)
+	}
+
+	v := mkView(t, store, now)
+	week, err := v.Week(u.ID)
+	if err != nil {
+		t.Fatalf("Week: %v", err)
+	}
+
+	var todayRows int
+	for _, wd := range week {
+		if wd.IsToday {
+			todayRows++
+			if wd.Active == nil {
+				t.Fatal("today row: Active is nil, want pointer to active session start")
+			}
+			// active_sessions persists started_at as RFC3339 (second precision),
+			// so compare truncated to seconds.
+			got := wd.Active.Truncate(time.Second)
+			want := act.StartedAt.Truncate(time.Second)
+			if !got.Equal(want) {
+				t.Errorf("today row Active: got %v, want %v", got, want)
+			}
+		} else if wd.Active != nil {
+			t.Errorf("non-today row %v has Active=%v, want nil", wd.Date, *wd.Active)
+		}
+	}
+	if todayRows != 1 {
+		t.Errorf("want exactly 1 IsToday row, got %d", todayRows)
+	}
+}
+
 func TestServerWorktimeView_Week_ShowWeekendKeepsSatSun(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServerStore(t)
