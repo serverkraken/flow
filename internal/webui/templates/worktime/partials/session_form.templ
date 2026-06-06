@@ -26,6 +26,10 @@ type SessionFormVM struct {
 templ SessionForm(f SessionFormVM) {
 	<tr data-testid="session-form" data-session-id={ f.ID }>
 		<td colspan="5" style="padding: 0.75rem;">
+			<div class="session-form-meta" style="display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.5rem;">
+				<span class="eyebrow">Projekt</span>
+				<span>{ f.ProjectName } <span style="color: var(--color-fg-dim);">— Projektwechsel folgt in Phase 2</span></span>
+			</div>
 			<form
 				class="session-form"
 				hx-put={ "/worktime/sessions/" + f.ID }

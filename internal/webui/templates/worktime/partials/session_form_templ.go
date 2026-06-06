@@ -65,150 +65,163 @@ func SessionForm(f SessionFormVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><td colspan=\"5\" style=\"padding: 0.75rem;\"><form class=\"session-form\" hx-put=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><td colspan=\"5\" style=\"padding: 0.75rem;\"><div class=\"session-form-meta\" style=\"display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.5rem;\"><span class=\"eyebrow\">Projekt</span> <span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs("/worktime/sessions/" + f.ID)
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(f.ProjectName)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 31, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 31, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" hx-headers=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <span style=\"color: var(--color-fg-dim);\">— Projektwechsel folgt in Phase 2</span></span></div><form class=\"session-form\" hx-put=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("{\"If-Match\":\"" + intToStr(f.Version) + "\"}")
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs("/worktime/sessions/" + f.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 32, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 35, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-target=\"closest tr\" hx-swap=\"outerHTML\" style=\"display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 0.5rem; align-items: center;\"><input type=\"hidden\" name=\"version\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-headers=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(intToStr(f.Version))
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("{\"If-Match\":\"" + intToStr(f.Version) + "\"}")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 37, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 36, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"> <label class=\"eyebrow\" for=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" hx-target=\"closest tr\" hx-swap=\"outerHTML\" style=\"display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 0.5rem; align-items: center;\"><input type=\"hidden\" name=\"version\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs("f-date-" + f.ID)
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(intToStr(f.Version))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 38, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 41, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">Datum</label> <input type=\"date\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"> <label class=\"eyebrow\" for=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs("f-date-" + f.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 41, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 42, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" name=\"date\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">Datum</label> <input type=\"date\" id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var8 string
-		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(f.DateLabel)
+		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs("f-date-" + f.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 43, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 45, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" class=\"input\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"><div style=\"display: flex; gap: 0.5rem; align-items: center;\"><input type=\"time\" name=\"start\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" name=\"date\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
-		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(f.StartLabel)
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(f.DateLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 51, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 47, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" required aria-label=\"Start\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"> <span style=\"color: var(--color-fg-dim);\">—</span> <input type=\"time\" name=\"stop\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"input\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"><div style=\"display: flex; gap: 0.5rem; align-items: center;\"><input type=\"time\" name=\"start\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(f.StopLabel)
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(f.StartLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 60, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 55, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" required aria-label=\"Stop\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"></div><div style=\"display: flex; gap: 0.5rem; align-items: center;\"><input type=\"text\" name=\"tag\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" required aria-label=\"Start\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"> <span style=\"color: var(--color-fg-dim);\">—</span> <input type=\"time\" name=\"stop\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(f.Tag)
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(f.StopLabel)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 70, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 64, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" placeholder=\"tag\" aria-label=\"Tag\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; width: 6rem; font-family: inherit;\"> <input type=\"text\" name=\"note\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" required aria-label=\"Stop\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit;\"></div><div style=\"display: flex; gap: 0.5rem; align-items: center;\"><input type=\"text\" name=\"tag\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(f.Note)
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(f.Tag)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 78, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 74, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" placeholder=\"Notiz\" aria-label=\"Notiz\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; flex: 1; font-family: inherit;\"></div><div style=\"display: flex; gap: 0.25rem;\"><button type=\"submit\" class=\"btn btn-sm btn-primary\">Speichern</button> <button type=\"button\" class=\"btn btn-sm\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" placeholder=\"tag\" aria-label=\"Tag\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; width: 6rem; font-family: inherit;\"> <input type=\"text\" name=\"note\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs("/worktime/sessions/" + f.ID + "/edit?cancel=1")
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(f.Note)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 89, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 82, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" hx-target=\"closest tr\" hx-swap=\"outerHTML\">Abbrechen</button></div></form></td></tr>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" placeholder=\"Notiz\" aria-label=\"Notiz\" style=\"border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; flex: 1; font-family: inherit;\"></div><div style=\"display: flex; gap: 0.25rem;\"><button type=\"submit\" class=\"btn btn-sm btn-primary\">Speichern</button> <button type=\"button\" class=\"btn btn-sm\" hx-get=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var14 string
+		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs("/worktime/sessions/" + f.ID + "/edit?cancel=1")
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/worktime/partials/session_form.templ`, Line: 93, Col: 62}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" hx-target=\"closest tr\" hx-swap=\"outerHTML\">Abbrechen</button></div></form></td></tr>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -238,8 +238,11 @@ func TestSessionPut_BadInput_BadRequest_RendersForm(t *testing.T) {
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
-		t.Errorf("status: got %d, want 400", rr.Code)
+		t.Fatalf("status: want %d got %d", http.StatusBadRequest, rr.Code)
 	}
+	mustContain(t, rr.Body.String(), []string{
+		`data-testid="session-form"`,
+	})
 }
 
 func TestSessionPut_CrossTenant_404(t *testing.T) {
