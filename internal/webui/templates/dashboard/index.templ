@@ -3,6 +3,8 @@ package dashboard
 import (
 	"fmt"
 	"time"
+
+	"github.com/serverkraken/flow/internal/webui/templates/shared"
 )
 
 // ViewModel is the dashboard page's view-only payload. The handler does
@@ -41,7 +43,14 @@ type ViewModel struct {
 // content. Visual reference: /tmp/flow-mockups/dashboard-b.html.
 templ Index(vm ViewModel) {
 	if vm.HasActive {
-		@liveBanner(vm)
+		@shared.LiveBannerCard(shared.LiveBanner{
+			ProjectLabel: vm.ActiveProject,
+			Tag:          vm.ActiveTag,
+			ElapsedLabel: vm.ActiveElapsed,
+			StartedAt:    vm.ActiveStartedAt,
+			// Dashboard variant keeps the eyebrow plain ("aktive session"); the
+			// banner falls back to "seit HH:MM" in the right-hand readout.
+		})
 	}
 	<div class="mb-8">
 		<div class="eyebrow" style="margin-bottom: 0.25rem;">{ vm.HeaderLine }</div>
@@ -56,33 +65,6 @@ templ Index(vm ViewModel) {
 		<span>
 			<code class="kbd">s</code> zum Stoppen · <code class="kbd">n</code> für neue Session
 		</span>
-	</div>
-}
-
-templ liveBanner(vm ViewModel) {
-	<div class="live-banner">
-		<span class="live-dot live-pulse">▶</span>
-		<div style="flex: 1;">
-			<div class="eyebrow" style="margin-bottom: 0.25rem;">aktive session</div>
-			<div class="live-project">
-				{ vm.ActiveProject }
-				if vm.ActiveTag != "" {
-					<span style="color: var(--color-fg-dim); font-weight: 400;"> · </span>
-					<span style="color: var(--color-fg-dim);">{ vm.ActiveTag }</span>
-				}
-			</div>
-		</div>
-		<div style="text-align: right;">
-			<div class="live-elapsed live-pulse">{ vm.ActiveElapsed }</div>
-			<div class="live-since">seit { vm.ActiveStartedAt }</div>
-		</div>
-		<!-- M7: wire hx-post=/worktime/active/stop -->
-		<button class="btn btn-danger btn-sm" disabled aria-disabled="true" aria-label="Stop — wird in M7 aktiv" title="Stop (kommt in M7)">
-			<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-				<rect x="6" y="6" width="12" height="12"></rect>
-			</svg>
-			<span>Stop</span>
-		</button>
 	</div>
 }
 

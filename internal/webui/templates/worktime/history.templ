@@ -1,0 +1,172 @@
+package worktime
+
+// HistoryVM is the worktime/verlauf view-model. Same general shape as
+// TodayVM but reads a historical day: no live banner, no edit buttons.
+type HistoryVM struct {
+	Header PageHeader
+
+	// Date jump-back navigation.
+	DayLabel    string // "Donnerstag · 04. Juni 2026"
+	PrevHref    string // "/worktime?tab=verlauf&date=2026-06-03"
+	NextHref    string // "/worktime?tab=verlauf&date=2026-06-05" — empty if "today" or future
+	TodayHref   string // "/worktime?tab=verlauf&date=2026-06-06"
+	IsToday     bool   // hides Next link (no future history)
+
+	// Day-summary stripe.
+	DayTotal    string
+	DayTarget   string
+	DaySaldo    string
+	DaySaldoPos bool
+	DaySessions int
+
+	// Sessions table — same shape as Today but no active row, no edit
+	// buttons; the renderer simply skips IsActive entries.
+	Entries []TableEntry
+
+	// Rail — Tagesverlauf only for now. Phase 2: aggregates per day.
+	DayBar [24]int
+}
+
+// History renders the /worktime?tab=verlauf body.
+templ History(vm HistoryVM) {
+	@pageHead(vm.Header)
+	@subTabs(TabVerlauf)
+	@historyJumpHeader(vm)
+	@historySummary(vm)
+	<div class="page-grid">
+		<div>
+			@historySessions(vm)
+		</div>
+		@historyRail(vm)
+	</div>
+	@footerNote("← / → Tag zurück / vor · t = heute")
+}
+
+templ historyJumpHeader(vm HistoryVM) {
+	<div class="section-head" data-testid="history-jump">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.25rem;">Verlauf</div>
+			<h2 style="font-size: 1.375rem; font-weight: 300; margin: 0;">{ vm.DayLabel }</h2>
+		</div>
+		<div class="pill-row">
+			if vm.PrevHref != "" {
+				<a href={ templ.SafeURL(vm.PrevHref) } class="btn btn-sm" aria-label="vorheriger Tag">◀ vorheriger</a>
+			}
+			if vm.TodayHref != "" && !vm.IsToday {
+				<a href={ templ.SafeURL(vm.TodayHref) } class="btn btn-sm">heute</a>
+			}
+			if vm.NextHref != "" && !vm.IsToday {
+				<a href={ templ.SafeURL(vm.NextHref) } class="btn btn-sm" aria-label="nächster Tag">nächster ▶</a>
+			}
+		</div>
+	</div>
+}
+
+templ historySummary(vm HistoryVM) {
+	<div class="saldo-stripe">
+		<div class="cell">
+			<div class="label">Ist · Tag</div>
+			<div class="value">{ vm.DayTotal }</div>
+			<div class="sub">{ intLabel(vm.DaySessions) } Sessions</div>
+		</div>
+		<div class="cell">
+			<div class="label">Soll · Tag</div>
+			<div class="value" style="color: var(--color-fg-dim);">{ vm.DayTarget }</div>
+			<div class="sub">Phase 2: per-user-Targets</div>
+		</div>
+		<div class="cell">
+			<div class="label">Saldo · Tag</div>
+			if vm.DaySaldoPos {
+				<div class="value positive">{ vm.DaySaldo }</div>
+			} else {
+				<div class="value negative">{ vm.DaySaldo }</div>
+			}
+			<div class="sub">Ist − Soll</div>
+		</div>
+	</div>
+}
+
+templ historySessions(vm HistoryVM) {
+	<div class="section-head">
+		<h2 style="font-size: 1.375rem; font-weight: 300;">Sessions</h2>
+		<span class="eyebrow">archiviert</span>
+	</div>
+	if len(vm.Entries) == 0 {
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem;" data-testid="history-empty">
+			Keine Sessions an diesem Tag erfasst.
+		</p>
+	} else {
+		<table class="sessions-table" data-testid="history-table">
+			<thead>
+				<tr>
+					<th>Zeit</th>
+					<th>Projekt</th>
+					<th>Tag · Notiz</th>
+					<th class="col-num">Dauer</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, e := range vm.Entries {
+					if e.IsPause {
+						@historyPauseRow(e.Pause)
+					} else {
+						@historySessionRow(e.Session)
+					}
+				}
+			</tbody>
+		</table>
+	}
+}
+
+templ historyPauseRow(p PauseRow) {
+	<tr>
+		<td class="col-num" colspan="4" style="padding: 1.25rem 0.75rem; color: var(--color-fg-dim); border-bottom: 0; text-align: center; font-size: 0.8125rem;">
+			<span class="eyebrow" style="letter-spacing: 0.2em;">— Pause · { p.StartLabel } — { p.EndLabel } ({ p.Duration }) —</span>
+		</td>
+	</tr>
+}
+
+templ historySessionRow(s SessionRow) {
+	<tr>
+		<td class="col-num">{ s.TimeLabel }</td>
+		<td class="col-proj">{ s.ProjectName }</td>
+		<td class="col-tag">
+			if s.Tag != "" {
+				<span class="pill pill-muted">{ s.Tag }</span>
+			}
+			if s.Note != "" {
+				&nbsp; <span style="color: var(--color-fg-dim);">{ s.Note }</span>
+			}
+		</td>
+		<td class="col-num">{ s.Duration }</td>
+	</tr>
+}
+
+templ historyRail(vm HistoryVM) {
+	<aside class="rail">
+		<div class="rail-head">Tagesverlauf · 24h</div>
+		<div class="daybar" data-testid="history-daybar" style="height: 28px; margin-bottom: 0;">
+			for h := 0; h < 24; h++ {
+				@dayBarCell(h, vm.DayBar[h] > 0, false)
+			}
+		</div>
+		<div class="daybar-axis">
+			for h := 0; h < 24; h++ {
+				if h == 0 || h == 6 || h == 12 || h == 18 {
+					<span>{ axisLabelFor(h) }</span>
+				} else {
+					<span></span>
+				}
+			}
+		</div>
+		<div class="rail-head" style="margin-top: 2rem;">Phase 2</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">Datumspicker</span>
+			<span style="color: var(--color-fg-dim);">M7</span>
+		</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">Mehrere Tage</span>
+			<span style="color: var(--color-fg-dim);">Phase 2</span>
+		</div>
+	</aside>
+}

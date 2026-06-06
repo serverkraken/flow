@@ -1,0 +1,264 @@
+package worktime
+
+import "github.com/serverkraken/flow/internal/webui/templates/shared"
+
+// TodayVM is the worktime/heute view-model. Visual reference:
+// /tmp/flow-mockups/worktime-today.html.
+type TodayVM struct {
+	Header       PageHeader
+	HasActive    bool
+	Live         shared.LiveBanner
+
+	// Saldo-Stripe — 3 cells: Heute · Ist / Woche · Ist / Saldo · Jahr.
+	// Year-saldo is intentionally the week-saldo placeholder for M6 (see
+	// handler comment).
+	TodayTotal    string // "8:14"
+	TodayTarget   string // "8:00"
+	TodaySaldo    string // "+0:14"
+	TodaySaldoPos bool
+	WeekLogged    string // "36:08"
+	WeekTarget    string // "40:00"
+	WeekDaysRun   bool   // true when an active session is running today
+
+	YearSaldo     string // "+12:42" (M6: same as Woche-Saldo, see handler comment)
+	YearSaldoPos  bool
+	YearSubLabel  string // "M6: zeigt Woche-Saldo, Jahres-Aggregat folgt in Phase 2"
+
+	// Sessions table — entries can be SessionRow or PauseRow.
+	Entries []TableEntry
+
+	// Rail — Tagesverlauf (24h day-bar) + per-project + per-tag.
+	DayBar         [24]int
+	NowHour        int
+	ProjectShares  []ProjectShareRow
+	TagShares      []TagShareRow
+
+	// Sync row at the bottom of the rail. Phase 2 will populate this
+	// from real device telemetry; M6 always shows "this device".
+	SyncDeviceLabel string // "mac-soenne"
+}
+
+// Today renders the /worktime?tab=heute body.
+templ Today(vm TodayVM) {
+	@pageHead(vm.Header)
+	@subTabs(TabHeute)
+	if vm.HasActive {
+		@shared.LiveBannerCard(vm.Live)
+	}
+	@todaySaldoStripe(vm)
+	<div class="page-grid">
+		<div>
+			@todaySessionsSection(vm)
+		</div>
+		@todayRail(vm)
+	</div>
+	@footerNote("s session · n note · j/k auf/ab")
+}
+
+templ todaySaldoStripe(vm TodayVM) {
+	<div class="saldo-stripe">
+		<div class="cell">
+			<div class="label">Heute · Ist</div>
+			if vm.TodaySaldoPos {
+				<div class="value positive">{ vm.TodayTotal }</div>
+			} else {
+				<div class="value negative">{ vm.TodayTotal }</div>
+			}
+			if vm.TodaySaldoPos {
+				<div class="sub">{ vm.TodaySaldo } über Soll ({ vm.TodayTarget })</div>
+			} else {
+				<div class="sub">{ vm.TodaySaldo } gegen Soll ({ vm.TodayTarget })</div>
+			}
+		</div>
+		<div class="cell">
+			<div class="label">Woche · Ist</div>
+			<div class="value">{ vm.WeekLogged }</div>
+			<div class="sub">
+				von { vm.WeekTarget }
+				if vm.WeekDaysRun {
+					· läuft gerade
+				}
+			</div>
+		</div>
+		<div class="cell">
+			<div class="label">Saldo · Jahr</div>
+			if vm.YearSaldoPos {
+				<div class="value positive">{ vm.YearSaldo }</div>
+			} else {
+				<div class="value negative">{ vm.YearSaldo }</div>
+			}
+			<div class="sub">{ vm.YearSubLabel }</div>
+		</div>
+	</div>
+}
+
+templ todaySessionsSection(vm TodayVM) {
+	<div class="section-head">
+		<h2 style="font-size: 1.375rem; font-weight: 300;">Sessions heute</h2>
+		<div class="pill-row">
+			<!-- M7: wire to /worktime/sessions/new -->
+			<button class="btn btn-sm" disabled aria-disabled="true" title="Nachbuchen (kommt in M7)">+ Nachbuchen</button>
+			<button class="btn btn-sm btn-primary" disabled aria-disabled="true" title="Neue Session (kommt in M7)">▶ Neue Session</button>
+		</div>
+	</div>
+	if len(vm.Entries) == 0 {
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem;" data-testid="sessions-empty">
+			Noch keine Sessions heute.
+		</p>
+	} else {
+		<table class="sessions-table" data-testid="sessions-table">
+			<thead>
+				<tr>
+					<th>Zeit</th>
+					<th>Projekt</th>
+					<th>Tag · Notiz</th>
+					<th class="col-num">Dauer</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, e := range vm.Entries {
+					if e.IsPause {
+						@pauseDividerRow(e.Pause)
+					} else {
+						@sessionTableRow(e.Session)
+					}
+				}
+			</tbody>
+		</table>
+	}
+}
+
+templ pauseDividerRow(p PauseRow) {
+	<tr data-testid="pause-row">
+		<td class="col-num" colspan="5" style="padding: 1.5rem 0.75rem; color: var(--color-fg-dim); border-bottom: 0; text-align: center; font-size: 0.8125rem;">
+			<span class="eyebrow" style="letter-spacing: 0.2em;">— Pause · { p.StartLabel } — { p.EndLabel } ({ p.Duration }) —</span>
+		</td>
+	</tr>
+}
+
+templ sessionTableRow(s SessionRow) {
+	if s.IsActive {
+		<tr class="flash-row" data-testid="session-row-active">
+			<td class="col-num">
+				<span style="color: var(--color-active);">▶</span> { s.TimeLabel }
+			</td>
+			<td class="col-proj">{ s.ProjectName }</td>
+			<td class="col-tag">
+				if s.Tag != "" {
+					<span class="pill pill-muted">{ s.Tag }</span>
+				}
+				if s.Note != "" {
+					&nbsp; <span style="color: var(--color-fg-dim);">{ s.Note }</span>
+				}
+			</td>
+			<td class="col-num">
+				<span class="live-pulse" style="color: var(--color-active); font-weight: 600;">{ s.Duration }</span>
+			</td>
+			<td class="col-num">
+				<!-- M7: wire Edit to /worktime/sessions/:id/edit -->
+				<button class="btn btn-sm" disabled aria-disabled="true" title="Bearbeiten (kommt in M7)" aria-label="Session bearbeiten">✎</button>
+			</td>
+		</tr>
+	} else {
+		<tr data-testid="session-row">
+			<td class="col-num">{ s.TimeLabel }</td>
+			<td class="col-proj">{ s.ProjectName }</td>
+			<td class="col-tag">
+				if s.Tag != "" {
+					<span class="pill pill-muted">{ s.Tag }</span>
+				}
+				if s.Note != "" {
+					&nbsp; <span style="color: var(--color-fg-dim);">{ s.Note }</span>
+				}
+			</td>
+			<td class="col-num">{ s.Duration }</td>
+			<td class="col-num">
+				<button class="btn btn-sm" disabled aria-disabled="true" title="Bearbeiten (kommt in M7)" aria-label="Session bearbeiten">✎</button>
+			</td>
+		</tr>
+	}
+}
+
+templ todayRail(vm TodayVM) {
+	<aside class="rail">
+		<div class="rail-head">Tagesverlauf · 24h</div>
+		<div class="daybar" data-testid="daybar" style="height: 28px; margin-bottom: 0;">
+			for h := 0; h < 24; h++ {
+				@dayBarCell(h, vm.DayBar[h] > 0, h == vm.NowHour)
+			}
+		</div>
+		<div class="daybar-axis">
+			for h := 0; h < 24; h++ {
+				if h == 0 || h == 6 || h == 12 || h == 18 {
+					<span>{ axisLabelFor(h) }</span>
+				} else {
+					<span></span>
+				}
+			}
+		</div>
+
+		<div class="rail-head" style="margin-top: 2rem;">Verteilung</div>
+		if len(vm.ProjectShares) == 0 {
+			<div class="rail-item" data-testid="rail-projects-empty">
+				<span class="label" style="color: var(--color-fg-dim);">noch keine Sessions</span>
+				<span></span>
+			</div>
+		} else {
+			for _, p := range vm.ProjectShares {
+				<div class="rail-item">
+					<span class="label">{ p.Label }</span>
+					<span class="num">
+						if p.IsRunning {
+							<span style="color: var(--color-active);">{ p.Total }</span>
+						} else {
+							{ p.Total }
+						}
+						<span style="color: var(--color-fg-dim);"> · { sharePctLabel(p.SharePct) }</span>
+					</span>
+				</div>
+			}
+		}
+
+		<div class="rail-head" style="margin-top: 2rem;">Tags</div>
+		if len(vm.TagShares) == 0 {
+			<div class="rail-item" data-testid="rail-tags-empty">
+				<span class="label" style="color: var(--color-fg-dim);">noch keine Tags</span>
+				<span></span>
+			</div>
+		} else {
+			<div class="pill-row" style="margin-top: 0.25rem;">
+				for _, t := range vm.TagShares {
+					<span class="pill pill-muted">
+						{ t.Label } <span class="num" style="color: var(--color-fg-dim);">{ t.Total }</span>
+					</span>
+				}
+			</div>
+		}
+
+		<div class="rail-head" style="margin-top: 2rem;">Sync</div>
+		<div class="rail-item">
+			<span class="label">
+				<span style="color: var(--color-active);">●</span>
+				if vm.SyncDeviceLabel != "" {
+					{ vm.SyncDeviceLabel }
+				} else {
+					dieses gerät
+				}
+			</span>
+			<span>aktiv</span>
+		</div>
+	</aside>
+}
+
+templ dayBarCell(hour int, hasWork, isNow bool) {
+	if hasWork && isNow {
+		<div class="cell has-work is-now" title={ hourTitle(hour, true) }></div>
+	} else if hasWork {
+		<div class="cell has-work" title={ hourTitle(hour, false) }></div>
+	} else if isNow {
+		<div class="cell is-now" title={ hourTitle(hour, true) }></div>
+	} else {
+		<div class="cell" title={ hourTitle(hour, false) }></div>
+	}
+}
