@@ -56,8 +56,8 @@ func buildProjectsIndexVM(d ProjectsDeps, userID string, tab projectsSubTab, now
 	}
 
 	// Aggregate week stats per project once, then index by project ID.
-	weekByProject := aggregateWeekByProject(weekSessions, now)
-	lastByProject := lastActivityByProject(sevenDay, now)
+	weekByProject := aggregateWeekByProject(weekSessions)
+	lastByProject := lastActivityByProject(sevenDay)
 
 	vm.Rows = make([]projectstmpl.IndexRow, 0, len(allProjects))
 	for _, p := range allProjects {
@@ -88,7 +88,7 @@ func dayOf(t time.Time) time.Time {
 // aggregateWeekByProject sums elapsed + session count per project for
 // the given session slice. The active session's tail isn't included —
 // the row picks it up via the ▶ glyph and "jetzt" relative-time.
-func aggregateWeekByProject(sessions []domain.Session, _ time.Time) map[string]projectWeekStats {
+func aggregateWeekByProject(sessions []domain.Session) map[string]projectWeekStats {
 	out := map[string]projectWeekStats{}
 	for _, s := range sessions {
 		ws := out[s.ProjectID]
@@ -101,7 +101,7 @@ func aggregateWeekByProject(sessions []domain.Session, _ time.Time) map[string]p
 
 // lastActivityByProject returns the most-recent session Stop per
 // project across the 7-day lookback. Used for the "Zuletzt" column.
-func lastActivityByProject(sessions []domain.Session, _ time.Time) map[string]time.Time {
+func lastActivityByProject(sessions []domain.Session) map[string]time.Time {
 	out := map[string]time.Time{}
 	for _, s := range sessions {
 		when := s.Stop
@@ -135,16 +135,15 @@ func projectRow(
 	weekStats := weekByProject[p.ID]
 
 	row := projectstmpl.IndexRow{
-		Name:          p.Name,
-		Slug:          p.Slug,
-		Archived:      isArchived,
-		HasActive:     isActive,
-		WeekDuration:  "—",
-		WeekCount:     "0",
-		LastLabel:     "—",
-		StatusLabel:   "letzte aktivität",
+		Name:            p.Name,
+		Slug:            p.Slug,
+		Archived:        isArchived,
+		HasActive:       isActive,
+		WeekDuration:    "—",
+		WeekCount:       "0",
+		LastLabel:       "—",
 		WeekDurationDim: true,
-		LastDim:       true,
+		LastDim:         true,
 	}
 
 	if weekStats.Count > 0 {

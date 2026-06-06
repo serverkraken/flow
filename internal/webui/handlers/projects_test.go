@@ -74,6 +74,7 @@ func TestProjectsIndex_ListsActiveAndArchived(t *testing.T) {
 		`data-testid="projects-list"`,         // populated branch
 		`data-testid="projects-totals"`,       // eyebrow
 		"2 Projekte",                          // total label
+		"2 aktiv letzte 7 Tage",               // eyebrow active count
 		"aktiv letzte 7 Tage",                 // eyebrow tail
 		"Zuletzt", "Diese Woche", "Sessions", // grid header
 		"is-archived",                         // archived styling marker

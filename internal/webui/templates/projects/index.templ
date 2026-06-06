@@ -46,9 +46,6 @@ type IndexRow struct {
 	WeekDurationDim bool
 	// WeekCount is the per-row session count as a string ("4" / "0").
 	WeekCount string
-	// StatusLabel is a short hint used for hover/aria — "letzte
-	// aktivität" by default; "läuft seit …" for active. Optional.
-	StatusLabel string
 }
 
 // Index renders the /projects body. layout.Base() supplies the chrome
@@ -103,7 +100,7 @@ templ filterRow(vm IndexVM) {
 	     so the URL surface stays read-only for now. -->
 	<div class="proj-filter-row" data-testid="projects-filter">
 		<span aria-hidden="true" style="color: var(--color-fg-dim);">⌕</span>
-		<input class="proj-filter-search" placeholder="filtern · /pattern/ regex · #tag · @device" disabled aria-disabled="true" autocomplete="off"/>
+		<input class="proj-filter-search" placeholder="filtern · /pattern/ regex · #tag · @device" aria-label="Projekte filtern" disabled aria-disabled="true" autocomplete="off"/>
 		<div class="pill-row">
 			<span class="pill pill-active">alle</span>
 			<span class="pill pill-muted">aktiv</span>
