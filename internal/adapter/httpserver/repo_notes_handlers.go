@@ -58,6 +58,7 @@ func NewRepoNotePushHandler(store RepoNotesServer) http.Handler {
 		in.UserID = user.ID
 		out, err := store.Upsert(in, expected)
 		if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
+			SyncConflicts.WithLabelValues("repo_notes").Inc()
 			cur, _ := store.GetByRepo(user.ID, repoID)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)

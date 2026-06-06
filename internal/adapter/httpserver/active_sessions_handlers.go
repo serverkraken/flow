@@ -77,6 +77,7 @@ func NewActiveStartHandler(store ActiveServer) http.Handler {
 
 		a, err := store.Start(user.ID, projectID, body.StartedOnDevice, expected, body.Tag, body.Note)
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
+			SyncConflicts.WithLabelValues("active").Inc()
 			cur, _ := store.Get(user.ID, projectID)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)
@@ -113,6 +114,7 @@ func NewActiveStopHandler(store ActiveServer) http.Handler {
 			return
 		}
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
+			SyncConflicts.WithLabelValues("active").Inc()
 			cur, _ := store.Get(user.ID, projectID)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)

@@ -533,6 +533,7 @@ func renderRepoNoteConflict(
 		UserLabel:   userLabelFromContext(r.Context()),
 		Spine:       layout.SpineState{SyncState: "ok"},
 	}
+	httpserver.SyncConflicts.WithLabelValues("repo_notes").Inc()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusConflict)

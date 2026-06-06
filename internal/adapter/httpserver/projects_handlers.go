@@ -72,6 +72,7 @@ func NewProjectsPushHandler(store ProjectsServer) http.Handler {
 		in.UserID = user.ID
 		out, err := store.Upsert(in, expected)
 		if errors.Is(err, ports.ErrProjectVersionConflict) {
+			SyncConflicts.WithLabelValues("projects").Inc()
 			cur, _ := store.GetByID(user.ID, id)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusConflict)

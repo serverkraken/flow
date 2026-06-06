@@ -184,6 +184,7 @@ func NewSessionPut(d SessionActionsDeps) http.Handler {
 
 		saved, err := d.Sessions.Upsert(updated, expected)
 		if errors.Is(err, ports.ErrSessionVersionConflict) {
+			httpserver.SyncConflicts.WithLabelValues("sessions").Inc()
 			// Fetch current server state, render conflict overlay.
 			current, gerr := d.Sessions.GetByID(u.ID, id)
 			if gerr != nil {
@@ -240,6 +241,7 @@ func NewSessionDelete(d SessionActionsDeps) http.Handler {
 			return
 		}
 		if errors.Is(err, ports.ErrSessionVersionConflict) {
+			httpserver.SyncConflicts.WithLabelValues("sessions").Inc()
 			current, gerr := d.Sessions.GetByID(u.ID, id)
 			if gerr != nil {
 				slog.Error("session delete: conflict re-read failed", slog.String("err", gerr.Error()))
@@ -319,6 +321,7 @@ func NewActiveStart(d SessionActionsDeps) http.Handler {
 
 		a, err := d.Active.Start(u.ID, projectID, device, 0, tag, note)
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
+			httpserver.SyncConflicts.WithLabelValues("active").Inc()
 			// Server enforces ≤1 active per user → conflict means
 			// another session is running. Re-render the banner from the
 			// stored row so the user sees current state.

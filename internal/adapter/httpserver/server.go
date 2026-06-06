@@ -33,6 +33,17 @@ func (s *Server) Handler() http.Handler { return s.router }
 // need auth.
 func NewWithAuth(d AuthDeps) *Server {
 	r := chi.NewRouter()
+	// Global metrics middleware — wraps EVERY handler below so
+	// /healthz, /readyz, the auth surface and the WebUI all show up
+	// in flow_http_requests_total. The middleware skips /metrics
+	// internally to avoid self-observation.
+	r.Use(NewMetricsMiddleware)
+
+	// /metrics is intentionally UNAUTHENTICATED. Prometheus scrapes
+	// anonymously; access control belongs at the network layer
+	// (NetworkPolicy / ServiceMesh / ingress allowlist).
+	r.Handle(metricsPath, NewMetricsHandler())
+
 	r.Handle("/healthz", NewHealthzHandler())
 	r.Handle("/readyz", NewReadyzHandler(d.Ready))
 

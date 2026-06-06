@@ -330,6 +330,7 @@ func NewProjectPut(d ProjectActionsDeps) http.Handler {
 
 		saved, err := d.Projects.Upsert(updated, expected)
 		if errors.Is(err, ports.ErrProjectVersionConflict) {
+			httpserver.SyncConflicts.WithLabelValues("projects").Inc()
 			current, gerr := d.Projects.GetByID(u.ID, id)
 			if gerr != nil {
 				slog.Error("project put: conflict re-read failed", slog.String("err", gerr.Error()))

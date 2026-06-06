@@ -23,7 +23,24 @@ package sse
 import (
 	"log/slog"
 	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+// subscribersGauge tracks the number of live SSE subscribers across all
+// users. Defined here (rather than in httpserver) so the gauge lives
+// next to the only code that mutates it, avoiding a layering inversion
+// where sse would have to import the httpserver adapter. The metric
+// registers into prometheus's default registry on package init, so the
+// /metrics handler (also default-registry) exposes it automatically.
+// Prometheus collectors are package-global by design.
+//
+//nolint:gochecknoglobals
+var subscribersGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	Name: "flow_sse_subscribers",
+	Help: "Active SSE subscribers (Task 14 broadcaster).",
+})
 
 // subscriberBufferSize is the per-subscriber channel capacity. Small on
 // purpose: SSE consumers should drain immediately. A backlog larger than
@@ -69,6 +86,7 @@ func (b *Broadcaster) Subscribe(userID string) (<-chan Event, func()) {
 	}
 	b.subs[userID][ch] = struct{}{}
 	b.mu.Unlock()
+	subscribersGauge.Inc()
 
 	// cancel removes this subscriber from the registry. We intentionally
 	// do NOT close(ch) here: Publish snapshots subscribers under the
@@ -78,14 +96,24 @@ func (b *Broadcaster) Subscribe(userID string) (<-chan Event, func()) {
 	// channel itself just stops receiving events once unregistered and
 	// gets garbage-collected with the closure.
 	cancel := func() {
+		// Decrement the gauge only when this channel was actually
+		// still registered — guards against double-cancel (defer +
+		// explicit) inflating the "subscribers leaving" rate.
 		b.mu.Lock()
+		removed := false
 		if set, ok := b.subs[userID]; ok {
-			delete(set, ch)
+			if _, present := set[ch]; present {
+				delete(set, ch)
+				removed = true
+			}
 			if len(set) == 0 {
 				delete(b.subs, userID)
 			}
 		}
 		b.mu.Unlock()
+		if removed {
+			subscribersGauge.Dec()
+		}
 	}
 	return ch, cancel
 }

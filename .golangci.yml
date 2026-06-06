@@ -299,6 +299,13 @@ linters:
             - github.com/google/uuid
             - github.com/serverkraken/flow/internal/adapter/sqliteclient/migrations
             - github.com/serverkraken/flow/internal/adapter/sqliteserver/migrations
+            # Prometheus instrumentation (Plan F · Task 6). httpserver
+            # owns the global collectors + /metrics handler and exposes
+            # the same default registry the sse broadcaster registers
+            # its subscribers gauge into.
+            - github.com/prometheus/client_golang/prometheus
+            - github.com/prometheus/client_golang/prometheus/promauto
+            - github.com/prometheus/client_golang/prometheus/promhttp
         frontend-cli:
           list-mode: strict
           files:
