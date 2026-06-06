@@ -231,26 +231,7 @@ func sessionLengthExtremes(sessions []domain.Session, loc *time.Location) (longe
 			minIdx = i
 		}
 	}
-	longest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[maxIdx].Elapsed), shortWeekdayLabel(sessions[maxIdx].Date.In(loc).Weekday()))
-	shortest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[minIdx].Elapsed), shortWeekdayLabel(sessions[minIdx].Date.In(loc).Weekday()))
+	longest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[maxIdx].Elapsed), worktime.GermanWeekdayShort(sessions[maxIdx].Date.In(loc).Weekday()))
+	shortest = fmt.Sprintf("%s · %s", worktime.FormatHHMM(sessions[minIdx].Elapsed), worktime.GermanWeekdayShort(sessions[minIdx].Date.In(loc).Weekday()))
 	return longest, shortest
-}
-
-func shortWeekdayLabel(w time.Weekday) string {
-	switch w {
-	case time.Monday:
-		return "Mo"
-	case time.Tuesday:
-		return "Di"
-	case time.Wednesday:
-		return "Mi"
-	case time.Thursday:
-		return "Do"
-	case time.Friday:
-		return "Fr"
-	case time.Saturday:
-		return "Sa"
-	default:
-		return "So"
-	}
 }

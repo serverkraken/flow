@@ -119,7 +119,7 @@ func MondayOf(t time.Time) time.Time {
 
 // FormatGermanDateHeader renders "Sa · 06. Juni · KW 23".
 func FormatGermanDateHeader(t time.Time) string {
-	wd := germanWeekdayShort(t.Weekday())
+	wd := GermanWeekdayShort(t.Weekday())
 	month := germanMonth(t.Month())
 	_, week := t.ISOWeek()
 	return fmt.Sprintf("%s · %02d. %s · KW %d", wd, t.Day(), month, week)
@@ -154,7 +154,7 @@ func FormatGermanDayLabel(t time.Time) string {
 // the Verlauf jump-header for non-relative dates.
 func FormatGermanDayShort(t time.Time) string {
 	return fmt.Sprintf("%s · %02d.%02d.%d",
-		germanWeekdayShort(t.Weekday()),
+		GermanWeekdayShort(t.Weekday()),
 		t.Day(),
 		int(t.Month()),
 		t.Year(),
@@ -183,7 +183,10 @@ func RelativeDayLabel(target, now time.Time) string {
 	}
 }
 
-func germanWeekdayShort(w time.Weekday) string {
+// GermanWeekdayShort renders a weekday as a two-letter German abbreviation
+// (Mo / Di / Mi / Do / Fr / Sa / So). Exported so the worktime handler can
+// share the lookup without duplicating it.
+func GermanWeekdayShort(w time.Weekday) string {
 	switch w {
 	case time.Monday:
 		return "Mo"
@@ -527,7 +530,7 @@ func BuildWeekBars(week []domain.WeekDay, monday time.Time, now time.Time) []Wee
 			isToday = domain.SameDay(d, now)
 		}
 		out[i] = WeekBar{
-			Label:   fmt.Sprintf("%s · %02d.%02d", germanWeekdayShort(d.Weekday()), d.Day(), int(d.Month())),
+			Label:   fmt.Sprintf("%s · %02d.%02d", GermanWeekdayShort(d.Weekday()), d.Day(), int(d.Month())),
 			Hours:   hours.Hours(),
 			HHMM:    FormatHHMM(hours),
 			IsToday: isToday,
@@ -550,6 +553,14 @@ type WeekSaldoBar struct {
 // Target uses defaultTarget for Mon-Fri and 0 for Sat/Sun, mirroring
 // ServerWorktimeView.targetFor — see TODO at top of file about pulling
 // that into a shared helper.
+//
+// Target convention for the current week: only days that are FULLY past
+// count toward the week's target. Monday morning has weekdayIdx=1, so
+// daysDone = 0 → target = 0, saldo = logged − 0. That keeps the bar from
+// going negative just because Soenne hasn't started yet today — the bar
+// fills in as hours are logged, and "complete day" only locks in after
+// midnight rolls over. Past weeks always count all five weekdays
+// (Mo-Fr) toward target.
 func BuildWeekSaldoSeries(
 	sessions []domain.Session,
 	from, to time.Time,

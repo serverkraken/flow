@@ -369,10 +369,3 @@ func TestWorktime_MissingUser_Returns401(t *testing.T) {
 		t.Errorf("missing user: got %d, want 401", rr.Code)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
