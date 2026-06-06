@@ -92,10 +92,12 @@ func renderNotesIndex(w http.ResponseWriter, r *http.Request, d NotesDeps) {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
-		rows, total := buildNotesIndexRows(r.Context(), d, entries, query, d.Clock)
+		// rows are the rendered list; filteredCount is the count AFTER
+		// type-sub-tab + search-query filtering (NOT the notebook total).
+		rows, filteredCount := buildNotesIndexRows(r.Context(), d, entries, query, d.Clock)
 		vm.Rows = rows
-		vm.TotalLabel = formatNotesTotal(total)
-		vm.EmptyReason = pickEmptyReason(query, total, len(entries))
+		vm.TotalLabel = formatNotesTotal(filteredCount)
+		vm.EmptyReason = pickEmptyReason(query, filteredCount, len(entries))
 	} else {
 		vm.TotalLabel = "0 Notes"
 	}

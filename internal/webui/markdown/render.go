@@ -27,7 +27,6 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
-	"github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
@@ -50,9 +49,9 @@ func New() *Renderer {
 			parser.WithAutoHeadingID(),
 		),
 		goldmark.WithRendererOptions(
-			// XHTMLishness off — we want HTML5. Hard-wrap stays off:
-			// notes break paragraphs explicitly with blank lines.
-			html.WithXHTML(),
+			// HTML5 output (no XHTML self-closing on void elements).
+			// Hard-wrap stays off: notes break paragraphs with blank
+			// lines explicitly.
 			// Explicitly do NOT set html.WithUnsafe — literal HTML in
 			// notes must stay escaped.
 		),
@@ -100,7 +99,15 @@ func (r *Renderer) Headings(src []byte) []Heading {
 		if text == "" {
 			return ast.WalkContinue, nil
 		}
-		anchor := slugify(text)
+		// Anchor must match the id goldmark emits on the rendered
+		// <h2 id="…">. parser.WithAutoHeadingID() stores it as the
+		// "id" attribute ([]byte) on the heading node. Fall back to
+		// slugify only when the parser option isn't active (so the
+		// rail still gets some anchor instead of an empty href).
+		anchor := autoHeadingAnchor(h)
+		if anchor == "" {
+			anchor = slugify(text)
+		}
 		out = append(out, Heading{Level: h.Level, Text: text, Anchor: anchor})
 		return ast.WalkContinue, nil
 	})
@@ -130,6 +137,26 @@ func headingText(h *ast.Heading, src []byte) string {
 		return ast.WalkContinue, nil
 	})
 	return strings.TrimSpace(b.String())
+}
+
+// autoHeadingAnchor returns the id goldmark's WithAutoHeadingID()
+// parser option stamped on a heading node. Returns "" when no id
+// attribute is present (option disabled or parser failed to assign one).
+// Stored as []byte in current goldmark; the string-case is kept as a
+// future-proof fallback in case the upstream representation changes.
+func autoHeadingAnchor(h *ast.Heading) string {
+	v, ok := h.AttributeString("id")
+	if !ok {
+		return ""
+	}
+	switch s := v.(type) {
+	case []byte:
+		return string(s)
+	case string:
+		return s
+	default:
+		return ""
+	}
 }
 
 // slugify lowercases and replaces non-alnum runs with `-`. Matches the

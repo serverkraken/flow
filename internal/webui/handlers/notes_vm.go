@@ -15,20 +15,22 @@ import (
 
 // buildNotesIndexRows turns NoteEntry slice into IndexRow slice and
 // applies the optional substring query against title + tags +
-// frontmatter project. Returns the filtered rows and the unfiltered
-// total so the empty-state branching has both.
+// frontmatter project. Returns the rendered list rows plus the
+// filteredCount — the number of rows that matched the type-sub-tab +
+// search-query filter (NOT the notebook total). Callers use the count
+// for the pill label + empty-state branching.
 func buildNotesIndexRows(
 	ctx context.Context,
 	d NotesDeps,
 	entries []ports.NoteEntry,
 	query string,
 	clock flowports.Clock,
-) ([]notestmpl.IndexRow, int) {
+) (rows []notestmpl.IndexRow, filteredCount int) {
 	now := time.Now()
 	if clock != nil {
 		now = clock.Now()
 	}
-	rows := make([]notestmpl.IndexRow, 0, len(entries))
+	rows = make([]notestmpl.IndexRow, 0, len(entries))
 	lcQuery := strings.ToLower(query)
 	for _, e := range entries {
 		row := buildIndexRow(ctx, d, e, now)

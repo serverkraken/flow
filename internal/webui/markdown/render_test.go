@@ -1,6 +1,7 @@
 package markdown_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -114,6 +115,37 @@ func TestRenderer_Headings(t *testing.T) {
 	}
 	if hs[2].Anchor != "offene-punkte" {
 		t.Errorf("third heading anchor: got %q, want offene-punkte", hs[2].Anchor)
+	}
+}
+
+// TestRenderer_Headings_NonASCII pins the contract that Headings()'
+// Anchor matches the id goldmark emits in the rendered <h2 id="…">.
+// A locally-computed slug() diverges from goldmark's auto-id algorithm
+// for non-ASCII chars (`Ü` → `ber` vs `-ber-`, etc.), which silently
+// broke the TOC rail's in-page anchor links for any German notebook.
+func TestRenderer_Headings_NonASCII(t *testing.T) {
+	t.Parallel()
+	r := markdown.New()
+	src := []byte("## Über uns\n\nfoo\n\n## Architektur & Design\n\nbar\n")
+
+	hs := r.Headings(src)
+	if len(hs) != 2 {
+		t.Fatalf("want 2 headings, got %d (%+v)", len(hs), hs)
+	}
+
+	// Anchor must match the id goldmark emits in <h2 id="...">,
+	// not slugify(text). Cross-check by rendering and finding the id.
+	html, err := r.Render(src)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	body := string(html)
+	for _, h := range hs {
+		wantInHTML := fmt.Sprintf(`id=%q`, h.Anchor)
+		if !strings.Contains(body, wantInHTML) {
+			t.Fatalf("heading %q anchor %q not present in HTML: %s",
+				h.Text, h.Anchor, body)
+		}
 	}
 }
 
