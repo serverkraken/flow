@@ -1,15 +1,63 @@
-# Multi-stage: build with full Go toolchain, run on distroless.
+# syntax=docker/dockerfile:1.7
+#
+# flow-server multi-stage image.
+#
+# Builder uses golang:1.25-alpine (matches go.mod toolchain go 1.25.7) and
+# Node + npm so it can regenerate the WebUI assets from source (templ + the
+# Tailwind v4 CSS bundle) via `make webui`. The codemirror bundle is
+# pre-built and committed under internal/webui/static; we still install its
+# lockfile here so the toolchain is ready if `make webui` later picks it up.
+#
+# Runtime is distroless/static-debian12:nonroot — no shell, no package
+# manager, runs as uid 65532. The flow-server binary is CGO_ENABLED=0 because
+# sqlite is the pure-Go modernc.org/sqlite driver (see go.mod). Version
+# metadata is read at runtime via runtime/debug.ReadBuildInfo (see
+# internal/webui/handlers/settings.go), so no -X main.version ldflag is
+# needed — VCS info is recorded automatically by `go build` when the source
+# tree is a git checkout.
+#
+# Build:
+#   podman build -t flow-server:dev -f deploy/podman/Dockerfile.server .
+
 FROM golang:1.25-alpine AS build
 WORKDIR /src
+
+# Build deps: git for VCS stamping, make for the webui targets,
+# nodejs + npm for tailwind + codemirror toolchains.
+RUN apk add --no-cache git make nodejs npm
+
+# Prime the Go module cache before copying the full tree so subsequent
+# source-only edits don't re-download modules.
 COPY go.mod go.sum ./
 RUN go mod download
+
+# Prime npm caches the same way — copy lockfiles and run `npm ci`
+# in a deterministic order. `npm ci` requires a committed lockfile.
+COPY tools/tailwind/package.json tools/tailwind/package-lock.json ./tools/tailwind/
+RUN cd tools/tailwind && npm ci --no-audit --no-fund
+COPY tools/codemirror/package.json tools/codemirror/package-lock.json ./tools/codemirror/
+RUN cd tools/codemirror && npm ci --no-audit --no-fund
+
+# Now bring in the rest of the source.
 COPY . .
-ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+
+# Regenerate templ files + Tailwind CSS bundle. `make webui` =
+# `webui-templ` (templ generate) + `webui-css` (tailwindcss --minify).
+# The committed artifacts (*_templ.go, styles.css) get refreshed in-place
+# so the //go:embed picks up a clean build.
+RUN make webui
+
+# Static binary, no cgo, trimpath for reproducible builds, -s -w strips
+# DWARF + symbol tables. `runtime/debug.ReadBuildInfo` picks up the VCS
+# revision from the .git checkout copied above.
+RUN CGO_ENABLED=0 GOFLAGS="-trimpath" go build \
+    -ldflags="-s -w" \
     -o /out/flow-server ./cmd/flow-server
 
-FROM gcr.io/distroless/static:nonroot
-USER nonroot:nonroot
-COPY --from=build /out/flow-server /flow-server
+# --- runtime ---------------------------------------------------------------
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/flow-server /usr/local/bin/flow-server
+USER nonroot
 EXPOSE 8080
-ENTRYPOINT ["/flow-server"]
+ENTRYPOINT ["/usr/local/bin/flow-server"]
