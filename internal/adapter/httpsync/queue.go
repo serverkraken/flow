@@ -2,6 +2,7 @@ package httpsync
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -79,34 +80,62 @@ func (q *Queue) EnqueueActiveStop(projectID string, expectedVersion int64, tag, 
 	return q.inner.Enqueue("active_sessions_stop", projectID, payload, expectedVersion)
 }
 
+// DrainAction describes how Queue.Drain should treat the entry handed to a
+// DrainCallback.
+type DrainAction int
+
+const (
+	// DrainAck removes the entry — used on 2xx and on permanent 4xx where
+	// retrying would never succeed (the entry is logged and dropped).
+	DrainAck DrainAction = iota
+	// DrainRetry schedules the entry for a later attempt via SetRetry. The
+	// caller supplies the error message; Queue.Drain owns the timestamp
+	// computation via its Backoff.
+	DrainRetry
+	// DrainHalt stops draining without modifying the entry — used on 409
+	// conflicts which must be resolved by the user before further drains.
+	DrainHalt
+)
+
 // DrainCallback receives one queue entry and decides what to do with it.
 //
-//   - ok=true, err=nil   → entry succeeded; Drain removes it.
-//   - ok=false, err!=nil → entry failed; Drain records the error via SetError and
-//     continues with the next entry.
-//   - ok=false, err=nil  → conflict or signal; Drain halts immediately and returns nil.
-type DrainCallback func(e ports.WriteQueueEntry) (ok bool, err error)
+//   - DrainAck, nil               → entry succeeded (or permanently failed); Drain Removes it.
+//   - DrainAck, err!=nil          → permanent failure with message; Drain calls SetError then Removes.
+//   - DrainRetry, err             → transient failure; Drain calls SetRetry with backoff and continues.
+//   - DrainHalt, nil              → conflict/signal; Drain halts immediately.
+type DrainCallback func(e ports.WriteQueueEntry) (DrainAction, error)
 
-// Drain fetches up to 50 pending entries from the inner queue and processes
-// each via cb. See DrainCallback for the three-way contract.
-func (q *Queue) Drain(cb DrainCallback) error {
+// Drain fetches up to 50 eligible entries from the inner queue (Peek filters
+// out entries whose next_retry_at hasn't elapsed) and processes each via cb.
+// The Backoff supplied to NewWorker controls retry timing.
+func (q *Queue) Drain(cb DrainCallback, backoff Backoff) error {
 	entries, err := q.inner.Peek(50)
 	if err != nil {
 		return err
 	}
 	for _, e := range entries {
-		ok, cbErr := cb(e)
-		switch {
-		case ok:
+		action, cbErr := cb(e)
+		switch action {
+		case DrainAck:
+			if cbErr != nil {
+				// Permanent failure — record the message for observability,
+				// then remove. The Remove must not be skipped on SetError
+				// failure: the row is already past the retry decision.
+				_ = q.inner.SetError(e.Seq, cbErr.Error())
+			}
 			if rerr := q.inner.Remove(e.Seq); rerr != nil {
 				return rerr
 			}
-		case cbErr != nil:
-			if serr := q.inner.SetError(e.Seq, cbErr.Error()); serr != nil {
+		case DrainRetry:
+			msg := ""
+			if cbErr != nil {
+				msg = cbErr.Error()
+			}
+			next := time.Now().UTC().Add(backoff.For(e.Attempt)).Format(time.RFC3339)
+			if serr := q.inner.SetRetry(e.Seq, msg, next); serr != nil {
 				return serr
 			}
-		default:
-			// conflict / signal: halt drain
+		case DrainHalt:
 			return nil
 		}
 	}

@@ -29,6 +29,8 @@ func (f *fakeSyncWriteQueue) Remove(_ int64) error { return nil }
 
 func (f *fakeSyncWriteQueue) SetError(_ int64, _ string) error { return nil }
 
+func (f *fakeSyncWriteQueue) SetRetry(_ int64, _ string, _ string) error { return nil }
+
 // fakeSyncWatermarkStore is a hand-rolled double for ports.SyncWatermarkStore.
 type fakeSyncWatermarkStore struct {
 	watermarks map[string]int64

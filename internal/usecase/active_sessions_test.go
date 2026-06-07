@@ -243,6 +243,18 @@ func (f *fakeWriteQueue) SetError(seq int64, errMsg string) error {
 	return nil
 }
 
+func (f *fakeWriteQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) error {
+	for i := range f.entries {
+		if f.entries[i].Seq == seq {
+			f.entries[i].LastError = errMsg
+			f.entries[i].Attempt++
+			f.entries[i].NextRetryAt = nextRetryAt
+			return nil
+		}
+	}
+	return nil
+}
+
 // ---- helpers ----
 
 func mkActiveSessions(

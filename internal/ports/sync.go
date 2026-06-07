@@ -43,14 +43,32 @@ type SyncWatermarkStore interface {
 
 // WriteQueue durably buffers local mutations for delivery to the server.
 // Entries survive process restarts; the sync worker drains them in FIFO order.
+//
+// # Retry semantics
+//
+// Peek MUST filter out entries whose next_retry_at lies in the future
+// (compared against time.Now()). Entries with empty next_retry_at are
+// always eligible.
+//
+// SetError records an error message without bumping attempt — used for
+// 4xx classification telemetry where the entry is about to be Removed.
+// SetRetry bumps attempt and persists nextRetryAt — used by the
+// httpsync.Worker on every transient failure so the next drain skips
+// the row until the backoff elapses.
 type WriteQueue interface {
 	Enqueue(resource, rowID string, payload []byte, expectedVersion int64) (seq int64, err error)
 	Peek(limit int) ([]WriteQueueEntry, error)
 	Remove(seq int64) error
 	SetError(seq int64, errMsg string) error
+	SetRetry(seq int64, errMsg string, nextRetryAt string) error
 }
 
 // WriteQueueEntry is one durably buffered mutation awaiting delivery.
+//
+// Attempt and NextRetryAt power the httpsync.Worker's exponential-backoff
+// retry policy (Plan F · Task 8). They are zero/empty for a freshly
+// enqueued entry; the worker bumps Attempt and recomputes NextRetryAt via
+// SetError on each transient failure.
 type WriteQueueEntry struct {
 	Seq             int64
 	Resource        string
@@ -59,6 +77,8 @@ type WriteQueueEntry struct {
 	ExpectedVersion int64
 	EnqueuedAt      string
 	LastError       string
+	Attempt         int
+	NextRetryAt     string // RFC3339; empty means "eligible immediately"
 }
 
 var _ = domain.Session{} // ensure domain import always used

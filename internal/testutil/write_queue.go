@@ -53,3 +53,6 @@ func (f *FakeWriteQueue) Remove(_ int64) error { return f.Err }
 
 // SetError implements ports.WriteQueue.
 func (f *FakeWriteQueue) SetError(_ int64, _ string) error { return f.Err }
+
+// SetRetry implements ports.WriteQueue.
+func (f *FakeWriteQueue) SetRetry(_ int64, _ string, _ string) error { return f.Err }

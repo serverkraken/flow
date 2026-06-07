@@ -19,6 +19,8 @@ import (
 
 // newWorker constructs a Worker with a fast pull interval for testing.
 // It uses the provided inner queue (drainableQueue) via httpsync.NewQueue.
+// The Backoff is set to a sub-millisecond base so retry tests don't sleep
+// real backoff intervals.
 func newWorker(
 	srv *httptest.Server,
 	ss ports.SessionStore,
@@ -31,6 +33,12 @@ func newWorker(
 	q := httpsync.NewQueue(inner)
 	w := httpsync.NewWorker(c, ss, ps, as, ws, q, "user1")
 	w.PullInterval = 10 * time.Millisecond // speed up pull ticker in tests
+	w.Backoff = httpsync.Backoff{
+		Base:   time.Millisecond,
+		Max:    10 * time.Millisecond,
+		Factor: 2.0,
+		Jitter: -1, // deterministic
+	}
 	return w
 }
 
@@ -588,6 +596,166 @@ func TestWorker_StartTwice_NoOp(t *testing.T) {
 	case <-w.Done():
 	case <-time.After(2 * time.Second):
 		t.Fatal("worker goroutine did not exit after Stop()")
+	}
+}
+
+// ---- Retry policy: transient failures retry, permanent failures Ack -------
+
+// TestWorker_RetryBackoff_TransientThenSuccess verifies that a 500 followed
+// by a 200 leads to the entry being removed after at least one retry. The
+// backoff is set to milliseconds so the test finishes in well under a
+// second; counting `pushAttempts >= 2` proves a retry actually happened.
+func TestWorker_RetryBackoff_TransientThenSuccess(t *testing.T) {
+	inner := &drainableQueue{}
+	payload, _ := json.Marshal(domain.Session{ID: "s1"})
+	_ = inner.enqueueRaw("sessions", "s1", payload, 0)
+
+	var pushAttempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPut && contains(r.URL.Path, "/sessions/") {
+			n := pushAttempts.Add(1)
+			if n < 3 {
+				// First two attempts: transient 500.
+				http.Error(w, "boom", http.StatusInternalServerError)
+				return
+			}
+			// Third attempt: success.
+			_ = json.NewEncoder(w).Encode(domain.Session{ID: "s1", Version: 1})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	// 1ms base, 10ms cap, no jitter — retries land fast and deterministic.
+	w.Backoff = httpsync.Backoff{
+		Base:   time.Millisecond,
+		Max:    10 * time.Millisecond,
+		Factor: 2.0,
+		Jitter: -1,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	if !eventually(func() bool {
+		return inner.isRemoved(0)
+	}, 2*time.Second) {
+		t.Fatalf("entry not removed after retries: pushAttempts=%d", pushAttempts.Load())
+	}
+	if pushAttempts.Load() < 3 {
+		t.Errorf("expected ≥3 push attempts (2 retries + success), got %d", pushAttempts.Load())
+	}
+	w.Stop()
+	<-w.Done()
+}
+
+// TestWorker_PermanentError_Acks verifies that a 422 (unprocessable entity)
+// causes the worker to Ack the entry — the queue drops it without retrying.
+func TestWorker_PermanentError_Acks(t *testing.T) {
+	inner := &drainableQueue{}
+	payload, _ := json.Marshal(domain.Session{ID: "s1"})
+	_ = inner.enqueueRaw("sessions", "s1", payload, 0)
+
+	var pushAttempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPut && contains(r.URL.Path, "/sessions/") {
+			pushAttempts.Add(1)
+			http.Error(w, "validation failed", http.StatusUnprocessableEntity)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	if !eventually(func() bool {
+		return inner.isRemoved(0)
+	}, 1500*time.Millisecond) {
+		t.Fatalf("permanent-failure entry should be Acked, pushAttempts=%d", pushAttempts.Load())
+	}
+	// Exactly one attempt — 422 is permanent, no retry.
+	if got := pushAttempts.Load(); got != 1 {
+		t.Errorf("pushAttempts: got %d, want 1 (no retry on 422)", got)
+	}
+	w.Stop()
+	<-w.Done()
+}
+
+// TestWorker_RespectsNextRetryAt verifies that an entry parked in the
+// future via SetRetry is excluded from drain until the timestamp elapses.
+// We pre-populate the queue with one entry whose next_retry_at is hours
+// away and assert the server is never hit during the worker's lifetime.
+func TestWorker_RespectsNextRetryAt(t *testing.T) {
+	inner := &drainableQueue{}
+	payload, _ := json.Marshal(domain.Session{ID: "s1"})
+	_ = inner.enqueueRaw("sessions", "s1", payload, 0)
+
+	// Park the entry 1 hour in the future.
+	future := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	_ = inner.SetRetry(1, "parked", future)
+
+	var pushAttempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPut && contains(r.URL.Path, "/sessions/") {
+			pushAttempts.Add(1)
+			_ = json.NewEncoder(w).Encode(domain.Session{ID: "s1", Version: 1})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	w.Start(ctx)
+
+	// Let several drain cycles run; the entry must stay parked.
+	time.Sleep(150 * time.Millisecond)
+	w.Stop()
+	<-w.Done()
+
+	if got := pushAttempts.Load(); got != 0 {
+		t.Errorf("pushAttempts: got %d, want 0 (entry parked via next_retry_at)", got)
+	}
+	if inner.isRemoved(0) {
+		t.Error("parked entry should not be removed")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpsync"
 	"github.com/serverkraken/flow/internal/domain"
@@ -20,6 +21,8 @@ type drainEntry struct {
 	payload         []byte
 	expectedVersion int64
 	lastError       string
+	attempt         int
+	nextRetryAt     string // RFC3339; empty == eligible
 	removed         bool
 }
 
@@ -50,9 +53,14 @@ func (d *drainableQueue) Enqueue(resource, rowID string, payload []byte, expecte
 func (d *drainableQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	now := time.Now().UTC().Format(time.RFC3339)
 	var out []ports.WriteQueueEntry
 	for _, e := range d.entries {
 		if e.removed {
+			continue
+		}
+		// Skip entries whose backoff hasn't elapsed yet.
+		if e.nextRetryAt != "" && e.nextRetryAt > now {
 			continue
 		}
 		if len(out) >= limit {
@@ -65,6 +73,8 @@ func (d *drainableQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
 			Payload:         e.payload,
 			ExpectedVersion: e.expectedVersion,
 			LastError:       e.lastError,
+			Attempt:         e.attempt,
+			NextRetryAt:     e.nextRetryAt,
 		})
 	}
 	return out, nil
@@ -88,6 +98,20 @@ func (d *drainableQueue) SetError(seq int64, errMsg string) error {
 	for _, e := range d.entries {
 		if e.seq == seq {
 			e.lastError = errMsg
+			return nil
+		}
+	}
+	return nil
+}
+
+func (d *drainableQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, e := range d.entries {
+		if e.seq == seq {
+			e.lastError = errMsg
+			e.attempt++
+			e.nextRetryAt = nextRetryAt
 			return nil
 		}
 	}
@@ -214,6 +238,15 @@ func TestQueue_EnqueueActiveStop(t *testing.T) {
 	}
 }
 
+// fastBackoff is a tiny non-jittered Backoff used by queue tests so SetRetry
+// timestamps are predictable enough for an "in the future" assertion.
+var fastBackoff = httpsync.Backoff{
+	Base:   100 * time.Millisecond,
+	Max:    time.Second,
+	Factor: 2.0,
+	Jitter: -1,
+}
+
 // ---- Drain happy path ----
 
 func TestQueue_Drain_HappyPath(t *testing.T) {
@@ -225,10 +258,10 @@ func TestQueue_Drain_HappyPath(t *testing.T) {
 	}
 
 	called := 0
-	err := q.Drain(func(_ ports.WriteQueueEntry) (bool, error) {
+	err := q.Drain(func(_ ports.WriteQueueEntry) (httpsync.DrainAction, error) {
 		called++
-		return true, nil // success for all
-	})
+		return httpsync.DrainAck, nil // success for all
+	}, fastBackoff)
 	if err != nil {
 		t.Fatalf("Drain error: %v", err)
 	}
@@ -243,38 +276,44 @@ func TestQueue_Drain_HappyPath(t *testing.T) {
 	}
 }
 
-// ---- Drain with error ----
+// ---- Drain with retry ----
 
-func TestQueue_Drain_WithError(t *testing.T) {
+func TestQueue_Drain_WithRetry(t *testing.T) {
 	inner := &drainableQueue{}
 	q := httpsync.NewQueue(inner)
-	// 3 entries, second will fail.
+	// 3 entries, second will be marked DrainRetry.
 	for i := 1; i <= 3; i++ {
 		_, _ = inner.Enqueue("sessions", "s", []byte("{}"), 0)
 	}
 	seqs := []int64{inner.entries[0].seq, inner.entries[1].seq, inner.entries[2].seq}
-	cbErr := errors.New("push failed")
+	cbErr := errors.New("transient push failure")
 
 	called := 0
-	err := q.Drain(func(e ports.WriteQueueEntry) (bool, error) {
+	err := q.Drain(func(e ports.WriteQueueEntry) (httpsync.DrainAction, error) {
 		called++
 		if e.Seq == seqs[1] {
-			return false, cbErr
+			return httpsync.DrainRetry, cbErr
 		}
-		return true, nil
-	})
+		return httpsync.DrainAck, nil
+	}, fastBackoff)
 	if err != nil {
 		t.Fatalf("Drain error: %v", err)
 	}
 	if called != 3 {
 		t.Errorf("callback called %d times, want 3", called)
 	}
-	// Entry 1 and 3 removed; entry 2 has error set.
+	// Entry 1 and 3 removed; entry 2 still pending with retry scheduled.
 	if !inner.entries[0].removed {
 		t.Error("entry 1 should be removed")
 	}
 	if inner.entries[1].removed {
-		t.Error("entry 2 should NOT be removed")
+		t.Error("entry 2 should NOT be removed (retry pending)")
+	}
+	if inner.entries[1].attempt != 1 {
+		t.Errorf("entry 2 attempt: got %d, want 1", inner.entries[1].attempt)
+	}
+	if inner.entries[1].nextRetryAt == "" {
+		t.Error("entry 2 nextRetryAt should be set")
 	}
 	if inner.entries[1].lastError != cbErr.Error() {
 		t.Errorf("entry 2 lastError: got %q, want %q", inner.entries[1].lastError, cbErr.Error())
@@ -284,21 +323,43 @@ func TestQueue_Drain_WithError(t *testing.T) {
 	}
 }
 
+// ---- Drain ack with permanent error ----
+
+func TestQueue_Drain_PermanentError_Acks(t *testing.T) {
+	inner := &drainableQueue{}
+	q := httpsync.NewQueue(inner)
+	_, _ = inner.Enqueue("sessions", "s1", []byte("{}"), 0)
+
+	permErr := errors.New("permanent: 422 unprocessable")
+	err := q.Drain(func(_ ports.WriteQueueEntry) (httpsync.DrainAction, error) {
+		return httpsync.DrainAck, permErr
+	}, fastBackoff)
+	if err != nil {
+		t.Fatalf("Drain error: %v", err)
+	}
+	if !inner.entries[0].removed {
+		t.Error("permanent-failure entry should be removed (Ack)")
+	}
+	if inner.entries[0].lastError != permErr.Error() {
+		t.Errorf("lastError: got %q, want %q", inner.entries[0].lastError, permErr.Error())
+	}
+}
+
 // ---- Drain halts on conflict ----
 
 func TestQueue_Drain_HaltsOnConflict(t *testing.T) {
 	inner := &drainableQueue{}
 	q := httpsync.NewQueue(inner)
-	// 3 entries; first returns (false, nil) = conflict/signal.
+	// 3 entries; first returns DrainHalt — drain must stop.
 	for i := 1; i <= 3; i++ {
 		_, _ = inner.Enqueue("sessions", "s", []byte("{}"), 0)
 	}
 
 	called := 0
-	err := q.Drain(func(_ ports.WriteQueueEntry) (bool, error) {
+	err := q.Drain(func(_ ports.WriteQueueEntry) (httpsync.DrainAction, error) {
 		called++
-		return false, nil // halt
-	})
+		return httpsync.DrainHalt, nil
+	}, fastBackoff)
 	if err != nil {
 		t.Fatalf("Drain error: %v", err)
 	}

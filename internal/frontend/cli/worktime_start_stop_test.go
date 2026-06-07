@@ -183,6 +183,18 @@ func (f *fakeNewWriteQueue) SetError(seq int64, errMsg string) error {
 	return nil
 }
 
+func (f *fakeNewWriteQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) error {
+	for i := range f.entries {
+		if f.entries[i].Seq == seq {
+			f.entries[i].LastError = errMsg
+			f.entries[i].Attempt++
+			f.entries[i].NextRetryAt = nextRetryAt
+			return nil
+		}
+	}
+	return nil
+}
+
 // ---- fixture builder for the new path ----
 
 // newPathFixture builds WorktimeDeps wired with the new sqlite closures.

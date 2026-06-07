@@ -51,6 +51,12 @@ type Worker struct {
 	// waits; production callers leave it at the default 30s set by NewWorker.
 	PullInterval time.Duration
 
+	// Backoff schedules retries for transient drain failures. Zero value
+	// resolves to the defaults documented on Backoff (500ms/60s/2x/±20%).
+	// Tests override with a tight {Base: ms, Factor: 2} so retries land
+	// quickly.
+	Backoff Backoff
+
 	startOnce sync.Once
 }
 
@@ -293,7 +299,7 @@ func (w *Worker) pullActivePage(ctx context.Context, since int64) (int64, bool, 
 }
 
 func (w *Worker) runDrain(ctx context.Context) {
-	err := w.queue.Drain(func(e ports.WriteQueueEntry) (bool, error) {
+	err := w.queue.Drain(func(e ports.WriteQueueEntry) (DrainAction, error) {
 		switch e.Resource {
 		case "sessions":
 			return w.drainSession(ctx, e)
@@ -308,87 +314,122 @@ func (w *Worker) runDrain(ctx context.Context) {
 		case "repo_notes":
 			return w.drainRepoNote(ctx, e)
 		}
-		return false, nil
-	})
+		// Unknown resource — drop it as a permanent failure so it doesn't
+		// block the queue forever.
+		slog.Warn("sync: drain unknown resource, dropping", slog.String("resource", e.Resource), slog.Int64("seq", e.Seq))
+		return DrainAck, nil
+	}, w.Backoff)
 	if err != nil {
 		slog.Warn("sync: drain", slog.Any("err", err))
 	}
 }
 
-func (w *Worker) drainSession(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+// classifyPushError maps a push error to a (DrainAction, error) pair.
+//
+//   - JSON unmarshal errors are permanent (data corruption — retrying won't help).
+//   - *PermanentError (4xx other than 401/404/408/409/429) → DrainAck + log.
+//   - Anything else (transport errors, 5xx, 408/429, ErrUnauthorized) → DrainRetry.
+//
+// Conflict (409) and active-session-stop 404 are handled before this point
+// in each drain* method.
+func (w *Worker) classifyPushError(resource, rowID string, seq int64, err error) (DrainAction, error) {
+	var perm *PermanentError
+	if errors.As(err, &perm) {
+		slog.Warn(
+			"sync: permanent push failure — dropping entry",
+			slog.String("resource", resource),
+			slog.String("row_id", rowID),
+			slog.Int64("seq", seq),
+			slog.Int("status", perm.Status),
+			slog.String("body", perm.Body),
+		)
+		return DrainAck, err
+	}
+	slog.Info(
+		"sync: transient push failure — scheduling retry",
+		slog.String("resource", resource),
+		slog.String("row_id", rowID),
+		slog.Int64("seq", seq),
+		slog.Any("err", err),
+	)
+	return DrainRetry, err
+}
+
+func (w *Worker) drainSession(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var s domain.Session
 	if err := json.Unmarshal(e.Payload, &s); err != nil {
-		return false, err
+		// Corrupted payload — Ack so the queue isn't blocked forever.
+		return DrainAck, err
 	}
 	newV, err := w.client.PushSession(ctx, s, e.ExpectedVersion)
 	if errors.Is(err, ports.ErrSessionVersionConflict) {
 		w.emitConflictFromError(ctx, "sessions", s.ID, e.Seq, s, err)
-		return false, nil // halt drain — conflict must be resolved before retrying
+		return DrainHalt, nil // conflict must be resolved before retrying
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("sessions", s.ID, e.Seq, err)
 	}
 	s.Version = newV
 	_ = w.sessions.Upsert(s) // update local cache with server-confirmed version
-	return true, nil
+	return DrainAck, nil
 }
 
-func (w *Worker) drainProject(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+func (w *Worker) drainProject(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var p domain.Project
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
-		return false, err
+		return DrainAck, err
 	}
 	newV, err := w.client.PushProject(ctx, p, e.ExpectedVersion)
 	if errors.Is(err, ports.ErrProjectVersionConflict) {
 		w.emitConflictFromError(ctx, "projects", p.ID, e.Seq, p, err)
-		return false, nil
+		return DrainHalt, nil
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("projects", p.ID, e.Seq, err)
 	}
 	p.Version = newV
 	_ = w.projects.Upsert(p)
-	return true, nil
+	return DrainAck, nil
 }
 
-func (w *Worker) drainRepo(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+func (w *Worker) drainRepo(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var r domain.Repo
 	if err := json.Unmarshal(e.Payload, &r); err != nil {
-		return false, err
+		return DrainAck, err
 	}
 	newV, err := w.client.PushRepo(ctx, r, e.ExpectedVersion)
 	if errors.Is(err, ports.ErrRepoVersionConflict) {
 		w.emitConflictFromError(ctx, "repos", r.ID, e.Seq, r, err)
-		return false, nil
+		return DrainHalt, nil
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("repos", r.ID, e.Seq, err)
 	}
 	r.Version = newV
 	if w.repos != nil {
 		_ = w.repos.Upsert(r)
 	}
-	return true, nil
+	return DrainAck, nil
 }
 
-func (w *Worker) drainRepoNote(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+func (w *Worker) drainRepoNote(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var n domain.RepoNote
 	if err := json.Unmarshal(e.Payload, &n); err != nil {
-		return false, err
+		return DrainAck, err
 	}
 	newV, err := w.client.PushRepoNote(ctx, n, e.ExpectedVersion)
 	if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
 		w.emitConflictFromError(ctx, "repo_notes", n.ID, e.Seq, n, err)
-		return false, nil
+		return DrainHalt, nil
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("repo_notes", n.ID, e.Seq, err)
 	}
 	n.Version = newV
 	if w.notes != nil {
 		_ = w.notes.Upsert(n)
 	}
-	return true, nil
+	return DrainAck, nil
 }
 
 // activeStartBody is the JSON shape written by queue.EnqueueActiveStart.
@@ -400,22 +441,22 @@ type activeStartBody struct {
 	Note            string `json:"note"`
 }
 
-func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var body activeStartBody
 	if err := json.Unmarshal(e.Payload, &body); err != nil {
-		return false, err
+		return DrainAck, err
 	}
 	_, err := w.client.StartActive(ctx, e.RowID, body.StartedOnDevice, e.ExpectedVersion, body.Tag, body.Note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
 		w.emitConflictFromError(ctx, "active_sessions", e.RowID, e.Seq, body, err)
-		return false, nil
+		return DrainHalt, nil
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("active_sessions", e.RowID, e.Seq, err)
 	}
 	// Server returned the canonical active row; the local cache is refreshed on
 	// the next pull cycle.
-	return true, nil
+	return DrainAck, nil
 }
 
 // activeStopBody is the JSON shape written by queue.EnqueueActiveStop.
@@ -425,25 +466,25 @@ type activeStopBody struct {
 	Note   string `json:"note"`
 }
 
-func (w *Worker) drainActiveStop(ctx context.Context, e ports.WriteQueueEntry) (bool, error) {
+func (w *Worker) drainActiveStop(ctx context.Context, e ports.WriteQueueEntry) (DrainAction, error) {
 	var body activeStopBody
 	if err := json.Unmarshal(e.Payload, &body); err != nil {
-		return false, err
+		return DrainAck, err
 	}
 	_, err := w.client.StopActive(ctx, e.RowID, e.ExpectedVersion, body.Tag, body.Note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
 		w.emitConflictFromError(ctx, "active_sessions_stop", e.RowID, e.Seq, body, err)
-		return false, nil
+		return DrainHalt, nil
 	}
 	if errors.Is(err, ports.ErrActiveSessionNotFound) {
 		// Another device already stopped this session — retire the entry as a
 		// success since there is nothing left to stop.
-		return true, nil
+		return DrainAck, nil
 	}
 	if err != nil {
-		return false, err
+		return w.classifyPushError("active_sessions_stop", e.RowID, e.Seq, err)
 	}
-	return true, nil
+	return DrainAck, nil
 }
 
 // emitConflictFromError extracts the server's current row from ce (if it is a

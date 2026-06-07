@@ -37,14 +37,18 @@ func (wq *WriteQueue) Enqueue(resource, rowID string, payload []byte, expectedVe
 	return seq, nil
 }
 
-// Peek returns up to limit entries from the queue in FIFO order (seq ASC).
+// Peek returns up to limit entries from the queue in FIFO order (seq ASC),
+// filtering out rows whose next_retry_at is in the future (so the worker
+// honours the backoff schedule set by SetRetry).
 func (wq *WriteQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
 	rows, err := wq.store.DB().Query(
-		`SELECT seq, resource, row_id, payload, expected_version, enqueued_at, last_error
+		`SELECT seq, resource, row_id, payload, expected_version, enqueued_at, last_error, attempt, next_retry_at
 		   FROM write_queue
+		  WHERE next_retry_at = '' OR next_retry_at <= ?
 		  ORDER BY seq ASC
 		  LIMIT ?`,
-		limit,
+		now, limit,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("sqliteclient.WriteQueue.Peek: query: %w", err)
@@ -64,13 +68,31 @@ func (wq *WriteQueue) Remove(seq int64) error {
 	return nil
 }
 
-// SetError records an error message on the entry with the given sequence number.
+// SetError records an error message on the entry with the given sequence
+// number. It does NOT bump the attempt counter or set next_retry_at — use
+// SetRetry for transient errors that should be retried.
 func (wq *WriteQueue) SetError(seq int64, errMsg string) error {
 	_, err := wq.store.DB().Exec(
 		`UPDATE write_queue SET last_error = ? WHERE seq = ?`, errMsg, seq,
 	)
 	if err != nil {
 		return fmt.Errorf("sqliteclient.WriteQueue.SetError: %w", err)
+	}
+	return nil
+}
+
+// SetRetry records a transient error, bumps the attempt counter, and stamps
+// next_retry_at so Peek skips the row until the backoff elapses. The caller
+// (httpsync.Worker) computes nextRetryAt from a Backoff instance.
+func (wq *WriteQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) error {
+	_, err := wq.store.DB().Exec(
+		`UPDATE write_queue
+		    SET last_error = ?, attempt = attempt + 1, next_retry_at = ?
+		  WHERE seq = ?`,
+		errMsg, nextRetryAt, seq,
+	)
+	if err != nil {
+		return fmt.Errorf("sqliteclient.WriteQueue.SetRetry: %w", err)
 	}
 	return nil
 }
@@ -83,6 +105,7 @@ func scanWriteQueueEntries(rows *sql.Rows) ([]ports.WriteQueueEntry, error) {
 		err := rows.Scan(
 			&entry.Seq, &entry.Resource, &entry.RowID, &payloadStr,
 			&entry.ExpectedVersion, &entry.EnqueuedAt, &entry.LastError,
+			&entry.Attempt, &entry.NextRetryAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("sqliteclient.WriteQueue: scan: %w", err)

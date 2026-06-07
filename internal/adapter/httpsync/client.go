@@ -19,6 +19,35 @@ import (
 // or when the server responds with 401. The caller should trigger a re-login.
 var ErrUnauthorized = errors.New("flow: unauthorized — login required")
 
+// PermanentError marks a server response as non-retryable: the request itself
+// is malformed (400), forbidden (403), or rejected by validation (422). The
+// worker's drain callback uses errors.As(err, *PermanentError{}) to decide
+// whether to Ack the queue entry (drop it) instead of scheduling a retry.
+// Plan F · Task 8 keeps the dead-letter mechanic out of scope: a permanent
+// failure is logged and the entry is removed.
+type PermanentError struct {
+	Status int
+	Body   string
+}
+
+func (e *PermanentError) Error() string {
+	return fmt.Sprintf("server %d (permanent): %s", e.Status, e.Body)
+}
+
+// isRetryableStatus reports whether HTTP status `s` is transient (5xx, 408,
+// 429) and should be retried via Backoff. All other 4xx (except the typed
+// paths 401/404/409 which are handled separately by the client) are
+// permanent and surface as *PermanentError.
+func isRetryableStatus(s int) bool {
+	if s >= 500 {
+		return true
+	}
+	if s == http.StatusRequestTimeout || s == http.StatusTooManyRequests {
+		return true
+	}
+	return false
+}
+
 // ConflictError is returned on 409 responses. It wraps the appropriate
 // sentinel (ports.ErrSessionVersionConflict, ports.ErrProjectVersionConflict,
 // or ports.ErrActiveSessionConflict) so errors.Is works against those
@@ -86,7 +115,9 @@ func readBody(r *http.Response) ([]byte, error) {
 }
 
 // handleCommonErrors maps 401 and 5xx into typed errors; returns false when
-// the caller should handle the status itself.
+// the caller should handle the status itself. 5xx and 408/429 stay as a
+// plain fmt.Errorf so the worker treats them as transient (no
+// *PermanentError wrap).
 func handleCommonErrors(status int, body []byte) (bool, error) {
 	switch {
 	case status == http.StatusUnauthorized:
@@ -95,6 +126,16 @@ func handleCommonErrors(status int, body []byte) (bool, error) {
 		return true, fmt.Errorf("server %d: %s", status, string(body))
 	}
 	return false, nil
+}
+
+// unexpectedStatusError wraps a non-2xx status that fell through all the
+// typed handlers (401/404/409 + 5xx). Retryable statuses (408/429) return a
+// plain error; permanent statuses return *PermanentError.
+func unexpectedStatusError(status int, body []byte) error {
+	if isRetryableStatus(status) {
+		return fmt.Errorf("server %d: %s", status, string(body))
+	}
+	return &PermanentError{Status: status, Body: string(body)}
 }
 
 // pullResponse is the shared shape for GET /api/v1/{sessions,projects}.
@@ -173,7 +214,7 @@ func (c *Client) PushSession(ctx context.Context, s domain.Session, expectedVers
 		return 0, &ConflictError{Sentinel: ports.ErrSessionVersionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+		return 0, unexpectedStatusError(resp.StatusCode, body)
 	}
 	// Server returns the full domain.Session row; extract Version.
 	var out domain.Session
@@ -245,7 +286,7 @@ func (c *Client) PushProject(ctx context.Context, p domain.Project, expectedVers
 		return 0, &ConflictError{Sentinel: ports.ErrProjectVersionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+		return 0, unexpectedStatusError(resp.StatusCode, body)
 	}
 	// Server returns {"id": "...", "version": N}.
 	var out struct {
@@ -318,7 +359,7 @@ func (c *Client) PushRepo(ctx context.Context, r domain.Repo, expectedVersion in
 		return 0, &ConflictError{Sentinel: ports.ErrRepoVersionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+		return 0, unexpectedStatusError(resp.StatusCode, body)
 	}
 	var out struct {
 		Version int64 `json:"version"`
@@ -391,7 +432,7 @@ func (c *Client) PushRepoNote(ctx context.Context, n domain.RepoNote, expectedVe
 		return 0, &ConflictError{Sentinel: ports.ErrRepoNoteVersionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return 0, fmt.Errorf("server %d: %s", resp.StatusCode, string(body))
+		return 0, unexpectedStatusError(resp.StatusCode, body)
 	}
 	var out struct {
 		Version int64 `json:"version"`
@@ -477,7 +518,7 @@ func (c *Client) StartActive(ctx context.Context, projectID, device string, expe
 		return domain.ActiveSession{}, &ConflictError{Sentinel: ports.ErrActiveSessionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return domain.ActiveSession{}, fmt.Errorf("server %d: %s", resp.StatusCode, string(respBody))
+		return domain.ActiveSession{}, unexpectedStatusError(resp.StatusCode, respBody)
 	}
 	var out domain.ActiveSession
 	if err := json.Unmarshal(respBody, &out); err != nil {
@@ -527,7 +568,7 @@ func (c *Client) StopActive(ctx context.Context, projectID string, expectedVersi
 		return domain.Session{}, &ConflictError{Sentinel: ports.ErrActiveSessionConflict, Current: raw.Current}
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return domain.Session{}, fmt.Errorf("server %d: %s", resp.StatusCode, string(respBody))
+		return domain.Session{}, unexpectedStatusError(resp.StatusCode, respBody)
 	}
 	var out domain.Session
 	if err := json.Unmarshal(respBody, &out); err != nil {
