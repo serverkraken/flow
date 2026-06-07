@@ -73,7 +73,7 @@ func newPickerRig(t *testing.T) pickerRig {
 	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs, State: legacyActive}
 
 	activeSessions := usecase.NewActiveSessions(nil, projectStore, activeStore, sessions, queue)
-	projects := usecase.NewProjects(nil, projectStore)
+	projects := usecase.NewProjects(nil, projectStore, nil)
 
 	deps := worktime.Deps{
 		Reader:         reader,

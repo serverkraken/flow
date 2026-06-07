@@ -198,7 +198,7 @@ func TestResolveProjectRef_PartialUUIDTreatedAsSlug(t *testing.T) {
 func makeCRUDDeps() (ProjectsCRUDDeps, *fakeProjectStore) {
 	proj := testProject("aaa00000-0000-0000-0000-000000000001", "existing-proj", "Existing Project")
 	store := newFakeProjectStore(proj)
-	uc := usecase.NewProjects(&fakeUserStore{}, store)
+	uc := usecase.NewProjects(&fakeUserStore{}, store, nil)
 	return ProjectsCRUDDeps{Projects: uc, UserID: "u1"}, store
 }
 
@@ -376,7 +376,7 @@ func TestNewProjectsCmd_WithCRUD_HasSubcommands(t *testing.T) {
 	t.Parallel()
 	proj := testProject("aaa00000-0000-0000-0000-000000000001", "x", "X")
 	store := newFakeProjectStore(proj)
-	uc := usecase.NewProjects(&fakeUserStore{}, store)
+	uc := usecase.NewProjects(&fakeUserStore{}, store, nil)
 	cruddeps := &ProjectsCRUDDeps{Projects: uc, UserID: "u1"}
 	cmd := NewProjectsCmd(ProjectsDeps{
 		Screen:       func(tk.Palette) tea.Model { return stubScreen{} },

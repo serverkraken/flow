@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -14,14 +16,49 @@ import (
 // archive. Calls TouchLastUsed when a Session starts (called via
 // usecase.ActiveSessions.Start, Task 12).
 type Projects struct {
-	users    ports.UserStore
-	projects ports.ProjectStore
+	users      ports.UserStore
+	projects   ports.ProjectStore
+	queue      ports.WriteQueue // optional; nil disables server-push enqueue
+	pushSignal func()           // optional; wakes the sync worker after enqueue
 }
 
-// NewProjects constructs a Projects use case. users is stored for use by
-// Tasks 11-12; Task 10 itself does not call any UserStore method.
-func NewProjects(users ports.UserStore, projects ports.ProjectStore) *Projects {
-	return &Projects{users: users, projects: projects}
+// NewProjects constructs a Projects use case. queue may be nil for callers that
+// don't sync (tests, offline tools); when set, Create/Rename/Archive enqueue a
+// "projects" push so the row reaches the server.
+func NewProjects(users ports.UserStore, projects ports.ProjectStore, queue ports.WriteQueue) *Projects {
+	return &Projects{users: users, projects: projects, queue: queue}
+}
+
+// SetPushSignal attaches a callback fired after each push enqueue so the sync
+// worker drains immediately rather than waiting for its next tick. Mirrors
+// ActiveSessions/RepoNotes. nil-tolerant.
+func (p *Projects) SetPushSignal(fn func()) { p.pushSignal = fn }
+
+func (p *Projects) signalPush() {
+	if p.pushSignal != nil {
+		p.pushSignal()
+	}
+}
+
+// enqueueProject queues a "projects" push for the sync worker. expectedVersion
+// is the version the server is expected to currently hold (0 for a brand-new
+// project — the server rejects a non-zero expected version on insert). Without
+// this, a locally-created project never reaches the server and every session or
+// active_session that references it fails its push with a FOREIGN KEY 500.
+// nil-queue tolerant; enqueue failures are swallowed (the row is already
+// persisted locally and a later mutation or backfill will re-enqueue).
+func (p *Projects) enqueueProject(pr domain.Project, expectedVersion int64) {
+	if p.queue == nil {
+		return
+	}
+	payload, err := json.Marshal(pr)
+	if err != nil {
+		return
+	}
+	if _, err := p.queue.Enqueue("projects", pr.ID, payload, expectedVersion); err != nil {
+		return
+	}
+	p.signalPush()
 }
 
 // ListActive returns active Projects MRU-first, used by the TUI picker.
@@ -58,7 +95,15 @@ func (p *Projects) Create(userID, name string) (domain.Project, error) {
 		slug = base + "-" + strconv.Itoa(i)
 		i++
 	}
-	return p.projects.EnsureBySlug(userID, name, slug)
+	pr, err := p.projects.EnsureBySlug(userID, name, slug)
+	if err != nil {
+		return domain.Project{}, err
+	}
+	// Brand-new project: the server has no row yet, so the expected version is
+	// 0. Enqueuing here is what lets sessions/active_sessions on this project
+	// sync at all (they carry a server-side FK to projects).
+	p.enqueueProject(pr, pr.Version)
+	return pr, nil
 }
 
 // Rename changes the human-readable name only — slug stays stable.
@@ -67,14 +112,62 @@ func (p *Projects) Rename(userID, id, newName string) error {
 	if err != nil {
 		return err
 	}
+	expectedVersion := pr.Version // server's current version, before the local bump
 	pr.Name = strings.TrimSpace(newName)
 	pr.Version++ // local optimistic bump; server may overwrite
-	return p.projects.Upsert(pr)
+	if err := p.projects.Upsert(pr); err != nil {
+		return err
+	}
+	p.enqueueProject(pr, expectedVersion)
+	return nil
 }
 
-// Archive soft-deletes a Project.
+// Archive soft-deletes a Project and syncs the archive to the server.
 func (p *Projects) Archive(userID, id string) error {
-	return p.projects.Archive(userID, id)
+	pr, err := p.projects.GetByID(userID, id)
+	if err != nil {
+		return err
+	}
+	expectedVersion := pr.Version
+	if err := p.projects.Archive(userID, id); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	pr.ArchivedAt = &now
+	p.enqueueProject(pr, expectedVersion)
+	return nil
+}
+
+// BackfillUnsynced enqueues a "projects" push for every locally-stored project
+// that has never reached the server (Version == 0). It exists for projects
+// created before project-sync was wired: without it those projects — and every
+// session/active_session that references them — can never sync. The caller MUST
+// guard this to run exactly once (a duplicate push of an already-created
+// project hits a version conflict and halts the queue). Returns how many were
+// enqueued.
+func (p *Projects) BackfillUnsynced(userID string) (int, error) {
+	if p.queue == nil {
+		return 0, nil
+	}
+	all, err := p.projects.ListAll(userID)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, pr := range all {
+		if pr.Version != 0 {
+			continue
+		}
+		payload, err := json.Marshal(pr)
+		if err != nil {
+			continue
+		}
+		if _, err := p.queue.Enqueue("projects", pr.ID, payload, 0); err != nil {
+			continue
+		}
+		n++
+	}
+	return n, nil
 }
 
 // MarkUsedNow updates LastUsedAt — called from active_sessions.Start.

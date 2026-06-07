@@ -197,7 +197,22 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	// when no FLOW_SERVER_URL is reachable — expected in offline / no-auth scenarios.
 	syncWorker.Start(ctx)
 
-	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects)
+	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects, cacheWriteQueue)
+	// Wire push-signal so Create/Rename/Archive enqueue ops wake the worker.
+	projectsUC.SetPushSignal(syncWorker.SignalPush)
+	// One-time backfill: projects created before project-sync was wired never
+	// got enqueued, so any active_session/session referencing them FK-fails
+	// server-side. Push the version-0 stragglers once, guarded via sync_state so
+	// a restart can't double-enqueue and trip the server's optimistic-concurrency
+	// halt.
+	if done, _ := cacheSyncState.Get("backfill:projects:v1"); done == 0 {
+		if n, err := projectsUC.BackfillUnsynced(localUser.ID); err == nil {
+			_ = cacheSyncState.Set("backfill:projects:v1", 1)
+			if n > 0 {
+				syncWorker.SignalPush()
+			}
+		}
+	}
 	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
 	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
 	// Wire push-signal so Start/Stop enqueue ops wake the worker immediately.

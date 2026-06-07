@@ -7,6 +7,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -148,7 +149,7 @@ func TestUnit_Projects_ListActive_Delegates(t *testing.T) {
 			{ID: "2", Name: "Beta", Slug: "beta"},
 		},
 	}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	got, err := uc.ListActive("user1")
 	if err != nil {
 		t.Fatal(err)
@@ -161,7 +162,7 @@ func TestUnit_Projects_ListActive_Delegates(t *testing.T) {
 func TestUnit_Projects_ListActive_PropagatesError(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{listErr: errors.New("db down")}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	_, err := uc.ListActive("user1")
 	if err == nil {
 		t.Error("expected error, got nil")
@@ -173,7 +174,7 @@ func TestUnit_Projects_ListActive_PropagatesError(t *testing.T) {
 func TestUnit_Projects_Create_EmptyName(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	_, err := uc.Create("user1", "")
 	if err == nil {
 		t.Error("expected error for empty name, got nil")
@@ -183,7 +184,7 @@ func TestUnit_Projects_Create_EmptyName(t *testing.T) {
 func TestUnit_Projects_Create_WhitespaceName(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	_, err := uc.Create("user1", "   ")
 	if err == nil {
 		t.Error("expected error for whitespace-only name, got nil")
@@ -193,7 +194,7 @@ func TestUnit_Projects_Create_WhitespaceName(t *testing.T) {
 func TestUnit_Projects_Create_NoCollision(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	got, err := uc.Create("user1", "Mein Projekt")
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +218,7 @@ func TestUnit_Projects_Create_SlugCollisionSuffix(t *testing.T) {
 			return domain.Project{}, ports.ErrProjectNotFound
 		},
 	}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	got, err := uc.Create("user1", "Mein Projekt")
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +241,7 @@ func TestUnit_Projects_Create_SlugCollisionMultipleSuffixes(t *testing.T) {
 			}
 		},
 	}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	got, err := uc.Create("user1", "Flow")
 	if err != nil {
 		t.Fatal(err)
@@ -262,7 +263,7 @@ func TestUnit_Projects_Rename_KeepsSlugStable(t *testing.T) {
 		Version: 0,
 	}
 	store := &fakeProjectStore{projects: []domain.Project{existing}}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 
 	err := uc.Rename("user1", "proj-1", "New Name")
 	if err != nil {
@@ -289,7 +290,7 @@ func TestUnit_Projects_Rename_BumpsVersion(t *testing.T) {
 		Version: 3,
 	}
 	store := &fakeProjectStore{projects: []domain.Project{existing}}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 
 	if err := uc.Rename("user1", "proj-1", "Alpha Updated"); err != nil {
 		t.Fatal(err)
@@ -302,7 +303,7 @@ func TestUnit_Projects_Rename_BumpsVersion(t *testing.T) {
 func TestUnit_Projects_Rename_PropagatesGetError(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{getByIDErr: errors.New("not found")}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	err := uc.Rename("user1", "missing", "Whatever")
 	if err == nil {
 		t.Error("expected error, got nil")
@@ -316,7 +317,7 @@ func TestUnit_Projects_Rename_PropagatesUpsertError(t *testing.T) {
 		projects:  []domain.Project{existing},
 		upsertErr: errors.New("disk full"),
 	}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	if err := uc.Rename("user1", "proj-1", "Y"); err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -326,8 +327,8 @@ func TestUnit_Projects_Rename_PropagatesUpsertError(t *testing.T) {
 
 func TestUnit_Projects_Archive_Delegates(t *testing.T) {
 	t.Parallel()
-	store := &fakeProjectStore{}
-	uc := usecase.NewProjects(nil, store)
+	store := &fakeProjectStore{projects: []domain.Project{{ID: "proj-1", UserID: "user1"}}}
+	uc := usecase.NewProjects(nil, store, nil)
 	err := uc.Archive("user1", "proj-1")
 	if err != nil {
 		t.Fatal(err)
@@ -339,8 +340,11 @@ func TestUnit_Projects_Archive_Delegates(t *testing.T) {
 
 func TestUnit_Projects_Archive_PropagatesError(t *testing.T) {
 	t.Parallel()
-	store := &fakeProjectStore{archiveErr: errors.New("boom")}
-	uc := usecase.NewProjects(nil, store)
+	store := &fakeProjectStore{
+		projects:   []domain.Project{{ID: "proj-1", UserID: "user1"}},
+		archiveErr: errors.New("boom"),
+	}
+	uc := usecase.NewProjects(nil, store, nil)
 	if err := uc.Archive("user1", "proj-1"); err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -351,7 +355,7 @@ func TestUnit_Projects_Archive_PropagatesError(t *testing.T) {
 func TestUnit_Projects_MarkUsedNow_Delegates(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	err := uc.MarkUsedNow("user1", "proj-1")
 	if err != nil {
 		t.Fatal(err)
@@ -364,8 +368,117 @@ func TestUnit_Projects_MarkUsedNow_Delegates(t *testing.T) {
 func TestUnit_Projects_MarkUsedNow_PropagatesError(t *testing.T) {
 	t.Parallel()
 	store := &fakeProjectStore{touchErr: errors.New("boom")}
-	uc := usecase.NewProjects(nil, store)
+	uc := usecase.NewProjects(nil, store, nil)
 	if err := uc.MarkUsedNow("user1", "proj-1"); err == nil {
 		t.Error("expected error, got nil")
+	}
+}
+
+// --- sync enqueue (regression: locally-created projects must push to the
+// server, else their sessions/active_sessions FK-fail server-side) ---
+
+func TestUnit_Projects_Create_EnqueuesProjectPush(t *testing.T) {
+	t.Parallel()
+	store := &fakeProjectStore{}
+	q := &testutil.FakeWriteQueue{}
+	uc := usecase.NewProjects(nil, store, q)
+
+	pr, err := uc.Create("user1", "Foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Entries) != 1 {
+		t.Fatalf("expected 1 enqueue, got %d", len(q.Entries))
+	}
+	e := q.Entries[0]
+	if e.Resource != "projects" {
+		t.Errorf("resource = %q, want projects", e.Resource)
+	}
+	if e.RowID != pr.ID {
+		t.Errorf("rowID = %q, want %q", e.RowID, pr.ID)
+	}
+	if e.ExpectedVersion != 0 {
+		t.Errorf("expectedVersion = %d, want 0 (brand-new project)", e.ExpectedVersion)
+	}
+}
+
+func TestUnit_Projects_Rename_EnqueuesWithPreBumpVersion(t *testing.T) {
+	t.Parallel()
+	store := &fakeProjectStore{projects: []domain.Project{{ID: "p1", Name: "A", Slug: "a", Version: 3}}}
+	q := &testutil.FakeWriteQueue{}
+	uc := usecase.NewProjects(nil, store, q)
+
+	if err := uc.Rename("user1", "p1", "B"); err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Entries) != 1 {
+		t.Fatalf("expected 1 enqueue, got %d", len(q.Entries))
+	}
+	// expectedVersion must be the server's current version (3), not the locally
+	// bumped 4 — else the server's optimistic-concurrency check rejects it.
+	if q.Entries[0].ExpectedVersion != 3 {
+		t.Errorf("expectedVersion = %d, want 3 (pre-bump)", q.Entries[0].ExpectedVersion)
+	}
+}
+
+func TestUnit_Projects_Archive_EnqueuesProjectPush(t *testing.T) {
+	t.Parallel()
+	store := &fakeProjectStore{projects: []domain.Project{{ID: "p1", Version: 2}}}
+	q := &testutil.FakeWriteQueue{}
+	uc := usecase.NewProjects(nil, store, q)
+
+	if err := uc.Archive("user1", "p1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Entries) != 1 {
+		t.Fatalf("expected 1 enqueue, got %d", len(q.Entries))
+	}
+	if q.Entries[0].Resource != "projects" || q.Entries[0].ExpectedVersion != 2 {
+		t.Errorf("got resource=%q version=%d, want projects/2", q.Entries[0].Resource, q.Entries[0].ExpectedVersion)
+	}
+}
+
+func TestUnit_Projects_BackfillUnsynced_EnqueuesOnlyVersion0(t *testing.T) {
+	t.Parallel()
+	store := &fakeProjectStore{projects: []domain.Project{
+		{ID: "unsynced-1", Version: 0},
+		{ID: "synced", Version: 5},
+		{ID: "unsynced-2", Version: 0},
+	}}
+	q := &testutil.FakeWriteQueue{}
+	uc := usecase.NewProjects(nil, store, q)
+
+	n, err := uc.BackfillUnsynced("user1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("backfilled %d, want 2", n)
+	}
+	if len(q.Entries) != 2 {
+		t.Fatalf("expected 2 enqueues, got %d", len(q.Entries))
+	}
+	for _, e := range q.Entries {
+		if e.Resource != "projects" {
+			t.Errorf("resource = %q, want projects", e.Resource)
+		}
+		if e.ExpectedVersion != 0 {
+			t.Errorf("expectedVersion = %d, want 0", e.ExpectedVersion)
+		}
+		if e.RowID == "synced" {
+			t.Error("backfill enqueued an already-synced project")
+		}
+	}
+}
+
+func TestUnit_Projects_NilQueue_NoEnqueueNoPanic(t *testing.T) {
+	t.Parallel()
+	uc := usecase.NewProjects(nil, &fakeProjectStore{}, nil)
+	if _, err := uc.Create("user1", "Foo"); err != nil {
+		t.Fatalf("Create with nil queue must not error: %v", err)
+	}
+	n, err := uc.BackfillUnsynced("user1")
+	if err != nil || n != 0 {
+		t.Errorf("BackfillUnsynced with nil queue: n=%d err=%v, want 0/nil", n, err)
 	}
 }
