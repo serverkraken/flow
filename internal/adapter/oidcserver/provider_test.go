@@ -20,8 +20,8 @@ func TestIntegration_Provider_VerifyValidIDToken(t *testing.T) {
 	ctx := context.Background()
 
 	prov, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:   dex.Issuer,
-		ClientID: dex.ClientID,
+		Issuer:            dex.Issuer,
+		AcceptedClientIDs: []string{dex.ClientID},
 	})
 	if err != nil {
 		t.Fatalf("NewProvider: %v", err)
@@ -45,8 +45,8 @@ func TestIntegration_Provider_RejectsTamperedToken(t *testing.T) {
 	dex := oidctest.StartDex(t)
 	ctx := context.Background()
 	prov, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:   dex.Issuer,
-		ClientID: dex.ClientID,
+		Issuer:            dex.Issuer,
+		AcceptedClientIDs: []string{dex.ClientID},
 	})
 	if err != nil {
 		t.Fatalf("NewProvider: %v", err)

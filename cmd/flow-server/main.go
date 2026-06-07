@@ -88,8 +88,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	// --- OIDC + session cookie -----------------------------------------------
 
 	provider, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:   cfg.OIDCIssuer,
-		ClientID: cfg.OIDCClientID,
+		Issuer: cfg.OIDCIssuer,
+		// Both the browser confidential client (auth-code) and the public
+		// CLI device-flow client mint tokens for the same flow-server. Each
+		// JWT's `aud` claim is the issuing client's id, so the verifier must
+		// treat either as legitimate.
+		AcceptedClientIDs: []string{cfg.OIDCClientID, cfg.OIDCCLIClientID},
 	})
 	if err != nil {
 		return errors.New("oidc provider init failed: " + err.Error())
