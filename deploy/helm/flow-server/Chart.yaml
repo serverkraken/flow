@@ -11,7 +11,7 @@ version: 0.1.0
 
 # Image tag falls back to .Chart.AppVersion when values.image.tag is empty.
 # Keep this in sync with the latest flow release tag.
-appVersion: "1.4.3"
+appVersion: "0.1.0"
 
 # SQLite is a single-writer engine. Bumping replicas corrupts the database.
 # The Helm chart enforces this via a hard-coded replicas: 1 in the
