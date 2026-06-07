@@ -19,12 +19,20 @@ FLOW_OIDC_ISSUER=https://auth.example.com/realms/flow \
 FLOW_OIDC_CLIENT_ID=flow-web \
 FLOW_OIDC_CLIENT_SECRET=... \
 FLOW_OIDC_CLI_CLIENT_ID=flow-cli \
+FLOW_OIDC_CLI_ISSUER=https://auth.example.com/application/o/flow-cli/ \
 FLOW_ALLOWED_SUBS=YOUR_AUTHENTIK_SUB \
 FLOW_COOKIE_HASH_KEY=$(openssl rand -hex 32) \
 FLOW_COOKIE_BLOCK_KEY=$(openssl rand -hex 16) \
 FLOW_SERVER_BASE_URL=http://localhost:8080 \
 ./flow-server
 ```
+
+> `FLOW_OIDC_CLI_ISSUER` is the **flow-cli** provider's issuer — distinct from
+> `FLOW_OIDC_ISSUER` (the browser `flow-web` provider) under Authentik's
+> per_provider issuer mode. flow-server stands up one verifier per issuer; omit
+> this only for single-issuer IdPs, where it falls back to `FLOW_OIDC_ISSUER`.
+> Without it, `flow login` succeeds but `flow whoami` returns **401** — the CLI
+> token's `iss` (`.../o/flow-cli/`) never matches the browser verifier.
 
 ```bash
 # Terminal 2: drive the CLI

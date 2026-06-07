@@ -15,6 +15,9 @@ data:
   FLOW_SERVER_BASE_URL: {{ .Values.flow.serverBaseURL | quote }}
   FLOW_SERVER_DB: {{ .Values.flow.serverDBPath | quote }}
   FLOW_OIDC_ISSUER: {{ .Values.flow.oidcIssuer | quote }}
+  {{- if .Values.flow.oidcCLIIssuer }}
+  FLOW_OIDC_CLI_ISSUER: {{ .Values.flow.oidcCLIIssuer | quote }}
+  {{- end }}
   FLOW_OIDC_CLIENT_ID: {{ .Values.flow.oidcClientID | quote }}
   FLOW_ALLOWED_SUBS: {{ required "flow.allowedSubs is required — comma-separated OIDC sub values that may log in" .Values.flow.allowedSubs | quote }}
   {{- if .Values.flow.notebookRoot }}

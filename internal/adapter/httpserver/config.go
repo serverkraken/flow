@@ -10,9 +10,22 @@ import (
 // One struct, one source of truth — flags would require a parser and we don't
 // need them yet. All env-vars use the FLOW_ prefix.
 type Config struct {
-	Addr             string // FLOW_SERVER_ADDR (default :8080)
-	BaseURL          string // FLOW_SERVER_BASE_URL (default http://localhost:8080)
-	OIDCIssuer       string // FLOW_OIDC_ISSUER (Authentik realm URL)
+	Addr       string // FLOW_SERVER_ADDR (default :8080)
+	BaseURL    string // FLOW_SERVER_BASE_URL (default http://localhost:8080)
+	OIDCIssuer string // FLOW_OIDC_ISSUER (Authentik realm URL)
+	// OIDCCLIIssuer is the issuer URL of the public CLI/MCP device-flow
+	// provider. Authentik runs per_provider issuer mode, so the flow-cli
+	// Application mints tokens with iss=.../o/flow-cli/ — distinct from the
+	// browser .../o/flow/ — and signs them against its own JWKS. flow-server
+	// stands up a second verifier for it (see oidcserver.Provider).
+	//
+	// Defaults to FLOW_OIDC_ISSUER when unset: single-issuer IdPs (the local
+	// dex stack) need only one value, and an Authentik deploy that hasn't set
+	// this yet keeps booting (CLI tokens stay rejected exactly as before — no
+	// boot crash, no regression) until the env is added. This is a same-URL
+	// fallback, NOT slug auto-derivation, which would silently paper over a
+	// misconfigured issuer.
+	OIDCCLIIssuer    string // FLOW_OIDC_CLI_ISSUER (default: FLOW_OIDC_ISSUER)
 	OIDCClientID     string // FLOW_OIDC_CLIENT_ID (browser auth-code, confidential)
 	OIDCClientSecret string // FLOW_OIDC_CLIENT_SECRET (browser auth-code)
 	// OIDCCLIClientID is the public OIDC client used by CLI/MCP device-flow.
@@ -50,6 +63,7 @@ func LoadConfig() (Config, error) {
 		Addr:             envOrDefault("FLOW_SERVER_ADDR", ":8080"),
 		BaseURL:          envOrDefault("FLOW_SERVER_BASE_URL", "http://localhost:8080"),
 		OIDCIssuer:       os.Getenv("FLOW_OIDC_ISSUER"),
+		OIDCCLIIssuer:    envOrDefault("FLOW_OIDC_CLI_ISSUER", os.Getenv("FLOW_OIDC_ISSUER")),
 		OIDCClientID:     os.Getenv("FLOW_OIDC_CLIENT_ID"),
 		OIDCClientSecret: os.Getenv("FLOW_OIDC_CLIENT_SECRET"),
 		OIDCCLIClientID:  envOrDefault("FLOW_OIDC_CLI_CLIENT_ID", "flow-cli"),

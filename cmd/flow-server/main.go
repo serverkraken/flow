@@ -88,11 +88,14 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	// --- OIDC + session cookie -----------------------------------------------
 
 	provider, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer: cfg.OIDCIssuer,
-		// Both the browser confidential client (auth-code) and the public
-		// CLI device-flow client mint tokens for the same flow-server. Each
-		// JWT's `aud` claim is the issuing client's id, so the verifier must
-		// treat either as legitimate.
+		// Two Authentik providers (per_provider issuer mode) mint tokens for
+		// flow-server: the browser confidential auth-code client and the public
+		// CLI device-flow client. They carry DISTINCT `iss` claims and are
+		// signed against distinct JWKS, so flow-server trusts both issuers (one
+		// verifier each) AND both audiences — each JWT's `aud` is the issuing
+		// client's id. For single-issuer IdPs the two issuer values are
+		// identical and dedupe to a single verifier.
+		Issuers:           []string{cfg.OIDCIssuer, cfg.OIDCCLIIssuer},
 		AcceptedClientIDs: []string{cfg.OIDCClientID, cfg.OIDCCLIClientID},
 	})
 	if err != nil {

@@ -26,6 +26,10 @@ fi
 export FLOW_SERVER_ADDR="${FLOW_SERVER_ADDR:-:8080}"
 export FLOW_SERVER_BASE_URL="${FLOW_SERVER_BASE_URL:-http://localhost:8080}"
 export FLOW_OIDC_ISSUER="${FLOW_OIDC_ISSUER:-http://localhost:5556}"
+# Local dex serves one issuer for both the browser and CLI clients, so the CLI
+# issuer defaults to the same value. Against Authentik (per_provider mode)
+# export the flow-cli Application's issuer (.../o/flow-cli/) explicitly.
+export FLOW_OIDC_CLI_ISSUER="${FLOW_OIDC_CLI_ISSUER:-$FLOW_OIDC_ISSUER}"
 export FLOW_OIDC_CLIENT_ID="${FLOW_OIDC_CLIENT_ID:-flow-server}"
 export FLOW_OIDC_CLIENT_SECRET="${FLOW_OIDC_CLIENT_SECRET:-flow-server-secret}"
 # dex wrappt static-password userID + connector-id als protobuf und gibt

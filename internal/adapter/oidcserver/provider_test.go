@@ -20,7 +20,7 @@ func TestIntegration_Provider_VerifyValidIDToken(t *testing.T) {
 	ctx := context.Background()
 
 	prov, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:            dex.Issuer,
+		Issuers:           []string{dex.Issuer},
 		AcceptedClientIDs: []string{dex.ClientID},
 	})
 	if err != nil {
@@ -45,7 +45,7 @@ func TestIntegration_Provider_RejectsTamperedToken(t *testing.T) {
 	dex := oidctest.StartDex(t)
 	ctx := context.Background()
 	prov, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:            dex.Issuer,
+		Issuers:           []string{dex.Issuer},
 		AcceptedClientIDs: []string{dex.ClientID},
 	})
 	if err != nil {
@@ -54,6 +54,49 @@ func TestIntegration_Provider_RejectsTamperedToken(t *testing.T) {
 	tampered := "header.payload.signature"
 	if _, err := prov.Verify(ctx, tampered); err == nil {
 		t.Fatal("expected verify error on bogus token")
+	}
+}
+
+// TestIntegration_Provider_VerifyAcceptsSecondIssuer boots TWO dex instances —
+// two distinct issuer URLs AND two distinct signing keys, mirroring Authentik's
+// per_provider split into flow-web + flow-cli. It proves the multi-verifier
+// accepts a token from the second issuer (the live `flow whoami` 401 was a
+// single browser-issuer verifier rejecting the CLI token) and that a
+// single-issuer provider still rejects it.
+func TestIntegration_Provider_VerifyAcceptsSecondIssuer(t *testing.T) {
+	dex1 := oidctest.StartDex(t)
+	dex2 := oidctest.StartDex(t)
+	ctx := context.Background()
+
+	multi, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
+		Issuers:           []string{dex1.Issuer, dex2.Issuer},
+		AcceptedClientIDs: []string{dex1.ClientID},
+	})
+	if err != nil {
+		t.Fatalf("NewProvider(multi): %v", err)
+	}
+
+	// Token minted by the SECOND issuer must validate against its own verifier.
+	tok2 := mintIDTokenViaROPC(t, dex2)
+	id, err := multi.Verify(ctx, tok2)
+	if err != nil {
+		t.Fatalf("Verify(second-issuer token): %v", err)
+	}
+	if id.Sub != dex2.StaticUser.Sub {
+		t.Errorf("Sub = %q, want %q", id.Sub, dex2.StaticUser.Sub)
+	}
+
+	// Regression guard: trusting ONLY the first issuer must reject the second
+	// issuer's token — this is precisely the bug being fixed.
+	single, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
+		Issuers:           []string{dex1.Issuer},
+		AcceptedClientIDs: []string{dex1.ClientID},
+	})
+	if err != nil {
+		t.Fatalf("NewProvider(single): %v", err)
+	}
+	if _, err := single.Verify(ctx, tok2); err == nil {
+		t.Fatal("single-issuer provider must reject a token from the other issuer")
 	}
 }
 

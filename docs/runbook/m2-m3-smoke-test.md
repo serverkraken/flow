@@ -64,6 +64,11 @@ FLOW_SERVER_BASE_URL=http://localhost:8080 \
 ./bin/flow-server
 ```
 
+> No `FLOW_OIDC_CLI_ISSUER` here: local dex serves a single issuer for both the
+> browser and CLI clients, so flow-server reuses `FLOW_OIDC_ISSUER`. Against
+> Authentik (per_provider mode) set it to the flow-cli Application's issuer or
+> `flow whoami` returns 401 — see `docs/runbook/m1-smoke-test.md`.
+
 Expected server log lines at startup (JSON):
 
 ```

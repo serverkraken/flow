@@ -63,7 +63,7 @@ func TestUnit_NewProvider_RejectsEmptyAcceptedClientIDs(t *testing.T) {
 	// default — boot must fail loudly rather than silently disabling the
 	// audience check.
 	_, err := NewProvider(t.Context(), ProviderConfig{
-		Issuer:            "https://example.com",
+		Issuers:           []string{"https://example.com"},
 		AcceptedClientIDs: nil,
 	})
 	if err == nil {

@@ -25,6 +25,13 @@ flow:
   serverDBPath: "/var/lib/flow/server.db"
   # FLOW_OIDC_ISSUER — Authentik application URL (trailing slash matters).
   oidcIssuer: "https://auth.example.com/application/o/flow/"
+  # FLOW_OIDC_CLI_ISSUER — issuer of the public CLI/device-flow provider.
+  # Authentik's per_provider mode gives the flow-cli Application a DISTINCT
+  # issuer (.../o/flow-cli/); flow-server runs a second verifier for it.
+  # REQUIRED for `flow login` when the IdP issues per-provider issuers. Leave
+  # empty only for single-issuer IdPs (e.g. local dex) — the server then falls
+  # back to FLOW_OIDC_ISSUER.
+  oidcCLIIssuer: ""
   # FLOW_OIDC_CLIENT_ID — the confidential client ID used by the WebUI.
   oidcClientID: "flow-server"
   # FLOW_ALLOWED_SUBS — comma-separated OIDC 'sub' values that may log in.

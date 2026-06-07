@@ -40,7 +40,7 @@ func TestIntegration_E2E_BrowserFlow_LoginThenMe(t *testing.T) {
 	ctx := context.Background()
 
 	prov, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
-		Issuer:            dex.Issuer,
+		Issuers:           []string{dex.Issuer},
 		AcceptedClientIDs: []string{dex.ClientID, dex.CLIClientID},
 	})
 	if err != nil {
