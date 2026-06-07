@@ -1,10 +1,114 @@
 name: prerelease
+
+# Rolling prerelease for the `next` integration branch.
+#
+# On every push to `next` that touches build inputs, this workflow runs
+# `goreleaser release --snapshot` to cross-compile `flow` + `flow-mcp` and
+# moves a rolling GitHub release tagged `next` to the new HEAD. The
+# release is permanently marked `prerelease: true` so it never shows up
+# as "Latest" on the repo landing page.
+#
+# Not covered here (intentional):
+#   - flow-server: built as container image by `build-server-image.yml`
+#     (templ + tailwind toolchain → no binary distribution).
+#   - production releases on main: handled by `release.yml` via
+#     release-please + the reusable goreleaser workflow.
+
 on:
-  workflow_dispatch: {}
+  push:
+    branches: [next]
+    paths:
+      - 'cmd/flow/**'
+      - 'cmd/flow-mcp/**'
+      - 'internal/**'
+      - 'go.mod'
+      - 'go.sum'
+      - '.goreleaser.yml'
+      - '.github/workflows/prerelease.yml'
+
+permissions:
+  contents: write       # rolling release create/edit/upload
+  id-token: write       # OIDC, in case reused actions want attestations
+  packages: write       # gh release upload writes via the GH token
 
 jobs:
-  # No Dockerfiles detected for this component.
-  noop:
+  snapshot:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "No prerelease build artifacts for this repo (no Dockerfiles)."
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # goreleaser braucht die git-Historie für sinnvolle Snapshot-
+          # Versionen (sonst `0.0.0-next-<sha>` ohne Vorgänger-Kontext).
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build snapshot via GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: latest
+          # --snapshot   : kein Tag nötig, Version aus git describe + sha
+          # --clean      : dist/ vor dem Build leeren
+          # --skip=publish: kein GitHub-Release-Upload aus goreleaser —
+          #                 wir machen das selbst via gh, damit der
+          #                 rolling-tag-Move nicht mit goreleasers
+          #                 normalem Release-Mode kollidiert.
+          args: release --snapshot --clean --skip=publish
+
+      - name: Move + publish the rolling 'next' release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="next"
+          BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          NOTES=$(cat <<EOF
+          Rolling prerelease from the \`next\` integration branch.
+
+          Latest commit: \`${SHORT_SHA}\`
+          Built: ${BUILT_AT}
+          Workflow: ${RUN_URL}
+
+          ## What's here
+          - \`flow_<os>_<arch>.tar.gz\` — TUI/CLI (Linux amd64, macOS amd64/arm64)
+          - \`flow-mcp_<os>_<arch>.tar.gz\` — stdio MCP server (same platforms)
+          - \`checksums.txt\` — SHA-256 of all archives
+          - Matching server container image: \`ghcr.io/serverkraken/flow-server:next\` (built by \`build-server-image.yml\`)
+
+          ## Install
+          \`\`\`
+          curl -fsSL https://github.com/serverkraken/flow/releases/download/next/flow_darwin_arm64.tar.gz | tar xz
+          \`\`\`
+          EOF
+          )
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Existing 'next' release found — rotating assets + moving pointer."
+            # Alte Assets weg, damit `--clobber` nicht an Namens-Mismatch scheitert.
+            gh release delete-asset "$TAG" --yes --pattern '*' || true
+            gh release edit "$TAG" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --latest=false \
+              --title "next (rolling) · ${SHORT_SHA}" \
+              --notes "$NOTES"
+          else
+            echo "No 'next' release yet — creating it."
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --latest=false \
+              --title "next (rolling) · ${SHORT_SHA}" \
+              --notes "$NOTES"
+          fi
+
+          echo "Uploading snapshot artifacts."
+          gh release upload "$TAG" dist/*.tar.gz dist/checksums.txt --clobber
