@@ -26,8 +26,16 @@ templ LoginBody(issuerLabel string) {
 					}
 					für die Browser-Sitzung. Tokens landen in einem httpOnly-Cookie und werden lokal nie geloggt.
 				</p>
+				<!--
+					hx-boost="false" forces a real browser navigation here. The body-level
+					hx-boost="true" in layout.Base would otherwise intercept the click and
+					turn it into an AJAX GET — the server returns a 302 to Authentik, which
+					HTMX silently follows; the browser stays on /auth/landing and the OIDC
+					redirect never reaches the user.
+				-->
 				<a
 					href="/login"
+					hx-boost="false"
 					class="btn btn-primary w-full justify-center"
 					data-action="oidc-login"
 				>
