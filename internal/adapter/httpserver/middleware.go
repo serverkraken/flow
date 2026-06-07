@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/ports"
@@ -70,6 +71,14 @@ func NewBearerMiddleware(prov ports.AuthProvider, access ports.AccessChecker, us
 			token := h[len(prefix):]
 			id, err := prov.Verify(r.Context(), token)
 			if err != nil {
+				// Surface the real verifier error (iss/aud/exp/signature) in
+				// the server log so a bearer 401 is diagnosable without
+				// decoding the JWT by hand; the client still receives only a
+				// generic message. slog.Default() matches httpserver's
+				// ambient-logger convention (see NewLogMiddleware).
+				slog.WarnContext(r.Context(), "bearer token verification failed",
+					slog.String("path", r.URL.Path),
+					slog.Any("err", err))
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
