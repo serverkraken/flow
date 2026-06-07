@@ -3,6 +3,7 @@ package httpserver
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestUnit_LoadConfig_Defaults_WhenEnvUnset(t *testing.T) {
@@ -33,6 +34,42 @@ func TestUnit_LoadConfig_Defaults_WhenEnvUnset(t *testing.T) {
 	}
 	if got.AllowedSubs != nil {
 		t.Errorf("AllowedSubs should be nil when unset; got %v", got.AllowedSubs)
+	}
+	if got.ShutdownTimeout != 30*time.Second {
+		t.Errorf("ShutdownTimeout default = %v, want 30s", got.ShutdownTimeout)
+	}
+}
+
+func TestUnit_LoadConfig_ShutdownTimeout_Parses(t *testing.T) {
+	t.Setenv("FLOW_SERVER_SHUTDOWN_TIMEOUT", "45s")
+	got, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ShutdownTimeout != 45*time.Second {
+		t.Errorf("ShutdownTimeout = %v, want 45s", got.ShutdownTimeout)
+	}
+}
+
+func TestUnit_LoadConfig_ShutdownTimeout_InvalidFallsBack(t *testing.T) {
+	t.Setenv("FLOW_SERVER_SHUTDOWN_TIMEOUT", "not-a-duration")
+	got, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ShutdownTimeout != 30*time.Second {
+		t.Errorf("ShutdownTimeout = %v, want 30s default on parse failure", got.ShutdownTimeout)
+	}
+}
+
+func TestUnit_LoadConfig_ShutdownTimeout_NegativeFallsBack(t *testing.T) {
+	t.Setenv("FLOW_SERVER_SHUTDOWN_TIMEOUT", "-5s")
+	got, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ShutdownTimeout != 30*time.Second {
+		t.Errorf("ShutdownTimeout = %v, want 30s default on negative", got.ShutdownTimeout)
 	}
 }
 

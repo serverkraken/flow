@@ -3,6 +3,7 @@ package httpserver
 import (
 	"os"
 	"strings"
+	"time"
 )
 
 // Config holds all flow-server configuration read from environment variables.
@@ -25,6 +26,13 @@ type Config struct {
 	// root per server is sufficient. Wired in cmd/flow-server/main.go
 	// (Plan E · Task 10).
 	NotebookRoot string // FLOW_NOTEBOOK_ROOT (empty default → /notes shows placeholder)
+	// ShutdownTimeout caps how long flow-server drains in-flight HTTP
+	// requests after SIGTERM before forcing exit. Tuned at 30s by default
+	// — long enough that a slow OIDC-callback or templ render can finish,
+	// short enough that K8s' default 30s grace period (configurable via
+	// terminationGracePeriodSeconds) doesn't escalate to SIGKILL.
+	// FLOW_SERVER_SHUTDOWN_TIMEOUT (Go duration string, e.g. "30s", "1m").
+	ShutdownTimeout time.Duration // FLOW_SERVER_SHUTDOWN_TIMEOUT (default 30s)
 }
 
 // LoadConfig reads the configuration from environment variables. Returns an
@@ -42,6 +50,7 @@ func LoadConfig() (Config, error) {
 		AllowedSubs:      splitCSV(os.Getenv("FLOW_ALLOWED_SUBS")),
 		ServerDBPath:     envOrDefault("FLOW_SERVER_DB", "/var/lib/flow/server.db"),
 		NotebookRoot:     os.Getenv("FLOW_NOTEBOOK_ROOT"),
+		ShutdownTimeout:  envDurationOrDefault("FLOW_SERVER_SHUTDOWN_TIMEOUT", 30*time.Second),
 	}, nil
 }
 
@@ -50,6 +59,22 @@ func envOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// envDurationOrDefault parses a Go duration string (e.g. "30s", "2m") from
+// the given env var. Empty or malformed values fall back to def — we
+// prefer "boot with safe default" over "crash on a typo" for an
+// operational knob like shutdown timeout.
+func envDurationOrDefault(key string, def time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d <= 0 {
+		return def
+	}
+	return d
 }
 
 func splitCSV(s string) []string {

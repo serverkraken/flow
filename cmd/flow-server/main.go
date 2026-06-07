@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
@@ -39,27 +41,45 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
 
-	cfg, err := httpserver.LoadConfig()
-	if err != nil {
-		logger.Error("config load failed", slog.Any("err", err))
+	// signal.NotifyContext makes ctx-cancel the single trigger for shutdown
+	// — SIGINT (Ctrl-C during local dev) and SIGTERM (K8s pod termination)
+	// both arrive here, no separate channel-fan-in required.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx, logger); err != nil {
+		logger.Error("flow-server exit", slog.Any("err", err))
 		os.Exit(1)
 	}
+}
+
+// run wires every adapter and starts the HTTP server, blocking until ctx is
+// cancelled (SIGTERM/SIGINT) or the listener fails. Extracted from main()
+// so tests can drive the full lifecycle without forking a process.
+//
+// Returns nil on a clean drain, non-nil if the listener crashed or the
+// drain timeout fired — main() maps a non-nil return to a non-zero exit so
+// the container orchestrator (K8s, docker) sees the failure.
+func run(ctx context.Context, logger *slog.Logger) error {
+	cfg, err := httpserver.LoadConfig()
+	if err != nil {
+		return errors.New("config load failed: " + err.Error())
+	}
 	if err := requireConfig(cfg); err != nil {
-		logger.Error("config validation failed", slog.Any("err", err))
-		os.Exit(1)
+		return errors.New("config validation failed: " + err.Error())
 	}
 
 	// --- SQLite server store -------------------------------------------------
 
 	if err := os.MkdirAll(filepath.Dir(cfg.ServerDBPath), 0o755); err != nil {
-		logger.Error("server db dir", slog.Any("err", err))
-		os.Exit(1)
+		return errors.New("server db dir: " + err.Error())
 	}
 	serverDB, err := sqliteserver.Open(cfg.ServerDBPath)
 	if err != nil {
-		logger.Error("open server db", slog.Any("err", err))
-		os.Exit(1)
+		return errors.New("open server db: " + err.Error())
 	}
+	// Deferred Close runs AFTER runServer's Shutdown completes, so no
+	// writer goroutine is still touching the DB when we close it.
 	defer func() {
 		if err := serverDB.Close(); err != nil {
 			logger.Error("server db close", slog.Any("err", err))
@@ -75,22 +95,19 @@ func main() {
 
 	// --- OIDC + session cookie -----------------------------------------------
 
-	ctx := context.Background()
 	provider, err := oidcserver.NewProvider(ctx, oidcserver.ProviderConfig{
 		Issuer:   cfg.OIDCIssuer,
 		ClientID: cfg.OIDCClientID,
 	})
 	if err != nil {
-		logger.Error("oidc provider init failed", slog.Any("err", err))
-		os.Exit(1)
+		return errors.New("oidc provider init failed: " + err.Error())
 	}
 
 	access := oidcserver.NewSubAllowlist(cfg.AllowedSubs)
 
 	session, err := httpserver.NewSessionFromHex(cfg.CookieHashKey, cfg.CookieBlockKey)
 	if err != nil {
-		logger.Error("session keys invalid", slog.Any("err", err))
-		os.Exit(1)
+		return errors.New("session keys invalid: " + err.Error())
 	}
 
 	_, tokenURL := provider.Endpoint()
@@ -109,23 +126,16 @@ func main() {
 	// session.* / project.* / note.*) and the SSE handler (subscribe).
 	// The ticker goroutine fans out a per-second "tick" event so open
 	// dashboards refresh their "läuft seit MM:SS" counters without
-	// polling. Background goroutine — cancelled on shutdown via the
-	// runCtx context. M7 uses ListenAndServe (blocks until crash); the
-	// ticker leaks at process exit which is fine for a long-lived
-	// server. Phase 2 swaps to a graceful-shutdown loop that calls
-	// cancel() before exit.
+	// polling. Cancelled by runServer before srv.Shutdown returns, so the
+	// ticker stops publishing into the broadcaster while in-flight SSE
+	// requests drain. The defer here is the belt-and-suspenders cleanup
+	// for early-return paths above.
 	broadcaster := sse.New()
 	runCtx, runCancel := context.WithCancel(context.Background())
 	defer runCancel()
 	go runTicker(runCtx, broadcaster)
 
 	// --- WebUI handlers (Plan E · Task 10) ---------------------------------
-	//
-	// Constructing the per-route handlers once here and passing them as a
-	// single WebUIHandlers bag keeps server.go a pure router-wiring file.
-	// Every handler depends on the same Clock + sqliteserver adapters
-	// that already exist above, so the new wiring is additive — no
-	// existing dependency needs to change shape.
 	webuiHandlers := buildWebUIHandlers(
 		logger,
 		cfg,
@@ -168,11 +178,95 @@ func main() {
 		slog.String("base_url", cfg.BaseURL),
 		slog.String("issuer", cfg.OIDCIssuer),
 		slog.Int("allowed_subs", len(cfg.AllowedSubs)),
+		slog.Duration("shutdown_timeout", cfg.ShutdownTimeout),
 	)
-	if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("server crashed", slog.Any("err", err))
-		os.Exit(1)
+
+	// runServer blocks until ctx is cancelled (SIGTERM/SIGINT) or the
+	// listener crashes. runCancel stops the 1Hz SSE ticker BEFORE
+	// srv.Shutdown returns so the ticker goroutine doesn't outlive its
+	// broadcaster's request channels.
+	return runServer(ctx, httpSrv, cfg.ShutdownTimeout, logger, runCancel)
+}
+
+// runServer starts srv.ListenAndServe in a goroutine, waits for ctx
+// cancellation (SIGTERM / SIGINT), then drains in-flight requests with
+// srv.Shutdown bounded by drainTimeout. beforeShutdown runs synchronously
+// once shutdown is initiated and BEFORE srv.Shutdown is called — that's
+// where the SSE ticker (and any other background goroutine sharing the
+// http handler's lifetime) gets cancelled, so the broadcaster doesn't
+// publish into draining response writers.
+//
+// Returns nil when the drain completes cleanly within the timeout.
+// Returns the underlying error on:
+//   - listener crashes (anything other than http.ErrServerClosed),
+//   - drain exceeds drainTimeout (context.DeadlineExceeded — main maps
+//     this to a non-zero exit so K8s sees the failure; we deliberately
+//     do NOT call srv.Close() to force-kill connections, the process
+//     dies and the orchestrator handles re-scheduling).
+func runServer(
+	ctx context.Context,
+	srv *http.Server,
+	drainTimeout time.Duration,
+	logger *slog.Logger,
+	beforeShutdown ...func(),
+) error {
+	listenErr := make(chan error, 1)
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			listenErr <- err
+			return
+		}
+		listenErr <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Normal SIGTERM/SIGINT path — drain.
+	case err := <-listenErr:
+		// Listener died before signal arrived (port conflict, etc.).
+		if err != nil {
+			logger.Error("listener crashed", slog.Any("err", err))
+			return err
+		}
+		// Server stopped cleanly without external trigger — shouldn't
+		// happen under normal operation, but treat as graceful.
+		return nil
 	}
+
+	start := time.Now()
+	logger.Info(
+		"shutdown initiated, draining",
+		slog.Duration("timeout", drainTimeout),
+	)
+
+	for _, fn := range beforeShutdown {
+		if fn != nil {
+			fn()
+		}
+	}
+
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), drainTimeout)
+	defer shutCancel()
+
+	if err := srv.Shutdown(shutCtx); err != nil {
+		logger.Error(
+			"drain failed",
+			slog.Duration("elapsed", time.Since(start)),
+			slog.Any("err", err),
+		)
+		return err
+	}
+
+	// Wait for the listener goroutine to return ErrServerClosed (or nil)
+	// so we don't race the channel send/receive on exit.
+	<-listenErr
+
+	logger.Info(
+		"shutdown complete",
+		slog.Duration("elapsed", time.Since(start)),
+	)
+	return nil
 }
 
 // buildWebUIHandlers assembles the WebUIHandlers bag handed to
