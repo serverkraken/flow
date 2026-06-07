@@ -5,8 +5,8 @@ If the automated E2E test (`go test -tags integration ./internal/adapter/httpser
 ## Prerequisites
 
 - Authentik running and reachable
-- Authentik OIDC provider configured with client `flow-server` (confidential) and `flow-cli` (public, device-flow enabled)
-- Allowed redirect URI: `http://localhost:8080/auth/callback`
+- Authentik OIDC providers configured: `flow-web` (confidential, `authorization_code` + `refresh_token`) for browser login, **and** `flow-cli` (public, `urn:ietf:params:oauth:grant-type:device_code` + `refresh_token`) for the CLI/MCP device-flow. flow-server publishes the CLI client_id via `/api/v1/oidc/config` (configurable via `FLOW_OIDC_CLI_CLIENT_ID`, default `flow-cli`).
+- Allowed redirect URI on the `flow-web` provider: `http://localhost:8080/auth/callback`
 - Your Authentik user's `sub` claim added to `FLOW_ALLOWED_SUBS`
 
 ## Steps
@@ -16,8 +16,9 @@ If the automated E2E test (`go test -tags integration ./internal/adapter/httpser
 cd /path/to/flow
 go build -o flow-server ./cmd/flow-server
 FLOW_OIDC_ISSUER=https://auth.example.com/realms/flow \
-FLOW_OIDC_CLIENT_ID=flow-server \
+FLOW_OIDC_CLIENT_ID=flow-web \
 FLOW_OIDC_CLIENT_SECRET=... \
+FLOW_OIDC_CLI_CLIENT_ID=flow-cli \
 FLOW_ALLOWED_SUBS=YOUR_AUTHENTIK_SUB \
 FLOW_COOKIE_HASH_KEY=$(openssl rand -hex 32) \
 FLOW_COOKIE_BLOCK_KEY=$(openssl rand -hex 16) \

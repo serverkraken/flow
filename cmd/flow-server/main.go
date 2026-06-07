@@ -29,14 +29,6 @@ import (
 	"github.com/serverkraken/flow/internal/webui/sse"
 )
 
-// cliClientID is the OIDC client used by the CLI/MCP device-flow. Separate
-// from the server's confidential client (FLOW_OIDC_CLIENT_ID) because the
-// CLI is a public client without a client secret.
-//
-// Phase-1 keeps this hardcoded; Phase 2 will make it configurable via
-// FLOW_OIDC_CLI_CLIENT_ID once we support multiple CLI installs.
-const cliClientID = "flow-cli"
-
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(logger)
@@ -115,7 +107,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Issuer:                 cfg.OIDCIssuer,
 		DeviceAuthorizationURL: provider.DeviceAuthorizationURL(),
 		TokenURL:               tokenURL,
-		ClientID:               cliClientID,
+		ClientID:               cfg.OIDCCLIClientID,
 	}
 
 	secure := strings.HasPrefix(cfg.BaseURL, "https://")

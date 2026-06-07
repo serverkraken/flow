@@ -67,6 +67,13 @@ and via the K8s Ingress in production (see Plan F · Task 4 helm chart).
 
 ## Notes
 
+- Two OIDC clients are registered in dex (`deploy/podman/dex-config.yaml`):
+  `flow-server-dev` (confidential, browser auth-code) and `flow-cli`
+  (public, device-flow). flow-server uses `FLOW_OIDC_CLIENT_ID` /
+  `FLOW_OIDC_CLIENT_SECRET` for the browser flow, and publishes the public
+  CLI client_id from `FLOW_OIDC_CLI_CLIENT_ID` (default `flow-cli`) via
+  `/api/v1/oidc/config` so the CLI/MCP can drive device-flow against the
+  IdP directly.
 - `FLOW_ALLOWED_SUBS` is pinned to the dex-encoded sub for the static
   `localdev` user. dex base64url-encodes `(userID, connectorID)` as a
   protobuf; that string is `Cghsb2NhbGRldhIFbG9jYWw` for our config.

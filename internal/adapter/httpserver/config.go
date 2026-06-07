@@ -10,15 +10,22 @@ import (
 // One struct, one source of truth — flags would require a parser and we don't
 // need them yet. All env-vars use the FLOW_ prefix.
 type Config struct {
-	Addr             string   // FLOW_SERVER_ADDR (default :8080)
-	BaseURL          string   // FLOW_SERVER_BASE_URL (default http://localhost:8080)
-	OIDCIssuer       string   // FLOW_OIDC_ISSUER (Authentik realm URL)
-	OIDCClientID     string   // FLOW_OIDC_CLIENT_ID
-	OIDCClientSecret string   // FLOW_OIDC_CLIENT_SECRET
-	CookieHashKey    string   // FLOW_COOKIE_HASH_KEY (hex, 64 chars = 32 bytes)
-	CookieBlockKey   string   // FLOW_COOKIE_BLOCK_KEY (hex, 32 or 64 chars)
-	AllowedSubs      []string // FLOW_ALLOWED_SUBS (comma-separated OIDC 'sub' values)
-	ServerDBPath     string   // FLOW_SERVER_DB (default /var/lib/flow/server.db)
+	Addr             string // FLOW_SERVER_ADDR (default :8080)
+	BaseURL          string // FLOW_SERVER_BASE_URL (default http://localhost:8080)
+	OIDCIssuer       string // FLOW_OIDC_ISSUER (Authentik realm URL)
+	OIDCClientID     string // FLOW_OIDC_CLIENT_ID (browser auth-code, confidential)
+	OIDCClientSecret string // FLOW_OIDC_CLIENT_SECRET (browser auth-code)
+	// OIDCCLIClientID is the public OIDC client used by CLI/MCP device-flow.
+	// Separate from OIDCClientID because the CLI cannot ship a client_secret
+	// — Authentik must register this as a `public` client with grant type
+	// `urn:ietf:params:oauth:grant-type:device_code`. Default `flow-cli`
+	// matches the legacy hardcoded constant and keeps existing deployments
+	// working without an env change.
+	OIDCCLIClientID string   // FLOW_OIDC_CLI_CLIENT_ID (default "flow-cli")
+	CookieHashKey   string   // FLOW_COOKIE_HASH_KEY (hex, 64 chars = 32 bytes)
+	CookieBlockKey  string   // FLOW_COOKIE_BLOCK_KEY (hex, 32 or 64 chars)
+	AllowedSubs     []string // FLOW_ALLOWED_SUBS (comma-separated OIDC 'sub' values)
+	ServerDBPath    string   // FLOW_SERVER_DB (default /var/lib/flow/server.db)
 	// NotebookRoot points at a kompendium notebook directory the WebUI
 	// renders read-only under /notes. Empty (default) — the /notes
 	// handler shows a "Notes nicht konfiguriert" placeholder instead of
@@ -45,6 +52,7 @@ func LoadConfig() (Config, error) {
 		OIDCIssuer:       os.Getenv("FLOW_OIDC_ISSUER"),
 		OIDCClientID:     os.Getenv("FLOW_OIDC_CLIENT_ID"),
 		OIDCClientSecret: os.Getenv("FLOW_OIDC_CLIENT_SECRET"),
+		OIDCCLIClientID:  envOrDefault("FLOW_OIDC_CLI_CLIENT_ID", "flow-cli"),
 		CookieHashKey:    os.Getenv("FLOW_COOKIE_HASH_KEY"),
 		CookieBlockKey:   os.Getenv("FLOW_COOKIE_BLOCK_KEY"),
 		AllowedSubs:      splitCSV(os.Getenv("FLOW_ALLOWED_SUBS")),
