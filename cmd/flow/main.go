@@ -25,6 +25,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
 	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
+	"github.com/serverkraken/flow/internal/adapter/oidcclient"
 	"github.com/serverkraken/flow/internal/adapter/output"
 	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
@@ -144,18 +145,28 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		return Deps{}, nil, fmt.Errorf("flow cache db: %w", err)
 	}
 
-	// Resolve the local user for CRUD operations.
-	// TODO(Task 23): replace with real OIDC resolution from the HTTP-server
-	// users-ensure middleware once auth is wired.
+	// Resolve the active identity: if a token is present for this server, run as
+	// the OIDC user (sub from the token); otherwise the offline `local` placeholder.
 	localSub := env.LocalUserSub
 	if localSub == "" {
 		localSub = "local"
 	}
 	cacheUsers := sqliteclient.NewUsers(cacheStore)
-	localUser, err := cacheUsers.EnsureBySub(localSub, "", "")
+	tokenSub := ""
+	if toks, terr := keyringadapter.New().Get("tokens:" + env.ServerURL); terr == nil {
+		src := toks.IDToken
+		if src == "" {
+			src = toks.AccessToken
+		}
+		if c, cerr := oidcclient.ClaimsFromToken(src); cerr == nil {
+			tokenSub = c.Sub
+		}
+	}
+	identityUC := usecase.NewIdentity(cacheUsers, localSub)
+	localUser, err := identityUC.ResolveActiveUser(tokenSub)
 	if err != nil {
 		_ = cacheStore.Close()
-		return Deps{}, nil, fmt.Errorf("flow local user: %w", err)
+		return Deps{}, nil, fmt.Errorf("resolve active user: %w", err)
 	}
 	cacheProjects := sqliteclient.NewProjects(cacheStore)
 	cacheSessions := sqliteclient.NewSessions(cacheStore)

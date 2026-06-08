@@ -24,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/httpsync"
 	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/mcpstdio"
+	"github.com/serverkraken/flow/internal/adapter/oidcclient"
 	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -60,11 +61,25 @@ func run() error {
 	}
 	defer func() { _ = cacheStore.Close() }()
 
+	// Resolve the active identity: if a token is present for this server, run as
+	// the OIDC user (sub from the token); otherwise the offline `local` placeholder.
 	localSub := envOrDefault("FLOW_LOCAL_USER_SUB", "local")
+	serverURL := envOrDefault("FLOW_SERVER_URL", "http://localhost:8080")
 	cacheUsers := sqliteclient.NewUsers(cacheStore)
-	localUser, err := cacheUsers.EnsureBySub(localSub, "", "")
+	tokenSub := ""
+	if toks, terr := keyringadapter.New().Get("tokens:" + serverURL); terr == nil {
+		src := toks.IDToken
+		if src == "" {
+			src = toks.AccessToken
+		}
+		if c, cerr := oidcclient.ClaimsFromToken(src); cerr == nil {
+			tokenSub = c.Sub
+		}
+	}
+	identityUC := usecase.NewIdentity(cacheUsers, localSub)
+	localUser, err := identityUC.ResolveActiveUser(tokenSub)
 	if err != nil {
-		return fmt.Errorf("local user: %w", err)
+		return fmt.Errorf("resolve active user: %w", err)
 	}
 
 	cacheProjects := sqliteclient.NewProjects(cacheStore)
@@ -80,7 +95,6 @@ func run() error {
 	// processes running concurrently share one sqlite cache; both may
 	// run a worker without conflict (the queue table is uniquely
 	// seq-keyed and modernc/sqlite serialises through WAL).
-	serverURL := envOrDefault("FLOW_SERVER_URL", "http://localhost:8080")
 	keyring := keyringadapter.New()
 	keyringSlot := "tokens:" + serverURL
 	syncClient := httpsync.NewClient(serverURL, keyring, keyringSlot)
