@@ -22,8 +22,8 @@ func TestUnit_ClaimsFromToken(t *testing.T) {
 	if c.Sub != "msoent" || c.Email != "m@x.de" || c.Name != "Soenne" {
 		t.Errorf("got %+v", c)
 	}
-	if _, err := ClaimsFromToken("not.a.jwt-only-two"); err == nil {
-		t.Error("expected error for malformed token")
+	if _, err := ClaimsFromToken("only.two"); err == nil {
+		t.Error("expected error for a token without exactly 3 segments")
 	}
 }
 
