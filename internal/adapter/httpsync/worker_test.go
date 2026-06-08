@@ -984,6 +984,69 @@ func TestWorker_ForcePull_Coalesces(t *testing.T) {
 	}
 }
 
+// ---- Test: pull remaps user_id to local user ---------------------------------
+
+// TestUnit_Worker_PullRemapsUserIDToLocalUser verifies that active sessions
+// pulled from the server (which carry the server's user UUID) are stored with
+// the worker's own local user id. The server scopes every pull to the
+// authenticated user, so all pulled rows belong to the local user.
+func TestUnit_Worker_PullRemapsUserIDToLocalUser(t *testing.T) {
+	// The server returns one active session owned by "server-uuid".
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && contains(r.URL.Path, "/active") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []domain.ActiveSession{{
+					UserID:    "server-uuid",
+					ProjectID: "proj-1",
+					Version:   1,
+				}},
+				"high_watermark": int64(1),
+				"has_more":       false,
+			})
+			return
+		}
+		// All other pull endpoints — return empty pages.
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	as := &testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}}
+	ws := &testutil.FakeSyncWatermarkStore{}
+	w := newWorker(srv, &testutil.FakeSessionStore{}, &testutil.FakeProjectStore{}, as, ws, &drainableQueue{})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	w.Start(ctx)
+
+	// Wait until the watermark for active_sessions advances — proof that a pull
+	// cycle completed and the row was ingested.
+	if !eventually(func() bool {
+		wm, _ := ws.Get("active_sessions")
+		return wm >= 1
+	}, 1500*time.Millisecond) {
+		t.Fatal("timed out waiting for active_sessions pull to complete")
+	}
+
+	w.Stop()
+	<-w.Done()
+
+	// The stored row must carry the worker's local user id ("user1"), not "server-uuid".
+	rows, err := as.ListByUser("user1")
+	if err != nil {
+		t.Fatalf("ListByUser error: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("stored rows for user1: got %d, want 1", len(rows))
+	}
+	if rows[0].UserID != "user1" {
+		t.Errorf("UserID: got %q, want %q", rows[0].UserID, "user1")
+	}
+}
+
 // eventually polls cond until it returns true or timeout elapses.
 func eventually(cond func() bool, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)

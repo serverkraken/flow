@@ -240,7 +240,11 @@ func (w *Worker) pullReposPage(ctx context.Context, since int64) (int64, bool, e
 	if err != nil {
 		return 0, false, err
 	}
+	// The server scopes each pull to the authenticated user, so every pulled row
+	// belongs to the local user; rewriting UserID keeps the local FK (user_id →
+	// users(id)) satisfiable when the server's user UUID differs from the client's.
 	for _, r := range items {
+		r.UserID = w.userID
 		if err := w.repos.Upsert(r); err != nil {
 			return 0, false, err
 		}
@@ -253,7 +257,11 @@ func (w *Worker) pullRepoNotesPage(ctx context.Context, since int64) (int64, boo
 	if err != nil {
 		return 0, false, err
 	}
+	// The server scopes each pull to the authenticated user, so every pulled row
+	// belongs to the local user; rewriting UserID keeps the local FK (user_id →
+	// users(id)) satisfiable when the server's user UUID differs from the client's.
 	for _, n := range items {
+		n.UserID = w.userID
 		if err := w.notes.Upsert(n); err != nil {
 			return 0, false, err
 		}
@@ -266,6 +274,12 @@ func (w *Worker) pullSessionsPage(ctx context.Context, since int64) (int64, bool
 	if err != nil {
 		return 0, false, err
 	}
+	// The server scopes each pull to the authenticated user, so every pulled row
+	// belongs to the local user; rewriting UserID keeps the local FK (user_id →
+	// users(id)) satisfiable when the server's user UUID differs from the client's.
+	for i := range items {
+		items[i].UserID = w.userID
+	}
 	if err := w.sessions.UpsertBatch(items); err != nil {
 		return 0, false, err
 	}
@@ -277,7 +291,11 @@ func (w *Worker) pullProjectsPage(ctx context.Context, since int64) (int64, bool
 	if err != nil {
 		return 0, false, err
 	}
+	// The server scopes each pull to the authenticated user, so every pulled row
+	// belongs to the local user; rewriting UserID keeps the local FK (user_id →
+	// users(id)) satisfiable when the server's user UUID differs from the client's.
 	for _, p := range items {
+		p.UserID = w.userID
 		if err := w.projects.Upsert(p); err != nil {
 			return 0, false, err
 		}
@@ -290,7 +308,11 @@ func (w *Worker) pullActivePage(ctx context.Context, since int64) (int64, bool, 
 	if err != nil {
 		return 0, false, err
 	}
+	// The server scopes each pull to the authenticated user, so every pulled row
+	// belongs to the local user; rewriting UserID keeps the local FK (user_id →
+	// users(id)) satisfiable when the server's user UUID differs from the client's.
 	for _, a := range items {
+		a.UserID = w.userID
 		if err := w.active.Upsert(a); err != nil {
 			return 0, false, err
 		}
