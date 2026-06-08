@@ -86,3 +86,45 @@ func TestUnit_Users_GetByID_ReturnsCorrectUser(t *testing.T) {
 		t.Errorf("OIDCSub: got %q, want %q", fetched.OIDCSub, "sub|abc")
 	}
 }
+
+func TestUnit_Users_RelabelBySub(t *testing.T) {
+	t.Parallel()
+	store := mustOpen(t)
+	u := NewUsers(store)
+
+	orig, err := u.EnsureBySub("local", "", "")
+	if err != nil {
+		t.Fatalf("EnsureBySub: %v", err)
+	}
+	if err := u.RelabelBySub("local", "msoent", "m@x.de", "Soenne"); err != nil {
+		t.Fatalf("RelabelBySub: %v", err)
+	}
+	got, err := u.GetBySub("msoent")
+	if err != nil {
+		t.Fatalf("GetBySub(msoent): %v", err)
+	}
+	if got.ID != orig.ID {
+		t.Errorf("relabel changed id: %q != %q (must keep id so data stays owned)", got.ID, orig.ID)
+	}
+	if _, err := u.GetBySub("local"); err == nil {
+		t.Error("old 'local' sub should no longer resolve")
+	}
+}
+
+func TestUnit_Users_CountOwnedRows_FreshUser(t *testing.T) {
+	t.Parallel()
+	store := mustOpen(t)
+	u := NewUsers(store)
+
+	created, err := u.EnsureBySub("sub|fresh", "", "")
+	if err != nil {
+		t.Fatalf("EnsureBySub: %v", err)
+	}
+	n, err := u.CountOwnedRows(created.ID)
+	if err != nil {
+		t.Fatalf("CountOwnedRows: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("fresh user: want 0 owned rows, got %d", n)
+	}
+}
