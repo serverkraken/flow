@@ -18,6 +18,8 @@ type Identity struct {
 	localSub string // FLOW_LOCAL_USER_SUB (default "local")
 }
 
+// NewIdentity constructs the Identity use case. localSub is the offline
+// placeholder sub (FLOW_LOCAL_USER_SUB, default "local").
 func NewIdentity(store IdentityStore, localSub string) *Identity {
 	return &Identity{store: store, localSub: localSub}
 }

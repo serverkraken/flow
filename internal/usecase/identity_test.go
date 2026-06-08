@@ -14,7 +14,7 @@ type fakeIdentityStore struct {
 	relabels [][2]string // (from,to)
 }
 
-func (f *fakeIdentityStore) EnsureBySub(sub, email, name string) (domain.User, error) {
+func (f *fakeIdentityStore) EnsureBySub(sub, _, _ string) (domain.User, error) {
 	if u, ok := f.bySub[sub]; ok {
 		return u, nil
 	}
@@ -25,6 +25,7 @@ func (f *fakeIdentityStore) EnsureBySub(sub, email, name string) (domain.User, e
 	f.bySub[sub] = u
 	return u, nil
 }
+
 func (f *fakeIdentityStore) GetBySub(sub string) (domain.User, error) {
 	if u, ok := f.bySub[sub]; ok {
 		return u, nil
