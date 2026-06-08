@@ -94,7 +94,7 @@ type Paths struct {
 type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
-	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — local OIDC sub for EnsureBySub (default "local"; real OIDC: Task 23)
+	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — offline placeholder sub (default "local"); when a token is present buildDeps resolves the real OIDC identity instead
 	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL for httpsync (default "http://localhost:8080")
 }
 
