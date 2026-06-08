@@ -25,14 +25,30 @@ func NewIdentity(store IdentityStore, localSub string) *Identity {
 }
 
 // ResolveActiveUser returns the local user the client should run as. tokenSub is
-// the sub decoded from the stored token (empty when logged out). With a sub it
-// ensures/returns the OIDC user; otherwise the `local` placeholder.
+// the sub decoded from the stored token (empty when logged out).
+//
+// When logged in but no OIDC user row exists yet AND an unclaimed `local`
+// profile still owns data, it returns the `local` user instead of eagerly
+// creating an empty OIDC user. That premature create would otherwise happen for
+// EVERY command via buildDeps — including `flow logout`, which runs before it
+// clears the token — and would make the first-login adoption see "OIDC user
+// already exists" and silently skip the re-label. Once adoption re-labels
+// `local`→sub, the GetBySub branch below returns that same row.
 func (i *Identity) ResolveActiveUser(tokenSub string) (domain.User, error) {
-	sub := tokenSub
-	if sub == "" {
-		sub = i.localSub
+	if tokenSub == "" {
+		return i.store.EnsureBySub(i.localSub, "", "")
 	}
-	return i.store.EnsureBySub(sub, "", "")
+	if u, err := i.store.GetBySub(tokenSub); err == nil {
+		return u, nil // OIDC user already exists
+	}
+	// No OIDC user yet: if the offline `local` profile still owns data, run as it
+	// so adoption can claim it on the next login rather than being defeated.
+	if local, err := i.store.GetBySub(i.localSub); err == nil {
+		if n, cerr := i.store.CountOwnedRows(local.ID); cerr == nil && n > 0 {
+			return local, nil
+		}
+	}
+	return i.store.EnsureBySub(tokenSub, "", "")
 }
 
 // AdoptLocalDataIfFirstLogin re-labels the `local` user into the OIDC identity

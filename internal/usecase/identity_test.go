@@ -54,6 +54,39 @@ func TestUnit_Identity_ResolveActiveUser_FallsBackToLocalWhenNoSub(t *testing.T)
 	}
 }
 
+func TestUnit_Identity_ResolveActiveUser_RunsAsLocalWhenOidcAbsentAndLocalHasData(t *testing.T) {
+	// Footgun guard: logged in (token sub present) but no OIDC user row yet, and
+	// the offline `local` profile still owns data → run as `local`, do NOT
+	// eagerly create an empty OIDC user (which would defeat first-login adoption).
+	store := &fakeIdentityStore{
+		bySub:  map[string]domain.User{"local": {ID: "id-local", OIDCSub: "local"}},
+		counts: map[string]int{"id-local": 3},
+	}
+	id := usecase.NewIdentity(store, "local")
+	u, err := id.ResolveActiveUser("msoent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.OIDCSub != "local" {
+		t.Errorf("sub = %q, want local (must not pre-create the OIDC user while local has unclaimed data)", u.OIDCSub)
+	}
+	if _, ok := store.bySub["msoent"]; ok {
+		t.Error("must NOT have created an OIDC user — that would defeat adoption")
+	}
+}
+
+func TestUnit_Identity_ResolveActiveUser_CreatesOidcWhenNoLocalData(t *testing.T) {
+	store := &fakeIdentityStore{} // no local profile to adopt
+	id := usecase.NewIdentity(store, "local")
+	u, err := id.ResolveActiveUser("msoent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.OIDCSub != "msoent" {
+		t.Errorf("sub = %q, want msoent (nothing to adopt → create the OIDC user)", u.OIDCSub)
+	}
+}
+
 func TestUnit_Identity_Adopt_RelabelsLocalWhenFirstLoginWithData(t *testing.T) {
 	store := &fakeIdentityStore{
 		bySub:  map[string]domain.User{"local": {ID: "id-local", OIDCSub: "local"}},
