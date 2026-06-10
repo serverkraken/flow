@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -124,7 +123,8 @@ func tryAdoptLocalProfile(c loginConfig, tok ports.Tokens) {
 	}
 	if !promptYesNo(c.Out, c.In, fmt.Sprintf(
 		"%d lokale Projekte/Sessions unter dem Offline-Profil gefunden. Unter %s übernehmen? [y/N] ",
-		n, display)) {
+		n, display,
+	)) {
 		return
 	}
 
@@ -162,32 +162,6 @@ func openBrowserDefault(url string) error {
 	return nil
 }
 
-// resolveOIDCEndpoints asks flow-server's /api/v1/oidc/config for the IdP's
-// device + token endpoints. This avoids the CLI needing to know the IdP URL
-// directly.
-func resolveOIDCEndpoints(ctx context.Context, serverURL string) (deviceURL, tokenURL string, err error) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/api/v1/oidc/config", nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("oidc/config: status %s", resp.Status)
-	}
-	var cfg struct {
-		DeviceURL string `json:"device_authorization_endpoint"`
-		TokenURL  string `json:"token_endpoint"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
-		return "", "", err
-	}
-	if cfg.DeviceURL == "" {
-		return "", "", fmt.Errorf("oidc/config: IdP exposes no device_authorization_endpoint")
-	}
-	return cfg.DeviceURL, cfg.TokenURL, nil
-}
-
 // slotNameFor derives a per-server slot so a user can log into multiple
 // flow-servers (dev / prod / homelab) without collisions.
 func slotNameFor(serverURL string) string {
@@ -217,9 +191,12 @@ func newLoginCmd(opts loginCmdOptions) *cobra.Command {
 		Use:   "login",
 		Short: "Beim flow-server anmelden (OIDC Device-Flow)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			deviceURL, tokenURL, err := resolveOIDCEndpoints(cmd.Context(), serverURL)
+			deviceURL, tokenURL, err := oidcclient.ResolveEndpoints(cmd.Context(), serverURL, http.DefaultClient)
 			if err != nil {
 				return err
+			}
+			if deviceURL == "" {
+				return fmt.Errorf("oidc/config: IdP exposes no device_authorization_endpoint")
 			}
 			return runLogin(cmd.Context(), loginConfig{
 				ClientID:               clientID,

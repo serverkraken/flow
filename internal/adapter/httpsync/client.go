@@ -63,14 +63,20 @@ type ConflictError struct {
 func (e *ConflictError) Error() string { return e.Sentinel.Error() }
 func (e *ConflictError) Unwrap() error { return e.Sentinel }
 
+// TokenRefresher renews the stored token bundle after a 401.
+type TokenRefresher interface {
+	RefreshTokens(ctx context.Context) (ports.Tokens, error)
+}
+
 // Client issues typed HTTP requests to flow-server's /api/v1 endpoints.
 // All methods read a bearer token from tokens.Get(slot); a missing token
 // returns ErrUnauthorized rather than hitting the server.
 type Client struct {
-	base   string
-	tokens ports.TokenStore
-	slot   string
-	httpc  *http.Client
+	base      string
+	tokens    ports.TokenStore
+	slot      string
+	httpc     *http.Client
+	refresher TokenRefresher
 }
 
 // NewClient constructs a Client. base is the server root URL (no trailing slash),
@@ -83,6 +89,9 @@ func NewClient(base string, tokens ports.TokenStore, slot string) *Client {
 		httpc:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
+
+// SetRefresher configures the token refresher used for transparent 401 recovery.
+func (c *Client) SetRefresher(r TokenRefresher) { c.refresher = r }
 
 // bearer retrieves the access token for the configured slot.
 // Returns ErrUnauthorized when no token is stored.
@@ -97,7 +106,9 @@ func (c *Client) bearer() (string, error) {
 	return t.AccessToken, nil
 }
 
-// do executes req, sets the Authorization header, and returns the response.
+// do executes req with the bearer token; on 401 it refreshes once and
+// retries. GetBody is set by http.NewRequest for bytes.Reader bodies, so
+// the retry can replay POST/PUT payloads.
 func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	token, err := c.bearer()
 	if err != nil {
@@ -105,7 +116,25 @@ func (c *Client) do(ctx context.Context, req *http.Request) (*http.Response, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req = req.WithContext(ctx)
-	return c.httpc.Do(req)
+	resp, err := c.httpc.Do(req)
+	if err != nil || resp.StatusCode != http.StatusUnauthorized || c.refresher == nil {
+		return resp, err
+	}
+	fresh, rerr := c.refresher.RefreshTokens(ctx)
+	if rerr != nil {
+		return resp, nil // keep the original 401 → ErrUnauthorized upstream
+	}
+	_ = resp.Body.Close()
+	retry := req.Clone(ctx)
+	if req.GetBody != nil {
+		b, gerr := req.GetBody()
+		if gerr != nil {
+			return nil, gerr
+		}
+		retry.Body = b
+	}
+	retry.Header.Set("Authorization", "Bearer "+fresh.AccessToken)
+	return c.httpc.Do(retry)
 }
 
 // readBody reads and closes the response body.

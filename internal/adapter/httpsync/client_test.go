@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -349,5 +350,88 @@ func TestStopActive_409_ConflictError(t *testing.T) {
 	_, err := c.StopActive(context.Background(), "p1", 1, "", "")
 	if !errors.Is(err, ports.ErrActiveSessionConflict) {
 		t.Errorf("expected ErrActiveSessionConflict, got %v", err)
+	}
+}
+
+// ---- 401 refresh integration ----
+
+// fakeRefresher is a test double for httpsync.TokenRefresher.
+type fakeRefresher struct {
+	calls  atomic.Int32
+	tokens ports.Tokens
+	err    error
+}
+
+func (f *fakeRefresher) RefreshTokens(_ context.Context) (ports.Tokens, error) {
+	f.calls.Add(1)
+	return f.tokens, f.err
+}
+
+func TestClient_401_WithRefresher_RefreshesAndRetries(t *testing.T) {
+	const freshToken = "fresh-access"
+	var callCount atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := callCount.Add(1)
+		auth := r.Header.Get("Authorization")
+		if n == 1 {
+			// First call: reject with 401 regardless of token.
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		// Second call: verify the refreshed token is used.
+		if auth != "Bearer "+freshToken {
+			http.Error(w, "wrong token", http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []domain.Session{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	ref := &fakeRefresher{tokens: ports.Tokens{AccessToken: freshToken}}
+	c := newClient(srv, "old-tok")
+	c.SetRefresher(ref)
+
+	_, _, _, err := c.PullSessions(context.Background(), 0, 50)
+	if err != nil {
+		t.Fatalf("unexpected error after refresh: %v", err)
+	}
+	if ref.calls.Load() != 1 {
+		t.Errorf("refresh called %d times, want 1", ref.calls.Load())
+	}
+	if callCount.Load() != 2 {
+		t.Errorf("server called %d times, want 2", callCount.Load())
+	}
+}
+
+func TestClient_401_WithoutRefresher_ReturnsErrUnauthorized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	// newClient does not set a refresher.
+	c := newClient(srv, "tok")
+	_, _, _, err := c.PullSessions(context.Background(), 0, 50)
+	if !errors.Is(err, httpsync.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized without refresher, got %v", err)
+	}
+}
+
+func TestClient_401_RefresherFails_ReturnsErrUnauthorized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	ref := &fakeRefresher{err: errors.New("token store empty")}
+	c := newClient(srv, "tok")
+	c.SetRefresher(ref)
+
+	_, _, _, err := c.PullSessions(context.Background(), 0, 50)
+	if !errors.Is(err, httpsync.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized when refresh fails, got %v", err)
 	}
 }

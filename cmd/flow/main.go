@@ -99,6 +99,7 @@ type Env struct {
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
 	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — offline placeholder sub (default "local"); when a token is present buildDeps resolves the real OIDC identity instead
 	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL for httpsync (default "http://localhost:8080")
+	OIDCClientID        string        // $FLOW_OIDC_CLIENT_ID — OIDC client id used for token refresh (default "flow-cli")
 }
 
 // Deps is the wired dependency graph. K4.B extends it with the
@@ -216,6 +217,12 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	keyring := keyringadapter.New()
 	keyringSlot := "tokens:" + serverURL
 	syncClient := httpsync.NewClient(serverURL, keyring, keyringSlot)
+	syncClient.SetRefresher(&oidcclient.StoreRefresher{
+		ServerURL: serverURL,
+		ClientID:  env.OIDCClientID,
+		Store:     keyring,
+		Slot:      keyringSlot,
+	})
 	syncQueueAdapter := httpsync.NewQueue(cacheWriteQueue)
 	syncWorker := httpsync.NewWorker(
 		syncClient,
@@ -670,6 +677,7 @@ func main() {
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
 		LocalUserSub:        os.Getenv("FLOW_LOCAL_USER_SUB"),
 		ServerURL:           envOrDefault("FLOW_SERVER_URL", "http://localhost:8080"),
+		OIDCClientID:        envOrDefault("FLOW_OIDC_CLIENT_ID", "flow-cli"),
 	}
 
 	// Signal-aware context for buildDeps (sync worker needs ctx at Start time).
