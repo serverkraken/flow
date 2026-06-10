@@ -379,6 +379,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
 					return activeSessionsUC.Stop(userID, projectID, tag, note)
 				},
+				ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
+					return activeSessionsUC.ListActive(userID)
+				},
 				SessionCount: func(userID string) (int, error) {
 					rows, err := cacheSessions.Load(userID)
 					if err != nil {

@@ -258,6 +258,9 @@ func (f *newPathFixture) deps() cli.WorktimeDeps {
 		StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
 			return activeUC.Stop(userID, projectID, tag, note)
 		},
+		ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
+			return activeUC.ListActive(userID)
+		},
 		SessionCount: func(userID string) (int, error) {
 			rows, err := f.sessions.Load(userID)
 			if err != nil {
@@ -393,9 +396,6 @@ func TestNewPath_Stop_HappyPath(t *testing.T) {
 	if !strings.Contains(stderr, "Gestoppt") {
 		t.Errorf("stderr: %q", stderr)
 	}
-	if !strings.Contains(stderr, "Flow") {
-		t.Errorf("stderr should mention project name, got %q", stderr)
-	}
 
 	// Finished session row must exist.
 	rows, _ := f.sessions.Load(testUserID)
@@ -416,15 +416,104 @@ func TestNewPath_Stop_HappyPath(t *testing.T) {
 }
 
 // TestNewPath_Stop_NothingRunning verifies idempotent behaviour: stopping
-// when nothing is active is a no-op (exit 0, empty stderr).
+// when nothing is active exits 0 and prints a hint to stderr.
 func TestNewPath_Stop_NothingRunning(t *testing.T) {
 	f := newNewPathFixture()
 	_, stderr, err := f.run("stop")
 	if err != nil {
 		t.Fatalf("idle stop must succeed: %v", err)
 	}
-	if stderr != "" {
-		t.Errorf("stderr should be empty for idle stop, got %q", stderr)
+	if !strings.Contains(stderr, "Keine laufende Session") {
+		t.Errorf("stderr should contain hint, got %q", stderr)
+	}
+}
+
+// TestStopNewStopsTheActiveSessionRegardlessOfCwd verifies that stop resolves
+// via ListActiveSessions and does NOT fall back to the cwd-resolved project
+// when a session is running on a different project than the cwd.
+func TestStopNewStopsTheActiveSessionRegardlessOfCwd(t *testing.T) {
+	// Two projects: p-A has a running session, p-B is what cwd would resolve to.
+	pA := domain.Project{ID: "proj-a", Name: "Project A", Slug: "project-a", CreatedAt: time.Now()}
+	pB := domain.Project{ID: "proj-b", Name: "Project B", Slug: "project-b", CreatedAt: time.Now()}
+
+	var stopCalledWith string
+	stopCalled := 0
+
+	base := newNewPathFixture()
+	base.projects.projects = append(base.projects.projects, pA, pB)
+
+	// Seed an active session for p-A directly in the store.
+	_ = base.activeSessions.Upsert(domain.ActiveSession{
+		UserID:    testUserID,
+		ProjectID: "proj-a",
+		StartedAt: time.Now().Add(-30 * time.Minute),
+	})
+
+	d := base.deps()
+	// Override ListActiveSessions to return a session on p-A.
+	d.ListActiveSessions = func(userID string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-30 * time.Minute)},
+		}, nil
+	}
+	// Override ResolveProject to return p-B (simulating cwd = project-b dir).
+	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+		return pB, nil
+	}
+	// Override StopActiveSession to capture which project was stopped.
+	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+		stopCalled++
+		stopCalledWith = projectID
+		return domain.Session{
+			ID:      "sess-1",
+			Elapsed: 30 * time.Minute,
+		}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"stop"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("stop must succeed: %v", err)
+	}
+	if stopCalled != 1 {
+		t.Fatalf("StopActiveSession called %d times, want 1", stopCalled)
+	}
+	if stopCalledWith != "proj-a" {
+		t.Errorf("StopActiveSession called with project %q, want %q", stopCalledWith, "proj-a")
+	}
+}
+
+// TestStopNewNothingRunningPrintsHint verifies that when no session is running
+// the command prints a hint to stderr, exits 0, and never calls StopActiveSession.
+func TestStopNewNothingRunningPrintsHint(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+	// Override ListActiveSessions to return empty.
+	d.ListActiveSessions = func(_ string) ([]domain.ActiveSession, error) {
+		return nil, nil
+	}
+	stopCalled := false
+	d.StopActiveSession = func(_, _, _, _ string) (domain.Session, error) {
+		stopCalled = true
+		return domain.Session{}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"stop"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("stop with nothing running must succeed: %v", err)
+	}
+	if stopCalled {
+		t.Error("StopActiveSession must NOT be called when nothing is running")
+	}
+	if !strings.Contains(errBuf.String(), "Keine laufende Session") {
+		t.Errorf("stderr should contain hint, got %q", errBuf.String())
 	}
 }
 

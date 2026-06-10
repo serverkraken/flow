@@ -81,6 +81,11 @@ type WorktimeDeps struct {
 	// row and queues a server-stop push.
 	StopActiveSession func(userID, projectID, tag, note string) (domain.Session, error)
 
+	// ListActiveSessions returns the currently running sessions for the user.
+	// Stop/toggle/pause operate on THE active session — not on whatever
+	// project the cwd happens to resolve to.
+	ListActiveSessions func(userID string) ([]domain.ActiveSession, error)
+
 	// SessionCount returns the number of sessions stored for userID in the
 	// sqlite cache. Used by the TSV migration guard (option b: Load+len so
 	// no new port method is needed).
@@ -423,9 +428,9 @@ func newStopCmd(deps WorktimeDeps) *cobra.Command {
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// New sqlite path: use when ResolveProject + StopActiveSession
-			// are wired in the composition root (Task 14+).
-			if deps.ResolveProject != nil && deps.StopActiveSession != nil {
+			// New sqlite path: use when ResolveProject + StopActiveSession +
+			// ListActiveSessions are wired in the composition root (Task 14+).
+			if deps.ResolveProject != nil && deps.StopActiveSession != nil && deps.ListActiveSessions != nil {
 				return runStopNew(cmd, deps, projectFlag, tagFlag, noteFlag)
 			}
 			// Legacy TSV path.
@@ -461,18 +466,34 @@ func newStopCmd(deps WorktimeDeps) *cobra.Command {
 	return cmd
 }
 
-// runStopNew handles the new sqlite-backed stop path (Task 14).
-// Resolves the project, then closes the active session, creates a finished
-// Session row locally and queues a server-stop push.
+// runStopNew handles the new sqlite-backed stop path: it stops the user's
+// running session. --project disambiguates when several run in parallel.
 func runStopNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note string) error {
-	pwd, _ := os.Getwd()
-	pr, err := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+	list, err := deps.ListActiveSessions(deps.UserID)
 	if err != nil {
 		return err
 	}
-	sess, err := deps.StopActiveSession(deps.UserID, pr.ID, tag, note)
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+		return nil
+	}
+	var projectID string
+	switch {
+	case projectFlag != "":
+		pwd, _ := os.Getwd()
+		pr, rerr := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+		if rerr != nil {
+			return rerr
+		}
+		projectID = pr.ID
+	case len(list) == 1:
+		projectID = list[0].ProjectID
+	default:
+		return fmt.Errorf("%d Sessions laufen parallel — mit --project wählen", len(list))
+	}
+	sess, err := deps.StopActiveSession(deps.UserID, projectID, tag, note)
 	if errors.Is(err, ports.ErrActiveSessionNotFound) {
-		// Idempotent: nothing running for this project is a soft no-op.
+		fprintln(cmd.ErrOrStderr(), "Keine laufende Session für dieses Projekt")
 		return nil
 	}
 	if err != nil {
@@ -481,7 +502,7 @@ func runStopNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note st
 	_ = deps.Tmux.RefreshClient()
 	h := int(sess.Elapsed.Hours())
 	m := int(sess.Elapsed.Minutes()) % 60
-	fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm auf '%s'\n", h, m, pr.Name)
+	fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm\n", h, m)
 	return nil
 }
 
