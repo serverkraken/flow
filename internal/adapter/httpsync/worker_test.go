@@ -1154,7 +1154,7 @@ func TestWorker_DrainActiveStop_409RetryWithServerVersion(t *testing.T) {
 	}
 
 	var deleteCallCount atomic.Int32
-	var secondIfMatch string
+	var secondIfMatch atomic.Value
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodDelete && contains(r.URL.Path, "/active/proj-off") {
@@ -1166,7 +1166,7 @@ func TestWorker_DrainActiveStop_409RetryWithServerVersion(t *testing.T) {
 				return
 			}
 			// Second attempt: record If-Match header, return 200.
-			secondIfMatch = r.Header.Get("If-Match")
+			secondIfMatch.Store(r.Header.Get("If-Match"))
 			_ = json.NewEncoder(w).Encode(domain.Session{ID: "done", Version: 1})
 			return
 		}
@@ -1200,8 +1200,9 @@ func TestWorker_DrainActiveStop_409RetryWithServerVersion(t *testing.T) {
 		t.Errorf("DELETE call count: got %d, want 2", got)
 	}
 	// Second call must have carried If-Match:3 (the server's current version).
-	if secondIfMatch != "3" {
-		t.Errorf("second DELETE If-Match: got %q, want %q", secondIfMatch, "3")
+	got, _ := secondIfMatch.Load().(string)
+	if got != "3" {
+		t.Errorf("second DELETE If-Match: got %q, want %q", got, "3")
 	}
 	// No ConflictMsg must have been emitted.
 	select {

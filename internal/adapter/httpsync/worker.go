@@ -516,9 +516,13 @@ func (w *Worker) drainActiveStop(ctx context.Context, e ports.WriteQueueEntry) (
 		// The 409 body carries the server's current row — retry once with
 		// that version. Stopping our own session is last-writer-wins for
 		// the single-user PoC; a failing retry still halts for the overlay.
+		// Two RPCs in one drain step deliberately — avoids a re-queue cycle; acceptable for the single-user PoC.
 		if cur, ok := conflictCurrentActive(err); ok {
 			_, rerr := w.client.StopActive(ctx, e.RowID, cur.Version, body.Tag, body.Note)
 			if rerr == nil || errors.Is(rerr, ports.ErrActiveSessionNotFound) {
+				slog.Debug("sync: active-stop 409 retry succeeded",
+					slog.String("project_id", e.RowID),
+					slog.Int64("version", cur.Version))
 				return DrainAck, nil
 			}
 		}
