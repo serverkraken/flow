@@ -79,7 +79,7 @@ func TestActiveStop_PublishesSessionStopped(t *testing.T) {
 	b := sse.New()
 
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "mac", 0, "", ""); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 

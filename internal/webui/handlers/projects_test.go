@@ -124,7 +124,7 @@ func TestProjectsIndex_ActiveSession_RendersRunningGlyph(t *testing.T) {
 
 	p := seedProject(t, store, u.ID, "live-project")
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "laptop", 0, "design", ""); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 

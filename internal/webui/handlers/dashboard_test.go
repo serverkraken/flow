@@ -111,7 +111,7 @@ func TestDashboard_RendersExpectedShape(t *testing.T) {
 	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
 	// One active session running since 13:00 (~1h ago at "now").
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "laptop", 0, "design", ""); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 

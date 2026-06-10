@@ -47,7 +47,7 @@ func TestWorktime_TabHeute_WithActiveSession_RendersBannerAndTable(t *testing.T)
 	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
 	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "mac-soenne", 0, "design", "Editorial-Terminal Mockups"); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac-soenne", 0, "design", "Editorial-Terminal Mockups"); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 

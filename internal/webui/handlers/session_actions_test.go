@@ -431,7 +431,7 @@ func TestActiveStart_AlreadyActive_409(t *testing.T) {
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "mac", 0, "", ""); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 
@@ -477,7 +477,7 @@ func TestActiveStop_HappyPath_Empty(t *testing.T) {
 	p := seedProject(t, store, u.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, "mac", 0, "", ""); err != nil {
+	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 
