@@ -175,23 +175,22 @@ func (w *Worker) loop(ctx context.Context) {
 }
 
 func (w *Worker) runPull(ctx context.Context) {
-	if err := w.pullResource(ctx, "projects"); err != nil {
-		slog.Warn("sync: pull projects", slog.Any("err", err))
-	}
-	if err := w.pullResource(ctx, "sessions"); err != nil {
-		slog.Warn("sync: pull sessions", slog.Any("err", err))
-	}
-	if err := w.pullResource(ctx, "active_sessions"); err != nil {
-		slog.Warn("sync: pull active_sessions", slog.Any("err", err))
-	}
+	resources := []string{"projects", "sessions", "active_sessions"}
 	if w.repos != nil {
-		if err := w.pullResource(ctx, "repos"); err != nil {
-			slog.Warn("sync: pull repos", slog.Any("err", err))
-		}
+		resources = append(resources, "repos")
 	}
 	if w.notes != nil {
-		if err := w.pullResource(ctx, "repo_notes"); err != nil {
-			slog.Warn("sync: pull repo_notes", slog.Any("err", err))
+		resources = append(resources, "repo_notes")
+	}
+	for _, res := range resources {
+		if err := w.pullResource(ctx, res); err != nil {
+			if errors.Is(err, ErrUnauthorized) {
+				// Logged-out is the normal offline state — one debug line,
+				// skip the remaining resources (they fail identically).
+				slog.Debug("sync: pull skipped — not logged in")
+				return
+			}
+			slog.Warn("sync: pull "+res, slog.Any("err", err))
 		}
 	}
 }
@@ -367,7 +366,12 @@ func (w *Worker) classifyPushError(resource, rowID string, seq int64, err error)
 		)
 		return DrainAck, err
 	}
-	slog.Info(
+	level := slog.LevelInfo
+	if errors.Is(err, ErrUnauthorized) {
+		level = slog.LevelDebug // logged-out retries are routine, not noteworthy
+	}
+	slog.Log(
+		context.Background(), level,
 		"sync: transient push failure — scheduling retry",
 		slog.String("resource", resource),
 		slog.String("row_id", rowID),
