@@ -517,6 +517,45 @@ func TestStopNewNothingRunningPrintsHint(t *testing.T) {
 	}
 }
 
+// TestStopNewParallelSessionsRequireProjectFlag verifies that when multiple
+// sessions run in parallel and no --project flag is given, runStopNew returns
+// an error mentioning "laufen parallel" and never calls StopActiveSession.
+func TestStopNewParallelSessionsRequireProjectFlag(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	// Override ListActiveSessions to return two parallel sessions.
+	d.ListActiveSessions = func(_ string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: testUserID, ProjectID: "proj-a", StartedAt: time.Now().Add(-60 * time.Minute)},
+			{UserID: testUserID, ProjectID: "proj-b", StartedAt: time.Now().Add(-30 * time.Minute)},
+		}, nil
+	}
+
+	stopCalled := 0
+	d.StopActiveSession = func(_, _, _, _ string) (domain.Session, error) {
+		stopCalled++
+		return domain.Session{}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"stop"}) // no --project flag
+	err := cmd.Execute()
+
+	if err == nil {
+		t.Fatal("expected error for parallel sessions without --project, got nil")
+	}
+	if !strings.Contains(err.Error(), "laufen parallel") {
+		t.Errorf("error should mention 'laufen parallel', got: %v", err)
+	}
+	if stopCalled != 0 {
+		t.Errorf("StopActiveSession must NOT be called when disambiguation is required, called %d times", stopCalled)
+	}
+}
+
 // ---- TSV guard tests ----
 
 // guardFixture returns a WorktimeDeps wired with a SessionCount closure and
