@@ -17,6 +17,7 @@ package worktime
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -27,6 +28,23 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+// runningPrefix is prepended to the project name in the picker list when a
+// session is already running on that project. It is stripped before the name
+// is forwarded via pickerPickedMsg so toast messages and Start calls always
+// receive the clean project name.
+//
+// ▶ (U+25B6) is 3 bytes in UTF-8; with the trailing space the prefix is
+// 4 bytes. Using a named constant + strings.TrimPrefix avoids any byte-count
+// arithmetic and makes the annotation/strip round-trip explicit.
+const runningPrefix = "▶ "
+
+// stripRunningPrefix removes the runningPrefix annotation that openProjectPicker
+// adds to the currently-running project's display name. It is a no-op when the
+// name does not start with runningPrefix, so callers need no guard.
+func stripRunningPrefix(name string) string {
+	return strings.TrimPrefix(name, runningPrefix)
+}
 
 // activeSessionsListMsg carries the result of an ActiveSessions.ListActive
 // call. heute.Update stores the slice in h.activeSessions for use in the
@@ -132,7 +150,7 @@ func (h heute) openProjectPicker() (tea.Model, tea.Cmd) {
 	copy(annotated, items)
 	for i, p := range annotated {
 		if runningIDs[p.ID] {
-			annotated[i].Name = "▶ " + p.Name
+			annotated[i].Name = runningPrefix + p.Name
 		}
 	}
 
@@ -142,11 +160,7 @@ func (h heute) openProjectPicker() (tea.Model, tea.Cmd) {
 		func(p domain.Project) tea.Msg {
 			// Strip the running-indicator prefix before forwarding the name so
 			// toast messages and Start calls use the clean project name.
-			name := p.Name
-			if len(name) > 2 && name[:2] == "▶ " {
-				name = name[2:]
-			}
-			return pickerPickedMsg{projectID: p.ID, projectName: name}
+			return pickerPickedMsg{projectID: p.ID, projectName: stripRunningPrefix(p.Name)}
 		},
 		func(name string) tea.Msg { return pickerCreateMsg{name: name} },
 		pickerCancelMsg{},
