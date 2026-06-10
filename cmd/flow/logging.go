@@ -14,7 +14,7 @@ import (
 // to stderr after this call. Falls back to io.Discard when the state dir
 // is not writable. Returns a close func for the log file (call via defer).
 func setupLogging(stateDir, level string) func() {
-	var w io.Writer = io.Discard
+	w := io.Writer(io.Discard)
 	closeFn := func() {}
 	if err := os.MkdirAll(stateDir, 0o755); err == nil {
 		f, ferr := os.OpenFile(filepath.Join(stateDir, "flow.log"),

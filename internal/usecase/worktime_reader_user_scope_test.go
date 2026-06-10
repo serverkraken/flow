@@ -35,7 +35,7 @@ func (s *userScopedSessions) LoadFiltered(userID string, keep func(domain.Sessio
 }
 func (s *userScopedSessions) Upsert(domain.Session) error        { return nil }
 func (s *userScopedSessions) UpsertBatch([]domain.Session) error { return nil }
-func (s *userScopedSessions) Delete(userID, id string) error     { return nil }
+func (s *userScopedSessions) Delete(_, _ string) error           { return nil }
 
 type fakeActiveList struct {
 	t        *testing.T

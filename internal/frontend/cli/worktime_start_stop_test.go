@@ -445,11 +445,11 @@ func TestStopNewStopsTheActiveSessionRegardlessOfCwd(t *testing.T) {
 		}, nil
 	}
 	// Override ResolveProject to return p-B (simulating cwd = project-b dir).
-	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+	d.ResolveProject = func(_, _, _ string) (domain.Project, error) {
 		return pB, nil
 	}
 	// Override StopActiveSession to capture which project was stopped.
-	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+	d.StopActiveSession = func(_, projectID, _, _ string) (domain.Session, error) {
 		stopCalled++
 		stopCalledWith = projectID
 		return domain.Session{
@@ -566,7 +566,7 @@ func TestToggleNewStopsWhenRunning(t *testing.T) {
 
 	stopCalled := 0
 	stopCalledWith := ""
-	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+	d.StopActiveSession = func(_, projectID, _, _ string) (domain.Session, error) {
 		stopCalled++
 		stopCalledWith = projectID
 		return domain.Session{
@@ -654,14 +654,14 @@ func TestToggleNewStartsWhenIdle(t *testing.T) {
 	}
 
 	resolveCalled := 0
-	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+	d.ResolveProject = func(_, _, _ string) (domain.Project, error) {
 		resolveCalled++
 		return pA, nil
 	}
 
 	startCalled := 0
 	startCalledWith := ""
-	d.StartActiveSession = func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+	d.StartActiveSession = func(userID, projectID, _, _ string) (domain.ActiveSession, error) {
 		startCalled++
 		startCalledWith = projectID
 		return domain.ActiveSession{UserID: userID, ProjectID: projectID, StartedAt: time.Now()}, nil
@@ -729,7 +729,7 @@ func TestPauseNewStopsAndSetsMarker(t *testing.T) {
 			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-30 * time.Minute)},
 		}, nil
 	}
-	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+	d.StopActiveSession = func(_, _, _, _ string) (domain.Session, error) {
 		stopCalled++
 		return domain.Session{
 			ID:      "sess-1",
@@ -808,14 +808,14 @@ func TestResumeNewStartsMRUAndClearsMarker(t *testing.T) {
 
 	resolveCalled := 0
 	resolveCalledWith := ""
-	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+	d.ResolveProject = func(_, _, pwd string) (domain.Project, error) {
 		resolveCalled++
 		resolveCalledWith = pwd
 		return pA, nil
 	}
 
 	startCalled := 0
-	d.StartActiveSession = func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+	d.StartActiveSession = func(userID, projectID, _, _ string) (domain.ActiveSession, error) {
 		startCalled++
 		return domain.ActiveSession{UserID: userID, ProjectID: projectID, StartedAt: time.Now()}, nil
 	}
@@ -897,7 +897,7 @@ func TestCorrectNewPathCorrectedTime(t *testing.T) {
 
 	correctCalled := 0
 	var correctCalledWith time.Time
-	d.CorrectActiveStart = func(userID string, ts time.Time) error {
+	d.CorrectActiveStart = func(_ string, ts time.Time) error {
 		correctCalled++
 		correctCalledWith = ts
 		return nil
@@ -928,7 +928,7 @@ func TestCorrectNewPathNothingRunning(t *testing.T) {
 	base := newNewPathFixture()
 	d := base.deps()
 
-	d.CorrectActiveStart = func(userID string, ts time.Time) error {
+	d.CorrectActiveStart = func(_ string, _ time.Time) error {
 		return ports.ErrActiveSessionNotFound
 	}
 
@@ -947,7 +947,7 @@ func TestCorrectNewPathNothingRunning(t *testing.T) {
 
 // TestCorrectLegacyFallback: when CorrectActiveStart is nil, the legacy
 // SessionWriter.CorrectStart path is used.
-func TestCorrectLegacyFallback(t *testing.T) {
+func TestCorrectLegacyFallback(_ *testing.T) {
 	base := newNewPathFixture()
 	d := base.deps()
 	// Explicitly nil out the new path so legacy triggers.

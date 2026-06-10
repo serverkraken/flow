@@ -188,20 +188,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	sessionStore := cacheSessions
 
 	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
-	// Auto-migrate the legacy TSV on first run: worktime.log present + empty
-	// sqlite cache means an upgrade from the single-user main branch. Run()
-	// is idempotent (UUIDv5 row IDs) and archives the TSV via rename, so this
-	// fires exactly once. Replaces the old hard-blocking cobra guard.
-	if _, statErr := os.Stat(p.WorktimeLog); statErr == nil {
-		if rows, lerr := cacheSessions.Load(localUser.ID); lerr == nil && len(rows) == 0 {
-			if res, merr := migrateTSVUC.Run(localUser.ID, p.WorktimeLog, "Allgemein"); merr != nil {
-				slog.Warn("flow: tsv auto-migration failed — run `flow worktime migrate-from-tsv`", slog.Any("err", merr))
-			} else if res.Inserted > 0 {
-				slog.Info("flow: tsv auto-migration done",
-					slog.Int("inserted", res.Inserted), slog.String("archived", res.ArchivedTo))
-			}
-		}
-	}
+	autoMigrateTSV(localUser.ID, p.WorktimeLog, migrateTSVUC, cacheSessions)
 
 	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
 	cacheRepos := sqliteclient.NewRepos(cacheStore)
@@ -485,6 +472,30 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			kompCleanup()
 			_ = cacheStore.Close()
 		}, nil
+}
+
+// autoMigrateTSV migrates a legacy worktime.log TSV on first run if the file
+// exists and the sqlite cache is still empty. Run() is idempotent (UUIDv5 row
+// IDs) and archives the TSV via rename, so this fires exactly once per
+// installation. Extracted from buildDeps to keep its cognitive complexity
+// within the configured threshold.
+func autoMigrateTSV(localUserID, tsvPath string, uc *usecase.MigrateTSV, sessions ports.SessionStore) {
+	if _, statErr := os.Stat(tsvPath); statErr != nil {
+		return // TSV not present — nothing to migrate.
+	}
+	rows, lerr := sessions.Load(localUserID)
+	if lerr != nil || len(rows) != 0 {
+		return // load error or already populated — skip.
+	}
+	res, merr := uc.Run(localUserID, tsvPath, "Allgemein")
+	if merr != nil {
+		slog.Warn("flow: tsv auto-migration failed — run `flow worktime migrate-from-tsv`", slog.Any("err", merr))
+		return
+	}
+	if res.Inserted > 0 {
+		slog.Info("flow: tsv auto-migration done",
+			slog.Int("inserted", res.Inserted), slog.String("archived", res.ArchivedTo))
+	}
 }
 
 // buildNotesScreen constructs the kompendium browse model wired into
