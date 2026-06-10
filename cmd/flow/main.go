@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -175,6 +176,23 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	// Tagger all read+write the same sqlite cache that the sync worker
 	// pulls from.
 	sessionStore := cacheSessions
+
+	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
+	// Auto-migrate the legacy TSV on first run: worktime.log present + empty
+	// sqlite cache means an upgrade from the single-user main branch. Run()
+	// is idempotent (UUIDv5 row IDs) and archives the TSV via rename, so this
+	// fires exactly once. Replaces the old hard-blocking cobra guard.
+	if _, statErr := os.Stat(p.WorktimeLog); statErr == nil {
+		if rows, lerr := cacheSessions.Load(localUser.ID); lerr == nil && len(rows) == 0 {
+			if res, merr := migrateTSVUC.Run(localUser.ID, p.WorktimeLog, "Allgemein"); merr != nil {
+				slog.Warn("flow: tsv auto-migration failed — run `flow worktime migrate-from-tsv`", slog.Any("err", merr))
+			} else if res.Inserted > 0 {
+				slog.Info("flow: tsv auto-migration done",
+					slog.Int("inserted", res.Inserted), slog.String("archived", res.ArchivedTo))
+			}
+		}
+	}
+
 	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
 	cacheRepos := sqliteclient.NewRepos(cacheStore)
 	cacheRepoNotes := sqliteclient.NewRepoNotes(cacheStore)
@@ -232,7 +250,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	// the surface for the future flow-mcp server (Plan D).
 	repoNotesUC := usecase.NewRepoNotes(cacheRepos, cacheRepoNotes, cacheWriteQueue, gitremote.New())
 	repoNotesUC.SetPushSignal(syncWorker.SignalPush)
-	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
@@ -382,15 +399,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
 					return activeSessionsUC.ListActive(userID)
 				},
-				SessionCount: func(userID string) (int, error) {
-					rows, err := cacheSessions.Load(userID)
-					if err != nil {
-						return 0, err
-					}
-					return len(rows), nil
-				},
-				TSVPath:     p.WorktimeLog,
-				CacheDBPath: cacheDBPath,
 				Migrate:     migrateTSVUC,
 				PauseMarker: activeStore,
 				CorrectActiveStart: func(userID string, ts time.Time) error {

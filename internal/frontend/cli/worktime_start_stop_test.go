@@ -1,7 +1,6 @@
 package cli_test
 
-// Tests for the new sqlite-backed start/stop path (Task 14) and the TSV
-// migration guard wired as PersistentPreRunE on the worktime parent command.
+// Tests for the new sqlite-backed start/stop path (Task 14).
 //
 // These tests are separate from worktime_test.go (legacy TSV path) per the
 // no-monoliths rule: each file has one focused responsibility.
@@ -9,8 +8,6 @@ package cli_test
 import (
 	"bytes"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -261,15 +258,6 @@ func (f *newPathFixture) deps() cli.WorktimeDeps {
 		ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
 			return activeUC.ListActive(userID)
 		},
-		SessionCount: func(userID string) (int, error) {
-			rows, err := f.sessions.Load(userID)
-			if err != nil {
-				return 0, err
-			}
-			return len(rows), nil
-		},
-		// TSVPath and CacheDBPath left empty so the guard is disabled in most
-		// tests; guard-specific tests set them explicitly.
 	}
 }
 
@@ -553,102 +541,6 @@ func TestStopNewParallelSessionsRequireProjectFlag(t *testing.T) {
 	}
 	if stopCalled != 0 {
 		t.Errorf("StopActiveSession must NOT be called when disambiguation is required, called %d times", stopCalled)
-	}
-}
-
-// ---- TSV guard tests ----
-
-// guardFixture returns a WorktimeDeps wired with a SessionCount closure and
-// configurable TSVPath / CacheDBPath so guard behaviour can be isolated.
-type guardFixture struct {
-	base        *newPathFixture
-	tsvPath     string
-	cacheDBPath string
-}
-
-func newGuardFixture(t *testing.T) *guardFixture {
-	t.Helper()
-	dir := t.TempDir()
-	return &guardFixture{
-		base:        newNewPathFixture(),
-		tsvPath:     filepath.Join(dir, "worktime.log"),
-		cacheDBPath: filepath.Join(dir, "cache.db"),
-	}
-}
-
-func (g *guardFixture) deps() cli.WorktimeDeps {
-	d := g.base.deps()
-	d.TSVPath = g.tsvPath
-	d.CacheDBPath = g.cacheDBPath
-	return d
-}
-
-func (g *guardFixture) run(args ...string) (stdout, stderr string, err error) {
-	var outBuf, errBuf bytes.Buffer
-	cmd := cli.NewWorktimeCmd(g.deps())
-	cmd.SetOut(&outBuf)
-	cmd.SetErr(&errBuf)
-	cmd.SetArgs(args)
-	err = cmd.Execute()
-	return outBuf.String(), errBuf.String(), err
-}
-
-// TestGuard_NoTSV_Passthrough verifies that when the legacy worktime.log does
-// not exist the guard does nothing and the command proceeds normally.
-func TestGuard_NoTSV_Passthrough(t *testing.T) {
-	g := newGuardFixture(t)
-	// tsvPath does not exist (created by t.TempDir but file itself not created).
-	_, stderr, err := g.run("start", "--project=flow")
-	// The command itself may fail (no such project / Allgemein auto-create
-	// succeeds) — what matters is it does NOT fail with the guard error.
-	if err != nil && strings.Contains(err.Error(), "migrate-from-tsv") {
-		t.Errorf("guard should not trigger when TSV absent; got: %v", err)
-	}
-	_ = stderr
-}
-
-// TestGuard_TSVExists_EmptyCache_Blocks verifies that when the TSV file
-// exists AND the sqlite cache has 0 sessions, the guard returns an error
-// mentioning migrate-from-tsv.
-func TestGuard_TSVExists_EmptyCache_Blocks(t *testing.T) {
-	g := newGuardFixture(t)
-	// Create the TSV file.
-	if err := os.WriteFile(g.tsvPath, []byte("2026-01-01\t09:00\t17:00\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// Cache is empty (no sessions seeded).
-	_, _, err := g.run("start")
-	if err == nil {
-		t.Fatal("expected guard error, got nil")
-	}
-	if !strings.Contains(err.Error(), "migrate-from-tsv") {
-		t.Errorf("error should mention migrate-from-tsv, got: %v", err)
-	}
-	if !strings.Contains(err.Error(), g.tsvPath) {
-		t.Errorf("error should contain TSV path %q, got: %v", g.tsvPath, err)
-	}
-}
-
-// TestGuard_TSVExists_CachePopulated_Passthrough verifies that when the TSV
-// file exists AND the sqlite cache already has sessions the guard allows the
-// command through (user has already migrated).
-func TestGuard_TSVExists_CachePopulated_Passthrough(t *testing.T) {
-	g := newGuardFixture(t)
-	// Create TSV.
-	if err := os.WriteFile(g.tsvPath, []byte("2026-01-01\t09:00\t17:00\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	// Seed one session so SessionCount returns 1.
-	_ = g.base.sessions.Upsert(domain.Session{
-		ID:    "guard-seed",
-		Date:  time.Now(),
-		Start: time.Now().Add(-time.Hour),
-		Stop:  time.Now(),
-	})
-
-	_, _, err := g.run("start")
-	if err != nil && strings.Contains(err.Error(), "migrate-from-tsv") {
-		t.Errorf("guard must not trigger when cache is populated; got: %v", err)
 	}
 }
 
@@ -1074,21 +966,4 @@ func TestCorrectLegacyFallback(t *testing.T) {
 	// the legacy branch (no panic, no new-path behaviour).
 	_ = cmd.Execute()
 	// If we reach here the legacy fallback ran without panic. Pass.
-}
-
-// TestGuard_AppliesTo_StopAsWell verifies the guard fires on `stop` not just
-// `start` (PersistentPreRunE covers all subcommands).
-func TestGuard_AppliesTo_StopAsWell(t *testing.T) {
-	g := newGuardFixture(t)
-	if err := os.WriteFile(g.tsvPath, []byte("2026-01-01\t09:00\t17:00\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, _, err := g.run("stop")
-	if err == nil {
-		t.Fatal("expected guard error on stop, got nil")
-	}
-	if !strings.Contains(err.Error(), "migrate-from-tsv") {
-		t.Errorf("guard should fire on stop too, got: %v", err)
-	}
 }

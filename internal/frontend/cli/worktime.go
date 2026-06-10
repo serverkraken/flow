@@ -46,9 +46,7 @@ func fprintln(w io.Writer, args ...any) {
 // New in Task 14: ProjectID-aware start/stop path. When ResolveProject,
 // StartActiveSession and StopActiveSession are non-nil the new sqlite
 // path is active; otherwise start/stop fall back to the legacy TSV
-// SessionWriter path. TSVPath and CacheDBPath are used by the guard that
-// blocks write-commands when the legacy log exists but the sqlite cache
-// has no sessions yet (prompt to run migrate-from-tsv).
+// SessionWriter path.
 type WorktimeDeps struct {
 	Clock          ports.Clock
 	Tmux           ports.Tmux
@@ -86,20 +84,7 @@ type WorktimeDeps struct {
 	// project the cwd happens to resolve to.
 	ListActiveSessions func(userID string) ([]domain.ActiveSession, error)
 
-	// SessionCount returns the number of sessions stored for userID in the
-	// sqlite cache. Used by the TSV migration guard (option b: Load+len so
-	// no new port method is needed).
-	SessionCount func(userID string) (int, error)
-
-	// TSVPath is the absolute path to the legacy worktime.log TSV file.
-	// Guard checks os.Stat on this path; empty means guard is disabled.
-	TSVPath string
-
-	// CacheDBPath is the absolute path to the sqlite cache.db shown in the
-	// guard error message so users know which file is "empty".
-	CacheDBPath string
-
-	// Migrate is the TSV-to-SQLite migration use case (Task 19).
+	// Migrate is the TSV-to-SQLite migration use case.
 	// Nil until the composition root wires it; the subcommand's RunE
 	// surfaces a clear error when unset.
 	Migrate *usecase.MigrateTSV
@@ -120,41 +105,6 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		Use:          "worktime",
 		Short:        "Worktime subcommands",
 		SilenceUsage: true,
-	}
-
-	// TSV migration guard: if the legacy worktime.log exists AND the sqlite
-	// cache has zero sessions for this user, block all worktime subcommands
-	// until the user runs `flow worktime migrate-from-tsv`.
-	//
-	// Rationale: guard is on PersistentPreRunE of the parent so every
-	// sub-command (start, stop, status …) is covered without repetition.
-	// Option (b) from the task spec: use SessionCount (Load+len) instead of
-	// a new port method to keep the port surface small.
-	if deps.TSVPath != "" && deps.SessionCount != nil {
-		worktimeCmd.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
-			// migrate-from-tsv is exempt: it IS the fix, not a guarded command.
-			if cmd.Name() == "migrate-from-tsv" {
-				return nil
-			}
-			if _, err := os.Stat(deps.TSVPath); os.IsNotExist(err) {
-				return nil // no legacy log → no guard needed
-			}
-			n, err := deps.SessionCount(deps.UserID)
-			if err != nil {
-				return fmt.Errorf("worktime guard: count sessions: %w", err)
-			}
-			if n > 0 {
-				return nil // already migrated → allow through
-			}
-			cacheHint := deps.CacheDBPath
-			if cacheHint == "" {
-				cacheHint = "cache.db"
-			}
-			return fmt.Errorf(
-				"TSV detected at %s but %s has no sessions yet — run `flow worktime migrate-from-tsv` first",
-				deps.TSVPath, cacheHint,
-			)
-		}
 	}
 
 	worktimeCmd.AddCommand(
