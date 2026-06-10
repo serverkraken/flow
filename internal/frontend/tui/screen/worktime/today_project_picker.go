@@ -24,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/project_picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -61,13 +62,42 @@ func (h heute) handlePickerMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleSKey is the dispatcher for the `s` key in normal (no-dialog) mode.
-// New path: when ActiveSessions + UserID are wired, open the project picker.
+// New path: when ActiveSessions + UserID are wired:
+//   - If a session is running → stop it immediately (no picker needed).
+//   - If idle → open the project picker to start a new session.
+//
 // Legacy path: call toggleStartStopCmd (existing behaviour, unchanged).
 func (h heute) handleSKey() (tea.Model, tea.Cmd) {
 	if h.deps.ActiveSessions != nil && h.deps.UserID != "" {
+		if len(h.activeSessions) > 0 {
+			h.actionInFlight = true
+			return h, h.activeSessionsStopCmd(h.activeSessions[0])
+		}
 		return h.openProjectPicker()
 	}
 	return h, h.toggleStartStopCmd()
+}
+
+// activeSessionsStopCmd stops the given running session via ActiveSessions.Stop
+// and emits heuteActionDoneMsg. emitWorktimeChanged reloads all sub-tabs.
+func (h heute) activeSessionsStopCmd(target domain.ActiveSession) tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	mut := func() tea.Msg {
+		sess, err := as.Stop(userID, target.ProjectID, "", "")
+		if errors.Is(err, ports.ErrActiveSessionNotFound) {
+			return heuteActionDoneMsg{toast: "Nichts läuft", info: true}
+		}
+		if err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{
+			toast: fmt.Sprintf("Gestoppt nach %dh %02dm — %s",
+				int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60, now.Format("15:04")),
+		}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
 // openProjectPicker loads the project list, builds the picker, and sets h.pp.

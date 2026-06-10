@@ -6,11 +6,13 @@ package worktime
 // (start/stop/pause, attached-note ops, delete) live next to each other.
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // editAttachedNoteCmd öffnet die erste angehängte Note im Editor via
@@ -98,6 +100,26 @@ func (h heute) pauseCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
 	now := h.deps.Clock.Now()
 	mut := func() tea.Msg {
+		// New path: when ActiveSessions + UserID are wired and a session is
+		// running, stop the ActiveSessions row and then set the legacy pause
+		// marker so the Heute screen shows "in Pause". Falls through to the
+		// legacy SessionWriter.Pause() path when not wired.
+		if h.deps.ActiveSessions != nil && h.deps.UserID != "" && len(h.activeSessions) > 0 {
+			target := h.activeSessions[0]
+			sess, err := h.deps.ActiveSessions.Stop(h.deps.UserID, target.ProjectID, "", "")
+			if errors.Is(err, ports.ErrActiveSessionNotFound) {
+				_ = sw.State.SetPause(now)
+				return heuteActionDoneMsg{toast: "Pausiert — Session war bereits gestoppt", info: true}
+			}
+			if err != nil {
+				return heuteActionDoneMsg{err: err}
+			}
+			_ = sw.State.SetPause(now)
+			return heuteActionDoneMsg{
+				toast: fmt.Sprintf("%s Pausiert nach %dh %02dm", glyphs.Paused, int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60),
+			}
+		}
+		// Legacy path: SessionWriter.Pause stops the flockstate session.
 		s, err := sw.Pause()
 		if err != nil {
 			return heuteActionDoneMsg{err: err}
