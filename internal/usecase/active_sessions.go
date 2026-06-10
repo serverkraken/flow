@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -158,8 +157,18 @@ func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Sessi
 	}
 
 	// Queue active-stop signal with the known server version for If-Match.
-	stopPayload := []byte(`{"action":"stop","version":` + strconv.FormatInt(cur.Version, 10) + `}`)
-	_, _ = a.queue.Enqueue("active_sessions_stop", projectID, stopPayload, cur.Version)
+	// Tag/Note travel in the payload — drainActiveStop forwards them so the
+	// server's canonical finished Session keeps them even when the stopping
+	// device differs (and so the next pull can't blank them out locally).
+	stopPayload, encErr := json.Marshal(struct {
+		Action  string `json:"action"`
+		Version int64  `json:"version"`
+		Tag     string `json:"tag"`
+		Note    string `json:"note"`
+	}{"stop", cur.Version, tag, note})
+	if encErr == nil {
+		_, _ = a.queue.Enqueue("active_sessions_stop", projectID, stopPayload, cur.Version)
+	}
 	a.signalPush()
 
 	return sess, nil

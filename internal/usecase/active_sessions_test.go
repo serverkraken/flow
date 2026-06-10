@@ -1,6 +1,7 @@
 package usecase_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -556,5 +557,62 @@ func TestUnit_ActiveSessions_ForceTakeover_UsesServerVersion(t *testing.T) {
 	}
 	if e.ExpectedVersion != 7 {
 		t.Errorf("queue expectedVersion: got %d, want 7", e.ExpectedVersion)
+	}
+}
+
+// ---- Stop payload tests ----
+
+// TestStopPayloadCarriesTagAndNote verifies that the active_sessions_stop queue
+// entry contains tag and note from the start row when Stop is called with empty
+// args (inheritance path). This exercises the bug where the payload only carried
+// action+version and the server wrote an empty tag/note on the finished Session.
+func TestStopPayloadCarriesTagAndNote(t *testing.T) {
+	t.Parallel()
+	active := newFakeActiveSessionStore()
+	projects := &fakeASProjectStore{}
+	sessions := &fakeASSessionStore{}
+	queue := &fakeWriteQueue{}
+
+	uc := mkActiveSessions(active, projects, sessions, queue)
+
+	// Start with a tag and note so the active row carries them.
+	if _, err := uc.Start("u1", "p1", "deep", "n1"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// Clear queue entries from Start so we can inspect only the Stop entries.
+	queue.entries = nil
+
+	// Stop with empty args → should inherit tag="deep", note="n1" from the active row.
+	if _, err := uc.Stop("u1", "p1", "", ""); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	// Find the active_sessions_stop entry.
+	var stopEntry *ports.WriteQueueEntry
+	for i := range queue.entries {
+		if queue.entries[i].Resource == "active_sessions_stop" {
+			e := queue.entries[i]
+			stopEntry = &e
+			break
+		}
+	}
+	if stopEntry == nil {
+		t.Fatal("no active_sessions_stop entry in queue")
+	}
+
+	var body struct {
+		Action  string `json:"action"`
+		Version int64  `json:"version"`
+		Tag     string `json:"tag"`
+		Note    string `json:"note"`
+	}
+	if err := json.Unmarshal(stopEntry.Payload, &body); err != nil {
+		t.Fatalf("unmarshal stop payload: %v", err)
+	}
+	if body.Action != "stop" {
+		t.Errorf("action = %q, want stop", body.Action)
+	}
+	if body.Tag != "deep" || body.Note != "n1" {
+		t.Errorf("stop payload lost tag/note: tag=%q note=%q", body.Tag, body.Note)
 	}
 }
