@@ -652,6 +652,108 @@ func TestGuard_TSVExists_CachePopulated_Passthrough(t *testing.T) {
 	}
 }
 
+// ---- toggle new-path tests ----
+
+// TestToggleNewStopsWhenRunning verifies that when an ActiveSession exists
+// toggle calls StopActiveSession with the running project's ID and prints
+// "Gestoppt" to stderr.
+func TestToggleNewStopsWhenRunning(t *testing.T) {
+	pA := domain.Project{ID: "proj-a", Name: "Project A", Slug: "project-a", CreatedAt: time.Now()}
+
+	base := newNewPathFixture()
+	base.projects.projects = append(base.projects.projects, pA)
+
+	d := base.deps()
+
+	// ListActiveSessions returns one running session for proj-a.
+	d.ListActiveSessions = func(userID string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-45 * time.Minute)},
+		}, nil
+	}
+
+	stopCalled := 0
+	stopCalledWith := ""
+	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+		stopCalled++
+		stopCalledWith = projectID
+		return domain.Session{
+			ID:      "sess-1",
+			Elapsed: 45 * time.Minute,
+		}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"toggle"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("toggle must succeed: %v", err)
+	}
+	if stopCalled != 1 {
+		t.Fatalf("StopActiveSession called %d times, want 1", stopCalled)
+	}
+	if stopCalledWith != "proj-a" {
+		t.Errorf("StopActiveSession called with project %q, want %q", stopCalledWith, "proj-a")
+	}
+	if !strings.Contains(errBuf.String(), "Gestoppt") {
+		t.Errorf("stderr should contain 'Gestoppt', got %q", errBuf.String())
+	}
+}
+
+// TestToggleNewStartsWhenIdle verifies that when no ActiveSession exists
+// toggle calls ResolveProject + StartActiveSession and prints "läuft seit"
+// to stderr.
+func TestToggleNewStartsWhenIdle(t *testing.T) {
+	pA := domain.Project{ID: "proj-a", Name: "Project A", Slug: "project-a", CreatedAt: time.Now()}
+
+	base := newNewPathFixture()
+	base.projects.projects = append(base.projects.projects, pA)
+
+	d := base.deps()
+
+	// No active sessions.
+	d.ListActiveSessions = func(_ string) ([]domain.ActiveSession, error) {
+		return nil, nil
+	}
+
+	resolveCalled := 0
+	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+		resolveCalled++
+		return pA, nil
+	}
+
+	startCalled := 0
+	startCalledWith := ""
+	d.StartActiveSession = func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+		startCalled++
+		startCalledWith = projectID
+		return domain.ActiveSession{UserID: userID, ProjectID: projectID, StartedAt: time.Now()}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"toggle"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("toggle must succeed: %v", err)
+	}
+	if resolveCalled != 1 {
+		t.Errorf("ResolveProject called %d times, want 1", resolveCalled)
+	}
+	if startCalled != 1 {
+		t.Fatalf("StartActiveSession called %d times, want 1", startCalled)
+	}
+	if startCalledWith != "proj-a" {
+		t.Errorf("StartActiveSession called with project %q, want %q", startCalledWith, "proj-a")
+	}
+	if !strings.Contains(errBuf.String(), "läuft seit") {
+		t.Errorf("stderr should contain 'läuft seit', got %q", errBuf.String())
+	}
+}
+
 // TestGuard_AppliesTo_StopAsWell verifies the guard fires on `stop` not just
 // `start` (PersistentPreRunE covers all subcommands).
 func TestGuard_AppliesTo_StopAsWell(t *testing.T) {

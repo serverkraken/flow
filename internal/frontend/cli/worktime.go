@@ -513,6 +513,11 @@ func newToggleCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Start wenn idle, stopp wenn läuft (alias: s)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if deps.ListActiveSessions != nil && deps.StopActiveSession != nil &&
+				deps.ResolveProject != nil && deps.StartActiveSession != nil {
+				return runToggleNew(cmd, deps)
+			}
+			// Legacy TSV/flockstate path (tests without new-path deps).
 			msg, err := deps.SessionWriter.Toggle()
 			if err != nil {
 				return err
@@ -522,6 +527,47 @@ func newToggleCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runToggleNew: stop the earliest running session when one exists, else
+// resolve a project (pwd → MRU → Allgemein) and start.
+func runToggleNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) > 0 {
+		target := list[0]
+		for _, a := range list[1:] {
+			if a.StartedAt.Before(target.StartedAt) {
+				target = a
+			}
+		}
+		sess, serr := deps.StopActiveSession(deps.UserID, target.ProjectID, "", "")
+		if serr != nil && !errors.Is(serr, ports.ErrActiveSessionNotFound) {
+			return serr
+		}
+		_ = deps.Tmux.RefreshClient()
+		fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm\n",
+			int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60)
+		return nil
+	}
+	pwd, _ := os.Getwd()
+	pr, err := deps.ResolveProject(deps.UserID, "", pwd)
+	if err != nil {
+		return err
+	}
+	if _, err := deps.StartActiveSession(deps.UserID, pr.ID, "", ""); err != nil {
+		if errors.Is(err, usecase.ErrActiveSessionExists) {
+			fprintf(cmd.ErrOrStderr(), "Session auf '%s' läuft bereits\n", pr.Name)
+			return nil
+		}
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintf(cmd.ErrOrStderr(), "Worktime läuft seit %s auf '%s'\n",
+		deps.Clock.Now().Format("15:04"), pr.Name)
+	return nil
 }
 
 func newCorrectCmd(deps WorktimeDeps) *cobra.Command {
