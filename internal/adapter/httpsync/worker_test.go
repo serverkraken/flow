@@ -1131,6 +1131,84 @@ func TestWorker_DrainActiveStart_WritesVersionBack(t *testing.T) {
 	}
 }
 
+// TestWorker_DrainActiveStart_SkipsWriteBackWhenRowGone verifies that drain
+// does NOT resurrect a session the user stopped while offline. If the local
+// active row is missing at drain time (because a queued stop already ran or
+// the user stopped via another path), the server's response must NOT be
+// upserted back.
+func TestWorker_DrainActiveStart_SkipsWriteBackWhenRowGone(t *testing.T) {
+	const (
+		projectID = "proj-vb"
+		userID    = "user1"
+	)
+	inner := &drainableQueue{}
+	startedAt := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	payload, _ := json.Marshal(struct {
+		Action          string    `json:"action"`
+		ProjectID       string    `json:"project_id"`
+		StartedAt       time.Time `json:"started_at"`
+		StartedOnDevice string    `json:"started_on_device"`
+		Tag             string    `json:"tag"`
+		Note            string    `json:"note"`
+	}{"start", projectID, startedAt, "desktop", "focus", "version-writeback"})
+	_ = inner.enqueueRaw("active_sessions", projectID, payload, 0)
+
+	// Do NOT pre-populate the local active store — the row is already gone
+	// (user stopped while offline).
+	as := &testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && contains(r.URL.Path, "/active/"+projectID+"/start") {
+			// Server assigns Version:7 — but local row is gone, so this must NOT
+			// be written back.
+			_ = json.NewEncoder(w).Encode(domain.ActiveSession{
+				UserID:    userID,
+				ProjectID: projectID,
+				Version:   7,
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		as,
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	// Wait until the queue entry is drained (DrainAck is still returned even
+	// when the write-back is skipped).
+	if !eventually(func() bool {
+		entries, _ := inner.Peek(10)
+		return len(entries) == 0
+	}, 1500*time.Millisecond) {
+		t.Fatal("timed out waiting for active_sessions start entry to drain")
+	}
+	w.Stop()
+	<-w.Done()
+
+	// Core assertion: the local active store must remain empty — the server
+	// response must NOT have been upserted back.
+	rows, err := as.ListByUser(userID)
+	if err != nil {
+		t.Fatalf("ListByUser error: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("active store has %d row(s), want 0 (write-back must be skipped when row is gone)", len(rows))
+	}
+}
+
 // eventually polls cond until it returns true or timeout elapses.
 func eventually(cond func() bool, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)

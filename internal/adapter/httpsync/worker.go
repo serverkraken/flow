@@ -482,8 +482,15 @@ func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) 
 	// stopped while offline — the queued stop reconciles via the 409-retry
 	// in drainActiveStop); upserting here would resurrect a finished session.
 	if _, gerr := w.active.Get(w.userID, e.RowID); gerr == nil {
+		// gerr != nil covers ErrActiveSessionNotFound (user stopped offline —
+		// skip resurrection) and transient I/O errors (safe to skip; the next
+		// drain attempt will retry).
 		srv.UserID = w.userID
-		_ = w.active.Upsert(srv)
+		if uerr := w.active.Upsert(srv); uerr != nil {
+			slog.Warn("sync: active-start write-back failed; next stop may 409",
+				slog.String("project_id", e.RowID),
+				slog.Any("err", uerr))
+		}
 	}
 	return DrainAck, nil
 }
