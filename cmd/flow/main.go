@@ -617,6 +617,12 @@ func main() {
 	}
 	indexPath := filepath.Join(xdgDataHome, "kompendium", "index.db")
 
+	logClose := setupLogging(
+		filepath.Join(home, ".local", "state", "flow"),
+		os.Getenv("FLOW_LOG_LEVEL"),
+	)
+	defer logClose()
+
 	// CacheDB: $FLOW_CACHE_DB → $XDG_DATA_HOME/flow/cache.db → ~/.local/share/flow/cache.db
 	cacheDB := os.Getenv("FLOW_CACHE_DB")
 	if cacheDB == "" {
