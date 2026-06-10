@@ -617,8 +617,12 @@ func main() {
 	}
 	indexPath := filepath.Join(xdgDataHome, "kompendium", "index.db")
 
+	xdgStateHome := os.Getenv("XDG_STATE_HOME")
+	if xdgStateHome == "" {
+		xdgStateHome = filepath.Join(home, ".local", "state")
+	}
 	logClose := setupLogging(
-		filepath.Join(home, ".local", "state", "flow"),
+		filepath.Join(xdgStateHome, "flow"),
 		os.Getenv("FLOW_LOG_LEVEL"),
 	)
 	defer logClose()

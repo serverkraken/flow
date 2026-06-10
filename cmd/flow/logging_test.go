@@ -11,7 +11,6 @@ import (
 func TestSetupLoggingWritesToFile(t *testing.T) {
 	dir := t.TempDir()
 	closeFn := setupLogging(dir, "warn")
-	defer closeFn()
 
 	slog.Warn("test-marker-warn")
 	slog.Debug("test-marker-debug")
@@ -32,11 +31,31 @@ func TestSetupLoggingWritesToFile(t *testing.T) {
 func TestSetupLoggingDebugLevel(t *testing.T) {
 	dir := t.TempDir()
 	closeFn := setupLogging(dir, "debug")
-	defer closeFn()
 	slog.Debug("dbg-marker")
 	closeFn()
-	data, _ := os.ReadFile(filepath.Join(dir, "flow.log"))
+	data, err := os.ReadFile(filepath.Join(dir, "flow.log"))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
 	if !strings.Contains(string(data), "dbg-marker") {
 		t.Errorf("debug line missing with FLOW_LOG_LEVEL=debug: %q", data)
+	}
+}
+
+func TestSetupLoggingInfoLevel(t *testing.T) {
+	dir := t.TempDir()
+	closeFn := setupLogging(dir, "info")
+	slog.Info("info-marker")
+	slog.Debug("debug-should-filter")
+	closeFn()
+	data, err := os.ReadFile(filepath.Join(dir, "flow.log"))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(data), "info-marker") {
+		t.Errorf("info line missing at info level: %q", data)
+	}
+	if strings.Contains(string(data), "debug-should-filter") {
+		t.Errorf("debug line should be filtered at info level: %q", data)
 	}
 }
