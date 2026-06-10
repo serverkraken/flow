@@ -1351,6 +1351,145 @@ func TestWorker_DrainActiveStart_SkipsWriteBackWhenRowGone(t *testing.T) {
 	}
 }
 
+// ---- PullDone signal tests --------------------------------------------------
+
+// TestWorker_PullDoneFiresAfterSuccessfulPull verifies that PullDone receives
+// a signal after a successful runPull cycle (server returns empty pages — the
+// pull is still successful, just ingests nothing).
+func TestWorker_PullDoneFiresAfterSuccessfulPull(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		&drainableQueue{},
+	)
+	// Disable periodic tick so only the initial pull fires.
+	w.PullInterval = 1 * time.Hour
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	select {
+	case <-w.PullDone():
+		// signal received — pass
+	case <-time.After(2 * time.Second):
+		t.Fatal("PullDone signal not received after successful pull")
+	}
+
+	w.Stop()
+	<-w.Done()
+}
+
+// TestWorker_PullDoneCoalesces verifies that rapid successive pull cycles
+// coalesce: a slow listener that hasn't drained the channel between pulls
+// does not block the worker and receives at most one buffered notification.
+func TestWorker_PullDoneCoalesces(t *testing.T) {
+	var pullCount atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			pullCount.Add(1)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		&drainableQueue{},
+	)
+	w.PullInterval = 5 * time.Millisecond // let tick drive multiple pulls
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	w.Start(ctx)
+
+	// Let the worker run several pull cycles without reading from PullDone.
+	time.Sleep(100 * time.Millisecond)
+
+	// The channel has capacity 1 and uses non-blocking sends — it must not
+	// overflow regardless of how many pull cycles ran.
+	// Drain the channel once; no panic or deadlock must have occurred.
+	drained := 0
+loop:
+	for {
+		select {
+		case <-w.PullDone():
+			drained++
+		default:
+			break loop
+		}
+	}
+
+	w.Stop()
+	<-w.Done()
+
+	// Worker must have executed several pull cycles (at least 3 in 100ms with
+	// a 5ms interval) without PullDone ever blocking.
+	if got := pullCount.Load(); got < 3 {
+		t.Errorf("expected ≥3 pull cycles, got %d (coalesce test inconclusive)", got)
+	}
+	// Buffer is 1 — draining can yield 0 (if the last send happened before
+	// the drain loop) or 1. It must never exceed 1.
+	if drained > 1 {
+		t.Errorf("PullDone channel drained %d items, capacity is 1 — coalesce broken", drained)
+	}
+}
+
+// TestWorker_PullDoneDoesNotFireOnUnauthorized verifies that a 401 response
+// (ErrUnauthorized) causes runPull to short-circuit without firing PullDone.
+func TestWorker_PullDoneDoesNotFireOnUnauthorized(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	worker := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		&drainableQueue{},
+	)
+	worker.PullInterval = 1 * time.Hour // only the startup pull fires
+
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	worker.Start(ctx)
+
+	// Give the startup pull time to run and (if broken) fire PullDone.
+	time.Sleep(100 * time.Millisecond)
+
+	// PullDone must NOT have received a signal — the 401 path returns early.
+	select {
+	case <-worker.PullDone():
+		t.Error("PullDone must not fire when runPull short-circuits on ErrUnauthorized")
+	default:
+		// pass — channel is empty
+	}
+
+	worker.Stop()
+	<-worker.Done()
+}
+
 // eventually polls cond until it returns true or timeout elapses.
 func eventually(cond func() bool, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)

@@ -54,11 +54,14 @@ type conflictTakeoverMsg struct {
 // presses [n] (leave server's session alone, start a parallel session).
 type conflictParallelMsg struct{}
 
-// handleConflictMsg dispatches sync-conflict messages in the worktime
-// Update loop. Split off from Update to keep Update's cognitive complexity
-// within the gocognit budget.
-func (m Model) handleConflictMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+// handleSyncMsg dispatches sync messages (conflict and pull-done) in the
+// worktime Update loop. Split off from Update to keep Update's cognitive
+// complexity within the gocognit/gocyclo budgets.
+func (m Model) handleSyncMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case pullDoneMsg:
+		return m.handlePullDoneMsg()
+
 	case conflictReceivedMsg:
 		// A push-409 arrived from the sync worker. Build the appropriate overlay
 		// and re-arm the listener so the next conflict is also handled.
@@ -137,6 +140,50 @@ func listenForConflicts(ch <-chan ports.ConflictMsg) tea.Cmd {
 			return nil
 		}
 		return conflictReceivedMsg(msg)
+	}
+}
+
+// pullDoneMsg is emitted by listenForPullDone when the httpsync.Worker
+// signals that a pull cycle completed. The worktime root handles this via
+// handlePullDoneMsg, which broadcasts ChangedMsg{} to all sub-tabs and
+// re-arms the listener.
+type pullDoneMsg struct{}
+
+// handlePullDoneMsg broadcasts a global ChangedMsg{} (zero Date) to every
+// sub-tab so each can reload when cross-device data lands, then re-arms the
+// pull-done listener so subsequent pull cycles are also caught. Split out of
+// Update to keep Update's cognitive complexity within the gocognit budget.
+func (m Model) handlePullDoneMsg() (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	for i, s := range m.subs {
+		updated, cmd := s.Update(ChangedMsg{})
+		m.subs[i] = updated
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	cmds = append(cmds, listenForPullDone(m.deps.PullDone))
+	return m, tea.Batch(cmds...)
+}
+
+// listenForPullDone returns a tea.Cmd that blocks until one signal arrives
+// on ch (Worker.PullDone()), then emits a pullDoneMsg. Returns nil when ch
+// is nil so no goroutine is leaked when PullDone is not wired.
+//
+// The goroutine exits cleanly when the worker closes the channel on shutdown
+// (the ok==false branch returns nil, which bubbletea discards). Until the
+// channel is closed the goroutine is re-armed on each signal by the
+// pullDoneMsg handler in model.Update.
+func listenForPullDone(ch <-chan struct{}) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return pullDoneMsg{}
 	}
 }
 

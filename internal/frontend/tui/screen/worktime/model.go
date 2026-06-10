@@ -104,6 +104,14 @@ type Deps struct {
 	// toast "(Sync-Aktion in Task 33 verdrahtet)" and close the overlay without
 	// making any state change.
 	Sync ports.SyncController
+
+	// PullDone is the httpsync.Worker.PullDone() channel. When non-nil the
+	// worktime root arms a listener Cmd that blocks until a signal arrives and
+	// then broadcasts ChangedMsg{} to all sub-tabs — so cross-device data is
+	// visible within one pull cycle + event-loop latency instead of up to 10 s.
+	// Nil-tolerant: when nil, no listener is spawned and the behaviour degrades
+	// to the previous tick-only reload cadence.
+	PullDone <-chan struct{}
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -307,6 +315,9 @@ func (m Model) Init() tea.Cmd {
 	if cmd := listenForConflicts(m.deps.Conflicts); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
+	if cmd := listenForPullDone(m.deps.PullDone); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 	for _, s := range m.subs {
 		if cmd := s.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -351,10 +362,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		conflictResolveLocalMsg,
 		conflictTakeoverMsg,
 		conflictParallelMsg,
-		conflict_overlay.CancelMsg:
-		// Sync-conflict messages — delegate to handleConflictMsg so Update
-		// stays within the gocognit budget.
-		return m.handleConflictMsg(msg)
+		conflict_overlay.CancelMsg,
+		pullDoneMsg:
+		// Sync messages — delegate to handleSyncMsg so Update stays within
+		// the gocognit/gocyclo budget. pullDoneMsg is grouped here because
+		// it also originates from the sync worker and follows the same
+		// delegation pattern.
+		return m.handleSyncMsg(msg)
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height

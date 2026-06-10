@@ -43,6 +43,7 @@ type Worker struct {
 	conflicts  chan ports.ConflictMsg
 	pushSignal chan struct{}
 	pullSignal chan struct{} // buffered(1); drained by loop alongside pushSignal
+	pullDone   chan struct{} // buffered(1); coalesced signal fired after each successful runPull
 	done       chan struct{} // closed by loop when it exits
 	stop       context.CancelFunc
 
@@ -86,6 +87,7 @@ func NewWorker(
 		conflicts:    make(chan ports.ConflictMsg, 16),
 		pushSignal:   make(chan struct{}, 1),
 		pullSignal:   make(chan struct{}, 1),
+		pullDone:     make(chan struct{}, 1),
 		done:         make(chan struct{}),
 		PullInterval: 30 * time.Second,
 	}
@@ -102,6 +104,18 @@ func (w *Worker) SetRepoStores(repos ports.RepoStore, notes ports.RepoNoteStore)
 // Conflicts returns the read-only channel on which ports.ConflictMsg values
 // are delivered. Task 30/31 consume this channel to render the conflict overlay.
 func (w *Worker) Conflicts() <-chan ports.ConflictMsg { return w.conflicts }
+
+// PullDone returns a read-only channel that receives a signal after each
+// successful runPull completes (i.e. no ErrUnauthorized short-circuit). The
+// channel has capacity 1 and uses a non-blocking send, so rapid successive
+// pulls coalesce: listeners receive at most one notification per drain of the
+// channel. The signal carries no data — a unit struct suffices.
+//
+// The TUI wires this via a bubbletea Cmd that blocks until a signal arrives and
+// then emits a ChangedMsg, causing all worktime sub-tabs to reload immediately
+// when cross-device data lands — instead of waiting up to 10 s for the next
+// tick.
+func (w *Worker) PullDone() <-chan struct{} { return w.pullDone }
 
 // Done returns a channel that is closed when the loop goroutine exits.
 // Tests use this to wait for Stop() to take effect without polling goroutine
@@ -192,6 +206,13 @@ func (w *Worker) runPull(ctx context.Context) {
 			}
 			slog.Warn("sync: pull "+res, slog.Any("err", err))
 		}
+	}
+	// Signal that the pull cycle completed so TUI listeners can reload
+	// without waiting for the next tick. Non-blocking: if the buffer is
+	// already full (listener hasn't drained yet) the signal coalesces.
+	select {
+	case w.pullDone <- struct{}{}:
+	default:
 	}
 }
 

@@ -373,6 +373,8 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			Conflicts: syncWorker.Conflicts(),
 			// Task 32: sync controller for conflict resolution actions.
 			Sync: syncUC,
+			// P3: pull-done signal — TUI reloads when cross-device data lands.
+			PullDone: syncWorker.PullDone(),
 		})
 	}
 
