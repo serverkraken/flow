@@ -455,7 +455,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		}, func() {
 			// Stop the sync worker BEFORE closing the cache store so the
 			// worker's in-flight writes don't touch a closed DB handle.
+			// Wait for the goroutine to fully exit before closing the DB.
 			syncWorker.Stop()
+			<-syncWorker.Done()
 			kompCleanup()
 			_ = cacheStore.Close()
 		}, nil
