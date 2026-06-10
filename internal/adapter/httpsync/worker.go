@@ -469,7 +469,7 @@ func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) 
 	if err := json.Unmarshal(e.Payload, &body); err != nil {
 		return DrainAck, err
 	}
-	_, err := w.client.StartActive(ctx, e.RowID, body.StartedAt, body.StartedOnDevice, e.ExpectedVersion, body.Tag, body.Note)
+	srv, err := w.client.StartActive(ctx, e.RowID, body.StartedAt, body.StartedOnDevice, e.ExpectedVersion, body.Tag, body.Note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
 		w.emitConflictFromError(ctx, "active_sessions", e.RowID, e.Seq, body, err)
 		return DrainHalt, nil
@@ -477,8 +477,14 @@ func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) 
 	if err != nil {
 		return w.classifyPushError("active_sessions", e.RowID, e.Seq, err)
 	}
-	// Server returned the canonical active row; the local cache is refreshed on
-	// the next pull cycle.
+	// Write the server-assigned version back to the local row so the later
+	// Stop's If-Match matches. Skip when the row is already gone (user
+	// stopped while offline — the queued stop reconciles via the 409-retry
+	// in drainActiveStop); upserting here would resurrect a finished session.
+	if _, gerr := w.active.Get(w.userID, e.RowID); gerr == nil {
+		srv.UserID = w.userID
+		_ = w.active.Upsert(srv)
+	}
 	return DrainAck, nil
 }
 

@@ -1049,6 +1049,88 @@ func TestUnit_Worker_PullRemapsUserIDToLocalUser(t *testing.T) {
 	}
 }
 
+// TestWorker_DrainActiveStart_WritesVersionBack verifies that after drainActiveStart
+// successfully pushes a start to the server, the server-assigned Version is written
+// back into the local active store. Without this write-back, the queued Stop would
+// send If-Match:0 and receive a 409 → DrainHalt, jamming the queue permanently.
+func TestWorker_DrainActiveStart_WritesVersionBack(t *testing.T) {
+	const (
+		projectID = "proj-vb"
+		userID    = "user1"
+	)
+	inner := &drainableQueue{}
+	startedAt := time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC)
+	payload, _ := json.Marshal(struct {
+		Action          string    `json:"action"`
+		ProjectID       string    `json:"project_id"`
+		StartedAt       time.Time `json:"started_at"`
+		StartedOnDevice string    `json:"started_on_device"`
+		Tag             string    `json:"tag"`
+		Note            string    `json:"note"`
+	}{"start", projectID, startedAt, "desktop", "focus", "version-writeback"})
+	_ = inner.enqueueRaw("active_sessions", projectID, payload, 0)
+
+	// Pre-populate the local active store with the Version-0 row that was
+	// created when the user pressed start offline. This is the row that must
+	// be updated with the server-assigned version after drain.
+	as := &testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{
+		userID + "|" + projectID: {
+			UserID:    userID,
+			ProjectID: projectID,
+			StartedAt: startedAt,
+			Version:   0, // local, pre-push
+		},
+	}}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost && contains(r.URL.Path, "/active/"+projectID+"/start") {
+			// Server assigns Version:7 — the value the test will assert.
+			_ = json.NewEncoder(w).Encode(domain.ActiveSession{
+				UserID:    userID,
+				ProjectID: projectID,
+				Version:   7,
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		as,
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	// Wait until the queue entry is drained.
+	if !eventually(func() bool {
+		entries, _ := inner.Peek(10)
+		return len(entries) == 0
+	}, 1500*time.Millisecond) {
+		t.Fatal("timed out waiting for active_sessions start entry to drain")
+	}
+	w.Stop()
+	<-w.Done()
+
+	// Core assertion: the local row must now carry the server-assigned Version.
+	got, err := as.Get(userID, projectID)
+	if err != nil {
+		t.Fatalf("local row gone after drain: %v", err)
+	}
+	if got.Version != 7 {
+		t.Errorf("local version = %d, want 7 (server write-back missing)", got.Version)
+	}
+}
+
 // eventually polls cond until it returns true or timeout elapses.
 func eventually(cond func() bool, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
