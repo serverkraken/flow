@@ -67,6 +67,14 @@ templ Base(m PageMeta, body templ.Component) {
 				@FlashStrip(m.Flash)
 				@body
 			</main>
+			<script>
+				// A dead session yields 401 on SSE/HTMX — reload so the browser-auth
+				// middleware redirects to the landing page instead of freezing silently.
+				document.body.addEventListener('htmx:sseError', function () { window.location.reload(); });
+				document.body.addEventListener('htmx:responseError', function (e) {
+					if (e.detail && e.detail.xhr && e.detail.xhr.status === 401) { window.location.reload(); }
+				});
+			</script>
 		</body>
 	</html>
 }

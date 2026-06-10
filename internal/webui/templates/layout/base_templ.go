@@ -95,7 +95,7 @@ func Base(m PageMeta, body templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</main></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</main><script>\n\t\t\t\t// A dead session yields 401 on SSE/HTMX — reload so the browser-auth\n\t\t\t\t// middleware redirects to the landing page instead of freezing silently.\n\t\t\t\tdocument.body.addEventListener('htmx:sseError', function () { window.location.reload(); });\n\t\t\t\tdocument.body.addEventListener('htmx:responseError', function (e) {\n\t\t\t\t\tif (e.detail && e.detail.xhr && e.detail.xhr.status === 401) { window.location.reload(); }\n\t\t\t\t});\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

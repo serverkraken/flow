@@ -675,7 +675,7 @@ func activityItem(ev ActivityEvent, now time.Time) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(format.HHMM(ev.Duration))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/dashboard/index.templ`, Line: 211, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/dashboard/index.templ`, Line: 211, Col: 76}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {

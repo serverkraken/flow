@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -36,12 +37,12 @@ func NewBrowserAuthMiddleware(
 			}
 			c, err := r.Cookie(cookieName)
 			if err != nil || c.Value == "" {
-				http.Redirect(w, r, LandingPath, http.StatusFound)
+				rejectUnauthenticated(w, r)
 				return
 			}
 			var sv sessionValue
 			if err := sess.Decode(cookieName, c.Value, &sv); err != nil {
-				http.Redirect(w, r, LandingPath, http.StatusFound)
+				rejectUnauthenticated(w, r)
 				return
 			}
 			ctx := WithSub(r.Context(), sv)
@@ -55,6 +56,18 @@ func NewBrowserAuthMiddleware(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// rejectUnauthenticated answers an unauthenticated request: machine-style
+// clients (EventSource, HTMX partial swaps) get a plain 401 — a 302 to the
+// HTML landing silently kills an SSE stream; humans get the redirect.
+func rejectUnauthenticated(w http.ResponseWriter, r *http.Request) {
+	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") ||
+		r.Header.Get("HX-Request") == "true" {
+		http.Error(w, "session expired", http.StatusUnauthorized)
+		return
+	}
+	http.Redirect(w, r, LandingPath, http.StatusFound)
 }
 
 // SessionValueFromContext exposes the cookie session value for the WebUI
