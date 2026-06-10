@@ -37,9 +37,19 @@ func (s *userScopedSessions) Upsert(domain.Session) error        { return nil }
 func (s *userScopedSessions) UpsertBatch([]domain.Session) error { return nil }
 func (s *userScopedSessions) Delete(userID, id string) error     { return nil }
 
-type fakeActiveList struct{ rows []domain.ActiveSession }
+type fakeActiveList struct {
+	t        *testing.T
+	wantUser string
+	rows     []domain.ActiveSession
+}
 
-func (f *fakeActiveList) ListByUser(string) ([]domain.ActiveSession, error) { return f.rows, nil }
+func (f *fakeActiveList) ListByUser(userID string) ([]domain.ActiveSession, error) {
+	if f.t != nil && userID != f.wantUser {
+		f.t.Errorf("ListByUser called with %q, want %q", userID, f.wantUser)
+	}
+	return f.rows, nil
+}
+
 func (f *fakeActiveList) Get(string, string) (domain.ActiveSession, error) {
 	return domain.ActiveSession{}, ports.ErrActiveSessionNotFound
 }
@@ -54,12 +64,6 @@ func (fakeIdleState) ClearActive() error             { return nil }
 func (fakeIdleState) GetPause() (*time.Time, error)  { return nil, nil }
 func (fakeIdleState) SetPause(time.Time) error       { return nil }
 func (fakeIdleState) ClearPause() error              { return nil }
-
-type fixedClock struct{ t time.Time }
-
-func (c *fixedClock) Now() time.Time { return c.t }
-
-func fixedClockAt(t time.Time) *fixedClock { return &fixedClock{t: t} }
 
 func TestReaderTodayIsUserScopedAndReadsActiveStore(t *testing.T) {
 	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.Local)
@@ -76,14 +80,18 @@ func TestReaderTodayIsUserScopedAndReadsActiveStore(t *testing.T) {
 	r := &WorktimeReader{
 		Sessions: sessions,
 		State:    fakeIdleState{},
-		Active:   &fakeActiveList{rows: []domain.ActiveSession{{UserID: "user-1", ProjectID: "p1", StartedAt: started}}},
-		UserID:   "user-1",
+		Active: &fakeActiveList{
+			t:        t,
+			wantUser: "user-1",
+			rows:     []domain.ActiveSession{{UserID: "user-1", ProjectID: "p1", StartedAt: started}},
+		},
+		UserID: "user-1",
 		Targets: &TargetResolver{
 			Config:        &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}},
 			DayOffs:       testutil.NewFakeDayOffStore(),
 			DefaultTarget: 8 * time.Hour,
 		},
-		Clock: fixedClockAt(now),
+		Clock: &testutil.FixedClock{T: now},
 	}
 	day, err := r.Today()
 	if err != nil {
@@ -97,5 +105,33 @@ func TestReaderTodayIsUserScopedAndReadsActiveStore(t *testing.T) {
 	}
 	if !day.Active.Equal(started) {
 		t.Errorf("day.Active = %v, want %v", *day.Active, started)
+	}
+}
+
+func TestReaderTodayActiveStoreEmptyHasNoRunning(t *testing.T) {
+	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.Local)
+	sessions := &userScopedSessions{
+		wantUser: "user-1",
+		t:        t,
+		rows:     nil,
+	}
+	r := &WorktimeReader{
+		Sessions: sessions,
+		State:    fakeIdleState{},
+		Active:   &fakeActiveList{t: t, wantUser: "user-1", rows: nil},
+		UserID:   "user-1",
+		Targets: &TargetResolver{
+			Config:        &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}},
+			DayOffs:       testutil.NewFakeDayOffStore(),
+			DefaultTarget: 8 * time.Hour,
+		},
+		Clock: &testutil.FixedClock{T: now},
+	}
+	day, err := r.Today()
+	if err != nil {
+		t.Fatalf("Today: %v", err)
+	}
+	if day.Active != nil {
+		t.Errorf("day.Active should be nil with empty active store, got %v", *day.Active)
 	}
 }

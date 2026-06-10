@@ -229,7 +229,7 @@ func (f *newPathFixture) deps() cli.WorktimeDeps {
 	// nil-pointer panics on Status/Reporter etc.
 	targets := &usecase.TargetResolver{Config: f.legacy.config, DayOffs: f.legacy.dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: f.sessions, State: f.legacy.active, Targets: targets, Clock: f.legacy.clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.legacy.dayoffs, State: f.legacy.active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.legacy.dayoffs}
 
 	return cli.WorktimeDeps{
 		Clock: f.legacy.clock,

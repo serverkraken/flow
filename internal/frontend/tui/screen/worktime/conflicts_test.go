@@ -81,7 +81,7 @@ func worktimeDepsFromRig(r rig) worktime.Deps {
 	cfg := &testutil.FakeConfigReader{}
 	targets := &usecase.TargetResolver{Config: cfg, DayOffs: r.dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: r.sessions, State: r.active, Targets: targets, Clock: r.clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: r.dayoffs, State: r.active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: r.dayoffs}
 	return worktime.Deps{
 		Reader:        reader,
 		Stats:         stats,

@@ -30,7 +30,7 @@ func testDeps(t *testing.T) (Deps, *testutil.FixedClock) {
 
 	targets := &usecase.TargetResolver{Config: cfg, DayOffs: dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: sessions, State: active, Targets: targets, Clock: clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs, State: active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs}
 	return Deps{
 		Reader:        reader,
 		Stats:         stats,

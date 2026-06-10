@@ -61,7 +61,7 @@ func newRig(t *testing.T) rig {
 
 	targets := &usecase.TargetResolver{Config: cfg, DayOffs: dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: sessions, State: active, Targets: targets, Clock: clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs, State: active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs}
 	deps := worktime.Deps{
 		Reader:        reader,
 		Stats:         stats,

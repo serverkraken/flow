@@ -48,7 +48,7 @@ func newFixture() *fixture {
 func (f *fixture) deps() cli.WorktimeDeps {
 	targets := &usecase.TargetResolver{Config: f.config, DayOffs: f.dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: f.sessions, State: f.active, Targets: targets, Clock: f.clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.dayoffs, State: f.active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.dayoffs}
 	return cli.WorktimeDeps{
 		Clock: f.clock,
 		Tmux:  f.tmux,

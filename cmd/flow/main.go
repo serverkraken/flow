@@ -279,7 +279,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		Reader:  reader,
 		Targets: targets,
 		DayOffs: dayoffStore,
-		State:   activeStore,
 	}
 	reporter := &usecase.Reporter{
 		Reader:  reader,

@@ -14,7 +14,6 @@ type StatsComputer struct {
 	Reader  *WorktimeReader
 	Targets *TargetResolver
 	DayOffs ports.DayOffStore
-	State   ports.LegacyActiveStore
 }
 
 // Aggregate computes Stats over the given DayRecords. Use this when
