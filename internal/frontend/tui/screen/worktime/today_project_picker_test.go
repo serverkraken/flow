@@ -269,12 +269,10 @@ func TestPicker_CreateProjectStartsSession(t *testing.T) {
 	}
 }
 
-// TestPicker_RunningSessionStopped_PickerOpensIdle verifies the updated `s`-key
-// dispatch: when a session is running, `s` STOPS it (not open picker). After
-// stopping the session the active store must be empty. The picker exclusion
-// logic in openProjectPicker is defensive code for the multi-project Phase 2
-// scenario; in the single-session PoC `s` stops rather than opens the picker
-// when any session is running.
+// TestPicker_RunningSessionStopped_PickerOpensIdle verifies that `s` with a
+// running session opens the picker (the picker is the mechanism the user uses
+// to both switch projects and to stop the current one via Esc+manual stop).
+// In the new dispatch, `s` always opens the picker regardless of running state.
 func TestPicker_RunningSessionStopped_PickerOpensIdle(t *testing.T) {
 	pr := newPickerRig(t)
 	pr.projectStore.Projects = []domain.Project{
@@ -289,13 +287,15 @@ func TestPicker_RunningSessionStopped_PickerOpensIdle(t *testing.T) {
 	})
 
 	m := loadedHeuteForPicker(t, pr)
-	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
-	_ = drainCmd(t, updated, cmd)
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "s"})
 
-	// Session must be stopped — not the picker opened.
+	// Picker must be open — session must still be running (not stopped).
+	if !updated.(worktime.Model).FilterActive() {
+		t.Error("s with running session: expected picker to open (FilterActive=true)")
+	}
 	_, err := pr.activeStore.Get("user-test", "proj-running")
-	if err == nil {
-		t.Error("s with running session: expected session to be stopped, but it is still active")
+	if err != nil {
+		t.Error("s with running session: session must NOT be stopped when picker opens")
 	}
 }
 
@@ -362,9 +362,9 @@ func TestPicker_Tab1WhilePickerOpen_DoesNotSwitchTabs(t *testing.T) {
 // — `s` key: stop running session or open picker —
 
 // TestSKeyStopsRunningSession verifies that when the new-path deps are wired
-// AND an active session exists, pressing `s` stops the session (via
-// ActiveSessions.Stop) instead of opening the picker. After the Cmd drains,
-// the activeStore must have no session for the running project.
+// AND an active session exists, pressing `s` opens the picker (new behaviour:
+// `s` always opens the picker so the user can switch or cancel from there).
+// The session must NOT be stopped by the `s` key press itself.
 func TestSKeyStopsRunningSession(t *testing.T) {
 	pr := newPickerRig(t)
 	pr.projectStore.Projects = []domain.Project{
@@ -379,20 +379,18 @@ func TestSKeyStopsRunningSession(t *testing.T) {
 
 	m := loadedHeuteForPicker(t, pr)
 
-	// Press `s` — should stop the session, NOT open the picker.
-	updated, cmd := m.Update(tea.KeyPressMsg{Text: "s"})
-	_ = drainCmd(t, updated, cmd)
+	// Press `s` — should open the picker, NOT stop the session.
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "s"})
 
-	// Active session must be gone.
-	_, err := pr.activeStore.Get("user-test", "proj-1")
-	if err == nil {
-		t.Error("s key with running session: expected no active session after stop, but one still exists")
+	if !updated.(worktime.Model).FilterActive() {
+		t.Error("s key with running session: expected picker to open (FilterActive=true)")
 	}
 
-	// Picker must NOT have been opened (FilterActive should be false or if
-	// the model changed state from stop, session was stopped not picker opened).
-	// The picker would only be open if s opened it; drain would close the picker
-	// on its own. The definitive check is the store being cleared.
+	// Active session must still be running — `s` alone must not stop it.
+	_, err := pr.activeStore.Get("user-test", "proj-1")
+	if err != nil {
+		t.Error("s key with running session: session must NOT be stopped before user picks from picker")
+	}
 }
 
 // TestSKeyOpensPickerWhenIdle verifies that when the new-path deps are wired
@@ -442,3 +440,36 @@ func TestPauseKeyStopsSessionOnNewPath(t *testing.T) {
 		t.Error("p key on new path: expected no active session after pause-stop, but one still exists")
 	}
 }
+
+// — P2 tests: s always opens picker; picker switch/self-pick behaviour —
+
+// TestSKeyOpensPickerWhenRunning verifies that pressing `s` when a session is
+// already running opens the picker (FilterActive=true) without stopping the
+// session. The user then decides what to do (pick another project or Esc).
+func TestSKeyOpensPickerWhenRunning(t *testing.T) {
+	pr := newPickerRig(t)
+	pr.projectStore.Projects = []domain.Project{
+		{ID: "proj-A", UserID: "user-test", Name: "Alpha", Slug: "alpha"},
+	}
+	_ = pr.activeStore.Upsert(domain.ActiveSession{
+		UserID:    "user-test",
+		ProjectID: "proj-A",
+		StartedAt: pr.clock.T.Add(-20 * time.Minute),
+	})
+
+	m := loadedHeuteForPicker(t, pr)
+	updated, _ := m.Update(tea.KeyPressMsg{Text: "s"})
+
+	if !updated.(worktime.Model).FilterActive() {
+		t.Error("s with running session: picker must be open (FilterActive=true); no stop should have fired")
+	}
+	// Session must still be alive — `s` alone must not stop it.
+	_, err := pr.activeStore.Get("user-test", "proj-A")
+	if err != nil {
+		t.Error("s with running session: session must NOT be stopped when picker opens")
+	}
+}
+
+// TestPickerSwitchProjectSequencesStopThenStart and TestPickerSelfPickIsNoop
+// live in today_project_picker_switch_test.go (package worktime, white-box)
+// because they inject the unexported pickerPickedMsg directly.

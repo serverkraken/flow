@@ -43,6 +43,22 @@ func (h heute) handlePickerMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case pickerPickedMsg:
 		h.pp = nil
+		// If a session is already running, decide between switch and no-op.
+		if len(h.activeSessions) > 0 {
+			current := h.activeSessions[0]
+			if current.ProjectID == msg.projectID {
+				// Same project — no-op. Show a gentle confirmation toast.
+				return h, func() tea.Msg {
+					return heuteActionDoneMsg{
+						toast: glyphs.Active + " " + msg.projectName + " läuft bereits",
+						info:  true,
+					}
+				}
+			}
+			// Different project — stop current, start new.
+			h.actionInFlight = true
+			return h, h.switchProjectCmd(current, msg.projectID, msg.projectName)
+		}
 		h.actionInFlight = true
 		return h, h.activeSessionsStartCmd(msg.projectID, msg.projectName)
 	case pickerCreateMsg:
@@ -62,52 +78,29 @@ func (h heute) handlePickerMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleSKey is the dispatcher for the `s` key in normal (no-dialog) mode.
-// New path: when ActiveSessions + UserID are wired:
-//   - If a session is running → stop it immediately (no picker needed).
-//   - If idle → open the project picker to start a new session.
+// New path: when ActiveSessions + UserID are wired, `s` always opens the
+// project picker regardless of whether a session is currently running.
+// If the user then picks a different project the picker handler sequences a
+// Stop+Start atomically (switchProjectCmd). Picking the same project is a
+// no-op. This lets the user switch projects in a single gesture.
 //
 // Legacy path: call toggleStartStopCmd (existing behaviour, unchanged).
 func (h heute) handleSKey() (tea.Model, tea.Cmd) {
 	if h.deps.ActiveSessions != nil && h.deps.UserID != "" {
-		if len(h.activeSessions) > 0 {
-			h.actionInFlight = true
-			return h, h.activeSessionsStopCmd(h.activeSessions[0])
-		}
 		return h.openProjectPicker()
 	}
 	return h, h.toggleStartStopCmd()
-}
-
-// activeSessionsStopCmd stops the given running session via ActiveSessions.Stop
-// and emits heuteActionDoneMsg. emitWorktimeChanged reloads all sub-tabs.
-func (h heute) activeSessionsStopCmd(target domain.ActiveSession) tea.Cmd {
-	as := h.deps.ActiveSessions
-	userID := h.deps.UserID
-	now := h.deps.Clock.Now()
-	mut := func() tea.Msg {
-		sess, err := as.Stop(userID, target.ProjectID, "", "")
-		if errors.Is(err, ports.ErrActiveSessionNotFound) {
-			return heuteActionDoneMsg{toast: "Nichts läuft", info: true}
-		}
-		if err != nil {
-			return heuteActionDoneMsg{err: err}
-		}
-		return heuteActionDoneMsg{
-			toast: fmt.Sprintf("Gestoppt nach %dh %02dm — %s",
-				int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60, now.Format("15:04")),
-		}
-	}
-	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
 // openProjectPicker loads the project list, builds the picker, and sets h.pp.
 // The picker is initialised with Size(h.width, h.height) immediately; a
 // subsequent WindowSizeMsg will resize it if the terminal changes.
 //
-// Already-running projects are filtered out from the item list so the picker
-// only shows projects that can actually be started. This is the simplest UX
-// (no greyed-out rows needed) and matches the brief's "pass only not-yet-running
-// ones" recommendation.
+// The currently-running project (if any) is included in the list with a "▶ "
+// prefix so the user can see what is running and understand what they are
+// switching FROM. Picking the running project is a no-op (handled in
+// handlePickerMsg). Picking a different project sequences Stop+Start atomically
+// via switchProjectCmd.
 func (h heute) openProjectPicker() (tea.Model, tea.Cmd) {
 	projects := h.deps.Projects
 	userID := h.deps.UserID
@@ -116,7 +109,7 @@ func (h heute) openProjectPicker() (tea.Model, tea.Cmd) {
 		return h, h.toggleStartStopCmd()
 	}
 
-	// Build running-project ID set for pre-filter.
+	// Build running-project ID set for display annotation.
 	runningIDs := map[string]bool{}
 	for _, as := range h.activeSessions {
 		runningIDs[as.ProjectID] = true
@@ -132,18 +125,29 @@ func (h heute) openProjectPicker() (tea.Model, tea.Cmd) {
 		return h, t.Init()
 	}
 
-	// Exclude already-running projects.
-	filtered := items[:0:len(items)]
-	for _, p := range items {
-		if !runningIDs[p.ID] {
-			filtered = append(filtered, p)
+	// Annotate the running project with a "▶ " prefix so the user can
+	// see at a glance which project is active. All projects remain
+	// selectable; picking the running one produces a no-op toast.
+	annotated := make([]domain.Project, len(items))
+	copy(annotated, items)
+	for i, p := range annotated {
+		if runningIDs[p.ID] {
+			annotated[i].Name = "▶ " + p.Name
 		}
 	}
 
 	pp := project_picker.New(
-		filtered,
+		annotated,
 		h.pal,
-		func(p domain.Project) tea.Msg { return pickerPickedMsg{projectID: p.ID, projectName: p.Name} },
+		func(p domain.Project) tea.Msg {
+			// Strip the running-indicator prefix before forwarding the name so
+			// toast messages and Start calls use the clean project name.
+			name := p.Name
+			if len(name) > 2 && name[:2] == "▶ " {
+				name = name[2:]
+			}
+			return pickerPickedMsg{projectID: p.ID, projectName: name}
+		},
 		func(name string) tea.Msg { return pickerCreateMsg{name: name} },
 		pickerCancelMsg{},
 	)
@@ -178,6 +182,55 @@ func (h heute) activeSessionsStartCmd(projectID, projectName string) tea.Cmd {
 		}
 		return heuteActionDoneMsg{
 			toast: fmt.Sprintf("%s %s gestartet — %s", glyphs.Active, projectName, now.Format("15:04")),
+		}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
+}
+
+// switchProjectCmd sequences ActiveSessions.Stop(current) then
+// ActiveSessions.Start(newProjectID) in a single goroutine so the caller sees
+// exactly one heuteActionDoneMsg at the end. The two calls are NOT separated
+// by a model-update tick, preventing flicker or partial state.
+//
+// Error semantics:
+//   - Stop returns ErrActiveSessionNotFound → treat as already stopped, proceed.
+//   - Stop returns any other error → abort, emit error msg (do not start new).
+//   - Start fails → emit error msg (stop already committed locally).
+func (h heute) switchProjectCmd(current domain.ActiveSession, newProjectID, newProjectName string) tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	mut := func() tea.Msg {
+		stopped, err := as.Stop(userID, current.ProjectID, "", "")
+		if err != nil && !errors.Is(err, ports.ErrActiveSessionNotFound) {
+			return heuteActionDoneMsg{err: err}
+		}
+		if _, err := as.Start(userID, newProjectID, "", ""); err != nil {
+			if errors.Is(err, usecase.ErrActiveSessionExists) {
+				return heuteActionDoneMsg{
+					toast: glyphs.Active + " " + newProjectName + " läuft bereits",
+					info:  true,
+				}
+			}
+			return heuteActionDoneMsg{err: fmt.Errorf("session starten: %w", err)}
+		}
+		// Build toast. If the stop succeeded (not a NotFound no-op), include the
+		// elapsed time of the old session for context.
+		oldName := current.ProjectName
+		if oldName == "" {
+			oldName = current.ProjectID
+		}
+		if errors.Is(err, ports.ErrActiveSessionNotFound) {
+			// Old session was already gone — just confirm the new one.
+			return heuteActionDoneMsg{
+				toast: fmt.Sprintf("%s Gewechselt zu '%s'", glyphs.Active, newProjectName),
+			}
+		}
+		return heuteActionDoneMsg{
+			toast: fmt.Sprintf("%s Wechsel: '%s' (%dh %02dm) → '%s'",
+				glyphs.Active, oldName,
+				int(stopped.Elapsed.Hours()), int(stopped.Elapsed.Minutes())%60,
+				newProjectName),
 		}
 	}
 	return tea.Batch(mut, emitWorktimeChanged(now))
