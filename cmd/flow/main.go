@@ -392,6 +392,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				TSVPath:     p.WorktimeLog,
 				CacheDBPath: cacheDBPath,
 				Migrate:     migrateTSVUC,
+				PauseMarker: activeStore,
 			},
 			Sidekick: cli.SidekickDeps{
 				FlowState: flowState,

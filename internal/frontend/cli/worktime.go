@@ -103,6 +103,11 @@ type WorktimeDeps struct {
 	// Nil until the composition root wires it; the subcommand's RunE
 	// surfaces a clear error when unset.
 	Migrate *usecase.MigrateTSV
+
+	// PauseMarker is the per-device pause flag (flockstate worktime.pause).
+	// Never synced; pause = stop the active session + set this marker so
+	// resume knows to restart.
+	PauseMarker ports.PauseStore
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -328,6 +333,9 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Aktive Session pausieren (resume mit `start`/`toggle`)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if deps.ListActiveSessions != nil && deps.StopActiveSession != nil && deps.PauseMarker != nil {
+				return runPauseNew(cmd, deps)
+			}
 			s, err := deps.SessionWriter.Pause()
 			if err != nil {
 				return err
@@ -343,12 +351,56 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 	}
 }
 
+// runPauseNew: stop the running session (idempotent no-op when idle) and
+// set the per-device pause marker so resume restarts on the same project (MRU).
+func runPauseNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return nil // idempotent like the legacy path: nothing running is fine
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	sess, err := deps.StopActiveSession(deps.UserID, target.ProjectID, "", "")
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		// Race: another shell stopped between ListActiveSessions and Stop.
+		// Still set the pause marker so resume restarts the same project.
+		if err := deps.PauseMarker.SetPause(deps.Clock.Now()); err != nil {
+			return err
+		}
+		_ = deps.Tmux.RefreshClient()
+		fprintln(cmd.ErrOrStderr(), "Pausiert — Session war bereits gestoppt")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := deps.PauseMarker.SetPause(deps.Clock.Now()); err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	h := int(sess.Elapsed.Hours())
+	m := int(sess.Elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Pausiert nach %dh %02dm — `flow worktime resume` setzt fort\n", h, m)
+	return nil
+}
+
 func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:          "resume",
 		Short:        "Nach Pause weiterarbeiten",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if deps.ListActiveSessions != nil && deps.StartActiveSession != nil &&
+				deps.ResolveProject != nil && deps.PauseMarker != nil {
+				return runResumeNew(cmd, deps)
+			}
 			// SessionWriter.Resume is idempotent — already-running just
 			// clears the pause marker and returns nil. The legacy
 			// ErrAlreadyRunning branch was dead and has been removed.
@@ -360,6 +412,32 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runResumeNew: clear the pause marker; when idle, restart on the MRU
+// project (empty pwd skips the cwd step of the resolve cascade, so the
+// paused project — last touched at its start — wins).
+func runResumeNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		pr, rerr := deps.ResolveProject(deps.UserID, "", "")
+		if rerr != nil {
+			return rerr
+		}
+		if _, serr := deps.StartActiveSession(deps.UserID, pr.ID, "", ""); serr != nil &&
+			!errors.Is(serr, usecase.ErrActiveSessionExists) {
+			return serr
+		}
+	}
+	if err := deps.PauseMarker.ClearPause(); err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintln(cmd.ErrOrStderr(), "Resume — Worktime läuft weiter")
+	return nil
 }
 
 func newBriefCmd(deps WorktimeDeps) *cobra.Command {

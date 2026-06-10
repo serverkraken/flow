@@ -797,6 +797,204 @@ func TestToggleNewStartsWhenIdle(t *testing.T) {
 	}
 }
 
+// ---- pause/resume new-path tests ----
+
+// fakePauseStore is a simple in-memory ports.PauseStore for pause/resume tests.
+type fakePauseStore struct {
+	paused      *time.Time
+	setPaused   bool
+	clearCalled bool
+}
+
+func (f *fakePauseStore) GetPause() (*time.Time, error) {
+	return f.paused, nil
+}
+
+func (f *fakePauseStore) SetPause(t time.Time) error {
+	f.setPaused = true
+	f.paused = &t
+	return nil
+}
+
+func (f *fakePauseStore) ClearPause() error {
+	f.clearCalled = true
+	f.paused = nil
+	return nil
+}
+
+// TestPauseNewStopsAndSetsMarker: active session running → pause calls
+// StopActiveSession and PauseMarker.SetPause; stderr contains "Pausiert".
+func TestPauseNewStopsAndSetsMarker(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	pauseStore := &fakePauseStore{}
+	d.PauseMarker = pauseStore
+
+	stopCalled := 0
+	d.ListActiveSessions = func(userID string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-30 * time.Minute)},
+		}, nil
+	}
+	d.StopActiveSession = func(userID, projectID, tag, note string) (domain.Session, error) {
+		stopCalled++
+		return domain.Session{
+			ID:      "sess-1",
+			Elapsed: 30 * time.Minute,
+		}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("pause must succeed: %v", err)
+	}
+	if stopCalled != 1 {
+		t.Errorf("StopActiveSession called %d times, want 1", stopCalled)
+	}
+	if !pauseStore.setPaused {
+		t.Error("PauseMarker.SetPause must be called")
+	}
+	if !strings.Contains(errBuf.String(), "Pausiert") {
+		t.Errorf("stderr should contain 'Pausiert', got %q", errBuf.String())
+	}
+}
+
+// TestPauseNewIdleIsNoop: nothing running → no Stop call, exit 0.
+func TestPauseNewIdleIsNoop(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	pauseStore := &fakePauseStore{}
+	d.PauseMarker = pauseStore
+
+	d.ListActiveSessions = func(_ string) ([]domain.ActiveSession, error) {
+		return nil, nil
+	}
+	stopCalled := false
+	d.StopActiveSession = func(_, _, _, _ string) (domain.Session, error) {
+		stopCalled = true
+		return domain.Session{}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("pause with nothing running must succeed: %v", err)
+	}
+	if stopCalled {
+		t.Error("StopActiveSession must NOT be called when nothing is running")
+	}
+	if pauseStore.setPaused {
+		t.Error("PauseMarker.SetPause must NOT be called when nothing is running")
+	}
+}
+
+// TestResumeNewStartsMRUAndClearsMarker: nothing running, pause marker set →
+// resume calls ResolveProject(userID, "", "") + StartActiveSession + ClearPause.
+func TestResumeNewStartsMRUAndClearsMarker(t *testing.T) {
+	pA := domain.Project{ID: "proj-a", Name: "Project A", Slug: "project-a", CreatedAt: time.Now()}
+
+	base := newNewPathFixture()
+	d := base.deps()
+
+	t0 := time.Now()
+	pauseStore := &fakePauseStore{paused: &t0}
+	d.PauseMarker = pauseStore
+
+	// Nothing running.
+	d.ListActiveSessions = func(_ string) ([]domain.ActiveSession, error) {
+		return nil, nil
+	}
+
+	resolveCalled := 0
+	resolveCalledWith := ""
+	d.ResolveProject = func(userID, explicitID, pwd string) (domain.Project, error) {
+		resolveCalled++
+		resolveCalledWith = pwd
+		return pA, nil
+	}
+
+	startCalled := 0
+	d.StartActiveSession = func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+		startCalled++
+		return domain.ActiveSession{UserID: userID, ProjectID: projectID, StartedAt: time.Now()}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume must succeed: %v", err)
+	}
+	if resolveCalled != 1 {
+		t.Errorf("ResolveProject called %d times, want 1", resolveCalled)
+	}
+	if resolveCalledWith != "" {
+		t.Errorf("ResolveProject should be called with empty pwd (MRU cascade), got %q", resolveCalledWith)
+	}
+	if startCalled != 1 {
+		t.Errorf("StartActiveSession called %d times, want 1", startCalled)
+	}
+	if !pauseStore.clearCalled {
+		t.Error("PauseMarker.ClearPause must be called")
+	}
+	if !strings.Contains(errBuf.String(), "Resume") {
+		t.Errorf("stderr should contain 'Resume', got %q", errBuf.String())
+	}
+}
+
+// TestResumeNewAlreadyRunningClearsMarkerOnly: session running → only
+// ClearPause is called, no StartActiveSession.
+func TestResumeNewAlreadyRunningClearsMarkerOnly(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	t0 := time.Now()
+	pauseStore := &fakePauseStore{paused: &t0}
+	d.PauseMarker = pauseStore
+
+	// Session is already running.
+	d.ListActiveSessions = func(userID string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-10 * time.Minute)},
+		}, nil
+	}
+
+	startCalled := false
+	d.StartActiveSession = func(_, _, _, _ string) (domain.ActiveSession, error) {
+		startCalled = true
+		return domain.ActiveSession{}, nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume must succeed: %v", err)
+	}
+	if startCalled {
+		t.Error("StartActiveSession must NOT be called when session already running")
+	}
+	if !pauseStore.clearCalled {
+		t.Error("PauseMarker.ClearPause must still be called even when running")
+	}
+	if !strings.Contains(errBuf.String(), "Resume") {
+		t.Errorf("stderr should contain 'Resume', got %q", errBuf.String())
+	}
+}
+
 // TestGuard_AppliesTo_StopAsWell verifies the guard fires on `stop` not just
 // `start` (PersistentPreRunE covers all subcommands).
 func TestGuard_AppliesTo_StopAsWell(t *testing.T) {
