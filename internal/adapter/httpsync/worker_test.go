@@ -800,13 +800,15 @@ func (d *drainableQueue) lastErrorAt(i int) string {
 // server's POST /api/v1/active/{id}/start and removed on a 2xx response.
 func TestWorker_DrainActiveStart_HappyPath(t *testing.T) {
 	inner := &drainableQueue{}
+	startedAt := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
 	payload, _ := json.Marshal(struct {
-		Action          string `json:"action"`
-		ProjectID       string `json:"project_id"`
-		StartedOnDevice string `json:"started_on_device"`
-		Tag             string `json:"tag"`
-		Note            string `json:"note"`
-	}{"start", "proj-1", "laptop", "deep", "kicked-off"})
+		Action          string    `json:"action"`
+		ProjectID       string    `json:"project_id"`
+		StartedAt       time.Time `json:"started_at"`
+		StartedOnDevice string    `json:"started_on_device"`
+		Tag             string    `json:"tag"`
+		Note            string    `json:"note"`
+	}{"start", "proj-1", startedAt, "laptop", "deep", "kicked-off"})
 	_ = inner.enqueueRaw("active_sessions", "proj-1", payload, 0)
 
 	var sawStart atomic.Int32

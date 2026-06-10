@@ -229,12 +229,13 @@ var ErrActiveSessionExists = errors.New("flow: active session for this project a
 // the worker silently ignores.
 func encodeActiveStart(row domain.ActiveSession) ([]byte, error) {
 	return json.Marshal(struct {
-		Action          string `json:"action"`
-		ProjectID       string `json:"project_id"`
-		StartedOnDevice string `json:"started_on_device"`
-		Tag             string `json:"tag"`
-		Note            string `json:"note"`
-	}{"start", row.ProjectID, row.StartedOnDevice, row.Tag, row.Note})
+		Action          string    `json:"action"`
+		ProjectID       string    `json:"project_id"`
+		StartedAt       time.Time `json:"started_at"`
+		StartedOnDevice string    `json:"started_on_device"`
+		Tag             string    `json:"tag"`
+		Note            string    `json:"note"`
+	}{"start", row.ProjectID, row.StartedAt, row.StartedOnDevice, row.Tag, row.Note})
 }
 
 // encodeSession marshals a domain.Session to JSON for the write queue.

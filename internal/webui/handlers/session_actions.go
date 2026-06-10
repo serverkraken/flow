@@ -319,7 +319,7 @@ func NewActiveStart(d SessionActionsDeps) http.Handler {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 
-		a, err := d.Active.Start(u.ID, projectID, device, 0, tag, note)
+		a, err := d.Active.Start(u.ID, projectID, time.Now().UTC(), device, 0, tag, note)
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
 			httpserver.SyncConflicts.WithLabelValues("active").Inc()
 			// Server enforces ≤1 active per user → conflict means

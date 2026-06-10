@@ -139,7 +139,7 @@ func TestServerWorktimeView_Today_TwoSessionsPlusActive(t *testing.T) {
 	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 28, 9, 0, 0, 0, time.UTC), 8*time.Hour)
 
 	// Start an active session at 13:30 today.
-	if _, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, "laptop", 0, "", ""); err != nil {
+	if _, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, time.Time{}, "laptop", 0, "", ""); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 
@@ -217,7 +217,7 @@ func TestServerWorktimeView_Week_ActiveSessionOnTodayRow(t *testing.T) {
 	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour)
 
 	// Start an active session — server clock is "now", so StartedAt ≈ now.
-	act, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, "laptop", 0, "", "")
+	act, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, time.Time{}, "laptop", 0, "", "")
 	if err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestServerWorktimeView_UserIsolation(t *testing.T) {
 	seedSession(t, sessions, uA.ID, pA.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 3*time.Hour)
 	seedSession(t, sessions, uB.ID, pB.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 5*time.Hour)
 	// uB starts an active session that must NOT show on uA's Today.
-	if _, err := sqliteserver.NewActiveSessions(store).Start(uB.ID, pB.ID, "phone", 0, "", ""); err != nil {
+	if _, err := sqliteserver.NewActiveSessions(store).Start(uB.ID, pB.ID, time.Time{}, "phone", 0, "", ""); err != nil {
 		t.Fatalf("Start active uB: %v", err)
 	}
 

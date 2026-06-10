@@ -318,7 +318,7 @@ func TestUnit_ActiveStop_StaleIfMatch_Returns409(t *testing.T) {
 	d := mustOpenActiveServer(t)
 
 	// Start first.
-	if _, err := d.store.Start(d.user.ID, d.projID, "laptop", 0, "", ""); err != nil {
+	if _, err := d.store.Start(d.user.ID, d.projID, time.Time{}, "laptop", 0, "", ""); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
@@ -352,7 +352,7 @@ func TestUnit_ActiveList_NoSince_ReturnsAllActive(t *testing.T) {
 	}
 
 	for _, pID := range []string{d.projID, p2.ID} {
-		if _, err := d.store.Start(d.user.ID, pID, "laptop", 0, "", ""); err != nil {
+		if _, err := d.store.Start(d.user.ID, pID, time.Time{}, "laptop", 0, "", ""); err != nil {
 			t.Fatalf("Start %q: %v", pID, err)
 		}
 	}
@@ -391,7 +391,7 @@ func TestUnit_ActiveList_WithSince_ReturnsOnlyNewer(t *testing.T) {
 
 	var firstVersion int64
 	for i, pID := range []string{d.projID, p2.ID, p3.ID} {
-		a, err := d.store.Start(d.user.ID, pID, "laptop", 0, "", "")
+		a, err := d.store.Start(d.user.ID, pID, time.Time{}, "laptop", 0, "", "")
 		if err != nil {
 			t.Fatalf("Start %d: %v", i, err)
 		}

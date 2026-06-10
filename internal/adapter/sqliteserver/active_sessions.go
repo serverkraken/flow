@@ -32,9 +32,13 @@ func NewActiveSessions(s *Store) *ActiveSessions { return &ActiveSessions{store:
 // "force-takeover — the caller holds version N, so replace it". Returns
 // ErrActiveSessionConflict if the stored version does not match.
 //
+// startedAt is the client-recorded start time. When zero (legacy clients that
+// do not send started_at), the server falls back to time.Now().UTC() so older
+// queue payloads continue to work.
+//
 // tag/note are persisted on the active row so Stop can carry them onto the
 // finished Session even if the stopping device differs from the starting one.
-func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error) {
+func (a *ActiveSessions) Start(userID, projectID string, startedAt time.Time, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error) {
 	tx, err := a.store.DB().Begin()
 	if err != nil {
 		return domain.ActiveSession{}, err
@@ -62,7 +66,10 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 	if err != nil {
 		return domain.ActiveSession{}, err
 	}
-	now := time.Now().UTC()
+	if startedAt.IsZero() {
+		startedAt = time.Now().UTC() // legacy clients send no started_at
+	}
+	startedAt = startedAt.UTC()
 	if _, err := tx.Exec(`
 		INSERT INTO active_sessions (user_id, project_id, started_at, started_on_device, tag, note, version)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -72,7 +79,7 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 			tag = excluded.tag,
 			note = excluded.note,
 			version = excluded.version`,
-		userID, projectID, now.Format(time.RFC3339), device, tag, note, v); err != nil {
+		userID, projectID, startedAt.Format(time.RFC3339), device, tag, note, v); err != nil {
 		return domain.ActiveSession{}, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -80,7 +87,7 @@ func (a *ActiveSessions) Start(userID, projectID, device string, expectedVersion
 	}
 	return domain.ActiveSession{
 		UserID: userID, ProjectID: projectID,
-		StartedAt: now, StartedOnDevice: device,
+		StartedAt: startedAt, StartedOnDevice: device,
 		Tag: tag, Note: note, Version: v,
 	}, nil
 }

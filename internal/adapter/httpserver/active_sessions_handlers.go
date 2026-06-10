@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -18,7 +19,7 @@ import (
 // Kept local to avoid polluting ports.ActiveSessionStore with server-only
 // signatures (Start/Stop with OCC params).
 type ActiveServer interface {
-	Start(userID, projectID, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error)
+	Start(userID, projectID string, startedAt time.Time, device string, expectedVersion int64, tag, note string) (domain.ActiveSession, error)
 	Stop(userID, projectID string, expectedVersion int64, tag, note string) (domain.Session, error)
 	Get(userID, projectID string) (domain.ActiveSession, error)
 	ListByUser(userID string) ([]domain.ActiveSession, error)
@@ -69,13 +70,14 @@ func NewActiveStartHandler(store ActiveServer) http.Handler {
 		expected, _ := strconv.ParseInt(r.Header.Get("If-Match"), 10, 64)
 
 		var body struct {
-			StartedOnDevice string `json:"started_on_device"`
-			Tag             string `json:"tag"`
-			Note            string `json:"note"`
+			StartedAt       time.Time `json:"started_at"`
+			StartedOnDevice string    `json:"started_on_device"`
+			Tag             string    `json:"tag"`
+			Note            string    `json:"note"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 
-		a, err := store.Start(user.ID, projectID, body.StartedOnDevice, expected, body.Tag, body.Note)
+		a, err := store.Start(user.ID, projectID, body.StartedAt, body.StartedOnDevice, expected, body.Tag, body.Note)
 		if errors.Is(err, ports.ErrActiveSessionConflict) {
 			SyncConflicts.WithLabelValues("active").Inc()
 			cur, _ := store.Get(user.ID, projectID)
