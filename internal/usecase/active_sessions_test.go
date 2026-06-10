@@ -601,10 +601,9 @@ func TestStopPayloadCarriesTagAndNote(t *testing.T) {
 	}
 
 	var body struct {
-		Action  string `json:"action"`
-		Version int64  `json:"version"`
-		Tag     string `json:"tag"`
-		Note    string `json:"note"`
+		Action string `json:"action"`
+		Tag    string `json:"tag"`
+		Note   string `json:"note"`
 	}
 	if err := json.Unmarshal(stopEntry.Payload, &body); err != nil {
 		t.Fatalf("unmarshal stop payload: %v", err)
@@ -614,5 +613,12 @@ func TestStopPayloadCarriesTagAndNote(t *testing.T) {
 	}
 	if body.Tag != "deep" || body.Note != "n1" {
 		t.Errorf("stop payload lost tag/note: tag=%q note=%q", body.Tag, body.Note)
+	}
+	// The If-Match version must be forwarded from the active session row so
+	// drainActiveStop sends the correct server version in its DELETE request.
+	// Version is 0 here because Start does not perform a server round-trip;
+	// the assertion exists to confirm the field is wired (not silently dropped).
+	if stopEntry.ExpectedVersion != 0 {
+		t.Errorf("queue ExpectedVersion = %d, want 0 (If-Match version lost)", stopEntry.ExpectedVersion)
 	}
 }

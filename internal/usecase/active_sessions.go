@@ -160,12 +160,14 @@ func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Sessi
 	// Tag/Note travel in the payload — drainActiveStop forwards them so the
 	// server's canonical finished Session keeps them even when the stopping
 	// device differs (and so the next pull can't blank them out locally).
+	//
+	// Payload shape MUST stay in sync with activeStopBody in
+	// internal/adapter/httpsync/worker.go.
 	stopPayload, encErr := json.Marshal(struct {
-		Action  string `json:"action"`
-		Version int64  `json:"version"`
-		Tag     string `json:"tag"`
-		Note    string `json:"note"`
-	}{"stop", cur.Version, tag, note})
+		Action string `json:"action"`
+		Tag    string `json:"tag"`
+		Note   string `json:"note"`
+	}{"stop", tag, note})
 	if encErr == nil {
 		_, _ = a.queue.Enqueue("active_sessions_stop", projectID, stopPayload, cur.Version)
 	}

@@ -481,7 +481,10 @@ func (w *Worker) drainActiveStart(ctx context.Context, e ports.WriteQueueEntry) 
 	return DrainAck, nil
 }
 
-// activeStopBody is the JSON shape written by queue.EnqueueActiveStop.
+// activeStopBody is the JSON shape for an active-session stop payload.
+// Both the encoder in internal/usecase/active_sessions.go (ActiveSessions.Stop)
+// and this decoder MUST use the same JSON field names; neither side may add
+// or rename a field without updating the other.
 type activeStopBody struct {
 	Action string `json:"action"`
 	Tag    string `json:"tag"`
