@@ -9,9 +9,11 @@ import (
 )
 
 type fakeIdentityStore struct {
-	bySub    map[string]domain.User
-	counts   map[string]int
-	relabels [][2]string // (from,to)
+	bySub      map[string]domain.User
+	counts     map[string]int
+	relabels   [][2]string // (from,to)
+	soleUser   *domain.User
+	soleUserOK bool
 }
 
 func (f *fakeIdentityStore) EnsureBySub(sub, _, _ string) (domain.User, error) {
@@ -40,6 +42,13 @@ func (f *fakeIdentityStore) RelabelBySub(from, to, _, _ string) error {
 	u.OIDCSub = to
 	f.bySub[to] = u
 	return nil
+}
+
+func (f *fakeIdentityStore) SoleUser() (domain.User, bool, error) {
+	if f.soleUserOK && f.soleUser != nil {
+		return *f.soleUser, true, nil
+	}
+	return domain.User{}, false, nil
 }
 
 func TestUnit_Identity_ResolveActiveUser_FallsBackToLocalWhenNoSub(t *testing.T) {
@@ -117,5 +126,30 @@ func TestUnit_Identity_Adopt_SkipsWhenOidcUserAlreadyExists(t *testing.T) {
 	}
 	if adopted {
 		t.Error("must not adopt when an OIDC user already exists (not first login)")
+	}
+}
+
+// TestUnit_Identity_ResolveActiveUserEmptySubFallsBackToSoleUser checks that
+// when the local sub is absent (already relabeled to OIDC) and tokenSub is ""
+// (e.g. locked keychain), ResolveActiveUser returns the sole DB user instead of
+// minting a fresh `local` row and forking the data.
+func TestUnit_Identity_ResolveActiveUserEmptySubFallsBackToSoleUser(t *testing.T) {
+	oidcUser := domain.User{ID: "id-msoent", OIDCSub: "msoent"}
+	store := &fakeIdentityStore{
+		// Only the adopted OIDC user exists — no "local" row.
+		bySub:      map[string]domain.User{"msoent": oidcUser},
+		soleUser:   &oidcUser,
+		soleUserOK: true,
+	}
+	id := usecase.NewIdentity(store, "local")
+	u, err := id.ResolveActiveUser("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.OIDCSub != "msoent" {
+		t.Errorf("sub = %q, want msoent (sole-user fallback)", u.OIDCSub)
+	}
+	if _, localCreated := store.bySub["local"]; localCreated {
+		t.Error("must NOT have created a fresh 'local' user — that would fork the data")
 	}
 }

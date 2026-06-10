@@ -8,6 +8,7 @@ type IdentityStore interface {
 	GetBySub(sub string) (domain.User, error)
 	CountOwnedRows(userID string) (int, error)
 	RelabelBySub(fromSub, toSub, email, displayName string) error
+	SoleUser() (domain.User, bool, error)
 }
 
 // Identity resolves which local user a client runs as, and adopts the offline
@@ -36,6 +37,16 @@ func NewIdentity(store IdentityStore, localSub string) *Identity {
 // `local`→sub, the GetBySub branch below returns that same row.
 func (i *Identity) ResolveActiveUser(tokenSub string) (domain.User, error) {
 	if tokenSub == "" {
+		if u, err := i.store.GetBySub(i.localSub); err == nil {
+			return u, nil
+		}
+		// No local profile: after first-login adoption the local row was
+		// relabeled to the OIDC sub. A keyring hiccup (locked keychain)
+		// must NOT mint a fresh `local` user — that forks the data. With
+		// exactly one user in the DB (single-user PoC) run as that user.
+		if u, ok, err := i.store.SoleUser(); err == nil && ok {
+			return u, nil
+		}
 		return i.store.EnsureBySub(i.localSub, "", "")
 	}
 	if u, err := i.store.GetBySub(tokenSub); err == nil {

@@ -84,19 +84,55 @@ func (u *Users) RelabelBySub(fromSub, toSub, email, displayName string) error {
 	return nil
 }
 
-// CountOwnedRows returns how many projects + sessions reference the given user.
-// Used to decide whether the first-login adoption prompt is worth showing.
+// CountOwnedRows returns how many rows across all user_id-keyed tables
+// reference the given user. Drives the first-login adoption gate — counting
+// only projects+sessions skipped users whose data is repos/notes/active only.
 func (u *Users) CountOwnedRows(userID string) (int, error) {
 	var n int
 	err := u.store.DB().QueryRow(
-		`SELECT (SELECT COUNT(*) FROM projects WHERE user_id = ?)
-		      + (SELECT COUNT(*) FROM sessions WHERE user_id = ?)`,
-		userID, userID,
+		`SELECT (SELECT COUNT(*) FROM projects        WHERE user_id = ?)
+		      + (SELECT COUNT(*) FROM sessions        WHERE user_id = ?)
+		      + (SELECT COUNT(*) FROM active_sessions WHERE user_id = ?)
+		      + (SELECT COUNT(*) FROM repos           WHERE user_id = ?)
+		      + (SELECT COUNT(*) FROM repo_notes      WHERE user_id = ?)`,
+		userID, userID, userID, userID, userID,
 	).Scan(&n)
 	if err != nil {
 		return 0, fmt.Errorf("sqliteclient.Users.CountOwnedRows: %w", err)
 	}
 	return n, nil
+}
+
+// SoleUser returns the only user row when exactly one exists. Identity uses
+// it as the logged-out fallback so a transient keyring failure after adoption
+// cannot fork the data under a freshly-created `local` user.
+func (u *Users) SoleUser() (domain.User, bool, error) {
+	rows, err := u.store.DB().Query(
+		`SELECT id, oidc_sub, email, display_name, created_at FROM users LIMIT 2`,
+	)
+	if err != nil {
+		return domain.User{}, false, fmt.Errorf("sqliteclient.Users.SoleUser: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var users []domain.User
+	for rows.Next() {
+		var user domain.User
+		var createdAt string
+		if err := rows.Scan(&user.ID, &user.OIDCSub, &user.Email, &user.DisplayName, &createdAt); err != nil {
+			return domain.User{}, false, fmt.Errorf("sqliteclient.Users.SoleUser: scan: %w", err)
+		}
+		if t, perr := time.Parse(time.RFC3339, createdAt); perr == nil {
+			user.CreatedAt = t
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return domain.User{}, false, err
+	}
+	if len(users) != 1 {
+		return domain.User{}, false, nil
+	}
+	return users[0], true, nil
 }
 
 func scanUser(row *sql.Row) (domain.User, error) {

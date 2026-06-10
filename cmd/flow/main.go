@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -52,6 +53,7 @@ import (
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
 	kompwritepicker "github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
 )
@@ -154,14 +156,21 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	}
 	cacheUsers := sqliteclient.NewUsers(cacheStore)
 	tokenSub := ""
-	if toks, terr := keyringadapter.New().Get("tokens:" + env.ServerURL); terr == nil {
+	switch toks, terr := keyringadapter.New().Get("tokens:" + env.ServerURL); {
+	case terr == nil:
 		src := toks.IDToken
 		if src == "" {
 			src = toks.AccessToken
 		}
 		if c, cerr := oidcclient.ClaimsFromToken(src); cerr == nil {
 			tokenSub = c.Sub
+		} else {
+			slog.Warn("flow: stored token undecodable — running logged-out", slog.Any("err", cerr))
 		}
+	case errors.Is(terr, ports.ErrTokenNotFound):
+		// Logged out — the normal offline state, no log noise.
+	default:
+		slog.Warn("flow: keyring unavailable — running logged-out", slog.Any("err", terr))
 	}
 	identityUC := usecase.NewIdentity(cacheUsers, localSub)
 	localUser, err := identityUC.ResolveActiveUser(tokenSub)
