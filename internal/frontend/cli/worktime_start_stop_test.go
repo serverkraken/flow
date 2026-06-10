@@ -702,6 +702,49 @@ func TestToggleNewStopsWhenRunning(t *testing.T) {
 	}
 }
 
+// TestToggleNewStopRaceReturnsNotRunning verifies the race window where
+// ListActiveSessions saw one row but StopActiveSession returns
+// ErrActiveSessionNotFound (another device/shell stopped it between calls).
+// Toggle must NOT print "Gestoppt nach 0h 00m" — it should report
+// "Keine laufende Session" and exit 0.
+func TestToggleNewStopRaceReturnsNotRunning(t *testing.T) {
+	pA := domain.Project{ID: "proj-a", Name: "Project A", Slug: "project-a", CreatedAt: time.Now()}
+
+	base := newNewPathFixture()
+	base.projects.projects = append(base.projects.projects, pA)
+
+	d := base.deps()
+
+	// ListActiveSessions returns one running session for proj-a (race: it
+	// existed when we listed but is gone by the time Stop runs).
+	d.ListActiveSessions = func(userID string) ([]domain.ActiveSession, error) {
+		return []domain.ActiveSession{
+			{UserID: userID, ProjectID: "proj-a", StartedAt: time.Now().Add(-45 * time.Minute)},
+		}, nil
+	}
+
+	// StopActiveSession simulates the race: the row is already gone.
+	d.StopActiveSession = func(_, _, _, _ string) (domain.Session, error) {
+		return domain.Session{}, ports.ErrActiveSessionNotFound
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"toggle"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("toggle race must exit 0: %v", err)
+	}
+	stderr := errBuf.String()
+	if !strings.Contains(stderr, "Keine laufende Session") {
+		t.Errorf("stderr should contain 'Keine laufende Session', got %q", stderr)
+	}
+	if strings.Contains(stderr, "Gestoppt nach 0h") {
+		t.Errorf("stderr must NOT contain misleading zero-value stop message, got %q", stderr)
+	}
+}
+
 // TestToggleNewStartsWhenIdle verifies that when no ActiveSession exists
 // toggle calls ResolveProject + StartActiveSession and prints "läuft seit"
 // to stderr.

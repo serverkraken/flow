@@ -544,10 +544,21 @@ func runToggleNew(cmd *cobra.Command, deps WorktimeDeps) error {
 			}
 		}
 		sess, serr := deps.StopActiveSession(deps.UserID, target.ProjectID, "", "")
-		if serr != nil && !errors.Is(serr, ports.ErrActiveSessionNotFound) {
+		if errors.Is(serr, ports.ErrActiveSessionNotFound) {
+			// Race: ListActiveSessions saw the row but Stop didn't —
+			// another device/shell stopped it between calls. Don't print
+			// "Gestoppt nach 0h 00m" from a zero-value session.
+			_ = deps.Tmux.RefreshClient()
+			fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+			return nil
+		}
+		if serr != nil {
 			return serr
 		}
 		_ = deps.Tmux.RefreshClient()
+		// Stop the earliest-StartedAt entry — that's the longest-running
+		// session, the one the user most plausibly wants to end with a
+		// keystroke. Multi-session disambiguation is `flow worktime stop --project`.
 		fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm\n",
 			int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60)
 		return nil
