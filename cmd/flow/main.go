@@ -267,7 +267,14 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	projectScanner := fssourcedirs.New(p.SourceCodeRoot)
 
 	targets := &usecase.TargetResolver{Config: configReader, DayOffs: dayoffStore, DefaultTarget: 8 * time.Hour}
-	reader := &usecase.WorktimeReader{Sessions: sessionStore, State: activeStore, Targets: targets, Clock: clock}
+	reader := &usecase.WorktimeReader{
+		Sessions: sessionStore,
+		State:    activeStore,
+		Active:   cacheActiveSessions,
+		UserID:   localUser.ID,
+		Targets:  targets,
+		Clock:    clock,
+	}
 	stats := &usecase.StatsComputer{
 		Reader:  reader,
 		Targets: targets,

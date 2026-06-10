@@ -16,9 +16,43 @@ type WorktimeReader struct {
 	Targets  *TargetResolver
 	Clock    ports.Clock
 
+	// Active is the sqlite-backed multi-device active-session store. When
+	// non-nil (production wiring) it is the source of truth for the
+	// running indicator; State then only serves the pause marker. Nil in
+	// legacy tests → State.GetActive() keeps working.
+	Active ports.ActiveSessionStore
+	// UserID scopes every Sessions/Active call. The sqlite stores filter
+	// WHERE user_id = ? — an empty UserID returns zero rows.
+	UserID string
+
 	// ShowWeekend, when true, always renders Sat/Sun in week views even
 	// when they have no sessions and aren't today.
 	ShowWeekend bool
+}
+
+// ActiveStart returns the start time of the running session: earliest
+// ActiveSession row when the sqlite store is wired, else the legacy
+// flockstate marker. Exported so StatsComputer shares the same source.
+func (r *WorktimeReader) ActiveStart() (*time.Time, error) {
+	if r.Active == nil {
+		return r.State.GetActive()
+	}
+	list, err := r.Active.ListByUser(r.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+	earliest := list[0].StartedAt
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(earliest) {
+			earliest = a.StartedAt
+		}
+	}
+	// Stored UTC; downstream formats wall-clock times (15:04) → Local.
+	earliest = earliest.Local()
+	return &earliest, nil
 }
 
 // Today returns the day record for "today" — sessions logged so far,
@@ -28,7 +62,7 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 	now := r.Clock.Now()
 	day := domain.Day{Target: r.Targets.For(now)}
 
-	active, err := r.State.GetActive()
+	active, err := r.ActiveStart()
 	if err != nil {
 		return day, err
 	}
@@ -44,7 +78,7 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 		}
 	}
 
-	sessions, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
+	sessions, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return domain.SameDay(s.Date, now)
 	})
 	if err != nil {
@@ -62,7 +96,7 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 // is set.
 func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 	now := r.Clock.Now()
-	active, err := r.State.GetActive()
+	active, err := r.ActiveStart()
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +109,7 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 		AddDate(0, 0, -(wd - 1))
 	sunday := monday.AddDate(0, 0, 6)
 
-	allSessions, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
+	allSessions, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return !s.Date.Before(monday) && !s.Date.After(sunday)
 	})
 	if err != nil {
@@ -115,7 +149,7 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 
 // History returns every day with at least one session, newest first.
 func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
-	sessions, err := r.Sessions.Load("")
+	sessions, err := r.Sessions.Load(r.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +179,9 @@ func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
 // "all sessions".
 func (r *WorktimeReader) Range(rng domain.Range) ([]domain.Session, error) {
 	if rng.From.IsZero() && rng.To.IsZero() {
-		return r.Sessions.Load("")
+		return r.Sessions.Load(r.UserID)
 	}
-	return r.Sessions.LoadFiltered("", func(s domain.Session) bool {
+	return r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return rng.ContainsDate(s.Date)
 	})
 }
@@ -163,7 +197,7 @@ func (r *WorktimeReader) SessionsOverlap(date, start, stop time.Time, excludeIdx
 	// AddManual paid that scan. The filter predicate runs in the adapter
 	// where it can short-circuit during line parsing.
 	dateStr := date.Format("2006-01-02")
-	dayRows, err := r.Sessions.LoadFiltered("", func(s domain.Session) bool {
+	dayRows, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return s.Date.Format("2006-01-02") == dateStr
 	})
 	if err != nil {
