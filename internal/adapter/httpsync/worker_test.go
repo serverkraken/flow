@@ -1131,6 +1131,147 @@ func TestWorker_DrainActiveStart_WritesVersionBack(t *testing.T) {
 	}
 }
 
+// TestWorker_DrainActiveStop_409RetryWithServerVersion verifies the offline
+// start+stop scenario: if a Stop entry carries If-Match:0 and the server
+// returns 409 with the current version in the body, the worker retries ONCE
+// with that version and succeeds. The queue entry must be Ack'd (removed),
+// the second DELETE must have sent If-Match:3, and no ConflictMsg must be
+// emitted.
+func TestWorker_DrainActiveStop_409RetryWithServerVersion(t *testing.T) {
+	inner := &drainableQueue{}
+	stopBody, _ := json.Marshal(struct {
+		Action string `json:"action"`
+		Tag    string `json:"tag"`
+		Note   string `json:"note"`
+	}{"stop", "deep", "offline"})
+	// Stop enqueued with ExpectedVersion=0 (start not yet drained at enqueue time).
+	_ = inner.enqueueRaw("active_sessions_stop", "proj-off", stopBody, 0)
+
+	// serverCurrent is the row the server reports back in the 409 body.
+	serverCurrent := domain.ActiveSession{
+		ProjectID: "proj-off",
+		Version:   3,
+	}
+
+	var deleteCallCount atomic.Int32
+	var secondIfMatch string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodDelete && contains(r.URL.Path, "/active/proj-off") {
+			n := deleteCallCount.Add(1)
+			if n == 1 {
+				// First attempt: If-Match:0 → 409 with current version.
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"current": serverCurrent})
+				return
+			}
+			// Second attempt: record If-Match header, return 200.
+			secondIfMatch = r.Header.Get("If-Match")
+			_ = json.NewEncoder(w).Encode(domain.Session{ID: "done", Version: 1})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	// Entry must be Ack'd (removed).
+	if !eventually(func() bool { return inner.isRemoved(0) }, 1500*time.Millisecond) {
+		t.Fatalf("queue entry not removed after 409-retry: deleteCallCount=%d", deleteCallCount.Load())
+	}
+	w.Stop()
+	<-w.Done()
+
+	// Two DELETE calls must have been made.
+	if got := deleteCallCount.Load(); got != 2 {
+		t.Errorf("DELETE call count: got %d, want 2", got)
+	}
+	// Second call must have carried If-Match:3 (the server's current version).
+	if secondIfMatch != "3" {
+		t.Errorf("second DELETE If-Match: got %q, want %q", secondIfMatch, "3")
+	}
+	// No ConflictMsg must have been emitted.
+	select {
+	case msg := <-w.Conflicts():
+		t.Errorf("unexpected ConflictMsg emitted: %+v", msg)
+	default:
+		// pass — channel is empty
+	}
+}
+
+// TestWorker_DrainActiveStop_409NoCurrent_HaltsAndEmitsConflict verifies that
+// when the 409 body contains no "current" field (or is unparseable),
+// conflictCurrentActive returns false, the conflict is emitted, and drain halts.
+func TestWorker_DrainActiveStop_409NoCurrent_HaltsAndEmitsConflict(t *testing.T) {
+	inner := &drainableQueue{}
+	stopBody, _ := json.Marshal(struct {
+		Action string `json:"action"`
+		Tag    string `json:"tag"`
+		Note   string `json:"note"`
+	}{"stop", "deep", "offline"})
+	_ = inner.enqueueRaw("active_sessions_stop", "proj-nc", stopBody, 0)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodDelete && contains(r.URL.Path, "/active/proj-nc") {
+			// 409 with NO "current" field.
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []any{}, "high_watermark": int64(0), "has_more": false,
+		})
+	}))
+	defer srv.Close()
+
+	w := newWorker(
+		srv,
+		&testutil.FakeSessionStore{},
+		&testutil.FakeProjectStore{},
+		&testutil.FakeActiveSessionStoreV2{Rows: map[string]domain.ActiveSession{}},
+		&testutil.FakeSyncWatermarkStore{},
+		inner,
+	)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w.Start(ctx)
+
+	// A ConflictMsg must be emitted.
+	select {
+	case msg := <-w.Conflicts():
+		if msg.Resource != "active_sessions_stop" {
+			t.Errorf("conflict resource: got %q, want active_sessions_stop", msg.Resource)
+		}
+		if msg.RowID != "proj-nc" {
+			t.Errorf("conflict RowID: got %q, want proj-nc", msg.RowID)
+		}
+	case <-time.After(1500 * time.Millisecond):
+		t.Fatal("timeout waiting for ConflictMsg (expected halt+emit on 409 without current)")
+	}
+
+	w.Stop()
+	<-w.Done()
+
+	// Entry must NOT be removed (drain halted).
+	if inner.isRemoved(0) {
+		t.Error("queue entry should not be removed when drain halts on 409-no-current")
+	}
+}
+
 // TestWorker_DrainActiveStart_SkipsWriteBackWhenRowGone verifies that drain
 // does NOT resurrect a session the user stopped while offline. If the local
 // active row is missing at drain time (because a queued stop already ran or

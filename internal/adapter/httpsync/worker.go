@@ -512,6 +512,16 @@ func (w *Worker) drainActiveStop(ctx context.Context, e ports.WriteQueueEntry) (
 	}
 	_, err := w.client.StopActive(ctx, e.RowID, e.ExpectedVersion, body.Tag, body.Note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
+		// Stale local version (start drained after the stop was enqueued).
+		// The 409 body carries the server's current row — retry once with
+		// that version. Stopping our own session is last-writer-wins for
+		// the single-user PoC; a failing retry still halts for the overlay.
+		if cur, ok := conflictCurrentActive(err); ok {
+			_, rerr := w.client.StopActive(ctx, e.RowID, cur.Version, body.Tag, body.Note)
+			if rerr == nil || errors.Is(rerr, ports.ErrActiveSessionNotFound) {
+				return DrainAck, nil
+			}
+		}
 		w.emitConflictFromError(ctx, "active_sessions_stop", e.RowID, e.Seq, body, err)
 		return DrainHalt, nil
 	}
@@ -524,6 +534,20 @@ func (w *Worker) drainActiveStop(ctx context.Context, e ports.WriteQueueEntry) (
 		return w.classifyPushError("active_sessions_stop", e.RowID, e.Seq, err)
 	}
 	return DrainAck, nil
+}
+
+// conflictCurrentActive extracts the server's current ActiveSession from a
+// 409 ConflictError, when present.
+func conflictCurrentActive(err error) (domain.ActiveSession, bool) {
+	var ce *ConflictError
+	if !errors.As(err, &ce) || len(ce.Current) == 0 {
+		return domain.ActiveSession{}, false
+	}
+	var cur domain.ActiveSession
+	if jerr := json.Unmarshal(ce.Current, &cur); jerr != nil {
+		return domain.ActiveSession{}, false
+	}
+	return cur, true
 }
 
 // emitConflictFromError extracts the server's current row from ce (if it is a
