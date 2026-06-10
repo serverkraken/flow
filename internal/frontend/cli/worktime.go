@@ -108,6 +108,10 @@ type WorktimeDeps struct {
 	// Never synced; pause = stop the active session + set this marker so
 	// resume knows to restart.
 	PauseMarker ports.PauseStore
+
+	// CorrectActiveStart moves the running session's start time (new path).
+	// Nil → legacy SessionWriter.CorrectStart path is used.
+	CorrectActiveStart func(userID string, ts time.Time) error
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -674,6 +678,19 @@ func newCorrectCmd(deps WorktimeDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if deps.CorrectActiveStart != nil {
+				if err := deps.CorrectActiveStart(deps.UserID, ts); err != nil {
+					if errors.Is(err, ports.ErrActiveSessionNotFound) {
+						fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+						return nil
+					}
+					return err
+				}
+				_ = deps.Tmux.RefreshClient()
+				fprintf(cmd.ErrOrStderr(), "Startzeit korrigiert auf %s\n", ts.Format("15:04"))
+				return nil
+			}
+			// Legacy flockstate path.
 			if err := deps.SessionWriter.CorrectStart(ts); err != nil {
 				return err
 			}

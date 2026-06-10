@@ -393,6 +393,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				CacheDBPath: cacheDBPath,
 				Migrate:     migrateTSVUC,
 				PauseMarker: activeStore,
+				CorrectActiveStart: func(userID string, ts time.Time) error {
+					return activeSessionsUC.CorrectStart(userID, ts)
+				},
 			},
 			Sidekick: cli.SidekickDeps{
 				FlowState: flowState,

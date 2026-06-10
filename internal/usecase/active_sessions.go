@@ -176,6 +176,38 @@ func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Sessi
 	return sess, nil
 }
 
+// CorrectStart moves the start time of the user's (earliest) running session
+// and re-queues the start with If-Match so the server row follows. Returns
+// ports.ErrActiveSessionNotFound when nothing is running.
+func (a *ActiveSessions) CorrectStart(userID string, ts time.Time) error {
+	list, err := a.active.ListByUser(userID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return ports.ErrActiveSessionNotFound
+	}
+	cur := list[0]
+	for _, c := range list[1:] {
+		if c.StartedAt.Before(cur.StartedAt) {
+			cur = c
+		}
+	}
+	cur.StartedAt = ts.UTC()
+	if err := a.active.Upsert(cur); err != nil {
+		return err
+	}
+	payload, err := encodeActiveStart(cur)
+	if err != nil {
+		return err
+	}
+	if _, err := a.queue.Enqueue("active_sessions", cur.ProjectID, payload, cur.Version); err != nil {
+		return err
+	}
+	a.signalPush()
+	return nil
+}
+
 // ListActive returns currently running sessions across all projects for the
 // given user.
 func (a *ActiveSessions) ListActive(userID string) ([]domain.ActiveSession, error) {

@@ -560,6 +560,97 @@ func TestUnit_ActiveSessions_ForceTakeover_UsesServerVersion(t *testing.T) {
 	}
 }
 
+// ---- CorrectStart tests ----
+
+// TestCorrectStartMovesStartedAtAndRequeues: Start a session, then call
+// CorrectStart with an earlier time. Assertions:
+//   - the local row has StartedAt == ts.UTC()
+//   - the queue contains a second "active_sessions" entry with
+//     ExpectedVersion == cur.Version and payload started_at == ts.UTC()
+func TestCorrectStartMovesStartedAtAndRequeues(t *testing.T) {
+	t.Parallel()
+	active := newFakeActiveSessionStore()
+	projects := &fakeASProjectStore{
+		projects: []domain.Project{{ID: "p1", Name: "P1", Slug: "p1", CreatedAt: time.Now()}},
+	}
+	sessions := &fakeASSessionStore{}
+	queue := &fakeWriteQueue{}
+
+	uc := mkActiveSessions(active, projects, sessions, queue)
+
+	// Start so an active session exists with Version=0.
+	if _, err := uc.Start("u1", "p1", "deep", "n1"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// Manually bump the stored version to 5 so we can verify the re-queued
+	// entry carries that version.
+	row := active.rows["u1/p1"]
+	row.Version = 5
+	active.rows["u1/p1"] = row
+	// Reset upserted / queue tracking after the seed.
+	active.upserted = nil
+	queue.entries = nil
+
+	ts := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
+	if err := uc.CorrectStart("u1", ts); err != nil {
+		t.Fatalf("CorrectStart: %v", err)
+	}
+
+	// Local row must have updated StartedAt.
+	updated := active.rows["u1/p1"]
+	if !updated.StartedAt.Equal(ts.UTC()) {
+		t.Errorf("StartedAt: got %v, want %v", updated.StartedAt, ts.UTC())
+	}
+
+	// Exactly one upsert after the correction.
+	if len(active.upserted) != 1 {
+		t.Fatalf("expected 1 upsert, got %d", len(active.upserted))
+	}
+
+	// Queue entry: resource="active_sessions", ExpectedVersion=5, started_at=ts.
+	if len(queue.entries) != 1 {
+		t.Fatalf("expected 1 queue entry, got %d", len(queue.entries))
+	}
+	e := queue.entries[0]
+	if e.Resource != "active_sessions" {
+		t.Errorf("queue resource: got %q, want %q", e.Resource, "active_sessions")
+	}
+	if e.ExpectedVersion != 5 {
+		t.Errorf("queue expectedVersion: got %d, want 5", e.ExpectedVersion)
+	}
+	var payload struct {
+		Action    string    `json:"action"`
+		StartedAt time.Time `json:"started_at"`
+	}
+	if err := json.Unmarshal(e.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Action != "start" {
+		t.Errorf("payload action: got %q, want %q", payload.Action, "start")
+	}
+	if !payload.StartedAt.Equal(ts.UTC()) {
+		t.Errorf("payload started_at: got %v, want %v", payload.StartedAt, ts.UTC())
+	}
+}
+
+// TestCorrectStartNothingRunning: empty store → ErrActiveSessionNotFound.
+func TestCorrectStartNothingRunning(t *testing.T) {
+	t.Parallel()
+	active := newFakeActiveSessionStore() // empty
+	queue := &fakeWriteQueue{}
+
+	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, queue)
+
+	ts := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
+	err := uc.CorrectStart("u1", ts)
+	if !errors.Is(err, ports.ErrActiveSessionNotFound) {
+		t.Fatalf("expected ErrActiveSessionNotFound, got %v", err)
+	}
+	if len(queue.entries) != 0 {
+		t.Errorf("expected no queue entries, got %d", len(queue.entries))
+	}
+}
+
 // ---- Stop payload tests ----
 
 // TestStopPayloadCarriesTagAndNote verifies that the active_sessions_stop queue

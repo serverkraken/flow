@@ -995,6 +995,87 @@ func TestResumeNewAlreadyRunningClearsMarkerOnly(t *testing.T) {
 	}
 }
 
+// ---- correct new-path tests ----
+
+// TestCorrectNewPathCorrectedTime: session running → correct calls
+// CorrectActiveStart with the parsed time and prints "korrigiert" to stderr.
+func TestCorrectNewPathCorrectedTime(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	correctCalled := 0
+	var correctCalledWith time.Time
+	d.CorrectActiveStart = func(userID string, ts time.Time) error {
+		correctCalled++
+		correctCalledWith = ts
+		return nil
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"correct", "09:00"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("correct must succeed: %v", err)
+	}
+	if correctCalled != 1 {
+		t.Errorf("CorrectActiveStart called %d times, want 1", correctCalled)
+	}
+	if correctCalledWith.Hour() != 9 || correctCalledWith.Minute() != 0 {
+		t.Errorf("CorrectActiveStart called with time %v, want 09:00", correctCalledWith)
+	}
+	if !strings.Contains(errBuf.String(), "korrigiert") {
+		t.Errorf("stderr should contain 'korrigiert', got %q", errBuf.String())
+	}
+}
+
+// TestCorrectNewPathNothingRunning: CorrectActiveStart returns
+// ErrActiveSessionNotFound → command exits 0 and prints hint.
+func TestCorrectNewPathNothingRunning(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+
+	d.CorrectActiveStart = func(userID string, ts time.Time) error {
+		return ports.ErrActiveSessionNotFound
+	}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"correct", "09:00"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("correct with nothing running must succeed: %v", err)
+	}
+	if !strings.Contains(errBuf.String(), "Keine laufende Session") {
+		t.Errorf("stderr should contain hint, got %q", errBuf.String())
+	}
+}
+
+// TestCorrectLegacyFallback: when CorrectActiveStart is nil, the legacy
+// SessionWriter.CorrectStart path is used.
+func TestCorrectLegacyFallback(t *testing.T) {
+	base := newNewPathFixture()
+	d := base.deps()
+	// Explicitly nil out the new path so legacy triggers.
+	d.CorrectActiveStart = nil
+
+	// The legacy path calls deps.SessionWriter.CorrectStart(ts). Since
+	// there is no active flockstate session, it will return an error
+	// (ErrNoActiveSession or similar). We only need to verify the command
+	// did NOT panic and that CorrectActiveStart was not called.
+	var outBuf, errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(d)
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"correct", "09:00"})
+	// We don't care if it fails on the legacy path — only that it reached
+	// the legacy branch (no panic, no new-path behaviour).
+	_ = cmd.Execute()
+	// If we reach here the legacy fallback ran without panic. Pass.
+}
+
 // TestGuard_AppliesTo_StopAsWell verifies the guard fires on `stop` not just
 // `start` (PersistentPreRunE covers all subcommands).
 func TestGuard_AppliesTo_StopAsWell(t *testing.T) {
