@@ -198,13 +198,11 @@ func (h heute) ConsumesKeys() []string {
 }
 
 // FastTick reports whether the root should schedule the fast (1 s) tick.
-// True during the first minute of an active session — the live elapsed
-// counter only shows seconds for that window, then drops to minutes.
-func (h heute) FastTick(now time.Time) bool {
-	if h.day.Active == nil {
-		return false
-	}
-	return now.Sub(*h.day.Active) < time.Minute
+// True whenever a session is running so the elapsed counter stays smooth.
+// The old <1 min ceiling caused visible 10-second jumps after the first
+// minute; there is no reason to throttle back while the clock is live.
+func (h heute) FastTick(_ time.Time) bool {
+	return h.day.Active != nil
 }
 
 // Init kicks off the day load. Action results all return through
