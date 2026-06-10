@@ -291,6 +291,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		Sessions: sessionStore,
 		State:    activeStore,
 		Active:   cacheActiveSessions,
+		Projects: cacheProjects,
 		UserID:   localUser.ID,
 		Targets:  targets,
 		Clock:    clock,

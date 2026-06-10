@@ -25,9 +25,38 @@ type WorktimeReader struct {
 	// WHERE user_id = ? — an empty UserID returns zero rows.
 	UserID string
 
+	// Projects, when non-nil, is used by enrichSessions to join project
+	// names into returned Session slices. Nil-tolerant: sessions are
+	// returned with empty ProjectName when Projects is not wired (legacy
+	// tests, offline tools).
+	Projects ports.ProjectStore
+
 	// ShowWeekend, when true, always renders Sat/Sun in week views even
 	// when they have no sessions and aren't today.
 	ShowWeekend bool
+}
+
+// enrichSessions stamps ProjectName onto each session in place. One
+// Projects.ListAll call builds the name map; all sessions are enriched in
+// a single pass so there are no N+1 store calls. Nil-tolerant: when
+// r.Projects is nil (legacy tests, offline tools) the slice is returned
+// unchanged with empty ProjectName fields.
+func (r *WorktimeReader) enrichSessions(sessions []domain.Session) error {
+	if r.Projects == nil || len(sessions) == 0 {
+		return nil
+	}
+	all, err := r.Projects.ListAll(r.UserID)
+	if err != nil {
+		return err
+	}
+	names := make(map[string]string, len(all))
+	for _, p := range all {
+		names[p.ID] = p.Name
+	}
+	for i := range sessions {
+		sessions[i].ProjectName = names[sessions[i].ProjectID]
+	}
+	return nil
 }
 
 // ActiveStart returns the start time of the running session: earliest
@@ -82,6 +111,9 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 		return domain.SameDay(s.Date, now)
 	})
 	if err != nil {
+		return day, err
+	}
+	if err := r.enrichSessions(sessions); err != nil {
 		return day, err
 	}
 	day.Sessions = sessions
@@ -154,6 +186,10 @@ func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
 		return nil, err
 	}
 
+	if err := r.enrichSessions(sessions); err != nil {
+		return nil, err
+	}
+
 	byDate := make(map[string]*domain.DayRecord)
 	var order []string
 	for _, s := range sessions {
@@ -178,12 +214,24 @@ func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
 // Range returns sessions whose Date falls inside r. Empty range means
 // "all sessions".
 func (r *WorktimeReader) Range(rng domain.Range) ([]domain.Session, error) {
+	var (
+		sessions []domain.Session
+		err      error
+	)
 	if rng.From.IsZero() && rng.To.IsZero() {
-		return r.Sessions.Load(r.UserID)
+		sessions, err = r.Sessions.Load(r.UserID)
+	} else {
+		sessions, err = r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
+			return rng.ContainsDate(s.Date)
+		})
 	}
-	return r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
-		return rng.ContainsDate(s.Date)
-	})
+	if err != nil {
+		return nil, err
+	}
+	if err := r.enrichSessions(sessions); err != nil {
+		return nil, err
+	}
+	return sessions, nil
 }
 
 // SessionsOverlap reports whether the candidate span [start, stop)

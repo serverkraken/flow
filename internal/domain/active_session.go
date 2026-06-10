@@ -10,9 +10,14 @@ import "time"
 //
 // StartedOnDevice is informational only; used by the conflict overlay to
 // tell the user where the parallel session is running.
+//
+// ProjectName is a transient display field — never persisted. Set by
+// usecase/TUI layers after a Projects store join so the indicator header
+// shows human-readable names without N+1 lookups per session.
 type ActiveSession struct {
 	UserID          string
 	ProjectID       string
+	ProjectName     string // transient: set by TUI activeSessionsListCmd enrich step
 	StartedAt       time.Time
 	StartedOnDevice string
 	Tag             string // Intent-Tag set at start; carried over to the finished Session on Stop unless overridden.

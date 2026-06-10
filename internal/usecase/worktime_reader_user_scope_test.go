@@ -108,6 +108,109 @@ func TestReaderTodayIsUserScopedAndReadsActiveStore(t *testing.T) {
 	}
 }
 
+// fakeProjectStore is a stub ports.ProjectStore backed by a static slice.
+// Only ListAll is exercised by enrichSessions; other methods are no-ops.
+type fakeProjectStore struct {
+	rows []domain.Project
+}
+
+func (f *fakeProjectStore) ListActive(_ string) ([]domain.Project, error) { return f.rows, nil }
+func (f *fakeProjectStore) ListAll(_ string) ([]domain.Project, error)    { return f.rows, nil }
+func (f *fakeProjectStore) GetByID(_ string, id string) (domain.Project, error) {
+	for _, p := range f.rows {
+		if p.ID == id {
+			return p, nil
+		}
+	}
+	return domain.Project{}, ports.ErrProjectNotFound
+}
+
+func (f *fakeProjectStore) GetBySlug(_, _ string) (domain.Project, error) {
+	return domain.Project{}, ports.ErrProjectNotFound
+}
+
+func (f *fakeProjectStore) EnsureBySlug(_, _, _ string) (domain.Project, error) {
+	return domain.Project{}, nil
+}
+func (f *fakeProjectStore) Upsert(domain.Project) error     { return nil }
+func (f *fakeProjectStore) TouchLastUsed(_, _ string) error { return nil }
+func (f *fakeProjectStore) Archive(_, _ string) error       { return nil }
+
+func TestReaderTodayEnrichesProjectNames(t *testing.T) {
+	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.Local)
+	sessions := &userScopedSessions{
+		wantUser: "user-1",
+		t:        t,
+		rows: []domain.Session{{
+			ID: "s1", UserID: "user-1", ProjectID: "proj-abc",
+			Date:    time.Date(2026, 6, 10, 0, 0, 0, 0, time.Local),
+			Elapsed: 30 * time.Minute,
+		}},
+	}
+	r := &WorktimeReader{
+		Sessions: sessions,
+		State:    fakeIdleState{},
+		Active:   &fakeActiveList{t: t, wantUser: "user-1", rows: nil},
+		UserID:   "user-1",
+		Projects: &fakeProjectStore{rows: []domain.Project{
+			{ID: "proj-abc", UserID: "user-1", Name: "My Project"},
+		}},
+		Targets: &TargetResolver{
+			Config:        &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}},
+			DayOffs:       testutil.NewFakeDayOffStore(),
+			DefaultTarget: 8 * time.Hour,
+		},
+		Clock: &testutil.FixedClock{T: now},
+	}
+	day, err := r.Today()
+	if err != nil {
+		t.Fatalf("Today: %v", err)
+	}
+	if len(day.Sessions) != 1 {
+		t.Fatalf("want 1 session, got %d", len(day.Sessions))
+	}
+	got := day.Sessions[0].ProjectName
+	if got != "My Project" {
+		t.Errorf("session.ProjectName = %q, want %q", got, "My Project")
+	}
+}
+
+func TestReaderTodayNilProjectsStoreReturnsEmptyName(t *testing.T) {
+	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.Local)
+	sessions := &userScopedSessions{
+		wantUser: "user-1",
+		t:        t,
+		rows: []domain.Session{{
+			ID: "s1", UserID: "user-1", ProjectID: "proj-abc",
+			Date:    time.Date(2026, 6, 10, 0, 0, 0, 0, time.Local),
+			Elapsed: 30 * time.Minute,
+		}},
+	}
+	r := &WorktimeReader{
+		Sessions: sessions,
+		State:    fakeIdleState{},
+		Active:   &fakeActiveList{t: t, wantUser: "user-1", rows: nil},
+		UserID:   "user-1",
+		Projects: nil, // no project store — should not panic
+		Targets: &TargetResolver{
+			Config:        &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}},
+			DayOffs:       testutil.NewFakeDayOffStore(),
+			DefaultTarget: 8 * time.Hour,
+		},
+		Clock: &testutil.FixedClock{T: now},
+	}
+	day, err := r.Today()
+	if err != nil {
+		t.Fatalf("Today: %v", err)
+	}
+	if len(day.Sessions) != 1 {
+		t.Fatalf("want 1 session, got %d", len(day.Sessions))
+	}
+	if got := day.Sessions[0].ProjectName; got != "" {
+		t.Errorf("session.ProjectName = %q, want empty string when Projects is nil", got)
+	}
+}
+
 func TestReaderTodayActiveStoreEmptyHasNoRunning(t *testing.T) {
 	now := time.Date(2026, 6, 10, 14, 0, 0, 0, time.Local)
 	sessions := &userScopedSessions{

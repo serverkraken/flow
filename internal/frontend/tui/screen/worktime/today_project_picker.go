@@ -213,14 +213,35 @@ func (h heute) projectsCreateThenStartCmd(name string) tea.Cmd {
 	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
-// activeSessionsListCmd loads the current active sessions from the store.
-// The result is delivered as activeSessionsListMsg; heute.Update stores it
-// in h.activeSessions for the running-indicator and picker pre-filter.
+// activeSessionsListCmd loads the current active sessions from the store and
+// enriches each with its project name. The result is delivered as
+// activeSessionsListMsg; heute.Update stores it in h.activeSessions for the
+// running-indicator and picker pre-filter.
+//
+// Enrich step: when deps.Projects is set, a single ListActive call builds a
+// name map and stamps ActiveSession.ProjectName. Nil-tolerant: when
+// deps.Projects is nil (legacy tests, offline tools) sessions are returned
+// with empty ProjectName and the indicator falls back to UUID-suffix display.
 func (h heute) activeSessionsListCmd() tea.Cmd {
 	as := h.deps.ActiveSessions
+	projects := h.deps.Projects
 	userID := h.deps.UserID
 	return func() tea.Msg {
 		sessions, err := as.ListActive(userID)
-		return activeSessionsListMsg{sessions: sessions, err: err}
+		if err != nil || projects == nil || len(sessions) == 0 {
+			return activeSessionsListMsg{sessions: sessions, err: err}
+		}
+		// Build name map once; stamp each session.
+		all, projErr := projects.ListActive(userID)
+		if projErr == nil {
+			names := make(map[string]string, len(all))
+			for _, p := range all {
+				names[p.ID] = p.Name
+			}
+			for i := range sessions {
+				sessions[i].ProjectName = names[sessions[i].ProjectID]
+			}
+		}
+		return activeSessionsListMsg{sessions: sessions, err: nil}
 	}
 }

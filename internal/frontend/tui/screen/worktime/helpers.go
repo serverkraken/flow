@@ -12,6 +12,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -119,6 +120,38 @@ func joinWrapped(parts []string, sep, prefix, cont string, maxWidth int) string 
 	}
 	lines = append(lines, cur)
 	return strings.Join(lines, "\n")
+}
+
+// sessionHint builds the right-hand hint column for a session row in the
+// Heute and History-Drill session lists. The hint carries the project name
+// (when available) and/or the tag — displayed inside picker.Row's right slot.
+//
+// Priority: "ProjectName  [tag]" when both are present; only the project name
+// or only the tag when just one is set; empty string when neither.
+// The tag bracket stays canonical ("[tag]") so existing hint styling is
+// unchanged. The project name prefixes the tag with two-space separation so
+// both can appear without running together.
+func sessionHint(s domain.Session) string {
+	name := s.ProjectName
+	if name == "" && len(s.ProjectID) > 0 {
+		// Fallback: last 8 chars of UUID — project not enriched (offline /
+		// unregistered project). Keep the hint recognisable as an ID, not
+		// a name, so the user knows the display is incomplete.
+		id := s.ProjectID
+		if len(id) > 8 {
+			id = id[len(id)-8:]
+		}
+		name = id
+	}
+	switch {
+	case name != "" && s.Tag != "":
+		return name + "  [" + s.Tag + "]"
+	case name != "":
+		return name
+	case s.Tag != "":
+		return "[" + s.Tag + "]"
+	}
+	return ""
 }
 
 // sameDay reports whether a and b fall on the same calendar day.

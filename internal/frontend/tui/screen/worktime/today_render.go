@@ -261,10 +261,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s",
 			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
-		hint := ""
-		if s.Tag != "" {
-			hint = "[" + s.Tag + "]"
-		}
+		hint := sessionHint(s)
 		if i == h.cursor {
 			focus = len(rows)
 		}
@@ -351,9 +348,9 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 // In legacy mode (h.activeSessions == nil) this returns "" so the legacy
 // header is unchanged.
 //
-// Project names come from h.activeSessions[i].ProjectID for now — the domain
-// model carries the name only after the Projects.Get join that Task 21 will
-// add to the sqlite store. Until then we display a short ID suffix.
+// Project names come from domain.ActiveSession.ProjectName, which is set by
+// activeSessionsListCmd after a Projects.ListAll join. Falls back to the last
+// 8 chars of ProjectID when the name is empty (unlisted/unknown project).
 func (h heute) renderActiveSessionsIndicator(now time.Time) string {
 	if len(h.activeSessions) == 0 {
 		return ""
@@ -361,11 +358,14 @@ func (h heute) renderActiveSessionsIndicator(now time.Time) string {
 	var parts []string
 	for _, as := range h.activeSessions {
 		elapsed := now.Sub(as.StartedAt)
-		// Use project name when available (non-empty), else fall back to the
-		// last 8 chars of the ID for readability.
-		name := as.ProjectID
-		if len(name) > 8 {
-			name = name[len(name)-8:]
+		name := as.ProjectName
+		if name == "" {
+			// Fallback: last 8 chars of the UUID so the indicator is readable
+			// even when the Projects store is not wired or the project was deleted.
+			name = as.ProjectID
+			if len(name) > 8 {
+				name = name[len(name)-8:]
+			}
 		}
 		parts = append(parts, fmt.Sprintf("%s %s  %s", glyphs.Active, name, formatDur(elapsed)))
 	}
