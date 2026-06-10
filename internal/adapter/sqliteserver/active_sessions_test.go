@@ -418,3 +418,22 @@ func TestUnit_ServerActiveSessions_Start_PreservesStartedAt(t *testing.T) {
 		t.Errorf("Get-loaded StartedAt: got %v, want %v", fetched.StartedAt, startedAt)
 	}
 }
+
+// Test: Start with zero startedAt falls back to server-side now.
+func TestUnit_ServerActiveSessions_Start_ZeroStartedAt_FallsBackToNow(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServer(t)
+	u := serverTestUser(t, store, "sas14")
+	p := serverTestProject(t, store, u.ID, "sas-proj14")
+	active := NewActiveSessions(store)
+
+	before := time.Now().UTC().Add(-1 * time.Second)
+	got, err := active.Start(u.ID, p.ID, time.Time{}, "test-device", 0, "", "")
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	after := time.Now().UTC().Add(1 * time.Second)
+	if got.StartedAt.Before(before) || got.StartedAt.After(after) {
+		t.Errorf("got.StartedAt = %v, expected between %v and %v (server should fall back to now when client sends zero)", got.StartedAt, before, after)
+	}
+}

@@ -182,62 +182,6 @@ func TestQueue_EnqueueProject(t *testing.T) {
 	}
 }
 
-// ---- EnqueueActiveStart ----
-
-func TestQueue_EnqueueActiveStart(t *testing.T) {
-	inner := &drainableQueue{}
-	q := httpsync.NewQueue(inner)
-	_, err := q.EnqueueActiveStart("p1", "laptop", "", "", 0)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	e := inner.entries[0]
-	if e.resource != "active_sessions" {
-		t.Errorf("resource: got %q", e.resource)
-	}
-	var body map[string]string
-	if err := json.Unmarshal(e.payload, &body); err != nil {
-		t.Fatalf("payload unmarshal: %v", err)
-	}
-	if body["action"] != "start" {
-		t.Errorf("action: got %q, want start", body["action"])
-	}
-	if body["project_id"] != "p1" {
-		t.Errorf("project_id: got %q, want p1", body["project_id"])
-	}
-	if body["started_on_device"] != "laptop" {
-		t.Errorf("started_on_device: got %q, want laptop", body["started_on_device"])
-	}
-}
-
-// ---- EnqueueActiveStop ----
-
-func TestQueue_EnqueueActiveStop(t *testing.T) {
-	inner := &drainableQueue{}
-	q := httpsync.NewQueue(inner)
-	_, err := q.EnqueueActiveStop("p1", 2, "meeting", "standup")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	e := inner.entries[0]
-	if e.resource != "active_sessions_stop" {
-		t.Errorf("resource: got %q, want active_sessions_stop", e.resource)
-	}
-	var body map[string]string
-	if err := json.Unmarshal(e.payload, &body); err != nil {
-		t.Fatalf("payload unmarshal: %v", err)
-	}
-	if body["action"] != "stop" {
-		t.Errorf("action: got %q, want stop", body["action"])
-	}
-	if body["tag"] != "meeting" {
-		t.Errorf("tag: got %q, want meeting", body["tag"])
-	}
-	if body["note"] != "standup" {
-		t.Errorf("note: got %q, want standup", body["note"])
-	}
-}
-
 // fastBackoff is a tiny non-jittered Backoff used by queue tests so SetRetry
 // timestamps are predictable enough for an "in the future" assertion.
 var fastBackoff = httpsync.Backoff{

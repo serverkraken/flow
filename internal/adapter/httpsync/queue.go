@@ -52,34 +52,6 @@ func (q *Queue) EnqueueRepoNote(n domain.RepoNote, expectedVersion int64) (int64
 	return q.inner.Enqueue("repo_notes", n.ID, payload, expectedVersion)
 }
 
-// EnqueueActiveStart enqueues an active-session start action.
-func (q *Queue) EnqueueActiveStart(projectID, device, tag, note string, expectedVersion int64) (int64, error) {
-	payload, err := json.Marshal(struct {
-		Action          string `json:"action"`
-		ProjectID       string `json:"project_id"`
-		StartedOnDevice string `json:"started_on_device"`
-		Tag             string `json:"tag"`
-		Note            string `json:"note"`
-	}{"start", projectID, device, tag, note})
-	if err != nil {
-		return 0, err
-	}
-	return q.inner.Enqueue("active_sessions", projectID, payload, expectedVersion)
-}
-
-// EnqueueActiveStop enqueues an active-session stop action.
-func (q *Queue) EnqueueActiveStop(projectID string, expectedVersion int64, tag, note string) (int64, error) {
-	payload, err := json.Marshal(struct {
-		Action string `json:"action"`
-		Tag    string `json:"tag"`
-		Note   string `json:"note"`
-	}{"stop", tag, note})
-	if err != nil {
-		return 0, err
-	}
-	return q.inner.Enqueue("active_sessions_stop", projectID, payload, expectedVersion)
-}
-
 // DrainAction describes how Queue.Drain should treat the entry handed to a
 // DrainCallback.
 type DrainAction int

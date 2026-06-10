@@ -67,7 +67,10 @@ func (a *ActiveSessions) Start(userID, projectID string, startedAt time.Time, de
 		return domain.ActiveSession{}, err
 	}
 	if startedAt.IsZero() {
-		startedAt = time.Now().UTC() // legacy clients send no started_at
+		// TODO(phase2): drop once every queued payload carries started_at.
+		// Legacy queue payloads pre-Task-4 omit the field; falling back to
+		// the drain time keeps them functional but loses sync-delay accuracy.
+		startedAt = time.Now().UTC()
 	}
 	startedAt = startedAt.UTC()
 	if _, err := tx.Exec(`
