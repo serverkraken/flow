@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 	projectstmpl "github.com/serverkraken/flow/internal/webui/templates/projects"
@@ -24,9 +23,9 @@ import (
 // the client-side ports). Clock is exposed so tests can pin "now" for
 // relative-time + week aggregations.
 type ProjectsDeps struct {
-	Projects *sqliteserver.Projects
-	Sessions *sqliteserver.Sessions
-	Active   *sqliteserver.ActiveSessions
+	Projects ProjectsStore
+	Sessions SessionsStore
+	Active   ActiveStore
 	Clock    ports.Clock
 }
 

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -43,9 +42,9 @@ import (
 // Phase 2: re-add Devices + Sync-Latenz when we have telemetry.
 type DashboardDeps struct {
 	View        *usecase.ServerWorktimeView
-	Active      *sqliteserver.ActiveSessions
-	Sessions    *sqliteserver.Sessions
-	Projects    *sqliteserver.Projects
+	Active      ActiveStore
+	Sessions    SessionsStore
+	Projects    ProjectsStore
 	Clock       ports.Clock
 	ActivityMax int // 0 → defaults to 7 (mockup B count)
 }
@@ -212,7 +211,7 @@ func buildDashboardVM(d DashboardDeps, u domain.User, now time.Time) (dashboard.
 // newProjectNameResolver returns a closure that caches project-name
 // lookups per request. The activity stream + top-project card both
 // resolve names; a 2-3 row cache avoids hammering the DB.
-func newProjectNameResolver(projects *sqliteserver.Projects, userID string) func(projectID string) string {
+func newProjectNameResolver(projects ProjectsStore, userID string) func(projectID string) string {
 	cache := map[string]string{}
 	return func(projectID string) string {
 		if name, ok := cache[projectID]; ok {

@@ -35,7 +35,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -50,9 +49,9 @@ import (
 // Projects (read for name resolution) / View (re-render Today after
 // big mutations — only used today by start/stop banner) / Clock.
 type SessionActionsDeps struct {
-	Sessions *sqliteserver.Sessions
-	Active   *sqliteserver.ActiveSessions
-	Projects *sqliteserver.Projects
+	Sessions SessionsStore
+	Active   ActiveStore
+	Projects ProjectsStore
 	View     *usecase.ServerWorktimeView
 	Clock    ports.Clock
 
@@ -591,7 +590,7 @@ func buildBannerContainerVM(d SessionActionsDeps, userID string, active *domain.
 
 // projectNameFor resolves a project name with a single DB read.
 // Falls back to projectID on lookup error so the row still renders.
-func projectNameFor(projects *sqliteserver.Projects, userID, projectID string) string {
+func projectNameFor(projects ProjectsStore, userID, projectID string) string {
 	if projects == nil {
 		return projectID
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -26,9 +25,9 @@ import (
 // Frei tab can drop its placeholder.
 type WorktimeDeps struct {
 	View     *usecase.ServerWorktimeView
-	Active   *sqliteserver.ActiveSessions
-	Sessions *sqliteserver.Sessions
-	Projects *sqliteserver.Projects
+	Active   ActiveStore
+	Sessions SessionsStore
+	Projects ProjectsStore
 	Clock    ports.Clock
 
 	// DeviceLabel is shown in the Today rail's Sync row. Optional; falls

@@ -41,7 +41,6 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -55,7 +54,7 @@ import (
 // projects don't need Sessions/Active/View — the per-row aggregates
 // only live on the index page render path.
 type ProjectActionsDeps struct {
-	Projects *sqliteserver.Projects
+	Projects ProjectsStore
 	Clock    ports.Clock
 
 	// Bus broadcasts project.* events to the SSE stream. Optional — nil
@@ -440,7 +439,7 @@ func NewProjectArchive(d ProjectActionsDeps) http.Handler {
 // once before giving up. A proper fix would push the slug walk into
 // the adapter and do it inside a single transaction, but that's a
 // larger refactor — deferred.
-func uniqueSlugFor(p *sqliteserver.Projects, userID, name string) (string, error) {
+func uniqueSlugFor(p ProjectsStore, userID, name string) (string, error) {
 	base := usecase.SlugFromName(name)
 	slug := base
 	for i := 2; ; i++ {
