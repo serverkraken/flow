@@ -101,19 +101,20 @@ func (h heute) pauseCmd() tea.Cmd {
 	now := h.deps.Clock.Now()
 	mut := func() tea.Msg {
 		// New path: when ActiveSessions + UserID are wired and a session is
-		// running, stop the ActiveSessions row. Falls through to the legacy
+		// running, pause the ActiveSessions row. Falls through to the legacy
 		// SessionWriter.Pause() path when not wired.
 		if h.deps.ActiveSessions != nil && h.deps.UserID != "" && len(h.activeSessions) > 0 {
 			target := h.activeSessions[0]
-			sess, err := h.deps.ActiveSessions.Stop(h.deps.UserID, target.ProjectID, "", "")
+			sess, err := h.deps.ActiveSessions.Pause(h.deps.UserID, target.ProjectID)
 			if errors.Is(err, ports.ErrActiveSessionNotFound) {
 				return heuteActionDoneMsg{toast: "Pausiert — Session war bereits gestoppt", info: true}
 			}
 			if err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
+			elapsed := sess.Elapsed(now)
 			return heuteActionDoneMsg{
-				toast: fmt.Sprintf("%s Pausiert nach %dh %02dm", glyphs.Paused, int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60),
+				toast: fmt.Sprintf("%s Pausiert nach %dh %02dm", glyphs.Paused, int(elapsed.Hours()), int(elapsed.Minutes())%60),
 			}
 		}
 		// Legacy path: SessionWriter.Pause stops the flockstate session.
