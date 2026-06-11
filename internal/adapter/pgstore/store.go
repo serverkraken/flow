@@ -11,7 +11,10 @@ package pgstore
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -23,8 +26,23 @@ import (
 type Store struct{ pool *pgxpool.Pool }
 
 // Open connects to dsn, pings, migrates, and returns a ready Store.
+// AfterConnect registers a TimestamptzCodec with ScanLocation=UTC so that
+// TIMESTAMPTZ values are always decoded into UTC time.Time regardless of
+// the host machine's local timezone.
 func Open(ctx context.Context, dsn string) (*Store, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: parse config: %w", err)
+	}
+	cfg.AfterConnect = func(_ context.Context, conn *pgx.Conn) error {
+		conn.TypeMap().RegisterType(&pgtype.Type{
+			Name:  "timestamptz",
+			OID:   pgtype.TimestamptzOID,
+			Codec: &pgtype.TimestamptzCodec{ScanLocation: time.UTC},
+		})
+		return nil
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: open pool: %w", err)
 	}

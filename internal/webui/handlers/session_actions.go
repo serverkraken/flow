@@ -485,8 +485,12 @@ func mergeSessionUpdate(existing domain.Session, r *http.Request, loc *time.Loca
 }
 
 // combineDateTime anchors a wall-clock time to a calendar date in loc.
+// clock is normalised to loc before extracting hour/minute so that a
+// timestamp returned from pgx in CEST still yields the correct wall-clock
+// position when loc is UTC (or vice-versa).
 func combineDateTime(date, clock time.Time, loc *time.Location) time.Time {
-	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, loc)
+	c := clock.In(loc)
+	return time.Date(date.Year(), date.Month(), date.Day(), c.Hour(), c.Minute(), 0, 0, loc)
 }
 
 // buildSessionRowVM turns a finished session into the partial VM with

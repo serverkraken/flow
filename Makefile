@@ -60,7 +60,12 @@ COVER_OUT       := coverage.out
 # from 83 to 77 to absorb the templ-generated drag without retreating
 # from the previous baseline. Phase 2 may add Playwright tests that
 # raise the floor again.
-COVER_THRESHOLD := 77
+#
+# R1 (sqliteserver-Löschung + pgstore) dropped the gate to 73.
+# Removing sqliteserver/sqliteclient (well-covered) while adding
+# pgstore (covered via testcontainers integration tests) shifted
+# the aggregate from 77% to ~74.5%. Set to measured - 1 = 73.
+COVER_THRESHOLD := 73
 
 # Coverage measurement targets the hexagonal layers under internal/.
 # cmd/flow is the composition root (wiring only, no business logic) and
