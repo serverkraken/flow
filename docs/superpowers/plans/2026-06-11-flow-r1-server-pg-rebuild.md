@@ -3498,7 +3498,7 @@ EOF
 - Create: `internal/adapter/httpserver/dayoffs_settings_api.go`
 - Create: `internal/adapter/httpserver/dayoffs_settings_api_test.go`
 
-- [ ] **Step 1: Failing Tests**
+- [x] **Step 1: Failing Tests**
 
 ```go
 // internal/adapter/httpserver/dayoffs_settings_api_test.go
@@ -3606,7 +3606,7 @@ func TestSettingsAPI_GetPut(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Test — Compile-FAIL erwartet**
+- [x] **Step 2: Test — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run 'TestDayOffsAPI|TestSettingsAPI' -timeout 300s 2>&1 | tail -3
@@ -3614,7 +3614,7 @@ go test ./internal/adapter/httpserver/ -run 'TestDayOffsAPI|TestSettingsAPI' -ti
 
 Expected: `undefined: MountDayOffsSettingsAPI`.
 
-- [ ] **Step 3: Implementierung**
+- [x] **Step 3: Implementierung**
 
 ```go
 // internal/adapter/httpserver/dayoffs_settings_api.go
@@ -3807,7 +3807,7 @@ func (d DayOffsSettingsAPIDeps) handleSettingsPut(w http.ResponseWriter, r *http
 }
 ```
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run 'TestDayOffsAPI|TestSettingsAPI' -v -timeout 300s 2>&1 | tail -8
@@ -3815,7 +3815,7 @@ go test ./internal/adapter/httpserver/ -run 'TestDayOffsAPI|TestSettingsAPI' -v 
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 gofumpt -w internal/adapter/httpserver/
@@ -3843,7 +3843,7 @@ EOF
 und enthält keine Geheimnisse. `min_client_version` bleibt in R1 `"0.0.0"` — R2 hebt sie an,
 sobald der neue httpapi-Client existiert.
 
-- [ ] **Step 1: Failing Test**
+- [x] **Step 1: Failing Test**
 
 ```go
 // internal/adapter/httpserver/meta_test.go
@@ -3874,7 +3874,7 @@ func TestMetaHandler(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Test — Compile-FAIL erwartet**
+- [x] **Step 2: Test — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestMetaHandler -timeout 60s 2>&1 | tail -3
@@ -3882,7 +3882,7 @@ go test ./internal/adapter/httpserver/ -run TestMetaHandler -timeout 60s 2>&1 | 
 
 Expected: `undefined: NewMetaHandler`.
 
-- [ ] **Step 3: Handler**
+- [x] **Step 3: Handler**
 
 ```go
 // internal/adapter/httpserver/meta.go
@@ -3905,7 +3905,7 @@ func NewMetaHandler(meta MetaResponse) http.Handler {
 }
 ```
 
-- [ ] **Step 4: Test grün**
+- [x] **Step 4: Test grün**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestMetaHandler -v -timeout 60s 2>&1 | tail -4
@@ -3913,7 +3913,7 @@ go test ./internal/adapter/httpserver/ -run TestMetaHandler -v -timeout 60s 2>&1
 
 Expected: PASS.
 
-- [ ] **Step 5: Makefile — Version in build-server**
+- [x] **Step 5: Makefile — Version in build-server**
 
 Im `Makefile` oben bei den Variablen ergänzen:
 
@@ -3934,7 +3934,7 @@ ist das ldflags-Flag wirkungslos, aber harmlos — `go build` warnt nicht über 
 Symbole... doch: neuere Go-Versionen loggen "unknown symbol". Falls `make build-server`
 deswegen Output zeigt: ignorieren, Task 18 löst es auf.)
 
-- [ ] **Step 6: Dockerfile + GHA**
+- [x] **Step 6: Dockerfile + GHA**
 
 In `deploy/podman/Dockerfile.server` direkt nach `FROM golang:1.25-alpine AS build`:
 
@@ -3958,7 +3958,7 @@ In `.github/workflows/build-server-image.yml` beim docker/build-push-Step ergän
             VERSION=${{ github.sha }}
 ```
 
-- [ ] **Step 7: Build-Check + Commit**
+- [x] **Step 7: Build-Check + Commit**
 
 ```bash
 go build ./... && make build-server >/dev/null && echo OK
@@ -3983,7 +3983,7 @@ EOF
 - Modify: `internal/webui/templates/worktime/today.templ` (changed-Konsum)
 - Run: `make webui-templ`
 
-- [ ] **Step 1: Heartbeat in den Events-Handler**
+- [x] **Step 1: Heartbeat in den Events-Handler**
 
 In `internal/webui/handlers/events.go`: über `func NewEvents` eine Paket-Variable einführen
 (Test-Seam) und die Event-Loop um den Ticker-Fall erweitern.
@@ -4016,7 +4016,7 @@ und die `select`-Schleife um diesen Fall erweitern (vor `case ev, open := <-ch:`
 
 Import `"time"` ergänzen.
 
-- [ ] **Step 2: Heartbeat-Test**
+- [x] **Step 2: Heartbeat-Test**
 
 Ans Ende von `internal/webui/handlers/events_test.go` (Paket `handlers_test` — der Seam
 muss deshalb über eine kleine exportierte Test-Hilfe gesetzt werden; einfacher Weg: den
@@ -4086,7 +4086,7 @@ go test ./internal/webui/handlers/ -run TestEvents_Heartbeat -v -timeout 60s 2>&
 
 Expected: PASS.
 
-- [ ] **Step 3: Bearer-oder-Cookie-Middleware**
+- [x] **Step 3: Bearer-oder-Cookie-Middleware**
 
 ```go
 // internal/adapter/httpserver/middleware_dual.go
@@ -4114,7 +4114,7 @@ func NewBearerOrCookieMiddleware(bearer, cookie func(http.Handler) http.Handler)
 }
 ```
 
-- [ ] **Step 4: Middleware-Test**
+- [x] **Step 4: Middleware-Test**
 
 ```go
 // internal/adapter/httpserver/middleware_dual_test.go
@@ -4161,7 +4161,7 @@ go test ./internal/adapter/httpserver/ -run TestBearerOrCookie -v -timeout 60s 2
 
 Expected: PASS.
 
-- [ ] **Step 5: WebUI konsumiert `changed`**
+- [x] **Step 5: WebUI konsumiert `changed`**
 
 In `internal/webui/templates/worktime/today.templ`:
 
@@ -4195,7 +4195,7 @@ make ci 2>&1 | tail -3
 
 Expected: Build + Tests + ci grün.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/adapter/httpserver/ internal/webui/handlers/
