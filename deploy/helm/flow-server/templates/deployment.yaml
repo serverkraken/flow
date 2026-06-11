@@ -5,14 +5,11 @@ metadata:
   labels:
     {{- include "flow-server.labels" . | nindent 4 }}
 spec:
-  # SQLite is single-writer. Hard-coded to 1 here regardless of
-  # .Values.replicaCount — see Chart.yaml note.
   replicas: 1
-  # Recreate strategy: kill the old pod before the new one starts so the
-  # SQLite file is never opened by two writers at once. RollingUpdate would
-  # briefly have both pods running and risk corruption.
+  # Stateless seit R1 (Postgres via CNPG) — Recreate war ein SQLite-
+  # Single-Writer-Zwang und ist Geschichte.
   strategy:
-    type: Recreate
+    type: RollingUpdate
   selector:
     matchLabels:
       {{- include "flow-server.selectorLabels" . | nindent 6 }}
@@ -47,6 +44,12 @@ spec:
             - secretRef:
                 name: {{ include "flow-server.fullname" . }}-secret
                 optional: true
+          env:
+            - name: FLOW_PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgres.existingSecret }}
+                  key: {{ .Values.postgres.secretKey }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -66,48 +69,10 @@ spec:
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           volumeMounts:
-            - name: flow-data
-              mountPath: /var/lib/flow
             # /tmp is writable scratch even with readOnlyRootFilesystem.
             - name: tmp
               mountPath: /tmp
-        {{- if .Values.litestream.enabled }}
-        - name: litestream
-          image: {{ .Values.litestream.image }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          args:
-            - replicate
-            - {{ .Values.flow.serverDBPath | quote }}
-            - {{ .Values.litestream.replicaURL | quote }}
-          env:
-            - name: LITESTREAM_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "flow-server.fullname" . }}-secret
-                  key: LITESTREAM_ACCESS_KEY_ID
-                  optional: true
-            - name: LITESTREAM_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "flow-server.fullname" . }}-secret
-                  key: LITESTREAM_SECRET_ACCESS_KEY
-                  optional: true
-          resources:
-            {{- toYaml .Values.resources.litestream | nindent 12 }}
-          securityContext:
-            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          volumeMounts:
-            - name: flow-data
-              mountPath: /var/lib/flow
-        {{- end }}
       volumes:
-        - name: flow-data
-          {{- if .Values.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ include "flow-server.fullname" . }}-data
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
         - name: tmp
           emptyDir: {}
       {{- with .Values.nodeSelector }}

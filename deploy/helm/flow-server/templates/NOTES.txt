@@ -23,40 +23,17 @@ flow-server {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" i
    Anyone whose OIDC 'sub' is not in that list gets a 403 at /auth/callback.
    To add a user, re-run helm upgrade with --set flow.allowedSubs=sub1,sub2,...
 
-3. Persistence + backups:
+3. Persistence:
 
-{{- if .Values.persistence.enabled }}
-   SQLite is stored on PVC "{{ include "flow-server.fullname" . }}-data"
-   ({{ .Values.persistence.size }}, accessMode {{ .Values.persistence.accessMode }}).
-{{- else }}
-   WARNING: persistence is disabled. The database lives in an emptyDir and
-   is wiped on every pod restart. Set persistence.enabled=true for anything
-   beyond throwaway testing.
-{{- end }}
-
-{{- if .Values.litestream.enabled }}
-   Litestream is replicating to:
-     {{ .Values.litestream.replicaURL | default "<NOT SET — replication is broken>" }}
-
-{{- if not .Values.litestream.replicaURL }}
-   WARNING: litestream.replicaURL is empty. The sidecar will crash-loop
-   until you set it via --set litestream.replicaURL=s3://bucket/path.
-{{- end }}
-{{- else }}
-   WARNING: litestream is disabled. There is no off-pod backup of the
-   database. Enable it via --set litestream.enabled=true and provide
-   litestream.replicaURL + secret.litestream* credentials.
-{{- end }}
+   Postgres DSN is read from Secret "{{ .Values.postgres.existingSecret }}"
+   (key: {{ .Values.postgres.secretKey }}). This secret must exist in namespace
+   "{{ .Release.Namespace }}" before install — CNPG creates it as
+   "<cluster-name>-app" when the cluster is ready.
 
 4. Logs:
 
    flow-server:
      kubectl --namespace {{ .Release.Namespace }} logs deployment/{{ include "flow-server.fullname" . }} -c flow-server
-{{- if .Values.litestream.enabled }}
-
-   litestream sidecar:
-     kubectl --namespace {{ .Release.Namespace }} logs deployment/{{ include "flow-server.fullname" . }} -c litestream
-{{- end }}
 
 5. Health:
 
