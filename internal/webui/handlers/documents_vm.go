@@ -34,7 +34,6 @@ func buildDocumentsIndexVM(entries []flowports.DocumentEntry, query string, cloc
 	vm := notestmpl.IndexVM{
 		ActiveTab:  notestmpl.TabAlle,
 		Query:      query,
-		Configured: true, // documents-API ist immer da — kein NOTEBOOK_ROOT-Placeholder mehr
 		Rows:       rows,
 		TotalLabel: documentsTotalLabel(len(rows)),
 	}

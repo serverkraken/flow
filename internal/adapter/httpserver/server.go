@@ -96,8 +96,8 @@ func NewWithAuth(d AuthDeps) *Server {
 // keep the composition root's cognitive complexity below the lint gate;
 // the function is purely declarative (each `if` is a nil-guard around a
 // single route registration). Each handler field is nil-guarded so
-// partial wiring (e.g. notebook root unset) doesn't crash the rest of
-// the WebUI.
+// partial wiring (e.g. in handler tests that mount a subset) doesn't
+// crash the rest of the WebUI.
 func mountWebUI(r chi.Router, d AuthDeps) {
 	if d.WebUI == nil {
 		return

@@ -9,9 +9,6 @@ type IndexVM struct {
 	// Query is the verbatim ?q= input, echoed back into the search
 	// field so the user can refine without retyping.
 	Query string
-	// Configured == false renders the "Notes nicht konfiguriert"
-	// placeholder and skips the list + filter row.
-	Configured bool
 	// Rows are the notes shown in the list. Sorted in the handler;
 	// templates never re-sort.
 	Rows []IndexRow
@@ -45,12 +42,8 @@ type IndexRow struct {
 templ Index(vm IndexVM) {
 	@pageHead(vm)
 	@subTabs(vm.ActiveTab)
-	if !vm.Configured {
-		@notConfiguredPlaceholder()
-	} else {
-		@filterRow(vm)
-		@list(vm)
-	}
+	@filterRow(vm)
+	@list(vm)
 	@footerNote()
 }
 
@@ -158,19 +151,6 @@ templ emptyState(reason string) {
 					Das Notebook ist leer. Mit <code class="kbd">flow kompendium new</code> kannst du in der CLI eine Note anlegen.
 				</p>
 		}
-	</section>
-}
-
-templ notConfiguredPlaceholder() {
-	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="notes-not-configured">
-		<div class="eyebrow" style="margin-bottom: 0.5rem;">notes nicht konfiguriert</div>
-		<p style="color: var(--color-fg); margin: 0 0 0.75rem; max-width: 60ch;">
-			Setze <code class="kbd">$FLOW_NOTEBOOK_ROOT</code> auf das Verzeichnis deines kompendium-Notebooks,
-			damit die WebUI hier deine Notes anzeigen kann.
-		</p>
-		<p style="color: var(--color-fg-dim); font-size: 0.875rem; margin: 0; max-width: 60ch;">
-			Phase-1 ist single-user; ein Notebook pro Server reicht. Multi-User-Notebooks folgen in Phase 2.
-		</p>
 	</section>
 }
 
