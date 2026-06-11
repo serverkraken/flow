@@ -162,7 +162,7 @@ Kein Commit in diesem Task.
 **Files:**
 - Modify: `go.mod`, `go.sum`
 
-- [ ] **Step 1: Pakete holen**
+- [x] **Step 1: Pakete holen**
 
 ```bash
 go get github.com/jackc/pgx/v5@latest
@@ -173,7 +173,7 @@ go mod tidy
 Expected: `go: added github.com/jackc/pgx/v5 v5.x.y` (+ pgpassfile/pgservicefile/puddle
 indirekt). Das postgres-Modul MUSS dieselbe Version wie testcontainers-go (v0.42.0) haben.
 
-- [ ] **Step 2: Build-Check**
+- [x] **Step 2: Build-Check**
 
 ```bash
 go build ./...
@@ -181,7 +181,7 @@ go build ./...
 
 Expected: Exit 0.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add go.mod go.sum
