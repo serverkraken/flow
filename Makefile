@@ -1,3 +1,4 @@
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 BIN             := flow
 PKG             := ./cmd/flow
 COVER_OUT       := coverage.out
@@ -110,7 +111,7 @@ ci: lint cover build
 
 build-server:
 	@mkdir -p bin
-	go build -o bin/flow-server ./cmd/flow-server
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/flow-server ./cmd/flow-server
 
 build-mcp:
 	@mkdir -p bin

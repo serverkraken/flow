@@ -90,3 +90,5 @@ jobs:
             org.opencontainers.image.title=flow-server
           cache-from: type=gha,scope=flow-server
           cache-to: type=gha,mode=max,scope=flow-server
+          build-args: |
+            VERSION=${{ github.sha }}

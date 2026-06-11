@@ -21,6 +21,7 @@
 
 FROM golang:1.25-alpine AS build
 WORKDIR /src
+ARG VERSION=dev
 
 # Build deps: git for VCS stamping, make for the webui targets,
 # nodejs + npm for tailwind + codemirror toolchains.
@@ -51,7 +52,7 @@ RUN make webui
 # DWARF + symbol tables. `runtime/debug.ReadBuildInfo` picks up the VCS
 # revision from the .git checkout copied above.
 RUN CGO_ENABLED=0 GOFLAGS="-trimpath" go build \
-    -ldflags="-s -w" \
+    -ldflags="-s -w -X main.version=${VERSION}" \
     -o /out/flow-server ./cmd/flow-server
 
 # --- runtime ---------------------------------------------------------------
