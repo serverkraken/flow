@@ -1,4 +1,4 @@
-// internal/adapter/httpserver/documents_api.go
+// Package httpserver implements the REST and bearer APIs.
 //
 // R1 Bearer-API für documents (Spec §7) inkl. /repos/{key}/note-Alias.
 // Pfad-Konvention für Repo-Notes (Spec §6):

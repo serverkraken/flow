@@ -23,10 +23,16 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/webui/sse"
 )
+
+// heartbeatInterval keeps idle SSE connections alive through ingress
+// proxies (Spec §7: Heartbeat-Kommentar alle 25 s; nginx-Idle-Timeouts
+// liegen typisch bei 60 s). Paket-Variable als Test-Seam.
+var heartbeatInterval = 25 * time.Second
 
 // NewEvents returns the handler for GET /api/v1/events. The handler is
 // long-lived: it holds the response open and streams events until the
@@ -65,32 +71,47 @@ func NewEvents(b *sse.Broadcaster) http.Handler {
 		}
 		flusher.Flush()
 
+		hb := time.NewTicker(heartbeatInterval)
+		defer hb.Stop()
+
 		for {
 			select {
 			case <-r.Context().Done():
 				return
+			case <-hb.C:
+				if _, err := fmt.Fprint(w, ": hb\n\n"); err != nil {
+					return
+				}
+				flusher.Flush()
 			case ev, open := <-ch:
 				if !open {
 					// Broadcaster cancelled the channel (e.g. server
 					// shutdown). Nothing further to send.
 					return
 				}
-				data, err := json.Marshal(ev.Data)
-				if err != nil {
-					slog.Warn(
-						"sse: marshal failed; sending empty data",
-						slog.String("user_id", u.ID),
-						slog.String("event_type", ev.Type),
-						slog.String("err", err.Error()),
-					)
-					data = []byte("null")
-				}
-				if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, data); err != nil {
-					// Write failed — client disconnected mid-stream.
+				if err := writeEvent(w, flusher, ev, u.ID); err != nil {
 					return
 				}
-				flusher.Flush()
 			}
 		}
 	})
+}
+
+func writeEvent(w http.ResponseWriter, flusher http.Flusher, ev sse.Event, userID string) error {
+	data, err := json.Marshal(ev.Data)
+	if err != nil {
+		slog.Warn(
+			"sse: marshal failed; sending empty data",
+			slog.String("user_id", userID),
+			slog.String("event_type", ev.Type),
+			slog.String("err", err.Error()),
+		)
+		data = []byte("null")
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Type, data); err != nil {
+		// Write failed — client disconnected mid-stream.
+		return err
+	}
+	flusher.Flush()
+	return nil
 }

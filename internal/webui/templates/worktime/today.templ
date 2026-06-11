@@ -72,7 +72,7 @@ templ Today(vm TodayVM) {
 		     would silently do nothing. hx-swap="none" keeps swap() a no-op;
 		     we only need the event-name listeners as a side effect of
 		     registration so htmx:sseMessage bubbles to the body listener. -->
-		<div sse-swap="tick,session.started,session.stopped,session.updated,session.deleted" hx-swap="none" hidden></div>
+		<div sse-swap="tick,changed,session.started,session.stopped,session.updated,session.deleted" hx-swap="none" hidden></div>
 		@pageHead(vm.Header)
 		@subTabs(TabHeute)
 		@partials.LiveBannerContainer(partials.LiveBannerContainerVM{
@@ -129,7 +129,7 @@ templ sseTodayScript() {
 				el.textContent = fmt(elapsed);
 				return;
 			}
-			if (t === 'session.started' || t === 'session.stopped' ||
+			if (t === 'changed' || t === 'session.started' || t === 'session.stopped' ||
 				t === 'session.updated' || t === 'session.deleted') {
 				if (reloadPending) return;
 				reloadPending = true;

@@ -193,4 +193,3 @@ func (b *Broadcaster) PublishAll(ev Event) {
 func (b *Broadcaster) Changed(userID, resource string) {
 	b.Publish(userID, Event{Type: "changed", Data: map[string]string{"resource": resource}})
 }
-

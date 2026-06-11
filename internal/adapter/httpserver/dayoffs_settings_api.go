@@ -1,4 +1,4 @@
-// internal/adapter/httpserver/dayoffs_settings_api.go
+// Package httpserver implements the REST and bearer APIs.
 //
 // R1 Bearer-API für Day-Offs + User-Settings (Spec §7). Settings sind ein
 // flaches key/value-Objekt; nur bekannte Keys werden akzeptiert und

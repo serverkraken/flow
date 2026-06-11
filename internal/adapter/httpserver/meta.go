@@ -1,4 +1,4 @@
-// internal/adapter/httpserver/meta.go
+// Package httpserver implements the REST and bearer APIs.
 package httpserver
 
 import "net/http"
@@ -12,7 +12,7 @@ type MetaResponse struct {
 
 // NewMetaHandler returns the GET /api/v1/meta handler.
 func NewMetaHandler(meta MetaResponse) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, meta)
 	})
 }

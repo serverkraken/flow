@@ -312,6 +312,8 @@ linters:
             - github.com/prometheus/client_golang/prometheus
             - github.com/prometheus/client_golang/prometheus/promauto
             - github.com/prometheus/client_golang/prometheus/promhttp
+            # SSE broadcaster for live updates
+            - github.com/serverkraken/flow/internal/webui/sse
         frontend-cli:
           list-mode: strict
           files:

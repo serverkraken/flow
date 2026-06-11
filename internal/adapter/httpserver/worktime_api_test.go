@@ -4,7 +4,6 @@ package httpserver
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -205,5 +204,4 @@ func TestWorktimeAPI_SessionsCRUDAndBulk(t *testing.T) {
 	if len(page.Items) != 1 {
 		t.Errorf("bulk idempotency: want 1 session, got %d", len(page.Items))
 	}
-	fmt.Sprint() // keep fmt import
 }

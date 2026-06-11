@@ -1,4 +1,4 @@
-// internal/adapter/httpserver/worktime_api.go
+// Package httpserver implements the REST and bearer APIs.
 //
 // R1 Bearer-API für Worktime (Spec §7). Ersetzt die alten pull/push-Sync-
 // Routen. DTOs sind snake_case-JSON; If-Match trägt die nackte Versions-
