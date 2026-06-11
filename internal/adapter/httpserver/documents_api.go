@@ -73,7 +73,6 @@ func docPath(r *http.Request) string {
 	return p
 }
 
-
 // repoNotePath is THE path convention for repo notes (Spec §6).
 func repoNotePath(canonicalKey string) string {
 	return "repos/" + url.PathEscape(canonicalKey) + ".md"
