@@ -1002,7 +1002,7 @@ Settings liefert auch den Timezone-Helper, den Sessions (Task 6) und die
 Active-Statemachine (Task 7) für den Buchungstag brauchen (Spec §6: `day` = `started_at`
 in User-Zeitzone, Default `Europe/Berlin`).
 
-- [ ] **Step 1: Failing Tests**
+- [x] **Step 1: Failing Tests**
 
 ```go
 // internal/adapter/pgstore/settings_test.go
@@ -1120,7 +1120,7 @@ func TestDayOffs_PutListDelete(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Tests — Compile-FAIL erwartet**
+- [x] **Step 2: Tests — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run 'TestSettings|TestDayOffs' -timeout 180s 2>&1 | tail -3
@@ -1128,7 +1128,7 @@ go test ./internal/adapter/pgstore/... -run 'TestSettings|TestDayOffs' -timeout 
 
 Expected: `undefined: pgstore.NewSettings`.
 
-- [ ] **Step 3: Implementierung Settings**
+- [x] **Step 3: Implementierung Settings**
 
 ```go
 // internal/adapter/pgstore/settings.go
@@ -1212,7 +1212,7 @@ func mustBerlin() *time.Location {
 WICHTIG: ersetze den String-Vergleich in `Get` durch `errors.Is(err, pgx.ErrNoRows)` mit
 Imports `errors` + `github.com/jackc/pgx/v5` (sauberer; der Block oben zeigt die Stelle).
 
-- [ ] **Step 4: Implementierung DayOffs**
+- [x] **Step 4: Implementierung DayOffs**
 
 ```go
 // internal/adapter/pgstore/dayoffs.go
@@ -1278,7 +1278,7 @@ func (d *DayOffs) Delete(userID string, day time.Time) error {
 }
 ```
 
-- [ ] **Step 5: Tests grün**
+- [x] **Step 5: Tests grün**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run 'TestSettings|TestDayOffs' -v -timeout 180s 2>&1 | tail -8
@@ -1286,7 +1286,7 @@ go test ./internal/adapter/pgstore/... -run 'TestSettings|TestDayOffs' -v -timeo
 
 Expected: alle PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/adapter/pgstore/
