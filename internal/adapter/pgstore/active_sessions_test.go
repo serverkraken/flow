@@ -3,6 +3,7 @@ package pgstore_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -108,5 +109,96 @@ func TestActive_StopDuringPauseEndsPause(t *testing.T) {
 	wall := sess.Stop.Sub(started.StartedAt)
 	if sess.Elapsed > wall {
 		t.Errorf("elapsed %v exceeds wall time %v", sess.Elapsed, wall)
+	}
+}
+
+func TestActiveSessionsCorrectStart(t *testing.T) {
+	t.Parallel()
+	a := pgstore.NewActiveSessions(testStore, pgstore.NewSessions(testStore), pgstore.NewSettings(testStore))
+
+	tests := []struct {
+		name         string
+		setup        func(uid, pid string) error
+		startedAt    func() time.Time
+		wantErr      bool
+		wantSentinel error
+		checkVersion func(t *testing.T, before, after int64)
+	}{
+		{
+			name: "shifts started_at and increments version",
+			setup: func(uid, pid string) error {
+				_, err := a.Start(uid, pid, time.Time{}, "mac", 0, "", "")
+				return err
+			},
+			startedAt: func() time.Time { return time.Now().UTC().Add(-1 * time.Hour) },
+			wantErr:   false,
+			checkVersion: func(t *testing.T, before, after int64) {
+				if after <= before {
+					t.Errorf("version should increase: %d <= %d", after, before)
+				}
+			},
+		},
+		{
+			name:         "non-existent session returns ErrActiveSessionNotFound",
+			setup:        func(_, _ string) error { return nil },
+			startedAt:    func() time.Time { return time.Now().UTC().Add(-1 * time.Hour) },
+			wantErr:      true,
+			wantSentinel: ports.ErrActiveSessionNotFound,
+		},
+		{
+			name: "future time returns error",
+			setup: func(uid, pid string) error {
+				_, err := a.Start(uid, pid, time.Time{}, "mac", 0, "", "")
+				return err
+			},
+			startedAt: func() time.Time { return time.Now().UTC().Add(1 * time.Hour) },
+			wantErr:   true,
+		},
+	}
+
+	for i, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			uid := mustUser(t, fmt.Sprintf("cs-user-%d", i))
+			pid := mustProject(t, uid, fmt.Sprintf("cs-proj-%d", i))
+
+			if err := tc.setup(uid, pid); err != nil {
+				t.Fatalf("setup: %v", err)
+			}
+
+			// Capture version before correction (if session exists)
+			var versionBefore int64
+			if cur, err := a.Get(uid, pid); err == nil {
+				versionBefore = cur.Version
+			}
+
+			corrected, err := a.CorrectStart(uid, pid, tc.startedAt())
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if tc.wantSentinel != nil && !errors.Is(err, tc.wantSentinel) {
+					t.Errorf("want sentinel %v, got %v", tc.wantSentinel, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.checkVersion != nil {
+				tc.checkVersion(t, versionBefore, corrected.Version)
+			}
+			// Verify started_at was updated
+			diff := corrected.StartedAt.Sub(tc.startedAt().Truncate(time.Second))
+			if diff < 0 {
+				diff = -diff
+			}
+			if diff > 2*time.Second {
+				t.Errorf("StartedAt not updated: got %v, want ~%v", corrected.StartedAt, tc.startedAt())
+			}
+			// Cleanup: stop the session
+			_, _ = a.Stop(uid, pid, corrected.Version, "", "")
+		})
 	}
 }

@@ -39,11 +39,18 @@ type WorktimeActiveStore interface {
 	Stop(userID, projectID string, expectedVersion int64, tag, note string) (domain.Session, error)
 	Pause(userID, projectID string) (domain.ActiveSession, error)
 	Resume(userID, projectID string) (domain.ActiveSession, error)
+	CorrectStart(userID, projectID string, startedAt time.Time) (domain.ActiveSession, error)
 }
 
 // TimezoneResolver liefert die Buchungs-Zeitzone des Users (pgstore.Settings).
 type TimezoneResolver interface {
 	Location(userID string) *time.Location
+}
+
+// ProjectToucher is optional — when set, the active/start handler updates
+// last_used_at on the project after a successful session start.
+type ProjectToucher interface {
+	TouchLastUsed(userID, projectID string) error
 }
 
 // WorktimeAPIDeps bundles the worktime API dependencies. Bus is optional
@@ -53,6 +60,7 @@ type WorktimeAPIDeps struct {
 	Active   WorktimeActiveStore
 	Settings TimezoneResolver
 	Bus      *sse.Broadcaster
+	Projects ProjectToucher // optional — updates last_used_at on start
 }
 
 func (d WorktimeAPIDeps) changed(userID string) {
@@ -74,6 +82,7 @@ func MountWorktimeAPI(r chi.Router, d WorktimeAPIDeps) {
 	r.Post("/worktime/active/stop", d.handleActiveStop)
 	r.Post("/worktime/active/pause", d.handleActivePause)
 	r.Post("/worktime/active/resume", d.handleActiveResume)
+	r.Post("/worktime/active/correct", d.handleActiveCorrect)
 }
 
 // — DTOs ---------------------------------------------------------------------
@@ -353,6 +362,12 @@ func (d WorktimeAPIDeps) handleActiveStart(w http.ResponseWriter, r *http.Reques
 		apiError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if d.Projects != nil {
+		if terr := d.Projects.TouchLastUsed(user.ID, in.ProjectID); terr != nil {
+			// Non-fatal: log but do not fail the request.
+			_ = terr
+		}
+	}
 	d.changed(user.ID)
 	writeJSON(w, http.StatusOK, toActiveDTO(a))
 }
@@ -406,6 +421,33 @@ func (d WorktimeAPIDeps) pauseResume(w http.ResponseWriter, r *http.Request, op 
 		return
 	}
 	a, err := op(user.ID, in.ProjectID)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		apiError(w, http.StatusNotFound, "keine aktive Session für dieses Projekt")
+		return
+	}
+	if err != nil {
+		apiError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	d.changed(user.ID)
+	writeJSON(w, http.StatusOK, toActiveDTO(a))
+}
+
+func (d WorktimeAPIDeps) handleActiveCorrect(w http.ResponseWriter, r *http.Request) {
+	user, _ := UserFromContext(r.Context())
+	var in struct {
+		ProjectID string    `json:"project_id"`
+		StartedAt time.Time `json:"started_at"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.ProjectID == "" {
+		apiError(w, http.StatusUnprocessableEntity, "project_id und started_at erforderlich")
+		return
+	}
+	if in.StartedAt.IsZero() {
+		apiError(w, http.StatusUnprocessableEntity, "started_at fehlt")
+		return
+	}
+	a, err := d.Active.CorrectStart(user.ID, in.ProjectID, in.StartedAt)
 	if errors.Is(err, ports.ErrActiveSessionNotFound) {
 		apiError(w, http.StatusNotFound, "keine aktive Session für dieses Projekt")
 		return

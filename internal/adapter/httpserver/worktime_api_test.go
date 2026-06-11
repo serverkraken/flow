@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -121,6 +122,51 @@ func TestWorktimeAPI_ActiveLifecycle(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("double stop: want 404, got %d", rec.Code)
 	}
+}
+
+func TestHandleActiveCorrect(t *testing.T) {
+	e := newWorktimeAPIEnv(t, "api-correct-1")
+
+	// Start a session first
+	rec := e.do(t, "POST", "/worktime/active/start",
+		map[string]string{"project_id": e.projID}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("start: %d %s", rec.Code, rec.Body)
+	}
+	var started map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &started)
+	versionBefore := int64(started["version"].(float64))
+
+	// Successful correct: shift started_at back by 1 hour
+	newStart := time.Now().UTC().Add(-1 * time.Hour).Format(time.RFC3339)
+	rec = e.do(t, "POST", "/worktime/active/correct",
+		map[string]any{"project_id": e.projID, "started_at": newStart}, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("correct: %d %s", rec.Code, rec.Body)
+	}
+	var corrected map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &corrected)
+	versionAfter := int64(corrected["version"].(float64))
+	if versionAfter <= versionBefore {
+		t.Errorf("version should increase: %d <= %d", versionAfter, versionBefore)
+	}
+
+	// 404 for non-existent project session
+	rec = e.do(t, "POST", "/worktime/active/correct",
+		map[string]any{"project_id": "00000000-0000-0000-0000-000000000099", "started_at": newStart}, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("want 404 for missing session, got %d", rec.Code)
+	}
+
+	// 422 for missing project_id
+	rec = e.do(t, "POST", "/worktime/active/correct",
+		map[string]any{"started_at": newStart}, nil)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("want 422 for missing project_id, got %d", rec.Code)
+	}
+
+	// Cleanup: stop the session
+	_ = e.do(t, "POST", "/worktime/active/stop", map[string]string{"project_id": e.projID}, nil)
 }
 
 func TestWorktimeAPI_SessionsCRUDAndBulk(t *testing.T) {

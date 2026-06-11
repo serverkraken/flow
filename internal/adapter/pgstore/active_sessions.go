@@ -3,6 +3,7 @@ package pgstore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -180,6 +181,29 @@ func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, er
 	row := a.store.Pool().QueryRow(context.Background(),
 		`SELECT `+activeCols+` FROM active_sessions WHERE user_id = $1 AND project_id = $2`,
 		userID, projectID)
+	out, err := scanActive(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ActiveSession{}, ports.ErrActiveSessionNotFound
+	}
+	return out, err
+}
+
+// CorrectStart updates the started_at timestamp for an existing active session.
+// startedAt must not be in the future and not after now.
+// Missing row → ErrActiveSessionNotFound.
+func (a *ActiveSessions) CorrectStart(userID, projectID string, startedAt time.Time) (domain.ActiveSession, error) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	startedAt = startedAt.UTC()
+	if startedAt.After(now) {
+		return domain.ActiveSession{}, fmt.Errorf("pgstore: CorrectStart: startedAt liegt in der Zukunft")
+	}
+	row := a.store.Pool().QueryRow(ctx, `
+		UPDATE active_sessions
+		   SET started_at = $3, version = version + 1
+		 WHERE user_id = $1 AND project_id = $2
+		RETURNING `+activeCols,
+		userID, projectID, startedAt)
 	out, err := scanActive(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.ActiveSession{}, ports.ErrActiveSessionNotFound
