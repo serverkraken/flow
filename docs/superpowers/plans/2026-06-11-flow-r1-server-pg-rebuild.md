@@ -2034,7 +2034,7 @@ EOF
 - Create: `internal/adapter/pgstore/documents.go`
 - Create: `internal/adapter/pgstore/documents_test.go`
 
-- [ ] **Step 1: Port definieren**
+- [x] **Step 1: Port definieren**
 
 ```go
 // internal/ports/documents.go
@@ -2087,7 +2087,7 @@ var ErrDocumentNotFound = errSentinel("flow: document not found")
 var ErrDocumentVersionConflict = errSentinel("flow: document version conflict")
 ```
 
-- [ ] **Step 2: Failing Tests**
+- [x] **Step 2: Failing Tests**
 
 ```go
 // internal/adapter/pgstore/documents_test.go
@@ -2200,7 +2200,7 @@ func TestDocuments_ListPrefixAndFTS(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Tests — Compile-FAIL erwartet**
+- [x] **Step 3: Tests — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestDocuments -timeout 180s 2>&1 | tail -3
@@ -2208,7 +2208,7 @@ go test ./internal/adapter/pgstore/... -run TestDocuments -timeout 180s 2>&1 | t
 
 Expected: `undefined: pgstore.NewDocuments`.
 
-- [ ] **Step 4: Implementierung**
+- [x] **Step 4: Implementierung**
 
 ```go
 // internal/adapter/pgstore/documents.go
@@ -2342,7 +2342,7 @@ func scanDocument(r rowScanner) (ports.Document, error) {
 }
 ```
 
-- [ ] **Step 5: Tests grün + ci-Checkpoint**
+- [x] **Step 5: Tests grün + ci-Checkpoint**
 
 ```bash
 go test ./internal/adapter/pgstore/... -v -timeout 300s 2>&1 | tail -10
@@ -2352,7 +2352,7 @@ make ci 2>&1 | tail -3
 Expected: alle pgstore-Tests PASS, `make ci` grün (neuer, gut getesteter Code hebt die
 Coverage eher).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/ports/documents.go internal/adapter/pgstore/

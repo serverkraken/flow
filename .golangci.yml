@@ -299,6 +299,12 @@ linters:
             - github.com/google/uuid
             - github.com/serverkraken/flow/internal/adapter/sqliteclient/migrations
             - github.com/serverkraken/flow/internal/adapter/sqliteserver/migrations
+            # Postgres support (R1)
+            - github.com/jackc/pgx/v5
+            - github.com/jackc/pgx/v5/pgxpool
+            - github.com/jackc/pgx/v5/stdlib
+            - github.com/jackc/pgx/v5/pgconn
+            - github.com/serverkraken/flow/internal/adapter/pgstore/migrations
             # Prometheus instrumentation (Plan F · Task 6). httpserver
             # owns the global collectors + /metrics handler and exposes
             # the same default registry the sse broadcaster registers

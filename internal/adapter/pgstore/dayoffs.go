@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/dayoffs.go
 package pgstore
 
 import (
@@ -13,6 +12,7 @@ import (
 // its own server shape; the httpserver handlers depend on it directly.
 type DayOffs struct{ store *Store }
 
+// NewDayOffs creates a new DayOffs adapter.
 func NewDayOffs(s *Store) *DayOffs { return &DayOffs{store: s} }
 
 // List returns the user's day-offs within the given year, ordered by day.

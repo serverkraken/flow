@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/users.go
 package pgstore
 
 import (
@@ -15,6 +14,7 @@ import (
 // Users implements ports.UserStore on PG.
 type Users struct{ store *Store }
 
+// NewUsers creates a new Users adapter.
 func NewUsers(s *Store) *Users { return &Users{store: s} }
 
 var _ ports.UserStore = (*Users)(nil)
@@ -33,12 +33,14 @@ func (u *Users) EnsureBySub(sub, email, displayName string) (domain.User, error)
 	return scanUser(row)
 }
 
+// GetByID retrieves a user by ID.
 func (u *Users) GetByID(id string) (domain.User, error) {
 	row := u.store.Pool().QueryRow(context.Background(),
 		`SELECT `+userCols+` FROM users WHERE id = $1`, id)
 	return scanUser(row)
 }
 
+// GetBySub retrieves a user by their OIDC sub.
 func (u *Users) GetBySub(sub string) (domain.User, error) {
 	row := u.store.Pool().QueryRow(context.Background(),
 		`SELECT `+userCols+` FROM users WHERE oidc_sub = $1`, sub)

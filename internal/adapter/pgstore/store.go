@@ -1,5 +1,3 @@
-// internal/adapter/pgstore/store.go
-//
 // Package pgstore implements flow-server's persistence on PostgreSQL
 // (pgx/v5 + goose PG migrations). It replaces internal/adapter/sqliteserver
 // in the R1 server-only rebuild. Sub-adapters (Users, Projects, Sessions,

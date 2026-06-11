@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/settings.go
 package pgstore
 
 import (
@@ -12,6 +11,7 @@ import (
 // Settings stores per-user key/value settings ("daily_target", "timezone").
 type Settings struct{ store *Store }
 
+// NewSettings creates a new Settings adapter.
 func NewSettings(s *Store) *Settings { return &Settings{store: s} }
 
 // Get returns the value or "" when the key is unset.
@@ -28,6 +28,7 @@ func (s *Settings) Get(userID, key string) (string, error) {
 	return v, nil
 }
 
+// Set sets a key/value setting for a user.
 func (s *Settings) Set(userID, key, value string) error {
 	_, err := s.store.Pool().Exec(context.Background(), `
 		INSERT INTO user_settings (user_id, key, value) VALUES ($1, $2, $3)

@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/sessions.go
 package pgstore
 
 import (
@@ -15,6 +14,7 @@ import (
 // Sessions mirrors the sqliteserver.Sessions surface (minus PullSince) on PG.
 type Sessions struct{ store *Store }
 
+// NewSessions creates a new Sessions adapter.
 func NewSessions(s *Store) *Sessions { return &Sessions{store: s} }
 
 const sessionCols = `id, user_id, project_id, day, started_at, stopped_at, tag, note, version, updated_at`
@@ -49,6 +49,7 @@ func (s *Sessions) ListByUserDateRange(userID string, from, to time.Time) ([]dom
 	return out, rows.Err()
 }
 
+// GetByID retrieves a session by ID for a user.
 func (s *Sessions) GetByID(userID, id string) (domain.Session, error) {
 	row := s.store.Pool().QueryRow(context.Background(),
 		`SELECT `+sessionCols+` FROM sessions WHERE user_id = $1 AND id = $2`, userID, id)

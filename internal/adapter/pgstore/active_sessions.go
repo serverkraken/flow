@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/active_sessions.go
 package pgstore
 
 import (
@@ -24,6 +23,7 @@ type ActiveSessions struct {
 	settings *Settings
 }
 
+// NewActiveSessions creates a new ActiveSessions adapter.
 func NewActiveSessions(s *Store, sessions *Sessions, settings *Settings) *ActiveSessions {
 	return &ActiveSessions{store: s, sessions: sessions, settings: settings}
 }
@@ -155,6 +155,7 @@ func (a *ActiveSessions) Resume(userID, projectID string) (domain.ActiveSession,
 	return a.Get(userID, projectID)
 }
 
+// ListByUser lists all active sessions for a user.
 func (a *ActiveSessions) ListByUser(userID string) ([]domain.ActiveSession, error) {
 	rows, err := a.store.Pool().Query(context.Background(),
 		`SELECT `+activeCols+` FROM active_sessions WHERE user_id = $1 ORDER BY started_at ASC`,
@@ -174,6 +175,7 @@ func (a *ActiveSessions) ListByUser(userID string) ([]domain.ActiveSession, erro
 	return out, rows.Err()
 }
 
+// Get retrieves a specific active session by user and project.
 func (a *ActiveSessions) Get(userID, projectID string) (domain.ActiveSession, error) {
 	row := a.store.Pool().QueryRow(context.Background(),
 		`SELECT `+activeCols+` FROM active_sessions WHERE user_id = $1 AND project_id = $2`,

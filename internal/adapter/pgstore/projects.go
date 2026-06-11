@@ -1,4 +1,3 @@
-// internal/adapter/pgstore/projects.go
 package pgstore
 
 import (
@@ -16,14 +15,17 @@ import (
 // Projects mirrors the sqliteserver.Projects surface (minus PullSince) on PG.
 type Projects struct{ store *Store }
 
+// NewProjects creates a new Projects adapter.
 func NewProjects(s *Store) *Projects { return &Projects{store: s} }
 
 const projectCols = `id, user_id, name, slug, archived_at, created_at, last_used_at, version, updated_at`
 
+// ListActive lists all non-archived projects for the user.
 func (p *Projects) ListActive(userID string) ([]domain.Project, error) {
 	return p.list(userID, `AND archived_at IS NULL`)
 }
 
+// ListAll lists all projects for the user including archived ones.
 func (p *Projects) ListAll(userID string) ([]domain.Project, error) {
 	return p.list(userID, ``)
 }
@@ -47,12 +49,14 @@ func (p *Projects) list(userID, extraCond string) ([]domain.Project, error) {
 	return out, rows.Err()
 }
 
+// GetByID retrieves a project by ID.
 func (p *Projects) GetByID(userID, id string) (domain.Project, error) {
 	row := p.store.Pool().QueryRow(context.Background(),
 		`SELECT `+projectCols+` FROM projects WHERE user_id = $1 AND id = $2`, userID, id)
 	return scanProjectNotFound(row)
 }
 
+// GetBySlug retrieves a project by slug.
 func (p *Projects) GetBySlug(userID, slug string) (domain.Project, error) {
 	row := p.store.Pool().QueryRow(context.Background(),
 		`SELECT `+projectCols+` FROM projects WHERE user_id = $1 AND slug = $2`, userID, slug)
@@ -104,12 +108,14 @@ func (p *Projects) Upsert(in domain.Project, expectedVersion int64) (domain.Proj
 	return out, err
 }
 
+// TouchLastUsed updates the last_used_at timestamp of a project.
 func (p *Projects) TouchLastUsed(userID, id string) error {
 	_, err := p.store.Pool().Exec(context.Background(),
 		`UPDATE projects SET last_used_at = now() WHERE user_id = $1 AND id = $2`, userID, id)
 	return err
 }
 
+// Archive archives a project by setting archived_at.
 func (p *Projects) Archive(userID, id string) error {
 	_, err := p.store.Pool().Exec(context.Background(),
 		`UPDATE projects SET archived_at = now(), version = version + 1, updated_at = now()

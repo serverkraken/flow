@@ -1,5 +1,3 @@
-// internal/testutil/pgtest/pg.go
-//
 // Package pgtest starts a throwaway PostgreSQL container for store and
 // handler tests. Mirrors the oidctest dex pattern, but fails loud instead
 // of skipping: pgstore tests ARE the core test surface after R1, a silent
