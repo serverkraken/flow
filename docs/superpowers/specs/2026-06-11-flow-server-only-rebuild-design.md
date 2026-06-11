@@ -2,6 +2,7 @@
 
 **Datum:** 2026-06-11
 **Status:** approved (Brainstorm-Sektionen 1–3 abgenommen 2026-06-11)
+**Amendment A1 (2026-06-11 abends, zur Abnahme):** Ergebnis des kritischen Konzept-Reviews nach R1 — (1) `document_revisions` als Sicherheitsnetz, bevor MCP/Claude Schreibzugriff bekommt; (2) `flow docs export` als Plaintext-Escape-Hatch; (3) Nutzungs-Gates („nutzbar" definiert, Dogfood-Gate nach R2, Milestone-DoD). Betroffene Abschnitte: §6, §7, §11, §13, §14, §15, §16.
 **Scope:** Konzeptueller Reset des `next`-Branches: Server wird einzige Wahrheit, Clients werden dünn, Postgres ersetzt SQLite server-seitig, Kompendium-Dokumente werden erstklassige Server-Resource. Ersetzt die Sync-Architektur aus `2026-06-02-flow-client-server-phase1-design.md`; alles dort nicht Widersprochene (OIDC, Hosting, WebUI-Stack, Hexagonal-Layout) gilt weiter.
 
 ## 1. Ausgangslage & Diagnose
@@ -128,6 +129,21 @@ CREATE TABLE documents (
 CREATE UNIQUE INDEX documents_repo_key ON documents (user_id, repo_key) WHERE repo_key IS NOT NULL;
 CREATE INDEX documents_search ON documents USING gin (search);
 
+-- A1: Sicherheitsnetz für einen LLM-beschreibbaren Korpus. If-Match schützt
+-- vor Races, nicht vor selbstbewusst-falschen Überschreibungen; PITR ist
+-- Disaster-Recovery, kein "gib mir die Notiz von gestern zurück".
+CREATE TABLE document_revisions (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    document_id uuid NOT NULL,            -- bewusst KEIN FK: Revisionen überleben DELETE
+    user_id     uuid NOT NULL REFERENCES users(id),
+    path        text NOT NULL,            -- Pfad zum Zeitpunkt des Writes
+    body        text NOT NULL,
+    version     bigint NOT NULL,          -- die documents.version dieses Stands
+    deleted     boolean NOT NULL DEFAULT false,  -- true = Lösch-Marker (body = letzter Stand)
+    recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX document_revisions_doc ON document_revisions (document_id, version);
+
 CREATE TABLE day_offs (
     user_id uuid NOT NULL REFERENCES users(id),
     day     date NOT NULL,
@@ -150,6 +166,7 @@ Festlegungen:
 - **FTS:** `'simple'`-Konfiguration (DE/EN-Mix), Query via `websearch_to_tsquery`, Ranking `ts_rank`. Kein `pg_trgm` in Phase 1.
 - **Versionierung:** `version` pro Row, Increment server-seitig bei jedem Write; `If-Match` auf PUT (412 bei Mismatch).
 - Die `lamport`-Tabelle und alle Sync-Watermarks entfallen.
+- **Revisionen (A1):** Jeder erfolgreiche `PUT` auf ein Dokument schreibt den **neuen** Stand zusätzlich als Revisionszeile, `DELETE` schreibt einen Lösch-Marker mit dem letzten Body — in derselben pgstore-Transaktion wie der Write. Invariante: jeder je gespeicherte Stand steht in `document_revisions`. Kein Read-API in Phase 1; Restore bei Bedarf via `psql`. `flow docs log`/`restore` sind Phase-2-Kandidaten. Speicher ist bei KB-großem Markdown irrelevant; Pruning erst, wenn es real drückt. Da PG noch nirgends deployed ist, wandert die Tabelle in die Baseline-Migration (kein 0002).
 
 ## 7. API
 
@@ -179,6 +196,7 @@ Alle Routen unter `/api/v1`, Auth via Bearer (Device-Flow-Token) oder Browser-Se
 - Clients senden `X-Flow-Client-Version`. TUI/WebUI warnen sichtbar, wenn `min_client_version` nicht erfüllt ist.
 - SSE ersetzt Poll nicht vollständig: Clients refetchen bei (Re-)Connect und pollen als Fallback alle 30–60 s, falls der Stream reißt.
 - Die bisherigen Sync-Endpoints (paginierte pull/push-Routen, Drain-Semantik) entfallen ersatzlos.
+- **A1:** `PUT`/`DELETE` auf `/documents/*` und `/repos/*/note` schreiben serverseitig eine Revisionszeile (§6). Ein Revisions-Read-Endpoint kommt erst, wenn er gebraucht wird (Phase 2).
 
 ## 8. Client: flow (TUI/CLI)
 
@@ -214,6 +232,7 @@ Damit ist Ziel 3 vollständig: Claude kann Kompendium-Dokumente lesen **und schr
 2. **Worktime-TSV** (Hauptlaptop): `flow worktime migrate-from-tsv` liest wie bisher, schreibt via `POST /worktime/sessions:bulk`. Idempotent über UUIDv5. **Zeitzonen explizit:** TSV-Zeiten sind lokale Zeiten → Import mappt mit `Europe/Berlin` auf `timestamptz`; eigene Plan-Task + Stichproben-Verifikation.
 3. **Kompendium:** neues einmaliges `flow docs import <dir>` — rekursiv, `PUT /documents/{relpath}` pro Datei, idempotent (Re-Run überschreibt mit `If-Match`-Disziplin).
 4. **Day-Offs + Tagesziel:** vom Import-Verb mit abgedeckt bzw. einmalig manuell (wenige Einträge).
+5. **Export — Gegenrichtung, fester Bestandteil (A1):** `flow docs export <dir>` schreibt den ganzen documents-Baum als Dateien (Pfad = Relativpfad, idempotentes Überschreiben; löscht lokal nichts — reine Kopie, kein Spiegel-Abgleich). Ein Verb gegen drei Zweifel: Lock-in (Daten jederzeit als Plaintext herausholbar — auch wenn flow-server tot ist, via `psql`-Doku im README), Backup-Vertrauen (sichtbarer Spiegel neben CNPG-PITR), Offline-Lesen des *ganzen* Korpus statt nur des Snapshots. Kein Sync-Mechanismus: einmalige, explizite Kopie.
 
 ## 12. Lösch-Liste
 
@@ -235,14 +254,15 @@ Bleiben: `jsonflowstate` (Sidekick-UI-State), Markdown-Renderer + Wikilinks, oid
 
 ## 13. Rückbau-Reihenfolge (Milestones R1–R6 auf `next`)
 
-Jeder Schritt endet `make ci`-grün; Details schneidet writing-plans.
+Jeder Schritt endet `make ci`-grün; Details schneidet writing-plans. **A1 — Plan-Stil:** Alle Pläne werden im R1-Stil geschnitten und müssen **subagent-ausführbar mit Sonnet-Klasse-Modellen (oder kleiner)** sein: exakte Dateipfade, vollständiger Code in den Tasks (kein „implementiere sinngemäß"), mechanische Verifikations-Steps mit erwarteter Ausgabe, Executor-Protokoll mit Checkbox- und Abweichungs-Pflicht. **A1 — Milestone-DoD:** PR-CI komplett grün (inkl. secscan + lint), Plan-Checkboxen + Abweichungs-Protokoll gepflegt, `make ci` lokal mit echtem Exit-Code verifiziert (nicht pipe-maskiert: `make ci; echo $?`).
 
-1. **R1 Server:** pgstore + PG-Baseline, documents + FTS, Pause-Statemachine, `/meta`, SSE generalisiert; compose + Helm auf CNPG/PG; sqliteserver + Sync-Endpoints löschen; WebUI auf documents + echten Status.
-2. **R2 Client:** httpsync/sqliteclient/flockstate/Adoption/conflict_overlay löschen; `httpapi`-Adapter; Statuszeile; Login-Pflicht-UX; CLI-Verben auf API.
-3. **R3 flow-mcp:** auf httpapi; Doc-Tools + Resources.
-4. **R4 Importe:** TSV-Bulk-Migration, `flow docs import`.
-5. **R5 WebUI-Polish + Responsive-Pass.**
-6. **R6 Wiring-Verification + E2E:** Composition-Root-Audit + curl-Smoke jeder Route (gemäß Wiring-Task-Regel); Multi-Device-Smoke: A `start` → B sieht es < 2 s (SSE), Browser parallel; MCP `flow_save_note` → WebUI zeigt das Dokument; Offline-Verhalten (Server gestoppt → Banner + read-only).
+1. **R1 Server:** pgstore + PG-Baseline, documents + FTS, Pause-Statemachine, `/meta`, SSE generalisiert; compose + Helm auf CNPG/PG; sqliteserver + Sync-Endpoints löschen; WebUI auf documents + echten Status. *(umgesetzt 2026-06-11, `b0281f4` + Nachträge; Smoke 44/44 OK.)*
+2. **R1b Revisionen (A1, vor R2/R3):** `document_revisions` in die Baseline-Migration + pgstore-Write-Pfad (PUT/DELETE in einer Transaktion) + Store-Tests. Klein, aber Pflicht, **bevor** irgendein Client — insbesondere MCP — Schreibzugriff bekommt.
+3. **R2 Client:** httpsync/sqliteclient/flockstate/Adoption/conflict_overlay löschen; `httpapi`-Adapter; Statuszeile; Login-Pflicht-UX; CLI-Verben auf API. Plan-Schnitt so, dass der `httpapi`-Adapter **früh** lauffähig ist (Adapter + Read-Pfade zuerst, dann Writes, dann Löschungen) statt Big-Bang am Ende. Toggle-Semantik bei mehreren parallel aktiven Projekten wird im Plan explizit. **R2 endet mit dem Dogfood-Gate (§14), nicht mit ci-grün.**
+4. **R3 flow-mcp:** auf httpapi; Doc-Tools + Resources.
+5. **R4 Importe + Export:** TSV-Bulk-Migration, `flow docs import`, `flow docs export` (A1, §11.5).
+6. **R5 WebUI-Polish + Responsive-Pass.**
+7. **R6 Wiring-Verification + E2E:** Composition-Root-Audit + curl-Smoke jeder Route (gemäß Wiring-Task-Regel); Multi-Device-Smoke: A `start` → B sieht es < 2 s (SSE), Browser parallel; MCP `flow_save_note` → WebUI zeigt das Dokument; Offline-Verhalten (Server gestoppt → Banner + read-only). Abschluss = **Akzeptanz-Checkliste (§14) komplett durch, auf echten Geräten.**
 
 Abschluss: PR #48 wird auf diesen Stand aktualisiert; Squash auf `main`, sobald Soenne produktiv nutzt und vertraut.
 
@@ -255,6 +275,24 @@ Abschluss: PR #48 wird auf diesen Stand aktualisiert; Squash auf `main`, sobald 
 - **E2E-Smoke-Script:** compose-Stack (PG + dex + flow-server) + zwei Client-Homes + curl; ersetzt `smoke-m2-m3.sh`.
 - **Coverage-Gate:** nach R2 neu vermessen und ehrlich setzen (Löschungen verschieben die Basis; templ-Drag bleibt).
 
+### Nutzungs-Gates (A1) — „nutzbar" ist definiert, nicht gefühlt
+
+Dreimal in Folge war „fertig" (ci-grün, Tasks abgehakt) nicht „nutzbar" (M1–M9, PoC-Fixes, R1-Buchhaltung). Kein Gate hat das gefangen — gefunden hat es immer Soenne im echten Gebrauch. Darum zwei zusätzliche Gates, die nur echte Nutzung erfüllen kann:
+
+**Dogfood-Gate (nach R2, vor R3):** Soenne arbeitet mindestens einen vollen, echten Arbeitstag mit dem TUI gegen den lokalen compose-Stack (PG + dex + flow-server). Bugs der Klasse „slog schreibt ins TUI" / „Load("") “ / Timer-Sprünge zeigen sich nur so. Erst wenn der Tag ohne Show-Stopper durchläuft, startet R3.
+
+**Akzeptanz-Checkliste (R6-Abschluss, auf echten Geräten — Entwurf, von Soenne zu ergänzen/abzunehmen):**
+
+1. Morgens: tmux `prefix+a+3` → Project-Picker (MRU + fuzzy) → Start; Status in der tmux-Statusbar sichtbar.
+2. Gerät B (zweiter Laptop oder WebUI am Handy) zeigt die laufende Session < 2 s nach dem Start.
+3. Pause/Resume vom Handy (WebUI); TUI zeigt den Pause-Zustand korrekt, Timer rechnet pausenfest.
+4. Abends: Stop im TUI; Heute-/Wochen-Blick stimmt auf allen Geräten überein (gleiche Summen).
+5. Kompendium: Dokument im TUI öffnen, mit `e` editieren, speichern; WebUI zeigt den neuen Stand, FTS findet ihn.
+6. Claude schreibt via flow-mcp ein neues Dokument; es erscheint im TUI-Kompendium und in der WebUI.
+7. Server gestoppt: TUI zeigt Offline-Banner + letzten Stand read-only, Writes erklären den Fehler; Server wieder da → Client erholt sich ohne Neustart.
+8. Frisches Gerät: `flow login` (Device-Flow) → alles da, ohne Reihenfolge-Rituale.
+9. Ein Dokument per psql aus `document_revisions` wiederherstellen (einmal real durchspielen — Restore-Drill für den MCP-Schreibzugriff).
+
 ## 15. Risiken & offene Punkte
 
 1. **Server down = kein Tracking.** Bewusster Kauf. Nachrüstoption Offline-light-Journal dokumentiert (Nicht-Ziel, bis es real schmerzt).
@@ -264,9 +302,12 @@ Abschluss: PR #48 wird auf diesen Stand aktualisiert; Squash auf `main`, sobald 
 5. **Remote-Latenz:** Writes unterwegs ~100–300 ms — akzeptiert; Reads kommen aus dem Cache.
 6. **Push-Stand `next`:** verifiziert 2026-06-11 — HEAD = origin/next = `c175c97`, Working-Tree clean. Nach den PoC-Fixes (`aacd794`) liegen dort 7 weitere TUI/WebUI-Fix-Commits (FastTick, PullDone-Reload, Picker-Switch u. a.).
 7. **Lösch-Liste-Pfade:** Paketnamen zur Plan-Zeit mechanisch verifizieren (`fd`/`rg`), nicht aus diesem Doc abschreiben.
+8. **A1 — Revisions-Wachstum:** `document_revisions` wächst unbegrenzt (jeder Save eine Zeile). Bei KB-Markdown und einem User irrelevant; Pruning/Kompaktierung erst bei realem Druck (Phase 2+).
+9. **A1 — Export ist kein Backup:** `flow docs export` ist Vertrauens-/Notausstiegs-Artefakt; das Backup bleibt CNPG (PITR + Restore-Drill). Nicht verwechseln, nicht doppelt automatisieren.
 
 ## 16. Phase-2-Ausblick (unverändert, jetzt natürlicher)
 
 - Frau als zweiter User: Authentik + Allowlist; alle Tabellen sind user-gescoped.
 - Sharing wird ein Feature-Add auf `documents` (`document_shares`-Tabelle) statt auf zwei Note-Systemen.
 - Concurrent-Editing-Schmerz ⇒ erst dann über Locking/CRDT reden (Phase 3, unverändert).
+- `flow docs log <path>` / `flow docs restore <path> --version n` auf `document_revisions` (A1), sobald der psql-Weg nervt.
