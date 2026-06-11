@@ -715,7 +715,7 @@ Signaturen drop-in-kompatibel zu `sqliteserver.Projects` (insb.
 `Upsert(in domain.Project, expectedVersion int64) (domain.Project, error)` — OCC).
 `PullSince` entfällt ersatzlos (Sync ist tot).
 
-- [ ] **Step 1: Failing Test**
+- [x] **Step 1: Failing Test**
 
 ```go
 // internal/adapter/pgstore/projects_test.go
@@ -813,7 +813,7 @@ func TestProjects_GetByID_NotFound(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Test — Compile-FAIL erwartet**
+- [x] **Step 2: Test — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestProjects -timeout 180s 2>&1 | tail -3
@@ -821,7 +821,7 @@ go test ./internal/adapter/pgstore/... -run TestProjects -timeout 180s 2>&1 | ta
 
 Expected: `undefined: pgstore.NewProjects`.
 
-- [ ] **Step 3: Implementierung**
+- [x] **Step 3: Implementierung**
 
 ```go
 // internal/adapter/pgstore/projects.go
@@ -967,7 +967,7 @@ func scanProjectNotFound(r rowScanner) (domain.Project, error) {
 }
 ```
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestProjects -v -timeout 180s 2>&1 | tail -8
@@ -975,7 +975,7 @@ go test ./internal/adapter/pgstore/... -run TestProjects -v -timeout 180s 2>&1 |
 
 Expected: 3× PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 gofumpt -w internal/adapter/pgstore/
