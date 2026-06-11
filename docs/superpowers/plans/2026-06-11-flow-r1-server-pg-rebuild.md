@@ -63,6 +63,17 @@ Regeln für den Executor:
 8. **testcontainers:** Die pgstore-/Handler-Tests starten Postgres-Container. Auf dieser
    Maschine läuft podman — die env-Variablen aus Task 0 Step 3 müssen in jeder Session
    gesetzt sein, in der Tests laufen.
+9. **Sandbox-TTY-Einschränkung bei TUI-Tests (`make ci`):** Im Sandbox-Hintergrund-Task-Runner
+   können Bubbletea-Tests (z. B. unter `internal/frontend/cli`) hängenbleiben oder vom OS suspendiert
+   werden (`SIGTTIN`/`SIGTTOU`), da sie auf `/dev/tty` zugreifen. Um dies zu verhindern, müssen die Tests
+   bzw. `make ci` in einer detached `tmux`-Session ausgeführt werden:
+   ```bash
+   tmux kill-session -t flow_ci 2>/dev/null || true
+   tmux new-session -d -s flow_ci "export DOCKER_HOST=\"unix://\$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')\" && export TESTCONTAINERS_RYUK_DISABLED=true && make ci > ci.log 2>&1; echo \$? > ci.status"
+   # Fortschritt beobachten: tail -f ci.log
+   # Status prüfen: cat ci.status (muss 0 sein)
+   ```
+
 
 ---
 
