@@ -205,7 +205,7 @@ EOF
 - Create: `internal/adapter/pgstore/main_test.go`
 - Create: `internal/adapter/pgstore/store_test.go`
 
-- [ ] **Step 1: pgtest-Container-Helper**
+- [x] **Step 1: pgtest-Container-Helper**
 
 ```go
 // internal/testutil/pgtest/pg.go
@@ -259,7 +259,7 @@ func StartContainer(ctx context.Context) (dsn string, terminate func(), err erro
 }
 ```
 
-- [ ] **Step 2: Migrations-Embed**
+- [x] **Step 2: Migrations-Embed**
 
 ```go
 // internal/adapter/pgstore/migrations/embed.go
@@ -271,7 +271,7 @@ import "embed"
 var FS embed.FS
 ```
 
-- [ ] **Step 3: Baseline-Migration**
+- [x] **Step 3: Baseline-Migration**
 
 `internal/adapter/pgstore/migrations/0001_baseline.sql` — Spec §6 mit den im File-Map
 dokumentierten Abweichungen (email, archived_at, pause_total_ns, day_offs-Zusatzfelder):
@@ -366,7 +366,7 @@ DROP TABLE IF EXISTS projects;
 DROP TABLE IF EXISTS users;
 ```
 
-- [ ] **Step 4: Store-Konstruktor**
+- [x] **Step 4: Store-Konstruktor**
 
 ```go
 // internal/adapter/pgstore/store.go
@@ -434,7 +434,7 @@ func (s *Store) Close() {
 }
 ```
 
-- [ ] **Step 5: TestMain + Store-Test (failing first ist hier nicht möglich — der Test
+- [x] **Step 5: TestMain + Store-Test (failing first ist hier nicht möglich — der Test
   verifiziert die Migration; er schlägt fehl, solange das SQL fehlerhaft ist)**
 
 ```go
@@ -510,7 +510,7 @@ func TestOpen_MigrationsCreateAllTables(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: Tests laufen lassen**
+- [x] **Step 6: Tests laufen lassen**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -520,7 +520,7 @@ go test ./internal/adapter/pgstore/... -run TestOpen -v -timeout 180s
 
 Expected: PASS. (Erster Lauf zieht das postgres:16-alpine-Image — kann ~30 s dauern.)
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 gofumpt -w internal/testutil/pgtest/ internal/adapter/pgstore/
