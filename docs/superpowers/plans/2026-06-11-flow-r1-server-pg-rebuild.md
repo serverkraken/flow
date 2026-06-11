@@ -1639,7 +1639,7 @@ sind neu und **idempotent ohne expectedVersion** (Spec §7: „Pause-Statemachin
 Stop bucht `elapsed = now − started_at − pause_total` (eine offene Pause endet mit dem Stop)
 und berechnet den Buchungstag in der User-Zeitzone.
 
-- [ ] **Step 1: Domain-Felder + Elapsed-Methode**
+- [x] **Step 1: Domain-Felder + Elapsed-Methode**
 
 In `internal/domain/active_session.go` den Struct erweitern (nach `StartedAt`):
 
@@ -1672,7 +1672,7 @@ func (a ActiveSession) Elapsed(now time.Time) time.Duration {
 }
 ```
 
-- [ ] **Step 2: Failing Tests**
+- [x] **Step 2: Failing Tests**
 
 ```go
 // internal/adapter/pgstore/active_sessions_test.go
@@ -1789,7 +1789,7 @@ func TestActive_StopDuringPauseEndsPause(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: Tests — Compile-FAIL erwartet**
+- [x] **Step 3: Tests — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestActive_ -timeout 180s 2>&1 | tail -3
@@ -1797,7 +1797,7 @@ go test ./internal/adapter/pgstore/... -run TestActive_ -timeout 180s 2>&1 | tai
 
 Expected: `undefined: pgstore.NewActiveSessions`.
 
-- [ ] **Step 4: Implementierung**
+- [x] **Step 4: Implementierung**
 
 ```go
 // internal/adapter/pgstore/active_sessions.go
@@ -2000,7 +2000,7 @@ func scanActive(r rowScanner) (domain.ActiveSession, error) {
 }
 ```
 
-- [ ] **Step 5: Alle pgstore-Tests grün + bestehende Domain-Tests**
+- [x] **Step 5: Alle pgstore-Tests grün + bestehende Domain-Tests**
 
 ```bash
 go build ./... && go test ./internal/domain/... ./internal/adapter/pgstore/... -timeout 300s 2>&1 | tail -5
@@ -2008,7 +2008,7 @@ go build ./... && go test ./internal/domain/... ./internal/adapter/pgstore/... -
 
 Expected: PASS (das Hinzufügen der Domain-Felder darf nichts brechen — Felder sind additiv).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/domain/active_session.go internal/adapter/pgstore/
