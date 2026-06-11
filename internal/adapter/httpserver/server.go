@@ -53,6 +53,7 @@ func NewWithAuth(d AuthDeps) *Server {
 	r.Handle("/readyz", NewReadyzHandler(d.Ready))
 
 	r.Handle("/api/v1/oidc/config", NewOIDCConfigHandler(d.OIDCConfig))
+	r.Handle("/api/v1/meta", NewMetaHandler(d.Meta))
 
 	ab := newAuthBrowser(d)
 	r.Get("/login", ab.handleLogin)
@@ -65,31 +66,25 @@ func NewWithAuth(d AuthDeps) *Server {
 		rr.Get("/api/v1/me", NewMeHandler().ServeHTTP)
 	})
 
-	// Bearer-protected variant for CLI/MCP. Same handler, different auth proof.
+	// Bearer-protected API surface (Spec §7). me-bearer bleibt als
+	// CLI-Identitäts-Probe erhalten.
 	r.Group(func(rr chi.Router) {
 		rr.Use(NewBearerMiddleware(d.Provider, d.Access, d.Users))
 		rr.Get("/api/v1/me-bearer", NewMeHandler().ServeHTTP)
-		if d.ProjectsServer != nil {
-			rr.Get("/api/v1/projects", NewProjectsPullHandler(d.ProjectsServer).ServeHTTP)
-			rr.Put("/api/v1/projects/{id}", NewProjectsPushHandler(d.ProjectsServer).ServeHTTP)
-		}
-		if d.SessionsServer != nil {
-			rr.Get("/api/v1/sessions", NewSessionsPullHandler(d.SessionsServer).ServeHTTP)
-			rr.Put("/api/v1/sessions/{id}", NewSessionsPushHandler(d.SessionsServer).ServeHTTP)
-		}
-		if d.ActiveServer != nil {
-			rr.Get("/api/v1/active", NewActiveListHandler(d.ActiveServer).ServeHTTP)
-			rr.Post("/api/v1/active/{project_id}/start", NewActiveStartHandler(d.ActiveServer).ServeHTTP)
-			rr.Delete("/api/v1/active/{project_id}", NewActiveStopHandler(d.ActiveServer).ServeHTTP)
-		}
-		if d.ReposServer != nil {
-			rr.Get("/api/v1/repos", NewReposPullHandler(d.ReposServer).ServeHTTP)
-			rr.Put("/api/v1/repos/{id}", NewReposPushHandler(d.ReposServer).ServeHTTP)
-		}
-		if d.RepoNotesServer != nil {
-			rr.Get("/api/v1/repo-notes", NewRepoNotesPullHandler(d.RepoNotesServer).ServeHTTP)
-			rr.Put("/api/v1/repos/{repo_id}/note", NewRepoNotePushHandler(d.RepoNotesServer).ServeHTTP)
-		}
+		rr.Route("/api/v1", func(api chi.Router) {
+			if d.WorktimeAPI != nil {
+				MountWorktimeAPI(api, *d.WorktimeAPI)
+			}
+			if d.ProjectsAPI != nil {
+				MountProjectsAPI(api, *d.ProjectsAPI)
+			}
+			if d.DocumentsAPI != nil {
+				MountDocumentsAPI(api, *d.DocumentsAPI)
+			}
+			if d.MiscAPI != nil {
+				MountDayOffsSettingsAPI(api, *d.MiscAPI)
+			}
+		})
 	})
 
 	mountWebUI(r, d)
@@ -121,16 +116,19 @@ func mountWebUI(r chi.Router, d AuthDeps) {
 		mountWebUIRead(rr, w)
 		mountWebUIProjectWrites(rr, w)
 		mountWebUISessionWrites(rr, w)
-
-		// — M7 / Task 14. Server-Sent-Events stream for live
-		// dashboard updates. Sits inside the cookie group so the
-		// browser's EventSource authenticates with the session
-		// cookie; bearer-clients have their own surface and
-		// don't need SSE in phase 1.
-		if w.Events != nil {
-			rr.Method(http.MethodGet, "/api/v1/events", w.Events)
-		}
 	})
+
+	// /api/v1/events bedient Browser (Cookie) UND TUI/MCP (Bearer) über
+	// dieselbe Route (Spec §5/§7).
+	if w.Events != nil {
+		r.Group(func(rr chi.Router) {
+			rr.Use(NewBearerOrCookieMiddleware(
+				NewBearerMiddleware(d.Provider, d.Access, d.Users),
+				NewBrowserAuthMiddleware(d.Session, d.Cookie.Name, d.Users),
+			))
+			rr.Method(http.MethodGet, "/api/v1/events", w.Events)
+		})
+	}
 
 	// Auth landing is mounted OUTSIDE the cookie group — the
 	// middleware redirects unauthenticated traffic here, so it
@@ -152,23 +150,18 @@ func mountWebUIRead(rr chi.Router, w *WebUIHandlers) {
 	if w.Worktime != nil {
 		rr.Method(http.MethodGet, "/worktime", w.Worktime)
 	}
-	if w.NotesIndex != nil {
-		rr.Method(http.MethodGet, "/notes", w.NotesIndex)
+	if w.DocumentsIndex != nil {
+		rr.Method(http.MethodGet, "/notes", w.DocumentsIndex)
 	}
-	if w.NotesView != nil {
-		// Multi-segment IDs like projects/serverkraken/flow/foo
-		// require chi's wildcard, captured via URLParam(r, "*").
-		// M7 (Task 12) reuses the same wildcard for the edit
-		// form (suffix `/edit`) — chi cannot disambiguate a
-		// wildcard from a literal trailing segment, so we
-		// dispatch at the handler level via notesGetDispatch.
-		rr.Method(http.MethodGet, "/notes/*", notesGetDispatch(w.NotesView, w.NoteEdit))
+	if w.DocumentView != nil {
+		// Multi-segment paths like "daily/2026-06-11.md" require chi's
+		// wildcard. The edit form suffix (/edit) is dispatched at handler
+		// level via notesGetDispatch so chi's wildcard stays unambiguous.
+		rr.Method(http.MethodGet, "/notes/*", notesGetDispatch(w.DocumentView, w.DocumentEdit))
 	}
-	if w.NotePut != nil {
-		// PUT shares the same wildcard so multi-segment IDs
-		// route to the right place. method-mux discriminates
-		// GET vs PUT, so there's no conflict with NotesView.
-		rr.Method(http.MethodPut, "/notes/*", w.NotePut)
+	if w.DocumentPut != nil {
+		// PUT shares the same wildcard so multi-segment paths route correctly.
+		rr.Method(http.MethodPut, "/notes/*", w.DocumentPut)
 	}
 	if w.ReposIndex != nil {
 		rr.Method(http.MethodGet, "/repos", w.ReposIndex)
@@ -237,6 +230,12 @@ func mountWebUISessionWrites(rr chi.Router, w *WebUIHandlers) {
 	}
 	if w.ActiveStop != nil {
 		rr.Method(http.MethodPost, "/worktime/active/stop", w.ActiveStop)
+	}
+	if w.ActivePause != nil {
+		rr.Method(http.MethodPost, "/worktime/active/pause", w.ActivePause)
+	}
+	if w.ActiveResume != nil {
+		rr.Method(http.MethodPost, "/worktime/active/resume", w.ActiveResume)
 	}
 }
 

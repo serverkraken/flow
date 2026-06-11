@@ -33,48 +33,38 @@ type oidcserverProvider interface {
 // AuthDeps bundles all dependencies needed by the auth-code handlers.
 // Construction lives in cmd/flow-server/main.go.
 //
-// OIDCConfig is populated even in Task 10 (used by /api/v1/oidc/config in
-// Task 17). It's safe to leave the zero-value if no one calls that endpoint.
+// OIDCConfig is populated on startup and served at /api/v1/oidc/config.
+// It's safe to leave the zero-value when that endpoint is not needed.
 //
 // Users is optional (nil-safe). When set, the bearer middleware calls
 // EnsureBySub on every authenticated request (with sub-level caching) and
 // injects domain.User into the request context for downstream handlers.
-// Task 33 (server wiring) will populate this field; leave nil until then.
 //
-// ProjectsServer is optional (nil disables /api/v1/projects routes). Task 33
-// wires the concrete *sqliteserver.Projects here.
+// The R1 API deps (WorktimeAPI, ProjectsAPI, DocumentsAPI, MiscAPI) are
+// optional — nil means the corresponding route group is not mounted.
 //
-// SessionsServer is optional (nil disables /api/v1/sessions routes). Task 33
-// wires the concrete *sqliteserver.Sessions here.
-//
-// ActiveServer is optional (nil disables /api/v1/active routes). Task 33
-// wires the concrete *sqliteserver.ActiveSessions here.
-//
-// ReposServer + RepoNotesServer are Plan-C optional (nil disables
-// /api/v1/repos and /api/v1/repo-notes routes). Wired in the M4 task.
-//
-// WebUI is Plan-E optional (nil disables every browser/cookie route —
-// /, /worktime, /notes, /repos, /projects, /settings, /static, and
-// /auth/landing — without touching the bearer-protected /api/v1/*
-// surface). Wired in cmd/flow-server (Plan E · Task 10).
+// WebUI is optional — nil disables every browser/cookie route group.
 type AuthDeps struct {
-	Provider        oidcserverProvider
-	Access          ports.AccessChecker
-	Session         ports.BrowserSessionStore
-	Users           ports.UserStore // optional; nil disables user-ensure in bearer MW
-	ProjectsServer  ProjectsServer  // optional; nil disables /api/v1/projects routes (Task 33 wires)
-	SessionsServer  SessionsServer  // optional; nil disables /api/v1/sessions routes (Task 33 wires)
-	ActiveServer    ActiveServer    // optional; nil disables /api/v1/active routes (Task 33 wires)
-	ReposServer     ReposServer     // optional; nil disables /api/v1/repos routes (Plan C)
-	RepoNotesServer RepoNotesServer // optional; nil disables /api/v1/repo-notes routes (Plan C)
-	WebUI           *WebUIHandlers  // optional; nil disables the WebUI route group (Plan E · Task 10)
-	Logger          *slog.Logger    // optional; nil falls back to slog.Default() inside the log middleware (Plan F · Task 7)
-	BaseURL         string
-	OIDCClientID    string
-	OIDCSecret      string
-	Cookie          CookieConfig
-	Ready           ReadinessCheck
-	OIDCConfig      OIDCConfigResponse // populated by main; consumed by Task 17 handler
+	Provider oidcserverProvider
+	Access   ports.AccessChecker
+	Session  ports.BrowserSessionStore
+	Users    ports.UserStore // optional; nil disables user-ensure in bearer MW
+
+	// R1 Bearer-API-Deps (Spec §7). Nil-Pointer = Routen nicht gemountet.
+	WorktimeAPI  *WorktimeAPIDeps
+	ProjectsAPI  *ProjectsAPIDeps
+	DocumentsAPI *DocumentsAPIDeps
+	MiscAPI      *DayOffsSettingsAPIDeps
+	Meta         MetaResponse
+
+	WebUI        *WebUIHandlers // optional; nil disables the WebUI route group
+	Logger       *slog.Logger   // optional; nil falls back to slog.Default() inside the log middleware
+	BaseURL      string
+	OIDCClientID string
+	OIDCSecret   string
+	Cookie       CookieConfig
+	Ready        ReadinessCheck
+	OIDCConfig   OIDCConfigResponse // populated by main; consumed by /api/v1/oidc/config
 }
 
 // authBrowser holds the OAuth2 config + deps for the three browser endpoints.

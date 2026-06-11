@@ -38,14 +38,10 @@ type Config struct {
 	CookieHashKey   string   // FLOW_COOKIE_HASH_KEY (hex, 64 chars = 32 bytes)
 	CookieBlockKey  string   // FLOW_COOKIE_BLOCK_KEY (hex, 32 or 64 chars)
 	AllowedSubs     []string // FLOW_ALLOWED_SUBS (comma-separated OIDC 'sub' values)
-	ServerDBPath    string   // FLOW_SERVER_DB (default /var/lib/flow/server.db)
-	// NotebookRoot points at a kompendium notebook directory the WebUI
-	// renders read-only under /notes. Empty (default) — the /notes
-	// handler shows a "Notes nicht konfiguriert" placeholder instead of
-	// 500ing. Phase 1 is single-user (allowed-subs gate), so one notebook
-	// root per server is sufficient. Wired in cmd/flow-server/main.go
-	// (Plan E · Task 10).
-	NotebookRoot string // FLOW_NOTEBOOK_ROOT (empty default → /notes shows placeholder)
+	// PgDSN is the PostgreSQL connection string — the server's ONLY
+	// truth store after the R1 rebuild (Spec §4). Required.
+	// Beispiel: postgres://flow:secret@flow-pg-rw:5432/flow?sslmode=disable
+	PgDSN string // FLOW_PG_DSN (Pflicht)
 	// ShutdownTimeout caps how long flow-server drains in-flight HTTP
 	// requests after SIGTERM before forcing exit. Tuned at 30s by default
 	// — long enough that a slow OIDC-callback or templ render can finish,
@@ -70,8 +66,7 @@ func LoadConfig() (Config, error) {
 		CookieHashKey:    os.Getenv("FLOW_COOKIE_HASH_KEY"),
 		CookieBlockKey:   os.Getenv("FLOW_COOKIE_BLOCK_KEY"),
 		AllowedSubs:      splitCSV(os.Getenv("FLOW_ALLOWED_SUBS")),
-		ServerDBPath:     envOrDefault("FLOW_SERVER_DB", "/var/lib/flow/server.db"),
-		NotebookRoot:     os.Getenv("FLOW_NOTEBOOK_ROOT"),
+		PgDSN:            os.Getenv("FLOW_PG_DSN"),
 		ShutdownTimeout:  envDurationOrDefault("FLOW_SERVER_SHUTDOWN_TIMEOUT", 30*time.Second),
 	}, nil
 }

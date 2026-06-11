@@ -617,12 +617,18 @@ func bannerSinceLabel(a domain.ActiveSession) string {
 
 // — POST /worktime/active/pause + /resume ------------------------------------
 
+// NewActivePause returns the handler for POST /worktime/active/pause.
+// Transitions the running active session to the paused state via the
+// PauseResume store. Requires PauseResume to be non-nil (wired once
+// pgstore is in use — see stores.PauseResumeStore).
 func NewActivePause(d SessionActionsDeps) http.Handler {
 	return newPauseResumeHandler(d, func(userID, projectID string) (domain.ActiveSession, error) {
 		return d.PauseResume.Pause(userID, projectID)
 	})
 }
 
+// NewActiveResume returns the handler for POST /worktime/active/resume.
+// Transitions a paused active session back to running state.
 func NewActiveResume(d SessionActionsDeps) http.Handler {
 	return newPauseResumeHandler(d, func(userID, projectID string) (domain.ActiveSession, error) {
 		return d.PauseResume.Resume(userID, projectID)

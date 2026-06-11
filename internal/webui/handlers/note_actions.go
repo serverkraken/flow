@@ -35,7 +35,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
@@ -415,14 +414,6 @@ func parseVersion(raw string) int64 {
 		return 0
 	}
 	return v
-}
-
-// newRepoNoteID generates a fresh primary key for a RepoNote insert.
-// We use the same google/uuid surface other adapters use; isolated in
-// a helper so a future ID strategy change (e.g. ULID) only touches one
-// site.
-func newRepoNoteID() string {
-	return uuid.NewString()
 }
 
 // repoNotePathWeb mirrors the API-side path convention (Spec §6).

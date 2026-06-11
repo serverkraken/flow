@@ -10,24 +10,24 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/oidcserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
-	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
-	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
-	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/serverkraken/flow/internal/webui"
 	"github.com/serverkraken/flow/internal/webui/handlers"
 	webuimarkdown "github.com/serverkraken/flow/internal/webui/markdown"
 	"github.com/serverkraken/flow/internal/webui/sse"
 )
+
+// version is stamped via -ldflags "-X main.version=…" (Makefile,
+// Dockerfile); "dev" für ungestempelte Builds.
+var version = "dev"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -61,29 +61,21 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return errors.New("config validation failed: " + err.Error())
 	}
 
-	// --- SQLite server store -------------------------------------------------
+	// --- Postgres store (R1: die einzige Wahrheit) ---------------------------
 
-	if err := os.MkdirAll(filepath.Dir(cfg.ServerDBPath), 0o755); err != nil {
-		return errors.New("server db dir: " + err.Error())
-	}
-	serverDB, err := sqliteserver.Open(cfg.ServerDBPath)
+	pg, err := pgstore.Open(ctx, cfg.PgDSN)
 	if err != nil {
-		return errors.New("open server db: " + err.Error())
+		return errors.New("open postgres: " + err.Error())
 	}
-	// Deferred Close runs AFTER runServer's Shutdown completes, so no
-	// writer goroutine is still touching the DB when we close it.
-	defer func() {
-		if err := serverDB.Close(); err != nil {
-			logger.Error("server db close", slog.Any("err", err))
-		}
-	}()
+	defer pg.Close()
 
-	users := sqliteserver.NewUsers(serverDB)
-	projects := sqliteserver.NewProjects(serverDB)
-	sessions := sqliteserver.NewSessions(serverDB)
-	activeStore := sqliteserver.NewActiveSessions(serverDB)
-	repos := sqliteserver.NewRepos(serverDB)
-	repoNotes := sqliteserver.NewRepoNotes(serverDB)
+	users := pgstore.NewUsers(pg)
+	projects := pgstore.NewProjects(pg)
+	sessions := pgstore.NewSessions(pg)
+	settings := pgstore.NewSettings(pg)
+	activeStore := pgstore.NewActiveSessions(pg, sessions, settings)
+	documents := pgstore.NewDocuments(pg)
+	dayOffs := pgstore.NewDayOffs(pg)
 
 	// --- OIDC + session cookie -----------------------------------------------
 
@@ -141,29 +133,32 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		sessions,
 		activeStore,
 		projects,
-		repos,
-		repoNotes,
+		documents,
 		broadcaster,
 	)
 
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
-		Provider:        provider,
-		Access:          access,
-		Session:         session,
-		Users:           users,
-		ProjectsServer:  projects,
-		SessionsServer:  sessions,
-		ActiveServer:    activeStore,
-		ReposServer:     repos,
-		RepoNotesServer: repoNotes,
-		WebUI:           webuiHandlers,
-		Logger:          logger,
-		BaseURL:         cfg.BaseURL,
-		OIDCClientID:    cfg.OIDCClientID,
-		OIDCSecret:      cfg.OIDCClientSecret,
-		Cookie:          httpserver.CookieConfig{Name: "flow_session", Secure: secure},
-		Ready:           func() error { return serverDB.DB().Ping() },
-		OIDCConfig:      oidcCfg,
+		Provider: provider,
+		Access:   access,
+		Session:  session,
+		Users:    users,
+		WorktimeAPI: &httpserver.WorktimeAPIDeps{
+			Sessions: sessions, Active: activeStore, Settings: settings, Bus: broadcaster,
+		},
+		ProjectsAPI:  &httpserver.ProjectsAPIDeps{Projects: projects, Bus: broadcaster},
+		DocumentsAPI: &httpserver.DocumentsAPIDeps{Store: documents, Bus: broadcaster},
+		MiscAPI: &httpserver.DayOffsSettingsAPIDeps{
+			DayOffs: dayOffs, Settings: settings, Bus: broadcaster,
+		},
+		Meta:         httpserver.MetaResponse{ServerVersion: version, MinClientVersion: "0.0.0"},
+		WebUI:        webuiHandlers,
+		Logger:       logger,
+		BaseURL:      cfg.BaseURL,
+		OIDCClientID: cfg.OIDCClientID,
+		OIDCSecret:   cfg.OIDCClientSecret,
+		Cookie:       httpserver.CookieConfig{Name: "flow_session", Secure: secure},
+		Ready:        func() error { return pg.Ping(context.Background()) },
+		OIDCConfig:   oidcCfg,
 	})
 
 	httpSrv := &http.Server{
@@ -273,47 +268,18 @@ func runServer(
 // (per-handler-Deps convention — see internal/webui/handlers/dashboard.go);
 // this function is the one place where the full set of concrete adapters
 // + the markdown renderer + the clock get bound to the right routes.
-//
-// Notebook root (FLOW_NOTEBOOK_ROOT) is optional. When unset, the Notes
-// handler renders a "Notes nicht konfiguriert" placeholder rather than
-// 500ing — we log a single warning at boot so the operator sees the gap
-// without losing the rest of the WebUI.
 func buildWebUIHandlers(
 	logger *slog.Logger,
 	cfg httpserver.Config,
-	sessions *sqliteserver.Sessions,
-	activeStore *sqliteserver.ActiveSessions,
-	projects *sqliteserver.Projects,
-	repos *sqliteserver.Repos,
-	repoNotes *sqliteserver.RepoNotes,
+	sessions *pgstore.Sessions,
+	activeStore *pgstore.ActiveSessions,
+	projects *pgstore.Projects,
+	documents *pgstore.Documents,
 	broadcaster *sse.Broadcaster,
 ) *httpserver.WebUIHandlers {
+	_ = logger // no notebook warnings needed — documents is always wired
 	clock := systemclock.New()
 	mdRenderer := webuimarkdown.New()
-
-	// Notebook is optional — Notes handler renders a placeholder when
-	// Store + Lister are nil. Log once at boot so the gap is visible.
-	var (
-		notesStore  kompports.NoteStore
-		notesLister *kompusecase.ListNotes
-	)
-	if cfg.NotebookRoot != "" {
-		ns, err := kompfsstore.New(cfg.NotebookRoot)
-		if err != nil {
-			logger.Warn(
-				"notes: fsstore init failed; /notes will render placeholder",
-				slog.String("root", cfg.NotebookRoot),
-				slog.Any("err", err),
-			)
-		} else {
-			notesStore = ns
-			notesLister = kompusecase.NewListNotes(ns)
-		}
-	} else {
-		logger.Warn(
-			"notes: FLOW_NOTEBOOK_ROOT unset; /notes will render placeholder",
-		)
-	}
 
 	// One shared ServerWorktimeView is used by both Dashboard and
 	// Worktime — the underlying SQL aggregations are cheap, but a single
@@ -327,19 +293,12 @@ func buildWebUIHandlers(
 
 	startTime := time.Now()
 
-	notesDeps := handlers.NotesDeps{
-		Store:    notesStore,
-		Lister:   notesLister,
-		Markdown: mdRenderer,
-		Clock:    clock,
-	}
-	reposDeps := handlers.ReposDeps{
-		Documents: nil,
-		Markdown:  mdRenderer,
-		Clock:     clock,
-	}
+	docDeps := handlers.DocumentsDeps{Store: documents, Markdown: mdRenderer, Clock: clock}
+	docActionsDeps := handlers.DocumentActionsDeps{Store: documents, Bus: broadcaster}
+	reposDeps := handlers.ReposDeps{Documents: documents, Markdown: mdRenderer, Clock: clock}
+	noteActionsDeps := handlers.NoteActionsDeps{Documents: documents, Clock: clock, Bus: broadcaster}
 
-	// All five M7 session-action handlers share the same Deps bag.
+	// All session-action handlers share the same Deps bag.
 	sessionActionsDeps := handlers.SessionActionsDeps{
 		Sessions:    sessions,
 		Active:      activeStore,
@@ -348,20 +307,10 @@ func buildWebUIHandlers(
 		Clock:       clock,
 		DeviceLabel: "web",
 		Bus:         broadcaster,
+		PauseResume: activeStore,
 	}
 
-	// M7 / Task 12 — note + repo-note editing handlers share their
-	// own Deps bag. NoteStore stays nil-tolerant: when the notebook is
-	// unconfigured the kompendium handlers return 404 rather than 500.
-	noteActionsDeps := handlers.NoteActionsDeps{
-		NoteStore: notesStore,
-		Documents: nil,
-		Clock:     clock,
-		Bus:       broadcaster,
-	}
-
-	// M7 / Task 13 — project create/rename/archive. Smaller deps bag —
-	// projects don't need Sessions/Active/View like session-actions do.
+	// Project create/rename/archive.
 	projectActionsDeps := handlers.ProjectActionsDeps{
 		Projects: projects,
 		Clock:    clock,
@@ -389,14 +338,19 @@ func buildWebUIHandlers(
 		SessionDelete: handlers.NewSessionDelete(sessionActionsDeps),
 		ActiveStart:   handlers.NewActiveStart(sessionActionsDeps),
 		ActiveStop:    handlers.NewActiveStop(sessionActionsDeps),
-		NotesIndex:    handlers.NewNotesIndex(notesDeps),
-		NotesView:     handlers.NewNotesView(notesDeps),
-		ReposIndex:    handlers.NewReposIndex(reposDeps),
-		RepoNote:      handlers.NewRepoNote(reposDeps),
 
-		// M7 / Task 12 — note + repo-note editing.
-		NoteEdit:     handlers.NewNoteEdit(noteActionsDeps),
-		NotePut:      handlers.NewNotePut(noteActionsDeps),
+		// R1 — Pause-Statemachine.
+		ActivePause:  handlers.NewActivePause(sessionActionsDeps),
+		ActiveResume: handlers.NewActiveResume(sessionActionsDeps),
+
+		// R1 — documents-backed notes.
+		DocumentsIndex: handlers.NewDocumentsIndex(docDeps),
+		DocumentView:   handlers.NewDocumentView(docDeps),
+		DocumentEdit:   handlers.NewDocumentEdit(docDeps),
+		DocumentPut:    handlers.NewDocumentPut(docActionsDeps),
+
+		ReposIndex:   handlers.NewReposIndex(reposDeps),
+		RepoNote:     handlers.NewRepoNote(reposDeps),
 		RepoNoteEdit: handlers.NewRepoNoteEdit(noteActionsDeps),
 		RepoNotePut:  handlers.NewRepoNotePut(noteActionsDeps),
 		Projects: handlers.NewProjects(handlers.ProjectsDeps{
@@ -406,7 +360,7 @@ func buildWebUIHandlers(
 			Clock:    clock,
 		}),
 
-		// M7 / Task 13 — project create/rename/archive.
+		// Project create/rename/archive.
 		ProjectNewForm:   handlers.NewProjectNewForm(projectActionsDeps),
 		ProjectNewCancel: handlers.NewProjectNewCancel(projectActionsDeps),
 		ProjectCreate:    handlers.NewProjectCreate(projectActionsDeps),
@@ -414,12 +368,12 @@ func buildWebUIHandlers(
 		ProjectPut:       handlers.NewProjectPut(projectActionsDeps),
 		ProjectArchive:   handlers.NewProjectArchive(projectActionsDeps),
 
-		// M7 / Task 14 — SSE live updates.
+		// SSE live updates.
 		Events: handlers.NewEvents(broadcaster),
 		Settings: handlers.NewSettings(handlers.SettingsDeps{
 			ServerBaseURL: cfg.BaseURL,
 			OIDCIssuer:    cfg.OIDCIssuer,
-			ServerDBPath:  cfg.ServerDBPath,
+			ServerDBPath:  "PostgreSQL (FLOW_PG_DSN)",
 			StartTime:     startTime,
 			Clock:         clock,
 		}),
@@ -473,6 +427,9 @@ func requireConfig(c httpserver.Config) error {
 	}
 	if len(c.AllowedSubs) == 0 {
 		missing = append(missing, "FLOW_ALLOWED_SUBS")
+	}
+	if c.PgDSN == "" {
+		missing = append(missing, "FLOW_PG_DSN")
 	}
 	if len(missing) > 0 {
 		return errors.New("missing required env vars: " + strings.Join(missing, ", "))

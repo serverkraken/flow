@@ -21,7 +21,7 @@ import (
 
 // mkReposDeps assembles the handler deps off a server store. Tests
 // reuse mustOpenServerStore + seedUser from dashboard_test.go.
-func mkReposDeps(store *sqliteserver.Store, now time.Time) handlers.ReposDeps {
+func mkReposDeps(_ *sqliteserver.Store, now time.Time) handlers.ReposDeps {
 	clock := &testutil.FixedClock{T: now}
 	return handlers.ReposDeps{
 		Documents: nil,

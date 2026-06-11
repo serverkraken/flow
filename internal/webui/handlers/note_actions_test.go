@@ -28,7 +28,7 @@ import (
 // mkNoteActionsDeps assembles a NoteActionsDeps off an optional
 // notebook root. Pass root="" for the "kompendium unconfigured" branch
 // (NoteStore stays nil).
-func mkNoteActionsDeps(t *testing.T, store *sqliteserver.Store, root string, now time.Time) handlers.NoteActionsDeps {
+func mkNoteActionsDeps(t *testing.T, _ *sqliteserver.Store, root string, now time.Time) handlers.NoteActionsDeps {
 	t.Helper()
 	clock := &testutil.FixedClock{T: now}
 	deps := handlers.NoteActionsDeps{

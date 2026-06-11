@@ -26,14 +26,18 @@ import (
 type WebUIHandlers struct {
 	Dashboard   http.Handler
 	Worktime    http.Handler
-	NotesIndex  http.Handler
-	NotesView   http.Handler
 	ReposIndex  http.Handler
 	RepoNote    http.Handler
 	Projects    http.Handler
 	Settings    http.Handler
 	AuthLanding http.Handler
 	StaticFS    fs.FS
+
+	// R1 — documents-backed notes surface.
+	DocumentsIndex http.Handler
+	DocumentView   http.Handler
+	DocumentEdit   http.Handler
+	DocumentPut    http.Handler
 
 	// M7 — Plan E · Task 11. HTMX write surface for the worktime today
 	// tab. Each handler returns a templ partial fragment; HTMX swaps
@@ -45,12 +49,11 @@ type WebUIHandlers struct {
 	ActiveStart   http.Handler
 	ActiveStop    http.Handler
 
-	// M7 — Plan E · Task 12. CodeMirror-backed markdown editing for
-	// kompendium notes (file-backed, last-write-wins for M7) and
-	// repo-notes (DB-synced with OCC). Each handler shares the same
-	// NoteActionsDeps bag in cmd/flow-server/main.go.
-	NoteEdit     http.Handler
-	NotePut      http.Handler
+	// R1 — Pause-Statemachine im Today-Banner.
+	ActivePause  http.Handler
+	ActiveResume http.Handler
+
+	// M7 — Plan E · Task 12. repo-notes (DB-synced with OCC).
 	RepoNoteEdit http.Handler
 	RepoNotePut  http.Handler
 
@@ -68,9 +71,7 @@ type WebUIHandlers struct {
 	ProjectArchive   http.Handler
 
 	// M7 — Plan E · Task 14. Server-Sent-Events stream for live
-	// dashboard updates. Mounted at GET /api/v1/events?stream=ui
-	// inside the cookie-auth group (browser flow, not bearer). The
-	// handler subscribes to the per-user broadcaster and pushes
-	// session.* / project.* / note.* / tick events as they happen.
+	// dashboard updates. Mounted at GET /api/v1/events — dual
+	// Bearer+Cookie auth so both browser and TUI/MCP can subscribe.
 	Events http.Handler
 }
