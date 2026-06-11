@@ -50,6 +50,13 @@ type ViewModel struct {
 // behaviour for M7. Phase 2 swaps to per-row partial swaps.
 templ Index(vm ViewModel) {
 	<div hx-ext="sse" sse-connect="/api/v1/events?stream=ui">
+		<!-- htmx-sse only registers named-event listeners for elements that
+		     carry sse-swap or hx-trigger="sse:…". Without one, named events
+		     arrive on the EventSource but never fire htmx:sseMessage — and
+		     the script below (which reloads on session.*) would silently do
+		     nothing. hx-swap="none" keeps swap() a no-op; we only need the
+		     event-name listeners so htmx:sseMessage bubbles to the body. -->
+		<div sse-swap="session.started,session.stopped,session.updated,session.deleted" hx-swap="none" hidden></div>
 		if vm.HasActive {
 			@shared.LiveBannerCard(shared.LiveBanner{
 				ProjectLabel: vm.ActiveProject,

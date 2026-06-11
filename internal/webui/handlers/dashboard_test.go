@@ -171,6 +171,43 @@ func TestDashboard_NoActiveSession_NoLiveBanner(t *testing.T) {
 	}
 }
 
+// TestDashboard_SSEEventNamesAreRegistered guards the wiring that turns the
+// SSE EventSource into htmx:sseMessage events. The htmx-sse extension only
+// registers per-event-name listeners when an element carries sse-swap (or
+// hx-trigger="sse:…"); without such a marker the named events arrive on the
+// EventSource but never reach the inline script, so the dashboard never
+// reloads after session.stopped — the active session looked like it kept
+// running in the UI even after the user pressed Stop.
+func TestDashboard_SSEEventNamesAreRegistered(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "dash-sse")
+	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
+
+	h := handlers.NewDashboard(mkDeps(store, now))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, reqWithUser(t, u))
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	// The whole point: sse-swap (or hx-trigger="sse:…") MUST appear on
+	// some descendant of the sse-connect wrapper, otherwise no listeners
+	// are bound. If you change the wiring, make sure each event name the
+	// inline sseDashboardScript() switches on is covered here.
+	for _, name := range []string{
+		"session.started", "session.stopped", "session.updated", "session.deleted",
+	} {
+		if !strings.Contains(body, name) {
+			t.Errorf("SSE event %q is not registered on the dashboard — htmx-sse will swallow it silently", name)
+		}
+	}
+	if !strings.Contains(body, "sse-swap=") && !strings.Contains(body, `hx-trigger="sse:`) {
+		t.Errorf("dashboard SSE wrapper has no sse-swap or hx-trigger=\"sse:…\" marker; htmx:sseMessage will never fire")
+	}
+}
+
 func TestDashboard_MissingUser_Returns401(t *testing.T) {
 	t.Parallel()
 	store := mustOpenServerStore(t)

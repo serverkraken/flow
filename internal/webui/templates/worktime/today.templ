@@ -65,6 +65,14 @@ type TodayVM struct {
 //     dashboard uses. Phase 2 swaps to per-row partials.
 templ Today(vm TodayVM) {
 	<div hx-ext="sse" sse-connect="/api/v1/events?stream=ui">
+		<!-- htmx-sse only registers named-event listeners for elements that
+		     carry sse-swap or hx-trigger="sse:…". Without one, our SSE
+		     events arrive on the EventSource but never fire htmx:sseMessage
+		     — and the script below (which drives tick + session.* reloads)
+		     would silently do nothing. hx-swap="none" keeps swap() a no-op;
+		     we only need the event-name listeners as a side effect of
+		     registration so htmx:sseMessage bubbles to the body listener. -->
+		<div sse-swap="tick,session.started,session.stopped,session.updated,session.deleted" hx-swap="none" hidden></div>
 		@pageHead(vm.Header)
 		@subTabs(TabHeute)
 		@partials.LiveBannerContainer(partials.LiveBannerContainerVM{

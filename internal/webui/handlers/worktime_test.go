@@ -342,6 +342,46 @@ func TestWorktime_InvalidTab_FallsThroughToHeute(t *testing.T) {
 	}
 }
 
+// — SSE wiring —
+
+// TestWorktime_TabHeute_SSEEventNamesAreRegistered guards the wiring that
+// turns the SSE EventSource into htmx:sseMessage events on worktime/today.
+// The htmx-sse extension only registers per-event-name listeners when an
+// element carries sse-swap (or hx-trigger="sse:…"); without one, the
+// inline sseTodayScript() never sees session.* or tick — the live banner
+// got removed by the Stop POST swap, but the sessions table, day bar,
+// and saldo stripe kept showing the active tail because no reload fired.
+func TestWorktime_TabHeute_SSEEventNamesAreRegistered(t *testing.T) {
+	t.Parallel()
+	store := mustOpenServerStore(t)
+	u := seedUser(t, store, "wt-heute-sse")
+	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
+
+	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	rr := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=heute", nil)
+	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	h.ServeHTTP(rr, r)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d, want 200", rr.Code)
+	}
+	body := rr.Body.String()
+	// Every event the inline script in today.templ switches on MUST be
+	// registered, otherwise htmx-sse silently swallows it.
+	for _, name := range []string{
+		"tick",
+		"session.started", "session.stopped", "session.updated", "session.deleted",
+	} {
+		if !strings.Contains(body, name) {
+			t.Errorf("SSE event %q is not registered on /worktime?tab=heute — htmx-sse will swallow it silently", name)
+		}
+	}
+	if !strings.Contains(body, "sse-swap=") && !strings.Contains(body, `hx-trigger="sse:`) {
+		t.Errorf("today SSE wrapper has no sse-swap or hx-trigger=\"sse:…\" marker; htmx:sseMessage will never fire")
+	}
+}
+
 // — Auth —
 
 func TestWorktime_MissingUser_Returns401(t *testing.T) {
