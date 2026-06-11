@@ -1,6 +1,7 @@
 package httpapi_test
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 
@@ -32,48 +33,52 @@ func TestClient_ValidToken_MeBearer200(t *testing.T) {
 }
 
 // TestClient_EmptyTokenStore_ErrLoggedOut verifies that a client with no
-// stored token returns ErrLoggedOut. Requires an exported method (Task 3).
+// stored token returns ErrLoggedOut when calling a resource method.
 func TestClient_EmptyTokenStore_ErrLoggedOut(t *testing.T) {
-	t.Skip("requires exported method from Task 3 — placeholder")
-	// When Task 3 lands, replace with:
-	//   cli := httpapi.New(httpapi.Config{
-	//       BaseURL: someURL,
-	//       Tokens:  &memTokens{ok: false},
-	//       Slot:    "test",
-	//   })
-	//   _, err := cli.ListProjects(context.Background())
-	//   if !errors.Is(err, httpapi.ErrLoggedOut) {
-	//       t.Errorf("got %v, want ErrLoggedOut", err)
-	//   }
+	api := newTestAPI(t)
+	cli := httpapi.New(httpapi.Config{
+		BaseURL: api.URL,
+		Tokens:  &memTokens{ok: false},
+		Slot:    "test",
+	})
+	sessions := httpapi.NewSessions(cli)
+	_, err := sessions.Load("")
+	if !errors.Is(err, httpapi.ErrLoggedOut) {
+		t.Errorf("got %v, want ErrLoggedOut", err)
+	}
 }
 
 // TestClient_EmptyBaseURL_ErrNotConfigured verifies that a client with no
-// BaseURL returns ErrNotConfigured. Requires an exported method (Task 3).
+// BaseURL returns ErrNotConfigured when calling a resource method.
 func TestClient_EmptyBaseURL_ErrNotConfigured(t *testing.T) {
-	t.Skip("requires exported method from Task 3 — placeholder")
-	// When Task 3 lands, replace with:
-	//   cli := httpapi.New(httpapi.Config{
-	//       BaseURL: "",
-	//       Tokens:  &memTokens{ok: true, tok: ports.Tokens{AccessToken: "tok"}},
-	//       Slot:    "test",
-	//   })
-	//   _, err := cli.ListProjects(context.Background())
-	//   if !errors.Is(err, httpapi.ErrNotConfigured) {
-	//       t.Errorf("got %v, want ErrNotConfigured", err)
-	//   }
+	cli := httpapi.New(httpapi.Config{
+		BaseURL: "",
+		Tokens:  &memTokens{ok: true, tok: ports.Tokens{AccessToken: "tok"}},
+		Slot:    "test",
+	})
+	sessions := httpapi.NewSessions(cli)
+	_, err := sessions.Load("")
+	if !errors.Is(err, httpapi.ErrNotConfigured) {
+		t.Errorf("got %v, want ErrNotConfigured", err)
+	}
 }
 
 // TestClient_ServerStopped_ErrUnavailable verifies that a stopped server
-// returns ErrUnavailable. Requires an exported method (Task 3).
+// returns ErrUnavailable when the cache is empty.
 func TestClient_ServerStopped_ErrUnavailable(t *testing.T) {
-	t.Skip("requires exported method from Task 3 — placeholder")
-	// When Task 3 lands, replace with:
-	//   api := newTestAPI(t)
-	//   api.Server.Close() // stop the server
-	//   _, err := api.Client.ListProjects(context.Background())
-	//   if !errors.Is(err, httpapi.ErrUnavailable) {
-	//       t.Errorf("got %v, want ErrUnavailable", err)
-	//   }
+	api := newTestAPI(t)
+	// Use a fresh client without the shared snapshot path interfering
+	cli := httpapi.New(httpapi.Config{
+		BaseURL: api.URL,
+		Tokens:  &memTokens{ok: true, tok: ports.Tokens{AccessToken: "stopped-tok"}},
+		Slot:    "test-stopped",
+	})
+	sessions := httpapi.NewSessions(cli)
+	api.server.Close() // stop the server before any successful read
+	_, err := sessions.Load("")
+	if !errors.Is(err, httpapi.ErrUnavailable) {
+		t.Errorf("got %v, want ErrUnavailable", err)
+	}
 }
 
 // Compile-time interface assertions.

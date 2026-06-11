@@ -64,7 +64,11 @@ type testAPI struct {
 	URL       string
 	MintToken func(sub string) string
 	Sub       string // dex static user sub
+	server    *httptest.Server
 }
+
+// Close stops the underlying test HTTP server.
+func (a *testAPI) Close() { a.server.Close() }
 
 // newTestAPI starts a fresh httptest.Server with the full bearer-protected API
 // wired against the shared pgTestStore and a per-test dex instance.
@@ -163,5 +167,6 @@ func newTestAPI(t *testing.T) *testAPI {
 		URL:       ts.URL,
 		MintToken: mintToken,
 		Sub:       dex.StaticUser.Sub,
+		server:    ts,
 	}
 }
