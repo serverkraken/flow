@@ -65,7 +65,7 @@ type WorktimeStatusReader interface {
 	Today() (domain.Day, error)
 }
 
-// repoNoteListLimit caps how many RepoNotes flow_search_notes /
+// repoNoteListLimit caps how many DocumentEntry rows flow_search_notes /
 // flow_list_repo_notes pull from the store in one shot. A user with
 // more than 5k repo notes is well outside Phase 1's target audience;
 // the next milestone (M6 WebUI) can revisit if needed.
@@ -77,41 +77,40 @@ const repoNoteListLimit = 5000
 // state.
 const loginRequiredMsg = "Login required: run `flow login` in a terminal first."
 
-// MCPTools is the dispatch hub for MCP tool/resource calls. Shares the
-// same use cases (RepoNotes, ActiveSessions, Sessions, WorktimeReader)
-// the CLI/TUI binaries use, so MCP-driven work syncs identically.
+// MCPTools is the dispatch hub for MCP tool/resource calls. All document
+// (repo-note) operations go through Documents (ports.DocumentStore) which
+// maps to the server REST API in production; worktime operations go through
+// Active, Sessions, and Reader.
 //
 // Authed=false → every tool returns a "Login required" message and the
 // resource catalog is empty. The auth check happens once at boot in
 // cmd/flow-mcp/main; tools don't re-check because the keyring
 // roundtrip would dominate latency on a per-call basis. A token that
-// expires mid-session manifests as a sync-worker push failure, which
-// the next `flow status` surfaces — by design we don't try to gate
-// every tool call on liveness.
+// expires mid-session manifests as a server-side 401 on the next call,
+// which the tool surfaces as an error — by design we don't gate every
+// call on liveness.
 type MCPTools struct {
 	UserID string
 	Pwd    string
 	Authed bool
 
-	Notes    *RepoNotes
+	// Documents is the document store used for repo-note get/save/list/search.
+	Documents ports.DocumentStore
+
+	// Resolver resolves a working-directory path to a canonical git remote key
+	// ("git:github.com/owner/repo"). May be nil — falls back to a path hash.
+	Resolver RemoteResolver
+
 	Active   *ActiveSessions
 	Sessions *Sessions
 	Reader   WorktimeStatusReader
-
-	// RepoNoteStore is the raw store used by flow_search_notes /
-	// flow_list_repo_notes — those tools need bulk pull-since access
-	// to the RepoNote rows without going through Notes.Save / Get.
-	RepoNoteStore ports.RepoNoteStore
 
 	// ProjectStore is used by flow_worktime_status to name the
 	// active project(s) in the status text.
 	ProjectStore ports.ProjectStore
 }
 
-// Catalog returns the static tool catalog. Eight is a placeholder — we
-// ship seven tools in M5; the two Kompendium tools (flow_get_note /
-// flow_save_note) are deferred to a follow-up plan because they need a
-// new note-IO port that doesn't fit in M5's scope.
+// Catalog returns the static tool catalog. Seven tools shipped in M5.
 func (m *MCPTools) Catalog() []ToolDef {
 	return []ToolDef{
 		{
@@ -123,7 +122,7 @@ func (m *MCPTools) Catalog() []ToolDef {
 		},
 		{
 			Name:        "flow_save_repo_note",
-			Description: "Write the RepoNote body for the given repo path. Overwrites the existing note. Syncs via the shared httpsync worker.",
+			Description: "Write the RepoNote body for the given repo path. Overwrites the existing note. Syncs via the server REST API.",
 			InputSchema: objectSchema(map[string]any{
 				"content":   stringSchema("New RepoNote body (Markdown)."),
 				"repo_path": stringSchema("Absolute path to the repo. Defaults to the MCP-server PWD."),
@@ -131,7 +130,7 @@ func (m *MCPTools) Catalog() []ToolDef {
 		},
 		{
 			Name:        "flow_list_repo_notes",
-			Description: "List every Repo known to flow with the size of its RepoNote (in bytes). Useful for discovery before flow_get_repo_note.",
+			Description: "List every repo known to flow with the size of its RepoNote (in bytes). Useful for discovery before flow_get_repo_note.",
 			InputSchema: objectSchema(nil, nil),
 		},
 		{
@@ -195,23 +194,29 @@ func (m *MCPTools) Call(name string, args map[string]any) ToolResult {
 	}
 }
 
-// ResourceCatalog returns one entry per known Repo, encoded as
+// ResourceCatalog returns one entry per known repo note, encoded as
 // flow://repos/<url-encoded-canonical-key>/note. MCP clients can
 // auto-attach the matching RepoNote when the user opens that repo.
 func (m *MCPTools) ResourceCatalog() []ResourceDef {
 	if !m.Authed {
 		return nil
 	}
-	repos, err := m.Notes.ListRepos(m.UserID)
+	if m.Documents == nil {
+		return nil
+	}
+	entries, err := m.Documents.List(m.UserID, "repos/", "", repoNoteListLimit)
 	if err != nil {
 		return nil
 	}
-	out := make([]ResourceDef, 0, len(repos))
-	for _, r := range repos {
+	out := make([]ResourceDef, 0, len(entries))
+	for _, e := range entries {
+		if e.RepoKey == "" {
+			continue
+		}
 		out = append(out, ResourceDef{
-			URI:         "flow://repos/" + url.PathEscape(r.CanonicalKey) + "/note",
-			Name:        r.DisplayName,
-			Description: "RepoNote for " + r.CanonicalKey,
+			URI:         "flow://repos/" + url.PathEscape(e.RepoKey) + "/note",
+			Name:        repoKeyDisplayName(e.RepoKey),
+			Description: "RepoNote for " + e.RepoKey,
 			MimeType:    "text/markdown",
 		})
 	}
@@ -228,28 +233,17 @@ func (m *MCPTools) ReadResource(uri string) (ResourceContent, error) {
 	if !ok {
 		return ResourceContent{}, ErrResourceNotFound
 	}
-	repos, err := m.Notes.ListRepos(m.UserID)
-	if err != nil {
-		return ResourceContent{}, err
-	}
-	var match *domain.Repo
-	for i := range repos {
-		if repos[i].CanonicalKey == key {
-			match = &repos[i]
-			break
-		}
-	}
-	if match == nil {
+	if m.Documents == nil {
 		return ResourceContent{}, ErrResourceNotFound
 	}
-	note, err := m.RepoNoteStore.GetByRepo(m.UserID, match.ID)
-	if errors.Is(err, ports.ErrRepoNoteNotFound) {
-		return ResourceContent{URI: uri, MimeType: "text/markdown", Text: ""}, nil
+	doc, err := m.Documents.GetByRepoKey(m.UserID, key)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		return ResourceContent{}, ErrResourceNotFound
 	}
 	if err != nil {
 		return ResourceContent{}, err
 	}
-	return ResourceContent{URI: uri, MimeType: "text/markdown", Text: note.Content}, nil
+	return ResourceContent{URI: uri, MimeType: "text/markdown", Text: doc.Body}, nil
 }
 
 // ---- Tool implementations ----
@@ -262,18 +256,22 @@ func (m *MCPTools) callGetRepoNote(args map[string]any) ToolResult {
 	if pwd == "" {
 		return errResult("flow_get_repo_note: PWD is empty and no repo_path was provided")
 	}
-	note, repo, err := m.Notes.GetForPwd(m.UserID, pwd)
+	if m.Documents == nil {
+		return errResult("flow_get_repo_note: document store not configured")
+	}
+	repoKey, err := CanonicalKey(pwd, m.Resolver)
 	if err != nil {
 		return errResult("flow_get_repo_note: " + err.Error())
 	}
-	if note.ID == "" {
-		return ToolResult{Text: fmt.Sprintf("repo=%s display=%q\n(no RepoNote yet — use flow_save_repo_note to create one)",
-			repo.CanonicalKey, repo.DisplayName)}
+	doc, err := m.Documents.GetByRepoKey(m.UserID, repoKey)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		return ToolResult{Text: fmt.Sprintf("repo=%s\n(no RepoNote yet — use flow_save_repo_note to create one)", repoKey)}
 	}
-	return ToolResult{Text: fmt.Sprintf("repo=%s display=%q updated=%s bytes=%d\n%s",
-		repo.CanonicalKey, repo.DisplayName,
-		note.UpdatedAt.Format(time.RFC3339), len(note.Content),
-		note.Content)}
+	if err != nil {
+		return errResult("flow_get_repo_note: " + err.Error())
+	}
+	return ToolResult{Text: fmt.Sprintf("repo=%s updated=%s bytes=%d\n%s",
+		repoKey, doc.UpdatedAt.Format(time.RFC3339), len(doc.Body), doc.Body)}
 }
 
 func (m *MCPTools) callSaveRepoNote(args map[string]any) ToolResult {
@@ -288,36 +286,47 @@ func (m *MCPTools) callSaveRepoNote(args map[string]any) ToolResult {
 	if pwd == "" {
 		return errResult("flow_save_repo_note: PWD is empty and no repo_path was provided")
 	}
-	saved, err := m.Notes.Save(m.UserID, pwd, content)
+	if m.Documents == nil {
+		return errResult("flow_save_repo_note: document store not configured")
+	}
+	repoKey, err := CanonicalKey(pwd, m.Resolver)
+	if err != nil {
+		return errResult("flow_save_repo_note: " + err.Error())
+	}
+	// Fetch existing version for If-Match; 0 means create-or-overwrite.
+	var ifMatch int64
+	existing, getErr := m.Documents.GetByRepoKey(m.UserID, repoKey)
+	if getErr == nil {
+		ifMatch = existing.Version
+	}
+	saved, err := m.Documents.Put(m.UserID, "", content, repoKey, ifMatch)
 	if err != nil {
 		return errResult("flow_save_repo_note: " + err.Error())
 	}
 	return ToolResult{Text: fmt.Sprintf("saved bytes=%d updated=%s",
-		len(saved.Content), saved.UpdatedAt.Format(time.RFC3339))}
+		len(saved.Body), saved.UpdatedAt.Format(time.RFC3339))}
 }
 
 func (m *MCPTools) callListRepoNotes() ToolResult {
-	repos, err := m.Notes.ListRepos(m.UserID)
+	if m.Documents == nil {
+		return errResult("flow_list_repo_notes: document store not configured")
+	}
+	entries, err := m.Documents.List(m.UserID, "repos/", "", repoNoteListLimit)
 	if err != nil {
 		return errResult("flow_list_repo_notes: " + err.Error())
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "%d repo(s)\n", len(repos))
-	for _, r := range repos {
-		note, err := m.RepoNoteStore.GetByRepo(m.UserID, r.ID)
-		bytes := 0
-		updated := "never"
-		switch {
-		case errors.Is(err, ports.ErrRepoNoteNotFound):
-			// leave defaults
-		case err != nil:
-			fmt.Fprintf(&b, "- %s (%s) — error: %v\n", r.DisplayName, r.CanonicalKey, err)
-			continue
-		default:
-			bytes = len(note.Content)
-			updated = note.UpdatedAt.Format(time.RFC3339)
+	// Count only those that are repo notes (have a RepoKey).
+	var repoEntries []ports.DocumentEntry
+	for _, e := range entries {
+		if e.RepoKey != "" {
+			repoEntries = append(repoEntries, e)
 		}
-		fmt.Fprintf(&b, "- %s (%s) — bytes=%d updated=%s\n", r.DisplayName, r.CanonicalKey, bytes, updated)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d repo(s)\n", len(repoEntries))
+	for _, e := range repoEntries {
+		updated := e.UpdatedAt.Format(time.RFC3339)
+		fmt.Fprintf(&b, "- %s — bytes=%d updated=%s\n", e.RepoKey, 0, updated)
 	}
 	return ToolResult{Text: strings.TrimRight(b.String(), "\n")}
 }
@@ -332,39 +341,33 @@ func (m *MCPTools) callSearchNotes(args map[string]any) ToolResult {
 	if limit <= 0 {
 		limit = 10
 	}
-	notes, _, _, err := m.RepoNoteStore.PullSince(m.UserID, 0, repoNoteListLimit)
+	if m.Documents == nil {
+		return errResult("flow_search_notes: document store not configured")
+	}
+	entries, err := m.Documents.List(m.UserID, "repos/", query, limit)
 	if err != nil {
 		return errResult("flow_search_notes: " + err.Error())
 	}
-	repos, err := m.Notes.ListRepos(m.UserID)
-	if err != nil {
-		return errResult("flow_search_notes: " + err.Error())
-	}
-	byID := make(map[string]domain.Repo, len(repos))
-	for _, r := range repos {
-		byID[r.ID] = r
-	}
-	q := strings.ToLower(query)
-	var hits int
-	var b strings.Builder
-	for _, n := range notes {
-		body := strings.ToLower(n.Content)
-		idx := strings.Index(body, q)
-		if idx < 0 {
-			continue
-		}
-		hits++
-		if hits > limit {
-			break
-		}
-		r := byID[n.RepoID]
-		snippet := contextSnippet(n.Content, idx, len(query))
-		fmt.Fprintf(&b, "- %s (%s) — %q\n", r.DisplayName, r.CanonicalKey, snippet)
-	}
-	if hits == 0 {
+	if len(entries) == 0 {
 		return ToolResult{Text: "no matches"}
 	}
-	return ToolResult{Text: fmt.Sprintf("%d match(es)\n%s", hits, strings.TrimRight(b.String(), "\n"))}
+	var b strings.Builder
+	count := 0
+	for _, e := range entries {
+		if e.RepoKey == "" {
+			continue
+		}
+		count++
+		snippet := e.Snippet
+		if snippet == "" {
+			snippet = "(match)"
+		}
+		fmt.Fprintf(&b, "- %s — %q\n", e.RepoKey, snippet)
+	}
+	if count == 0 {
+		return ToolResult{Text: "no matches"}
+	}
+	return ToolResult{Text: fmt.Sprintf("%d match(es)\n%s", count, strings.TrimRight(b.String(), "\n"))}
 }
 
 func (m *MCPTools) callWorktimeStatus() ToolResult {
@@ -480,23 +483,6 @@ func numberSchema(desc string) map[string]any {
 	return map[string]any{"type": "number", "description": desc}
 }
 
-// contextSnippet returns up to ~80 chars around the match site.
-func contextSnippet(s string, idx, qlen int) string {
-	const window = 40
-	start := idx - window
-	if start < 0 {
-		start = 0
-	}
-	end := idx + qlen + window
-	if end > len(s) {
-		end = len(s)
-	}
-	snip := s[start:end]
-	snip = strings.ReplaceAll(snip, "\n", " ")
-	snip = strings.ReplaceAll(snip, "\r", " ")
-	return snip
-}
-
 // parseRepoNoteURI extracts the URL-escaped canonical key from a
 // flow://repos/<key>/note URI. Returns ok=false for any other shape.
 func parseRepoNoteURI(uri string) (string, bool) {
@@ -514,4 +500,17 @@ func parseRepoNoteURI(uri string) (string, bool) {
 		return "", false
 	}
 	return key, true
+}
+
+// repoKeyDisplayName extracts a human-readable short name from a canonical key.
+// "git:github.com/owner/repo" → "repo"
+// "path:abc123..." → "path:abc123..."
+func repoKeyDisplayName(key string) string {
+	if strings.HasPrefix(key, "git:") {
+		parts := strings.Split(key, "/")
+		if len(parts) >= 2 {
+			return parts[len(parts)-1]
+		}
+	}
+	return key
 }

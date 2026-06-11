@@ -20,7 +20,6 @@ import (
 // `make ci` adds the tag explicitly.
 func TestLoopback_InitializeAndToolsList(t *testing.T) {
 	binary := buildBinary(t)
-	tempDB := filepath.Join(t.TempDir(), "cache.db")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -29,11 +28,9 @@ func TestLoopback_InitializeAndToolsList(t *testing.T) {
 	cmd.Env = []string{
 		"PATH=/usr/bin:/bin",
 		"HOME=" + t.TempDir(),
-		"FLOW_CACHE_DB=" + tempDB,
-		"FLOW_LOCAL_USER_SUB=loopback-user",
-		// Direct flow-server URL to localhost:0 so the sync worker's
-		// background dial fails fast and noisily into stderr (and not
-		// onto stdout where MCP frames live).
+		// Direct flow-server URL to localhost:0 so the identity resolve
+		// fails fast (no token → authed=false) and nothing reaches stdout
+		// on MCP frames (all diagnostic output goes to stderr).
 		"FLOW_SERVER_URL=http://127.0.0.1:1",
 	}
 

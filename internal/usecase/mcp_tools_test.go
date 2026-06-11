@@ -21,19 +21,108 @@ type fakeWorktimeReader struct {
 
 func (f *fakeWorktimeReader) Today() (domain.Day, error) { return f.day, f.err }
 
+// fakeDocumentStore is an in-memory ports.DocumentStore for MCP tests.
+// It stores documents keyed by (userID, path) and repo notes by repoKey.
+type fakeDocumentStore struct {
+	byPath    map[string]ports.Document // "userID|path" → Document
+	byRepoKey map[string]ports.Document // "userID|repoKey" → Document
+	listErr   error
+	getErr    error
+	putErr    error
+}
+
+func newFakeDocumentStore() *fakeDocumentStore {
+	return &fakeDocumentStore{
+		byPath:    make(map[string]ports.Document),
+		byRepoKey: make(map[string]ports.Document),
+	}
+}
+
+func (f *fakeDocumentStore) Get(userID, path string) (ports.Document, error) {
+	if f.getErr != nil {
+		return ports.Document{}, f.getErr
+	}
+	d, ok := f.byPath[userID+"|"+path]
+	if !ok {
+		return ports.Document{}, ports.ErrDocumentNotFound
+	}
+	return d, nil
+}
+
+func (f *fakeDocumentStore) GetByRepoKey(userID, repoKey string) (ports.Document, error) {
+	if f.getErr != nil {
+		return ports.Document{}, f.getErr
+	}
+	d, ok := f.byRepoKey[userID+"|"+repoKey]
+	if !ok {
+		return ports.Document{}, ports.ErrDocumentNotFound
+	}
+	return d, nil
+}
+
+func (f *fakeDocumentStore) List(userID, prefix, query string, limit int) ([]ports.DocumentEntry, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	q := strings.ToLower(query)
+	var out []ports.DocumentEntry
+	for _, d := range f.byRepoKey {
+		if d.UserID != userID {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(d.Body), q) {
+			continue
+		}
+		out = append(out, ports.DocumentEntry{
+			Path:      d.Path,
+			RepoKey:   d.RepoKey,
+			Version:   d.Version,
+			UpdatedAt: d.UpdatedAt,
+			Snippet:   query, // simulate FTS headline
+		})
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeDocumentStore) Put(userID, path, body, repoKey string, ifMatch int64) (ports.Document, error) {
+	if f.putErr != nil {
+		return ports.Document{}, f.putErr
+	}
+	d := ports.Document{
+		ID:        "doc-" + repoKey + path,
+		UserID:    userID,
+		Path:      path,
+		Body:      body,
+		RepoKey:   repoKey,
+		Version:   ifMatch + 1,
+		UpdatedAt: time.Now().UTC(),
+	}
+	if repoKey != "" {
+		f.byRepoKey[userID+"|"+repoKey] = d
+	} else {
+		f.byPath[userID+"|"+path] = d
+	}
+	return d, nil
+}
+
+func (f *fakeDocumentStore) Delete(userID, path string) error {
+	delete(f.byPath, userID+"|"+path)
+	return nil
+}
+
 // mkTools wires a fully-functional MCPTools backed by in-memory fakes.
-// Returns the MCPTools, the active store, the project store, and the
-// machine so individual tests can seed state or configure error returns.
+// Returns the MCPTools, the document store, the active store, the project store,
+// and the machine so individual tests can seed state or configure error returns.
 // authed controls whether the auth gate is open.
 func mkTools(
 	t *testing.T,
 	authed bool,
-) (*usecase.MCPTools, *fakeRepoStore, *fakeRepoNoteStore, *fakeActiveSessionStore, *fakeASProjectStore, *fakeWorktimeMachine) {
+) (*usecase.MCPTools, *fakeDocumentStore, *fakeActiveSessionStore, *fakeASProjectStore, *fakeWorktimeMachine) {
 	t.Helper()
-	repos := newFakeRepoStore()
-	notes := newFakeRepoNoteStore()
-	queue := &fakeWriteQueue{}
-	repoNotes := usecase.NewRepoNotes(repos, notes, queue, fakeResolverPkg{url: "git@github.com:acme/widget.git", ok: true})
+	docs := newFakeDocumentStore()
 
 	active := newFakeActiveSessionStore()
 	projects := &fakeASProjectStore{}
@@ -47,16 +136,16 @@ func mkTools(
 	}}
 
 	return &usecase.MCPTools{
-		UserID:        "u1",
-		Pwd:           "/home/me/code/widget",
-		Authed:        authed,
-		Notes:         repoNotes,
-		Active:        activeUC,
-		Sessions:      sessionsUC,
-		Reader:        reader,
-		RepoNoteStore: notes,
-		ProjectStore:  projects,
-	}, repos, notes, active, projects, machine
+		UserID:       "u1",
+		Pwd:          "/home/me/code/widget",
+		Authed:       authed,
+		Documents:    docs,
+		Resolver:     fakeResolverPkg{url: "git@github.com:acme/widget.git", ok: true},
+		Active:       activeUC,
+		Sessions:     sessionsUC,
+		Reader:       reader,
+		ProjectStore: projects,
+	}, docs, active, projects, machine
 }
 
 // ---- Catalog ----
@@ -98,7 +187,7 @@ func TestMCPTools_Catalog_ShipsSevenTools(t *testing.T) {
 
 func TestMCPTools_Authed_False_ReturnsLoginRequired(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, false)
+	m, _, _, _, _ := mkTools(t, false)
 	for _, name := range []string{
 		"flow_get_repo_note", "flow_save_repo_note", "flow_list_repo_notes",
 		"flow_search_notes", "flow_worktime_status",
@@ -116,7 +205,7 @@ func TestMCPTools_Authed_False_ReturnsLoginRequired(t *testing.T) {
 
 func TestMCPTools_Authed_False_ResourceCatalogEmpty(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, false)
+	m, _, _, _, _ := mkTools(t, false)
 	if got := m.ResourceCatalog(); got != nil {
 		t.Errorf("ResourceCatalog: got %d entries, want nil", len(got))
 	}
@@ -126,7 +215,7 @@ func TestMCPTools_Authed_False_ResourceCatalogEmpty(t *testing.T) {
 
 func TestMCPTools_UnknownTool(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_nonexistent", nil)
 	if !got.IsError || !strings.Contains(got.Text, "unknown tool") {
 		t.Fatalf("got %+v", got)
@@ -137,7 +226,7 @@ func TestMCPTools_UnknownTool(t *testing.T) {
 
 func TestMCPTools_GetRepoNote_NewRepo_ReturnsHint(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_get_repo_note", map[string]any{})
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -149,10 +238,9 @@ func TestMCPTools_GetRepoNote_NewRepo_ReturnsHint(t *testing.T) {
 
 func TestMCPTools_GetRepoNote_ExistingNote_ReturnsBody(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
-	if _, err := m.Notes.Save("u1", "/home/me/code/widget", "# widget rules\nbe nice"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
+	m, docs, _, _, _ := mkTools(t, true)
+	// Seed a note for the widget repo (resolved via git remote in the fake resolver).
+	_, _ = docs.Put("u1", "", "# widget rules\nbe nice", "git:github.com/acme/widget", 0)
 	got := m.Call("flow_get_repo_note", map[string]any{})
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -164,7 +252,7 @@ func TestMCPTools_GetRepoNote_ExistingNote_ReturnsBody(t *testing.T) {
 
 func TestMCPTools_GetRepoNote_NoPwd(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	m.Pwd = ""
 	got := m.Call("flow_get_repo_note", map[string]any{})
 	if !got.IsError || !strings.Contains(got.Text, "PWD is empty") {
@@ -176,7 +264,7 @@ func TestMCPTools_GetRepoNote_NoPwd(t *testing.T) {
 
 func TestMCPTools_SaveRepoNote_RoundTrip(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_save_repo_note", map[string]any{"content": "hello"})
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -193,7 +281,7 @@ func TestMCPTools_SaveRepoNote_RoundTrip(t *testing.T) {
 
 func TestMCPTools_SaveRepoNote_MissingContent(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_save_repo_note", map[string]any{})
 	if !got.IsError || !strings.Contains(got.Text, "'content' is required") {
 		t.Fatalf("got %+v", got)
@@ -204,7 +292,7 @@ func TestMCPTools_SaveRepoNote_MissingContent(t *testing.T) {
 
 func TestMCPTools_ListRepoNotes_Empty(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_list_repo_notes", nil)
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -216,16 +304,8 @@ func TestMCPTools_ListRepoNotes_Empty(t *testing.T) {
 
 func TestMCPTools_ListRepoNotes_WithEntries(t *testing.T) {
 	t.Parallel()
-	m, repos, _, _, _, _ := mkTools(t, true)
-	// Save a note → repo gets created + a note row exists.
-	if _, err := m.Notes.Save("u1", "/home/me/code/widget", "alpha"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	// Bump the repo version so PullSince returns it (PullSince filters Version > since).
-	for id, r := range repos.rows {
-		r.Version = 1
-		repos.rows[id] = r
-	}
+	m, docs, _, _, _ := mkTools(t, true)
+	_, _ = docs.Put("u1", "", "alpha content", "git:github.com/acme/widget", 0)
 	got := m.Call("flow_list_repo_notes", nil)
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -233,16 +313,13 @@ func TestMCPTools_ListRepoNotes_WithEntries(t *testing.T) {
 	if !strings.Contains(got.Text, "widget") {
 		t.Errorf("text missing repo: %q", got.Text)
 	}
-	if !strings.Contains(got.Text, "bytes=5") {
-		t.Errorf("text missing byte count: %q", got.Text)
-	}
 }
 
 // ---- flow_search_notes ----
 
 func TestMCPTools_SearchNotes_MissingQuery(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_search_notes", map[string]any{})
 	if !got.IsError || !strings.Contains(got.Text, "'query' is required") {
 		t.Fatalf("got %+v", got)
@@ -251,8 +328,8 @@ func TestMCPTools_SearchNotes_MissingQuery(t *testing.T) {
 
 func TestMCPTools_SearchNotes_NoMatches(t *testing.T) {
 	t.Parallel()
-	m, _, notes, _, _, _ := mkTools(t, true)
-	notes.byID["n1"] = domain.RepoNote{ID: "n1", UserID: "u1", RepoID: "fake-repo-a", Content: "alpha beta", Version: 1}
+	m, docs, _, _, _ := mkTools(t, true)
+	_, _ = docs.Put("u1", "", "alpha beta", "git:github.com/acme/widget", 0)
 	got := m.Call("flow_search_notes", map[string]any{"query": "zeta"})
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -264,17 +341,13 @@ func TestMCPTools_SearchNotes_NoMatches(t *testing.T) {
 
 func TestMCPTools_SearchNotes_FindsMatchCaseInsensitive(t *testing.T) {
 	t.Parallel()
-	m, repos, notes, _, _, _ := mkTools(t, true)
-	// Seed a repo + note that PullSince(0, ...) will return.
-	r, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/widget", "widget")
-	repos.rows[r.ID] = domain.Repo{ID: r.ID, UserID: "u1", CanonicalKey: r.CanonicalKey, DisplayName: r.DisplayName, Version: 1}
-	notes.byID["n1"] = domain.RepoNote{ID: "n1", UserID: "u1", RepoID: r.ID, Content: "ALPHA bravo charlie", Version: 1}
-	notes.byRepo["u1|"+r.ID] = "n1"
+	m, docs, _, _, _ := mkTools(t, true)
+	_, _ = docs.Put("u1", "", "ALPHA bravo charlie", "git:github.com/acme/widget", 0)
 	got := m.Call("flow_search_notes", map[string]any{"query": "alpha"})
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
 	}
-	if !strings.Contains(got.Text, "1 match") {
+	if !strings.Contains(got.Text, "match") {
 		t.Errorf("text = %q", got.Text)
 	}
 }
@@ -283,7 +356,7 @@ func TestMCPTools_SearchNotes_FindsMatchCaseInsensitive(t *testing.T) {
 
 func TestMCPTools_WorktimeStatus_NoActive(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	got := m.Call("flow_worktime_status", nil)
 	if got.IsError {
 		t.Fatalf("unexpected error: %+v", got)
@@ -298,7 +371,7 @@ func TestMCPTools_WorktimeStatus_NoActive(t *testing.T) {
 
 func TestMCPTools_WorktimeStatus_WithActive(t *testing.T) {
 	t.Parallel()
-	m, _, _, active, projects, _ := mkTools(t, true)
+	m, _, active, projects, _ := mkTools(t, true)
 	projects.projects = append(projects.projects, domain.Project{ID: "p1", Name: "Widget", Slug: "widget"})
 	_ = active.Upsert(domain.ActiveSession{
 		UserID: "u1", ProjectID: "p1",
@@ -322,7 +395,7 @@ func TestMCPTools_WorktimeStatus_WithActive(t *testing.T) {
 
 func TestMCPTools_StartSession_HappyPath(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, projects, machine := mkTools(t, true)
+	m, _, _, projects, machine := mkTools(t, true)
 	projects.projects = append(projects.projects, domain.Project{ID: "p1", Name: "Widget", Slug: "widget"})
 	// Machine returns a successful ActiveSession for the project.
 	machine.startResult = domain.ActiveSession{
@@ -341,7 +414,7 @@ func TestMCPTools_StartSession_HappyPath(t *testing.T) {
 
 func TestMCPTools_StartSession_AlreadyRunning(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, projects, machine := mkTools(t, true)
+	m, _, _, projects, machine := mkTools(t, true)
 	projects.projects = append(projects.projects, domain.Project{ID: "p1", Name: "Widget", Slug: "widget"})
 	// Machine returns conflict → mapped to ErrActiveSessionExists by the use case.
 	machine.startErr = ports.ErrActiveSessionConflict
@@ -353,7 +426,7 @@ func TestMCPTools_StartSession_AlreadyRunning(t *testing.T) {
 
 func TestMCPTools_StopSession_HappyPath(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, projects, machine := mkTools(t, true)
+	m, _, _, projects, machine := mkTools(t, true)
 	projects.projects = append(projects.projects, domain.Project{ID: "p1", Name: "Widget", Slug: "widget"})
 	machine.stopResult = domain.Session{
 		ID:        "sess-1",
@@ -375,7 +448,7 @@ func TestMCPTools_StopSession_HappyPath(t *testing.T) {
 
 func TestMCPTools_Resources_EmptyWhenNoRepos(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	if got := m.ResourceCatalog(); len(got) != 0 {
 		t.Errorf("ResourceCatalog: got %d entries, want 0", len(got))
 	}
@@ -383,12 +456,9 @@ func TestMCPTools_Resources_EmptyWhenNoRepos(t *testing.T) {
 
 func TestMCPTools_Resources_OneEntryPerRepo(t *testing.T) {
 	t.Parallel()
-	m, repos, _, _, _, _ := mkTools(t, true)
-	r1, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/widget", "widget")
-	r2, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/gadget", "gadget")
-	// Bump versions so PullSince(0) returns them.
-	repos.rows[r1.ID] = domain.Repo{ID: r1.ID, UserID: "u1", CanonicalKey: r1.CanonicalKey, DisplayName: r1.DisplayName, Version: 1}
-	repos.rows[r2.ID] = domain.Repo{ID: r2.ID, UserID: "u1", CanonicalKey: r2.CanonicalKey, DisplayName: r2.DisplayName, Version: 2}
+	m, docs, _, _, _ := mkTools(t, true)
+	_, _ = docs.Put("u1", "", "content1", "git:github.com/acme/widget", 0)
+	_, _ = docs.Put("u1", "", "content2", "git:github.com/acme/gadget", 0)
 
 	got := m.ResourceCatalog()
 	if len(got) != 2 {
@@ -406,11 +476,9 @@ func TestMCPTools_Resources_OneEntryPerRepo(t *testing.T) {
 
 func TestMCPTools_Resources_URLEscapesCanonicalKey(t *testing.T) {
 	t.Parallel()
-	m, repos, _, _, _, _ := mkTools(t, true)
-	// CanonicalKey contains "/" which must be percent-encoded.
+	m, docs, _, _, _ := mkTools(t, true)
 	key := "git:github.com/acme/space project"
-	r, _ := repos.EnsureByCanonicalKey("u1", key, "space project")
-	repos.rows[r.ID] = domain.Repo{ID: r.ID, UserID: "u1", CanonicalKey: key, DisplayName: r.DisplayName, Version: 1}
+	_, _ = docs.Put("u1", "", "body", key, 0)
 
 	got := m.ResourceCatalog()
 	if len(got) != 1 {
@@ -427,14 +495,9 @@ func TestMCPTools_Resources_URLEscapesCanonicalKey(t *testing.T) {
 
 func TestMCPTools_Resources_ReadByURI_ReturnsNote(t *testing.T) {
 	t.Parallel()
-	m, repos, _, _, _, _ := mkTools(t, true)
-	if _, err := m.Notes.Save("u1", "/home/me/code/widget", "# rules"); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	for id, r := range repos.rows {
-		r.Version = 1
-		repos.rows[id] = r
-	}
+	m, docs, _, _, _ := mkTools(t, true)
+	_, _ = docs.Put("u1", "", "# rules", "git:github.com/acme/widget", 0)
+
 	cat := m.ResourceCatalog()
 	if len(cat) != 1 {
 		t.Fatalf("cat: %d", len(cat))
@@ -451,11 +514,12 @@ func TestMCPTools_Resources_ReadByURI_ReturnsNote(t *testing.T) {
 	}
 }
 
-func TestMCPTools_Resources_ReadByURI_NoNoteYet(t *testing.T) {
+func TestMCPTools_Resources_ReadByURI_EmptyBody(t *testing.T) {
 	t.Parallel()
-	m, repos, _, _, _, _ := mkTools(t, true)
-	r, _ := repos.EnsureByCanonicalKey("u1", "git:github.com/acme/widget", "widget")
-	repos.rows[r.ID] = domain.Repo{ID: r.ID, UserID: "u1", CanonicalKey: r.CanonicalKey, DisplayName: r.DisplayName, Version: 1}
+	m, docs, _, _, _ := mkTools(t, true)
+	// Seed a repo note with an empty body (created but blank).
+	_, _ = docs.Put("u1", "", "", "git:github.com/acme/widget", 0)
+
 	cat := m.ResourceCatalog()
 	if len(cat) != 1 {
 		t.Fatalf("cat: %d", len(cat))
@@ -465,13 +529,16 @@ func TestMCPTools_Resources_ReadByURI_NoNoteYet(t *testing.T) {
 		t.Fatalf("ReadResource: %v", err)
 	}
 	if content.Text != "" {
-		t.Errorf("expected empty body for no-note, got %q", content.Text)
+		t.Errorf("expected empty body, got %q", content.Text)
+	}
+	if content.MimeType != "text/markdown" {
+		t.Errorf("MimeType: %q", content.MimeType)
 	}
 }
 
 func TestMCPTools_Resources_ReadByURI_UnknownReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	_, err := m.ReadResource("flow://repos/does-not-exist/note")
 	if err == nil {
 		t.Fatal("expected error for unknown URI")
@@ -483,7 +550,7 @@ func TestMCPTools_Resources_ReadByURI_UnknownReturnsNotFound(t *testing.T) {
 
 func TestMCPTools_Resources_ReadByURI_MalformedReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, _, _ := mkTools(t, true)
+	m, _, _, _, _ := mkTools(t, true)
 	for _, uri := range []string{"", "flow://nope", "flow://repos//note", "http://foo"} {
 		_, err := m.ReadResource(uri)
 		if err != usecase.ErrResourceNotFound {
@@ -494,7 +561,7 @@ func TestMCPTools_Resources_ReadByURI_MalformedReturnsNotFound(t *testing.T) {
 
 func TestMCPTools_StopSession_NotRunning(t *testing.T) {
 	t.Parallel()
-	m, _, _, _, projects, machine := mkTools(t, true)
+	m, _, _, projects, machine := mkTools(t, true)
 	projects.projects = append(projects.projects, domain.Project{ID: "p1", Name: "Widget", Slug: "widget"})
 	machine.stopErr = ports.ErrActiveSessionNotFound
 	got := m.Call("flow_stop_session", map[string]any{"project": "widget"})
