@@ -178,11 +178,3 @@ func statusCode(err error) int {
 	}
 	return 0
 }
-
-// statusStub — replaced by status.go in Task 2.
-type Status struct{}
-
-func newStatus() *Status             { return &Status{} }
-func (s *Status) setOnline(_ string) {}
-func (s *Status) setOffline()        {}
-func (s *Status) setLoggedOut()      {}
