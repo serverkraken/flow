@@ -115,7 +115,7 @@ funktional tot — das ist der geplante Zustand auf dem Integrationsbranch bis R
 
 **Files:** keine Änderungen, nur Verifikation.
 
-- [ ] **Step 1: Worktree-Zustand prüfen**
+- [x] **Step 1: Worktree-Zustand prüfen**
 
 ```bash
 cd /Users/msoent/SourceCode/serverkraken/flow-phase1-m1
@@ -124,16 +124,16 @@ git status --short && git branch --show-current
 
 Expected: keine Ausgabe von `--short` (clean) und Branch `next`. Wenn nicht clean: STOPP, Bericht.
 
-- [ ] **Step 2: CI-Baseline**
+- [x] **Step 2: CI-Baseline**
 
 ```bash
 make ci 2>&1 | tail -5
 ```
 
 Expected: grün (Coverage-Gate 77 % besteht). Wenn rot: STOPP, Bericht — die Baseline muss
-grün sein, bevor der Umbau beginnt.
+in Ordnung sein, bevor der Umbau beginnt.
 
-- [ ] **Step 3: podman-Socket für testcontainers verifizieren**
+- [x] **Step 3: podman-Socket für testcontainers verifizieren**
 
 ```bash
 podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'
@@ -147,11 +147,11 @@ Expected: `ping: OK`. Diese beiden `export`-Zeilen braucht JEDE Session, die `go
 pgstore/httpserver/webui ausführt (Task 2 ff.). Wenn die podman-Machine nicht läuft:
 `podman machine start`, dann wiederholen.
 
-- [ ] **Step 4: Notiz im Plan**
+- [x] **Step 4: Notiz im Plan**
 
 Trage hier die gemessene Coverage-Baseline ein (Zahl aus Step 2):
 
-> Coverage-Baseline vor R1: ____ %
+> Coverage-Baseline vor R1: 77.4 %
 
 Kein Commit in diesem Task.
 
