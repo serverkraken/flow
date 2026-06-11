@@ -38,6 +38,11 @@ func NewSessions(c *Client) *Sessions {
 
 var _ ports.SessionStore = (*Sessions)(nil)
 
+// Invalidate forces a cache miss on the next read. Called by the SSE events
+// client in main.go's invalidate dispatch when a "worktime" changed event
+// arrives from the server.
+func (s *Sessions) Invalidate() { s.cache.invalidate() }
+
 // Load returns all sessions for the authenticated user.
 // userID is ignored — the server scopes the response to the bearer token.
 func (s *Sessions) Load(_ string) ([]domain.Session, error) {

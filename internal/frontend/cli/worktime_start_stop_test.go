@@ -218,9 +218,68 @@ func newNewPathFixture() *newPathFixture {
 	}
 }
 
+// fakeWorktimeMachine implements ports.WorktimeMachine using the in-memory
+// active session and session stores for use in CLI start/stop tests.
+type fakeWorktimeMachine struct {
+	active   *fakeNewActiveSessionStore
+	sessions *testutil.FakeSessionStore
+}
+
+func (m *fakeWorktimeMachine) Start(projectID, tag, note string) (domain.ActiveSession, error) {
+	// Return ErrActiveSessionConflict if already running — maps to ErrActiveSessionExists upstream.
+	if _, err := m.active.Get(testUserID, projectID); err == nil {
+		return domain.ActiveSession{}, ports.ErrActiveSessionConflict
+	}
+	a := domain.ActiveSession{
+		UserID:    testUserID,
+		ProjectID: projectID,
+		Tag:       tag,
+		Note:      note,
+		StartedAt: time.Now(),
+	}
+	return a, m.active.Upsert(a)
+}
+
+func (m *fakeWorktimeMachine) Stop(projectID string) (domain.Session, error) {
+	a, err := m.active.Get(testUserID, projectID)
+	if err != nil {
+		return domain.Session{}, ports.ErrActiveSessionNotFound
+	}
+	_ = m.active.Delete(testUserID, projectID)
+	now := time.Now()
+	s := domain.Session{
+		UserID:    testUserID,
+		ProjectID: projectID,
+		Tag:       a.Tag,
+		Note:      a.Note,
+		Start:     a.StartedAt,
+		Stop:      now,
+		Elapsed:   now.Sub(a.StartedAt),
+	}
+	return s, m.sessions.Upsert(s)
+}
+
+func (m *fakeWorktimeMachine) Pause(projectID string) (domain.ActiveSession, error) {
+	return m.active.Get(testUserID, projectID)
+}
+
+func (m *fakeWorktimeMachine) Resume(projectID string) (domain.ActiveSession, error) {
+	return m.active.Get(testUserID, projectID)
+}
+
+func (m *fakeWorktimeMachine) CorrectStart(projectID string, startedAt time.Time) (domain.ActiveSession, error) {
+	a, err := m.active.Get(testUserID, projectID)
+	if err != nil {
+		return domain.ActiveSession{}, err
+	}
+	a.StartedAt = startedAt
+	return a, m.active.Upsert(a)
+}
+
 func (f *newPathFixture) deps() cli.WorktimeDeps {
 	sessionsUC := usecase.NewSessions(nil, f.projects, f.sessions, nil)
-	activeUC := usecase.NewActiveSessions(nil, f.projects, f.activeSessions, f.sessions, f.writeQueue)
+	machine := &fakeWorktimeMachine{active: f.activeSessions, sessions: f.sessions}
+	activeUC := usecase.NewActiveSessions(nil, f.projects, f.activeSessions, machine)
 
 	// Minimal legacy deps so the cobra command tree initialises without
 	// nil-pointer panics on Status/Reporter etc.
@@ -366,18 +425,21 @@ func TestNewPath_Start_AlreadyRunning(t *testing.T) {
 
 // ---- stop new-path tests ----
 
-// TestNewPath_Stop_HappyPath verifies that stop with --tag and --note creates
-// a finished Session row and clears the ActiveSession.
+// TestNewPath_Stop_HappyPath verifies that stop creates a finished Session row
+// carrying the tag and note from the start call, and clears the ActiveSession.
+// In server mode tag/note are stored at start time and carried through by the
+// machine — stop-time overrides are not applied (the server is authoritative).
 func TestNewPath_Stop_HappyPath(t *testing.T) {
 	f := newNewPathFixture()
 	seed := domain.Project{ID: "proj-1", Name: "Flow", Slug: "flow", CreatedAt: time.Now()}
 	f.projects.projects = append(f.projects.projects, seed)
 
-	if _, _, err := f.run("start", "--project=flow"); err != nil {
+	// Start with tag+note stored at start time.
+	if _, _, err := f.run("start", "--project=flow", "--tag=deep", "--note=sprint done"); err != nil {
 		t.Fatalf("start: %v", err)
 	}
 
-	_, stderr, err := f.run("stop", "--project=flow", "--tag=deep", "--note=sprint done")
+	_, stderr, err := f.run("stop", "--project=flow")
 	if err != nil {
 		t.Fatalf("stop: %v", err)
 	}

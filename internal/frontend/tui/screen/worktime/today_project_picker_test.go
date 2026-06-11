@@ -72,7 +72,8 @@ func newPickerRig(t *testing.T) pickerRig {
 	reader := &usecase.WorktimeReader{Sessions: sessions, State: legacyActive, Targets: targets, Clock: clock}
 	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs}
 
-	activeSessions := usecase.NewActiveSessions(nil, projectStore, activeStore, sessions, queue)
+	machine := testutil.NewFakeWorktimeMachine(userID, activeStore, sessions)
+	activeSessions := usecase.NewActiveSessions(nil, projectStore, activeStore, machine)
 	projects := usecase.NewProjects(nil, projectStore, nil)
 
 	deps := worktime.Deps{
@@ -231,10 +232,8 @@ func TestPicker_PickedProjectStartsSession(t *testing.T) {
 	if as.ProjectID != "proj-1" {
 		t.Errorf("active session project = %q, want proj-1", as.ProjectID)
 	}
-	// Queue should have received the start payload.
-	if len(pr.queue.Entries) == 0 {
-		t.Error("expected write queue entry after picker-driven start")
-	}
+	// Note: in server-mode (new path), no write queue is used — the active
+	// session row in activeStore is the authoritative confirmation.
 }
 
 // TestPicker_CreateProjectStartsSession verifies that entering a new project
@@ -408,12 +407,11 @@ func TestSKeyOpensPickerWhenIdle(t *testing.T) {
 	}
 }
 
-// TestPauseKeyStopsSessionOnNewPath verifies that when new-path deps are wired
-// and an active session exists, pressing `p` calls ActiveSessions.Stop AND sets
-// the legacy pause marker. After the Cmd drains, the activeStore must have no
-// session for the running project and the legacy active marker must have been
-// cleared (pause handled by flockstate).
-func TestPauseKeyStopsSessionOnNewPath(t *testing.T) {
+// TestPauseKeyPausesSessionOnNewPath verifies that when new-path deps are wired
+// and an active session exists, pressing `p` calls ActiveSessions.Pause which
+// marks PausedAt on the active session. The session row remains in the store
+// (server-mode pause is non-destructive); only PausedAt is set.
+func TestPauseKeyPausesSessionOnNewPath(t *testing.T) {
 	pr := newPickerRig(t)
 	pr.projectStore.Projects = []domain.Project{
 		{ID: "proj-1", UserID: "user-test", Name: "flow", Slug: "flow"},
@@ -434,10 +432,14 @@ func TestPauseKeyStopsSessionOnNewPath(t *testing.T) {
 	updated, cmd := m.Update(tea.KeyPressMsg{Text: "p"})
 	_ = drainCmd(t, updated, cmd)
 
-	// ActiveSessions store must have the session removed.
-	_, err := pr.activeStore.Get("user-test", "proj-1")
-	if err == nil {
-		t.Error("p key on new path: expected no active session after pause-stop, but one still exists")
+	// Server-mode pause: the active session must still exist (not removed).
+	as, err := pr.activeStore.Get("user-test", "proj-1")
+	if err != nil {
+		t.Fatalf("p key on new path: active session must remain after pause, got: %v", err)
+	}
+	// PausedAt must be set to mark the paused state.
+	if as.PausedAt == nil {
+		t.Error("p key on new path: expected PausedAt to be set after pause, but it is nil")
 	}
 }
 

@@ -81,7 +81,7 @@ COVER_PKG       := ./internal/...
 
 build:
 	@mkdir -p bin
-	go build -o bin/$(BIN) $(PKG)
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/$(BIN) $(PKG)
 
 install:
 	GOBIN="$(HOME)/.local/bin" go install $(PKG)
@@ -117,7 +117,7 @@ build-server:
 
 build-mcp:
 	@mkdir -p bin
-	go build -o bin/flow-mcp ./cmd/flow-mcp
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/flow-mcp ./cmd/flow-mcp
 
 test-server:
 	go test ./internal/adapter/httpserver/... ./internal/adapter/oidcserver/... \

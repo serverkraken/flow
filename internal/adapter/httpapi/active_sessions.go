@@ -34,6 +34,11 @@ func NewActiveSessions(c *Client) *ActiveSessions {
 	return a
 }
 
+// Invalidate forces a cache miss on the next read. Called by the SSE events
+// client in main.go's invalidate dispatch when a "worktime" changed event
+// arrives from the server.
+func (a *ActiveSessions) Invalidate() { a.cache.invalidate() }
+
 var _ ports.ActiveSessionStore = (*ActiveSessions)(nil)
 
 // ListByUser returns all in-progress sessions for the authenticated user.

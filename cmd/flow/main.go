@@ -15,13 +15,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
-	"github.com/serverkraken/flow/internal/adapter/dayoffstsv"
 	"github.com/serverkraken/flow/internal/adapter/editor"
-	"github.com/serverkraken/flow/internal/adapter/flockstate"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/adapter/gitremote"
-	"github.com/serverkraken/flow/internal/adapter/httpsync"
+	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/adapter/iniconfig"
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
@@ -29,7 +27,6 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
 	"github.com/serverkraken/flow/internal/adapter/oidcclient"
 	"github.com/serverkraken/flow/internal/adapter/output"
-	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
 	"github.com/serverkraken/flow/internal/domain"
@@ -58,6 +55,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is overridden at build time via -ldflags "-X main.version=…".
+var version = "dev"
+
 // Paths bundles every filesystem location the dependency graph reads or writes.
 // Tests rewire this against t.TempDir() so the whole graph runs in isolation.
 type Paths struct {
@@ -71,7 +71,6 @@ type Paths struct {
 	SourceCodeRoot     string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
 	KompendiumNotebook string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
 	KompendiumIndex    string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
-	CacheDB            string // $FLOW_CACHE_DB or $XDG_DATA_HOME/flow/cache.db — worktime projects / sessions sqlite store (Task 13+).
 }
 
 // Env bundles configuration values resolved from environment variables.
@@ -97,8 +96,7 @@ type Paths struct {
 type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
-	LocalUserSub        string        // $FLOW_LOCAL_USER_SUB — offline placeholder sub (default "local"); when a token is present buildDeps resolves the real OIDC identity instead
-	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL for httpsync (default "http://localhost:8080")
+	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL
 	OIDCClientID        string        // $FLOW_OIDC_CLIENT_ID — OIDC client id used for token refresh (default "flow-cli")
 }
 
@@ -120,142 +118,80 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	clock := systemclock.New()
 	tmux := tmuxbridge.New()
 
-	fileLock := flockstate.NewLock(filepath.Join(p.TmuxDir, "worktime.lock"))
-	activeStore := flockstate.NewState(
-		filepath.Join(p.TmuxDir, "worktime.state"),
-		filepath.Join(p.TmuxDir, "worktime.pause"),
-	)
-	dayoffStore := dayoffstsv.New(
-		filepath.Join(p.TmuxDir, "worktime-dayoffs.tsv"),
-		filepath.Join(p.TmuxDir, "worktime-holidays.tsv"),
-	)
 	configReader := iniconfig.New(filepath.Join(p.TmuxDir, "worktime.conf"), env.WorktimeTargetHours)
 	linkStore := linkstsv.New(filepath.Join(p.TmuxDir, "worktime-links.tsv"))
 	outputTargets := output.New(p.Home, tmux)
 
-	// SQLite store for Worktime Projects (Task 13+). Path falls back to
-	// CacheDir/flow.db when CacheDB is not set (e.g. in tests that do not
-	// set CacheDB explicitly).
-	cacheDBPath := p.CacheDB
-	if cacheDBPath == "" {
-		cacheDBPath = filepath.Join(p.CacheDir, "flow.db")
-	}
-	if err := os.MkdirAll(filepath.Dir(cacheDBPath), 0o755); err != nil {
-		return Deps{}, nil, fmt.Errorf("flow cache db dir: %w", err)
-	}
-	cacheStore, err := sqliteclient.Open(cacheDBPath)
-	if err != nil {
-		return Deps{}, nil, fmt.Errorf("flow cache db: %w", err)
-	}
-
-	// Resolve the active identity: if a token is present for this server, run as
-	// the OIDC user (sub from the token); otherwise the offline `local` placeholder.
-	localSub := env.LocalUserSub
-	if localSub == "" {
-		localSub = "local"
-	}
-	cacheUsers := sqliteclient.NewUsers(cacheStore)
-	tokenSub := ""
-	switch toks, terr := keyringadapter.New().Get("tokens:" + env.ServerURL); {
-	case terr == nil:
-		src := toks.IDToken
-		if src == "" {
-			src = toks.AccessToken
-		}
-		if c, cerr := oidcclient.ClaimsFromToken(src); cerr == nil {
-			tokenSub = c.Sub
-		} else {
-			slog.Warn("flow: stored token undecodable — running logged-out", slog.Any("err", cerr))
-		}
-	case errors.Is(terr, ports.ErrTokenNotFound):
-		// Logged out — the normal offline state, no log noise.
-	default:
-		slog.Warn("flow: keyring unavailable — running logged-out", slog.Any("err", terr))
-	}
-	identityUC := usecase.NewIdentity(cacheUsers, localSub)
-	localUser, err := identityUC.ResolveActiveUser(tokenSub)
-	if err != nil {
-		_ = cacheStore.Close()
-		return Deps{}, nil, fmt.Errorf("resolve active user: %w", err)
-	}
-	cacheProjects := sqliteclient.NewProjects(cacheStore)
-	cacheSessions := sqliteclient.NewSessions(cacheStore)
-	// sessionStore is the unified session backend after Plan-B follow-up #1
-	// retired the tsvsessions adapter. SessionWriter / WorktimeReader /
-	// Tagger all read+write the same sqlite cache that the sync worker
-	// pulls from.
-	sessionStore := cacheSessions
-
-	migrateTSVUC := usecase.NewMigrateTSV(cacheUsers, cacheProjects, cacheSessions)
-	autoMigrateTSV(localUser.ID, p.WorktimeLog, migrateTSVUC, cacheSessions)
-
-	cacheActiveSessions := sqliteclient.NewActiveSessions(cacheStore)
-	cacheRepos := sqliteclient.NewRepos(cacheStore)
-	cacheRepoNotes := sqliteclient.NewRepoNotes(cacheStore)
-	cacheWriteQueue := sqliteclient.NewWriteQueue(cacheStore)
-	cacheSyncState := sqliteclient.NewSyncState(cacheStore)
-	syncUC := usecase.NewSyncStatus(cacheWriteQueue, cacheSyncState)
-
-	// httpsync wiring: client → queue adapter → worker.
-	// keyring is shared with the login/logout commands; the slot is
-	// per-server so the user can log into multiple flow-servers independently.
+	// httpapi client — single client shared by all resource adapters.
 	serverURL := env.ServerURL
 	keyring := keyringadapter.New()
 	keyringSlot := "tokens:" + serverURL
-	syncClient := httpsync.NewClient(serverURL, keyring, keyringSlot)
-	syncClient.SetRefresher(&oidcclient.StoreRefresher{
-		ServerURL: serverURL,
-		ClientID:  env.OIDCClientID,
-		Store:     keyring,
-		Slot:      keyringSlot,
+	client := httpapi.New(httpapi.Config{
+		BaseURL: serverURL,
+		Tokens:  keyring,
+		Slot:    keyringSlot,
+		Version: version,
+		Refresher: &oidcclient.StoreRefresher{
+			ServerURL: serverURL,
+			ClientID:  env.OIDCClientID,
+			Store:     keyring,
+			Slot:      keyringSlot,
+		},
 	})
-	syncQueueAdapter := httpsync.NewQueue(cacheWriteQueue)
-	syncWorker := httpsync.NewWorker(
-		syncClient,
-		cacheSessions,
-		cacheProjects,
-		cacheActiveSessions,
-		cacheSyncState, // satisfies ports.SyncWatermarkStore
-		syncQueueAdapter,
-		localUser.ID,
-	)
-	// Wire Plan-C resource stores on the worker so pull+drain cover repos
-	// and repo_notes alongside the existing sessions/projects/active paths.
-	syncWorker.SetRepoStores(cacheRepos, cacheRepoNotes)
-	// Wire ForcePull delegation: SyncStatus.ForcePull() calls syncWorker.ForcePull().
-	syncUC.WithForcePuller(syncWorker)
-	// Start the background pull/push loop. It will log unreachable-server warnings
-	// when no FLOW_SERVER_URL is reachable — expected in offline / no-auth scenarios.
-	syncWorker.Start(ctx)
 
-	projectsUC := usecase.NewProjects(cacheUsers, cacheProjects, cacheWriteQueue)
-	// Wire push-signal so Create/Rename/Archive enqueue ops wake the worker.
-	projectsUC.SetPushSignal(syncWorker.SignalPush)
-	// One-time backfill: projects created before project-sync was wired never
-	// got enqueued, so any active_session/session referencing them FK-fails
-	// server-side. Push the version-0 stragglers once, guarded via sync_state so
-	// a restart can't double-enqueue and trip the server's optimistic-concurrency
-	// halt.
-	if done, _ := cacheSyncState.Get("backfill:projects:v1"); done == 0 {
-		if n, err := projectsUC.BackfillUnsynced(localUser.ID); err == nil {
-			_ = cacheSyncState.Set("backfill:projects:v1", 1)
-			if n > 0 {
-				syncWorker.SignalPush()
-			}
+	// Resource adapters.
+	httpProjects := httpapi.NewProjects(client)
+	httpSessions := httpapi.NewSessions(client)
+	httpActive := httpapi.NewActiveSessions(client)
+	httpMachine := httpapi.NewMachine(client, httpActive, httpSessions)
+	httpDocuments := httpapi.NewDocuments(client)
+	httpDayOffs := httpapi.NewDayOffs(client)
+	httpIdentity := httpapi.NewIdentity(client)
+
+	// SSE events: invalidate per-resource caches and wake the TUI on
+	// server-side changes. Each adapter exposes Invalidate() which marks
+	// its internal cache stale so the next read triggers a fresh server fetch.
+	invalidateFn := func(resource string) {
+		switch resource {
+		case "worktime":
+			httpActive.Invalidate()
+			httpSessions.Invalidate()
+		case "projects":
+			httpProjects.Invalidate()
+		case "dayoffs":
+			httpDayOffs.Invalidate()
 		}
 	}
-	sessionsUC := usecase.NewSessions(cacheUsers, cacheProjects, cacheSessions, nil /* SourceDirScanner: basename→slug is sufficient */)
-	activeSessionsUC := usecase.NewActiveSessions(cacheUsers, cacheProjects, cacheActiveSessions, cacheSessions, cacheWriteQueue)
-	// Wire push-signal so Start/Stop enqueue ops wake the worker immediately.
-	activeSessionsUC.SetPushSignal(syncWorker.SignalPush)
-	// Plan-C: RepoNotes use case + git-remote resolver. Use case is also
-	// the surface for the future flow-mcp server (Plan D).
-	repoNotesUC := usecase.NewRepoNotes(cacheRepos, cacheRepoNotes, cacheWriteQueue, gitremote.New())
-	repoNotesUC.SetPushSignal(syncWorker.SignalPush)
+	events := httpapi.NewEvents(client, invalidateFn)
+	events.Start(ctx)
+
+	// One-time meta check to detect server version and outdated client.
+	go func() { _ = client.CheckMeta(ctx) }()
+
+	// Identity: resolve the logged-in user from the bearer API.
+	// On ErrTokenNotFound the user is logged out — run with empty userID.
+	identityUC := usecase.NewIdentity(httpIdentity)
+	localUser, identErr := identityUC.ResolveActiveUser(ctx)
+	userID := ""
+	if identErr == nil {
+		userID = localUser.ID
+	} else if !errors.Is(identErr, ports.ErrTokenNotFound) {
+		slog.Warn("flow: identity resolve failed — running logged-out", slog.Any("err", identErr))
+	}
+
+	// Use cases backed by httpapi adapters.
+	projectsUC := usecase.NewProjects(nil, httpProjects, nil)
+	sessionsUC := usecase.NewSessions(nil, httpProjects, httpSessions, nil)
+	activeSessionsUC := usecase.NewActiveSessions(nil, httpProjects, httpActive, httpMachine)
+
+	// RepoNotes use case: backed by the Documents API via RepoDocAdapter.
+	// RepoDocAdapter maps ports.RepoStore + ports.RepoNoteStore onto the
+	// /api/v1/repos/<key>/note endpoint so usecase.RepoNotes works unchanged.
+	repoDocShim := httpapi.NewRepoDocAdapter(httpDocuments)
+	repoNotesUC := usecase.NewRepoNotes(repoDocShim.RepoStore(), repoDocShim.RepoNoteStore(), nil /* no queue in server mode */, gitremote.New())
 
 	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
 	if err != nil {
-		_ = cacheStore.Close()
 		return Deps{}, nil, err
 	}
 
@@ -285,47 +221,38 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	paletteStats := jsonpalettestats.New(filepath.Join(p.StateDir, "palette-stats.json"))
 	projectScanner := fssourcedirs.New(p.SourceCodeRoot)
 
-	targets := &usecase.TargetResolver{Config: configReader, DayOffs: dayoffStore, DefaultTarget: 8 * time.Hour}
+	targets := &usecase.TargetResolver{Config: configReader, DayOffs: httpDayOffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{
-		Sessions: sessionStore,
-		State:    activeStore,
-		Active:   cacheActiveSessions,
-		Projects: cacheProjects,
-		UserID:   localUser.ID,
+		Sessions: httpSessions,
+		Active:   httpActive,
+		Projects: httpProjects,
+		UserID:   userID,
 		Targets:  targets,
 		Clock:    clock,
 	}
 	stats := &usecase.StatsComputer{
 		Reader:  reader,
 		Targets: targets,
-		DayOffs: dayoffStore,
+		DayOffs: httpDayOffs,
 	}
 	reporter := &usecase.Reporter{
 		Reader:  reader,
-		DayOffs: dayoffStore,
+		DayOffs: httpDayOffs,
 		Targets: targets,
 		Stats:   stats,
 		Clock:   clock,
 	}
-	sessionWriter := &usecase.SessionWriter{
-		Sessions: sessionStore,
-		State:    activeStore,
-		Lock:     fileLock,
-		Reader:   reader,
-		Clock:    clock,
-		UserID:   localUser.ID,
-	}
 	statusComposer := &usecase.StatusComposer{
 		Reader:  reader,
-		DayOffs: dayoffStore,
+		DayOffs: httpDayOffs,
 		Targets: targets,
 		Stats:   stats,
 		Tmux:    tmux,
 		Clock:   clock,
 		Config:  configReader,
 	}
-	dayoffWriter := &usecase.DayOffWriter{Store: dayoffStore}
-	tagger := &usecase.Tagger{Sessions: sessionStore}
+	dayoffWriter := &usecase.DayOffWriter{Store: httpDayOffs}
+	tagger := &usecase.Tagger{Sessions: httpSessions}
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
 	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
@@ -349,9 +276,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		return worktime.New(pal, worktime.Deps{
 			Reader:           reader,
 			Stats:            stats,
-			SessionWriter:    sessionWriter,
+			SessionWriter:    nil, // server mode: all session writes go via ActiveSessions
 			Tagger:           tagger,
-			DayOffStore:      dayoffStore,
+			DayOffStore:      httpDayOffs,
 			DayOffWriter:     dayoffWriter,
 			LinkReader:       linkReader,
 			LinkWriter:       linkWriter,
@@ -364,10 +291,11 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			Output:           outputTargets,
 			HomeDir:          p.Home,
 			Land:             env.WorktimeLand,
-			// Task 17: new sqlite-backed start/stop picker path.
-			Projects:       projectsUC,
-			ActiveSessions: activeSessionsUC,
-			UserID:         localUser.ID,
+			Projects:         projectsUC,
+			ActiveSessions:   activeSessionsUC,
+			UserID:           userID,
+			Changed:          events.Changed(),
+			Status:           client.StatusOf().Snapshot,
 		})
 	}
 
@@ -375,17 +303,16 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			Worktime: cli.WorktimeDeps{
 				Clock:          clock,
 				Tmux:           tmux,
-				SessionWriter:  sessionWriter,
+				SessionWriter:  nil, // server mode: legacy SessionWriter path disabled
 				StatusComposer: statusComposer,
 				Reporter:       reporter,
 				Stats:          stats,
 				DayOffWriter:   dayoffWriter,
-				DayOffStore:    dayoffStore,
+				DayOffStore:    httpDayOffs,
 				Reader:         reader,
 				Screen:         worktimeScreen,
 
-				// Task 14: new sqlite-backed start/stop path.
-				UserID: localUser.ID,
+				UserID: userID,
 				ResolveProject: func(userID, explicitID, pwd string) (domain.Project, error) {
 					return sessionsUC.ResolveProject(userID, explicitID, pwd)
 				},
@@ -398,8 +325,8 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
 					return activeSessionsUC.ListActive(userID)
 				},
-				Migrate:     migrateTSVUC,
-				PauseMarker: activeStore,
+				Migrate:     nil, // TSV migration not available in server mode
+				PauseMarker: nil, // no local pause state in server mode
 				CorrectActiveStart: func(userID string, ts time.Time) error {
 					return activeSessionsUC.CorrectStart(userID, ts)
 				},
@@ -413,7 +340,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 					return palette.New(pal, paletteReader, paletteWriter, tmux)
 				},
 				Projects: func(pal theme.Palette) tea.Model {
-					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, cacheSessions, localUser.ID)
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, httpSessions, userID)
 				},
 				Worktime: worktimeScreen,
 				Notes: func(pal theme.Palette) tea.Model {
@@ -443,52 +370,23 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			// are wired via the CRUD field; the Screen launcher is unchanged.
 			Projects: cli.ProjectsDeps{
 				Screen: func(pal theme.Palette) tea.Model {
-					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, cacheSessions, localUser.ID, projects.WithStandalone())
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, httpSessions, userID, projects.WithStandalone())
 				},
 				CRUD: &cli.ProjectsCRUDDeps{
 					Projects: projectsUC,
-					UserID:   localUser.ID,
+					UserID:   userID,
 				},
-				ProjectStore: cacheProjects,
+				ProjectStore: httpProjects,
 			},
 			Repo: cli.RepoDeps{
-				UserID: localUser.ID,
+				UserID: userID,
 				Notes:  repoNotesUC,
 			},
 			Kompendium: kompDeps,
 		}, func() {
-			// Stop the sync worker BEFORE closing the cache store so the
-			// worker's in-flight writes don't touch a closed DB handle.
-			// Wait for the goroutine to fully exit before closing the DB.
-			syncWorker.Stop()
-			<-syncWorker.Done()
+			events.Stop()
 			kompCleanup()
-			_ = cacheStore.Close()
 		}, nil
-}
-
-// autoMigrateTSV migrates a legacy worktime.log TSV on first run if the file
-// exists and the sqlite cache is still empty. Run() is idempotent (UUIDv5 row
-// IDs) and archives the TSV via rename, so this fires exactly once per
-// installation. Extracted from buildDeps to keep its cognitive complexity
-// within the configured threshold.
-func autoMigrateTSV(localUserID, tsvPath string, uc *usecase.MigrateTSV, sessions ports.SessionStore) {
-	if _, statErr := os.Stat(tsvPath); statErr != nil {
-		return // TSV not present — nothing to migrate.
-	}
-	rows, lerr := sessions.Load(localUserID)
-	if lerr != nil || len(rows) != 0 {
-		return // load error or already populated — skip.
-	}
-	res, merr := uc.Run(localUserID, tsvPath, "Allgemein")
-	if merr != nil {
-		slog.Warn("flow: tsv auto-migration failed — run `flow worktime migrate-from-tsv`", slog.Any("err", merr))
-		return
-	}
-	if res.Inserted > 0 {
-		slog.Info("flow: tsv auto-migration done",
-			slog.Int("inserted", res.Inserted), slog.String("archived", res.ArchivedTo))
-	}
 }
 
 // buildNotesScreen constructs the kompendium browse model wired into
@@ -670,21 +568,14 @@ func main() {
 	)
 	defer logClose()
 
-	// CacheDB: $FLOW_CACHE_DB → $XDG_DATA_HOME/flow/cache.db → ~/.local/share/flow/cache.db
-	cacheDB := os.Getenv("FLOW_CACHE_DB")
-	if cacheDB == "" {
-		cacheDB = filepath.Join(xdgDataHome, "flow", "cache.db")
-	}
-
 	env := Env{
 		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
-		LocalUserSub:        os.Getenv("FLOW_LOCAL_USER_SUB"),
-		ServerURL:           envOrDefault("FLOW_SERVER_URL", "http://localhost:8080"),
+		ServerURL:           os.Getenv("FLOW_SERVER_URL"),
 		OIDCClientID:        envOrDefault("FLOW_OIDC_CLIENT_ID", "flow-cli"),
 	}
 
-	// Signal-aware context for buildDeps (sync worker needs ctx at Start time).
+	// Signal-aware context for buildDeps (SSE events client needs ctx at Start time).
 	// This context also covers long-running subcommands (status --watch, markdown
 	// view, kompendium browse) — they shut down cleanly on Ctrl+C / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -701,7 +592,6 @@ func main() {
 		SourceCodeRoot:     sourceRoot,
 		KompendiumNotebook: notebookRoot,
 		KompendiumIndex:    indexPath,
-		CacheDB:            cacheDB,
 	}, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

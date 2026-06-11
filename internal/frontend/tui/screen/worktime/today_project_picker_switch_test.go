@@ -50,7 +50,8 @@ func newSwitchPickerRig(t *testing.T) switchPickerRig {
 	reader := &usecase.WorktimeReader{Sessions: sessions, State: legacyActive, Targets: targets, Clock: clock}
 	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs}
 
-	activeSessions := usecase.NewActiveSessions(nil, projectStore, activeStore, sessions, queue)
+	machine := testutil.NewFakeWorktimeMachine(userID, activeStore, sessions)
+	activeSessions := usecase.NewActiveSessions(nil, projectStore, activeStore, machine)
 	projects := usecase.NewProjects(nil, projectStore, nil)
 
 	pal := theme.Load()

@@ -190,6 +190,15 @@ func (d *DayOffs) invalidateYear(year int) {
 	d.mu.Unlock()
 }
 
+// Invalidate clears the entire day-offs cache. Called by the SSE events
+// client in main.go's invalidate dispatch when a "dayoffs" changed event
+// arrives from the server.
+func (d *DayOffs) Invalidate() {
+	d.mu.Lock()
+	d.cache = make(map[int][]dayOffDTO)
+	d.mu.Unlock()
+}
+
 func (d *DayOffs) saveSnapshot() {
 	d.mu.Lock()
 	var all []dayOffDTO

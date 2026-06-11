@@ -164,6 +164,11 @@ func (p *Projects) Upsert(proj domain.Project) error {
 // (Entscheidung 3 — no dedicated endpoint required on the client side).
 func (p *Projects) TouchLastUsed(_, _ string) error { return nil }
 
+// Invalidate forces a cache miss on the next read. Called by the SSE events
+// client in main.go's invalidate dispatch when a "projects" changed event
+// arrives from the server.
+func (p *Projects) Invalidate() { p.cache.invalidate() }
+
 // Archive soft-deletes the project.
 // userID is ignored — the server scopes writes to the bearer token.
 func (p *Projects) Archive(_, id string) error {
