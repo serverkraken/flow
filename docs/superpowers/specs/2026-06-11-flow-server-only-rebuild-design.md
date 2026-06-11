@@ -2,7 +2,7 @@
 
 **Datum:** 2026-06-11
 **Status:** approved (Brainstorm-Sektionen 1–3 abgenommen 2026-06-11)
-**Amendment A1 (2026-06-11 abends, zur Abnahme):** Ergebnis des kritischen Konzept-Reviews nach R1 — (1) `document_revisions` als Sicherheitsnetz, bevor MCP/Claude Schreibzugriff bekommt; (2) `flow docs export` als Plaintext-Escape-Hatch; (3) Nutzungs-Gates („nutzbar" definiert, Dogfood-Gate nach R2, Milestone-DoD). Betroffene Abschnitte: §6, §7, §11, §13, §14, §15, §16.
+**Amendment A1 (2026-06-11 abends, abgenommen von Soenne):** Ergebnis des kritischen Konzept-Reviews nach R1 — (1) `document_revisions` als Sicherheitsnetz, bevor MCP/Claude Schreibzugriff bekommt; (2) `flow docs export` als Plaintext-Escape-Hatch; (3) Nutzungs-Gates („nutzbar" definiert, Dogfood-Gate nach R2, Milestone-DoD). Betroffene Abschnitte: §6, §7, §11, §13, §14, §15, §16.
 **Scope:** Konzeptueller Reset des `next`-Branches: Server wird einzige Wahrheit, Clients werden dünn, Postgres ersetzt SQLite server-seitig, Kompendium-Dokumente werden erstklassige Server-Resource. Ersetzt die Sync-Architektur aus `2026-06-02-flow-client-server-phase1-design.md`; alles dort nicht Widersprochene (OIDC, Hosting, WebUI-Stack, Hexagonal-Layout) gilt weiter.
 
 ## 1. Ausgangslage & Diagnose
