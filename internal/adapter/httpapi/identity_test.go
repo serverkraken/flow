@@ -57,8 +57,8 @@ func TestIdentity_Me_LoggedOut(t *testing.T) {
 	id := httpapi.NewIdentity(cli)
 
 	_, err := id.Me(context.Background())
-	if !errors.Is(err, httpapi.ErrLoggedOut) {
-		t.Errorf("expected ErrLoggedOut, got: %v", err)
+	if !errors.Is(err, ports.ErrTokenNotFound) {
+		t.Errorf("expected ports.ErrTokenNotFound, got: %v", err)
 	}
 }
 

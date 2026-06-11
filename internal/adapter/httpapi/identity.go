@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // Identity caches the logged-in user's identity.
@@ -22,7 +23,8 @@ type Identity struct {
 func NewIdentity(c *Client) *Identity { return &Identity{c: c} }
 
 // Me returns the cached logged-in user, fetching from the server when needed.
-// On ErrLoggedOut the cache is cleared and the error is returned as-is.
+// On ErrLoggedOut the cache is cleared and ports.ErrTokenNotFound is returned
+// so the use-case layer receives a stable port sentinel without importing httpapi.
 func (id *Identity) Me(ctx context.Context) (domain.User, error) {
 	if cached, ok := id.cache.get(); ok {
 		return cached, nil
@@ -36,6 +38,7 @@ func (id *Identity) Me(ctx context.Context) (domain.User, error) {
 	if err != nil {
 		if errors.Is(err, ErrLoggedOut) {
 			id.cache.invalidate()
+			return domain.User{}, ports.ErrTokenNotFound
 		}
 		return domain.User{}, err
 	}

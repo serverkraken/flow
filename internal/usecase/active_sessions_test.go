@@ -1,7 +1,6 @@
 package usecase_test
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -126,134 +125,60 @@ func (f *fakeASProjectStore) Archive(_, _ string) error {
 	return nil
 }
 
-// fakeASSessionStore is a minimal ports.SessionStore for ActiveSessions tests.
-type fakeASSessionStore struct {
-	sessions  []domain.Session
-	upserted  []domain.Session
-	upsertErr error
+// fakeWorktimeMachine implements ports.WorktimeMachine in memory.
+type fakeWorktimeMachine struct {
+	startResult   domain.ActiveSession
+	startErr      error
+	stopResult    domain.Session
+	stopErr       error
+	pauseResult   domain.ActiveSession
+	pauseErr      error
+	resumeResult  domain.ActiveSession
+	resumeErr     error
+	correctResult domain.ActiveSession
+	correctErr    error
+
+	startCalls   []startCall
+	stopCalls    []string // projectID
+	pauseCalls   []string
+	resumeCalls  []string
+	correctCalls []correctCall
 }
 
-func (f *fakeASSessionStore) Load(_ string) ([]domain.Session, error) {
-	out := make([]domain.Session, len(f.sessions))
-	copy(out, f.sessions)
-	return out, nil
+type startCall struct {
+	projectID string
+	tag       string
+	note      string
 }
 
-func (f *fakeASSessionStore) LoadFiltered(_ string, keep func(domain.Session) bool) ([]domain.Session, error) {
-	var out []domain.Session
-	for _, s := range f.sessions {
-		if keep(s) {
-			out = append(out, s)
-		}
-	}
-	return out, nil
+type correctCall struct {
+	projectID string
+	ts        time.Time
 }
 
-func (f *fakeASSessionStore) Upsert(s domain.Session) error {
-	if f.upsertErr != nil {
-		return f.upsertErr
-	}
-	f.upserted = append(f.upserted, s)
-	f.sessions = append(f.sessions, s)
-	return nil
+func (f *fakeWorktimeMachine) Start(projectID, tag, note string) (domain.ActiveSession, error) {
+	f.startCalls = append(f.startCalls, startCall{projectID, tag, note})
+	return f.startResult, f.startErr
 }
 
-func (f *fakeASSessionStore) UpsertBatch(sessions []domain.Session) error {
-	for _, s := range sessions {
-		if err := f.Upsert(s); err != nil {
-			return err
-		}
-	}
-	return nil
+func (f *fakeWorktimeMachine) Stop(projectID string) (domain.Session, error) {
+	f.stopCalls = append(f.stopCalls, projectID)
+	return f.stopResult, f.stopErr
 }
 
-func (f *fakeASSessionStore) Delete(_ string, id string) error {
-	out := f.sessions[:0]
-	for _, s := range f.sessions {
-		if s.ID != id {
-			out = append(out, s)
-		}
-	}
-	f.sessions = out
-	return nil
+func (f *fakeWorktimeMachine) Pause(projectID string) (domain.ActiveSession, error) {
+	f.pauseCalls = append(f.pauseCalls, projectID)
+	return f.pauseResult, f.pauseErr
 }
 
-func (f *fakeASSessionStore) Append(s domain.Session) error {
-	f.sessions = append(f.sessions, s)
-	return nil
+func (f *fakeWorktimeMachine) Resume(projectID string) (domain.ActiveSession, error) {
+	f.resumeCalls = append(f.resumeCalls, projectID)
+	return f.resumeResult, f.resumeErr
 }
 
-func (f *fakeASSessionStore) AppendBatch(sessions []domain.Session) error {
-	f.sessions = append(f.sessions, sessions...)
-	return nil
-}
-
-func (f *fakeASSessionStore) Rewrite(sessions []domain.Session) error {
-	f.sessions = make([]domain.Session, len(sessions))
-	copy(f.sessions, sessions)
-	return nil
-}
-
-// fakeWriteQueue implements ports.WriteQueue in memory.
-type fakeWriteQueue struct {
-	entries    []ports.WriteQueueEntry
-	seq        int64
-	enqueueErr error
-}
-
-func (f *fakeWriteQueue) Enqueue(resource, rowID string, payload []byte, expectedVersion int64) (int64, error) {
-	if f.enqueueErr != nil {
-		return 0, f.enqueueErr
-	}
-	f.seq++
-	f.entries = append(f.entries, ports.WriteQueueEntry{
-		Seq:             f.seq,
-		Resource:        resource,
-		RowID:           rowID,
-		Payload:         payload,
-		ExpectedVersion: expectedVersion,
-	})
-	return f.seq, nil
-}
-
-func (f *fakeWriteQueue) Peek(limit int) ([]ports.WriteQueueEntry, error) {
-	if limit > len(f.entries) {
-		return f.entries, nil
-	}
-	return f.entries[:limit], nil
-}
-
-func (f *fakeWriteQueue) Remove(seq int64) error {
-	out := f.entries[:0]
-	for _, e := range f.entries {
-		if e.Seq != seq {
-			out = append(out, e)
-		}
-	}
-	f.entries = out
-	return nil
-}
-
-func (f *fakeWriteQueue) SetError(seq int64, errMsg string) error {
-	for i := range f.entries {
-		if f.entries[i].Seq == seq {
-			f.entries[i].LastError = errMsg
-			return nil
-		}
-	}
-	return nil
-}
-
-func (f *fakeWriteQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) error {
-	for i := range f.entries {
-		if f.entries[i].Seq == seq {
-			f.entries[i].LastError = errMsg
-			f.entries[i].Attempt++
-			f.entries[i].NextRetryAt = nextRetryAt
-			return nil
-		}
-	}
-	return nil
+func (f *fakeWorktimeMachine) CorrectStart(projectID string, ts time.Time) (domain.ActiveSession, error) {
+	f.correctCalls = append(f.correctCalls, correctCall{projectID, ts})
+	return f.correctResult, f.correctErr
 }
 
 // ---- helpers ----
@@ -261,248 +186,156 @@ func (f *fakeWriteQueue) SetRetry(seq int64, errMsg string, nextRetryAt string) 
 func mkActiveSessions(
 	active *fakeActiveSessionStore,
 	projects *fakeASProjectStore,
-	sessions *fakeASSessionStore,
-	queue *fakeWriteQueue,
+	machine *fakeWorktimeMachine,
 ) *usecase.ActiveSessions {
-	return usecase.NewActiveSessions(nil, projects, active, sessions, queue)
+	return usecase.NewActiveSessions(nil, projects, active, machine)
 }
 
 // ---- Start tests ----
 
-// Start happy-path: ActiveSession row appears in store, Project.TouchLastUsed
-// called once, queue has one entry with resource="active_sessions" and
-// expectedVersion=0.
+// Start happy-path: machine.Start is called with correct args; result is returned.
 func TestUnit_ActiveSessions_Start_HappyPath(t *testing.T) {
 	t.Parallel()
 	active := newFakeActiveSessionStore()
 	projects := &fakeASProjectStore{}
-	sessions := &fakeASSessionStore{}
-	queue := &fakeWriteQueue{}
+	machine := &fakeWorktimeMachine{
+		startResult: domain.ActiveSession{
+			UserID:    "u1",
+			ProjectID: "p1",
+			StartedAt: time.Now().UTC(),
+			Tag:       "deep",
+			Note:      "n1",
+		},
+	}
 
-	uc := mkActiveSessions(active, projects, sessions, queue)
+	uc := mkActiveSessions(active, projects, machine)
 
-	before := time.Now().UTC()
-	row, err := uc.Start("u1", "p1", "", "")
-	after := time.Now().UTC()
+	row, err := uc.Start("u1", "p1", "deep", "n1")
 	if err != nil {
 		t.Fatalf("Start: unexpected error: %v", err)
 	}
-
-	// Row fields correct.
-	if row.UserID != "u1" {
-		t.Errorf("UserID: got %q, want %q", row.UserID, "u1")
-	}
 	if row.ProjectID != "p1" {
-		t.Errorf("ProjectID: got %q, want %q", row.ProjectID, "p1")
+		t.Errorf("ProjectID: got %q, want p1", row.ProjectID)
 	}
-	if row.StartedAt.IsZero() {
-		t.Error("StartedAt is zero")
+	if row.Tag != "deep" {
+		t.Errorf("Tag: got %q, want deep", row.Tag)
 	}
-	if row.StartedAt.Before(before) || row.StartedAt.After(after) {
-		t.Errorf("StartedAt %v outside [%v, %v]", row.StartedAt, before, after)
+	if len(machine.startCalls) != 1 {
+		t.Fatalf("expected 1 machine.Start call, got %d", len(machine.startCalls))
 	}
-	if row.StartedOnDevice == "" {
-		t.Error("StartedOnDevice is empty")
-	}
-
-	// Upsert called once with correct row.
-	if len(active.upserted) != 1 {
-		t.Fatalf("expected 1 upsert, got %d", len(active.upserted))
-	}
-	stored := active.upserted[0]
-	if stored.UserID != "u1" || stored.ProjectID != "p1" {
-		t.Errorf("stored row mismatch: %+v", stored)
-	}
-
-	// TouchLastUsed called once for projectID.
-	if len(projects.touched) != 1 || projects.touched[0] != "p1" {
-		t.Errorf("TouchLastUsed: got %v, want [p1]", projects.touched)
-	}
-
-	// Queue has one entry.
-	if len(queue.entries) != 1 {
-		t.Fatalf("queue entries: got %d, want 1", len(queue.entries))
-	}
-	e := queue.entries[0]
-	if e.Resource != "active_sessions" {
-		t.Errorf("queue resource: got %q, want %q", e.Resource, "active_sessions")
-	}
-	if e.RowID != "p1" {
-		t.Errorf("queue rowID: got %q, want %q", e.RowID, "p1")
-	}
-	if e.ExpectedVersion != 0 {
-		t.Errorf("queue expectedVersion: got %d, want 0", e.ExpectedVersion)
-	}
-	if len(e.Payload) == 0 {
-		t.Error("queue payload is empty")
+	c := machine.startCalls[0]
+	if c.projectID != "p1" || c.tag != "deep" || c.note != "n1" {
+		t.Errorf("machine.Start args: %+v", c)
 	}
 }
 
-// Start when already-running returns ErrActiveSessionExists;
-// no writes happen.
-func TestUnit_ActiveSessions_Start_AlreadyRunning(t *testing.T) {
+// Start maps ErrActiveSessionConflict from machine → ErrActiveSessionExists.
+func TestUnit_ActiveSessions_Start_ConflictMappedToExists(t *testing.T) {
 	t.Parallel()
-	active := newFakeActiveSessionStore()
-	// Pre-seed an existing active session.
-	existing := domain.ActiveSession{
-		UserID:    "u1",
-		ProjectID: "p1",
-		StartedAt: time.Now().UTC().Add(-10 * time.Minute),
-	}
-	_ = active.Upsert(existing)
-	// Reset upserted tracking after the seed.
-	active.upserted = nil
-
-	projects := &fakeASProjectStore{}
-	sessions := &fakeASSessionStore{}
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, projects, sessions, queue)
+	machine := &fakeWorktimeMachine{startErr: ports.ErrActiveSessionConflict}
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
 
 	_, err := uc.Start("u1", "p1", "", "")
 	if !errors.Is(err, usecase.ErrActiveSessionExists) {
 		t.Fatalf("expected ErrActiveSessionExists, got %v", err)
 	}
-
-	// No writes.
-	if len(active.upserted) != 0 {
-		t.Errorf("expected no upserts, got %d", len(active.upserted))
-	}
-	if len(projects.touched) != 0 {
-		t.Errorf("expected no TouchLastUsed, got %d", len(projects.touched))
-	}
-	if len(queue.entries) != 0 {
-		t.Errorf("expected no queue entries, got %d", len(queue.entries))
-	}
 }
 
-// Start when active.Get returns an unexpected error (not ErrActiveSessionNotFound)
-// → error is bubbled up.
-func TestUnit_ActiveSessions_Start_GetUnexpectedError(t *testing.T) {
+// Start propagates unexpected errors from machine as-is.
+func TestUnit_ActiveSessions_Start_OtherErrorBubbles(t *testing.T) {
 	t.Parallel()
-	active := newFakeActiveSessionStore()
-	unexpectedErr := errors.New("disk error")
-	active.getErr = unexpectedErr
-
-	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, &fakeWriteQueue{})
+	unexpectedErr := errors.New("server error")
+	machine := &fakeWorktimeMachine{startErr: unexpectedErr}
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
 
 	_, err := uc.Start("u1", "p1", "", "")
 	if !errors.Is(err, unexpectedErr) {
-		t.Fatalf("expected disk error to bubble, got %v", err)
+		t.Fatalf("expected server error to bubble, got %v", err)
 	}
 }
 
 // ---- Stop tests ----
 
-// Stop happy-path: Session row created with correct fields, ActiveSession
-// deleted, two queue entries (sessions + active_sessions_stop).
+// Stop delegates to machine.Stop and returns the session.
 func TestUnit_ActiveSessions_Stop_HappyPath(t *testing.T) {
 	t.Parallel()
-	active := newFakeActiveSessionStore()
 	startedAt := time.Now().UTC().Add(-30 * time.Minute)
-	existing := domain.ActiveSession{
-		UserID:    "u1",
-		ProjectID: "p1",
-		StartedAt: startedAt,
-		Version:   3,
+	machine := &fakeWorktimeMachine{
+		stopResult: domain.Session{
+			ID:        "sess-1",
+			UserID:    "u1",
+			ProjectID: "p1",
+			Start:     startedAt,
+			Tag:       "deep",
+		},
 	}
-	_ = active.Upsert(existing)
-	active.upserted = nil // reset tracking
 
-	sessions := &fakeASSessionStore{}
-	projects := &fakeASProjectStore{}
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, projects, sessions, queue)
-
-	before := time.Now().UTC()
-	sess, err := uc.Stop("u1", "p1", "deep", "finished sprint")
-	after := time.Now().UTC()
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
+	sess, err := uc.Stop("u1", "p1", "", "")
 	if err != nil {
 		t.Fatalf("Stop: unexpected error: %v", err)
 	}
-
-	// Session fields.
-	if sess.ID == "" {
-		t.Error("Session ID is empty")
+	if sess.ID != "sess-1" {
+		t.Errorf("session ID: got %q, want sess-1", sess.ID)
 	}
-	if sess.UserID != "u1" {
-		t.Errorf("UserID: got %q, want %q", sess.UserID, "u1")
-	}
-	if sess.ProjectID != "p1" {
-		t.Errorf("ProjectID: got %q, want %q", sess.ProjectID, "p1")
-	}
-	if sess.Start != startedAt {
-		t.Errorf("Start: got %v, want %v", sess.Start, startedAt)
-	}
-	if sess.Stop.Before(before) || sess.Stop.After(after) {
-		t.Errorf("Stop %v outside [%v, %v]", sess.Stop, before, after)
-	}
-	if sess.Tag != "deep" {
-		t.Errorf("Tag: got %q, want %q", sess.Tag, "deep")
-	}
-	if sess.Note != "finished sprint" {
-		t.Errorf("Note: got %q, want %q", sess.Note, "finished sprint")
-	}
-	expectedElapsed := sess.Stop.Sub(startedAt)
-	if sess.Elapsed != expectedElapsed {
-		t.Errorf("Elapsed: got %v, want %v", sess.Elapsed, expectedElapsed)
-	}
-
-	// Session.Upsert called.
-	if len(sessions.upserted) != 1 {
-		t.Fatalf("expected 1 session upsert, got %d", len(sessions.upserted))
-	}
-
-	// ActiveSession deleted.
-	if len(active.deleted) != 1 {
-		t.Fatalf("expected 1 active delete, got %d", len(active.deleted))
-	}
-	if active.deleted[0][0] != "u1" || active.deleted[0][1] != "p1" {
-		t.Errorf("deleted key: got %v, want [u1 p1]", active.deleted[0])
-	}
-
-	// Two queue entries.
-	if len(queue.entries) != 2 {
-		t.Fatalf("expected 2 queue entries, got %d", len(queue.entries))
-	}
-	// First entry: sessions.
-	e0 := queue.entries[0]
-	if e0.Resource != "sessions" {
-		t.Errorf("queue[0] resource: got %q, want %q", e0.Resource, "sessions")
-	}
-	if e0.RowID != sess.ID {
-		t.Errorf("queue[0] rowID: got %q, want %q", e0.RowID, sess.ID)
-	}
-	// Second entry: active_sessions_stop with version from existing row.
-	e1 := queue.entries[1]
-	if e1.Resource != "active_sessions_stop" {
-		t.Errorf("queue[1] resource: got %q, want %q", e1.Resource, "active_sessions_stop")
-	}
-	if e1.RowID != "p1" {
-		t.Errorf("queue[1] rowID: got %q, want %q", e1.RowID, "p1")
-	}
-	if e1.ExpectedVersion != 3 {
-		t.Errorf("queue[1] expectedVersion: got %d, want 3", e1.ExpectedVersion)
+	if len(machine.stopCalls) != 1 || machine.stopCalls[0] != "p1" {
+		t.Errorf("machine.Stop calls: %v", machine.stopCalls)
 	}
 }
 
-// Stop when no active session exists: Get returns ErrActiveSessionNotFound
-// → method bubbles the error; no session Upsert happens.
-func TestUnit_ActiveSessions_Stop_NoActiveSession(t *testing.T) {
+// Stop propagates errors from machine.
+func TestUnit_ActiveSessions_Stop_Error(t *testing.T) {
 	t.Parallel()
-	active := newFakeActiveSessionStore() // empty
-	sessions := &fakeASSessionStore{}
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, &fakeASProjectStore{}, sessions, queue)
+	machine := &fakeWorktimeMachine{stopErr: ports.ErrActiveSessionNotFound}
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
 
 	_, err := uc.Stop("u1", "p1", "", "")
 	if !errors.Is(err, ports.ErrActiveSessionNotFound) {
 		t.Fatalf("expected ErrActiveSessionNotFound, got %v", err)
 	}
-	if len(sessions.upserted) != 0 {
-		t.Errorf("expected no session upserts, got %d", len(sessions.upserted))
+}
+
+// ---- Pause tests ----
+
+// Pause delegates to machine.Pause.
+func TestUnit_ActiveSessions_Pause_Delegates(t *testing.T) {
+	t.Parallel()
+	machine := &fakeWorktimeMachine{
+		pauseResult: domain.ActiveSession{ProjectID: "p1"},
+	}
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
+
+	as, err := uc.Pause("u1", "p1")
+	if err != nil {
+		t.Fatalf("Pause: unexpected error: %v", err)
+	}
+	if as.ProjectID != "p1" {
+		t.Errorf("ProjectID: got %q, want p1", as.ProjectID)
+	}
+	if len(machine.pauseCalls) != 1 || machine.pauseCalls[0] != "p1" {
+		t.Errorf("machine.Pause calls: %v", machine.pauseCalls)
+	}
+}
+
+// ---- Resume tests ----
+
+// Resume delegates to machine.Resume.
+func TestUnit_ActiveSessions_Resume_Delegates(t *testing.T) {
+	t.Parallel()
+	machine := &fakeWorktimeMachine{
+		resumeResult: domain.ActiveSession{ProjectID: "p1"},
+	}
+	uc := mkActiveSessions(newFakeActiveSessionStore(), &fakeASProjectStore{}, machine)
+
+	as, err := uc.Resume("u1", "p1")
+	if err != nil {
+		t.Fatalf("Resume: unexpected error: %v", err)
+	}
+	if as.ProjectID != "p1" {
+		t.Errorf("ProjectID: got %q, want p1", as.ProjectID)
+	}
+	if len(machine.resumeCalls) != 1 || machine.resumeCalls[0] != "p1" {
+		t.Errorf("machine.Resume calls: %v", machine.resumeCalls)
 	}
 }
 
@@ -516,7 +349,7 @@ func TestUnit_ActiveSessions_ListActive_Delegates(t *testing.T) {
 	_ = active.Upsert(domain.ActiveSession{UserID: "u1", ProjectID: "p2", StartedAt: time.Now().UTC()})
 	active.upserted = nil
 
-	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, &fakeWriteQueue{})
+	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeWorktimeMachine{})
 
 	rows, err := uc.ListActive("u1")
 	if err != nil {
@@ -527,189 +360,55 @@ func TestUnit_ActiveSessions_ListActive_Delegates(t *testing.T) {
 	}
 }
 
-// ---- ForceTakeover tests ----
-
-// ForceTakeover queues a start with the provided currentServerVersion (not 0).
-func TestUnit_ActiveSessions_ForceTakeover_UsesServerVersion(t *testing.T) {
-	t.Parallel()
-	active := newFakeActiveSessionStore()
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, queue)
-
-	err := uc.ForceTakeover("u1", "p1", 7)
-	if err != nil {
-		t.Fatalf("ForceTakeover: unexpected error: %v", err)
-	}
-
-	// ActiveSession upserted.
-	if len(active.upserted) != 1 {
-		t.Fatalf("expected 1 upsert, got %d", len(active.upserted))
-	}
-
-	// Queue entry with version=7.
-	if len(queue.entries) != 1 {
-		t.Fatalf("expected 1 queue entry, got %d", len(queue.entries))
-	}
-	e := queue.entries[0]
-	if e.Resource != "active_sessions" {
-		t.Errorf("queue resource: got %q, want %q", e.Resource, "active_sessions")
-	}
-	if e.ExpectedVersion != 7 {
-		t.Errorf("queue expectedVersion: got %d, want 7", e.ExpectedVersion)
-	}
-}
-
 // ---- CorrectStart tests ----
 
-// TestCorrectStartMovesStartedAtAndRequeues: Start a session, then call
-// CorrectStart with an earlier time. Assertions:
-//   - the local row has StartedAt == ts.UTC()
-//   - the queue contains a second "active_sessions" entry with
-//     ExpectedVersion == cur.Version and payload started_at == ts.UTC()
-func TestCorrectStartMovesStartedAtAndRequeues(t *testing.T) {
+// CorrectStart finds earliest session and calls machine.CorrectStart.
+func TestCorrectStartMovesStartedAtAndCallsMachine(t *testing.T) {
 	t.Parallel()
 	active := newFakeActiveSessionStore()
-	projects := &fakeASProjectStore{
-		projects: []domain.Project{{ID: "p1", Name: "P1", Slug: "p1", CreatedAt: time.Now()}},
-	}
-	sessions := &fakeASSessionStore{}
-	queue := &fakeWriteQueue{}
+	// Two sessions; p2 started earlier → should be selected.
+	_ = active.Upsert(domain.ActiveSession{
+		UserID: "u1", ProjectID: "p1",
+		StartedAt: time.Date(2026, 6, 10, 10, 0, 0, 0, time.UTC),
+	})
+	_ = active.Upsert(domain.ActiveSession{
+		UserID: "u1", ProjectID: "p2",
+		StartedAt: time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC),
+	})
 
-	uc := mkActiveSessions(active, projects, sessions, queue)
+	machine := &fakeWorktimeMachine{}
+	uc := mkActiveSessions(active, &fakeASProjectStore{}, machine)
 
-	// Start so an active session exists with Version=0.
-	if _, err := uc.Start("u1", "p1", "deep", "n1"); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	// Manually bump the stored version to 5 so we can verify the re-queued
-	// entry carries that version.
-	row := active.rows["u1/p1"]
-	row.Version = 5
-	active.rows["u1/p1"] = row
-	// Reset upserted / queue tracking after the seed.
-	active.upserted = nil
-	queue.entries = nil
-
-	ts := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
+	ts := time.Date(2026, 6, 10, 8, 30, 0, 0, time.UTC)
 	if err := uc.CorrectStart("u1", ts); err != nil {
 		t.Fatalf("CorrectStart: %v", err)
 	}
 
-	// Local row must have updated StartedAt.
-	updated := active.rows["u1/p1"]
-	if !updated.StartedAt.Equal(ts.UTC()) {
-		t.Errorf("StartedAt: got %v, want %v", updated.StartedAt, ts.UTC())
+	if len(machine.correctCalls) != 1 {
+		t.Fatalf("expected 1 machine.CorrectStart call, got %d", len(machine.correctCalls))
 	}
-
-	// Exactly one upsert after the correction.
-	if len(active.upserted) != 1 {
-		t.Fatalf("expected 1 upsert, got %d", len(active.upserted))
+	cc := machine.correctCalls[0]
+	if cc.projectID != "p2" {
+		t.Errorf("selected project: got %q, want p2 (earliest)", cc.projectID)
 	}
-
-	// Queue entry: resource="active_sessions", ExpectedVersion=5, started_at=ts.
-	if len(queue.entries) != 1 {
-		t.Fatalf("expected 1 queue entry, got %d", len(queue.entries))
-	}
-	e := queue.entries[0]
-	if e.Resource != "active_sessions" {
-		t.Errorf("queue resource: got %q, want %q", e.Resource, "active_sessions")
-	}
-	if e.ExpectedVersion != 5 {
-		t.Errorf("queue expectedVersion: got %d, want 5", e.ExpectedVersion)
-	}
-	var payload struct {
-		Action    string    `json:"action"`
-		StartedAt time.Time `json:"started_at"`
-	}
-	if err := json.Unmarshal(e.Payload, &payload); err != nil {
-		t.Fatalf("unmarshal payload: %v", err)
-	}
-	if payload.Action != "start" {
-		t.Errorf("payload action: got %q, want %q", payload.Action, "start")
-	}
-	if !payload.StartedAt.Equal(ts.UTC()) {
-		t.Errorf("payload started_at: got %v, want %v", payload.StartedAt, ts.UTC())
+	if !cc.ts.Equal(ts) {
+		t.Errorf("ts: got %v, want %v", cc.ts, ts)
 	}
 }
 
-// TestCorrectStartNothingRunning: empty store → ErrActiveSessionNotFound.
+// CorrectStart with no running sessions returns ErrActiveSessionNotFound.
 func TestCorrectStartNothingRunning(t *testing.T) {
 	t.Parallel()
 	active := newFakeActiveSessionStore() // empty
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, &fakeASProjectStore{}, &fakeASSessionStore{}, queue)
+	machine := &fakeWorktimeMachine{}
+	uc := mkActiveSessions(active, &fakeASProjectStore{}, machine)
 
 	ts := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
 	err := uc.CorrectStart("u1", ts)
 	if !errors.Is(err, ports.ErrActiveSessionNotFound) {
 		t.Fatalf("expected ErrActiveSessionNotFound, got %v", err)
 	}
-	if len(queue.entries) != 0 {
-		t.Errorf("expected no queue entries, got %d", len(queue.entries))
-	}
-}
-
-// ---- Stop payload tests ----
-
-// TestStopPayloadCarriesTagAndNote verifies that the active_sessions_stop queue
-// entry contains tag and note from the start row when Stop is called with empty
-// args (inheritance path). This exercises the bug where the payload only carried
-// action+version and the server wrote an empty tag/note on the finished Session.
-func TestStopPayloadCarriesTagAndNote(t *testing.T) {
-	t.Parallel()
-	active := newFakeActiveSessionStore()
-	projects := &fakeASProjectStore{}
-	sessions := &fakeASSessionStore{}
-	queue := &fakeWriteQueue{}
-
-	uc := mkActiveSessions(active, projects, sessions, queue)
-
-	// Start with a tag and note so the active row carries them.
-	if _, err := uc.Start("u1", "p1", "deep", "n1"); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	// Clear queue entries from Start so we can inspect only the Stop entries.
-	queue.entries = nil
-
-	// Stop with empty args → should inherit tag="deep", note="n1" from the active row.
-	if _, err := uc.Stop("u1", "p1", "", ""); err != nil {
-		t.Fatalf("Stop: %v", err)
-	}
-
-	// Find the active_sessions_stop entry.
-	var stopEntry *ports.WriteQueueEntry
-	for i := range queue.entries {
-		if queue.entries[i].Resource == "active_sessions_stop" {
-			e := queue.entries[i]
-			stopEntry = &e
-			break
-		}
-	}
-	if stopEntry == nil {
-		t.Fatal("no active_sessions_stop entry in queue")
-	}
-
-	var body struct {
-		Action string `json:"action"`
-		Tag    string `json:"tag"`
-		Note   string `json:"note"`
-	}
-	if err := json.Unmarshal(stopEntry.Payload, &body); err != nil {
-		t.Fatalf("unmarshal stop payload: %v", err)
-	}
-	if body.Action != "stop" {
-		t.Errorf("action = %q, want stop", body.Action)
-	}
-	if body.Tag != "deep" || body.Note != "n1" {
-		t.Errorf("stop payload lost tag/note: tag=%q note=%q", body.Tag, body.Note)
-	}
-	// The If-Match version must be forwarded from the active session row so
-	// drainActiveStop sends the correct server version in its DELETE request.
-	// Version is 0 here because Start does not perform a server round-trip;
-	// the assertion exists to confirm the field is wired (not silently dropped).
-	if stopEntry.ExpectedVersion != 0 {
-		t.Errorf("queue ExpectedVersion = %d, want 0 (If-Match version lost)", stopEntry.ExpectedVersion)
+	if len(machine.correctCalls) != 0 {
+		t.Errorf("expected no machine.CorrectStart calls, got %d", len(machine.correctCalls))
 	}
 }

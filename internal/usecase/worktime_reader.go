@@ -70,18 +70,24 @@ func (r *WorktimeReader) ActiveStart() (*time.Time, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(list) == 0 {
-		return nil, nil
-	}
-	earliest := list[0].StartedAt
-	for _, a := range list[1:] {
-		if a.StartedAt.Before(earliest) {
-			earliest = a.StartedAt
+	// Only running sessions (PausedAt == nil) contribute to the active marker.
+	// Paused sessions are surfaced via day.PausedAt in Today() instead.
+	var earliest *time.Time
+	for _, a := range list {
+		if a.PausedAt != nil {
+			continue
+		}
+		t := a.StartedAt
+		if earliest == nil || t.Before(*earliest) {
+			earliest = &t
 		}
 	}
+	if earliest == nil {
+		return nil, nil
+	}
 	// Stored UTC; downstream formats wall-clock times (15:04) → Local.
-	earliest = earliest.Local()
-	return &earliest, nil
+	local := earliest.Local()
+	return &local, nil
 }
 
 // Today returns the day record for "today" — sessions logged so far,
@@ -97,7 +103,21 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 	}
 	if active != nil {
 		day.Active = active
-	} else {
+	} else if r.Active != nil {
+		// Server-mode: check for a paused session in the ActiveSession rows.
+		list, lerr := r.Active.ListByUser(r.UserID)
+		if lerr != nil {
+			return day, lerr
+		}
+		for _, a := range list {
+			if a.PausedAt != nil {
+				t := a.PausedAt.UTC()
+				day.PausedAt = &t
+				break
+			}
+		}
+	} else if r.State != nil {
+		// Legacy/offline mode: flockstate pause marker.
 		pause, err := r.State.GetPause()
 		if err != nil {
 			return day, err
