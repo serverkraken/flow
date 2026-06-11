@@ -2391,7 +2391,7 @@ Die neuen Handler werden hier NUR gebaut + getestet; gemountet werden sie in Tas
 JSON mit snake_case-DTOs, `If-Match`-Header als nackte Integer-Version, Statuscodes
 401/403/404/**409** (ActiveSession existiert)/**412** (If-Match-Mismatch)/422 (Validierung).
 
-- [ ] **Step 1: sse.Changed-Helper**
+- [x] **Step 1: sse.Changed-Helper**
 
 Ans Ende von `internal/webui/sse/broadcaster.go` anfügen:
 
@@ -2406,7 +2406,7 @@ func (b *Broadcaster) Changed(userID, resource string) {
 }
 ```
 
-- [ ] **Step 2: TestMain für das httpserver-Paket (PG-Container)**
+- [x] **Step 2: TestMain für das httpserver-Paket (PG-Container)**
 
 ```go
 // internal/adapter/httpserver/main_pg_test.go
@@ -2447,7 +2447,7 @@ func TestMain(m *testing.M) {
 }
 ```
 
-- [ ] **Step 3: Failing Tests**
+- [x] **Step 3: Failing Tests**
 
 ```go
 // internal/adapter/httpserver/worktime_api_test.go
@@ -2660,7 +2660,7 @@ func TestWorktimeAPI_SessionsCRUDAndBulk(t *testing.T) {
 }
 ```
 
-- [ ] **Step 4: Test — Compile-FAIL erwartet**
+- [x] **Step 4: Test — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestWorktimeAPI -timeout 300s 2>&1 | tail -3
@@ -2668,7 +2668,7 @@ go test ./internal/adapter/httpserver/ -run TestWorktimeAPI -timeout 300s 2>&1 |
 
 Expected: `undefined: WorktimeAPIDeps` / `undefined: MountWorktimeAPI`.
 
-- [ ] **Step 5: Implementierung**
+- [x] **Step 5: Implementierung**
 
 ```go
 // internal/adapter/httpserver/worktime_api.go
@@ -3092,7 +3092,7 @@ func (d WorktimeAPIDeps) pauseResume(w http.ResponseWriter, r *http.Request, op 
 }
 ```
 
-- [ ] **Step 6: Tests grün**
+- [x] **Step 6: Tests grün**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestWorktimeAPI -v -timeout 300s 2>&1 | tail -8
@@ -3102,7 +3102,7 @@ Expected: PASS. Achtung: schlägt der `sessions:bulk`-Test mit 404 fehl, kommt c
 Doppelpunkt im statischen Segment nicht klar — dann Route + Test + Spec-Kommentar auf
 `/worktime/sessions/bulk` umstellen und als Abweichung dokumentieren.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 gofumpt -w internal/adapter/httpserver/ internal/webui/sse/

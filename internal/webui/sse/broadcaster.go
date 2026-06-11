@@ -184,3 +184,13 @@ func (b *Broadcaster) PublishAll(ev Event) {
 		}
 	}
 }
+
+// Changed publishes the generalized cross-client invalidation event
+// (Spec §7 /events): every successful write fans out
+// `changed {resource}` so TUI/MCP/Browser refetch the resource. The
+// legacy fine-grained session.*/project.*/note.* events stay for the
+// WebUI's own HTMX swaps — Changed is the cross-device contract.
+func (b *Broadcaster) Changed(userID, resource string) {
+	b.Publish(userID, Event{Type: "changed", Data: map[string]string{"resource": resource}})
+}
+
