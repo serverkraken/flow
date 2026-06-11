@@ -79,7 +79,7 @@ Sonst nichts. Ports, Handler, WebUI, API: unverändert.
 
 **Files:** keine Änderungen, nur Verifikation.
 
-- [ ] **Step 1: Worktree-Zustand prüfen**
+- [x] **Step 1: Worktree-Zustand prüfen**
 
 ```bash
 cd /Users/msoent/SourceCode/serverkraken/flow-phase1-m1
@@ -89,7 +89,7 @@ git status --short && git branch --show-current && git log --oneline -1
 Expected: keine `--short`-Ausgabe (clean), Branch `next`, HEAD ist `3f1ef0d` („docs(spec): A1
 abgenommen") oder neuer. Wenn nicht clean: STOPP, Bericht.
 
-- [ ] **Step 2: podman-Socket exportieren + pingen**
+- [x] **Step 2: podman-Socket exportieren + pingen**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -99,7 +99,7 @@ curl -s --unix-socket "${DOCKER_HOST#unix://}" http://d/_ping && echo " <- ping"
 
 Expected: `OK <- ping`. Wenn nicht: `podman machine start`, dann wiederholen.
 
-- [ ] **Step 3: pgstore-Baseline grün**
+- [x] **Step 3: pgstore-Baseline grün**
 
 ```bash
 go test ./internal/adapter/pgstore/ -count=1 2>&1 | tail -2
@@ -117,7 +117,7 @@ Kein Commit in diesem Task.
 **Files:**
 - Modify: `internal/adapter/pgstore/migrations/0001_baseline.sql`
 
-- [ ] **Step 1: Tabelle in den Up-Teil einfügen**
+- [x] **Step 1: Tabelle in den Up-Teil einfügen**
 
 In `internal/adapter/pgstore/migrations/0001_baseline.sql` direkt NACH der Zeile
 `CREATE INDEX documents_search ON documents USING gin (search);` und VOR
@@ -142,7 +142,7 @@ CREATE TABLE document_revisions (
 CREATE INDEX document_revisions_doc ON document_revisions (document_id, version);
 ```
 
-- [ ] **Step 2: Down-Teil ergänzen**
+- [x] **Step 2: Down-Teil ergänzen**
 
 Im `-- +goose Down`-Block als ERSTE Drop-Zeile (vor `DROP TABLE IF EXISTS user_settings;`)
 einfügen:
@@ -151,7 +151,7 @@ einfügen:
 DROP TABLE IF EXISTS document_revisions;
 ```
 
-- [ ] **Step 3: Migration beweist sich durch die bestehende Suite**
+- [x] **Step 3: Migration beweist sich durch die bestehende Suite**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -162,7 +162,7 @@ go test ./internal/adapter/pgstore/ -count=1 2>&1 | tail -2
 Expected: `ok` — der TestMain-Container fährt die Baseline inkl. neuer Tabelle hoch; ein
 SQL-Fehler in der Migration würde JEDEN Test des Pakets brechen.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add internal/adapter/pgstore/migrations/0001_baseline.sql
@@ -185,7 +185,7 @@ EOF
 **Files:**
 - Create: `internal/adapter/pgstore/documents_revisions_test.go`
 
-- [ ] **Step 1: Test-Datei anlegen**
+- [x] **Step 1: Test-Datei anlegen**
 
 Datei `internal/adapter/pgstore/documents_revisions_test.go` mit exakt diesem Inhalt
 anlegen:
@@ -327,7 +327,7 @@ func TestDocuments_Delete_WritesDeletedMarkerAndSurvives(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Tests laufen lassen — müssen FEHLSCHLAGEN**
+- [x] **Step 2: Tests laufen lassen — müssen FEHLSCHLAGEN**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -348,7 +348,7 @@ Task 3).
 - Modify: `internal/adapter/pgstore/documents.go`
 - Test: `internal/adapter/pgstore/documents_revisions_test.go` (aus Task 2)
 
-- [ ] **Step 1: `Put` ersetzen**
+- [x] **Step 1: `Put` ersetzen**
 
 In `internal/adapter/pgstore/documents.go` die KOMPLETTE bestehende `Put`-Methode (beginnt
 mit `// Put upserts a document.`) durch diesen Block ersetzen:
@@ -402,7 +402,7 @@ func (d *Documents) Put(userID, path, body, repoKey string, ifMatch int64) (port
 }
 ```
 
-- [ ] **Step 2: `Delete` ersetzen**
+- [x] **Step 2: `Delete` ersetzen**
 
 Die KOMPLETTE bestehende `Delete`-Methode (beginnt mit `// Delete deletes a document by
 path.`) durch diesen Block ersetzen:
@@ -428,7 +428,7 @@ func (d *Documents) Delete(userID, path string) error {
 }
 ```
 
-- [ ] **Step 3: `insertRevision`-Helper anfügen**
+- [x] **Step 3: `insertRevision`-Helper anfügen**
 
 ANS ENDE von `internal/adapter/pgstore/documents.go` (nach `scanDocument`) anfügen:
 
@@ -447,7 +447,7 @@ func insertRevision(ctx context.Context, tx pgx.Tx, doc ports.Document, deleted 
 Hinweis Imports: `errors`, `pgx`, `pgconn`, `context` sind in der Datei bereits importiert —
 es sollte KEIN Import-Edit nötig sein. `fmt`/`strings` bleiben (List nutzt sie).
 
-- [ ] **Step 4: Revisions-Tests grün**
+- [x] **Step 4: Revisions-Tests grün**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -460,7 +460,7 @@ Expected: `ok` — die drei neuen Tests UND die bestehenden `TestDocuments_*`
 Konflikt-Semantik (create-on-existing, stale If-Match, idempotentes Delete) exakt erhalten
 blieb.
 
-- [ ] **Step 5: Ganzes Paket + Konsumenten grün**
+- [x] **Step 5: Ganzes Paket + Konsumenten grün**
 
 ```bash
 go build ./... && go test ./internal/adapter/pgstore/ ./internal/adapter/httpserver/ ./internal/webui/handlers/ -count=1 2>&1 | tail -4
@@ -469,7 +469,7 @@ go build ./... && go test ./internal/adapter/pgstore/ ./internal/adapter/httpser
 Expected: 3× `ok` — Bearer-API- und WebUI-Handler-Tests laufen gegen den geänderten Store
 (gleiche Container-Pattern) und dürfen nichts merken.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/adapter/pgstore/documents.go
@@ -495,7 +495,7 @@ EOF
 **Files:**
 - Modify: `docs/superpowers/plans/2026-06-11-flow-r1b-document-revisions.md` (Protokoll)
 
-- [ ] **Step 1: make ci in detached tmux (TTY-sicher), Exit aus Status-Datei**
+- [x] **Step 1: make ci in detached tmux (TTY-sicher), Exit aus Status-Datei**
 
 ```bash
 cd /Users/msoent/SourceCode/serverkraken/flow-phase1-m1
@@ -508,7 +508,7 @@ while [ ! -f ci.status ]; do sleep 10; done; cat ci.status
 Expected: `0`. Bei ≠0: `tail -40 ci.log` lesen, Ursache fixen wenn im R1b-Scope (pgstore/
 documents), sonst Abweichung + Stopp. Danach `rm -f ci.log ci.status`.
 
-- [ ] **Step 2: Working-Tree-Check**
+- [x] **Step 2: Working-Tree-Check**
 
 ```bash
 git status --short && git log --oneline -4
@@ -517,7 +517,7 @@ git status --short && git log --oneline -4
 Expected: clean; oben die zwei R1b-Commits (`feat(pgstore): document_revisions-Tabelle …`,
 `feat(pgstore): Revision bei jedem …`). NICHT pushen — Soenne pusht.
 
-- [ ] **Step 3: Selbst-Check gegen Spec §6/A1 (im Kopf, Ergebnis notieren)**
+- [x] **Step 3: Selbst-Check gegen Spec §6/A1 (im Kopf, Ergebnis notieren)**
 
 Checkliste — alle vier müssen „ja" sein, Antwort als Satz unter diesem Step eintragen:
 1. Schreibt JEDER erfolgreiche PUT (create UND update) genau eine Revision? (Task 3 Step 1)
@@ -525,7 +525,9 @@ Checkliste — alle vier müssen „ja" sein, Antwort als Satz unter diesem Step
 3. Schreiben Konflikt-Pfade (409/412-Äquivalente) NICHTS? (Rollback via BeginFunc — Task 2 Test 2)
 4. Ist kein Port/keine API/kein Handler angefasst worden? (`git diff --stat HEAD~2` zeigt nur die 3 File-Map-Dateien)
 
-- [ ] **Step 4: Buchhaltungs-Commit**
+> **Selbst-Check:** (1) Ja — `insertRevision` wird nach jedem INSERT (create) und UPDATE (update) am Ende des `pgx.BeginFunc`-Lambdas aufgerufen, genau einmal pro erfolgreicher Put-Operation. (2) Ja — `Delete` ruft `insertRevision(ctx, tx, doc, true)` nach `DELETE … RETURNING` auf; kein FK auf `documents(id)` in der Baseline-Migration. (3) Ja — `pgx.BeginFunc` rollt bei jedem Fehler (Constraint-Verletzung, ErrNoRows) automatisch zurück; `insertRevision` wird nie erreicht. (4) Ja — `git diff HEAD~2 --name-only` zeigt exakt die 3 File-Map-Dateien: `internal/adapter/pgstore/migrations/0001_baseline.sql`, `internal/adapter/pgstore/documents.go`, `internal/adapter/pgstore/documents_revisions_test.go`.
+
+- [x] **Step 4: Buchhaltungs-Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-06-11-flow-r1b-document-revisions.md
