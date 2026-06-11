@@ -60,7 +60,7 @@ func (f *fakeDocumentStore) GetByRepoKey(userID, repoKey string) (ports.Document
 	return d, nil
 }
 
-func (f *fakeDocumentStore) List(userID, prefix, query string, limit int) ([]ports.DocumentEntry, error) {
+func (f *fakeDocumentStore) List(userID, _ string, query string, limit int) ([]ports.DocumentEntry, error) {
 	if f.listErr != nil {
 		return nil, f.listErr
 	}

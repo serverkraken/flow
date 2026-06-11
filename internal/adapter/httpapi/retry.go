@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// Backoff implements exponential backoff with optional jitter.
+// Zero values apply sensible defaults: 500 ms base, 60 s max, factor 2.0, jitter 0.2.
 type Backoff struct {
 	Base   time.Duration
 	Max    time.Duration
@@ -15,6 +17,8 @@ type Backoff struct {
 	Jitter float64
 }
 
+// For returns the backoff duration for the given attempt number (0-based).
+// Duration grows as Base * Factor^attempt, capped at Max, with optional jitter.
 func (b Backoff) For(attempt int) time.Duration {
 	base, max, factor, jitter := b.defaults()
 	if attempt < 0 {

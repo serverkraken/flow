@@ -22,6 +22,10 @@ type Events struct {
 	done       chan struct{}
 }
 
+// NewEvents constructs an Events listener that calls invalidate for each
+// resource name received in a "changed" SSE event, and notifies Changed()
+// so the TUI can reload. invalidate is called from a goroutine; it must be
+// safe for concurrent use.
 func NewEvents(c *Client, invalidate func(string)) *Events {
 	return &Events{c: c, invalidate: invalidate, changed: make(chan struct{}, 1), done: make(chan struct{})}
 }
@@ -42,12 +46,15 @@ func (e *Events) invalidateAll() {
 	}
 }
 
+// Start begins consuming the SSE stream in a background goroutine.
+// Call Stop to shut it down gracefully.
 func (e *Events) Start(parent context.Context) {
 	ctx, cancel := context.WithCancel(parent)
 	e.stop = cancel
 	go e.loop(ctx)
 }
 
+// Stop signals the background goroutine to exit and blocks until it has.
 func (e *Events) Stop() {
 	if e.stop != nil {
 		e.stop()
@@ -108,7 +115,7 @@ func (e *Events) stream(ctx context.Context) error {
 		e.c.status.setOffline()
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return &StatusError{Code: resp.StatusCode}
 	}

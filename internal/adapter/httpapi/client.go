@@ -26,6 +26,7 @@ type TokenRefresher interface {
 	RefreshTokens(ctx context.Context) (ports.Tokens, error)
 }
 
+// Config holds the parameters for constructing a Client.
 type Config struct {
 	BaseURL   string           // "" => ErrNotConfigured auf jedem Call
 	Tokens    ports.TokenStore // keyringadapter; Slot "tokens:"+BaseURL
@@ -36,6 +37,7 @@ type Config struct {
 	HTTPC     *http.Client   // optional, default 15s Timeout
 }
 
+// Client is the bearer-authenticated HTTP client for the flow server API.
 type Client struct {
 	base      string
 	tokens    ports.TokenStore
@@ -47,6 +49,8 @@ type Client struct {
 	status    *Status // Task 2
 }
 
+// New constructs a Client from c. Nil HTTPC defaults to a 15 s timeout client;
+// empty Version defaults to "dev"; empty Device defaults to os.Hostname().
 func New(c Config) *Client {
 	httpc := c.HTTPC
 	if httpc == nil {
@@ -58,7 +62,7 @@ func New(c Config) *Client {
 	}
 	device := c.Device
 	if device == "" {
-		device, _ = os.Hostname()
+		device, _ = os.Hostname() //nolint:errcheck // hostname failure is unactionable; X-Flow-Device is best-effort
 	}
 	return &Client{
 		base: c.BaseURL, tokens: c.Tokens, slot: c.Slot,
@@ -78,9 +82,9 @@ func (c *Client) bearer() (string, error) {
 	return t.AccessToken, nil
 }
 
-// doJSON führt einen Request aus: Bearer + Pflicht-Header, EIN transparenter
-// Retry nach Token-Refresh bei 401 (Muster aus httpsync), Status-Mapping.
-// out == nil ⇒ Body wird verworfen. ifMatch >= 0 ⇒ If-Match-Header.
+// doJSON executes a request with Bearer auth and mandatory headers, performs
+// one transparent token-refresh retry on 401, and maps the response status to
+// port-level errors. out == nil discards the body; ifMatch >= 0 adds If-Match.
 func (c *Client) doJSON(ctx context.Context, method, path string, body any, ifMatch int64, out any) error {
 	if c.base == "" {
 		return ErrNotConfigured
@@ -126,35 +130,55 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any, ifMa
 		c.status.setOffline()
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if resp.StatusCode == http.StatusUnauthorized && c.refresher != nil {
-		_ = resp.Body.Close()
-		fresh, rerr := c.refresher.RefreshTokens(ctx)
-		if rerr != nil {
-			c.status.setLoggedOut()
-			return ErrLoggedOut
-		}
-		if req, err = mk(); err != nil {
-			return err
-		}
-		req.Header.Set("Authorization", "Bearer "+fresh.AccessToken)
-		if resp, err = c.httpc.Do(req); err != nil {
-			c.status.setOffline()
-			return fmt.Errorf("%w: %v", ErrUnavailable, err)
-		}
+	resp, err = c.maybeRefresh(ctx, mk, resp)
+	if err != nil {
+		return err
 	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20)) //nolint:errcheck // partial read is still useful for status mapping
+	return c.processResponse(resp.StatusCode, raw, out)
+}
+
+// maybeRefresh performs a transparent token refresh when the initial response
+// is 401 and a Refresher is configured, then retries the request once.
+// On success it returns the refreshed response (original body already closed).
+func (c *Client) maybeRefresh(ctx context.Context, mk func() (*http.Request, error), resp *http.Response) (*http.Response, error) {
+	if resp.StatusCode != http.StatusUnauthorized || c.refresher == nil {
+		return resp, nil
+	}
+	_ = resp.Body.Close()
+	fresh, rerr := c.refresher.RefreshTokens(ctx)
+	if rerr != nil {
+		c.status.setLoggedOut()
+		return nil, ErrLoggedOut
+	}
+	req, err := mk()
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+fresh.AccessToken)
+	resp2, err := c.httpc.Do(req)
+	if err != nil {
+		c.status.setOffline()
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return resp2, nil
+}
+
+// processResponse maps an HTTP status code to a port-level error or
+// unmarshals the body into out. Called by doJSON after all retries.
+func (c *Client) processResponse(code int, raw []byte, out any) error {
 	switch {
-	case resp.StatusCode == http.StatusUnauthorized:
+	case code == http.StatusUnauthorized:
 		c.status.setLoggedOut()
 		return ErrLoggedOut
-	case resp.StatusCode >= 500:
+	case code >= 500:
 		c.status.setOffline()
-		return fmt.Errorf("%w: server %d", ErrUnavailable, resp.StatusCode)
+		return fmt.Errorf("%w: server %d", ErrUnavailable, code)
 	}
 	c.status.setOnline(c.base)
-	if resp.StatusCode >= 400 {
-		return &StatusError{Code: resp.StatusCode, Body: raw}
+	if code >= 400 {
+		return &StatusError{Code: code, Body: raw}
 	}
 	if out != nil && len(raw) > 0 {
 		return json.Unmarshal(raw, out)

@@ -15,7 +15,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
@@ -103,7 +102,7 @@ type Deps struct {
 
 	// Status returns the current server connection snapshot for the status bar
 	// (Spec §8). When nil, no status bar is shown. Wire via httpapi.Client.StatusOf().Snapshot.
-	Status func() httpapi.StatusSnapshot
+	Status func() ports.StatusSnapshot
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -531,7 +530,7 @@ func (m Model) viewContent() string {
 	connLine := ""
 	if m.deps.Status != nil {
 		snap := m.deps.Status()
-		if snap.State != httpapi.StateOnline {
+		if snap.State != ports.StateOnline {
 			connLine = "\n" + statusbar.ConnState(snap, m.pal)
 		}
 	}

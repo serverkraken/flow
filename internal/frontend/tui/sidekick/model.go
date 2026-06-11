@@ -15,12 +15,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/palette"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 type screenID int
@@ -88,7 +88,7 @@ type Deps struct {
 	// Status returns the current server connection snapshot. When non-nil the
 	// sidekick appends a ConnState line to the help footer when the server is
 	// not online. Nil-tolerant: no status line is rendered when unset.
-	Status func() httpapi.StatusSnapshot
+	Status func() ports.StatusSnapshot
 	// Changed is the httpapi.Status.Changed() channel. When non-nil the sidekick
 	// arms a listener Cmd in Init() that triggers a fan-out ChangedMsg on each signal.
 	// Nil-tolerant: when nil, no listener is spawned.
@@ -479,7 +479,7 @@ func (m Model) renderHelp() string {
 	footer := statusbar.Hints("beliebige Taste → zurück", m.pal)
 	if m.deps.Status != nil {
 		snap := m.deps.Status()
-		if snap.State != httpapi.StateOnline {
+		if snap.State != ports.StateOnline {
 			footer += " · " + statusbar.ConnState(snap, m.pal)
 		}
 	}

@@ -1,4 +1,4 @@
-// internal/ports/worktime_machine.go
+// Package ports defines the application's external boundaries: adapters consumed (TokenStore, MarkdownRenderer) and ports exposed (DayOffStore, Resources).
 package ports
 
 import (

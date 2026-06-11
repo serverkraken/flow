@@ -3,28 +3,30 @@ package httpapi
 import (
 	"sync"
 	"time"
+
+	"github.com/serverkraken/flow/internal/ports"
 )
 
-type ConnState int
+// ConnState aliases ports.ConnState so httpapi-internal code and white-box
+// tests keep using the short name without a ports import at every call site.
+type ConnState = ports.ConnState
 
+// Connection-state constants re-exported from ports so callers in this
+// package (meta.go, status_test.go) compile without change.
 const (
-	StateUnknown ConnState = iota
-	StateOnline
-	StateOffline
-	StateLoggedOut
-	StateNotConfigured
-	StateOutdated // Client < min_client_version
+	StateUnknown       = ports.StateUnknown
+	StateOnline        = ports.StateOnline
+	StateOffline       = ports.StateOffline
+	StateLoggedOut     = ports.StateLoggedOut
+	StateNotConfigured = ports.StateNotConfigured
+	StateOutdated      = ports.StateOutdated
 )
 
-type StatusSnapshot struct {
-	State         ConnState
-	Host          string    // Server-Host für die Statuszeile
-	LastFetched   time.Time // jüngster erfolgreicher Read (für "Stand 14:32")
-	ServerVersion string
-}
+// StatusSnapshot aliases ports.StatusSnapshot for httpapi-internal convenience.
+type StatusSnapshot = ports.StatusSnapshot
 
-// Status ist von allen Resource-Adaptern geteilt; UI liest Snapshot(),
-// Änderungen wecken den Changed-Kanal (coalesced, cap 1).
+// Status is shared across all resource adapters; the UI reads Snapshot(),
+// state changes wake the Changed channel (coalesced, cap 1).
 type Status struct {
 	mu      sync.Mutex
 	snap    StatusSnapshot
@@ -33,12 +35,15 @@ type Status struct {
 
 func newStatus() *Status { return &Status{changed: make(chan struct{}, 1)} }
 
+// Snapshot returns a point-in-time copy of the current connection state.
 func (s *Status) Snapshot() StatusSnapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.snap
 }
 
+// Changed returns a channel that fires (coalesced) whenever the connection
+// state changes. Suitable for wiring into a bubbletea listenForChanged Cmd.
 func (s *Status) Changed() <-chan struct{} { return s.changed }
 
 func (s *Status) notify() {
@@ -71,5 +76,5 @@ func (s *Status) setOnline(host string) {
 func (s *Status) setOffline()   { s.set(func(sn *StatusSnapshot) { sn.State = StateOffline }) }
 func (s *Status) setLoggedOut() { s.set(func(sn *StatusSnapshot) { sn.State = StateLoggedOut }) }
 
-// StatusOf exponiert den Tracker für main.go/TUI.
+// StatusOf exposes the tracker for main.go and the TUI.
 func (c *Client) StatusOf() *Status { return c.status }

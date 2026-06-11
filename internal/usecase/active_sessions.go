@@ -38,7 +38,7 @@ func NewActiveSessions(
 // Start begins a new active session on the server. On a 409 conflict the
 // server returns ErrActiveSessionConflict which is mapped to
 // ErrActiveSessionExists so callers receive a stable sentinel.
-func (a *ActiveSessions) Start(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+func (a *ActiveSessions) Start(_ string, projectID, tag, note string) (domain.ActiveSession, error) {
 	as, err := a.machine.Start(projectID, tag, note)
 	if errors.Is(err, ports.ErrActiveSessionConflict) {
 		return domain.ActiveSession{}, ErrActiveSessionExists
@@ -49,17 +49,17 @@ func (a *ActiveSessions) Start(userID, projectID, tag, note string) (domain.Acti
 // Stop ends the active session for projectID and returns the finished Session.
 // tag and note are stored on the active-session row server-side at start time;
 // the use case therefore ignores them (the server reads them from the row).
-func (a *ActiveSessions) Stop(userID, projectID, tag, note string) (domain.Session, error) {
+func (a *ActiveSessions) Stop(_ string, projectID, _ string, _ string) (domain.Session, error) {
 	return a.machine.Stop(projectID)
 }
 
 // Pause suspends the running session for projectID.
-func (a *ActiveSessions) Pause(userID, projectID string) (domain.ActiveSession, error) {
+func (a *ActiveSessions) Pause(_ string, projectID string) (domain.ActiveSession, error) {
 	return a.machine.Pause(projectID)
 }
 
 // Resume restarts a previously paused session for projectID.
-func (a *ActiveSessions) Resume(userID, projectID string) (domain.ActiveSession, error) {
+func (a *ActiveSessions) Resume(_ string, projectID string) (domain.ActiveSession, error) {
 	return a.machine.Resume(projectID)
 }
 

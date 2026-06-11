@@ -5,32 +5,32 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // ConnState rendert die Server-Statuszeile (Spec §8): still wenn ok, laut
 // wenn nicht. Glyph + Farbe, nie Farbe allein (A11y-Regel).
-func ConnState(s httpapi.StatusSnapshot, pal theme.Palette) string {
+func ConnState(s ports.StatusSnapshot, pal theme.Palette) string {
 	sem := pal.Sem()
 	switch s.State {
-	case httpapi.StateOnline:
+	case ports.StateOnline:
 		return lipgloss.NewStyle().Foreground(pal.FgMuted).
 			Render(fmt.Sprintf("● %s", hostOnly(s.Host)))
-	case httpapi.StateOffline:
+	case ports.StateOffline:
 		stand := "—"
 		if !s.LastFetched.IsZero() {
 			stand = s.LastFetched.Local().Format("15:04")
 		}
 		return lipgloss.NewStyle().Foreground(sem.Warning).
 			Render(fmt.Sprintf("○ offline · Stand %s (read-only)", stand))
-	case httpapi.StateLoggedOut:
+	case ports.StateLoggedOut:
 		return lipgloss.NewStyle().Foreground(sem.Warning).
 			Render("○ nicht angemeldet · flow login")
-	case httpapi.StateNotConfigured:
+	case ports.StateNotConfigured:
 		return lipgloss.NewStyle().Foreground(sem.Warning).
 			Render("○ kein Server · FLOW_SERVER_URL setzen")
-	case httpapi.StateOutdated:
+	case ports.StateOutdated:
 		return lipgloss.NewStyle().Foreground(sem.Danger).
 			Render("▲ Client veraltet · Update nötig")
 	default:

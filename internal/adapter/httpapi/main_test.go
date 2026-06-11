@@ -138,7 +138,7 @@ func newTestAPI(t *testing.T) *testAPI {
 		if err != nil {
 			t.Fatalf("ROPC token request: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(resp.Body)
 		if resp.StatusCode/100 != 2 {
 			t.Skipf("ROPC unavailable on dex (status %d) — skip", resp.StatusCode)

@@ -16,15 +16,15 @@ import (
 func fakeSSEServer(t *testing.T, events []string) (*httptest.Server, *atomic.Int32) {
 	t.Helper()
 	var connects atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		connects.Add(1)
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher := w.(http.Flusher)
-		fmt.Fprint(w, ": connected\n\n")
+		_, _ = fmt.Fprint(w, ": connected\n\n")
 		flusher.Flush()
 		for _, ev := range events {
-			fmt.Fprint(w, ev)
+			_, _ = fmt.Fprint(w, ev)
 			flusher.Flush()
 		}
 		// Close connection by returning (stream ends)
@@ -79,12 +79,12 @@ func TestEventsChangedEventInvalidatesAndNotifies(t *testing.T) {
 func TestEventsReconnect(t *testing.T) {
 	// Server closes immediately; client should reconnect (attempt >= 2).
 	var connects atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		connects.Add(1)
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher := w.(http.Flusher)
-		fmt.Fprint(w, ": connected\n\n")
+		_, _ = fmt.Fprint(w, ": connected\n\n")
 		flusher.Flush()
 		// Return immediately — closes stream, triggering reconnect
 	}))
