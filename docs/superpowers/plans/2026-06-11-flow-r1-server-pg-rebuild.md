@@ -4923,7 +4923,7 @@ EOF
 - Create: `internal/webui/handlers/session_actions_pause_test.go`
 - Run: `make webui-templ`
 
-- [ ] **Step 1: LiveBanner um Pause erweitern**
+- [x] **Step 1: LiveBanner um Pause erweitern**
 
 In `internal/webui/templates/shared/live_banner.templ` dem `LiveBanner`-Struct nach
 `StopHref` hinzufügen:
@@ -4994,7 +4994,7 @@ if b.ResumeHref != "" && b.IsPaused {
 }
 ```
 
-- [ ] **Step 2: Tick-JS pausenfest machen**
+- [x] **Step 2: Tick-JS pausenfest machen**
 
 Im `sseTodayScript()`-Block von `internal/webui/templates/worktime/today.templ` den
 tick-Zweig erweitern — nach `if (!el) return;`:
@@ -5007,7 +5007,7 @@ tick-Zweig erweitern — nach `if (!el) return;`:
 (der Zähler rechnet `now − data-started` — Pausen müssen den Anker nach vorn schieben).
 Das passiert server-seitig im VM-Bau (Step 3), das Template bleibt dumm.
 
-- [ ] **Step 3: Banner-VM-Bau mit Pause (zwei Stellen, identische Formel)**
+- [x] **Step 3: Banner-VM-Bau mit Pause (zwei Stellen, identische Formel)**
 
 `internal/webui/handlers/session_actions.go`, `buildBannerContainerVM` — den Banner-Teil
 ersetzen durch:
@@ -5050,7 +5050,7 @@ Block durch exakt dieselben Feldzuweisungen ersetzen (ElapsedLabel via
 `worktime.FormatElapsedHumane(active.Elapsed(now))`, StartedUnix mit PauseTotal-Anker,
 PauseHref/ResumeHref/IsPaused wie oben).
 
-- [ ] **Step 4: Pause/Resume-HTMX-Handler**
+- [x] **Step 4: Pause/Resume-HTMX-Handler**
 
 `SessionActionsDeps` in `session_actions.go` um das nil-tolerante Feld erweitern:
 
@@ -5119,7 +5119,7 @@ func newPauseResumeHandler(d SessionActionsDeps, op func(userID, projectID strin
 }
 ```
 
-- [ ] **Step 5: Handler-Test mit Fake (kein Container nötig)**
+- [x] **Step 5: Handler-Test mit Fake (kein Container nötig)**
 
 ```go
 // internal/webui/handlers/session_actions_pause_test.go
@@ -5225,7 +5225,7 @@ func TestActivePauseResume_RendersBannerStates(t *testing.T) {
 }
 ```
 
-- [ ] **Step 6: SyncState entfernen — ehrlicher Status**
+- [x] **Step 6: SyncState entfernen — ehrlicher Status**
 
 Der Spine-Sync-Dot hat immer `"ok"` gelogen (Spec §10/§12: Fake fliegt raus). Der ehrliche
 Status (eingeloggt-als = `UserLabel` in der Nav; Server-Version = Settings-Seite über
@@ -5255,7 +5255,7 @@ rg 'SyncState' internal/ cmd/flow-server/ --type go --type-add 'templ:*.templ' -
 Expected: keine Treffer (die sqliteclient-`SyncState`-Watermark-Tabelle ist Client-Code —
 R2-Thema, hier ausgefiltert).
 
-- [ ] **Step 7: Build + Tests + Commit**
+- [x] **Step 7: Build + Tests + Commit**
 
 ```bash
 make webui-templ && go build ./... && go test ./internal/webui/... -timeout 300s 2>&1 | tail -4
@@ -5285,7 +5285,7 @@ EOF
 Nach diesem Task läuft flow-server NUR noch gegen Postgres; die alten Sync-Routen sind
 abgeklemmt (Dateien löscht Task 19). `make ci` muss am Ende grün sein.
 
-- [ ] **Step 1: Projects-API — Failing Test**
+- [x] **Step 1: Projects-API — Failing Test**
 
 ```go
 // internal/adapter/httpserver/projects_api_test.go
@@ -5393,7 +5393,7 @@ go test ./internal/adapter/httpserver/ -run TestProjectsAPI -timeout 300s 2>&1 |
 
 Expected: `undefined: MountProjectsAPI`.
 
-- [ ] **Step 2: Projects-API — Implementierung**
+- [x] **Step 2: Projects-API — Implementierung**
 
 ```go
 // internal/adapter/httpserver/projects_api.go
@@ -5588,7 +5588,7 @@ go test ./internal/adapter/httpserver/ -run TestProjectsAPI -v -timeout 300s 2>&
 
 Expected: PASS.
 
-- [ ] **Step 3: Config — FLOW_PG_DSN ersetzt FLOW_SERVER_DB + FLOW_NOTEBOOK_ROOT**
+- [x] **Step 3: Config — FLOW_PG_DSN ersetzt FLOW_SERVER_DB + FLOW_NOTEBOOK_ROOT**
 
 `internal/adapter/httpserver/config.go`:
 
@@ -5607,7 +5607,7 @@ Expected: PASS.
    — betroffene Assertions auf `PgDSN`/`FLOW_PG_DSN` umschreiben, Default-Erwartungen für
    die gelöschten Felder entfernen).
 
-- [ ] **Step 4: AuthDeps + server.go — neue Routen rein, Sync-Routen raus**
+- [x] **Step 4: AuthDeps + server.go — neue Routen rein, Sync-Routen raus**
 
 `internal/adapter/httpserver/auth_browser.go`, `AuthDeps`: die fünf Felder
 `ProjectsServer`, `SessionsServer`, `ActiveServer`, `ReposServer`, `RepoNotesServer`
@@ -5702,7 +5702,7 @@ löschen und ersetzen durch:
 	}
 ```
 
-- [ ] **Step 5: webui.go-Felder**
+- [x] **Step 5: webui.go-Felder**
 
 In `internal/adapter/httpserver/webui.go` im `WebUIHandlers`-Struct:
 `NotesIndex`, `NotesView`, `NoteEdit`, `NotePut` löschen; ergänzen:
@@ -5719,7 +5719,7 @@ In `internal/adapter/httpserver/webui.go` im `WebUIHandlers`-Struct:
 	ActiveResume http.Handler
 ```
 
-- [ ] **Step 6: cmd/flow-server/main.go umverkabeln**
+- [x] **Step 6: cmd/flow-server/main.go umverkabeln**
 
 1. Imports: `sqliteserver`, `kompfsstore`, `kompports`, `kompusecase`, `path/filepath`
    raus; rein:
@@ -5831,7 +5831,7 @@ func buildWebUIHandlers(
    `ServerDBPath: "PostgreSQL (FLOW_PG_DSN)"` — die DSN enthält ein Passwort und hat in
    der UI nichts verloren; das VM-Feld wird in R5 umbenannt.
 
-- [ ] **Step 7: Komplett-Build + Test-Reparatur + ci**
+- [x] **Step 7: Komplett-Build + Test-Reparatur + ci**
 
 ```bash
 go build ./... 2>&1 | head -30
@@ -5857,7 +5857,7 @@ make ci 2>&1 | tail -3
 Expected: grün. Wenn das Coverage-Gate knapp reißt (neue main.go-Pfade sind ungetestet):
 NICHT das Gate anfassen — Task 19 vermisst neu; hier nur als Abweichung notieren.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 gofumpt -w cmd/flow-server/ internal/adapter/httpserver/
@@ -5889,13 +5889,13 @@ EOF
 - Modify: `internal/adapter/httpserver/integration_e2e_test.go`
 - Modify: `Makefile` (`COVER_THRESHOLD` ehrlich)
 
-- [ ] **Step 1: userLabelFromContext retten**
+- [x] **Step 1: userLabelFromContext retten**
 
 `userLabelFromContext` lebt in `notes.go`, wird aber von `settings.go` u. a. genutzt.
 Die Funktion (samt Doc-Kommentar) ans Ende von
 `internal/webui/handlers/documents.go` verschieben.
 
-- [ ] **Step 2: Alte fsstore-Notes-Handler entfernen**
+- [x] **Step 2: Alte fsstore-Notes-Handler entfernen**
 
 ```bash
 git rm internal/webui/handlers/notes.go internal/webui/handlers/notes_vm.go internal/webui/handlers/notes_test.go
@@ -5906,7 +5906,7 @@ löschen; das Feld `NoteStore` aus `NoteActionsDeps` und die kompendium-Imports 
 In `note_actions_test.go` die zugehörigen Testfunktionen löschen. Übrig bleiben die
 RepoNote-Handler aus Task 16.
 
-- [ ] **Step 3: Alte Server-Handler + sqliteserver löschen**
+- [x] **Step 3: Alte Server-Handler + sqliteserver löschen**
 
 ```bash
 git rm internal/adapter/httpserver/sessions_handlers.go internal/adapter/httpserver/sessions_handlers_test.go \
@@ -5924,7 +5924,7 @@ rg "adapter/sqliteserver" --type go -l && echo "NOCH REFERENZEN" || echo "sauber
 
 Expected: `sauber`. Jede verbleibende Referenz ist ein Testfile → nächste Steps.
 
-- [ ] **Step 4: WebUI-Handler-Tests auf pgstore umziehen**
+- [x] **Step 4: WebUI-Handler-Tests auf pgstore umziehen**
 
 Ein TestMain für das gesamte handlers-Testbinary (gilt für `package handlers` UND
 `package handlers_test` — es darf nur EINES geben):
@@ -6016,7 +6016,7 @@ Expected: PASS, keine Skips mit "R1:"-Marker mehr:
 rg "R1: wird in Task 19" internal/webui/ && echo "NOCH SKIPS" || echo "sauber"
 ```
 
-- [ ] **Step 5: server_worktime_view_test auf lokale Fakes**
+- [x] **Step 5: server_worktime_view_test auf lokale Fakes**
 
 `internal/usecase/server_worktime_view_test.go` nutzt sqliteserver. Die View braucht nur
 zwei winzige Interfaces — Setup ersetzen durch In-Memory-Fakes (KEIN Container im
@@ -6046,7 +6046,7 @@ Die bestehenden Testfälle behalten ihre Assertions; nur die Daten kommen jetzt 
 Fake-Slices statt aus SQLite-Inserts. (Datums-Hinweis: `Date` der Fixtures auf
 UTC-Mitternacht setzen, exakt wie `pgstore.scanSession` es liefert.)
 
-- [ ] **Step 6: integration_e2e_test auf pgtest**
+- [x] **Step 6: integration_e2e_test auf pgtest**
 
 In `internal/adapter/httpserver/integration_e2e_test.go` (Build-Tag `integration`):
 `sqliteserver.Open(...)`-Setup durch `pgtest.StartContainer` + `pgstore.Open` ersetzen
@@ -6062,7 +6062,7 @@ go test -tags integration ./internal/adapter/httpserver/ -run TestIntegration -t
 Expected: grün (oder dokumentierter Skip, falls der Test Docker-gated ist und übersprungen
 wird — dann reicht das `go vet`).
 
-- [ ] **Step 7: Coverage neu vermessen + Gate ehrlich setzen**
+- [x] **Step 7: Coverage neu vermessen + Gate ehrlich setzen**
 
 ```bash
 make cover 2>&1 | tail -5
@@ -6074,7 +6074,7 @@ liegt; liegt er drüber, Gate anheben. Den neuen Wert hier eintragen:
 
 > Coverage nach Task 19: ____ % → COVER_THRESHOLD = ____
 
-- [ ] **Step 8: ci + Commit**
+- [x] **Step 8: ci + Commit**
 
 ```bash
 make ci 2>&1 | tail -3
@@ -6101,7 +6101,7 @@ EOF
 - Delete: `deploy/podman/litestream.yml`, `scripts/litestream-restore-drill.sh`, `scripts/smoke-m2-m3.sh`
 - Modify: `deploy/podman/README.md`, `Makefile` (drill-Target raus)
 
-- [ ] **Step 1: docker-compose.yml ersetzen**
+- [x] **Step 1: docker-compose.yml ersetzen**
 
 Kompletter neuer Inhalt von `deploy/podman/docker-compose.yml`:
 
@@ -6149,7 +6149,7 @@ volumes:
   pg-data: {}
 ```
 
-- [ ] **Step 2: Leichen entsorgen**
+- [x] **Step 2: Leichen entsorgen**
 
 ```bash
 git rm deploy/podman/litestream.yml scripts/litestream-restore-drill.sh scripts/smoke-m2-m3.sh
@@ -6160,7 +6160,7 @@ Jede verbleibende Fundstelle bereinigen: das `drill-restore`-Target im `Makefile
 README-Abschnitte zu Litestream/MinIO/Backups ersetzen (Step 3); GHA-Workflows referenzieren
 die Dateien laut Recon nicht — falls doch, Pfade entfernen.
 
-- [ ] **Step 3: README + .env-Dokumentation**
+- [x] **Step 3: README + .env-Dokumentation**
 
 In `deploy/podman/README.md`: die Litestream/MinIO-Abschnitte ersetzen durch einen
 PG-Abschnitt. Dokumentierter `.env`-Block (die Datei selbst ist gitignored):
@@ -6189,7 +6189,7 @@ Gefundene Doku-Stellen (auch `docs/runbook/*.md`) anpassen — Runbook-Schritte,
 SQLite-Pfad zeigen, auf `FLOW_PG_DSN` umschreiben oder als „(R1: ersetzt durch PG)"
 markieren.
 
-- [ ] **Step 4: Stack-Probe + Commit**
+- [x] **Step 4: Stack-Probe + Commit**
 
 ```bash
 cd deploy/podman && podman-compose up -d postgres dex && podman-compose ps && cd ../..
@@ -6221,7 +6221,7 @@ Das Chart deployt weiterhin NUR flow-server; der CNPG-`Cluster` selbst entsteht 
 separates Manifest in homelab-study (Spec §15 Punkt 4 — eigene PRs, nicht dieses Repo).
 Das Chart konsumiert das von CNPG generierte App-Secret (`<cluster>-app`, Key `uri`).
 
-- [ ] **Step 1: Chart.yaml**
+- [x] **Step 1: Chart.yaml**
 
 `description` ersetzen durch:
 
@@ -6235,7 +6235,7 @@ version: 0.2.0
 
 (`version: 0.1.0` → `0.2.0`.)
 
-- [ ] **Step 2: values.yaml**
+- [x] **Step 2: values.yaml**
 
 Die Blöcke `persistence:` und `litestream:` KOMPLETT löschen; im `flow:`-Block
 `serverDBPath` + `notebookRoot` löschen; neu auf Top-Level:
@@ -6251,7 +6251,7 @@ postgres:
 Im `secret:`-Block `litestreamAccessKeyID` + `litestreamSecretAccessKey` löschen. Den
 `resources.litestream`-Block löschen.
 
-- [ ] **Step 3: deployment.yaml**
+- [x] **Step 3: deployment.yaml**
 
 1. Den Kommentar + `strategy: Recreate`-Block ersetzen durch:
 
@@ -6278,7 +6278,7 @@ Im `secret:`-Block `litestreamAccessKeyID` + `litestreamSecretAccessKey` lösche
    zugehörigen `volumeMounts:`-Eintrag `flow-data` löschen; `tmp` bleibt.
 5. `git rm deploy/helm/flow-server/templates/pvc.yaml`.
 
-- [ ] **Step 4: configmap.yaml + secret.yaml**
+- [x] **Step 4: configmap.yaml + secret.yaml**
 
 ```bash
 rg "serverDBPath|notebookRoot|FLOW_SERVER_DB|FLOW_NOTEBOOK_ROOT|LITESTREAM" deploy/helm/ -l
@@ -6287,7 +6287,7 @@ rg "serverDBPath|notebookRoot|FLOW_SERVER_DB|FLOW_NOTEBOOK_ROOT|LITESTREAM" depl
 In `configmap.yaml` die Zeilen für `FLOW_SERVER_DB`/`FLOW_NOTEBOOK_ROOT` löschen; in
 `secret.yaml` die Litestream-Keys löschen.
 
-- [ ] **Step 5: Render-Probe + Commit**
+- [x] **Step 5: Render-Probe + Commit**
 
 ```bash
 helm lint deploy/helm/flow-server
@@ -6326,7 +6326,7 @@ Composition-Root-Audit + curl-Smoke JEDER Route — per-Task-Reviews fangen nich
 Composition-Root ruft den neuen Constructor nie auf". 401 statt 404 ist hier der Beweis,
 dass eine Bearer-Route GEMOUNTET ist.
 
-- [ ] **Step 1: Constructor-Audit**
+- [x] **Step 1: Constructor-Audit**
 
 ```bash
 for sym in pgstore.Open NewUsers NewProjects NewSessions NewActiveSessions NewDocuments NewDayOffs NewSettings \
@@ -6338,7 +6338,7 @@ done
 
 Expected: 18× `OK`. Jedes `FEHLT` ist ein Wiring-Loch → in main.go nachverdrahten.
 
-- [ ] **Step 2: Smoke-Script anlegen**
+- [x] **Step 2: Smoke-Script anlegen**
 
 ```bash
 #!/usr/bin/env bash
@@ -6456,7 +6456,7 @@ exit $fail
 chmod +x scripts/smoke-r1-routes.sh
 ```
 
-- [ ] **Step 3: Smoke laufen lassen**
+- [x] **Step 3: Smoke laufen lassen**
 
 ```bash
 ./scripts/smoke-r1-routes.sh
@@ -6467,7 +6467,7 @@ Mounting-Loch in server.go/main.go — fixen, Smoke wiederholen. (Hinweis: bei d
 Sync-Routen ist auch 405 akzeptabel — dann das Expected im Script auf den realen Wert
 setzen und als Abweichung notieren.)
 
-- [ ] **Step 4: Finale ci + Bestandsaufnahme**
+- [x] **Step 4: Finale ci + Bestandsaufnahme**
 
 ```bash
 make ci 2>&1 | tail -3
@@ -6478,7 +6478,7 @@ git status --short
 Expected: ci grün; die R1-Commits (~20) lokal auf `next`; Working-Tree clean.
 **NICHT pushen** — Soenne reviewt und pusht selbst.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/smoke-r1-routes.sh
@@ -6526,4 +6526,19 @@ Integrationsbranches bis R2 — kein Bug, nicht „reparieren".
 ## Abweichungs-Protokoll
 
 (Der Executor trägt hier ein, was vom Plan abweichen musste — Task-Nummer + 1–3 Sätze.)
+
+- **Tasks 17–22 (retroaktiv nachgetragen, 2026-06-11 abends):** Die Arbeit war committet
+  (`4f7c5b3`…`b0281f4`), aber Checkboxen und dieses Protokoll wurden ab Task 17 nicht mehr
+  gepflegt. Nachträglich verifiziert: Substanz-Checks per `rg`/`fd` (SyncState-Fake weg,
+  `FLOW_PG_DSN`-Wiring in config/main, sqliteserver gelöscht, compose = PG16+dex,
+  Chart 0.2.0), `make ci` exit 0 (Coverage 74,6 % ≥ 73 %-Gate), Smoke-Script 44/44 OK
+  mit exit 0. Boxen erst nach dieser Verifikation abgehakt.
+- **Task 22 Step 4 („NICHT pushen"):** `b0281f4` lag zum Zeitpunkt der Nachverifikation
+  bereits auf origin/next (PR-#48-CI war gelaufen).
+- **Post-R1-Findings (eigene Commits, gleicher Abend):** secscan-CRITICAL
+  CVE-2026-33816 in pgx v5.7.5 → Bump auf v5.10.0. Toter „notes nicht
+  konfiguriert"-Placeholder verwies noch auf das gestrichene `FLOW_NOTEBOOK_ROOT`
+  (`Configured` war hardcoded `true`) → Feld + Branch + Template entfernt.
+  Trivy-helm-Render-Noise (required-Fields ohne Values) bleibt bewusst: zählt nicht
+  als Finding, das Chart prüft der helm-lint-Job mit echten Values.
 
