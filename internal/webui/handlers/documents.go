@@ -6,6 +6,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -171,4 +172,15 @@ func docTitle(docPath, body string) string {
 		}
 	}
 	return strings.TrimSuffix(path.Base(docPath), ".md")
+}
+
+// userLabelFromContext returns the nav header label or empty string.
+// Callers that don't carry a domain.User directly into every render
+// call use this helper to look it up from context.
+func userLabelFromContext(ctx context.Context) string {
+	u, ok := httpserver.UserFromContext(ctx)
+	if !ok {
+		return ""
+	}
+	return userLabel(u)
 }

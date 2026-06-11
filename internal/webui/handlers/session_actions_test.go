@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"context"
@@ -13,27 +13,25 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
 // — fixtures + helpers --------------------------------------------------------
 
-func mkActionsDeps(store *sqliteserver.Store, now time.Time) handlers.SessionActionsDeps {
+func mkActionsDeps(s pgStores, now time.Time) SessionActionsDeps {
 	clock := &testutil.FixedClock{T: now}
 	view := &usecase.ServerWorktimeView{
-		Sessions:      sqliteserver.NewSessions(store),
-		Active:        sqliteserver.NewActiveSessions(store),
+		Sessions:      s.Sessions,
+		Active:        s.Active,
 		Clock:         clock,
 		DefaultTarget: 8 * time.Hour,
 	}
-	return handlers.SessionActionsDeps{
-		Sessions:    sqliteserver.NewSessions(store),
-		Active:      sqliteserver.NewActiveSessions(store),
-		Projects:    sqliteserver.NewProjects(store),
+	return SessionActionsDeps{
+		Sessions:    s.Sessions,
+		Active:      s.Active,
+		Projects:    s.Projects,
 		View:        view,
 		Clock:       clock,
 		DeviceLabel: "test-device",
@@ -68,17 +66,15 @@ func actionReq(t *testing.T, method, target, body string, u domain.User, params 
 
 func TestSessionEdit_GET_RendersFormWithPrefilledInputs(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-edit-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-edit-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionEdit(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionEdit(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodGet, "/worktime/sessions/"+s.ID+"/edit", "", u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodGet, "/worktime/sessions/"+sess.ID+"/edit", "", s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -99,17 +95,15 @@ func TestSessionEdit_GET_RendersFormWithPrefilledInputs(t *testing.T) {
 
 func TestSessionEdit_GET_Cancel_ReturnsRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-edit-cancel")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-edit-cancel")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionEdit(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionEdit(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodGet, "/worktime/sessions/"+s.ID+"/edit?cancel=1", "", u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodGet, "/worktime/sessions/"+sess.ID+"/edit?cancel=1", "", s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -122,13 +116,12 @@ func TestSessionEdit_GET_Cancel_ReturnsRow(t *testing.T) {
 
 func TestSessionEdit_GET_NotFound_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-edit-nf")
+	s := newPGStores(t, "sa-edit-nf")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionEdit(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionEdit(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodGet, "/worktime/sessions/missing/edit", "", u, map[string]string{"id": "00000000-0000-0000-0000-000000000000"})
+	r := actionReq(t, http.MethodGet, "/worktime/sessions/missing/edit", "", s.User, map[string]string{"id": "00000000-0000-0000-0000-000000000000"})
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("status: got %d, want 404", rr.Code)
@@ -137,10 +130,10 @@ func TestSessionEdit_GET_NotFound_404(t *testing.T) {
 
 func TestSessionEdit_GET_Unauthorized_401(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "sa-edit-unauth")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionEdit(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionEdit(d)
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime/sessions/x/edit", nil)
 	h.ServeHTTP(rr, r)
@@ -151,15 +144,13 @@ func TestSessionEdit_GET_Unauthorized_401(t *testing.T) {
 
 func TestSessionPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-put-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-put-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionPut(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionPut(d)
 
 	form := url.Values{}
 	form.Set("date", "2026-06-04")
@@ -167,10 +158,10 @@ func TestSessionPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 	form.Set("stop", "10:30")
 	form.Set("tag", "review")
 	form.Set("note", "code review")
-	form.Set("version", strconv.FormatInt(s.Version, 10))
+	form.Set("version", strconv.FormatInt(sess.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+sess.ID, form.Encode(), s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -186,15 +177,13 @@ func TestSessionPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 
 func TestSessionPut_VersionConflict_RendersOverlay(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-put-conf")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-put-conf")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionPut(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionPut(d)
 
 	form := url.Values{}
 	form.Set("date", "2026-06-04")
@@ -204,7 +193,7 @@ func TestSessionPut_VersionConflict_RendersOverlay(t *testing.T) {
 	form.Set("version", "999") // stale
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+sess.ID, form.Encode(), s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusConflict {
@@ -217,24 +206,22 @@ func TestSessionPut_VersionConflict_RendersOverlay(t *testing.T) {
 
 func TestSessionPut_BadInput_BadRequest_RendersForm(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-put-bad")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-put-bad")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionPut(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionPut(d)
 
 	form := url.Values{}
 	form.Set("date", "2026-06-04")
 	form.Set("start", "10:30")
 	form.Set("stop", "09:00") // stop before start
-	form.Set("version", strconv.FormatInt(s.Version, 10))
+	form.Set("version", strconv.FormatInt(sess.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+sess.ID, form.Encode(), s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
@@ -247,32 +234,27 @@ func TestSessionPut_BadInput_BadRequest_RendersForm(t *testing.T) {
 
 func TestSessionPut_DateOnlyChange_ReAnchorsTimes(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-put-date-only")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-put-date-only")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionPut(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionPut(d)
 
-	// Submit ONLY a new date — leave start/stop unset. The handler must
-	// re-anchor the preserved wall-clock times to the new date so the row
-	// stays internally consistent (date column == start.Date()).
 	form := url.Values{}
 	form.Set("date", "2026-06-05")
-	form.Set("version", strconv.FormatInt(s.Version, 10))
+	form.Set("version", strconv.FormatInt(sess.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+sess.ID, form.Encode(), s.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 
-	saved, err := sessions.GetByID(u.ID, s.ID)
+	saved, err := s.Sessions.GetByID(s.User.ID, sess.ID)
 	if err != nil {
 		t.Fatalf("re-read session: %v", err)
 	}
@@ -297,25 +279,23 @@ func TestSessionPut_DateOnlyChange_ReAnchorsTimes(t *testing.T) {
 
 func TestSessionPut_CrossTenant_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "sa-put-uA")
-	uB := seedUser(t, store, "sa-put-uB")
-	pA := seedProject(t, store, uA.ID, "webui-mockups")
+	sA := newPGStores(t, "sa-put-uA")
+	sB := newPGStores(t, "sa-put-uB")
+	pA := seedProject(t, sA.Projects, sA.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, uA.ID, pA.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, sA.Sessions, sA.User.ID, pA.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionPut(d)
+	d := mkActionsDeps(sA, now)
+	h := NewSessionPut(d)
 
 	form := url.Values{}
 	form.Set("date", "2026-06-04")
 	form.Set("start", "09:00")
 	form.Set("stop", "10:30")
-	form.Set("version", strconv.FormatInt(s.Version, 10))
+	form.Set("version", strconv.FormatInt(sess.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+s.ID, form.Encode(), uB, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodPut, "/worktime/sessions/"+sess.ID, form.Encode(), sB.User, map[string]string{"id": sess.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusNotFound {
@@ -325,18 +305,16 @@ func TestSessionPut_CrossTenant_404(t *testing.T) {
 
 func TestSessionDelete_HappyPath_Empty200(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-del-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-del-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionDelete(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionDelete(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+s.ID, "", u, map[string]string{"id": s.ID})
-	r.Header.Set("If-Match", strconv.FormatInt(s.Version, 10))
+	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+sess.ID, "", s.User, map[string]string{"id": sess.ID})
+	r.Header.Set("If-Match", strconv.FormatInt(sess.Version, 10))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -345,24 +323,22 @@ func TestSessionDelete_HappyPath_Empty200(t *testing.T) {
 	if strings.TrimSpace(rr.Body.String()) != "" {
 		t.Errorf("delete body must be empty, got: %s", rr.Body.String())
 	}
-	if _, err := sqliteserver.NewSessions(store).GetByID(u.ID, s.ID); err == nil {
+	if _, err := s.Sessions.GetByID(s.User.ID, sess.ID); err == nil {
 		t.Errorf("session must be deleted")
 	}
 }
 
 func TestSessionDelete_Conflict_RendersOverlay(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-del-conf")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-del-conf")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionDelete(d)
+	d := mkActionsDeps(s, now)
+	h := NewSessionDelete(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+s.ID, "", u, map[string]string{"id": s.ID})
+	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+sess.ID, "", s.User, map[string]string{"id": sess.ID})
 	r.Header.Set("If-Match", "999")
 	h.ServeHTTP(rr, r)
 
@@ -376,19 +352,17 @@ func TestSessionDelete_Conflict_RendersOverlay(t *testing.T) {
 
 func TestSessionDelete_CrossTenant_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "sa-del-uA")
-	uB := seedUser(t, store, "sa-del-uB")
-	pA := seedProject(t, store, uA.ID, "webui-mockups")
+	sA := newPGStores(t, "sa-del-uA")
+	sB := newPGStores(t, "sa-del-uB")
+	pA := seedProject(t, sA.Projects, sA.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	sessions := sqliteserver.NewSessions(store)
-	s := seedSession(t, sessions, uA.ID, pA.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
+	sess := seedSession(t, sA.Sessions, sA.User.ID, pA.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 60*time.Minute)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewSessionDelete(d)
+	d := mkActionsDeps(sA, now)
+	h := NewSessionDelete(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+s.ID, "", uB, map[string]string{"id": s.ID})
-	r.Header.Set("If-Match", strconv.FormatInt(s.Version, 10))
+	r := actionReq(t, http.MethodDelete, "/worktime/sessions/"+sess.ID, "", sB.User, map[string]string{"id": sess.ID})
+	r.Header.Set("If-Match", strconv.FormatInt(sess.Version, 10))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusNotFound {
@@ -398,18 +372,17 @@ func TestSessionDelete_CrossTenant_404(t *testing.T) {
 
 func TestActiveStart_HappyPath_ReturnsBanner(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-start-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-start-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStart(d)
+	d := mkActionsDeps(s, now)
+	h := NewActiveStart(d)
 	rr := httptest.NewRecorder()
 
 	form := url.Values{}
 	form.Set("project_id", p.ID)
-	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -425,23 +398,21 @@ func TestActiveStart_HappyPath_ReturnsBanner(t *testing.T) {
 
 func TestActiveStart_AlreadyActive_409(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-start-conf")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-start-conf")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
+	if _, err := s.Active.Start(s.User.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStart(d)
+	d := mkActionsDeps(s, now)
+	h := NewActiveStart(d)
 	rr := httptest.NewRecorder()
 
 	form := url.Values{}
 	form.Set("project_id", p.ID)
-	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusConflict {
@@ -451,18 +422,18 @@ func TestActiveStart_AlreadyActive_409(t *testing.T) {
 
 func TestActiveStart_CrossTenantProject_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "sa-start-uA")
-	uB := seedUser(t, store, "sa-start-uB")
-	pA := seedProject(t, store, uA.ID, "webui-mockups")
+	sA := newPGStores(t, "sa-start-uA")
+	sB := newPGStores(t, "sa-start-uB")
+	pA := seedProject(t, sA.Projects, sA.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStart(d)
+	// sB's Projects store is used — it won't find pA
+	d := mkActionsDeps(sB, now)
+	h := NewActiveStart(d)
 	rr := httptest.NewRecorder()
 	form := url.Values{}
 	form.Set("project_id", pA.ID)
-	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), uB, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), sB.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusNotFound {
@@ -472,19 +443,17 @@ func TestActiveStart_CrossTenantProject_404(t *testing.T) {
 
 func TestActiveStop_HappyPath_Empty(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-stop-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "sa-stop-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
+	if _, err := s.Active.Start(s.User.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStop(d)
+	d := mkActionsDeps(s, now)
+	h := NewActiveStop(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -501,13 +470,12 @@ func TestActiveStop_HappyPath_Empty(t *testing.T) {
 
 func TestActiveStop_NoActive_Idempotent(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-stop-none")
+	s := newPGStores(t, "sa-stop-none")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStop(d)
+	d := mkActionsDeps(s, now)
+	h := NewActiveStop(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusOK {
 		t.Errorf("status: got %d, want 200", rr.Code)
@@ -516,13 +484,12 @@ func TestActiveStop_NoActive_Idempotent(t *testing.T) {
 
 func TestActiveStart_MissingProjectID_400(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "sa-start-miss")
+	s := newPGStores(t, "sa-start-miss")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	d := mkActionsDeps(store, now)
-	h := handlers.NewActiveStart(d)
+	d := mkActionsDeps(s, now)
+	h := NewActiveStart(d)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPost, "/worktime/active/start", "", u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/start", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("status: got %d, want 400", rr.Code)

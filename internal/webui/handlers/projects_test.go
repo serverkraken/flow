@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"context"
@@ -9,20 +9,17 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
-// mkProjectsDeps assembles the handler deps off a server store. Tests
-// reuse mustOpenServerStore + seedUser from dashboard_test.go.
-func mkProjectsDeps(store *sqliteserver.Store, now time.Time) handlers.ProjectsDeps {
+// mkProjectsDeps assembles the handler deps off pgStores.
+func mkProjectsDeps(s pgStores, now time.Time) ProjectsDeps {
 	clock := &testutil.FixedClock{T: now}
-	return handlers.ProjectsDeps{
-		Projects: sqliteserver.NewProjects(store),
-		Sessions: sqliteserver.NewSessions(store),
-		Active:   sqliteserver.NewActiveSessions(store),
+	return ProjectsDeps{
+		Projects: s.Projects,
+		Sessions: s.Sessions,
+		Active:   s.Active,
 		Clock:    clock,
 	}
 }
@@ -33,9 +30,9 @@ func projectsReqWithUser(t *testing.T, target string, u domain.User) *http.Reque
 	return r.WithContext(httpserver.WithUser(r.Context(), u))
 }
 
-func archiveProject(t *testing.T, store *sqliteserver.Store, userID, projectID string) {
+func archiveProject(t *testing.T, s pgStores, projectID string) {
 	t.Helper()
-	if err := sqliteserver.NewProjects(store).Archive(userID, projectID); err != nil {
+	if err := s.Projects.Archive(s.User.ID, projectID); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
 }
@@ -44,31 +41,29 @@ func archiveProject(t *testing.T, store *sqliteserver.Store, userID, projectID s
 
 func TestProjectsIndex_ListsActiveAndArchived(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "proj-list")
+	s := newPGStores(t, "proj-list")
 	// Thursday at 14:00.
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	active := seedProject(t, store, u.ID, "webui-mockups")
-	archived := seedProject(t, store, u.ID, "inbox-zero")
-	archiveProject(t, store, u.ID, archived.ID)
+	active := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
+	archived := seedProject(t, s.Projects, s.User.ID, "inbox-zero")
+	archiveProject(t, s, archived.ID)
 
 	// Two completed sessions in webui-mockups this week, one in
 	// inbox-zero (before it was archived).
-	sessions := sqliteserver.NewSessions(store)
-	seedSession(t, sessions, u.ID, active.ID, time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC), 90*time.Minute)
-	seedSession(t, sessions, u.ID, active.ID, time.Date(2026, 6, 2, 14, 0, 0, 0, time.UTC), 60*time.Minute)
-	seedSession(t, sessions, u.ID, archived.ID, time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC), 30*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, active.ID, time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC), 90*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, active.ID, time.Date(2026, 6, 2, 14, 0, 0, 0, time.UTC), 60*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, archived.ID, time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC), 30*time.Minute)
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", u))
+	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	mustContain := []string{
+	for _, want := range []string{
 		"webui-mockups",                      // active row name
 		"inbox-zero",                         // archived row name
 		`data-testid="projects-list"`,        // populated branch
@@ -83,23 +78,21 @@ func TestProjectsIndex_ListsActiveAndArchived(t *testing.T) {
 		`aria-disabled="true"`, // disabled M7 button
 		"Worktime-Projekte",    // sub-tab label
 		"Quellverzeichnisse",   // sub-tab label
-	}
-	for _, s := range mustContain {
-		if !strings.Contains(body, s) {
-			t.Errorf("index body missing %q", s)
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("index body missing %q", want)
 		}
 	}
 }
 
 func TestProjectsIndex_Empty_RendersPlaceholder(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "proj-empty")
+	s := newPGStores(t, "proj-empty")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", u))
+	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -118,19 +111,17 @@ func TestProjectsIndex_Empty_RendersPlaceholder(t *testing.T) {
 
 func TestProjectsIndex_ActiveSession_RendersRunningGlyph(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "proj-active")
+	s := newPGStores(t, "proj-active")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	p := seedProject(t, store, u.ID, "live-project")
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
+	p := seedProject(t, s.Projects, s.User.ID, "live-project")
+	if _, err := s.Active.Start(s.User.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", u))
+	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
@@ -149,17 +140,16 @@ func TestProjectsIndex_ActiveSession_RendersRunningGlyph(t *testing.T) {
 
 func TestProjectsIndex_UserIsolation(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	owner := seedUser(t, store, "proj-iso-owner")
-	other := seedUser(t, store, "proj-iso-other")
+	owner := newPGStores(t, "proj-iso-owner")
+	other := newPGStores(t, "proj-iso-other")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	_ = seedProject(t, store, owner.ID, "owned-project")
-	_ = seedProject(t, store, other.ID, "leaked-project")
+	seedProject(t, owner.Projects, owner.User.ID, "owned-project")
+	seedProject(t, other.Projects, other.User.ID, "leaked-project")
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(owner, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", owner))
+	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects", owner.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -175,14 +165,13 @@ func TestProjectsIndex_UserIsolation(t *testing.T) {
 
 func TestProjectsIndex_QuellenTab_ShowsPlaceholder(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "proj-quellen")
+	s := newPGStores(t, "proj-quellen")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	_ = seedProject(t, store, u.ID, "irrelevant")
+	seedProject(t, s.Projects, s.User.ID, "irrelevant")
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects?tab=quellen", u))
+	h.ServeHTTP(rr, projectsReqWithUser(t, "/projects?tab=quellen", s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -202,10 +191,10 @@ func TestProjectsIndex_QuellenTab_ShowsPlaceholder(t *testing.T) {
 
 func TestProjects_MissingUser_Returns401(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "proj-nouser")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewProjects(mkProjectsDeps(store, now))
+	h := NewProjects(mkProjectsDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/projects", nil).WithContext(context.Background())
 	h.ServeHTTP(rr, r)

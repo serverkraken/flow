@@ -6,72 +6,73 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// mustOpenServerStore opens an in-memory-style server Store under a temp dir
-// and registers a cleanup. Mirrors the sqliteserver package's mustOpenServer
-// helper (kept package-private there), so each test owns an isolated DB.
-func mustOpenServerStore(t *testing.T) *sqliteserver.Store {
-	t.Helper()
-	dir := t.TempDir()
-	s, err := sqliteserver.Open(dir + "/server.db")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-	return s
+// — in-memory fakes -----------------------------------------------------------
+
+// fakeSessionsReader holds a flat slice; ListByUserDateRange filters by user +
+// date window. Satisfies usecase.ServerSessionsReader.
+type fakeSessionsReader struct {
+	sessions []domain.Session
 }
 
-// seedUser inserts a user via the public Users adapter and returns it.
-func seedUser(t *testing.T, store *sqliteserver.Store, suffix string) domain.User {
-	t.Helper()
-	u, err := sqliteserver.NewUsers(store).EnsureBySub("sub|"+suffix, suffix+"@example.com", suffix)
-	if err != nil {
-		t.Fatalf("EnsureBySub: %v", err)
+func (f fakeSessionsReader) ListByUserDateRange(userID string, from, to time.Time) ([]domain.Session, error) {
+	var out []domain.Session
+	for _, s := range f.sessions {
+		if s.UserID != userID {
+			continue
+		}
+		day := time.Date(s.Date.Year(), s.Date.Month(), s.Date.Day(), 0, 0, 0, 0, time.UTC)
+		fromDay := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC)
+		toDay := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
+		if !day.Before(fromDay) && !day.After(toDay) {
+			out = append(out, s)
+		}
 	}
-	return u
+	return out, nil
 }
 
-// seedProject inserts a project for userID via the public Projects adapter.
-func seedProject(t *testing.T, store *sqliteserver.Store, userID, slug string) domain.Project {
-	t.Helper()
-	p, err := sqliteserver.NewProjects(store).EnsureBySlug(userID, slug, slug)
-	if err != nil {
-		t.Fatalf("EnsureBySlug: %v", err)
-	}
-	return p
+// fakeActiveReader holds active sessions per user.
+// Satisfies usecase.ServerActiveSessionsReader.
+type fakeActiveReader struct {
+	rows []domain.ActiveSession
 }
 
-// seedSession inserts a session for (user, project) at date+offset with dur.
-func seedSession(t *testing.T, sessions *sqliteserver.Sessions, userID, projectID string, start time.Time, dur time.Duration) domain.Session {
-	t.Helper()
-	day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
-	in := domain.Session{
+func (f fakeActiveReader) ListByUser(userID string) ([]domain.ActiveSession, error) {
+	var out []domain.ActiveSession
+	for _, a := range f.rows {
+		if a.UserID == userID {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+// — helpers -------------------------------------------------------------------
+
+// makeSession constructs a domain.Session for a given (userID, projectID,
+// start, elapsed). Assigns a random ID and sets Date to the UTC day of start.
+func makeSession(userID, projectID string, start time.Time, elapsed time.Duration) domain.Session {
+	day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	return domain.Session{
 		ID:        uuid.NewString(),
 		UserID:    userID,
 		ProjectID: projectID,
 		Date:      day,
 		Start:     start,
-		Stop:      start.Add(dur),
-		Elapsed:   dur,
+		Stop:      start.Add(elapsed),
+		Elapsed:   elapsed,
 	}
-	out, err := sessions.Upsert(in, 0)
-	if err != nil {
-		t.Fatalf("Upsert session: %v", err)
-	}
-	return out
 }
 
 // mkView wires a ServerWorktimeView pinned to "now" with an 8h default target.
-func mkView(t *testing.T, store *sqliteserver.Store, now time.Time) *usecase.ServerWorktimeView {
-	t.Helper()
+func mkView(sessions fakeSessionsReader, active fakeActiveReader, now time.Time) *usecase.ServerWorktimeView {
 	return &usecase.ServerWorktimeView{
-		Sessions:      sqliteserver.NewSessions(store),
-		Active:        sqliteserver.NewActiveSessions(store),
+		Sessions:      sessions,
+		Active:        active,
 		Clock:         &testutil.FixedClock{T: now},
 		DefaultTarget: 8 * time.Hour,
 	}
@@ -81,13 +82,11 @@ func mkView(t *testing.T, store *sqliteserver.Store, now time.Time) *usecase.Ser
 
 func TestServerWorktimeView_Today_EmptyDay_Weekday_8hTarget(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-today1")
 	// 2026-04-29 was a Wednesday.
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	v := mkView(t, store, now)
+	v := mkView(fakeSessionsReader{}, fakeActiveReader{}, now)
 
-	day, err := v.Today(u.ID)
+	day, err := v.Today("u1")
 	if err != nil {
 		t.Fatalf("Today: %v", err)
 	}
@@ -110,13 +109,11 @@ func TestServerWorktimeView_Today_EmptyDay_Weekday_8hTarget(t *testing.T) {
 
 func TestServerWorktimeView_Today_Weekend_ZeroTarget(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-weekend")
 	// 2026-05-02 was a Saturday.
 	now := time.Date(2026, 5, 2, 11, 0, 0, 0, time.UTC)
-	v := mkView(t, store, now)
+	v := mkView(fakeSessionsReader{}, fakeActiveReader{}, now)
 
-	day, err := v.Today(u.ID)
+	day, err := v.Today("u1")
 	if err != nil {
 		t.Fatalf("Today: %v", err)
 	}
@@ -127,24 +124,23 @@ func TestServerWorktimeView_Today_Weekend_ZeroTarget(t *testing.T) {
 
 func TestServerWorktimeView_Today_TwoSessionsPlusActive(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-today2")
-	p := seedProject(t, store, u.ID, "swv-proj")
-	sessions := sqliteserver.NewSessions(store)
+	userID := "u-today2"
+	projectID := "p-swv"
 
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 11, 30, 0, 0, time.UTC), 90*time.Minute)
-	// Yesterday's session: must be excluded from Today.
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 28, 9, 0, 0, 0, time.UTC), 8*time.Hour)
+	sessions := fakeSessionsReader{sessions: []domain.Session{
+		makeSession(userID, projectID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour),
+		makeSession(userID, projectID, time.Date(2026, 4, 29, 11, 30, 0, 0, time.UTC), 90*time.Minute),
+		// Yesterday — must NOT appear in Today.
+		makeSession(userID, projectID, time.Date(2026, 4, 28, 9, 0, 0, 0, time.UTC), 8*time.Hour),
+	}}
+	startedAt := time.Date(2026, 4, 29, 13, 30, 0, 0, time.UTC)
+	active := fakeActiveReader{rows: []domain.ActiveSession{
+		{UserID: userID, ProjectID: projectID, StartedAt: startedAt},
+	}}
 
-	// Start an active session at 13:30 today.
-	if _, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, time.Time{}, "laptop", 0, "", ""); err != nil {
-		t.Fatalf("Start active: %v", err)
-	}
-
-	v := mkView(t, store, now)
-	day, err := v.Today(u.ID)
+	v := mkView(sessions, active, now)
+	day, err := v.Today(userID)
 	if err != nil {
 		t.Fatalf("Today: %v", err)
 	}
@@ -163,19 +159,18 @@ func TestServerWorktimeView_Today_TwoSessionsPlusActive(t *testing.T) {
 
 func TestServerWorktimeView_Week_SpansMonToSun_FlagsToday(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-week1")
-	p := seedProject(t, store, u.ID, "swv-week-proj")
-	sessions := sqliteserver.NewSessions(store)
+	userID := "u-week1"
+	projectID := "p-week"
 
 	// Wednesday 2026-04-29: week is Mon 27 - Sun 03/May.
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	// Monday 04-27 + Wednesday 04-29 sessions.
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 27, 9, 0, 0, 0, time.UTC), 4*time.Hour)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour)
+	sessions := fakeSessionsReader{sessions: []domain.Session{
+		makeSession(userID, projectID, time.Date(2026, 4, 27, 9, 0, 0, 0, time.UTC), 4*time.Hour),
+		makeSession(userID, projectID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour),
+	}}
 
-	v := mkView(t, store, now)
-	week, err := v.Week(u.ID)
+	v := mkView(sessions, fakeActiveReader{}, now)
+	week, err := v.Week(userID)
 	if err != nil {
 		t.Fatalf("Week: %v", err)
 	}
@@ -205,25 +200,22 @@ func TestServerWorktimeView_Week_SpansMonToSun_FlagsToday(t *testing.T) {
 
 func TestServerWorktimeView_Week_ActiveSessionOnTodayRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-week-active")
-	p := seedProject(t, store, u.ID, "swv-week-active-proj")
-	sessions := sqliteserver.NewSessions(store)
+	userID := "u-week-active"
+	projectID := "p-week-active"
 
 	// Wednesday 2026-04-29: week is Mon 27 - Sun 03/May.
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	// Monday 04-27 + Wednesday 04-29 sessions (same shape as the spans test).
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 27, 9, 0, 0, 0, time.UTC), 4*time.Hour)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour)
+	sessions := fakeSessionsReader{sessions: []domain.Session{
+		makeSession(userID, projectID, time.Date(2026, 4, 27, 9, 0, 0, 0, time.UTC), 4*time.Hour),
+		makeSession(userID, projectID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 2*time.Hour),
+	}}
+	startedAt := time.Date(2026, 4, 29, 13, 0, 0, 0, time.UTC)
+	active := fakeActiveReader{rows: []domain.ActiveSession{
+		{UserID: userID, ProjectID: projectID, StartedAt: startedAt},
+	}}
 
-	// Start an active session — server clock is "now", so StartedAt ≈ now.
-	act, err := sqliteserver.NewActiveSessions(store).Start(u.ID, p.ID, time.Time{}, "laptop", 0, "", "")
-	if err != nil {
-		t.Fatalf("Start active: %v", err)
-	}
-
-	v := mkView(t, store, now)
-	week, err := v.Week(u.ID)
+	v := mkView(sessions, active, now)
+	week, err := v.Week(userID)
 	if err != nil {
 		t.Fatalf("Week: %v", err)
 	}
@@ -235,10 +227,8 @@ func TestServerWorktimeView_Week_ActiveSessionOnTodayRow(t *testing.T) {
 			if wd.Active == nil {
 				t.Fatal("today row: Active is nil, want pointer to active session start")
 			}
-			// active_sessions persists started_at as RFC3339 (second precision),
-			// so compare truncated to seconds.
 			got := wd.Active.Truncate(time.Second)
-			want := act.StartedAt.Truncate(time.Second)
+			want := startedAt.Truncate(time.Second)
 			if !got.Equal(want) {
 				t.Errorf("today row Active: got %v, want %v", got, want)
 			}
@@ -253,14 +243,12 @@ func TestServerWorktimeView_Week_ActiveSessionOnTodayRow(t *testing.T) {
 
 func TestServerWorktimeView_Week_ShowWeekendKeepsSatSun(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-week2")
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
 
-	v := mkView(t, store, now)
+	v := mkView(fakeSessionsReader{}, fakeActiveReader{}, now)
 	v.ShowWeekend = true
 
-	week, err := v.Week(u.ID)
+	week, err := v.Week("u1")
 	if err != nil {
 		t.Fatalf("Week: %v", err)
 	}
@@ -273,22 +261,22 @@ func TestServerWorktimeView_Week_ShowWeekendKeepsSatSun(t *testing.T) {
 
 func TestServerWorktimeView_History_LastSixtyDays_SortedDesc(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-hist1")
-	p := seedProject(t, store, u.ID, "swv-hist-proj")
-	sessions := sqliteserver.NewSessions(store)
+	userID := "u-hist1"
+	projectID := "p-hist"
 
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	// Three days inside the 60-day window.
-	for i, off := range []int{-1, -5, -30} {
-		start := time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC).AddDate(0, 0, off)
-		seedSession(t, sessions, u.ID, p.ID, start, time.Duration(i+1)*time.Hour)
-	}
-	// One day outside the window (≥ 61 days back).
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC).AddDate(0, 0, -90), time.Hour)
+	base := time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC)
 
-	v := mkView(t, store, now)
-	hist, err := v.History(u.ID)
+	var rows []domain.Session
+	for i, off := range []int{-1, -5, -30} {
+		start := base.AddDate(0, 0, off)
+		rows = append(rows, makeSession(userID, projectID, start, time.Duration(i+1)*time.Hour))
+	}
+	// One day outside the 60-day window.
+	rows = append(rows, makeSession(userID, projectID, base.AddDate(0, 0, -90), time.Hour))
+
+	v := mkView(fakeSessionsReader{sessions: rows}, fakeActiveReader{}, now)
+	hist, err := v.History(userID)
 	if err != nil {
 		t.Fatalf("History: %v", err)
 	}
@@ -307,18 +295,17 @@ func TestServerWorktimeView_History_LastSixtyDays_SortedDesc(t *testing.T) {
 
 func TestServerWorktimeView_Range_FiltersByDateWindow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "swv-range1")
-	p := seedProject(t, store, u.ID, "swv-range-proj")
-	sessions := sqliteserver.NewSessions(store)
+	userID := "u-range1"
+	projectID := "p-range"
 
 	base := time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC)
+	var rows []domain.Session
 	for i := -2; i <= 2; i++ {
-		seedSession(t, sessions, u.ID, p.ID, base.AddDate(0, 0, i), time.Hour)
+		rows = append(rows, makeSession(userID, projectID, base.AddDate(0, 0, i), time.Hour))
 	}
 
-	v := mkView(t, store, base)
-	got, err := v.Range(u.ID, base.AddDate(0, 0, -1), base.AddDate(0, 0, 1))
+	v := mkView(fakeSessionsReader{sessions: rows}, fakeActiveReader{}, base)
+	got, err := v.Range(userID, base.AddDate(0, 0, -1), base.AddDate(0, 0, 1))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
@@ -331,23 +318,22 @@ func TestServerWorktimeView_Range_FiltersByDateWindow(t *testing.T) {
 
 func TestServerWorktimeView_UserIsolation(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "swv-isoA")
-	uB := seedUser(t, store, "swv-isoB")
-	pA := seedProject(t, store, uA.ID, "swv-iso-pA")
-	pB := seedProject(t, store, uB.ID, "swv-iso-pB")
-	sessions := sqliteserver.NewSessions(store)
+	uA := "u-isoA"
+	uB := "u-isoB"
+	pA := "p-isoA"
+	pB := "p-isoB"
 
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.UTC)
-	seedSession(t, sessions, uA.ID, pA.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 3*time.Hour)
-	seedSession(t, sessions, uB.ID, pB.ID, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 5*time.Hour)
-	// uB starts an active session that must NOT show on uA's Today.
-	if _, err := sqliteserver.NewActiveSessions(store).Start(uB.ID, pB.ID, time.Time{}, "phone", 0, "", ""); err != nil {
-		t.Fatalf("Start active uB: %v", err)
-	}
+	sessions := fakeSessionsReader{sessions: []domain.Session{
+		makeSession(uA, pA, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 3*time.Hour),
+		makeSession(uB, pB, time.Date(2026, 4, 29, 9, 0, 0, 0, time.UTC), 5*time.Hour),
+	}}
+	active := fakeActiveReader{rows: []domain.ActiveSession{
+		{UserID: uB, ProjectID: pB, StartedAt: time.Date(2026, 4, 29, 13, 0, 0, 0, time.UTC)},
+	}}
 
-	v := mkView(t, store, now)
-	dayA, err := v.Today(uA.ID)
+	v := mkView(sessions, active, now)
+	dayA, err := v.Today(uA)
 	if err != nil {
 		t.Fatalf("Today uA: %v", err)
 	}
@@ -358,18 +344,18 @@ func TestServerWorktimeView_UserIsolation(t *testing.T) {
 		t.Errorf("uA Active leaked uB's running session")
 	}
 	for _, s := range dayA.Sessions {
-		if s.UserID != uA.ID {
+		if s.UserID != uA {
 			t.Errorf("uA.Today returned row with userID %q", s.UserID)
 		}
 	}
 
-	histA, err := v.History(uA.ID)
+	histA, err := v.History(uA)
 	if err != nil {
 		t.Fatalf("History uA: %v", err)
 	}
 	for _, rec := range histA {
 		for _, s := range rec.Sessions {
-			if s.UserID != uA.ID {
+			if s.UserID != uA {
 				t.Errorf("uA.History returned row with userID %q", s.UserID)
 			}
 		}

@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 // sessioncookie_test.go — shared session-cookie encoding helper for
 // router-level WebUI tests. Extracted from project_actions_test.go so

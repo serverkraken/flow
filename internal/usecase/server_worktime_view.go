@@ -10,7 +10,7 @@ import (
 
 // ServerSessionsReader is the narrow read surface the WebUI ServerWorktimeView
 // needs from a session store. Declared locally so the usecase layer stays
-// adapter-free; `*sqliteserver.Sessions` satisfies it structurally.
+// adapter-free; `*pgstore.Sessions` satisfies it structurally.
 type ServerSessionsReader interface {
 	ListByUserDateRange(userID string, from, to time.Time) ([]domain.Session, error)
 }
@@ -37,11 +37,10 @@ type ServerActiveSessionsReader interface {
 //   - DayOff (Frei) is not handled here — the WebUI Frei tab renders a
 //     placeholder until a server-side DayOffStore exists.
 //
-// Dependencies are the concrete sqliteserver sub-adapters, following the
-// convention established by the M2/M3 httpserver handlers which also depend
-// on the concrete types (their signatures don't fit ports.SessionStore /
-// ports.ActiveSessionStore — see notes in sqliteserver/sessions.go and
-// active_sessions.go).
+// Dependencies are the pgstore sub-adapters, following the convention
+// established by the M2/M3 httpserver handlers. The narrow reader interfaces
+// (ServerSessionsReader / ServerActiveSessionsReader) are satisfied
+// structurally by the pgstore adapters.
 type ServerWorktimeView struct {
 	Sessions      ServerSessionsReader
 	Active        ServerActiveSessionsReader

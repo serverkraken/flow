@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 // actions_publish_test.go — Plan E · Task 14 (M7).
 //
@@ -20,9 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	"github.com/serverkraken/flow/internal/testutil"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 	"github.com/serverkraken/flow/internal/webui/sse"
 )
 
@@ -45,23 +43,22 @@ func drainEvent(t *testing.T, ch <-chan sse.Event, want string) sse.Event {
 
 func TestActiveStart_PublishesSessionStarted(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-start-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "pub-start-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 	b := sse.New()
 
-	d := mkActionsDeps(store, now)
+	d := mkActionsDeps(s, now)
 	d.Bus = b
-	h := handlers.NewActiveStart(d)
+	h := NewActiveStart(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	form := url.Values{}
 	form.Set("project_id", p.ID)
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/start", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -72,26 +69,24 @@ func TestActiveStart_PublishesSessionStarted(t *testing.T) {
 
 func TestActiveStop_PublishesSessionStopped(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-stop-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "pub-stop-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 	b := sse.New()
 
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
+	if _, err := s.Active.Start(s.User.ID, p.ID, time.Time{}, "mac", 0, "", ""); err != nil {
 		t.Fatalf("seed Start: %v", err)
 	}
 
-	d := mkActionsDeps(store, now)
+	d := mkActionsDeps(s, now)
 	d.Bus = b
-	h := handlers.NewActiveStop(d)
+	h := NewActiveStop(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	rr := httptest.NewRecorder()
-	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", u, nil)
+	r := actionReq(t, http.MethodPost, "/worktime/active/stop", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -101,25 +96,24 @@ func TestActiveStop_PublishesSessionStopped(t *testing.T) {
 
 func TestProjectCreate_PublishesProjectCreated(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-proj-create")
+	s := newPGStores(t, "pub-proj-create")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	b := sse.New()
 
-	d := handlers.ProjectActionsDeps{
-		Projects: sqliteserver.NewProjects(store),
+	d := ProjectActionsDeps{
+		Projects: s.Projects,
 		Clock:    &testutil.FixedClock{T: now},
 		Bus:      b,
 	}
-	h := handlers.NewProjectCreate(d)
+	h := NewProjectCreate(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	form := url.Values{}
 	form.Set("name", "SSE Smoke")
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects", form.Encode(), u, nil)
+	r := paReq(t, http.MethodPost, "/projects", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
@@ -129,31 +123,29 @@ func TestProjectCreate_PublishesProjectCreated(t *testing.T) {
 
 func TestProjectPut_PublishesProjectRenamed(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-proj-rename")
-	projects := sqliteserver.NewProjects(store)
-	p, err := projects.EnsureBySlug(u.ID, "Old", "old")
+	s := newPGStores(t, "pub-proj-rename")
+	p, err := s.Projects.EnsureBySlug(s.User.ID, "Old", "old")
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	b := sse.New()
 
-	d := handlers.ProjectActionsDeps{
-		Projects: projects,
+	d := ProjectActionsDeps{
+		Projects: s.Projects,
 		Clock:    &testutil.FixedClock{T: now},
 		Bus:      b,
 	}
-	h := handlers.NewProjectPut(d)
+	h := NewProjectPut(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	form := url.Values{}
 	form.Set("name", "New")
 	form.Set("version", strconv.FormatInt(p.Version, 10))
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
@@ -163,24 +155,23 @@ func TestProjectPut_PublishesProjectRenamed(t *testing.T) {
 
 func TestProjectArchive_PublishesProjectArchived(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-proj-arch")
-	p := seedProject(t, store, u.ID, "doomed")
+	s := newPGStores(t, "pub-proj-arch")
+	p := seedProject(t, s.Projects, s.User.ID, "doomed")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	b := sse.New()
 
-	d := handlers.ProjectActionsDeps{
-		Projects: sqliteserver.NewProjects(store),
+	d := ProjectActionsDeps{
+		Projects: s.Projects,
 		Clock:    &testutil.FixedClock{T: now},
 		Bus:      b,
 	}
-	h := handlers.NewProjectArchive(d)
+	h := NewProjectArchive(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects/"+p.ID+"/archive", "", u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPost, "/projects/"+p.ID+"/archive", "", s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -189,35 +180,30 @@ func TestProjectArchive_PublishesProjectArchived(t *testing.T) {
 }
 
 // TestRepoNotePut_PublishesRepoNoteUpdated exercises the repo-note path
-// through the full handler. Touches the file store only indirectly via
-// the sqliteserver.RepoNotes adapter.
+// through the full handler backed by pgstore Documents.
 func TestRepoNotePut_PublishesRepoNoteUpdated(t *testing.T) {
-	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pub-rn-1")
+	s := newPGStores(t, "pub-rn-1")
 
-	// Seed a repo so /repos/{key}/note has a target.
-	_ = seedRepo(t, store, u.ID, "gh/serverkraken/flow", "flow")
-
+	canonicalKey := "gh/serverkraken/flow"
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	b := sse.New()
-	d := handlers.NoteActionsDeps{
-		Documents: nil,
+	d := NoteActionsDeps{
+		Documents: s.Documents,
 		Clock:     &testutil.FixedClock{T: now},
 		Bus:       b,
 	}
-	h := handlers.NewRepoNotePut(d)
+	h := NewRepoNotePut(d)
 
-	ch, cancel := b.Subscribe(u.ID)
+	ch, cancel := b.Subscribe(s.User.ID)
 	defer cancel()
 
 	form := url.Values{}
 	form.Set("content", "hello sse")
 	form.Set("version", "0")
-	encoded := url.PathEscape("gh/serverkraken/flow")
+	encoded := url.PathEscape(canonicalKey)
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/repos/"+encoded+"/note", form.Encode(), u, map[string]string{"key": encoded})
+	r := naReq(t, http.MethodPut, "/repos/"+encoded+"/note", form.Encode(), s.User, map[string]string{"key": encoded})
 	h.ServeHTTP(rr, r)
 	if rr.Code != http.StatusSeeOther {
 		t.Fatalf("status: got %d, want 303; body=%s", rr.Code, rr.Body.String())

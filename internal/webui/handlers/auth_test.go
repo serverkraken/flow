@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 // auth_test.go — Plan E · Task 15.
 //
@@ -11,13 +11,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
 func TestLanding_RendersLoginTemplateWithIssuer(t *testing.T) {
 	t.Parallel()
-	h := handlers.NewLanding(handlers.AuthDeps{IssuerLabel: "dex (local-dev)"})
+	h := NewLanding(AuthDeps{IssuerLabel: "dex (local-dev)"})
 
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/auth/landing", nil)

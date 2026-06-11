@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"context"
@@ -11,47 +11,25 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 	"github.com/serverkraken/flow/internal/webui/templates/dashboard"
 )
 
-// — helpers (kept private to this file; mirror the patterns from
-//   internal/usecase/server_worktime_view_test.go) —
+// — helpers (kept private to this file) —
 
-func mustOpenServerStore(t *testing.T) *sqliteserver.Store {
+func seedProject(t *testing.T, projects *pgstore.Projects, userID, name string) domain.Project {
 	t.Helper()
-	dir := t.TempDir()
-	s, err := sqliteserver.Open(dir + "/srv.db")
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-	return s
-}
-
-func seedUser(t *testing.T, store *sqliteserver.Store, suffix string) domain.User {
-	t.Helper()
-	u, err := sqliteserver.NewUsers(store).EnsureBySub("sub|"+suffix, suffix+"@example.com", suffix)
-	if err != nil {
-		t.Fatalf("EnsureBySub: %v", err)
-	}
-	return u
-}
-
-func seedProject(t *testing.T, store *sqliteserver.Store, userID, name string) domain.Project {
-	t.Helper()
-	p, err := sqliteserver.NewProjects(store).EnsureBySlug(userID, name, name)
+	p, err := projects.EnsureBySlug(userID, name, name)
 	if err != nil {
 		t.Fatalf("EnsureBySlug: %v", err)
 	}
 	return p
 }
 
-func seedSession(t *testing.T, sessions *sqliteserver.Sessions, userID, projectID string, start time.Time, dur time.Duration) domain.Session {
+func seedSession(t *testing.T, sessions *pgstore.Sessions, userID, projectID string, start time.Time, dur time.Duration) domain.Session {
 	t.Helper()
 	day := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
 	in := domain.Session{
@@ -71,19 +49,19 @@ func seedSession(t *testing.T, sessions *sqliteserver.Sessions, userID, projectI
 	return out
 }
 
-func mkDeps(store *sqliteserver.Store, now time.Time) handlers.DashboardDeps {
+func mkDeps(s pgStores, now time.Time) DashboardDeps {
 	clock := &testutil.FixedClock{T: now}
 	view := &usecase.ServerWorktimeView{
-		Sessions:      sqliteserver.NewSessions(store),
-		Active:        sqliteserver.NewActiveSessions(store),
+		Sessions:      s.Sessions,
+		Active:        s.Active,
 		Clock:         clock,
 		DefaultTarget: 8 * time.Hour,
 	}
-	return handlers.DashboardDeps{
+	return DashboardDeps{
 		View:     view,
-		Active:   sqliteserver.NewActiveSessions(store),
-		Sessions: sqliteserver.NewSessions(store),
-		Projects: sqliteserver.NewProjects(store),
+		Active:   s.Active,
+		Sessions: s.Sessions,
+		Projects: s.Projects,
 		Clock:    clock,
 	}
 }
@@ -99,32 +77,29 @@ func reqWithUser(t *testing.T, u domain.User) *http.Request {
 
 func TestDashboard_RendersExpectedShape(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "dash1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
-	sessions := sqliteserver.NewSessions(store)
+	s := newPGStores(t, "dash1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 
 	// 2026-06-04 = Thursday — work day with 8h target.
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 	// Two completed sessions earlier today.
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, p.ID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
 	// One active session running since 13:00 (~1h ago at "now").
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
+	if _, err := s.Active.Start(s.User.ID, p.ID, time.Time{}, "laptop", 0, "design", ""); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 
-	h := handlers.NewDashboard(mkDeps(store, now))
+	h := NewDashboard(mkDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, reqWithUser(t, u))
+	h.ServeHTTP(rr, reqWithUser(t, s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 
 	body := rr.Body.String()
-	mustContain := []string{
+	for _, want := range []string{
 		"webui-mockups", // project name in live banner / activity row
 		"▶",             // active marker glyph
 		"daybar",        // day-bar section rendered
@@ -134,10 +109,9 @@ func TestDashboard_RendersExpectedShape(t *testing.T) {
 		"Aktivität",           // section heading
 		"Top Projekt · Woche", // mini-card eyebrow
 		"Sessions Woche",      // mini-card eyebrow
-	}
-	for _, s := range mustContain {
-		if !strings.Contains(body, s) {
-			t.Errorf("body missing %q", s)
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body missing %q", want)
 		}
 	}
 
@@ -150,14 +124,13 @@ func TestDashboard_RendersExpectedShape(t *testing.T) {
 
 func TestDashboard_NoActiveSession_NoLiveBanner(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "dash-quiet")
+	s := newPGStores(t, "dash-quiet")
 	// Sunday — no target. No sessions.
 	now := time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC)
 
-	h := handlers.NewDashboard(mkDeps(store, now))
+	h := NewDashboard(mkDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, reqWithUser(t, u))
+	h.ServeHTTP(rr, reqWithUser(t, s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -180,13 +153,12 @@ func TestDashboard_NoActiveSession_NoLiveBanner(t *testing.T) {
 // running in the UI even after the user pressed Stop.
 func TestDashboard_SSEEventNamesAreRegistered(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "dash-sse")
+	s := newPGStores(t, "dash-sse")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewDashboard(mkDeps(store, now))
+	h := NewDashboard(mkDeps(s, now))
 	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, reqWithUser(t, u))
+	h.ServeHTTP(rr, reqWithUser(t, s.User))
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
@@ -210,10 +182,10 @@ func TestDashboard_SSEEventNamesAreRegistered(t *testing.T) {
 
 func TestDashboard_MissingUser_Returns401(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "dash-nouser")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewDashboard(mkDeps(store, now))
+	h := NewDashboard(mkDeps(s, now))
 	rr := httptest.NewRecorder()
 	// No user injected — the defensive branch must fire.
 	r := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(context.Background())

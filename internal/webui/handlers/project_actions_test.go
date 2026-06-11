@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 // project_actions_test.go — Plan E · Task 13 (M7).
 //
@@ -27,19 +27,18 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
 // — fixtures + helpers --------------------------------------------------------
 
-func mkProjectActionsDeps(store *sqliteserver.Store, now time.Time) handlers.ProjectActionsDeps {
+func mkProjectActionsDeps(s pgStores, now time.Time) ProjectActionsDeps {
 	clock := &testutil.FixedClock{T: now}
-	return handlers.ProjectActionsDeps{
-		Projects: sqliteserver.NewProjects(store),
+	return ProjectActionsDeps{
+		Projects: s.Projects,
 		Clock:    clock,
 	}
 }
@@ -70,17 +69,16 @@ func paReq(t *testing.T, method, target, body string, u domain.User, params map[
 
 func TestProjectCreate_HappyPath_RestoresButtonAndOOBRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-create-1")
+	s := newPGStores(t, "pa-create-1")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectCreate(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectCreate(d)
 
 	form := url.Values{}
 	form.Set("name", "Flow Refactor")
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects", form.Encode(), u, nil)
+	r := paReq(t, http.MethodPost, "/projects", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -96,7 +94,7 @@ func TestProjectCreate_HappyPath_RestoresButtonAndOOBRow(t *testing.T) {
 	})
 
 	// Persisted with the slugified slug.
-	got, err := sqliteserver.NewProjects(store).GetBySlug(u.ID, "flow-refactor")
+	got, err := s.Projects.GetBySlug(s.User.ID, "flow-refactor")
 	if err != nil {
 		t.Fatalf("GetBySlug after create: %v", err)
 	}
@@ -107,17 +105,16 @@ func TestProjectCreate_HappyPath_RestoresButtonAndOOBRow(t *testing.T) {
 
 func TestProjectCreate_EmptyName_400_RendersFormError(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-create-empty")
+	s := newPGStores(t, "pa-create-empty")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectCreate(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectCreate(d)
 
 	form := url.Values{}
 	form.Set("name", "   ") // whitespace-only → trimmed to empty
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects", form.Encode(), u, nil)
+	r := paReq(t, http.MethodPost, "/projects", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
@@ -132,21 +129,20 @@ func TestProjectCreate_EmptyName_400_RendersFormError(t *testing.T) {
 
 func TestProjectCreate_CollidingSlug_AppendsSuffix(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-create-coll")
+	s := newPGStores(t, "pa-create-coll")
 	// Seed an existing project with slug "duplicate".
-	if _, err := sqliteserver.NewProjects(store).EnsureBySlug(u.ID, "Duplicate", "duplicate"); err != nil {
+	if _, err := s.Projects.EnsureBySlug(s.User.ID, "Duplicate", "duplicate"); err != nil {
 		t.Fatalf("seed EnsureBySlug: %v", err)
 	}
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectCreate(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectCreate(d)
 
 	form := url.Values{}
 	form.Set("name", "Duplicate") // slug "duplicate" already taken → must become "duplicate-2"
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects", form.Encode(), u, nil)
+	r := paReq(t, http.MethodPost, "/projects", form.Encode(), s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -161,15 +157,14 @@ func TestProjectCreate_CollidingSlug_AppendsSuffix(t *testing.T) {
 
 func TestProjectEdit_GET_RendersFormPrefilled(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-edit-1")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "pa-edit-1")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectEdit(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectEdit(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit", "", u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit", "", s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -185,15 +180,14 @@ func TestProjectEdit_GET_RendersFormPrefilled(t *testing.T) {
 
 func TestProjectEdit_GET_CancelReturnsRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-edit-cancel")
-	p := seedProject(t, store, u.ID, "webui-mockups")
+	s := newPGStores(t, "pa-edit-cancel")
+	p := seedProject(t, s.Projects, s.User.ID, "webui-mockups")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectEdit(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectEdit(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit?cancel=1", "", u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit?cancel=1", "", s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -206,20 +200,18 @@ func TestProjectEdit_GET_CancelReturnsRow(t *testing.T) {
 
 func TestProjectEdit_Archived_Returns400(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-edit-archived")
-	p := seedProject(t, store, u.ID, "archived-project")
-	projects := sqliteserver.NewProjects(store)
-	if err := projects.Archive(u.ID, p.ID); err != nil {
+	s := newPGStores(t, "pa-edit-archived")
+	p := seedProject(t, s.Projects, s.User.ID, "archived-project")
+	if err := s.Projects.Archive(s.User.ID, p.ID); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
 
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectEdit(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectEdit(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit", "", u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodGet, "/projects/"+p.ID+"/edit", "", s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
@@ -229,27 +221,25 @@ func TestProjectEdit_Archived_Returns400(t *testing.T) {
 
 func TestProjectPut_Archived_Returns400(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-put-archived")
-	projects := sqliteserver.NewProjects(store)
-	p, err := projects.EnsureBySlug(u.ID, "To Archive", "to-archive")
+	s := newPGStores(t, "pa-put-archived")
+	p, err := s.Projects.EnsureBySlug(s.User.ID, "To Archive", "to-archive")
 	if err != nil {
 		t.Fatalf("EnsureBySlug: %v", err)
 	}
-	if err := projects.Archive(u.ID, p.ID); err != nil {
+	if err := s.Projects.Archive(s.User.ID, p.ID); err != nil {
 		t.Fatalf("Archive: %v", err)
 	}
 
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectPut(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectPut(d)
 
 	form := url.Values{}
 	form.Set("name", "Renamed After Archive")
 	form.Set("version", strconv.FormatInt(p.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
@@ -257,7 +247,7 @@ func TestProjectPut_Archived_Returns400(t *testing.T) {
 	}
 
 	// Name must NOT have been changed.
-	saved, err := projects.GetByID(u.ID, p.ID)
+	saved, err := s.Projects.GetByID(s.User.ID, p.ID)
 	if err != nil {
 		t.Fatalf("post-read: %v", err)
 	}
@@ -268,10 +258,10 @@ func TestProjectPut_Archived_Returns400(t *testing.T) {
 
 func TestProjectEdit_GET_Unauthorized_401(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "pa-edit-unauth")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectEdit(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectEdit(d)
 
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/projects/anything/edit", nil)
@@ -285,24 +275,21 @@ func TestProjectEdit_GET_Unauthorized_401(t *testing.T) {
 
 func TestProjectPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-put-1")
-	// EnsureBySlug starts at version=0 — we need a stored version to compare.
-	projects := sqliteserver.NewProjects(store)
-	p, err := projects.EnsureBySlug(u.ID, "Old Name", "old-name")
+	s := newPGStores(t, "pa-put-1")
+	p, err := s.Projects.EnsureBySlug(s.User.ID, "Old Name", "old-name")
 	if err != nil {
 		t.Fatalf("EnsureBySlug: %v", err)
 	}
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectPut(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectPut(d)
 
 	form := url.Values{}
 	form.Set("name", "New Name")
 	form.Set("version", strconv.FormatInt(p.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -314,7 +301,7 @@ func TestProjectPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 		`old-name`, // slug must remain stable
 	})
 
-	saved, err := projects.GetByID(u.ID, p.ID)
+	saved, err := s.Projects.GetByID(s.User.ID, p.ID)
 	if err != nil {
 		t.Fatalf("post-read: %v", err)
 	}
@@ -328,32 +315,27 @@ func TestProjectPut_HappyPath_ReturnsUpdatedRow(t *testing.T) {
 
 func TestProjectPut_VersionConflict_409_RendersFormWithServerName(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-put-conf")
-	projects := sqliteserver.NewProjects(store)
-	p, err := projects.EnsureBySlug(u.ID, "Server Side Name", "server-side-name")
+	s := newPGStores(t, "pa-put-conf")
+	p, err := s.Projects.EnsureBySlug(s.User.ID, "Server Side Name", "server-side-name")
 	if err != nil {
 		t.Fatalf("EnsureBySlug: %v", err)
 	}
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectPut(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectPut(d)
 
 	form := url.Values{}
 	form.Set("name", "Local Edit")
 	form.Set("version", "999") // stale
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusConflict {
 		t.Fatalf("status: got %d, want 409; body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// On conflict we re-render the form pre-filled with the SERVER's
-	// current name (not the user's stale attempt), so the user sees
-	// what's actually stored.
 	mustContain(t, body, []string{
 		`data-testid="project-form"`,
 		`data-testid="project-form-error"`,
@@ -367,23 +349,21 @@ func TestProjectPut_VersionConflict_409_RendersFormWithServerName(t *testing.T) 
 
 func TestProjectPut_EmptyName_400_RendersFormError(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-put-empty")
-	projects := sqliteserver.NewProjects(store)
-	p, err := projects.EnsureBySlug(u.ID, "Original", "original")
+	s := newPGStores(t, "pa-put-empty")
+	p, err := s.Projects.EnsureBySlug(s.User.ID, "Original", "original")
 	if err != nil {
 		t.Fatalf("EnsureBySlug: %v", err)
 	}
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectPut(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectPut(d)
 
 	form := url.Values{}
 	form.Set("name", "")
 	form.Set("version", strconv.FormatInt(p.Version, 10))
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+p.ID, form.Encode(), s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusBadRequest {
@@ -397,13 +377,12 @@ func TestProjectPut_EmptyName_400_RendersFormError(t *testing.T) {
 
 func TestProjectPut_CrossTenant_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "pa-put-uA")
-	uB := seedUser(t, store, "pa-put-uB")
-	pA := seedProject(t, store, uA.ID, "tenant-a-project")
+	sA := newPGStores(t, "pa-put-uA")
+	sB := newPGStores(t, "pa-put-uB")
+	pA := seedProject(t, sA.Projects, sA.User.ID, "tenant-a-project")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectPut(d)
+	d := mkProjectActionsDeps(sA, now)
+	h := NewProjectPut(d)
 
 	form := url.Values{}
 	form.Set("name", "Stolen")
@@ -411,7 +390,7 @@ func TestProjectPut_CrossTenant_404(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	// uB tries to PUT uA's project.
-	r := paReq(t, http.MethodPut, "/projects/"+pA.ID, form.Encode(), uB, map[string]string{"id": pA.ID})
+	r := paReq(t, http.MethodPut, "/projects/"+pA.ID, form.Encode(), sB.User, map[string]string{"id": pA.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusNotFound {
@@ -423,15 +402,14 @@ func TestProjectPut_CrossTenant_404(t *testing.T) {
 
 func TestProjectArchive_HappyPath_ReturnsArchivedRow(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-arch-1")
-	p := seedProject(t, store, u.ID, "doomed-project")
+	s := newPGStores(t, "pa-arch-1")
+	p := seedProject(t, s.Projects, s.User.ID, "doomed-project")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectArchive(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectArchive(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects/"+p.ID+"/archive", "", u, map[string]string{"id": p.ID})
+	r := paReq(t, http.MethodPost, "/projects/"+p.ID+"/archive", "", s.User, map[string]string{"id": p.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -445,7 +423,7 @@ func TestProjectArchive_HappyPath_ReturnsArchivedRow(t *testing.T) {
 	})
 
 	// Persistence: archived_at is now set.
-	saved, err := sqliteserver.NewProjects(store).GetByID(u.ID, p.ID)
+	saved, err := s.Projects.GetByID(s.User.ID, p.ID)
 	if err != nil {
 		t.Fatalf("post-read: %v", err)
 	}
@@ -456,16 +434,15 @@ func TestProjectArchive_HappyPath_ReturnsArchivedRow(t *testing.T) {
 
 func TestProjectArchive_CrossTenant_404(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	uA := seedUser(t, store, "pa-arch-uA")
-	uB := seedUser(t, store, "pa-arch-uB")
-	pA := seedProject(t, store, uA.ID, "tenant-a-arch")
+	sA := newPGStores(t, "pa-arch-uA")
+	sB := newPGStores(t, "pa-arch-uB")
+	pA := seedProject(t, sA.Projects, sA.User.ID, "tenant-a-arch")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectArchive(d)
+	d := mkProjectActionsDeps(sA, now)
+	h := NewProjectArchive(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodPost, "/projects/"+pA.ID+"/archive", "", uB, map[string]string{"id": pA.ID})
+	r := paReq(t, http.MethodPost, "/projects/"+pA.ID+"/archive", "", sB.User, map[string]string{"id": pA.ID})
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusNotFound {
@@ -473,7 +450,7 @@ func TestProjectArchive_CrossTenant_404(t *testing.T) {
 	}
 
 	// Verify uA's project is untouched.
-	saved, err := sqliteserver.NewProjects(store).GetByID(uA.ID, pA.ID)
+	saved, err := sA.Projects.GetByID(sA.User.ID, pA.ID)
 	if err != nil {
 		t.Fatalf("post-read: %v", err)
 	}
@@ -486,14 +463,13 @@ func TestProjectArchive_CrossTenant_404(t *testing.T) {
 
 func TestProjectNewForm_GET_RendersForm(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-newform-1")
+	s := newPGStores(t, "pa-newform-1")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectNewForm(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectNewForm(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodGet, "/projects/new", "", u, nil)
+	r := paReq(t, http.MethodGet, "/projects/new", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -506,14 +482,13 @@ func TestProjectNewForm_GET_RendersForm(t *testing.T) {
 
 func TestProjectNewCancel_GET_RestoresButton(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "pa-newcancel-1")
+	s := newPGStores(t, "pa-newcancel-1")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
-	d := mkProjectActionsDeps(store, now)
-	h := handlers.NewProjectNewCancel(d)
+	d := mkProjectActionsDeps(s, now)
+	h := NewProjectNewCancel(d)
 
 	rr := httptest.NewRecorder()
-	r := paReq(t, http.MethodGet, "/projects/new/cancel", "", u, nil)
+	r := paReq(t, http.MethodGet, "/projects/new/cancel", "", s.User, nil)
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -531,26 +506,20 @@ func TestProjectNewCancel_GET_RestoresButton(t *testing.T) {
 // real Session.Encode, and POSTs /projects. Catches the class of
 // regressions where a handler exists but is never mounted in
 // server.go's route table.
-//
-// The session cookie carries an OIDC sub; BrowserAuthMiddleware
-// EnsureBySubs it into a domain.User before the handler runs. So this
-// test verifies: (a) the route is registered, (b) the middleware
-// chain — cookie decode → EnsureBySub → WithUser — fires, and (c) the
-// handler creates the row.
 
 func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	t.Parallel()
 
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "pa-router")
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	clock := &testutil.FixedClock{T: now}
-	projects := sqliteserver.NewProjects(store)
-	users := sqliteserver.NewUsers(store)
+	projects := s.Projects
+	users := pgstore.NewUsers(pgWebUIStore)
 
-	d := handlers.ProjectActionsDeps{Projects: projects, Clock: clock}
+	d := ProjectActionsDeps{Projects: projects, Clock: clock}
 
 	webUI := &httpserver.WebUIHandlers{
-		ProjectCreate: handlers.NewProjectCreate(d),
+		ProjectCreate: NewProjectCreate(d),
 	}
 
 	hashKey, _ := hex.DecodeString(strings.Repeat("11", 32))
@@ -558,7 +527,7 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	sess := httpserver.NewSession(hashKey, blockKey)
 
 	srv := httpserver.NewWithAuth(httpserver.AuthDeps{
-		Provider:     fakeProvider{id: ports.Identity{Sub: "u-router-test", Email: "router@example", Name: "router"}},
+		Provider:     fakeProvider{id: ports.Identity{Sub: "u-router-test-pg", Email: "router@example", Name: "router"}},
 		Access:       fakeAccess{ok: true},
 		Session:      sess,
 		Users:        users,
@@ -573,9 +542,8 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 
-	// Encode a session cookie. Helper lives in sessioncookie_test.go
-	// so Task 14's router-level tests can reuse the same shape.
-	cookieVal := encodeTestSession(t, sess, "flow_session", "u-router-test", "router@example", "router", time.Hour)
+	// encodeTestSession is defined in sessioncookie_test.go (same package).
+	cookieVal := encodeTestSession(t, sess, "flow_session", "u-router-test-pg", "router@example", "router", time.Hour)
 
 	jar, _ := cookiejar.New(nil)
 	tsURL, _ := url.Parse(ts.URL)
@@ -584,14 +552,12 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 	client := &http.Client{
 		Jar: jar,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			// Stop on the first redirect — a redirect to /auth/landing
-			// means the middleware rejected the cookie (test bug).
 			return http.ErrUseLastResponse
 		},
 	}
 
 	form := url.Values{}
-	form.Set("name", "Router Wiring Smoke")
+	form.Set("name", "Router Wiring Smoke PG")
 
 	resp, err := client.PostForm(ts.URL+"/projects", form)
 	if err != nil {
@@ -605,23 +571,22 @@ func TestRouter_POST_Projects_HitsCreateHandler(t *testing.T) {
 
 	// The row must exist in the DB scoped to the user the
 	// middleware EnsureBySub'd from our session sub.
-	u, err := users.GetBySub("u-router-test")
+	u, err := users.GetBySub("u-router-test-pg")
 	if err != nil {
 		t.Fatalf("GetBySub after request: %v", err)
 	}
-	got, err := projects.GetBySlug(u.ID, "router-wiring-smoke")
+	got, err := projects.GetBySlug(u.ID, "router-wiring-smoke-pg")
 	if err != nil {
 		t.Fatalf("GetBySlug after request: %v", err)
 	}
-	if got.Name != "Router Wiring Smoke" {
-		t.Errorf("created row name: got %q, want %q", got.Name, "Router Wiring Smoke")
+	if got.Name != "Router Wiring Smoke PG" {
+		t.Errorf("created row name: got %q, want %q", got.Name, "Router Wiring Smoke PG")
 	}
 }
 
 // fakeProvider + fakeAccess satisfy the AuthDeps interfaces without
 // touching a real OIDC issuer. The router-level test only exercises
-// the cookie-auth path, so Provider.Verify is never called — these are
-// supplied to satisfy AuthDeps construction.
+// the cookie-auth path, so Provider.Verify is never called.
 type fakeProvider struct {
 	id ports.Identity
 }

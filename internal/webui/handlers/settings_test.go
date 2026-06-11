@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"context"
@@ -11,13 +11,12 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
 // mkSettingsDeps assembles SettingsDeps with reasonable defaults that
 // the tests can override per-case.
-func mkSettingsDeps(now, start time.Time) handlers.SettingsDeps {
-	return handlers.SettingsDeps{
+func mkSettingsDeps(now, start time.Time) SettingsDeps {
+	return SettingsDeps{
 		ServerBaseURL: "https://flow.example.test",
 		OIDCIssuer:    "https://authentik.example.test/application/o/flow/",
 		ServerDBPath:  "/var/lib/flow/server.db",
@@ -28,7 +27,7 @@ func mkSettingsDeps(now, start time.Time) handlers.SettingsDeps {
 
 // settingsReqWithUser builds a /settings request with a resolved
 // domain.User attached to context. The handler falls back to User
-// fields when SessionValueFromContext lacks them, so external-package
+// fields when SessionValueFromContext lacks them, so internal-package
 // tests can wire identity via WithUser alone without needing to poke
 // the unexported cookie session-value struct.
 func settingsReqWithUser(t *testing.T, u domain.User) *http.Request {
@@ -44,7 +43,7 @@ func TestSettings_RendersIdentityFromContext(t *testing.T) {
 	now := time.Date(2026, 6, 6, 18, 0, 0, 0, time.UTC)
 	start := now.Add(-(3*24*time.Hour + 14*time.Hour + 22*time.Minute))
 
-	h := handlers.NewSettings(mkSettingsDeps(now, start))
+	h := NewSettings(mkSettingsDeps(now, start))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, settingsReqWithUser(t, u))
 
@@ -52,7 +51,7 @@ func TestSettings_RendersIdentityFromContext(t *testing.T) {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	mustContain := []string{
+	wantParts := []string{
 		`data-testid="settings-identity"`,
 		"alice@example.test",     // email shows in Identität + eyebrow
 		"sub|alice",              // sub shows in Identität
@@ -62,7 +61,7 @@ func TestSettings_RendersIdentityFromContext(t *testing.T) {
 		"Phase 1 · M6/M7",        // Phase label
 		"3d 14h 22m",             // uptime label
 	}
-	for _, s := range mustContain {
+	for _, s := range wantParts {
 		if !strings.Contains(body, s) {
 			t.Errorf("settings body missing %q", s)
 		}
@@ -77,7 +76,7 @@ func TestSettings_ServerURLAndDBPath(t *testing.T) {
 	d.ServerBaseURL = "https://my-flow.serverkraken.io"
 	d.ServerDBPath = "/srv/flow/state.db"
 
-	h := handlers.NewSettings(d)
+	h := NewSettings(d)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, settingsReqWithUser(t, u))
 
@@ -109,7 +108,7 @@ func TestSettings_LogoutFormPostsToLogout(t *testing.T) {
 	u := domain.User{ID: "uid-3", OIDCSub: "sub|carol", Email: "carol@example.test"}
 	now := time.Date(2026, 6, 6, 18, 0, 0, 0, time.UTC)
 
-	h := handlers.NewSettings(mkSettingsDeps(now, now.Add(-time.Minute)))
+	h := NewSettings(mkSettingsDeps(now, now.Add(-time.Minute)))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, settingsReqWithUser(t, u))
 
@@ -146,7 +145,7 @@ func TestSettings_VersionSection_HasBuildInfo(t *testing.T) {
 	u := domain.User{ID: "uid-4", OIDCSub: "sub|dave"}
 	now := time.Date(2026, 6, 6, 18, 0, 0, 0, time.UTC)
 
-	h := handlers.NewSettings(mkSettingsDeps(now, now.Add(-time.Hour-10*time.Minute)))
+	h := NewSettings(mkSettingsDeps(now, now.Add(-time.Hour-10*time.Minute)))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, settingsReqWithUser(t, u))
 
@@ -169,7 +168,7 @@ func TestSettings_VersionSection_HasBuildInfo(t *testing.T) {
 func TestSettings_MissingUser_Returns401(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 6, 6, 18, 0, 0, 0, time.UTC)
-	h := handlers.NewSettings(mkSettingsDeps(now, now.Add(-time.Minute)))
+	h := NewSettings(mkSettingsDeps(now, now.Add(-time.Minute)))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/settings", nil).WithContext(context.Background())
 	h.ServeHTTP(rr, r)

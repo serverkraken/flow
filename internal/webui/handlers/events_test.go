@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 // events_test.go — Plan E · Task 14 (M7).
 //
@@ -19,10 +19,9 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 	"github.com/serverkraken/flow/internal/webui/sse"
 )
 
@@ -31,7 +30,7 @@ import (
 func TestEvents_NoUser_401(t *testing.T) {
 	t.Parallel()
 	b := sse.New()
-	h := handlers.NewEvents(b)
+	h := NewEvents(b)
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/events?stream=ui", nil)
 	h.ServeHTTP(rr, r)
@@ -43,7 +42,7 @@ func TestEvents_NoUser_401(t *testing.T) {
 func TestEvents_SetsSSEHeaders_AndInitialPing(t *testing.T) {
 	t.Parallel()
 	b := sse.New()
-	h := handlers.NewEvents(b)
+	h := NewEvents(b)
 
 	// Cancel the request context after a short delay so the handler
 	// returns instead of blocking forever.
@@ -92,7 +91,7 @@ func TestEvents_StreamsPublishedEvent(t *testing.T) {
 	b := sse.New()
 
 	mux := http.NewServeMux()
-	mux.Handle("/api/v1/events", injectUser(domain.User{ID: "u-stream"}, handlers.NewEvents(b)))
+	mux.Handle("/api/v1/events", injectUser(domain.User{ID: "u-stream"}, NewEvents(b)))
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
@@ -152,12 +151,11 @@ func TestEvents_StreamsPublishedEvent(t *testing.T) {
 
 func TestRouter_GET_Events_Streams(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	users := sqliteserver.NewUsers(store)
+	users := pgstore.NewUsers(pgWebUIStore)
 
 	b := sse.New()
 	webUI := &httpserver.WebUIHandlers{
-		Events: handlers.NewEvents(b),
+		Events: NewEvents(b),
 	}
 
 	hashKey, _ := hex.DecodeString(strings.Repeat("33", 32))

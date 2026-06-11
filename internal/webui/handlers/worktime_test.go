@@ -1,4 +1,4 @@
-package handlers_test
+package handlers
 
 import (
 	"context"
@@ -9,59 +9,64 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
-	"github.com/serverkraken/flow/internal/webui/handlers"
 )
 
-func mkWorktimeDeps(store *sqliteserver.Store, now time.Time) handlers.WorktimeDeps {
+func mkWorktimeDeps(s pgStores, now time.Time) WorktimeDeps {
 	clock := &testutil.FixedClock{T: now}
 	view := &usecase.ServerWorktimeView{
-		Sessions:      sqliteserver.NewSessions(store),
-		Active:        sqliteserver.NewActiveSessions(store),
+		Sessions:      s.Sessions,
+		Active:        s.Active,
 		Clock:         clock,
 		DefaultTarget: 8 * time.Hour,
 	}
-	return handlers.WorktimeDeps{
+	return WorktimeDeps{
 		View:        view,
-		Active:      sqliteserver.NewActiveSessions(store),
-		Sessions:    sqliteserver.NewSessions(store),
-		Projects:    sqliteserver.NewProjects(store),
+		Active:      s.Active,
+		Sessions:    s.Sessions,
+		Projects:    s.Projects,
 		Clock:       clock,
 		DeviceLabel: "mac-soenne",
 	}
+}
+
+func seedProjectForWorktime(t *testing.T, projects *pgstore.Projects, userID, name string) string {
+	t.Helper()
+	p, err := projects.EnsureBySlug(userID, name, name)
+	if err != nil {
+		t.Fatalf("EnsureBySlug: %v", err)
+	}
+	return p.ID
 }
 
 // — Heute —
 
 func TestWorktime_TabHeute_WithActiveSession_RendersBannerAndTable(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-heute-active")
-	p := seedProject(t, store, u.ID, "webui-mockups")
-	sessions := sqliteserver.NewSessions(store)
+	s := newPGStores(t, "wt-heute-active")
+	pID := seedProjectForWorktime(t, s.Projects, s.User.ID, "webui-mockups")
 
 	// Thursday 14:00.
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
-	active := sqliteserver.NewActiveSessions(store)
-	if _, err := active.Start(u.ID, p.ID, time.Time{}, "mac-soenne", 0, "design", "Editorial-Terminal Mockups"); err != nil {
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 4, 9, 0, 0, 0, time.UTC), 90*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 4, 11, 0, 0, 0, time.UTC), 30*time.Minute)
+	if _, err := s.Active.Start(s.User.ID, pID, time.Time{}, "mac-soenne", 0, "design", "Editorial-Terminal Mockups"); err != nil {
 		t.Fatalf("Start active: %v", err)
 	}
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=heute", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	mustContain := []string{
+	for _, want := range []string{
 		"webui-mockups",            // project name appears
 		"aktive session",           // live banner eyebrow
 		"sessions-table",           // table rendered
@@ -71,25 +76,23 @@ func TestWorktime_TabHeute_WithActiveSession_RendersBannerAndTable(t *testing.T)
 		"Heute · Ist",              // first saldo cell label
 		"Saldo · Jahr",             // third saldo cell label
 		`class="subtab is-active"`, // active sub-tab
-	}
-	for _, s := range mustContain {
-		if !strings.Contains(body, s) {
-			t.Errorf("heute body missing %q", s)
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("heute body missing %q", want)
 		}
 	}
 }
 
 func TestWorktime_TabHeute_EmptyDay_RendersPlaceholder(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-heute-empty")
+	s := newPGStores(t, "wt-heute-empty")
 	// Friday 11:00 — work day, no sessions.
 	now := time.Date(2026, 6, 5, 11, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=heute", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -108,28 +111,26 @@ func TestWorktime_TabHeute_EmptyDay_RendersPlaceholder(t *testing.T) {
 
 func TestWorktime_TabWoche_RendersChartAndSaldo(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-woche")
-	p := seedProject(t, store, u.ID, "flow")
-	sessions := sqliteserver.NewSessions(store)
+	s := newPGStores(t, "wt-woche")
+	pID := seedProjectForWorktime(t, s.Projects, s.User.ID, "flow")
 
 	// Pin to Thursday so Mon-Wed of the same ISO week have sessions.
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC), 7*time.Hour+30*time.Minute)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 2, 9, 0, 0, 0, time.UTC), 8*time.Hour)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC), 6*time.Hour+45*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC), 7*time.Hour+30*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 2, 9, 0, 0, 0, time.UTC), 8*time.Hour)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 3, 9, 0, 0, 0, time.UTC), 6*time.Hour+45*time.Minute)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=woche", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200; body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	mustContain := []string{
+	for _, want := range []string{
 		`id="week-chart-data"`,    // JSON block exists
 		`type="application/json"`, // JSON block type
 		`initWeekChart`,           // init script reference
@@ -141,10 +142,9 @@ func TestWorktime_TabWoche_RendersChartAndSaldo(t *testing.T) {
 		`id="week-saldo-data"`,    // sparkline JSON block
 		"Ist · Woche",             // saldo stripe label
 		"Soll · Woche",            // saldo stripe label
-	}
-	for _, s := range mustContain {
-		if !strings.Contains(body, s) {
-			t.Errorf("woche body missing %q", s)
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("woche body missing %q", want)
 		}
 	}
 	// 7 bars in the week chart JSON → seven `"label"` keys.
@@ -158,18 +158,16 @@ func TestWorktime_TabWoche_RendersChartAndSaldo(t *testing.T) {
 
 func TestWorktime_TabVerlauf_WithDate_RendersSelectedDay(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-verlauf-date")
-	p := seedProject(t, store, u.ID, "kompendium")
-	sessions := sqliteserver.NewSessions(store)
+	s := newPGStores(t, "wt-verlauf-date")
+	pID := seedProjectForWorktime(t, s.Projects, s.User.ID, "kompendium")
 
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC), 3*time.Hour)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 2, 8, 0, 0, 0, time.UTC), 3*time.Hour)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=verlauf&date=2026-06-02", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -189,19 +187,17 @@ func TestWorktime_TabVerlauf_WithDate_RendersSelectedDay(t *testing.T) {
 
 func TestWorktime_TabVerlauf_MissingDate_DefaultsToYesterday(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-verlauf-default")
-	p := seedProject(t, store, u.ID, "flow")
-	sessions := sqliteserver.NewSessions(store)
+	s := newPGStores(t, "wt-verlauf-default")
+	pID := seedProjectForWorktime(t, s.Projects, s.User.ID, "flow-vd")
 
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 	// Seed yesterday with a single session — verifies default = yesterday.
-	seedSession(t, sessions, u.ID, p.ID, time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC), 90*time.Minute)
+	seedSession(t, s.Sessions, s.User.ID, pID, time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC), 90*time.Minute)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=verlauf", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -212,7 +208,7 @@ func TestWorktime_TabVerlauf_MissingDate_DefaultsToYesterday(t *testing.T) {
 	if !strings.Contains(body, "Mittwoch · 03. Juni 2026") {
 		t.Errorf("verlauf default-day: missing yesterday label\n%s", body[:min(800, len(body))])
 	}
-	if !strings.Contains(body, "flow") {
+	if !strings.Contains(body, "flow-vd") {
 		t.Errorf("verlauf default-day: project name missing")
 	}
 	// Jump-header uses relative-day vocabulary: for date=yesterday the
@@ -230,15 +226,14 @@ func TestWorktime_TabVerlauf_MissingDate_DefaultsToYesterday(t *testing.T) {
 
 func TestWorktime_TabVerlauf_FarPastDate_UsesShortGermanFormat(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-verlauf-far-past")
+	s := newPGStores(t, "wt-verlauf-far-past")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	// 2026-01-15 is Thursday → "Do · 15.01.2026".
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=verlauf&date=2026-01-15", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -254,14 +249,13 @@ func TestWorktime_TabVerlauf_FarPastDate_UsesShortGermanFormat(t *testing.T) {
 
 func TestWorktime_TabVerlauf_InvalidDate_FallsBackToYesterday(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-verlauf-invalid")
+	s := newPGStores(t, "wt-verlauf-invalid")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=verlauf&date=not-a-date", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -276,14 +270,13 @@ func TestWorktime_TabVerlauf_InvalidDate_FallsBackToYesterday(t *testing.T) {
 
 func TestWorktime_TabFrei_RendersPhase2Placeholder(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-frei")
+	s := newPGStores(t, "wt-frei")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=frei", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -302,14 +295,13 @@ func TestWorktime_TabFrei_RendersPhase2Placeholder(t *testing.T) {
 
 func TestWorktime_DefaultTab_IsHeute(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-default")
+	s := newPGStores(t, "wt-default")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -323,14 +315,13 @@ func TestWorktime_DefaultTab_IsHeute(t *testing.T) {
 
 func TestWorktime_InvalidTab_FallsThroughToHeute(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-garbage")
+	s := newPGStores(t, "wt-garbage")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=garbage", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
@@ -346,29 +337,21 @@ func TestWorktime_InvalidTab_FallsThroughToHeute(t *testing.T) {
 
 // TestWorktime_TabHeute_SSEEventNamesAreRegistered guards the wiring that
 // turns the SSE EventSource into htmx:sseMessage events on worktime/today.
-// The htmx-sse extension only registers per-event-name listeners when an
-// element carries sse-swap (or hx-trigger="sse:…"); without one, the
-// inline sseTodayScript() never sees session.* or tick — the live banner
-// got removed by the Stop POST swap, but the sessions table, day bar,
-// and saldo stripe kept showing the active tail because no reload fired.
 func TestWorktime_TabHeute_SSEEventNamesAreRegistered(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
-	u := seedUser(t, store, "wt-heute-sse")
+	s := newPGStores(t, "wt-heute-sse")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=heute", nil)
-	r = r.WithContext(httpserver.WithUser(r.Context(), u))
+	r = r.WithContext(httpserver.WithUser(r.Context(), s.User))
 	h.ServeHTTP(rr, r)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status: got %d, want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	// Every event the inline script in today.templ switches on MUST be
-	// registered, otherwise htmx-sse silently swallows it.
 	for _, name := range []string{
 		"tick",
 		"session.started", "session.stopped", "session.updated", "session.deleted",
@@ -386,10 +369,10 @@ func TestWorktime_TabHeute_SSEEventNamesAreRegistered(t *testing.T) {
 
 func TestWorktime_MissingUser_Returns401(t *testing.T) {
 	t.Parallel()
-	store := mustOpenServerStore(t)
+	s := newPGStores(t, "wt-nouser")
 	now := time.Date(2026, 6, 4, 14, 0, 0, 0, time.UTC)
 
-	h := handlers.NewWorktime(mkWorktimeDeps(store, now))
+	h := NewWorktime(mkWorktimeDeps(s, now))
 	rr := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodGet, "/worktime?tab=heute", nil).WithContext(context.Background())
 	h.ServeHTTP(rr, r)
