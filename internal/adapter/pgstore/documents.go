@@ -82,44 +82,70 @@ func (d *Documents) List(userID, prefix, query string, limit int) ([]ports.Docum
 	return out, rows.Err()
 }
 
-// Put upserts a document.
+// Put upserts a document and appends the new state to document_revisions —
+// both in one transaction (Spec §6/A1: jeder gespeicherte Stand ist eine
+// Revision; If-Match schützt vor Races, die Revisionen vor Überschreib-Verlust).
 func (d *Documents) Put(userID, path, body, repoKey string, ifMatch int64) (ports.Document, error) {
 	ctx := context.Background()
 	var repoKeyArg *string
 	if repoKey != "" {
 		repoKeyArg = &repoKey
 	}
-	if ifMatch == 0 {
-		row := d.store.Pool().QueryRow(ctx, `
-			INSERT INTO documents (user_id, path, body, repo_key)
-			VALUES ($1, $2, $3, $4)
-			RETURNING `+documentCols,
-			userID, path, body, repoKeyArg)
-		doc, err := scanDocument(row)
+	var doc ports.Document
+	err := pgx.BeginFunc(ctx, d.store.Pool(), func(tx pgx.Tx) error {
+		var row pgx.Row
+		if ifMatch == 0 {
+			row = tx.QueryRow(ctx, `
+				INSERT INTO documents (user_id, path, body, repo_key)
+				VALUES ($1, $2, $3, $4)
+				RETURNING `+documentCols,
+				userID, path, body, repoKeyArg)
+		} else {
+			row = tx.QueryRow(ctx, `
+				UPDATE documents
+				SET body = $3, repo_key = COALESCE($4, repo_key), version = version + 1, updated_at = now()
+				WHERE user_id = $1 AND path = $2 AND version = $5
+				RETURNING `+documentCols,
+				userID, path, body, repoKeyArg, ifMatch)
+		}
+		var err error
+		doc, err = scanDocument(row)
+		if err != nil {
+			return err
+		}
+		return insertRevision(ctx, tx, doc, false)
+	})
+	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation: create-only auf existierenden Pfad
 			return ports.Document{}, ports.ErrDocumentVersionConflict
 		}
-		return doc, err
+		if ifMatch != 0 && errors.Is(err, ports.ErrDocumentNotFound) {
+			// UPDATE traf keine Row: Pfad fehlt oder Version stale → Konflikt (wie bisher)
+			return ports.Document{}, ports.ErrDocumentVersionConflict
+		}
+		return ports.Document{}, err
 	}
-	row := d.store.Pool().QueryRow(ctx, `
-		UPDATE documents
-		SET body = $3, repo_key = COALESCE($4, repo_key), version = version + 1, updated_at = now()
-		WHERE user_id = $1 AND path = $2 AND version = $5
-		RETURNING `+documentCols,
-		userID, path, body, repoKeyArg, ifMatch)
-	doc, err := scanDocument(row)
-	if errors.Is(err, ports.ErrDocumentNotFound) {
-		return ports.Document{}, ports.ErrDocumentVersionConflict
-	}
-	return doc, err
+	return doc, nil
 }
 
-// Delete deletes a document by path.
+// Delete removes a document and appends a deleted-marker revision carrying
+// the last body — in one transaction. Deleting a missing path stays a no-op.
 func (d *Documents) Delete(userID, path string) error {
-	_, err := d.store.Pool().Exec(context.Background(),
-		`DELETE FROM documents WHERE user_id = $1 AND path = $2`, userID, path)
-	return err
+	ctx := context.Background()
+	return pgx.BeginFunc(ctx, d.store.Pool(), func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `
+			DELETE FROM documents WHERE user_id = $1 AND path = $2
+			RETURNING `+documentCols, userID, path)
+		doc, err := scanDocument(row)
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		return insertRevision(ctx, tx, doc, true)
+	})
 }
 
 func scanDocument(r rowScanner) (ports.Document, error) {
@@ -132,4 +158,14 @@ func scanDocument(r rowScanner) (ports.Document, error) {
 		return ports.Document{}, err
 	}
 	return out, nil
+}
+
+// insertRevision appends one row to document_revisions inside tx. deleted
+// marks the Lösch-Marker; doc carries the state being recorded.
+func insertRevision(ctx context.Context, tx pgx.Tx, doc ports.Document, deleted bool) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO document_revisions (document_id, user_id, path, body, version, deleted)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		doc.ID, doc.UserID, doc.Path, doc.Body, doc.Version, deleted)
+	return err
 }
