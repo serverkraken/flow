@@ -1313,7 +1313,7 @@ beider Grenzen — die WebUI ruft `ListByUserDateRange(uid, dayStart, dayStart)`
 einzelnen Tag auf!). Neu: `BulkUpsert` (idempotenter Import, Spec §7 `:bulk`) und
 `bookingDay`-Helper.
 
-- [ ] **Step 1: Failing Tests**
+- [x] **Step 1: Failing Tests**
 
 ```go
 // internal/adapter/pgstore/sessions_test.go
@@ -1443,7 +1443,7 @@ func TestBookingDay_UserTimezone(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Tests — Compile-FAIL erwartet**
+- [x] **Step 2: Tests — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run 'TestSessions|TestBookingDay' -timeout 180s 2>&1 | tail -3
@@ -1451,7 +1451,7 @@ go test ./internal/adapter/pgstore/... -run 'TestSessions|TestBookingDay' -timeo
 
 Expected: `undefined: pgstore.NewSessions`.
 
-- [ ] **Step 3: Implementierung**
+- [x] **Step 3: Implementierung**
 
 ```go
 // internal/adapter/pgstore/sessions.go
@@ -1604,7 +1604,7 @@ func scanSession(r rowScanner) (domain.Session, error) {
 }
 ```
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run 'TestSessions|TestBookingDay' -v -timeout 180s 2>&1 | tail -10
@@ -1612,7 +1612,7 @@ go test ./internal/adapter/pgstore/... -run 'TestSessions|TestBookingDay' -v -ti
 
 Expected: alle PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 gofumpt -w internal/adapter/pgstore/
