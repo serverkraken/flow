@@ -545,7 +545,7 @@ Hinweis uuid↔string: pgx v5 kodiert Go-`string` ↔ PG-`uuid` in beide Richtun
 Scan-Fehler `cannot scan uuid` auftritt: betroffene SELECT-Spalte auf `id::text` umstellen
 und als Abweichung notieren.
 
-- [ ] **Step 1: Failing Test**
+- [x] **Step 1: Failing Test**
 
 ```go
 // internal/adapter/pgstore/users_test.go
@@ -608,7 +608,7 @@ func TestUsers_GetBySub_RoundTrip(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Test laufen lassen — muss fehlschlagen**
+- [x] **Step 2: Test laufen lassen — muss fehlschlagen**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestUsers -timeout 180s 2>&1 | tail -3
@@ -616,7 +616,7 @@ go test ./internal/adapter/pgstore/... -run TestUsers -timeout 180s 2>&1 | tail 
 
 Expected: Compile-FAIL `undefined: pgstore.NewUsers`.
 
-- [ ] **Step 3: Implementierung**
+- [x] **Step 3: Implementierung**
 
 ```go
 // internal/adapter/pgstore/users.go
@@ -682,7 +682,7 @@ func scanUser(r rowScanner) (domain.User, error) {
 }
 ```
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 ```bash
 go test ./internal/adapter/pgstore/... -run TestUsers -v -timeout 180s 2>&1 | tail -8
@@ -690,7 +690,7 @@ go test ./internal/adapter/pgstore/... -run TestUsers -v -timeout 180s 2>&1 | ta
 
 Expected: 3× PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 gofumpt -w internal/adapter/pgstore/
