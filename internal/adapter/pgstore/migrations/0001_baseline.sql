@@ -61,6 +61,22 @@ CREATE TABLE documents (
 CREATE UNIQUE INDEX documents_repo_key ON documents (user_id, repo_key) WHERE repo_key IS NOT NULL;
 CREATE INDEX documents_search ON documents USING gin (search);
 
+-- A1: Sicherheitsnetz für einen LLM-beschreibbaren Korpus. Jeder erfolgreiche
+-- documents-Write (PUT create/update, DELETE) schreibt den Stand zusätzlich
+-- hierher — in derselben Transaktion. Kein FK auf documents(id): Revisionen
+-- überleben das Löschen des Dokuments. Restore in Phase 1 via psql.
+CREATE TABLE document_revisions (
+    id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    document_id uuid NOT NULL,
+    user_id     uuid NOT NULL REFERENCES users(id),
+    path        text NOT NULL,           -- Pfad zum Zeitpunkt des Writes
+    body        text NOT NULL,
+    version     bigint NOT NULL,         -- documents.version dieses Stands
+    deleted     boolean NOT NULL DEFAULT false,  -- true = Lösch-Marker (body = letzter Stand)
+    recorded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX document_revisions_doc ON document_revisions (document_id, version);
+
 CREATE TABLE day_offs (
     user_id   uuid NOT NULL REFERENCES users(id),
     day       date NOT NULL,
@@ -78,6 +94,7 @@ CREATE TABLE user_settings (
 );
 
 -- +goose Down
+DROP TABLE IF EXISTS document_revisions;
 DROP TABLE IF EXISTS user_settings;
 DROP TABLE IF EXISTS day_offs;
 DROP TABLE IF EXISTS documents;
