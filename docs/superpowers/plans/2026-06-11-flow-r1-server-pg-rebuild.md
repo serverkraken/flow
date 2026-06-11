@@ -4339,7 +4339,7 @@ WEITERVERWENDET — nur die Datenquelle wechselt von fsstore/kompendium auf
 immer `TabAlle` — Feinschliff ist R5. Gemountet wird das Trio in Task 18; die alten
 notes-Handler bleiben bis Task 19 bestehen, damit deren Tests weiterlaufen.
 
-- [ ] **Step 1: edit.templ um Version erweitern**
+- [x] **Step 1: edit.templ um Version erweitern**
 
 In `internal/webui/templates/notes/edit.templ` im `EditVM`-Struct nach `Content` ergänzen:
 
@@ -4366,7 +4366,7 @@ make webui-templ && go build ./internal/webui/...
 
 Expected: Exit 0.
 
-- [ ] **Step 2: Documents-Read-Handler**
+- [x] **Step 2: Documents-Read-Handler**
 
 ```go
 // internal/webui/handlers/documents.go
@@ -4545,7 +4545,7 @@ func docTitle(docPath, body string) string {
 }
 ```
 
-- [ ] **Step 3: VM-Builder**
+- [x] **Step 3: VM-Builder**
 
 ```go
 // internal/webui/handlers/documents_vm.go
@@ -4653,7 +4653,7 @@ func buildDocumentViewVM(d DocumentsDeps, doc flowports.Document) (notestmpl.Vie
 }
 ```
 
-- [ ] **Step 4: Write-Handler (PUT mit If-Match aus dem Formular)**
+- [x] **Step 4: Write-Handler (PUT mit If-Match aus dem Formular)**
 
 ```go
 // internal/webui/handlers/document_actions.go
@@ -4741,7 +4741,7 @@ func NewDocumentPut(d DocumentActionsDeps) http.Handler {
 }
 ```
 
-- [ ] **Step 5: Build (Mounting kommt in Task 18)**
+- [x] **Step 5: Build (Mounting kommt in Task 18)**
 
 ```bash
 make webui-templ && go build ./... && go test ./internal/webui/... -timeout 300s 2>&1 | tail -4
@@ -4752,7 +4752,7 @@ Expected: grün. Häufigste Stolperstelle: `notestmpl.Breadcrumb`-Feldnamen oder
 nachschlagen (`rg "type Breadcrumb" internal/webui/templates/notes/`,
 `rg "func .*Headings" internal/webui/markdown/`), minimal anpassen, Abweichung notieren.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 gofumpt -w internal/webui/handlers/
