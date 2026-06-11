@@ -24,14 +24,11 @@ COVER_OUT       := coverage.out
 # `make ci` provides.
 #
 # Phase-1 M2/M3 (2026-06-03) drops the gate further to 84%. M2/M3 added
-# substantial integration-heavy surface area (sqliteserver atomic Stop
-# transaction, httpserver projects/sessions/active handlers, httpsync
-# Client/Queue/Worker, TUI conflict_overlay + worktime listener). Most
-# branches are exercised by integration-style tests (httptest, real
-# sqliteserver against tmp DBs), but the aggregate landed at ~84.8%.
-# Restoration to ≥89% is tracked as a Phase-2 follow-up — see the new
-# scripts/smoke-m2-m3.sh + docs/runbook/m2-m3-smoke-test.md which provide
-# end-to-end coverage outside the unit-coverage gate.
+# substantial integration-heavy surface area (httpserver projects/sessions/
+# active handlers, httpsync Client/Queue/Worker, TUI conflict_overlay +
+# worktime listener). Most branches are exercised by integration-style tests
+# (httptest, real pgstore against testcontainers DBs), but the aggregate
+# landed at ~84.8%.
 #
 # Phase-2 follow-up #4 (2026-06-03) restored aggregate from 84.8% to 85.2%
 # via targeted tests on sqliteserver.Projects (ListActive/ListAll/Touch/
@@ -80,7 +77,7 @@ COVER_PKG       := ./internal/...
         build-server build-mcp test-server test-integration \
         dex-up dex-down dex-logs run-server \
         webui webui-templ webui-css webui-css-watch webui-check webui-vendor \
-        smoke-webui drill-restore
+        smoke-webui
 
 build:
 	@mkdir -p bin
@@ -206,11 +203,3 @@ webui-vendor:
 smoke-webui:
 	bash scripts/smoke-m6-webui.sh
 	bash scripts/smoke-m7-webui-write.sh
-
-# Manual-trigger Litestream restore drill against the compose stack from
-# deploy/podman/. Reads the live server.db row counts, restores the replica
-# into a tempdir, and PASS/FAIL based on row-count delta. NOT part of
-# `make ci` — needs the compose stack running. See
-# docs/runbook/litestream-restore.md for the prod K8s procedure.
-drill-restore:
-	./scripts/litestream-restore-drill.sh

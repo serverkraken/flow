@@ -57,9 +57,9 @@ if [[ -z "${FLOW_OIDC_ISSUER:-}" ]]; then
   fi
 fi
 
-# Per-smoke server.db so we don't clobber a real instance.
-export FLOW_SERVER_DB="${FLOW_SERVER_DB:-/tmp/flow-smoke-m6/server.db}"
-mkdir -p "$(dirname "${FLOW_SERVER_DB}")"
+# Per-smoke postgres DSN (defaults to testcontainers-style local; override for
+# a real instance). No DB setup here — the server runs migrations on startup.
+export FLOW_PG_DSN="${FLOW_PG_DSN:-postgres://flow:flow-dev@localhost:5432/flow?sslmode=disable}"
 
 info "start flow-server (background)"
 ./bin/flow-server &

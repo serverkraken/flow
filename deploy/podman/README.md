@@ -2,22 +2,26 @@
 
 Local compose stack with everything needed to exercise flow-server end-to-end:
 
-| Service       | Image                          | Purpose                                       |
-|---------------|--------------------------------|-----------------------------------------------|
-| `flow-server` | built from `Dockerfile.server` | HTTP API + WebUI on `:8080`                   |
-| `dex`         | `dexidp/dex:v2.41.1`           | local OIDC issuer on `:5556`                  |
-| `minio`       | `minio/minio:latest`           | S3-compatible object store on `:9000`/`:9001` |
-| `minio-setup` | `minio/mc:latest`              | one-shot: creates `flow-backups` bucket       |
-| `litestream`  | `litestream/litestream:0.3.13` | replicates `server.db` → minio                |
+| Service       | Image                          | Purpose                              |
+|---------------|--------------------------------|--------------------------------------|
+| `flow-server` | built from `Dockerfile.server` | HTTP API + WebUI on `:8080`          |
+| `postgres`    | `postgres:16-alpine`           | relational store on `:5432`          |
+| `dex`         | `dexidp/dex:v2.41.1`           | local OIDC issuer on `:5556`         |
 
 ## Setup
 
-```bash
-cp .env.example .env
-# .env ships with dev-safe defaults; regenerate cookie keys before any
-# non-laptop use:
-#   openssl rand -hex 32   # FLOW_COOKIE_HASH_KEY
-#   openssl rand -hex 32   # FLOW_COOKIE_BLOCK_KEY
+Create `.env` in this directory (gitignored):
+
+```
+FLOW_SERVER_ADDR=:8080
+FLOW_SERVER_BASE_URL=http://localhost:8080
+FLOW_PG_DSN=postgres://flow:flow-dev@postgres:5432/flow?sslmode=disable
+FLOW_OIDC_ISSUER=http://localhost:5556
+FLOW_OIDC_CLIENT_ID=flow-server-dev
+FLOW_OIDC_CLIENT_SECRET=dev-secret
+FLOW_ALLOWED_SUBS=Cghsb2NhbGRldhIFbG9jYWw
+FLOW_COOKIE_HASH_KEY=<openssl rand -hex 32>
+FLOW_COOKIE_BLOCK_KEY=<openssl rand -hex 32>
 ```
 
 ## Run
@@ -27,7 +31,7 @@ podman compose up -d --build
 # or: docker compose up -d --build
 ```
 
-`minio-setup` exits 0 once the `flow-backups` bucket exists; this is normal.
+flow-server waits for postgres to pass its healthcheck before starting.
 
 ## Smoke
 
@@ -42,28 +46,22 @@ curl -fsS http://localhost:8080/api/v1/oidc/config | jq
 #   → back at flow-server with the flow_session cookie set
 # Then:
 curl -fsS http://localhost:8080/api/v1/me --cookie "flow_session=..."
-
-# Litestream:
-podman compose logs litestream | head -20
-# expect: "initialized db" then "snapshot written" within ~10s
 ```
-
-The MinIO console is reachable at <http://localhost:9001> (user `minio`,
-password `minio123`).
 
 ## Stop
 
 ```bash
-podman compose down       # keeps flow-data + minio-data volumes
-podman compose down -v    # wipes everything including the SQLite + minio data
+podman compose down       # keeps pg-data volume
+podman compose down -v    # wipes everything including the postgres data
 ```
 
 ## Healthcheck
 
 The distroless runtime ships no shell or `curl`, and `flow-server` has no
 `--healthcheck` flag. So this compose file deliberately omits a HEALTHCHECK
-block — probes happen externally (`curl http://localhost:8080/healthz`) here
-and via the K8s Ingress in production (see Plan F · Task 4 helm chart).
+block for `flow-server` — probes happen externally (`curl http://localhost:8080/healthz`)
+here and via the K8s Ingress in production. `postgres` has its own healthcheck
+(`pg_isready`) so `flow-server` only starts once the DB is accepting connections.
 
 ## Notes
 
@@ -81,5 +79,5 @@ and via the K8s Ingress in production (see Plan F · Task 4 helm chart).
   flow-server WARN log on first login).
 - Dex 2.41 device-flow approval is browser-only — for full CLI auth
   testing use the prod Authentik deployment.
-- The `flow-backups` bucket is created idempotently by `minio-setup` —
-  no manual `mc mb` needed.
+- Backups übernimmt im Homelab CNPG (Operator-Snapshots + PITR); der lokale
+  compose-Stack ist Wegwerf-Dev — `podman volume rm` setzt ihn zurück.
