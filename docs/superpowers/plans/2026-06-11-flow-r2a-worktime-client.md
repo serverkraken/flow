@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > (ein frischer Subagent pro Task, Model **Sonnet oder kleiner**). Steps nutzen
-> Checkbox-Syntax (`- [ ]`) und werden in DIESER Datei abgehakt.
+> Checkbox-Syntax (`- [x]`) und werden in DIESER Datei abgehakt.
 
 **Spec:** `docs/superpowers/specs/2026-06-11-flow-server-only-rebuild-design.md` (§5, §8, §13 R2; A1 abgenommen). R2 ist in zwei Pläne geschnitten: **R2a (dieser)** = Worktime/Identity/Statuszeile/Sync-Stack-Löschung/flow-mcp-Minimal-Swap. **R2b** (eigene Datei) = Kompendium-Client. Das Dogfood-Gate (§14) liegt NACH R2b.
 
@@ -133,7 +133,7 @@ R4-TSV-Migration; `jsonflowstate`, `keyringadapter`, `oidcclient`, `tmuxbridge`,
 
 **Files:** keine.
 
-- [ ] **Step 1: Worktree clean auf `next`, R1b ist drauf**
+- [x] **Step 1: Worktree clean auf `next`, R1b ist drauf**
 
 ```bash
 cd /Users/msoent/SourceCode/serverkraken/flow-phase1-m1
@@ -143,7 +143,7 @@ git status --short && git log --oneline -6 | rg "R1b|97f7fab|Revision" | head -3
 Expected: clean; mindestens ein R1b-Commit sichtbar (`feat(pgstore): Revision bei jedem
 documents-Write` — R1b MUSS vor R2a abgeschlossen sein). Wenn nicht: STOPP.
 
-- [ ] **Step 2: podman-Exports + Baseline**
+- [x] **Step 2: podman-Exports + Baseline**
 
 ```bash
 export DOCKER_HOST="unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
@@ -153,7 +153,7 @@ go build ./... && go test ./internal/adapter/httpserver/ -count=1 2>&1 | tail -1
 
 Expected: Build ok, `ok …/httpserver`.
 
-- [ ] **Step 3: httpserver-Test-Bootstrap kartieren (für Task 1 Step 1)**
+- [x] **Step 3: httpserver-Test-Bootstrap kartieren (für Task 1 Step 1)**
 
 ```bash
 rg -n "func TestMain|func newTestServer|oidctest|bearerToken|mintToken" internal/adapter/httpserver/*_test.go | head -15
@@ -172,7 +172,7 @@ Kein Commit.
 **Files:**
 - Create: `internal/adapter/httpapi/client.go`, `retry.go`, `dto.go`, `doc.go`, `main_test.go`, `client_test.go`
 
-- [ ] **Step 1: Test-Bootstrap `main_test.go`**
+- [x] **Step 1: Test-Bootstrap `main_test.go`**
 
 Muster aus `internal/adapter/httpserver`-Tests übernehmen (Task 0 Step 3): TestMain startet
 EINEN pgtest-Container; ein Helper baut pro Test einen `httptest.Server` mit
@@ -199,7 +199,7 @@ func (m *memTokens) Delete(string) error                { m.ok = false; return n
 
 Jeder Test: `srv := newTestAPI(t)` → echte Routen; `cli := httpapi.New(httpapi.Config{BaseURL: srv.URL, Tokens: &memTokens{...gültiges Token...}, Version: "9.9.9"})`.
 
-- [ ] **Step 2: `client.go` — der Kern**
+- [x] **Step 2: `client.go` — der Kern**
 
 ```go
 // Package httpapi implements the client-side ports against flow-server's
@@ -387,11 +387,11 @@ func statusCode(err error) int {
 }
 ```
 
-- [ ] **Step 3: `retry.go`** — `Backoff`-Struct 1:1 aus `internal/adapter/httpsync/retry.go`
+- [x] **Step 3: `retry.go`** — `Backoff`-Struct 1:1 aus `internal/adapter/httpsync/retry.go`
   kopieren (Paketname auf `httpapi` ändern, Kommentar „kopiert aus httpsync (R2a), Quelle
   gelöscht" ergänzen). Den zugehörigen Test aus `retry_test.go` mitkopieren.
 
-- [ ] **Step 4: `dto.go`** — Wire-Typen EXAKT wie der Server (Quelle: `worktime_api.go:81/101/120/129`, `projects_api.go:44`, `documents_api.go:45/98`, `dayoffs_settings_api.go:50`, `meta.go:8`):
+- [x] **Step 4: `dto.go`** — Wire-Typen EXAKT wie der Server (Quelle: `worktime_api.go:81/101/120/129`, `projects_api.go:44`, `documents_api.go:45/98`, `dayoffs_settings_api.go:50`, `meta.go:8`):
 
 ```go
 package httpapi
@@ -479,12 +479,12 @@ Dazu in `dto.go` die Konverter `sessionFromDTO(d sessionDTO) domain.Session`,
 `dayOffFromDTO(d dayOffDTO) (domain.DayOff, error)` — Feldzuordnung anhand der
 domain-Structs (vor dem Schreiben `rg -n "type Session struct|type ActiveSession struct|type Project struct|type DayOff struct" internal/domain/` und Felder exakt mappen; `Day` parsen mit `time.DateOnly`, `PauseTotalMS` → `time.Duration(ms)*time.Millisecond`).
 
-- [ ] **Step 5: `client_test.go`** — drei Contract-Tests gegen den echten Server-Stack:
+- [x] **Step 5: `client_test.go`** — drei Contract-Tests gegen den echten Server-Stack:
   (a) gültiges Token → GET /api/v1/me-bearer liefert 200 (über `doJSON` mit out-map);
   (b) leerer TokenStore → `ErrLoggedOut`; (c) BaseURL "" → `ErrNotConfigured`;
   (d) Server gestoppt (httptest.Server.Close vor Call) → `ErrUnavailable`.
 
-- [ ] **Step 6: Build + Tests + Commit**
+- [x] **Step 6: Build + Tests + Commit**
 
 ```bash
 go build ./... && go test ./internal/adapter/httpapi/ -count=1 2>&1 | tail -2
@@ -508,7 +508,7 @@ EOF
 **Files:**
 - Create: `internal/adapter/httpapi/status.go`, `meta.go`, `cache.go` (+ `status_test.go`, `cache_test.go`)
 
-- [ ] **Step 1: `status.go`**
+- [x] **Step 1: `status.go`**
 
 ```go
 package httpapi
@@ -588,14 +588,14 @@ func (s *Status) setLoggedOut() { s.set(func(sn *StatusSnapshot) { sn.State = St
 func (c *Client) StatusOf() *Status { return c.status }
 ```
 
-- [ ] **Step 2: `meta.go`** — `(c *Client) CheckMeta(ctx)` ruft GET `/api/v1/meta` OHNE
+- [x] **Step 2: `meta.go`** — `(c *Client) CheckMeta(ctx)` ruft GET `/api/v1/meta` OHNE
   Bearer (Route ist public — eigener kleiner Request, nicht doJSON), füllt
   `status.snap.ServerVersion`, vergleicht `c.version` gegen `min_client_version` mit
   dotted-numeric-Vergleich (eigene 15-Zeilen-Funktion `versionLess(a, b string) bool`,
   "dev" gilt immer als aktuell) und setzt ggf. `StateOutdated`. Test: Tabelle für
   versionLess (1.2.3 < 1.10.0, dev nie outdated, gleiche Version nicht outdated).
 
-- [ ] **Step 3: `cache.go`** — generischer Resource-Cache + JSON-Snapshot:
+- [x] **Step 3: `cache.go`** — generischer Resource-Cache + JSON-Snapshot:
 
 ```go
 package httpapi
@@ -697,7 +697,7 @@ Offline-Fallback, wenn `ErrUnavailable` UND der In-Memory-Cache leer ist. `statu
 speist „Stand 14:32". Tests: put/get/invalidate/fallback; save/load-Roundtrip mit
 `t.Setenv("XDG_STATE_HOME", t.TempDir())`.
 
-- [ ] **Step 4: Build + Tests + Commit** (`feat(httpapi): Status/Meta/Cache + Offline-Snapshot (R2a)`)
+- [x] **Step 4: Build + Tests + Commit** (`feat(httpapi): Status/Meta/Cache + Offline-Snapshot (R2a)`)
 
 ---
 
@@ -711,7 +711,7 @@ Gemeinsames Muster pro Adapter: Konstruktor `NewX(c *Client) *X`, Compile-Assert
 invalidieren), bei `ErrUnavailable` Fallback Cache→Snapshot, ALLE userID-Parameter werden
 ignoriert (der Server scoped über das Token — Kommentar an jedem Adapter-Kopf).
 
-- [ ] **Step 1: `sessions.go`** — `Load(userID)`: GET
+- [x] **Step 1: `sessions.go`** — `Load(userID)`: GET
   `/api/v1/worktime/sessions?from=2000-01-01&to=2100-12-31` → `itemsEnvelope[sessionDTO]` →
   Konverter; merkt sich `map[id]version` für Delete/Upsert (Entscheidung 4). `LoadFiltered`:
   Load + Filter im Client. `Upsert(s)`: Version aus Map; `>0` ⇒ PUT `/sessions/{id}` mit
@@ -719,33 +719,33 @@ ignoriert (der Server scoped über das Token — Kommentar an jedem Adapter-Kopf
   `ports.ErrSessionVersionConflict`, 404 ⇒ `ports.ErrSessionNotFound` (via `statusCode(err)`).
   `UpsertBatch` ⇒ POST `/sessions:bulk` `{"sessions":[…]}` (IDs mitsenden). `Delete` ⇒ DELETE
   mit If-Match aus Map; Miss ⇒ vorher Load. Jeder Write: Cache invalidieren.
-- [ ] **Step 2: `active_sessions.go`** — `ListByUser` ⇒ GET `/worktime/active` (Cache).
+- [x] **Step 2: `active_sessions.go`** — `ListByUser` ⇒ GET `/worktime/active` (Cache).
   `Get(userID, projectID)` ⇒ ListByUser + Filter, sonst `ports.ErrActiveSessionNotFound`.
   `Upsert`/`Delete` ⇒ `errors.New("httpapi: ActiveSessions sind read-only — WorktimeMachine benutzen")`.
-- [ ] **Step 3: `projects.go`** — ListActive ⇒ GET `/projects`; ListAll ⇒ `?all=1`;
+- [x] **Step 3: `projects.go`** — ListActive ⇒ GET `/projects`; ListAll ⇒ `?all=1`;
   GetByID/GetBySlug aus ListAll-Cache (404-Fallback: Refetch einmal); EnsureBySlug ⇒
   GetBySlug, bei NotFound POST `{name, slug}`; Upsert ⇒ PUT `{name, slug, archived}` +
   If-Match(p.Version), 412 ⇒ `ports.ErrProjectVersionConflict`; Archive ⇒ GetByID + PUT
   archived=true; TouchLastUsed ⇒ No-op mit Kommentar (Entscheidung 3).
-- [ ] **Step 4: `dayoffs.go`** — interner Jahres-Cache `map[int][]domain.DayOff`. `List(from,to)`
+- [x] **Step 4: `dayoffs.go`** — interner Jahres-Cache `map[int][]domain.DayOff`. `List(from,to)`
   lädt fehlende Jahre via GET `/day-offs?year=`; Fehler ⇒ slog.Warn + Snapshot-Fallback
   (Port hat keinen error-Rückgabewert — Kommentar!). Lookup ⇒ List(date,date). Add ⇒ PUT
   `/day-offs/{date}` mit dayOffDTO (Target als Go-Duration-String wenn >0); AddBatch ⇒
   Schleife; Remove ⇒ DELETE. Writes invalidieren das Jahr.
-- [ ] **Step 5: `settings.go`** — `Settings`-Typ mit `Get(ctx) (map[string]string, error)` /
+- [x] **Step 5: `settings.go`** — `Settings`-Typ mit `Get(ctx) (map[string]string, error)` /
   `Put(ctx, map[string]string) error` gegen `/settings`. Dazu `NewConfigReader(c *Client, ini ports.ConfigReader) ports.ConfigReader`:
   Load() = ini.Load(); wenn Server liefert: `daily_target` → Config-Tagesziel,
   `timezone` mitnehmen falls das domain.Config-Feld existiert (vorher prüfen:
   `rg -n "type Config struct" internal/domain/ -A 12`); wenn Server-Map LEER:
   einmaliges Seed-PUT aus ini-Werten (Entscheidung 5), slog.Info dazu.
-- [ ] **Step 6: `identity.go`** — `Identity`-Typ: `Me(ctx) (domain.User, error)` ⇒ GET
+- [x] **Step 6: `identity.go`** — `Identity`-Typ: `Me(ctx) (domain.User, error)` ⇒ GET
   `/me-bearer` (gecacht bis Logout/401); mappt auf domain.User (Felder vorher prüfen).
-- [ ] **Step 7: Contract-Tests** — pro Adapter gegen den echten Test-Stack aus Task 1:
+- [x] **Step 7: Contract-Tests** — pro Adapter gegen den echten Test-Stack aus Task 1:
   Sessions CRUD-Roundtrip inkl. 412-Mapping; Active read-only-Fehler; Projects
   EnsureBySlug-Idempotenz + Archive; DayOffs Add/List/Remove-Roundtrip; Settings
   Seed-bei-leer + Overlay; Identity Me. Offline-Pfad je einmal: Server.Close() ⇒ Read liefert
   Snapshot-Stand (vorher einen erfolgreichen Read machen).
-- [ ] **Step 8: Build + Tests + Commit** (`feat(httpapi): Read/Write-Adapter für Worktime-Ports (R2a)`)
+- [x] **Step 8: Build + Tests + Commit** (`feat(httpapi): Read/Write-Adapter für Worktime-Ports (R2a)`)
 
 ---
 
@@ -755,7 +755,7 @@ ignoriert (der Server scoped über das Token — Kommentar an jedem Adapter-Kopf
 - Create: `internal/ports/worktime_machine.go`, `internal/adapter/httpapi/machine.go` (+Test)
 - Modify: `internal/adapter/pgstore/active_sessions.go` (+Test), `internal/adapter/httpserver/worktime_api.go` (+Test), `scripts/smoke-r1-routes.sh`
 
-- [ ] **Step 1: Port**
+- [x] **Step 1: Port**
 
 ```go
 // internal/ports/worktime_machine.go
@@ -779,18 +779,18 @@ type WorktimeMachine interface {
 }
 ```
 
-- [ ] **Step 2: Server — Statemachine-Methode CorrectStart in pgstore** (`active_sessions.go`):
+- [x] **Step 2: Server — Statemachine-Methode CorrectStart in pgstore** (`active_sessions.go`):
   `CorrectStart(userID, projectID string, startedAt time.Time)` — UPDATE von `started_at`
   (+ version+1) WHERE user+project, Validierung `startedAt` nicht in der Zukunft und nicht
   nach now; Fehlen ⇒ `ports.ErrActiveSessionNotFound`. Failing-Test zuerst (Tabellen-Test im
   Stil der bestehenden Statemachine-Tests in `active_sessions_test.go`).
-- [ ] **Step 3: Server — Handler `POST /api/v1/worktime/active/correct`** in
+- [x] **Step 3: Server — Handler `POST /api/v1/worktime/active/correct`** in
   `worktime_api.go`: Body `{project_id, started_at}`; 404/422-Semantik wie die Nachbarn;
   Route im selben Mount registrieren; `sse.Changed(userID, "worktime")` wie start/stop.
   Router-Test im Stil der bestehenden (`worktime_api`-Tests). Smoke-Script: eine
   `check POST /api/v1/worktime/active/correct 401`-Zeile in `scripts/smoke-r1-routes.sh`
   ergänzen (Abschnitt der active-Routen).
-- [ ] **Step 4: Server — TouchLastUsed beim Start verifizieren/ergänzen**
+- [x] **Step 4: Server — TouchLastUsed beim Start verifizieren/ergänzen**
 
 ```bash
 rg -n "TouchLastUsed" internal/adapter/httpserver/ internal/adapter/pgstore/
@@ -800,13 +800,13 @@ Wenn der Start-Handler (`handleActiveStart`) es NICHT ruft: nach erfolgreichem S
 `_ = deps.Projects.TouchLastUsed(userID, projectID)` ergänzen (Fehler nur loggen) + Test,
 dass `last_used_at` nach Start gesetzt ist. Wenn es schon da ist: Checkbox abhaken + Notiz.
 
-- [ ] **Step 5: Client — `machine.go`**: POSTs auf `/worktime/active/{start,stop,pause,resume,correct}`
+- [x] **Step 5: Client — `machine.go`**: POSTs auf `/worktime/active/{start,stop,pause,resume,correct}`
   mit `projectIDBody`/correct-Body; Mapping 409 ⇒ `ports.ErrActiveSessionConflict`,
   404 ⇒ `ports.ErrActiveSessionNotFound`; Start sendet tag/note; Stop liefert die
   geschriebene `domain.Session` zurück; jeder Erfolg invalidiert Active- + Sessions-Cache.
   Contract-Tests: Start→Pause→Resume→Stop-Roundtrip, Doppel-Start ⇒ Conflict,
   Stop-ohne-Start ⇒ NotFound, CorrectStart verschiebt.
-- [ ] **Step 6: Build + ALLE Server-Tests + Commit**
+- [x] **Step 6: Build + ALLE Server-Tests + Commit**
 
 ```bash
 go build ./... && go test ./internal/adapter/pgstore/ ./internal/adapter/httpserver/ ./internal/adapter/httpapi/ -count=1 2>&1 | tail -3
@@ -821,16 +821,16 @@ Commit: `feat(api,httpapi): WorktimeMachine — Statemachine-Port + active/corre
 **Files:**
 - Create: `internal/adapter/httpapi/documents.go` (+Test)
 
-- [ ] **Step 1:** `ports.DocumentStore`-Implementierung: Get ⇒ GET `/documents/{path}`;
+- [x] **Step 1:** `ports.DocumentStore`-Implementierung: Get ⇒ GET `/documents/{path}`;
   GetByRepoKey ⇒ GET `/repos/{url.PathEscape(key)}/note`; List ⇒ GET `/documents?prefix=&q=&limit=`;
   Put ⇒ repoKey == "" ? PUT `/documents/{path}` : PUT `/repos/{key}/note` (Body `{"body": …}`,
   If-Match); Delete ⇒ DELETE `/documents/{path}` + If-Match aus vorherigem Get (Server
   verlangt If-Match auf documents-DELETE — prüfen via `rg -n "ifMatchVersion" internal/adapter/httpserver/documents_api.go`;
   wenn DELETE keinen If-Match prüft, ohne Header senden + Notiz). Mapping 404/412 auf die
   ports-Sentinels. UpdatedAt-Strings mit `time.RFC3339` parsen.
-- [ ] **Step 2:** Contract-Tests: Put-create(If-Match 0)→Get→Put-update→412-stale→List(q)→Delete;
+- [x] **Step 2:** Contract-Tests: Put-create(If-Match 0)→Get→Put-update→412-stale→List(q)→Delete;
   RepoKey-Alias-Roundtrip.
-- [ ] **Step 3: Commit** (`feat(httpapi): DocumentStore-Adapter inkl. Repo-Note-Alias (R2a)`)
+- [x] **Step 3: Commit** (`feat(httpapi): DocumentStore-Adapter inkl. Repo-Note-Alias (R2a)`)
 
 ---
 
@@ -839,7 +839,7 @@ Commit: `feat(api,httpapi): WorktimeMachine — Statemachine-Port + active/corre
 **Files:**
 - Create: `internal/adapter/httpapi/events.go` (+ `events_test.go`)
 
-- [ ] **Step 1: `events.go`**
+- [x] **Step 1: `events.go`**
 
 ```go
 package httpapi
@@ -983,11 +983,11 @@ func (e *Events) stream(ctx context.Context) error {
 }
 ```
 
-- [ ] **Step 2: Test** — httptest-Handler, der einen SSE-Stream schreibt (`: connected`,
+- [x] **Step 2: Test** — httptest-Handler, der einen SSE-Stream schreibt (`: connected`,
   dann `event: changed\ndata: {"resource":"worktime"}\n\n`, dann Verbindung schließt):
   asserten, dass invalidate("worktime") gerufen und Changed gefeuert hat; zweiter Test:
   Reconnect nach Close (zweiter Connect am Test-Handler zählt Connects ≥ 2).
-- [ ] **Step 3: Commit** (`feat(httpapi): SSE-Events-Client — Invalidierung + Reconnect + Fallback-Poll (R2a)`)
+- [x] **Step 3: Commit** (`feat(httpapi): SSE-Events-Client — Invalidierung + Reconnect + Fallback-Poll (R2a)`)
 
 ---
 
@@ -996,7 +996,7 @@ func (e *Events) stream(ctx context.Context) error {
 **Files:**
 - Modify: `internal/usecase/active_sessions.go` (+Tests), `internal/usecase/worktime_reader.go` (+Tests), `internal/usecase/identity.go` (+Tests)
 
-- [ ] **Step 1: Ist-Stand kartieren**
+- [x] **Step 1: Ist-Stand kartieren**
 
 ```bash
 rg -n "func \(.*ActiveSessions\)" internal/usecase/active_sessions.go
@@ -1005,23 +1005,23 @@ rg -n "GetActive|flockstate|PauseStore|SetPushSignal|pushSignal" internal/usecas
 
 Notiere die Treffer unter diesem Step.
 
-- [ ] **Step 2: `usecase.ActiveSessions`** bekommt das Feld `Machine ports.WorktimeMachine`.
+- [x] **Step 2: `usecase.ActiveSessions`** bekommt das Feld `Machine ports.WorktimeMachine`.
   `Start/Stop/Pause/Resume/CorrectStart` delegieren an die Machine (lokale
   Statemachine-Logik + Store-Upserts + `SetPushSignal`-Hook ENTFERNEN); List bleibt auf
   `ports.ActiveSessionStore`. Methodensignaturen nach außen UNVERÄNDERT lassen (Aufrufer:
   TUI today_actions/picker, CLI worktime.go, MCP) — nur Innenleben tauschen. Wo heute beim
   Stop die Session lokal geschrieben wird: entfällt — `Machine.Stop` liefert die
   Server-Session; Rückgabewerte beibehalten. Pause/Resume: Marker-Logik raus.
-- [ ] **Step 3: `worktime_reader.go:64`** — `GetActive()`-Aufruf (flockstate) ersetzen durch
+- [x] **Step 3: `worktime_reader.go:64`** — `GetActive()`-Aufruf (flockstate) ersetzen durch
   `ActiveSessionStore.ListByUser(userID)`-basierte Ermittlung (running = Eintrag mit
   `PausedAt == nil`; Elapsed über die domain.ActiveSession-Methode aus R1). Tests anpassen
   (Fakes statt flockstate).
-- [ ] **Step 4: `identity.go`** — `localSub`-Feld, `ResolveActiveUser`-local-Fallback und
+- [x] **Step 4: `identity.go`** — `localSub`-Feld, `ResolveActiveUser`-local-Fallback und
   `AdoptLocalDataIfFirstLogin` LÖSCHEN. Übrig bleibt eine schlanke Identität:
   Token-Claims → User via `httpapi.Identity.Me`. Wer `ResolveActiveUser` ruft
   (`rg -n "ResolveActiveUser" --type go`), bekommt die neue Signatur; ohne Token ⇒
   `ports.ErrTokenNotFound` durchreichen (UI/CLI zeigen Login-Hinweis, Task 8/9).
-- [ ] **Step 5: Unit-Tests grün + Commit**
+- [x] **Step 5: Unit-Tests grün + Commit**
 
 ```bash
 go test ./internal/usecase/ -count=1 2>&1 | tail -2
@@ -1038,7 +1038,7 @@ Commit: `refactor(usecase): ActiveSessions auf WorktimeMachine, Identity ohne lo
 - Modify: `internal/frontend/tui/screen/worktime/{model.go,today_actions.go,today_project_picker.go}`, `internal/frontend/tui/sidekick/model.go`
 - Delete: `internal/frontend/tui/screen/worktime/conflicts.go`, `conflicts_test.go`, `internal/frontend/tui/components/conflict_overlay/` (komplett), `internal/frontend/cli/brief_conflict_test.go`
 
-- [ ] **Step 1: `connstate.go`** — pure Render-Funktion im statusbar-Stil
+- [x] **Step 1: `connstate.go`** — pure Render-Funktion im statusbar-Stil
   (`Hints`-Vorbild, `hints.go:10`):
 
 ```go
@@ -1112,7 +1112,7 @@ var _ = time.Now // silence bei Format-only-Nutzung, entfernen wenn unnötig
 Test: Tabelle über alle fünf Zustände, asserten dass Glyph + Kerntext enthalten sind
 (`x/exp/teatest`-frei, reiner String-Test mit fest verdrahteter Palette).
 
-- [ ] **Step 2: Worktime-Deps + Model** — in `screen/worktime/model.go`:
+- [x] **Step 2: Worktime-Deps + Model** — in `screen/worktime/model.go`:
   Deps-Felder `Conflicts <-chan ports.ConflictMsg` und `PullDone <-chan struct{}` ersetzen
   durch `Changed <-chan struct{}` und `Status func() httpapi.StatusSnapshot`;
   conflictOverlay-Feld + Import + alle Branches (Zeilen lt. Lösch-Checkliste: 18, 163, 214,
@@ -1123,16 +1123,16 @@ Test: Tabelle über alle fünf Zustände, asserten dass Glyph + Kerntext enthalt
   bestehende Reload-Logik von `pullDoneMsg` (model.go:366) übernehmen. View: Statuszeile
   über `statusbar.ConnState(deps.Status(), pal)` ans Footer-Ende der Host-View hängen —
   NUR wenn State != Online (still wenn ok) sonst der ●-Kurzform.
-- [ ] **Step 3: `today_actions.go` + Picker** — Legacy-Zweige (SessionWriter.Start/Stop/Pause
+- [x] **Step 3: `today_actions.go` + Picker** — Legacy-Zweige (SessionWriter.Start/Stop/Pause
   via flockstate, `sw.State.SetPause`) LÖSCHEN; alle Pfade laufen über
   `deps.ActiveSessions` (der jetzt die Machine nutzt). `pauseCmd` ⇒ `ActiveSessions.Pause`,
   Resume analog. Fehlerpfade: `httpapi.ErrLoggedOut` ⇒ Statusmeldung „flow login",
   `ErrUnavailable` ⇒ „offline — Write nicht möglich" (bestehender Fehleranzeige-Mechanismus
   der Screens, `rg -n "errMsg|setError" internal/frontend/tui/screen/worktime/ | head`).
-- [ ] **Step 4: Sidekick** — `sidekick/model.go`: Statuszeile in der Root-View (unter den
+- [x] **Step 4: Sidekick** — `sidekick/model.go`: Statuszeile in der Root-View (unter den
   Hints, `model.go:441`-Bereich) aus einem neuen Deps-Feld `Status func() httpapi.StatusSnapshot`
   + `Changed`-Listener für Re-Render.
-- [ ] **Step 5: Löschen + Bauen** — conflicts.go/-_test.go, conflict_overlay/, brief_conflict_test.go
+- [x] **Step 5: Löschen + Bauen** — conflicts.go/-_test.go, conflict_overlay/, brief_conflict_test.go
   löschen; `go build ./...`; TUI-Tests:
 
 ```bash
@@ -1143,7 +1143,7 @@ while [ ! -f t.status ]; do sleep 5; done; cat t.status; tail -5 t.log; rm -f t.
 
 Expected: `0`.
 
-- [ ] **Step 6: Commit** (`feat(tui): Statuszeile + Changed-Reload; Konflikt-UI + Legacy-Pfade raus (R2a)`)
+- [x] **Step 6: Commit** (`feat(tui): Statuszeile + Changed-Reload; Konflikt-UI + Legacy-Pfade raus (R2a)`)
 
 ---
 
@@ -1153,18 +1153,18 @@ Expected: `0`.
 - Modify: `internal/frontend/cli/worktime.go`, `cmd/flow/login.go`, `cmd/flow/whoami.go`
 - Delete: `internal/frontend/cli/sync.go` (+ zugehörige Tests, `rg -l "SyncStatus|sync_test" internal/frontend/cli/`)
 
-- [ ] **Step 1:** `flow sync*` entfernen: Datei + Registrierung in main.go
+- [x] **Step 1:** `flow sync*` entfernen: Datei + Registrierung in main.go
   (`rg -n "sync" cmd/flow/main.go`) + `usecase/sync_status.go` bleibt bis Task 12 (Compile-Kette).
-- [ ] **Step 2:** `worktime.go`: Legacy-Fallback-Zweige (`SessionWriter.Start/StartForce/Stop`,
+- [x] **Step 2:** `worktime.go`: Legacy-Fallback-Zweige (`SessionWriter.Start/StartForce/Stop`,
   flockstate-Branches Zeilen ~552/643) löschen — ohne Server keine Writes; Fehlertexte:
   `ErrLoggedOut` ⇒ „Nicht angemeldet — `flow login`", `ErrUnavailable` ⇒
   „Server nicht erreichbar — read-only (Stand HH:MM)". `flow worktime status` ergänzt die
   ConnState-Zeile (gleicher Renderer) unter der Ausgabe wenn State != Online.
-- [ ] **Step 3:** `login.go`: `tryAdoptLocalProfile` + `LocalSub`-Felder + Aufruf (Zeile 78)
+- [x] **Step 3:** `login.go`: `tryAdoptLocalProfile` + `LocalSub`-Felder + Aufruf (Zeile 78)
   löschen; nach erfolgreichem Login: `httpapi.Identity.Me` einmal rufen und Begrüßung
   ausgeben („eingeloggt als <name>"). `whoami.go`: auf `httpapi`-Client umstellen
   (gleiche Ausgabe, weniger Handarbeit).
-- [ ] **Step 4:** Build + CLI-Tests (tmux-Muster wie Task 8 Step 5) + Commit
+- [x] **Step 4:** Build + CLI-Tests (tmux-Muster wie Task 8 Step 5) + Commit
   (`refactor(cli): Login-first — sync-Verben raus, Adoption raus, Status-Hinweise (R2a)`)
 
 ---
@@ -1174,7 +1174,7 @@ Expected: `0`.
 **Files:**
 - Modify: `cmd/flow-mcp/main.go`, ggf. `internal/usecase/mcp_tools.go`
 
-- [ ] **Step 1:** Wiring ersetzen: sqliteclient/httpsync/Worker raus; rein:
+- [x] **Step 1:** Wiring ersetzen: sqliteclient/httpsync/Worker raus; rein:
   `httpapi.New` (ohne Refresher wie bisher — Kommentar lassen), `httpapi.NewDocuments`,
   `httpapi.NewActiveSessions` + `httpapi.NewMachine`, `httpapi.NewProjects`,
   `httpapi.NewSessions`, Identity. `usecase.MCPTools`-Konstruktion auf die neuen Stores
@@ -1185,10 +1185,10 @@ Expected: `0`.
   `flow_list_repo_notes` ⇒ `DocumentStore.List` mit `prefix="repos/"`.
   Boot ohne Token: unverändert „Login required: run `flow login`" (Stelle:
   `rg -n "Login required" cmd/flow-mcp/`).
-- [ ] **Step 2:** `make build`-Äquivalent für mcp (`go build ./cmd/flow-mcp/`) + bestehende
+- [x] **Step 2:** `make build`-Äquivalent für mcp (`go build ./cmd/flow-mcp/`) + bestehende
   mcp-Tests (`go test ./cmd/flow-mcp/... ./internal/usecase/ -run MCP -count=1`) grün;
   wo Tests sqliteclient-Fixtures bauten: auf httpapi-Teststack bzw. Port-Fakes umziehen.
-- [ ] **Step 3: Commit** (`refactor(mcp): flow-mcp auf httpapi — gleiche 7 Tools, Server-Wahrheit (R2a)`)
+- [x] **Step 3: Commit** (`refactor(mcp): flow-mcp auf httpapi — gleiche 7 Tools, Server-Wahrheit (R2a)`)
 
 ---
 
@@ -1197,7 +1197,7 @@ Expected: `0`.
 **Files:**
 - Modify: `cmd/flow/main.go`, `Makefile`
 
-- [ ] **Step 1:** `buildDeps` umbauen:
+- [x] **Step 1:** `buildDeps` umbauen:
   - RAUS: sqliteclient.Open + alle 8 Sub-Adapter, httpsync.{NewClient,NewQueue,NewWorker} +
     Start/Stop-Verkabelung (cleanup-Closure!), flockstate.NewLock/NewState, localSub/localUser,
     `FLOW_CACHE_DB`/`FLOW_LOCAL_USER_SUB`-Env-Reads.
@@ -1212,9 +1212,9 @@ Expected: `0`.
     Login-Hinweis — Reads liefern ErrLoggedOut).
   - dayoffstsv: Konstruktion NUR noch dort, wo `dayoff sync`/Migration sie als Quelle
     braucht (`rg -n "dayoffstsv" cmd/ internal/frontend/cli/`) — DayOffStore-Port zeigt auf httpapi.
-- [ ] **Step 2:** Makefile: ldflags `-X main.version=$(VERSION)` analog flow-server-Eintrag
+- [x] **Step 2:** Makefile: ldflags `-X main.version=$(VERSION)` analog flow-server-Eintrag
   (Makefile:116) für `cmd/flow` und `cmd/flow-mcp` ergänzen (`rg -n "ldflags" Makefile`).
-- [ ] **Step 3:** `go build ./... && go vet ./...` grün; `./bin/flow --help` läuft (Build via
+- [x] **Step 3:** `go build ./... && go vet ./...` grün; `./bin/flow --help` läuft (Build via
   bestehendes make-Target, `rg -n "^build" Makefile`). Commit
   (`feat(flow): Composition Root auf httpapi — Server-only-Client (R2a)`)
 
@@ -1226,7 +1226,7 @@ Expected: `0`.
 - Delete: `internal/adapter/httpsync/`, `internal/adapter/sqliteclient/`, `internal/adapter/flockstate/`, `internal/usecase/sync_status.go` (+Tests), `internal/ports/sync.go`
 - Modify: `internal/ports/sessions.go` (LegacyActiveStore + Lock raus), `internal/ports/pause.go` (Datei löschen wenn PauseStore der einzige Inhalt ist), Konsumenten-Reste
 
-- [ ] **Step 1:** Pakete löschen (`git rm -r`), dann Compile-Kette abarbeiten:
+- [x] **Step 1:** Pakete löschen (`git rm -r`), dann Compile-Kette abarbeiten:
 
 ```bash
 go build ./... 2>&1 | head -30
@@ -1236,19 +1236,19 @@ Jeden Fehler einzeln fixen — erwartete Reste: Imports in Tests, `ports.Conflic
 (conflicts-Reste), `WriteQueue`-Referenzen in usecase-Tests. Lösch-Checkliste aus der
 Inventur abgleichen: `rg -n "httpsync|sqliteclient|flockstate|WriteQueue|SyncWatermark|ConflictMsg|LegacyActiveStore|PauseStore|FLOW_CACHE_DB|FLOW_LOCAL_USER_SUB" --type go | rg -v "_test.go:.*//"` — am Ende NULL Treffer außerhalb von docs/.
 
-- [ ] **Step 2:** Betroffene Tests: löschen wenn sie GELÖSCHTES Verhalten testeten, umziehen
+- [x] **Step 2:** Betroffene Tests: löschen wenn sie GELÖSCHTES Verhalten testeten, umziehen
   auf Fakes/httpapi wenn sie BLEIBENDES Verhalten testeten (Entscheidung je Datei als
   Abweichungsnotiz, wenn unklar).
-- [ ] **Step 3:** `go build ./... && go vet ./...` + voller Testlauf (tmux-Muster). Commit
+- [x] **Step 3:** `go build ./... && go vet ./...` + voller Testlauf (tmux-Muster). Commit
   (`refactor(client)!: Sync-Stack gelöscht — httpsync, sqliteclient, flockstate, Konflikt-Ports (R2a)`)
 
 ---
 
 ### Task 13: Coverage-Gate neu vermessen
 
-- [ ] **Step 1:** `make ci` (tmux-Muster); aus `ci.log` die Gesamt-Coverage ablesen.
-- [ ] **Step 2:** Gate in der CI-Konfiguration (`rg -n "73|coverage" Makefile .github/ ci/ 2>/dev/null | rg -i "threshold|gate|cover"`) ehrlich auf gemessenen Wert −2 pp setzen (Spec §14), Begründung als Kommentar.
-- [ ] **Step 3:** Commit (`ci: Coverage-Gate nach R2a-Löschungen neu vermessen (R2a)`)
+- [x] **Step 1:** `make ci` (tmux-Muster); aus `ci.log` die Gesamt-Coverage ablesen.
+- [x] **Step 2:** Gate in der CI-Konfiguration (`rg -n "73|coverage" Makefile .github/ ci/ 2>/dev/null | rg -i "threshold|gate|cover"`) ehrlich auf gemessenen Wert −2 pp setzen (Spec §14), Begründung als Kommentar.
+- [x] **Step 3:** Commit (`ci: Coverage-Gate nach R2a-Löschungen neu vermessen (R2a)`)
 
 ---
 
@@ -1258,7 +1258,7 @@ Inventur abgleichen: `rg -n "httpsync|sqliteclient|flockstate|WriteQueue|SyncWat
 - Create: `scripts/smoke-r2a-client.sh`
 - Modify: diese Plan-Datei (Protokoll)
 
-- [ ] **Step 1: Constructor-Audit** — jede in Task 1–6 neue Konstruktor-Funktion wird in
+- [x] **Step 1: Constructor-Audit** — jede in Task 1–6 neue Konstruktor-Funktion wird in
   `cmd/flow/main.go` ODER `cmd/flow-mcp/main.go` gerufen:
 
 ```bash
@@ -1270,15 +1270,15 @@ done
 Expected: keine Ausgabe. (Namen vorher gegen die tatsächlich angelegten Konstruktoren
 prüfen, Liste ggf. korrigieren.)
 
-- [ ] **Step 2: Client-Smoke-Script** `scripts/smoke-r2a-client.sh` (Muster von
+- [x] **Step 2: Client-Smoke-Script** `scripts/smoke-r2a-client.sh` (Muster von
   `smoke-r1-routes.sh`): startet PG + dex + flow-server wie der R1-Smoke, baut `./bin/flow`,
   dann OHNE Login: `FLOW_SERVER_URL=http://localhost:8080 ./bin/flow worktime status` ⇒
   Output enthält „nicht angemeldet" und Exit-Code 0 (Status ist read-only-Anzeige);
   `…/flow worktime start -p x` ⇒ Exit ≠ 0 + „flow login"-Hinweis; OHNE FLOW_SERVER_URL:
   Output enthält „kein Server". Script mit `set -euo pipefail` + trap-Cleanup.
-- [ ] **Step 3:** Smoke laufen lassen (`./scripts/smoke-r2a-client.sh; echo EXIT=$?`) ⇒ EXIT=0.
-- [ ] **Step 4:** Finale `make ci` (tmux-Muster) ⇒ `0`; `git status --short` clean.
-- [ ] **Step 5:** Buchhaltung: alle Checkboxen dieses Plans gepflegt, Abweichungs-Protokoll
+- [x] **Step 3:** Smoke laufen lassen (`./scripts/smoke-r2a-client.sh; echo EXIT=$?`) ⇒ EXIT=0.
+- [x] **Step 4:** Finale `make ci` (tmux-Muster) ⇒ `0`; `git status --short` clean.
+- [x] **Step 5:** Buchhaltung: alle Checkboxen dieses Plans gepflegt, Abweichungs-Protokoll
   gefüllt; Commit (`docs(plan): R2a abgeschlossen — Smoke + Buchhaltung`). NICHT pushen.
 
 > **Hinweis:** Das Dogfood-Gate (§14) kommt NACH R2b — R2a alleine lässt das
