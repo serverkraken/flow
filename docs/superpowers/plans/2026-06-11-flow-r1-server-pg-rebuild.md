@@ -3123,7 +3123,7 @@ EOF
 - Create: `internal/adapter/httpserver/documents_api.go`
 - Create: `internal/adapter/httpserver/documents_api_test.go`
 
-- [ ] **Step 1: Failing Tests**
+- [x] **Step 1: Failing Tests**
 
 ```go
 // internal/adapter/httpserver/documents_api_test.go
@@ -3257,7 +3257,7 @@ func TestDocumentsAPI_RepoNoteAlias(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Test — Compile-FAIL erwartet**
+- [x] **Step 2: Test — Compile-FAIL erwartet**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestDocumentsAPI -timeout 300s 2>&1 | tail -3
@@ -3265,7 +3265,7 @@ go test ./internal/adapter/httpserver/ -run TestDocumentsAPI -timeout 300s 2>&1 
 
 Expected: `undefined: MountDocumentsAPI`.
 
-- [ ] **Step 3: Implementierung**
+- [x] **Step 3: Implementierung**
 
 ```go
 // internal/adapter/httpserver/documents_api.go
@@ -3469,7 +3469,7 @@ func (d DocumentsAPIDeps) putDocument(w http.ResponseWriter, r *http.Request, pa
 }
 ```
 
-- [ ] **Step 4: Tests grün**
+- [x] **Step 4: Tests grün**
 
 ```bash
 go test ./internal/adapter/httpserver/ -run TestDocumentsAPI -v -timeout 300s 2>&1 | tail -8
@@ -3477,7 +3477,7 @@ go test ./internal/adapter/httpserver/ -run TestDocumentsAPI -v -timeout 300s 2>
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 gofumpt -w internal/adapter/httpserver/
