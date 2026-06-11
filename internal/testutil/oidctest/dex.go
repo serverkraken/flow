@@ -5,10 +5,13 @@ import (
 	_ "embed"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -85,8 +88,15 @@ func StartDex(t *testing.T, opts ...Option) *Instance {
 
 	req := testcontainers.ContainerRequest{
 		Image:        "ghcr.io/dexidp/dex:v2.41.1",
-		ExposedPorts: []string{fmt.Sprintf("%d:5556/tcp", hostPort)},
-		Cmd:          []string{"dex", "serve", "/etc/dex/config.yaml"},
+		ExposedPorts: []string{"5556/tcp"},
+		HostConfigModifier: func(hc *container.HostConfig) {
+			hc.PortBindings = network.PortMap{
+				network.MustParsePort("5556/tcp"): []network.PortBinding{
+					{HostIP: netip.MustParseAddr("127.0.0.1"), HostPort: fmt.Sprintf("%d", hostPort)},
+				},
+			}
+		},
+		Cmd: []string{"dex", "serve", "/etc/dex/config.yaml"},
 		WaitingFor: wait.ForHTTP("/.well-known/openid-configuration").
 			WithPort("5556/tcp").
 			WithStartupTimeout(30 * time.Second),
