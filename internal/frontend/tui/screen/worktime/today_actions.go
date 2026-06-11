@@ -101,20 +101,17 @@ func (h heute) pauseCmd() tea.Cmd {
 	now := h.deps.Clock.Now()
 	mut := func() tea.Msg {
 		// New path: when ActiveSessions + UserID are wired and a session is
-		// running, stop the ActiveSessions row and then set the legacy pause
-		// marker so the Heute screen shows "in Pause". Falls through to the
-		// legacy SessionWriter.Pause() path when not wired.
+		// running, stop the ActiveSessions row. Falls through to the legacy
+		// SessionWriter.Pause() path when not wired.
 		if h.deps.ActiveSessions != nil && h.deps.UserID != "" && len(h.activeSessions) > 0 {
 			target := h.activeSessions[0]
 			sess, err := h.deps.ActiveSessions.Stop(h.deps.UserID, target.ProjectID, "", "")
 			if errors.Is(err, ports.ErrActiveSessionNotFound) {
-				_ = sw.State.SetPause(now)
 				return heuteActionDoneMsg{toast: "Pausiert — Session war bereits gestoppt", info: true}
 			}
 			if err != nil {
 				return heuteActionDoneMsg{err: err}
 			}
-			_ = sw.State.SetPause(now)
 			return heuteActionDoneMsg{
 				toast: fmt.Sprintf("%s Pausiert nach %dh %02dm", glyphs.Paused, int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60),
 			}

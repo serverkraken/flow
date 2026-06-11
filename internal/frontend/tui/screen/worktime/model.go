@@ -15,8 +15,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/serverkraken/flow/internal/frontend/tui/components/conflict_overlay"
+	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
@@ -92,26 +93,17 @@ type Deps struct {
 	ActiveSessions *usecase.ActiveSessions
 	UserID         string
 
-	// — sync-conflict deps (Task 31) —
-	//
-	// Conflicts receives sync conflicts from the httpsync.Worker. Nil-tolerant:
-	// when nil, no listener goroutine is spawned and conflict overlays never
-	// fire. Wire in Task 32 via SidekickDeps.
-	Conflicts <-chan ports.ConflictMsg
-	// Sync exposes operator controls for conflict resolution (AcceptServerVersion /
-	// OverwriteServerVersion). Nil in M2 mode — Task 33 wires a real
-	// implementation. When nil, [s]/[l] in the sessions-conflict overlay emit a
-	// toast "(Sync-Aktion in Task 33 verdrahtet)" and close the overlay without
-	// making any state change.
-	Sync ports.SyncController
-
-	// PullDone is the httpsync.Worker.PullDone() channel. When non-nil the
-	// worktime root arms a listener Cmd that blocks until a signal arrives and
-	// then broadcasts ChangedMsg{} to all sub-tabs — so cross-device data is
-	// visible within one pull cycle + event-loop latency instead of up to 10 s.
+	// Changed is the httpapi.Status.Changed() channel. When non-nil the worktime
+	// root arms a listener Cmd that blocks until a signal arrives and then
+	// broadcasts ChangedMsg{} to all sub-tabs — so cross-device data is visible
+	// within one pull cycle + event-loop latency instead of up to 10 s.
 	// Nil-tolerant: when nil, no listener is spawned and the behaviour degrades
 	// to the previous tick-only reload cadence.
-	PullDone <-chan struct{}
+	Changed <-chan struct{}
+
+	// Status returns the current server connection snapshot for the status bar
+	// (Spec §8). When nil, no status bar is shown. Wire via httpapi.Client.StatusOf().Snapshot.
+	Status func() httpapi.StatusSnapshot
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -155,15 +147,6 @@ type Model struct {
 	// Bei nil läuft der reguläre Tab-Body; sonst übernimmt brief
 	// Input + Render bis ein ExitMsg vom Overlay zurückkommt.
 	brief *markdown_overlay.Model
-
-	// conflictOverlay — optionaler Fullscreen-Overlay für Sync-Konflikte
-	// (sessions 409 / active_sessions race). Gesetzt von conflictReceivedMsg,
-	// gelöscht wenn der User eine Auflösung wählt oder Esc drückt. Geht über
-	// brief und regulären Tab-Body, weil Konflikte jederzeit feuern können.
-	conflictOverlay *conflict_overlay.Model
-	// currentConflict merkt sich die ConflictMsg die den Overlay ausgelöst
-	// hat — für die Auflösungs-Handler (AcceptServerVersion / ForceTakeover).
-	currentConflict ports.ConflictMsg
 }
 
 // New constructs the worktime root model with the four sub-models
@@ -207,13 +190,10 @@ func (m Model) WithState(filter string, cursor int) tea.Model {
 }
 
 // FilterActive returns whether either the action menu, the brief overlay,
-// the conflict overlay, or the active sub-model is currently consuming input.
+// or the active sub-model is currently consuming input.
 // The Worktime root, sidekick parent, and tab-switching keys all check this
 // before claiming letter keys back.
 func (m Model) FilterActive() bool {
-	if m.conflictOverlay != nil {
-		return true
-	}
 	if m.brief != nil {
 		return true
 	}
@@ -309,13 +289,10 @@ func (m Model) ConsumesKeys() []string {
 }
 
 // Init starts every sub-model concurrently, schedules the first tick, and
-// arms the conflict-channel listener when Deps.Conflicts is non-nil.
+// arms the Changed-channel listener when Deps.Changed is non-nil.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.scheduleTick()}
-	if cmd := listenForConflicts(m.deps.Conflicts); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-	if cmd := listenForPullDone(m.deps.PullDone); cmd != nil {
+	if cmd := listenForChanged(m.deps.Changed); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 	for _, s := range m.subs {
@@ -357,18 +334,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.subs[m.current] = updated
 		return m, cmd
 
-	case conflictReceivedMsg,
-		conflictResolveServerMsg,
-		conflictResolveLocalMsg,
-		conflictTakeoverMsg,
-		conflictParallelMsg,
-		conflict_overlay.CancelMsg,
-		pullDoneMsg:
-		// Sync messages — delegate to handleSyncMsg so Update stays within
-		// the gocognit/gocyclo budget. pullDoneMsg is grouped here because
-		// it also originates from the sync worker and follows the same
-		// delegation pattern.
-		return m.handleSyncMsg(msg)
+	case changedMsg:
+		// httpapi.Status.Changed() signal: a server-side change was detected
+		// (SSE event or poll). Broadcast ChangedMsg{} to all sub-tabs so each
+		// can reload, then re-arm the listener for the next signal.
+		return m.handleChangedMsg()
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -376,10 +346,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.brief != nil {
 			bv := m.brief.SetSize(msg.Width, msg.Height)
 			m.brief = &bv
-		}
-		if m.conflictOverlay != nil {
-			ov := m.conflictOverlay.SetSize(msg.Width, msg.Height)
-			m.conflictOverlay = &ov
 		}
 		var cmds []tea.Cmd
 		for i, s := range m.subs {
@@ -460,15 +426,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // Split off Update to keep cyclomatic complexity inside the project
 // budget.
 func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// Conflict-Overlay claimt alle Tasten zuerst — ein Sync-Konflikt muss
-	// aufgelöst werden bevor der User weitermachen kann. Die Auflösungs-Msgs
-	// kommen als tea.Cmd zurück und landen im Top-Level Update-Switch.
-	if m.conflictOverlay != nil {
-		next, cmd := m.conflictOverlay.Update(msg)
-		m.conflictOverlay = &next
-		return m, cmd
-	}
-
 	// Brief-Overlay claimt alle Tasten zuerst. q im Overlay schließt
 	// den Overlay (kein Quit) — der User würde sonst aus Versehen den
 	// ganzen Sidekick verlieren, nur weil er den Brief schließen will.
@@ -544,12 +501,6 @@ func (m Model) viewContent() string {
 	if m.width == 0 {
 		return ""
 	}
-	// Conflict-Overlay hat höchste Priorität — ein ungelöster Sync-Konflikt
-	// ersetzt das komplette Worktime-Outer (kein Tab-Strip, keine titlebox).
-	// Der Overlay bringt seinen eigenen Rahmen mit (conflict_overlay.View).
-	if m.conflictOverlay != nil {
-		return m.conflictOverlay.View()
-	}
 	// Brief-Overlay ersetzt das Worktime-Outer komplett — kein Tab-
 	// Strip, keine titlebox-Umhüllung außenrum. Der Overlay bringt
 	// seine eigene Box + Footer + StatusBar mit (markdown_overlay).
@@ -575,12 +526,21 @@ func (m Model) viewContent() string {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}
 	}
+	// Status bar: shown below the titlebox when the server is not online.
+	// Still (●) when OK; loud (○/▲) when degraded — A11y: glyph + color.
+	connLine := ""
+	if m.deps.Status != nil {
+		snap := m.deps.Status()
+		if snap.State != httpapi.StateOnline {
+			connLine = "\n" + statusbar.ConnState(snap, m.pal)
+		}
+	}
 	// Tab-Strip als titlebox-title — alle 4 sub-tabs sichtbar, aktiver
 	// unterstrichen + bold + Accent. Die Phase-10-Variante mit nur dem
 	// aktiven Tab-Namen (PR #44 v1) verlor den Hinweis welche anderen
 	// Tabs es überhaupt gibt; Strip im Title liefert beides: aktive
 	// Position UND Navigations-Affordanz.
-	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
+	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal) + connLine
 }
 
 // tabStrip renders the four-tab navigation as the titlebox title.
@@ -730,4 +690,44 @@ func (m Model) textInputActive() bool {
 		return ti.TextInputActive()
 	}
 	return false
+}
+
+// changedMsg is emitted by listenForChanged when the httpapi.Status.Changed()
+// channel signals that server-side data has changed (SSE event or poll cycle).
+type changedMsg struct{}
+
+// listenForChanged returns a tea.Cmd that blocks until one signal arrives on ch
+// (httpapi.Status.Changed()), then emits a changedMsg. Returns nil when ch is
+// nil so no goroutine is leaked when Changed is not wired.
+//
+// The goroutine exits cleanly when the channel is closed on shutdown (the
+// ok==false branch returns nil, which bubbletea discards). The changedMsg
+// handler re-arms the listener so subsequent signals are also caught.
+func listenForChanged(ch <-chan struct{}) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return changedMsg{}
+	}
+}
+
+// handleChangedMsg broadcasts a global ChangedMsg{} (zero Date) to every
+// sub-tab so each can reload when cross-device data lands, then re-arms the
+// Changed listener so subsequent signals are also caught.
+func (m Model) handleChangedMsg() (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	for i, s := range m.subs {
+		updated, cmd := s.Update(ChangedMsg{})
+		m.subs[i] = updated
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	cmds = append(cmds, listenForChanged(m.deps.Changed))
+	return m, tea.Batch(cmds...)
 }

@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/help"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
@@ -83,6 +84,15 @@ type Deps struct {
 	Worktime   tea.Model
 	Cheatsheet tea.Model
 	Notes      tea.Model
+
+	// Status returns the current server connection snapshot. When non-nil the
+	// sidekick appends a ConnState line to the help footer when the server is
+	// not online. Nil-tolerant: no status line is rendered when unset.
+	Status func() httpapi.StatusSnapshot
+	// Changed is the httpapi.Status.Changed() channel. When non-nil the sidekick
+	// arms a listener Cmd in Init() that triggers a fan-out ChangedMsg on each signal.
+	// Nil-tolerant: when nil, no listener is spawned.
+	Changed <-chan struct{}
 }
 
 // Model is the root bubbletea model.
@@ -93,6 +103,7 @@ type Model struct {
 	pal      theme.Palette
 	width    int
 	height   int
+	deps     Deps
 }
 
 // New creates the root model with the active screen restored from s.
@@ -118,16 +129,38 @@ func New(p theme.Palette, s domain.FlowState, deps Deps) Model {
 		screens[cur] = sr.WithState(s.Filter, s.Cursor)
 	}
 
-	return Model{screens: screens, current: cur, pal: p}
+	return Model{screens: screens, current: cur, pal: p, deps: deps}
+}
+
+// changedMsg signals that the httpapi.Status.Changed() channel fired.
+type changedMsg struct{}
+
+// listenForSidekickChanged returns a tea.Cmd that blocks until one signal arrives on ch,
+// then emits a changedMsg. Nil-tolerant.
+func listenForSidekickChanged(ch <-chan struct{}) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return changedMsg{}
+	}
 }
 
 // Init starts all four screens concurrently so they load in the background.
+// When Deps.Changed is set, arms a listener that re-arms on each signal.
 func (m Model) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	for _, s := range m.screens {
 		if cmd := s.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	}
+	if cmd := listenForSidekickChanged(m.deps.Changed); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 	return tea.Batch(cmds...)
 }
@@ -143,6 +176,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.fanOutToAll(msg)
+	case changedMsg:
+		// httpapi.Status.Changed() fired: re-arm the listener and fan out to
+		// all screens so they can reload server-side data.
+		next, cmd := m.fanOutToAll(msg)
+		return next, tea.Batch(cmd, listenForSidekickChanged(m.deps.Changed))
 	case palette.SwitchScreenMsg:
 		// In-process screen switch — the palette emits this when a picked
 		// entry's action matches the goto.sh deep-link pattern. No subshell,
@@ -439,6 +477,12 @@ func (m Model) renderHelp() string {
 	// zweite Zeile — die Spalte muss die längste Bindung mit Slack fassen.
 	box := help.Render("Hilfe · Tastenbelegung", sections, 36, m.width, m.pal)
 	footer := statusbar.Hints("beliebige Taste → zurück", m.pal)
+	if m.deps.Status != nil {
+		snap := m.deps.Status()
+		if snap.State != httpapi.StateOnline {
+			footer += " · " + statusbar.ConnState(snap, m.pal)
+		}
+	}
 	return box + "\n" + footer
 }
 

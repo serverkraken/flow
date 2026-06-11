@@ -369,12 +369,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			Projects:       projectsUC,
 			ActiveSessions: activeSessionsUC,
 			UserID:         localUser.ID,
-			// Task 31/32: conflict channel from the sync worker.
-			Conflicts: syncWorker.Conflicts(),
-			// Task 32: sync controller for conflict resolution actions.
-			Sync: syncUC,
-			// P3: pull-done signal — TUI reloads when cross-device data lands.
-			PullDone: syncWorker.PullDone(),
 		})
 	}
 
