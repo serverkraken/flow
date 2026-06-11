@@ -1,4 +1,4 @@
-// internal/webui/handlers/stores.go
+// Package handlers implements the WebUI HTTP handlers.
 //
 // Narrow store interfaces for the WebUI handler Deps. Both server store
 // adapters (sqliteserver until R1's swap, pgstore after) satisfy them

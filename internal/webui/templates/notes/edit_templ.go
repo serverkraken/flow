@@ -8,6 +8,8 @@ package notes
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
+import "fmt"
+
 // EditVM is the /notes/:id/edit view-model. Kompendium notes are
 // file-backed (no OCC version) — the Version field is reserved for
 // Phase 2 when kompendium gains server sync. M7 ships last-write-wins
@@ -23,6 +25,9 @@ type EditVM struct {
 	// Content is the raw markdown body. Empty string is a valid edit
 	// (clearing the note's body); the form post writes it back through.
 	Content string
+	// Version is the If-Match expected version for the documents-backed
+	// save (R1). 0 = create. Rendered as hidden input "version".
+	Version int64
 }
 
 // Edit renders the /notes/:id edit form body. layout.Base() supplies
@@ -110,7 +115,7 @@ func editBreadcrumb(vm EditVM) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 38, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 43, Col: 126}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -152,7 +157,7 @@ func editForm(vm EditVM) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 45, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 50, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -165,7 +170,7 @@ func editForm(vm EditVM) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(string(noteFormAction(vm.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 47, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 52, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -178,22 +183,35 @@ func editForm(vm EditVM) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Content)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 60, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 65, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</textarea><div id=\"cm-editor\" data-testid=\"cm-editor\"></div></div><div style=\"display: flex; gap: 0.5rem;\"><button class=\"btn btn-primary\" type=\"submit\">Speichern</button> <a class=\"btn\" href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</textarea> <input type=\"hidden\" name=\"version\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var9 templ.SafeURL = noteViewHref(vm.ID)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var9)))
+		var templ_7745c5c3_Var9 string
+		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", vm.Version))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/notes/edit.templ`, Line: 66, Col: 76}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">Abbrechen</a></div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><div id=\"cm-editor\" data-testid=\"cm-editor\"></div></div><div style=\"display: flex; gap: 0.5rem;\"><button class=\"btn btn-primary\" type=\"submit\">Speichern</button> <a class=\"btn\" href=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var10 templ.SafeURL = noteViewHref(vm.ID)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var10)))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">Abbrechen</a></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -217,12 +235,12 @@ func editFooter() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var10 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var10 == nil {
-			templ_7745c5c3_Var10 = templ.NopComponent
+		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var11 == nil {
+			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"page-footer-note\"><span>flow · phase 1 · m7 · notes · edit</span> <span>letzter Schreibgewinn (last-write-wins) — Phase 2 ergänzt OCC</span></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"page-footer-note\"><span>flow · phase 1 · m7 · notes · edit</span> <span>letzter Schreibgewinn (last-write-wins) — Phase 2 ergänzt OCC</span></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -252,12 +270,12 @@ func editBootScript() templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var11 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var11 == nil {
-			templ_7745c5c3_Var11 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<script>\n\t\t(function () {\n\t\t\tfunction boot() {\n\t\t\t\tif (window.initNoteEditor) {\n\t\t\t\t\twindow.initNoteEditor(\"cm-editor\", \"cm-content\");\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (document.readyState === \"loading\") {\n\t\t\t\tdocument.addEventListener(\"DOMContentLoaded\", boot);\n\t\t\t} else {\n\t\t\t\tboot();\n\t\t\t}\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<script>\n\t\t(function () {\n\t\t\tfunction boot() {\n\t\t\t\tif (window.initNoteEditor) {\n\t\t\t\t\twindow.initNoteEditor(\"cm-editor\", \"cm-content\");\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (document.readyState === \"loading\") {\n\t\t\t\tdocument.addEventListener(\"DOMContentLoaded\", boot);\n\t\t\t} else {\n\t\t\t\tboot();\n\t\t\t}\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

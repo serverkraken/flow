@@ -1,5 +1,7 @@
 package notes
 
+import "fmt"
+
 // EditVM is the /notes/:id/edit view-model. Kompendium notes are
 // file-backed (no OCC version) — the Version field is reserved for
 // Phase 2 when kompendium gains server sync. M7 ships last-write-wins
@@ -15,6 +17,9 @@ type EditVM struct {
 	// Content is the raw markdown body. Empty string is a valid edit
 	// (clearing the note's body); the form post writes it back through.
 	Content string
+	// Version is the If-Match expected version for the documents-backed
+	// save (R1). 0 = create. Rendered as hidden input "version".
+	Version int64
 }
 
 // Edit renders the /notes/:id edit form body. layout.Base() supplies
@@ -58,6 +63,7 @@ templ editForm(vm EditVM) {
 				spellcheck="false"
 				style="width: 100%; min-height: 24rem; background: var(--color-bg-dark); color: var(--color-fg); border: 0; padding: 0.75rem 1rem; font-family: var(--font-mono); font-size: 0.875rem; resize: vertical;"
 			>{ vm.Content }</textarea>
+			<input type="hidden" name="version" value={ fmt.Sprintf("%d", vm.Version) }/>
 			<div id="cm-editor" data-testid="cm-editor"></div>
 		</div>
 		<div style="display: flex; gap: 0.5rem;">
