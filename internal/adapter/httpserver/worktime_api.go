@@ -447,6 +447,10 @@ func (d WorktimeAPIDeps) handleActiveCorrect(w http.ResponseWriter, r *http.Requ
 		apiError(w, http.StatusUnprocessableEntity, "started_at fehlt")
 		return
 	}
+	if in.StartedAt.After(time.Now().UTC()) {
+		apiError(w, http.StatusUnprocessableEntity, "started_at darf nicht in der Zukunft liegen")
+		return
+	}
 	a, err := d.Active.CorrectStart(user.ID, in.ProjectID, in.StartedAt)
 	if errors.Is(err, ports.ErrActiveSessionNotFound) {
 		apiError(w, http.StatusNotFound, "keine aktive Session für dieses Projekt")
