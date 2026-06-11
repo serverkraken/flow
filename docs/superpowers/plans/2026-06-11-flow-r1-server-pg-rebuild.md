@@ -4223,7 +4223,7 @@ schmale Interfaces ein, die `sqliteserver` (heute) und `pgstore` (ab Task 18) st
 erfüllen. `repos.go` und `note_actions.go` bleiben hier unangetastet (sie werden in
 Task 15/16 ersetzt bzw. in Task 19 gelöscht).
 
-- [ ] **Step 1: Interfaces definieren**
+- [x] **Step 1: Interfaces definieren**
 
 ```go
 // internal/webui/handlers/stores.go
@@ -4276,7 +4276,7 @@ type ProjectsStore interface {
 }
 ```
 
-- [ ] **Step 2: Deps-Structs mechanisch umstellen**
+- [x] **Step 2: Deps-Structs mechanisch umstellen**
 
 In jeder der fünf Dateien die `*sqliteserver.X`-Typen ersetzen — Feldnamen bleiben:
 
@@ -4297,7 +4297,7 @@ func projectNameFor(projects ProjectsStore, userID, projectID string) string {
 Danach in allen fünf Dateien den nun unbenutzten Import
 `"github.com/serverkraken/flow/internal/adapter/sqliteserver"` entfernen.
 
-- [ ] **Step 3: Build + bestehende Tests**
+- [x] **Step 3: Build + bestehende Tests**
 
 ```bash
 go build ./... && go test ./internal/webui/... ./cmd/flow-server/... -timeout 300s 2>&1 | tail -4
@@ -4308,7 +4308,7 @@ Interfaces strukturell erfüllen. Compile-Fehler hier heißen fast immer: eine
 Interface-Signatur weicht vom konkreten Adapter ab — Signatur im Interface an
 `sqliteserver` anpassen (NICHT den Adapter ändern) und als Abweichung notieren.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 gofumpt -w internal/webui/handlers/
