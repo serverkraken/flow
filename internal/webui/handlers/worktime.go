@@ -158,7 +158,6 @@ func todaySpine(d WorktimeDeps, userID string, active *domain.ActiveSession, now
 		AnyActive: active != nil,
 		HourMask:  format.HourMask(today.Sessions, activeStartPtr(active), now),
 		NowHour:   now.Hour(),
-		SyncState: "ok",
 	}, nil
 }
 

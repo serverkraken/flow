@@ -130,7 +130,7 @@ func NewNoteEdit(d NoteActionsDeps) http.Handler {
 			Title:       "Notes · " + vm.Title + " · bearbeiten",
 			CurrentPath: "/notes",
 			UserLabel:   userLabelFromContext(r.Context()),
-			Spine:       layout.SpineState{SyncState: "ok"},
+			Spine:       layout.SpineState{},
 		}
 		if err := layout.Base(meta, notestmpl.Edit(vm)).Render(r.Context(), w); err != nil {
 			slog.Error(
@@ -464,7 +464,7 @@ func renderRepoNoteConflict(
 		Title:       "Repos · " + vm.DisplayName + " · Konflikt",
 		CurrentPath: "/repos",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	httpserver.SyncConflicts.WithLabelValues("repo_notes").Inc()
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

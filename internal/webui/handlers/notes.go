@@ -155,7 +155,7 @@ func renderNotesIndex(w http.ResponseWriter, r *http.Request, d NotesDeps) {
 		Title:       notesTitle(tab),
 		CurrentPath: "/notes",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, notestmpl.Index(vm)).Render(r.Context(), w); err != nil {
 		slog.Error("notes: render index failed", slog.String("error", err.Error()))
@@ -248,7 +248,7 @@ func renderNotesView(w http.ResponseWriter, r *http.Request, d NotesDeps, userID
 		Title:       "Notes · " + vm.Title,
 		CurrentPath: "/notes",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, notestmpl.View(vm)).Render(r.Context(), w); err != nil {
 		slog.Error(
@@ -265,7 +265,7 @@ func renderNotesNotFound(w http.ResponseWriter, r *http.Request, idStr string) {
 		Title:       "Notes · nicht gefunden",
 		CurrentPath: "/notes",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, notestmpl.ViewNotFound(idStr)).Render(r.Context(), w); err != nil {
 		slog.Error("notes: render 404 failed", slog.String("error", err.Error()))

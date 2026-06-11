@@ -19,12 +19,10 @@ import "fmt"
 //	that hour of today, local-time)
 //
 // NowHour     — 0..23, the current local hour (highlighted as `.is-now`)
-// SyncState   — "ok" / "warn" / "idle" — drives the bottom sync dot
 type SpineState struct {
 	AnyActive bool
 	HourMask  [24]int
 	NowHour   int
-	SyncState string
 }
 
 func Spine(s SpineState) templ.Component {
@@ -76,7 +74,7 @@ func Spine(s SpineState) templ.Component {
 				var templ_7745c5c3_Var2 string
 				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%02d:00 (jetzt)", h))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 30, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 28, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 				if templ_7745c5c3_Err != nil {
@@ -94,7 +92,7 @@ func Spine(s SpineState) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%02d:00", h))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 32, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 30, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -112,7 +110,7 @@ func Spine(s SpineState) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%02d:00 (jetzt)", h))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 34, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 32, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -130,7 +128,7 @@ func Spine(s SpineState) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%02d:00", h))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 36, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/webui/templates/layout/spine.templ`, Line: 34, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -142,27 +140,7 @@ func Spine(s SpineState) templ.Component {
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if s.SyncState == "ok" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"spine-sync is-active\" title=\"Sync OK\">●</span>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else if s.SyncState == "warn" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span class=\"spine-sync is-warn\" title=\"Sync stale\">●</span>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<span class=\"spine-sync\" title=\"Sync idle\">●</span>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</aside>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div></aside>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

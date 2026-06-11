@@ -93,7 +93,7 @@ func NewProjects(d ProjectsDeps) http.Handler {
 			Title:       "Projekte",
 			CurrentPath: "/projects",
 			UserLabel:   userLabelFromContext(r.Context()),
-			Spine:       layout.SpineState{SyncState: "ok"},
+			Spine:       layout.SpineState{},
 		}
 		if err := layout.Base(meta, projectstmpl.Index(vm)).Render(r.Context(), w); err != nil {
 			slog.Error(

@@ -69,14 +69,18 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 		vm.Live = shared.LiveBanner{
 			ProjectLabel: projLabel,
 			Tag:          active.Tag,
-			ElapsedLabel: worktime.FormatElapsedHumane(now.Sub(active.StartedAt)),
+			ElapsedLabel: worktime.FormatElapsedHumane(active.Elapsed(now)),
 			StartedAt:    active.StartedAt.In(now.Location()).Format("15:04"),
-			SinceLabel:   "→ läuft",
+			SinceLabel:   bannerSinceLabel(*active),
 			StopHref:     "/worktime/active/stop",
+			PauseHref:    "/worktime/active/pause",
+			ResumeHref:   "/worktime/active/resume",
+			IsPaused:     active.PausedAt != nil,
 			// SSE tick handler in worktime/today.templ reads this from
 			// the `data-started` attribute to recompute the elapsed
 			// label client-side once per second without a round trip.
-			StartedUnix: active.StartedAt.Unix(),
+			// Adjusted by PauseTotal so now − StartedUnix == Elapsed.
+			StartedUnix: active.StartedAt.Add(active.PauseTotal).Unix(),
 		}
 	}
 
@@ -112,7 +116,6 @@ func renderToday(_ *http.Request, d WorktimeDeps, u domain.User, now time.Time) 
 		AnyActive: vm.HasActive,
 		HourMask:  vm.DayBar,
 		NowHour:   vm.NowHour,
-		SyncState: "ok",
 	}
 	return worktime.Today(vm), spine, nil
 }

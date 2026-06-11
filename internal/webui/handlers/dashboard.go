@@ -90,7 +90,6 @@ func NewDashboard(d DashboardDeps) http.Handler {
 				AnyActive: vm.HasActive,
 				HourMask:  vm.DayBar,
 				NowHour:   vm.NowHour,
-				SyncState: "ok",
 			},
 		}
 		if err := layout.Base(meta, dashboard.Index(vm)).Render(r.Context(), w); err != nil {

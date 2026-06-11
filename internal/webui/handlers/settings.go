@@ -128,7 +128,7 @@ func NewSettings(d SettingsDeps) http.Handler {
 			Title:       "Settings",
 			CurrentPath: "/settings",
 			UserLabel:   userLabelFromContext(r.Context()),
-			Spine:       layout.SpineState{SyncState: "ok"},
+			Spine:       layout.SpineState{},
 		}
 		if err := layout.Base(meta, settingstmpl.Index(vm)).Render(r.Context(), w); err != nil {
 			slog.Error(

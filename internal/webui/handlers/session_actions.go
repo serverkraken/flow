@@ -65,6 +65,10 @@ type SessionActionsDeps struct {
 	// publish calls are silent no-ops. Tests inject a real broadcaster
 	// + a recording subscriber to assert the right events fire.
 	Bus *sse.Broadcaster
+
+	// PauseResume is the R1 statemachine surface (pgstore only — nil until
+	// Task 18 wires pgstore; the routes are nil-guarded in server.go).
+	PauseResume PauseResumeStore
 }
 
 // publish is a nil-safe wrapper around Bus.Publish. Keeps the call sites
@@ -571,19 +575,22 @@ func buildBannerContainerVM(d SessionActionsDeps, userID string, active *domain.
 	if p, err := d.Projects.GetByID(userID, active.ProjectID); err == nil {
 		label = p.Name
 	}
+	now0 := now
 	return partials.LiveBannerContainerVM{
 		HasActive: true,
 		Banner: shared.LiveBanner{
 			ProjectLabel: label,
 			Tag:          active.Tag,
-			ElapsedLabel: formatElapsedHumane(now.Sub(active.StartedAt)),
-			StartedAt:    active.StartedAt.In(now.Location()).Format("15:04"),
-			SinceLabel:   "→ läuft",
+			ElapsedLabel: formatElapsedHumane(active.Elapsed(now0)),
+			StartedAt:    active.StartedAt.In(now0.Location()).Format("15:04"),
+			SinceLabel:   bannerSinceLabel(*active),
 			StopHref:     "/worktime/active/stop",
-			// SSE tick consumer in worktime/today reads this off the
-			// rendered `.live-elapsed` data attribute to advance the
-			// counter client-side.
-			StartedUnix: active.StartedAt.Unix(),
+			PauseHref:    "/worktime/active/pause",
+			ResumeHref:   "/worktime/active/resume",
+			IsPaused:     active.PausedAt != nil,
+			// data-started-Anker: Start + bisherige Pausen, damit
+			// now − Anker == Elapsed (Tick-JS bleibt eine Subtraktion).
+			StartedUnix: active.StartedAt.Add(active.PauseTotal).Unix(),
 		},
 	}
 }
@@ -599,4 +606,62 @@ func projectNameFor(projects ProjectsStore, userID, projectID string) string {
 		return projectID
 	}
 	return p.Name
+}
+
+func bannerSinceLabel(a domain.ActiveSession) string {
+	if a.PausedAt != nil {
+		return "▮▮ pausiert"
+	}
+	return "→ läuft"
+}
+
+// — POST /worktime/active/pause + /resume ------------------------------------
+
+func NewActivePause(d SessionActionsDeps) http.Handler {
+	return newPauseResumeHandler(d, func(userID, projectID string) (domain.ActiveSession, error) {
+		return d.PauseResume.Pause(userID, projectID)
+	})
+}
+
+func NewActiveResume(d SessionActionsDeps) http.Handler {
+	return newPauseResumeHandler(d, func(userID, projectID string) (domain.ActiveSession, error) {
+		return d.PauseResume.Resume(userID, projectID)
+	})
+}
+
+func newPauseResumeHandler(d SessionActionsDeps, op func(userID, projectID string) (domain.ActiveSession, error)) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := httpserver.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		if d.PauseResume == nil {
+			http.Error(w, "pause not available", http.StatusNotFound)
+			return
+		}
+		rows, err := d.Active.ListByUser(u.ID)
+		if err != nil {
+			slog.Error("pause/resume: list failed", slog.String("err", err.Error()))
+			http.Error(w, "internal", http.StatusInternalServerError)
+			return
+		}
+		if len(rows) == 0 {
+			_ = partials.LiveBannerContainer(partials.LiveBannerContainerVM{}).Render(r.Context(), w)
+			return
+		}
+		a, err := op(u.ID, rows[0].ProjectID)
+		if err != nil {
+			slog.Error("pause/resume: op failed", slog.String("err", err.Error()))
+			http.Error(w, "internal", http.StatusInternalServerError)
+			return
+		}
+		d.publish(u.ID, "session.updated", map[string]any{
+			"project_id": a.ProjectID, "paused": a.PausedAt != nil,
+		})
+		vm := buildBannerContainerVM(d, u.ID, &a, d.Clock.Now())
+		_ = partials.LiveBannerContainer(vm).Render(r.Context(), w)
+	})
 }

@@ -121,6 +121,7 @@ templ sseTodayScript() {
 			if (t === 'tick') {
 				var el = document.querySelector('.live-banner .live-elapsed');
 				if (!el) return;
+				if (el.getAttribute('data-paused') === '1') return;
 				var startedAttr = el.getAttribute('data-started');
 				if (!startedAttr) return;
 				var started = parseInt(startedAttr, 10);
