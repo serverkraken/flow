@@ -112,7 +112,6 @@ type Deps struct {
 	Cheatsheet cli.CheatsheetDeps
 	Palette    cli.PaletteDeps
 	Projects   cli.ProjectsDeps
-	Sync       cli.SyncDeps
 	Repo       cli.RepoDeps
 	Kompendium kompendiumcli.Deps
 }
@@ -452,9 +451,6 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				},
 				ProjectStore: cacheProjects,
 			},
-			Sync: cli.SyncDeps{
-				Controller: syncUC,
-			},
 			Repo: cli.RepoDeps{
 				UserID: localUser.ID,
 				Notes:  repoNotesUC,
@@ -713,16 +709,12 @@ func main() {
 	}
 	defer cleanup()
 
-	rootCmd.AddCommand(newLoginCmd(loginCmdOptions{
-		CacheDBPath: cacheDB,
-		LocalSub:    env.LocalUserSub,
-	}), newLogoutCmd(), newWhoamiCmd())
+	rootCmd.AddCommand(newLoginCmd(), newLogoutCmd(), newWhoamiCmd())
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
 	rootCmd.AddCommand(cli.NewPaletteCmd(deps.Palette))
 	rootCmd.AddCommand(cli.NewProjectsCmd(deps.Projects))
-	rootCmd.AddCommand(cli.NewSyncCmd(deps.Sync))
 	rootCmd.AddCommand(cli.NewRepoCmd(deps.Repo))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))

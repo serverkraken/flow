@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -9,14 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/oidcclient"
-	"github.com/serverkraken/flow/internal/adapter/sqliteclient"
 	"github.com/serverkraken/flow/internal/ports"
-	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
 )
 
@@ -32,11 +28,7 @@ type loginConfig struct {
 	Store                  ports.TokenStore
 	SlotName               string
 	Out                    io.Writer
-	In                     io.Reader // stdin for the adoption prompt; nil → skip prompt
 	OpenBrowser            func(string) error
-	// First-login adoption fields (all optional; omitting them disables the prompt).
-	CacheDBPath string // path to the SQLite cache DB; empty → skip adoption
-	LocalSub    string // FLOW_LOCAL_USER_SUB default "local"
 }
 
 func runLogin(ctx context.Context, c loginConfig) error {
@@ -70,82 +62,7 @@ func runLogin(ctx context.Context, c loginConfig) error {
 		return fmt.Errorf("token store: %w", err)
 	}
 	_, _ = fmt.Fprintln(c.Out, "✓ Login erfolgreich, Token im Keychain gespeichert.")
-
-	// First-login adoption: offer to carry the offline `local` profile into
-	// this OIDC identity by re-labelling the local user row (keeping its id so
-	// all owned rows stay owned). This is best-effort — any error here must not
-	// fail the login that just succeeded.
-	tryAdoptLocalProfile(c, tok)
-
 	return nil
-}
-
-// tryAdoptLocalProfile checks whether there is an offline `local` profile with
-// owned data, and if so prompts the user to carry it into the freshly-minted
-// OIDC identity. All errors are swallowed (printed as a warning at most) so
-// that a DB or prompt failure never propagates back through runLogin.
-func tryAdoptLocalProfile(c loginConfig, tok ports.Tokens) {
-	if c.CacheDBPath == "" || c.In == nil {
-		return // adoption not configured or stdin not available
-	}
-	rawToken := tok.IDToken
-	if rawToken == "" {
-		rawToken = tok.AccessToken
-	}
-	claims, err := oidcclient.ClaimsFromToken(rawToken)
-	if err != nil {
-		return // can't decode identity; skip silently
-	}
-
-	store, err := sqliteclient.Open(c.CacheDBPath)
-	if err != nil {
-		return // DB not accessible; skip silently
-	}
-	defer func() { _ = store.Close() }()
-
-	users := sqliteclient.NewUsers(store)
-	localSub := c.LocalSub
-	if localSub == "" {
-		localSub = "local"
-	}
-	local, err := users.GetBySub(localSub)
-	if err != nil {
-		return // no local profile at all
-	}
-	n, err := users.CountOwnedRows(local.ID)
-	if err != nil || n == 0 {
-		return // nothing to carry over
-	}
-
-	display := claims.Email
-	if display == "" {
-		display = claims.Sub
-	}
-	if !promptYesNo(c.Out, c.In, fmt.Sprintf(
-		"%d lokale Projekte/Sessions unter dem Offline-Profil gefunden. Unter %s übernehmen? [y/N] ",
-		n, display,
-	)) {
-		return
-	}
-
-	id := usecase.NewIdentity(users, localSub)
-	adopted, carried, aerr := id.AdoptLocalDataIfFirstLogin(claims.Sub, claims.Email, claims.Name)
-	if aerr != nil {
-		_, _ = fmt.Fprintf(c.Out, "⚠ Übernahme fehlgeschlagen: %v\n", aerr)
-		return
-	}
-	if adopted {
-		_, _ = fmt.Fprintf(c.Out, "✓ %d Einträge unter %s übernommen.\n", carried, claims.Sub)
-	}
-}
-
-// promptYesNo writes q to out and reads a line from in. Returns true only for
-// explicit "y", "yes", "j", or "ja" (case-insensitive). Any read error → false.
-func promptYesNo(out io.Writer, in io.Reader, q string) bool {
-	_, _ = fmt.Fprint(out, q)
-	line, _ := bufio.NewReader(in).ReadString('\n')
-	line = strings.ToLower(strings.TrimSpace(line))
-	return line == "y" || line == "yes" || line == "j" || line == "ja"
 }
 
 // openBrowserDefault is the production browser-opener used by the CLI.
@@ -175,14 +92,7 @@ func envOrDefault(k, def string) string {
 	return def
 }
 
-// loginCmdOptions holds wiring values threaded in from main.go so the cobra
-// RunE closure doesn't need to re-resolve env vars that main already computed.
-type loginCmdOptions struct {
-	CacheDBPath string // resolved $FLOW_CACHE_DB / XDG path; empty disables adoption
-	LocalSub    string // $FLOW_LOCAL_USER_SUB; empty → "local"
-}
-
-func newLoginCmd(opts loginCmdOptions) *cobra.Command {
+func newLoginCmd() *cobra.Command {
 	var (
 		serverURL string
 		clientID  string
@@ -206,10 +116,7 @@ func newLoginCmd(opts loginCmdOptions) *cobra.Command {
 				Store:                  keyringadapter.New(),
 				SlotName:               slotNameFor(serverURL),
 				Out:                    cmd.OutOrStdout(),
-				In:                     cmd.InOrStdin(),
 				OpenBrowser:            openBrowserDefault,
-				CacheDBPath:            opts.CacheDBPath,
-				LocalSub:               opts.LocalSub,
 			})
 		},
 	}

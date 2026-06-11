@@ -14,7 +14,6 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
 	tk "github.com/serverkraken/flow/internal/frontend/tui/theme"
-	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
@@ -133,45 +132,3 @@ func TestNewMarkdownCmd_RawFlagsDefined(t *testing.T) {
 		t.Errorf("--width default: %q, want 100", f.DefValue)
 	}
 }
-
-// — Sync —
-
-func TestNewSyncCmd_Shape(t *testing.T) {
-	cmd := NewSyncCmd(SyncDeps{Controller: &stubSyncController{}})
-	if cmd == nil {
-		t.Fatal("nil command")
-	}
-	if cmd.Use != "sync" {
-		t.Errorf("Use: %q", cmd.Use)
-	}
-	if !cmd.SilenceUsage {
-		t.Errorf("SilenceUsage must be true")
-	}
-
-	subNames := map[string]bool{}
-	for _, sub := range cmd.Commands() {
-		subNames[sub.Use] = true
-		if !sub.SilenceUsage {
-			t.Errorf("subcommand %q SilenceUsage must be true", sub.Use)
-		}
-		if sub.RunE == nil {
-			t.Errorf("subcommand %q RunE must be set", sub.Use)
-		}
-	}
-	if !subNames["status"] {
-		t.Errorf("missing subcommand 'status'")
-	}
-	if !subNames["force-pull"] {
-		t.Errorf("missing subcommand 'force-pull'")
-	}
-}
-
-// stubSyncController is a minimal fake for shape tests.
-type stubSyncController struct{}
-
-func (s *stubSyncController) Status() (ports.SyncStatus, error) {
-	return ports.SyncStatus{Watermarks: map[string]int64{}}, nil
-}
-func (s *stubSyncController) ForcePull() error                     { return nil }
-func (s *stubSyncController) AcceptServerVersion(_ int64) error    { return nil }
-func (s *stubSyncController) OverwriteServerVersion(_ int64) error { return nil }
