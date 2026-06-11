@@ -38,8 +38,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
-	"github.com/serverkraken/flow/internal/domain"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/ports"
@@ -52,13 +50,11 @@ import (
 // NoteActionsDeps bundles the adapters every note-edit handler shares.
 // NoteStore may be nil — the kompendium handlers return 404 in that
 // case so the operator sees a deterministic "notebook not configured"
-// shape rather than a 500. Repos + RepoNotes are concrete sqliteserver
-// adapters; their Upsert carries expectedVersion and so does not
-// satisfy the client-side ports — same shape as session_actions.go.
+// shape rather than a 500. Documents is the server-side document store
+// adapter (R1).
 type NoteActionsDeps struct {
 	NoteStore kompports.NoteStore
-	Repos     *sqliteserver.Repos
-	RepoNotes *sqliteserver.RepoNotes
+	Documents ports.DocumentStore
 	Clock     ports.Clock
 
 	// Bus broadcasts note.* / repo_note.* events to the SSE stream.
@@ -248,14 +244,21 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 			return
 		}
 
-		repo, err := d.Repos.GetByCanonicalKey(u.ID, canonicalKey)
-		if errors.Is(err, ports.ErrRepoNotFound) {
-			renderReposNoteNotFound(w, r, canonicalKey)
-			return
-		}
-		if err != nil {
+		var (
+			content string
+			version int64
+			isNew   bool
+		)
+		doc, err := d.Documents.GetByRepoKey(u.ID, canonicalKey)
+		switch {
+		case err == nil:
+			content = doc.Body
+			version = doc.Version
+		case errors.Is(err, ports.ErrDocumentNotFound):
+			isNew = true
+		default:
 			slog.Error(
-				"repo note edit: GetByCanonicalKey failed",
+				"repo note edit: GetByRepoKey failed",
 				slog.String("user_id", u.ID),
 				slog.String("canonical_key", canonicalKey),
 				slog.String("err", err.Error()),
@@ -264,32 +267,9 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 			return
 		}
 
-		var (
-			content string
-			version int64
-			isNew   bool
-		)
-		note, nerr := d.RepoNotes.GetByRepo(u.ID, repo.ID)
-		switch {
-		case nerr == nil:
-			content = note.Content
-			version = note.Version
-		case errors.Is(nerr, ports.ErrRepoNoteNotFound):
-			isNew = true
-		default:
-			slog.Error(
-				"repo note edit: GetByRepo failed",
-				slog.String("user_id", u.ID),
-				slog.String("repo_id", repo.ID),
-				slog.String("err", nerr.Error()),
-			)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-
 		vm := repostmpl.NoteEditVM{
-			DisplayName:  repostmpl.DisplayNameOr(repo.DisplayName, repo.CanonicalKey),
-			CanonicalKey: repo.CanonicalKey,
+			DisplayName:  repoDisplayName(canonicalKey),
+			CanonicalKey: canonicalKey,
 			Content:      content,
 			Version:      version,
 			IsNew:        isNew,
@@ -298,7 +278,7 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 			Title:       "Repos · " + vm.DisplayName + " · note",
 			CurrentPath: "/repos",
 			UserLabel:   userLabelFromContext(r.Context()),
-			Spine:       layout.SpineState{SyncState: "ok"},
+			Spine:       layout.SpineState{},
 		}
 		if err := layout.Base(meta, repostmpl.EditNote(vm)).Render(r.Context(), w); err != nil {
 			slog.Error(
@@ -312,16 +292,7 @@ func NewRepoNoteEdit(d NoteActionsDeps) http.Handler {
 
 // — repo-note PUT (PUT /repos/{key}/note) -----------------------------------
 
-// NewRepoNotePut returns the handler for PUT /repos/{key}/note. Reads
-// the form-encoded `content` + `version` fields, calls
-// sqliteserver.RepoNotes.Upsert with expectedVersion. On success
-// 303s to the view page. On version conflict renders the two-column
-// overlay (server | dein stand) so Soenne picks a branch.
-//
-// First save: existing note absent → version=0 in the form, the
-// handler synthesises a fresh RepoNote with a new UUID and passes
-// expectedVersion=0 to Upsert (which inserts a brand-new row at
-// version 1).
+// NewRepoNotePut returns the handler for PUT /repos/{key}/note.
 func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := httpserver.UserFromContext(r.Context())
@@ -343,61 +314,16 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 		content := r.FormValue("content")
 		version := parseVersion(r.FormValue("version"))
 
-		repo, err := d.Repos.GetByCanonicalKey(u.ID, canonicalKey)
-		if errors.Is(err, ports.ErrRepoNotFound) {
-			http.NotFound(w, r)
+		saved, err := d.Documents.Put(u.ID, repoNotePathWeb(canonicalKey), content, canonicalKey, version)
+		if errors.Is(err, ports.ErrDocumentVersionConflict) {
+			renderRepoNoteConflict(w, r, d, u.ID, canonicalKey, content)
 			return
 		}
 		if err != nil {
 			slog.Error(
-				"repo note put: GetByCanonicalKey failed",
+				"repo note put: Put failed",
 				slog.String("user_id", u.ID),
 				slog.String("canonical_key", canonicalKey),
-				slog.String("err", err.Error()),
-			)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		// Resolve the existing note shape — either preserve the
-		// stored ID + UserID + RepoID (update path), or synthesise a
-		// new RepoNote for the insert path.
-		var input domain.RepoNote
-		existing, nerr := d.RepoNotes.GetByRepo(u.ID, repo.ID)
-		switch {
-		case nerr == nil:
-			input = existing
-		case errors.Is(nerr, ports.ErrRepoNoteNotFound):
-			input = domain.RepoNote{
-				ID:     newRepoNoteID(),
-				RepoID: repo.ID,
-				UserID: u.ID,
-			}
-			// Defensive: form sent stale version for a row that
-			// doesn't exist yet → treat as fresh insert.
-			version = 0
-		default:
-			slog.Error(
-				"repo note put: GetByRepo failed",
-				slog.String("user_id", u.ID),
-				slog.String("repo_id", repo.ID),
-				slog.String("err", nerr.Error()),
-			)
-			http.Error(w, "internal server error", http.StatusInternalServerError)
-			return
-		}
-		input.Content = content
-
-		saved, err := d.RepoNotes.Upsert(input, version)
-		if errors.Is(err, ports.ErrRepoNoteVersionConflict) {
-			renderRepoNoteConflict(w, r, d, u.ID, repo, content)
-			return
-		}
-		if err != nil {
-			slog.Error(
-				"repo note put: Upsert failed",
-				slog.String("user_id", u.ID),
-				slog.String("repo_id", repo.ID),
 				slog.String("err", err.Error()),
 			)
 			http.Error(w, "save failed", http.StatusInternalServerError)
@@ -406,11 +332,13 @@ func NewRepoNotePut(d NoteActionsDeps) http.Handler {
 
 		d.publish(u.ID, "repo_note.updated", map[string]any{
 			"id":            saved.ID,
-			"repo_id":       saved.RepoID,
-			"canonical_key": repo.CanonicalKey,
+			"canonical_key": canonicalKey,
 		})
+		if d.Bus != nil {
+			d.Bus.Changed(u.ID, "documents")
+		}
 
-		http.Redirect(w, r, repostmpl.NoteHref(repo.CanonicalKey), http.StatusSeeOther)
+		http.Redirect(w, r, repostmpl.NoteHref(canonicalKey), http.StatusSeeOther)
 	})
 }
 
@@ -497,6 +425,11 @@ func newRepoNoteID() string {
 	return uuid.NewString()
 }
 
+// repoNotePathWeb mirrors the API-side path convention (Spec §6).
+func repoNotePathWeb(canonicalKey string) string {
+	return "repos/" + url.PathEscape(canonicalKey) + ".md"
+}
+
 // renderRepoNoteConflict fetches the server's current note state and
 // renders the two-column overlay so Soenne picks a branch.
 func renderRepoNoteConflict(
@@ -504,25 +437,25 @@ func renderRepoNoteConflict(
 	r *http.Request,
 	d NoteActionsDeps,
 	userID string,
-	repo domain.Repo,
+	canonicalKey string,
 	localContent string,
 ) {
 	serverContent := ""
 	serverVersion := int64(0)
-	if note, err := d.RepoNotes.GetByRepo(userID, repo.ID); err == nil {
-		serverContent = note.Content
-		serverVersion = note.Version
-	} else if !errors.Is(err, ports.ErrRepoNoteNotFound) {
+	if doc, err := d.Documents.GetByRepoKey(userID, canonicalKey); err == nil {
+		serverContent = doc.Body
+		serverVersion = doc.Version
+	} else if !errors.Is(err, ports.ErrDocumentNotFound) {
 		slog.Error(
 			"repo note put: conflict re-read failed",
 			slog.String("user_id", userID),
-			slog.String("repo_id", repo.ID),
+			slog.String("canonical_key", canonicalKey),
 			slog.String("err", err.Error()),
 		)
 	}
 	vm := repostmpl.NoteConflictVM{
-		DisplayName:   repostmpl.DisplayNameOr(repo.DisplayName, repo.CanonicalKey),
-		CanonicalKey:  repo.CanonicalKey,
+		DisplayName:   repoDisplayName(canonicalKey),
+		CanonicalKey:  canonicalKey,
 		ServerContent: serverContent,
 		LocalContent:  localContent,
 		ServerVersion: serverVersion,

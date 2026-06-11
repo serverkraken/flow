@@ -334,8 +334,7 @@ func buildWebUIHandlers(
 		Clock:    clock,
 	}
 	reposDeps := handlers.ReposDeps{
-		Repos:     repos,
-		RepoNotes: repoNotes,
+		Documents: nil,
 		Markdown:  mdRenderer,
 		Clock:     clock,
 	}
@@ -356,8 +355,7 @@ func buildWebUIHandlers(
 	// unconfigured the kompendium handlers return 404 rather than 500.
 	noteActionsDeps := handlers.NoteActionsDeps{
 		NoteStore: notesStore,
-		Repos:     repos,
-		RepoNotes: repoNotes,
+		Documents: nil,
 		Clock:     clock,
 		Bus:       broadcaster,
 	}

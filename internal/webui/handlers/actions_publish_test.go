@@ -192,20 +192,18 @@ func TestProjectArchive_PublishesProjectArchived(t *testing.T) {
 // through the full handler. Touches the file store only indirectly via
 // the sqliteserver.RepoNotes adapter.
 func TestRepoNotePut_PublishesRepoNoteUpdated(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "pub-rn-1")
 
 	// Seed a repo so /repos/{key}/note has a target.
 	_ = seedRepo(t, store, u.ID, "gh/serverkraken/flow", "flow")
-	reposAdapter := sqliteserver.NewRepos(store)
-	repoNotesAdapter := sqliteserver.NewRepoNotes(store)
 
 	now := time.Date(2026, 6, 5, 10, 0, 0, 0, time.UTC)
 	b := sse.New()
 	d := handlers.NoteActionsDeps{
-		Repos:     reposAdapter,
-		RepoNotes: repoNotesAdapter,
+		Documents: nil,
 		Clock:     &testutil.FixedClock{T: now},
 		Bus:       b,
 	}

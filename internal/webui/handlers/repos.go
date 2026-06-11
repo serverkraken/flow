@@ -1,55 +1,39 @@
-// Package handlers — see dashboard.go for the per-handler-Deps
-// convention. The repos routes split into two constructors:
-//   - NewReposIndex serves /repos (list)
-//   - NewRepoNote   serves /repos/{key}/note (single-repo note view)
-//
-// chi captures the canonical key via {key}; the handler URL-decodes it
-// before looking up the Repo. NewRepos is kept as a thin path-dispatch
-// wrapper for tests + back-compat.
+// Package handlers implements the WebUI HTTP handlers.
 package handlers
 
 import (
 	"errors"
+	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
-	"github.com/serverkraken/flow/internal/adapter/sqliteserver"
 	flowports "github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/webui/format"
 	"github.com/serverkraken/flow/internal/webui/markdown"
 	"github.com/serverkraken/flow/internal/webui/templates/layout"
 	repostmpl "github.com/serverkraken/flow/internal/webui/templates/repos"
 )
 
-// ReposDeps bundles exactly the data sources the /repos handler needs.
-// Follows the per-handler-Deps convention established by DashboardDeps
-// — see its doc comment for the rationale.
-//
-// Repos + RepoNotes are concrete sqliteserver adapters (their server
-// Upsert signatures carry expectedVersion and so don't satisfy the
-// client-side ports). Markdown is the HTML renderer reused from
-// Task 7. Clock is exposed so tests can pin "now" for relative-time
-// rendering on the meta strip.
-//
-// Phase 2: re-add Devices when we have per-device sync telemetry.
+// ReposDeps bundles the documents-backed /repos surface (R1: repo notes
+// ARE documents with repo_key set — the repos table is gone).
 type ReposDeps struct {
-	Repos     *sqliteserver.Repos
-	RepoNotes *sqliteserver.RepoNotes
+	Documents flowports.DocumentStore
 	Markdown  *markdown.Renderer
 	Clock     flowports.Clock
 }
 
 // indexLimit caps the number of repos fetched for the /repos list.
-// Server-enforced so a long-tail of archived repos can't blow the
-// page render budget. Phase 2: paginate; M6 is single-screen.
 const indexLimit = 200
 
 // devicesPlaceholder is the static "Geräte" cell on the note view's
-// meta strip — the server doesn't track per-device sync yet (M7+).
+// meta strip — the server doesn't track per-device sync yet.
 const devicesPlaceholder = "1 / 1 ✓"
 
 // NewReposIndex returns the http.Handler mounted at /repos. The
@@ -71,9 +55,6 @@ func NewReposIndex(d ReposDeps) http.Handler {
 // NewRepoNote returns the http.Handler mounted at /repos/{key}/note.
 // chi exposes the {key} segment via URLParam; the handler URL-decodes
 // it before looking up the Repo.
-//
-// Falls back to the M6 path-suffix dispatch when no chi route context is
-// present (older tests, direct ServeHTTP without a router).
 func NewRepoNote(d ReposDeps) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := httpserver.UserFromContext(r.Context())
@@ -86,7 +67,6 @@ func NewRepoNote(d ReposDeps) http.Handler {
 
 		var canonicalKey string
 		if escapedKey := chi.URLParam(r, "key"); escapedKey != "" {
-			// chi stores raw percent-encoded values; decode here.
 			dec, err := url.PathUnescape(escapedKey)
 			if err != nil {
 				renderReposNoteNotFound(w, r, escapedKey)
@@ -94,7 +74,6 @@ func NewRepoNote(d ReposDeps) http.Handler {
 			}
 			canonicalKey = dec
 		} else {
-			// Direct ServeHTTP without router — r.URL.Path is already decoded by net/http.
 			tail := strings.TrimPrefix(r.URL.Path, "/repos")
 			tail = strings.TrimPrefix(tail, "/")
 			key, action, ok := splitNoteTail(tail)
@@ -109,8 +88,7 @@ func NewRepoNote(d ReposDeps) http.Handler {
 }
 
 // NewRepos is a back-compat dispatch wrapper for tests + standalone
-// callers. Production code uses the chi-mounted NewReposIndex +
-// NewRepoNote pair.
+// callers.
 func NewRepos(d ReposDeps) http.Handler {
 	index := NewReposIndex(d)
 	note := NewRepoNote(d)
@@ -125,26 +103,11 @@ func NewRepos(d ReposDeps) http.Handler {
 	})
 }
 
-// splitNoteTail parses "{escaped-key}/{action}" and returns the two
-// segments. Any other shape returns ok=false so the caller 404s.
-func splitNoteTail(tail string) (key, action string, ok bool) {
-	// We allow the canonical key to contain percent-encoded slashes
-	// (url.PathEscape encodes `/` as `%2F`), so we expect exactly one
-	// raw `/` separating key and action.
-	idx := strings.LastIndex(tail, "/")
-	if idx <= 0 || idx == len(tail)-1 {
-		return tail, "", false
-	}
-	return tail[:idx], tail[idx+1:], true
-}
-
-// — index —
-
 func renderReposIndex(w http.ResponseWriter, r *http.Request, d ReposDeps, userID string) {
-	repos, _, _, err := d.Repos.PullSince(userID, 0, indexLimit)
+	entries, err := d.Documents.List(userID, "repos/", "", indexLimit)
 	if err != nil {
 		slog.Error(
-			"repos: PullSince failed",
+			"repos: List failed",
 			slog.String("user_id", userID),
 			slog.String("error", err.Error()),
 		)
@@ -152,30 +115,68 @@ func renderReposIndex(w http.ResponseWriter, r *http.Request, d ReposDeps, userI
 		return
 	}
 
-	vm := buildReposIndexVM(d, userID, repos)
+	now := time.Now()
+	if d.Clock != nil {
+		now = d.Clock.Now()
+	}
+
+	var rows []repostmpl.IndexRow
+	for _, e := range entries {
+		key := repoKeyOfEntry(e)
+		rows = append(rows, repostmpl.IndexRow{
+			DisplayName: repoDisplayName(key),
+			Subtitle:    key + " · note ✓",
+			HasNote:     true,
+			MetaLeft:    fmt.Sprintf("version %d", e.Version),
+			MetaRight:   format.HumanRelativeTime(e.UpdatedAt, now),
+			Href:        repostmpl.NoteHref(key),
+		})
+	}
+
+	vm := repostmpl.IndexVM{
+		HasRepos:   len(entries) > 0,
+		Rows:       rows,
+		TotalLabel: repostmpl.FormatRepoTotal(len(entries), len(entries)),
+	}
 
 	meta := layout.PageMeta{
 		Title:       "Repos",
 		CurrentPath: "/repos",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, repostmpl.Index(vm)).Render(r.Context(), w); err != nil {
 		slog.Error("repos: render index failed", slog.String("error", err.Error()))
 	}
 }
 
-// — single note view —
-
 func renderReposNoteView(w http.ResponseWriter, r *http.Request, d ReposDeps, userID, canonicalKey string) {
-	repo, err := d.Repos.GetByCanonicalKey(userID, canonicalKey)
-	if errors.Is(err, flowports.ErrRepoNotFound) {
-		renderReposNoteNotFound(w, r, canonicalKey)
-		return
+	doc, err := d.Documents.GetByRepoKey(userID, canonicalKey)
+	var hasNote bool
+	var html template.HTML
+	modifiedLabel := "—"
+	shortHash := "—"
+	now := time.Now()
+	if d.Clock != nil {
+		now = d.Clock.Now()
 	}
-	if err != nil {
+
+	if err == nil {
+		hasNote = true
+		modifiedLabel = format.HumanRelativeTime(doc.UpdatedAt, now)
+		if len(doc.ID) >= 7 {
+			shortHash = doc.ID[:7]
+		} else {
+			shortHash = doc.ID
+		}
+		if d.Markdown != nil && doc.Body != "" {
+			html, _ = d.Markdown.Render([]byte(doc.Body))
+		}
+	} else if errors.Is(err, flowports.ErrDocumentNotFound) {
+		// render the "noch keine Note" branch — vm.HasNote stays false.
+	} else {
 		slog.Error(
-			"repos: GetByCanonicalKey failed",
+			"repos: GetByRepoKey failed",
 			slog.String("user_id", userID),
 			slog.String("canonical_key", canonicalKey),
 			slog.String("error", err.Error()),
@@ -184,30 +185,22 @@ func renderReposNoteView(w http.ResponseWriter, r *http.Request, d ReposDeps, us
 		return
 	}
 
-	note, noteErr := d.RepoNotes.GetByRepo(userID, repo.ID)
-	switch {
-	case noteErr == nil:
-		// happy path
-	case errors.Is(noteErr, flowports.ErrRepoNoteNotFound):
-		// render the "noch keine Note" branch — vm.HasNote stays false.
-	default:
-		slog.Error(
-			"repos: GetByRepo failed",
-			slog.String("user_id", userID),
-			slog.String("repo_id", repo.ID),
-			slog.String("error", noteErr.Error()),
-		)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
+	vm := repostmpl.NoteVM{
+		DisplayName:   repoDisplayName(canonicalKey),
+		CanonicalKey:  canonicalKey,
+		RemoteURL:     "(kein remote — R1: notes only)",
+		ShortHash:     shortHash,
+		DevicesLabel:  devicesPlaceholder,
+		ModifiedLabel: modifiedLabel,
+		HasNote:       hasNote,
+		HTML:          html,
 	}
-
-	vm := buildReposNoteVM(d, repo, note, noteErr == nil)
 
 	meta := layout.PageMeta{
 		Title:       "Repos · " + vm.DisplayName,
 		CurrentPath: "/repos",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, repostmpl.View(vm)).Render(r.Context(), w); err != nil {
 		slog.Error(
@@ -224,9 +217,41 @@ func renderReposNoteNotFound(w http.ResponseWriter, r *http.Request, canonicalKe
 		Title:       "Repos · nicht gefunden",
 		CurrentPath: "/repos",
 		UserLabel:   userLabelFromContext(r.Context()),
-		Spine:       layout.SpineState{SyncState: "ok"},
+		Spine:       layout.SpineState{},
 	}
 	if err := layout.Base(meta, repostmpl.ViewNotFound(canonicalKey)).Render(r.Context(), w); err != nil {
 		slog.Error("repos: render 404 failed", slog.String("error", err.Error()))
 	}
+}
+
+// repoKeyOfEntry prefers the stored repo_key and falls back to decoding
+// the path convention repos/<urlescape(key)>.md.
+func repoKeyOfEntry(e flowports.DocumentEntry) string {
+	if e.RepoKey != "" {
+		return e.RepoKey
+	}
+	raw := strings.TrimSuffix(strings.TrimPrefix(e.Path, "repos/"), ".md")
+	if key, err := url.PathUnescape(raw); err == nil {
+		return key
+	}
+	return raw
+}
+
+// repoDisplayName shortens "git:github.com/foo/bar" to "foo/bar".
+func repoDisplayName(key string) string {
+	k := strings.TrimPrefix(key, "git:")
+	if i := strings.Index(k, "/"); i > 0 && strings.Contains(k[:i], ".") {
+		k = k[i+1:] // Host-Anteil (enthält einen Punkt) abwerfen
+	}
+	return k
+}
+
+// splitNoteTail parses "{escaped-key}/{action}" and returns the two
+// segments. Any other shape returns ok=false so the caller 404s.
+func splitNoteTail(tail string) (key, action string, ok bool) {
+	idx := strings.LastIndex(tail, "/")
+	if idx <= 0 || idx == len(tail)-1 {
+		return tail, "", false
+	}
+	return tail[:idx], tail[idx+1:], true
 }

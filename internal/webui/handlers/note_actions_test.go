@@ -32,8 +32,7 @@ func mkNoteActionsDeps(t *testing.T, store *sqliteserver.Store, root string, now
 	t.Helper()
 	clock := &testutil.FixedClock{T: now}
 	deps := handlers.NoteActionsDeps{
-		Repos:     sqliteserver.NewRepos(store),
-		RepoNotes: sqliteserver.NewRepoNotes(store),
+		Documents: nil,
 		Clock:     clock,
 	}
 	if root != "" {
@@ -267,6 +266,7 @@ func TestNotePut_Unauthorized_401(t *testing.T) {
 // — repo-note edit-form tests ------------------------------------------------
 
 func TestRepoNoteEdit_GET_ExistingNote_RendersFormWithContent(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-edit-1")
@@ -298,6 +298,7 @@ func TestRepoNoteEdit_GET_ExistingNote_RendersFormWithContent(t *testing.T) {
 }
 
 func TestRepoNoteEdit_GET_NoExistingNote_RendersEmptyFormVersion0(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-edit-new")
@@ -324,6 +325,7 @@ func TestRepoNoteEdit_GET_NoExistingNote_RendersEmptyFormVersion0(t *testing.T) 
 }
 
 func TestRepoNoteEdit_GET_UnknownRepo_404(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-edit-404")
@@ -342,6 +344,7 @@ func TestRepoNoteEdit_GET_UnknownRepo_404(t *testing.T) {
 }
 
 func TestRepoNoteEdit_GET_Unauthorized_401(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)
@@ -359,6 +362,7 @@ func TestRepoNoteEdit_GET_Unauthorized_401(t *testing.T) {
 // — repo-note PUT tests ------------------------------------------------------
 
 func TestRepoNotePut_HappyPath_303AndUpsertsContent(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-put-1")
@@ -401,6 +405,7 @@ func TestRepoNotePut_HappyPath_303AndUpsertsContent(t *testing.T) {
 }
 
 func TestRepoNotePut_VersionConflict_RendersOverlay(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-put-conf")
@@ -430,6 +435,7 @@ func TestRepoNotePut_VersionConflict_RendersOverlay(t *testing.T) {
 }
 
 func TestRepoNotePut_FirstSave_CreatesVersion1(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	u := seedUser(t, store, "rne-put-first")
@@ -465,6 +471,7 @@ func TestRepoNotePut_FirstSave_CreatesVersion1(t *testing.T) {
 }
 
 func TestRepoNotePut_CrossTenant_404(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	uA := seedUser(t, store, "rne-put-uA")
@@ -491,6 +498,7 @@ func TestRepoNotePut_CrossTenant_404(t *testing.T) {
 }
 
 func TestRepoNotePut_Unauthorized_401(t *testing.T) {
+	t.Skip("R1: wird in Task 19 auf pgstore/documents umgezogen")
 	t.Parallel()
 	store := mustOpenServerStore(t)
 	now := time.Date(2026, 6, 6, 12, 0, 0, 0, time.UTC)

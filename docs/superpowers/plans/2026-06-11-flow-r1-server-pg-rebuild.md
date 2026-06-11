@@ -4781,7 +4781,7 @@ mehr in der Liste (documents sind die einzige Wahrheit). Das ist der Spec-§12-T
 Dieser Task ist ein GEFÜHRTER UMBAU der zwei Dateien — die Templates
 (`templates/repos/*.templ`) bleiben unverändert, nur die Datenbeschaffung wechselt:
 
-- [ ] **Step 1: ReposDeps + Index-Handler in `repos.go` umbauen**
+- [x] **Step 1: ReposDeps + Index-Handler in `repos.go` umbauen**
 
 1. `ReposDeps` ersetzen durch:
 
@@ -4853,7 +4853,7 @@ func repoDisplayName(key string) string {
    (`ErrDocumentNotFound`): den bestehenden Empty-State-Zweig der Seite rendern (heute der
    "keine Note"-Branch — Logik beibehalten, nur Trigger ist jetzt der NotFound-Fehler).
 
-- [ ] **Step 2: RepoNote-Edit/Put in `note_actions.go` umbauen**
+- [x] **Step 2: RepoNote-Edit/Put in `note_actions.go` umbauen**
 
 `NewRepoNoteEdit` (Zeile ~235) und `NewRepoNotePut` (Zeile ~325) auf den DocumentStore
 umstellen — `NoteActionsDeps` bekommt dafür das Feld `Documents flowports.DocumentStore`,
@@ -4877,7 +4877,7 @@ func repoNotePathWeb(canonicalKey string) string {
   aus `d.Documents.GetByRepoKey` statt `RepoNotes.GetByRepo`. Publish-Aufrufe beibehalten
   und um `d.Bus.Changed(u.ID, "documents")` ergänzen.
 
-- [ ] **Step 3: Build + Tests**
+- [x] **Step 3: Build + Tests**
 
 ```bash
 go build ./... 2>&1 | head -20
@@ -4896,7 +4896,7 @@ go build ./... && go test ./internal/webui/... -timeout 300s 2>&1 | tail -4
 
 Expected: Build grün; Tests grün (mit Skips).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 gofumpt -w internal/webui/handlers/
