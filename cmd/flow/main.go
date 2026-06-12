@@ -15,7 +15,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
-	"github.com/serverkraken/flow/internal/adapter/editor"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/adapter/gitremote"
@@ -38,13 +37,9 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/projects"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
-	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
+	kompapistore "github.com/serverkraken/flow/internal/kompendium/adapter/apistore"
 	kompgitrepo "github.com/serverkraken/flow/internal/kompendium/adapter/gitrepo"
-	kompgitsnapshot "github.com/serverkraken/flow/internal/kompendium/adapter/gitsnapshot"
-	komplegacysource "github.com/serverkraken/flow/internal/kompendium/adapter/legacysource"
 	kompnvimeditor "github.com/serverkraken/flow/internal/kompendium/adapter/nvimeditor"
-	kompsqliteindex "github.com/serverkraken/flow/internal/kompendium/adapter/sqliteindex"
-	komptarsnapshot "github.com/serverkraken/flow/internal/kompendium/adapter/tarsnapshot"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
@@ -152,6 +147,9 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	// SSE events: invalidate per-resource caches and wake the TUI on
 	// server-side changes. Each adapter exposes Invalidate() which marks
 	// its internal cache stale so the next read triggers a fresh server fetch.
+	// invalidateKomp is assigned after buildKompendiumDeps returns the store;
+	// the closure captures the pointer so the late assignment is visible.
+	var invalidateKomp func()
 	invalidateFn := func(resource string) {
 		switch resource {
 		case "worktime":
@@ -161,6 +159,10 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			httpProjects.Invalidate()
 		case "dayoffs":
 			httpDayOffs.Invalidate()
+		case "documents":
+			if invalidateKomp != nil {
+				invalidateKomp()
+			}
 		}
 	}
 	events := httpapi.NewEvents(client, invalidateFn)
@@ -191,26 +193,12 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	repoDocShim := httpapi.NewRepoDocAdapter(httpDocuments)
 	repoNotesUC := usecase.NewRepoNotes(repoDocShim.RepoStore(), repoDocShim.RepoNoteStore(), nil /* no queue in server mode */, gitremote.New())
 
-	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
+	kompDeps, kompStore, kompCleanup, err := buildKompendiumDeps(httpDocuments, userID, clock)
 	if err != nil {
 		return Deps{}, nil, err
 	}
-
-	pathOf := func(id string) string {
-		parsed, perr := kompdomain.ParseID(id)
-		if perr != nil {
-			return ""
-		}
-		if kompDeps.Rooter == nil {
-			return ""
-		}
-		return filepath.Join(kompDeps.Rooter.Root(), filepath.FromSlash(parsed.Path()))
-	}
-	editorArgs := func(path string) ([]string, error) {
-		cmd := kompDeps.EditCmd(path)
-		return cmd.Args, nil
-	}
-	noteLauncher := editor.New(pathOf, editorArgs)
+	// Wire the documents-SSE invalidation now that the store is available.
+	invalidateKomp = kompStore.Invalidate
 
 	flowState := jsonflowstate.New(
 		filepath.Join(p.CacheDir, "state.json"),
@@ -259,7 +247,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	tagger := &usecase.Tagger{Sessions: httpSessions}
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
-	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
+	noteOpener := &usecase.NoteOpener{Launcher: &editNoteOpener{uc: kompDeps.EditNote}}
 	currentRepo := detectCurrentRepo(kompDeps)
 	noteLister := newKompendiumNoteLister(kompDeps, currentRepo)
 	noteReader := newKompendiumNoteReader(kompDeps)
@@ -456,74 +444,65 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 	return m
 }
 
-// buildKompendiumDeps wires every kompendium-subtree adapter behind its
-// port and assembles the use cases the CLI subcommand tree consumes.
-// Returns a cleanup that releases the sqlite indexer handle; main()
-// defers it so the FTS5 WAL gets a clean checkpoint on exit.
-func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, func(), error) {
-	store, err := kompfsstore.New(p.KompendiumNotebook)
-	if err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium notebook: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(p.KompendiumIndex), 0o755); err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium index dir: %w", err)
-	}
-	indexer, err := kompsqliteindex.New(p.KompendiumIndex)
-	if err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium index: %w", err)
-	}
-	cleanup := func() { _ = indexer.Close() }
-
+// buildKompendiumDeps wires the kompendium-subtree adapters against the
+// server-side DocumentStore HTTP API. The returned *kompapistore.Store is
+// exposed so the caller can wire its Invalidate method into the SSE handler.
+// UCs that require a local filesystem root (git, bundle, tar, remote,
+// snapshot, doctor, init, import-legacy, rebuild-index) are set to nil —
+// they will be removed in Task 7 once the fsstore path is gone.
+func buildKompendiumDeps(
+	docs ports.DocumentStore,
+	userID string,
+	clock systemclock.Clock,
+) (kompendiumcli.Deps, *kompapistore.Store, func(), error) {
+	store := kompapistore.New(docs, userID)
 	repo := kompgitrepo.New()
 	nvim := kompnvimeditor.New()
-	notebookGit := kompgitsnapshot.New()
-	tar := komptarsnapshot.New()
 
 	createDaily := kompusecase.NewCreateDaily(store, clock, nvim)
-	createDaily.Index = indexer
 	createProject := kompusecase.NewCreateProject(store, repo, clock, nvim)
-	createProject.Index = indexer
 	createFree := kompusecase.NewCreateFree(store, nvim)
-	createFree.Index = indexer
 	captureDaily := kompusecase.NewCaptureDaily(store, clock)
-	captureDaily.Index = indexer
 	open := kompusecase.NewOpen(store, nvim)
-	open.Index = indexer
-	importLegacy := kompusecase.NewImportLegacy(store, komplegacysource.New())
-	importLegacy.Index = indexer
-
-	doctor := kompusecase.NewDoctor(store, notebookGit)
-	doctor.Rooter = store
+	editNote := &kompusecase.EditNote{Store: store, Editor: nvim}
 
 	return kompendiumcli.Deps{
-		Store:            store,
-		Rooter:           store,
-		Repo:             repo,
-		CreateDaily:      createDaily,
-		CreateProject:    createProject,
-		CreateFree:       createFree,
-		CaptureDaily:     captureDaily,
-		Open:             open,
-		ListNotes:        kompusecase.NewListNotes(store),
-		SearchNotes:      kompusecase.NewSearchNotesWithIndex(indexer),
-		RenderDaily:      kompusecase.NewRenderDaily(store),
-		RenderBacklinks:  kompusecase.NewRenderBacklinks(store, indexer),
-		InitNotebook:     kompusecase.NewInitNotebook(store, notebookGit),
-		SnapshotNotebook: kompusecase.NewSnapshotNotebook(store, notebookGit),
-		ExportTar:        kompusecase.NewExportTar(store, tar),
-		ImportTar:        kompusecase.NewImportTar(store, tar),
-		ExportBundle:     kompusecase.NewExportBundle(store, notebookGit),
-		ImportBundle:     kompusecase.NewImportBundle(store, notebookGit),
-		SyncNotebook:     kompusecase.NewSyncNotebook(store, notebookGit),
-		ManageRemote:     kompusecase.NewManageRemote(store, notebookGit),
-		Doctor:           doctor,
-		ImportLegacy:     importLegacy,
-		RebuildIndex:     kompusecase.NewRebuildIndex(store, indexer),
-		DeleteNote:       kompusecase.NewDeleteNote(store, indexer),
-		EditCmd:          nvim.Cmd,
-		IndexPath:        p.KompendiumIndex,
-	}, cleanup, nil
+		Store:  store,
+		Rooter: nil, // apistore has no local filesystem root
+		Repo:   repo,
+
+		CreateDaily:   createDaily,
+		CreateProject: createProject,
+		CreateFree:    createFree,
+		CaptureDaily:  captureDaily,
+		Open:          open,
+
+		ListNotes:       kompusecase.NewListNotes(store),
+		SearchNotes:     kompusecase.NewSearchNotes(docs, userID),
+		RenderDaily:     kompusecase.NewRenderDaily(store),
+		RenderBacklinks: kompusecase.NewRenderBacklinks(store, store), // apistore implements backlinkProvider
+
+		DeleteNote: kompusecase.NewDeleteNote(store, nil), // no local index in server mode
+		EditNote:   editNote,
+
+		// Git/bundle/tar/remote/snapshot/doctor/init/import-legacy/rebuild-index
+		// require a local NotebookRooter and are not available in server mode.
+		// Task 7 removes these use cases and the corresponding CLI verbs.
+		InitNotebook:     nil,
+		SnapshotNotebook: nil,
+		ExportTar:        nil,
+		ImportTar:        nil,
+		ExportBundle:     nil,
+		ImportBundle:     nil,
+		SyncNotebook:     nil,
+		ManageRemote:     nil,
+		Doctor:           nil,
+		ImportLegacy:     nil,
+		RebuildIndex:     nil,
+
+		EditCmd:   nvim.Cmd,
+		IndexPath: "", // no local FTS5 index in server mode
+	}, store, func() {}, nil
 }
 
 // parseEnvHoursDuration reads name as a positive float-of-hours and

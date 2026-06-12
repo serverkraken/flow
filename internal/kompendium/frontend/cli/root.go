@@ -46,6 +46,7 @@ type Deps struct {
 	ImportLegacy     *usecase.ImportLegacy
 	RebuildIndex     *usecase.RebuildIndex
 	DeleteNote       *usecase.DeleteNote
+	EditNote         *usecase.EditNote
 
 	// EditCmd builds an unstarted *exec.Cmd value the browse TUI hands
 	// to tea.ExecProcess on Enter to launch nvim. The composition root
