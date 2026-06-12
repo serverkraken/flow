@@ -26,12 +26,13 @@ type ActiveSessions struct {
 }
 
 // NewActiveSessions constructs an ActiveSessions adapter backed by c.
+//
+// Active sessions are NOT pre-populated from the snapshot. The snapshot is
+// time-sensitive: a session stopped on another device would be shown as still
+// running until the snapshot expires. Snapshot data is only used as an offline
+// fallback via cache.fallback() when the server is unreachable.
 func NewActiveSessions(c *Client) *ActiveSessions {
-	a := &ActiveSessions{c: c}
-	if snap, ok := loadSnapshot(); ok {
-		a.cache.put(snap.Active)
-	}
-	return a
+	return &ActiveSessions{c: c}
 }
 
 // Invalidate forces a cache miss on the next read. Called by the SSE events
