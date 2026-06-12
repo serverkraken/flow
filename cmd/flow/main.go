@@ -112,6 +112,7 @@ type Deps struct {
 	Projects   cli.ProjectsDeps
 	Repo       cli.RepoDeps
 	Kompendium kompendiumcli.Deps
+	Docs       DocsDeps
 }
 
 func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
@@ -383,6 +384,10 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				Notes:  repoNotesUC,
 			},
 			Kompendium: kompDeps,
+			Docs: DocsDeps{
+				Docs:   httpDocuments,
+				UserID: userID,
+			},
 		}, func() {
 			events.Stop()
 			kompCleanup()
@@ -608,6 +613,7 @@ func main() {
 	rootCmd.AddCommand(cli.NewRepoCmd(deps.Repo))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
+	rootCmd.AddCommand(newDocsCmd(deps.Docs))
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
