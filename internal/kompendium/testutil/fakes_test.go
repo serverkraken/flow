@@ -79,7 +79,7 @@ func TestFakeNoteStore_SeedAndListFilter(t *testing.T) {
 	if err != nil || len(all) != 3 {
 		t.Errorf("List all: (%+v, %v)", all, err)
 	}
-	// Sorted by mtime DESC → c, b, a
+	// Sorted by mtime DESC -> c, b, a
 	if all[0].ID != c.ID || all[2].ID != a.ID {
 		t.Errorf("List should sort by mtime DESC, got %+v", all)
 	}
@@ -170,17 +170,17 @@ func TestFakeIndexer_UpsertSearchBacklinksLinks(t *testing.T) {
 	if len(none) != 0 {
 		t.Errorf("Search project-no-match: %+v", none)
 	}
-	// Backlinks of b → should find a
+	// Backlinks of b -> should find a
 	bl, err := ix.BacklinksOf(ctx, b.ID)
 	if err != nil || len(bl) != 1 || bl[0].ID != a.ID {
 		t.Errorf("BacklinksOf b: (%+v, %v)", bl, err)
 	}
-	// LinksFrom a → b
+	// LinksFrom a -> b
 	lf, err := ix.LinksFrom(ctx, a.ID)
 	if err != nil || len(lf) != 1 || lf[0].ID != b.ID {
 		t.Errorf("LinksFrom a: (%+v, %v)", lf, err)
 	}
-	// LinksFrom unknown id → nil/nil
+	// LinksFrom unknown id -> nil/nil
 	lfNone, err := ix.LinksFrom(ctx, domain.ID("notes/missing"))
 	if err != nil || lfNone != nil {
 		t.Errorf("LinksFrom missing: (%+v, %v)", lfNone, err)
@@ -193,7 +193,10 @@ func TestFakeIndexer_UpsertSearchBacklinksLinks(t *testing.T) {
 	if len(all2) != 1 {
 		t.Errorf("After delete: %d entries left, want 1", len(all2))
 	}
-	rebuild := []ports.IndexEntry{{Note: a, Mtime: time.Now()}, {Note: b, Mtime: time.Now()}}
+	rebuild := []indexEntry{
+		{Note: a, Mtime: time.Now()},
+		{Note: b, Mtime: time.Now()},
+	}
 	if err := ix.Rebuild(ctx, rebuild); err != nil {
 		t.Errorf("Rebuild: %v", err)
 	}
@@ -249,138 +252,6 @@ func TestFakeEditor(t *testing.T) {
 	}
 }
 
-// — fake_legacy_source.go —
-
-func TestFakeLegacySource(t *testing.T) {
-	ls := &FakeLegacySource{
-		Dailies:  []ports.LegacyDaily{{Path: "/a"}},
-		Projects: []ports.LegacyProject{{Path: "/b"}},
-	}
-	d, err := ls.ListDailyNotes(context.Background(), "/")
-	if err != nil || len(d) != 1 {
-		t.Errorf("ListDailyNotes: (%+v, %v)", d, err)
-	}
-	p, err := ls.ListProjectNotes(context.Background(), "/")
-	if err != nil || len(p) != 1 {
-		t.Errorf("ListProjectNotes: (%+v, %v)", p, err)
-	}
-	ls.DailyErr = errInjected
-	ls.ProjectErr = errInjected
-	if _, err := ls.ListDailyNotes(context.Background(), "/"); err == nil {
-		t.Errorf("ListDailyNotes with err should fail")
-	}
-	if _, err := ls.ListProjectNotes(context.Background(), "/"); err == nil {
-		t.Errorf("ListProjectNotes with err should fail")
-	}
-}
-
-// — fake_notebook_bundle.go —
-
-func TestFakeNotebookBundle(t *testing.T) {
-	b := &FakeNotebookBundle{}
-	if err := b.ExportBundle(context.Background(), "/r", "/o"); err != nil {
-		t.Errorf("ExportBundle: %v", err)
-	}
-	if err := b.ImportBundle(context.Background(), "/r", "/o"); err != nil {
-		t.Errorf("ImportBundle: %v", err)
-	}
-	if len(b.Exports) != 1 || len(b.Imports) != 1 {
-		t.Errorf("calls: exp=%+v imp=%+v", b.Exports, b.Imports)
-	}
-	b.ExportErr = errInjected
-	b.ImportErr = errInjected
-	if err := b.ExportBundle(context.Background(), "/r", "/o"); err == nil {
-		t.Errorf("ExportBundle with err should fail")
-	}
-	if err := b.ImportBundle(context.Background(), "/r", "/o"); err == nil {
-		t.Errorf("ImportBundle with err should fail")
-	}
-}
-
-// — fake_notebook_init.go —
-
-func TestFakeNotebookInit(t *testing.T) {
-	ni := &FakeNotebookInit{IsRepoValue: false}
-	ctx := context.Background()
-	if r, _ := ni.IsRepo(ctx, "/"); r {
-		t.Errorf("default IsRepo should be false")
-	}
-	if err := ni.Init(ctx, "/"); err != nil {
-		t.Errorf("Init: %v", err)
-	}
-	if !ni.Initialized || !ni.IsRepoValue {
-		t.Errorf("Init should flip Initialized + IsRepoValue")
-	}
-	if r, _ := ni.IsRepo(ctx, "/"); !r {
-		t.Errorf("after Init IsRepo should be true")
-	}
-	ni.HasChangesValue = true
-	if h, _ := ni.HasUncommittedChanges(ctx, "/"); !h {
-		t.Errorf("HasUncommittedChanges should reflect set value")
-	}
-	if err := ni.Snapshot(ctx, "/", "msg"); err != nil {
-		t.Errorf("Snapshot: %v", err)
-	}
-	if len(ni.Snapshots) != 1 || ni.Snapshots[0] != "msg" {
-		t.Errorf("Snapshots: %+v", ni.Snapshots)
-	}
-	if ni.HasChangesValue {
-		t.Errorf("Snapshot should clear HasChangesValue")
-	}
-	// Err paths
-	ni.IsRepoErr = errInjected
-	if _, err := ni.IsRepo(ctx, "/"); err == nil {
-		t.Errorf("IsRepo err")
-	}
-	ni.InitErr = errInjected
-	if err := ni.Init(ctx, "/"); err == nil {
-		t.Errorf("Init err")
-	}
-	ni.HasChangesErr = errInjected
-	if _, err := ni.HasUncommittedChanges(ctx, "/"); err == nil {
-		t.Errorf("HasUncommittedChanges err")
-	}
-	ni.SnapshotErr = errInjected
-	if err := ni.Snapshot(ctx, "/", "x"); err == nil {
-		t.Errorf("Snapshot err")
-	}
-}
-
-// — fake_notebook_remote.go —
-
-func TestFakeNotebookRemote(t *testing.T) {
-	r := &FakeNotebookRemote{URL: "git@x"}
-	ctx := context.Background()
-	got, err := r.GetRemote(ctx, "/")
-	if err != nil || got != "git@x" {
-		t.Errorf("GetRemote: (%q, %v)", got, err)
-	}
-	if err := r.SetRemote(ctx, "/", "git@new"); err != nil {
-		t.Errorf("SetRemote: %v", err)
-	}
-	if r.SetURL != "git@new" {
-		t.Errorf("SetURL: %q", r.SetURL)
-	}
-	r.Stats = ports.SyncStats{Pulled: true, Pushed: true}
-	stats, err := r.Sync(ctx, "/root")
-	if err != nil || !stats.Pulled || !stats.Pushed || r.SyncRoot != "/root" {
-		t.Errorf("Sync: (%+v, %v) root=%q", stats, err, r.SyncRoot)
-	}
-	// Err paths
-	r.GetErr = errInjected
-	if _, err := r.GetRemote(ctx, "/"); err == nil {
-		t.Errorf("GetRemote err")
-	}
-	r.SetErr = errInjected
-	if err := r.SetRemote(ctx, "/", "x"); err == nil {
-		t.Errorf("SetRemote err")
-	}
-	r.SyncErr = errInjected
-	if _, err := r.Sync(ctx, "/"); err == nil {
-		t.Errorf("Sync err")
-	}
-}
-
 // — fake_repo.go —
 
 func TestFakeRepoDetector(t *testing.T) {
@@ -392,29 +263,6 @@ func TestFakeRepoDetector(t *testing.T) {
 	d.Err = errInjected
 	if _, err := d.Detect(context.Background(), "."); err == nil {
 		t.Errorf("Detect err")
-	}
-}
-
-// — fake_tar_snapshot.go —
-
-func TestFakeTarSnapshot(t *testing.T) {
-	ts := &FakeTarSnapshot{}
-	if err := ts.Export(context.Background(), "/s", "/o"); err != nil {
-		t.Errorf("Export: %v", err)
-	}
-	if err := ts.Import(context.Background(), "/a", "/t", ports.ConflictAbort); err != nil {
-		t.Errorf("Import: %v", err)
-	}
-	if len(ts.Exports) != 1 || len(ts.Imports) != 1 {
-		t.Errorf("calls: %+v %+v", ts.Exports, ts.Imports)
-	}
-	ts.ExportErr = errInjected
-	ts.ImportErr = errInjected
-	if err := ts.Export(context.Background(), "/", "/"); err == nil {
-		t.Errorf("Export err")
-	}
-	if err := ts.Import(context.Background(), "/", "/", ports.ConflictAbort); err == nil {
-		t.Errorf("Import err")
 	}
 }
 

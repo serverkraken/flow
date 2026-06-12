@@ -56,16 +56,16 @@ var version = "dev"
 // Paths bundles every filesystem location the dependency graph reads or writes.
 // Tests rewire this against t.TempDir() so the whole graph runs in isolation.
 type Paths struct {
-	Home               string // user home (resolves ~/Downloads for the worktime menu's file output target).
-	WorktimeLog        string
-	TmuxDir            string
-	CacheDir           string
-	PluginsDir         string
-	StateDir           string // ~/.local/state/flow — palette stats etc.
-	Cheatsheet         string
-	SourceCodeRoot     string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
-	KompendiumNotebook string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
-	KompendiumIndex    string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
+	Home                string // user home (resolves ~/Downloads for the worktime menu's file output target).
+	WorktimeLog         string
+	TmuxDir             string
+	CacheDir            string
+	PluginsDir          string
+	StateDir            string // ~/.local/state/flow — palette stats etc.
+	Cheatsheet          string
+	SourceCodeRoot      string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
+	KompendiumNotebook  string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
+	KompendiumIndexPath string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
 }
 
 // Env bundles configuration values resolved from environment variables.
@@ -423,9 +423,9 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 		kompDeps.EditCmd,
 		writeCmd,
 	)
-	if p.KompendiumIndex != "" {
+	if p.KompendiumIndexPath != "" {
 		m = m.WithIndexAge(func() time.Time {
-			st, e := os.Stat(p.KompendiumIndex)
+			st, e := os.Stat(p.KompendiumIndexPath)
 			if e != nil {
 				return time.Time{}
 			}
@@ -447,9 +447,6 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 // buildKompendiumDeps wires the kompendium-subtree adapters against the
 // server-side DocumentStore HTTP API. The returned *kompapistore.Store is
 // exposed so the caller can wire its Invalidate method into the SSE handler.
-// UCs that require a local filesystem root (git, bundle, tar, remote,
-// snapshot, doctor, init, import-legacy, rebuild-index) are set to nil —
-// they will be removed in Task 7 once the fsstore path is gone.
 func buildKompendiumDeps(
 	docs ports.DocumentStore,
 	userID string,
@@ -482,7 +479,7 @@ func buildKompendiumDeps(
 		RenderDaily:     kompusecase.NewRenderDaily(store),
 		RenderBacklinks: kompusecase.NewRenderBacklinks(store, store), // apistore implements backlinkProvider
 
-		DeleteNote: kompusecase.NewDeleteNote(store, nil), // no local index in server mode
+		DeleteNote: kompusecase.NewDeleteNote(store),
 		EditNote:   editNote,
 
 		EditCmd:   nvim.Cmd,
@@ -558,16 +555,16 @@ func main() {
 	defer stop()
 
 	deps, cleanup, err := buildDeps(ctx, Paths{
-		Home:               home,
-		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
-		TmuxDir:            tmuxDir,
-		CacheDir:           filepath.Join(home, ".cache", "flow"),
-		PluginsDir:         filepath.Join(tmuxDir, "plugins"),
-		StateDir:           filepath.Join(home, ".local", "state", "flow"),
-		Cheatsheet:         filepath.Join(tmuxDir, "cheatsheet.md"),
-		SourceCodeRoot:     sourceRoot,
-		KompendiumNotebook: notebookRoot,
-		KompendiumIndex:    indexPath,
+		Home:                home,
+		WorktimeLog:         filepath.Join(tmuxDir, "worktime.log"),
+		TmuxDir:             tmuxDir,
+		CacheDir:            filepath.Join(home, ".cache", "flow"),
+		PluginsDir:          filepath.Join(tmuxDir, "plugins"),
+		StateDir:            filepath.Join(home, ".local", "state", "flow"),
+		Cheatsheet:          filepath.Join(tmuxDir, "cheatsheet.md"),
+		SourceCodeRoot:      sourceRoot,
+		KompendiumNotebook:  notebookRoot,
+		KompendiumIndexPath: indexPath,
 	}, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

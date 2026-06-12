@@ -7,18 +7,23 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
 
-// FakeIndexer is an in-memory ports.Indexer for use-case tests. Search runs a
-// naive substring match on title and body — sufficient for verifying that a
-// use case wires queries through correctly, not for benchmarking ranking.
+// indexEntry is the in-memory record kept by FakeIndexer.
+type indexEntry struct {
+	Note  domain.Note
+	Mtime time.Time
+}
+
+// FakeIndexer is an in-memory backlink/search store for use-case tests.
+// Search runs a naive substring match on title and body — sufficient for
+// verifying that a use case wires queries through correctly.
 //
 // Set the *Err fields to force the corresponding method to return that error,
 // which lets use-case tests cover index-failure branches.
 type FakeIndexer struct {
 	mu      sync.Mutex
-	entries map[domain.ID]ports.IndexEntry
+	entries map[domain.ID]indexEntry
 
 	UpsertErr    error
 	DeleteErr    error
@@ -30,21 +35,21 @@ type FakeIndexer struct {
 
 // NewFakeIndexer returns an empty FakeIndexer.
 func NewFakeIndexer() *FakeIndexer {
-	return &FakeIndexer{entries: make(map[domain.ID]ports.IndexEntry)}
+	return &FakeIndexer{entries: make(map[domain.ID]indexEntry)}
 }
 
-// Upsert implements ports.Indexer.
+// Upsert stores a note in the fake index.
 func (f *FakeIndexer) Upsert(_ context.Context, note domain.Note, mtime time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.UpsertErr != nil {
 		return f.UpsertErr
 	}
-	f.entries[note.ID] = ports.IndexEntry{Note: note, Mtime: mtime}
+	f.entries[note.ID] = indexEntry{Note: note, Mtime: mtime}
 	return nil
 }
 
-// Delete implements ports.Indexer.
+// Delete removes a note from the fake index.
 func (f *FakeIndexer) Delete(_ context.Context, id domain.ID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -55,7 +60,7 @@ func (f *FakeIndexer) Delete(_ context.Context, id domain.ID) error {
 	return nil
 }
 
-// Search implements ports.Indexer.
+// Search returns matching entries using a naive substring match.
 func (f *FakeIndexer) Search(_ context.Context, q domain.SearchQuery) ([]domain.SearchResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -96,7 +101,7 @@ func matchesFilter(n domain.Note, q domain.SearchQuery) bool {
 	return strings.Contains(string(n.Body), q.Text)
 }
 
-// BacklinksOf implements ports.Indexer.
+// BacklinksOf returns all entries that wikilink to id.
 func (f *FakeIndexer) BacklinksOf(_ context.Context, id domain.ID) ([]domain.LinkRef, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -117,7 +122,7 @@ func (f *FakeIndexer) BacklinksOf(_ context.Context, id domain.ID) ([]domain.Lin
 	return out, nil
 }
 
-// LinksFrom implements ports.Indexer.
+// LinksFrom returns all wikilinks that originate from id.
 func (f *FakeIndexer) LinksFrom(_ context.Context, id domain.ID) ([]domain.LinkRef, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -141,18 +146,16 @@ func (f *FakeIndexer) LinksFrom(_ context.Context, id domain.ID) ([]domain.LinkR
 	return out, nil
 }
 
-// Rebuild implements ports.Indexer.
-func (f *FakeIndexer) Rebuild(_ context.Context, all []ports.IndexEntry) error {
+// Rebuild replaces the entire fake index with all.
+func (f *FakeIndexer) Rebuild(_ context.Context, all []indexEntry) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.RebuildErr != nil {
 		return f.RebuildErr
 	}
-	f.entries = make(map[domain.ID]ports.IndexEntry, len(all))
+	f.entries = make(map[domain.ID]indexEntry, len(all))
 	for _, e := range all {
 		f.entries[e.Note.ID] = e
 	}
 	return nil
 }
-
-var _ ports.Indexer = (*FakeIndexer)(nil)

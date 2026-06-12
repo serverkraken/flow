@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -19,49 +18,6 @@ type SearchNotes struct {
 func NewSearchNotes(docs ports.DocumentStore, userID string) *SearchNotes {
 	return &SearchNotes{Docs: docs, UserID: userID}
 }
-
-// NewSearchNotesWithIndex wraps a legacy kompports.Indexer in a SearchNotes.
-// Used by the CLI's fsstore+sqliteindex path until Task 7 removes that adapter.
-//
-//nolint:unused // transitional constructor — will be removed in Task 7
-func NewSearchNotesWithIndex(index kompports.Indexer) *SearchNotes {
-	return &SearchNotes{Docs: &indexerDocAdapter{index: index}}
-}
-
-// indexerDocAdapter adapts kompports.Indexer to the minimal ports.DocumentStore
-// subset used by SearchNotes.Execute (List only). All other methods are stubs.
-type indexerDocAdapter struct{ index kompports.Indexer }
-
-func (a *indexerDocAdapter) Get(_, _ string) (ports.Document, error) {
-	return ports.Document{}, ports.ErrDocumentNotFound
-}
-
-func (a *indexerDocAdapter) GetByRepoKey(_, _ string) (ports.Document, error) {
-	return ports.Document{}, ports.ErrDocumentNotFound
-}
-
-func (a *indexerDocAdapter) List(_ string, _, query string, limit int) ([]ports.DocumentEntry, error) {
-	results, err := a.index.Search(context.Background(), domain.SearchQuery{
-		Text:  query,
-		Limit: limit,
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]ports.DocumentEntry, len(results))
-	for i, r := range results {
-		out[i] = ports.DocumentEntry{
-			Path:    r.ID.Path(),
-			Snippet: r.Snippet,
-		}
-	}
-	return out, nil
-}
-
-func (a *indexerDocAdapter) Put(_, _, _, _ string, _ int64) (ports.Document, error) {
-	return ports.Document{}, ports.ErrDocumentNotFound
-}
-func (a *indexerDocAdapter) Delete(_, _ string) error { return nil }
 
 // SearchNotesInput configures one Execute call. The fields map directly to
 // domain.SearchQuery so callers can express filter and ordering preferences

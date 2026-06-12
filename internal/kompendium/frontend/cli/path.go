@@ -12,7 +12,7 @@ import (
 func newPathCmd(deps Deps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "path <id>",
-		Short: "Print the absolute filesystem path of a note ID (fsstore only)",
+		Short: "Print the absolute filesystem path of a note ID (local notebook only)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := domain.ParseID(args[0])

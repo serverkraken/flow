@@ -16,7 +16,6 @@ type CreateProject struct {
 	Repo   ports.RepoDetector
 	Clock  ports.Clock
 	Editor ports.Editor
-	Index  ports.Indexer // optional — auto-reindex after Editor.Edit when set
 }
 
 // NewCreateProject wires the use case with its required ports.
@@ -75,7 +74,6 @@ func (u *CreateProject) Execute(ctx context.Context, in CreateProjectInput) (Cre
 	if err := edit.Execute(ctx, id); err != nil {
 		return CreateProjectOutput{}, fmt.Errorf("edit: %w", err)
 	}
-	reindex(ctx, u.Store, u.Index, id)
 	return CreateProjectOutput{ID: id, Project: info.URL, Created: !exists}, nil
 }
 

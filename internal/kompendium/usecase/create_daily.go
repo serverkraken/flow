@@ -10,15 +10,10 @@ import (
 
 // CreateDaily creates today's daily note (if missing) and opens it in the
 // editor. Idempotent: calling it twice the same day reuses the existing note.
-//
-// Index is optional. When set, the note is re-read after the editor closes
-// and upserted into the FTS5 index so `kompendium search` finds the new
-// content immediately.
 type CreateDaily struct {
 	Store  ports.NoteStore
 	Clock  ports.Clock
 	Editor ports.Editor
-	Index  ports.Indexer
 }
 
 // NewCreateDaily wires the use case with its required ports.
@@ -63,7 +58,6 @@ func (u *CreateDaily) Execute(ctx context.Context) (CreateDailyOutput, error) {
 	if err := edit.Execute(ctx, id); err != nil {
 		return CreateDailyOutput{}, fmt.Errorf("edit: %w", err)
 	}
-	reindex(ctx, u.Store, u.Index, id)
 	return CreateDailyOutput{ID: id, Created: !exists}, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
 )
@@ -111,27 +110,3 @@ func TestCaptureDaily_GetErrorPropagates(t *testing.T) {
 	}
 }
 
-// TestCaptureDaily_ReindexBestEffort verifies the optional Index
-// dependency is hit on success — reindex errors are swallowed (the
-// daily was written; a stale index is recoverable).
-func TestCaptureDaily_ReindexBestEffort(t *testing.T) {
-	t.Parallel()
-	store := testutil.NewFakeNoteStore()
-	idx := testutil.NewFakeIndexer()
-	clock := testutil.FixedClock{Time: time.Date(2026, 4, 25, 8, 0, 0, 0, time.UTC)}
-
-	u := usecase.NewCaptureDaily(store, clock)
-	u.Index = idx
-
-	if _, err := u.Execute(context.Background(), usecase.CaptureDailyInput{Text: "morning"}); err != nil {
-		t.Fatal(err)
-	}
-	_, err := idx.Search(context.Background(), domain.SearchQuery{Text: "morning"})
-	if err != nil {
-		t.Fatalf("Search: %v", err)
-	}
-	// We can't directly assert the index has the entry without exposing more
-	// internals, but the smoke check is enough: capture didn't error, index
-	// was reachable.
-	_ = ports.SyncStats{}
-}

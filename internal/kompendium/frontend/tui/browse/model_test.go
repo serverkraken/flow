@@ -569,7 +569,7 @@ func TestBrowse_DOpensConfirmPrompt(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -600,7 +600,7 @@ func TestBrowse_DConfirmDeletesAndReloads(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -632,7 +632,7 @@ func TestBrowse_DCancelOnN(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -657,7 +657,7 @@ func TestBrowse_DCancelOnEsc(t *testing.T) {
 	store.Seed(mustNote("daily/2026-04-25", domain.TypeDaily, "today"), time.Unix(1, 0))
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -696,7 +696,7 @@ func TestBrowse_DNoOpOnEmptyList(t *testing.T) {
 	store := testutil.NewFakeNoteStore()
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)
@@ -717,7 +717,7 @@ func TestBrowse_DDeleteErrorSurfacesInView(t *testing.T) {
 	store.DeleteErr = errForTest("disk full")
 	noopCmd := func(_ string) *exec.Cmd { return exec.Command("true") }
 	noopWrite := func(writepicker.Result) *exec.Cmd { return exec.Command("true") }
-	deleteUC := usecase.NewDeleteNote(store, nil)
+	deleteUC := usecase.NewDeleteNote(store)
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, deleteUC, "", noopCmd, noopWrite)
 	model := initialised(m)

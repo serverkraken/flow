@@ -23,7 +23,6 @@ var ErrCaptureEmpty = errors.New("capture text is required")
 type CaptureDaily struct {
 	Store ports.NoteStore
 	Clock ports.Clock
-	Index ports.Indexer // optional — best-effort reindex post-write
 }
 
 // NewCaptureDaily wires the use case with its required ports.
@@ -85,7 +84,6 @@ func (u *CaptureDaily) Execute(ctx context.Context, in CaptureDailyInput) (Captu
 	if err := u.Store.Put(ctx, note); err != nil {
 		return CaptureDailyOutput{}, fmt.Errorf("put daily: %w", err)
 	}
-	reindex(ctx, u.Store, u.Index, id)
 	return CaptureDailyOutput{ID: id, Bullet: strings.TrimRight(bullet, "\n"), Created: created}, nil
 }
 

@@ -257,16 +257,16 @@ func TestBuildDeps_HappyPath(t *testing.T) {
 		}
 	}
 	p := Paths{
-		Home:               tmp,
-		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
-		TmuxDir:            tmuxDir,
-		CacheDir:           cacheDir,
-		PluginsDir:         pluginsDir,
-		StateDir:           stateDir,
-		Cheatsheet:         filepath.Join(tmuxDir, "cheatsheet.md"),
-		SourceCodeRoot:     sourceRoot,
-		KompendiumNotebook: notebook,
-		KompendiumIndex:    index,
+		Home:                tmp,
+		WorktimeLog:         filepath.Join(tmuxDir, "worktime.log"),
+		TmuxDir:             tmuxDir,
+		CacheDir:            cacheDir,
+		PluginsDir:          pluginsDir,
+		StateDir:            stateDir,
+		Cheatsheet:          filepath.Join(tmuxDir, "cheatsheet.md"),
+		SourceCodeRoot:      sourceRoot,
+		KompendiumNotebook:  notebook,
+		KompendiumIndexPath: index,
 	}
 	deps, cleanup, err := buildDeps(context.Background(), p, Env{WorktimeTargetHours: 8 * time.Hour, WorktimeLand: "BE", ServerURL: "http://localhost:0"})
 	if err != nil {

@@ -13,13 +13,9 @@ import (
 var ErrSlugRequired = errors.New("slug is required")
 
 // CreateFree creates a free-form note at "notes/<slug>" and opens it.
-//
-// Index is optional — when set, the note is upserted into the FTS5 index
-// after the editor closes so search hits the new content immediately.
 type CreateFree struct {
 	Store  ports.NoteStore
 	Editor ports.Editor
-	Index  ports.Indexer
 }
 
 // NewCreateFree wires the use case with its required ports.
@@ -69,7 +65,6 @@ func (u *CreateFree) Execute(ctx context.Context, in CreateFreeInput) (CreateFre
 	if err := edit.Execute(ctx, id); err != nil {
 		return CreateFreeOutput{}, fmt.Errorf("edit: %w", err)
 	}
-	reindex(ctx, u.Store, u.Index, id)
 	return CreateFreeOutput{ID: id, Created: !exists}, nil
 }
 

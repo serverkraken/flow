@@ -16,6 +16,7 @@ import (
 type testEnv struct {
 	store  *testutil.FakeNoteStore
 	index  *testutil.FakeIndexer
+	docs   *testutil.FakeDocStore
 	repo   *testutil.FakeRepoDetector
 	editor *testutil.FakeEditor
 	deps   cli.Deps
@@ -25,6 +26,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	t.Helper()
 	store := testutil.NewFakeNoteStore()
 	index := testutil.NewFakeIndexer()
+	docs := testutil.NewFakeDocStore()
 	repo := &testutil.FakeRepoDetector{}
 	editor := &testutil.FakeEditor{}
 	clock := testutil.FixedClock{Time: time.Date(2026, 4, 25, 0, 0, 0, 0, time.UTC)}
@@ -32,6 +34,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	return &testEnv{
 		store:  store,
 		index:  index,
+		docs:   docs,
 		repo:   repo,
 		editor: editor,
 		deps: cli.Deps{
@@ -44,10 +47,10 @@ func newTestEnv(t *testing.T) *testEnv {
 			CaptureDaily:    usecase.NewCaptureDaily(store, clock),
 			Open:            usecase.NewOpen(store, editor),
 			ListNotes:       usecase.NewListNotes(store),
-			SearchNotes:     usecase.NewSearchNotesWithIndex(index),
+			SearchNotes:     usecase.NewSearchNotes(docs, "testuser"),
 			RenderDaily:     usecase.NewRenderDaily(store),
 			RenderBacklinks: usecase.NewRenderBacklinks(store, index),
-			DeleteNote:      usecase.NewDeleteNote(store, index),
+			DeleteNote:      usecase.NewDeleteNote(store),
 		},
 	}
 }
