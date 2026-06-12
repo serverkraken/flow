@@ -5,17 +5,17 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
-	"github.com/serverkraken/flow/internal/ports"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 )
 
 // SearchNotes runs a full-text query through the document store.
 type SearchNotes struct {
-	Docs   ports.DocumentStore
+	Docs   kompports.NoteSearcher
 	UserID string
 }
 
-// NewSearchNotes returns a SearchNotes using the given document store and user.
-func NewSearchNotes(docs ports.DocumentStore, userID string) *SearchNotes {
+// NewSearchNotes returns a SearchNotes using the given searcher and user.
+func NewSearchNotes(docs kompports.NoteSearcher, userID string) *SearchNotes {
 	return &SearchNotes{Docs: docs, UserID: userID}
 }
 
@@ -34,9 +34,9 @@ type SearchNotesInput struct {
 // For a non-empty Text the server performs FTS and returns Snippet-annotated
 // entries. For an empty Text all documents are returned (most-recent first).
 // Type and Project filters are applied client-side when set, since the
-// DocumentStore List API does not expose those dimensions.
-func (u *SearchNotes) Execute(ctx context.Context, in SearchNotesInput) ([]domain.SearchResult, error) {
-	entries, err := u.Docs.List(u.UserID, "", in.Text, in.Limit)
+// NoteSearcher interface does not expose those dimensions.
+func (u *SearchNotes) Execute(_ context.Context, in SearchNotesInput) ([]domain.SearchResult, error) {
+	entries, err := u.Docs.ListRaw(context.Background(), u.UserID, "", in.Text, in.Limit)
 	if err != nil {
 		return nil, err
 	}

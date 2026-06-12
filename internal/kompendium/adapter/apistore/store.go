@@ -63,7 +63,7 @@ func (s *Store) Invalidate() {
 // blocking other goroutines. Concurrent callers that arrive while a reload is
 // already in progress return immediately; the in-flight load will update the
 // corpus for everyone.
-func (s *Store) ensure(ctx context.Context) error {
+func (s *Store) ensure(_ context.Context) error {
 	// Fast path: already loaded and not stale, or a reload is already in flight.
 	s.mu.Lock()
 	if s.loaded && !s.stale {
@@ -271,6 +271,9 @@ func (s *Store) Put(ctx context.Context, note domain.Note) error {
 	if err != nil {
 		if errors.Is(err, ports.ErrDocumentVersionConflict) {
 			s.Invalidate()
+			// Surface the conflict as kompports.ErrVersionConflict so callers
+			// inside the kompendium subtree do not need to import internal/ports.
+			return fmt.Errorf("apistore: put %q: %w: %w", p, kompports.ErrVersionConflict, err)
 		}
 		return fmt.Errorf("apistore: put %q: %w", p, err)
 	}
@@ -342,4 +345,23 @@ func (s *Store) List(ctx context.Context, filter kompports.ListFilter) ([]komppo
 	return out, nil
 }
 
-var _ kompports.NoteStore = (*Store)(nil)
+// ListRaw implements kompports.NoteSearcher. It delegates directly to the
+// underlying DocumentStore.List so the server-side FTS index is used when
+// query is non-empty, and returns only the path and snippet — the caller
+// (SearchNotes) maps these to domain.SearchResult values.
+func (s *Store) ListRaw(_ context.Context, userID, prefix, query string, limit int) ([]kompports.RawSearchEntry, error) {
+	entries, err := s.docs.List(userID, prefix, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("apistore: list raw: %w", err)
+	}
+	out := make([]kompports.RawSearchEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, kompports.RawSearchEntry{Path: e.Path, Snippet: e.Snippet})
+	}
+	return out, nil
+}
+
+var (
+	_ kompports.NoteStore    = (*Store)(nil)
+	_ kompports.NoteSearcher = (*Store)(nil)
+)

@@ -164,6 +164,12 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/theme
             - charm.land/bubbletea/v2
             - github.com/spf13/cobra
+            # output.go maps transport-level auth errors (ErrLoggedOut,
+            # ErrNotConfigured) to human-readable CLI hints. The CLI
+            # frontend is the correct layer to interpret and present
+            # these sentinel values; the kompendium-usecase layer stays
+            # free of them.
+            - github.com/serverkraken/flow/internal/adapter/httpapi
         # The kompendium-frontend-tui rule mirrors flow's frontend-tui
         # rule but for the kompendium subtree. Allowlist: stdlib +
         # kompendium/{domain,ports,usecase} + the shared markdown

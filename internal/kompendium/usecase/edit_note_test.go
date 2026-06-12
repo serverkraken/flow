@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
-	"github.com/serverkraken/flow/internal/ports"
 )
 
 // modifyingEditor rewrites the tempfile with the given content when Edit is
@@ -109,7 +109,7 @@ func TestEditNote_Change(t *testing.T) {
 	}
 }
 
-// TestEditNote_Conflict verifies that on ErrDocumentVersionConflict the error
+// TestEditNote_Conflict verifies that on ErrVersionConflict the error
 // message contains the tempfile path so the user can recover the edit.
 func TestEditNote_Conflict(t *testing.T) {
 	t.Parallel()
@@ -117,8 +117,8 @@ func TestEditNote_Conflict(t *testing.T) {
 	id := domain.ID("free/conflict")
 	seedNote(t, store, id, "# original\n")
 
-	// Force Put to return a version conflict.
-	store.PutErr = ports.ErrDocumentVersionConflict
+	// Force Put to return a version conflict using the kompendium sentinel.
+	store.PutErr = kompports.ErrVersionConflict
 
 	editor := &modifyingEditor{
 		content: "---\nid: free/conflict\ntype: free\n---\n# edited\n",
@@ -129,8 +129,8 @@ func TestEditNote_Conflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on version conflict, got nil")
 	}
-	if !errors.Is(err, ports.ErrDocumentVersionConflict) {
-		t.Errorf("error does not wrap ErrDocumentVersionConflict: %v", err)
+	if !errors.Is(err, kompports.ErrVersionConflict) {
+		t.Errorf("error does not wrap ErrVersionConflict: %v", err)
 	}
 
 	// Error message must contain the tempfile path.

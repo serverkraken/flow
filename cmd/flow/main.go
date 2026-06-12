@@ -475,7 +475,7 @@ func buildKompendiumDeps(
 		Open:          open,
 
 		ListNotes:       kompusecase.NewListNotes(store),
-		SearchNotes:     kompusecase.NewSearchNotes(docs, userID),
+		SearchNotes:     kompusecase.NewSearchNotes(store, userID),
 		RenderDaily:     kompusecase.NewRenderDaily(store),
 		RenderBacklinks: kompusecase.NewRenderBacklinks(store, store), // apistore implements backlinkProvider
 

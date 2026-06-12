@@ -8,7 +8,6 @@ import (
 
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
-	"github.com/serverkraken/flow/internal/ports"
 )
 
 // EditNote opens an existing note in the editor via a tempfile. The
@@ -17,7 +16,7 @@ import (
 // is deleted without a Put; if it changed the new content is parsed
 // and written back through the store.
 //
-// On version conflict (ErrDocumentVersionConflict from Put) or frontmatter
+// On version conflict (kompports.ErrVersionConflict from Put) or frontmatter
 // parse failure, the error message includes the tempfile path so the user
 // can recover the edit.
 type EditNote struct {
@@ -70,7 +69,7 @@ func (u *EditNote) Execute(ctx context.Context, id kompdomain.ID) error {
 	}
 
 	if err := u.Store.Put(ctx, updated); err != nil {
-		if errors.Is(err, ports.ErrDocumentVersionConflict) {
+		if errors.Is(err, kompports.ErrVersionConflict) {
 			return fmt.Errorf("note wurde parallel geändert — Bearbeitung liegt in %s; neu öffnen und zusammenführen: %w", path, err)
 		}
 		return err

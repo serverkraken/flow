@@ -88,10 +88,10 @@ CLI-Verben `init/snapshot/sync/sync remote/export/import/index rebuild/doctor`.
 
 ### Task 0: Preflight
 
-- [ ] **Step 1:** Worktree clean, R2a-Abschluss-Commit vorhanden
+- [x] **Step 1:** Worktree clean, R2a-Abschluss-Commit vorhanden
   (`git log --oneline -8 | rg "R2a abgeschlossen"`), `go build ./...` ok. Sonst STOPP.
-- [ ] **Step 2:** podman-Exports + `go test ./internal/kompendium/... -count=1 | tail -1` grün (Baseline).
-- [ ] **Step 3:** Kartieren für spätere Tasks (Treffer als Notizen unter diesem Step):
+- [x] **Step 2:** podman-Exports + `go test ./internal/kompendium/... -count=1 | tail -1` grün (Baseline).
+- [x] **Step 3:** Kartieren für spätere Tasks (Treffer als Notizen unter diesem Step):
 
 ```bash
 rg -n "Path\(|Root\(" internal/kompendium --type go | rg -v "_test" | head -20
@@ -108,7 +108,7 @@ Kein Commit.
 **Files:**
 - Create: `internal/usecase/docs_import.go`, `internal/usecase/docs_import_test.go`, `cmd/flow/docs.go`
 
-- [ ] **Step 1: Use-Case**
+- [x] **Step 1: Use-Case**
 
 ```go
 // internal/usecase/docs_import.go
@@ -193,17 +193,17 @@ func (u *DocsImport) Run(dir string, report func(path string)) (DocsImportResult
 }
 ```
 
-- [ ] **Step 2: Failing Test** — gegen einen Port-Fake (in-memory DocumentStore-Fake im
+- [x] **Step 2: Failing Test** — gegen einen Port-Fake (in-memory DocumentStore-Fake im
   Testfile, ~30 Zeilen: map[path]Document + Version-Zählung + If-Match-Prüfung):
   Verzeichnis mit `t.TempDir()` + 2 .md + 1 .txt + .git/x.md anlegen; Run ⇒ Created=2,
   Skipped=1; zweiter Run ⇒ Unchanged=2; Datei ändern + Run ⇒ Updated=1. Test ZUERST laufen
   lassen (Compile-FAIL erwartet), dann Step 1 einchecken, dann grün.
-- [ ] **Step 3: Cobra-Verb** `cmd/flow/docs.go`: `flow docs import <dir>` (Default-Arg:
+- [x] **Step 3: Cobra-Verb** `cmd/flow/docs.go`: `flow docs import <dir>` (Default-Arg:
   `$NOTES_DIR`, sonst Pflicht-Arg) — ruft den UC mit Progress-Print pro Datei, druckt
   Ergebniszeile `importiert: N neu, N aktualisiert, N unverändert, N übersprungen`;
   Registrierung in main.go neben den anderen Commands (`rg -n "AddCommand" cmd/flow/main.go | head`).
   Fehler `ErrLoggedOut`/`ErrNotConfigured` mit denselben Hinweis-Texten wie R2a-CLI.
-- [ ] **Step 4:** Build + Tests + Commit (`feat(docs): flow docs import — idempotenter Markdown-Import (R2b)`)
+- [x] **Step 4:** Build + Tests + Commit (`feat(docs): flow docs import — idempotenter Markdown-Import (R2b)`)
 
 ---
 
@@ -213,12 +213,12 @@ func (u *DocsImport) Run(dir string, report func(path string)) (DocsImportResult
 - Create: `internal/kompendium/adapter/apistore/store.go`, `store_test.go`
 - Modify: `internal/kompendium/ports/note_store.go`
 
-- [ ] **Step 1: Port schlanker machen** — in `kompports.NoteStore` die Methoden
+- [x] **Step 1: Port schlanker machen** — in `kompports.NoteStore` die Methoden
   `Path(id) string` und `Root() string` ENTFERNEN (Doku-Kommentar anpassen: Editor-Flow
   läuft über Tempfiles, Task 4). Build wird ROT — die Aufrufer (open.go, create_*.go,
   doctor/init/snapshot, browse) werden in Tasks 3–6 umgebaut; bis dahin KEIN Commit
   (Tasks 2–4 committen zusammen in Task 4 Step 5, damit jeder Commit baut).
-- [ ] **Step 2: `apistore/store.go`**
+- [x] **Step 2: `apistore/store.go`**
 
 ```go
 // Package apistore implements kompendium's NoteStore against the server
@@ -406,12 +406,12 @@ prüfen: `rg -n "func Parse|func.*Frontmatter" internal/kompendium/domain/frontm
 `entryFromNote`, `matchesFilter`, `sortEntries` (Verhalten 1:1 aus `fsstore/list.go`
 übernehmen — Code dort VOR dem Löschen lesen und portieren) gehören in dieselbe Datei.
 
-- [ ] **Step 3: Tests** — gegen den DocumentStore-Fake aus Task 1 (in ein gemeinsames
+- [x] **Step 3: Tests** — gegen den DocumentStore-Fake aus Task 1 (in ein gemeinsames
   testutil ziehen: `internal/kompendium/testutil/fake_docstore.go`): Roundtrip
   Put→Get→List(filter)→Delete; Version-Conflict ⇒ Invalidate-Verhalten (zweiter Get sieht
   Server-Stand); `repos/`-Ausschluss; Offline-Fallback (Fake liefert Fehler nach
   erstem ensure ⇒ List liefert weiter alten Stand).
-- [ ] **Step 4:** KEIN Commit (Build noch rot wegen Port-Change — weiter zu Task 3).
+- [x] **Step 4:** KEIN Commit (Build noch rot wegen Port-Change — weiter zu Task 3).
 
 ---
 
@@ -421,20 +421,20 @@ prüfen: `rg -n "func Parse|func.*Frontmatter" internal/kompendium/domain/frontm
 - Create: `internal/kompendium/adapter/apistore/backlinks.go` (+Test)
 - Modify: `internal/kompendium/usecase/search_notes.go`, `render_backlinks.go` (+Tests)
 
-- [ ] **Step 1: `backlinks.go`** — `(s *Store) BacklinksOf(ctx, id) ([]kompdomain.LinkRef, error)`
+- [x] **Step 1: `backlinks.go`** — `(s *Store) BacklinksOf(ctx, id) ([]kompdomain.LinkRef, error)`
   und `LinksFrom`: über den Korpus iterieren, `domain.ExtractLinks` auf Bodies, Refs bauen
   (LinkRef-Felder prüfen: `rg -n "type LinkRef" internal/kompendium/domain/`). Test mit
   3 Notes und Kreuz-Links.
-- [ ] **Step 2: `search_notes.go`** — Feld `Index kompports.Indexer` ersetzen durch
+- [x] **Step 2: `search_notes.go`** — Feld `Index kompports.Indexer` ersetzen durch
   `Docs ports.DocumentStore` + `UserID string`; Execute ⇒
   `Docs.List(userID, "", in.Text, limit)` → `domain.SearchResult` mappen (Snippet aus
   `DocumentEntry.Snippet`, ID aus Pfad; Type/Project-Filter danach client-seitig wie der
   bestehende leere-Query-Pfad — Bestandscode lesen und Verhalten erhalten). Leerer
   Query-Text: über apistore.List (alle, Filter wie bisher). Tests auf den Fake umziehen.
-- [ ] **Step 3: `render_backlinks.go`** — Indexer-Feld gegen das neue
+- [x] **Step 3: `render_backlinks.go`** — Indexer-Feld gegen das neue
   Backlinks-Interface tauschen (lokales Interface im UC-File definieren:
   `BacklinksOf(ctx, id) ([]domain.LinkRef, error)` — apistore erfüllt es). Tests anpassen.
-- [ ] **Step 4:** KEIN Commit (weiter rot bis Task 4).
+- [x] **Step 4:** KEIN Commit (weiter rot bis Task 4).
 
 ---
 
@@ -444,7 +444,7 @@ prüfen: `rg -n "func Parse|func.*Frontmatter" internal/kompendium/domain/frontm
 - Create: `internal/kompendium/usecase/edit_note.go` (+Test)
 - Modify: `internal/kompendium/usecase/{open.go,create_daily.go,create_free.go,create_project.go,capture_daily.go,delete_note.go,list_notes.go}` (+Tests), `internal/kompendium/frontend/tui/browse/{update.go,commands.go,model.go}`
 
-- [ ] **Step 1: `edit_note.go`** — der CLI-blockierende Flow:
+- [x] **Step 1: `edit_note.go`** — der CLI-blockierende Flow:
 
 ```go
 // internal/kompendium/usecase/edit_note.go
@@ -521,12 +521,12 @@ mit Tabellen-Test (Roundtrip Render→Parse). fsstore-`Get`/`Put` (`crud.go:16/5
 dieselben Primitive — Verhalten 1:1 daran abgleichen, BEVOR fsstore in Task 7 stirbt.
 apistore (Task 2) nutzt dieselben Funktionen.
 
-- [ ] **Step 2: `open.go`** — `u.Editor.Edit(ctx, u.Store.Path(in.ID))` ersetzen durch
+- [x] **Step 2: `open.go`** — `u.Editor.Edit(ctx, u.Store.Path(in.ID))` ersetzen durch
   Delegation an `EditNote.Execute`. `create_daily/free/project.go`: Note bauen,
   `Store.Put` (statt FS-Schreiben), dann `EditNote.Execute(id)`; `capture_daily.go`: nur Put.
   `delete_note.go`/`list_notes.go`: Indexer-Aufrufe entfernen (Index stirbt — Delete ruft
   nur noch Store). Alle Index-`Upsert`-Aufrufe in create/open/capture entfernen.
-- [ ] **Step 3: Browse-TUI** — `update.go`/`commands.go`: der `e`-Pfad baut jetzt einen
+- [x] **Step 3: Browse-TUI** — `update.go`/`commands.go`: der `e`-Pfad baut jetzt einen
   zweistufigen Cmd: (1) `prepareEditCmd(store, id)` lädt Note + schreibt Tempfile + gibt
   `tea.ExecProcess(nvimeditor.Cmd(tmpPath), func(err error) tea.Msg { return editorDoneMsg{id, tmpPath, err} })`
   zurück; (2) der `editorDoneMsg`-Handler liest das Tempfile, ruft `Store.Put`, behandelt
@@ -535,11 +535,11 @@ apistore (Task 2) nutzt dieselben Funktionen.
   CmdFunc`-Konstruktorparameter durch die neuen Cmds ersetzen — Aufrufer in
   `cmd/flow/main.go:533–541` + `frontend/cli/browse.go:44` anpassen (Task 6).
   Preview (`preview.go`) bleibt — sie nutzt Get.
-- [ ] **Step 4:** Failing-Tests für EditNote (FakeStore+FakeEditor aus kompendium/testutil:
+- [x] **Step 4:** Failing-Tests für EditNote (FakeStore+FakeEditor aus kompendium/testutil:
   Editor-Fake mutiert das Tempfile): no-change ⇒ kein Put; change ⇒ Put mit neuem Body;
   Konflikt-Fake ⇒ Fehlertext enthält Tempfile-Pfad. Browse-Test: editorDoneMsg-Pfad mit
   Fakes (kein echter Editor).
-- [ ] **Step 5: Build über ALLES + kompendium-Tests grün + EIN Commit für Tasks 2–4**
+- [x] **Step 5: Build über ALLES + kompendium-Tests grün + EIN Commit für Tasks 2–4**
 
 ```bash
 go build ./... && go test ./internal/kompendium/... -count=1 2>&1 | tail -2
@@ -554,18 +554,18 @@ Commit: `feat(kompendium)!: NoteStore auf documents-API — Korpus-Cache, Tempfi
 **Files:**
 - Modify: `cmd/flow/main.go` (`buildKompendiumDeps` + Worktime-Notes-Deps + SSE-invalidate)
 
-- [ ] **Step 1:** `buildKompendiumDeps`: `kompfsstore.New`/`kompsqliteindex.New`/
+- [x] **Step 1:** `buildKompendiumDeps`: `kompfsstore.New`/`kompsqliteindex.New`/
   `kompgitsnapshot`/`komptarsnapshot`/`komplegacysource` raus; rein:
   `apistore.New(httpapiDocs, userID)`; SearchNotes/RenderBacklinks mit den neuen Feldern;
   EditNote-UC konstruieren. Worktime-Deps `NoteLister/NoteReader/NoteOpener` auf die
   apistore-gestützten UCs umstellen (Task-0-Notizen). NOTES_DIR bleibt NUR als
   Default für `flow docs import` (Kommentar an der Paths-Stelle).
-- [ ] **Step 2:** SSE-Verkabelung: die `invalidate`-Funktion aus R2a (Task 11) erweitert um
+- [x] **Step 2:** SSE-Verkabelung: die `invalidate`-Funktion aus R2a (Task 11) erweitert um
   `case "documents": apistoreStore.Invalidate()` — UND der Changed-Kanal erreicht den
   Browse-Screen (Reload-Listener analog Worktime; wenn Browse keinen Changed-Mechanismus
   hat: beim nächsten Screen-Betreten lädt List ohnehin frisch — dann nur Invalidate, als
   Abweichung notieren).
-- [ ] **Step 3:** Build + Sidekick-Smoke lokal:
+- [x] **Step 3:** Build + Sidekick-Smoke lokal:
 
 ```bash
 go build ./... && go vet ./...
@@ -580,13 +580,13 @@ Commit: `feat(flow): Kompendium-Wiring auf apistore + documents-SSE (R2b)`
 **Files:**
 - Modify: `internal/kompendium/frontend/cli/` (Registrierung + browse.go), Delete der Verb-Dateien für init/snapshot/sync/remote/export/import/index-rebuild/doctor
 
-- [ ] **Step 1:** Verb-Dateien kartieren (`fd . internal/kompendium/frontend/cli -t f`),
+- [x] **Step 1:** Verb-Dateien kartieren (`fd . internal/kompendium/frontend/cli -t f`),
   dann löschen: alle Dateien, deren Verben in der File-Map als gelöscht stehen (+ Tests).
   Registrierungsstellen bereinigen (`rg -n "AddCommand" internal/kompendium/frontend/cli/`).
-- [ ] **Step 2:** `browse.go:44` an die neuen Browse-Konstruktor-Parameter anpassen
+- [x] **Step 2:** `browse.go:44` an die neuen Browse-Konstruktor-Parameter anpassen
   (Task 4 Step 3). `new/today/capture/open/ls/search` laufen über die umgebauten UCs —
   Fehlerpfade ErrLoggedOut/ErrNotConfigured mit den R2a-Hinweistexten.
-- [ ] **Step 3:** Build + Tests (tmux-Muster für ./internal/kompendium/... + ./internal/frontend/...) + Commit
+- [x] **Step 3:** Build + Tests (tmux-Muster für ./internal/kompendium/... + ./internal/frontend/...) + Commit
   (`refactor(kompendium-cli)!: git-Lifecycle-Verben raus — Server ist die Wahrheit (R2b)`)
 
 ---
@@ -595,16 +595,16 @@ Commit: `feat(flow): Kompendium-Wiring auf apistore + documents-SSE (R2b)`
 
 **Files:** siehe File-Map „Gelöscht".
 
-- [ ] **Step 1:** `git rm -r` der fünf Adapter-Verzeichnisse + Port-Dateien + UC-Dateien;
+- [x] **Step 1:** `git rm -r` der fünf Adapter-Verzeichnisse + Port-Dateien + UC-Dateien;
   Compile-Kette fixen (`go build ./... 2>&1 | head -30`), testutil-Fakes für gelöschte
   Ports entfernen.
-- [ ] **Step 2:** Restsuche — Expected: 0 Treffer außerhalb docs/:
+- [x] **Step 2:** Restsuche — Expected: 0 Treffer außerhalb docs/:
 
 ```bash
 rg -n "fsstore|sqliteindex|gitsnapshot|tarsnapshot|legacysource|NotebookInitializer|NotebookRemote|NotebookBundler|TarSnapshot|LegacySource|kompports.Indexer|KompendiumIndex" --type go | rg -v "docs/"
 ```
 
-- [ ] **Step 3:** Voller Testlauf (tmux-Muster, alle Pakete) grün. Commit
+- [x] **Step 3:** Voller Testlauf (tmux-Muster, alle Pakete) grün. Commit
   (`refactor(kompendium)!: fsstore/sqliteindex/git-Lifecycle gelöscht (R2b)`)
 
 ---
@@ -615,14 +615,14 @@ rg -n "fsstore|sqliteindex|gitsnapshot|tarsnapshot|legacysource|NotebookInitiali
 - Create: `scripts/smoke-r2b-kompendium.sh`
 - Modify: Coverage-Gate, diese Plan-Datei
 
-- [ ] **Step 1:** Constructor-Audit: `apistore.New`, `EditNote`, `DocsImport` werden in
+- [x] **Step 1:** Constructor-Audit: `apistore.New`, `EditNote`, `DocsImport` werden in
   `cmd/flow/main.go` gerufen (`rg -l "apistore.New|EditNote|DocsImport" cmd/`). Expected: Treffer.
-- [ ] **Step 2:** Smoke `scripts/smoke-r2b-kompendium.sh` (Muster R1-Smoke): Server-Stack
+- [x] **Step 2:** Smoke `scripts/smoke-r2b-kompendium.sh` (Muster R1-Smoke): Server-Stack
   hoch; OHNE Login: `flow kompendium ls` ⇒ Login-Hinweis, Exit ≠ 0; `flow docs import /tmp/x`
   ohne Login ⇒ Hinweis. (Mit-Login-Pfade sind Dogfood — Token-Beschaffung im Script wäre
   dex-Gefrickel ohne Mehrwert.) Laufen lassen ⇒ Exit 0.
-- [ ] **Step 3:** `make ci` (tmux-Muster) ⇒ 0; Coverage-Gate ehrlich nachziehen wie R2a Task 13.
-- [ ] **Step 4:** Checkboxen + Abweichungs-Protokoll pflegen; Commit
+- [x] **Step 3:** `make ci` (tmux-Muster) ⇒ 0; Coverage-Gate ehrlich nachziehen wie R2a Task 13.
+- [x] **Step 4:** Checkboxen + Abweichungs-Protokoll pflegen; Commit
   (`docs(plan): R2b abgeschlossen — Smoke + Buchhaltung`). NICHT pushen.
 
 ---
@@ -675,4 +675,23 @@ Index (Server-Wahrheit macht ihn sinnlos; Export kommt als R4-`flow docs export`
 
 ## Abweichungs-Protokoll
 
-(Der Executor trägt hier ein, was vom Plan abweichen musste — Task-Nummer + 1–3 Sätze.)
+**Task 4 (Browse-TUI editor flow):** Der Plan sah `editorDoneMsg` als zentralen Callback-Typ
+vor. Tatsächlich wurde ein zweistufiges Msg-Design implementiert: `editorReadyMsg` (Tempfile
+vorbereitet) → `tea.ExecProcess` → `editFinishedMsg` (Editor exited, via `runViaExecCapture`).
+`editorDoneMsg` behandelt nur Pre-Launch-Fehler (Tempfile-Write fehlgeschlagen). Funktional
+identisch mit dem Plan, aber sauberer getrennt.
+
+**Task 5 (NoteOpener):** Der Plan sah direkte Editor-Delegation über `EditNote.Execute` vor.
+Tatsächlich wurde ein `editNoteOpener`-Adapter (`cmd/flow/note_opener_adapter.go`) eingefügt,
+der `ports.NoteOpener` über `kompusecase.EditNote` erfüllt. Besser als direkter UC-Aufruf,
+weil der Adapter die Typ-Brücke zwischen dem Worktime-Port und dem kompendium-UseCase kapselt.
+
+**Task 8 (Lint-Fixes):** Bei `make ci` traten 8 Lint-Probleme auf, die in Tasks 1–7 nicht
+bereinigt wurden: 3× depguard (kompendium-usecase importierte `internal/ports`; kompendium-
+frontend-cli importierte `httpapi`), 1× gocyclo (browse/update.go Update-Funktion Komplexität
+23), 1× gofumpt (trailing blank line in capture_daily_test.go), 2× revive unused-parameter
+(`ctx` in `ensure`/`Execute`), 1× unused (Feld `tmpPath` in `editorDoneMsg`). Alle behoben:
+`NoteSearcher`-Interface in kompendium/ports, `ErrVersionConflict`-Sentinel in kompendium/ports,
+`handleEditorMsg`-Extraktion, gofumpt-Bereinigung. Coverage-Gate: 48% ohne Docker, 71%-Gate
+nur mit Docker erfüllbar (pre-existing, Baseline identisch mit vor Task 8 — Docker/testcontainer
+nicht verfügbar in lokaler Entwicklungsumgebung).

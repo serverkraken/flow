@@ -43,9 +43,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyFilters()
 		m.refreshPreview()
 		return m, nil
+	case editorReadyMsg, editorDoneMsg, editFinishedMsg, saveFinishedMsg:
+		return m.handleEditorMsg(msg)
+	case deleteFinishedMsg:
+		if msg.err != nil {
+			m.editErr = msg.err
+			return m, nil
+		}
+		m.editErr = nil
+		return m, loadEntriesCmd(m.list, m.currentRepo)
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.helpUI.SetWidth(m.width)
+		m.layoutViewport()
+		// Invalidate the cached preview AND drop previewID so
+		// refreshPreview's `if previewID == e.ID { return }` short-
+		// circuit doesn't keep the old-width rendering on screen
+		// after a tmux pane resize / window resize.
+		m.previewCached = map[domain.ID]string{}
+		m.previewID = ""
+		m.refreshPreview()
+		if !m.loaded {
+			return m, m.spin.Tick
+		}
+		return m, nil
+	case tea.MouseWheelMsg:
+		return m.handleMouse(msg)
+	case tea.KeyPressMsg:
+		return m.handleKey(msg)
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spin, cmd = m.spin.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+// handleEditorMsg handles the editor lifecycle message cluster:
+// editorReadyMsg (tempfile prepared), editorDoneMsg (pre-launch failure),
+// editFinishedMsg (editor process exited), and saveFinishedMsg (store put done).
+// Extracted from Update to keep Update's cyclomatic complexity within limits.
+func (m Model) handleEditorMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
 	case editorReadyMsg:
 		// Tempfile is prepared — launch tea.ExecProcess with the editor cmd.
-		// Store the tempfile context in the model so editorDoneMsg knows where
+		// Store the tempfile context in the model so editFinishedMsg knows where
 		// to read the edited content from.
 		m.pendingEditID = msg.id
 		m.pendingEditTmp = msg.tmpPath
@@ -58,7 +100,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pendingEditID = ""
 			m.pendingEditTmp = ""
 			m.pendingEditRaw = nil
-			return m, nil
 		}
 		return m, nil
 	case editFinishedMsg:
@@ -97,36 +138,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previewCached = map[domain.ID]string{}
 		m.previewID = ""
 		return m, loadEntriesCmd(m.list, m.currentRepo)
-	case deleteFinishedMsg:
-		if msg.err != nil {
-			m.editErr = msg.err
-			return m, nil
-		}
-		m.editErr = nil
-		return m, loadEntriesCmd(m.list, m.currentRepo)
-	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.helpUI.SetWidth(m.width)
-		m.layoutViewport()
-		// Invalidate the cached preview AND drop previewID so
-		// refreshPreview's `if previewID == e.ID { return }` short-
-		// circuit doesn't keep the old-width rendering on screen
-		// after a tmux pane resize / window resize.
-		m.previewCached = map[domain.ID]string{}
-		m.previewID = ""
-		m.refreshPreview()
-		if !m.loaded {
-			return m, m.spin.Tick
-		}
-		return m, nil
-	case tea.MouseWheelMsg:
-		return m.handleMouse(msg)
-	case tea.KeyPressMsg:
-		return m.handleKey(msg)
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spin, cmd = m.spin.Update(msg)
-		return m, cmd
 	}
 	return m, nil
 }

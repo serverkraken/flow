@@ -1,10 +1,12 @@
 package testutil
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	kompports "github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -116,4 +118,21 @@ func (s *FakeDocStore) Delete(userID, path string) error {
 	return nil
 }
 
-var _ ports.DocumentStore = (*FakeDocStore)(nil)
+// ListRaw implements kompports.NoteSearcher. It delegates to List, ignoring
+// query and limit (consistent with the fake's FTS-ignorant List behaviour).
+func (s *FakeDocStore) ListRaw(_ context.Context, userID, prefix, _ string, _ int) ([]kompports.RawSearchEntry, error) {
+	entries, err := s.List(userID, prefix, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]kompports.RawSearchEntry, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, kompports.RawSearchEntry{Path: e.Path})
+	}
+	return out, nil
+}
+
+var (
+	_ ports.DocumentStore    = (*FakeDocStore)(nil)
+	_ kompports.NoteSearcher = (*FakeDocStore)(nil)
+)

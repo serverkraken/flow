@@ -109,4 +109,3 @@ func TestCaptureDaily_GetErrorPropagates(t *testing.T) {
 		t.Errorf("got %v, want forced", err)
 	}
 }
-

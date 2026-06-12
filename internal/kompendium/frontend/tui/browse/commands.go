@@ -54,13 +54,13 @@ type editorReadyMsg struct {
 	cmd       *exec.Cmd
 }
 
-// editorDoneMsg lands when tea.ExecProcess returns from the editor and
-// the tempfile has been read back. The Update reducer calls Store.Put
-// if the content changed.
+// editorDoneMsg lands when prepareEditCmd fails before the editor could
+// be launched (e.g. tempfile write error). The Update reducer uses id
+// for display context. The tempfile path is not embedded here — the
+// model tracks it via pendingEditTmp (set from editorReadyMsg.tmpPath).
 type editorDoneMsg struct {
-	id      domain.ID
-	tmpPath string
-	err     error
+	id  domain.ID
+	err error
 }
 
 // bodiesLoadedMsg lands once the background goroutine has read every
