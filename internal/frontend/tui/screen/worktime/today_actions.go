@@ -65,6 +65,11 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 // stop-choice prompt für sehr kurze Sessions ist deferred.
 func (h heute) toggleStartStopCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
+	if sw == nil {
+		return func() tea.Msg {
+			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+		}
+	}
 	clock := h.deps.Clock
 	now := clock.Now()
 	switch {
@@ -103,7 +108,7 @@ func (h heute) pauseCmd() tea.Cmd {
 		// New path: when ActiveSessions + UserID are wired and a session is
 		// running, pause the ActiveSessions row. Falls through to the legacy
 		// SessionWriter.Pause() path when not wired.
-		if h.deps.ActiveSessions != nil && h.deps.UserID != "" && len(h.activeSessions) > 0 {
+		if h.deps.ActiveSessions != nil && len(h.activeSessions) > 0 {
 			target := h.activeSessions[0]
 			sess, err := h.deps.ActiveSessions.Pause(h.deps.UserID, target.ProjectID)
 			if errors.Is(err, ports.ErrActiveSessionNotFound) {
@@ -118,6 +123,9 @@ func (h heute) pauseCmd() tea.Cmd {
 			}
 		}
 		// Legacy path: SessionWriter.Pause stops the flockstate session.
+		if sw == nil {
+			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+		}
 		s, err := sw.Pause()
 		if err != nil {
 			return heuteActionDoneMsg{err: err}
@@ -130,6 +138,9 @@ func (h heute) pauseCmd() tea.Cmd {
 func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 	sw := h.deps.SessionWriter
 	mut := func() tea.Msg {
+		if sw == nil {
+			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+		}
 		if err := sw.Delete(date, idx); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}

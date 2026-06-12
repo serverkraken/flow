@@ -3,16 +3,15 @@ package worktime
 // Heute project-picker integration — openPickerCmd, handleSKey,
 // activeSessionsStartCmd, projectsCreateThenStartCmd, activeSessionsListCmd.
 //
-// When deps.ActiveSessions and deps.UserID are both set (`s`-key) the screen
-// opens project_picker instead of calling the legacy SessionWriter. The picker
-// runs as a full-screen bubbletea overlay (pp field on heute) and emits
-// pickerPickedMsg / pickerCreateMsg / pickerCancelMsg via its onPick /
-// onCreate / onCancel callbacks.
+// When deps.ActiveSessions is set (`s`-key) the screen opens project_picker
+// instead of calling the legacy SessionWriter. The picker runs as a full-screen
+// bubbletea overlay (pp field on heute) and emits pickerPickedMsg /
+// pickerCreateMsg / pickerCancelMsg via its onPick / onCreate / onCancel
+// callbacks.
 //
-// Legacy path: when deps.ActiveSessions == nil or deps.UserID == "", `s` falls
-// through to toggleStartStopCmd in today_actions.go. All existing tests that
-// use newRig (which never sets ActiveSessions/UserID) continue to exercise the
-// legacy path — no change to their expectations.
+// Legacy path: when deps.ActiveSessions == nil, `s` falls through to
+// toggleStartStopCmd in today_actions.go. All existing tests that use newRig
+// (which never sets ActiveSessions) continue to exercise the legacy path.
 
 import (
 	"errors"
@@ -96,15 +95,17 @@ func (h heute) handlePickerMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleSKey is the dispatcher for the `s` key in normal (no-dialog) mode.
-// New path: when ActiveSessions + UserID are wired, `s` always opens the
-// project picker regardless of whether a session is currently running.
-// If the user then picks a different project the picker handler sequences a
+// New path: when ActiveSessions is wired, `s` always opens the project picker
+// regardless of whether a session is currently running or whether UserID is
+// known. If the user picks a different project the picker handler sequences a
 // Stop+Start atomically (switchProjectCmd). Picking the same project is a
-// no-op. This lets the user switch projects in a single gesture.
+// no-op. The httpapi ignores the userID parameter so the call works correctly
+// even when UserID is "" (token present but identity resolve failed); if the
+// token itself is missing the HTTP call returns an auth error toast.
 //
 // Legacy path: call toggleStartStopCmd (existing behaviour, unchanged).
 func (h heute) handleSKey() (tea.Model, tea.Cmd) {
-	if h.deps.ActiveSessions != nil && h.deps.UserID != "" {
+	if h.deps.ActiveSessions != nil {
 		return h.openProjectPicker()
 	}
 	return h, h.toggleStartStopCmd()
