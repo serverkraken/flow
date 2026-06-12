@@ -29,7 +29,7 @@ func newLsCmd(deps Deps) *cobra.Command {
 				Limit:       limit,
 			})
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
 			return printEntries(cmd.OutOrStdout(), entries, asJSON)
 		},

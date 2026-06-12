@@ -22,7 +22,7 @@ func newCaptureCmd(deps Deps) *cobra.Command {
 			text := strings.Join(args, " ")
 			out, err := deps.CaptureDaily.Execute(cmd.Context(), usecase.CaptureDailyInput{Text: text})
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
 			verb := "Captured"
 			if out.Created {

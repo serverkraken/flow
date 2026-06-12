@@ -485,21 +485,6 @@ func buildKompendiumDeps(
 		DeleteNote: kompusecase.NewDeleteNote(store, nil), // no local index in server mode
 		EditNote:   editNote,
 
-		// Git/bundle/tar/remote/snapshot/doctor/init/import-legacy/rebuild-index
-		// require a local NotebookRooter and are not available in server mode.
-		// Task 7 removes these use cases and the corresponding CLI verbs.
-		InitNotebook:     nil,
-		SnapshotNotebook: nil,
-		ExportTar:        nil,
-		ImportTar:        nil,
-		ExportBundle:     nil,
-		ImportBundle:     nil,
-		SyncNotebook:     nil,
-		ManageRemote:     nil,
-		Doctor:           nil,
-		ImportLegacy:     nil,
-		RebuildIndex:     nil,
-
 		EditCmd:   nvim.Cmd,
 		IndexPath: "", // no local FTS5 index in server mode
 	}, store, func() {}, nil

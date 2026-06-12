@@ -36,7 +36,7 @@ func newSearchCmd(deps Deps) *cobra.Command {
 				Limit:   limit,
 			})
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
 			return printSearchResults(cmd.OutOrStdout(), results, asJSON)
 		},

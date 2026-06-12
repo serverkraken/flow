@@ -24,7 +24,7 @@ func newDailyRenderCmd(deps Deps) *cobra.Command {
 			}
 			out, err := deps.RenderDaily.Execute(cmd.Context(), usecase.RenderDailyInput{DailyID: id})
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
 			return renderDailyMarkdown(cmd.OutOrStdout(), out)
 		},

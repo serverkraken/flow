@@ -235,10 +235,6 @@ func TestBuildKompendiumDeps_WiresAllUseCases(t *testing.T) {
 	if deps.DeleteNote == nil {
 		t.Errorf("missing delete-use-case wiring")
 	}
-	// UCs that require a local filesystem root are nil in server mode.
-	if deps.ImportLegacy != nil || deps.RebuildIndex != nil {
-		t.Errorf("local-only UCs must be nil in server mode")
-	}
 }
 
 // — buildDeps full graph —

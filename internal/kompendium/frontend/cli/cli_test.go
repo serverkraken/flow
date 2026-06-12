@@ -18,11 +18,6 @@ type testEnv struct {
 	index  *testutil.FakeIndexer
 	repo   *testutil.FakeRepoDetector
 	editor *testutil.FakeEditor
-	git    *testutil.FakeNotebookInit
-	tar    *testutil.FakeTarSnapshot
-	bundle *testutil.FakeNotebookBundle
-	legacy *testutil.FakeLegacySource
-	remote *testutil.FakeNotebookRemote
 	deps   cli.Deps
 }
 
@@ -32,11 +27,6 @@ func newTestEnv(t *testing.T) *testEnv {
 	index := testutil.NewFakeIndexer()
 	repo := &testutil.FakeRepoDetector{}
 	editor := &testutil.FakeEditor{}
-	git := &testutil.FakeNotebookInit{}
-	tar := &testutil.FakeTarSnapshot{}
-	bundle := &testutil.FakeNotebookBundle{}
-	legacy := &testutil.FakeLegacySource{}
-	remote := &testutil.FakeNotebookRemote{}
 	clock := testutil.FixedClock{Time: time.Date(2026, 4, 25, 0, 0, 0, 0, time.UTC)}
 
 	return &testEnv{
@@ -44,36 +34,20 @@ func newTestEnv(t *testing.T) *testEnv {
 		index:  index,
 		repo:   repo,
 		editor: editor,
-		git:    git,
-		tar:    tar,
-		bundle: bundle,
-		legacy: legacy,
-		remote: remote,
 		deps: cli.Deps{
-			Store:            store,
-			Rooter:           store,
-			Repo:             repo,
-			CreateDaily:      usecase.NewCreateDaily(store, clock, editor),
-			CreateProject:    usecase.NewCreateProject(store, repo, clock, editor),
-			CreateFree:       usecase.NewCreateFree(store, editor),
-			CaptureDaily:     usecase.NewCaptureDaily(store, clock),
-			Open:             usecase.NewOpen(store, editor),
-			ListNotes:        usecase.NewListNotes(store),
-			SearchNotes:      usecase.NewSearchNotesWithIndex(index),
-			RenderDaily:      usecase.NewRenderDaily(store),
-			RenderBacklinks:  usecase.NewRenderBacklinks(store, index),
-			InitNotebook:     usecase.NewInitNotebook(store, git),
-			SnapshotNotebook: usecase.NewSnapshotNotebook(store, git),
-			ExportTar:        usecase.NewExportTar(store, tar),
-			ImportTar:        usecase.NewImportTar(store, tar),
-			ExportBundle:     usecase.NewExportBundle(store, bundle),
-			ImportBundle:     usecase.NewImportBundle(store, bundle),
-			SyncNotebook:     usecase.NewSyncNotebook(store, remote),
-			ManageRemote:     usecase.NewManageRemote(store, remote),
-			Doctor:           usecase.NewDoctor(store, git),
-			ImportLegacy:     usecase.NewImportLegacy(store, legacy),
-			RebuildIndex:     usecase.NewRebuildIndex(store, index),
-			DeleteNote:       usecase.NewDeleteNote(store, index),
+			Store:           store,
+			Rooter:          store,
+			Repo:            repo,
+			CreateDaily:     usecase.NewCreateDaily(store, clock, editor),
+			CreateProject:   usecase.NewCreateProject(store, repo, clock, editor),
+			CreateFree:      usecase.NewCreateFree(store, editor),
+			CaptureDaily:    usecase.NewCaptureDaily(store, clock),
+			Open:            usecase.NewOpen(store, editor),
+			ListNotes:       usecase.NewListNotes(store),
+			SearchNotes:     usecase.NewSearchNotesWithIndex(index),
+			RenderDaily:     usecase.NewRenderDaily(store),
+			RenderBacklinks: usecase.NewRenderBacklinks(store, index),
+			DeleteNote:      usecase.NewDeleteNote(store, index),
 		},
 	}
 }
