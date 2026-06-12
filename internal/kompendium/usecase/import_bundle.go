@@ -9,13 +9,13 @@ import (
 
 // ImportBundle fetches and merges a git-bundle into the notebook.
 type ImportBundle struct {
-	Store  ports.NoteStore
+	Rooter ports.NotebookRooter
 	Bundle ports.NotebookBundler
 }
 
 // NewImportBundle wires the use case with its required ports.
-func NewImportBundle(store ports.NoteStore, bundle ports.NotebookBundler) *ImportBundle {
-	return &ImportBundle{Store: store, Bundle: bundle}
+func NewImportBundle(rooter ports.NotebookRooter, bundle ports.NotebookBundler) *ImportBundle {
+	return &ImportBundle{Rooter: rooter, Bundle: bundle}
 }
 
 // ImportBundleInput identifies the bundle file to import.
@@ -30,7 +30,7 @@ type ImportBundleOutput struct {
 
 // Execute fetches and merges the bundle into the notebook root.
 func (u *ImportBundle) Execute(ctx context.Context, in ImportBundleInput) (ImportBundleOutput, error) {
-	target := u.Store.Root()
+	target := u.Rooter.Root()
 	if err := u.Bundle.ImportBundle(ctx, target, in.BundlePath); err != nil {
 		return ImportBundleOutput{}, fmt.Errorf("import bundle: %w", err)
 	}

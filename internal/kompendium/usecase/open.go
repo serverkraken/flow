@@ -40,8 +40,9 @@ func (u *Open) Execute(ctx context.Context, in OpenInput) error {
 	if !exists {
 		return ports.ErrNoteNotFound
 	}
-	if err := u.Editor.Edit(ctx, u.Store.Path(in.ID)); err != nil {
-		return fmt.Errorf("edit: %w", err)
+	edit := EditNote{Store: u.Store, Editor: u.Editor}
+	if err := edit.Execute(ctx, in.ID); err != nil {
+		return err
 	}
 	reindex(ctx, u.Store, u.Index, in.ID)
 	return nil

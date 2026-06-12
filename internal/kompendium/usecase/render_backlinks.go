@@ -7,17 +7,23 @@ import (
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
 
+// backlinkProvider is the minimal interface required by RenderBacklinks. Both
+// apistore.Store and testutil.FakeIndexer satisfy it.
+type backlinkProvider interface {
+	BacklinksOf(ctx context.Context, id domain.ID) ([]domain.LinkRef, error)
+}
+
 // RenderBacklinks fetches a note plus every note that links to it, so the
 // read view can show "referenced by" without persisting backlinks into the
 // note files (cross-link model C — see CLAUDE.md section 9).
 type RenderBacklinks struct {
 	Store ports.NoteStore
-	Index ports.Indexer
+	Index backlinkProvider
 }
 
 // NewRenderBacklinks returns a RenderBacklinks using the given store and
-// indexer.
-func NewRenderBacklinks(store ports.NoteStore, index ports.Indexer) *RenderBacklinks {
+// backlink provider.
+func NewRenderBacklinks(store ports.NoteStore, index backlinkProvider) *RenderBacklinks {
 	return &RenderBacklinks{Store: store, Index: index}
 }
 
@@ -42,7 +48,7 @@ type RenderBacklinksOutput struct {
 }
 
 // Execute fetches the note and reads its backlinks straight from the
-// indexer — the indexer already joins title in, so the previous
+// backlink provider — the provider already joins title in, so the previous
 // per-link store.Get N+1 is gone. Backlinks pointing at deleted notes
 // (empty title) stay in the result so the read view can surface them
 // as "broken backlink"; the per-link store fetch was the only reason

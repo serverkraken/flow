@@ -26,16 +26,16 @@ func NewCreateDaily(store ports.NoteStore, clock ports.Clock, editor ports.Edito
 	return &CreateDaily{Store: store, Clock: clock, Editor: editor}
 }
 
-// CreateDailyOutput reports the resolved ID, whether the note was newly
-// created, and the filesystem path passed to the editor.
+// CreateDailyOutput reports the resolved ID and whether the note was newly
+// created.
 type CreateDailyOutput struct {
 	ID      domain.ID
 	Created bool
-	Path    string
 }
 
 // Execute resolves today's daily ID, ensures the note exists (creating it
-// with default frontmatter if needed), and asks the editor to open it.
+// with default frontmatter if needed), and asks the editor to open it via a
+// tempfile (see EditNote).
 func (u *CreateDaily) Execute(ctx context.Context) (CreateDailyOutput, error) {
 	// Use the wallclock date in the user's local TZ — daily notes are a
 	// human-day concept, not a UTC-day concept. Without this, a Berlin
@@ -59,12 +59,12 @@ func (u *CreateDaily) Execute(ctx context.Context) (CreateDailyOutput, error) {
 		}
 	}
 
-	path := u.Store.Path(id)
-	if err := u.Editor.Edit(ctx, path); err != nil {
+	edit := EditNote{Store: u.Store, Editor: u.Editor}
+	if err := edit.Execute(ctx, id); err != nil {
 		return CreateDailyOutput{}, fmt.Errorf("edit: %w", err)
 	}
 	reindex(ctx, u.Store, u.Index, id)
-	return CreateDailyOutput{ID: id, Created: !exists, Path: path}, nil
+	return CreateDailyOutput{ID: id, Created: !exists}, nil
 }
 
 func buildDailyTemplate(id domain.ID, date string) (domain.Note, error) {

@@ -9,13 +9,13 @@ import (
 
 // ImportTar extracts a tar.gz snapshot into the notebook directory.
 type ImportTar struct {
-	Store ports.NoteStore
-	Tar   ports.TarSnapshot
+	Rooter ports.NotebookRooter
+	Tar    ports.TarSnapshot
 }
 
 // NewImportTar wires the use case with its required ports.
-func NewImportTar(store ports.NoteStore, tar ports.TarSnapshot) *ImportTar {
-	return &ImportTar{Store: store, Tar: tar}
+func NewImportTar(rooter ports.NotebookRooter, tar ports.TarSnapshot) *ImportTar {
+	return &ImportTar{Rooter: rooter, Tar: tar}
 }
 
 // ImportTarInput carries the archive path and the conflict-resolution mode.
@@ -31,7 +31,7 @@ type ImportTarOutput struct {
 
 // Execute extracts the archive into the notebook root.
 func (u *ImportTar) Execute(ctx context.Context, in ImportTarInput) (ImportTarOutput, error) {
-	target := u.Store.Root()
+	target := u.Rooter.Root()
 	if err := u.Tar.Import(ctx, in.Archive, target, in.Mode); err != nil {
 		return ImportTarOutput{}, fmt.Errorf("import tar: %w", err)
 	}

@@ -37,11 +37,10 @@ type CreateFreeInput struct {
 type CreateFreeOutput struct {
 	ID      domain.ID
 	Created bool
-	Path    string
 }
 
 // Execute parses the slug into an ID under "notes/", creates the note if
-// missing, and opens it.
+// missing, and opens it via a tempfile (see EditNote).
 func (u *CreateFree) Execute(ctx context.Context, in CreateFreeInput) (CreateFreeOutput, error) {
 	if in.Slug == "" {
 		return CreateFreeOutput{}, ErrSlugRequired
@@ -66,12 +65,12 @@ func (u *CreateFree) Execute(ctx context.Context, in CreateFreeInput) (CreateFre
 		}
 	}
 
-	path := u.Store.Path(id)
-	if err := u.Editor.Edit(ctx, path); err != nil {
+	edit := EditNote{Store: u.Store, Editor: u.Editor}
+	if err := edit.Execute(ctx, id); err != nil {
 		return CreateFreeOutput{}, fmt.Errorf("edit: %w", err)
 	}
 	reindex(ctx, u.Store, u.Index, id)
-	return CreateFreeOutput{ID: id, Created: !exists, Path: path}, nil
+	return CreateFreeOutput{ID: id, Created: !exists}, nil
 }
 
 func buildFreeTemplate(id domain.ID, title string) (domain.Note, error) {

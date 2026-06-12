@@ -27,13 +27,13 @@ var ErrRemoteURLScheme = errors.New("remote URL scheme not permitted")
 // "origin" git remote. A single use case keeps the CLI thin — `remote`
 // (no args) calls Get, `remote set <url>` calls Set.
 type ManageRemote struct {
-	Store  ports.NoteStore
+	Rooter ports.NotebookRooter
 	Remote ports.NotebookRemote
 }
 
 // NewManageRemote wires the use case with its required ports.
-func NewManageRemote(store ports.NoteStore, remote ports.NotebookRemote) *ManageRemote {
-	return &ManageRemote{Store: store, Remote: remote}
+func NewManageRemote(rooter ports.NotebookRooter, remote ports.NotebookRemote) *ManageRemote {
+	return &ManageRemote{Rooter: rooter, Remote: remote}
 }
 
 // GetOutput reports the configured origin URL, or empty string when
@@ -46,7 +46,7 @@ type GetOutput struct {
 
 // Get returns the configured origin URL.
 func (u *ManageRemote) Get(ctx context.Context) (GetOutput, error) {
-	root := u.Store.Root()
+	root := u.Rooter.Root()
 	url, err := u.Remote.GetRemote(ctx, root)
 	if err != nil {
 		if errors.Is(err, ports.ErrNoRemoteConfigured) {
@@ -77,7 +77,7 @@ func (u *ManageRemote) Set(ctx context.Context, in SetInput) (SetOutput, error) 
 	if !isAllowedRemoteURL(url) {
 		return SetOutput{}, fmt.Errorf("%w: %q", ErrRemoteURLScheme, url)
 	}
-	root := u.Store.Root()
+	root := u.Rooter.Root()
 	if err := u.Remote.SetRemote(ctx, root, url); err != nil {
 		return SetOutput{Root: root}, fmt.Errorf("set remote: %w", err)
 	}

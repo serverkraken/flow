@@ -27,9 +27,9 @@ func TestOpen_HappyPath(t *testing.T) {
 	if err := u.Execute(context.Background(), usecase.OpenInput{ID: id}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	wantPath := store.Path(id)
-	if len(editor.Calls) != 1 || editor.Calls[0] != wantPath {
-		t.Errorf("editor calls = %+v, want one call to %q", editor.Calls, wantPath)
+	// Editor is now called with a tempfile path (not the store's on-disk path).
+	if len(editor.Calls) != 1 {
+		t.Errorf("editor should be called once, got %d calls: %+v", len(editor.Calls), editor.Calls)
 	}
 }
 

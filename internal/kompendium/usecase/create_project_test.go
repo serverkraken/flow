@@ -39,8 +39,8 @@ func TestCreateProject_NewlyCreated(t *testing.T) {
 	if out.Project != "github.com/serverkraken/dotfiles" {
 		t.Errorf("Project got %q", out.Project)
 	}
-	if len(editor.Calls) != 1 || editor.Calls[0] != out.Path {
-		t.Errorf("editor calls = %+v", editor.Calls)
+	if len(editor.Calls) != 1 {
+		t.Errorf("editor should be called once, got %d calls: %+v", len(editor.Calls), editor.Calls)
 	}
 
 	got, err := store.Get(context.Background(), out.ID)

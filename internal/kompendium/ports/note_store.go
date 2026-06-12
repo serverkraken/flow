@@ -27,19 +27,13 @@ type NoteEntry struct {
 	Mtime time.Time
 }
 
-// NoteStore manages note persistence in the notebook directory. Implementations
-// own the filesystem layout and frontmatter handling for note files.
+// NoteStore manages note persistence for the notebook. Implementations own
+// frontmatter handling and storage layout. Editor flow now uses tempfiles;
+// see usecase.EditNote.
 type NoteStore interface {
 	Get(ctx context.Context, id domain.ID) (domain.Note, error)
 	Put(ctx context.Context, note domain.Note) error
 	Delete(ctx context.Context, id domain.ID) error
 	Exists(ctx context.Context, id domain.ID) (bool, error)
 	List(ctx context.Context, filter ListFilter) ([]NoteEntry, error)
-	// Path resolves an ID to the absolute filesystem path the store would
-	// read or write for it. Use cases pass the result to ports.Editor so the
-	// editor adapter can stay path-blind to the notebook layout.
-	Path(id domain.ID) string
-	// Root reports the absolute notebook root. Used by use cases that act on
-	// the notebook as a whole (init, snapshot, export, doctor).
-	Root() string
 }

@@ -11,8 +11,10 @@ package browse
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -22,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 	"github.com/serverkraken/flow/internal/kompendium/usecase"
+	flowports "github.com/serverkraken/flow/internal/ports"
 )
 
 type entriesLoadedMsg struct {
@@ -40,6 +43,25 @@ func loadEntriesCmd(u *usecase.ListNotes, currentRepo domain.CanonicalURL) tea.C
 
 // editFinishedMsg lands when tea.ExecProcess returns from the editor.
 type editFinishedMsg struct{ err error }
+
+// editorReadyMsg lands when the tempfile has been written and the editor
+// cmd is ready to launch. The Update reducer handles it by launching
+// tea.ExecProcess and storing the tempfile context.
+type editorReadyMsg struct {
+	id        domain.ID
+	tmpPath   string
+	rawBefore []byte
+	cmd       *exec.Cmd
+}
+
+// editorDoneMsg lands when tea.ExecProcess returns from the editor and
+// the tempfile has been read back. The Update reducer calls Store.Put
+// if the content changed.
+type editorDoneMsg struct {
+	id      domain.ID
+	tmpPath string
+	err     error
+}
 
 // bodiesLoadedMsg lands once the background goroutine has read every
 // note's body so search can match against content, not only frontmatter.
@@ -101,6 +123,44 @@ type deleteFinishedMsg struct{ err error }
 func deleteCmd(u *usecase.DeleteNote, id domain.ID) tea.Cmd {
 	return func() tea.Msg {
 		return deleteFinishedMsg{err: u.Execute(context.Background(), id)}
+	}
+}
+
+// saveFinishedMsg lands after saveTempEditCmd completes (Put to Store).
+type saveFinishedMsg struct{ err error }
+
+// saveTempEditCmd reads the tempfile, parses the content, calls Store.Put
+// if the content changed, then removes the tempfile. On version conflict
+// the error message includes the tempfile path so the user can recover.
+func saveTempEditCmd(store ports.NoteStore, id domain.ID, tmpPath string, rawBefore []byte) tea.Cmd {
+	return func() tea.Msg {
+		edited, err := os.ReadFile(tmpPath)
+		if err != nil {
+			_ = os.Remove(tmpPath) // best-effort; no-op if already gone
+			return saveFinishedMsg{err: fmt.Errorf("read tempfile %s: %w", tmpPath, err)}
+		}
+		if string(edited) == string(rawBefore) {
+			_ = os.Remove(tmpPath)
+			return saveFinishedMsg{}
+		}
+		fm, body, err := domain.ParseFrontmatter(edited)
+		if err != nil {
+			return saveFinishedMsg{err: fmt.Errorf("frontmatter kaputt — Bearbeitung liegt in %s: %w", tmpPath, err)}
+		}
+		note, err := domain.NewNote(id, fm, body)
+		if err != nil {
+			return saveFinishedMsg{err: fmt.Errorf("note invalid — Bearbeitung liegt in %s: %w", tmpPath, err)}
+		}
+		if err := store.Put(context.Background(), note); err != nil {
+			if errors.Is(err, flowports.ErrDocumentVersionConflict) {
+				// Tempfile bleibt erhalten — User kann daraus manuell zusammenführen.
+				return saveFinishedMsg{err: fmt.Errorf("parallel geändert — Bearbeitung liegt in %s; neu laden und zusammenführen: %w", tmpPath, err)}
+			}
+			_ = os.Remove(tmpPath)
+			return saveFinishedMsg{err: fmt.Errorf("speichern fehlgeschlagen: %w", err)}
+		}
+		_ = os.Remove(tmpPath)
+		return saveFinishedMsg{}
 	}
 }
 

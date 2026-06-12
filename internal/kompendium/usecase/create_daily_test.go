@@ -29,11 +29,8 @@ func TestCreateDaily_NewlyCreated(t *testing.T) {
 	if out.ID != "daily/2026-04-25" {
 		t.Errorf("ID got %q, want daily/2026-04-25", out.ID)
 	}
-	if out.Path == "" {
-		t.Error("Path should be set")
-	}
-	if len(editor.Calls) != 1 || editor.Calls[0] != out.Path {
-		t.Errorf("editor called with %+v, want one call to %q", editor.Calls, out.Path)
+	if len(editor.Calls) != 1 {
+		t.Errorf("editor should be called once, got %d calls: %+v", len(editor.Calls), editor.Calls)
 	}
 
 	// Verify the note was actually written.

@@ -48,7 +48,7 @@ func newNewDailyCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 }
@@ -72,7 +72,7 @@ func newNewProjectCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return wrapProjectErr(err)
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 	cmd.Flags().StringVar(&cwd, "cwd", "", "working directory to detect repo from (default: current)")
@@ -93,7 +93,7 @@ func newNewFreeCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 	cmd.Flags().StringVarP(&title, "title", "t", "", "frontmatter title for newly created notes")

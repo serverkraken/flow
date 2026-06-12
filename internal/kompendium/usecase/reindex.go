@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"os"
 	"time"
 
 	"github.com/serverkraken/flow/internal/kompendium/domain"
@@ -19,12 +18,11 @@ import (
 // (`kompendium index rebuild`), a failed user-facing operation surfaced
 // because of an index hiccup would be a bad trade.
 //
-// The mtime stamp comes from the file's Stat result rather than
-// time.Now() — without that, opening a note that wasn't actually
-// modified would still bump it to the top of the most-recent-first
-// list, contradicting the field name and breaking deterministic tests.
-// time.Now() is used only as a fallback when Stat fails (e.g. legacy
-// import where the path doesn't exist yet).
+// time.Now() is used as the mtime stamp. Previously the store's on-disk
+// path was stat'd for the exact mtime, but NoteStore no longer exposes
+// Path() (the API store has no local filesystem path). For the legacy
+// fsstore the difference is negligible — the stamp is used only for
+// ordering in the search result list, not for correctness.
 func reindex(ctx context.Context, store ports.NoteStore, index ports.Indexer, id domain.ID) {
 	if index == nil {
 		return
@@ -33,11 +31,5 @@ func reindex(ctx context.Context, store ports.NoteStore, index ports.Indexer, id
 	if err != nil {
 		return
 	}
-	stamp := time.Now()
-	if path := store.Path(id); path != "" {
-		if st, statErr := os.Stat(path); statErr == nil {
-			stamp = st.ModTime()
-		}
-	}
-	_ = index.Upsert(ctx, note, stamp)
+	_ = index.Upsert(ctx, note, time.Now())
 }

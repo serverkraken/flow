@@ -23,6 +23,7 @@ const Version = "v0.0.0-dev"
 // in-memory fakes from internal/testutil.
 type Deps struct {
 	Store            ports.NoteStore
+	Rooter           ports.NotebookRooter // optional — only wired for local fsstore
 	Repo             ports.RepoDetector
 	CreateDaily      *usecase.CreateDaily
 	CreateProject    *usecase.CreateProject

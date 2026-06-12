@@ -13,13 +13,13 @@ import (
 // the user doesn't need to think about a clean tree first; uncommitted
 // changes are not pushed (run snapshot first to make them travel).
 type SyncNotebook struct {
-	Store  ports.NoteStore
+	Rooter ports.NotebookRooter
 	Remote ports.NotebookRemote
 }
 
 // NewSyncNotebook wires the use case with its required ports.
-func NewSyncNotebook(store ports.NoteStore, remote ports.NotebookRemote) *SyncNotebook {
-	return &SyncNotebook{Store: store, Remote: remote}
+func NewSyncNotebook(rooter ports.NotebookRooter, remote ports.NotebookRemote) *SyncNotebook {
+	return &SyncNotebook{Rooter: rooter, Remote: remote}
 }
 
 // SyncNotebookOutput reports the resolved root and what happened.
@@ -30,7 +30,7 @@ type SyncNotebookOutput struct {
 
 // Execute runs the pull/push round-trip on the notebook root.
 func (u *SyncNotebook) Execute(ctx context.Context) (SyncNotebookOutput, error) {
-	root := u.Store.Root()
+	root := u.Rooter.Root()
 	stats, err := u.Remote.Sync(ctx, root)
 	if err != nil {
 		return SyncNotebookOutput{Root: root, Stats: stats}, fmt.Errorf("sync: %w", err)

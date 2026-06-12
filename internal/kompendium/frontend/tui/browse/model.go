@@ -170,6 +170,13 @@ type Model struct {
 	previewID     domain.ID
 	previewCached map[domain.ID]string
 
+	// pendingEdit* tracks a tempfile edit in flight. Set when editorReadyMsg
+	// is received (before tea.ExecProcess starts); cleared when saveFinishedMsg
+	// or an error arrives.
+	pendingEditID  domain.ID
+	pendingEditTmp string
+	pendingEditRaw []byte
+
 	loaded   bool
 	loadErr  error
 	editErr  error

@@ -364,15 +364,23 @@ func TestBrowse_EnterRunsEditCmdOnSelected(t *testing.T) {
 
 	m := browse.New(testPalette(), usecase.NewListNotes(store), store, nil, "", editCmd, noopWrite)
 	model := initialised(m)
+	// Enter returns a tea.Cmd that writes the tempfile (prepareEditCmd is async).
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("Enter on a selected entry should return a tea.Cmd")
 	}
+	// Execute the cmd to trigger the tempfile write + builder call.
+	msg := cmd()
 	if capturedPath == "" {
 		t.Errorf("editCmd was not invoked — path resolver did not run")
 	}
-	if !strings.Contains(capturedPath, "daily/2026-04-25.md") {
-		t.Errorf("path got %q, want it to contain daily/2026-04-25.md", capturedPath)
+	// The tempfile path is a /tmp/flow-note-*.md path, not the store path.
+	if !strings.HasSuffix(capturedPath, ".md") {
+		t.Errorf("path got %q, want it to end with .md", capturedPath)
+	}
+	// msg should be an editorReadyMsg carrying the exec.Cmd.
+	if msg == nil {
+		t.Error("prepareEditCmd should return a non-nil message")
 	}
 }
 

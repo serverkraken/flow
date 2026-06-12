@@ -14,8 +14,9 @@ import (
 // write-time: invalid frontmatter, broken wikilinks, drift between path and
 // frontmatter ID, plus a lightweight git-status overview.
 type Doctor struct {
-	Store ports.NoteStore
-	Git   ports.NotebookInitializer
+	Store  ports.NoteStore
+	Rooter ports.NotebookRooter
+	Git    ports.NotebookInitializer
 }
 
 // NewDoctor wires the use case with its required ports.
@@ -57,7 +58,10 @@ func (r DoctorReport) IsClean() bool {
 // wikilink resolves to an existing note in the notebook. Git status is
 // reported but does not affect IsClean's repo check.
 func (u *Doctor) Execute(ctx context.Context) (DoctorReport, error) {
-	root := u.Store.Root()
+	var root string
+	if u.Rooter != nil {
+		root = u.Rooter.Root()
+	}
 	report := DoctorReport{NotebookRoot: root}
 
 	if err := u.fillGitStatus(ctx, root, &report); err != nil {

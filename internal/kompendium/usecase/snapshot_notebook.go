@@ -12,13 +12,13 @@ const defaultSnapshotMessage = "kompendium snapshot"
 // SnapshotNotebook stages and commits any pending changes in the notebook,
 // skipping the commit when the working tree is already clean.
 type SnapshotNotebook struct {
-	Store ports.NoteStore
-	Git   ports.NotebookInitializer
+	Rooter ports.NotebookRooter
+	Git    ports.NotebookInitializer
 }
 
 // NewSnapshotNotebook wires the use case with its required ports.
-func NewSnapshotNotebook(store ports.NoteStore, git ports.NotebookInitializer) *SnapshotNotebook {
-	return &SnapshotNotebook{Store: store, Git: git}
+func NewSnapshotNotebook(rooter ports.NotebookRooter, git ports.NotebookInitializer) *SnapshotNotebook {
+	return &SnapshotNotebook{Rooter: rooter, Git: git}
 }
 
 // SnapshotNotebookInput carries the optional commit message override.
@@ -35,7 +35,7 @@ type SnapshotNotebookOutput struct {
 // Execute checks for pending changes and commits them with the supplied
 // message (or the default when empty). On a clean tree it is a no-op.
 func (u *SnapshotNotebook) Execute(ctx context.Context, in SnapshotNotebookInput) (SnapshotNotebookOutput, error) {
-	root := u.Store.Root()
+	root := u.Rooter.Root()
 	dirty, err := u.Git.HasUncommittedChanges(ctx, root)
 	if err != nil {
 		return SnapshotNotebookOutput{}, fmt.Errorf("has-changes: %w", err)

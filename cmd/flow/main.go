@@ -201,7 +201,10 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		if perr != nil {
 			return ""
 		}
-		return kompDeps.Store.Path(parsed)
+		if kompDeps.Rooter == nil {
+			return ""
+		}
+		return filepath.Join(kompDeps.Rooter.Root(), filepath.FromSlash(parsed.Path()))
 	}
 	editorArgs := func(path string) ([]string, error) {
 		cmd := kompDeps.EditCmd(path)
@@ -490,8 +493,12 @@ func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, 
 	importLegacy := kompusecase.NewImportLegacy(store, komplegacysource.New())
 	importLegacy.Index = indexer
 
+	doctor := kompusecase.NewDoctor(store, notebookGit)
+	doctor.Rooter = store
+
 	return kompendiumcli.Deps{
 		Store:            store,
+		Rooter:           store,
 		Repo:             repo,
 		CreateDaily:      createDaily,
 		CreateProject:    createProject,
@@ -499,7 +506,7 @@ func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, 
 		CaptureDaily:     captureDaily,
 		Open:             open,
 		ListNotes:        kompusecase.NewListNotes(store),
-		SearchNotes:      kompusecase.NewSearchNotes(indexer),
+		SearchNotes:      kompusecase.NewSearchNotesWithIndex(indexer),
 		RenderDaily:      kompusecase.NewRenderDaily(store),
 		RenderBacklinks:  kompusecase.NewRenderBacklinks(store, indexer),
 		InitNotebook:     kompusecase.NewInitNotebook(store, notebookGit),
@@ -510,7 +517,7 @@ func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, 
 		ImportBundle:     kompusecase.NewImportBundle(store, notebookGit),
 		SyncNotebook:     kompusecase.NewSyncNotebook(store, notebookGit),
 		ManageRemote:     kompusecase.NewManageRemote(store, notebookGit),
-		Doctor:           kompusecase.NewDoctor(store, notebookGit),
+		Doctor:           doctor,
 		ImportLegacy:     importLegacy,
 		RebuildIndex:     kompusecase.NewRebuildIndex(store, indexer),
 		DeleteNote:       kompusecase.NewDeleteNote(store, indexer),

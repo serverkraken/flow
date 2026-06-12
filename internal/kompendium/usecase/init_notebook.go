@@ -11,13 +11,13 @@ import (
 // initial commit. Idempotent — already-initialised notebooks are reported
 // as such without touching the existing repo.
 type InitNotebook struct {
-	Store ports.NoteStore
-	Git   ports.NotebookInitializer
+	Rooter ports.NotebookRooter
+	Git    ports.NotebookInitializer
 }
 
 // NewInitNotebook wires the use case with its required ports.
-func NewInitNotebook(store ports.NoteStore, git ports.NotebookInitializer) *InitNotebook {
-	return &InitNotebook{Store: store, Git: git}
+func NewInitNotebook(rooter ports.NotebookRooter, git ports.NotebookInitializer) *InitNotebook {
+	return &InitNotebook{Rooter: rooter, Git: git}
 }
 
 // InitNotebookOutput reports the resolved root and whether the directory
@@ -29,7 +29,7 @@ type InitNotebookOutput struct {
 
 // Execute checks IsRepo first; if false, calls Init.
 func (u *InitNotebook) Execute(ctx context.Context) (InitNotebookOutput, error) {
-	root := u.Store.Root()
+	root := u.Rooter.Root()
 	already, err := u.Git.IsRepo(ctx, root)
 	if err != nil {
 		return InitNotebookOutput{}, fmt.Errorf("is-repo: %w", err)

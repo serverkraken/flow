@@ -43,10 +43,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyFilters()
 		m.refreshPreview()
 		return m, nil
-	case editFinishedMsg:
+	case editorReadyMsg:
+		// Tempfile is prepared — launch tea.ExecProcess with the editor cmd.
+		// Store the tempfile context in the model so editorDoneMsg knows where
+		// to read the edited content from.
+		m.pendingEditID = msg.id
+		m.pendingEditTmp = msg.tmpPath
+		m.pendingEditRaw = msg.rawBefore
+		return m, runViaExecCapture(msg.cmd)
+	case editorDoneMsg:
+		// Direct error (e.g. tempfile write failed before editor launched).
 		if msg.err != nil {
 			m.editErr = msg.err
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
 			return m, nil
+		}
+		return m, nil
+	case editFinishedMsg:
+		// Editor process exited. If we have a pending tempfile, read it back
+		// and write to the store before reloading.
+		if msg.err != nil {
+			m.editErr = msg.err
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
+			return m, nil
+		}
+		if m.store != nil && m.pendingEditID != "" {
+			cmd := saveTempEditCmd(m.store, m.pendingEditID, m.pendingEditTmp, m.pendingEditRaw)
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
+			return m, cmd
 		}
 		m.editErr = nil
 		// Drop the rendered-preview cache + previewID so the next
@@ -55,6 +85,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// `if m.previewID == e.ID { return }` short-circuits and the
 		// user keeps seeing the pre-edit body until they cursor away
 		// and back.
+		m.previewCached = map[domain.ID]string{}
+		m.previewID = ""
+		return m, loadEntriesCmd(m.list, m.currentRepo)
+	case saveFinishedMsg:
+		if msg.err != nil {
+			m.editErr = msg.err
+			return m, nil
+		}
+		m.editErr = nil
 		m.previewCached = map[domain.ID]string{}
 		m.previewID = ""
 		return m, loadEntriesCmd(m.list, m.currentRepo)

@@ -51,6 +51,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		remote: remote,
 		deps: cli.Deps{
 			Store:            store,
+			Rooter:           store,
 			Repo:             repo,
 			CreateDaily:      usecase.NewCreateDaily(store, clock, editor),
 			CreateProject:    usecase.NewCreateProject(store, repo, clock, editor),
@@ -58,7 +59,7 @@ func newTestEnv(t *testing.T) *testEnv {
 			CaptureDaily:     usecase.NewCaptureDaily(store, clock),
 			Open:             usecase.NewOpen(store, editor),
 			ListNotes:        usecase.NewListNotes(store),
-			SearchNotes:      usecase.NewSearchNotes(index),
+			SearchNotes:      usecase.NewSearchNotesWithIndex(index),
 			RenderDaily:      usecase.NewRenderDaily(store),
 			RenderBacklinks:  usecase.NewRenderBacklinks(store, index),
 			InitNotebook:     usecase.NewInitNotebook(store, git),

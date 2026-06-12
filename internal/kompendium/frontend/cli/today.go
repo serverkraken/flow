@@ -17,7 +17,7 @@ func newTodayCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 }

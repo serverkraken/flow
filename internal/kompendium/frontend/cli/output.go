@@ -102,11 +102,11 @@ func flattenSnippet(s string) string {
 	return r.Replace(s)
 }
 
-func printCreateOutput(w io.Writer, id domain.ID, created bool, path string) error {
+func printCreateOutput(w io.Writer, id domain.ID, created bool) error {
 	verb := "Reused"
 	if created {
 		verb = "Created"
 	}
-	_, err := fmt.Fprintf(w, "%s %s\n%s\n", verb, id, path)
+	_, err := fmt.Fprintf(w, "%s %s\n", verb, id)
 	return err
 }
