@@ -599,7 +599,7 @@ func main() {
 	rootCmd.AddCommand(newDocsCmd(deps.Docs))
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, wrapRootErr(err))
 		os.Exit(1)
 	}
 }

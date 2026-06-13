@@ -315,7 +315,7 @@ func TestBuildNotesScreen_Construct(t *testing.T) {
 	// IndexPath is empty in server mode — WithIndexAge branch is skipped.
 	p := Paths{}
 	pal := flowtheme.Load()
-	model := buildNotesScreen(p, pal, deps, kompdomain.CanonicalURL(""))
+	model := buildNotesScreen(p, pal, deps, kompdomain.CanonicalURL(""), nil)
 	if model == nil {
 		t.Errorf("buildNotesScreen should return a non-nil model")
 	}

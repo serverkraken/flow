@@ -17,6 +17,8 @@ import (
 // that tell the user which action to take. All other errors pass through.
 func wrapAuthErr(err error) error {
 	switch {
+	case errors.Is(err, httpapi.ErrUnavailable):
+		return errors.New("flow-server nicht erreichbar — läuft er? (FLOW_SERVER_URL prüfen)")
 	case errors.Is(err, httpapi.ErrLoggedOut):
 		return errors.New("nicht eingeloggt — bitte `flow login` ausführen")
 	case errors.Is(err, httpapi.ErrNotConfigured):
