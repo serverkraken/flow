@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -61,15 +62,20 @@ func run() error {
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}
+	srvErr := make(chan error, 1)
 	go func() {
 		slog.Info("listening", "addr", cfg.ListenAddr, "dev", cfg.Dev)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("listen", "err", err)
-			stop()
+			srvErr <- err
 		}
 	}()
 
-	<-ctx.Done()
+	select {
+	case err := <-srvErr:
+		return fmt.Errorf("flow-server: listen: %w", err)
+	case <-ctx.Done():
+	}
+
 	slog.Info("shutting down")
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
