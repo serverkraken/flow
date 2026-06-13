@@ -29,7 +29,7 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 // Migrate runs all up migrations using a stdlib *sql.DB derived from the pool's config.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	db := stdlib.OpenDBFromPool(pool)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	goose.SetBaseFS(migrationsFS)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("pgstore: dialect: %w", err)

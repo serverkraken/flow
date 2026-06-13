@@ -26,7 +26,8 @@ func TestFakeUserStoreRoundTrip(t *testing.T) {
 
 func TestFakeIDGenMonotonic(t *testing.T) {
 	g := &FakeIDGen{}
-	if g.NewID() == g.NewID() {
+	a, b := g.NewID(), g.NewID()
+	if a == b {
 		t.Fatal("ids should differ")
 	}
 }

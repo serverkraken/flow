@@ -31,7 +31,7 @@ func (c *Client) Whoami(ctx context.Context) (domain.User, error) {
 	if err != nil {
 		return domain.User{}, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		return domain.User{}, fmt.Errorf("apiclient: /me status %d", res.StatusCode)
 	}

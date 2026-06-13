@@ -72,7 +72,7 @@ func TestEventsStreamsDebugPing(t *testing.T) {
 	if err != nil || res.StatusCode != 200 {
 		t.Fatalf("events: %v status=%v", err, res.StatusCode)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	// fire the ping after the stream is open
 	go func() {
