@@ -22,7 +22,7 @@ func New(base, token string) *Client {
 }
 
 func (c *Client) Whoami(ctx context.Context) (domain.User, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.base+"/api/v1/me", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/v1/me", nil)
 	if err != nil {
 		return domain.User{}, err
 	}
