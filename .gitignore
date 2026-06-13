@@ -4,6 +4,9 @@ dist/
 coverage.out
 coverage.html
 
+# Superpowers brainstorm scratch (visual companion).
+.superpowers/
+
 # macOS Finder noise.
 .DS_Store
 
