@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/testutil"
@@ -58,6 +60,67 @@ func TestEditFinishedMsg_Error_StoredAndShownInView(t *testing.T) {
 	pm.loaded = true
 	if !contains(pm.View().Content, "Fehler beim Bearbeiten") {
 		t.Errorf("editErr should surface in View, got:\n%s", pm.View().Content)
+	}
+}
+
+// TestBrowse_ChangedMsgReloads confirms that delivering a changedMsg to
+// Update triggers a corpus reload AND re-arms the listener (two cmds in
+// the returned Batch).
+func TestBrowse_ChangedMsgReloads(t *testing.T) {
+	t.Parallel()
+
+	store := testutil.NewFakeNoteStore()
+	store.Seed(mustValidNote("daily/2026-04-25"), time.Unix(1, 0))
+
+	// Buffer 1 so listenForChanged can drain immediately when invoked.
+	ch := make(chan struct{}, 1)
+	ch <- struct{}{} // pre-signal so the re-arm leg returns without blocking
+	m := New(testPalette(), usecase.NewListNotes(store), store, nil, "", nil, nil).
+		WithChanged(ch)
+
+	_, cmd := m.Update(changedMsg{})
+	if cmd == nil {
+		t.Fatal("changedMsg should schedule cmds (reload + re-arm)")
+	}
+	// tea.Batch returns a cmd that, when invoked, returns a tea.BatchMsg
+	// ([]tea.Cmd). Run each sub-cmd and assert at least one produces an
+	// entriesLoadedMsg (the corpus reload).
+	batchResult := cmd()
+	msgs, ok := batchResult.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("changedMsg Batch should return tea.BatchMsg, got %T", batchResult)
+	}
+	foundReload := false
+	for _, subCmd := range msgs {
+		if subCmd == nil {
+			continue
+		}
+		result := subCmd()
+		if _, ok := result.(entriesLoadedMsg); ok {
+			foundReload = true
+		}
+	}
+	if !foundReload {
+		t.Error("changedMsg → Batch should include a reload that produces entriesLoadedMsg")
+	}
+}
+
+// TestBrowse_RKeyReloads confirms that pressing 'r' in normal mode returns
+// a cmd that produces entriesLoadedMsg (i.e. triggers a corpus reload).
+func TestBrowse_RKeyReloads(t *testing.T) {
+	t.Parallel()
+
+	store := testutil.NewFakeNoteStore()
+	store.Seed(mustValidNote("daily/2026-04-25"), time.Unix(1, 0))
+
+	m := New(testPalette(), usecase.NewListNotes(store), store, nil, "", nil, nil)
+	_, cmd := m.Update(tea.KeyPressMsg{Text: "r"})
+	if cmd == nil {
+		t.Fatal("'r' in normal mode should schedule a reload cmd")
+	}
+	msg := cmd()
+	if _, ok := msg.(entriesLoadedMsg); !ok {
+		t.Errorf("'r' reload cmd should produce entriesLoadedMsg, got %T", msg)
 	}
 }
 

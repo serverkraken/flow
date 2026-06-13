@@ -16,7 +16,6 @@ type CreateProject struct {
 	Repo   ports.RepoDetector
 	Clock  ports.Clock
 	Editor ports.Editor
-	Index  ports.Indexer // optional — auto-reindex after Editor.Edit when set
 }
 
 // NewCreateProject wires the use case with its required ports.
@@ -40,12 +39,12 @@ type CreateProjectOutput struct {
 	ID      domain.ID
 	Project domain.CanonicalURL
 	Created bool
-	Path    string
 }
 
 // Execute resolves cwd to a repo, computes the project note ID, ensures the
-// note exists, and opens it. ports.ErrNotInRepo from the detector propagates
-// unchanged so callers can render a sensible message.
+// note exists, and opens it via a tempfile (see EditNote).
+// ports.ErrNotInRepo from the detector propagates unchanged so callers can
+// render a sensible message.
 func (u *CreateProject) Execute(ctx context.Context, in CreateProjectInput) (CreateProjectOutput, error) {
 	info, err := u.Repo.Detect(ctx, in.Cwd)
 	if err != nil {
@@ -71,12 +70,11 @@ func (u *CreateProject) Execute(ctx context.Context, in CreateProjectInput) (Cre
 		}
 	}
 
-	path := u.Store.Path(id)
-	if err := u.Editor.Edit(ctx, path); err != nil {
+	edit := EditNote{Store: u.Store, Editor: u.Editor}
+	if err := edit.Execute(ctx, id); err != nil {
 		return CreateProjectOutput{}, fmt.Errorf("edit: %w", err)
 	}
-	reindex(ctx, u.Store, u.Index, id)
-	return CreateProjectOutput{ID: id, Project: info.URL, Created: !exists, Path: path}, nil
+	return CreateProjectOutput{ID: id, Project: info.URL, Created: !exists}, nil
 }
 
 func buildProjectTemplate(id domain.ID, date string, url domain.CanonicalURL) (domain.Note, error) {

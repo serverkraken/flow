@@ -10,6 +10,15 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// withActiveStore sets the reader to use a ports.ActiveSessionStore (server mode).
+func withActiveStore(store *testutil.FakeActiveSessionStoreV2, userID string) readerOpt {
+	return func(r *usecase.WorktimeReader) {
+		r.Active = store
+		r.UserID = userID
+		r.State = nil // server mode: no legacy state
+	}
+}
+
 func mkReader(now time.Time, sessions []domain.Session, opts ...readerOpt) *usecase.WorktimeReader {
 	cfg := &usecase.TargetResolver{
 		Config:        &testutil.FakeConfigReader{Cfg: domain.Config{DefaultTarget: 8 * time.Hour}},
@@ -340,4 +349,74 @@ func TestWorktimeReader_SessionsOverlap(t *testing.T) {
 			t.Error("expected error")
 		}
 	})
+}
+
+// — Server-mode Active/Pause detection —
+
+// TestWorktimeReader_Today_ServerMode_PausedSessionSetsDayPausedAt verifies
+// that when r.Active is wired and no running session exists (all have PausedAt
+// set), day.PausedAt is populated from the paused session row.
+func TestWorktimeReader_Today_ServerMode_PausedSessionSetsDayPausedAt(t *testing.T) {
+	now := time.Date(2026, 6, 11, 14, 0, 0, 0, time.Local)
+	pausedAt := now.Add(-30 * time.Minute).UTC()
+
+	store := &testutil.FakeActiveSessionStoreV2{
+		Rows: map[string]domain.ActiveSession{
+			"u1|p1": {
+				UserID:    "u1",
+				ProjectID: "p1",
+				StartedAt: now.Add(-90 * time.Minute).UTC(),
+				PausedAt:  &pausedAt,
+			},
+		},
+	}
+
+	r := mkReader(now, nil, withActiveStore(store, "u1"))
+	day, err := r.Today()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if day.IsRunning() {
+		t.Error("no running session — should not be running")
+	}
+	if !day.IsPaused() {
+		t.Error("paused session should set IsPaused")
+	}
+	if day.PausedAt == nil {
+		t.Fatal("PausedAt should not be nil")
+	}
+	if !day.PausedAt.Equal(pausedAt) {
+		t.Errorf("PausedAt: got %v, want %v", day.PausedAt, pausedAt)
+	}
+}
+
+// TestWorktimeReader_Today_ServerMode_RunningSessionSetsActive verifies that
+// when r.Active is wired and a session without PausedAt exists, day.Active is
+// set (via ActiveStart) and PausedAt is not set.
+func TestWorktimeReader_Today_ServerMode_RunningSessionSetsActive(t *testing.T) {
+	now := time.Date(2026, 6, 11, 14, 0, 0, 0, time.Local)
+	startedAt := now.Add(-60 * time.Minute).UTC()
+
+	store := &testutil.FakeActiveSessionStoreV2{
+		Rows: map[string]domain.ActiveSession{
+			"u1|p1": {
+				UserID:    "u1",
+				ProjectID: "p1",
+				StartedAt: startedAt,
+				PausedAt:  nil,
+			},
+		},
+	}
+
+	r := mkReader(now, nil, withActiveStore(store, "u1"))
+	day, err := r.Today()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !day.IsRunning() {
+		t.Error("running session should set IsRunning")
+	}
+	if day.IsPaused() {
+		t.Error("running session should not set IsPaused")
+	}
 }

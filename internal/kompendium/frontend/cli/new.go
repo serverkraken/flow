@@ -46,9 +46,9 @@ func newNewDailyCmd(deps Deps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out, err := deps.CreateDaily.Execute(cmd.Context())
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 }
@@ -70,9 +70,9 @@ func newNewProjectCmd(deps Deps) *cobra.Command {
 			}
 			out, err := deps.CreateProject.Execute(cmd.Context(), usecase.CreateProjectInput{Cwd: resolved})
 			if err != nil {
-				return wrapProjectErr(err)
+				return wrapAuthErr(wrapProjectErr(err))
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 	cmd.Flags().StringVar(&cwd, "cwd", "", "working directory to detect repo from (default: current)")
@@ -91,9 +91,9 @@ func newNewFreeCmd(deps Deps) *cobra.Command {
 				Title: title,
 			})
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 	cmd.Flags().StringVarP(&title, "title", "t", "", "frontmatter title for newly created notes")

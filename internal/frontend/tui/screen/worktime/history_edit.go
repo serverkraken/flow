@@ -261,7 +261,7 @@ func dispatchDrillAdd(sw *usecase.SessionWriter, date time.Time, f drillFormFiel
 		if f.tag == "" && f.note == "" {
 			return historyActionDoneMsg{toast: toast, date: date}
 		}
-		all, err := sw.Sessions.LoadAll()
+		all, err := sw.Sessions.Load(sw.UserID)
 		if err != nil {
 			return historyActionDoneMsg{err: err, date: date}
 		}

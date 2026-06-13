@@ -204,3 +204,72 @@ func TestQuit_DoesNotQuitInMenuCorrectForm(t *testing.T) {
 		t.Error("q in correct HH:MM form must NOT quit")
 	}
 }
+
+// — q does NOT quit when a full-screen overlay (note-viewer) is open —
+
+// TestQuit_HeuteNoteViewerDoesNotQuit verifies that pressing `q` while
+// the Heute inline note-viewer (opened with `o`) is active does NOT quit
+// the app. The viewer advertises `q` as its close key; the worktime root
+// must forward the key to the sub-model so the overlay closes itself
+// (emitting markdown_overlay.ExitMsg) instead of tea.Quit.
+func TestQuit_HeuteNoteViewerDoesNotQuit(t *testing.T) {
+	r := newRig(t)
+	r.noteReader.Bodies["daily-2026-05-01"] = "# Daily\n\nhello"
+	if err := r.links.Add(r.clock.T, "daily-2026-05-01"); err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	m := loadedHeute(t, r)
+
+	// Open the inline note-viewer with `o`.
+	m, cmd := m.Update(tea.KeyPressMsg{Text: "o"})
+	m = drainCmd(t, m, cmd)
+	if !m.(worktime.Model).FilterActive() {
+		t.Fatal("precondition: note-viewer must be open (FilterActive=true)")
+	}
+
+	// Control: q on idle Heute DOES quit.
+	idle := withSize(t, newModel(t))
+	if _, ok := pressQ(t, idle); !ok {
+		t.Fatal("control failed: q on idle Heute must produce tea.Quit")
+	}
+
+	// Subject: q while note-viewer is open must NOT quit.
+	_, isQuit := pressQ(t, m)
+	if isQuit {
+		t.Error("q with Heute note-viewer open must NOT quit — it should close the overlay instead")
+	}
+}
+
+// TestQuit_DrillNoteViewerDoesNotQuit mirrors TestQuit_HeuteNoteViewerDoesNotQuit
+// for the History drill inline note-viewer (`o` key in drill mode).
+func TestQuit_DrillNoteViewerDoesNotQuit(t *testing.T) {
+	r := newRig(t)
+	seedHistorySessions(r)
+	mon := isoMondayOf(r.clock.T)
+	wed := mon.AddDate(0, 0, 2)
+	preID := "notes/quit-test"
+	if err := r.links.Add(wed, preID); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	m := loadedHistory(t, r)
+
+	// Open drill on focused row (most recent = Wednesday per seedHistorySessions).
+	m, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = drainCmd(t, m, cmd)
+	if !m.(worktime.Model).FilterActive() {
+		t.Fatal("precondition: drill must be open (FilterActive=true)")
+	}
+
+	// Open the note-viewer inside the drill.
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "o"})
+	m = drainCmd(t, m, cmd)
+	if !strings.Contains(m.View().Content, "Note · "+preID) {
+		t.Fatalf("precondition: note-viewer must be open (Note title not found); got:\n%s", m.View().Content)
+	}
+
+	// Subject: q while drill note-viewer is open must NOT quit.
+	_, isQuit := pressQ(t, m)
+	if isQuit {
+		t.Error("q with drill note-viewer open must NOT quit — it should close the overlay instead")
+	}
+}

@@ -12,7 +12,7 @@ import (
 func TestProjectSwitcher_Switch_CreateThenAttach(t *testing.T) {
 	tmux := &testutil.FakeTmux{}
 	s := &usecase.ProjectSwitcher{Tmux: tmux}
-	if err := s.Switch(domain.Project{Name: "flow", Path: "/Users/me/Sourcecode/flow"}); err != nil {
+	if err := s.Switch(domain.SourceDir{Name: "flow", Path: "/Users/me/Sourcecode/flow"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(tmux.New) != 1 || tmux.New[0] != "flow@/Users/me/Sourcecode/flow" {
@@ -26,7 +26,7 @@ func TestProjectSwitcher_Switch_CreateThenAttach(t *testing.T) {
 func TestProjectSwitcher_Switch_ExistingSessionSkipsCreate(t *testing.T) {
 	tmux := &testutil.FakeTmux{Sessions: []string{"flow"}}
 	s := &usecase.ProjectSwitcher{Tmux: tmux}
-	if err := s.Switch(domain.Project{Name: "flow"}); err != nil {
+	if err := s.Switch(domain.SourceDir{Name: "flow"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(tmux.New) != 0 {
@@ -39,7 +39,7 @@ func TestProjectSwitcher_Switch_ExistingSessionSkipsCreate(t *testing.T) {
 
 func TestProjectSwitcher_Switch_EmptyNameFails(t *testing.T) {
 	s := &usecase.ProjectSwitcher{Tmux: &testutil.FakeTmux{}}
-	if err := s.Switch(domain.Project{Name: ""}); err == nil {
+	if err := s.Switch(domain.SourceDir{Name: ""}); err == nil {
 		t.Error("expected error for empty name")
 	}
 }
@@ -47,7 +47,7 @@ func TestProjectSwitcher_Switch_EmptyNameFails(t *testing.T) {
 func TestProjectSwitcher_Switch_NewSessionErrPropagates(t *testing.T) {
 	tmux := &testutil.FakeTmux{NewSessionErr: errors.New("boom")}
 	s := &usecase.ProjectSwitcher{Tmux: tmux}
-	if err := s.Switch(domain.Project{Name: "x", Path: "/tmp/x"}); err == nil {
+	if err := s.Switch(domain.SourceDir{Name: "x", Path: "/tmp/x"}); err == nil {
 		t.Error("expected error")
 	}
 }
@@ -55,7 +55,7 @@ func TestProjectSwitcher_Switch_NewSessionErrPropagates(t *testing.T) {
 func TestProjectSwitcher_Switch_SwitchErrPropagates(t *testing.T) {
 	tmux := &testutil.FakeTmux{Sessions: []string{"flow"}, SwitchErr: errors.New("boom")}
 	s := &usecase.ProjectSwitcher{Tmux: tmux}
-	if err := s.Switch(domain.Project{Name: "flow"}); err == nil {
+	if err := s.Switch(domain.SourceDir{Name: "flow"}); err == nil {
 		t.Error("expected error")
 	}
 }

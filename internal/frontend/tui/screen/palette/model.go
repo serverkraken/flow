@@ -82,8 +82,15 @@ const (
 // sidekick root catches it and updates m.current — no subshell, no flow
 // restart, no flicker. Action strings that do NOT match this pattern fall
 // through to the external dispatch path.
+//
+// Filter is optional and, when non-empty, is applied to the target screen
+// via stateRestorer.WithState(Filter, 0) right after the switch. Cross-
+// screen producers (e.g. projects → worktime) use this to seed a deep-link
+// like "tab=history|project:<id>" so the user lands on the right sub-tab
+// with the right filter already active.
 type SwitchScreenMsg struct {
 	Screen string
+	Filter string
 }
 
 // gotoScreenRe matches the action string written by ~/.tmux/plugins/flow/goto.sh.
@@ -197,7 +204,7 @@ func (Model) HelpSections() []help.Section {
 			{"1–9", "Direktwahl (n-ter Treffer)"},
 			{".", "Pin / Unpin (→ Favoriten)"},
 			{"Enter", "Ausführen"},
-			{"Esc", "Filter leeren · 2× → schließen"},
+			{"Esc", "Filter leeren (leer: schließen im Popup)"},
 		},
 	}}
 }

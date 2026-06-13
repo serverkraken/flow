@@ -1,20 +1,18 @@
 package cli_test
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/serverkraken/flow/internal/kompendium/domain"
 )
 
 func TestSearch_TableOutput(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	note := mustNote(t, "daily/2026-04-25", domain.TypeDaily, "", "About kompendium", "kompendium architecture body")
-	_ = env.index.Upsert(context.Background(), note, time.Unix(1, 0))
+	// Seed a document into the fake doc store so SearchNotes.Execute finds it.
+	if _, err := env.docs.Put("testuser", "daily/2026-04-25.md", "kompendium architecture body", "", 0); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 
 	stdout, _, err := runCmd(t, env.deps, "search", "kompendium")
 	if err != nil {
@@ -28,8 +26,9 @@ func TestSearch_TableOutput(t *testing.T) {
 func TestSearch_JSONOutput(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	note := mustNote(t, "daily/2026-04-25", domain.TypeDaily, "", "title", "alpha body")
-	_ = env.index.Upsert(context.Background(), note, time.Unix(1, 0))
+	if _, err := env.docs.Put("testuser", "daily/2026-04-25.md", "alpha body", "", 0); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 
 	stdout, _, err := runCmd(t, env.deps, "search", "alpha", "--json")
 	if err != nil {
@@ -47,16 +46,12 @@ func TestSearch_JSONOutput(t *testing.T) {
 func TestSearch_OrderRecent(t *testing.T) {
 	t.Parallel()
 	env := newTestEnv(t)
-	_ = env.index.Upsert(
-		context.Background(),
-		mustNote(t, "daily/2026-04-22", domain.TypeDaily, "", "", "shared"),
-		time.Unix(1, 0),
-	)
-	_ = env.index.Upsert(
-		context.Background(),
-		mustNote(t, "daily/2026-04-25", domain.TypeDaily, "", "", "shared"),
-		time.Unix(2, 0),
-	)
+	if _, err := env.docs.Put("testuser", "daily/2026-04-22.md", "shared", "", 0); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	if _, err := env.docs.Put("testuser", "daily/2026-04-25.md", "shared", "", 0); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 
 	if _, _, err := runCmd(t, env.deps, "search", "shared", "--order", "recent"); err != nil {
 		t.Fatalf("search recent: %v", err)

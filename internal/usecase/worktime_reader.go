@@ -12,13 +12,82 @@ import (
 // All four read shapes (today, week, history, range) come through here.
 type WorktimeReader struct {
 	Sessions ports.SessionStore
-	State    ports.ActiveSessionStore
+	State    ports.LegacyActiveStore
 	Targets  *TargetResolver
 	Clock    ports.Clock
+
+	// Active is the sqlite-backed multi-device active-session store. When
+	// non-nil (production wiring) it is the source of truth for the
+	// running indicator; State then only serves the pause marker. Nil in
+	// legacy tests → State.GetActive() keeps working.
+	Active ports.ActiveSessionStore
+	// UserID scopes every Sessions/Active call. The sqlite stores filter
+	// WHERE user_id = ? — an empty UserID returns zero rows.
+	UserID string
+
+	// Projects, when non-nil, is used by enrichSessions to join project
+	// names into returned Session slices. Nil-tolerant: sessions are
+	// returned with empty ProjectName when Projects is not wired (legacy
+	// tests, offline tools).
+	Projects ports.ProjectStore
 
 	// ShowWeekend, when true, always renders Sat/Sun in week views even
 	// when they have no sessions and aren't today.
 	ShowWeekend bool
+}
+
+// enrichSessions stamps ProjectName onto each session in place. One
+// Projects.ListAll call builds the name map; all sessions are enriched in
+// a single pass so there are no N+1 store calls. Nil-tolerant: when
+// r.Projects is nil (legacy tests, offline tools) the slice is returned
+// unchanged with empty ProjectName fields.
+func (r *WorktimeReader) enrichSessions(sessions []domain.Session) error {
+	if r.Projects == nil || len(sessions) == 0 {
+		return nil
+	}
+	all, err := r.Projects.ListAll(r.UserID)
+	if err != nil {
+		return err
+	}
+	names := make(map[string]string, len(all))
+	for _, p := range all {
+		names[p.ID] = p.Name
+	}
+	for i := range sessions {
+		sessions[i].ProjectName = names[sessions[i].ProjectID]
+	}
+	return nil
+}
+
+// ActiveStart returns the start time of the running session: earliest
+// ActiveSession row when the sqlite store is wired, else the legacy
+// flockstate marker. Exported so StatsComputer shares the same source.
+func (r *WorktimeReader) ActiveStart() (*time.Time, error) {
+	if r.Active == nil {
+		return r.State.GetActive()
+	}
+	list, err := r.Active.ListByUser(r.UserID)
+	if err != nil {
+		return nil, err
+	}
+	// Only running sessions (PausedAt == nil) contribute to the active marker.
+	// Paused sessions are surfaced via day.PausedAt in Today() instead.
+	var earliest *time.Time
+	for _, a := range list {
+		if a.PausedAt != nil {
+			continue
+		}
+		t := a.StartedAt
+		if earliest == nil || t.Before(*earliest) {
+			earliest = &t
+		}
+	}
+	if earliest == nil {
+		return nil, nil
+	}
+	// Stored UTC; downstream formats wall-clock times (15:04) → Local.
+	local := earliest.Local()
+	return &local, nil
 }
 
 // Today returns the day record for "today" — sessions logged so far,
@@ -28,13 +97,27 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 	now := r.Clock.Now()
 	day := domain.Day{Target: r.Targets.For(now)}
 
-	active, err := r.State.GetActive()
+	active, err := r.ActiveStart()
 	if err != nil {
 		return day, err
 	}
 	if active != nil {
 		day.Active = active
-	} else {
+	} else if r.Active != nil {
+		// Server-mode: check for a paused session in the ActiveSession rows.
+		list, lerr := r.Active.ListByUser(r.UserID)
+		if lerr != nil {
+			return day, lerr
+		}
+		for _, a := range list {
+			if a.PausedAt != nil {
+				t := a.PausedAt.UTC()
+				day.PausedAt = &t
+				break
+			}
+		}
+	} else if r.State != nil {
+		// Legacy/offline mode: flockstate pause marker.
 		pause, err := r.State.GetPause()
 		if err != nil {
 			return day, err
@@ -44,10 +127,13 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 		}
 	}
 
-	sessions, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	sessions, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return domain.SameDay(s.Date, now)
 	})
 	if err != nil {
+		return day, err
+	}
+	if err := r.enrichSessions(sessions); err != nil {
 		return day, err
 	}
 	day.Sessions = sessions
@@ -62,7 +148,7 @@ func (r *WorktimeReader) Today() (domain.Day, error) {
 // is set.
 func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 	now := r.Clock.Now()
-	active, err := r.State.GetActive()
+	active, err := r.ActiveStart()
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +161,7 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 		AddDate(0, 0, -(wd - 1))
 	sunday := monday.AddDate(0, 0, 6)
 
-	allSessions, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	allSessions, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return !s.Date.Before(monday) && !s.Date.After(sunday)
 	})
 	if err != nil {
@@ -115,8 +201,12 @@ func (r *WorktimeReader) Week() ([]domain.WeekDay, error) {
 
 // History returns every day with at least one session, newest first.
 func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
-	sessions, err := r.Sessions.LoadAll()
+	sessions, err := r.Sessions.Load(r.UserID)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := r.enrichSessions(sessions); err != nil {
 		return nil, err
 	}
 
@@ -144,12 +234,24 @@ func (r *WorktimeReader) History() ([]domain.DayRecord, error) {
 // Range returns sessions whose Date falls inside r. Empty range means
 // "all sessions".
 func (r *WorktimeReader) Range(rng domain.Range) ([]domain.Session, error) {
+	var (
+		sessions []domain.Session
+		err      error
+	)
 	if rng.From.IsZero() && rng.To.IsZero() {
-		return r.Sessions.LoadAll()
+		sessions, err = r.Sessions.Load(r.UserID)
+	} else {
+		sessions, err = r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
+			return rng.ContainsDate(s.Date)
+		})
 	}
-	return r.Sessions.LoadFiltered(func(s domain.Session) bool {
-		return rng.ContainsDate(s.Date)
-	})
+	if err != nil {
+		return nil, err
+	}
+	if err := r.enrichSessions(sessions); err != nil {
+		return nil, err
+	}
+	return sessions, nil
 }
 
 // SessionsOverlap reports whether the candidate span [start, stop)
@@ -163,7 +265,7 @@ func (r *WorktimeReader) SessionsOverlap(date, start, stop time.Time, excludeIdx
 	// AddManual paid that scan. The filter predicate runs in the adapter
 	// where it can short-circuit during line parsing.
 	dateStr := date.Format("2006-01-02")
-	dayRows, err := r.Sessions.LoadFiltered(func(s domain.Session) bool {
+	dayRows, err := r.Sessions.LoadFiltered(r.UserID, func(s domain.Session) bool {
 		return s.Date.Format("2006-01-02") == dateStr
 	})
 	if err != nil {

@@ -116,19 +116,19 @@ func dispatchPicked(cmd *cobra.Command, deps Deps, cwd string, result writepicke
 		if err != nil {
 			return err
 		}
-		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 	case writepicker.ChoiceProject:
 		out, err := deps.CreateProject.Execute(cmd.Context(), usecase.CreateProjectInput{Cwd: cwd})
 		if err != nil {
 			return wrapProjectErr(err)
 		}
-		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 	case writepicker.ChoiceFree:
 		out, err := deps.CreateFree.Execute(cmd.Context(), usecase.CreateFreeInput{Slug: result.Slug})
 		if err != nil {
 			return err
 		}
-		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+		return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 	}
 	return fmt.Errorf("unknown picker choice %d", result.Choice)
 }

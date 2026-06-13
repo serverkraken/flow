@@ -6,6 +6,27 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+// — project-picker messages (new ActiveSessions path) —
+
+// pickerPickedMsg is emitted by the project_picker's onPick callback when the
+// user selects an existing project. heute.Update handles it by dispatching
+// activeSessionsStartCmd.
+type pickerPickedMsg struct {
+	projectID   string
+	projectName string
+}
+
+// pickerCreateMsg is emitted by the project_picker's onCreate callback when
+// the user confirms the sticky "+ Neues Projekt anlegen" entry. heute.Update
+// handles it by dispatching projectsCreateThenStartCmd.
+type pickerCreateMsg struct {
+	name string
+}
+
+// pickerCancelMsg is emitted by the project_picker's onCancel value. heute
+// closes the picker and restores normal focus.
+type pickerCancelMsg struct{}
+
 // ChangedMsg signals that day/session/dayoff data changed
 // (created, edited, deleted). Emitted by any worktime sub-tab that
 // commits a mutation; broadcast by the parent worktime Model to all

@@ -14,7 +14,8 @@ import (
 
 func TestSetTitle_SwapsChromeTitle(t *testing.T) {
 	render := func(src string, _ int) string { return src }
-	m := markdown_overlay.New(render,
+	m := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("first"),
 		markdown_overlay.WithSource("hello"),
 	).SetSize(40, 10)
@@ -29,7 +30,8 @@ func TestSetTitle_SwapsChromeTitle(t *testing.T) {
 
 func TestSetError_DisplacesBodyWithBanner(t *testing.T) {
 	render := func(src string, _ int) string { return "BODY:" + src }
-	m := markdown_overlay.New(render,
+	m := markdown_overlay.New(
+		render,
 		markdown_overlay.WithSource("hi"),
 	).SetSize(40, 10)
 	// Now inject an error — View should show the err banner rather than the body.
@@ -56,7 +58,8 @@ func (injErr) Error() string { return "boom" }
 func TestSetPalette_ReplacesStylesWithoutPanic(t *testing.T) {
 	markdown_overlay.SetPalette(theme.Load())
 	render := func(src string, _ int) string { return src }
-	m := markdown_overlay.New(render,
+	m := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("hello"),
 		markdown_overlay.WithSource("body"),
 	).SetSize(50, 12)

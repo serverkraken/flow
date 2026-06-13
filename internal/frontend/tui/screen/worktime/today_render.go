@@ -29,6 +29,12 @@ func (h heute) viewContent() string {
 	if h.width == 0 {
 		return ""
 	}
+	// Projekt-Picker übernimmt den gesamten Bildschirm (eigene titlebox +
+	// footer). FullScreen() gibt true zurück solange pp != nil, damit der
+	// worktime-Root keinen zweiten titlebox-Wrapper aufbaut.
+	if h.pp != nil {
+		return h.pp.View()
+	}
 	if h.dialog == heuteDialogNoteView && h.noteView != nil {
 		// Note-Viewer ist ein Vollbild-Sub-Screen via markdown_overlay
 		// — eigenes frame + statusBar + footer, keine Dialog-Header-
@@ -60,6 +66,9 @@ func (h heute) renderBody() string {
 	// slot + hints). The sessions list is the scrollable middle that
 	// fitHeight windows around the cursor when the terminal is too short.
 	header := []string{h.renderDateLine(now), h.renderHeadline(now), "", h.renderProgressBar(inner, now), h.renderSummary(inner, now)}
+	if line := h.renderActiveSessionsIndicator(now); line != "" {
+		header = append(header, "", line)
+	}
 	if line := h.renderAttachedNotes(); line != "" {
 		header = append(header, "", line)
 	}
@@ -252,10 +261,7 @@ func (h heute) renderSessionsList(inner int, now time.Time) (rows []string, focu
 		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s",
 			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
-		hint := ""
-		if s.Tag != "" {
-			hint = "[" + s.Tag + "]"
-		}
+		hint := sessionHint(s)
 		if i == h.cursor {
 			focus = len(rows)
 		}
@@ -330,6 +336,41 @@ func todayStatusBadge(p theme.Palette, running, achieved bool) (string, string, 
 		return glyphs.Done, "Ziel erreicht", sem.Success
 	}
 	return glyphs.Paused, "pausiert", p.FgMuted
+}
+
+// renderActiveSessionsIndicator renders the multi-project running-indicator
+// line that appears in the header when the new ActiveSessions path is wired
+// and at least one session is in flight.
+//
+// Format: `▶ Projektname 2h 30m  ·  Projektname2 0h 12m`
+//
+// The indicator is only visible in new-path mode (h.activeSessions != nil).
+// In legacy mode (h.activeSessions == nil) this returns "" so the legacy
+// header is unchanged.
+//
+// Project names come from domain.ActiveSession.ProjectName, which is set by
+// activeSessionsListCmd after a Projects.ListAll join. Falls back to the last
+// 8 chars of ProjectID when the name is empty (unlisted/unknown project).
+func (h heute) renderActiveSessionsIndicator(now time.Time) string {
+	if len(h.activeSessions) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, as := range h.activeSessions {
+		elapsed := now.Sub(as.StartedAt)
+		name := as.ProjectName
+		if name == "" {
+			// Fallback: last 8 chars of the UUID so the indicator is readable
+			// even when the Projects store is not wired or the project was deleted.
+			name = as.ProjectID
+			if len(name) > 8 {
+				name = name[len(name)-8:]
+			}
+		}
+		parts = append(parts, fmt.Sprintf("%s %s  %s", glyphs.Active, name, formatDur(elapsed)))
+	}
+	line := strings.Join(parts, stDim(h.pal, "  ·  "))
+	return "  " + theme.Active(line, h.pal)
 }
 
 // totalThresholdColor picks the today-total foreground based on running

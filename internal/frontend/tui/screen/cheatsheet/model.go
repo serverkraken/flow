@@ -27,6 +27,32 @@ type loadedMsg struct {
 	err     error
 }
 
+// Mode discriminates the cheatsheet's hosting context. Default is
+// ModeEmbedded — the cheatsheet is one tab in the sidekick; ExitMsg
+// from the overlay must be ignored because the sidekick fan-out delivers
+// it to every screen when any overlay closes. ModeStandalone is set via
+// WithStandalone for the `flow cheatsheet` tmux-popup path, where ExitMsg
+// must terminate the program.
+type Mode int
+
+const (
+	// ModeEmbedded is the default — cheatsheet runs as a sidekick tab.
+	ModeEmbedded Mode = iota
+	// ModeStandalone is for the `flow cheatsheet` standalone popup.
+	ModeStandalone
+)
+
+// Option mutates a Model after New(). Keeps the constructor signature stable
+// while allowing hosting-mode overrides to be passed as opt-ins.
+type Option func(*Model)
+
+// WithStandalone activates ModeStandalone — see Mode documentation.
+// Pass this when constructing the cheatsheet for standalone `flow cheatsheet`
+// invocations (tmux popup), not for the sidekick-embedded tab.
+func WithStandalone() Option {
+	return func(m *Model) { m.mode = ModeStandalone }
+}
+
 // Model is the bubbletea model for the cheatsheet screen.
 type Model struct {
 	overlay markdown_overlay.Model
@@ -34,14 +60,16 @@ type Model struct {
 	pal     theme.Palette
 	width   int
 	height  int
+	mode    Mode
 
 	cheatsheet ports.CheatsheetReader
 	renderer   ports.MarkdownRenderer
 }
 
 // New constructs a cheatsheet Model from the given palette, cheatsheet
-// source reader, and Markdown renderer.
-func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer) Model {
+// source reader, and Markdown renderer. Optional Option values (e.g.
+// WithStandalone) can be passed to configure the hosting mode.
+func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer, opts ...Option) Model {
 	render := func(src string, w int) string {
 		if r == nil {
 			return src
@@ -57,19 +85,30 @@ func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer) M
 	// can't navigate out of the cheatsheet via b while sidekick is
 	// the host. In standalone mode (flow cheatsheet popup), q closes
 	// via the ExitMsg → tea.Quit path in Update.
-	overlay := markdown_overlay.New(render,
+	overlay := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("Cheatsheet"),
 		markdown_overlay.WithSearch(),
 		markdown_overlay.WithCodeCopy(),
 		markdown_overlay.WithCloseKeys("q", "esc"),
 	)
-	return Model{
+	m := Model{
 		overlay:    overlay,
 		pal:        p,
 		cheatsheet: cs,
 		renderer:   r,
 	}
+	for _, o := range opts {
+		o(&m)
+	}
+	return m
 }
+
+// ConsumesKeys lets the sidekick forward 'c' to this screen instead of
+// treating it as the global cheatsheet-tab switch — so the overlay's
+// code-copy binding works in sidekick mode. On the cheatsheet tab the
+// tab-switch is a no-op anyway.
+func (m Model) ConsumesKeys() []string { return []string{"c"} }
 
 // HelpSections exposes the cheatsheet-screen key bindings for the
 // sidekick `?`-overlay aggregation.
@@ -133,10 +172,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case markdown_overlay.ExitMsg:
 		// Standalone-Modus: q in der Overlay-Close-Key-Liste → ExitMsg
-		// → wir terminieren. In Sidekick-Modus erreicht q die Cheatsheet
-		// nie (sidekick globals fangen das davor) — der Pfad bleibt aber
-		// als Safety-Net, falls der Host das Routing aendert.
-		return m, tea.Quit
+		// → wir terminieren. Im Sidekick-Modus liefert fanOutToAll dieses
+		// Msg an ALLE Screens, auch wenn ein anderes Overlay (z. B. Brief,
+		// Note) geschlossen wird — deshalb ignorieren wir es im Embedded-
+		// Modus, um nicht den gesamten Sidekick zu beenden.
+		if m.mode == ModeStandalone {
+			return m, tea.Quit
+		}
+		return m, nil // embedded: ignore fan-out ExitMsg from other screens
 	}
 
 	// Forward everything else (key messages, etc.) to the overlay.

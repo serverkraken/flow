@@ -14,9 +14,9 @@ type ProjectSwitcher struct {
 	Tmux ports.Tmux
 }
 
-// Switch attaches to the project's tmux session. If no such session
+// Switch attaches to the source dir's tmux session. If no such session
 // exists, a new one is created at p.Path before the switch.
-func (s *ProjectSwitcher) Switch(p domain.Project) error {
+func (s *ProjectSwitcher) Switch(p domain.SourceDir) error {
 	if p.Name == "" {
 		return errors.New("projektname darf nicht leer sein")
 	}

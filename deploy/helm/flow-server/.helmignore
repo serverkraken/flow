@@ -1,0 +1,13 @@
+# Patterns to ignore when building Helm packages.
+# Standard set — see https://helm.sh/docs/chart_template_guide/helm_ignore_file/
+.DS_Store
+*.bak
+*.tmp
+*.swp
+*.orig
+.git/
+.github/
+.gitignore
+.idea/
+.vscode/
+*.tgz

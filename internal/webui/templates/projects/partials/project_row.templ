@@ -1,0 +1,123 @@
+// Package partials holds the M7 HTMX-target templ partials for the
+// /projects surface. Mirrors the worktime/partials shape: each partial
+// renders one self-contained fragment so the HTMX swap targets stay
+// stable across edit/save/archive cycles.
+//
+// Sub-package separation matches the worktime/partials rationale (avoid
+// the import cycle between handlers and the parent templates package).
+package partials
+
+// ProjectRowVM is the view-model for one read-only project row inside
+// the /projects dense grid. Pre-formatted by the handler so the
+// template stays markup-only.
+//
+// The row replaces itself via HTMX on edit/archive cycles — handlers
+// rebuild this VM from the stored row + Version so optimistic-concurrency
+// works the same way as session rows do.
+type ProjectRowVM struct {
+	ID              string
+	Name            string
+	Slug            string
+	Archived        bool
+	HasActive       bool
+	LiveAccent      bool
+	LastLabel       string
+	LastDim         bool
+	WeekDuration    string
+	WeekDurationDim bool
+	WeekCount       string
+
+	// Version is forwarded so the rename PUT can carry expectedVersion
+	// (optimistic concurrency). Archive does not need it — soft-delete
+	// is idempotent at the adapter layer.
+	Version int64
+}
+
+// ProjectRow renders the read-only row. Used both as the initial page
+// render row AND as the HTMX response after a successful PUT or
+// archive.
+templ ProjectRow(row ProjectRowVM) {
+	<div class="proj-grid-row" data-testid="projects-row" data-project-id={ row.ID }>
+		@rowGlyph(row)
+		@rowNameCell(row)
+		@rowLastCell(row)
+		@rowWeekCell(row)
+		<span class="num">{ row.WeekCount }</span>
+		@rowActions(row)
+	</div>
+}
+
+templ rowGlyph(row ProjectRowVM) {
+	if row.HasActive {
+		<span class="proj-glyph is-running live-pulse" aria-label="läuft">▶</span>
+	} else if row.Archived {
+		<span class="proj-glyph is-archived" aria-label="archiviert">○</span>
+	} else {
+		<span class="proj-glyph" aria-hidden="true">●</span>
+	}
+}
+
+templ rowNameCell(row ProjectRowVM) {
+	<div>
+		if row.Archived {
+			<div class="proj-name is-archived">{ row.Name }</div>
+		} else {
+			<div class="proj-name">{ row.Name }</div>
+		}
+		<div class="proj-meta">{ row.Slug }</div>
+	</div>
+}
+
+templ rowLastCell(row ProjectRowVM) {
+	if row.LiveAccent {
+		<span class="num is-running">{ row.LastLabel }</span>
+	} else if row.LastDim {
+		<span class="num is-dim">{ row.LastLabel }</span>
+	} else {
+		<span class="num">{ row.LastLabel }</span>
+	}
+}
+
+templ rowWeekCell(row ProjectRowVM) {
+	if row.LiveAccent {
+		<span class="num is-running">{ row.WeekDuration }</span>
+	} else if row.WeekDurationDim {
+		<span class="num is-dim">{ row.WeekDuration }</span>
+	} else {
+		<span class="num">{ row.WeekDuration }</span>
+	}
+}
+
+// rowActions renders Edit + Archive. Archive carries hx-confirm because
+// it's destructive enough (changes visibility) to warrant a confirmation
+// — matches the worktime/Session delete pattern. Edit and Save never
+// carry hx-confirm.
+//
+// Archived rows hide the buttons — Reactivate lands in Phase 2.
+templ rowActions(row ProjectRowVM) {
+	if row.Archived {
+		<span class="proj-row-actions" aria-hidden="true" title="archiviert">⋯</span>
+	} else {
+		<span style="display: inline-flex; gap: 0.25rem; justify-content: flex-end;">
+			<button
+				class="btn btn-sm"
+				hx-get={ "/projects/" + row.ID + "/edit" }
+				hx-target="closest .proj-grid-row"
+				hx-swap="outerHTML"
+				aria-label="Projekt umbenennen"
+				title="Umbenennen"
+				data-testid="project-edit-btn"
+			>✎</button>
+			<button
+				class="btn btn-sm btn-danger"
+				hx-post={ "/projects/" + row.ID + "/archive" }
+				hx-target="closest .proj-grid-row"
+				hx-swap="outerHTML swap:200ms"
+				hx-confirm="Projekt wirklich archivieren? Sessions bleiben erhalten."
+				aria-label="Projekt archivieren"
+				title="Archivieren"
+				data-testid="project-archive-btn"
+			>○</button>
+		</span>
+	}
+}

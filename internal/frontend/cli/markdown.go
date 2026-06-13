@@ -66,7 +66,8 @@ func newMarkdownViewCmd() *cobra.Command {
 				out, _ := markdown.Render(src, w)
 				return out
 			}
-			m := markdown_overlay.New(render,
+			m := markdown_overlay.New(
+				render,
 				markdown_overlay.WithTitle(filepath.Base(path)),
 				markdown_overlay.WithSource(string(source)),
 				markdown_overlay.WithSearch(),

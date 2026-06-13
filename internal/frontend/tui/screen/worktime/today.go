@@ -15,6 +15,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/project_picker"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/toast"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 )
@@ -113,6 +114,20 @@ type heute struct {
 	// Konstruktion in openNoteViewDialog; Schließen via
 	// markdown_overlay.ExitMsg im heute-Update-Switch.
 	noteView *markdown_overlay.Model
+
+	// pp ist der Projekt-Picker (full-screen-Overlay), der sich öffnet wenn
+	// deps.ActiveSessions + deps.UserID gesetzt sind und `s` gedrückt wird
+	// (neuer Pfad). Pointer-Pattern analog noteView: nil = geschlossen,
+	// non-nil = Picker übernimmt Input + Render. Die Picker-Callbacks emittieren
+	// pickerPickedMsg / pickerCreateMsg / pickerCancelMsg; heute.Update
+	// routet sie in activeSessionsStartCmd bzw. projectsCreateThenStartCmd.
+	pp *project_picker.Model
+
+	// activeSessions ist der zuletzt geladene Stand der laufenden Sessions
+	// für den angemeldeten User (leere Liste = keine). Wird bei dayRefreshMsg
+	// via activeSessionsListCmd nachgeladen wenn deps.ActiveSessions != nil.
+	// Nil bedeutet "nie geladen" (Legacy-Modus); leere Slice = geladen, nichts läuft.
+	activeSessions []domain.ActiveSession
 }
 
 // noteAttachPickerLimit ist die maximale Anzahl jüngster Notes, die
@@ -131,20 +146,30 @@ func newHeute(p theme.Palette, deps Deps) heute {
 
 // FilterActive bubbles up to the root so global tab keys don't intercept
 // while a dialog input is taking text.
-func (h heute) FilterActive() bool { return h.dialog != heuteDialogNone }
+// The project_picker overlay also blocks tab-switching (the picker IS
+// full-screen; if tab keys leak through the user would switch tabs while the
+// picker is visible).
+func (h heute) FilterActive() bool { return h.dialog != heuteDialogNone || h.pp != nil }
 
 // FullScreen reports whether the worktime root should skip its titlebox
-// + tab-strip wrap. True only while the inline note viewer is active —
-// das markdown_overlay bringt eigenes rounded-border-Chrome mit, ein
-// zweiter Wrapper ergaebe Doppelborder + rechte Spalte clipped.
-func (h heute) FullScreen() bool { return h.dialog == heuteDialogNoteView }
+// + tab-strip wrap. True while the inline note viewer or the project picker
+// is active — beide bringen eigenes full-screen-Chrome mit; ein zweiter
+// titlebox-Wrapper würde Border duplizieren und die rechte Spalte clippen.
+func (h heute) FullScreen() bool {
+	return h.dialog == heuteDialogNoteView || h.pp != nil
+}
 
 // TextInputActive reports whether one of Heute's text-bearing dialogs
 // (tag / note / edit form / kompendium-attach) is currently the focused
 // surface. Lets the worktime root treat 'q' as a literal letter in
 // those fields instead of an exit key. Confirm-delete and the help
 // overlay are intentionally NOT text-input — q from there exits.
+// The project_picker filter is also a text input — 'q' should type into
+// the filter, not quit the whole app while the picker is visible.
 func (h heute) TextInputActive() bool {
+	if h.pp != nil {
+		return true
+	}
 	switch h.dialog {
 	case heuteDialogTag, heuteDialogNote, heuteDialogEdit, heuteDialogNoteAttach:
 		return true
@@ -173,18 +198,23 @@ func (h heute) ConsumesKeys() []string {
 }
 
 // FastTick reports whether the root should schedule the fast (1 s) tick.
-// True during the first minute of an active session — the live elapsed
-// counter only shows seconds for that window, then drops to minutes.
-func (h heute) FastTick(now time.Time) bool {
-	if h.day.Active == nil {
-		return false
-	}
-	return now.Sub(*h.day.Active) < time.Minute
+// True whenever a session is running so the elapsed counter stays smooth.
+// The old <1 min ceiling caused visible 10-second jumps after the first
+// minute; there is no reason to throttle back while the clock is live.
+func (h heute) FastTick(_ time.Time) bool {
+	return h.day.Active != nil
 }
 
 // Init kicks off the day load. Action results all return through
-// heuteActionDoneMsg, which itself triggers a reload.
-func (h heute) Init() tea.Cmd { return h.loadCmd() }
+// heuteActionDoneMsg, which itself triggers a reload. When the new
+// ActiveSessions dep is wired, also kick off the initial list load.
+func (h heute) Init() tea.Cmd {
+	cmds := []tea.Cmd{h.loadCmd()}
+	if h.deps.ActiveSessions != nil && h.deps.UserID != "" {
+		cmds = append(cmds, h.activeSessionsListCmd())
+	}
+	return tea.Batch(cmds...)
+}
 
 func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -197,6 +227,10 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			upd := h.noteView.SetSize(msg.Width, msg.Height)
 			h.noteView = &upd
 		}
+		if h.pp != nil {
+			upd := h.pp.SetSize(msg.Width, msg.Height)
+			h.pp = &upd
+		}
 		return h, nil
 
 	case markdown_overlay.ExitMsg:
@@ -206,6 +240,9 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return h, nil
 		}
 		return h, nil
+
+	case pickerPickedMsg, pickerCreateMsg, pickerCancelMsg, activeSessionsListMsg:
+		return h.handlePickerMsg(msg)
 
 	case heuteLoadedMsg:
 		h.loaded = true
@@ -246,6 +283,15 @@ func (h heute) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return h, h.deleteCmd(h.editDate, h.editIdx)
 
 	case tea.KeyPressMsg:
+		// Projekt-Picker läuft als vollständiger bubbletea-Sub-Model:
+		// alle Keys gehen direkt an den Picker. Der Picker emittiert
+		// pickerPickedMsg / pickerCreateMsg / pickerCancelMsg als Cmd,
+		// die dann im nächsten Update-Zyklus hier ankommen.
+		if h.pp != nil {
+			upd, cmd := h.pp.Update(msg)
+			h.pp = &upd
+			return h, cmd
+		}
 		if h.dialog != heuteDialogNone {
 			return h.handleDialogKey(msg)
 		}
@@ -303,7 +349,11 @@ func (h heute) reloadIfIdle() (tea.Model, tea.Cmd) {
 	if h.dialog != heuteDialogNone || h.actionInFlight {
 		return h, nil
 	}
-	return h, h.loadCmd()
+	cmds := []tea.Cmd{h.loadCmd()}
+	if h.deps.ActiveSessions != nil && h.deps.UserID != "" {
+		cmds = append(cmds, h.activeSessionsListCmd())
+	}
+	return h, tea.Batch(cmds...)
 }
 
 func (h heute) loadCmd() tea.Cmd {
@@ -361,7 +411,7 @@ func (h heute) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return h, nil
 	case "s":
-		return h, h.toggleStartStopCmd()
+		return h.handleSKey()
 	case "p":
 		if h.day.IsRunning() {
 			return h, h.pauseCmd()

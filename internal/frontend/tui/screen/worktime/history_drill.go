@@ -190,10 +190,7 @@ func (h history) renderDrillSessionRows(inner int) (mid []string, focus int) {
 		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s",
 			s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
-		hint := ""
-		if s.Tag != "" {
-			hint = "[" + s.Tag + "]"
-		}
+		hint := sessionHint(s)
 		if i == h.drillCur {
 			focus = len(mid)
 		}

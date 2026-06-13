@@ -1,0 +1,811 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Tell Tailwind v4 to scan the templ source files (it can't auto-detect Go's
+ * generated suffix on .templ.go). Templ files describe the actual class
+ * surface; the .templ.go intermediate echoes them as string literals. */
+@source "../../internal/webui/templates/**/*.templ";
+@source "../../internal/webui/templates/**/*.templ.go";
+
+/* -----------------------------------------------------------------------------
+ * flow-server WebUI — "Editorial Terminal" design system
+ *
+ * Single-family typography (JetBrains Mono, weights 100-800), Tokyonight-Night
+ * palette with strict semantic roles (see internal/webui/DESIGN.md), 4px grid,
+ * sharp corners, hairline rules, status-spine on the left edge.
+ *
+ * Color tokens MUST match internal/frontend/tui/theme (TUI parity).
+ * --------------------------------------------------------------------------- */
+
+@theme {
+  --color-bg:      #1a1b26;
+  --color-bg-dark: #16161e;
+  --color-bg-soft: #1f2335;
+  --color-fg:      #c0caf5;
+  --color-fg-dim:  #9aa5ce;
+  --color-accent:  #7aa2f7;
+  --color-active:  #9ece6a;
+  --color-warn:    #e0af68;
+  --color-err:     #f7768e;
+  --color-muted:   #414868;
+  --color-muted-soft: #2a2e44;
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* 4-px grid spacing scale aligns with TUI lipgloss padding semantics. */
+  --spacing: 0.25rem;
+}
+
+@layer base {
+  html, body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-feature-settings: "tnum" 1, "calt" 0;
+    font-variant-ligatures: none;
+  }
+  /* Subtle CRT-grain over the whole page. SVG noise, not gradient. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.75  0 0 0 0 0.79  0 0 0 0 0.96  0 0 0 1 0'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+  }
+  /* Editorial discipline: sharp corners everywhere, no rounded chrome. */
+  *, *::before, *::after { border-radius: 0 !important; }
+  /* Tabular numerals for every numeric readout. */
+  .num, time, [data-num] { font-variant-numeric: tabular-nums; }
+  /* No focus-ring blur — solid accent outline. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  /* Selection in accent. */
+  ::selection { background: var(--color-accent); color: var(--color-bg); }
+  /* Link defaults: underline on hover, no decoration at rest. */
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: var(--color-accent); }
+  /* Table reset matched to editorial column rules. */
+  table { border-collapse: collapse; width: 100%; }
+  th, td { padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+  th { font-weight: 600; color: var(--color-fg-dim); border-bottom: 1px solid var(--color-muted); }
+  td { border-bottom: 1px solid var(--color-muted-soft); }
+  tbody tr:hover td { background: var(--color-bg-soft); }
+}
+
+@layer components {
+  /* Display headlines: ultralight, large, wide tracking. Carries the page. */
+  .display-xl { font-weight: 100; font-size: 4.5rem; line-height: 1; letter-spacing: -0.02em; }
+  .display-lg { font-weight: 200; font-size: 3rem; line-height: 1; letter-spacing: -0.01em; }
+  .display-md { font-weight: 300; font-size: 1.875rem; line-height: 1.1; letter-spacing: -0.005em; }
+
+  /* Numeric readouts: heavy, tabular, slightly tighter line height. */
+  .readout-xl { font-weight: 700; font-size: 2rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .readout-lg { font-weight: 600; font-size: 1.375rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .readout-md { font-weight: 600; font-size: 1rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+  /* Eyebrow labels above a section header. Uppercase-tracked. */
+  .eyebrow { font-weight: 500; font-size: 0.6875rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-fg-dim); }
+
+  /* Section header spans both columns; hairline rule underneath. */
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-muted); margin-bottom: 1.5rem; }
+
+  /* Hairline divider between blocks. Use sparingly. */
+  .rule { border-top: 1px solid var(--color-muted); margin: 1.5rem 0; }
+
+  /* Pill states (running, idle, conflict). No backgrounds; just a glyph + label. */
+  .pill { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; padding: 0.125rem 0.5rem; border: 1px solid currentColor; }
+  .pill.pill-active { color: var(--color-active); }
+  .pill.pill-warn   { color: var(--color-warn); }
+  .pill.pill-err    { color: var(--color-err); }
+  .pill.pill-muted  { color: var(--color-fg-dim); border-color: var(--color-muted); }
+
+  /* Buttons: flat, single-pixel-border, accent inversion on hover. */
+  .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.875rem; border: 1px solid var(--color-muted); color: var(--color-fg); font-weight: 500; cursor: pointer; background: transparent; transition: background 80ms ease-out, color 80ms ease-out, border-color 80ms ease-out; }
+  .btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+  .btn-primary { border-color: var(--color-accent); color: var(--color-accent); }
+  .btn-primary:hover { background: var(--color-accent); color: var(--color-bg); }
+  .btn-danger { color: var(--color-err); border-color: var(--color-err); }
+  .btn-danger:hover { background: var(--color-err); color: var(--color-bg); }
+  .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+
+  /* Editorial nav strip — full-width hairline. */
+  .nav-link { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; color: var(--color-fg-dim); border-bottom: 2px solid transparent; transition: color 80ms, border-color 80ms; }
+  .nav-link:hover { color: var(--color-fg); }
+  .nav-link.is-active { color: var(--color-fg); border-bottom-color: var(--color-accent); }
+
+  /* Tab strip below nav for sub-tab pages (worktime today/week/...) */
+  .subtab { display: inline-flex; padding: 0.25rem 0.625rem; font-size: 0.8125rem; color: var(--color-fg-dim); border-bottom: 1px solid var(--color-muted); }
+  .subtab.is-active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+  .subtab:hover { color: var(--color-fg); }
+
+  /* Status spine on the left of the main viewport. 8px wide.
+     Children: glyphs / mini-bars / sync-dot. */
+  .spine { position: fixed; top: 0; left: 0; bottom: 0; width: 0.5rem; background: var(--color-bg-dark); display: flex; flex-direction: column; align-items: center; padding: 0.75rem 0; z-index: 50; }
+  .spine .spine-glyph { font-size: 0.625rem; line-height: 1; color: var(--color-fg-dim); }
+  .spine .spine-glyph.is-active { color: var(--color-active); animation: spine-pulse 2.4s ease-in-out infinite; }
+  .spine .spine-bars { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 0.75rem 0; }
+  .spine .spine-bar { width: 0.25rem; height: 0.125rem; background: var(--color-muted-soft); }
+  .spine .spine-bar.has-work { background: var(--color-accent); opacity: 0.6; }
+  .spine .spine-bar.has-work.is-now { background: var(--color-active); opacity: 1; }
+  .spine .spine-sync { font-size: 0.625rem; line-height: 1; color: var(--color-fg-dim); }
+  .spine .spine-sync.is-active { color: var(--color-active); }
+  .spine .spine-sync.is-warn { color: var(--color-warn); }
+
+  /* Subtle row highlight after an SSE-driven swap. */
+  .flash-row { animation: flash-row 600ms ease-out 1; }
+
+  /* "Running since" label pulses gently to signal liveness. */
+  .live-pulse { animation: live-pulse 2s ease-in-out infinite; }
+
+  /* Sparkline cell baseline. */
+  .sparkline-cell { height: 1.5rem; width: 6rem; display: inline-block; }
+
+  /* Editorial 70/30 page grid. Right rail = thin metadata column. */
+  .page-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+  @media (min-width: 1024px) {
+    .page-grid { grid-template-columns: minmax(0, 1fr) 18rem; }
+  }
+
+  /* Editor surface for CodeMirror. */
+  .editor-surface { border: 1px solid var(--color-muted); min-height: 24rem; }
+  .editor-surface .cm-editor { background: var(--color-bg-dark) !important; }
+  .editor-surface .cm-content { padding: 0.75rem 1rem !important; }
+  .editor-surface .cm-gutters { background: var(--color-bg) !important; color: var(--color-fg-dim) !important; border-right: 1px solid var(--color-muted) !important; }
+
+  /* Prose tone for markdown render. Tokyonight-tinted typography. */
+  .prose-flow { color: var(--color-fg); font-size: 0.9375rem; line-height: 1.65; max-width: 70ch; }
+  .prose-flow h1 { font-weight: 200; font-size: 1.875rem; margin: 2rem 0 0.75rem; }
+  .prose-flow h2 { font-weight: 300; font-size: 1.375rem; margin: 1.75rem 0 0.5rem; }
+  .prose-flow h3 { font-weight: 500; font-size: 1.0625rem; margin: 1.25rem 0 0.5rem; color: var(--color-fg-dim); }
+  .prose-flow p { margin: 0.75rem 0; }
+  .prose-flow a { color: var(--color-accent); border-bottom: 1px dotted var(--color-accent); }
+  .prose-flow code { background: var(--color-bg-soft); padding: 0.0625rem 0.3125rem; font-size: 0.8125rem; color: var(--color-warn); }
+  .prose-flow pre { background: var(--color-bg-dark); border: 1px solid var(--color-muted); padding: 0.75rem 1rem; overflow-x: auto; font-size: 0.8125rem; }
+  .prose-flow pre code { background: transparent; color: var(--color-fg); padding: 0; }
+  .prose-flow blockquote { border-left: 2px solid var(--color-accent); padding-left: 0.875rem; color: var(--color-fg-dim); margin: 1rem 0; }
+  .prose-flow ul, .prose-flow ol { padding-left: 1.25rem; margin: 0.75rem 0; }
+  .prose-flow li { margin: 0.25rem 0; }
+  .prose-flow table { width: 100%; margin: 1rem 0; }
+
+  /* Flash strip (action results / sync errors). */
+  .flash { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.875rem; border: 1px solid currentColor; margin-bottom: 1rem; font-size: 0.8125rem; }
+  .flash-ok   { color: var(--color-active); }
+  .flash-err  { color: var(--color-err); }
+  .flash-warn { color: var(--color-warn); }
+
+  /* HTMX swap-in transition. Targets element being swapped. */
+  .htmx-swapping { opacity: 0; transition: opacity 100ms ease-out; }
+  .htmx-settling { opacity: 1; transition: opacity 100ms ease-in; }
+
+  /* M7 session inline edit form — input baseline. The form inputs use
+     mostly inline styles to stay self-contained, but a shared base
+     keeps focus-rings consistent across the partial set. */
+  .session-form input,
+  .session-form select,
+  .start-session-form select {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+  }
+  .session-form input:focus-visible,
+  .session-form select:focus-visible,
+  .start-session-form select:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+  /* Conflict-overlay row — warn-tinted hairline with no rounded chrome. */
+  .conflict-overlay td {
+    border-bottom: 0;
+  }
+
+  /* Live session banner — at the top of the dashboard when a session is
+     running. Hairline border, accent left-stripe, big elapsed readout
+     on the right, single-row layout. M7 will wire the Stop button to
+     hx-post=/worktime/active/stop. */
+  .live-banner {
+    border: 1px solid var(--color-muted);
+    border-left: 2px solid var(--color-active);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  .live-banner .live-dot     { color: var(--color-active); font-size: 0.75rem; }
+  .live-banner .live-project { font-size: 1rem; color: var(--color-fg); }
+  .live-banner .live-elapsed { font-variant-numeric: tabular-nums; font-size: 1.375rem; font-weight: 600; color: var(--color-active); }
+  .live-banner .live-since   { color: var(--color-fg-dim); font-size: 0.75rem; }
+
+  /* 24-cell horizontal day-bar — one cell per hour of the day. Used on
+     the dashboard and (later, M6) the worktime detail page. */
+  .daybar {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 1px;
+    height: 36px;
+    align-items: stretch;
+  }
+  .daybar .cell           { background: var(--color-muted-soft); position: relative; }
+  .daybar .cell.has-work  { background: var(--color-accent); opacity: 0.7; }
+  .daybar .cell.is-now    { background: var(--color-active); opacity: 1; }
+
+  /* Mini-card used in the dashboard 3-up footer row. Hairline border,
+     eyebrow + big readout + dimmed sub-label. */
+  .mini-card {
+    border: 1px solid var(--color-muted);
+    padding: 1.125rem 1.25rem;
+  }
+  .mini-card .mini-sub {
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+  }
+
+  /* Activity stream — vertical timeline list with a hairline rail on
+     the left and per-item dot indicating event kind (active / done /
+     warn / accent). */
+  .activity-stream {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    border-left: 1px solid var(--color-muted-soft);
+    margin-left: 0.5rem;
+  }
+  .activity-stream .item {
+    padding: 0.625rem 0 0.625rem 1.25rem;
+    position: relative;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .activity-stream .item .dot {
+    position: absolute;
+    left: -4px;
+    top: 0.875rem;
+    width: 7px;
+    height: 7px;
+    background: var(--color-muted);
+  }
+  .activity-stream .item .dot.is-active { background: var(--color-active); }
+  .activity-stream .item .dot.is-accent { background: var(--color-accent); opacity: 0.6; }
+  .activity-stream .item .dot.is-warn   { background: var(--color-warn); }
+  .activity-stream .item .glyph {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 0.875rem;
+  }
+  .activity-stream .item .glyph.is-active { color: var(--color-active); }
+  .activity-stream .item .when {
+    margin-left: auto;
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+  }
+
+  /* Inline keyboard-cap style for inline glyphs and command hints.
+     Used by the activity stream and the dashboard footer hint row. */
+  .kbd {
+    background: var(--color-bg-soft);
+    color: var(--color-fg);
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--color-muted-soft);
+  }
+
+  /* Footer hint row at the bottom of full-page surfaces. Dim, hairline
+     rule on top, key-hints right-aligned. */
+  .page-footer-note {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-muted-soft);
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ---------------------------------------------------------------------
+   * Worktime sub-tab surfaces (Plan E · Task 6).
+   * Each rule mirrors the mockup chrome at /tmp/flow-mockups/_chrome.css
+   * so /worktime today/woche/verlauf/frei render with the editorial-
+   * terminal look. M6 keeps these worktime-only; if Notes / Repos reuse
+   * .rail or .sessions-table they stay where they are (no rename).
+   * ------------------------------------------------------------------- */
+
+  /* Sub-tab strip below the main nav. Horizontal hairline at the bottom. */
+  .mk-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--color-muted);
+    margin-bottom: 1.5rem;
+  }
+
+  /* Horizontal pill row (used for action clusters next to section heads). */
+  .pill-row {
+    display: inline-flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+
+  /* Sessions table — editorial column layout with hairline dividers and
+     tabular numerals on the numeric columns. */
+  .sessions-table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.875rem;
+  }
+  .sessions-table th {
+    text-align: left;
+    color: var(--color-fg-dim);
+    border-bottom: 1px solid var(--color-muted);
+    padding: 0.5rem 0.75rem;
+    font-weight: 500;
+    font-size: 0.6875rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .sessions-table td {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+    vertical-align: top;
+  }
+  .sessions-table tr:hover td { background: var(--color-bg-soft); }
+  .sessions-table .col-num {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .sessions-table .col-proj { color: var(--color-fg); }
+  .sessions-table .col-tag  { color: var(--color-fg-dim); font-size: 0.75rem; }
+
+  /* 0/6/12/18 axis labels below the rail daybar. */
+  .daybar-axis {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 1px;
+    margin-top: 4px;
+    font-size: 0.625rem;
+    color: var(--color-fg-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .daybar-axis span { text-align: center; }
+
+  /* Saldo-Stripe — 3-cell horizontal stripe at the top of worktime pages. */
+  .saldo-stripe {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-bottom: 2rem;
+    border-top: 1px solid var(--color-muted);
+    border-bottom: 1px solid var(--color-muted);
+  }
+  .saldo-stripe .cell {
+    padding: 1rem 1.25rem;
+    border-right: 1px solid var(--color-muted-soft);
+  }
+  .saldo-stripe .cell:last-child { border-right: 0; }
+  .saldo-stripe .label {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+  }
+  .saldo-stripe .value {
+    font-variant-numeric: tabular-nums;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .saldo-stripe .value.positive { color: var(--color-active); }
+  .saldo-stripe .value.negative { color: var(--color-err); }
+  .saldo-stripe .sub {
+    margin-top: 0.375rem;
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+  }
+
+  /* Right rail (metadata column inside .page-grid). Hairline left edge,
+     stack of rail-item rows. */
+  .rail {
+    padding-left: 1.25rem;
+    border-left: 1px solid var(--color-muted-soft);
+  }
+  .rail .rail-head {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+  }
+  .rail .rail-item {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-muted-soft);
+    font-size: 0.8125rem;
+    color: var(--color-fg-dim);
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .rail .rail-item:last-child { border-bottom: 0; }
+  .rail .rail-item .label { color: var(--color-fg); }
+
+  /* ---------------------------------------------------------------------
+   * Notes index list rows (Plan E · Task 7).
+   * One row per note; title + meta + preview stacked, hairline divider.
+   * The row is a single link surface so the whole card is clickable.
+   * ------------------------------------------------------------------- */
+  .note-list { list-style: none; padding: 0; margin: 0; }
+  .note-row { border-bottom: 1px solid var(--color-muted-soft); }
+  .note-row:last-child { border-bottom: 0; }
+  .note-row-link {
+    display: block;
+    padding: 0.875rem 0.25rem 0.875rem 0.25rem;
+    color: var(--color-fg);
+  }
+  .note-row-link:hover { background: var(--color-bg-soft); }
+  .note-row-link:hover .note-row-title { color: var(--color-accent); }
+  .note-row-title {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--color-fg);
+    margin-bottom: 0.25rem;
+  }
+  .note-row-meta {
+    font-size: 0.75rem;
+    color: var(--color-fg-dim);
+    margin-bottom: 0.375rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+  }
+  .note-row-preview {
+    color: var(--color-fg-dim);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    margin: 0;
+    max-width: 70ch;
+  }
+
+  /* ---------------------------------------------------------------------
+   * Repos index list (Plan E · Task 8).
+   * Compact dense list — one row per repo: name + remote + meta line.
+   * The mockup's left "repo-sidebar" lives as a full-width column here
+   * (the WebUI splits list + detail across routes /repos and
+   * /repos/{key}/note); the visual idiom is preserved.
+   * ------------------------------------------------------------------- */
+  .repo-list {
+    display: block;
+    margin-top: 1rem;
+  }
+  .repo-side-head {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-muted);
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+  }
+  .repo-item {
+    display: block;
+    padding: 0.625rem 0.5rem;
+    border-left: 2px solid transparent;
+    margin-left: -0.5rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+    transition: background 80ms, border-color 80ms;
+    color: var(--color-fg);
+  }
+  .repo-item:hover {
+    background: var(--color-bg-soft);
+    border-left-color: var(--color-accent);
+  }
+  .repo-item.is-active {
+    border-left-color: var(--color-accent);
+    background: var(--color-bg-soft);
+  }
+  .repo-item .nm {
+    font-size: 0.9375rem;
+    color: var(--color-fg);
+  }
+  .repo-item .hs {
+    font-size: 0.75rem;
+    color: var(--color-fg-dim);
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.125rem;
+  }
+  .repo-item .hs.has-note { color: var(--color-accent); }
+  .repo-item .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--color-fg-dim);
+  }
+
+  /* Repo note "meta strip" — replaces the right rail on the note view. */
+  .note-meta {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+  }
+  .note-meta .item { display: flex; gap: 0.5rem; }
+  .note-meta .item .label {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.625rem;
+  }
+  .note-meta .item .value {
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+  }
+
+  /* ---------------------------------------------------------------------
+   * Projects index dense grid (Plan E · Task 9).
+   * One row per project: glyph · name+slug · zuletzt · diese-woche ·
+   * sessions · actions. Editorial dense list, hairline dividers, tabular
+   * numerals on the numeric columns.
+   * ------------------------------------------------------------------- */
+  .proj-grid-row {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr 8rem 6rem 5rem 2rem;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--color-muted-soft);
+    font-size: 0.875rem;
+  }
+  .proj-grid-row.is-header {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    border-bottom: 1px solid var(--color-muted);
+    padding-bottom: 0.5rem;
+    padding-top: 0.5rem;
+  }
+  .proj-grid-row:hover:not(.is-header) {
+    background: var(--color-bg-soft);
+  }
+  .proj-glyph {
+    color: var(--color-fg-dim);
+    font-size: 0.875rem;
+    text-align: center;
+  }
+  .proj-glyph.is-running {
+    color: var(--color-active);
+  }
+  .proj-glyph.is-archived {
+    color: var(--color-fg-dim);
+    opacity: 0.6;
+  }
+  .proj-name {
+    color: var(--color-fg);
+  }
+  .proj-name.is-archived {
+    color: var(--color-fg-dim);
+  }
+  .proj-meta {
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    margin-top: 0.125rem;
+    font-family: var(--font-mono);
+  }
+  .proj-grid-row .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .proj-grid-row .num.is-running {
+    color: var(--color-active);
+  }
+  .proj-grid-row .num.is-dim {
+    color: var(--color-fg-dim);
+  }
+  .proj-row-actions {
+    background: transparent;
+    border: 0;
+    color: var(--color-fg-dim);
+    font-size: 1rem;
+    cursor: not-allowed;
+    text-align: right;
+    padding: 0;
+  }
+  .proj-row-actions[disabled] {
+    opacity: 0.6;
+  }
+
+  /* Filter row above the dense grid. Visual-only for M6 — the input is
+     disabled and the pills carry no state. */
+  .proj-filter-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.625rem 0;
+    border-top: 1px solid var(--color-muted);
+    border-bottom: 1px solid var(--color-muted);
+    margin-bottom: 1rem;
+  }
+  .proj-filter-search {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    padding: 0.375rem 0;
+    outline: 0;
+  }
+  .proj-filter-search::placeholder {
+    color: var(--color-fg-dim);
+  }
+  .proj-filter-search:disabled {
+    opacity: 0.85;
+    cursor: not-allowed;
+  }
+
+  /* ---------------------------------------------------------------------
+   * Settings page sections (Plan E · Task 9).
+   * Each section is a 16rem sidebar / body grid; key-value rows stack
+   * vertically inside the body. Hairline bottom between sections.
+   * ------------------------------------------------------------------- */
+  .setting-section {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    gap: 2rem;
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--color-muted-soft);
+  }
+  .setting-section:last-of-type {
+    border-bottom: 0;
+  }
+  .setting-side h3 {
+    font-size: 1.0625rem;
+    font-weight: 500;
+    color: var(--color-fg);
+    margin: 0 0 0.375rem;
+  }
+  .setting-side p {
+    color: var(--color-fg-dim);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .setting-body {
+    font-size: 0.875rem;
+  }
+
+  /* Device card (Geräte section). One row per device — Phase 1 always
+     renders exactly one, the current request. */
+  .device {
+    border: 1px solid var(--color-muted);
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.625rem;
+    display: grid;
+    grid-template-columns: 1.5rem 1fr auto;
+    gap: 1rem;
+    align-items: center;
+  }
+  .device.is-here {
+    border-left: 2px solid var(--color-accent);
+  }
+  .device-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--color-active);
+    align-self: center;
+    margin: auto;
+  }
+  .device-name {
+    font-size: 0.9375rem;
+    color: var(--color-fg);
+  }
+  .device-meta {
+    font-size: 0.75rem;
+    color: var(--color-fg-dim);
+    margin-top: 0.25rem;
+    font-family: var(--font-mono);
+    word-break: break-all;
+  }
+  .device-stat {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-size: 0.8125rem;
+    color: var(--color-fg);
+  }
+  .device-stat-label {
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-fg-dim);
+    font-size: 0.625rem;
+    display: block;
+    margin-bottom: 0.125rem;
+  }
+
+  /* Key-value row inside a settings section body. */
+  .kv {
+    display: grid;
+    grid-template-columns: 10rem 1fr auto;
+    gap: 1rem;
+    padding: 0.625rem 0;
+    border-bottom: 1px solid var(--color-muted-soft);
+    align-items: baseline;
+    font-size: 0.8125rem;
+  }
+  .kv:last-child {
+    border-bottom: 0;
+  }
+  .kv-k {
+    color: var(--color-fg-dim);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+  }
+  .kv-v {
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    word-break: break-all;
+  }
+  .kv-suffix {
+    color: var(--color-fg-dim);
+    font-size: 0.6875rem;
+  }
+
+  /* Horizontal bar rows (Nach Projekt / Nach Tag on the Woche tab).
+     Three columns: label · bar · numeric total. Hairline bottom. */
+  .proj-row {
+    display: grid;
+    grid-template-columns: 10rem 1fr 4rem;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-muted-soft);
+    font-size: 0.8125rem;
+  }
+  .proj-bar {
+    height: 6px;
+    background: var(--color-muted-soft);
+    position: relative;
+  }
+  .proj-bar .fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--color-accent);
+  }
+  .proj-bar .fill.is-running { background: var(--color-active); }
+  .proj-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-fg-dim);
+  }
+}
+
+@keyframes spine-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1.0; }
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1.0; }
+}
+@keyframes flash-row {
+  0%   { background: rgba(122, 162, 247, 0.18); }
+  100% { background: transparent; }
+}

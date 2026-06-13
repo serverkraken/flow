@@ -5,16 +5,16 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// ProjectsReader enumerates the user's project directories, annotated
+// ProjectsReader enumerates the user's source directories, annotated
 // with which ones currently have a tmux session attached.
 type ProjectsReader struct {
-	Scanner ports.ProjectScanner
+	Scanner ports.SourceDirScanner
 	Tmux    ports.Tmux
 }
 
-// List returns the project list. tmux-session lookup failures are
+// List returns the source-dir list. tmux-session lookup failures are
 // tolerated — the row is still returned, just without the session marker.
-func (r *ProjectsReader) List() ([]domain.Project, error) {
+func (r *ProjectsReader) List() ([]domain.SourceDir, error) {
 	projects, err := r.Scanner.List()
 	if err != nil {
 		return nil, err

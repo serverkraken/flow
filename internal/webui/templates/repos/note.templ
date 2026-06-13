@@ -1,0 +1,143 @@
+package repos
+
+import "html/template"
+
+// NoteVM is the /repos/{escaped-key}/note view-model. The handler
+// resolves the repo + note, renders markdown via internal/webui/markdown,
+// and pre-formats every rail item so the templ surface stays
+// formatting-only.
+type NoteVM struct {
+	// DisplayName is the heading text.
+	DisplayName string
+	// CanonicalKey is shown in the meta strip and the breadcrumb.
+	CanonicalKey string
+	// RemoteURL is the monospace subtitle. May be empty when no
+	// remote-url has been captured yet — we render "(kein remote)" in
+	// that branch (handler builds the string).
+	RemoteURL string
+	// ShortHash is the 7-ish-char repo ID excerpt, "2f3a…91d" style.
+	ShortHash string
+	// ModifiedLabel is "heute · 09:14" / "vor 2 Tagen" / "—" when no
+	// note exists.
+	ModifiedLabel string
+	// DevicesLabel is a static "1 / 1 ✓" placeholder until M7 wires
+	// per-device tracking.
+	DevicesLabel string
+	// HasNote toggles between the prose article and the "noch keine
+	// Note" placeholder branch.
+	HasNote bool
+	// HTML is the rendered markdown body. Empty when HasNote is false.
+	HTML template.HTML
+}
+
+// View renders the /repos/{escaped-key}/note body. layout.Base()
+// supplies the chrome (spine, nav). The view is full-width prose under
+// a meta-strip — no right rail (mockup uses the strip instead).
+templ View(vm NoteVM) {
+	@viewBreadcrumb(vm)
+	@viewHeader(vm)
+	@viewMetaStrip(vm)
+	if vm.HasNote {
+		@viewArticle(vm)
+	} else {
+		@viewNoNotePlaceholder(vm.CanonicalKey)
+	}
+	@viewFooter()
+}
+
+templ viewBreadcrumb(vm NoteVM) {
+	<div class="eyebrow" style="margin-bottom: 0.75rem;" data-testid="repos-breadcrumb">
+		<a href="/repos" style="color: var(--color-fg-dim); border-bottom: 1px dotted var(--color-muted);">Repos</a>
+		&nbsp;/&nbsp;
+		<span style="color: var(--color-fg);">{ vm.DisplayName }</span>
+		&nbsp;/&nbsp;
+		<span style="color: var(--color-fg);">note</span>
+	</div>
+}
+
+templ viewHeader(vm NoteVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem;">
+		<h2 class="display-md" style="margin: 0;">{ vm.DisplayName }</h2>
+		<div class="pill-row">
+			<!-- M7 · Plan E · Task 12: direct link to the edit form. The
+			     form is server-rendered; CodeMirror hydrates into it on
+			     load via /static/codemirror-init.js. -->
+			<a class="btn btn-sm" href={ noteEditHrefSafe(vm.CanonicalKey) } data-testid="repo-note-edit-link">Bearbeiten</a>
+		</div>
+	</div>
+	<p style="color: var(--color-fg-dim); font-size: 0.8125rem; font-family: var(--font-mono); margin: 0 0 1.25rem;">
+		{ vm.RemoteURL }
+	</p>
+}
+
+templ viewMetaStrip(vm NoteVM) {
+	<div class="note-meta" data-testid="repos-note-meta">
+		<div class="item">
+			<span class="label">Canonical key</span>
+			<span class="value">{ vm.CanonicalKey }</span>
+		</div>
+		<div class="item">
+			<span class="label">Hash</span>
+			<span class="value">{ vm.ShortHash }</span>
+		</div>
+		<div class="item">
+			<span class="label">Geändert</span>
+			<span class="value">{ vm.ModifiedLabel }</span>
+		</div>
+		<div class="item">
+			<!-- Server has no per-device sync tracking yet; placeholder. -->
+			<span class="label">Geräte</span>
+			<span class="value">{ vm.DevicesLabel }</span>
+		</div>
+		<div class="item">
+			<span class="label">Sync</span>
+			<span class="value" style="color: var(--color-active);">● ok</span>
+		</div>
+	</div>
+}
+
+templ viewArticle(vm NoteVM) {
+	<article class="prose-flow" style="max-width: 70ch;" data-testid="repos-note-article">
+		@templ.Raw(vm.HTML)
+	</article>
+}
+
+templ viewNoNotePlaceholder(canonicalKey string) {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="repos-note-missing">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine note</div>
+		<p style="color: var(--color-fg); margin: 0 0 0.75rem; max-width: 60ch;">
+			Dieses Repo hat noch keine Note. Lege sie in der TUI mit <code class="kbd">n</code> oder hier direkt im Editor an.
+		</p>
+		<!-- M7 · Plan E · Task 12: open the same edit form; first save
+		     starts at version 0 which the handler maps to a fresh insert. -->
+		<a class="btn btn-sm" href={ noteEditHrefSafe(canonicalKey) } data-testid="repo-note-new-link">+ Note anlegen</a>
+	</section>
+}
+
+templ viewFooter() {
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m7 · repos · note</span>
+		<span>
+			<code class="kbd">e</code> bearbeiten · <code class="kbd">[</code> / <code class="kbd">]</code> Repo wechseln
+		</span>
+	</div>
+}
+
+// ViewNotFound renders the 404 body for a missing canonical key.
+// layout.Base supplies the chrome.
+templ ViewNotFound(canonicalKey string) {
+	<div style="margin-bottom: 1.5rem;">
+		<div class="eyebrow" style="margin-bottom: 0.25rem;">404 · repo nicht gefunden</div>
+		<h1 class="display-lg" style="margin: 0;">Repo nicht gefunden</h1>
+	</div>
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="repos-not-found">
+		<p style="color: var(--color-fg); margin: 0 0 0.75rem; max-width: 60ch;">
+			Es gibt kein Repo mit dem CanonicalKey <code class="kbd">{ canonicalKey }</code> in deinem Account.
+		</p>
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem; margin: 0;">
+			Vielleicht wurde es archiviert oder noch nicht synchronisiert.
+			<a href="/repos" style="color: var(--color-accent); border-bottom: 1px dotted var(--color-accent);">Zurück zur Übersicht</a>
+		</p>
+	</section>
+	@viewFooter()
+}

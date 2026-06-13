@@ -35,7 +35,8 @@ func newBriefView(title, body string, width, height int, deps Deps) markdown_ove
 		}
 		return out
 	}
-	return markdown_overlay.New(render,
+	return markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle(title),
 		markdown_overlay.WithSource(body),
 		markdown_overlay.WithSearch(),

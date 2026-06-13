@@ -1,0 +1,112 @@
+package repos
+
+import "strconv"
+
+// IndexVM is the /repos index view-model. The handler builds it; the
+// template only renders.
+type IndexVM struct {
+	// TotalLabel is the eyebrow above the page title — e.g.
+	// "18 Repos · 7 mit Notes". Pre-formatted in the handler.
+	TotalLabel string
+	// Rows is the rendered list of repos in PullSince order
+	// (version ASC). Display-name or activity-DESC sort lands when
+	// Phase 2 introduces a richer index view.
+	Rows []IndexRow
+	// HasRepos discriminates the empty-state from the populated list.
+	// Kept as an explicit flag so the template doesn't need to check
+	// len() and accidentally render the wrong branch.
+	HasRepos bool
+}
+
+// IndexRow is one row in the /repos list. All fields are pre-rendered
+// strings so the templ surface only formats.
+type IndexRow struct {
+	// DisplayName is the repo's chosen name or canonical key fallback.
+	DisplayName string
+	// Subtitle is the secondary line: canonical key + " · note ✓" when
+	// a RepoNote exists, or "(kein remote)" when canonical key is
+	// empty (defensive — schema requires non-empty).
+	Subtitle string
+	// HasNote toggles the accent-coloured ".has-note" modifier so the
+	// row visually flags that clicking opens an existing note vs. an
+	// empty stub.
+	HasNote bool
+	// MetaLeft is the bottom-left meta line (we use it for "version
+	// N" so the spec parity with TUI screen stays). May be empty.
+	MetaLeft string
+	// MetaRight is the bottom-right meta line — the relative time of
+	// the last note update, or "—" when no note exists.
+	MetaRight string
+	// Href is the resolved /repos/{escaped-canonical-key}/note URL.
+	Href string
+}
+
+// Index renders the /repos index body. layout.Base() supplies the
+// chrome (spine, nav).
+templ Index(vm IndexVM) {
+	@pageHead(vm)
+	if !vm.HasRepos {
+		@emptyState()
+	} else {
+		@list(vm)
+	}
+}
+
+templ pageHead(vm IndexVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.25rem;">{ vm.TotalLabel }</div>
+			<h1 class="display-lg" style="margin: 0;">Repos</h1>
+		</div>
+		<div class="pill-row" data-testid="repos-filter-pills">
+			<!-- Filter pills are visual-only for M6 — Phase 2 will wire them. -->
+			<span class="pill pill-active">alle</span>
+			<span class="pill pill-muted">mit notes</span>
+			<span class="pill pill-muted">aktiv</span>
+		</div>
+	</div>
+}
+
+templ list(vm IndexVM) {
+	<div class="repo-list" data-testid="repo-list">
+		<div class="repo-side-head">
+			<span>Repos</span>
+			<span class="num">{ countLabel(len(vm.Rows)) }</span>
+		</div>
+		for _, row := range vm.Rows {
+			@repoRow(row)
+		}
+	</div>
+}
+
+templ repoRow(row IndexRow) {
+	<a href={ templ.SafeURL(row.Href) } class="repo-item" data-testid="repo-item">
+		<div class="nm">{ row.DisplayName }</div>
+		if row.HasNote {
+			<div class="hs has-note">{ row.Subtitle }</div>
+		} else {
+			<div class="hs">{ row.Subtitle }</div>
+		}
+		if row.MetaLeft != "" || row.MetaRight != "" {
+			<div class="meta">
+				<span>{ row.MetaLeft }</span>
+				<span>{ row.MetaRight }</span>
+			</div>
+		}
+	</a>
+}
+
+templ emptyState() {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="repos-empty">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine repos</div>
+		<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+			Keine Repos synchronisiert — die TUI legt sie beim ersten <code class="kbd">flow start</code> in einem Repo automatisch an.
+		</p>
+	</section>
+}
+
+
+// countLabel renders the small numeric subhead used in the list head.
+func countLabel(n int) string {
+	return strconv.Itoa(n)
+}

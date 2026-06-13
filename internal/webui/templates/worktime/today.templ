@@ -1,0 +1,339 @@
+package worktime
+
+import (
+	"github.com/serverkraken/flow/internal/webui/templates/shared"
+	"github.com/serverkraken/flow/internal/webui/templates/worktime/partials"
+)
+
+// ProjectOption is one row in the start-session inline picker. Pre-resolved
+// (name + ID) so the template never touches the projects store.
+type ProjectOption struct {
+	ID   string
+	Name string
+}
+
+// TodayVM is the worktime/heute view-model. Visual reference:
+// /tmp/flow-mockups/worktime-today.html.
+type TodayVM struct {
+	Header       PageHeader
+	HasActive    bool
+	Live         shared.LiveBanner
+
+	// Saldo-Stripe — 3 cells: Heute · Ist / Woche · Ist / Saldo · Jahr.
+	// Year-saldo is intentionally the week-saldo placeholder for M6 (see
+	// handler comment).
+	TodayTotal    string // "8:14"
+	TodayTarget   string // "8:00"
+	TodaySaldo    string // "+0:14"
+	TodaySaldoPos bool
+	WeekLogged    string // "36:08"
+	WeekTarget    string // "40:00"
+	WeekDaysRun   bool   // true when an active session is running today
+
+	YearSaldo     string // "+12:42" (M6: same as Woche-Saldo, see handler comment)
+	YearSaldoPos  bool
+	YearSubLabel  string // "M6: zeigt Woche-Saldo, Jahres-Aggregat folgt in Phase 2"
+
+	// Sessions table — entries can be SessionRow or PauseRow.
+	Entries []TableEntry
+
+	// Rail — Tagesverlauf (24h day-bar) + per-project + per-tag.
+	DayBar         [24]int
+	NowHour        int
+	ProjectShares  []ProjectShareRow
+	TagShares      []TagShareRow
+
+	// Sync row at the bottom of the rail. Phase 2 will populate this
+	// from real device telemetry; M6 always shows "this device".
+	SyncDeviceLabel string // "mac-soenne"
+
+	// Projects feed the inline "Neue Session" picker. M7: when empty
+	// the start button is disabled (no projects → cannot start).
+	Projects []ProjectOption
+}
+
+// Today renders the /worktime?tab=heute body.
+//
+// M7 / Task 14: wraps the page in an `hx-ext="sse"` consumer connected
+// to /api/v1/events?stream=ui. The inline script at the bottom handles
+// two events:
+//
+//   - tick (1Hz): recomputes the live-banner elapsed label client-side
+//     so the "läuft seit MM:SS" counter advances without a server round
+//     trip.
+//   - session.*: full-page reload — same M7-minimum approach the
+//     dashboard uses. Phase 2 swaps to per-row partials.
+templ Today(vm TodayVM) {
+	<div hx-ext="sse" sse-connect="/api/v1/events?stream=ui">
+		<!-- htmx-sse only registers named-event listeners for elements that
+		     carry sse-swap or hx-trigger="sse:…". Without one, our SSE
+		     events arrive on the EventSource but never fire htmx:sseMessage
+		     — and the script below (which drives tick + session.* reloads)
+		     would silently do nothing. hx-swap="none" keeps swap() a no-op;
+		     we only need the event-name listeners as a side effect of
+		     registration so htmx:sseMessage bubbles to the body listener. -->
+		<div sse-swap="tick,changed,session.started,session.stopped,session.updated,session.deleted" hx-swap="none" hidden></div>
+		@pageHead(vm.Header)
+		@subTabs(TabHeute)
+		@partials.LiveBannerContainer(partials.LiveBannerContainerVM{
+			HasActive: vm.HasActive,
+			Banner:    vm.Live,
+		})
+		@todaySaldoStripe(vm)
+		<div class="page-grid">
+			<div>
+				@todaySessionsSection(vm)
+			</div>
+			@todayRail(vm)
+		</div>
+		@sseTodayScript()
+	</div>
+}
+
+// sseTodayScript reacts to SSE frames on the worktime/today surface.
+// Same approach as the dashboard script — kept inline so the page is
+// self-contained. The tick handler refreshes the visible elapsed label
+// inside `.live-banner .live-elapsed` (a stable selector — the partial
+// renders the same class regardless of payload), reading the start
+// time from the banner's `data-started` attribute.
+//
+// session.* triggers a full-page reload (coalesced via setTimeout) so
+// the entries table + saldo stripe re-render from the canonical server
+// state.
+templ sseTodayScript() {
+	<script>
+	(function() {
+		function fmt(secs) {
+			if (secs < 0) secs = 0;
+			var h = Math.floor(secs / 3600);
+			var m = Math.floor((secs % 3600) / 60);
+			var s = secs % 60;
+			var two = function(n) { return n < 10 ? '0' + n : '' + n; };
+			if (h > 0) return h + 'h ' + two(m) + 'm ' + two(s) + 's';
+			if (m > 0) return m + 'm ' + two(s) + 's';
+			return s + 's';
+		}
+		var reloadPending = false;
+		document.body.addEventListener('htmx:sseMessage', function(ev) {
+			var t = ev.detail && ev.detail.type;
+			if (!t) return;
+			if (t === 'tick') {
+				var el = document.querySelector('.live-banner .live-elapsed');
+				if (!el) return;
+				if (el.getAttribute('data-paused') === '1') return;
+				var startedAttr = el.getAttribute('data-started');
+				if (!startedAttr) return;
+				var started = parseInt(startedAttr, 10);
+				if (isNaN(started)) return;
+				var elapsed = Math.floor(Date.now() / 1000) - started;
+				el.textContent = fmt(elapsed);
+				return;
+			}
+			if (t === 'changed' || t === 'session.started' || t === 'session.stopped' ||
+				t === 'session.updated' || t === 'session.deleted') {
+				if (reloadPending) return;
+				reloadPending = true;
+				setTimeout(function() { window.location.reload(); }, 50);
+			}
+		});
+	})();
+	</script>
+}
+
+templ todaySaldoStripe(vm TodayVM) {
+	<div class="saldo-stripe">
+		<div class="cell">
+			<div class="label">Heute · Ist</div>
+			if vm.TodaySaldoPos {
+				<div class="value positive">{ vm.TodayTotal }</div>
+			} else {
+				<div class="value negative">{ vm.TodayTotal }</div>
+			}
+			if vm.TodaySaldoPos {
+				<div class="sub">{ vm.TodaySaldo } über Soll ({ vm.TodayTarget })</div>
+			} else {
+				<div class="sub">{ vm.TodaySaldo } gegen Soll ({ vm.TodayTarget })</div>
+			}
+		</div>
+		<div class="cell">
+			<div class="label">Woche · Ist</div>
+			<div class="value">{ vm.WeekLogged }</div>
+			<div class="sub">
+				von { vm.WeekTarget }
+				if vm.WeekDaysRun {
+					· läuft gerade
+				}
+			</div>
+		</div>
+		<div class="cell">
+			<div class="label">Saldo · Jahr</div>
+			if vm.YearSaldoPos {
+				<div class="value positive">{ vm.YearSaldo }</div>
+			} else {
+				<div class="value negative">{ vm.YearSaldo }</div>
+			}
+			<div class="sub">{ vm.YearSubLabel }</div>
+		</div>
+	</div>
+}
+
+templ todaySessionsSection(vm TodayVM) {
+	<div class="section-head">
+		<h2 style="font-size: 1.375rem; font-weight: 300;">Sessions heute</h2>
+		<div class="pill-row">
+			<!-- Nachbuchen lands in a later M7 task (project picker UX). -->
+			<button class="btn btn-sm" disabled aria-disabled="true" title="Nachbuchen (folgt)">+ Nachbuchen</button>
+			@startSessionForm(vm)
+		</div>
+	</div>
+	if len(vm.Entries) == 0 {
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem;" data-testid="sessions-empty">
+			Noch keine Sessions heute.
+		</p>
+	} else {
+		<table class="sessions-table" data-testid="sessions-table">
+			<thead>
+				<tr>
+					<th>Zeit</th>
+					<th>Projekt</th>
+					<th>Tag · Notiz</th>
+					<th class="col-num">Dauer</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, e := range vm.Entries {
+					if e.IsPause {
+						@partials.PauseRow(partials.PauseRowVM{
+							StartLabel: e.Pause.StartLabel,
+							EndLabel:   e.Pause.EndLabel,
+							Duration:   e.Pause.Duration,
+						})
+					} else {
+						@partials.SessionRow(sessionRowToPartial(e.Session))
+					}
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// startSessionForm renders the inline "Neue Session" row. M7: a single
+// select feeds the project id into the POST; submitting triggers
+// hx-post which swaps the live-banner-container with the returned
+// banner partial. Disabled when the user has no active projects yet
+// (handler renders the picker empty).
+//
+// HTMX POST shape: form-encoded `project_id` (the form's hidden value
+// flows in via x-www-form-urlencoded). hx-include on the form picks up
+// the select.
+templ startSessionForm(vm TodayVM) {
+	if vm.HasActive {
+		<button class="btn btn-sm" disabled aria-disabled="true" title="Aktive Session läuft bereits">▶ Neue Session</button>
+	} else if len(vm.Projects) == 0 {
+		<button class="btn btn-sm" disabled aria-disabled="true" title="Keine aktiven Projekte">▶ Neue Session</button>
+	} else {
+		<form
+			class="start-session-form"
+			hx-post="/worktime/active/start"
+			hx-target="#live-banner-container"
+			hx-swap="outerHTML"
+			data-testid="start-session-form"
+			style="display: inline-flex; gap: 0.375rem; align-items: center;"
+		>
+			<select
+				name="project_id"
+				aria-label="Projekt"
+				style="border: 1px solid var(--color-muted); background: var(--color-bg-dark); color: var(--color-fg); padding: 0.25rem 0.5rem; font-family: inherit; font-size: 0.75rem;"
+			>
+				for _, p := range vm.Projects {
+					<option value={ p.ID }>{ p.Name }</option>
+				}
+			</select>
+			<button type="submit" class="btn btn-sm btn-primary">▶ Neue Session</button>
+		</form>
+	}
+}
+
+templ todayRail(vm TodayVM) {
+	<aside class="rail">
+		<div class="rail-head">Tagesverlauf · 24h</div>
+		<div class="daybar" data-testid="daybar" style="height: 28px; margin-bottom: 0;">
+			for h := 0; h < 24; h++ {
+				@dayBarCell(h, vm.DayBar[h] > 0, h == vm.NowHour)
+			}
+		</div>
+		<div class="daybar-axis">
+			for h := 0; h < 24; h++ {
+				if h == 0 || h == 6 || h == 12 || h == 18 {
+					<span>{ axisLabelFor(h) }</span>
+				} else {
+					<span></span>
+				}
+			}
+		</div>
+
+		<div class="rail-head" style="margin-top: 2rem;">Verteilung</div>
+		if len(vm.ProjectShares) == 0 {
+			<div class="rail-item" data-testid="rail-projects-empty">
+				<span class="label" style="color: var(--color-fg-dim);">noch keine Sessions</span>
+				<span></span>
+			</div>
+		} else {
+			for _, p := range vm.ProjectShares {
+				<div class="rail-item">
+					<span class="label">{ p.Label }</span>
+					<span class="num">
+						if p.IsRunning {
+							<span style="color: var(--color-active);">{ p.Total }</span>
+						} else {
+							{ p.Total }
+						}
+						<span style="color: var(--color-fg-dim);"> · { sharePctLabel(p.SharePct) }</span>
+					</span>
+				</div>
+			}
+		}
+
+		<div class="rail-head" style="margin-top: 2rem;">Tags</div>
+		if len(vm.TagShares) == 0 {
+			<div class="rail-item" data-testid="rail-tags-empty">
+				<span class="label" style="color: var(--color-fg-dim);">noch keine Tags</span>
+				<span></span>
+			</div>
+		} else {
+			<div class="pill-row" style="margin-top: 0.25rem;">
+				for _, t := range vm.TagShares {
+					<span class="pill pill-muted">
+						{ t.Label } <span class="num" style="color: var(--color-fg-dim);">{ t.Total }</span>
+					</span>
+				}
+			</div>
+		}
+
+		<div class="rail-head" style="margin-top: 2rem;">Sync</div>
+		<div class="rail-item">
+			<span class="label">
+				<span style="color: var(--color-active);">●</span>
+				if vm.SyncDeviceLabel != "" {
+					{ vm.SyncDeviceLabel }
+				} else {
+					dieses gerät
+				}
+			</span>
+			<span>aktiv</span>
+		</div>
+	</aside>
+}
+
+templ dayBarCell(hour int, hasWork, isNow bool) {
+	if hasWork && isNow {
+		<div class="cell has-work is-now" title={ hourTitle(hour, true) }></div>
+	} else if hasWork {
+		<div class="cell has-work" title={ hourTitle(hour, false) }></div>
+	} else if isNow {
+		<div class="cell is-now" title={ hourTitle(hour, true) }></div>
+	} else {
+		<div class="cell" title={ hourTitle(hour, false) }></div>
+	}
+}

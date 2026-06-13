@@ -5,8 +5,12 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/confirm"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
+	"github.com/serverkraken/flow/internal/testutil"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // TestRenderKindSummary_LabelsInKindColor: Übersichts-Chips oben im
@@ -151,5 +155,87 @@ func TestFrei_FooterHints_IncludesHelp(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("Frei footerHints: expected ?-help hint, got %v", hints)
+	}
+}
+
+// TestFrei_DeleteUsesCapturedDate verifies that the delete action uses the
+// date captured when the confirm dialog opens, NOT the date at the cursor
+// index at the time the user confirms. A reload that reorders entries while
+// the dialog is open must not cause the wrong entry to be deleted.
+func TestFrei_DeleteUsesCapturedDate(t *testing.T) {
+	pal := theme.TokyonightNight
+
+	// Three entries sorted chronologically so List() returns them in order:
+	// cursor 0 → D1 (2026-06-01), cursor 1 → D2 (2026-06-02), cursor 2 → D3 (2026-06-03)
+	d1 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.Local)
+	d2 := time.Date(2026, 6, 2, 0, 0, 0, 0, time.Local)
+	d3 := time.Date(2026, 6, 3, 0, 0, 0, 0, time.Local)
+
+	store := testutil.NewFakeDayOffStore(
+		domain.DayOff{Date: d1, Kind: domain.KindVacation, Label: "Eintrag1"},
+		domain.DayOff{Date: d2, Kind: domain.KindVacation, Label: "Eintrag2"},
+		domain.DayOff{Date: d3, Kind: domain.KindVacation, Label: "Eintrag3"},
+	)
+	writer := &usecase.DayOffWriter{Store: store}
+
+	// Build frei with cursor at index 1 (D2) and entries pre-seeded.
+	f := frei{
+		pal:    pal,
+		deps:   Deps{DayOffWriter: writer, DayOffStore: store},
+		year:   2026,
+		loaded: true,
+		cursor: 1, // points at D2
+		entries: []domain.DayOff{
+			{Date: d1, Kind: domain.KindVacation, Label: "Eintrag1"},
+			{Date: d2, Kind: domain.KindVacation, Label: "Eintrag2"},
+			{Date: d3, Kind: domain.KindVacation, Label: "Eintrag3"},
+		},
+	}
+
+	// Step 1: press D — opens confirm for D2 (cursor=1).
+	var m tea.Model = f
+	var cmd tea.Cmd
+	m, cmd = m.Update(tea.KeyPressMsg{Text: "D"})
+	_ = cmd // Init cmd from confirmModel — not needed for the test
+
+	// Step 2: inject a reload that shuffles entries so cursor 1 now points
+	// at D3 (D1 and D2 swapped out, D3 moved to index 1).
+	reloaded := freiLoadedMsg{
+		year: 2026,
+		entries: []domain.DayOff{
+			{Date: d3, Kind: domain.KindVacation, Label: "Eintrag3"},
+			{Date: d1, Kind: domain.KindVacation, Label: "Eintrag1"},
+			{Date: d2, Kind: domain.KindVacation, Label: "Eintrag2"},
+		},
+	}
+	m, cmd = m.Update(reloaded)
+	_ = cmd
+
+	// Step 3: confirm the deletion — send confirm.ResultMsg{Confirmed: true}
+	// directly (as the confirm.Model would emit via its cmd).
+	m, cmd = m.Update(confirm.ResultMsg{Confirmed: true})
+	// Drain the cmd (the mutation + emitWorktimeChanged batch).
+	if cmd != nil {
+		msg := cmd()
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, c := range batch {
+				if c != nil {
+					_ = c()
+				}
+			}
+		}
+	}
+	_ = m
+
+	// Assert: D2 (the originally confirmed date) must be gone from the store.
+	if _, ok := store.Entries[d2.Format("2006-01-02")]; ok {
+		t.Errorf("expected D2 (%s) to be deleted, but it is still in the store", d2.Format("2006-01-02"))
+	}
+	// D1 and D3 must NOT have been deleted.
+	if _, ok := store.Entries[d1.Format("2006-01-02")]; !ok {
+		t.Errorf("D1 (%s) was unexpectedly deleted", d1.Format("2006-01-02"))
+	}
+	if _, ok := store.Entries[d3.Format("2006-01-02")]; !ok {
+		t.Errorf("D3 (%s) was unexpectedly deleted", d3.Format("2006-01-02"))
 	}
 }

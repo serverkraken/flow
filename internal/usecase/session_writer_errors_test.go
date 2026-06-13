@@ -137,21 +137,23 @@ func TestSessionWriter_Pause_StopErrPropagates(t *testing.T) {
 
 // TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate guards
 // review finding B1: a Stop spanning multiple midnights used to loop
-// Append per part. If part 2 failed, part 1 was on disk and the
-// natural retry path duplicated it (SplitAtMidnight is deterministic).
-// AppendBatch must persist all parts in one operation so a retry sees
-// either zero or all rows from the previous attempt.
+// Append per part. If part N failed, parts 1..N-1 were on disk and the
+// natural retry path duplicated them (SplitAtMidnight is deterministic).
+// Plan-B follow-up #1 moved persistence to per-row Upsert with a
+// dedupeSessionParts pre-pass against the on-disk slice, so a retry
+// sees either zero or all rows from the previous attempt — never a
+// duplicate.
 func TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate(t *testing.T) {
 	start := time.Date(2026, 4, 28, 22, 0, 0, 0, time.Local)
 	now := time.Date(2026, 4, 30, 1, 0, 0, 0, time.Local) // crosses 2 midnights → 3 parts
 	w := mkWriter(now, withActive(start))
 	w.State = w.Reader.State
 
-	// First attempt: AppendBatch fails. State stays "active".
-	store := &flakySessionStore{FailOn: "AppendBatch"}
+	// First attempt: the first Upsert fails. State stays "active".
+	store := &flakySessionStore{FailOn: "Upsert"}
 	w.Sessions = store
 	if _, err := w.Stop(); err == nil {
-		t.Fatal("expected error from AppendBatch")
+		t.Fatal("expected error from Upsert")
 	}
 	if got := len(store.Sessions); got != 0 {
 		t.Errorf("first attempt: %d sessions on disk after failure, want 0", got)
@@ -168,13 +170,13 @@ func TestSessionWriter_Stop_MultiMidnightRetryDoesNotDuplicate(t *testing.T) {
 	}
 }
 
-func TestSessionWriter_Delete_RewriteErr(t *testing.T) {
+func TestSessionWriter_Delete_StoreErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	store := &flakySessionStore{
-		Sessions: []domain.Session{{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
-		FailOn:   "Rewrite",
+		Sessions: []domain.Session{{ID: "delerr-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
+		FailOn:   "Delete",
 	}
 	w.Sessions = store
 	if err := w.Delete(d, 0); err == nil {
@@ -182,13 +184,13 @@ func TestSessionWriter_Delete_RewriteErr(t *testing.T) {
 	}
 }
 
-func TestSessionWriter_SetTag_RewriteErr(t *testing.T) {
+func TestSessionWriter_SetTag_StoreErr(t *testing.T) {
 	now := time.Date(2026, 4, 29, 14, 0, 0, 0, time.Local)
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	store := &flakySessionStore{
-		Sessions: []domain.Session{{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
-		FailOn:   "Rewrite",
+		Sessions: []domain.Session{{ID: "settagerr-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)}},
+		FailOn:   "Upsert",
 	}
 	w.Sessions = store
 	if err := w.SetTag(d, 0, "foo"); err == nil {

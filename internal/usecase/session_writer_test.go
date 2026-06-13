@@ -35,7 +35,9 @@ type flakySessionStore struct {
 	FailOn   string
 }
 
-func (f *flakySessionStore) LoadAll() ([]domain.Session, error) {
+// New ports.SessionStore interface methods (Task 3 shim).
+
+func (f *flakySessionStore) Load(_ string) ([]domain.Session, error) {
 	if f.FailOn == "LoadAll" {
 		return nil, errors.New("boom")
 	}
@@ -44,7 +46,7 @@ func (f *flakySessionStore) LoadAll() ([]domain.Session, error) {
 	return out, nil
 }
 
-func (f *flakySessionStore) LoadFiltered(keep func(domain.Session) bool) ([]domain.Session, error) {
+func (f *flakySessionStore) LoadFiltered(_ string, keep func(domain.Session) bool) ([]domain.Session, error) {
 	if f.FailOn == "LoadFiltered" {
 		return nil, errors.New("boom")
 	}
@@ -57,17 +59,23 @@ func (f *flakySessionStore) LoadFiltered(keep func(domain.Session) bool) ([]doma
 	return out, nil
 }
 
-func (f *flakySessionStore) Append(s domain.Session) error {
-	if f.FailOn == "Append" {
+func (f *flakySessionStore) Upsert(s domain.Session) error {
+	if f.FailOn == "Upsert" || f.FailOn == "Append" {
 		return errors.New("boom")
+	}
+	for i := range f.Sessions {
+		if f.Sessions[i].Date.Equal(s.Date) && f.Sessions[i].Start.Equal(s.Start) {
+			f.Sessions[i] = s
+			return nil
+		}
 	}
 	f.Sessions = append(f.Sessions, s)
 	return nil
 }
 
-func (f *flakySessionStore) AppendBatch(sessions []domain.Session) error {
+func (f *flakySessionStore) UpsertBatch(sessions []domain.Session) error {
 	if f.FailOn == "AppendBatch" || f.FailOn == "Append" {
-		// Treat the legacy "Append" knob as covering AppendBatch too —
+		// Treat the legacy "Append" knob as covering UpsertBatch too —
 		// existing TestSessionWriter_*_AppendErr cases continue to assert
 		// the failure surfaces from the use case.
 		return errors.New("boom")
@@ -76,12 +84,17 @@ func (f *flakySessionStore) AppendBatch(sessions []domain.Session) error {
 	return nil
 }
 
-func (f *flakySessionStore) Rewrite(sessions []domain.Session) error {
-	if f.FailOn == "Rewrite" {
+func (f *flakySessionStore) Delete(_ string, id string) error {
+	if f.FailOn == "Delete" {
 		return errors.New("boom")
 	}
-	f.Sessions = make([]domain.Session, len(sessions))
-	copy(f.Sessions, sessions)
+	out := f.Sessions[:0]
+	for _, s := range f.Sessions {
+		if s.ID != id {
+			out = append(out, s)
+		}
+	}
+	f.Sessions = out
 	return nil
 }
 

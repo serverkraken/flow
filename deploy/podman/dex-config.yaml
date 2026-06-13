@@ -1,0 +1,42 @@
+# Minimal dex configuration for the local flow-server compose stack.
+#
+# Issuer is set to http://localhost:5556 — the browser-facing URL — so the
+# OIDC discovery doc returned to the user-agent contains URLs the browser
+# can reach. Inside the compose network flow-server resolves the same host
+# as `dex:5556` via compose DNS; the issuer string must match what dex
+# advertises, so we use the browser-facing form on both sides (flow-server
+# uses /etc/hosts or compose links to reach localhost:5556 -> dex:5556).
+#
+# For prod (Authentik), this whole file is replaced — see Helm chart.
+
+issuer: http://localhost:5556
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+  responseTypes: ["code", "token", "id_token"]
+
+staticClients:
+  - id: flow-server-dev
+    secret: dev-secret
+    name: 'flow-server (dev)'
+    redirectURIs:
+      - http://localhost:8080/auth/callback
+  - id: flow-cli
+    public: true
+    name: 'flow CLI (device-flow)'
+
+enablePasswordDB: true
+
+staticPasswords:
+  - email: soenne@local
+    username: soenne
+    userID: localdev
+    # bcrypt hash of "password" (cost 10). Regenerate with:
+    #   htpasswd -nbBC 10 "" "password" | cut -d: -f2 | sed 's/^\$2y\$/\$2a\$/'
+    hash: "$2a$10$bhvG9HCDGplxsd2kzgbrMOXIyEqe7hbEUoXXbXp1ZALCXOFMABl3."

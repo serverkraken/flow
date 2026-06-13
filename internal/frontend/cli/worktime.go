@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strconv"
 	"time"
@@ -41,6 +42,11 @@ func fprintln(w io.Writer, args ...any) {
 // verb can run flow's worktime TUI as a standalone bubbletea program
 // without cli/worktime importing the screen package directly (depguard
 // keeps frontend-cli decoupled from frontend/tui/screen/<name>).
+//
+// New in Task 14: ProjectID-aware start/stop path. When ResolveProject,
+// StartActiveSession and StopActiveSession are non-nil the new sqlite
+// path is active; otherwise start/stop fall back to the legacy TSV
+// SessionWriter path.
 type WorktimeDeps struct {
 	Clock          ports.Clock
 	Tmux           ports.Tmux
@@ -52,6 +58,54 @@ type WorktimeDeps struct {
 	DayOffStore    ports.DayOffStore
 	Reader         *usecase.WorktimeReader
 	Screen         func(tk.Palette) tea.Model
+
+	// New-path fields (Task 14). Nil → legacy SessionWriter path is used.
+
+	// UserID is the resolved local user's ID for all project/session operations.
+	UserID string
+
+	// ResolveProject implements the 4-step smart-default cascade:
+	// explicit → PWD-basename slug → MRU → auto-create "Allgemein".
+	ResolveProject func(userID, explicitID, pwd string) (domain.Project, error)
+
+	// StartActiveSession writes an ActiveSession locally and queues a
+	// server-start push. tag and note are persisted on the row so a later
+	// Stop can carry them through even when no flags are passed at stop time.
+	// Returns ErrActiveSessionExists when one is already running for
+	// (userID, projectID).
+	StartActiveSession func(userID, projectID, tag, note string) (domain.ActiveSession, error)
+
+	// StopActiveSession closes the active session, creates a finished Session
+	// row and queues a server-stop push.
+	StopActiveSession func(userID, projectID, tag, note string) (domain.Session, error)
+
+	// ListActiveSessions returns the currently running sessions for the user.
+	// Stop/toggle/pause operate on THE active session — not on whatever
+	// project the cwd happens to resolve to.
+	ListActiveSessions func(userID string) ([]domain.ActiveSession, error)
+
+	// Migrate is the TSV-to-SQLite migration use case.
+	// Nil until the composition root wires it; the subcommand's RunE
+	// surfaces a clear error when unset.
+	Migrate *usecase.MigrateTSV
+
+	// PauseMarker is the per-device pause flag (flockstate worktime.pause).
+	// Never synced; pause = stop the active session + set this marker so
+	// resume knows to restart.
+	PauseMarker ports.PauseStore
+
+	// PauseActiveSession pauses the running session server-side (sets paused
+	// flag on the ActiveSession row). Used in server mode where PauseMarker
+	// is nil. Nil → legacy PauseMarker path is used.
+	PauseActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+
+	// ResumeActiveSession resumes a paused session server-side. Used in
+	// server mode where PauseMarker is nil. Nil → legacy PauseMarker path.
+	ResumeActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+
+	// CorrectActiveStart moves the running session's start time (new path).
+	// Nil → legacy SessionWriter.CorrectStart path is used.
+	CorrectActiveStart func(userID string, ts time.Time) error
 }
 
 // NewWorktimeCmd constructs the `flow worktime` subcommand tree.
@@ -61,6 +115,7 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Worktime subcommands",
 		SilenceUsage: true,
 	}
+
 	worktimeCmd.AddCommand(
 		newStatusCmd(deps),
 		newStartCmd(deps),
@@ -76,6 +131,10 @@ func NewWorktimeCmd(deps WorktimeDeps) *cobra.Command {
 		newTagCmd(deps),
 		newNoteCmd(deps),
 		newDayOffCmd(deps),
+		newMigrateTSVCmd(MigrateTSVDeps{
+			MigrateTSV: deps.Migrate,
+			UserID:     deps.UserID,
+		}),
 	)
 	return worktimeCmd
 }
@@ -152,15 +211,25 @@ func newStatusCmd(deps WorktimeDeps) *cobra.Command {
 
 func newStartCmd(deps WorktimeDeps) *cobra.Command {
 	var force bool
+	var projectFlag, tagFlag, noteFlag string
 	cmd := &cobra.Command{
 		Use:   "start [zeit]",
 		Short: "Start worktime session (jetzt, HH:MM, -Nm, -NhMMm)",
 		Long: `Startet eine Session.
 
-  --force    überschreibt eine bereits laufende Session (Default: Fehler).`,
+  --force      überschreibt eine bereits laufende Session (Default: Fehler).
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Intent-Tag für die Session (wird beim Stop übernommen wenn angegeben).
+  --note       Freitext-Notiz (Vorab-Notiz; beim Stop ergänzen oder überschreiben).`,
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// New sqlite path: use when ResolveProject + StartActiveSession
+			// are wired in the composition root (Task 14+).
+			if deps.ResolveProject != nil && deps.StartActiveSession != nil {
+				return runStartNew(cmd, deps, projectFlag, tagFlag, noteFlag)
+			}
+			// Legacy TSV path: used by existing tests and pre-migration installs.
 			arg := ""
 			if len(args) > 0 {
 				arg = args[0]
@@ -191,7 +260,34 @@ func newStartCmd(deps WorktimeDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&force, "force", false, "läuft bereits → trotzdem überschreiben")
+	cmd.Flags().StringVar(&projectFlag, "project", "", "Projekt-Slug oder UUID; sonst smart-default")
+	cmd.Flags().StringVar(&tagFlag, "tag", "", "Intent-Tag (wird beim Stop übernommen wenn dort nicht überschrieben)")
+	cmd.Flags().StringVar(&noteFlag, "note", "", "Vorab-Notiz (wird beim Stop übernommen wenn dort nicht überschrieben)")
 	return cmd
+}
+
+// runStartNew handles the new sqlite-backed start path (Task 14).
+// Resolves the project via the smart-default cascade, then records an
+// ActiveSession locally and queues a server-start push. The legacy
+// time-argument (HH:MM backdate) is not supported on the new path yet —
+// ActiveSessions.Start always uses time.Now (consistent with the spec).
+func runStartNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note string) error {
+	pwd, _ := os.Getwd()
+	pr, err := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+	if err != nil {
+		return err
+	}
+	if _, err := deps.StartActiveSession(deps.UserID, pr.ID, tag, note); err != nil {
+		if errors.Is(err, usecase.ErrActiveSessionExists) {
+			// Idempotent: already running is a soft no-op like the legacy path.
+			fprintf(cmd.ErrOrStderr(), "Session auf '%s' läuft bereits\n", pr.Name)
+			return nil
+		}
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintf(cmd.ErrOrStderr(), "Worktime läuft seit %s auf '%s'\n", deps.Clock.Now().Format("15:04"), pr.Name)
+	return nil
 }
 
 func newPauseCmd(deps WorktimeDeps) *cobra.Command {
@@ -200,6 +296,19 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Aktive Session pausieren (resume mit `start`/`toggle`)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Server mode: pause lives server-side; no local PauseMarker.
+			if deps.ListActiveSessions != nil && deps.PauseActiveSession != nil {
+				return runPauseServer(cmd, deps)
+			}
+			// Legacy new path: stop locally + set PauseMarker.
+			if deps.ListActiveSessions != nil && deps.StopActiveSession != nil && deps.PauseMarker != nil {
+				return runPauseNew(cmd, deps)
+			}
+			// Legacy SessionWriter path — guard against nil to avoid panic
+			// in server mode where SessionWriter.State is nil.
+			if deps.SessionWriter == nil {
+				return errors.New("pausieren nicht verfügbar")
+			}
 			s, err := deps.SessionWriter.Pause()
 			if err != nil {
 				return err
@@ -215,12 +324,100 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 	}
 }
 
+// runPauseServer handles pause in server mode. The paused flag lives
+// server-side on the ActiveSession row; no local PauseMarker is touched.
+func runPauseServer(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine aktive Session zum Pausieren")
+		return nil
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	_, err = deps.PauseActiveSession(deps.UserID, target.ProjectID)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		fprintln(cmd.ErrOrStderr(), "Pausiert — Session war bereits gestoppt")
+		_ = deps.Tmux.RefreshClient()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	elapsed := deps.Clock.Now().Sub(target.StartedAt)
+	h := int(elapsed.Hours())
+	m := int(elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Pausiert nach %dh %02dm — `flow worktime resume` setzt fort\n", h, m)
+	return nil
+}
+
+// runPauseNew: stop the running session (idempotent no-op when idle) and
+// set the per-device pause marker so resume restarts on the same project (MRU).
+func runPauseNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		return nil // idempotent like the legacy path: nothing running is fine
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	sess, err := deps.StopActiveSession(deps.UserID, target.ProjectID, "", "")
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		// Race: another shell stopped between ListActiveSessions and Stop.
+		// Still set the pause marker so resume restarts the same project.
+		if err := deps.PauseMarker.SetPause(deps.Clock.Now()); err != nil {
+			return err
+		}
+		_ = deps.Tmux.RefreshClient()
+		fprintln(cmd.ErrOrStderr(), "Pausiert — Session war bereits gestoppt")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err := deps.PauseMarker.SetPause(deps.Clock.Now()); err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	h := int(sess.Elapsed.Hours())
+	m := int(sess.Elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Pausiert nach %dh %02dm — `flow worktime resume` setzt fort\n", h, m)
+	return nil
+}
+
 func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:          "resume",
 		Short:        "Nach Pause weiterarbeiten",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Server mode: resume lives server-side; no local PauseMarker.
+			if deps.ListActiveSessions != nil && deps.ResumeActiveSession != nil {
+				return runResumeServer(cmd, deps)
+			}
+			// Legacy new path: clear PauseMarker + restart via StartActiveSession.
+			if deps.ListActiveSessions != nil && deps.StartActiveSession != nil &&
+				deps.ResolveProject != nil && deps.PauseMarker != nil {
+				return runResumeNew(cmd, deps)
+			}
+			// Legacy SessionWriter path — guard against nil to avoid panic
+			// in server mode where SessionWriter.State is nil.
+			if deps.SessionWriter == nil {
+				return errors.New("fortsetzen nicht verfügbar")
+			}
 			// SessionWriter.Resume is idempotent — already-running just
 			// clears the pause marker and returns nil. The legacy
 			// ErrAlreadyRunning branch was dead and has been removed.
@@ -232,6 +429,63 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runResumeServer handles resume in server mode. The paused flag lives
+// server-side on the ActiveSession row; no local PauseMarker is touched.
+func runResumeServer(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine pausierte Session zum Fortsetzen")
+		return nil
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	_, err = deps.ResumeActiveSession(deps.UserID, target.ProjectID)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		fprintln(cmd.ErrOrStderr(), "Resume — Session war bereits gestoppt")
+		_ = deps.Tmux.RefreshClient()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintln(cmd.ErrOrStderr(), "Resume — Worktime läuft weiter")
+	return nil
+}
+
+// runResumeNew: clear the pause marker; when idle, restart on the MRU
+// project (empty pwd skips the cwd step of the resolve cascade, so the
+// paused project — last touched at its start — wins).
+func runResumeNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		pr, rerr := deps.ResolveProject(deps.UserID, "", "")
+		if rerr != nil {
+			return rerr
+		}
+		if _, serr := deps.StartActiveSession(deps.UserID, pr.ID, "", ""); serr != nil &&
+			!errors.Is(serr, usecase.ErrActiveSessionExists) {
+			return serr
+		}
+	}
+	if err := deps.PauseMarker.ClearPause(); err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintln(cmd.ErrOrStderr(), "Resume — Worktime läuft weiter")
+	return nil
 }
 
 func newBriefCmd(deps WorktimeDeps) *cobra.Command {
@@ -288,12 +542,24 @@ Beispiele:
 }
 
 func newStopCmd(deps WorktimeDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:          "stop [HH:MM]",
-		Short:        "Stop current worktime session (optional: custom stop time)",
+	var projectFlag, tagFlag, noteFlag string
+	cmd := &cobra.Command{
+		Use:   "stop [HH:MM]",
+		Short: "Stop current worktime session (optional: custom stop time)",
+		Long: `Stoppt die aktive Session.
+
+  --project    Projekt-Slug oder UUID; sonst smart-default (PWD → MRU → Allgemein).
+  --tag        Session-Tag (z.B. "deep", "review").
+  --note       Freitext-Notiz zur Session.`,
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// New sqlite path: use when ResolveProject + StopActiveSession +
+			// ListActiveSessions are wired in the composition root (Task 14+).
+			if deps.ResolveProject != nil && deps.StopActiveSession != nil && deps.ListActiveSessions != nil {
+				return runStopNew(cmd, deps, projectFlag, tagFlag, noteFlag)
+			}
+			// Legacy TSV path.
 			var s domain.Session
 			var err error
 			if len(args) > 0 {
@@ -320,6 +586,50 @@ func newStopCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&projectFlag, "project", "", "Projekt-Slug oder UUID; sonst smart-default")
+	cmd.Flags().StringVar(&tagFlag, "tag", "", "Session-Tag (z.B. deep, review)")
+	cmd.Flags().StringVar(&noteFlag, "note", "", "Freitext-Notiz zur Session")
+	return cmd
+}
+
+// runStopNew handles the new sqlite-backed stop path: it stops the user's
+// running session. --project disambiguates when several run in parallel.
+func runStopNew(cmd *cobra.Command, deps WorktimeDeps, projectFlag, tag, note string) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+		return nil
+	}
+	var projectID string
+	switch {
+	case projectFlag != "":
+		pwd, _ := os.Getwd()
+		pr, rerr := deps.ResolveProject(deps.UserID, projectFlag, pwd)
+		if rerr != nil {
+			return rerr
+		}
+		projectID = pr.ID
+	case len(list) == 1:
+		projectID = list[0].ProjectID
+	default:
+		return fmt.Errorf("%d Sessions laufen parallel — mit --project wählen", len(list))
+	}
+	sess, err := deps.StopActiveSession(deps.UserID, projectID, tag, note)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		fprintln(cmd.ErrOrStderr(), "Keine laufende Session für dieses Projekt")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	h := int(sess.Elapsed.Hours())
+	m := int(sess.Elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm\n", h, m)
+	return nil
 }
 
 func newToggleCmd(deps WorktimeDeps) *cobra.Command {
@@ -329,6 +639,11 @@ func newToggleCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Start wenn idle, stopp wenn läuft (alias: s)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if deps.ListActiveSessions != nil && deps.StopActiveSession != nil &&
+				deps.ResolveProject != nil && deps.StartActiveSession != nil {
+				return runToggleNew(cmd, deps)
+			}
+			// Legacy TSV/flockstate path (tests without new-path deps).
 			msg, err := deps.SessionWriter.Toggle()
 			if err != nil {
 				return err
@@ -338,6 +653,58 @@ func newToggleCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runToggleNew: stop the earliest running session when one exists, else
+// resolve a project (pwd → MRU → Allgemein) and start.
+func runToggleNew(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) > 0 {
+		target := list[0]
+		for _, a := range list[1:] {
+			if a.StartedAt.Before(target.StartedAt) {
+				target = a
+			}
+		}
+		sess, serr := deps.StopActiveSession(deps.UserID, target.ProjectID, "", "")
+		if errors.Is(serr, ports.ErrActiveSessionNotFound) {
+			// Race: ListActiveSessions saw the row but Stop didn't —
+			// another device/shell stopped it between calls. Don't print
+			// "Gestoppt nach 0h 00m" from a zero-value session.
+			_ = deps.Tmux.RefreshClient()
+			fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+			return nil
+		}
+		if serr != nil {
+			return serr
+		}
+		_ = deps.Tmux.RefreshClient()
+		// Stop the earliest-StartedAt entry — that's the longest-running
+		// session, the one the user most plausibly wants to end with a
+		// keystroke. Multi-session disambiguation is `flow worktime stop --project`.
+		fprintf(cmd.ErrOrStderr(), "Gestoppt nach %dh %02dm\n",
+			int(sess.Elapsed.Hours()), int(sess.Elapsed.Minutes())%60)
+		return nil
+	}
+	pwd, _ := os.Getwd()
+	pr, err := deps.ResolveProject(deps.UserID, "", pwd)
+	if err != nil {
+		return err
+	}
+	if _, err := deps.StartActiveSession(deps.UserID, pr.ID, "", ""); err != nil {
+		if errors.Is(err, usecase.ErrActiveSessionExists) {
+			fprintf(cmd.ErrOrStderr(), "Session auf '%s' läuft bereits\n", pr.Name)
+			return nil
+		}
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintf(cmd.ErrOrStderr(), "Worktime läuft seit %s auf '%s'\n",
+		deps.Clock.Now().Format("15:04"), pr.Name)
+	return nil
 }
 
 func newCorrectCmd(deps WorktimeDeps) *cobra.Command {
@@ -355,6 +722,19 @@ func newCorrectCmd(deps WorktimeDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if deps.CorrectActiveStart != nil {
+				if err := deps.CorrectActiveStart(deps.UserID, ts); err != nil {
+					if errors.Is(err, ports.ErrActiveSessionNotFound) {
+						fprintln(cmd.ErrOrStderr(), "Keine laufende Session")
+						return nil
+					}
+					return err
+				}
+				_ = deps.Tmux.RefreshClient()
+				fprintf(cmd.ErrOrStderr(), "Startzeit korrigiert auf %s\n", ts.Format("15:04"))
+				return nil
+			}
+			// Legacy flockstate path.
 			if err := deps.SessionWriter.CorrectStart(ts); err != nil {
 				return err
 			}

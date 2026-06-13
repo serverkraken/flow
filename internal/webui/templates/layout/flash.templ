@@ -1,0 +1,35 @@
+package layout
+
+// FlashKind classifies a flash message. Empty kind means "no flash" — render
+// nothing.
+type FlashKind string
+
+const (
+	FlashOK   FlashKind = "ok"
+	FlashErr  FlashKind = "err"
+	FlashWarn FlashKind = "warn"
+)
+
+type Flash struct {
+	Kind FlashKind
+	Text string
+}
+
+templ FlashStrip(f Flash) {
+	if f.Kind == FlashOK {
+		<div class="flash flash-ok" role="status">
+			<span>✓</span>
+			<span>{ f.Text }</span>
+		</div>
+	} else if f.Kind == FlashErr {
+		<div class="flash flash-err" role="alert">
+			<span>!</span>
+			<span>{ f.Text }</span>
+		</div>
+	} else if f.Kind == FlashWarn {
+		<div class="flash flash-warn" role="status">
+			<span>!</span>
+			<span>{ f.Text }</span>
+		</div>
+	}
+}

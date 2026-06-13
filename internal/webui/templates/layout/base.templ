@@ -1,0 +1,86 @@
+package layout
+
+// PageMeta carries everything chrome (nav, flash, spine) needs to render.
+// Handlers populate this struct before calling Base().
+type PageMeta struct {
+	Title       string
+	CurrentPath string
+	UserLabel   string // "alice@example.com" or empty for landing
+	Flash       Flash
+	Spine       SpineState
+	HideSpine   bool // true for the unauthenticated landing page
+	HideNav     bool // true for the unauthenticated landing page
+}
+
+// Base is the full HTML shell. Body is a sub-template (usually
+// `Index(...)` / `Today(...)` etc.) that the handler renders inside.
+templ Base(m PageMeta, body templ.Component) {
+	<!DOCTYPE html>
+	<html lang="de" class="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="dark"/>
+			<title>
+				if m.Title != "" {
+					{ m.Title } — flow
+				} else {
+					flow
+				}
+			</title>
+			<link rel="stylesheet" href="/static/styles.css"/>
+			<link rel="icon" type="image/svg+xml" href="/static/favicon.svg"/>
+			<!-- htmx default discards 4xx responses; our M7 conflict (409) +
+			     bad-input (400) paths return renderable HTML partials
+			     (overlay / re-rendered form), so we need to swap on those.
+			     The meta tag is read by htmx at load — must precede the
+			     htmx.min.js include. -->
+			<meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"400","swap":true},{"code":"409","swap":true},{"code":"[23]..","swap":true},{"code":"[45]..","swap":false,"error":true},{"code":"...","swap":false}]}'/>
+			<script src="/static/htmx.min.js"></script>
+			<script src="/static/htmx-sse.min.js"></script>
+			<script src="/static/alpine.min.js" defer></script>
+			<!-- ApexCharts MUST load before charts-init.js (which the
+			     Worktime/Woche sub-tab pulls in per-page). Without the
+			     vendored bundle here, the chart-divs render empty. -->
+			<script src="/static/apexcharts.min.js" defer></script>
+			<!-- CodeMirror bundle (Plan E · Task 12). Loaded site-wide so
+			     /notes/{id}/edit + /repos/{key}/note/edit can boot the
+			     editor without an extra round-trip. Same defer-load order
+			     as apexcharts above — the per-page DOMContentLoaded init
+			     hooks run after this script is parsed. -->
+			<script src="/static/codemirror.bundle.js" defer></script>
+			<!-- codemirror-init.js defines window.initNoteEditor which the
+			     per-page boot script in notes/edit.templ +
+			     repos/note_edit.templ calls. Must load AFTER the bundle
+			     above (initNoteEditor reads window.CM) and BEFORE the
+			     per-page boot fires (defer keeps both in document order). -->
+			<script src="/static/codemirror-init.js" defer></script>
+		</head>
+		<body hx-boost="true" hx-history="false">
+			if !m.HideSpine {
+				@Spine(m.Spine)
+			}
+			if !m.HideNav {
+				@Nav(m.CurrentPath, m.UserLabel)
+			}
+			<main class="max-w-6xl mx-auto px-6 py-8" style="margin-left:max(1.5rem, calc(50vw - 36rem))">
+				@FlashStrip(m.Flash)
+				@body
+			</main>
+			<script>
+				// A dead session yields 401 on SSE/HTMX — reload so the browser-auth
+				// middleware redirects to the landing page instead of freezing silently.
+				document.body.addEventListener('htmx:sseError', function () { window.location.reload(); });
+				document.body.addEventListener('htmx:responseError', function (e) {
+					if (e.detail && e.detail.xhr && e.detail.xhr.status === 401) { window.location.reload(); }
+				});
+			</script>
+		</body>
+	</html>
+}
+
+// BarePage renders the HTML shell without nav / spine — used for the login
+// landing.
+templ BarePage(title string, body templ.Component) {
+	@Base(PageMeta{Title: title, HideNav: true, HideSpine: true}, body)
+}

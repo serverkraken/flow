@@ -15,9 +15,9 @@ func newTodayCmd(deps Deps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out, err := deps.CreateDaily.Execute(cmd.Context())
 			if err != nil {
-				return err
+				return wrapAuthErr(err)
 			}
-			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created, out.Path)
+			return printCreateOutput(cmd.OutOrStdout(), out.ID, out.Created)
 		},
 	}
 }

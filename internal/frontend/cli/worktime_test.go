@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,7 @@ func newFixture() *fixture {
 func (f *fixture) deps() cli.WorktimeDeps {
 	targets := &usecase.TargetResolver{Config: f.config, DayOffs: f.dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: f.sessions, State: f.active, Targets: targets, Clock: f.clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.dayoffs, State: f.active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: f.dayoffs}
 	return cli.WorktimeDeps{
 		Clock: f.clock,
 		Tmux:  f.tmux,
@@ -105,7 +106,10 @@ func session(date time.Time, startH, startM, stopH, stopM int, tag, note string)
 	d := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.Local)
 	start := time.Date(date.Year(), date.Month(), date.Day(), startH, startM, 0, 0, time.Local)
 	stop := time.Date(date.Year(), date.Month(), date.Day(), stopH, stopM, 0, 0, time.Local)
-	return domain.Session{Date: d, Start: start, Stop: stop, Elapsed: stop.Sub(start), Tag: tag, Note: note}
+	// Stable deterministic ID — tests just need uniqueness within the seed
+	// after Plan-B follow-up #1 made ports.SessionStore strictly ID-based.
+	id := fmt.Sprintf("cli-%s-%02d%02d", d.Format("20060102"), startH, startM)
+	return domain.Session{ID: id, Date: d, Start: start, Stop: stop, Elapsed: stop.Sub(start), Tag: tag, Note: note}
 }
 
 // TestHelp captures the cobra-generated --help output for the worktime
@@ -353,9 +357,9 @@ func TestBrief(t *testing.T) {
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
 	tue := mon.AddDate(0, 0, 1)
 	wed := mon.AddDate(0, 0, 2)
-	must(t, f.sessions.Append(session(mon, 9, 0, 12, 30, "build", "")))
-	must(t, f.sessions.Append(session(tue, 8, 30, 17, 0, "review", "PRs gemerged")))
-	must(t, f.sessions.Append(session(wed, 9, 15, 12, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 12, 30, "build", "")))
+	must(t, f.sessions.Upsert(session(tue, 8, 30, 17, 0, "review", "PRs gemerged")))
+	must(t, f.sessions.Upsert(session(wed, 9, 15, 12, 0, "build", "")))
 	stdout, _, err := f.run("brief")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -396,8 +400,8 @@ func TestBrief_UnknownScope(t *testing.T) {
 func TestExport_CSV(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 11, 0, "build", "")))
-	must(t, f.sessions.Append(session(mon.AddDate(0, 0, 1), 14, 0, 16, 30, "review", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon.AddDate(0, 0, 1), 14, 0, 16, 30, "review", "")))
 	stdout, _, err := f.run("export", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -408,7 +412,7 @@ func TestExport_CSV(t *testing.T) {
 func TestExport_JSON(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 11, 0, "build", "")))
 	stdout, _, err := f.run("export", "--format", "json", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -441,8 +445,8 @@ func TestStats_Empty(t *testing.T) {
 func TestStats_Text(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 17, 0, "build", "")))
-	must(t, f.sessions.Append(session(mon.AddDate(0, 0, 1), 9, 0, 17, 30, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 17, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon.AddDate(0, 0, 1), 9, 0, 17, 30, "build", "")))
 	stdout, _, err := f.run("stats", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -453,7 +457,7 @@ func TestStats_Text(t *testing.T) {
 func TestStats_JSON(t *testing.T) {
 	f := newFixture()
 	mon := time.Date(2026, 4, 27, 0, 0, 0, 0, time.Local)
-	must(t, f.sessions.Append(session(mon, 9, 0, 17, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(mon, 9, 0, 17, 0, "build", "")))
 	stdout, _, err := f.run("stats", "--format", "json", "week")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -464,7 +468,7 @@ func TestStats_JSON(t *testing.T) {
 func TestTag_SetsTag(t *testing.T) {
 	f := newFixture()
 	today := fixedNow
-	must(t, f.sessions.Append(session(today, 9, 0, 11, 0, "", "")))
+	must(t, f.sessions.Upsert(session(today, 9, 0, 11, 0, "", "")))
 	_, _, err := f.run("tag", "1", "build")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -485,7 +489,7 @@ func TestTag_InvalidIdx(t *testing.T) {
 func TestNote_SetsNote(t *testing.T) {
 	f := newFixture()
 	today := fixedNow
-	must(t, f.sessions.Append(session(today, 9, 0, 11, 0, "build", "")))
+	must(t, f.sessions.Upsert(session(today, 9, 0, 11, 0, "build", "")))
 	_, _, err := f.run("note", "1", "morning sprint")
 	if err != nil {
 		t.Fatalf("run: %v", err)
@@ -669,5 +673,139 @@ func must(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Server-mode pause/resume tests (C1 fix)
+// ---------------------------------------------------------------------------
+
+// serverDeps builds a minimal WorktimeDeps wired for server mode:
+// ListActiveSessions, PauseActiveSession, ResumeActiveSession are populated;
+// PauseMarker is nil (server mode), SessionWriter is nil (server mode).
+func serverDeps(
+	list func(userID string) ([]domain.ActiveSession, error),
+	pause func(userID, projectID string) (domain.ActiveSession, error),
+	resume func(userID, projectID string) (domain.ActiveSession, error),
+) cli.WorktimeDeps {
+	clock := &testutil.FixedClock{T: fixedNow}
+	tmux := &testutil.FakeTmux{}
+	return cli.WorktimeDeps{
+		Clock:               clock,
+		Tmux:                tmux,
+		UserID:              "user-1",
+		ListActiveSessions:  list,
+		PauseActiveSession:  pause,
+		ResumeActiveSession: resume,
+		// PauseMarker: nil  — server mode, no local marker
+		// SessionWriter: nil — server mode, all lifecycle via ActiveSessions
+	}
+}
+
+// TestServerPause_Active verifies that pause in server mode calls
+// PauseActiveSession with the right projectID and does NOT panic.
+func TestServerPause_Active(t *testing.T) {
+	projectID := "proj-abc"
+	startedAt := fixedNow.Add(-90 * time.Minute)
+	sess := domain.ActiveSession{ProjectID: projectID, StartedAt: startedAt}
+
+	var calledWith string
+	deps := serverDeps(
+		func(_ string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		func(_ string, pid string) (domain.ActiveSession, error) {
+			calledWith = pid
+			return sess, nil
+		},
+		nil,
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("pause: unexpected error: %v", err)
+	}
+	if calledWith != projectID {
+		t.Errorf("PauseActiveSession: want projectID %q, got %q", projectID, calledWith)
+	}
+	if !strings.Contains(errBuf.String(), "Pausiert") {
+		t.Errorf("stderr: expected 'Pausiert', got %q", errBuf.String())
+	}
+}
+
+// TestServerPause_Idle verifies that pause when no sessions are active
+// prints a friendly message and returns nil.
+func TestServerPause_Idle(t *testing.T) {
+	deps := serverDeps(
+		func(_ string) ([]domain.ActiveSession, error) { return nil, nil },
+		func(_ string, _ string) (domain.ActiveSession, error) {
+			return domain.ActiveSession{}, nil
+		},
+		nil,
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("idle pause must not error: %v", err)
+	}
+	out := errBuf.String()
+	if out != "" && !strings.Contains(out, "Keine") {
+		t.Errorf("idle pause: want empty or a 'Keine…' message, got %q", out)
+	}
+}
+
+// TestServerResume_Active verifies that resume in server mode calls
+// ResumeActiveSession with the right projectID and does NOT panic.
+func TestServerResume_Active(t *testing.T) {
+	projectID := "proj-xyz"
+	startedAt := fixedNow.Add(-30 * time.Minute)
+	sess := domain.ActiveSession{ProjectID: projectID, StartedAt: startedAt}
+
+	var calledWith string
+	deps := serverDeps(
+		func(_ string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		nil,
+		func(_ string, pid string) (domain.ActiveSession, error) {
+			calledWith = pid
+			return sess, nil
+		},
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume: unexpected error: %v", err)
+	}
+	if calledWith != projectID {
+		t.Errorf("ResumeActiveSession: want projectID %q, got %q", projectID, calledWith)
+	}
+	if !strings.Contains(errBuf.String(), "Resume") {
+		t.Errorf("stderr: expected 'Resume', got %q", errBuf.String())
+	}
+}
+
+// TestServerResume_Idle verifies that resume when no session is running
+// prints a friendly message and returns nil (does NOT panic).
+func TestServerResume_Idle(t *testing.T) {
+	deps := serverDeps(
+		func(_ string) ([]domain.ActiveSession, error) { return nil, nil },
+		nil,
+		func(_ string, _ string) (domain.ActiveSession, error) {
+			return domain.ActiveSession{}, nil
+		},
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("idle resume must not error: %v", err)
 	}
 }

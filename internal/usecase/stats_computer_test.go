@@ -16,7 +16,6 @@ func mkComputer(now time.Time, sessions []domain.Session, opts ...readerOpt) *us
 		Reader:  reader,
 		Targets: reader.Targets,
 		DayOffs: reader.Targets.DayOffs,
-		State:   reader.State,
 	}
 }
 

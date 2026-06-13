@@ -14,7 +14,6 @@ type StatsComputer struct {
 	Reader  *WorktimeReader
 	Targets *TargetResolver
 	DayOffs ports.DayOffStore
-	State   ports.ActiveSessionStore
 }
 
 // Aggregate computes Stats over the given DayRecords. Use this when
@@ -74,7 +73,7 @@ func (c *StatsComputer) Burndown(now time.Time) (domain.MonthBurndownReport, err
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}
-	active, err := c.State.GetActive()
+	active, err := c.Reader.ActiveStart()
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}

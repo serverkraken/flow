@@ -1,0 +1,223 @@
+package worktime
+
+// WeekVM is the worktime/woche view-model. Visual reference:
+// /tmp/flow-mockups/worktime-woche.html.
+type WeekVM struct {
+	Header PageHeader
+
+	// Saldo-Stripe.
+	WeekLogged     string // "36:08"
+	WeekTarget     string // "40:00"
+	WeekSaldo      string // "-3:52" / "+12:42"
+	WeekSaldoPos   bool
+	DaysBooked     int
+	HasRunning     bool
+
+	// Week chart bars (Mo-So). Rendered as a JSON payload via
+	// templ.JSONScript so the ApexCharts init in /static/charts-init.js
+	// can parse one canonical source.
+	WeekBars    []WeekBar
+	HasWeekData bool
+
+	// Per-project + per-tag horizontal bars.
+	ProjectShares []ProjectShareRow
+	TagShares     []TagShareRow
+	ProjectsTotal string // formatted "36:08" headline above the list
+
+	// Rail: 12-week saldo sparkline + diese-woche stats + frei + export.
+	SaldoSeries   []WeekSaldoBar
+	SessionsCount int
+	LongestLabel    string // "3:18 · Fr"
+	ShortestLabel   string // "0:08 · Mi"
+	ConflictCount   int
+	WeekISOLabel    string // "KW 23"
+}
+
+// Week renders the /worktime?tab=woche body.
+templ Week(vm WeekVM) {
+	@pageHead(vm.Header)
+	@subTabs(TabWoche)
+	@weekSaldoStripe(vm)
+	@weekChart(vm)
+	<div class="page-grid">
+		<div>
+			@weekProjectList(vm)
+			@weekTagList(vm)
+		</div>
+		@weekRail(vm)
+	</div>
+}
+
+templ weekSaldoStripe(vm WeekVM) {
+	<div class="saldo-stripe">
+		<div class="cell">
+			<div class="label">Ist · Woche</div>
+			<div class="value">{ vm.WeekLogged }</div>
+			<div class="sub">
+				{ daysBookedLabel(vm.DaysBooked) }
+				if vm.HasRunning {
+					· 1 läuft
+				}
+			</div>
+		</div>
+		<div class="cell">
+			<div class="label">Soll · Woche</div>
+			<div class="value" style="color: var(--color-fg-dim);">{ vm.WeekTarget }</div>
+			<div class="sub">5 × 8h · Phase 2: per-user-Targets</div>
+		</div>
+		<div class="cell">
+			<div class="label">Saldo · { vm.WeekISOLabel }</div>
+			if vm.WeekSaldoPos {
+				<div class="value positive">{ vm.WeekSaldo }</div>
+			} else {
+				<div class="value negative">{ vm.WeekSaldo }</div>
+			}
+			<div class="sub">{ weekSaldoSubLabel(vm.WeekSaldoPos, vm.WeekSaldo) }</div>
+		</div>
+	</div>
+}
+
+templ weekChart(vm WeekVM) {
+	<section style="margin-bottom: 2.5rem;">
+		<div class="section-head">
+			<h2 style="font-size: 1.375rem; font-weight: 300;">Verteilung · Mo — So</h2>
+			<span class="eyebrow">tufte · ohne grid</span>
+		</div>
+		if vm.HasWeekData {
+			<div id="week-chart" data-testid="week-chart" style="width: 100%; height: 220px;"></div>
+			<!-- JSON payload consumed by initWeekChart in /static/charts-init.js -->
+			@templ.JSONScript("week-chart-data", vm.WeekBars)
+			<script src="/static/charts-init.js" defer></script>
+			<script>
+				if (window.initWeekChart) { window.initWeekChart('week-chart', 'week-chart-data'); }
+			</script>
+		} else {
+			<p style="color: var(--color-fg-dim); font-size: 0.875rem;" data-testid="week-chart-empty">
+				Diese Woche noch keine Sessions gebucht.
+			</p>
+		}
+	</section>
+}
+
+templ weekProjectList(vm WeekVM) {
+	<div class="section-head">
+		<h2 style="font-size: 1.375rem; font-weight: 300;">Nach Projekt</h2>
+		<span class="eyebrow">{ vm.ProjectsTotal } ges. · 100%</span>
+	</div>
+	if len(vm.ProjectShares) == 0 {
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem;">Keine Projektzeit in dieser Woche.</p>
+	} else {
+		for _, p := range vm.ProjectShares {
+			@horizontalBarRow(p)
+		}
+	}
+}
+
+templ weekTagList(vm WeekVM) {
+	<div class="section-head" style="margin-top: 2.5rem;">
+		<h2 style="font-size: 1.375rem; font-weight: 300;">Nach Tag</h2>
+		<span class="eyebrow">label-aggregat</span>
+	</div>
+	if len(vm.TagShares) == 0 {
+		<p style="color: var(--color-fg-dim); font-size: 0.875rem;">Noch keine Tags gesetzt.</p>
+	} else {
+		for _, t := range vm.TagShares {
+			@horizontalTagRow(t)
+		}
+	}
+}
+
+templ horizontalBarRow(p ProjectShareRow) {
+	<div class="proj-row">
+		<span style="color: var(--color-fg);">{ p.Label }</span>
+		<div class="proj-bar">
+			if p.IsRunning {
+				<div class="fill is-running" style={ barFillStyle(p.SharePct) }></div>
+			} else {
+				<div class="fill" style={ barFillStyle(p.SharePct) }></div>
+			}
+		</div>
+		<span class="proj-num">
+			if p.IsRunning {
+				<span style="color: var(--color-active);">{ p.Total }</span>
+			} else {
+				{ p.Total }
+			}
+		</span>
+	</div>
+}
+
+templ horizontalTagRow(t TagShareRow) {
+	<div class="proj-row">
+		<span style="color: var(--color-fg);">{ t.Label }</span>
+		<div class="proj-bar">
+			<div class="fill" style={ barFillStyle(t.SharePct) }></div>
+		</div>
+		<span class="proj-num">{ t.Total }</span>
+	</div>
+}
+
+templ weekRail(vm WeekVM) {
+	<aside class="rail">
+		<div class="rail-head">12-Wochen-Saldo</div>
+		<div id="week-saldo-spark" data-testid="week-saldo-spark" style="width: 100%; height: 60px;"></div>
+		@templ.JSONScript("week-saldo-data", vm.SaldoSeries)
+		<script>
+			if (window.initSaldoSpark) { window.initSaldoSpark('week-saldo-spark', 'week-saldo-data'); }
+		</script>
+		<div style="display: flex; justify-content: space-between; font-size: 0.6875rem; color: var(--color-fg-dim); margin-top: 0.25rem; font-variant-numeric: tabular-nums;">
+			<span>vor 12 KW</span>
+			<span>jetzt</span>
+		</div>
+
+		<div class="rail-head" style="margin-top: 2rem;">Diese Woche</div>
+		<div class="rail-item">
+			<span class="label">Sessions</span>
+			<span>{ intLabel(vm.SessionsCount) }</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Längste</span>
+			<span>
+				if vm.LongestLabel != "" {
+					{ vm.LongestLabel }
+				} else {
+					—
+				}
+			</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Kürzeste</span>
+			<span>
+				if vm.ShortestLabel != "" {
+					{ vm.ShortestLabel }
+				} else {
+					—
+				}
+			</span>
+		</div>
+		<div class="rail-item">
+			<span class="label">Konflikte</span>
+			if vm.ConflictCount > 0 {
+				<span style="color: var(--color-warn);">{ intLabel(vm.ConflictCount) }</span>
+			} else {
+				<span>0</span>
+			}
+		</div>
+
+		<div class="rail-head" style="margin-top: 2rem;">Frei-Tage</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">Phase 2</span>
+			<span style="color: var(--color-fg-dim);">○ wird synchronisiert</span>
+		</div>
+
+		<div class="rail-head" style="margin-top: 2rem;">Export</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">CSV · { vm.WeekISOLabel }</span>
+			<span style="color: var(--color-fg-dim);" title="kommt in M7">↓</span>
+		</div>
+		<div class="rail-item">
+			<span class="label" style="color: var(--color-fg-dim);">ICS · { vm.WeekISOLabel }</span>
+			<span style="color: var(--color-fg-dim);" title="kommt in M7">↓</span>
+		</div>
+	</aside>
+}

@@ -1,0 +1,105 @@
+package partials
+
+// ConflictOverlayVM is the view-model for the 409-version-conflict
+// overlay rendered as a swap response to PUT or DELETE. It shows the
+// server's current row next to the user's submitted values and lets
+// Soenne choose which one wins:
+//
+//   - "Server übernehmen" → reloads the row from the server (HTMX GET).
+//   - PUT mode: "Erneut bearbeiten" → re-opens the edit form against the
+//     current server version. Local edits are lost; Phase 2 will preserve
+//     submitted values pre-filled.
+//   - DELETE mode: "Lokal überschreiben (löschen)" → re-submits the
+//     DELETE with the server's expectedVersion via If-Match so it succeeds.
+//
+// The overlay replaces the original <tr> inline so it stays in the
+// table column flow without an actual modal.
+type ConflictOverlayVM struct {
+	ID            string
+	ServerVersion int64 // latest version stored on the server
+
+	// Both sides carry pre-formatted strings; the renderer does not
+	// branch on which fields actually differ — Soenne sees the full
+	// row state on both sides for context.
+	ServerRow ConflictRowSide
+	LocalRow  ConflictRowSide
+
+	// Mode is "put" or "delete" — drives the action label.
+	Mode string
+
+	// ProjectID is needed for the "Lokal überschreiben" flow so the form
+	// can resubmit. Empty for delete mode (project isn't part of the
+	// resubmit body).
+	ProjectID string
+}
+
+// ConflictRowSide is one column in the diff. Pre-formatted strings —
+// the overlay does not do arithmetic.
+type ConflictRowSide struct {
+	Label      string // "Server" / "Dein Stand"
+	TimeLabel  string
+	DateLabel  string
+	Tag        string
+	Note       string
+	DurationS  string
+	StartLabel string
+	StopLabel  string
+}
+
+// ConflictOverlay renders the inline two-column diff with action buttons.
+templ ConflictOverlay(vm ConflictOverlayVM) {
+	<tr class="conflict-overlay" data-testid="conflict-overlay" data-session-id={ vm.ID }>
+		<td colspan="5" style="padding: 1rem; border: 1px solid var(--color-warn); border-left: 2px solid var(--color-warn); background: var(--color-bg-soft);">
+			<div class="eyebrow" style="color: var(--color-warn); margin-bottom: 0.75rem;">Versionskonflikt — die Session wurde inzwischen geändert</div>
+			<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 0.75rem;">
+				@conflictSide(vm.ServerRow)
+				@conflictSide(vm.LocalRow)
+			</div>
+			<div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+				<button
+					class="btn btn-sm"
+					hx-get={ "/worktime/sessions/" + vm.ID + "/edit?cancel=1" }
+					hx-target="closest tr"
+					hx-swap="outerHTML"
+				>Server übernehmen</button>
+				if vm.Mode == "delete" {
+					<button
+						class="btn btn-sm btn-danger"
+						hx-delete={ "/worktime/sessions/" + vm.ID }
+						hx-headers={ "{\"If-Match\":\"" + intToStr(vm.ServerVersion) + "\"}" }
+						hx-target="closest tr"
+						hx-swap="outerHTML swap:200ms"
+					>Lokal überschreiben (löschen)</button>
+				} else {
+					// TODO Phase 2: properly preserve local edits across
+					// conflict (emit form pre-filled with submitted values +
+					// current version). For now the "Erneut bearbeiten" path
+					// resets to server values — same as "Server übernehmen"
+					// followed by a re-edit, but kept as a distinct affordance
+					// so the conflict overlay still offers two clear next
+					// steps (accept vs. re-edit).
+					<button
+						class="btn btn-sm btn-primary"
+						title="Form mit aktueller Server-Version erneut öffnen"
+						hx-get={ "/worktime/sessions/" + vm.ID + "/edit" }
+						hx-target="closest tr"
+						hx-swap="outerHTML"
+					>Erneut bearbeiten</button>
+				}
+			</div>
+		</td>
+	</tr>
+}
+
+templ conflictSide(s ConflictRowSide) {
+	<div style="border: 1px solid var(--color-muted); padding: 0.625rem 0.75rem;">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">{ s.Label }</div>
+		<div style="font-size: 0.875rem; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem;">
+			<span style="color: var(--color-fg-dim);">Datum</span><span>{ s.DateLabel }</span>
+			<span style="color: var(--color-fg-dim);">Zeit</span><span>{ s.TimeLabel }</span>
+			<span style="color: var(--color-fg-dim);">Tag</span><span>{ s.Tag }</span>
+			<span style="color: var(--color-fg-dim);">Notiz</span><span>{ s.Note }</span>
+			<span style="color: var(--color-fg-dim);">Dauer</span><span>{ s.DurationS }</span>
+		</div>
+	</div>
+}

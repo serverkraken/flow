@@ -1,0 +1,123 @@
+package projects
+
+import "github.com/serverkraken/flow/internal/webui/templates/projects/partials"
+
+// IndexVM is the /projects view-model. The handler builds it; the
+// template only renders.
+type IndexVM struct {
+	// ActiveTab is "worktime" or "quellen". "quellen" renders the
+	// TUI-only placeholder; the grid is shown for "worktime".
+	ActiveTab string
+	// TotalLabel is the page eyebrow — "42 Projekte · 4 aktiv letzte 7
+	// Tage". Pre-formatted in the handler.
+	TotalLabel string
+	// HasProjects discriminates the empty-state from the populated list.
+	HasProjects bool
+	// Rows are the rendered project rows. Order matches Projects.ListAll
+	// (MRU-first by last_used_at, then created_at). Carries the M7
+	// ProjectRowVM with Version + ID so the row's HTMX edit/archive
+	// buttons can target the per-row routes.
+	Rows []partials.ProjectRowVM
+}
+
+// Index renders the /projects body. layout.Base() supplies the chrome
+// (spine, nav).
+templ Index(vm IndexVM) {
+	@pageHead(vm)
+	@subTabs(vm.ActiveTab)
+	@filterRow(vm)
+	if vm.ActiveTab == "quellen" {
+		@quellenPlaceholder()
+	} else if !vm.HasProjects {
+		// Empty state still needs the list container so OOB swaps after
+		// the first successful create land in the DOM.
+		<section id="projects-list" data-testid="projects-list">
+			@emptyState()
+		</section>
+	} else {
+		@gridHeader()
+		<section id="projects-list" data-testid="projects-list">
+			for _, row := range vm.Rows {
+				@partials.ProjectRow(row)
+			}
+		</section>
+	}
+	@footerNote()
+}
+
+templ pageHead(vm IndexVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.25rem;" data-testid="projects-totals">{ vm.TotalLabel }</div>
+			<h1 class="display-lg" style="margin: 0;">Projekte</h1>
+		</div>
+		@partials.NewProjectButton()
+	</div>
+}
+
+templ subTabs(active string) {
+	<div class="mk-tabs">
+		@projectsSubTabLink("Worktime-Projekte", "/projects?tab=worktime", active != "quellen")
+		@projectsSubTabLink("Quellverzeichnisse", "/projects?tab=quellen", active == "quellen")
+	</div>
+}
+
+templ projectsSubTabLink(label, href string, active bool) {
+	if active {
+		<a href={ templ.SafeURL(href) } class="subtab is-active" aria-current="page">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="subtab">{ label }</a>
+	}
+}
+
+templ filterRow(vm IndexVM) {
+	<!-- Visual-only filter row for M6+M7 — Phase 2 wires the real filter
+	     so the URL surface stays read-only for now. -->
+	<div class="proj-filter-row" data-testid="projects-filter">
+		<span aria-hidden="true" style="color: var(--color-fg-dim);">⌕</span>
+		<input class="proj-filter-search" placeholder="filtern · /pattern/ regex · #tag · @device" aria-label="Projekte filtern" disabled aria-disabled="true" autocomplete="off"/>
+		<div class="pill-row">
+			<span class="pill pill-active">alle</span>
+			<span class="pill pill-muted">aktiv</span>
+			<span class="pill pill-muted">archiv</span>
+		</div>
+	</div>
+}
+
+templ gridHeader() {
+	<div class="proj-grid-row is-header" data-testid="projects-grid-head">
+		<span></span>
+		<span>Projekt · Slug</span>
+		<span class="num">Zuletzt</span>
+		<span class="num">Diese Woche</span>
+		<span class="num">Sessions</span>
+		<span></span>
+	</div>
+}
+
+templ emptyState() {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem; margin-top: 0.5rem;" data-testid="projects-empty">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine projekte</div>
+		<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+			Noch keine Projekte synchronisiert — wenn du <code class="kbd">flow start</code> in einem Verzeichnis aufrufst, wird das Projekt automatisch angelegt. Oder klick oben auf <strong>+ Neues Projekt</strong>.
+		</p>
+	</section>
+}
+
+templ quellenPlaceholder() {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem; margin-top: 0.5rem;" data-testid="projects-quellen-placeholder">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">quellverzeichnisse · tui-only</div>
+		<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+			Quellverzeichnisse werden über die TUI gepflegt. Die WebUI-Sicht folgt in einer späteren Phase.
+		</p>
+	</section>
+}
+
+templ footerNote() {
+	<div class="page-footer-note">
+		<span>flow · phase 1 · m7 · projekte</span>
+		<span>
+			<code class="kbd">/</code> filter · <code class="kbd">+</code> neu · <code class="kbd">⏎</code> öffnen
+		</span>
+	</div>
+}

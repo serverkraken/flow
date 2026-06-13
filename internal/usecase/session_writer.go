@@ -3,6 +3,7 @@ package usecase
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,10 +18,16 @@ import (
 // uniform.
 type SessionWriter struct {
 	Sessions ports.SessionStore
-	State    ports.ActiveSessionStore
+	State    ports.LegacyActiveStore
 	Lock     ports.Lock
 	Reader   *WorktimeReader
 	Clock    ports.Clock
+
+	// UserID scopes every Sessions.Load / Sessions.Delete / Sessions.Upsert
+	// call so the sqliteclient backend can multiplex multiple users in the
+	// same cache.db. Set by the composition root at construction time;
+	// SessionWriter itself never mutates it.
+	UserID string
 }
 
 // — lifecycle —
@@ -101,15 +108,13 @@ func (w *SessionWriter) stopAt(stop time.Time) (domain.Session, error) {
 		// already-persisted session. After the filter the work is a
 		// no-op AppendBatch — ClearActive is the actual retry step.
 		parts := domain.SplitAtMidnight(*active, stop)
-		existing, err := w.Sessions.LoadAll()
+		existing, err := w.Sessions.Load(w.UserID)
 		if err != nil {
 			return err
 		}
 		toAppend := dedupeSessionParts(parts, existing)
-		if len(toAppend) > 0 {
-			if err := w.Sessions.AppendBatch(toAppend); err != nil {
-				return err
-			}
+		if err := w.upsertParts(toAppend); err != nil {
+			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
 			return err
@@ -170,8 +175,7 @@ func (w *SessionWriter) Pause() (domain.Session, error) {
 			Stop:    stop,
 			Elapsed: stop.Sub(*active),
 		}
-		// AppendBatch (review finding B1): see SessionWriter.stopAt.
-		if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, stop)); err != nil {
+		if err := w.upsertParts(domain.SplitAtMidnight(*active, stop)); err != nil {
 			return err
 		}
 		if err := w.State.ClearActive(); err != nil {
@@ -244,8 +248,7 @@ func (w *SessionWriter) Toggle() (string, error) {
 				Stop:    now,
 				Elapsed: now.Sub(*active),
 			}
-			// AppendBatch (review finding B1): see SessionWriter.stopAt.
-			if err := w.Sessions.AppendBatch(domain.SplitAtMidnight(*active, now)); err != nil {
+			if err := w.upsertParts(domain.SplitAtMidnight(*active, now)); err != nil {
 				return err
 			}
 			if err := w.State.ClearActive(); err != nil {
@@ -319,10 +322,7 @@ func (w *SessionWriter) AddManual(_, start, stop time.Time) error {
 					conflict.Stop.Format("15:04"))
 			}
 		}
-		// AppendBatch (review finding B1): same partial-failure
-		// reasoning as stopAt — a manual entry crossing midnight must
-		// either land entirely or not at all.
-		return w.Sessions.AppendBatch(parts)
+		return w.upsertParts(parts)
 	})
 }
 
@@ -364,33 +364,44 @@ func (w *SessionWriter) Edit(date time.Time, idx int, newStart, newStop time.Tim
 // `flow worktime delete 99` against a day with 3 sessions surfaces an
 // error instead of silently rewriting the unchanged log and reporting
 // success — same contract Edit / SetTag / SetNote already enforce.
+//
+// idx is resolved against day-scoped, Start-ascending order via
+// sessionByDayIndex, then the row is removed by ID via Sessions.Delete.
 func (w *SessionWriter) Delete(date time.Time, idx int) error {
 	return w.Lock.With(func() error {
-		all, err := w.Sessions.LoadAll()
+		target, ok, err := w.sessionByDayIndex(date, idx)
 		if err != nil {
 			return err
 		}
-		dateStr := date.Format("2006-01-02")
-		dayIdx := 0
-		found := false
-		out := make([]domain.Session, 0, len(all))
-		for _, s := range all {
-			if s.Date.Format("2006-01-02") == dateStr {
-				if dayIdx == idx {
-					found = true
-				} else {
-					out = append(out, s)
-				}
-				dayIdx++
-			} else {
-				out = append(out, s)
-			}
-		}
-		if !found {
+		if !ok {
 			return domain.ErrSessionNotFound
 		}
-		return w.Sessions.Rewrite(out)
+		return w.Sessions.Delete(w.UserID, target.ID)
 	})
+}
+
+// sessionByDayIndex loads the user's sessions, filters by YYYY-MM-DD,
+// sorts by Start ASC, and returns the (idx-th, true) row. Returns
+// (zero, false, nil) when idx is out of range so callers can decide
+// whether that translates to ErrSessionNotFound (Edit/Delete/SetTag/
+// SetNote all do).
+func (w *SessionWriter) sessionByDayIndex(date time.Time, idx int) (domain.Session, bool, error) {
+	all, err := w.Sessions.Load(w.UserID)
+	if err != nil {
+		return domain.Session{}, false, err
+	}
+	dateStr := date.Format("2006-01-02")
+	var day []domain.Session
+	for _, s := range all {
+		if s.Date.Format("2006-01-02") == dateStr {
+			day = append(day, s)
+		}
+	}
+	sort.Slice(day, func(i, j int) bool { return day[i].Start.Before(day[j].Start) })
+	if idx < 0 || idx >= len(day) {
+		return domain.Session{}, false, nil
+	}
+	return day[idx], true, nil
 }
 
 // SetTag sets (or clears, if tag == "") the Tag of the session at idx.
@@ -419,38 +430,58 @@ func (w *SessionWriter) rewriteAtIndex(date time.Time, idx int, fn func(domain.S
 	})
 }
 
-// rewriteAtIndexLocked loads the log, applies fn to the session at
-// (date, idx), and writes it back. Caller must hold the Lock. Returns
+// rewriteAtIndexLocked applies fn to the session at (date, idx) and
+// upserts the result by ID. Caller must hold the Lock. Returns
 // ErrSessionNotFound when no session exists at the requested index for
-// that day — without this signal the rewrite was a silent no-op for
+// that day — without this signal the change was a silent no-op for
 // stale CLI input like `flow worktime tag 99 deep`.
+//
+// ID / UserID are preserved across the fn call (fn cannot accidentally
+// reshard a session onto another user or generate a new identity).
+// UpdatedAt is stamped fresh so sync sees the row as changed.
 func (w *SessionWriter) rewriteAtIndexLocked(date time.Time, idx int, fn func(domain.Session) domain.Session) error {
-	all, err := w.Sessions.LoadAll()
+	target, ok, err := w.sessionByDayIndex(date, idx)
 	if err != nil {
 		return err
 	}
-	dateStr := date.Format("2006-01-02")
-	dayIdx := 0
-	found := false
-	for i, s := range all {
-		if s.Date.Format("2006-01-02") != dateStr {
-			continue
-		}
-		if dayIdx == idx {
-			all[i] = fn(s)
-			found = true
-		}
-		dayIdx++
-	}
-	if !found {
+	if !ok {
 		return domain.ErrSessionNotFound
 	}
-	return w.Sessions.Rewrite(all)
+	updated := fn(target)
+	updated.ID = target.ID
+	updated.UserID = w.UserID
+	updated.UpdatedAt = w.Clock.Now().UTC()
+	return w.Sessions.Upsert(updated)
 }
 
 // startOfDay returns t truncated to 00:00 in t's location.
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// upsertParts assigns a fresh UUID + the writer's UserID + an UpdatedAt
+// stamp to each row before writing it through Sessions.Upsert one-by-one.
+// Replaces the legacy AppendBatch call that lifecycle paths used while
+// the TSV adapter still satisfied ports.SessionStore.
+//
+// Empty slice is a no-op — keeps stopAt's dedupe-yielded-empty branch
+// quiet without a wrapping len() check at the call site.
+func (w *SessionWriter) upsertParts(parts []domain.Session) error {
+	if len(parts) == 0 {
+		return nil
+	}
+	now := w.Clock.Now().UTC()
+	for i := range parts {
+		if parts[i].ID == "" {
+			parts[i].ID = newUUID()
+		}
+		parts[i].UserID = w.UserID
+		parts[i].UpdatedAt = now
+		if err := w.Sessions.Upsert(parts[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // sanitizeField strips characters that would break the TSV format.

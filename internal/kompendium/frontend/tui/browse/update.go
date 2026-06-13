@@ -43,21 +43,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyFilters()
 		m.refreshPreview()
 		return m, nil
-	case editFinishedMsg:
-		if msg.err != nil {
-			m.editErr = msg.err
-			return m, nil
-		}
-		m.editErr = nil
-		// Drop the rendered-preview cache + previewID so the next
-		// refreshPreview (triggered by entriesLoadedMsg below) re-
-		// reads the just-saved file from the store. Without this,
-		// `if m.previewID == e.ID { return }` short-circuits and the
-		// user keeps seeing the pre-edit body until they cursor away
-		// and back.
-		m.previewCached = map[domain.ID]string{}
-		m.previewID = ""
-		return m, loadEntriesCmd(m.list, m.currentRepo)
+	case editorReadyMsg, editorDoneMsg, editFinishedMsg, saveFinishedMsg:
+		return m.handleEditorMsg(msg)
+	case changedMsg:
+		// Server-side corpus change detected (SSE event). Reload entries and
+		// re-arm the listener so subsequent signals are also caught.
+		return m, tea.Batch(loadEntriesCmd(m.list, m.currentRepo), listenForChanged(m.changed))
 	case deleteFinishedMsg:
 		if msg.err != nil {
 			m.editErr = msg.err
@@ -88,6 +79,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.spin, cmd = m.spin.Update(msg)
 		return m, cmd
+	}
+	return m, nil
+}
+
+// handleEditorMsg handles the editor lifecycle message cluster:
+// editorReadyMsg (tempfile prepared), editorDoneMsg (pre-launch failure),
+// editFinishedMsg (editor process exited), and saveFinishedMsg (store put done).
+// Extracted from Update to keep Update's cyclomatic complexity within limits.
+func (m Model) handleEditorMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case editorReadyMsg:
+		// Tempfile is prepared — launch tea.ExecProcess with the editor cmd.
+		// Store the tempfile context in the model so editFinishedMsg knows where
+		// to read the edited content from.
+		m.pendingEditID = msg.id
+		m.pendingEditTmp = msg.tmpPath
+		m.pendingEditRaw = msg.rawBefore
+		return m, runViaExecCapture(msg.cmd)
+	case editorDoneMsg:
+		// Direct error (e.g. tempfile write failed before editor launched).
+		if msg.err != nil {
+			m.editErr = msg.err
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
+		}
+		return m, nil
+	case editFinishedMsg:
+		// Editor process exited. If we have a pending tempfile, read it back
+		// and write to the store before reloading.
+		if msg.err != nil {
+			m.editErr = msg.err
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
+			return m, nil
+		}
+		if m.store != nil && m.pendingEditID != "" {
+			cmd := saveTempEditCmd(m.store, m.pendingEditID, m.pendingEditTmp, m.pendingEditRaw)
+			m.pendingEditID = ""
+			m.pendingEditTmp = ""
+			m.pendingEditRaw = nil
+			return m, cmd
+		}
+		m.editErr = nil
+		// Drop the rendered-preview cache + previewID so the next
+		// refreshPreview (triggered by entriesLoadedMsg below) re-
+		// reads the just-saved file from the store. Without this,
+		// `if m.previewID == e.ID { return }` short-circuits and the
+		// user keeps seeing the pre-edit body until they cursor away
+		// and back.
+		m.previewCached = map[domain.ID]string{}
+		m.previewID = ""
+		return m, loadEntriesCmd(m.list, m.currentRepo)
+	case saveFinishedMsg:
+		if msg.err != nil {
+			m.editErr = msg.err
+			return m, nil
+		}
+		m.editErr = nil
+		m.previewCached = map[domain.ID]string{}
+		m.previewID = ""
+		return m, loadEntriesCmd(m.list, m.currentRepo)
 	}
 	return m, nil
 }
@@ -209,6 +263,8 @@ func (m Model) handleActionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, m.keys.Help):
 		m.showHelp = true
 		return m, nil, true
+	case msg.String() == "r":
+		return m, loadEntriesCmd(m.list, m.currentRepo), true
 	}
 	return m, nil, false
 }

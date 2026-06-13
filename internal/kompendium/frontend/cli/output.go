@@ -2,14 +2,30 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/kompendium/domain"
 	"github.com/serverkraken/flow/internal/kompendium/ports"
 )
+
+// wrapAuthErr translates httpapi sentinel errors into human-readable hints
+// that tell the user which action to take. All other errors pass through.
+func wrapAuthErr(err error) error {
+	switch {
+	case errors.Is(err, httpapi.ErrUnavailable):
+		return errors.New("flow-server nicht erreichbar — läuft er? (FLOW_SERVER_URL prüfen)")
+	case errors.Is(err, httpapi.ErrLoggedOut):
+		return errors.New("nicht eingeloggt — bitte `flow login` ausführen")
+	case errors.Is(err, httpapi.ErrNotConfigured):
+		return errors.New("server nicht konfiguriert — $FLOW_SERVER_URL setzen")
+	}
+	return err
+}
 
 // entryDTO is the JSON shape of a NoteEntry. Domain types stay free of JSON
 // concerns; the DTO lives in the frontend.
@@ -102,11 +118,11 @@ func flattenSnippet(s string) string {
 	return r.Replace(s)
 }
 
-func printCreateOutput(w io.Writer, id domain.ID, created bool, path string) error {
+func printCreateOutput(w io.Writer, id domain.ID, created bool) error {
 	verb := "Reused"
 	if created {
 		verb = "Created"
 	}
-	_, err := fmt.Fprintf(w, "%s %s\n%s\n", verb, id, path)
+	_, err := fmt.Fprintf(w, "%s %s\n", verb, id)
 	return err
 }

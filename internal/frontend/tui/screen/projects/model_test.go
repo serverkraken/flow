@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -15,15 +16,15 @@ import (
 )
 
 type fakeScanner struct {
-	out []domain.Project
+	out []domain.SourceDir
 	err error
 }
 
-func (f *fakeScanner) List() ([]domain.Project, error) {
+func (f *fakeScanner) List() ([]domain.SourceDir, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make([]domain.Project, len(f.out))
+	out := make([]domain.SourceDir, len(f.out))
 	copy(out, f.out)
 	return out, nil
 }
@@ -33,9 +34,9 @@ type fixture struct {
 	tmux    *testutil.FakeTmux
 }
 
-func newFixture(p ...domain.Project) *fixture {
+func newFixture(p ...domain.SourceDir) *fixture {
 	return &fixture{
-		scanner: &fakeScanner{out: append([]domain.Project(nil), p...)},
+		scanner: &fakeScanner{out: append([]domain.SourceDir(nil), p...)},
 		tmux:    &testutil.FakeTmux{Sessions: []string{"existing"}},
 	}
 }
@@ -46,12 +47,46 @@ func (f *fixture) model() projects.Model {
 	return projects.New(theme.Load(), "/Users/dev/Sourcecode", reader, switcher)
 }
 
+// drainCmd executes a tea.Cmd (including batches) and feeds every returned
+// message back into the model. Mirrors the worktime test helper pattern.
+// Timer-based tea.Tick commands are skipped with a short deadline so tests
+// don't stall.
+func drainCmd(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	msgCh := make(chan tea.Msg, 1)
+	go func() {
+		defer func() { _ = recover() }()
+		msgCh <- cmd()
+	}()
+	var msg tea.Msg
+	select {
+	case msg = <-msgCh:
+	case <-time.After(100 * time.Millisecond):
+		// tea.Tick or other long-blocking cmd — drop it.
+		return m
+	}
+	if msg == nil {
+		return m
+	}
+	// tea.BatchMsg carries a slice of cmds — run each in turn.
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			m = drainCmd(t, m, c)
+		}
+		return m
+	}
+	updated, nextCmd := m.Update(msg)
+	return drainCmd(t, updated, nextCmd)
+}
+
 func runUntilLoaded(t *testing.T, m projects.Model) tea.Model {
 	t.Helper()
 	cmd := m.Init()
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	updated, _ = updated.Update(cmd())
-	return updated
+	return drainCmd(t, updated, cmd)
 }
 
 func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
@@ -63,19 +98,20 @@ func TestNew_BeforeWindowSize_ViewIsEmpty(t *testing.T) {
 
 func TestInit_LoadsAndAnnotatesSessions(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
-		domain.Project{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
+		domain.SourceDir{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
+		domain.SourceDir{Name: "existing", Path: "/Users/dev/Sourcecode/existing"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	// Row labels are rendered rune-by-rune (fuzzy-match emphasis), so the
-	// ANSI escapes interleave the letters — strip them before substring
-	// checks (mirror palette/model_test.go).
+	// ANSI escapes interleave the letters — strip them before substring checks.
 	out := ansi.Strip(updated.View().Content)
 	if !strings.Contains(out, "alpha") || !strings.Contains(out, "existing") {
 		t.Errorf("View should list both projects, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Sourcecode · 2") {
-		t.Errorf("title should report '… · 2', got:\n%s", out)
+	// After Task 18 the titlebox title is the tab-strip, not the count.
+	// The tab labels should be visible in the title bar.
+	if !strings.Contains(out, "Quellverzeichnisse") {
+		t.Errorf("View should show tab strip with 'Quellverzeichnisse', got:\n%s", out)
 	}
 }
 
@@ -83,7 +119,7 @@ func TestInit_LoadError_DisplaysMessage(t *testing.T) {
 	f := newFixture()
 	f.scanner.err = errors.New("scan failed")
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View().Content; !strings.Contains(got, "scan failed") {
+	if got := ansi.Strip(updated.View().Content); !strings.Contains(got, "scan failed") {
 		t.Errorf("View should surface load error, got:\n%s", got)
 	}
 }
@@ -91,14 +127,14 @@ func TestInit_LoadError_DisplaysMessage(t *testing.T) {
 func TestEmpty_AfterLoad_ShowsHelp(t *testing.T) {
 	f := newFixture()
 	updated := runUntilLoaded(t, f.model())
-	if got := updated.View().Content; !strings.Contains(got, "$SOURCECODE_ROOT prüfen") {
+	if got := ansi.Strip(updated.View().Content); !strings.Contains(got, "$SOURCECODE_ROOT prüfen") {
 		t.Errorf("empty View should hint at $SOURCECODE_ROOT, got:\n%s", got)
 	}
 }
 
 func TestEnter_SwitchesToProject(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
+		domain.SourceDir{Name: "alpha", Path: "/Users/dev/Sourcecode/alpha"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -126,8 +162,8 @@ func TestEnter_SwitchesToProject(t *testing.T) {
 
 func TestSlashFiltersFuzzily(t *testing.T) {
 	f := newFixture(
-		domain.Project{Name: "alpha-service", Path: "/x/alpha-service"},
-		domain.Project{Name: "beta", Path: "/x/beta"},
+		domain.SourceDir{Name: "alpha-service", Path: "/x/alpha-service"},
+		domain.SourceDir{Name: "beta", Path: "/x/beta"},
 	)
 	updated := runUntilLoaded(t, f.model())
 	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
@@ -145,13 +181,20 @@ func TestSlashFiltersFuzzily(t *testing.T) {
 
 func TestStateRoundtrip(t *testing.T) {
 	f := newFixture()
-	restored := f.model().WithState("foo", 5)
+	// WithState accepts a tab-prefixed filter format (mirrors worktime).
+	// Restoring "tab=quellverzeichnisse|foo" with cursor 5 should persist.
+	restored := f.model().WithState("tab=quellverzeichnisse|foo", 5)
 	m, ok := restored.(projects.Model)
 	if !ok {
 		t.Fatalf("WithState should return a projects.Model, got %T", restored)
 	}
-	if m.StateFilter() != "foo" {
-		t.Errorf("StateFilter: got %q", m.StateFilter())
+	// StateFilter encodes the active tab, so it contains "tab=…|foo".
+	sf := m.StateFilter()
+	if !strings.Contains(sf, "foo") {
+		t.Errorf("StateFilter should contain restored filter 'foo', got %q", sf)
+	}
+	if !strings.HasPrefix(sf, "tab=") {
+		t.Errorf("StateFilter should start with 'tab=', got %q", sf)
 	}
 	if m.StateCursor() != 5 {
 		t.Errorf("StateCursor: got %d", m.StateCursor())

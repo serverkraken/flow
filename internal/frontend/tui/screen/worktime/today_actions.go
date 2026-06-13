@@ -6,11 +6,13 @@ package worktime
 // (start/stop/pause, attached-note ops, delete) live next to each other.
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/glyphs"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // editAttachedNoteCmd öffnet die erste angehängte Note im Editor via
@@ -63,6 +65,11 @@ func (h heute) detachAttachedNoteCmd() tea.Cmd {
 // stop-choice prompt für sehr kurze Sessions ist deferred.
 func (h heute) toggleStartStopCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
+	if sw == nil {
+		return func() tea.Msg {
+			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+		}
+	}
 	clock := h.deps.Clock
 	now := clock.Now()
 	switch {
@@ -98,6 +105,27 @@ func (h heute) pauseCmd() tea.Cmd {
 	sw := h.deps.SessionWriter
 	now := h.deps.Clock.Now()
 	mut := func() tea.Msg {
+		// New path: when ActiveSessions + UserID are wired and a session is
+		// running, pause the ActiveSessions row. Falls through to the legacy
+		// SessionWriter.Pause() path when not wired.
+		if h.deps.ActiveSessions != nil && len(h.activeSessions) > 0 {
+			target := h.activeSessions[0]
+			sess, err := h.deps.ActiveSessions.Pause(h.deps.UserID, target.ProjectID)
+			if errors.Is(err, ports.ErrActiveSessionNotFound) {
+				return heuteActionDoneMsg{toast: "Pausiert — Session war bereits gestoppt", info: true}
+			}
+			if err != nil {
+				return heuteActionDoneMsg{err: err}
+			}
+			elapsed := sess.Elapsed(now)
+			return heuteActionDoneMsg{
+				toast: fmt.Sprintf("%s Pausiert nach %dh %02dm", glyphs.Paused, int(elapsed.Hours()), int(elapsed.Minutes())%60),
+			}
+		}
+		// Legacy path: SessionWriter.Pause stops the flockstate session.
+		if sw == nil {
+			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+		}
 		s, err := sw.Pause()
 		if err != nil {
 			return heuteActionDoneMsg{err: err}
@@ -107,9 +135,57 @@ func (h heute) pauseCmd() tea.Cmd {
 	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
+// stopActiveCmd calls ActiveSessions.Stop on the first active session.
+// Modelled on pauseCmd: handles ErrActiveSessionNotFound gracefully,
+// emits an emitWorktimeChanged so all sub-tabs reload.
+// Toast text must NOT embed a glyph — the toast component prepends its own.
+func (h heute) stopActiveCmd() tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	target := h.activeSessions[0]
+	mut := func() tea.Msg {
+		s, err := as.Stop(userID, target.ProjectID, "", "")
+		if errors.Is(err, ports.ErrActiveSessionNotFound) {
+			return heuteActionDoneMsg{toast: "Gestoppt — Session war bereits beendet", info: true}
+		}
+		if err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{
+			toast: fmt.Sprintf("Gestoppt — Session %s", formatDur(s.Elapsed)),
+		}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
+}
+
+// resumeActiveCmd calls ActiveSessions.Resume on the first active session.
+// Modelled on pauseCmd: handles ErrActiveSessionNotFound gracefully,
+// emits an emitWorktimeChanged so all sub-tabs reload.
+// Toast text must NOT embed a glyph — the toast component prepends its own.
+func (h heute) resumeActiveCmd() tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	target := h.activeSessions[0]
+	mut := func() tea.Msg {
+		if _, err := as.Resume(userID, target.ProjectID); err != nil {
+			if errors.Is(err, ports.ErrActiveSessionNotFound) {
+				return heuteActionDoneMsg{toast: "Fortgesetzt — Session war bereits aktiv", info: true}
+			}
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{toast: "Worktime fortgesetzt"}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
+}
+
 func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 	sw := h.deps.SessionWriter
 	mut := func() tea.Msg {
+		if sw == nil {
+			return heuteActionDoneMsg{err: errors.New("Session-Bearbeitung nicht verfügbar")}
+		}
 		if err := sw.Delete(date, idx); err != nil {
 			return heuteActionDoneMsg{err: err}
 		}

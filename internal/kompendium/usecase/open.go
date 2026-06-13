@@ -10,13 +10,9 @@ import (
 
 // Open opens an existing note in the editor. It does not create a missing
 // note — that is the job of one of the Create* use cases.
-//
-// Index is optional — when set, the note is re-indexed after the editor
-// closes so post-edit content shows up in `kompendium search`.
 type Open struct {
 	Store  ports.NoteStore
 	Editor ports.Editor
-	Index  ports.Indexer
 }
 
 // NewOpen wires the use case with its required ports.
@@ -40,9 +36,9 @@ func (u *Open) Execute(ctx context.Context, in OpenInput) error {
 	if !exists {
 		return ports.ErrNoteNotFound
 	}
-	if err := u.Editor.Edit(ctx, u.Store.Path(in.ID)); err != nil {
-		return fmt.Errorf("edit: %w", err)
+	edit := EditNote{Store: u.Store, Editor: u.Editor}
+	if err := edit.Execute(ctx, in.ID); err != nil {
+		return err
 	}
-	reindex(ctx, u.Store, u.Index, in.ID)
 	return nil
 }

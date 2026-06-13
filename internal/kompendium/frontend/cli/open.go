@@ -17,7 +17,7 @@ func newOpenCmd(deps Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return deps.Open.Execute(cmd.Context(), usecase.OpenInput{ID: id})
+			return wrapAuthErr(deps.Open.Execute(cmd.Context(), usecase.OpenInput{ID: id}))
 		},
 	}
 }

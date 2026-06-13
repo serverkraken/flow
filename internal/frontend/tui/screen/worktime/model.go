@@ -16,6 +16,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/statusbar"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/titlebox"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/ports"
@@ -73,6 +74,35 @@ type Deps struct {
 	// its menu_actions don't reach for env vars directly. Empty string
 	// falls back to "NW" inside the helpers.
 	Land string
+
+	// — new-path ActiveSessions deps (Task 17) —
+	//
+	// When both ActiveSessions and UserID are set the `s`-key opens the
+	// project_picker instead of the legacy SessionWriter path. When either is
+	// nil/empty the screen degrades to the legacy SessionWriter path — all
+	// existing tests and sidekick-without-sync-deps stay green.
+	//
+	// Projects feeds the picker's initial item list (MRU-sorted, active only).
+	// ActiveSessions.Start/ListActive drive the session lifecycle.
+	// UserID scopes every store call to the authenticated user.
+	//
+	// TODO(Task 32): wire these in cmd/flow/main.go once the sqlite stores and
+	// httpsync.Queue are assembled in the composition root.
+	Projects       *usecase.Projects
+	ActiveSessions *usecase.ActiveSessions
+	UserID         string
+
+	// Changed is the httpapi.Status.Changed() channel. When non-nil the worktime
+	// root arms a listener Cmd that blocks until a signal arrives and then
+	// broadcasts ChangedMsg{} to all sub-tabs — so cross-device data is visible
+	// within one pull cycle + event-loop latency instead of up to 10 s.
+	// Nil-tolerant: when nil, no listener is spawned and the behaviour degrades
+	// to the previous tick-only reload cadence.
+	Changed <-chan struct{}
+
+	// Status returns the current server connection snapshot for the status bar
+	// (Spec §8). When nil, no status bar is shown. Wire via httpapi.Client.StatusOf().Snapshot.
+	Status func() ports.StatusSnapshot
 }
 
 // tab identifies one of the four worktime sub-screens.
@@ -158,10 +188,10 @@ func (m Model) WithState(filter string, cursor int) tea.Model {
 	return m
 }
 
-// FilterActive returns whether either the action menu, the brief
-// overlay, or the active sub-model is currently consuming text input.
-// The Worktime root, sidekick parent, and tab-switching keys all check
-// this before claiming letter keys back.
+// FilterActive returns whether either the action menu, the brief overlay,
+// or the active sub-model is currently consuming input.
+// The Worktime root, sidekick parent, and tab-switching keys all check this
+// before claiming letter keys back.
 func (m Model) FilterActive() bool {
 	if m.brief != nil {
 		return true
@@ -257,10 +287,13 @@ func (m Model) ConsumesKeys() []string {
 	return keys
 }
 
-// Init starts every sub-model concurrently and schedules the first
-// tick.
+// Init starts every sub-model concurrently, schedules the first tick, and
+// arms the Changed-channel listener when Deps.Changed is non-nil.
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.scheduleTick()}
+	if cmd := listenForChanged(m.deps.Changed); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
 	for _, s := range m.subs {
 		if cmd := s.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -299,6 +332,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.subs[m.current].Update(msg)
 		m.subs[m.current] = updated
 		return m, cmd
+
+	case changedMsg:
+		// httpapi.Status.Changed() signal: a server-side change was detected
+		// (SSE event or poll). Broadcast ChangedMsg{} to all sub-tabs so each
+		// can reload, then re-arm the listener for the next signal.
+		return m.handleChangedMsg()
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -396,7 +435,7 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.brief = &next
 		return m, cmd
 	}
-	if msg.String() == "q" && !m.textInputActive() {
+	if msg.String() == "q" && !m.textInputActive() && !m.subFullScreen() {
 		return m, tea.Quit
 	}
 	if m.menu.Active() {
@@ -486,12 +525,21 @@ func (m Model) viewContent() string {
 			body = theme.Dim("  (lädt …)", m.pal)
 		}
 	}
+	// Status bar: shown below the titlebox when the server is not online.
+	// Still (●) when OK; loud (○/▲) when degraded — A11y: glyph + color.
+	connLine := ""
+	if m.deps.Status != nil {
+		snap := m.deps.Status()
+		if snap.State != ports.StateOnline {
+			connLine = "\n" + statusbar.ConnState(snap, m.pal)
+		}
+	}
 	// Tab-Strip als titlebox-title — alle 4 sub-tabs sichtbar, aktiver
 	// unterstrichen + bold + Accent. Die Phase-10-Variante mit nur dem
 	// aktiven Tab-Namen (PR #44 v1) verlor den Hinweis welche anderen
 	// Tabs es überhaupt gibt; Strip im Title liefert beides: aktive
 	// Position UND Navigations-Affordanz.
-	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal)
+	return titlebox.Render(m.tabStrip(m.width), body, m.width, m.pal) + connLine
 }
 
 // tabStrip renders the four-tab navigation as the titlebox title.
@@ -641,4 +689,58 @@ func (m Model) textInputActive() bool {
 		return ti.TextInputActive()
 	}
 	return false
+}
+
+// subFullScreen reports whether the active sub-model currently claims
+// the full worktime render slot (i.e. an inline overlay such as the
+// Heute note-viewer or the History drill note-viewer is open). When
+// true, q must be forwarded to the sub-model — not consumed as a
+// global quit — so the overlay's advertised `q` close key works as
+// expected. Without this guard q quits the whole app/sidekick instead
+// of closing the overlay (bug #3, #4).
+func (m Model) subFullScreen() bool {
+	if fs, ok := m.subs[m.current].(fullScreener); ok {
+		return fs.FullScreen()
+	}
+	return false
+}
+
+// changedMsg is emitted by listenForChanged when the httpapi.Status.Changed()
+// channel signals that server-side data has changed (SSE event or poll cycle).
+type changedMsg struct{}
+
+// listenForChanged returns a tea.Cmd that blocks until one signal arrives on ch
+// (httpapi.Status.Changed()), then emits a changedMsg. Returns nil when ch is
+// nil so no goroutine is leaked when Changed is not wired.
+//
+// The goroutine exits cleanly when the channel is closed on shutdown (the
+// ok==false branch returns nil, which bubbletea discards). The changedMsg
+// handler re-arms the listener so subsequent signals are also caught.
+func listenForChanged(ch <-chan struct{}) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return changedMsg{}
+	}
+}
+
+// handleChangedMsg broadcasts a global ChangedMsg{} (zero Date) to every
+// sub-tab so each can reload when cross-device data lands, then re-arms the
+// Changed listener so subsequent signals are also caught.
+func (m Model) handleChangedMsg() (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	for i, s := range m.subs {
+		updated, cmd := s.Update(ChangedMsg{})
+		m.subs[i] = updated
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	cmds = append(cmds, listenForChanged(m.deps.Changed))
+	return m, tea.Batch(cmds...)
 }

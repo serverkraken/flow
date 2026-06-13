@@ -164,6 +164,12 @@ linters:
             - github.com/serverkraken/flow/internal/frontend/tui/theme
             - charm.land/bubbletea/v2
             - github.com/spf13/cobra
+            # output.go maps transport-level auth errors (ErrLoggedOut,
+            # ErrNotConfigured) to human-readable CLI hints. The CLI
+            # frontend is the correct layer to interpret and present
+            # these sentinel values; the kompendium-usecase layer stays
+            # free of them.
+            - github.com/serverkraken/flow/internal/adapter/httpapi
         # The kompendium-frontend-tui rule mirrors flow's frontend-tui
         # rule but for the kompendium subtree. Allowlist: stdlib +
         # kompendium/{domain,ports,usecase} + the shared markdown
@@ -279,6 +285,42 @@ linters:
             #                 review finding M3)
             - github.com/serverkraken/flow/internal/shellsafe
             - github.com/serverkraken/flow/internal/flockutil
+            # OIDC + OAuth2 client/server (Phase-1 M1 — see
+            # docs/superpowers/specs/2026-06-02-flow-client-server-phase1-design.md).
+            # Used by oidcserver (JWT verify) and oidcclient (device flow).
+            - github.com/coreos/go-oidc/v3/oidc
+            - golang.org/x/oauth2
+            # HTTP router for flow-server (M1). Chi was chosen for stdlib
+            # net/http compat + idiomatic middleware composition.
+            - github.com/go-chi/chi/v5
+            # Signed+encrypted session cookies for the browser auth-code
+            # flow (M1). Avoids server-side session storage in Phase 1.
+            - github.com/gorilla/securecookie
+            # OS-Keychain TokenStore for CLI/MCP OIDC tokens (M1).
+            - github.com/zalando/go-keyring
+            # SQLite client+server cache (Phase-1 M2-M3 — see
+            # docs/superpowers/specs/2026-06-02-flow-phase1-m2-m3-domain-sync-design.md).
+            - modernc.org/sqlite
+            - github.com/pressly/goose/v3
+            - github.com/google/uuid
+            - github.com/serverkraken/flow/internal/adapter/sqliteclient/migrations
+            - github.com/serverkraken/flow/internal/adapter/sqliteserver/migrations
+            # Postgres support (R1)
+            - github.com/jackc/pgx/v5
+            - github.com/jackc/pgx/v5/pgxpool
+            - github.com/jackc/pgx/v5/stdlib
+            - github.com/jackc/pgx/v5/pgconn
+            - github.com/jackc/pgx/v5/pgtype
+            - github.com/serverkraken/flow/internal/adapter/pgstore/migrations
+            # Prometheus instrumentation (Plan F · Task 6). httpserver
+            # owns the global collectors + /metrics handler and exposes
+            # the same default registry the sse broadcaster registers
+            # its subscribers gauge into.
+            - github.com/prometheus/client_golang/prometheus
+            - github.com/prometheus/client_golang/prometheus/promauto
+            - github.com/prometheus/client_golang/prometheus/promhttp
+            # SSE broadcaster for live updates
+            - github.com/serverkraken/flow/internal/webui/sse
         frontend-cli:
           list-mode: strict
           files:
@@ -334,12 +376,17 @@ linters:
             # silently importable from every screen on day one. Matches the
             # enumeration shape of kompendium-frontend-tui.
             - github.com/serverkraken/flow/internal/frontend/tui/components/confirm
+            # conflict_overlay: sync-conflict resolution popup (Task 30+31).
+            # Consumed by worktime root (screen/worktime) to display push-409
+            # conflicts to the user.
+            - github.com/serverkraken/flow/internal/frontend/tui/components/conflict_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/form
             - github.com/serverkraken/flow/internal/frontend/tui/components/glyphs
             - github.com/serverkraken/flow/internal/frontend/tui/components/help
             - github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay
             - github.com/serverkraken/flow/internal/frontend/tui/components/modal
             - github.com/serverkraken/flow/internal/frontend/tui/components/picker
+            - github.com/serverkraken/flow/internal/frontend/tui/components/project_picker
             - github.com/serverkraken/flow/internal/frontend/tui/components/statusbar
             - github.com/serverkraken/flow/internal/frontend/tui/components/strings
             - github.com/serverkraken/flow/internal/frontend/tui/components/titlebox

@@ -1,0 +1,51 @@
+package worktime
+
+// SubTab identifies the active worktime sub-tab. Keep values in
+// lower-case German (also used as the `?tab=` query value) so the URL
+// reads `/worktime?tab=heute`.
+type SubTab string
+
+const (
+	TabHeute   SubTab = "heute"
+	TabWoche   SubTab = "woche"
+	TabVerlauf SubTab = "verlauf"
+	TabFrei    SubTab = "frei"
+)
+
+// PageHeader is shared chrome rendered on every worktime sub-tab. The
+// handler picks Eyebrow (date/week range) before dispatching to a
+// sub-tab template.
+type PageHeader struct {
+	Eyebrow string // "Sa · 06. Juni · KW 23" or "KW 23 · 01. — 07. Juni"
+	Title   string // always "Worktime"
+}
+
+// pageHead renders the top eyebrow + display title used by every tab.
+templ pageHead(h PageHeader) {
+	<div style="margin-bottom: 1.25rem;">
+		<div class="eyebrow" style="margin-bottom: 0.25rem;">{ h.Eyebrow }</div>
+		<h1 class="display-lg" style="margin: 0;">{ h.Title }</h1>
+	</div>
+}
+
+// subTabs renders the four canonical worktime sub-tabs:
+// Heute / Woche / Verlauf / Frei. `active` decides which link gets the
+// is-active class. Each link points to /worktime?tab=<value> so a fresh
+// browser GET produces the same surface.
+templ subTabs(active SubTab) {
+	<div class="mk-tabs">
+		@subTabLink("Heute", "/worktime?tab=heute", active == TabHeute)
+		@subTabLink("Woche", "/worktime?tab=woche", active == TabWoche)
+		@subTabLink("Verlauf", "/worktime?tab=verlauf", active == TabVerlauf)
+		@subTabLink("Frei", "/worktime?tab=frei", active == TabFrei)
+	</div>
+}
+
+templ subTabLink(label, href string, active bool) {
+	if active {
+		<a href={ templ.SafeURL(href) } class="subtab is-active" aria-current="page">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="subtab">{ label }</a>
+	}
+}
+

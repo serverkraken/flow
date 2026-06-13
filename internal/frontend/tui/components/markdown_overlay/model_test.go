@@ -58,7 +58,8 @@ func TestSetSource_RendersThroughRenderFunc(t *testing.T) {
 		got = src
 		return "RENDERED:" + src
 	}
-	_ = markdown_overlay.New(render,
+	_ = markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("T"),
 		markdown_overlay.WithSource("hello"),
 	).SetSize(40, 10)
@@ -166,7 +167,8 @@ func TestSearch_EnabledFindsMatches(t *testing.T) {
 	render := func(_ string, _ int) string {
 		return "alpha foo bar\nbeta foo qux\ngamma"
 	}
-	m := markdown_overlay.New(render,
+	m := markdown_overlay.New(
+		render,
 		markdown_overlay.WithTitle("S"),
 		markdown_overlay.WithSource("ignored"),
 		markdown_overlay.WithSearch(),

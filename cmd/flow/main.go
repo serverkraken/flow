@@ -3,7 +3,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -13,19 +15,21 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
-	"github.com/serverkraken/flow/internal/adapter/dayoffstsv"
-	"github.com/serverkraken/flow/internal/adapter/editor"
-	"github.com/serverkraken/flow/internal/adapter/flockstate"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
-	"github.com/serverkraken/flow/internal/adapter/fsprojects"
+	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
+	"github.com/serverkraken/flow/internal/adapter/gitremote"
+	"github.com/serverkraken/flow/internal/adapter/httpapi"
 	"github.com/serverkraken/flow/internal/adapter/iniconfig"
 	"github.com/serverkraken/flow/internal/adapter/jsonflowstate"
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
+	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
+	"github.com/serverkraken/flow/internal/adapter/mutexlock"
+	"github.com/serverkraken/flow/internal/adapter/oidcclient"
 	"github.com/serverkraken/flow/internal/adapter/output"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/tmuxbridge"
-	"github.com/serverkraken/flow/internal/adapter/tsvsessions"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/frontend/cli"
 	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/markdown"
@@ -34,35 +38,35 @@ import (
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/projects"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/worktime"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
-	kompfsstore "github.com/serverkraken/flow/internal/kompendium/adapter/fsstore"
+	kompapistore "github.com/serverkraken/flow/internal/kompendium/adapter/apistore"
 	kompgitrepo "github.com/serverkraken/flow/internal/kompendium/adapter/gitrepo"
-	kompgitsnapshot "github.com/serverkraken/flow/internal/kompendium/adapter/gitsnapshot"
-	komplegacysource "github.com/serverkraken/flow/internal/kompendium/adapter/legacysource"
 	kompnvimeditor "github.com/serverkraken/flow/internal/kompendium/adapter/nvimeditor"
-	kompsqliteindex "github.com/serverkraken/flow/internal/kompendium/adapter/sqliteindex"
-	komptarsnapshot "github.com/serverkraken/flow/internal/kompendium/adapter/tarsnapshot"
 	kompdomain "github.com/serverkraken/flow/internal/kompendium/domain"
 	kompendiumcli "github.com/serverkraken/flow/internal/kompendium/frontend/cli"
 	kompbrowse "github.com/serverkraken/flow/internal/kompendium/frontend/tui/browse"
 	kompwritepicker "github.com/serverkraken/flow/internal/kompendium/frontend/tui/writepicker"
 	kompusecase "github.com/serverkraken/flow/internal/kompendium/usecase"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
 )
 
+// version is overridden at build time via -ldflags "-X main.version=…".
+var version = "dev"
+
 // Paths bundles every filesystem location the dependency graph reads or writes.
 // Tests rewire this against t.TempDir() so the whole graph runs in isolation.
 type Paths struct {
-	Home               string // user home (resolves ~/Downloads for the worktime menu's file output target).
-	WorktimeLog        string
-	TmuxDir            string
-	CacheDir           string
-	PluginsDir         string
-	StateDir           string // ~/.local/state/flow — palette stats etc.
-	Cheatsheet         string
-	SourceCodeRoot     string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
-	KompendiumNotebook string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
-	KompendiumIndex    string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
+	Home                string // user home (resolves ~/Downloads for the worktime menu's file output target).
+	WorktimeLog         string
+	TmuxDir             string
+	CacheDir            string
+	PluginsDir          string
+	StateDir            string // ~/.local/state/flow — palette stats etc.
+	Cheatsheet          string
+	SourceCodeRoot      string // $SOURCECODE_ROOT or ~/Sourcecode — project enumeration root.
+	KompendiumNotebook  string // $NOTES_DIR or ~/notes — kompendium markdown notebook root.
+	KompendiumIndexPath string // $XDG_DATA_HOME/kompendium/index.db or ~/.local/share/kompendium/index.db.
 }
 
 // Env bundles configuration values resolved from environment variables.
@@ -88,6 +92,8 @@ type Paths struct {
 type Env struct {
 	WorktimeTargetHours time.Duration // $WORKTIME_TARGET_HOURS as duration (0 → adapter falls back to 8h)
 	WorktimeLand        string        // $WORKTIME_LAND, the dayoff Bundesland default
+	ServerURL           string        // $FLOW_SERVER_URL — flow-server base URL
+	OIDCClientID        string        // $FLOW_OIDC_CLIENT_ID — OIDC client id used for token refresh (default "flow-cli")
 }
 
 // Deps is the wired dependency graph. K4.B extends it with the
@@ -100,44 +106,100 @@ type Deps struct {
 	Cheatsheet cli.CheatsheetDeps
 	Palette    cli.PaletteDeps
 	Projects   cli.ProjectsDeps
+	Repo       cli.RepoDeps
 	Kompendium kompendiumcli.Deps
+	Docs       DocsDeps
 }
 
-func buildDeps(p Paths, env Env) (Deps, func(), error) {
+func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	clock := systemclock.New()
 	tmux := tmuxbridge.New()
 
-	sessionStore := tsvsessions.New(p.WorktimeLog)
-	fileLock := flockstate.NewLock(filepath.Join(p.TmuxDir, "worktime.lock"))
-	activeStore := flockstate.NewState(
-		filepath.Join(p.TmuxDir, "worktime.state"),
-		filepath.Join(p.TmuxDir, "worktime.pause"),
-	)
-	dayoffStore := dayoffstsv.New(
-		filepath.Join(p.TmuxDir, "worktime-dayoffs.tsv"),
-		filepath.Join(p.TmuxDir, "worktime-holidays.tsv"),
-	)
 	configReader := iniconfig.New(filepath.Join(p.TmuxDir, "worktime.conf"), env.WorktimeTargetHours)
 	linkStore := linkstsv.New(filepath.Join(p.TmuxDir, "worktime-links.tsv"))
 	outputTargets := output.New(p.Home, tmux)
 
-	kompDeps, kompCleanup, err := buildKompendiumDeps(p, clock)
+	// httpapi client — single client shared by all resource adapters.
+	serverURL := env.ServerURL
+	keyring := keyringadapter.New()
+	keyringSlot := "tokens:" + serverURL
+	client := httpapi.New(httpapi.Config{
+		BaseURL: serverURL,
+		Tokens:  keyring,
+		Slot:    keyringSlot,
+		Version: version,
+		Refresher: &oidcclient.StoreRefresher{
+			ServerURL: serverURL,
+			ClientID:  env.OIDCClientID,
+			Store:     keyring,
+			Slot:      keyringSlot,
+		},
+	})
+
+	// Resource adapters.
+	httpProjects := httpapi.NewProjects(client)
+	httpSessions := httpapi.NewSessions(client)
+	httpActive := httpapi.NewActiveSessions(client)
+	httpMachine := httpapi.NewMachine(client, httpActive, httpSessions)
+	httpDocuments := httpapi.NewDocuments(client)
+	httpDayOffs := httpapi.NewDayOffs(client)
+	httpIdentity := httpapi.NewIdentity(client)
+
+	// SSE events: invalidate per-resource caches and wake the TUI on
+	// server-side changes. Each adapter exposes Invalidate() which marks
+	// its internal cache stale so the next read triggers a fresh server fetch.
+	// invalidateKomp is assigned after buildKompendiumDeps returns the store;
+	// the closure captures the pointer so the late assignment is visible.
+	var invalidateKomp func()
+	invalidateFn := func(resource string) {
+		switch resource {
+		case "worktime":
+			httpActive.Invalidate()
+			httpSessions.Invalidate()
+		case "projects":
+			httpProjects.Invalidate()
+		case "dayoffs":
+			httpDayOffs.Invalidate()
+		case "documents":
+			if invalidateKomp != nil {
+				invalidateKomp()
+			}
+		}
+	}
+	events := httpapi.NewEvents(client, invalidateFn)
+	events.Start(ctx)
+
+	// One-time meta check to detect server version and outdated client.
+	go func() { _ = client.CheckMeta(ctx) }()
+
+	// Identity: resolve the logged-in user from the bearer API.
+	// On ErrTokenNotFound the user is logged out — run with empty userID.
+	identityUC := usecase.NewIdentity(httpIdentity)
+	localUser, identErr := identityUC.ResolveActiveUser(ctx)
+	userID := ""
+	if identErr == nil {
+		userID = localUser.ID
+	} else if !errors.Is(identErr, ports.ErrTokenNotFound) {
+		slog.Warn("flow: identity resolve failed — running logged-out", slog.Any("err", identErr))
+	}
+
+	// Use cases backed by httpapi adapters.
+	projectsUC := usecase.NewProjects(nil, httpProjects, nil)
+	sessionsUC := usecase.NewSessions(nil, httpProjects, httpSessions, nil)
+	activeSessionsUC := usecase.NewActiveSessions(nil, httpProjects, httpActive, httpMachine)
+
+	// RepoNotes use case: backed by the Documents API via RepoDocAdapter.
+	// RepoDocAdapter maps ports.RepoStore + ports.RepoNoteStore onto the
+	// /api/v1/repos/<key>/note endpoint so usecase.RepoNotes works unchanged.
+	repoDocShim := httpapi.NewRepoDocAdapter(httpDocuments)
+	repoNotesUC := usecase.NewRepoNotes(repoDocShim.RepoStore(), repoDocShim.RepoNoteStore(), nil /* no queue in server mode */, gitremote.New())
+
+	kompDeps, kompStore, kompCleanup, err := buildKompendiumDeps(httpDocuments, userID, clock)
 	if err != nil {
 		return Deps{}, nil, err
 	}
-
-	pathOf := func(id string) string {
-		parsed, perr := kompdomain.ParseID(id)
-		if perr != nil {
-			return ""
-		}
-		return kompDeps.Store.Path(parsed)
-	}
-	editorArgs := func(path string) ([]string, error) {
-		cmd := kompDeps.EditCmd(path)
-		return cmd.Args, nil
-	}
-	noteLauncher := editor.New(pathOf, editorArgs)
+	// Wire the documents-SSE invalidation now that the store is available.
+	invalidateKomp = kompStore.Invalidate
 
 	flowState := jsonflowstate.New(
 		filepath.Join(p.CacheDir, "state.json"),
@@ -150,44 +212,54 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		filepath.Join(p.TmuxDir, "enabled-plugins"),
 	)
 	paletteStats := jsonpalettestats.New(filepath.Join(p.StateDir, "palette-stats.json"))
-	projectScanner := fsprojects.New(p.SourceCodeRoot)
+	projectScanner := fssourcedirs.New(p.SourceCodeRoot)
 
-	targets := &usecase.TargetResolver{Config: configReader, DayOffs: dayoffStore, DefaultTarget: 8 * time.Hour}
-	reader := &usecase.WorktimeReader{Sessions: sessionStore, State: activeStore, Targets: targets, Clock: clock}
+	targets := &usecase.TargetResolver{Config: configReader, DayOffs: httpDayOffs, DefaultTarget: 8 * time.Hour}
+	reader := &usecase.WorktimeReader{
+		Sessions: httpSessions,
+		Active:   httpActive,
+		Projects: httpProjects,
+		UserID:   userID,
+		Targets:  targets,
+		Clock:    clock,
+	}
 	stats := &usecase.StatsComputer{
 		Reader:  reader,
 		Targets: targets,
-		DayOffs: dayoffStore,
-		State:   activeStore,
+		DayOffs: httpDayOffs,
 	}
 	reporter := &usecase.Reporter{
 		Reader:  reader,
-		DayOffs: dayoffStore,
+		DayOffs: httpDayOffs,
 		Targets: targets,
 		Stats:   stats,
 		Clock:   clock,
 	}
-	sessionWriter := &usecase.SessionWriter{
-		Sessions: sessionStore,
-		State:    activeStore,
-		Lock:     fileLock,
-		Reader:   reader,
-		Clock:    clock,
-	}
 	statusComposer := &usecase.StatusComposer{
 		Reader:  reader,
-		DayOffs: dayoffStore,
+		DayOffs: httpDayOffs,
 		Targets: targets,
 		Stats:   stats,
 		Tmux:    tmux,
 		Clock:   clock,
 		Config:  configReader,
 	}
-	dayoffWriter := &usecase.DayOffWriter{Store: dayoffStore}
-	tagger := &usecase.Tagger{Sessions: sessionStore}
+	dayoffWriter := &usecase.DayOffWriter{Store: httpDayOffs}
+	tagger := &usecase.Tagger{Sessions: httpSessions}
+	// sessionWriter backs the tag/note/edit/delete paths in TUI and CLI.
+	// State is nil because lifecycle (Start/Stop/Pause/Resume) goes via
+	// ActiveSessions in server mode; this writer is edit-only in that path.
+	sessionWriter := &usecase.SessionWriter{
+		Sessions: httpSessions,
+		State:    nil, // server mode: lifecycle goes via ActiveSessions; edit-only
+		Lock:     mutexlock.New(),
+		Reader:   reader,
+		Clock:    clock,
+		UserID:   userID,
+	}
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
-	noteOpener := &usecase.NoteOpener{Launcher: noteLauncher}
+	noteOpener := &usecase.NoteOpener{Launcher: &editNoteOpener{uc: kompDeps.EditNote}}
 	currentRepo := detectCurrentRepo(kompDeps)
 	noteLister := newKompendiumNoteLister(kompDeps, currentRepo)
 	noteReader := newKompendiumNoteReader(kompDeps)
@@ -208,9 +280,9 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 		return worktime.New(pal, worktime.Deps{
 			Reader:           reader,
 			Stats:            stats,
-			SessionWriter:    sessionWriter,
+			SessionWriter:    sessionWriter, // server mode: lifecycle via ActiveSessions; tag/note/edit/delete via sessionWriter
 			Tagger:           tagger,
-			DayOffStore:      dayoffStore,
+			DayOffStore:      httpDayOffs,
 			DayOffWriter:     dayoffWriter,
 			LinkReader:       linkReader,
 			LinkWriter:       linkWriter,
@@ -223,65 +295,112 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 			Output:           outputTargets,
 			HomeDir:          p.Home,
 			Land:             env.WorktimeLand,
+			Projects:         projectsUC,
+			ActiveSessions:   activeSessionsUC,
+			UserID:           userID,
+			Changed:          events.Changed(),
+			Status:           client.StatusOf().Snapshot,
 		})
 	}
 
 	return Deps{
-		Worktime: cli.WorktimeDeps{
-			Clock:          clock,
-			Tmux:           tmux,
-			SessionWriter:  sessionWriter,
-			StatusComposer: statusComposer,
-			Reporter:       reporter,
-			Stats:          stats,
-			DayOffWriter:   dayoffWriter,
-			DayOffStore:    dayoffStore,
-			Reader:         reader,
-			Screen:         worktimeScreen,
-		},
-		Sidekick: cli.SidekickDeps{
-			FlowState: flowState,
-			Cheatsheet: func(pal theme.Palette) tea.Model {
-				return cheatsheet.New(pal, cheatsheetReader, mdRenderer)
+			Worktime: cli.WorktimeDeps{
+				Clock:          clock,
+				Tmux:           tmux,
+				SessionWriter:  sessionWriter, // server mode: edit methods only; lifecycle goes via ActiveSessions
+				StatusComposer: statusComposer,
+				Reporter:       reporter,
+				Stats:          stats,
+				DayOffWriter:   dayoffWriter,
+				DayOffStore:    httpDayOffs,
+				Reader:         reader,
+				Screen:         worktimeScreen,
+
+				UserID: userID,
+				ResolveProject: func(userID, explicitID, pwd string) (domain.Project, error) {
+					return sessionsUC.ResolveProject(userID, explicitID, pwd)
+				},
+				StartActiveSession: func(userID, projectID, tag, note string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Start(userID, projectID, tag, note)
+				},
+				StopActiveSession: func(userID, projectID, tag, note string) (domain.Session, error) {
+					return activeSessionsUC.Stop(userID, projectID, tag, note)
+				},
+				ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
+					return activeSessionsUC.ListActive(userID)
+				},
+				PauseActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Pause(userID, projectID)
+				},
+				ResumeActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Resume(userID, projectID)
+				},
+				Migrate:     nil, // TSV migration not available in server mode
+				PauseMarker: nil, // no local pause state in server mode
+				CorrectActiveStart: func(userID string, ts time.Time) error {
+					return activeSessionsUC.CorrectStart(userID, ts)
+				},
 			},
-			Palette: func(pal theme.Palette) tea.Model {
-				return palette.New(pal, paletteReader, paletteWriter, tmux)
+			Sidekick: cli.SidekickDeps{
+				FlowState: flowState,
+				Cheatsheet: func(pal theme.Palette) tea.Model {
+					return cheatsheet.New(pal, cheatsheetReader, mdRenderer)
+				},
+				Palette: func(pal theme.Palette) tea.Model {
+					return palette.New(pal, paletteReader, paletteWriter, tmux)
+				},
+				Projects: func(pal theme.Palette) tea.Model {
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, httpSessions, userID)
+				},
+				Worktime: worktimeScreen,
+				Notes: func(pal theme.Palette) tea.Model {
+					return buildNotesScreen(p, pal, kompDeps, currentRepo, events.Changed())
+				},
 			},
-			Projects: func(pal theme.Palette) tea.Model {
-				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher)
+			// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
+			// Sidekick-Tab — identische Render-Pipeline, identische Theme,
+			// keine Drift zwischen Popup und Tab.
+			Cheatsheet: cli.CheatsheetDeps{
+				Reader:   cheatsheetReader,
+				Renderer: mdRenderer,
 			},
-			Worktime: worktimeScreen,
-			Notes: func(pal theme.Palette) tea.Model {
-				return buildNotesScreen(p, pal, kompDeps, currentRepo)
+			// Standalone-Palette für `flow palette` — tmux-display-popup-
+			// Aufruf (CLAUDE-tmux-migration-plan.md). WithStandalone()
+			// schaltet die Dispatch-Semantik um (goto.sh → run-shell statt
+			// SwitchScreenMsg) und quittet nach erfolgreichem Dispatch.
+			Palette: cli.PaletteDeps{
+				Screen: func(pal theme.Palette) tea.Model {
+					return palette.New(pal, paletteReader, paletteWriter, tmux, palette.WithStandalone())
+				},
 			},
-		},
-		// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
-		// Sidekick-Tab — identische Render-Pipeline, identische Theme,
-		// keine Drift zwischen Popup und Tab.
-		Cheatsheet: cli.CheatsheetDeps{
-			Reader:   cheatsheetReader,
-			Renderer: mdRenderer,
-		},
-		// Standalone-Palette für `flow palette` — tmux-display-popup-
-		// Aufruf (CLAUDE-tmux-migration-plan.md). WithStandalone()
-		// schaltet die Dispatch-Semantik um (goto.sh → run-shell statt
-		// SwitchScreenMsg) und quittet nach erfolgreichem Dispatch.
-		Palette: cli.PaletteDeps{
-			Screen: func(pal theme.Palette) tea.Model {
-				return palette.New(pal, paletteReader, paletteWriter, tmux, palette.WithStandalone())
+			// Standalone-Projects für `flow projects`. tmux switch-client
+			// hängt den Client um, nach Erfolg quittet die TUI — identisch
+			// zum Sidekick-Verhalten, daher genügt die API-Symmetrie via
+			// projects.WithStandalone(). CRUD subcommands (list/create/rename/archive)
+			// are wired via the CRUD field; the Screen launcher is unchanged.
+			Projects: cli.ProjectsDeps{
+				Screen: func(pal theme.Palette) tea.Model {
+					return projects.NewWithDeps(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projectsUC, httpSessions, userID, projects.WithStandalone())
+				},
+				CRUD: &cli.ProjectsCRUDDeps{
+					Projects: projectsUC,
+					UserID:   userID,
+				},
+				ProjectStore: httpProjects,
 			},
-		},
-		// Standalone-Projects für `flow projects`. tmux switch-client
-		// hängt den Client um, nach Erfolg quittet die TUI — identisch
-		// zum Sidekick-Verhalten, daher genügt die API-Symmetrie via
-		// projects.WithStandalone().
-		Projects: cli.ProjectsDeps{
-			Screen: func(pal theme.Palette) tea.Model {
-				return projects.New(pal, p.SourceCodeRoot, projectsReader, projectSwitcher, projects.WithStandalone())
+			Repo: cli.RepoDeps{
+				UserID: userID,
+				Notes:  repoNotesUC,
 			},
-		},
-		Kompendium: kompDeps,
-	}, kompCleanup, nil
+			Kompendium: kompDeps,
+			Docs: DocsDeps{
+				Docs:   httpDocuments,
+				UserID: userID,
+			},
+		}, func() {
+			events.Stop()
+			kompCleanup()
+		}, nil
 }
 
 // buildNotesScreen constructs the kompendium browse model wired into
@@ -291,7 +410,7 @@ func buildDeps(p Paths, env Env) (Deps, func(), error) {
 // resolver, edit Cmd, and write Cmd all reuse what kompDeps already
 // has. currentRepo is detected from the launch cwd; when flow lives
 // outside a git repo the project promotion just stays off.
-func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL) tea.Model {
+func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL, changed <-chan struct{}) tea.Model {
 	// Sidekick-Notes-Tab: pal kommt vom Sidekick-Root (tk.Load() in
 	// cli/sidekick.go) durch — markdown_overlay und writepicker
 	// behalten ihre SetPalette-Bridges (zwei eigenständige Refactors
@@ -322,9 +441,9 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 		kompDeps.EditCmd,
 		writeCmd,
 	)
-	if p.KompendiumIndex != "" {
+	if p.KompendiumIndexPath != "" {
 		m = m.WithIndexAge(func() time.Time {
-			st, e := os.Stat(p.KompendiumIndex)
+			st, e := os.Stat(p.KompendiumIndexPath)
 			if e != nil {
 				return time.Time{}
 			}
@@ -340,73 +459,53 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 			return out.Backlinks
 		})
 	}
+	if changed != nil {
+		m = m.WithChanged(changed)
+	}
 	return m
 }
 
-// buildKompendiumDeps wires every kompendium-subtree adapter behind its
-// port and assembles the use cases the CLI subcommand tree consumes.
-// Returns a cleanup that releases the sqlite indexer handle; main()
-// defers it so the FTS5 WAL gets a clean checkpoint on exit.
-func buildKompendiumDeps(p Paths, clock systemclock.Clock) (kompendiumcli.Deps, func(), error) {
-	store, err := kompfsstore.New(p.KompendiumNotebook)
-	if err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium notebook: %w", err)
-	}
-
-	if err := os.MkdirAll(filepath.Dir(p.KompendiumIndex), 0o755); err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium index dir: %w", err)
-	}
-	indexer, err := kompsqliteindex.New(p.KompendiumIndex)
-	if err != nil {
-		return kompendiumcli.Deps{}, nil, fmt.Errorf("kompendium index: %w", err)
-	}
-	cleanup := func() { _ = indexer.Close() }
-
+// buildKompendiumDeps wires the kompendium-subtree adapters against the
+// server-side DocumentStore HTTP API. The returned *kompapistore.Store is
+// exposed so the caller can wire its Invalidate method into the SSE handler.
+func buildKompendiumDeps(
+	docs ports.DocumentStore,
+	userID string,
+	clock systemclock.Clock,
+) (kompendiumcli.Deps, *kompapistore.Store, func(), error) {
+	store := kompapistore.New(docs, userID)
 	repo := kompgitrepo.New()
 	nvim := kompnvimeditor.New()
-	notebookGit := kompgitsnapshot.New()
-	tar := komptarsnapshot.New()
 
 	createDaily := kompusecase.NewCreateDaily(store, clock, nvim)
-	createDaily.Index = indexer
 	createProject := kompusecase.NewCreateProject(store, repo, clock, nvim)
-	createProject.Index = indexer
 	createFree := kompusecase.NewCreateFree(store, nvim)
-	createFree.Index = indexer
 	captureDaily := kompusecase.NewCaptureDaily(store, clock)
-	captureDaily.Index = indexer
 	open := kompusecase.NewOpen(store, nvim)
-	open.Index = indexer
-	importLegacy := kompusecase.NewImportLegacy(store, komplegacysource.New())
-	importLegacy.Index = indexer
+	editNote := &kompusecase.EditNote{Store: store, Editor: nvim}
 
 	return kompendiumcli.Deps{
-		Store:            store,
-		Repo:             repo,
-		CreateDaily:      createDaily,
-		CreateProject:    createProject,
-		CreateFree:       createFree,
-		CaptureDaily:     captureDaily,
-		Open:             open,
-		ListNotes:        kompusecase.NewListNotes(store),
-		SearchNotes:      kompusecase.NewSearchNotes(indexer),
-		RenderDaily:      kompusecase.NewRenderDaily(store),
-		RenderBacklinks:  kompusecase.NewRenderBacklinks(store, indexer),
-		InitNotebook:     kompusecase.NewInitNotebook(store, notebookGit),
-		SnapshotNotebook: kompusecase.NewSnapshotNotebook(store, notebookGit),
-		ExportTar:        kompusecase.NewExportTar(store, tar),
-		ImportTar:        kompusecase.NewImportTar(store, tar),
-		ExportBundle:     kompusecase.NewExportBundle(store, notebookGit),
-		ImportBundle:     kompusecase.NewImportBundle(store, notebookGit),
-		SyncNotebook:     kompusecase.NewSyncNotebook(store, notebookGit),
-		ManageRemote:     kompusecase.NewManageRemote(store, notebookGit),
-		Doctor:           kompusecase.NewDoctor(store, notebookGit),
-		ImportLegacy:     importLegacy,
-		RebuildIndex:     kompusecase.NewRebuildIndex(store, indexer),
-		DeleteNote:       kompusecase.NewDeleteNote(store, indexer),
-		EditCmd:          nvim.Cmd,
-		IndexPath:        p.KompendiumIndex,
-	}, cleanup, nil
+		Store:  store,
+		Rooter: nil, // apistore has no local filesystem root
+		Repo:   repo,
+
+		CreateDaily:   createDaily,
+		CreateProject: createProject,
+		CreateFree:    createFree,
+		CaptureDaily:  captureDaily,
+		Open:          open,
+
+		ListNotes:       kompusecase.NewListNotes(store),
+		SearchNotes:     kompusecase.NewSearchNotes(store, userID),
+		RenderDaily:     kompusecase.NewRenderDaily(store),
+		RenderBacklinks: kompusecase.NewRenderBacklinks(store, store), // apistore implements backlinkProvider
+
+		DeleteNote: kompusecase.NewDeleteNote(store),
+		EditNote:   editNote,
+
+		EditCmd:   nvim.Cmd,
+		IndexPath: "", // no local FTS5 index in server mode
+	}, store, func() {}, nil
 }
 
 // parseEnvHoursDuration reads name as a positive float-of-hours and
@@ -447,28 +546,46 @@ func main() {
 	if notebookRoot == "" {
 		notebookRoot = filepath.Join(home, "notes")
 	}
-	indexDir := os.Getenv("XDG_DATA_HOME")
-	if indexDir == "" {
-		indexDir = filepath.Join(home, ".local", "share")
+	xdgDataHome := os.Getenv("XDG_DATA_HOME")
+	if xdgDataHome == "" {
+		xdgDataHome = filepath.Join(home, ".local", "share")
 	}
-	indexPath := filepath.Join(indexDir, "kompendium", "index.db")
+	indexPath := filepath.Join(xdgDataHome, "kompendium", "index.db")
+
+	xdgStateHome := os.Getenv("XDG_STATE_HOME")
+	if xdgStateHome == "" {
+		xdgStateHome = filepath.Join(home, ".local", "state")
+	}
+	logClose := setupLogging(
+		filepath.Join(xdgStateHome, "flow"),
+		os.Getenv("FLOW_LOG_LEVEL"),
+	)
+	defer logClose()
 
 	env := Env{
 		WorktimeTargetHours: parseEnvHoursDuration("WORKTIME_TARGET_HOURS"),
 		WorktimeLand:        os.Getenv("WORKTIME_LAND"),
+		ServerURL:           os.Getenv("FLOW_SERVER_URL"),
+		OIDCClientID:        envOrDefault("FLOW_OIDC_CLIENT_ID", "flow-cli"),
 	}
 
-	deps, cleanup, err := buildDeps(Paths{
-		Home:               home,
-		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
-		TmuxDir:            tmuxDir,
-		CacheDir:           filepath.Join(home, ".cache", "flow"),
-		PluginsDir:         filepath.Join(tmuxDir, "plugins"),
-		StateDir:           filepath.Join(home, ".local", "state", "flow"),
-		Cheatsheet:         filepath.Join(tmuxDir, "cheatsheet.md"),
-		SourceCodeRoot:     sourceRoot,
-		KompendiumNotebook: notebookRoot,
-		KompendiumIndex:    indexPath,
+	// Signal-aware context for buildDeps (SSE events client needs ctx at Start time).
+	// This context also covers long-running subcommands (status --watch, markdown
+	// view, kompendium browse) — they shut down cleanly on Ctrl+C / SIGTERM.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	deps, cleanup, err := buildDeps(ctx, Paths{
+		Home:                home,
+		WorktimeLog:         filepath.Join(tmuxDir, "worktime.log"),
+		TmuxDir:             tmuxDir,
+		CacheDir:            filepath.Join(home, ".cache", "flow"),
+		PluginsDir:          filepath.Join(tmuxDir, "plugins"),
+		StateDir:            filepath.Join(home, ".local", "state", "flow"),
+		Cheatsheet:          filepath.Join(tmuxDir, "cheatsheet.md"),
+		SourceCodeRoot:      sourceRoot,
+		KompendiumNotebook:  notebookRoot,
+		KompendiumIndexPath: indexPath,
 	}, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -476,23 +593,19 @@ func main() {
 	}
 	defer cleanup()
 
+	rootCmd.AddCommand(newLoginCmd(), newLogoutCmd(), newWhoamiCmd())
 	rootCmd.AddCommand(cli.NewSidekickCmd(deps.Sidekick))
 	rootCmd.AddCommand(cli.NewWorktimeCmd(deps.Worktime))
 	rootCmd.AddCommand(cli.NewCheatsheetCmd(deps.Cheatsheet))
 	rootCmd.AddCommand(cli.NewPaletteCmd(deps.Palette))
 	rootCmd.AddCommand(cli.NewProjectsCmd(deps.Projects))
+	rootCmd.AddCommand(cli.NewRepoCmd(deps.Repo))
 	rootCmd.AddCommand(cli.NewMarkdownCmd())
 	rootCmd.AddCommand(kompendiumcli.NewRootCmd(deps.Kompendium))
-
-	// Signal-aware context so long-running subcommands (status --watch,
-	// markdown view, kompendium browse) can shut down cleanly. Without
-	// this, defers don't run on Ctrl+C / SIGTERM and the kompendium
-	// sqlite WAL is left without a final checkpoint.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	rootCmd.AddCommand(newDocsCmd(deps.Docs))
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, wrapRootErr(err))
 		os.Exit(1)
 	}
 }

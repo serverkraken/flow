@@ -1,0 +1,28 @@
+{{/*
+ServiceMonitor for prometheus-operator. Gated by *both* metrics.enabled
+(global metrics toggle for the chart) AND metrics.serviceMonitor.enabled
+so clusters without prometheus-operator stay clean.
+
+The /metrics endpoint is wired up in Plan F · Task 6. The ServiceMonitor
+shape here matches the upstream prometheus-operator CRD.
+*/}}
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "flow-server.fullname" . }}
+  labels:
+    {{- include "flow-server.labels" . | nindent 4 }}
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "flow-server.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval | default "30s" }}
+      scrapeTimeout: {{ .Values.metrics.serviceMonitor.scrapeTimeout | default "10s" }}
+{{- end }}

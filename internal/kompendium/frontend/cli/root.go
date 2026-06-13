@@ -22,29 +22,20 @@ const Version = "v0.0.0-dev"
 // root constructs the use cases over real adapters; tests substitute
 // in-memory fakes from internal/testutil.
 type Deps struct {
-	Store            ports.NoteStore
-	Repo             ports.RepoDetector
-	CreateDaily      *usecase.CreateDaily
-	CreateProject    *usecase.CreateProject
-	CreateFree       *usecase.CreateFree
-	CaptureDaily     *usecase.CaptureDaily
-	Open             *usecase.Open
-	ListNotes        *usecase.ListNotes
-	SearchNotes      *usecase.SearchNotes
-	RenderDaily      *usecase.RenderDaily
-	RenderBacklinks  *usecase.RenderBacklinks
-	InitNotebook     *usecase.InitNotebook
-	SnapshotNotebook *usecase.SnapshotNotebook
-	ExportTar        *usecase.ExportTar
-	ImportTar        *usecase.ImportTar
-	ExportBundle     *usecase.ExportBundle
-	ImportBundle     *usecase.ImportBundle
-	SyncNotebook     *usecase.SyncNotebook
-	ManageRemote     *usecase.ManageRemote
-	Doctor           *usecase.Doctor
-	ImportLegacy     *usecase.ImportLegacy
-	RebuildIndex     *usecase.RebuildIndex
-	DeleteNote       *usecase.DeleteNote
+	Store           ports.NoteStore
+	Rooter          ports.NotebookRooter // optional — path cmd only; nil when server store
+	Repo            ports.RepoDetector
+	CreateDaily     *usecase.CreateDaily
+	CreateProject   *usecase.CreateProject
+	CreateFree      *usecase.CreateFree
+	CaptureDaily    *usecase.CaptureDaily
+	Open            *usecase.Open
+	ListNotes       *usecase.ListNotes
+	SearchNotes     *usecase.SearchNotes
+	RenderDaily     *usecase.RenderDaily
+	RenderBacklinks *usecase.RenderBacklinks
+	DeleteNote      *usecase.DeleteNote
+	EditNote        *usecase.EditNote
 
 	// EditCmd builds an unstarted *exec.Cmd value the browse TUI hands
 	// to tea.ExecProcess on Enter to launch nvim. The composition root
@@ -81,19 +72,9 @@ func NewRootCmd(deps Deps) *cobra.Command {
 		newPathCmd(deps),
 		newOpenCmd(deps),
 		newDailyRenderCmd(deps),
-		newInitCmd(deps),
-		newSnapshotCmd(deps),
-		newExportCmd(deps),
-		newImportCmd(deps),
-		newRemoteCmd(deps),
-		newSyncCmd(deps),
-		newDoctorCmd(deps),
-		newImportLegacyCmd(deps),
 		newBrowseCmd(deps),
 		newWriteCmd(deps),
-		newIndexCmd(deps),
 		newVersionCmd(),
-		// (Bundle commands are flags on export/import, not separate subcommands.)
 	)
 	return cmd
 }

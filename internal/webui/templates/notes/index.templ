@@ -1,0 +1,155 @@
+package notes
+
+// IndexVM is the /notes index view-model. The handler builds it; the
+// template only renders.
+type IndexVM struct {
+	// Active sub-tab — used to highlight the strip and inform the page
+	// subhead.
+	ActiveTab SubTab
+	// Query is the verbatim ?q= input, echoed back into the search
+	// field so the user can refine without retyping.
+	Query string
+	// Rows are the notes shown in the list. Sorted in the handler;
+	// templates never re-sort.
+	Rows []IndexRow
+	// TotalLabel is "12 Notes" / "1 Note" / "0 Notes" — the handler
+	// pre-formats so the template stays markup-only.
+	TotalLabel string
+	// EmptyReason explains an empty list:
+	//   - "" when Rows is non-empty
+	//   - "search" when the query filtered everything out
+	//   - "tab" when the chosen type has no matches
+	//   - "empty" when the notebook itself is empty
+	EmptyReason string
+}
+
+// IndexRow is one row in the /notes list. All fields are pre-rendered
+// strings so the templ surface only formats.
+type IndexRow struct {
+	ID       string // notebook-relative ID (kompendium domain.ID)
+	Title    string // frontmatter title → first H1 → ID
+	Type     string // German label, "Daily" / "Project" / "Frei"
+	Project  string // optional project label for project notes
+	When     string // "heute · 09:02" / "gestern · 17:45"
+	Preview  string // first paragraph excerpt, capped + ellipsised
+	Tags     []string
+	Href     string // resolved /notes/<ID>
+}
+
+// Index renders the /notes index body. layout.Base() supplies the
+// chrome (spine, nav). The notes view intentionally skips the live
+// session banner — reading is the focus, the spine + nav carry status.
+templ Index(vm IndexVM) {
+	@pageHead(vm)
+	@subTabs(vm.ActiveTab)
+	@filterRow(vm)
+	@list(vm)
+}
+
+templ pageHead(vm IndexVM) {
+	<div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.25rem;">
+		<div>
+			<div class="eyebrow" style="margin-bottom: 0.25rem;">Notizen · kompendium</div>
+			<h1 class="display-lg" style="margin: 0;">Notes</h1>
+		</div>
+		<div class="pill-row">
+			<span class="pill pill-muted">{ vm.TotalLabel }</span>
+			<!-- M7: hx-get=/notes/new -->
+			<button class="btn btn-sm" disabled aria-disabled="true" title="Neue Note (kommt in M7)">+ Neu</button>
+		</div>
+	</div>
+}
+
+templ subTabs(active SubTab) {
+	<div class="mk-tabs">
+		@subTabLink("Alle", "/notes?type=alle", active == TabAlle)
+		@subTabLink("Daily", "/notes?type=daily", active == TabDaily)
+		@subTabLink("Project", "/notes?type=project", active == TabProject)
+		@subTabLink("Frei", "/notes?type=frei", active == TabFree)
+	</div>
+}
+
+templ subTabLink(label, href string, active bool) {
+	if active {
+		<a href={ templ.SafeURL(href) } class="subtab is-active" aria-current="page">{ label }</a>
+	} else {
+		<a href={ templ.SafeURL(href) } class="subtab">{ label }</a>
+	}
+}
+
+templ filterRow(vm IndexVM) {
+	<form method="get" action="/notes" style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.5rem;">
+		<input type="hidden" name="type" value={ string(vm.ActiveTab) }/>
+		<input
+			type="search"
+			name="q"
+			value={ vm.Query }
+			placeholder="Suche · Titel / Frontmatter"
+			class="btn btn-sm"
+			style="background: var(--color-bg); flex: 1; min-width: 12rem; font-family: var(--font-mono);"
+			autocomplete="off"
+		/>
+		<button type="submit" class="btn btn-sm" title="Suche anwenden">Anwenden</button>
+		if vm.Query != "" {
+			<a href={ templ.SafeURL("/notes?type=" + string(vm.ActiveTab)) } class="btn btn-sm" title="Filter zurücksetzen">Zurücksetzen</a>
+		}
+	</form>
+}
+
+templ list(vm IndexVM) {
+	if len(vm.Rows) == 0 {
+		@emptyState(vm.EmptyReason)
+	} else {
+		<ul class="note-list" data-testid="note-list">
+			for _, row := range vm.Rows {
+				@noteRow(row)
+			}
+		</ul>
+	}
+}
+
+templ noteRow(row IndexRow) {
+	<li class="note-row">
+		<a href={ templ.SafeURL(row.Href) } class="note-row-link">
+			<div class="note-row-title">{ row.Title }</div>
+			<div class="note-row-meta">
+				<span class="eyebrow">{ row.Type }</span>
+				if row.Project != "" {
+					<span style="color: var(--color-fg-dim);">· { row.Project }</span>
+				}
+				<span style="color: var(--color-fg-dim);">· { row.When }</span>
+			</div>
+			if row.Preview != "" {
+				<p class="note-row-preview">{ row.Preview }</p>
+			}
+			if len(row.Tags) > 0 {
+				<div class="pill-row" style="margin-top: 0.5rem;">
+					for _, tag := range row.Tags {
+						<span class="pill pill-muted">{ tag }</span>
+					}
+				</div>
+			}
+		</a>
+	</li>
+}
+
+templ emptyState(reason string) {
+	<section style="border: 1px solid var(--color-muted); padding: 2rem 2.25rem;" data-testid="notes-empty">
+		<div class="eyebrow" style="margin-bottom: 0.5rem;">keine treffer</div>
+		switch reason {
+			case "search":
+				<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+					Kein Treffer für die aktuelle Suche. Filter zurücksetzen oder Suchbegriff ändern.
+				</p>
+			case "tab":
+				<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+					Dieser Bereich hat noch keine Notes. Wechsel auf einen anderen Sub-Tab oder lege per CLI eine neue Note an.
+				</p>
+			default:
+				<p style="color: var(--color-fg); margin: 0; max-width: 60ch;">
+					Das Notebook ist leer. Mit <code class="kbd">flow kompendium new</code> kannst du in der CLI eine Note anlegen.
+				</p>
+		}
+	</section>
+}
+

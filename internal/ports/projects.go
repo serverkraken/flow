@@ -2,12 +2,22 @@ package ports
 
 import "github.com/serverkraken/flow/internal/domain"
 
-// ProjectScanner enumerates the user's project directories. The adapter
-// resolves the root location (env var $SOURCECODE_ROOT, defaulting to
-// ~/Sourcecode) and filters to directories containing a .git entry.
-//
-// Each Project carries Name + absolute Path; HasTmuxSession is left
-// unset here and filled in by the use case via the Tmux port.
-type ProjectScanner interface {
-	List() ([]domain.Project, error)
+// ProjectStore persists Worktime-Projects. NOT to be confused with
+// SourceDirScanner (file-system source directory listing).
+type ProjectStore interface {
+	ListActive(userID string) ([]domain.Project, error)
+	ListAll(userID string) ([]domain.Project, error)
+	GetByID(userID, id string) (domain.Project, error)
+	GetBySlug(userID, slug string) (domain.Project, error)
+	EnsureBySlug(userID, name, slug string) (domain.Project, error)
+	Upsert(p domain.Project) error
+	TouchLastUsed(userID, id string) error
+	Archive(userID, id string) error
 }
+
+// ErrProjectNotFound is returned by ProjectStore when the requested project does not exist.
+var ErrProjectNotFound = errSentinel("flow: project not found")
+
+// ErrProjectVersionConflict is returned by the server-side Projects.Upsert when the
+// stored version differs from the client's expectedVersion (OCC reject).
+var ErrProjectVersionConflict = errSentinel("flow: project version conflict")

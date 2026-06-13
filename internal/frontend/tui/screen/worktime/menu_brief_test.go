@@ -45,7 +45,7 @@ func newBriefRig(t *testing.T) briefRig {
 
 	targets := &usecase.TargetResolver{Config: cfg, DayOffs: dayoffs, DefaultTarget: 8 * time.Hour}
 	reader := &usecase.WorktimeReader{Sessions: sessions, State: active, Targets: targets, Clock: clock}
-	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs, State: active}
+	stats := &usecase.StatsComputer{Reader: reader, Targets: targets, DayOffs: dayoffs}
 	reporter := &usecase.Reporter{Reader: reader, DayOffs: dayoffs, Targets: targets, Stats: stats, Clock: clock}
 
 	return briefRig{

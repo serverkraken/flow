@@ -14,10 +14,10 @@ import (
 
 func makeFixtureWithProjects() *fixture {
 	return newFixture(
-		domain.Project{Name: "alpha", Path: "/p/alpha"},
-		domain.Project{Name: "beta", Path: "/p/beta"},
-		domain.Project{Name: "gamma", Path: "/p/gamma"},
-		domain.Project{Name: "delta", Path: "/p/delta"},
+		domain.SourceDir{Name: "alpha", Path: "/p/alpha"},
+		domain.SourceDir{Name: "beta", Path: "/p/beta"},
+		domain.SourceDir{Name: "gamma", Path: "/p/gamma"},
+		domain.SourceDir{Name: "delta", Path: "/p/delta"},
 	)
 }
 
@@ -125,11 +125,79 @@ func TestHandleFilterKey_BackspaceEditsValue(t *testing.T) {
 	for _, r := range "abc" {
 		m, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
 	}
-	if got := m.(projects.Model).StateFilter(); got != "abc" {
-		t.Fatalf("filter value: got %q want abc", got)
+	// StateFilter now encodes tab prefix; sub-filter should contain "abc".
+	sf := m.(projects.Model).StateFilter()
+	if !containsSubFilter(sf, "abc") {
+		t.Fatalf("filter value should contain 'abc', got %q", sf)
 	}
 	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
-	if got := m.(projects.Model).StateFilter(); got != "ab" {
-		t.Errorf("after backspace: got %q want ab", got)
+	sf = m.(projects.Model).StateFilter()
+	if !containsSubFilter(sf, "ab") {
+		t.Errorf("after backspace: filter should contain 'ab', got %q", sf)
+	}
+}
+
+// containsSubFilter checks whether the tab-prefixed filter string
+// (format "tab=NAME|<sub>") contains the expected sub-filter value.
+// For the Quellverzeichnisse tab, the format is "tab=quellverzeichnisse|<sub>".
+func containsSubFilter(stateFilter, want string) bool {
+	// Split on "|" and check the second part.
+	if idx := len("tab=quellverzeichnisse|"); idx < len(stateFilter) {
+		sub := stateFilter[idx:]
+		return sub == want
+	}
+	return stateFilter == want
+}
+
+// TestSubTabs verifies the host exposes the correct tab labels.
+func TestSubTabs(t *testing.T) {
+	f := newFixture()
+	tabs := f.model().SubTabs()
+	if len(tabs) != 2 {
+		t.Fatalf("expected 2 sub-tabs, got %d", len(tabs))
+	}
+	if tabs[0] != "Quellverzeichnisse" {
+		t.Errorf("tab 0 should be 'Quellverzeichnisse', got %q", tabs[0])
+	}
+	if tabs[1] != "Worktime-Projekte" {
+		t.Errorf("tab 1 should be 'Worktime-Projekte', got %q", tabs[1])
+	}
+}
+
+// TestSwitchSubTab verifies 1/2 key routing via SwitchSubTab.
+func TestSwitchSubTab(t *testing.T) {
+	f := newFixture()
+	m := f.model()
+	if m.SubTabIndex() != 0 {
+		t.Fatalf("default sub-tab should be 0, got %d", m.SubTabIndex())
+	}
+	m2, ok := m.SwitchSubTab(1).(projects.Model)
+	if !ok {
+		t.Fatal("SwitchSubTab should return a projects.Model")
+	}
+	if m2.SubTabIndex() != 1 {
+		t.Errorf("after SwitchSubTab(1): sub-tab should be 1, got %d", m2.SubTabIndex())
+	}
+	// Out-of-range → no-op.
+	m3, ok := m.SwitchSubTab(99).(projects.Model)
+	if !ok {
+		t.Fatal("SwitchSubTab(99) should return a projects.Model")
+	}
+	if m3.SubTabIndex() != 0 {
+		t.Errorf("SwitchSubTab(99) should be a no-op (tab 0), got %d", m3.SubTabIndex())
+	}
+}
+
+// TestTabKey_CyclesSubTabs verifies the Tab key switches between sub-tabs.
+func TestTabKey_CyclesSubTabs(t *testing.T) {
+	f := newFixture()
+	m := runUntilLoaded(t, f.model())
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if got := m.(projects.Model).SubTabIndex(); got != 1 {
+		t.Errorf("after Tab: sub-tab should be 1, got %d", got)
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if got := m.(projects.Model).SubTabIndex(); got != 0 {
+		t.Errorf("after second Tab: sub-tab should wrap to 0, got %d", got)
 	}
 }

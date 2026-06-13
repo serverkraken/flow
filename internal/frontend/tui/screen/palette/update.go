@@ -94,12 +94,11 @@ func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.filter.Focus()
 		return m, textinput.Blink
 	case "esc":
-		// No-op. Palette runs as a screen inside sidekick; tea.Quit
-		// here would tear down the whole program. The sidekick host
-		// owns the quit key (`q` / `ctrl+c` at sidekick/model.go:185)
-		// and does not consume esc itself, so swallowing it here is
-		// the right shape — the user explicitly pressed esc on a
-		// no-modal screen, no action.
+		// Standalone popup: esc on empty/normal mode closes the popup.
+		// Embedded: no-op — the sidekick host owns the quit key.
+		if m.mode == ModeStandalone {
+			return m, tea.Quit
+		}
 		return m, nil
 	case "j", "down":
 		if m.cursor < len(m.visible)-1 {
@@ -155,6 +154,13 @@ func (m Model) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Standalone popup: q closes the window. Guard must come before the
+	// type-to-filter fallthrough so 'q' does not get swallowed into the
+	// filter in standalone mode. Embedded: 'q' falls through to filter.
+	if s == "q" && m.mode == ModeStandalone {
+		return m, tea.Quit
+	}
+
 	// Type-to-filter: any other single printable character auto-focuses
 	// the filter and routes the keystroke into it. Saves the explicit
 	// "/" before searching. Special keys (tab, ctrl-combos, etc.) have
@@ -187,10 +193,12 @@ func (m Model) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.applyFilter()
 			return m, nil
 		}
-		// Empty filter + esc → blur and stay on the screen. tea.Quit
-		// here would tear down the sidekick host (palette is never
-		// run standalone). The host's q-key owns program quit.
+		// Empty filter + esc: standalone popup → quit; embedded → blur
+		// and stay (the sidekick host owns program quit).
 		m.filter.Blur()
+		if m.mode == ModeStandalone {
+			return m, tea.Quit
+		}
 		return m, nil
 	case "enter":
 		m.filter.Blur()

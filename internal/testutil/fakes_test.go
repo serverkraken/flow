@@ -358,7 +358,7 @@ func TestFakeProjectScanner(t *testing.T) {
 		t.Errorf("List Names path = (%+v, %v)", got, err)
 	}
 	// Projects path
-	s2 := &FakeProjectScanner{Projects: []domain.Project{{Name: "x", Path: "/srv/x"}}}
+	s2 := &FakeProjectScanner{Projects: []domain.SourceDir{{Name: "x", Path: "/srv/x"}}}
 	got2, _ := s2.List()
 	if len(got2) != 1 || got2[0].Path != "/srv/x" {
 		t.Errorf("List Projects path = %+v", got2)
@@ -376,48 +376,48 @@ func TestFakeSessionStore_LoadAndFilter(t *testing.T) {
 	s := &FakeSessionStore{Sessions: []domain.Session{
 		{Tag: "a"}, {Tag: "b"}, {Tag: "a"},
 	}}
-	all, err := s.LoadAll()
+	all, err := s.LoadAllLegacy()
 	if err != nil || len(all) != 3 {
-		t.Errorf("LoadAll = (%+v, %v)", all, err)
+		t.Errorf("LoadAllLegacy = (%+v, %v)", all, err)
 	}
-	got, _ := s.LoadFiltered(func(x domain.Session) bool { return x.Tag == "a" })
+	got, _ := s.LoadFilteredLegacy(func(x domain.Session) bool { return x.Tag == "a" })
 	if len(got) != 2 {
-		t.Errorf("LoadFiltered tag=a should return 2, got %d", len(got))
+		t.Errorf("LoadFilteredLegacy tag=a should return 2, got %d", len(got))
 	}
 }
 
-func TestFakeSessionStore_AppendRewriteAndErr(t *testing.T) {
+func TestFakeSessionStore_UpsertAndErr(t *testing.T) {
 	s := &FakeSessionStore{}
-	if err := s.Append(domain.Session{Tag: "x"}); err != nil {
-		t.Errorf("Append: %v", err)
+	if err := s.Upsert(domain.Session{ID: "x", Tag: "x"}); err != nil {
+		t.Errorf("Upsert: %v", err)
 	}
-	if err := s.AppendBatch([]domain.Session{{Tag: "y"}, {Tag: "z"}}); err != nil {
-		t.Errorf("AppendBatch: %v", err)
+	if err := s.UpsertBatch([]domain.Session{{ID: "y", Tag: "y"}, {ID: "z", Tag: "z"}}); err != nil {
+		t.Errorf("UpsertBatch: %v", err)
 	}
 	if len(s.Sessions) != 3 {
-		t.Errorf("Sessions after appends: %d", len(s.Sessions))
+		t.Errorf("Sessions after upserts: %d", len(s.Sessions))
 	}
-	if err := s.Rewrite([]domain.Session{{Tag: "only"}}); err != nil {
-		t.Errorf("Rewrite: %v", err)
+	if err := s.Delete("u", "x"); err != nil {
+		t.Errorf("Delete: %v", err)
 	}
-	if len(s.Sessions) != 1 || s.Sessions[0].Tag != "only" {
-		t.Errorf("After Rewrite: %+v", s.Sessions)
+	if len(s.Sessions) != 2 {
+		t.Errorf("After Delete: %d, want 2", len(s.Sessions))
 	}
 	s.Err = errInjected
-	if _, err := s.LoadAll(); err == nil {
-		t.Errorf("LoadAll with Err should fail")
+	if _, err := s.LoadAllLegacy(); err == nil {
+		t.Errorf("LoadAllLegacy with Err should fail")
 	}
-	if _, err := s.LoadFiltered(func(domain.Session) bool { return true }); err == nil {
-		t.Errorf("LoadFiltered with Err should fail")
+	if _, err := s.LoadFilteredLegacy(func(domain.Session) bool { return true }); err == nil {
+		t.Errorf("LoadFilteredLegacy with Err should fail")
 	}
-	if err := s.Append(domain.Session{}); err == nil {
-		t.Errorf("Append with Err should fail")
+	if err := s.Upsert(domain.Session{ID: "fail"}); err == nil {
+		t.Errorf("Upsert with Err should fail")
 	}
-	if err := s.AppendBatch(nil); err == nil {
-		t.Errorf("AppendBatch with Err should fail")
+	if err := s.UpsertBatch(nil); err == nil {
+		t.Errorf("UpsertBatch with Err should fail")
 	}
-	if err := s.Rewrite(nil); err == nil {
-		t.Errorf("Rewrite with Err should fail")
+	if err := s.Delete("u", "y"); err == nil {
+		t.Errorf("Delete with Err should fail")
 	}
 }
 

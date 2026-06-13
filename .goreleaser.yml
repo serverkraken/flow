@@ -40,13 +40,49 @@ builds:
     ldflags:
       - -s -w
 
+  - id: flow-mcp
+    # stdio MCP-Server. Gleiche Plattform-Matrix wie `flow`, weil
+    # Desktop-Clients (Claude Desktop etc.) den Binary lokal starten.
+    # flow-server ist bewusst NICHT hier — der hat eine
+    # templ + tailwind Toolchain-Abhängigkeit und wird ausschließlich
+    # als Container-Image (`build-server-image.yml`) ausgeliefert.
+    main: ./cmd/flow-mcp
+    binary: flow-mcp
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+
 archives:
-  - id: default
+  # Zwei Builds (flow + flow-mcp) brauchen separate Archive, sonst
+  # kollidiert das `name_template` (beides hieße `flow_<os>_<arch>`).
+  # `ids:` bindet jedes Archiv exakt an einen Build-Output.
+  - id: flow-archive
+    ids: [flow]
     # Bewusst ohne {{ .Version }}: das macht
     # `releases/latest/download/flow_darwin_arm64.tar.gz` als stabilen
     # Install-URL möglich (siehe README). Die Version bleibt über das
     # umschließende Tag (`releases/download/vX.Y.Z/...`) auflösbar.
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "flow_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+
+  - id: flow-mcp-archive
+    ids: [flow-mcp]
+    name_template: "flow-mcp_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     files:
       - LICENSE

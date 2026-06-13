@@ -1,0 +1,40 @@
+{{/*
+Ingress exposing the WebUI + sync API at .Values.ingress.host.
+cert-manager issues the TLS cert via the configured cluster-issuer; the
+resulting kubernetes.io/tls Secret is what tls.secretName points at.
+
+Annotations from .Values.ingress.annotations are merged in *after* the
+cert-manager annotation so the user can override it if needed.
+*/}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "flow-server.fullname" . }}
+  labels:
+    {{- include "flow-server.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ default "letsencrypt-prod" .Values.ingress.certManagerIssuer | quote }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "flow-server.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end }}

@@ -1,0 +1,15 @@
+{
+  "name": "flow-codemirror-bundle",
+  "private": true,
+  "description": "Bundles CodeMirror 6 (basicSetup + markdown lang + commands) into a single IIFE for flow-server WebUI note editing. Build with `node build.mjs`.",
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "codemirror": "^6.0.1",
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/view": "^6.36.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/theme-one-dark": "^6.1.0"
+  }
+}

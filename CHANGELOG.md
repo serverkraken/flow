@@ -1,5 +1,45 @@
 # Changelog
 
+<!-- separator: flow-server release line, manual prepend ahead of release-please regen -->
+
+## flow-server v0.1.0 — 2026-06-07
+
+First production-ready release of the flow client/server stack — Phase 1 complete.
+
+### Server (Plans A–F)
+- HTTP API + WebUI on the same binary (`flow-server`)
+- Authentik OIDC auth (browser cookie + CLI device flow)
+- Multi-device sync for sessions, projects, repos, repo notes (Lamport+OCC)
+- WebUI (M6/M7): Dashboard, Worktime, Notes, Repos, Projects, Settings, HTMX writes, SSE live updates
+- Prometheus metrics (HTTP, sync conflicts, SSE subscribers)
+- Structured JSON logging
+- Graceful 30s shutdown drain on SIGTERM (`FLOW_SERVER_SHUTDOWN_TIMEOUT`)
+- Litestream sidecar for S3 backup + restore drill
+
+### Client (Plan A–D)
+- Existing TUI/CLI gains background sync via httpsync (push/pull + retry backoff)
+- New `flow repo note` commands for per-repo notes (Plan C)
+- New `cmd/flow-mcp` stdio MCP server (seven tools: status, today/week, repo-note RW, sessions log)
+- New httpsync exponential-backoff retry for transient push failures (Plan F)
+
+### Deploy (Plan F)
+- Distroless multi-arch container image at `ghcr.io/serverkraken/flow-server:0.1.0` (amd64+arm64)
+- Helm chart at `deploy/helm/flow-server/` — Service, Ingress (cert-manager), ConfigMap, Secret, PVC, Litestream sidecar, optional ServiceMonitor
+- Local dev via `podman compose` in `deploy/podman/` (flow-server + dex + minio + litestream)
+- GitHub Actions: image build on push to `next`/`main`, helm-lint with required-field check
+
+### Known limitations
+- Single-user via OIDC `sub` allowlist (Phase 2 lifts this when multi-tenant lands)
+- Last-write-wins on most resources (CRDT deferred to Phase 3 if needed)
+- Kompendium notes still file-backed via local `FLOW_NOTEBOOK_ROOT` — DB sync is Plan G (Phase 2)
+- WebUI conflict overlay re-opens fresh form on PUT "Lokal überschreiben" — no auto-resubmit (Phase 2)
+- Devices + sync telemetry on Settings page are placeholders (Phase 2)
+- WebUI Frei tab placeholder — server DayOff store needed (Phase 2)
+- Coverage gate at 77% absorbs templ-generated render code (~6000 LoC); Phase 2 Playwright may raise it
+- No CSRF on HTMX writes (single-user hobby scope, low risk; Phase 2 if multi-tenant)
+
+<!-- separator: release-please-generated entries below -->
+
 ## [1.4.3](https://github.com/serverkraken/flow/compare/v1.4.2...v1.4.3) (2026-05-30)
 
 

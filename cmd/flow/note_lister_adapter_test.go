@@ -216,26 +216,24 @@ func TestParseEnvHoursDuration_NonPositive(t *testing.T) {
 
 func TestBuildKompendiumDeps_WiresAllUseCases(t *testing.T) {
 	t.Parallel()
-	notebookDir := t.TempDir()
-	indexDir := t.TempDir()
-	p := Paths{
-		KompendiumNotebook: notebookDir,
-		KompendiumIndex:    filepath.Join(indexDir, "index.db"),
-	}
+	docs := komptestutil.NewFakeDocStore()
 	clock := systemclock.New()
-	deps, cleanup, err := buildKompendiumDeps(p, clock)
+	deps, store, cleanup, err := buildKompendiumDeps(docs, "user1", clock)
 	if err != nil {
 		t.Fatalf("buildKompendiumDeps: %v", err)
 	}
 	t.Cleanup(cleanup)
+	if store == nil {
+		t.Errorf("buildKompendiumDeps must return a non-nil apistore")
+	}
 	if deps.Store == nil || deps.ListNotes == nil || deps.SearchNotes == nil {
 		t.Errorf("missing required dep wiring: %+v", deps)
 	}
 	if deps.CreateDaily == nil || deps.CreateProject == nil || deps.CreateFree == nil {
 		t.Errorf("missing create-use-case wiring")
 	}
-	if deps.ImportLegacy == nil || deps.RebuildIndex == nil || deps.DeleteNote == nil {
-		t.Errorf("missing maintenance-use-case wiring")
+	if deps.DeleteNote == nil {
+		t.Errorf("missing delete-use-case wiring")
 	}
 }
 
@@ -259,18 +257,18 @@ func TestBuildDeps_HappyPath(t *testing.T) {
 		}
 	}
 	p := Paths{
-		Home:               tmp,
-		WorktimeLog:        filepath.Join(tmuxDir, "worktime.log"),
-		TmuxDir:            tmuxDir,
-		CacheDir:           cacheDir,
-		PluginsDir:         pluginsDir,
-		StateDir:           stateDir,
-		Cheatsheet:         filepath.Join(tmuxDir, "cheatsheet.md"),
-		SourceCodeRoot:     sourceRoot,
-		KompendiumNotebook: notebook,
-		KompendiumIndex:    index,
+		Home:                tmp,
+		WorktimeLog:         filepath.Join(tmuxDir, "worktime.log"),
+		TmuxDir:             tmuxDir,
+		CacheDir:            cacheDir,
+		PluginsDir:          pluginsDir,
+		StateDir:            stateDir,
+		Cheatsheet:          filepath.Join(tmuxDir, "cheatsheet.md"),
+		SourceCodeRoot:      sourceRoot,
+		KompendiumNotebook:  notebook,
+		KompendiumIndexPath: index,
 	}
-	deps, cleanup, err := buildDeps(p, Env{WorktimeTargetHours: 8 * time.Hour, WorktimeLand: "BE"})
+	deps, cleanup, err := buildDeps(context.Background(), p, Env{WorktimeTargetHours: 8 * time.Hour, WorktimeLand: "BE", ServerURL: "http://localhost:0"})
 	if err != nil {
 		t.Fatalf("buildDeps: %v", err)
 	}
@@ -305,41 +303,20 @@ func TestBuildDeps_HappyPath(t *testing.T) {
 // buildNotesScreen wires the kompendium browse Bubbletea model into the
 // sidekick. The factory has no return-value to assert beyond non-nil;
 // the relevant proof is that the wiring runs (SetPalette calls,
-// indexer-age + backlinks options, WithIndexAge / WithBacklinks branches).
+// backlinks options, WithBacklinks branch). WithIndexAge is skipped
+// in server mode because IndexPath is empty.
 func TestBuildNotesScreen_Construct(t *testing.T) {
-	notebook := t.TempDir()
-	index := filepath.Join(t.TempDir(), "index.db")
-	p := Paths{KompendiumNotebook: notebook, KompendiumIndex: index}
-	deps, cleanup, err := buildKompendiumDeps(p, systemclock.New())
+	docs := komptestutil.NewFakeDocStore()
+	deps, _, cleanup, err := buildKompendiumDeps(docs, "user1", systemclock.New())
 	if err != nil {
 		t.Fatalf("buildKompendiumDeps: %v", err)
 	}
 	t.Cleanup(cleanup)
-	// Seed the index file so the WithIndexAge stat returns a non-zero time.
-	if err := os.WriteFile(index, []byte("seeded"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	// IndexPath is empty in server mode — WithIndexAge branch is skipped.
+	p := Paths{}
 	pal := flowtheme.Load()
-	model := buildNotesScreen(p, pal, deps, kompdomain.CanonicalURL(""))
+	model := buildNotesScreen(p, pal, deps, kompdomain.CanonicalURL(""), nil)
 	if model == nil {
 		t.Errorf("buildNotesScreen should return a non-nil model")
-	}
-}
-
-func TestBuildKompendiumDeps_BadNotebookPathFails(t *testing.T) {
-	t.Parallel()
-	// Pass a path inside a non-writable file (using a regular file as
-	// the "directory" — fsstore.New should fail to create it).
-	tmp := t.TempDir()
-	blocker := filepath.Join(tmp, "blocker")
-	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	p := Paths{
-		KompendiumNotebook: filepath.Join(blocker, "subdir"),
-		KompendiumIndex:    filepath.Join(tmp, "index.db"),
-	}
-	if _, _, err := buildKompendiumDeps(p, systemclock.New()); err == nil {
-		t.Errorf("expected error when notebook dir cannot be created")
 	}
 }

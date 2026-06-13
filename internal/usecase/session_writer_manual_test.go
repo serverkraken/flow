@@ -43,7 +43,7 @@ func TestSessionWriter_AddManual_OverlapDetected(t *testing.T) {
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	// Pre-seed an existing 09:00–11:00 session.
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
+		{ID: "addm-overlap-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
 	}}
 	w.Reader.Sessions = w.Sessions
 
@@ -58,7 +58,7 @@ func TestSessionWriter_Edit_PreservesTagAndNote(t *testing.T) {
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour), Tag: "deep", Note: "auth"},
+		{ID: "edit-pres-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour), Tag: "deep", Note: "auth"},
 	}}
 	w.Reader.Sessions = w.Sessions
 
@@ -83,8 +83,8 @@ func TestSessionWriter_Edit_OverlapDetected(t *testing.T) {
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
-		{Date: d, Start: d.Add(13 * time.Hour), Stop: d.Add(15 * time.Hour)},
+		{ID: "edit-overlap-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
+		{ID: "edit-overlap-2", Date: d, Start: d.Add(13 * time.Hour), Stop: d.Add(15 * time.Hour)},
 	}}
 	w.Reader.Sessions = w.Sessions
 
@@ -109,8 +109,8 @@ func TestSessionWriter_Delete(t *testing.T) {
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
-		{Date: d, Start: d.Add(13 * time.Hour), Stop: d.Add(15 * time.Hour)},
+		{ID: "del-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
+		{ID: "del-2", Date: d, Start: d.Add(13 * time.Hour), Stop: d.Add(15 * time.Hour)},
 	}}
 	if err := w.Delete(d, 0); err != nil {
 		t.Fatal(err)
@@ -130,8 +130,8 @@ func TestSessionWriter_Delete_KeepsOtherDates(t *testing.T) {
 	d1, _ := time.ParseInLocation("2006-01-02", "2026-04-27", time.Local)
 	d2, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d1, Start: d1.Add(9 * time.Hour), Stop: d1.Add(11 * time.Hour)},
-		{Date: d2, Start: d2.Add(9 * time.Hour), Stop: d2.Add(11 * time.Hour)},
+		{ID: "delkeep-d1", Date: d1, Start: d1.Add(9 * time.Hour), Stop: d1.Add(11 * time.Hour)},
+		{ID: "delkeep-d2", Date: d2, Start: d2.Add(9 * time.Hour), Stop: d2.Add(11 * time.Hour)},
 	}}
 	if err := w.Delete(d2, 0); err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func TestSessionWriter_SetTag(t *testing.T) {
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
+		{ID: "settag-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
 	}}
 
 	if err := w.SetTag(d, 0, "deep\ttab\nnewline"); err != nil {
@@ -165,7 +165,7 @@ func TestSessionWriter_SetNote(t *testing.T) {
 	w := mkWriter(now)
 	d, _ := time.ParseInLocation("2006-01-02", "2026-04-28", time.Local)
 	w.Sessions = &testutil.FakeSessionStore{Sessions: []domain.Session{
-		{Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
+		{ID: "setnote-1", Date: d, Start: d.Add(9 * time.Hour), Stop: d.Add(11 * time.Hour)},
 	}}
 
 	if err := w.SetNote(d, 0, "  some note  "); err != nil {

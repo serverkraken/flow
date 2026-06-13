@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	_ ports.ActiveSessionStore = (*FakeActiveSessionStore)(nil)
-	_ ports.Lock               = (*FakeLock)(nil)
+	_ ports.LegacyActiveStore = (*FakeActiveSessionStore)(nil)
+	_ ports.Lock              = (*FakeLock)(nil)
 )
 
-// FakeActiveSessionStore is an in-memory ports.ActiveSessionStore. The
+// FakeActiveSessionStore is an in-memory ports.LegacyActiveStore. The
 // nil-vs-set semantics of GetActive/GetPause are preserved.
 type FakeActiveSessionStore struct {
 	Active *time.Time

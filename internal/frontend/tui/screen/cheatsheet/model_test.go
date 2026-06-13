@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/frontend/tui/components/markdown_overlay"
 	"github.com/serverkraken/flow/internal/frontend/tui/screen/cheatsheet"
 	"github.com/serverkraken/flow/internal/frontend/tui/theme"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -62,6 +63,51 @@ func TestRendererErrorFallsBackToRaw(t *testing.T) {
 	if got := updated.View().Content; !strings.Contains(got, "raw content") {
 		t.Errorf("on renderer failure View should show raw content, got:\n%s", got)
 	}
+}
+
+// isQuitCmd executes cmd (if non-nil) and returns true if the message is
+// tea.QuitMsg. nil cmd → not quit.
+func isQuitCmd(cmd tea.Cmd) bool {
+	if cmd == nil {
+		return false
+	}
+	msg := cmd()
+	_, ok := msg.(tea.QuitMsg)
+	return ok
+}
+
+func TestExitMsg_EmbeddedDoesNotQuit(t *testing.T) {
+	// Embedded (default, no WithStandalone) must NOT quit on ExitMsg —
+	// the sidekick fan-out delivers this to every screen including cheatsheet
+	// when any overlay closes anywhere.
+	m := newModel(t, "# hi", nil)
+	_, cmd := m.Update(markdown_overlay.ExitMsg{})
+	if isQuitCmd(cmd) {
+		t.Error("embedded cheatsheet must not tea.Quit on ExitMsg; got quit cmd")
+	}
+}
+
+func TestExitMsg_StandaloneQuits(t *testing.T) {
+	// Standalone mode (flow cheatsheet popup) must quit on ExitMsg so the
+	// tmux popup closes when the user presses q/esc.
+	cs := &testutil.FakeCheatsheetReader{Content: "# hi"}
+	r := &testutil.FakeMarkdownRenderer{Prefix: "[r] "}
+	m := cheatsheet.New(theme.Load(), cs, r, cheatsheet.WithStandalone())
+	_, cmd := m.Update(markdown_overlay.ExitMsg{})
+	if !isQuitCmd(cmd) {
+		t.Error("standalone cheatsheet must return tea.Quit on ExitMsg")
+	}
+}
+
+func TestConsumesKeys_ClaimsC(t *testing.T) {
+	m := newModel(t, "# hi", nil)
+	keys := m.ConsumesKeys()
+	for _, k := range keys {
+		if k == "c" {
+			return
+		}
+	}
+	t.Errorf("ConsumesKeys() = %v; want it to contain \"c\"", keys)
 }
 
 func TestView_NonPanicSmoke(t *testing.T) {

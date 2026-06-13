@@ -4,6 +4,15 @@ dist/
 coverage.out
 coverage.html
 
+# go build artifacts (binaries land in the worktree root).
+/flow
+/flow-server
+/flow-mcp
+
+# Local-dev cookie keys for scripts/run-flow-server.sh. Persisted so
+# sessions survive a restart; regenerate by deleting the file.
+.flow-cookie-keys
+
 # macOS Finder noise.
 .DS_Store
 
