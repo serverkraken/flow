@@ -28,6 +28,10 @@ type claims struct {
 	Groups            []string `json:"groups"`
 }
 
+// Verify checks the token's signature (via the issuer JWKS), issuer, audience
+// (aud must contain the configured clientID), and expiry, then extracts the
+// flow Identity. It expects ID-token-style audience: callers passing Authentik
+// access tokens must ensure aud contains the clientID (see M1 middleware).
 func (vr *Verifier) Verify(ctx context.Context, raw string) (ports.Identity, error) {
 	tok, err := vr.v.Verify(ctx, raw)
 	if err != nil {

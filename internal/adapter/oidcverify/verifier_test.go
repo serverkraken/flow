@@ -17,18 +17,34 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/oidcverify"
 )
 
-func TestVerifyValidToken(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+// oidcHarness holds the shared test server, RSA key, and issuer URL used
+// across multiple verifier tests.
+type oidcHarness struct {
+	key    *rsa.PrivateKey
+	kid    string
+	issuer string
+	srv    *httptest.Server
+}
+
+// newOIDCHarness starts an httptest JWKS+discovery server and returns a harness.
+// Callers must defer h.srv.Close().
+func newOIDCHarness(t *testing.T) *oidcHarness {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
 	const kid = "test-key"
-	var issuer string
+	h := &oidcHarness{key: key, kid: kid}
+
 	mux := http.NewServeMux()
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	issuer = srv.URL
+	h.srv = httptest.NewServer(mux)
+	h.issuer = h.srv.URL
 
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"issuer": issuer, "jwks_uri": issuer + "/jwks",
+			"issuer":                                h.issuer,
+			"jwks_uri":                              h.issuer + "/jwks",
 			"id_token_signing_alg_values_supported": []string{"RS256"},
 		})
 	})
@@ -39,20 +55,43 @@ func TestVerifyValidToken(t *testing.T) {
 			{"kty": "RSA", "kid": kid, "alg": "RS256", "use": "sig", "n": n, "e": e},
 		}})
 	})
+	return h
+}
 
-	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
-		"iss": issuer, "aud": "flow", "sub": "msoent",
-		"preferred_username": "msoent", "email": "m@x.de", "name": "Martin",
-		"exp": time.Now().Add(time.Hour).Unix(), "iat": time.Now().Unix(),
-	})
-	tok.Header["kid"] = kid
-	signed, err := tok.SignedString(key)
+// signToken creates and signs a JWT with the harness key, merging the provided
+// extra claims on top of a set of valid baseline claims.
+func (h *oidcHarness) signToken(t *testing.T, overrides jwt.MapClaims) string {
+	t.Helper()
+	base := jwt.MapClaims{
+		"iss":                h.issuer,
+		"aud":                "flow",
+		"sub":                "msoent",
+		"preferred_username": "msoent",
+		"email":              "m@x.de",
+		"name":               "Martin",
+		"exp":                time.Now().Add(time.Hour).Unix(),
+		"iat":                time.Now().Unix(),
+	}
+	for k, v := range overrides {
+		base[k] = v
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, base)
+	tok.Header["kid"] = h.kid
+	signed, err := tok.SignedString(h.key)
 	if err != nil {
 		t.Fatal(err)
 	}
+	return signed
+}
 
-	ctx := oidc.InsecureIssuerURLContext(context.Background(), issuer)
-	v, err := oidcverify.New(ctx, issuer, "flow")
+func TestVerifyValidToken(t *testing.T) {
+	h := newOIDCHarness(t)
+	defer h.srv.Close()
+
+	signed := h.signToken(t, nil)
+
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
+	v, err := oidcverify.New(ctx, h.issuer, "flow")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +103,45 @@ func TestVerifyValidToken(t *testing.T) {
 		t.Fatalf("identity mismatch: %+v", id)
 	}
 
-	// And a garbage token must be rejected by the same verifier.
+	// Garbage token must be rejected by the same verifier.
 	if _, err := v.Verify(context.Background(), "not.a.valid.jwt"); err == nil {
 		t.Fatal("expected error for garbage token")
+	}
+}
+
+func TestVerifyRejectsExpiredToken(t *testing.T) {
+	h := newOIDCHarness(t)
+	defer h.srv.Close()
+
+	signedExpired := h.signToken(t, jwt.MapClaims{
+		"exp": time.Now().Add(-time.Hour).Unix(),
+		"iat": time.Now().Add(-2 * time.Hour).Unix(),
+	})
+
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
+	v, err := oidcverify.New(ctx, h.issuer, "flow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Verify(context.Background(), signedExpired); err == nil {
+		t.Fatal("expected error for expired token")
+	}
+}
+
+func TestVerifyRejectsWrongAudience(t *testing.T) {
+	h := newOIDCHarness(t)
+	defer h.srv.Close()
+
+	signedWrongAud := h.signToken(t, jwt.MapClaims{
+		"aud": "some-other-client",
+	})
+
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
+	v, err := oidcverify.New(ctx, h.issuer, "flow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Verify(context.Background(), signedWrongAud); err == nil {
+		t.Fatal("expected error for wrong audience")
 	}
 }
