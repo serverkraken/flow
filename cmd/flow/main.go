@@ -15,6 +15,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
+	"github.com/serverkraken/flow/internal/adapter/mutexlock"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/adapter/gitremote"
@@ -245,6 +246,17 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 	}
 	dayoffWriter := &usecase.DayOffWriter{Store: httpDayOffs}
 	tagger := &usecase.Tagger{Sessions: httpSessions}
+	// sessionWriter backs the tag/note/edit/delete paths in TUI and CLI.
+	// State is nil because lifecycle (Start/Stop/Pause/Resume) goes via
+	// ActiveSessions in server mode; this writer is edit-only in that path.
+	sessionWriter := &usecase.SessionWriter{
+		Sessions: httpSessions,
+		State:    nil, // server mode: lifecycle goes via ActiveSessions; edit-only
+		Lock:     mutexlock.New(),
+		Reader:   reader,
+		Clock:    clock,
+		UserID:   userID,
+	}
 	linkReader := &usecase.LinkReader{Store: linkStore}
 	linkWriter := &usecase.LinkWriter{Store: linkStore}
 	noteOpener := &usecase.NoteOpener{Launcher: &editNoteOpener{uc: kompDeps.EditNote}}
@@ -268,7 +280,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 		return worktime.New(pal, worktime.Deps{
 			Reader:           reader,
 			Stats:            stats,
-			SessionWriter:    nil, // server mode: all session writes go via ActiveSessions
+			SessionWriter:    sessionWriter, // server mode: lifecycle via ActiveSessions; tag/note/edit/delete via sessionWriter
 			Tagger:           tagger,
 			DayOffStore:      httpDayOffs,
 			DayOffWriter:     dayoffWriter,
@@ -295,7 +307,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 			Worktime: cli.WorktimeDeps{
 				Clock:          clock,
 				Tmux:           tmux,
-				SessionWriter:  nil, // server mode: legacy SessionWriter path disabled
+				SessionWriter:  sessionWriter, // server mode: edit methods only; lifecycle goes via ActiveSessions
 				StatusComposer: statusComposer,
 				Reporter:       reporter,
 				Stats:          stats,

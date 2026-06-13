@@ -139,7 +139,7 @@ func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 	sw := h.deps.SessionWriter
 	mut := func() tea.Msg {
 		if sw == nil {
-			return heuteActionDoneMsg{err: errors.New("nicht eingeloggt — bitte `flow login` ausführen")}
+			return heuteActionDoneMsg{err: errors.New("Session-Bearbeitung nicht verfügbar")}
 		}
 		if err := sw.Delete(date, idx); err != nil {
 			return heuteActionDoneMsg{err: err}
