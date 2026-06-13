@@ -1,0 +1,9 @@
+/bin/
+/dist/
+coverage.out
+coverage.html
+.env
+.DS_Store
+# Claude memory-bank files (never committed)
+CLAUDE.md
+CLAUDE-*.md
