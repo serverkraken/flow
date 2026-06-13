@@ -329,6 +329,12 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				ListActiveSessions: func(userID string) ([]domain.ActiveSession, error) {
 					return activeSessionsUC.ListActive(userID)
 				},
+				PauseActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Pause(userID, projectID)
+				},
+				ResumeActiveSession: func(userID, projectID string) (domain.ActiveSession, error) {
+					return activeSessionsUC.Resume(userID, projectID)
+				},
 				Migrate:     nil, // TSV migration not available in server mode
 				PauseMarker: nil, // no local pause state in server mode
 				CorrectActiveStart: func(userID string, ts time.Time) error {

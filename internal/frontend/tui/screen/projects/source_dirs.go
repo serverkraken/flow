@@ -203,9 +203,19 @@ func (s sourceDirsModel) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 func (s sourceDirsModel) handleFilterKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
+		// Non-empty filter: clear value and blur so j/k reaches the list.
+		// Standalone + empty filter: quit immediately (single esc closes popup).
+		// Embedded + empty filter: blur and stay (host owns program quit).
+		if s.filter.Value() != "" {
+			s.filter.SetValue("")
+			s.filter.Blur()
+			s.applyFilter()
+			return s, nil
+		}
 		s.filter.Blur()
-		s.filter.SetValue("")
-		s.applyFilter()
+		if s.mode == ModeStandalone {
+			return s, tea.Quit
+		}
 		return s, nil
 	case "enter":
 		s.filter.Blur()

@@ -94,6 +94,15 @@ type WorktimeDeps struct {
 	// resume knows to restart.
 	PauseMarker ports.PauseStore
 
+	// PauseActiveSession pauses the running session server-side (sets paused
+	// flag on the ActiveSession row). Used in server mode where PauseMarker
+	// is nil. Nil → legacy PauseMarker path is used.
+	PauseActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+
+	// ResumeActiveSession resumes a paused session server-side. Used in
+	// server mode where PauseMarker is nil. Nil → legacy PauseMarker path.
+	ResumeActiveSession func(userID, projectID string) (domain.ActiveSession, error)
+
 	// CorrectActiveStart moves the running session's start time (new path).
 	// Nil → legacy SessionWriter.CorrectStart path is used.
 	CorrectActiveStart func(userID string, ts time.Time) error
@@ -287,8 +296,18 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Aktive Session pausieren (resume mit `start`/`toggle`)",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Server mode: pause lives server-side; no local PauseMarker.
+			if deps.ListActiveSessions != nil && deps.PauseActiveSession != nil {
+				return runPauseServer(cmd, deps)
+			}
+			// Legacy new path: stop locally + set PauseMarker.
 			if deps.ListActiveSessions != nil && deps.StopActiveSession != nil && deps.PauseMarker != nil {
 				return runPauseNew(cmd, deps)
+			}
+			// Legacy SessionWriter path — guard against nil to avoid panic
+			// in server mode where SessionWriter.State is nil.
+			if deps.SessionWriter == nil {
+				return errors.New("Pause nicht verfügbar")
 			}
 			s, err := deps.SessionWriter.Pause()
 			if err != nil {
@@ -303,6 +322,40 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runPauseServer handles pause in server mode. The paused flag lives
+// server-side on the ActiveSession row; no local PauseMarker is touched.
+func runPauseServer(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine aktive Session zum Pausieren")
+		return nil
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	_, err = deps.PauseActiveSession(deps.UserID, target.ProjectID)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		fprintln(cmd.ErrOrStderr(), "Pausiert — Session war bereits gestoppt")
+		_ = deps.Tmux.RefreshClient()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	elapsed := deps.Clock.Now().Sub(target.StartedAt)
+	h := int(elapsed.Hours())
+	m := int(elapsed.Minutes()) % 60
+	fprintf(cmd.ErrOrStderr(), "Pausiert nach %dh %02dm — `flow worktime resume` setzt fort\n", h, m)
+	return nil
 }
 
 // runPauseNew: stop the running session (idempotent no-op when idle) and
@@ -351,9 +404,19 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 		Short:        "Nach Pause weiterarbeiten",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Server mode: resume lives server-side; no local PauseMarker.
+			if deps.ListActiveSessions != nil && deps.ResumeActiveSession != nil {
+				return runResumeServer(cmd, deps)
+			}
+			// Legacy new path: clear PauseMarker + restart via StartActiveSession.
 			if deps.ListActiveSessions != nil && deps.StartActiveSession != nil &&
 				deps.ResolveProject != nil && deps.PauseMarker != nil {
 				return runResumeNew(cmd, deps)
+			}
+			// Legacy SessionWriter path — guard against nil to avoid panic
+			// in server mode where SessionWriter.State is nil.
+			if deps.SessionWriter == nil {
+				return errors.New("Resume nicht verfügbar")
 			}
 			// SessionWriter.Resume is idempotent — already-running just
 			// clears the pause marker and returns nil. The legacy
@@ -366,6 +429,37 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// runResumeServer handles resume in server mode. The paused flag lives
+// server-side on the ActiveSession row; no local PauseMarker is touched.
+func runResumeServer(cmd *cobra.Command, deps WorktimeDeps) error {
+	list, err := deps.ListActiveSessions(deps.UserID)
+	if err != nil {
+		return err
+	}
+	if len(list) == 0 {
+		fprintln(cmd.ErrOrStderr(), "Keine pausierte Session zum Fortsetzen")
+		return nil
+	}
+	target := list[0]
+	for _, a := range list[1:] {
+		if a.StartedAt.Before(target.StartedAt) {
+			target = a
+		}
+	}
+	_, err = deps.ResumeActiveSession(deps.UserID, target.ProjectID)
+	if errors.Is(err, ports.ErrActiveSessionNotFound) {
+		fprintln(cmd.ErrOrStderr(), "Resume — Session war bereits gestoppt")
+		_ = deps.Tmux.RefreshClient()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = deps.Tmux.RefreshClient()
+	fprintln(cmd.ErrOrStderr(), "Resume — Worktime läuft weiter")
+	return nil
 }
 
 // runResumeNew: clear the pause marker; when idle, restart on the MRU

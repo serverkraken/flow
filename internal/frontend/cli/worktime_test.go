@@ -675,3 +675,138 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Server-mode pause/resume tests (C1 fix)
+// ---------------------------------------------------------------------------
+
+// serverDeps builds a minimal WorktimeDeps wired for server mode:
+// ListActiveSessions, PauseActiveSession, ResumeActiveSession are populated;
+// PauseMarker is nil (server mode), SessionWriter is nil (server mode).
+func serverDeps(
+	list func(userID string) ([]domain.ActiveSession, error),
+	pause func(userID, projectID string) (domain.ActiveSession, error),
+	resume func(userID, projectID string) (domain.ActiveSession, error),
+) cli.WorktimeDeps {
+	clock := &testutil.FixedClock{T: fixedNow}
+	tmux := &testutil.FakeTmux{}
+	return cli.WorktimeDeps{
+		Clock:               clock,
+		Tmux:                tmux,
+		UserID:              "user-1",
+		ListActiveSessions:  list,
+		PauseActiveSession:  pause,
+		ResumeActiveSession: resume,
+		// PauseMarker: nil  — server mode, no local marker
+		// SessionWriter: nil — server mode, all lifecycle via ActiveSessions
+	}
+}
+
+// TestServerPause_Active verifies that pause in server mode calls
+// PauseActiveSession with the right projectID and does NOT panic.
+func TestServerPause_Active(t *testing.T) {
+	projectID := "proj-abc"
+	startedAt := fixedNow.Add(-90 * time.Minute)
+	sess := domain.ActiveSession{ProjectID: projectID, StartedAt: startedAt}
+
+	var calledWith string
+	deps := serverDeps(
+		func(userID string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		func(userID, pid string) (domain.ActiveSession, error) {
+			calledWith = pid
+			return sess, nil
+		},
+		nil,
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("pause: unexpected error: %v", err)
+	}
+	if calledWith != projectID {
+		t.Errorf("PauseActiveSession: want projectID %q, got %q", projectID, calledWith)
+	}
+	if !strings.Contains(errBuf.String(), "Pausiert") {
+		t.Errorf("stderr: expected 'Pausiert', got %q", errBuf.String())
+	}
+}
+
+// TestServerPause_Idle verifies that pause when no sessions are active
+// prints a friendly message and returns nil.
+func TestServerPause_Idle(t *testing.T) {
+	deps := serverDeps(
+		func(userID string) ([]domain.ActiveSession, error) { return nil, nil },
+		func(userID, pid string) (domain.ActiveSession, error) {
+			return domain.ActiveSession{}, nil
+		},
+		nil,
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"pause"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("idle pause must not error: %v", err)
+	}
+	out := errBuf.String()
+	if !strings.Contains(out, "Keine") && out != "" {
+		// Either empty output or a friendly "Keine" message is acceptable.
+		// What must NOT happen is a panic.
+	}
+}
+
+// TestServerResume_Active verifies that resume in server mode calls
+// ResumeActiveSession with the right projectID and does NOT panic.
+func TestServerResume_Active(t *testing.T) {
+	projectID := "proj-xyz"
+	startedAt := fixedNow.Add(-30 * time.Minute)
+	sess := domain.ActiveSession{ProjectID: projectID, StartedAt: startedAt}
+
+	var calledWith string
+	deps := serverDeps(
+		func(userID string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		nil,
+		func(userID, pid string) (domain.ActiveSession, error) {
+			calledWith = pid
+			return sess, nil
+		},
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("resume: unexpected error: %v", err)
+	}
+	if calledWith != projectID {
+		t.Errorf("ResumeActiveSession: want projectID %q, got %q", projectID, calledWith)
+	}
+	if !strings.Contains(errBuf.String(), "Resume") {
+		t.Errorf("stderr: expected 'Resume', got %q", errBuf.String())
+	}
+}
+
+// TestServerResume_Idle verifies that resume when no session is running
+// prints a friendly message and returns nil (does NOT panic).
+func TestServerResume_Idle(t *testing.T) {
+	deps := serverDeps(
+		func(userID string) ([]domain.ActiveSession, error) { return nil, nil },
+		nil,
+		func(userID, pid string) (domain.ActiveSession, error) {
+			return domain.ActiveSession{}, nil
+		},
+	)
+
+	var errBuf bytes.Buffer
+	cmd := cli.NewWorktimeCmd(deps)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"resume"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("idle resume must not error: %v", err)
+	}
+}

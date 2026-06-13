@@ -66,3 +66,66 @@ func TestEmbeddedProjects_Q_DoesNotQuit(t *testing.T) {
 		}
 	}
 }
+
+// TestStandaloneProjects_Esc_FromFilterEmpty_Quits verifies that pressing esc
+// in filter mode when the filter is empty quits the standalone popup (I1 fix).
+// Previously two esc presses were required: first cleared/blurred; second quit.
+func TestStandaloneProjects_Esc_FromFilterEmpty_Quits(t *testing.T) {
+	f := newFixture(domain.SourceDir{Name: "alpha", Path: "/p/alpha"})
+	m := standaloneModel(f)
+	updated := runUntilLoaded(t, m)
+
+	// Open filter with "/" — filter is now focused.
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
+
+	// Press esc with empty filter — must produce tea.Quit.
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd == nil {
+		t.Fatal("standalone projects: esc from empty filter must return a cmd")
+	}
+	msg := cmd()
+	if _, isQuit := msg.(tea.QuitMsg); !isQuit {
+		t.Errorf("standalone projects: esc from empty filter must produce tea.QuitMsg, got %T", msg)
+	}
+}
+
+// TestStandaloneProjects_Esc_FromFilterNonEmpty_ClearsFirst verifies that esc
+// from a non-empty filter clears the filter without quitting (one-step clear).
+func TestStandaloneProjects_Esc_FromFilterNonEmpty_ClearsFirst(t *testing.T) {
+	f := newFixture(domain.SourceDir{Name: "alpha", Path: "/p/alpha"})
+	m := standaloneModel(f)
+	updated := runUntilLoaded(t, m)
+
+	// Type "al" to populate the filter.
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "a"})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "l"})
+
+	// Press esc — should clear+blur, NOT quit.
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd != nil {
+		msg := cmd()
+		if _, isQuit := msg.(tea.QuitMsg); isQuit {
+			t.Errorf("standalone projects: esc from non-empty filter must NOT quit, got QuitMsg")
+		}
+	}
+}
+
+// TestEmbeddedProjects_Esc_FromFilterEmpty_DoesNotQuit verifies that embedded
+// mode does NOT quit when esc is pressed from an empty filter.
+func TestEmbeddedProjects_Esc_FromFilterEmpty_DoesNotQuit(t *testing.T) {
+	f := newFixture(domain.SourceDir{Name: "alpha", Path: "/p/alpha"})
+	m := f.model() // ModeEmbedded (default)
+	updated := runUntilLoaded(t, m)
+
+	// Open filter with "/".
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
+
+	// Press esc with empty filter — must NOT quit.
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd != nil {
+		msg := cmd()
+		if _, isQuit := msg.(tea.QuitMsg); isQuit {
+			t.Errorf("embedded projects: esc from empty filter must NOT produce tea.QuitMsg")
+		}
+	}
+}
