@@ -15,7 +15,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/cheatsheetfs"
-	"github.com/serverkraken/flow/internal/adapter/mutexlock"
 	"github.com/serverkraken/flow/internal/adapter/fspaletteentries"
 	"github.com/serverkraken/flow/internal/adapter/fssourcedirs"
 	"github.com/serverkraken/flow/internal/adapter/gitremote"
@@ -25,6 +24,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/jsonpalettestats"
 	"github.com/serverkraken/flow/internal/adapter/keyringadapter"
 	"github.com/serverkraken/flow/internal/adapter/linkstsv"
+	"github.com/serverkraken/flow/internal/adapter/mutexlock"
 	"github.com/serverkraken/flow/internal/adapter/oidcclient"
 	"github.com/serverkraken/flow/internal/adapter/output"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"

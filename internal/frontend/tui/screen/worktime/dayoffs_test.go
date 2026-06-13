@@ -216,7 +216,6 @@ func TestFrei_DeleteUsesCapturedDate(t *testing.T) {
 	m, cmd = m.Update(confirm.ResultMsg{Confirmed: true})
 	// Drain the cmd (the mutation + emitWorktimeChanged batch).
 	if cmd != nil {
-		type batchMsg = []tea.Cmd
 		msg := cmd()
 		if batch, ok := msg.(tea.BatchMsg); ok {
 			for _, c := range batch {

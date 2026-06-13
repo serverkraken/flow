@@ -711,8 +711,8 @@ func TestServerPause_Active(t *testing.T) {
 
 	var calledWith string
 	deps := serverDeps(
-		func(userID string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
-		func(userID, pid string) (domain.ActiveSession, error) {
+		func(_ string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		func(_ string, pid string) (domain.ActiveSession, error) {
 			calledWith = pid
 			return sess, nil
 		},
@@ -738,8 +738,8 @@ func TestServerPause_Active(t *testing.T) {
 // prints a friendly message and returns nil.
 func TestServerPause_Idle(t *testing.T) {
 	deps := serverDeps(
-		func(userID string) ([]domain.ActiveSession, error) { return nil, nil },
-		func(userID, pid string) (domain.ActiveSession, error) {
+		func(_ string) ([]domain.ActiveSession, error) { return nil, nil },
+		func(_ string, _ string) (domain.ActiveSession, error) {
 			return domain.ActiveSession{}, nil
 		},
 		nil,
@@ -753,9 +753,8 @@ func TestServerPause_Idle(t *testing.T) {
 		t.Fatalf("idle pause must not error: %v", err)
 	}
 	out := errBuf.String()
-	if !strings.Contains(out, "Keine") && out != "" {
-		// Either empty output or a friendly "Keine" message is acceptable.
-		// What must NOT happen is a panic.
+	if out != "" && !strings.Contains(out, "Keine") {
+		t.Errorf("idle pause: want empty or a 'Keine…' message, got %q", out)
 	}
 }
 
@@ -768,9 +767,9 @@ func TestServerResume_Active(t *testing.T) {
 
 	var calledWith string
 	deps := serverDeps(
-		func(userID string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
+		func(_ string) ([]domain.ActiveSession, error) { return []domain.ActiveSession{sess}, nil },
 		nil,
-		func(userID, pid string) (domain.ActiveSession, error) {
+		func(_ string, pid string) (domain.ActiveSession, error) {
 			calledWith = pid
 			return sess, nil
 		},
@@ -795,9 +794,9 @@ func TestServerResume_Active(t *testing.T) {
 // prints a friendly message and returns nil (does NOT panic).
 func TestServerResume_Idle(t *testing.T) {
 	deps := serverDeps(
-		func(userID string) ([]domain.ActiveSession, error) { return nil, nil },
+		func(_ string) ([]domain.ActiveSession, error) { return nil, nil },
 		nil,
-		func(userID, pid string) (domain.ActiveSession, error) {
+		func(_ string, _ string) (domain.ActiveSession, error) {
 			return domain.ActiveSession{}, nil
 		},
 	)

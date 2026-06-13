@@ -307,7 +307,7 @@ func newPauseCmd(deps WorktimeDeps) *cobra.Command {
 			// Legacy SessionWriter path — guard against nil to avoid panic
 			// in server mode where SessionWriter.State is nil.
 			if deps.SessionWriter == nil {
-				return errors.New("Pause nicht verfügbar")
+				return errors.New("pausieren nicht verfügbar")
 			}
 			s, err := deps.SessionWriter.Pause()
 			if err != nil {
@@ -416,7 +416,7 @@ func newResumeCmd(deps WorktimeDeps) *cobra.Command {
 			// Legacy SessionWriter path — guard against nil to avoid panic
 			// in server mode where SessionWriter.State is nil.
 			if deps.SessionWriter == nil {
-				return errors.New("Resume nicht verfügbar")
+				return errors.New("fortsetzen nicht verfügbar")
 			}
 			// SessionWriter.Resume is idempotent — already-running just
 			// clears the pause marker and returns nil. The legacy
