@@ -64,7 +64,7 @@ func TestEventsStreamsDebugPing(t *testing.T) {
 	srv := httptest.NewServer(newServer().Routes())
 	defer srv.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/v1/events", nil)
 	req.Header.Set("Authorization", "Bearer xyz")
