@@ -1,6 +1,7 @@
 package sse_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -45,4 +46,36 @@ func TestCancelUnsubscribes(t *testing.T) {
 	if _, ok := <-ch; ok {
 		t.Fatal("channel should be closed after cancel")
 	}
+}
+
+func TestBusConcurrentPublishSubscribeCancel(t *testing.T) {
+	b := sse.NewBus()
+	var wg sync.WaitGroup
+	// publishers
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				b.Publish(domain.Event{Type: domain.EventPing, UserID: "u"})
+			}
+		}()
+	}
+	// subscribers that subscribe, drain a little, then cancel
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				ch, cancel := b.Subscribe("u")
+				select {
+				case <-ch:
+				default:
+				}
+				cancel()
+				cancel() // double-cancel must be safe
+			}
+		}()
+	}
+	wg.Wait()
 }

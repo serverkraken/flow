@@ -5,12 +5,15 @@ import (
 	"sync"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 type subscriber struct {
 	userID string
 	ch     chan domain.Event
 }
+
+var _ ports.EventBus = (*Bus)(nil)
 
 // Bus is a thread-safe, in-process pub/sub that routes domain.Event by UserID.
 // It implements ports.EventBus.

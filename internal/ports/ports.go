@@ -34,7 +34,7 @@ type TokenVerifier interface {
 }
 
 // EventBus is in-process pub/sub for live events. Subscribe returns a channel
-// and a cancel func that unsubscribes and drains.
+// and a cancel func that unsubscribes and closes the channel.
 type EventBus interface {
 	Publish(ev domain.Event)
 	Subscribe(userID string) (events <-chan domain.Event, cancel func())
