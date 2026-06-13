@@ -283,6 +283,91 @@ func TestStandaloneMode_GotoDispatchesAsExternal(t *testing.T) {
 	}
 }
 
+// TestStandaloneMode_Q_Quits verifies that pressing 'q' in normal mode in a
+// standalone palette (tmux popup) returns tea.Quit so the process exits and
+// the popup closes.
+func TestStandaloneMode_Q_Quits(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{Label: "Reload", Action: "x", Section: "S"})
+	reader := &usecase.PaletteReader{Entries: f.entries, Stats: f.stats, Tmux: f.tmux, Clock: f.clock}
+	writer := &usecase.PaletteWriter{Stats: f.stats, Clock: f.clock}
+	m := palette.New(theme.Load(), reader, writer, f.tmux, palette.WithStandalone())
+	updated := runUntilLoaded(t, m)
+	// Press 'q' — normal mode, filter NOT focused.
+	_, cmd := updated.Update(tea.KeyPressMsg{Text: "q"})
+	if cmd == nil {
+		t.Fatal("standalone: q in normal mode must return a cmd")
+	}
+	msg := cmd()
+	if _, isQuit := msg.(tea.QuitMsg); !isQuit {
+		t.Errorf("standalone: q must produce tea.QuitMsg, got %T", msg)
+	}
+}
+
+// TestStandaloneMode_Esc_EmptyFilter_Quits verifies that Esc on an empty
+// filter in standalone mode also quits the popup.
+func TestStandaloneMode_Esc_EmptyFilter_Quits(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{Label: "Reload", Action: "x", Section: "S"})
+	reader := &usecase.PaletteReader{Entries: f.entries, Stats: f.stats, Tmux: f.tmux, Clock: f.clock}
+	writer := &usecase.PaletteWriter{Stats: f.stats, Clock: f.clock}
+	m := palette.New(theme.Load(), reader, writer, f.tmux, palette.WithStandalone())
+	updated := runUntilLoaded(t, m)
+	// Esc in normal mode with empty filter — standalone must quit.
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd == nil {
+		t.Fatal("standalone: esc with empty filter must return a cmd")
+	}
+	msg := cmd()
+	if _, isQuit := msg.(tea.QuitMsg); !isQuit {
+		t.Errorf("standalone: esc with empty filter must produce tea.QuitMsg, got %T", msg)
+	}
+}
+
+// TestStandaloneMode_Esc_NonEmptyFilter_DoesNotQuit verifies that pressing Esc
+// while the filter is focused with text only clears the filter (does not quit).
+func TestStandaloneMode_Esc_NonEmptyFilter_DoesNotQuit(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{Label: "Reload", Action: "x", Section: "S"})
+	reader := &usecase.PaletteReader{Entries: f.entries, Stats: f.stats, Tmux: f.tmux, Clock: f.clock}
+	writer := &usecase.PaletteWriter{Stats: f.stats, Clock: f.clock}
+	m := palette.New(theme.Load(), reader, writer, f.tmux, palette.WithStandalone())
+	updated := runUntilLoaded(t, m)
+	// Focus filter and type something.
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "/"})
+	updated, _ = updated.Update(tea.KeyPressMsg{Text: "r"})
+	// Esc clears the filter but must NOT quit (filter had text).
+	_, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd != nil {
+		msg := cmd()
+		if _, isQuit := msg.(tea.QuitMsg); isQuit {
+			t.Errorf("standalone: esc with non-empty filter must NOT quit, got tea.QuitMsg")
+		}
+	}
+}
+
+// TestEmbeddedMode_Q_DoesNotQuit verifies that embedded (sidekick) palette
+// still routes 'q' to type-to-filter, not to tea.Quit. Embedded behavior
+// must remain unchanged.
+func TestEmbeddedMode_Q_DoesNotQuit(t *testing.T) {
+	f := newFixture(domain.PaletteEntry{Label: "Reload", Action: "x", Section: "S"})
+	updated := runUntilLoaded(t, f.model()) // Default = ModeEmbedded
+	// 'q' is type-to-filter in embedded mode.
+	updated2, cmd := updated.Update(tea.KeyPressMsg{Text: "q"})
+	// The cmd returned is textinput.Blink — not tea.Quit.
+	if cmd != nil {
+		msg := cmd()
+		if _, isQuit := msg.(tea.QuitMsg); isQuit {
+			t.Errorf("embedded: q must NOT quit, got tea.QuitMsg")
+		}
+	}
+	// Filter should now be focused and contain 'q'.
+	m, ok := updated2.(palette.Model)
+	if !ok {
+		t.Fatalf("Update should return a palette.Model, got %T", updated2)
+	}
+	if !m.FilterActive() {
+		t.Error("embedded: q should auto-focus the filter (type-to-filter)")
+	}
+}
+
 // TestEmbeddedMode_GotoEmitsSwitchScreenMsg: das Default-Verhalten
 // (Sidekick-Embed) bleibt unverändert — der Sidekick-Root fängt
 // SwitchScreenMsg und macht den Tab-Wechsel inline.

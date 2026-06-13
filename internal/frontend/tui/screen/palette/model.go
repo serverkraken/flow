@@ -204,7 +204,7 @@ func (Model) HelpSections() []help.Section {
 			{"1–9", "Direktwahl (n-ter Treffer)"},
 			{".", "Pin / Unpin (→ Favoriten)"},
 			{"Enter", "Ausführen"},
-			{"Esc", "Filter leeren · 2× → schließen"},
+			{"Esc", "Filter leeren (leer: schließen im Popup)"},
 		},
 	}}
 }

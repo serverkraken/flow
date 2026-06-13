@@ -135,6 +135,17 @@ func (s sourceDirsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (s sourceDirsModel) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "q", "esc":
+		// Standalone popup: close the window. Embedded: fall through to
+		// type-to-filter so 'q' is still usable as a search character and
+		// esc is handled by the sidekick host.
+		if s.mode == ModeStandalone {
+			return s, tea.Quit
+		}
+		// Embedded 'q' → type-to-filter (handled below); embedded 'esc' → no-op.
+		if msg.String() == "esc" {
+			return s, nil
+		}
 	case "/":
 		s.filter.Focus()
 		return s, textinput.Blink
