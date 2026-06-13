@@ -435,7 +435,7 @@ func (m Model) handleKeyMsg(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.brief = &next
 		return m, cmd
 	}
-	if msg.String() == "q" && !m.textInputActive() {
+	if msg.String() == "q" && !m.textInputActive() && !m.subFullScreen() {
 		return m, tea.Quit
 	}
 	if m.menu.Active() {
@@ -687,6 +687,20 @@ func (m Model) textInputActive() bool {
 	}
 	if ti, ok := m.subs[m.current].(textInputActiver); ok {
 		return ti.TextInputActive()
+	}
+	return false
+}
+
+// subFullScreen reports whether the active sub-model currently claims
+// the full worktime render slot (i.e. an inline overlay such as the
+// Heute note-viewer or the History drill note-viewer is open). When
+// true, q must be forwarded to the sub-model — not consumed as a
+// global quit — so the overlay's advertised `q` close key works as
+// expected. Without this guard q quits the whole app/sidekick instead
+// of closing the overlay (bug #3, #4).
+func (m Model) subFullScreen() bool {
+	if fs, ok := m.subs[m.current].(fullScreener); ok {
+		return fs.FullScreen()
 	}
 	return false
 }
