@@ -348,7 +348,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 				},
 				Worktime: worktimeScreen,
 				Notes: func(pal theme.Palette) tea.Model {
-					return buildNotesScreen(p, pal, kompDeps, currentRepo)
+					return buildNotesScreen(p, pal, kompDeps, currentRepo, events.Changed())
 				},
 			},
 			// Standalone-Cheatsheet teilt sich Reader und Renderer mit dem
@@ -404,7 +404,7 @@ func buildDeps(ctx context.Context, p Paths, env Env) (Deps, func(), error) {
 // resolver, edit Cmd, and write Cmd all reuse what kompDeps already
 // has. currentRepo is detected from the launch cwd; when flow lives
 // outside a git repo the project promotion just stays off.
-func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL) tea.Model {
+func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, currentRepo kompdomain.CanonicalURL, changed <-chan struct{}) tea.Model {
 	// Sidekick-Notes-Tab: pal kommt vom Sidekick-Root (tk.Load() in
 	// cli/sidekick.go) durch — markdown_overlay und writepicker
 	// behalten ihre SetPalette-Bridges (zwei eigenständige Refactors
@@ -452,6 +452,9 @@ func buildNotesScreen(p Paths, pal theme.Palette, kompDeps kompendiumcli.Deps, c
 			}
 			return out.Backlinks
 		})
+	}
+	if changed != nil {
+		m = m.WithChanged(changed)
 	}
 	return m
 }

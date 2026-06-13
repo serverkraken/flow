@@ -32,6 +32,29 @@ type entriesLoadedMsg struct {
 	err     error
 }
 
+// changedMsg is emitted by listenForChanged when the httpapi.Status.Changed()
+// channel signals that server-side data changed (SSE event or poll cycle).
+// The Update handler reloads the corpus and re-arms the listener.
+type changedMsg struct{}
+
+// listenForChanged returns a tea.Cmd that blocks until one signal arrives on ch,
+// then emits a changedMsg. Returns nil when ch is nil so no goroutine is
+// leaked when Changed is not wired. The goroutine exits cleanly when the
+// channel is closed (ok==false → bubbletea discards nil). The changedMsg
+// handler must re-arm the listener so subsequent signals are also caught.
+func listenForChanged(ch <-chan struct{}) tea.Cmd {
+	if ch == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		_, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return changedMsg{}
+	}
+}
+
 func loadEntriesCmd(u *usecase.ListNotes, currentRepo domain.CanonicalURL) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := u.Execute(context.Background(), usecase.ListNotesInput{

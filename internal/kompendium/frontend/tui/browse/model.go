@@ -186,6 +186,12 @@ type Model struct {
 
 	indexAge    IndexAgeFunc
 	backlinksFn BacklinksFunc
+
+	// changed is the httpapi.Status.Changed() channel. When non-nil a
+	// listenForChanged cmd is started in Init so remote corpus changes
+	// (SSE events) trigger an automatic reload. Nil when the browser is
+	// constructed outside server-mode wiring (CLI, tests).
+	changed <-chan struct{}
 }
 
 // WithIndexAge wires the optional indicator that backs the status bar's
@@ -203,6 +209,15 @@ func (m Model) WithIndexAge(fn IndexAgeFunc) Model {
 // stand up a real index.
 func (m Model) WithBacklinks(fn BacklinksFunc) Model {
 	m.backlinksFn = fn
+	return m
+}
+
+// WithChanged wires the httpapi.Status.Changed() channel so the browser
+// automatically reloads the corpus when the server signals a notes change
+// (SSE event or poll cycle). Pass nil (or omit) to disable auto-reload —
+// useful for tests and the standalone `flow kompendium browse` path.
+func (m Model) WithChanged(ch <-chan struct{}) Model {
+	m.changed = ch
 	return m
 }
 
@@ -241,6 +256,7 @@ func helpSections() []flowhelp.Section {
 		{Title: "Notizen · Ansicht", Keys: [][2]string{
 			{"tab", "Filter wechseln"},
 			{"/", "Suche"},
+			{"r", "neu laden"},
 			{"?", "Hilfe"},
 			{"q", "schließen"},
 		}},
@@ -312,9 +328,15 @@ func New(
 	}
 }
 
-// Init schedules the initial entry load. Spinner ticks are kicked off
-// from the first non-load message (typically tea.WindowSizeMsg) so test
-// drivers that call `m.Init()()` once still receive an entriesLoadedMsg.
+// Init schedules the initial entry load and, when a Changed channel is
+// wired, arms the listener so server-side corpus changes trigger auto-reload.
+// Spinner ticks are kicked off from the first non-load message (typically
+// tea.WindowSizeMsg) so test drivers that call `m.Init()()` once still
+// receive an entriesLoadedMsg.
 func (m Model) Init() tea.Cmd {
-	return loadEntriesCmd(m.list, m.currentRepo)
+	cmds := []tea.Cmd{loadEntriesCmd(m.list, m.currentRepo)}
+	if cmd := listenForChanged(m.changed); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	return tea.Batch(cmds...)
 }

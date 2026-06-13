@@ -45,6 +45,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case editorReadyMsg, editorDoneMsg, editFinishedMsg, saveFinishedMsg:
 		return m.handleEditorMsg(msg)
+	case changedMsg:
+		// Server-side corpus change detected (SSE event). Reload entries and
+		// re-arm the listener so subsequent signals are also caught.
+		return m, tea.Batch(loadEntriesCmd(m.list, m.currentRepo), listenForChanged(m.changed))
 	case deleteFinishedMsg:
 		if msg.err != nil {
 			m.editErr = msg.err
@@ -259,6 +263,8 @@ func (m Model) handleActionKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd, bool) {
 	case key.Matches(msg, m.keys.Help):
 		m.showHelp = true
 		return m, nil, true
+	case msg.String() == "r":
+		return m, loadEntriesCmd(m.list, m.currentRepo), true
 	}
 	return m, nil, false
 }
