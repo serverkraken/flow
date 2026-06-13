@@ -300,18 +300,43 @@ func TestUnit_Picker_EnterOnNewEmptyItems(t *testing.T) {
 	}
 }
 
-// TestUnit_Picker_JKNavigation verifies j/k as aliases for down/up.
-func TestUnit_Picker_JKNavigation(t *testing.T) {
+// TestUnit_Picker_JKTypeIntoFilter verifies that j and k are treated as
+// printable characters that append to the filter, not as navigation aliases.
+// Typing "kj" should produce filter="kj" and leave the cursor at 0.
+func TestUnit_Picker_JKTypeIntoFilter(t *testing.T) {
 	t.Parallel()
 	m, _, _ := newTestModel(testItems())
 
-	m, _ = dispatchKey(m, "j")
-	if m.Cursor() != 1 {
-		t.Errorf("expected cursor 1 after j, got %d", m.Cursor())
-	}
 	m, _ = dispatchKey(m, "k")
+	if m.Filter() != "k" {
+		t.Errorf("expected filter \"k\" after pressing k, got %q", m.Filter())
+	}
 	if m.Cursor() != 0 {
-		t.Errorf("expected cursor 0 after k, got %d", m.Cursor())
+		t.Errorf("expected cursor to stay at 0 after k, got %d", m.Cursor())
+	}
+
+	m, _ = dispatchKey(m, "j")
+	if m.Filter() != "kj" {
+		t.Errorf("expected filter \"kj\" after pressing k then j, got %q", m.Filter())
+	}
+	if m.Cursor() != 0 {
+		t.Errorf("expected cursor to stay at 0 after kj, got %d", m.Cursor())
+	}
+}
+
+// TestUnit_Picker_UpDownNavigation verifies that up/down (arrow keys) still
+// navigate the cursor as before; j/k must NOT be aliases for them.
+func TestUnit_Picker_UpDownNavigation(t *testing.T) {
+	t.Parallel()
+	m, _, _ := newTestModel(testItems())
+
+	m, _ = dispatchKey(m, "down")
+	if m.Cursor() != 1 {
+		t.Errorf("expected cursor 1 after down, got %d", m.Cursor())
+	}
+	m, _ = dispatchKey(m, "up")
+	if m.Cursor() != 0 {
+		t.Errorf("expected cursor 0 after up, got %d", m.Cursor())
 	}
 }
 

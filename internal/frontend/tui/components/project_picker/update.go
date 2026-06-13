@@ -8,13 +8,13 @@ import (
 //
 // Key routing:
 //   - WindowSizeMsg → SetSize
-//   - up / k        → move cursor up (wraps)
-//   - down / j      → move cursor down (wraps)
+//   - up            → move cursor up (wraps)
+//   - down          → move cursor down (wraps)
 //   - tab           → jump to "+ Neues Projekt anlegen"
 //   - enter         → pick selected item or create new project
 //   - esc           → emit onCancel
 //   - backspace     → remove last rune from filter
-//   - <rune>        → append to filter
+//   - <rune>        → append to filter (including j, k)
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -28,14 +28,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
-	case "up", "k":
+	case "up":
 		m.cursor--
 		if m.cursor < 0 {
 			m.cursor = m.neuIdx()
 		}
 		return m, nil
 
-	case "down", "j":
+	case "down":
 		m.cursor++
 		if m.cursor > m.neuIdx() {
 			m.cursor = 0
