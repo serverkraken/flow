@@ -104,6 +104,12 @@ func New(p theme.Palette, cs ports.CheatsheetReader, r ports.MarkdownRenderer, o
 	return m
 }
 
+// ConsumesKeys lets the sidekick forward 'c' to this screen instead of
+// treating it as the global cheatsheet-tab switch — so the overlay's
+// code-copy binding works in sidekick mode. On the cheatsheet tab the
+// tab-switch is a no-op anyway.
+func (m Model) ConsumesKeys() []string { return []string{"c"} }
+
 // HelpSections exposes the cheatsheet-screen key bindings for the
 // sidekick `?`-overlay aggregation.
 func (Model) HelpSections() []help.Section {

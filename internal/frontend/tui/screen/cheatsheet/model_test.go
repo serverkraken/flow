@@ -99,6 +99,17 @@ func TestExitMsg_StandaloneQuits(t *testing.T) {
 	}
 }
 
+func TestConsumesKeys_ClaimsC(t *testing.T) {
+	m := newModel(t, "# hi", nil)
+	keys := m.ConsumesKeys()
+	for _, k := range keys {
+		if k == "c" {
+			return
+		}
+	}
+	t.Errorf("ConsumesKeys() = %v; want it to contain \"c\"", keys)
+}
+
 func TestView_NonPanicSmoke(t *testing.T) {
 	m := newModel(t, "# Hi\n", nil)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
