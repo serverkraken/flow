@@ -49,11 +49,3 @@ templ subTabLink(label, href string, active bool) {
 	}
 }
 
-// footerNote is the small key-hint row shown at the bottom of every
-// worktime tab so the page never looks "empty" at the fold.
-templ footerNote(hint string) {
-	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · worktime</span>
-		<span>{ hint }</span>
-	</div>
-}

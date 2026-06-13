@@ -50,7 +50,6 @@ templ Index(vm IndexVM) {
 	} else {
 		@list(vm)
 	}
-	@footerNote()
 }
 
 templ pageHead(vm IndexVM) {
@@ -106,14 +105,6 @@ templ emptyState() {
 	</section>
 }
 
-templ footerNote() {
-	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · repos</span>
-		<span>
-			<code class="kbd">j</code> / <code class="kbd">k</code> auf/ab · <code class="kbd">enter</code> öffnen
-		</span>
-	</div>
-}
 
 // countLabel renders the small numeric subhead used in the list head.
 func countLabel(n int) string {

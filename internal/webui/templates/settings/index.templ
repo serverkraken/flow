@@ -62,7 +62,6 @@ templ Index(vm IndexVM) {
 	@identitySection(vm)
 	@exportSection(vm)
 	@versionSection(vm)
-	@footerNote()
 }
 
 templ pageHead(vm IndexVM) {
@@ -207,11 +206,3 @@ templ kv(k, v, suffix string) {
 	</div>
 }
 
-templ footerNote() {
-	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · settings</span>
-		<span>
-			<code class="kbd">⌘ K</code> palette · <code class="kbd">g</code> goto
-		</span>
-	</div>
-}

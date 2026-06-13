@@ -44,7 +44,6 @@ templ Index(vm IndexVM) {
 	@subTabs(vm.ActiveTab)
 	@filterRow(vm)
 	@list(vm)
-	@footerNote()
 }
 
 templ pageHead(vm IndexVM) {
@@ -154,11 +153,3 @@ templ emptyState(reason string) {
 	</section>
 }
 
-templ footerNote() {
-	<div class="page-footer-note">
-		<span>flow · phase 1 · m6 · notes</span>
-		<span>
-			<code class="kbd">/</code> Suche · <code class="kbd">j</code> / <code class="kbd">k</code> auf/ab
-		</span>
-	</div>
-}
