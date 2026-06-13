@@ -31,3 +31,18 @@ func TestLoadMissingRequired(t *testing.T) {
 		t.Fatal("expected error for missing DATABASE_URL")
 	}
 }
+
+func TestLoadDefaultsListenAddr(t *testing.T) {
+	env := map[string]string{
+		"DATABASE_URL":        "postgres://x",
+		"FLOW_OIDC_ISSUER":    "https://issuer",
+		"FLOW_OIDC_CLIENT_ID": "flow",
+	}
+	c, err := Load(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.ListenAddr != ":8080" {
+		t.Fatalf("ListenAddr default: got %q, want :8080", c.ListenAddr)
+	}
+}

@@ -33,9 +33,13 @@ func Load(getenv func(string) string) (Config, error) {
 	if c.ListenAddr == "" {
 		c.ListenAddr = ":8080"
 	}
-	for k, v := range map[string]string{"DATABASE_URL": c.DatabaseURL, "FLOW_OIDC_ISSUER": c.OIDCIssuer, "FLOW_OIDC_CLIENT_ID": c.OIDCClientID} {
-		if v == "" {
-			return Config{}, fmt.Errorf("config: %s is required", k)
+	for _, f := range []struct{ name, val string }{
+		{"DATABASE_URL", c.DatabaseURL},
+		{"FLOW_OIDC_ISSUER", c.OIDCIssuer},
+		{"FLOW_OIDC_CLIENT_ID", c.OIDCClientID},
+	} {
+		if f.val == "" {
+			return Config{}, fmt.Errorf("config: %s is required", f.name)
 		}
 	}
 	return c, nil
