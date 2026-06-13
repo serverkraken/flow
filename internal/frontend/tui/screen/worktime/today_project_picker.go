@@ -95,18 +95,27 @@ func (h heute) handlePickerMsg(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleSKey is the dispatcher for the `s` key in normal (no-dialog) mode.
-// New path: when ActiveSessions is wired, `s` always opens the project picker
-// regardless of whether a session is currently running or whether UserID is
-// known. If the user picks a different project the picker handler sequences a
-// Stop+Start atomically (switchProjectCmd). Picking the same project is a
-// no-op. The httpapi ignores the userID parameter so the call works correctly
-// even when UserID is "" (token present but identity resolve failed); if the
-// token itself is missing the HTTP call returns an auth error toast.
 //
-// Legacy path: call toggleStartStopCmd (existing behaviour, unchanged).
+// New path (ActiveSessions wired): `s` is a context-sensitive toggle.
+//   - running (h.day.IsRunning() && activeSessions available): call Stop.
+//   - paused  (h.day.IsPaused()  && activeSessions available): call Resume.
+//   - idle: open the project picker so the user can start or switch.
+//
+// The running/paused predicate mirrors the footer hints in today_render.go
+// (footerHints) so the label the user reads ("s → stoppen" / "s → fortsetzen"
+// / "s → starten") always matches the action that fires.
+//
+// Legacy path (ActiveSessions nil): call toggleStartStopCmd (unchanged).
 func (h heute) handleSKey() (tea.Model, tea.Cmd) {
 	if h.deps.ActiveSessions != nil {
-		return h.openProjectPicker()
+		switch {
+		case h.day.IsRunning() && len(h.activeSessions) > 0:
+			return h, h.stopActiveCmd()
+		case h.day.IsPaused() && len(h.activeSessions) > 0:
+			return h, h.resumeActiveCmd()
+		default:
+			return h.openProjectPicker()
+		}
 	}
 	return h, h.toggleStartStopCmd()
 }

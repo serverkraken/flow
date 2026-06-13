@@ -135,6 +135,51 @@ func (h heute) pauseCmd() tea.Cmd {
 	return tea.Batch(mut, emitWorktimeChanged(now))
 }
 
+// stopActiveCmd calls ActiveSessions.Stop on the first active session.
+// Modelled on pauseCmd: handles ErrActiveSessionNotFound gracefully,
+// emits an emitWorktimeChanged so all sub-tabs reload.
+// Toast text must NOT embed a glyph — the toast component prepends its own.
+func (h heute) stopActiveCmd() tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	target := h.activeSessions[0]
+	mut := func() tea.Msg {
+		s, err := as.Stop(userID, target.ProjectID, "", "")
+		if errors.Is(err, ports.ErrActiveSessionNotFound) {
+			return heuteActionDoneMsg{toast: "Gestoppt — Session war bereits beendet", info: true}
+		}
+		if err != nil {
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{
+			toast: fmt.Sprintf("Gestoppt — Session %s", formatDur(s.Elapsed)),
+		}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
+}
+
+// resumeActiveCmd calls ActiveSessions.Resume on the first active session.
+// Modelled on pauseCmd: handles ErrActiveSessionNotFound gracefully,
+// emits an emitWorktimeChanged so all sub-tabs reload.
+// Toast text must NOT embed a glyph — the toast component prepends its own.
+func (h heute) resumeActiveCmd() tea.Cmd {
+	as := h.deps.ActiveSessions
+	userID := h.deps.UserID
+	now := h.deps.Clock.Now()
+	target := h.activeSessions[0]
+	mut := func() tea.Msg {
+		if _, err := as.Resume(userID, target.ProjectID); err != nil {
+			if errors.Is(err, ports.ErrActiveSessionNotFound) {
+				return heuteActionDoneMsg{toast: "Fortgesetzt — Session war bereits aktiv", info: true}
+			}
+			return heuteActionDoneMsg{err: err}
+		}
+		return heuteActionDoneMsg{toast: "Worktime fortgesetzt"}
+	}
+	return tea.Batch(mut, emitWorktimeChanged(now))
+}
+
 func (h heute) deleteCmd(date time.Time, idx int) tea.Cmd {
 	sw := h.deps.SessionWriter
 	mut := func() tea.Msg {
