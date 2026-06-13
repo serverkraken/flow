@@ -1,0 +1,16 @@
+package domain
+
+// EventType identifies a live event pushed to clients over SSE.
+type EventType string
+
+const (
+	EventPing EventType = "ping" // dev-only loop proof; real events arrive in M1+
+)
+
+// Event is a server-originated change notification. UserID is the routing
+// key and is never serialized to the client.
+type Event struct {
+	Type   EventType      `json:"type"`
+	UserID string         `json:"-"`
+	Data   map[string]any `json:"data,omitempty"`
+}
