@@ -74,6 +74,13 @@ type frei struct {
 	// Enter-as-cancel-Default, was die Konvention der ganzen App invertierte.
 	confirmModel *confirm.Model
 
+	// deleteDate ist das Datum des Eintrags, der beim Öffnen des Delete-
+	// Confirms fokussiert war. Wird beim Drücken von D gesetzt und beim
+	// Auflösen des Confirms verwendet — nicht f.entries[f.cursor].Date,
+	// damit ein zwischenzeitlicher Reload/ChangedMsg-Shuffle nicht den
+	// falschen Eintrag löscht.
+	deleteDate time.Time
+
 	// toast — kanonische green-✓ Bestätigung, post-Welle-3 via toast.Model.
 	toast *toast.Model
 }
@@ -169,10 +176,10 @@ func (f frei) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !msg.Confirmed {
 			return f, nil
 		}
-		if f.cursor < 0 || f.cursor >= len(f.entries) {
-			return f, nil
-		}
-		date := f.entries[f.cursor].Date
+		// Verwende das beim Öffnen des Confirms erfasste Datum (f.deleteDate),
+		// NICHT f.entries[f.cursor].Date — ein zwischenzeitlicher Reload kann
+		// die Reihenfolge ändern und den Cursor auf einen anderen Eintrag zeigen.
+		date := f.deleteDate
 		writer := f.deps.DayOffWriter
 		mut := func() tea.Msg {
 			if err := writer.Remove(date); err != nil {
@@ -253,6 +260,9 @@ func (f frei) handleNormalKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			f.dialog = freiDialogConfirm
 			f.errMsg = ""
 			d := f.entries[f.cursor]
+			// Datum jetzt erfassen — ein Reload/ChangedMsg während der Confirm
+			// offen ist darf den Cursor-Index verschieben, ohne das Ziel zu ändern.
+			f.deleteDate = d.Date
 			question := "Eintrag löschen?"
 			detail := fmt.Sprintf("%s  %s  %s",
 				d.Date.Format("2006-01-02"), d.Kind.LabelDe(), d.Label)
