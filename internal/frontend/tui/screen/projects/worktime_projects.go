@@ -193,6 +193,11 @@ func (m worktimeProjectsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.doArchive()
 
+	case wpErrorMsg:
+		t := toast.NewDanger(msg.context+": "+msg.err.Error(), m.pal)
+		m.toast = &t
+		return m, t.Init()
+
 	case toast.DismissedMsg:
 		m.toast = nil
 		return m, nil
