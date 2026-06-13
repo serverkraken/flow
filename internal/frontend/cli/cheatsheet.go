@@ -31,7 +31,7 @@ func NewCheatsheetCmd(deps CheatsheetDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			tk.Init()
 			pal := tk.Load()
-			m := cheatsheet.New(pal, deps.Reader, deps.Renderer)
+			m := cheatsheet.New(pal, deps.Reader, deps.Renderer, cheatsheet.WithStandalone())
 			prog := tea.NewProgram(m, tea.WithContext(cmd.Context()))
 			_, err := prog.Run()
 			return err
