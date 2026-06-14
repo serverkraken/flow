@@ -57,6 +57,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/settings", s.auth(http.HandlerFunc(s.handleGetSettings)))
 	mux.Handle("POST /api/v1/settings/bundesland", s.auth(http.HandlerFunc(s.handleSetBundesland)))
 	mux.Handle("POST /api/v1/ics-token/regenerate", s.auth(http.HandlerFunc(s.handleRegenIcsToken)))
+	mux.HandleFunc("GET /ics/{token}", s.handleIcsFeed)
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)
