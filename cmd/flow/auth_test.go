@@ -1,9 +1,16 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/serverkraken/flow/internal/clientconfig"
 	"github.com/serverkraken/flow/internal/ports"
 	"golang.org/x/oauth2"
 )
@@ -57,5 +64,87 @@ func TestPersistingSourcePreservesRefreshWhenEmpty(t *testing.T) {
 	}
 	if store.saved.RefreshToken != "keep" {
 		t.Fatalf("refresh token not preserved: %q", store.saved.RefreshToken)
+	}
+}
+
+// A still-valid stored token is returned directly, without the OIDC issuer and
+// without any network discovery — this is the wart fix that lets `flow whoami`
+// work without FLOW_OIDC_ISSUER set.
+func TestLazySourceUsesValidTokenWithoutIssuer(t *testing.T) {
+	s := &lazyDeviceSource{
+		ctx:  context.Background(),
+		cfg:  clientconfig.Config{}, // no issuer
+		last: ports.Token{AccessToken: "valid", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)},
+	}
+	tok, err := s.Token()
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if tok.AccessToken != "valid" {
+		t.Fatalf("expected cached token, got %q", tok.AccessToken)
+	}
+}
+
+// An expired token with no issuer configured cannot be refreshed; the error
+// must point the user at login / the issuer rather than failing obscurely.
+func TestLazySourceErrorsWhenExpiredWithoutIssuer(t *testing.T) {
+	s := &lazyDeviceSource{
+		ctx:  context.Background(),
+		cfg:  clientconfig.Config{}, // no issuer
+		last: ports.Token{AccessToken: "stale", Expiry: time.Now().Add(-time.Hour)},
+	}
+	_, err := s.Token()
+	if err == nil {
+		t.Fatal("expected error for expired token without issuer")
+	}
+	if !strings.Contains(err.Error(), "FLOW_OIDC_ISSUER") {
+		t.Fatalf("error should mention FLOW_OIDC_ISSUER: %v", err)
+	}
+}
+
+// When the token is expired AND an issuer is configured, the lazy source
+// discovers the endpoints and refreshes via the refresh_token grant.
+func TestLazySourceRefreshesWhenExpired(t *testing.T) {
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                        srv.URL,
+			"authorization_endpoint":        srv.URL + "/auth",
+			"token_endpoint":                srv.URL + "/token",
+			"device_authorization_endpoint": srv.URL + "/device/code",
+			"jwks_uri":                      srv.URL + "/jwks",
+		})
+	})
+	var gotGrant, gotRefresh string
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		gotGrant = r.Form.Get("grant_type")
+		gotRefresh = r.Form.Get("refresh_token")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "fresh-acc",
+			"refresh_token": "fresh-ref",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+		})
+	})
+
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), srv.URL)
+	s := &lazyDeviceSource{
+		ctx:  ctx,
+		cfg:  clientconfig.Config{ServerURL: "x", OIDCIssuer: srv.URL, CliClientID: "flow-cli"},
+		last: ports.Token{AccessToken: "old-acc", RefreshToken: "old-ref", Expiry: time.Now().Add(-time.Hour)},
+	}
+	tok, err := s.Token()
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if tok.AccessToken != "fresh-acc" {
+		t.Fatalf("expected refreshed access token, got %q", tok.AccessToken)
+	}
+	if gotGrant != "refresh_token" || gotRefresh != "old-ref" {
+		t.Fatalf("expected refresh_token grant with old refresh token, got grant=%q refresh=%q", gotGrant, gotRefresh)
 	}
 }

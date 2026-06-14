@@ -20,9 +20,9 @@ func loginCmd() *cobra.Command {
 		Short: "Log in via OIDC device flow",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			cfg, err := clientconfig.Load(os.Getenv)
-			if err != nil {
-				return err
+			cfg := clientconfig.Load(os.Getenv)
+			if cfg.OIDCIssuer == "" {
+				return fmt.Errorf("FLOW_OIDC_ISSUER is required to log in")
 			}
 			flow, err := oidcdevice.New(ctx, cfg.OIDCIssuer, cfg.CliClientID)
 			if err != nil {
