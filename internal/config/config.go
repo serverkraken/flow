@@ -10,6 +10,7 @@ type Config struct {
 	DatabaseURL      string
 	OIDCIssuer       string
 	OIDCClientID     string
+	OIDCCliClientID  string
 	OIDCClientSecret string
 	PublicBaseURL    string
 	SessionSecret    string
@@ -24,6 +25,7 @@ func Load(getenv func(string) string) (Config, error) {
 		DatabaseURL:      getenv("DATABASE_URL"),
 		OIDCIssuer:       getenv("FLOW_OIDC_ISSUER"),
 		OIDCClientID:     getenv("FLOW_OIDC_CLIENT_ID"),
+		OIDCCliClientID:  getenv("FLOW_OIDC_CLI_CLIENT_ID"),
 		OIDCClientSecret: getenv("FLOW_OIDC_CLIENT_SECRET"),
 		PublicBaseURL:    getenv("FLOW_PUBLIC_BASE_URL"),
 		SessionSecret:    getenv("FLOW_SESSION_SECRET"),
@@ -43,6 +45,7 @@ func Load(getenv func(string) string) (Config, error) {
 		{"DATABASE_URL", c.DatabaseURL},
 		{"FLOW_OIDC_ISSUER", c.OIDCIssuer},
 		{"FLOW_OIDC_CLIENT_ID", c.OIDCClientID},
+		{"FLOW_OIDC_CLI_CLIENT_ID", c.OIDCCliClientID},
 		{"FLOW_OIDC_CLIENT_SECRET", c.OIDCClientSecret},
 		{"FLOW_PUBLIC_BASE_URL", c.PublicBaseURL},
 		{"FLOW_SESSION_SECRET", c.SessionSecret},

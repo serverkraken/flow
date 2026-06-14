@@ -7,6 +7,7 @@ func TestLoadFromEnv(t *testing.T) {
 		"DATABASE_URL":            "postgres://flow:flow@localhost:5432/flow?sslmode=disable",
 		"FLOW_OIDC_ISSUER":        "https://id.thebackend.org/application/o/flow/",
 		"FLOW_OIDC_CLIENT_ID":     "flow",
+		"FLOW_OIDC_CLI_CLIENT_ID": "flow-cli",
 		"FLOW_ALLOWED_SUBS":       "msoent, alice",
 		"FLOW_LISTEN_ADDR":        ":8080",
 		"FLOW_DEV":                "1",
@@ -30,6 +31,9 @@ func TestLoadFromEnv(t *testing.T) {
 	if c.OIDCClientSecret != "shh" || c.SessionSecret == "" {
 		t.Fatal("auth-code config not parsed")
 	}
+	if c.OIDCCliClientID != "flow-cli" {
+		t.Fatalf("CLI client id not parsed: %q", c.OIDCCliClientID)
+	}
 	if got := c.RedirectURL(); got != "https://flow.thebackend.org/auth/callback" {
 		t.Fatalf("RedirectURL = %q", got)
 	}
@@ -46,6 +50,7 @@ func TestLoadDefaultsListenAddr(t *testing.T) {
 		"DATABASE_URL":            "postgres://x",
 		"FLOW_OIDC_ISSUER":        "https://issuer",
 		"FLOW_OIDC_CLIENT_ID":     "flow",
+		"FLOW_OIDC_CLI_CLIENT_ID": "flow-cli",
 		"FLOW_OIDC_CLIENT_SECRET": "s",
 		"FLOW_PUBLIC_BASE_URL":    "https://flow.example.com",
 		"FLOW_SESSION_SECRET":     "secret",
