@@ -262,7 +262,7 @@ func (m Model) View() tea.View {
 			if s.Running() {
 				mark = "▶"
 			}
-			b.WriteString(fmt.Sprintf("  %s %s  %s\n", mark, s.Start.Local().Format("15:04"), fmtDur(s.Elapsed(m.now))))
+			fmt.Fprintf(&b, "  %s %s  %s\n", mark, s.Start.Local().Format("15:04"), fmtDur(s.Elapsed(m.now)))
 		}
 	}
 

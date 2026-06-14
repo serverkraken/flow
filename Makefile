@@ -23,7 +23,7 @@ db-up:
 db-down:
 	docker compose -f deploy/docker-compose.yml down
 smoke:
-	./scripts/smoke-m0.sh
+	./scripts/smoke-m1a.sh
 # web builds the Tailwind v4 stylesheet. Requires the tailwindcss CLI (NOT part of make ci).
 web:
 	tailwindcss --input web/tailwind.css --output internal/adapter/webui/static/app.css --minify

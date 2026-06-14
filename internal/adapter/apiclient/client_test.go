@@ -1,12 +1,15 @@
 package apiclient_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 func TestWhoamiSendsBearerAndParses(t *testing.T) {
@@ -43,5 +46,78 @@ func TestWhoamiNon200ReturnsError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "401") {
 		t.Fatalf("error should mention status: %v", err)
+	}
+}
+
+func newMux(t *testing.T) (*http.ServeMux, string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return mux, srv.URL
+}
+
+func TestStopSession(t *testing.T) {
+	mux, base := newMux(t)
+	stop := time.Now().UTC().Truncate(time.Second)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/stop", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		ws, _ := domain.NewWorkSession(id, "u1", nil, stop.Add(-time.Hour))
+		ws.Stop = &stop
+		_ = json.NewEncoder(w).Encode(ws)
+	})
+	c := apiclient.New(base, "tok")
+	ws, err := c.StopSession(t.Context(), "sess-1", "proj-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ws.ID != "sess-1" {
+		t.Fatalf("unexpected session id: %s", ws.ID)
+	}
+}
+
+func TestListSessions(t *testing.T) {
+	mux, base := newMux(t)
+	start := time.Now().UTC().Truncate(time.Second)
+	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
+		ws, _ := domain.NewWorkSession("s1", "u1", nil, start)
+		_ = json.NewEncoder(w).Encode([]domain.WorkSession{ws})
+	})
+	c := apiclient.New(base, "tok")
+	list, err := c.ListSessions(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != "s1" {
+		t.Fatalf("unexpected sessions: %+v", list)
+	}
+}
+
+func TestCreateProject(t *testing.T) {
+	mux, base := newMux(t)
+	mux.HandleFunc("POST /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		p, _ := domain.NewProject("p1", "u1", "Flow", "flow", time.Now())
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(p)
+	})
+	c := apiclient.New(base, "tok")
+	p, err := c.CreateProject(t.Context(), "Flow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "Flow" {
+		t.Fatalf("unexpected project: %+v", p)
+	}
+}
+
+func TestDoErrorOnNon2xx(t *testing.T) {
+	mux, base := newMux(t)
+	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	c := apiclient.New(base, "tok")
+	_, err := c.ListSessions(t.Context())
+	if err == nil {
+		t.Fatal("expected error on 500")
 	}
 }

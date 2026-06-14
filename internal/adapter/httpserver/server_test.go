@@ -1,15 +1,19 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/sse"
+	"github.com/serverkraken/flow/internal/adapter/websession"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -97,7 +101,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	}
 	var proj domain.Project
 	_ = json.NewDecoder(res.Body).Decode(&proj)
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	res = do("POST", "/api/v1/sessions", `{}`)
 	if res.StatusCode != http.StatusCreated {
@@ -105,23 +109,196 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	}
 	var s domain.WorkSession
 	_ = json.NewDecoder(res.Body).Decode(&s)
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	res = do("POST", "/api/v1/sessions", `{}`)
 	if res.StatusCode != http.StatusConflict {
 		t.Fatalf("double start status %d, want 409", res.StatusCode)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	res = do("POST", "/api/v1/sessions/"+s.ID+"/stop", `{}`)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("stop-no-project status %d, want 400", res.StatusCode)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
 
 	res = do("POST", "/api/v1/sessions/"+s.ID+"/stop", `{"projectId":"`+proj.ID+`"}`)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("stop status %d, want 200", res.StatusCode)
 	}
-	res.Body.Close()
+	_ = res.Body.Close()
+}
+
+func TestListSessionsAndProjects(t *testing.T) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeProjectStore()
+	users := testutil.NewFakeUserStore()
+	srv := &httpserver.Server{
+		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:           sse.NewBus(),
+		Clock:         clk,
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:  usecase.ListProjects{Projects: ps},
+	}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	do := func(method, path, body string) *http.Response {
+		req, _ := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer x")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	res := do("GET", "/api/v1/sessions", "")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list sessions: %d", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	res = do("GET", "/api/v1/projects", "")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list projects: %d", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// since param
+	since := clk.T.Add(-24 * time.Hour).UTC().Format(time.RFC3339)
+	res = do("GET", "/api/v1/sessions?since="+since, "")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("list sessions with since: %d", res.StatusCode)
+	}
+	_ = res.Body.Close()
+}
+
+// newWebSrv builds a full httpserver.Server with a seeded user and returns the
+// test server, the session codec, and the user id.
+func newWebSrv(t *testing.T) (*httptest.Server, *websession.Codec, string) {
+	t.Helper()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 10, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeProjectStore()
+	users := testutil.NewFakeUserStore()
+
+	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
+	_, _ = users.UpsertBySub(context.Background(), u)
+
+	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
+	srv := &httpserver.Server{
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:           sse.NewBus(),
+		Clock:         clk,
+		Users:         users,
+		Session:       codec,
+		OIDCAuth:      fakeAuth{url: "https://id/authorize?state="},
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:  usecase.ListProjects{Projects: ps},
+	}
+	ts := httptest.NewServer(srv.Routes())
+	t.Cleanup(ts.Close)
+	return ts, codec, "u1"
+}
+
+func TestWebFragmentRequiresSession(t *testing.T) {
+	ts, _, _ := newWebSrv(t)
+	noFollow := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := noFollow.Get(ts.URL + "/ui/worktime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusFound {
+		t.Fatalf("want 302, got %d", res.StatusCode)
+	}
+}
+
+func TestWebFragmentWithSession(t *testing.T) {
+	ts, codec, uid := newWebSrv(t)
+	cookieVal, _ := codec.Issue(uid)
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/worktime", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("fragment status %d", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if !strings.Contains(string(body), "start timer") {
+		t.Fatalf("fragment missing start timer: %s", string(body))
+	}
+}
+
+func TestWebStartSession(t *testing.T) {
+	ts, codec, uid := newWebSrv(t)
+	cookieVal, _ := codec.Issue(uid)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/ui/worktime/start", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("start status %d", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	// After start, the running timer should appear in the fragment.
+	if !strings.Contains(string(body), "stop") {
+		t.Fatalf("fragment after start missing stop button: %s", string(body))
+	}
+}
+
+func TestWebStopSession(t *testing.T) {
+	ts, codec, uid := newWebSrv(t)
+	cookieVal, _ := codec.Issue(uid)
+
+	doWeb := func(method, path string, form url.Values) *http.Response {
+		var body io.Reader
+		var ct string
+		if form != nil {
+			body = strings.NewReader(form.Encode())
+			ct = "application/x-www-form-urlencoded"
+		}
+		req, _ := http.NewRequest(method, ts.URL+path, body)
+		req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+		if ct != "" {
+			req.Header.Set("Content-Type", ct)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	// First, start a session via webui.
+	res := doWeb("POST", "/ui/worktime/start", nil)
+	_ = res.Body.Close()
+
+	// Now, create a project and stop via webui with newProject field.
+	form := url.Values{"newProject": {"TestProj"}, "sessionId": {""}}
+	res = doWeb("POST", "/ui/worktime/stop", form)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("stop status %d", res.StatusCode)
+	}
+	_ = res.Body.Close()
 }

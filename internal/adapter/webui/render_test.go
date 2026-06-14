@@ -71,3 +71,21 @@ func TestWorktimePageWrapsFragment(t *testing.T) {
 		t.Fatalf("page wrapper missing SSE wiring or fragment:\n%s", out)
 	}
 }
+
+func TestFmtDur(t *testing.T) {
+	cases := []struct {
+		d    time.Duration
+		want string
+	}{
+		{90 * time.Minute, "01:30"},
+		{0, "00:00"},
+		{-time.Minute, "00:00"},
+		{61 * time.Minute, "01:01"},
+	}
+	for _, tc := range cases {
+		got := fmtDur(tc.d)
+		if got != tc.want {
+			t.Errorf("fmtDur(%v) = %q, want %q", tc.d, got, tc.want)
+		}
+	}
+}

@@ -32,3 +32,13 @@ func TestWorkSessionElapsedWhenStopped(t *testing.T) {
 		t.Fatalf("stopped elapsed = %v, want 30m", got)
 	}
 }
+
+func TestNewWorkSessionValidationErrors(t *testing.T) {
+	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	if _, err := NewWorkSession("", "u1", nil, start); err == nil {
+		t.Fatal("expected error for empty id")
+	}
+	if _, err := NewWorkSession("s1", "", nil, start); err == nil {
+		t.Fatal("expected error for empty ownerID")
+	}
+}
