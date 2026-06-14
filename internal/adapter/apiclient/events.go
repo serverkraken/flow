@@ -9,10 +9,6 @@ import (
 	"strings"
 )
 
-// streamClient has no timeout — the events stream is long-lived and ends only
-// when the context is cancelled or the server closes.
-var streamClient = &http.Client{}
-
 // ClientEvent is a decoded SSE frame: the event name and the small payload.
 type ClientEvent struct {
 	Type string
@@ -27,8 +23,7 @@ func (c *Client) Events(ctx context.Context) (<-chan ClientEvent, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	res, err := streamClient.Do(req)
+	res, err := (&http.Client{Transport: c.rt}).Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -121,3 +121,28 @@ func TestDoErrorOnNon2xx(t *testing.T) {
 		t.Fatal("expected error on 500")
 	}
 }
+
+type tagRoundTripper struct{ tag string }
+
+func (rt tagRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	r2.Header.Set("Authorization", "Bearer "+rt.tag)
+	return http.DefaultTransport.RoundTrip(r2)
+}
+
+func TestNewTransportSetsAuth(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"id":"u1","username":"msoent"}`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.NewTransport(srv.URL, tagRoundTripper{tag: "from-rt"})
+	if _, err := c.Whoami(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if gotAuth != "Bearer from-rt" {
+		t.Fatalf("auth header: %q", gotAuth)
+	}
+}

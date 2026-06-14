@@ -14,13 +14,28 @@ import (
 )
 
 type Client struct {
-	base  string
-	token string
-	hc    *http.Client
+	base string
+	hc   *http.Client      // 15s timeout, for unary calls
+	rt   http.RoundTripper // auth transport, reused for the no-timeout SSE client
 }
 
+// New builds a client that sends a fixed bearer token (CI / FLOW_TOKEN override).
 func New(base, token string) *Client {
-	return &Client{base: base, token: token, hc: &http.Client{Timeout: 15 * time.Second}}
+	return NewTransport(base, staticBearer{token})
+}
+
+// NewTransport builds a client whose auth (and refresh) is handled by rt.
+func NewTransport(base string, rt http.RoundTripper) *Client {
+	return &Client{base: base, rt: rt, hc: &http.Client{Timeout: 15 * time.Second, Transport: rt}}
+}
+
+// staticBearer injects a fixed bearer token on every request.
+type staticBearer struct{ token string }
+
+func (b staticBearer) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	r2.Header.Set("Authorization", "Bearer "+b.token)
+	return http.DefaultTransport.RoundTrip(r2)
 }
 
 func (c *Client) Whoami(ctx context.Context) (domain.User, error) {
@@ -28,7 +43,6 @@ func (c *Client) Whoami(ctx context.Context) (domain.User, error) {
 	if err != nil {
 		return domain.User{}, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
 	res, err := c.hc.Do(req)
 	if err != nil {
 		return domain.User{}, err
@@ -57,7 +71,6 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
