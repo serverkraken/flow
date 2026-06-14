@@ -14,11 +14,11 @@ func TestBusDeliversToSubscriberOfSameUser(t *testing.T) {
 	ch, cancel := b.Subscribe("user-1")
 	defer cancel()
 
-	b.Publish(domain.Event{Type: domain.EventPing, UserID: "user-1"})
+	b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "user-1"})
 
 	select {
 	case ev := <-ch:
-		if ev.Type != domain.EventPing {
+		if ev.Type != domain.EventSessionStarted {
 			t.Fatalf("wrong event: %v", ev.Type)
 		}
 	case <-time.After(time.Second):
@@ -30,7 +30,7 @@ func TestBusIsolatesUsers(t *testing.T) {
 	b := sse.NewBus()
 	ch, cancel := b.Subscribe("user-1")
 	defer cancel()
-	b.Publish(domain.Event{Type: domain.EventPing, UserID: "user-2"})
+	b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "user-2"})
 	select {
 	case <-ch:
 		t.Fatal("user-1 must not receive user-2 events")
@@ -42,7 +42,7 @@ func TestCancelUnsubscribes(t *testing.T) {
 	b := sse.NewBus()
 	ch, cancel := b.Subscribe("u")
 	cancel()
-	b.Publish(domain.Event{Type: domain.EventPing, UserID: "u"})
+	b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "u"})
 	if _, ok := <-ch; ok {
 		t.Fatal("channel should be closed after cancel")
 	}
@@ -57,7 +57,7 @@ func TestBusConcurrentPublishSubscribeCancel(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 200; j++ {
-				b.Publish(domain.Event{Type: domain.EventPing, UserID: "u"})
+				b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "u"})
 			}
 		}()
 	}

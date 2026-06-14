@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/serverkraken/flow/internal/domain"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -17,12 +15,6 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(u)
-}
-
-func (s *Server) handleDebugPing(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	s.Bus.Publish(domain.Event{Type: domain.EventPing, UserID: u.ID, Data: map[string]any{"msg": "pong"}})
-	w.WriteHeader(http.StatusAccepted)
 }
 
 // handleEvents streams the user's events as SSE until the client disconnects.

@@ -16,6 +16,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/oidcverify"
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/adapter/sse"
+	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/uuidgen"
 	"github.com/serverkraken/flow/internal/config"
 	"github.com/serverkraken/flow/internal/ports"
@@ -50,15 +51,29 @@ func run() error {
 		return err
 	}
 
+	userStore := pgstore.NewUserStore(pool)
+	projectStore := pgstore.NewProjectStore(pool)
+	sessionStore := pgstore.NewSessionStore(pool)
+	clock := systemclock.Clock{}
+	ids := uuidgen.Gen{}
+
 	srv := &httpserver.Server{
 		Verifier: verifier,
 		Ensure: usecase.EnsureUser{
-			Users: pgstore.NewUserStore(pool),
-			IDs:   uuidgen.Gen{},
+			Users: userStore,
+			IDs:   ids,
 			Allow: func(id ports.Identity) bool { return cfg.AllowedSubs[id.Username] || cfg.AllowedSubs[id.Subject] },
 		},
-		Bus: sse.NewBus(),
-		Dev: cfg.Dev,
+		Bus:           sse.NewBus(),
+		Clock:         clock,
+		Dev:           cfg.Dev,
+		StartSession:  usecase.StartSession{Sessions: sessionStore, IDs: ids, Clock: clock},
+		StopSession:   usecase.StopSession{Sessions: sessionStore, Projects: projectStore, Clock: clock},
+		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
+		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
+		ListProjects:  usecase.ListProjects{Projects: projectStore},
+		Users:         userStore,
+		// OIDCAuth + Session wired in Task 5
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}

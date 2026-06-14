@@ -1,8 +1,7 @@
 package httpserver_test
 
 import (
-	"bufio"
-	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/sse"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -60,37 +60,68 @@ func TestMeReturnsUser(t *testing.T) {
 	}
 }
 
-func TestEventsStreamsDebugPing(t *testing.T) {
-	srv := httptest.NewServer(newServer().Routes())
-	defer srv.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	req, _ := http.NewRequestWithContext(ctx, "GET", srv.URL+"/api/v1/events", nil)
-	req.Header.Set("Authorization", "Bearer xyz")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil || res.StatusCode != 200 {
-		t.Fatalf("events: %v status=%v", err, res.StatusCode)
+func TestSessionStartStopRoutes(t *testing.T) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeProjectStore()
+	users := testutil.NewFakeUserStore()
+	srv := &httpserver.Server{
+		Verifier: testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:   usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:      sse.NewBus(),
+		Clock:    clk,
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:  usecase.ListProjects{Projects: ps},
 	}
-	defer func() { _ = res.Body.Close() }()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
 
-	// fire the ping after the stream is open
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		pr, _ := http.NewRequest("POST", srv.URL+"/api/v1/debug/ping", nil)
-		pr.Header.Set("Authorization", "Bearer xyz")
-		_, _ = http.DefaultClient.Do(pr)
-	}()
-
-	sc := bufio.NewScanner(res.Body)
-	deadline := time.Now().Add(3 * time.Second)
-	for sc.Scan() {
-		if strings.Contains(sc.Text(), "event: ping") {
-			return // success
+	do := func(method, path, body string) *http.Response {
+		req, _ := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer x")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if time.Now().After(deadline) {
-			break
-		}
+		return res
 	}
-	t.Fatal("did not receive ping event")
+
+	res := do("POST", "/api/v1/projects", `{"name":"Flow"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create project status %d", res.StatusCode)
+	}
+	var proj domain.Project
+	_ = json.NewDecoder(res.Body).Decode(&proj)
+	res.Body.Close()
+
+	res = do("POST", "/api/v1/sessions", `{}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("start status %d", res.StatusCode)
+	}
+	var s domain.WorkSession
+	_ = json.NewDecoder(res.Body).Decode(&s)
+	res.Body.Close()
+
+	res = do("POST", "/api/v1/sessions", `{}`)
+	if res.StatusCode != http.StatusConflict {
+		t.Fatalf("double start status %d, want 409", res.StatusCode)
+	}
+	res.Body.Close()
+
+	res = do("POST", "/api/v1/sessions/"+s.ID+"/stop", `{}`)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("stop-no-project status %d, want 400", res.StatusCode)
+	}
+	res.Body.Close()
+
+	res = do("POST", "/api/v1/sessions/"+s.ID+"/stop", `{"projectId":"`+proj.ID+`"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("stop status %d, want 200", res.StatusCode)
+	}
+	res.Body.Close()
 }

@@ -4,7 +4,10 @@ package domain
 type EventType string
 
 const (
-	EventPing EventType = "ping" // dev-only loop proof; real events arrive in M1+
+	EventSessionStarted EventType = "session.started"
+	EventSessionStopped EventType = "session.stopped"
+	EventSessionUpdated EventType = "session.updated"
+	EventProjectCreated EventType = "project.created"
 )
 
 // Event is a server-originated change notification. UserID is the routing
