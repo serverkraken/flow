@@ -1,0 +1,102 @@
+package pgstore_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/serverkraken/flow/internal/adapter/pgstore"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+)
+
+func TestSessionStoreLifecycle(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	// A session FKs to users(id) and projects(id), so seed a user + project.
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "Martin")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	projects := pgstore.NewProjectStore(pool)
+	now := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	p, _ := domain.NewProject("p1", "u1", "Flow", "flow", now)
+	if _, err := projects.Create(ctx, p); err != nil {
+		t.Fatalf("project create: %v", err)
+	}
+
+	sessions := pgstore.NewSessionStore(pool)
+	if _, ok, err := sessions.Running(ctx, "u1"); err != nil || ok {
+		t.Fatalf("expected no running session, got ok=%v err=%v", ok, err)
+	}
+	s, _ := domain.NewWorkSession("s1", "u1", nil, now)
+	if _, err := sessions.Create(ctx, s); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	s2, _ := domain.NewWorkSession("s2", "u1", nil, now.Add(time.Minute))
+	if _, err := sessions.Create(ctx, s2); err == nil {
+		t.Fatal("expected unique-violation for a second running session")
+	}
+	got, ok, err := sessions.Running(ctx, "u1")
+	if err != nil || !ok || got.ID != "s1" {
+		t.Fatalf("Running = %+v ok=%v err=%v", got, ok, err)
+	}
+	pid := "p1"
+	stopAt := now.Add(time.Hour)
+	stopped, err := sessions.Stop(ctx, "u1", "s1", &pid, stopAt)
+	if err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	if stopped.Stop == nil || !stopped.Stop.Equal(stopAt) || stopped.ProjectID == nil || *stopped.ProjectID != "p1" {
+		t.Fatalf("stop result wrong: %+v", stopped)
+	}
+	if _, ok, _ := sessions.Running(ctx, "u1"); ok {
+		t.Fatal("nothing should be running after stop")
+	}
+	list, err := sessions.List(ctx, "u1", now.Add(-24*time.Hour))
+	if err != nil || len(list) != 1 {
+		t.Fatalf("List = %d sessions err=%v", len(list), err)
+	}
+	if _, err := sessions.Stop(ctx, "u1", "nope", &pid, stopAt); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Fatalf("want ErrSessionNotFound, got %v", err)
+	}
+}
+
+func TestProjectStoreListOwnerScoped(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	ua, _ := domain.NewUser("ua", "sa", "a", "a@x", "A")
+	ub, _ := domain.NewUser("ub", "sb", "b", "b@x", "B")
+	_, _ = users.UpsertBySub(ctx, ua)
+	_, _ = users.UpsertBySub(ctx, ub)
+	ps := pgstore.NewProjectStore(pool)
+	now := time.Now()
+	pa, _ := domain.NewProject("pa", "ua", "A proj", "a-proj", now)
+	pb, _ := domain.NewProject("pb", "ub", "B proj", "b-proj", now)
+	_, _ = ps.Create(ctx, pa)
+	_, _ = ps.Create(ctx, pb)
+	list, err := ps.List(ctx, "ua")
+	if err != nil || len(list) != 1 || list[0].ID != "pa" {
+		t.Fatalf("owner-scoped list failed: %+v err=%v", list, err)
+	}
+	if _, err := ps.Get(ctx, "ua", "pb"); !errors.Is(err, ports.ErrProjectNotFound) {
+		t.Fatalf("cross-owner Get must be ErrProjectNotFound, got %v", err)
+	}
+}
