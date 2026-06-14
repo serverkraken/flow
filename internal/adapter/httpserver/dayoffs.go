@@ -147,8 +147,13 @@ func (s *Server) handleSetBundesland(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	if err := s.SetBundesland.Execute(r.Context(), u.ID, req.Bundesland); err != nil {
+	err := s.SetBundesland.Execute(r.Context(), u.ID, req.Bundesland)
+	switch {
+	case errors.Is(err, domain.ErrInvalidDayOff):
 		http.Error(w, "invalid bundesland", http.StatusBadRequest)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
