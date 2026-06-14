@@ -14,6 +14,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(worktimeCmd())
 	root.AddCommand(loginCmd())
 	root.AddCommand(logoutCmd())
+	root.AddCommand(dayoffCmd())
 	return root
 }
 
