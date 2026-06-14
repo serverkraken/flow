@@ -12,6 +12,8 @@ func rootCmd() *cobra.Command {
 	root := &cobra.Command{Use: "flow", Short: "flow client"}
 	root.AddCommand(whoamiCmd())
 	root.AddCommand(worktimeCmd())
+	root.AddCommand(loginCmd())
+	root.AddCommand(logoutCmd())
 	return root
 }
 
