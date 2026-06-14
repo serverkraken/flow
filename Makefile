@@ -4,7 +4,7 @@ COVER_OUT       := coverage.out
 COVER_THRESHOLD := 80
 COVER_PKG       := ./internal/...
 
-.PHONY: build test cover lint fmt ci db-up db-down smoke
+.PHONY: build test cover lint fmt ci db-up db-down smoke web generate verify-generate
 build:
 	@mkdir -p bin
 	go build -o bin/flow-server ./cmd/flow-server
@@ -24,4 +24,19 @@ db-down:
 	docker compose -f deploy/docker-compose.yml down
 smoke:
 	./scripts/smoke-m0.sh
-ci: lint cover build
+# web builds the Tailwind v4 stylesheet. Requires the tailwindcss CLI (NOT part of make ci).
+web:
+	tailwindcss --input web/tailwind.css --output internal/adapter/webui/static/app.css --minify
+# generate runs all code generators (templ, etc.).
+generate:
+	go tool templ generate
+# verify-generate checks that generated files are up to date.
+verify-generate:
+	go tool templ generate
+	@if ! git diff --quiet -- ':*_templ.go'; then \
+		echo "ERROR: generated *_templ.go is out of date — run make generate"; \
+		git diff -- ':*_templ.go'; \
+		exit 1; \
+	fi
+	@echo "verify-generate: OK"
+ci: lint verify-generate cover build

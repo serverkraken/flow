@@ -1,0 +1,77 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/domain"
+import "time"
+
+// WorktimeData is the view model for the worktime screen.
+type WorktimeData struct {
+	User     string
+	Running  *domain.WorkSession
+	Now      time.Time
+	Sessions []domain.WorkSession
+	Projects []domain.Project
+}
+
+templ WorktimePage(d WorktimeData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · worktime</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-md p-4">
+				<div id="wt" hx-get="/ui/worktime" hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:project.created" hx-swap="innerHTML">
+					@WorktimeFragment(d)
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ WorktimeFragment(d WorktimeData) {
+	<header class="mb-4 flex items-center justify-between">
+		<h1 class="text-lg font-semibold text-slate-900">flow · worktime</h1>
+		<form action="/auth/logout" method="post" hx-boost="false">
+			<button class="text-sm text-slate-500">logout { d.User }</button>
+		</form>
+	</header>
+	if d.Running != nil {
+		<div class="rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 p-5 text-white shadow-lg">
+			<div class="text-4xl font-bold tabular-nums">{ fmtDur(d.Running.Elapsed(d.Now)) }</div>
+			<div class="text-sm text-white/80">running</div>
+			<form hx-post="/ui/worktime/stop" hx-target="#wt" hx-swap="innerHTML" class="mt-4 flex flex-wrap gap-2">
+				<input type="hidden" name="sessionId" value={ d.Running.ID }/>
+				<select name="projectId" class="rounded bg-white/20 px-2 py-1 text-sm">
+					for _, p := range d.Projects {
+						<option value={ p.ID }>{ p.Name }</option>
+					}
+				</select>
+				<input name="newProject" placeholder="or new project…" class="rounded bg-white/20 px-2 py-1 text-sm placeholder-white/60"/>
+				<button class="rounded bg-white/90 px-3 py-1 text-sm font-medium text-slate-900">stop</button>
+			</form>
+		</div>
+	} else {
+		<form hx-post="/ui/worktime/start" hx-target="#wt" hx-swap="innerHTML">
+			<button class="w-full rounded-2xl bg-slate-900 p-5 text-left text-lg text-white">▶ start timer</button>
+		</form>
+	}
+	<section class="mt-6">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Today</h2>
+		if len(d.Sessions) == 0 {
+			<p class="text-sm text-slate-400">no sessions yet</p>
+		}
+		<ul class="divide-y divide-slate-100">
+			for _, s := range d.Sessions {
+				<li class="flex justify-between py-2 text-sm">
+					<span>{ s.Start.Local().Format("15:04") }</span>
+					<span class="tabular-nums text-slate-500">{ fmtDur(s.Elapsed(d.Now)) }</span>
+				</li>
+			}
+		</ul>
+	</section>
+}

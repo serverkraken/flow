@@ -1,0 +1,5 @@
+/* Placeholder stylesheet. The real Tailwind v4 build is produced by `make web`
+   (requires the tailwindcss CLI) from web/tailwind.css. Committed so go:embed
+   and go build never depend on the Tailwind toolchain. */
+:root { color-scheme: light; }
+body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; }
