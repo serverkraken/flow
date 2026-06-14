@@ -31,6 +31,9 @@ type Model struct {
 	status string
 	err    error
 	events <-chan apiclient.ClientEvent
+
+	showDayOffs bool
+	dayoffs     []apiclient.DayOff
 }
 
 // New builds the model. client may be nil in tests that only drive Update.
@@ -156,7 +159,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.events = msg.ch
 		return m, waitForEvent(msg.ch)
 	case eventMsg:
-		return m, tea.Batch(m.reload(), waitForEvent(m.events))
+		return m, tea.Batch(m.reload(), m.reloadDayOffs(), waitForEvent(m.events))
+	case dayoffsLoadedMsg:
+		m.dayoffs = msg.list
+		return m, nil
 	case errMsg:
 		m.err = msg.err
 		return m, nil
@@ -186,6 +192,12 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.booking = true
 		m.sel = 0
 		m.newName = ""
+		return m, nil
+	case k.Text == "d":
+		m.showDayOffs = true
+		return m, m.reloadDayOffs()
+	case k.Code == tea.KeyEsc && m.showDayOffs:
+		m.showDayOffs = false
 		return m, nil
 	}
 	return m, nil
@@ -230,6 +242,9 @@ func (m Model) handleBookingKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
+	if m.showDayOffs {
+		return m.dayOffView()
+	}
 	var b strings.Builder
 	b.WriteString(styleHeader.Render("flow · worktime") + styleMuted.Render("  "+m.user) + "\n\n")
 
