@@ -18,6 +18,7 @@ type IDGen interface{ NewID() string }
 type UserStore interface {
 	UpsertBySub(ctx context.Context, u domain.User) (domain.User, error)
 	GetBySub(ctx context.Context, sub string) (domain.User, error)
+	GetByID(ctx context.Context, id string) (domain.User, error)
 }
 
 // Identity is the verified result of a bearer token.

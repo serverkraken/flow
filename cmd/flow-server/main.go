@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
+	"github.com/serverkraken/flow/internal/adapter/oidcauth"
 	"github.com/serverkraken/flow/internal/adapter/oidcverify"
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/adapter/sse"
 	"github.com/serverkraken/flow/internal/adapter/systemclock"
 	"github.com/serverkraken/flow/internal/adapter/uuidgen"
+	"github.com/serverkraken/flow/internal/adapter/websession"
 	"github.com/serverkraken/flow/internal/config"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -50,6 +52,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	authn, err := oidcauth.New(ctx, cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, cfg.RedirectURL())
+	if err != nil {
+		return err
+	}
 
 	userStore := pgstore.NewUserStore(pool)
 	projectStore := pgstore.NewProjectStore(pool)
@@ -72,8 +78,9 @@ func run() error {
 		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
 		ListProjects:  usecase.ListProjects{Projects: projectStore},
-		Users:         userStore,
-		// OIDCAuth + Session wired in Task 5
+		Users:    userStore,
+		OIDCAuth: authn,
+		Session:  websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}

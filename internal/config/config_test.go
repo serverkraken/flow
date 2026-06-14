@@ -4,12 +4,15 @@ import "testing"
 
 func TestLoadFromEnv(t *testing.T) {
 	env := map[string]string{
-		"DATABASE_URL":        "postgres://flow:flow@localhost:5432/flow?sslmode=disable",
-		"FLOW_OIDC_ISSUER":    "https://id.thebackend.org/application/o/flow/",
-		"FLOW_OIDC_CLIENT_ID": "flow",
-		"FLOW_ALLOWED_SUBS":   "msoent, alice",
-		"FLOW_LISTEN_ADDR":    ":8080",
-		"FLOW_DEV":            "1",
+		"DATABASE_URL":            "postgres://flow:flow@localhost:5432/flow?sslmode=disable",
+		"FLOW_OIDC_ISSUER":        "https://id.thebackend.org/application/o/flow/",
+		"FLOW_OIDC_CLIENT_ID":     "flow",
+		"FLOW_ALLOWED_SUBS":       "msoent, alice",
+		"FLOW_LISTEN_ADDR":        ":8080",
+		"FLOW_DEV":                "1",
+		"FLOW_OIDC_CLIENT_SECRET": "shh",
+		"FLOW_PUBLIC_BASE_URL":    "https://flow.thebackend.org",
+		"FLOW_SESSION_SECRET":     "0123456789abcdef0123456789abcdef",
 	}
 	c, err := Load(func(k string) string { return env[k] })
 	if err != nil {
@@ -24,6 +27,12 @@ func TestLoadFromEnv(t *testing.T) {
 	if !c.Dev {
 		t.Fatal("dev flag not parsed")
 	}
+	if c.OIDCClientSecret != "shh" || c.SessionSecret == "" {
+		t.Fatal("auth-code config not parsed")
+	}
+	if got := c.RedirectURL(); got != "https://flow.thebackend.org/auth/callback" {
+		t.Fatalf("RedirectURL = %q", got)
+	}
 }
 
 func TestLoadMissingRequired(t *testing.T) {
@@ -34,9 +43,12 @@ func TestLoadMissingRequired(t *testing.T) {
 
 func TestLoadDefaultsListenAddr(t *testing.T) {
 	env := map[string]string{
-		"DATABASE_URL":        "postgres://x",
-		"FLOW_OIDC_ISSUER":    "https://issuer",
-		"FLOW_OIDC_CLIENT_ID": "flow",
+		"DATABASE_URL":            "postgres://x",
+		"FLOW_OIDC_ISSUER":        "https://issuer",
+		"FLOW_OIDC_CLIENT_ID":     "flow",
+		"FLOW_OIDC_CLIENT_SECRET": "s",
+		"FLOW_PUBLIC_BASE_URL":    "https://flow.example.com",
+		"FLOW_SESSION_SECRET":     "secret",
 	}
 	c, err := Load(func(k string) string { return env[k] })
 	if err != nil {

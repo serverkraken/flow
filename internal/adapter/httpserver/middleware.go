@@ -19,6 +19,24 @@ func userFrom(ctx context.Context) (domain.User, bool) {
 	return u, ok
 }
 
+// resolveBearer verifies a bearer token and ensures the user. Returns
+// ok=false on any failure (used by authAny, which then tries the cookie).
+func (s *Server) resolveBearer(r *http.Request) (domain.User, bool) {
+	raw := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if raw == "" || raw == r.Header.Get("Authorization") {
+		return domain.User{}, false
+	}
+	id, err := s.Verifier.Verify(r.Context(), raw)
+	if err != nil {
+		return domain.User{}, false
+	}
+	u, err := s.Ensure.Execute(r.Context(), id)
+	if err != nil {
+		return domain.User{}, false
+	}
+	return u, true
+}
+
 // auth verifies the bearer token, ensures the user, and stores it in context.
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

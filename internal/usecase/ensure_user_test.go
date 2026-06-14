@@ -33,6 +33,10 @@ func (s *boomStore) UpsertBySub(_ context.Context, u domain.User) (domain.User, 
 	return u, nil
 }
 
+func (s *boomStore) GetByID(context.Context, string) (domain.User, error) {
+	return domain.User{}, ports.ErrUserNotFound
+}
+
 func TestEnsureUserPropagatesStoreError(t *testing.T) {
 	store := &boomStore{}
 	uc := usecase.EnsureUser{Users: store, IDs: &testutil.FakeIDGen{}, Allow: allowMsoent}

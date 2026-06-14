@@ -63,6 +63,17 @@ func (s *FakeUserStore) GetBySub(_ context.Context, sub string) (domain.User, er
 	return u, nil
 }
 
+func (s *FakeUserStore) GetByID(_ context.Context, id string) (domain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, u := range s.bySub {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return domain.User{}, ports.ErrUserNotFound
+}
+
 type FakeVerifier struct {
 	ID  ports.Identity
 	Err error
