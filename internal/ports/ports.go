@@ -30,6 +30,20 @@ type Identity struct {
 	Groups   []string
 }
 
+// Token is a stored OAuth token set for the CLI/TUI client.
+type Token struct {
+	AccessToken  string
+	RefreshToken string
+	Expiry       time.Time
+}
+
+// TokenStore persists the CLI/TUI token between invocations.
+type TokenStore interface {
+	Save(t Token) error
+	Load() (t Token, ok bool, err error)
+	Clear() error
+}
+
 type TokenVerifier interface {
 	Verify(ctx context.Context, rawToken string) (Identity, error)
 }
