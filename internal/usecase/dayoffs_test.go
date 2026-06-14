@@ -95,3 +95,41 @@ func TestListDayOffs_MergesComputedHolidays(t *testing.T) {
 		t.Fatalf("want 1 vacation + NRW holidays merged, got vac=%d hol=%d", vac, hol)
 	}
 }
+
+func TestAddDayOffs_RejectsInvalidKind(t *testing.T) {
+	uc := usecase.AddDayOffs{Store: newFakeDayOffs(), Bus: &recBus{}}
+	d := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	if err := uc.Execute(context.Background(), "u1", d, d, domain.Kind("bogus"), "", 0, false); err == nil {
+		t.Fatal("bogus kind must be rejected")
+	}
+}
+
+func TestAddDayOffs_RejectsEmptyExpansion(t *testing.T) {
+	store := newFakeDayOffs()
+	bus := &recBus{}
+	uc := usecase.AddDayOffs{Store: store, Bus: bus}
+	sat := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC) // Saturday
+	if err := uc.Execute(context.Background(), "u1", sat, sat, domain.KindVacation, "", 0, true); err == nil {
+		t.Fatal("empty expansion (single weekend day, skipWeekends) must be rejected")
+	}
+	if len(store.m) != 0 || len(bus.events) != 0 {
+		t.Fatalf("nothing should be stored/published on empty expansion: stored=%d events=%d", len(store.m), len(bus.events))
+	}
+}
+
+func TestDeleteDayOff_RemovesAndPublishes(t *testing.T) {
+	store := newFakeDayOffs()
+	bus := &recBus{}
+	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	_ = store.Add(context.Background(), "u1", domain.DayOff{Date: day, Kind: domain.KindVacation})
+	uc := usecase.DeleteDayOff{Store: store, Bus: bus}
+	if err := uc.Execute(context.Background(), "u1", day); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if len(store.m) != 0 {
+		t.Fatalf("want entry removed, got %d", len(store.m))
+	}
+	if len(bus.events) != 1 || bus.events[0].Type != domain.EventDayOffChanged {
+		t.Fatalf("want exactly one dayoff.changed, got %+v", bus.events)
+	}
+}
