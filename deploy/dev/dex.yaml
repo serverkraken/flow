@@ -1,0 +1,33 @@
+# Self-contained dev OIDC provider (Dex) for flow. NOT for production.
+# Drives the real OIDC auth-code-flow (browser) and the password grant
+# (CLI/TUI token via scripts/dev-token.sh). The issuer below MUST be the exact
+# URL that both the browser AND flow-server use, or discovery/issuer validation
+# fails — that is why flow-server runs on the host (see deploy/dev/README.md).
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  # allow grant_type=password against the local connector → CLI/TUI token minting
+  passwordConnector: local
+  # no consent screen, smoother dev loop
+  skipApprovalScreen: true
+
+staticClients:
+  - id: flow-dev
+    secret: flow-dev-secret
+    name: flow (dev)
+    redirectURIs:
+      - http://localhost:8080/auth/callback
+
+enablePasswordDB: true
+staticPasswords:
+  - email: msoent@dev.local
+    username: msoent
+    userID: msoent-dev
+    # bcrypt("password")
+    hash: "$2a$10$EoX6WDl7TXtv4v7rvnYRLu2gS9vjCciB37RHLmMbDooU5WT/1B/tm"
