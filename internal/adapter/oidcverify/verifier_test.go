@@ -91,7 +91,7 @@ func TestVerifyValidToken(t *testing.T) {
 	signed := h.signToken(t, nil)
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, "flow")
+	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestVerifyRejectsExpiredToken(t *testing.T) {
 	})
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, "flow")
+	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,11 +137,34 @@ func TestVerifyRejectsWrongAudience(t *testing.T) {
 	})
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, "flow")
+	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := v.Verify(context.Background(), signedWrongAud); err == nil {
 		t.Fatal("expected error for wrong audience")
+	}
+}
+
+func TestVerifyAcceptsSecondAudience(t *testing.T) {
+	h := newOIDCHarness(t)
+	defer h.srv.Close()
+
+	// A token whose aud is the CLI client, not the primary web client.
+	cliToken := h.signToken(t, jwt.MapClaims{"aud": "flow-cli"})
+
+	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
+	v, err := oidcverify.New(ctx, h.issuer, []string{"flow", "flow-cli"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := v.Verify(context.Background(), cliToken); err != nil {
+		t.Fatalf("verify CLI-audience token: %v", err)
+	}
+
+	// An audience outside the allowed set is still rejected.
+	other := h.signToken(t, jwt.MapClaims{"aud": "evil"})
+	if _, err := v.Verify(context.Background(), other); err == nil {
+		t.Fatal("expected rejection for audience outside the allowed set")
 	}
 }
