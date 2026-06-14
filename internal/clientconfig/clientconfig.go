@@ -1,8 +1,6 @@
 // Package clientconfig loads flow CLI/TUI configuration from the environment.
 package clientconfig
 
-import "fmt"
-
 type Config struct {
 	ServerURL   string
 	OIDCIssuer  string
@@ -10,8 +8,11 @@ type Config struct {
 }
 
 // Load reads config via getenv (injected for testability). ServerURL and
-// CliClientID have dev-friendly defaults; OIDCIssuer is required.
-func Load(getenv func(string) string) (Config, error) {
+// CliClientID have dev-friendly defaults. OIDCIssuer is optional here: it is
+// only required for `flow login` and for refreshing an expired token, so it is
+// enforced at those points of use rather than eagerly (a valid stored token
+// works without it).
+func Load(getenv func(string) string) Config {
 	c := Config{
 		ServerURL:   getenv("FLOW_SERVER_URL"),
 		OIDCIssuer:  getenv("FLOW_OIDC_ISSUER"),
@@ -23,8 +24,5 @@ func Load(getenv func(string) string) (Config, error) {
 	if c.CliClientID == "" {
 		c.CliClientID = "flow-cli"
 	}
-	if c.OIDCIssuer == "" {
-		return Config{}, fmt.Errorf("clientconfig: FLOW_OIDC_ISSUER is required")
-	}
-	return c, nil
+	return c
 }
