@@ -8,6 +8,7 @@ const (
 	EventSessionStopped EventType = "session.stopped"
 	EventSessionUpdated EventType = "session.updated"
 	EventProjectCreated EventType = "project.created"
+	EventDayOffChanged  EventType = "dayoff.changed"
 )
 
 // Event is a server-originated change notification. UserID is the routing

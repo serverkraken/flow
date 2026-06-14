@@ -56,8 +56,9 @@ type EventBus interface {
 }
 
 var (
-	ErrProjectNotFound = errors.New("project not found")
-	ErrSessionNotFound = errors.New("session not found")
+	ErrProjectNotFound   = errors.New("project not found")
+	ErrSessionNotFound   = errors.New("session not found")
+	ErrFeedTokenNotFound = errors.New("feed token not found")
 )
 
 // ProjectStore persists projects. All reads are owner-scoped.
@@ -74,4 +75,29 @@ type SessionStore interface {
 	Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error)
 	Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error)
 	List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error)
+}
+
+// DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,
+// never stored. All reads are owner-scoped. Add upserts on (owner, day).
+type DayOffStore interface {
+	Add(ctx context.Context, ownerID string, d domain.DayOff) error
+	Delete(ctx context.Context, ownerID string, day time.Time) error
+	ListRange(ctx context.Context, ownerID string, from, to time.Time) ([]domain.DayOff, error)
+}
+
+// UserSettingsStore persists per-user preferences. Get lazily returns a
+// default row (Bundesland "NW") for users that never saved settings.
+type UserSettingsStore interface {
+	Get(ctx context.Context, userID string) (domain.Settings, error)
+	SetBundesland(ctx context.Context, userID, land string) error
+}
+
+// FeedTokenStore mints and resolves calendar-feed tokens. Resolve only
+// returns owners for active (non-revoked) tokens. Create stores a token the
+// caller already minted. Revoke is idempotent.
+type FeedTokenStore interface {
+	Create(ctx context.Context, ft domain.FeedToken) error
+	Resolve(ctx context.Context, token string) (ownerID string, err error)
+	ListByUser(ctx context.Context, userID string) ([]domain.FeedToken, error)
+	Revoke(ctx context.Context, userID, token string) error
 }
