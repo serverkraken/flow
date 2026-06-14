@@ -23,6 +23,9 @@ staticClients:
     name: flow (dev)
     redirectURIs:
       - http://localhost:8080/auth/callback
+  - id: flow-cli
+    public: true
+    name: flow CLI (dev)
 
 enablePasswordDB: true
 staticPasswords:
