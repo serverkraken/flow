@@ -60,8 +60,12 @@ func run() error {
 	userStore := pgstore.NewUserStore(pool)
 	projectStore := pgstore.NewProjectStore(pool)
 	sessionStore := pgstore.NewSessionStore(pool)
+	dayOffStore := pgstore.NewDayOffStore(pool)
+	settingsStore := pgstore.NewUserSettingsStore(pool)
+	feedTokenStore := pgstore.NewFeedTokenStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
+	bus := sse.NewBus()
 
 	srv := &httpserver.Server{
 		Verifier: verifier,
@@ -70,7 +74,7 @@ func run() error {
 			IDs:   ids,
 			Allow: func(id ports.Identity) bool { return cfg.AllowedSubs[id.Username] || cfg.AllowedSubs[id.Subject] },
 		},
-		Bus:           sse.NewBus(),
+		Bus:           bus,
 		Clock:         clock,
 		Dev:           cfg.Dev,
 		StartSession:  usecase.StartSession{Sessions: sessionStore, IDs: ids, Clock: clock},
@@ -78,9 +82,16 @@ func run() error {
 		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
 		ListProjects:  usecase.ListProjects{Projects: projectStore},
-		Users:    userStore,
-		OIDCAuth: authn,
-		Session:  websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
+		AddDayOffs:    usecase.AddDayOffs{Store: dayOffStore, Bus: bus},
+		DeleteDayOff:  usecase.DeleteDayOff{Store: dayOffStore, Bus: bus},
+		ListDayOffs:   usecase.ListDayOffs{Store: dayOffStore, Settings: settingsStore, Loc: time.Local},
+		GetSettings:   usecase.GetSettings{Settings: settingsStore, Tokens: feedTokenStore},
+		SetBundesland: usecase.SetBundesland{Settings: settingsStore},
+		IcsFeed:       usecase.IcsFeed{Tokens: feedTokenStore, Store: dayOffStore, Clock: clock},
+		RegenIcsToken: usecase.RegenerateIcsToken{Tokens: feedTokenStore, Clock: clock},
+		Users:         userStore,
+		OIDCAuth:      authn,
+		Session:       websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}
