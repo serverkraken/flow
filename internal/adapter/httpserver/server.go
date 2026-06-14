@@ -23,6 +23,15 @@ type Server struct {
 	CreateProject usecase.CreateProject
 	ListProjects  usecase.ListProjects
 
+	// m1c worktime extras
+	AddDayOffs    usecase.AddDayOffs
+	DeleteDayOff  usecase.DeleteDayOff
+	ListDayOffs   usecase.ListDayOffs
+	GetSettings   usecase.GetSettings
+	SetBundesland usecase.SetBundesland
+	IcsFeed       usecase.IcsFeed
+	RegenIcsToken usecase.RegenerateIcsToken
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -40,6 +49,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/sessions", s.auth(http.HandlerFunc(s.handleListSessions)))
 	mux.Handle("POST /api/v1/projects", s.auth(http.HandlerFunc(s.handleCreateProject)))
 	mux.Handle("GET /api/v1/projects", s.auth(http.HandlerFunc(s.handleListProjects)))
+
+	mux.Handle("GET /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleListDayOffs)))
+	mux.Handle("POST /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleAddDayOffs)))
+	mux.Handle("DELETE /api/v1/dayoffs/{day}", s.auth(http.HandlerFunc(s.handleDeleteDayOff)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)

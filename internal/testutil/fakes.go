@@ -89,7 +89,9 @@ type FakeProjectStore struct {
 	m  map[string]domain.Project // keyed by id
 }
 
-func NewFakeProjectStore() *FakeProjectStore { return &FakeProjectStore{m: map[string]domain.Project{}} }
+func NewFakeProjectStore() *FakeProjectStore {
+	return &FakeProjectStore{m: map[string]domain.Project{}}
+}
 
 func (s *FakeProjectStore) Create(_ context.Context, p domain.Project) (domain.Project, error) {
 	s.mu.Lock()
@@ -179,4 +181,115 @@ func (s *FakeSessionStore) List(_ context.Context, ownerID string, since time.Ti
 		}
 	}
 	return out, nil
+}
+
+// FakeDayOffStore is an in-memory ports.DayOffStore keyed by (owner, yyyy-mm-dd).
+type FakeDayOffStore struct {
+	mu sync.Mutex
+	m  map[string]domain.DayOff
+}
+
+func NewFakeDayOffStore() *FakeDayOffStore { return &FakeDayOffStore{m: map[string]domain.DayOff{}} }
+
+func dayKey(owner string, day time.Time) string { return owner + ":" + day.Format("2006-01-02") }
+
+func (s *FakeDayOffStore) Add(_ context.Context, ownerID string, d domain.DayOff) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[dayKey(ownerID, d.Date)] = d
+	return nil
+}
+
+func (s *FakeDayOffStore) Delete(_ context.Context, ownerID string, day time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.m, dayKey(ownerID, day))
+	return nil
+}
+
+func (s *FakeDayOffStore) ListRange(_ context.Context, ownerID string, from, to time.Time) ([]domain.DayOff, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.DayOff
+	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
+		if v, ok := s.m[dayKey(ownerID, d)]; ok {
+			out = append(out, v)
+		}
+	}
+	return out, nil
+}
+
+// FakeUserSettingsStore is an in-memory ports.UserSettingsStore with lazy NW default.
+type FakeUserSettingsStore struct {
+	mu sync.Mutex
+	m  map[string]string // userID -> bundesland
+}
+
+func NewFakeUserSettingsStore() *FakeUserSettingsStore {
+	return &FakeUserSettingsStore{m: map[string]string{}}
+}
+
+func (s *FakeUserSettingsStore) Get(_ context.Context, userID string) (domain.Settings, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	land, ok := s.m[userID]
+	if !ok {
+		land = "NW"
+	}
+	return domain.Settings{UserID: userID, Bundesland: land}, nil
+}
+
+func (s *FakeUserSettingsStore) SetBundesland(_ context.Context, userID, land string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[userID] = land
+	return nil
+}
+
+// FakeFeedTokenStore is an in-memory ports.FeedTokenStore.
+type FakeFeedTokenStore struct {
+	mu sync.Mutex
+	m  map[string]domain.FeedToken // active tokens by token string
+}
+
+func NewFakeFeedTokenStore() *FakeFeedTokenStore {
+	return &FakeFeedTokenStore{m: map[string]domain.FeedToken{}}
+}
+
+func (s *FakeFeedTokenStore) Create(_ context.Context, ft domain.FeedToken) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[ft.Token] = ft
+	return nil
+}
+
+func (s *FakeFeedTokenStore) Resolve(_ context.Context, token string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ft, ok := s.m[token]
+	if !ok {
+		return "", ports.ErrFeedTokenNotFound
+	}
+	return ft.UserID, nil
+}
+
+func (s *FakeFeedTokenStore) ListByUser(_ context.Context, userID string) ([]domain.FeedToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.FeedToken
+	for _, ft := range s.m {
+		if ft.UserID == userID {
+			out = append(out, ft)
+		}
+	}
+	return out, nil
+}
+
+func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ft, ok := s.m[token]; ok && ft.UserID == userID {
+		delete(s.m, token)
+	}
+	return nil
 }
