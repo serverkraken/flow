@@ -116,3 +116,65 @@ func parseRange(r *http.Request) (time.Time, time.Time, bool) {
 	}
 	return from, to, true
 }
+
+type settingsDTO struct {
+	Bundesland string   `json:"bundesland"`
+	FeedURLs   []string `json:"feedUrls"`
+}
+
+func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	set, toks, err := s.GetSettings.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	urls := make([]string, 0, len(toks))
+	for _, t := range toks {
+		urls = append(urls, icsURL(r, t.Token))
+	}
+	writeJSON(w, http.StatusOK, settingsDTO{Bundesland: set.Bundesland, FeedURLs: urls})
+}
+
+type setBundeslandReq struct {
+	Bundesland string `json:"bundesland"`
+}
+
+func (s *Server) handleSetBundesland(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req setBundeslandReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := s.SetBundesland.Execute(r.Context(), u.ID, req.Bundesland); err != nil {
+		http.Error(w, "invalid bundesland", http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type tokenDTO struct {
+	Token   string `json:"token"`
+	FeedURL string `json:"feedUrl"`
+}
+
+func (s *Server) handleRegenIcsToken(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	tok, err := s.RegenIcsToken.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, tokenDTO{Token: tok, FeedURL: icsURL(r, tok)})
+}
+
+// icsURL builds the absolute feed URL from the request host. Honors
+// X-Forwarded-Proto behind the homelab ingress; defaults to https when set.
+func icsURL(r *http.Request, token string) string {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host + "/ics/" + token + ".ics"
+}
