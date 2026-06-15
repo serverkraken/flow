@@ -36,6 +36,10 @@ type Server struct {
 	Stats     usecase.StatsComputer
 	SetTarget usecase.SetTargetConfig
 
+	// m1e export
+	BuildExport    usecase.BuildExport
+	SetProjectRate usecase.SetProjectRate
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -68,6 +72,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/week", s.auth(http.HandlerFunc(s.handleWeek)))
 	mux.Handle("GET /api/v1/stats", s.auth(http.HandlerFunc(s.handleStats)))
 	mux.Handle("GET /api/v1/burndown", s.auth(http.HandlerFunc(s.handleBurndown)))
+
+	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
+	mux.Handle("POST /api/v1/projects/{id}/rate", s.auth(http.HandlerFunc(s.handleSetProjectRate)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)

@@ -44,6 +44,8 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"GET", "/api/v1/sessions"},
 		{"POST", "/api/v1/projects"},
 		{"GET", "/api/v1/projects"},
+		{"GET", "/api/v1/export"},
+		{"POST", "/api/v1/projects/x/rate"},
 		{"GET", "/auth/login"},
 		{"GET", "/auth/callback"},
 		{"POST", "/auth/logout"},
