@@ -20,6 +20,12 @@ type docEditor interface {
 	Command(initial []byte) (*exec.Cmd, func() ([]byte, error), func(), error)
 }
 
+// urlOpener opens a URL in the OS default browser. tui-local so DocsModel stays
+// testable with a nil/fake opener.
+type urlOpener interface {
+	Open(url string) error
+}
+
 // docMode is the docs screen sub-state.
 type docMode int
 
@@ -42,6 +48,7 @@ const (
 type DocsModel struct {
 	client *apiclient.Client
 	editor docEditor
+	opener urlOpener
 	user   string
 
 	docs    []domain.Document
@@ -55,20 +62,25 @@ type DocsModel struct {
 	newPath  string
 	newTitle string
 
-	events <-chan apiclient.ClientEvent
-	status string
-	err    error
+	events    <-chan apiclient.ClientEvent
+	status    string
+	err       error
+	viewLinks []linkTarget
+	linkFocus int      // -1 = none focused
+	viewStack []string // doc-id back-stack for in-TUI wikilink nav
+	backlinks []domain.BacklinkRef
 }
 
-// NewDocs builds the docs model. client/ed may be nil in tests that only drive
-// Update and never trigger the network or $EDITOR paths.
-func NewDocs(client *apiclient.Client, ed docEditor, user string) DocsModel {
-	return DocsModel{client: client, editor: ed, user: user, newType: domain.DocFree}
+// NewDocs builds the docs model. client/ed/op may be nil in tests that only drive
+// Update and never trigger the network, $EDITOR, or URL-opener paths.
+func NewDocs(client *apiclient.Client, ed docEditor, op urlOpener, user string) DocsModel {
+	return DocsModel{client: client, editor: ed, opener: op, user: user, newType: domain.DocFree, linkFocus: -1}
 }
 
 type docsLoadedMsg struct{ docs []domain.Document }
 type docViewMsg struct{ doc domain.Document }
 type docSavedMsg struct{}
+type backlinksMsg struct{ refs []domain.BacklinkRef }
 
 // editorReq carries an opened $EDITOR command back into Update so it can be run
 // via tea.ExecProcess. readback/cleanup close over the temp file.
@@ -142,6 +154,22 @@ func (m DocsModel) loadDoc(id string, thenEdit bool) tea.Cmd {
 			return m.buildEditor([]byte(doc.Body), doc.ID, doc.Type, doc.Path, doc.Title)
 		}
 		return docViewMsg{doc: doc}
+	}
+}
+
+// loadBacklinks fetches backlinks for a document and emits a backlinksMsg.
+func (m DocsModel) loadBacklinks(id string) tea.Cmd {
+	if m.client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		refs, err := m.client.Backlinks(ctx, id)
+		if err != nil {
+			return errMsg{err}
+		}
+		return backlinksMsg{refs: refs}
 	}
 }
 
@@ -229,6 +257,15 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		d := msg.doc
 		m.viewing = &d
 		m.mode = modeView
+		m.viewLinks = buildBodyLinks(d.Body, d, m.docs)
+		m.linkFocus = -1
+		m.backlinks = nil
+		return m, m.loadBacklinks(d.ID)
+	case backlinksMsg:
+		m.backlinks = msg.refs
+		for _, r := range msg.refs {
+			m.viewLinks = append(m.viewLinks, linkTarget{kind: linkWiki, docID: r.ID, label: r.Title})
+		}
 		return m, nil
 	case eventsReadyMsg:
 		m.events = msg.ch
@@ -268,11 +305,26 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case modeView:
 		switch {
 		case k.Code == tea.KeyEsc:
+			if n := len(m.viewStack); n > 0 {
+				prev := m.viewStack[n-1]
+				m.viewStack = m.viewStack[:n-1]
+				return m, m.loadDocNoPush(prev)
+			}
 			m.viewing = nil
 			m.mode = modeList
+			m.viewLinks = nil
+			m.linkFocus = -1
 			return m, nil
 		case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
 			return m, tea.Quit
+		case k.Code == tea.KeyTab && k.Mod == tea.ModShift:
+			m.linkFocus = cycleLink(m.linkFocus, len(m.viewLinks), -1)
+			return m, nil
+		case k.Code == tea.KeyTab:
+			m.linkFocus = cycleLink(m.linkFocus, len(m.viewLinks), +1)
+			return m, nil
+		case k.Code == tea.KeyEnter:
+			return m.followFocusedLink()
 		case k.Text == "e":
 			if m.viewing == nil {
 				return m, nil
@@ -326,6 +378,51 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // buildEditorCmd loads the current body for id then opens $EDITOR on it.
 func (m DocsModel) buildEditorCmd(id string) tea.Cmd {
 	return m.loadDoc(id, true)
+}
+
+// cycleLink advances idx within [0,n) by delta, wrapping; -1/empty stays -1.
+func cycleLink(idx, n, delta int) int {
+	if n == 0 {
+		return -1
+	}
+	if idx < 0 {
+		if delta > 0 {
+			return 0
+		}
+		return n - 1
+	}
+	return (idx + delta + n) % n
+}
+
+// followFocusedLink acts on the focused link: load a wikilink target in-TUI
+// (pushing the current doc onto the back-stack) or open a weblink externally.
+func (m DocsModel) followFocusedLink() (tea.Model, tea.Cmd) {
+	if m.linkFocus < 0 || m.linkFocus >= len(m.viewLinks) {
+		return m, nil
+	}
+	lt := m.viewLinks[m.linkFocus]
+	switch lt.kind {
+	case linkWeb:
+		url := lt.url
+		op := m.opener
+		return m, func() tea.Msg {
+			if op != nil {
+				_ = op.Open(url)
+			}
+			return nil
+		}
+	case linkWiki:
+		if m.viewing != nil {
+			m.viewStack = append(m.viewStack, m.viewing.ID)
+		}
+		return m, m.loadDoc(lt.docID, false)
+	}
+	return m, nil
+}
+
+// loadDocNoPush loads a doc for the back-stack (Esc) without pushing again.
+func (m DocsModel) loadDocNoPush(id string) tea.Cmd {
+	return m.loadDoc(id, false)
 }
 
 var docTypeCycle = []domain.DocumentType{domain.DocFree, domain.DocDaily, domain.DocAgent}
@@ -557,6 +654,15 @@ func (m DocsModel) View() tea.View {
 		m.renderList(&b)
 	}
 
+	if m.mode == modeView && m.linkFocus >= 0 && m.linkFocus < len(m.viewLinks) {
+		lt := m.viewLinks[m.linkFocus]
+		tgt := lt.label
+		if lt.kind == linkWeb {
+			tgt = lt.url
+		}
+		b.WriteString("\n" + styleLinkFocus.Render(" ▸ "+tgt+" ") + styleMuted.Render("  enter to follow") + "\n")
+	}
+
 	b.WriteString("\n")
 	if m.status != "" {
 		b.WriteString(styleOk.Render("  "+m.status) + "\n")
@@ -574,7 +680,7 @@ func (m DocsModel) View() tea.View {
 func (m DocsModel) footer() string {
 	switch m.mode {
 	case modeView:
-		return "e edit · esc back · q quit"
+		return "tab/⇧tab link · enter folgen/öffnen · e edit · esc zurück · q quit"
 	case modeCreating:
 		return "tab next · space type · enter next/open editor · esc cancel"
 	case modeDeleting:
@@ -612,7 +718,22 @@ func (m DocsModel) renderView(b *strings.Builder) {
 		return
 	}
 	for _, ln := range strings.Split(body, "\n") {
-		b.WriteString("  " + ln + "\n")
+		b.WriteString("  " + styleBodyLine(ln, *d, m.docs, m.linkFocus, func(string) int { return -1 }) + "\n")
+	}
+	m.renderBacklinks(b)
+}
+
+func (m DocsModel) renderBacklinks(b *strings.Builder) {
+	if len(m.backlinks) == 0 {
+		return
+	}
+	b.WriteString("\n" + styleMuted.Render("  ↩ Referenced by") + "\n")
+	for _, r := range m.backlinks {
+		label := r.Title
+		if label == "" {
+			label = r.Path
+		}
+		b.WriteString("  " + styleWikiValid.Render("→ "+label) + styleMuted.Render("  "+r.Path) + "\n")
 	}
 }
 
