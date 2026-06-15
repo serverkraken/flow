@@ -97,6 +97,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui/stats/fragment", s.webAuth(http.HandlerFunc(s.handleWebStatsFragment)))
 	mux.Handle("POST /ui/stats/target", s.webAuth(http.HandlerFunc(s.handleWebSetTarget)))
 
+	mux.Handle("GET /export", s.webAuth(http.HandlerFunc(s.handleWebExportHome)))
+	mux.Handle("GET /ui/export/preview", s.webAuth(http.HandlerFunc(s.handleWebExportPreview)))
+
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux
 }

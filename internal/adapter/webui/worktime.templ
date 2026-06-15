@@ -39,6 +39,7 @@ templ WorktimeFragment(d WorktimeData) {
 		<div class="flex gap-4 text-sm text-slate-500">
 			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
 			<a href="/stats" class="hover:text-slate-700">stats</a>
+			<a href="/export" class="hover:text-slate-700">export</a>
 			<form action="/auth/logout" method="post" hx-boost="false">
 				<button class="hover:text-slate-700">logout { d.User }</button>
 			</form>

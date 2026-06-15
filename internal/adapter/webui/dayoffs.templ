@@ -37,6 +37,7 @@ templ DayOffFragment(d DayOffData) {
 		<div class="flex gap-4 text-sm text-slate-500">
 			<a href="/" class="hover:text-slate-700">worktime</a>
 			<a href="/stats" class="hover:text-slate-700">stats</a>
+			<a href="/export" class="hover:text-slate-700">export</a>
 		</div>
 	</header>
 	<form hx-post="/ui/dayoffs/add" hx-target="#do" hx-swap="innerHTML" class="mb-4 grid grid-cols-2 gap-2">

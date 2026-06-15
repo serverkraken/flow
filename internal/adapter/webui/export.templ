@@ -1,0 +1,137 @@
+package webui
+
+// ExportPageData is the view model for the export screen.
+type ExportPageData struct {
+	User        string
+	From        string // yyyy-mm-dd
+	To          string // yyyy-mm-dd
+	Rows        []ExportSummaryRow
+	TotalTime   string
+	TotalAmount string
+}
+
+// ExportSummaryRow is one project row in the export summary table.
+type ExportSummaryRow struct {
+	Project string
+	Time    string
+	Amount  string
+}
+
+templ ExportPage(d ExportPageData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · export</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800">
+			<main class="mx-auto max-w-md p-4">
+				<div id="ep">
+					@ExportFragment(d)
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ ExportFragment(d ExportPageData) {
+	<header class="mb-4 flex items-center justify-between">
+		<h1 class="text-lg font-semibold text-slate-900">flow · export</h1>
+		<div class="flex gap-4 text-sm text-slate-500">
+			<a href="/" class="hover:text-slate-700">worktime</a>
+			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+			<a href="/stats" class="hover:text-slate-700">stats</a>
+		</div>
+	</header>
+	<!-- date range form -->
+	<section class="mb-4">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Zeitraum</h2>
+		<form
+			hx-get="/ui/export/preview"
+			hx-target="#ep"
+			hx-swap="innerHTML"
+			class="flex flex-wrap items-center gap-2"
+		>
+			<label class="text-sm text-slate-500">Von</label>
+			<input
+				type="date"
+				name="from"
+				value={ d.From }
+				class="rounded border px-2 py-1 text-sm"
+			/>
+			<label class="text-sm text-slate-500">Bis</label>
+			<input
+				type="date"
+				name="to"
+				value={ d.To }
+				class="rounded border px-2 py-1 text-sm"
+			/>
+			<button class="rounded bg-slate-900 px-3 py-1 text-sm text-white">anzeigen</button>
+		</form>
+	</section>
+	<!-- download links: plain anchors, hx-boost=false so browser does real file download -->
+	<section class="mb-4">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Download</h2>
+		<div class="flex gap-3 text-sm">
+			<a
+				hx-boost="false"
+				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=csv") }
+				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				download
+			>CSV</a>
+			<a
+				hx-boost="false"
+				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=json") }
+				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				download
+			>JSON</a>
+			<a
+				hx-boost="false"
+				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=md") }
+				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				download
+			>MD</a>
+		</div>
+	</section>
+	<!-- summary table -->
+	@exportSummaryTable(d)
+}
+
+templ exportSummaryTable(d ExportPageData) {
+	<section class="rounded bg-slate-100 p-3 text-sm">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Ubersicht</h2>
+		if len(d.Rows) == 0 {
+			<p class="text-slate-400">Keine Daten im Zeitraum.</p>
+		} else {
+			<table class="w-full text-left">
+				<thead>
+					<tr class="text-xs uppercase text-slate-500">
+						<th class="pb-1 pr-4">Projekt</th>
+						<th class="pb-1 pr-4">Zeit</th>
+						<th class="pb-1">Betrag</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-200">
+					for _, row := range d.Rows {
+						<tr>
+							<td class="py-1 pr-4 text-slate-700">{ row.Project }</td>
+							<td class="py-1 pr-4 font-mono text-slate-800">{ row.Time }</td>
+							<td class="py-1 font-mono text-slate-800">{ row.Amount }</td>
+						</tr>
+					}
+				</tbody>
+				<tfoot class="border-t-2 border-slate-300">
+					<tr class="font-semibold">
+						<td class="pt-2 pr-4 text-slate-700">Summe</td>
+						<td class="pt-2 pr-4 font-mono text-slate-900">{ d.TotalTime }</td>
+						<td class="pt-2 font-mono text-slate-900">{ d.TotalAmount }</td>
+					</tr>
+				</tfoot>
+			</table>
+		}
+	</section>
+}
