@@ -420,6 +420,127 @@ func dropLast(s string) string {
 	return string(r[:len(r)-1])
 }
 
+// linkKind distinguishes an in-TUI wikilink jump from an external weblink.
+type linkKind int
+
+const (
+	linkWiki linkKind = iota
+	linkWeb
+)
+
+// linkTarget is one focusable link in the current view.
+type linkTarget struct {
+	kind  linkKind
+	docID string // wikilink/backlink target document id
+	url   string // weblink url
+	label string
+}
+
+// buildBodyLinks returns the focusable links found in body, in reading order:
+// resolved wikilinks (deduped per target doc) and weblinks. Broken wikilinks
+// are not focusable.
+func buildBodyLinks(body string, src domain.Document, all []domain.Document) []linkTarget {
+	type pos struct {
+		start int
+		lt    linkTarget
+	}
+	var found []pos
+	seenDoc := map[string]bool{}
+
+	for _, sp := range domain.FindWikilinks(body) {
+		if resolved, ok := domain.ResolveWikilink(src, sp.Target, all); ok {
+			if seenDoc[resolved.ID] {
+				continue
+			}
+			seenDoc[resolved.ID] = true
+			label := sp.Display
+			if label == "" {
+				label = resolved.Title
+			}
+			if label == "" {
+				label = sp.Target
+			}
+			found = append(found, pos{sp.Start, linkTarget{kind: linkWiki, docID: resolved.ID, label: label}})
+		}
+	}
+	for _, ws := range findWeblinks(body) {
+		found = append(found, pos{ws.Start, linkTarget{kind: linkWeb, url: ws.URL, label: ws.Display}})
+	}
+	for i := 0; i < len(found); i++ {
+		for j := i + 1; j < len(found); j++ {
+			if found[j].start < found[i].start {
+				found[i], found[j] = found[j], found[i]
+			}
+		}
+	}
+	out := make([]linkTarget, 0, len(found))
+	for _, p := range found {
+		out = append(out, p.lt)
+	}
+	return out
+}
+
+// styleBodyLine renders one body line with styled wikilink + weblink segments.
+// focusIdx / focusOf are used by Task 13 to highlight the focused link; here
+// they are accepted but the highlight is wired later.
+func styleBodyLine(line string, src domain.Document, all []domain.Document, focusIdx int, focusOf func(target string) int) string {
+	type seg struct {
+		start, end int
+		text       string
+	}
+	var segs []seg
+
+	for _, sp := range domain.FindWikilinks(line) {
+		resolved, ok := domain.ResolveWikilink(src, sp.Target, all)
+		label := sp.Display
+		if label == "" && ok {
+			label = resolved.Title
+		}
+		if label == "" {
+			label = sp.Target
+		}
+		var styled string
+		if ok {
+			styled = styleWikiValid.Render("→ " + label)
+		} else {
+			styled = styleWikiBroken.Render("⊘ " + label)
+		}
+		segs = append(segs, seg{sp.Start, sp.End, styled})
+	}
+	for _, ws := range findWeblinks(line) {
+		styled := osc8(ws.URL, styleWebLink.Render(ws.Display))
+		segs = append(segs, seg{ws.Start, ws.End, styled})
+	}
+	if len(segs) == 0 {
+		return line
+	}
+	for i := 0; i < len(segs); i++ {
+		for j := i + 1; j < len(segs); j++ {
+			if segs[j].start < segs[i].start {
+				segs[i], segs[j] = segs[j], segs[i]
+			}
+		}
+	}
+	var b strings.Builder
+	prev := 0
+	for _, sg := range segs {
+		if sg.start < prev {
+			continue // overlap guard
+		}
+		b.WriteString(line[prev:sg.start])
+		b.WriteString(sg.text)
+		prev = sg.end
+	}
+	b.WriteString(line[prev:])
+	return b.String()
+}
+
+// osc8 wraps text in an OSC 8 hyperlink so terminals that support it open the
+// URL on click. Harmless where unsupported.
+func osc8(url, text string) string {
+	return "\x1b]8;;" + url + "\x07" + text + "\x1b]8;;\x07"
+}
+
 func (m DocsModel) View() tea.View {
 	var b strings.Builder
 	b.WriteString(styleHeader.Render("flow · docs") + styleMuted.Render("  "+m.user) + "\n\n")

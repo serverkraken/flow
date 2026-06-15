@@ -883,3 +883,30 @@ func TestDocsView_EmptyList(t *testing.T) {
 		t.Fatalf("empty list view should hint user to create:\n%s", out)
 	}
 }
+
+func TestBuildBodyLinks(t *testing.T) {
+	all := []domain.Document{
+		{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree},
+	}
+	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree}
+	body := "see [[dest]], [[ghost]] and http://x.io"
+
+	links := buildBodyLinks(body, src, all)
+	if len(links) != 2 {
+		t.Fatalf("want 2 focusable links, got %d: %#v", len(links), links)
+	}
+	if links[0].kind != linkWiki || links[0].docID != "d-dest" {
+		t.Fatalf("first link should be the dest wikilink: %#v", links[0])
+	}
+	if links[1].kind != linkWeb || links[1].url != "http://x.io" {
+		t.Fatalf("second link should be the weblink: %#v", links[1])
+	}
+}
+
+func TestStyleBodyLine_BrokenWikilink(t *testing.T) {
+	src := domain.Document{ID: "s", Path: "s"}
+	out := styleBodyLine("x [[ghost]] y", src, nil, -1, func(string) int { return -1 })
+	if !strings.Contains(out, "⊘") {
+		t.Fatalf("broken wikilink should carry the ⊘ glyph: %q", out)
+	}
+}
