@@ -31,6 +31,9 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	if err != nil {
 		return domain.Document{}, err
 	}
+	// Link extraction is deliberately non-atomic: the update is already
+	// persisted above. A ReplaceLinks failure surfaces as an error even though
+	// the update succeeded; a subsequent save heals the link index.
 	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body)); err != nil {
 		return domain.Document{}, err
 	}

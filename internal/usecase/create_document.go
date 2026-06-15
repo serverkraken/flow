@@ -41,6 +41,9 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	if err != nil {
 		return domain.Document{}, err
 	}
+	// Link extraction is deliberately non-atomic: the document is already
+	// persisted above. A ReplaceLinks failure surfaces as an error even though
+	// the create succeeded; a subsequent save heals the link index.
 	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body)); err != nil {
 		return domain.Document{}, err
 	}
