@@ -40,8 +40,9 @@ func FindWikilinks(s string) []WikilinkSpan {
 	return out
 }
 
-// splitWikilinkInner splits `target|display`. Display is empty without a pipe.
-// A newline or stray `]` inside aborts the match (returns empty target).
+// splitWikilinkInner splits "target|display". Display is empty without a pipe.
+// A newline or stray ']' before the first '|' aborts the match (empty target);
+// text after the pipe is returned verbatim as the display.
 func splitWikilinkInner(s string) (target, display string) {
 	for i := 0; i < len(s); i++ {
 		switch s[i] {

@@ -26,6 +26,8 @@ func TestFindWikilinks(t *testing.T) {
 			{Start: 5, End: 10, Target: "b", Display: ""},
 		}},
 		{"path slug", "[[daily/2026-06-15]]", []WikilinkSpan{{Start: 0, End: 20, Target: "daily/2026-06-15", Display: ""}}},
+		{"stray bracket in target aborts", "[[a]b]]", nil},
+		{"stray bracket in display passes through", "[[a|b]c]]", []WikilinkSpan{{Start: 0, End: 9, Target: "a", Display: "b]c"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
