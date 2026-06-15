@@ -55,6 +55,49 @@ func splitWikilinkInner(s string) (target, display string) {
 	return s, ""
 }
 
+// BacklinkRef is a lightweight reference to a document that links to another,
+// surfaced in "Referenced by". Shared by the backlinks use case, REST, and the
+// API client.
+type BacklinkRef struct {
+	ID    string       `json:"id"`
+	Path  string       `json:"path"`
+	Title string       `json:"title"`
+	Type  DocumentType `json:"type"`
+}
+
+// sameScope reports whether two documents share a wikilink resolution scope:
+// the same project, or both free/owner-level (nil ProjectID).
+func sameScope(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
+// ResolveWikilink resolves target against the owner's document set all, from the
+// perspective of src. Scope-isolated: a same-scope match wins; else a free
+// (ProjectID == nil) match; else broken. A foreign-project match never
+// resolves, even when owner-wide unique.
+func ResolveWikilink(src Document, target string, all []Document) (Document, bool) {
+	var free *Document
+	for i := range all {
+		d := all[i]
+		if d.Path != target {
+			continue
+		}
+		if sameScope(src.ProjectID, d.ProjectID) {
+			return d, true
+		}
+		if d.ProjectID == nil && free == nil {
+			free = &all[i]
+		}
+	}
+	if free != nil {
+		return *free, true
+	}
+	return Document{}, false
+}
+
 // WikilinkTargets returns the ordered, de-duplicated target paths in body,
 // for the link index. Returns nil when there are none.
 func WikilinkTargets(body string) []string {

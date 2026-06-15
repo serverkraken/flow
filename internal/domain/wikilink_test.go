@@ -49,3 +49,45 @@ func TestWikilinkTargets(t *testing.T) {
 		t.Fatalf("expected nil for no links")
 	}
 }
+
+func strptr(s string) *string { return &s }
+
+func TestResolveWikilink(t *testing.T) {
+	pA := strptr("proj-a")
+	pB := strptr("proj-b")
+	all := []Document{
+		{ID: "free1", Path: "shared", ProjectID: nil, Title: "Shared Free"},
+		{ID: "a1", Path: "notes", ProjectID: pA, Title: "A Notes"},
+		{ID: "b1", Path: "notes", ProjectID: pB, Title: "B Notes"},
+		{ID: "bonly", Path: "bsecret", ProjectID: pB, Title: "B Secret"},
+	}
+
+	tests := []struct {
+		name   string
+		src    Document
+		target string
+		wantID string // "" => not found
+	}{
+		{"same project wins", Document{ProjectID: pA}, "notes", "a1"},
+		{"other project same slug", Document{ProjectID: pB}, "notes", "b1"},
+		{"free from project falls back to free", Document{ProjectID: pA}, "shared", "free1"},
+		{"free doc links free", Document{ProjectID: nil}, "shared", "free1"},
+		{"free doc cannot reach project", Document{ProjectID: nil}, "notes", ""},
+		{"project doc cannot reach foreign project", Document{ProjectID: pA}, "bsecret", ""},
+		{"missing", Document{ProjectID: pA}, "nope", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := ResolveWikilink(tt.src, tt.target, all)
+			if tt.wantID == "" {
+				if ok {
+					t.Fatalf("expected broken, got %q", got.ID)
+				}
+				return
+			}
+			if !ok || got.ID != tt.wantID {
+				t.Fatalf("ResolveWikilink = (%q,%v), want %q", got.ID, ok, tt.wantID)
+			}
+		})
+	}
+}
