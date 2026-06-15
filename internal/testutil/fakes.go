@@ -122,6 +122,18 @@ func (s *FakeProjectStore) Get(_ context.Context, ownerID, id string) (domain.Pr
 	return p, nil
 }
 
+func (s *FakeProjectStore) SetRate(_ context.Context, ownerID, id string, rate *domain.Money) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.m[id]
+	if !ok || p.OwnerID != ownerID {
+		return ports.ErrProjectNotFound
+	}
+	p.Rate = rate
+	s.m[id] = p
+	return nil
+}
+
 // FakeSessionStore is an in-memory ports.SessionStore enforcing one running
 // session per owner, like the Postgres partial index.
 type FakeSessionStore struct {

@@ -23,6 +23,7 @@ type Project struct {
 	Slug      string        `json:"slug"`
 	Color     string        `json:"color"`
 	Glyph     string        `json:"glyph"`
+	Rate      *Money        `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
 	Status    ProjectStatus `json:"status"`
 	CreatedAt time.Time     `json:"createdAt"`
 	UpdatedAt time.Time     `json:"updatedAt"`

@@ -66,6 +66,8 @@ type ProjectStore interface {
 	Create(ctx context.Context, p domain.Project) (domain.Project, error)
 	List(ctx context.Context, ownerID string) ([]domain.Project, error)
 	Get(ctx context.Context, ownerID, id string) (domain.Project, error)
+	// SetRate sets (rate != nil) or clears (rate == nil) the project's rate.
+	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running
