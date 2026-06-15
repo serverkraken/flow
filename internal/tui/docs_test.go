@@ -208,6 +208,46 @@ func TestDocsEventTriggersReload(t *testing.T) {
 	}
 }
 
+// TestDocsEventMsg_ModeView_AlsoReloadsDoc verifies that an eventMsg received
+// while the user is viewing a document triggers both the list reload AND a doc
+// re-fetch (which rebuilds viewLinks and backlinks), unlike the modeList case
+// which only triggers the list reload.
+func TestDocsEventMsg_ModeView_AlsoReloadsDoc(t *testing.T) {
+	seed := sampleDocs()
+	c, stop := newFakeDocSrv(t, seed)
+	defer stop()
+
+	m := NewDocs(c, nil, nil, "tester")
+	// Load the doc list.
+	next, _ := m.Update(docsLoadedMsg{docs: seed})
+	m = next.(DocsModel)
+	// Arm the events channel.
+	ch := make(chan apiclient.ClientEvent, 1)
+	next, _ = m.Update(eventsReadyMsg{ch: ch})
+	m = next.(DocsModel)
+	// Enter view mode by feeding a docViewMsg.
+	next, _ = m.Update(docViewMsg{doc: seed[0]})
+	m = next.(DocsModel)
+	if m.mode != modeView || m.viewing == nil {
+		t.Fatal("setup: expected modeView with a viewing doc")
+	}
+
+	// eventMsg while in modeView must return a non-nil batch cmd.
+	_, cmd := m.Update(eventMsg{ev: apiclient.ClientEvent{Type: string(domain.EventDocumentCreated)}})
+	if cmd == nil {
+		t.Fatal("eventMsg in modeView should return a non-nil batch cmd (list reload + doc reload)")
+	}
+
+	// Also verify that in modeList the cmd is still non-nil (the reload+listen batch).
+	m2 := NewDocs(c, nil, nil, "tester")
+	next2, _ := m2.Update(eventsReadyMsg{ch: ch})
+	m2 = next2.(DocsModel)
+	_, cmd2 := m2.Update(eventMsg{ev: apiclient.ClientEvent{Type: string(domain.EventDocumentCreated)}})
+	if cmd2 == nil {
+		t.Fatal("eventMsg in modeList should still return a non-nil batch cmd")
+	}
+}
+
 func TestDocsNKeyOpensCreate(t *testing.T) {
 	m := NewDocs(nil, nil, nil, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})

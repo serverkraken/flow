@@ -282,7 +282,11 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, waitForEvent(msg.ch)
 	case eventMsg:
 		// Any document.* event → reload list and re-arm the listener.
-		return m, tea.Batch(m.reload(), waitForEvent(m.events))
+		cmds := []tea.Cmd{m.reload(), waitForEvent(m.events)}
+		if m.mode == modeView && m.viewing != nil {
+			cmds = append(cmds, m.loadDocNoPush(m.viewing.ID))
+		}
+		return m, tea.Batch(cmds...)
 	case editorReq:
 		return m, runEditor(msg)
 	case editorDoneMsg:

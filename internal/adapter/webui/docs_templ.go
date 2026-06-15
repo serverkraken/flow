@@ -254,7 +254,7 @@ func DocView(d DocsPageData) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" hx-trigger=\"sse:document.updated\" hx-swap=\"outerHTML\"><div class=\"mb-4 flex items-center justify-between\"><a href=\"/docs\" class=\"text-sm text-slate-500 hover:text-slate-700\">← all docs</a><div class=\"flex gap-2\"><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" hx-trigger=\"sse:document.created, sse:document.updated, sse:document.deleted\" hx-swap=\"outerHTML\"><div class=\"mb-4 flex items-center justify-between\"><a href=\"/docs\" class=\"text-sm text-slate-500 hover:text-slate-700\">← all docs</a><div class=\"flex gap-2\"><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

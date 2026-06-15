@@ -127,7 +127,7 @@ templ DocView(d DocsPageData) {
 					<div
 						id="dv"
 						hx-get={ "/docs/" + d.Current.ID }
-						hx-trigger="sse:document.updated"
+						hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted"
 						hx-swap="outerHTML"
 					>
 						<div class="mb-4 flex items-center justify-between">
