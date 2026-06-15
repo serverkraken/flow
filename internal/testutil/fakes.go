@@ -331,3 +331,93 @@ func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) err
 	}
 	return nil
 }
+
+// FakeDocumentStore is an in-memory ports.DocumentStore.
+// Create returns ErrDocumentExists on an (owner, coalesce(projectID,""), path) collision.
+type FakeDocumentStore struct {
+	mu sync.Mutex
+	m  map[string]domain.Document // keyed by id
+}
+
+func NewFakeDocumentStore() *FakeDocumentStore {
+	return &FakeDocumentStore{m: map[string]domain.Document{}}
+}
+
+func docCollisionKey(ownerID string, projectID *string, path string) string {
+	proj := ""
+	if projectID != nil {
+		proj = *projectID
+	}
+	return ownerID + "\x00" + proj + "\x00" + path
+}
+
+func (s *FakeDocumentStore) Create(_ context.Context, d domain.Document) (domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	want := docCollisionKey(d.OwnerID, d.ProjectID, d.Path)
+	for _, existing := range s.m {
+		if docCollisionKey(existing.OwnerID, existing.ProjectID, existing.Path) == want {
+			return domain.Document{}, ports.ErrDocumentExists
+		}
+	}
+	s.m[d.ID] = d
+	return d, nil
+}
+
+func (s *FakeDocumentStore) Get(_ context.Context, ownerID, id string) (domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return domain.Document{}, ports.ErrDocumentNotFound
+	}
+	return d, nil
+}
+
+func (s *FakeDocumentStore) List(_ context.Context, ownerID string) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Document
+	for _, d := range s.m {
+		if d.OwnerID == ownerID {
+			out = append(out, d)
+		}
+	}
+	// newest-first by UpdatedAt
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[j].UpdatedAt.After(out[i].UpdatedAt) {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.m[d.ID]
+	if !ok || existing.OwnerID != d.OwnerID {
+		return domain.Document{}, ports.ErrDocumentNotFound
+	}
+	// mirror pgstore: only title/body/tags/extra/updated_at are mutable
+	existing.Title = d.Title
+	existing.Body = d.Body
+	existing.Tags = d.Tags
+	existing.Extra = d.Extra
+	existing.UpdatedAt = d.UpdatedAt
+	s.m[d.ID] = existing
+	return existing, nil
+}
+
+func (s *FakeDocumentStore) Delete(_ context.Context, ownerID, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	delete(s.m, id)
+	return nil
+}

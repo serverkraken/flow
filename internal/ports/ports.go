@@ -59,6 +59,8 @@ var (
 	ErrProjectNotFound   = errors.New("project not found")
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
+	ErrDocumentNotFound  = errors.New("document not found")
+	ErrDocumentExists    = errors.New("document already exists")
 )
 
 // ProjectStore persists projects. All reads are owner-scoped.
@@ -105,4 +107,20 @@ type FeedTokenStore interface {
 	Resolve(ctx context.Context, token string) (ownerID string, err error)
 	ListByUser(ctx context.Context, userID string) ([]domain.FeedToken, error)
 	Revoke(ctx context.Context, userID, token string) error
+}
+
+// DocumentStore persists compendium documents. All reads are owner-scoped.
+// Create returns ErrDocumentExists on a (owner, project, path) collision.
+type DocumentStore interface {
+	Create(ctx context.Context, d domain.Document) (domain.Document, error)
+	Get(ctx context.Context, ownerID, id string) (domain.Document, error)
+	List(ctx context.Context, ownerID string) ([]domain.Document, error)
+	Update(ctx context.Context, d domain.Document) (domain.Document, error)
+	Delete(ctx context.Context, ownerID, id string) error
+}
+
+// Editor opens an interactive editor on initial content and returns the
+// edited bytes. Used by the TUI for document bodies.
+type Editor interface {
+	Edit(ctx context.Context, initial []byte) ([]byte, error)
 }
