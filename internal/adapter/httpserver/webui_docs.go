@@ -141,6 +141,7 @@ func (s *Server) handleWebDocCreate(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
+		s.Bus.Publish(domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
 		http.Redirect(w, r, "/docs/"+doc.ID, http.StatusSeeOther)
 	}
 }
@@ -174,6 +175,7 @@ func (s *Server) handleWebDocUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 	http.Redirect(w, r, "/docs/"+id, http.StatusSeeOther)
 }
 
@@ -189,5 +191,6 @@ func (s *Server) handleWebDocDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	http.Redirect(w, r, "/docs", http.StatusSeeOther)
 }

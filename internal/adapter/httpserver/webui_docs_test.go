@@ -93,6 +93,44 @@ func TestWebDocsHome(t *testing.T) {
 	}
 }
 
+// TestWebDocCreate_PublishesEvent locks in the live-sync contract: a document
+// created through the WebUI form must publish document.created on the bus so the
+// TUI (and other WebUI tabs) refresh live. Regression guard for the bug where
+// only the REST handler published while the WebUI handler stayed silent.
+func TestWebDocCreate_PublishesEvent(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ch, cancel := srv.Bus.Subscribe("u1")
+	defer cancel()
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	form := url.Values{"type": {"free"}, "path": {"live/sync"}, "title": {"Live"}, "body": {"x"}}
+	req, _ := http.NewRequest("POST", ts.URL+"/docs", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	// Don't follow the 303 redirect; we only care that the event fired.
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("want 303, got %d", res.StatusCode)
+	}
+
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventDocumentCreated {
+			t.Fatalf("want document.created, got %q", ev.Type)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no document.created event published by WebUI create handler")
+	}
+}
+
 func TestWebDocView(t *testing.T) {
 	srv, codec, docs := newWebDocsServer(t)
 	_, _ = docs.Create(context.Background(), domain.Document{
