@@ -211,3 +211,26 @@ func TestCreateDocument_NonOKStatus(t *testing.T) {
 		t.Errorf("expected 422 in error, got: %v", err)
 	}
 }
+
+func TestClient_Backlinks(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method: got %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/api/v1/documents/d1/backlinks" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"s1","path":"src","title":"Src","type":"free"}]`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	refs, err := c.Backlinks(context.Background(), "d1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].ID != "s1" || refs[0].Type != domain.DocFree {
+		t.Fatalf("refs = %v", refs)
+	}
+}

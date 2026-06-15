@@ -50,3 +50,9 @@ func (c *Client) UpdateDocument(ctx context.Context, id string, in UpdateDocumen
 func (c *Client) DeleteDocument(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/documents/"+id, nil, nil)
 }
+
+func (c *Client) Backlinks(ctx context.Context, id string) ([]domain.BacklinkRef, error) {
+	var out []domain.BacklinkRef
+	err := c.do(ctx, http.MethodGet, "/api/v1/documents/"+id+"/backlinks", nil, &out)
+	return out, err
+}
