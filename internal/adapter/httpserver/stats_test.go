@@ -57,6 +57,23 @@ func TestHandleStats_InvalidRange(t *testing.T) {
 	}
 }
 
+func TestHandleWeek_BadRef(t *testing.T) {
+	srv, _ := newStatsServer()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/week?ref=not-a-date", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400 for malformed ref, got %d", res.StatusCode)
+	}
+}
+
 func TestHandleSetTarget_PublishesEvent(t *testing.T) {
 	srv, bus := newStatsServer()
 	ts := httptest.NewServer(srv.Routes())

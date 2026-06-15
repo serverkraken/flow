@@ -23,7 +23,11 @@ type weekDayDTO struct {
 	LoggedMin int    `json:"loggedMin"`
 	TargetMin int    `json:"targetMin"`
 	IsToday   bool   `json:"isToday"`
+	Workday   bool   `json:"workday"`
 }
+
+// minutes converts a Duration to whole minutes for the wire.
+func minutes(d time.Duration) int { return int(d / time.Minute) }
 
 // statsDTO is the wire shape for the range stats endpoint.
 type statsDTO struct {
@@ -59,9 +63,9 @@ func (s *Server) handleToday(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, todayDTO{
 		Date:      sum.Date.Format(dayFmt),
-		LoggedMin: int(sum.Logged / time.Minute),
-		TargetMin: int(sum.Target / time.Minute),
-		SaldoMin:  int(sum.Saldo / time.Minute),
+		LoggedMin: minutes(sum.Logged),
+		TargetMin: minutes(sum.Target),
+		SaldoMin:  minutes(sum.Saldo),
 		Running:   sum.Running,
 	})
 }
@@ -70,9 +74,12 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var ref time.Time
 	if q := r.URL.Query().Get("ref"); q != "" {
-		if t, err := time.ParseInLocation(dayFmt, q, time.Local); err == nil {
-			ref = t
+		t, err := time.ParseInLocation(dayFmt, q, time.Local)
+		if err != nil {
+			http.Error(w, "ref must be yyyy-mm-dd", http.StatusBadRequest)
+			return
 		}
+		ref = t
 	}
 	days, err := s.Stats.Week(r.Context(), u.ID, ref)
 	if err != nil {
@@ -83,10 +90,9 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	out := make([]weekDayDTO, 0, len(days))
 	for _, d := range days {
 		out = append(out, weekDayDTO{
-			Date:      d.Date.Format(dayFmt),
-			LoggedMin: int(d.Total(now) / time.Minute),
-			TargetMin: int(d.Target / time.Minute),
-			IsToday:   d.IsToday,
+			Date: d.Date.Format(dayFmt), LoggedMin: minutes(d.Total(now)),
+			TargetMin: minutes(d.Target), IsToday: d.IsToday,
+			Workday: d.Date.Weekday() != time.Saturday && d.Date.Weekday() != time.Sunday,
 		})
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -108,14 +114,14 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		Days:             st.Days,
 		DaysWithSessions: st.DaysWithSessions,
 		Workdays:         st.Workdays,
-		TotalMin:         int(st.Total / time.Minute),
-		AvgMin:           int(st.Avg / time.Minute),
-		MaxMin:           int(st.Max / time.Minute),
-		MinMin:           int(st.Min / time.Minute),
+		TotalMin:         minutes(st.Total),
+		AvgMin:           minutes(st.Avg),
+		MaxMin:           minutes(st.Max),
+		MinMin:           minutes(st.Min),
 		Hits:             st.Hits,
 		Streak:           st.Streak,
 		BestStreak:       st.BestStreak,
-		OvertimeMin:      int(st.Overtime / time.Minute),
+		OvertimeMin:      minutes(st.Overtime),
 	})
 }
 
@@ -127,9 +133,9 @@ func (s *Server) handleBurndown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, burndownDTO{
-		TotalMin:    int(rep.Total / time.Minute),
-		TargetMin:   int(rep.Target / time.Minute),
-		SaldoMin:    int(rep.Saldo / time.Minute),
+		TotalMin:    minutes(rep.Total),
+		TargetMin:   minutes(rep.Target),
+		SaldoMin:    minutes(rep.Saldo),
 		OnTrack:     rep.OnTrack,
 		WorkdaysAll: rep.WorkdaysAll,
 		WorkdaysDue: rep.WorkdaysDue,
