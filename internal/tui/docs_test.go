@@ -915,6 +915,28 @@ type fakeOpener struct{ opened []string }
 
 func (f *fakeOpener) Open(url string) error { f.opened = append(f.opened, url); return nil }
 
+func TestBacklinksMsg_NoDuplicateInFocusCycle(t *testing.T) {
+	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
+	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]]"}
+	m := DocsModel{mode: modeView, viewing: &src, docs: []domain.Document{src, dest}, linkFocus: -1}
+	m.viewLinks = buildBodyLinks(src.Body, src, m.docs)
+	// dest is a forward link already; now it also references back.
+	updated, _ := m.Update(backlinksMsg{refs: []domain.BacklinkRef{{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}}})
+	mm := updated.(DocsModel)
+	count := 0
+	for _, lt := range mm.viewLinks {
+		if lt.docID == "d-dest" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("d-dest should appear once in viewLinks, got %d", count)
+	}
+	if len(mm.backlinks) != 1 {
+		t.Fatalf("footer backlinks should still list the ref, got %d", len(mm.backlinks))
+	}
+}
+
 func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
 	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] or http://x.io"}

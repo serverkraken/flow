@@ -263,7 +263,17 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadBacklinks(d.ID)
 	case backlinksMsg:
 		m.backlinks = msg.refs
+		seen := make(map[string]bool, len(m.viewLinks))
+		for _, lt := range m.viewLinks {
+			if lt.kind == linkWiki && lt.docID != "" {
+				seen[lt.docID] = true
+			}
+		}
 		for _, r := range msg.refs {
+			if seen[r.ID] {
+				continue
+			}
+			seen[r.ID] = true
 			m.viewLinks = append(m.viewLinks, linkTarget{kind: linkWiki, docID: r.ID, label: r.Title})
 		}
 		return m, nil
@@ -730,10 +740,13 @@ func (m DocsModel) renderBacklinks(b *strings.Builder) {
 	b.WriteString("\n" + styleMuted.Render("  ↩ Referenced by") + "\n")
 	for _, r := range m.backlinks {
 		label := r.Title
+		line := "  " + styleWikiValid.Render("→ "+label)
 		if label == "" {
-			label = r.Path
+			line = "  " + styleWikiValid.Render("→ "+r.Path)
+		} else {
+			line += styleMuted.Render("  " + r.Path)
 		}
-		b.WriteString("  " + styleWikiValid.Render("→ "+label) + styleMuted.Render("  "+r.Path) + "\n")
+		b.WriteString(line + "\n")
 	}
 }
 
