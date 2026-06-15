@@ -220,6 +220,25 @@ func TestHandleExport_NoRange(t *testing.T) {
 	}
 }
 
+func TestHandleExport_ToBeforeFrom(t *testing.T) {
+	srv, _, _ := newExportServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/export?from=2026-06-30&to=2026-06-01&format=csv", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400 for to<from, got %d", res.StatusCode)
+	}
+}
+
 func TestHandleSetProjectRate(t *testing.T) {
 	srv, sessions, projects := newExportServer(t)
 	ts := httptest.NewServer(srv.Routes())

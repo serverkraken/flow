@@ -2,22 +2,14 @@ package httpserver
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 )
-
-// fmtExportDur renders a duration as "Hh MMm" (e.g. "2h 05m"), matching the
-// domain.fmtDur style used in Markdown export.
-func fmtExportDur(d time.Duration) string {
-	if d < 0 {
-		d = 0
-	}
-	return fmt.Sprintf("%dh %02dm", int(d.Hours()), int(d.Minutes())%60)
-}
 
 // exportPageData builds the ExportPageData view model for the given user and
 // [from, to] range. projectID "" means all projects.
@@ -39,42 +31,27 @@ func (s *Server) exportPageData(ctx context.Context, u domain.User, from, to tim
 		}
 		rows = append(rows, webui.ExportSummaryRow{
 			Project: pt.ProjectName,
-			Time:    fmtExportDur(pt.Total),
+			Time:    domain.FmtDur(pt.Total),
 			Amount:  amt,
 		})
 		grandTotal += pt.Total
 	}
 
-	// Build total amount string: one entry per currency, sorted alphabetically.
+	// Build total amount string: one formatted Money per currency (sorted for
+	// deterministic output), joined — matching the per-currency grand total in
+	// the Markdown export.
 	totalAmt := "–"
 	if len(amountByCcy) > 0 {
-		// Collect and sort currencies for deterministic output.
 		ccys := make([]string, 0, len(amountByCcy))
 		for c := range amountByCcy {
 			ccys = append(ccys, c)
 		}
-		// Simple sort for small slices: bubble sort to avoid importing sort package
-		// only for this. Actually: use a join to keep it short.
-		// Use a slice sort inline.
-		for i := 0; i < len(ccys); i++ {
-			for j := i + 1; j < len(ccys); j++ {
-				if ccys[j] < ccys[i] {
-					ccys[i], ccys[j] = ccys[j], ccys[i]
-				}
-			}
-		}
+		sort.Strings(ccys)
 		parts := make([]string, 0, len(ccys))
 		for _, c := range ccys {
-			m := domain.Money{Amount: amountByCcy[c], Currency: c}
-			parts = append(parts, m.String())
+			parts = append(parts, domain.Money{Amount: amountByCcy[c], Currency: c}.String())
 		}
-		totalAmt = ""
-		for i, p := range parts {
-			if i > 0 {
-				totalAmt += " · "
-			}
-			totalAmt += p
-		}
+		totalAmt = strings.Join(parts, " · ")
 	}
 
 	return webui.ExportPageData{
@@ -82,7 +59,7 @@ func (s *Server) exportPageData(ctx context.Context, u domain.User, from, to tim
 		From:        from.Format(dayFmt),
 		To:          to.Format(dayFmt),
 		Rows:        rows,
-		TotalTime:   fmtExportDur(grandTotal),
+		TotalTime:   domain.FmtDur(grandTotal),
 		TotalAmount: totalAmt,
 	}, nil
 }

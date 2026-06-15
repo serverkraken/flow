@@ -50,8 +50,9 @@ func mdCell(s string) string {
 	return s
 }
 
-// fmtDur renders a duration as "Hh MMm" (e.g. "2h 05m").
-func fmtDur(d time.Duration) string {
+// FmtDur renders a duration as "Hh MMm" (e.g. "2h 05m"). Exported so the WebUI
+// summary builder formats durations identically to the Markdown export.
+func FmtDur(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
@@ -143,10 +144,10 @@ func WriteMarkdown(w io.Writer, d ExportData) error {
 			amt = p.Amount.String()
 			amountByCcy[p.Amount.Currency] += p.Amount.Amount
 		}
-		bw.printf("| %s | %s | %s |\n", mdCell(p.ProjectName), fmtDur(p.Total), amt)
+		bw.printf("| %s | %s | %s |\n", mdCell(p.ProjectName), FmtDur(p.Total), amt)
 		grandTotal += p.Total
 	}
-	bw.printf("\n**Summe:** %s", fmtDur(grandTotal))
+	bw.printf("\n**Summe:** %s", FmtDur(grandTotal))
 	ccys := make([]string, 0, len(amountByCcy))
 	for c := range amountByCcy {
 		ccys = append(ccys, c)
@@ -159,7 +160,7 @@ func WriteMarkdown(w io.Writer, d ExportData) error {
 	for _, r := range d.Sessions {
 		bw.printf("| %s | %s | %s | %s | %s | %s | %s |\n",
 			r.Date.Format("2006-01-02"), r.Start.Format("15:04"), r.Stop.Format("15:04"),
-			fmtDur(r.Elapsed), mdCell(r.ProjectName), mdCell(r.Tag), mdCell(r.Note))
+			FmtDur(r.Elapsed), mdCell(r.ProjectName), mdCell(r.Tag), mdCell(r.Note))
 	}
 	return bw.err
 }
