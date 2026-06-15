@@ -36,9 +36,13 @@ templ WorktimePage(d WorktimeData) {
 templ WorktimeFragment(d WorktimeData) {
 	<header class="mb-4 flex items-center justify-between">
 		<h1 class="text-lg font-semibold text-slate-900">flow · worktime</h1>
-		<form action="/auth/logout" method="post" hx-boost="false">
-			<button class="text-sm text-slate-500">logout { d.User }</button>
-		</form>
+		<div class="flex gap-4 text-sm text-slate-500">
+			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+			<a href="/stats" class="hover:text-slate-700">stats</a>
+			<form action="/auth/logout" method="post" hx-boost="false">
+				<button class="hover:text-slate-700">logout { d.User }</button>
+			</form>
+		</div>
 	</header>
 	if d.Running != nil {
 		<div class="rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 p-5 text-white shadow-lg">

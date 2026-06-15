@@ -34,7 +34,10 @@ templ DayOffPage(d DayOffData) {
 templ DayOffFragment(d DayOffData) {
 	<header class="mb-4 flex items-center justify-between">
 		<h1 class="text-lg font-semibold text-slate-900">flow · dayoffs</h1>
-		<a href="/" class="text-sm text-slate-500">← worktime</a>
+		<div class="flex gap-4 text-sm text-slate-500">
+			<a href="/" class="hover:text-slate-700">worktime</a>
+			<a href="/stats" class="hover:text-slate-700">stats</a>
+		</div>
 	</header>
 	<form hx-post="/ui/dayoffs/add" hx-target="#do" hx-swap="innerHTML" class="mb-4 grid grid-cols-2 gap-2">
 		<input type="date" name="from" required class="rounded border px-2 py-1 text-sm"/>
