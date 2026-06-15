@@ -97,9 +97,16 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetTarget: usecase.SetTargetConfig{Settings: settingsStore},
-		Users:     userStore,
-		OIDCAuth:  authn,
-		Session:   websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
+		BuildExport: usecase.BuildExport{
+			Sessions: sessionStore,
+			Projects: projectStore,
+			Clock:    clock,
+			Loc:      time.Local,
+		},
+		SetProjectRate: usecase.SetProjectRate{Projects: projectStore},
+		Users:          userStore,
+		OIDCAuth:       authn,
+		Session:        websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}

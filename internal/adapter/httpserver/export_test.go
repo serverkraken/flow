@@ -99,7 +99,7 @@ func TestHandleExport_CSV(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", res.StatusCode)
@@ -134,7 +134,7 @@ func TestHandleExport_JSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", res.StatusCode)
@@ -165,7 +165,7 @@ func TestHandleExport_MD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", res.StatusCode)
