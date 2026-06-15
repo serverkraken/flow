@@ -26,16 +26,17 @@ type WeekDay struct {
 
 // Stats mirrors the server's statsDTO wire shape.
 type Stats struct {
-	TotalMin     int `json:"totalMin"`
-	AvgMin       int `json:"avgMin"`
-	MaxMin       int `json:"maxMin"`
-	MinMin       int `json:"minMin"`
-	Workdays     int `json:"workdays"`
-	DaysWithWork int `json:"daysWithWork"`
-	Hits         int `json:"hits"`
-	Streak       int `json:"streak"`
-	BestStreak   int `json:"bestStreak"`
-	OvertimeMin  int `json:"overtimeMin"`
+	Days             int `json:"days"`
+	DaysWithSessions int `json:"daysWithSessions"`
+	Workdays         int `json:"workdays"`
+	TotalMin         int `json:"totalMin"`
+	AvgMin           int `json:"avgMin"`
+	MaxMin           int `json:"maxMin"`
+	MinMin           int `json:"minMin"`
+	Hits             int `json:"hits"`
+	Streak           int `json:"streak"`
+	BestStreak       int `json:"bestStreak"`
+	OvertimeMin      int `json:"overtimeMin"`
 }
 
 // Burndown mirrors the server's burndownDTO wire shape.

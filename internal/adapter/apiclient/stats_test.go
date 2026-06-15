@@ -120,7 +120,7 @@ func TestGetStats(t *testing.T) {
 		if r.URL.Query().Get("range") != "week" {
 			t.Errorf("unexpected range: %s", r.URL.Query().Get("range"))
 		}
-		_, _ = w.Write([]byte(`{"totalMin":2400,"avgMin":480,"maxMin":540,"minMin":420,"workdays":5,"daysWithWork":5,"hits":5,"streak":5,"bestStreak":10,"overtimeMin":60}`))
+		_, _ = w.Write([]byte(`{"days":7,"daysWithSessions":5,"workdays":5,"totalMin":600,"avgMin":120,"maxMin":240,"minMin":60,"hits":3,"streak":2,"bestStreak":4,"overtimeMin":-120}`))
 	}))
 	defer srv.Close()
 
@@ -129,11 +129,17 @@ func TestGetStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.TotalMin != 2400 {
-		t.Errorf("TotalMin: got %d, want 2400", s.TotalMin)
+	if s.Days != 7 {
+		t.Errorf("Days: got %d, want 7", s.Days)
 	}
-	if s.Streak != 5 {
-		t.Errorf("Streak: got %d, want 5", s.Streak)
+	if s.DaysWithSessions != 5 {
+		t.Errorf("DaysWithSessions: got %d, want 5", s.DaysWithSessions)
+	}
+	if s.TotalMin != 600 {
+		t.Errorf("TotalMin: got %d, want 600", s.TotalMin)
+	}
+	if s.Streak != 2 {
+		t.Errorf("Streak: got %d, want 2", s.Streak)
 	}
 }
 
