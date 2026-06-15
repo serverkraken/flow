@@ -89,9 +89,17 @@ func run() error {
 		SetBundesland: usecase.SetBundesland{Settings: settingsStore},
 		IcsFeed:       usecase.IcsFeed{Tokens: feedTokenStore, Store: dayOffStore, Clock: clock},
 		RegenIcsToken: usecase.RegenerateIcsToken{Tokens: feedTokenStore, Clock: clock},
-		Users:         userStore,
-		OIDCAuth:      authn,
-		Session:       websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
+		Stats: usecase.StatsComputer{
+			Sessions: sessionStore,
+			Settings: settingsStore,
+			DayOffs:  usecase.ListDayOffs{Store: dayOffStore, Settings: settingsStore, Loc: time.Local},
+			Clock:    clock,
+			Loc:      time.Local,
+		},
+		SetTarget: usecase.SetTargetConfig{Settings: settingsStore},
+		Users:     userStore,
+		OIDCAuth:  authn,
+		Session:   websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
 	}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}
