@@ -36,8 +36,10 @@ func (c *Client) DeleteDayOff(ctx context.Context, day string) error {
 
 // Settings mirrors the server settingsDTO.
 type Settings struct {
-	Bundesland string   `json:"bundesland"`
-	FeedURLs   []string `json:"feedUrls"`
+	Bundesland       string         `json:"bundesland"`
+	FeedURLs         []string       `json:"feedUrls"`
+	DefaultTargetMin int            `json:"defaultTargetMin"`
+	WeekdayTargetMin map[string]int `json:"weekdayTargetMin"`
 }
 
 func (c *Client) GetSettings(ctx context.Context) (Settings, error) {
@@ -48,6 +50,12 @@ func (c *Client) GetSettings(ctx context.Context) (Settings, error) {
 
 func (c *Client) SetBundesland(ctx context.Context, land string) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/settings/bundesland", map[string]any{"bundesland": land}, nil)
+}
+
+func (c *Client) SetTargetConfig(ctx context.Context, defaultMin int, weekday map[string]int) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/settings/target", map[string]any{
+		"defaultTargetMin": defaultMin, "weekdayTargetMin": weekday,
+	}, nil)
 }
 
 // RegenIcsToken mints a new feed token and returns its absolute URL.
