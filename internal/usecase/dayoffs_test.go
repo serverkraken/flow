@@ -39,6 +39,9 @@ func (f fakeSettings) Get(context.Context, string) (domain.Settings, error) {
 	return domain.Settings{Bundesland: f.land}, nil
 }
 func (f fakeSettings) SetBundesland(context.Context, string, string) error { return nil }
+func (f fakeSettings) SetTargetConfig(context.Context, string, int, map[time.Weekday]int) error {
+	return nil
+}
 
 type recBus struct{ events []domain.Event }
 
