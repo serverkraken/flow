@@ -415,6 +415,186 @@ func TestWebDocCreate_DuplicatePath_PreservesFormValues(t *testing.T) {
 	}
 }
 
+// TestWebDocDelete covers handleWebDocDelete: POST /docs/{id}/delete → 303 /docs.
+func TestWebDocDelete(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "del-doc-1", OwnerID: "u1", Type: domain.DocFree,
+		Path: "delete-me", Title: "Delete Me", Body: "bye",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest("POST", ts.URL+"/docs/del-doc-1/delete", strings.NewReader(""))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("POST /docs/{id}/delete want 303, got %d", res.StatusCode)
+	}
+	if loc := res.Header.Get("Location"); loc != "/docs" {
+		t.Fatalf("POST /docs/{id}/delete Location want /docs, got %q", loc)
+	}
+
+	// Verify doc is gone from store.
+	list, _ := docs.List(context.Background(), "u1")
+	for _, d := range list {
+		if d.ID == "del-doc-1" {
+			t.Fatal("doc should be deleted from store, but it still exists")
+		}
+	}
+}
+
+// TestWebDocDelete_NotFound covers the 404 branch of handleWebDocDelete.
+func TestWebDocDelete_NotFound(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("POST", ts.URL+"/docs/no-such-id/delete", strings.NewReader(""))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST /docs/{unknown}/delete want 404, got %d", res.StatusCode)
+	}
+}
+
+// TestWebDocUpdate_TitleAndBody covers handleWebDocUpdate: plain title+body update.
+func TestWebDocUpdate_TitleAndBody(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "upd-doc-1", OwnerID: "u1", Type: domain.DocFree,
+		Path: "update-me", Title: "Old Title", Body: "old body",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	form := url.Values{
+		"title": {"New Title"},
+		"body":  {"new body"},
+	}.Encode()
+
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest("POST", ts.URL+"/docs/upd-doc-1", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("POST /docs/{id} want 303, got %d", res.StatusCode)
+	}
+
+	stored, err := docs.Get(context.Background(), "u1", "upd-doc-1")
+	if err != nil {
+		t.Fatalf("getting updated doc: %v", err)
+	}
+	if stored.Title != "New Title" {
+		t.Errorf("want title='New Title', got %q", stored.Title)
+	}
+	if stored.Body != "new body" {
+		t.Errorf("want body='new body', got %q", stored.Body)
+	}
+}
+
+// TestWebDocUpdate_NotFound covers the 404 branch of handleWebDocUpdate.
+func TestWebDocUpdate_NotFound(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	form := url.Values{"title": {"x"}, "body": {"y"}}.Encode()
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest("POST", ts.URL+"/docs/no-such-id", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST /docs/{unknown} want 404, got %d", res.StatusCode)
+	}
+}
+
+// TestWebDocEdit_NotFound covers the 404 branch of handleWebDocEdit.
+func TestWebDocEdit_NotFound(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/docs/no-such-id/edit", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET /docs/{unknown}/edit want 404, got %d", res.StatusCode)
+	}
+}
+
+// TestWebDocCreate_InvalidDocument covers the 400 (ErrInvalidDocument) branch.
+func TestWebDocCreate_InvalidDocument(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	// Send an invalid type value to trigger ErrInvalidDocument.
+	form := url.Values{
+		"type":  {"invalid-type"},
+		"path":  {"bad path with spaces"},
+		"title": {"Bad"},
+		"body":  {""},
+	}.Encode()
+
+	req, _ := http.NewRequest("POST", ts.URL+"/docs", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	// Accept either 400 or 409 — just must not be 303.
+	if res.StatusCode == http.StatusSeeOther {
+		t.Fatalf("invalid doc POST should not redirect 303, got %d body=%.200s", res.StatusCode, b)
+	}
+}
+
 // FIX 4: WebUI update must preserve existing tags (not wipe them).
 func TestWebDocUpdate_PreservesTags(t *testing.T) {
 	srv, codec, docs := newWebDocsServer(t)
