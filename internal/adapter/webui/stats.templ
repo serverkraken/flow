@@ -1,0 +1,180 @@
+package webui
+
+// StatsData is the view model for the stats screen.
+type StatsData struct {
+	User          string
+	TodayLogged   string // e.g. "02:00"
+	TodayTarget   string
+	TodaySaldo    string // "+/-Xh Ym"
+	TodayAhead    bool   // saldo >= 0, for styling
+	MonthTotal    string
+	MonthTarget   string
+	MonthSaldo    string
+	MonthOnTrack  bool
+	MonthPct      int    // 0..100 for horizontal bar
+	Week          []StatsWeekRow
+	Range         StatsRange
+	RangeLabel    string // "Woche" or "Monat"
+	RangeParam    string // "week" or "month"
+	DefaultTarget string // minutes as string for form input
+}
+
+// StatsWeekRow is one day in the week view.
+type StatsWeekRow struct {
+	Date    string
+	Logged  string
+	Target  string
+	Pct     int  // 0..100 for the horizontal bar width
+	IsToday bool
+	Workday bool
+}
+
+// StatsRange is the aggregated range stats.
+type StatsRange struct {
+	Total, Avg, Max, Min string
+	Workdays, Hits, Streak, BestStreak int
+	Saldo string
+}
+
+templ StatsPage(d StatsData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · stats</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-md p-4">
+				<div id="st" hx-get="/ui/stats/fragment" hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:settings.changed, sse:dayoff.changed" hx-swap="innerHTML">
+					@StatsFragment(d)
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ StatsFragment(d StatsData) {
+	<header class="mb-4 flex items-center justify-between">
+		<h1 class="text-lg font-semibold text-slate-900">flow · stats</h1>
+		<div class="flex gap-4 text-sm text-slate-500">
+			<a href="/" class="hover:text-slate-700">worktime</a>
+			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+		</div>
+	</header>
+	<!-- today saldo block -->
+	<section class="mb-4">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Heute</h2>
+		<div class={ "rounded-2xl p-4 shadow", templ.KV("bg-gradient-to-r from-emerald-400 to-teal-500 text-white", d.TodayAhead), templ.KV("bg-gradient-to-r from-rose-400 to-red-500 text-white", !d.TodayAhead) }>
+			<div class="text-3xl font-bold tabular-nums">{ d.TodaySaldo }</div>
+			<div class="mt-1 text-sm opacity-80">{ d.TodayLogged } / { d.TodayTarget }</div>
+		</div>
+	</section>
+	<!-- monthly burndown horizontal bar -->
+	<section class="mb-4">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Monat</h2>
+		<div class="rounded bg-slate-100 p-3">
+			<div class="mb-1 flex items-baseline justify-between text-sm">
+				<span class="font-medium text-slate-700">{ d.MonthTotal } / { d.MonthTarget }</span>
+				<span class={ templ.KV("text-emerald-600", d.MonthOnTrack), templ.KV("text-rose-600", !d.MonthOnTrack) }>{ d.MonthSaldo }</span>
+			</div>
+			<div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+				<div
+					class={ "h-2 rounded-full", templ.KV("bg-emerald-500", d.MonthOnTrack), templ.KV("bg-rose-500", !d.MonthOnTrack) }
+					style={ monthBarStyle(d) }
+				></div>
+			</div>
+		</div>
+	</section>
+	<!-- 7-day week view -->
+	<section class="mb-4">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Woche</h2>
+		<ul class="space-y-1">
+			for _, row := range d.Week {
+				<li class={ "flex items-center gap-2 rounded px-2 py-1 text-sm", templ.KV("bg-slate-200", row.IsToday) }>
+					<span class={ "w-20 shrink-0 font-mono text-xs", templ.KV("font-semibold text-slate-800", row.IsToday), templ.KV("text-slate-500", !row.IsToday) }>{ row.Date }</span>
+					<div class="flex-1">
+						<div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+							<div
+								class={ "h-2 rounded-full", templ.KV("bg-teal-400", row.IsToday), templ.KV("bg-slate-400", !row.IsToday && row.Workday), templ.KV("bg-slate-200", !row.Workday) }
+								style={ weekBarStyle(row) }
+							></div>
+						</div>
+					</div>
+					<span class="w-12 shrink-0 text-right font-mono text-xs text-slate-500">{ row.Logged }</span>
+				</li>
+			}
+		</ul>
+	</section>
+	<!-- range stats toggle + table -->
+	<section class="mb-4">
+		<div class="mb-2 flex items-center justify-between">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">{ d.RangeLabel }</h2>
+			<div class="flex gap-2 text-xs">
+				<a
+					href="#"
+					hx-get="/ui/stats/fragment?range=week"
+					hx-target="#st"
+					hx-swap="innerHTML"
+					class={ templ.KV("font-semibold text-slate-800 underline", d.RangeParam == "week"), templ.KV("text-slate-400 hover:text-slate-700", d.RangeParam != "week") }
+				>Woche</a>
+				<a
+					href="#"
+					hx-get="/ui/stats/fragment?range=month"
+					hx-target="#st"
+					hx-swap="innerHTML"
+					class={ templ.KV("font-semibold text-slate-800 underline", d.RangeParam == "month"), templ.KV("text-slate-400 hover:text-slate-700", d.RangeParam != "month") }
+				>Monat</a>
+			</div>
+		</div>
+		<div class="rounded bg-slate-100 p-3 text-sm">
+			<table class="w-full text-left">
+				<tbody class="divide-y divide-slate-200">
+					<tr class="py-1">
+						<td class="py-1 pr-4 text-slate-500">Gesamt</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ d.Range.Total }</td>
+					</tr>
+					<tr>
+						<td class="py-1 pr-4 text-slate-500">Saldo</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ d.Range.Saldo }</td>
+					</tr>
+					<tr>
+						<td class="py-1 pr-4 text-slate-500">∅ Tag</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ d.Range.Avg }</td>
+					</tr>
+					<tr>
+						<td class="py-1 pr-4 text-slate-500">Max</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ d.Range.Max }</td>
+					</tr>
+					<tr>
+						<td class="py-1 pr-4 text-slate-500">Arbeitstage</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ fmtInt(d.Range.Hits) } / { fmtInt(d.Range.Workdays) }</td>
+					</tr>
+					<tr>
+						<td class="py-1 pr-4 text-slate-500">Streak</td>
+						<td class="py-1 font-mono font-medium text-slate-800">{ fmtInt(d.Range.Streak) } (best: { fmtInt(d.Range.BestStreak) })</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+	</section>
+	<!-- target config form -->
+	<section class="rounded bg-slate-100 p-3 text-sm">
+		<div class="mb-2 font-medium text-slate-700">Tagesziel</div>
+		<form hx-post="/ui/stats/target" hx-target="#st" hx-swap="innerHTML" class="flex items-center gap-2">
+			<label class="text-slate-500">Standard (min)</label>
+			<input
+				type="number"
+				name="defaultTargetMin"
+				value={ d.DefaultTarget }
+				min="0"
+				max="1440"
+				class="w-20 rounded border px-2 py-1 text-sm"
+			/>
+			<button class="rounded bg-slate-900 px-3 py-1 text-xs text-white">speichern</button>
+		</form>
+	</section>
+}
