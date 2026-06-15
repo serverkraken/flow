@@ -155,6 +155,39 @@ func TestDeleteDocument(t *testing.T) {
 	}
 }
 
+func TestCreateDocument_WritesLinks(t *testing.T) {
+	ctx := context.Background()
+	store := testutil.NewFakeDocumentStore()
+	ids := &testutil.FakeIDGen{}
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}
+	uc := usecase.CreateDocument{
+		Docs:  store,
+		IDs:   ids,
+		Clock: clk,
+	}
+	created, err := uc.Execute(ctx, "o", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "src", Title: "Src", Body: "see [[dest]] and [[dest]]",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// FakeIDGen returns "id-1" for the first call
+	if created.ID != "id-1" {
+		t.Fatalf("expected created.ID = id-1, got %q", created.ID)
+	}
+	_, _ = store.Create(ctx, domain.Document{
+		ID: "doc-2", OwnerID: "o", Type: domain.DocFree, Path: "dest", Title: "Dest",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	refs, err := (usecase.Backlinks{Docs: store}).Execute(ctx, "o", "doc-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].ID != "id-1" {
+		t.Fatalf("expected src (id-1) as the only backlink of dest, got %v", refs)
+	}
+}
+
 func TestListDocuments_OwnerScoped(t *testing.T) {
 	ctx := context.Background()
 	docs := testutil.NewFakeDocumentStore()

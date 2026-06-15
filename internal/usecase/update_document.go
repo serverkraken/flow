@@ -27,5 +27,12 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	}
 	cur.Title, cur.Body, cur.Tags = in.Title, in.Body, in.Tags
 	cur.UpdatedAt = uc.Clock.Now()
-	return uc.Docs.Update(ctx, cur)
+	updated, err := uc.Docs.Update(ctx, cur)
+	if err != nil {
+		return domain.Document{}, err
+	}
+	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body)); err != nil {
+		return domain.Document{}, err
+	}
+	return updated, nil
 }

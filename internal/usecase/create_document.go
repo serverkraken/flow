@@ -37,5 +37,12 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}
-	return uc.Docs.Create(ctx, d)
+	created, err := uc.Docs.Create(ctx, d)
+	if err != nil {
+		return domain.Document{}, err
+	}
+	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body)); err != nil {
+		return domain.Document{}, err
+	}
+	return created, nil
 }
