@@ -32,8 +32,17 @@ type Model struct {
 	err    error
 	events <-chan apiclient.ClientEvent
 
-	showDayOffs bool
-	dayoffs     []apiclient.DayOff
+	showDayOffs   bool
+	dayoffs       []apiclient.DayOff
+	settings      apiclient.Settings
+	editingTarget bool
+	targetInput   string
+
+	showWeek  bool
+	showStats bool
+	week      []apiclient.WeekDay
+	stats     apiclient.Stats
+	statsRng  string // "week" | "month"
 
 	today       apiclient.Today
 	burndown    apiclient.Burndown
@@ -195,9 +204,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statsLoaded = true
 		return m, nil
 	case eventMsg:
-		return m, tea.Batch(m.reload(), m.reloadDayOffs(), m.reloadStats(), waitForEvent(m.events))
+		cmds := []tea.Cmd{m.reload(), m.reloadDayOffs(), m.reloadStats(), waitForEvent(m.events)}
+		if m.showWeek {
+			cmds = append(cmds, m.reloadWeek())
+		}
+		if m.showStats {
+			cmds = append(cmds, m.reloadRange())
+		}
+		return m, tea.Batch(cmds...)
 	case dayoffsLoadedMsg:
 		m.dayoffs = msg.list
+		return m, nil
+	case settingsLoadedMsg:
+		m.settings = msg.settings
+		return m, nil
+	case setTargetDoneMsg:
+		return m, m.reloadSettings()
+	case weekLoadedMsg:
+		m.week = msg.week
+		return m, nil
+	case rangeLoadedMsg:
+		m.statsRng = msg.rng
+		m.stats = msg.stats
 		return m, nil
 	case errMsg:
 		m.err = msg.err
@@ -231,9 +259,35 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case k.Text == "d":
 		m.showDayOffs = true
-		return m, m.reloadDayOffs()
+		return m, tea.Batch(m.reloadDayOffs(), m.reloadSettings())
+	case m.showDayOffs && m.editingTarget:
+		// Route all keys to dayoff sub-handler when target edit is active
+		// (including esc, which cancels edit without closing dayoffs).
+		return m.handleDayOffKey(k)
 	case k.Code == tea.KeyEsc && m.showDayOffs:
 		m.showDayOffs = false
+		m.targetInput = ""
+		return m, nil
+	case m.showDayOffs:
+		return m.handleDayOffKey(k)
+	case k.Text == "w":
+		m.showWeek = true
+		return m, m.reloadWeek()
+	case k.Text == "t":
+		m.showStats = true
+		if m.statsRng == "" {
+			m.statsRng = "week"
+		}
+		return m, m.reloadRange()
+	case k.Text == "m" && m.showStats:
+		m.statsRng = "month"
+		return m, m.reloadRange()
+	case k.Text == "W" && m.showStats:
+		m.statsRng = "week"
+		return m, m.reloadRange()
+	case k.Code == tea.KeyEsc && (m.showWeek || m.showStats):
+		m.showWeek = false
+		m.showStats = false
 		return m, nil
 	}
 	return m, nil
@@ -278,6 +332,12 @@ func (m Model) handleBookingKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
+	if m.showWeek {
+		return m.weekView()
+	}
+	if m.showStats {
+		return m.statsView()
+	}
 	if m.showDayOffs {
 		return m.dayOffView()
 	}
@@ -337,7 +397,7 @@ func (m Model) View() tea.View {
 	if m.err != nil {
 		b.WriteString(styleErr.Render("error: "+m.err.Error()) + "\n")
 	}
-	b.WriteString(styleMuted.Render("s start · x stop · q quit") + "\n")
+	b.WriteString(styleMuted.Render("s start · x stop · d dayoffs · w Woche · t Stats · q quit") + "\n")
 
 	v := tea.NewView(b.String())
 	v.AltScreen = true
