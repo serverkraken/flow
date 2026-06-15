@@ -17,6 +17,9 @@ func NewUserSettingsStore(pool *pgxpool.Pool) *UserSettingsStore {
 	return &UserSettingsStore{pool: pool}
 }
 
+// Get returns the stored settings or a lazy default (Bundesland "NW",
+// DefaultTargetMin 480, no weekday overrides) when the user never saved any.
+// It does not write the default row — SetBundesland / SetTargetConfig do.
 func (s *UserSettingsStore) Get(ctx context.Context, userID string) (domain.Settings, error) {
 	const q = `
 SELECT bundesland, default_target_min,
@@ -60,7 +63,7 @@ ON CONFLICT (user_id) DO UPDATE SET bundesland = EXCLUDED.bundesland, updated_at
 func (s *UserSettingsStore) SetTargetConfig(ctx context.Context, userID string, defaultMin int, weekday map[time.Weekday]int) error {
 	var wd [7]*int
 	for d, v := range weekday {
-		if d > time.Saturday {
+		if d < time.Sunday || d > time.Saturday {
 			continue
 		}
 		vv := v

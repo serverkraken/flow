@@ -62,7 +62,7 @@ func TestUserSettings_TargetConfigRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DefaultTargetMin != 480 || len(got.WeekdayTargetMin) != 0 {
+	if got.DefaultTargetMin != domain.DefaultDailyTargetMin || len(got.WeekdayTargetMin) != 0 {
 		t.Fatalf("lazy default: got default=%d weekday=%v", got.DefaultTargetMin, got.WeekdayTargetMin)
 	}
 
@@ -89,7 +89,7 @@ func TestUserSettings_TargetConfigRoundTrip(t *testing.T) {
 	if err := st.SetBundesland(ctx, "u1", "BY"); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.SetTargetConfig(ctx, "u1", 480, nil); err != nil {
+	if err := st.SetTargetConfig(ctx, "u1", domain.DefaultDailyTargetMin, nil); err != nil {
 		t.Fatal(err)
 	}
 	got, _ = st.Get(ctx, "u1")
