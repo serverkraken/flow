@@ -63,6 +63,7 @@ func run() error {
 	dayOffStore := pgstore.NewDayOffStore(pool)
 	settingsStore := pgstore.NewUserSettingsStore(pool)
 	feedTokenStore := pgstore.NewFeedTokenStore(pool)
+	documentStore := pgstore.NewDocumentStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
 	bus := sse.NewBus()
@@ -104,6 +105,11 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetProjectRate: usecase.SetProjectRate{Projects: projectStore},
+		CreateDocument: usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock},
+		GetDocument:    usecase.GetDocument{Docs: documentStore},
+		ListDocuments:  usecase.ListDocuments{Docs: documentStore},
+		UpdateDocument: usecase.UpdateDocument{Docs: documentStore, Clock: clock},
+		DeleteDocument: usecase.DeleteDocument{Docs: documentStore},
 		Users:          userStore,
 		OIDCAuth:       authn,
 		Session:        websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),

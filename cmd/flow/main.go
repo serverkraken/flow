@@ -17,6 +17,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(dayoffCmd())
 	root.AddCommand(exportCmd())
 	root.AddCommand(projectCmd())
+	root.AddCommand(docsCmd())
 	return root
 }
 
