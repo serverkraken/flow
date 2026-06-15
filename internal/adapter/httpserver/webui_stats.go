@@ -58,7 +58,7 @@ func (s *Server) statsData(ctx context.Context, u domain.User, rng string) (webu
 		return webui.StatsData{}, err
 	}
 
-	if rng == "" {
+	if rng != "month" {
 		rng = "week"
 	}
 	rangeStats, err := s.Stats.RangeStats(ctx, u.ID, rng)
@@ -174,10 +174,22 @@ func (s *Server) handleWebSetTarget(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid defaultTargetMin", http.StatusBadRequest)
 		return
 	}
-	if err := s.SetTarget.Execute(r.Context(), u.ID, defaultMin, nil); err != nil {
+	// Load existing settings to preserve per-weekday overrides (I1: data-loss fix).
+	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if err := s.SetTarget.Execute(r.Context(), u.ID, defaultMin, set.WeekdayTargetMin); err != nil {
+		if err == domain.ErrInvalidTarget {
+			http.Error(w, "invalid target", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
-	s.renderStatsFragment(w, r, u, "")
+	// Preserve the range the user had selected (I2: UX-regression fix).
+	rng := r.FormValue("range")
+	s.renderStatsFragment(w, r, u, rng)
 }

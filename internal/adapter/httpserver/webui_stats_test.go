@@ -21,7 +21,8 @@ import (
 
 // newWebStatsServer wires the stats web handlers behind cookie auth, with a
 // pre-seeded user "u1" whose session cookie the test forges via the codec.
-func newWebStatsServer(t *testing.T) (*httpserver.Server, *websession.Codec) {
+// It also returns the shared FakeUserSettingsStore so tests can inspect stored state.
+func newWebStatsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *testutil.FakeUserSettingsStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	users := testutil.NewFakeUserStore()
@@ -51,11 +52,11 @@ func newWebStatsServer(t *testing.T) (*httpserver.Server, *websession.Codec) {
 		SetTarget:   usecase.SetTargetConfig{Settings: settings},
 		GetSettings: usecase.GetSettings{Settings: settings, Tokens: tokens},
 	}
-	return srv, codec
+	return srv, codec, settings
 }
 
 func TestWebStatsHome(t *testing.T) {
-	srv, codec := newWebStatsServer(t)
+	srv, codec, _ := newWebStatsServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
@@ -82,7 +83,7 @@ func TestWebStatsHome(t *testing.T) {
 }
 
 func TestWebStatsFragment(t *testing.T) {
-	srv, codec := newWebStatsServer(t)
+	srv, codec, _ := newWebStatsServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
@@ -106,10 +107,14 @@ func TestWebStatsFragment(t *testing.T) {
 }
 
 func TestWebSetTarget(t *testing.T) {
-	srv, codec := newWebStatsServer(t)
+	srv, codec, settingsStore := newWebStatsServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
+
+	// Pre-seed a Friday override to verify it is preserved after saving (I1 fix).
+	ctx := context.Background()
+	_ = settingsStore.SetTargetConfig(ctx, "u1", 480, map[time.Weekday]int{time.Friday: 300})
 
 	form := url.Values{"defaultTargetMin": {"360"}}.Encode()
 	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
@@ -129,5 +134,18 @@ func TestWebSetTarget(t *testing.T) {
 	// Response should be the fragment re-render, containing "Heute" from StatsFragment.
 	if !strings.Contains(body, "Heute") {
 		t.Fatalf("expected 'Heute' (fragment marker) in body, got: %.200s", body)
+	}
+
+	// Assert the persisted default target is exactly what we POSTed (I3 fix).
+	stored, err := settingsStore.Get(ctx, "u1")
+	if err != nil {
+		t.Fatalf("reading stored settings: %v", err)
+	}
+	if stored.DefaultTargetMin != 360 {
+		t.Errorf("expected DefaultTargetMin=360, got %d", stored.DefaultTargetMin)
+	}
+	// Assert the Friday override was preserved and NOT wiped (I1 fix validation).
+	if v, ok := stored.WeekdayTargetMin[time.Friday]; !ok || v != 300 {
+		t.Errorf("Friday override should be 300, got map=%v", stored.WeekdayTargetMin)
 	}
 }
