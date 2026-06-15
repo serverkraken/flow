@@ -327,6 +327,88 @@ func TestCreateAndStopCmdCallsAPI(t *testing.T) {
 	}
 }
 
+func TestWorktime_TodaySaldoRendered(t *testing.T) {
+	m := New(nil, "tester")
+	// LoggedMin:120 (2h), TargetMin:480 (8h), SaldoMin:-360 (negative → styleWarn)
+	next, _ := m.Update(statsLoadedMsg{
+		today: apiclient.Today{
+			Date:      "2026-06-15",
+			LoggedMin: 120,
+			TargetMin: 480,
+			SaldoMin:  -360,
+		},
+		burndown: apiclient.Burndown{
+			TotalMin:  480,
+			TargetMin: 960,
+			SaldoMin:  -480,
+		},
+	})
+	out := next.(Model).View().Content
+	if !strings.Contains(out, "heute") {
+		t.Fatalf("view missing 'heute' saldo line:\n%s", out)
+	}
+	if !strings.Contains(out, "2h 00m") {
+		t.Fatalf("view missing logged '2h 00m':\n%s", out)
+	}
+	if !strings.Contains(out, "8h 00m") {
+		t.Fatalf("view missing target '8h 00m':\n%s", out)
+	}
+	if !strings.Contains(out, "Monat") {
+		t.Fatalf("view missing 'Monat' burndown line:\n%s", out)
+	}
+}
+
+func TestWorktime_TodaySaldoPositive(t *testing.T) {
+	m := New(nil, "tester")
+	next, _ := m.Update(statsLoadedMsg{
+		today: apiclient.Today{
+			LoggedMin: 510,
+			TargetMin: 480,
+			SaldoMin:  30,
+		},
+	})
+	out := next.(Model).View().Content
+	if !strings.Contains(out, "+0h 30m") {
+		t.Fatalf("view missing positive saldo '+0h 30m':\n%s", out)
+	}
+}
+
+func TestFmtMin(t *testing.T) {
+	cases := []struct {
+		min  int
+		want string
+	}{
+		{0, "0h 00m"},
+		{60, "1h 00m"},
+		{90, "1h 30m"},
+		{480, "8h 00m"},
+		{-10, "0h 00m"}, // clamped to 0
+	}
+	for _, tc := range cases {
+		if got := fmtMin(tc.min); got != tc.want {
+			t.Errorf("fmtMin(%d) = %q, want %q", tc.min, got, tc.want)
+		}
+	}
+}
+
+func TestFmtSaldo(t *testing.T) {
+	cases := []struct {
+		min  int
+		want string
+	}{
+		{0, "+0h 00m"},
+		{30, "+0h 30m"},
+		{90, "+1h 30m"},
+		{-360, "-6h 00m"},
+		{-90, "-1h 30m"},
+	}
+	for _, tc := range cases {
+		if got := fmtSaldo(tc.min); got != tc.want {
+			t.Errorf("fmtSaldo(%d) = %q, want %q", tc.min, got, tc.want)
+		}
+	}
+}
+
 func TestReloadWithRealClient(t *testing.T) {
 	mux := http.NewServeMux()
 	start := time.Now().UTC()

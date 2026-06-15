@@ -34,6 +34,9 @@ type Model struct {
 
 	showDayOffs bool
 	dayoffs     []apiclient.DayOff
+
+	today    apiclient.Today
+	burndown apiclient.Burndown
 }
 
 // New builds the model. client may be nil in tests that only drive Update.
@@ -46,13 +49,17 @@ type loadedMsg struct {
 	projects []domain.Project
 	now      time.Time
 }
+type statsLoadedMsg struct {
+	today    apiclient.Today
+	burndown apiclient.Burndown
+}
 type eventMsg struct{ ev apiclient.ClientEvent }
 type eventsReadyMsg struct{ ch <-chan apiclient.ClientEvent }
 type tickMsg time.Time
 type errMsg struct{ err error }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.reload(), m.subscribe(), tick())
+	return tea.Batch(m.reload(), m.subscribe(), m.reloadStats(), tick())
 }
 
 func tick() tea.Cmd {
@@ -75,6 +82,25 @@ func (m Model) reload() tea.Cmd {
 			return errMsg{err}
 		}
 		return loadedMsg{sessions: sessions, projects: projects, now: time.Now()}
+	}
+}
+
+func (m Model) reloadStats() tea.Cmd {
+	if m.client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		today, err := m.client.GetToday(ctx)
+		if err != nil {
+			return errMsg{err}
+		}
+		bd, err := m.client.GetBurndown(ctx)
+		if err != nil {
+			return errMsg{err}
+		}
+		return statsLoadedMsg{today: today, burndown: bd}
 	}
 }
 
@@ -158,8 +184,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventsReadyMsg:
 		m.events = msg.ch
 		return m, waitForEvent(msg.ch)
+	case statsLoadedMsg:
+		m.today = msg.today
+		m.burndown = msg.burndown
+		return m, nil
 	case eventMsg:
-		return m, tea.Batch(m.reload(), m.reloadDayOffs(), waitForEvent(m.events))
+		return m, tea.Batch(m.reload(), m.reloadDayOffs(), m.reloadStats(), waitForEvent(m.events))
 	case dayoffsLoadedMsg:
 		m.dayoffs = msg.list
 		return m, nil
@@ -254,6 +284,22 @@ func (m Model) View() tea.View {
 	} else {
 		b.WriteString(styleMuted.Render("○ idle — press s to start") + "\n")
 	}
+
+	{
+		logged := fmtMin(m.today.LoggedMin)
+		target := fmtMin(m.today.TargetMin)
+		saldo := m.today.SaldoMin
+		line := fmt.Sprintf("  heute %s / %s · %s", logged, target, fmtSaldo(saldo))
+		if saldo >= 0 {
+			b.WriteString(styleOk.Render(line) + "\n")
+		} else {
+			b.WriteString(styleWarn.Render(line) + "\n")
+		}
+		if m.burndown.TargetMin > 0 {
+			bd := fmt.Sprintf("  Monat %s / %s · %s", fmtMin(m.burndown.TotalMin), fmtMin(m.burndown.TargetMin), fmtSaldo(m.burndown.SaldoMin))
+			b.WriteString(styleMuted.Render(bd) + "\n")
+		}
+	}
 	b.WriteString("\n")
 
 	if m.booking {
@@ -304,4 +350,20 @@ func glyphOr(g string) string {
 		return "●"
 	}
 	return g
+}
+
+func fmtMin(min int) string {
+	if min < 0 {
+		min = 0
+	}
+	return fmt.Sprintf("%dh %02dm", min/60, min%60)
+}
+
+func fmtSaldo(min int) string {
+	sign := "+"
+	if min < 0 {
+		sign = "-"
+		min = -min
+	}
+	return fmt.Sprintf("%s%dh %02dm", sign, min/60, min%60)
 }

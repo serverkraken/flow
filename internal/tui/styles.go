@@ -15,4 +15,6 @@ var (
 	styleMuted   = lipgloss.NewStyle().Foreground(colMuted)
 	styleSel     = lipgloss.NewStyle().Foreground(colBg).Background(colAccent)
 	styleErr     = lipgloss.NewStyle().Foreground(colRed)
+	styleOk      = lipgloss.NewStyle().Foreground(colGreen)
+	styleWarn    = lipgloss.NewStyle().Foreground(colRed)
 )
