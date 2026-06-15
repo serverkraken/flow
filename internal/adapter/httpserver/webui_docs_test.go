@@ -43,10 +43,11 @@ func newWebDocsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *tes
 			IDs:   &testutil.FakeIDGen{},
 			Clock: clk,
 		},
-		GetDocument:    usecase.GetDocument{Docs: docs},
-		ListDocuments:  usecase.ListDocuments{Docs: docs},
-		UpdateDocument: usecase.UpdateDocument{Docs: docs, Clock: clk},
-		DeleteDocument: usecase.DeleteDocument{Docs: docs},
+		GetDocument:       usecase.GetDocument{Docs: docs},
+		ListDocuments:     usecase.ListDocuments{Docs: docs},
+		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
+		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
+		BacklinksDocument: usecase.Backlinks{Docs: docs},
 	}
 	return srv, codec, docs
 }
@@ -680,5 +681,95 @@ func TestWebDocUpdate_PreservesTags(t *testing.T) {
 	// Verify title+body were updated.
 	if stored.Title != "Updated Title" {
 		t.Errorf("want title='Updated Title', got %q", stored.Title)
+	}
+}
+
+// TestWebDocView_WikilinksAndBacklinks verifies:
+//   - GET /docs/{destID} contains "Referenced by" and the src title when src links to dest.
+//   - GET /docs/{srcID} contains a rendered wikilink anchor pointing to /docs/{destID}.
+func TestWebDocView_WikilinksAndBacklinks(t *testing.T) {
+	srv, codec, store := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+	cookieHdr := &http.Cookie{Name: "flow_session", Value: cookieVal}
+
+	// Create dest doc (empty body — no outgoing links).
+	postDoc := func(path, title, body string) {
+		t.Helper()
+		form := url.Values{"type": {"free"}, "path": {path}, "title": {title}, "body": {body}}
+		req, _ := http.NewRequest("POST", ts.URL+"/docs", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(cookieHdr)
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatalf("POST /docs: %v", err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusSeeOther {
+			t.Fatalf("POST /docs want 303, got %d", res.StatusCode)
+		}
+	}
+
+	postDoc("wikilink-dest", "Dest Doc", "")
+	postDoc("wikilink-src", "Src Doc", "go to [[wikilink-dest]]")
+
+	// Resolve IDs by path via the store.
+	list, err := store.List(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("store.List: %v", err)
+	}
+	idByPath := map[string]string{}
+	for _, d := range list {
+		idByPath[d.Path] = d.ID
+	}
+	destID, ok := idByPath["wikilink-dest"]
+	if !ok {
+		t.Fatal("dest doc not found in store")
+	}
+	srcID, ok := idByPath["wikilink-src"]
+	if !ok {
+		t.Fatal("src doc not found in store")
+	}
+
+	// The FakeDocumentStore.Backlinks relies on the links table populated by
+	// ReplaceLinks. The WebUI create handler goes through usecase.CreateDocument
+	// which does not call ReplaceLinks (that is a separate indexing step). We seed
+	// it directly here to simulate the link index being up to date.
+	if err := store.ReplaceLinks(context.Background(), srcID, "u1", []string{"wikilink-dest"}); err != nil {
+		t.Fatalf("ReplaceLinks: %v", err)
+	}
+
+	getBody := func(path string) string {
+		t.Helper()
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		req.AddCookie(cookieHdr)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s status=%d body=%.300s", path, res.StatusCode, b)
+		}
+		return string(b)
+	}
+
+	// Dest page should show the backlink from Src.
+	destBody := getBody("/docs/" + destID)
+	if !strings.Contains(destBody, "Referenced by") {
+		t.Errorf("dest doc page: expected 'Referenced by' section, got: %.400s", destBody)
+	}
+	if !strings.Contains(destBody, "Src Doc") {
+		t.Errorf("dest doc page: expected src title 'Src Doc' in backlinks, got: %.400s", destBody)
+	}
+
+	// Src page should contain a rendered wikilink anchor pointing to dest.
+	srcBody := getBody("/docs/" + srcID)
+	wantHref := `href="/docs/` + destID + `"`
+	if !strings.Contains(srcBody, wantHref) {
+		t.Errorf("src doc page: expected wikilink anchor %q, got: %.400s", wantHref, srcBody)
 	}
 }

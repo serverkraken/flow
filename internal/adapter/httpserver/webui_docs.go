@@ -59,16 +59,34 @@ func (s *Server) handleWebDocView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	rendered := webui.RenderMarkdown(doc.Body)
+	all, err := s.ListDocuments.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	resolve := func(target string) (string, string, bool) {
+		if t, ok := domain.ResolveWikilink(doc, target, all); ok {
+			return "/docs/" + t.ID, t.Title, true
+		}
+		return "", "", false
+	}
+	rendered := webui.RenderDocument(doc.Body, resolve)
+
+	refs, err := s.BacklinksDocument.Execute(r.Context(), u.ID, id)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	blRows := make([]webui.DocRow, 0, len(refs))
+	for _, ref := range refs {
+		blRows = append(blRows, webui.DocRow{ID: ref.ID, Type: string(ref.Type), Path: ref.Path, Title: ref.Title})
+	}
+
 	d := webui.DocsPageData{
 		User: u.Username,
 		Current: &webui.DocDetail{
-			ID:    doc.ID,
-			Type:  string(doc.Type),
-			Path:  doc.Path,
-			Title: doc.Title,
-			HTML:  rendered,
-			Body:  doc.Body,
+			ID: doc.ID, Type: string(doc.Type), Path: doc.Path, Title: doc.Title,
+			HTML: rendered, Body: doc.Body, Backlinks: blRows,
 		},
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
