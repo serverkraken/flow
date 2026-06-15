@@ -15,4 +15,5 @@ var (
 	ErrInvalidDayOff   = errors.New("invalid day-off")
 	ErrInvalidRange    = errors.New("invalid range")
 	ErrInvalidTarget   = errors.New("invalid target")
+	ErrInvalidRate     = errors.New("invalid rate")
 )
