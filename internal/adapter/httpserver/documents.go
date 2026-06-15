@@ -114,3 +114,19 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+func (s *Server) handleDocumentBacklinks(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	refs, err := s.BacklinksDocument.Execute(r.Context(), u.ID, r.PathValue("id"))
+	switch {
+	case errors.Is(err, ports.ErrDocumentNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		if refs == nil {
+			refs = []domain.BacklinkRef{}
+		}
+		writeJSON(w, http.StatusOK, refs)
+	}
+}

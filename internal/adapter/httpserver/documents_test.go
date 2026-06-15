@@ -39,16 +39,17 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	}
 
 	srv := &httpserver.Server{
-		Verifier:       testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:         usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:            bus,
-		Clock:          clk,
-		Stats:          stats,
-		CreateDocument: usecase.CreateDocument{Docs: docs, IDs: ids, Clock: clk},
-		GetDocument:    usecase.GetDocument{Docs: docs},
-		ListDocuments:  usecase.ListDocuments{Docs: docs},
-		UpdateDocument: usecase.UpdateDocument{Docs: docs, Clock: clk},
-		DeleteDocument: usecase.DeleteDocument{Docs: docs},
+		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               bus,
+		Clock:             clk,
+		Stats:             stats,
+		CreateDocument:    usecase.CreateDocument{Docs: docs, IDs: ids, Clock: clk},
+		GetDocument:       usecase.GetDocument{Docs: docs},
+		ListDocuments:     usecase.ListDocuments{Docs: docs},
+		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
+		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
+		BacklinksDocument: usecase.Backlinks{Docs: docs},
 	}
 	return srv, bus
 }
@@ -297,5 +298,37 @@ func TestHandleDeleteDocument_NotFound(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestBacklinksEndpoint(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	destRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"free","path":"dest","title":"Dest","body":""}`)
+	defer func() { _ = destRes.Body.Close() }()
+	var dest domain.Document
+	_ = json.NewDecoder(destRes.Body).Decode(&dest)
+
+	doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"free","path":"src","title":"Src","body":"[[dest]]"}`)
+
+	res := doDoc(t, ts, "GET", "/api/v1/documents/"+dest.ID+"/backlinks", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var refs []domain.BacklinkRef
+	_ = json.NewDecoder(res.Body).Decode(&refs)
+	if len(refs) != 1 || refs[0].Path != "src" {
+		t.Fatalf("backlinks = %v, want [src]", refs)
+	}
+
+	res404 := doDoc(t, ts, "GET", "/api/v1/documents/nope/backlinks", "")
+	_ = res404.Body.Close()
+	if res404.StatusCode != 404 {
+		t.Fatalf("missing doc status = %d, want 404", res404.StatusCode)
 	}
 }
