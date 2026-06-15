@@ -73,9 +73,8 @@ func newComputer(sessions []domain.WorkSession, set domain.Settings) usecase.Sta
 
 func TestStatsComputer_TodaySaldo(t *testing.T) {
 	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
-	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	sessions := []domain.WorkSession{
-		{ID: "a", Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop},
+		{ID: "a", Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: ptr(time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC))},
 	}
 	c := newComputer(sessions, set)
 	sum, err := c.Today(context.Background(), "u1")

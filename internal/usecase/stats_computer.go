@@ -44,7 +44,7 @@ func (c StatsComputer) resolver(ctx context.Context, ownerID string, from, to ti
 		DayOffs: make(map[string]domain.DayOff, len(offs)),
 	}
 	for d, v := range set.WeekdayTargetMin {
-		if d > time.Saturday {
+		if d < time.Sunday || d > time.Saturday {
 			continue
 		}
 		dur := time.Duration(v) * time.Minute
