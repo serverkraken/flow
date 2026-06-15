@@ -1,11 +1,17 @@
 package tui
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 )
 
 func TestExportPresetRange(t *testing.T) {
@@ -226,5 +232,91 @@ func TestExportManualPathEditSticks(t *testing.T) {
 	m = n3.(Model)
 	if m.expPath != editedPath {
 		t.Errorf("manual path must stick after format change: got %q want %q", m.expPath, editedPath)
+	}
+}
+
+func TestSubmitExportInvalidDate(t *testing.T) {
+	m := openExportM(t)
+	m.expPreset = "custom"
+	m.expFrom = "not-a-date"
+	m.expTo = "2026-06-30"
+	next, cmd := m.submitExport()
+	if cmd != nil {
+		t.Fatal("invalid date should not dispatch a command")
+	}
+	if next.(Model).expStatus == "" {
+		t.Fatal("invalid date should set an inline status")
+	}
+}
+
+func TestSubmitExportToBeforeFrom(t *testing.T) {
+	m := openExportM(t)
+	m.expPreset = "custom"
+	m.expFrom = "2026-06-30"
+	m.expTo = "2026-06-01"
+	_, cmd := m.submitExport()
+	if cmd != nil {
+		t.Fatal("to<from should not dispatch a command")
+	}
+}
+
+func TestSubmitExportNilClientReportsStatus(t *testing.T) {
+	// openExportM uses New(nil, …): valid default dates, no client.
+	m := openExportM(t)
+	next, cmd := m.submitExport()
+	if cmd != nil {
+		t.Fatal("nil client should not dispatch a command")
+	}
+	if !strings.Contains(next.(Model).expStatus, "kein Server") {
+		t.Errorf("nil client should set a status, got %q", next.(Model).expStatus)
+	}
+}
+
+func TestExportDoneMsgSetsStatus(t *testing.T) {
+	m := openExportM(t)
+	next, _ := m.Update(exportDoneMsg{path: "/tmp/flow-export.md"})
+	if !strings.Contains(next.(Model).expStatus, "/tmp/flow-export.md") {
+		t.Errorf("done status should contain path, got %q", next.(Model).expStatus)
+	}
+}
+
+func TestExportErrMsgSetsStatus(t *testing.T) {
+	m := openExportM(t)
+	next, _ := m.Update(exportErrMsg{err: errExportTest})
+	if !strings.Contains(next.(Model).expStatus, "boom") {
+		t.Errorf("err status should contain error, got %q", next.(Model).expStatus)
+	}
+}
+
+var errExportTest = &exportTestErr{}
+
+type exportTestErr struct{}
+
+func (*exportTestErr) Error() string { return "boom" }
+
+func TestExportCmdWritesFile(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/export", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("# Worktime\n"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	dir := t.TempDir()
+	target := filepath.Join(dir, "out.md")
+	m := New(apiclient.New(srv.URL, "tok"), "tester")
+	m.expFrom, m.expTo, m.expFormat, m.expPath = "2026-06-01", "2026-06-30", "md", target
+
+	msg := m.exportCmd()()
+	done, ok := msg.(exportDoneMsg)
+	if !ok {
+		t.Fatalf("want exportDoneMsg, got %T (%v)", msg, msg)
+	}
+	if done.path != target {
+		t.Errorf("done path %q want %q", done.path, target)
+	}
+	b, err := os.ReadFile(target)
+	if err != nil || string(b) != "# Worktime\n" {
+		t.Fatalf("file content %q err %v", b, err)
 	}
 }

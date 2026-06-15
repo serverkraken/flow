@@ -237,6 +237,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statsRng = msg.rng
 		m.stats = msg.stats
 		return m, nil
+	case exportDoneMsg:
+		m.expStatus = "✓ geschrieben: " + msg.path
+		return m, nil
+	case exportErrMsg:
+		m.expStatus = "Fehler: " + msg.err.Error()
+		return m, nil
 	case errMsg:
 		m.err = msg.err
 		return m, nil

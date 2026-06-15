@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 )
+
+type exportDoneMsg struct{ path string }
+type exportErrMsg struct{ err error }
 
 const dayFmtTUI = "2006-01-02"
 
@@ -122,7 +126,14 @@ func (m Model) exportView() tea.View {
 	field(4, "Pfad", m.expPath)
 	b.WriteString("\n")
 	if m.expStatus != "" {
-		b.WriteString(styleMuted.Render(m.expStatus) + "\n\n")
+		st := styleMuted
+		switch {
+		case strings.HasPrefix(m.expStatus, "✓"):
+			st = styleOk
+		case strings.HasPrefix(m.expStatus, "Fehler") || strings.HasPrefix(m.expStatus, "Ungültiges") || strings.HasPrefix(m.expStatus, "bis muss"):
+			st = styleErr
+		}
+		b.WriteString(st.Render(m.expStatus) + "\n\n")
 	}
 	b.WriteString(styleMuted.Render("tab Feld · ←/→ wählen · enter export · esc back") + "\n")
 	v := tea.NewView(b.String())
@@ -208,7 +219,42 @@ func refreshDefaultPath(m *Model) {
 	}
 }
 
-// submitExport is fleshed out in Task 4.
+// submitExport validates the date range and, if valid, dispatches exportCmd.
+// Invalid dates or to<from set an inline status and dispatch nothing.
 func (m Model) submitExport() (tea.Model, tea.Cmd) {
-	return m, nil
+	from, errF := time.Parse(dayFmtTUI, m.expFrom)
+	to, errT := time.Parse(dayFmtTUI, m.expTo)
+	if errF != nil || errT != nil {
+		m.expStatus = "Ungültiges Datum (yyyy-mm-dd erwartet)"
+		return m, nil
+	}
+	if to.Before(from) {
+		m.expStatus = "bis muss >= von sein"
+		return m, nil
+	}
+	if m.client == nil {
+		m.expStatus = "Fehler: kein Server verbunden"
+		return m, nil
+	}
+	m.expStatus = "exportiere…"
+	return m, m.exportCmd()
+}
+
+// exportCmd fetches the export from the server and writes it to the resolved
+// path, returning exportDoneMsg{path} or exportErrMsg{err}.
+func (m Model) exportCmd() tea.Cmd {
+	from, to, format, path := m.expFrom, m.expTo, m.expFormat, expandHome(m.expPath)
+	client := m.client
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		b, err := client.Export(ctx, from, to, format, "")
+		if err != nil {
+			return exportErrMsg{err}
+		}
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			return exportErrMsg{err}
+		}
+		return exportDoneMsg{path: path}
+	}
 }
