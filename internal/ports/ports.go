@@ -86,10 +86,13 @@ type DayOffStore interface {
 }
 
 // UserSettingsStore persists per-user preferences. Get lazily returns a
-// default row (Bundesland "NW") for users that never saved settings.
+// default row (Bundesland "NW", DefaultTargetMin 480, no weekday overrides)
+// for users that never saved settings. SetTargetConfig replaces the daily
+// target config wholesale (default + the full override set).
 type UserSettingsStore interface {
 	Get(ctx context.Context, userID string) (domain.Settings, error)
 	SetBundesland(ctx context.Context, userID, land string) error
+	SetTargetConfig(ctx context.Context, userID string, defaultMin int, weekday map[time.Weekday]int) error
 }
 
 // FeedTokenStore mints and resolves calendar-feed tokens. Resolve only

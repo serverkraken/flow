@@ -6,11 +6,19 @@ import (
 )
 
 // Settings holds per-user preferences. Bundesland drives the computed
-// German-holiday set. Future M1d/M1e prefs (daily target, …) extend this.
+// German-holiday set; DefaultTargetMin + WeekdayTargetMin drive the daily
+// work target (M1d). WeekdayTargetMin keys are time.Weekday; a present
+// entry (incl. 0) is an explicit override, absence means "use default".
 type Settings struct {
-	UserID     string `json:"-"`
-	Bundesland string `json:"bundesland"`
+	UserID           string               `json:"-"`
+	Bundesland       string               `json:"bundesland"`
+	DefaultTargetMin int                  `json:"defaultTargetMin"`
+	WeekdayTargetMin map[time.Weekday]int `json:"-"`
 }
+
+// DefaultDailyTargetMin is the fallback daily target (8h) when a user never
+// configured one.
+const DefaultDailyTargetMin = 480
 
 // FeedToken is a secret used to subscribe to a per-user calendar feed
 // without interactive auth. Revoked tokens stop resolving.
