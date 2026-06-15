@@ -35,8 +35,9 @@ type Model struct {
 	showDayOffs bool
 	dayoffs     []apiclient.DayOff
 
-	today    apiclient.Today
-	burndown apiclient.Burndown
+	today       apiclient.Today
+	burndown    apiclient.Burndown
+	statsLoaded bool
 }
 
 // New builds the model. client may be nil in tests that only drive Update.
@@ -167,7 +168,11 @@ func (m Model) createAndStopCmd(sessionID, name string) tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
+		prev := m.now
 		m.now = time.Time(msg)
+		if m.running != nil && m.now.Minute() != prev.Minute() {
+			return m, tea.Batch(tick(), m.reloadStats())
+		}
 		return m, tick()
 	case loadedMsg:
 		m.sessions = msg.sessions
@@ -187,6 +192,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statsLoadedMsg:
 		m.today = msg.today
 		m.burndown = msg.burndown
+		m.statsLoaded = true
 		return m, nil
 	case eventMsg:
 		return m, tea.Batch(m.reload(), m.reloadDayOffs(), m.reloadStats(), waitForEvent(m.events))
@@ -285,7 +291,7 @@ func (m Model) View() tea.View {
 		b.WriteString(styleMuted.Render("○ idle — press s to start") + "\n")
 	}
 
-	{
+	if m.statsLoaded {
 		logged := fmtMin(m.today.LoggedMin)
 		target := fmtMin(m.today.TargetMin)
 		saldo := m.today.SaldoMin

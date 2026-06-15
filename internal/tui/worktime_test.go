@@ -327,6 +327,14 @@ func TestCreateAndStopCmdCallsAPI(t *testing.T) {
 	}
 }
 
+func TestWorktime_StatsHeaderHiddenBeforeLoad(t *testing.T) {
+	m := New(nil, "tester")
+	out := m.View().Content
+	if strings.Contains(out, "heute") {
+		t.Fatalf("'heute' rendered before statsLoadedMsg — expected it to be suppressed:\n%s", out)
+	}
+}
+
 func TestWorktime_TodaySaldoRendered(t *testing.T) {
 	m := New(nil, "tester")
 	// LoggedMin:120 (2h), TargetMin:480 (8h), SaldoMin:-360 (negative → styleWarn)
