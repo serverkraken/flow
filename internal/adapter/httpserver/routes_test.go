@@ -59,6 +59,14 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"POST", "/ui/worktime/start"},
 		{"POST", "/ui/worktime/stop"},
 		{"GET", "/static/app.css"},
+		{"GET", "/docs"},
+		{"GET", "/ui/docs/list"},
+		{"GET", "/docs/new"},
+		{"POST", "/docs"},
+		{"GET", "/docs/x"},
+		{"GET", "/docs/x/edit"},
+		{"POST", "/docs/x"},
+		{"POST", "/docs/x/delete"},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)

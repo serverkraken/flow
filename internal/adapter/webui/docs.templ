@@ -1,0 +1,236 @@
+package webui
+
+import "html/template"
+
+// DocsPageData is the view model for the docs screen.
+type DocsPageData struct {
+	User    string
+	Docs    []DocRow
+	Current *DocDetail
+	Error   string
+	Form    *DocFormValues
+}
+
+// DocRow is one document in the list.
+type DocRow struct {
+	ID    string
+	Type  string
+	Path  string
+	Title string
+}
+
+// DocDetail is the full document view model.
+type DocDetail struct {
+	ID    string
+	Type  string
+	Path  string
+	Title string
+	HTML  template.HTML
+	Body  string
+}
+
+// DocFormValues carries submitted form values back to the form on error.
+type DocFormValues struct {
+	Type      string
+	ProjectID string
+	Path      string
+	Title     string
+	Body      string
+}
+
+templ DocsPage(d DocsPageData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · docs</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-md p-4">
+				<div id="dc" hx-get="/ui/docs/list" hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted" hx-swap="innerHTML">
+					@DocsFragment(d)
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ DocsFragment(d DocsPageData) {
+	<header class="mb-4 flex items-center justify-between">
+		<h1 class="text-lg font-semibold text-slate-900">flow · docs</h1>
+		<div class="flex gap-4 text-sm text-slate-500">
+			<a href="/" class="hover:text-slate-700">worktime</a>
+			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+			<a href="/stats" class="hover:text-slate-700">stats</a>
+			<a href="/export" class="hover:text-slate-700">export</a>
+		</div>
+	</header>
+	@DocsListFragment(d)
+}
+
+templ DocsListFragment(d DocsPageData) {
+	<div class="mb-4 flex items-center justify-between">
+		<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Documents</h2>
+		<a href="/docs/new" class="rounded bg-slate-900 px-3 py-1 text-xs text-white hover:bg-slate-700">+ new doc</a>
+	</div>
+	if len(d.Docs) == 0 {
+		<p class="text-sm text-slate-400">no documents yet</p>
+	} else {
+		<ul class="divide-y divide-slate-100">
+			for _, doc := range d.Docs {
+				<li class="py-2">
+					<a href={ templ.SafeURL("/docs/" + doc.ID) } class="block hover:text-slate-700">
+						<div class="flex items-center justify-between text-sm">
+							<span class="font-medium text-slate-800">{ doc.Title }</span>
+							<span class="text-xs text-slate-400">{ doc.Type }</span>
+						</div>
+						<div class="mt-0.5 font-mono text-xs text-slate-500">{ doc.Path }</div>
+					</a>
+				</li>
+			}
+		</ul>
+	}
+}
+
+templ DocView(d DocsPageData) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · docs</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-md p-4">
+				<header class="mb-4 flex items-center justify-between">
+					<h1 class="text-lg font-semibold text-slate-900">flow · docs</h1>
+					<div class="flex gap-4 text-sm text-slate-500">
+						<a href="/" class="hover:text-slate-700">worktime</a>
+						<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+						<a href="/stats" class="hover:text-slate-700">stats</a>
+						<a href="/export" class="hover:text-slate-700">export</a>
+					</div>
+				</header>
+				if d.Current != nil {
+					<div
+						id="dv"
+						hx-get={ "/docs/" + d.Current.ID }
+						hx-trigger="sse:document.updated"
+						hx-swap="outerHTML"
+					>
+						<div class="mb-4 flex items-center justify-between">
+							<a href="/docs" class="text-sm text-slate-500 hover:text-slate-700">← all docs</a>
+							<div class="flex gap-2">
+								<a href={ templ.SafeURL("/docs/" + d.Current.ID + "/edit") } class="rounded bg-slate-900 px-3 py-1 text-xs text-white hover:bg-slate-700">edit</a>
+								<form action={ templ.SafeURL("/docs/" + d.Current.ID + "/delete") } method="post">
+									<button class="rounded bg-rose-600 px-3 py-1 text-xs text-white hover:bg-rose-700">delete</button>
+								</form>
+							</div>
+						</div>
+						<section class="rounded bg-white p-4 shadow-sm">
+							<div class="mb-2 flex items-baseline justify-between">
+								<h2 class="text-lg font-semibold text-slate-900">{ d.Current.Title }</h2>
+								<span class="text-xs text-slate-400">{ d.Current.Type }</span>
+							</div>
+							<div class="mb-3 font-mono text-xs text-slate-400">{ d.Current.Path }</div>
+							<div class="prose prose-sm max-w-none text-slate-700">
+								@templ.Raw(string(d.Current.HTML))
+							</div>
+						</section>
+					</div>
+				}
+			</main>
+		</body>
+	</html>
+}
+
+templ DocForm(d DocsPageData, editing *DocDetail) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · docs</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800">
+			<main class="mx-auto max-w-md p-4">
+				<header class="mb-4 flex items-center justify-between">
+					<h1 class="text-lg font-semibold text-slate-900">flow · docs</h1>
+					<div class="flex gap-4 text-sm text-slate-500">
+						<a href="/" class="hover:text-slate-700">worktime</a>
+						<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
+						<a href="/stats" class="hover:text-slate-700">stats</a>
+						<a href="/export" class="hover:text-slate-700">export</a>
+					</div>
+				</header>
+				<div class="mb-4">
+					<a href="/docs" class="text-sm text-slate-500 hover:text-slate-700">← all docs</a>
+				</div>
+				if d.Error != "" {
+					<div class="mb-4 rounded bg-rose-50 px-4 py-2 text-sm text-rose-700">{ d.Error }</div>
+				}
+				if editing != nil {
+					<form action={ templ.SafeURL("/docs/" + editing.ID) } method="post" class="space-y-4">
+						@docFormFields(editing.Type, editing.Path, editing.Title, editing.Body, true)
+					</form>
+				} else if d.Form != nil {
+					<form action="/docs" method="post" class="space-y-4">
+						@docFormFields(d.Form.Type, d.Form.Path, d.Form.Title, d.Form.Body, false)
+					</form>
+				} else {
+					<form action="/docs" method="post" class="space-y-4">
+						@docFormFields("free", "", "", "", false)
+					</form>
+				}
+			</main>
+		</body>
+	</html>
+}
+
+templ docFormFields(docType, path, title, body string, readonly bool) {
+	<div>
+		<label class="mb-1 block text-sm font-medium text-slate-700">type</label>
+		if readonly {
+			<input type="text" name="type" value={ docType } disabled class="w-full rounded border bg-slate-100 px-2 py-1 text-sm text-slate-500 cursor-not-allowed"/>
+		} else {
+			<select name="type" class="w-full rounded border px-2 py-1 text-sm">
+				<option value="free" selected?={ docType == "free" }>free</option>
+				<option value="project" selected?={ docType == "project" }>project</option>
+				<option value="daily" selected?={ docType == "daily" }>daily</option>
+				<option value="agent" selected?={ docType == "agent" }>agent</option>
+			</select>
+		}
+	</div>
+	if !readonly {
+		<div>
+			<label class="mb-1 block text-sm font-medium text-slate-700">project id (optional)</label>
+			<input type="text" name="projectId" class="w-full rounded border px-2 py-1 text-sm" placeholder="project-id"/>
+		</div>
+	}
+	<div>
+		<label class="mb-1 block text-sm font-medium text-slate-700">path</label>
+		if readonly {
+			<input type="text" name="path" value={ path } disabled class="w-full rounded border bg-slate-100 px-2 py-1 font-mono text-sm text-slate-500 cursor-not-allowed"/>
+		} else {
+			<input type="text" name="path" value={ path } class="w-full rounded border px-2 py-1 font-mono text-sm" placeholder="my-note/intro"/>
+		}
+	</div>
+	<div>
+		<label class="mb-1 block text-sm font-medium text-slate-700">title</label>
+		<input type="text" name="title" value={ title } class="w-full rounded border px-2 py-1 text-sm"/>
+	</div>
+	<div>
+		<label class="mb-1 block text-sm font-medium text-slate-700">body</label>
+		<textarea name="body" rows="12" class="w-full rounded border px-2 py-1 font-mono text-sm">{ body }</textarea>
+	</div>
+	<button class="rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700">save</button>
+}

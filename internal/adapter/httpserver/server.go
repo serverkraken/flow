@@ -113,6 +113,15 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /export", s.webAuth(http.HandlerFunc(s.handleWebExportHome)))
 	mux.Handle("GET /ui/export/preview", s.webAuth(http.HandlerFunc(s.handleWebExportPreview)))
 
+	mux.Handle("GET /docs", s.webAuth(http.HandlerFunc(s.handleWebDocsHome)))
+	mux.Handle("GET /ui/docs/list", s.webAuth(http.HandlerFunc(s.handleWebDocsList)))
+	mux.Handle("GET /docs/new", s.webAuth(http.HandlerFunc(s.handleWebDocNew)))
+	mux.Handle("POST /docs", s.webAuth(http.HandlerFunc(s.handleWebDocCreate)))
+	mux.Handle("GET /docs/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocView)))
+	mux.Handle("GET /docs/{id}/edit", s.webAuth(http.HandlerFunc(s.handleWebDocEdit)))
+	mux.Handle("POST /docs/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocUpdate)))
+	mux.Handle("POST /docs/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebDocDelete)))
+
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux
 }
