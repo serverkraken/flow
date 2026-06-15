@@ -240,6 +240,23 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.booking {
 		return m.handleBookingKey(k)
 	}
+	if m.showWeek || m.showStats {
+		switch {
+		case k.Code == tea.KeyEsc:
+			m.showWeek = false
+			m.showStats = false
+			return m, nil
+		case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
+			return m, tea.Quit
+		case k.Text == "m" && m.showStats:
+			m.statsRng = "month"
+			return m, m.reloadRange()
+		case k.Text == "W" && m.showStats:
+			m.statsRng = "week"
+			return m, m.reloadRange()
+		}
+		return m, nil
+	}
 	switch {
 	case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
 		return m, tea.Quit
@@ -279,16 +296,6 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.statsRng = "week"
 		}
 		return m, m.reloadRange()
-	case k.Text == "m" && m.showStats:
-		m.statsRng = "month"
-		return m, m.reloadRange()
-	case k.Text == "W" && m.showStats:
-		m.statsRng = "week"
-		return m, m.reloadRange()
-	case k.Code == tea.KeyEsc && (m.showWeek || m.showStats):
-		m.showWeek = false
-		m.showStats = false
-		return m, nil
 	}
 	return m, nil
 }

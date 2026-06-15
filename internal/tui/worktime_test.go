@@ -417,6 +417,28 @@ func TestFmtSaldo(t *testing.T) {
 	}
 }
 
+func TestWorktime_WeekViewSwallowsGlobalKeys(t *testing.T) {
+	m := New(nil, "tester")
+	m.showWeek = true
+
+	// Press "s" while week view is open — must NOT start a timer or enter booking.
+	next, _ := m.Update(tea.KeyPressMsg{Text: "s"})
+	m2 := next.(Model)
+	if !m2.showWeek {
+		t.Fatal("showWeek should still be true after 's' press in week view")
+	}
+	if m2.booking {
+		t.Fatal("booking must not be set when 's' is pressed in week view")
+	}
+
+	// Press Esc — should close the week view.
+	next2, _ := m2.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m3 := next2.(Model)
+	if m3.showWeek {
+		t.Fatal("showWeek should be false after Esc in week view")
+	}
+}
+
 func TestReloadWithRealClient(t *testing.T) {
 	mux := http.NewServeMux()
 	start := time.Now().UTC()
