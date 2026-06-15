@@ -1,0 +1,76 @@
+package domain
+
+import (
+	"fmt"
+	"regexp"
+	"time"
+)
+
+// DocumentType is the kind of compendium note.
+type DocumentType string
+
+const (
+	DocDaily   DocumentType = "daily"
+	DocProject DocumentType = "project"
+	DocFree    DocumentType = "free"
+	DocAgent   DocumentType = "agent"
+)
+
+func (t DocumentType) valid() bool {
+	switch t {
+	case DocDaily, DocProject, DocFree, DocAgent:
+		return true
+	}
+	return false
+}
+
+// Document is a compendium note. Path is a human-readable slug, unique per
+// owner(+project). Tags/Role/Extra are carried by the schema from M2a but
+// exercised by later slices (M2c tags, M3 brief role, M2d search).
+type Document struct {
+	ID        string         `json:"id"`
+	OwnerID   string         `json:"-"`
+	ProjectID *string        `json:"projectId,omitempty"`
+	Type      DocumentType   `json:"type"`
+	Path      string         `json:"path"`
+	Title     string         `json:"title"`
+	Body      string         `json:"body"`
+	Tags      []string       `json:"tags,omitempty"`
+	Date      *time.Time     `json:"date,omitempty"`
+	Role      *string        `json:"role,omitempty"`
+	Extra     map[string]any `json:"extra,omitempty"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+}
+
+var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$`)
+
+// SlugOK reports whether s is a valid hierarchical slug: lowercase
+// alphanumeric segments joined by '/', words separated by single '-'. No
+// leading/trailing/double slash, no spaces or uppercase.
+func SlugOK(s string) bool {
+	return s != "" && slugRe.MatchString(s)
+}
+
+// DailyPath is the canonical slug for a daily note on day d.
+func DailyPath(d time.Time) string {
+	return "daily/" + d.Format("2006-01-02")
+}
+
+// Validate checks the document invariants (type, project rule, slug form,
+// daily date). It does not check ID/owner presence — the use case stamps those.
+func (d Document) Validate() error {
+	if !d.Type.valid() {
+		return fmt.Errorf("%w: bad type %q", ErrInvalidDocument, d.Type)
+	}
+	if d.Type == DocProject && (d.ProjectID == nil || *d.ProjectID == "") {
+		return fmt.Errorf("%w: project document needs a projectId", ErrInvalidDocument)
+	}
+	if d.Type == DocDaily && d.Date == nil {
+		return fmt.Errorf("%w: daily document needs a date", ErrInvalidDocument)
+	}
+	if !SlugOK(d.Path) {
+		return fmt.Errorf("%w: invalid path %q", ErrInvalidDocument, d.Path)
+	}
+	return nil
+}
