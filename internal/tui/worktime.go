@@ -44,6 +44,16 @@ type Model struct {
 	stats     apiclient.Stats
 	statsRng  string // "week" | "month"
 
+	showExport    bool
+	expPreset     string // "kw" | "monat" | "letzter" | "custom"
+	expFrom       string // yyyy-mm-dd
+	expTo         string // yyyy-mm-dd
+	expFormat     string // "csv" | "json" | "md"
+	expPath       string
+	expPathEdited bool
+	expFocus      int // 0=preset 1=from 2=to 3=format 4=path
+	expStatus     string
+
 	today       apiclient.Today
 	burndown    apiclient.Burndown
 	statsLoaded bool
@@ -240,6 +250,13 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.booking {
 		return m.handleBookingKey(k)
 	}
+	if m.showExport {
+		if k.Code == tea.KeyEsc {
+			m.showExport = false
+			return m, nil
+		}
+		return m.handleExportKey(k)
+	}
 	if m.showWeek || m.showStats {
 		switch {
 		case k.Code == tea.KeyEsc:
@@ -292,6 +309,8 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.statsRng = "week"
 		}
 		return m, m.reloadRange()
+	case k.Text == "e":
+		return m.openExport(), nil
 	}
 	return m, nil
 }
@@ -335,6 +354,9 @@ func (m Model) handleBookingKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() tea.View {
+	if m.showExport {
+		return m.exportView()
+	}
 	if m.showWeek {
 		return m.weekView()
 	}
@@ -400,7 +422,7 @@ func (m Model) View() tea.View {
 	if m.err != nil {
 		b.WriteString(styleErr.Render("error: "+m.err.Error()) + "\n")
 	}
-	b.WriteString(styleMuted.Render("s start · x stop · d dayoffs · w Woche · t Stats · q quit") + "\n")
+	b.WriteString(styleMuted.Render("s start · x stop · d dayoffs · w Woche · t Stats · e export · q quit") + "\n")
 
 	v := tea.NewView(b.String())
 	v.AltScreen = true

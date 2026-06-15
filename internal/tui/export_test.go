@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 func TestExportPresetRange(t *testing.T) {
@@ -73,5 +75,56 @@ func TestExportPresetRange_LetzterJanuaryBoundary(t *testing.T) {
 	from, to := exportPresetRange("letzter", now)
 	if from != "2025-12-01" || to != "2025-12-31" {
 		t.Errorf("letzter in January: got %s..%s want 2025-12-01..2025-12-31", from, to)
+	}
+}
+
+func TestExportOpenSetsDefaults(t *testing.T) {
+	m := New(nil, "tester")
+	m.now = time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC) // Montag
+	next, _ := m.Update(tea.KeyPressMsg{Text: "e"})
+	mm := next.(Model)
+	if !mm.showExport {
+		t.Fatal("e should open the export overlay")
+	}
+	if mm.expFormat != "md" {
+		t.Errorf("default format md, got %q", mm.expFormat)
+	}
+	if mm.expPreset != "monat" {
+		t.Errorf("default preset monat, got %q", mm.expPreset)
+	}
+	if mm.expFrom != "2026-06-01" || mm.expTo != "2026-06-15" {
+		t.Errorf("default range got %s..%s", mm.expFrom, mm.expTo)
+	}
+	if mm.expPath != "~/Downloads/flow-export-2026-06-01_2026-06-15.md" {
+		t.Errorf("default path got %q", mm.expPath)
+	}
+}
+
+func TestExportEscCloses(t *testing.T) {
+	m := New(nil, "tester")
+	next, _ := m.Update(tea.KeyPressMsg{Text: "e"})
+	m = next.(Model)
+	next2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if next2.(Model).showExport {
+		t.Fatal("esc should close the export overlay")
+	}
+}
+
+func TestExportViewRenders(t *testing.T) {
+	m := New(nil, "tester")
+	m.now = time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	next, _ := m.Update(tea.KeyPressMsg{Text: "e"})
+	out := next.(Model).View().Content
+	for _, want := range []string{"Export", "Format", "2026-06-01", "md"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("export view missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestMainViewFooterHasExportHint(t *testing.T) {
+	m := New(nil, "tester")
+	if !strings.Contains(m.View().Content, "e export") {
+		t.Errorf("main footer missing 'e export':\n%s", m.View().Content)
 	}
 }

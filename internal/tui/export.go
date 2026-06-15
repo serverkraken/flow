@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 const dayFmtTUI = "2006-01-02"
@@ -81,4 +85,52 @@ func cycle(order []string, cur string, dir int) string {
 	}
 	n := (idx + dir + len(order)) % len(order)
 	return order[n]
+}
+
+// openExport initialises the export overlay state with sensible defaults
+// (current month, markdown) relative to m.now.
+func (m Model) openExport() Model {
+	m.showExport = true
+	m.expPreset = "monat"
+	m.expFormat = "md"
+	from, to := exportPresetRange("monat", m.now)
+	m.expFrom, m.expTo = from, to
+	m.expPath = defaultExportPath(from, to, "md")
+	m.expPathEdited = false
+	m.expFocus = 0
+	m.expStatus = ""
+	return m
+}
+
+// exportView renders the export overlay.
+func (m Model) exportView() tea.View {
+	var b strings.Builder
+	b.WriteString(styleHeader.Render("flow · Export") + "\n\n")
+	field := func(idx int, label, val string) {
+		cursor := "  "
+		render := val
+		if m.expFocus == idx {
+			cursor = styleSel.Render("▸") + " "
+			render = styleSel.Render(val)
+		}
+		fmt.Fprintf(&b, "%s%-8s %s\n", cursor, label, render)
+	}
+	field(0, "Range", m.expPreset)
+	field(1, "von", m.expFrom)
+	field(2, "bis", m.expTo)
+	field(3, "Format", m.expFormat)
+	field(4, "Pfad", m.expPath)
+	b.WriteString("\n")
+	if m.expStatus != "" {
+		b.WriteString(styleMuted.Render(m.expStatus) + "\n\n")
+	}
+	b.WriteString(styleMuted.Render("tab Feld · ←/→ wählen · enter export · esc back") + "\n")
+	v := tea.NewView(b.String())
+	v.AltScreen = true
+	return v
+}
+
+// handleExportKey is fleshed out in Task 3.
+func (m Model) handleExportKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	return m, nil
 }
