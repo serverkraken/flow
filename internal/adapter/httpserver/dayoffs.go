@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -118,8 +119,10 @@ func parseRange(r *http.Request) (time.Time, time.Time, bool) {
 }
 
 type settingsDTO struct {
-	Bundesland string   `json:"bundesland"`
-	FeedURLs   []string `json:"feedUrls"`
+	Bundesland       string         `json:"bundesland"`
+	FeedURLs         []string       `json:"feedUrls"`
+	DefaultTargetMin int            `json:"defaultTargetMin"`
+	WeekdayTargetMin map[string]int `json:"weekdayTargetMin"`
 }
 
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +136,50 @@ func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	for _, t := range toks {
 		urls = append(urls, icsURL(r, t.Token))
 	}
-	writeJSON(w, http.StatusOK, settingsDTO{Bundesland: set.Bundesland, FeedURLs: urls})
+	wdMin := make(map[string]int, len(set.WeekdayTargetMin))
+	for k, v := range set.WeekdayTargetMin {
+		wdMin[strconv.Itoa(int(k))] = v
+	}
+	writeJSON(w, http.StatusOK, settingsDTO{
+		Bundesland:       set.Bundesland,
+		FeedURLs:         urls,
+		DefaultTargetMin: set.DefaultTargetMin,
+		WeekdayTargetMin: wdMin,
+	})
+}
+
+type setTargetReq struct {
+	DefaultTargetMin int            `json:"defaultTargetMin"`
+	WeekdayTargetMin map[string]int `json:"weekdayTargetMin"`
+}
+
+func (s *Server) handleSetTarget(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req setTargetReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	weekday := make(map[time.Weekday]int, len(req.WeekdayTargetMin))
+	for k, v := range req.WeekdayTargetMin {
+		n, err := strconv.Atoi(k)
+		if err != nil || n < 0 || n > 6 {
+			http.Error(w, "weekday key must be 0-6", http.StatusBadRequest)
+			return
+		}
+		weekday[time.Weekday(n)] = v
+	}
+	err := s.SetTarget.Execute(r.Context(), u.ID, req.DefaultTargetMin, weekday)
+	if errors.Is(err, domain.ErrInvalidTarget) {
+		http.Error(w, "invalid target", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type setBundeslandReq struct {

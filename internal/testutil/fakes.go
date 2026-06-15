@@ -221,28 +221,54 @@ func (s *FakeDayOffStore) ListRange(_ context.Context, ownerID string, from, to 
 
 // FakeUserSettingsStore is an in-memory ports.UserSettingsStore with lazy NW default.
 type FakeUserSettingsStore struct {
-	mu sync.Mutex
-	m  map[string]string // userID -> bundesland
+	mu       sync.Mutex
+	land     map[string]string               // userID -> bundesland
+	target   map[string]int                  // userID -> defaultTargetMin
+	weekdays map[string]map[time.Weekday]int // userID -> weekday overrides
 }
 
 func NewFakeUserSettingsStore() *FakeUserSettingsStore {
-	return &FakeUserSettingsStore{m: map[string]string{}}
+	return &FakeUserSettingsStore{
+		land:     map[string]string{},
+		target:   map[string]int{},
+		weekdays: map[string]map[time.Weekday]int{},
+	}
 }
 
 func (s *FakeUserSettingsStore) Get(_ context.Context, userID string) (domain.Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	land, ok := s.m[userID]
+	land, ok := s.land[userID]
 	if !ok {
 		land = "NW"
 	}
-	return domain.Settings{UserID: userID, Bundesland: land}, nil
+	defMin, ok := s.target[userID]
+	if !ok {
+		defMin = domain.DefaultDailyTargetMin
+	}
+	wds := map[time.Weekday]int{}
+	for k, v := range s.weekdays[userID] {
+		wds[k] = v
+	}
+	return domain.Settings{UserID: userID, Bundesland: land, DefaultTargetMin: defMin, WeekdayTargetMin: wds}, nil
 }
 
 func (s *FakeUserSettingsStore) SetBundesland(_ context.Context, userID, land string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[userID] = land
+	s.land[userID] = land
+	return nil
+}
+
+func (s *FakeUserSettingsStore) SetTargetConfig(_ context.Context, userID string, defaultMin int, weekday map[time.Weekday]int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.target[userID] = defaultMin
+	wds := map[time.Weekday]int{}
+	for k, v := range weekday {
+		wds[k] = v
+	}
+	s.weekdays[userID] = wds
 	return nil
 }
 

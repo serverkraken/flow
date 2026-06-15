@@ -32,6 +32,10 @@ type Server struct {
 	IcsFeed       usecase.IcsFeed
 	RegenIcsToken usecase.RegenerateIcsToken
 
+	// m1d stats
+	Stats     usecase.StatsComputer
+	SetTarget usecase.SetTargetConfig
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -56,8 +60,14 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /api/v1/settings", s.auth(http.HandlerFunc(s.handleGetSettings)))
 	mux.Handle("POST /api/v1/settings/bundesland", s.auth(http.HandlerFunc(s.handleSetBundesland)))
+	mux.Handle("POST /api/v1/settings/target", s.auth(http.HandlerFunc(s.handleSetTarget)))
 	mux.Handle("POST /api/v1/ics-token/regenerate", s.auth(http.HandlerFunc(s.handleRegenIcsToken)))
 	mux.HandleFunc("GET /ics/{token}", s.handleIcsFeed)
+
+	mux.Handle("GET /api/v1/today", s.auth(http.HandlerFunc(s.handleToday)))
+	mux.Handle("GET /api/v1/week", s.auth(http.HandlerFunc(s.handleWeek)))
+	mux.Handle("GET /api/v1/stats", s.auth(http.HandlerFunc(s.handleStats)))
+	mux.Handle("GET /api/v1/burndown", s.auth(http.HandlerFunc(s.handleBurndown)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)

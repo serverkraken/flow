@@ -14,4 +14,5 @@ var (
 	ErrProjectRequired = errors.New("a project is required to book the session")
 	ErrInvalidDayOff   = errors.New("invalid day-off")
 	ErrInvalidRange    = errors.New("invalid range")
+	ErrInvalidTarget   = errors.New("invalid target")
 )
