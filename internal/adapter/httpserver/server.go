@@ -40,6 +40,13 @@ type Server struct {
 	BuildExport    usecase.BuildExport
 	SetProjectRate usecase.SetProjectRate
 
+	// m2a documents
+	CreateDocument usecase.CreateDocument
+	GetDocument    usecase.GetDocument
+	ListDocuments  usecase.ListDocuments
+	UpdateDocument usecase.UpdateDocument
+	DeleteDocument usecase.DeleteDocument
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -75,6 +82,12 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
 	mux.Handle("POST /api/v1/projects/{id}/rate", s.auth(http.HandlerFunc(s.handleSetProjectRate)))
+
+	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
+	mux.Handle("GET /api/v1/documents", s.auth(http.HandlerFunc(s.handleListDocuments)))
+	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))
+	mux.Handle("PUT /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleUpdateDocument)))
+	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)

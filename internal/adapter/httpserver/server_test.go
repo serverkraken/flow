@@ -71,10 +71,10 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	ps := testutil.NewFakeProjectStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
-		Verifier: testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:   usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:      sse.NewBus(),
-		Clock:    clk,
+		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:           sse.NewBus(),
+		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
 		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},

@@ -10,6 +10,10 @@ const (
 	EventProjectCreated  EventType = "project.created"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
+
+	EventDocumentCreated EventType = "document.created"
+	EventDocumentUpdated EventType = "document.updated"
+	EventDocumentDeleted EventType = "document.deleted"
 )
 
 // Event is a server-originated change notification. UserID is the routing
