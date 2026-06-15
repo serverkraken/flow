@@ -1,6 +1,8 @@
 package httpserver_test
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +18,13 @@ import (
 )
 
 func newStatsServer() (*httpserver.Server, *sse.Bus) {
+	srv, bus, _ := newStatsServerFull()
+	return srv, bus
+}
+
+// newStatsServerFull returns the server, bus, and the session store so tests
+// can pre-seed sessions before issuing requests.
+func newStatsServerFull() (*httpserver.Server, *sse.Bus, *testutil.FakeSessionStore) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	bus := sse.NewBus()
 	settings := testutil.NewFakeUserSettingsStore()
@@ -37,7 +46,7 @@ func newStatsServer() (*httpserver.Server, *sse.Bus) {
 		Stats:     statsUC,
 		SetTarget: usecase.SetTargetConfig{Settings: settings},
 	}
-	return srv, bus
+	return srv, bus, sessions
 }
 
 func TestHandleStats_InvalidRange(t *testing.T) {
@@ -130,5 +139,245 @@ func TestHandleSetTarget_BadWeekdayKey(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("want 400 for weekday key 9, got %d", res.StatusCode)
+	}
+}
+
+// todayDTO mirrors the wire shape in stats.go (unexported there).
+type todayDTO struct {
+	Date      string `json:"date"`
+	LoggedMin int    `json:"loggedMin"`
+	TargetMin int    `json:"targetMin"`
+	SaldoMin  int    `json:"saldoMin"`
+	Running   bool   `json:"running"`
+}
+
+// weekDayDTO mirrors the wire shape in stats.go.
+type weekDayDTO struct {
+	Date      string `json:"date"`
+	LoggedMin int    `json:"loggedMin"`
+	TargetMin int    `json:"targetMin"`
+	IsToday   bool   `json:"isToday"`
+	Workday   bool   `json:"workday"`
+}
+
+// burndownDTO mirrors the wire shape in stats.go.
+type burndownDTO struct {
+	TotalMin    int  `json:"totalMin"`
+	TargetMin   int  `json:"targetMin"`
+	SaldoMin    int  `json:"saldoMin"`
+	OnTrack     bool `json:"onTrack"`
+	WorkdaysAll int  `json:"workdaysAll"`
+	WorkdaysDue int  `json:"workdaysDue"`
+}
+
+// statsDTO mirrors the wire shape in stats.go.
+type statsDTO struct {
+	Days             int `json:"days"`
+	DaysWithSessions int `json:"daysWithSessions"`
+	Workdays         int `json:"workdays"`
+	TotalMin         int `json:"totalMin"`
+	AvgMin           int `json:"avgMin"`
+	MaxMin           int `json:"maxMin"`
+	MinMin           int `json:"minMin"`
+	Hits             int `json:"hits"`
+	Streak           int `json:"streak"`
+	BestStreak       int `json:"bestStreak"`
+	OvertimeMin      int `json:"overtimeMin"`
+}
+
+// seedSession adds a stopped session on 2026-06-15 (same as the fake clock date)
+// under ownerID, so stats endpoints return non-zero numbers.
+func seedSession(t *testing.T, store *testutil.FakeSessionStore, ownerID string) {
+	t.Helper()
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	ws := domain.WorkSession{
+		ID:      "sess-1",
+		OwnerID: ownerID,
+		Start:   start,
+		Stop:    &stop,
+	}
+	if _, err := store.Create(context.Background(), ws); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+}
+
+// primeUser issues a cheap authenticated request so EnsureUser runs and
+// creates the user with ID "id-1".
+func primeUser(t *testing.T, baseURL string) {
+	t.Helper()
+	req, _ := http.NewRequest("GET", baseURL+"/api/v1/today", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("prime user: %v", err)
+	}
+	_ = res.Body.Close()
+}
+
+func TestHandleToday_HappyPath(t *testing.T) {
+	srv, _, sessions := newStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Prime user creation so "id-1" exists, then seed a session under it.
+	primeUser(t, ts.URL)
+	seedSession(t, sessions, "id-1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/today", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var dto todayDTO
+	if err := json.NewDecoder(res.Body).Decode(&dto); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode today: %v", err)
+	}
+	_ = res.Body.Close()
+	if dto.Date == "" {
+		t.Error("today.date is empty")
+	}
+	if dto.LoggedMin != 120 {
+		t.Errorf("loggedMin: want 120, got %d", dto.LoggedMin)
+	}
+	if dto.TargetMin <= 0 {
+		t.Errorf("targetMin should be positive, got %d", dto.TargetMin)
+	}
+}
+
+func TestHandleWeek_HappyPath(t *testing.T) {
+	srv, _, sessions := newStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+	seedSession(t, sessions, "id-1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/week", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var days []weekDayDTO
+	if err := json.NewDecoder(res.Body).Decode(&days); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode week: %v", err)
+	}
+	_ = res.Body.Close()
+	if len(days) != 7 {
+		t.Fatalf("want 7 days, got %d", len(days))
+	}
+	// The seeded session is on 2026-06-15 (Monday) — at least one day has logged time.
+	var hasLogged bool
+	for _, d := range days {
+		if d.LoggedMin > 0 {
+			hasLogged = true
+		}
+	}
+	if !hasLogged {
+		t.Error("expected at least one day with loggedMin > 0")
+	}
+}
+
+func TestHandleStats_WeekRange(t *testing.T) {
+	srv, _, sessions := newStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+	seedSession(t, sessions, "id-1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/stats?range=week", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var st statsDTO
+	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode stats: %v", err)
+	}
+	_ = res.Body.Close()
+	if st.Days <= 0 {
+		t.Errorf("stats.days should be positive, got %d", st.Days)
+	}
+}
+
+func TestHandleStats_MonthRange(t *testing.T) {
+	srv, _, sessions := newStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+	seedSession(t, sessions, "id-1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/stats?range=month", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var st statsDTO
+	if err := json.NewDecoder(res.Body).Decode(&st); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode stats month: %v", err)
+	}
+	_ = res.Body.Close()
+	// June has 30 days; the month range should cover them all.
+	if st.Days <= 0 {
+		t.Errorf("stats.days (month) should be positive, got %d", st.Days)
+	}
+}
+
+func TestHandleBurndown_HappyPath(t *testing.T) {
+	srv, _, sessions := newStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+	seedSession(t, sessions, "id-1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/burndown", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var bd burndownDTO
+	if err := json.NewDecoder(res.Body).Decode(&bd); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode burndown: %v", err)
+	}
+	_ = res.Body.Close()
+	// The seeded 2-hour session contributes to TotalMin.
+	if bd.TotalMin != 120 {
+		t.Errorf("burndown.totalMin: want 120, got %d", bd.TotalMin)
+	}
+	if bd.WorkdaysAll <= 0 {
+		t.Errorf("burndown.workdaysAll should be positive, got %d", bd.WorkdaysAll)
 	}
 }

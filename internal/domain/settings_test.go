@@ -19,3 +19,28 @@ func TestValidBundesland(t *testing.T) {
 		t.Fatalf("nrw should normalize to NW, got %q", got)
 	}
 }
+
+func TestValidBundesland_Aliases(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"NRW", "NW"},
+		{"nrw", "NW"},
+		{"BAYERN", "BY"},
+		{"Bayern", "BY"},
+		{"BAWÜ", "BW"},
+		{"BAWUE", "BW"},
+		{"BADEN-WÜRTTEMBERG", "BW"},
+		{"BADEN-WUERTTEMBERG", "BW"},
+	}
+	for _, tc := range cases {
+		got, ok := domain.ValidBundesland(tc.input)
+		if !ok {
+			t.Errorf("ValidBundesland(%q): want valid=true, got false", tc.input)
+		}
+		if got != tc.want {
+			t.Errorf("ValidBundesland(%q): want %q, got %q", tc.input, tc.want, got)
+		}
+	}
+}

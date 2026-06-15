@@ -83,3 +83,53 @@ func TestDayOffRoundTrip(t *testing.T) {
 	}
 	_ = res.Body.Close()
 }
+
+func TestHandleDeleteDayOff_BadDate(t *testing.T) {
+	ts := httptest.NewServer(newDayOffServer().Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("DELETE", ts.URL+"/api/v1/dayoffs/not-a-date", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("DELETE bad date: want 400, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleAddDayOffs_BadJSON(t *testing.T) {
+	ts := httptest.NewServer(newDayOffServer().Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/dayoffs", strings.NewReader("{bad json}"))
+	req.Header.Set("Authorization", "Bearer x")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("POST bad JSON: want 400, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleAddDayOffs_BadFromDate(t *testing.T) {
+	ts := httptest.NewServer(newDayOffServer().Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/dayoffs", strings.NewReader(`{"from":"not-a-date","to":"2026-06-20","kind":"vacation","targetMin":0}`))
+	req.Header.Set("Authorization", "Bearer x")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("POST bad from date: want 400, got %d", res.StatusCode)
+	}
+}

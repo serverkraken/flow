@@ -23,6 +23,13 @@ import (
 // pre-seeded user "u1" whose session cookie the test forges via the codec.
 // It also returns the shared FakeUserSettingsStore so tests can inspect stored state.
 func newWebStatsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *testutil.FakeUserSettingsStore) {
+	srv, codec, settings, _ := newWebStatsServerFull(t)
+	return srv, codec, settings
+}
+
+// newWebStatsServerFull is like newWebStatsServer but also returns the
+// FakeSessionStore so callers can pre-seed sessions.
+func newWebStatsServerFull(t *testing.T) (*httpserver.Server, *websession.Codec, *testutil.FakeUserSettingsStore, *testutil.FakeSessionStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	users := testutil.NewFakeUserStore()
@@ -52,7 +59,7 @@ func newWebStatsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *te
 		SetTarget:   usecase.SetTargetConfig{Settings: settings},
 		GetSettings: usecase.GetSettings{Settings: settings, Tokens: tokens},
 	}
-	return srv, codec, settings
+	return srv, codec, settings, sessions
 }
 
 func TestWebStatsHome(t *testing.T) {
@@ -103,6 +110,159 @@ func TestWebStatsFragment(t *testing.T) {
 	}
 	if !strings.Contains(body, "Monat") {
 		t.Fatalf("expected 'Monat' in body, got: %.200s", body)
+	}
+}
+
+func TestWebStatsHome_WithOvertime(t *testing.T) {
+	// Pre-seed a session with >8h (default target) so clampPct(>100) and
+	// fmtSaldo positive branches are exercised.
+	srv, codec, settings, sessions := newWebStatsServerFull(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	// Set a low target (60 min) so a 2-hour session = 200% → clampPct(200)→100.
+	_ = settings.SetTargetConfig(context.Background(), "u1", 60, map[time.Weekday]int{})
+
+	// Seed a 2h stopped session today (2026-06-15, Monday).
+	start := time.Date(2026, 6, 15, 8, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	_, _ = sessions.Create(context.Background(), domain.WorkSession{
+		ID: "over-1", OwnerID: "u1", Start: start, Stop: &stop,
+	})
+
+	req, _ := http.NewRequest("GET", ts.URL+"/stats", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /stats (overtime) status=%d body=%.200s", res.StatusCode, body)
+	}
+	// Positive saldo rendered as "+HH:MM".
+	if !strings.Contains(body, "+") {
+		t.Fatalf("expected positive saldo (+) in overtime body, got: %.300s", body)
+	}
+}
+
+func TestWebStatsHome_MonthRange(t *testing.T) {
+	srv, codec, _ := newWebStatsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/stats?range=month", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /stats?range=month status=%d body=%.200s", res.StatusCode, body)
+	}
+	// Month range should render "Monat" label in the fragment.
+	if !strings.Contains(body, "Monat") {
+		t.Fatalf("expected 'Monat' label for month range, got: %.200s", body)
+	}
+}
+
+func TestWebStatsFragment_WeekRange(t *testing.T) {
+	srv, codec, _ := newWebStatsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/stats/fragment?range=week", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /ui/stats/fragment?range=week status=%d body=%.200s", res.StatusCode, body)
+	}
+	if !strings.Contains(body, "Woche") {
+		t.Fatalf("expected 'Woche' label for week range, got: %.200s", body)
+	}
+}
+
+func TestWebSetTargetWithWeekdayOverrides(t *testing.T) {
+	srv, codec, settingsStore := newWebStatsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	// Seed a Friday override - should be preserved after POST.
+	ctx := context.Background()
+	_ = settingsStore.SetTargetConfig(ctx, "u1", 480, map[time.Weekday]int{time.Friday: 240})
+
+	// POST with a range param so branch for range preservation is exercised.
+	form := url.Values{
+		"defaultTargetMin": {"420"},
+		"range":            {"month"},
+	}.Encode()
+	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("POST /ui/stats/target (with range=month) status=%d body=%.200s", res.StatusCode, body)
+	}
+	// Fragment with range=month should render "Monat".
+	if !strings.Contains(body, "Monat") {
+		t.Fatalf("expected 'Monat' in fragment (range=month), got: %.200s", body)
+	}
+	// Assert the default target was updated.
+	stored, err := settingsStore.Get(ctx, "u1")
+	if err != nil {
+		t.Fatalf("reading stored settings: %v", err)
+	}
+	if stored.DefaultTargetMin != 420 {
+		t.Errorf("want DefaultTargetMin=420, got %d", stored.DefaultTargetMin)
+	}
+	// Friday override preserved.
+	if v, ok := stored.WeekdayTargetMin[time.Friday]; !ok || v != 240 {
+		t.Errorf("Friday override should be 240, got map=%v", stored.WeekdayTargetMin)
+	}
+}
+
+func TestWebSetTarget_InvalidDefaultMin(t *testing.T) {
+	srv, codec, _ := newWebStatsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	form := url.Values{"defaultTargetMin": {"not-a-number"}}.Encode()
+	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400 for invalid defaultTargetMin, got %d", res.StatusCode)
 	}
 }
 
