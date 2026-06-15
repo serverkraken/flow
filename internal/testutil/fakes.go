@@ -335,12 +335,13 @@ func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) err
 // FakeDocumentStore is an in-memory ports.DocumentStore.
 // Create returns ErrDocumentExists on an (owner, coalesce(projectID,""), path) collision.
 type FakeDocumentStore struct {
-	mu sync.Mutex
-	m  map[string]domain.Document // keyed by id
+	mu    sync.Mutex
+	m     map[string]domain.Document // keyed by id
+	links map[string][]string        // srcDocID -> target paths
 }
 
 func NewFakeDocumentStore() *FakeDocumentStore {
-	return &FakeDocumentStore{m: map[string]domain.Document{}}
+	return &FakeDocumentStore{m: map[string]domain.Document{}, links: map[string][]string{}}
 }
 
 func docCollisionKey(ownerID string, projectID *string, path string) string {
@@ -418,6 +419,39 @@ func (s *FakeDocumentStore) Delete(_ context.Context, ownerID, id string) error 
 	if !ok || d.OwnerID != ownerID {
 		return ports.ErrDocumentNotFound
 	}
+	delete(s.links, id)
 	delete(s.m, id)
 	return nil
+}
+
+func (s *FakeDocumentStore) ReplaceLinks(_ context.Context, srcDocID, _ string, targets []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(targets) == 0 {
+		delete(s.links, srcDocID)
+		return nil
+	}
+	cp := make([]string, len(targets))
+	copy(cp, targets)
+	s.links[srcDocID] = cp
+	return nil
+}
+
+func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Document
+	for srcID, targets := range s.links {
+		d, ok := s.m[srcID]
+		if !ok || d.OwnerID != ownerID {
+			continue
+		}
+		for _, tgt := range targets {
+			if tgt == targetPath {
+				out = append(out, d)
+				break
+			}
+		}
+	}
+	return out, nil
 }

@@ -117,6 +117,12 @@ type DocumentStore interface {
 	List(ctx context.Context, ownerID string) ([]domain.Document, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
+	// ReplaceLinks rewrites the outbound wikilink targets of one document
+	// (delete-then-insert). Empty targets clears them.
+	ReplaceLinks(ctx context.Context, srcDocID, ownerID string, targets []string) error
+	// Backlinks returns the owner's documents whose recorded outbound links
+	// include targetPath (candidate sources; the use case re-resolves scope).
+	Backlinks(ctx context.Context, ownerID, targetPath string) ([]domain.Document, error)
 }
 
 // Editor opens an interactive editor on initial content and returns the

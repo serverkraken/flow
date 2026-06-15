@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -29,5 +30,55 @@ func TestFakeIDGenMonotonic(t *testing.T) {
 	a, b := g.NewID(), g.NewID()
 	if a == b {
 		t.Fatal("ids should differ")
+	}
+}
+
+func TestFakeDocumentStore_Links(t *testing.T) {
+	ctx := context.Background()
+	s := NewFakeDocumentStore()
+	mustCreate(t, s, "src1", "owner", "a", nil)
+	mustCreate(t, s, "src2", "owner", "b", nil)
+
+	if err := s.ReplaceLinks(ctx, "src1", "owner", []string{"b", "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceLinks(ctx, "src2", "owner", []string{"b"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Backlinks(ctx, "owner", "b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, d := range got {
+		ids[d.ID] = true
+	}
+	if !ids["src1"] || !ids["src2"] || len(got) != 2 {
+		t.Fatalf("backlinks of b = %v, want src1+src2", ids)
+	}
+
+	if err := s.ReplaceLinks(ctx, "src1", "owner", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = s.Backlinks(ctx, "owner", "b")
+	if len(got) != 1 || got[0].ID != "src2" {
+		t.Fatalf("after clear, backlinks of b = %v, want only src2", got)
+	}
+
+	other, _ := s.Backlinks(ctx, "stranger", "b")
+	if len(other) != 0 {
+		t.Fatalf("expected no cross-owner backlinks, got %v", other)
+	}
+}
+
+func mustCreate(t *testing.T, s *FakeDocumentStore, id, owner, path string, proj *string) {
+	t.Helper()
+	_, err := s.Create(context.Background(), domain.Document{
+		ID: id, OwnerID: owner, ProjectID: proj, Type: domain.DocFree,
+		Path: path, Title: id, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
