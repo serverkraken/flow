@@ -108,15 +108,3 @@ func bar(logged, target, width int) string {
 	}
 	return "[" + strings.Repeat("█", filled) + strings.Repeat("░", width-filled) + "]"
 }
-
-// weekdayShort maps weekday key strings "0".."6" (Sunday=0) to short German names.
-func weekdayShort(key string) string {
-	names := map[string]string{
-		"0": "So", "1": "Mo", "2": "Di",
-		"3": "Mi", "4": "Do", "5": "Fr", "6": "Sa",
-	}
-	if n, ok := names[key]; ok {
-		return n
-	}
-	return key
-}

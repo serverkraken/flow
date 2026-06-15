@@ -277,11 +277,7 @@ func (m Model) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case k.Text == "d":
 		m.showDayOffs = true
 		return m, tea.Batch(m.reloadDayOffs(), m.reloadSettings())
-	case m.showDayOffs && m.editingTarget:
-		// Route all keys to dayoff sub-handler when target edit is active
-		// (including esc, which cancels edit without closing dayoffs).
-		return m.handleDayOffKey(k)
-	case k.Code == tea.KeyEsc && m.showDayOffs:
+	case k.Code == tea.KeyEsc && m.showDayOffs && !m.editingTarget:
 		m.showDayOffs = false
 		m.targetInput = ""
 		return m, nil
