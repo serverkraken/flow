@@ -128,3 +128,103 @@ func TestMainViewFooterHasExportHint(t *testing.T) {
 		t.Errorf("main footer missing 'e export':\n%s", m.View().Content)
 	}
 }
+
+func openExportM(t *testing.T) Model {
+	t.Helper()
+	m := New(nil, "tester")
+	m.now = time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC) // Montag
+	next, _ := m.Update(tea.KeyPressMsg{Text: "e"})
+	return next.(Model)
+}
+
+func TestExportTabMovesFocus(t *testing.T) {
+	m := openExportM(t)
+	if m.expFocus != 0 {
+		t.Fatalf("start focus 0, got %d", m.expFocus)
+	}
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if next.(Model).expFocus != 1 {
+		t.Fatalf("tab → focus 1, got %d", next.(Model).expFocus)
+	}
+}
+
+func TestExportPresetCycleUpdatesRange(t *testing.T) {
+	m := openExportM(t) // focus 0 = preset, preset=monat
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	mm := next.(Model)
+	if mm.expPreset != "letzter" {
+		t.Fatalf("right on preset: monat → letzter, got %q", mm.expPreset)
+	}
+	if mm.expFrom != "2026-05-01" || mm.expTo != "2026-05-31" {
+		t.Errorf("letzter range got %s..%s", mm.expFrom, mm.expTo)
+	}
+	if !strings.Contains(mm.expPath, "2026-05-01_2026-05-31") {
+		t.Errorf("path should follow range, got %q", mm.expPath)
+	}
+}
+
+func TestExportFormatCycleUpdatesPathExt(t *testing.T) {
+	m := openExportM(t)
+	for i := 0; i < 3; i++ {
+		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		m = next.(Model)
+	}
+	if m.expFocus != 3 {
+		t.Fatalf("focus should be 3 (format), got %d", m.expFocus)
+	}
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	mm := next.(Model)
+	if mm.expFormat != "csv" { // md →(+1) csv
+		t.Fatalf("md →+1 csv, got %q", mm.expFormat)
+	}
+	if !strings.HasSuffix(mm.expPath, ".csv") {
+		t.Errorf("path ext should follow format, got %q", mm.expPath)
+	}
+}
+
+func TestExportCustomDateEditSetsCustomAndPath(t *testing.T) {
+	m := openExportM(t)
+	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // focus 1 = von
+	m = next.(Model)
+	for i := 0; i < 10; i++ {
+		n, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		m = n.(Model)
+	}
+	for _, ch := range "2026-06-10" {
+		n, _ := m.Update(tea.KeyPressMsg{Text: string(ch)})
+		m = n.(Model)
+	}
+	if m.expFrom != "2026-06-10" {
+		t.Fatalf("von edit got %q", m.expFrom)
+	}
+	if m.expPreset != "custom" {
+		t.Errorf("editing date should set preset=custom, got %q", m.expPreset)
+	}
+	if !strings.Contains(m.expPath, "2026-06-10") {
+		t.Errorf("path should follow edited date, got %q", m.expPath)
+	}
+}
+
+func TestExportManualPathEditSticks(t *testing.T) {
+	m := openExportM(t)
+	for i := 0; i < 4; i++ { // focus 4 = pfad
+		n, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		m = n.(Model)
+	}
+	n, _ := m.Update(tea.KeyPressMsg{Text: "X"})
+	m = n.(Model)
+	if !m.expPathEdited {
+		t.Fatal("editing path should set expPathEdited")
+	}
+	editedPath := m.expPath
+	// Tab back around to the Format field (index 3) and cycle it.
+	for m.expFocus != 3 {
+		n2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		m = n2.(Model)
+	}
+	n3, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m = n3.(Model)
+	if m.expPath != editedPath {
+		t.Errorf("manual path must stick after format change: got %q want %q", m.expPath, editedPath)
+	}
+}

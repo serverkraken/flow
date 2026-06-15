@@ -130,7 +130,85 @@ func (m Model) exportView() tea.View {
 	return v
 }
 
-// handleExportKey is fleshed out in Task 3.
+// handleExportKey handles keys within the export overlay (Esc is handled by the
+// caller). Tab/Shift-Tab move focus; ←/→ cycle choice fields (preset/format);
+// typing edits text fields (von/bis/path); Enter triggers the export.
 func (m Model) handleExportKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case k.Code == tea.KeyTab:
+		if k.Mod == tea.ModShift {
+			m.expFocus = (m.expFocus + 4) % 5
+		} else {
+			m.expFocus = (m.expFocus + 1) % 5
+		}
+		return m, nil
+	case k.Code == tea.KeyEnter:
+		return m.submitExport()
+	case k.Code == tea.KeyLeft || k.Code == tea.KeyRight:
+		dir := 1
+		if k.Code == tea.KeyLeft {
+			dir = -1
+		}
+		return m.cycleField(dir), nil
+	case k.Code == tea.KeyBackspace:
+		return m.editField(func(s string) string {
+			if r := []rune(s); len(r) > 0 {
+				return string(r[:len(r)-1])
+			}
+			return s
+		}), nil
+	case k.Text != "":
+		t := k.Text
+		return m.editField(func(s string) string { return s + t }), nil
+	}
+	return m, nil
+}
+
+// cycleField advances the focused choice field (preset/format) and recomputes
+// dependent state. No-op on text fields.
+func (m Model) cycleField(dir int) Model {
+	switch m.expFocus {
+	case 0: // preset
+		m.expPreset = cyclePreset(m.expPreset, dir)
+		if m.expPreset != "custom" {
+			m.expFrom, m.expTo = exportPresetRange(m.expPreset, m.now)
+		}
+		refreshDefaultPath(&m)
+	case 3: // format
+		m.expFormat = cycleFormat(m.expFormat, dir)
+		refreshDefaultPath(&m)
+	}
+	return m
+}
+
+// editField applies fn to the focused text field (von/bis/path). Editing a date
+// switches the preset to "custom"; editing the path marks it user-owned.
+func (m Model) editField(fn func(string) string) Model {
+	switch m.expFocus {
+	case 1:
+		m.expFrom = fn(m.expFrom)
+		m.expPreset = "custom"
+		refreshDefaultPath(&m)
+	case 2:
+		m.expTo = fn(m.expTo)
+		m.expPreset = "custom"
+		refreshDefaultPath(&m)
+	case 4:
+		m.expPath = fn(m.expPath)
+		m.expPathEdited = true
+	}
+	return m
+}
+
+// refreshDefaultPath recomputes the suggested path from from/to/format, unless
+// the user has manually edited the path.
+func refreshDefaultPath(m *Model) {
+	if !m.expPathEdited {
+		m.expPath = defaultExportPath(m.expFrom, m.expTo, m.expFormat)
+	}
+}
+
+// submitExport is fleshed out in Task 4.
+func (m Model) submitExport() (tea.Model, tea.Cmd) {
 	return m, nil
 }
