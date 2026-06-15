@@ -733,14 +733,6 @@ func TestWebDocView_WikilinksAndBacklinks(t *testing.T) {
 		t.Fatal("src doc not found in store")
 	}
 
-	// The FakeDocumentStore.Backlinks relies on the links table populated by
-	// ReplaceLinks. The WebUI create handler goes through usecase.CreateDocument
-	// which does not call ReplaceLinks (that is a separate indexing step). We seed
-	// it directly here to simulate the link index being up to date.
-	if err := store.ReplaceLinks(context.Background(), srcID, "u1", []string{"wikilink-dest"}); err != nil {
-		t.Fatalf("ReplaceLinks: %v", err)
-	}
-
 	getBody := func(path string) string {
 		t.Helper()
 		req, _ := http.NewRequest("GET", ts.URL+path, nil)
