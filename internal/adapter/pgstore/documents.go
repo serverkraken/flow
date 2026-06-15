@@ -21,6 +21,8 @@ func NewDocumentStore(pool *pgxpool.Pool) *DocumentStore { return &DocumentStore
 
 const docCols = `id, owner_id, project_id, type, path, title, body, tags, doc_date, role, extra, created_at, updated_at`
 
+const prefixedDocCols = `d.id, d.owner_id, d.project_id, d.type, d.path, d.title, d.body, d.tags, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
+
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
@@ -90,6 +92,48 @@ func (s *DocumentStore) Delete(ctx context.Context, ownerID, id string) error {
 		return ports.ErrDocumentNotFound
 	}
 	return nil
+}
+
+func (s *DocumentStore) ReplaceLinks(ctx context.Context, srcDocID, ownerID string, targets []string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: begin links tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM document_links WHERE src_doc_id=$1`, srcDocID); err != nil {
+		return fmt.Errorf("pgstore: clear links: %w", err)
+	}
+	for _, tgt := range targets {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO document_links (src_doc_id, owner_id, target_path) VALUES ($1,$2,$3)`,
+			srcDocID, ownerID, tgt); err != nil {
+			return fmt.Errorf("pgstore: insert link: %w", err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *DocumentStore) Backlinks(ctx context.Context, ownerID, targetPath string) ([]domain.Document, error) {
+	const q = `SELECT DISTINCT ` + prefixedDocCols + `
+FROM documents d
+JOIN document_links l ON l.src_doc_id = d.id
+WHERE l.owner_id=$1 AND l.target_path=$2
+ORDER BY d.updated_at DESC`
+	rows, err := s.pool.Query(ctx, q, ownerID, targetPath)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: backlinks: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Document
+	for rows.Next() {
+		d, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func isUniqueViolation(err error) bool {

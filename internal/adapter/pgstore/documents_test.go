@@ -108,3 +108,62 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 		t.Errorf("delete twice: %v", err)
 	}
 }
+
+func TestDocumentStore_Links(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-lnk", "sub-lnk", "lnk", "lnk@x.de", "Lnk")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewDocumentStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+	mk := func(id, path string) {
+		if _, err := st.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u-lnk", Type: domain.DocFree, Path: path,
+			Title: id, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("s1", "alpha")
+	mk("s2", "beta")
+
+	if err := st.ReplaceLinks(ctx, "s1", "u-lnk", []string{"beta", "gamma"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceLinks(ctx, "s2", "u-lnk", []string{"beta"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.Backlinks(ctx, "u-lnk", "beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("backlinks(beta) = %d docs, want 2", len(got))
+	}
+
+	if err := st.ReplaceLinks(ctx, "s1", "u-lnk", []string{"gamma"}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = st.Backlinks(ctx, "u-lnk", "beta")
+	if len(got) != 1 || got[0].ID != "s2" {
+		t.Fatalf("after replace, backlinks(beta) = %v, want only s2", got)
+	}
+
+	if err := st.Delete(ctx, "u-lnk", "s2"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = st.Backlinks(ctx, "u-lnk", "beta")
+	if len(got) != 0 {
+		t.Fatalf("after delete s2, backlinks(beta) = %v, want none", got)
+	}
+}
