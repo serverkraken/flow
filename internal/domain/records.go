@@ -5,15 +5,20 @@ import (
 	"time"
 )
 
-// BuildDayRecords groups sessions by the local calendar day of their Start and
-// produces one DayRecord per day with sessions present. Elapsed per session is
-// Stop-Start for finished sessions and now-Start for the running one (its live
-// tail thus lands in today's Total). Target is filled per day via targetFor.
-// Records are returned chronologically.
+// BuildDayRecords groups sessions by the calendar day of their Start in now's
+// location and produces one DayRecord per day with sessions present. Grouping
+// uses now.Location() (not the session's stored zone) because Postgres returns
+// timestamptz as UTC: a session started at 23:30 local would otherwise land in
+// the wrong (UTC) day, and Today/Week — which key days in now's location —
+// would miss it. Elapsed per session is Stop-Start for finished sessions and
+// now-Start for the running one (its live tail thus lands in today's Total).
+// Target is filled per day via targetFor. Records are returned chronologically.
 func BuildDayRecords(sessions []WorkSession, now time.Time, targetFor func(time.Time) time.Duration) []DayRecord {
+	loc := now.Location()
 	byDay := map[string]*DayRecord{}
 	for _, s := range sessions {
-		day := time.Date(s.Start.Year(), s.Start.Month(), s.Start.Day(), 0, 0, 0, 0, s.Start.Location())
+		ls := s.Start.In(loc)
+		day := time.Date(ls.Year(), ls.Month(), ls.Day(), 0, 0, 0, 0, loc)
 		key := day.Format("2006-01-02")
 		el := s.Elapsed(now)
 		if el < 0 {

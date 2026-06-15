@@ -50,3 +50,31 @@ func TestBuildDayRecords_Empty(t *testing.T) {
 		t.Errorf("want empty, got %d", len(r))
 	}
 }
+
+// TestBuildDayRecords_GroupsInNowLocation pins the timezone fix: sessions are
+// stored as UTC (Postgres timestamptz), but grouping must use now's location.
+// A session started 23:30 UTC belongs to the *next* local day in a +2 zone.
+func TestBuildDayRecords_GroupsInNowLocation(t *testing.T) {
+	cest := time.FixedZone("CEST", 2*60*60) // UTC+2
+	// now is Monday 2026-06-15 10:00 local (08:00 UTC).
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, cest)
+	target := func(time.Time) time.Duration { return 8 * time.Hour }
+
+	// Session stored in UTC at 2026-06-14 23:30 → 2026-06-15 01:30 local.
+	// It must land in the 2026-06-15 (local) bucket, not 2026-06-14 (UTC).
+	sessions := []domain.WorkSession{
+		{ID: "a",
+			Start: time.Date(2026, 6, 14, 23, 30, 0, 0, time.UTC),
+			Stop:  ptr(time.Date(2026, 6, 15, 0, 30, 0, 0, time.UTC)), Tag: "late"},
+	}
+	recs := domain.BuildDayRecords(sessions, now, target)
+	if len(recs) != 1 {
+		t.Fatalf("want 1 record, got %d", len(recs))
+	}
+	if got := recs[0].Date.Format("2006-01-02"); got != "2026-06-15" {
+		t.Errorf("local day grouping: got %s want 2026-06-15", got)
+	}
+	if recs[0].Total != time.Hour {
+		t.Errorf("total: got %v want 1h", recs[0].Total)
+	}
+}

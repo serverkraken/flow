@@ -86,7 +86,7 @@ func (m Model) statsView() tea.View {
 		{"Saldo", fmtSaldo(s.OvertimeMin)},
 	}
 	for _, r := range rows {
-		b.WriteString(fmt.Sprintf("  %-12s %s\n", r[0], r[1]))
+		fmt.Fprintf(&b, "  %-12s %s\n", r[0], r[1])
 	}
 	b.WriteString("\n" + styleMuted.Render("W Woche · m Monat · esc back · q quit") + "\n")
 	v := tea.NewView(b.String())
