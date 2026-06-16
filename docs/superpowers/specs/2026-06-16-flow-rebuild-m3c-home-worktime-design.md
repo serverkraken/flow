@@ -20,6 +20,9 @@ Heute existieren zwei parallele, unbefriedigende Worktime-Implementierungen: der
 4. **Standalone: Repoint + Modals.** `flow worktime` wird auf die neue Today-Route umgehängt; die Geschwister-Surfaces (Woche/Stats-Range/DayOffs/Export) sind als **pushbare Routes** erreichbar — derselbe Route-Typ in `flow ui` (Worktime-Tab-Stack) und Standalone. Der Rebuild-Monolith-Pfad `tui.New` wird retired.
 5. **Porting-Architektur: Approach A** — pro Surface ein eigenes kleines Route-Package, revived aus dem `main`-Design, Daten auf `apiclient`+SSE umgeklemmt. Kein Adapter-Wrap des Legacy-Monolithen, keine Hybrid-Doppelsprache.
 6. **Geschwister-Navigation: push/pop im Worktime-Tab-Stack.** Woche/Stats/DayOffs/Export sind **keine Tabs** und **keine Today-Drill-downs**, sondern **Sibling-Routes**: `w`/`t`/`d`/`e` **pushen** die jeweilige Route auf den Worktime-Stack, `esc` poppt. Breadcrumb zeigt die Tiefe.
+7. **Direktsprung-Modi: beides.** Zwei parallele Einstiegswege, beide bleiben/kommen ([[reference_flow_launch_modes]]):
+   - **Standalone-Subcommands** `flow worktime` / `flow docs` — chrome-leichter Einstieg (NavHost, **kein** Tabstrip → schmal-Pane-freundlich für die tmux-Sidebar), direkt auf der Surface. Die bestehenden tmux-Bindings (`prefix+a+3/4`, [[reference_soenne_worktime_workflow]]) bleiben unverändert.
+   - **Deep-Link in die Voll-App** `flow ui worktime` / `flow ui docs` — `flow ui` nimmt ein optionales Positions-Argument `[tab]` und startet die volle Tab-Shell **direkt auf diesem Tab** (statt Home). Unbekanntes/leeres Argument → Home.
 
 ## Daten-Modell-Abgleich (zentrales technisches Risiko)
 
@@ -64,8 +67,10 @@ internal/tui/
                            (Markdown-Viewer-Upgrade bleibt M3d)
 
 cmd/flow/
-  ui.go                  Shell mit Tabs: Home · Worktime · Docs        (M3c3)
+  ui.go                  Shell mit Tabs: Home · Worktime · Docs;       (M3c3)
+                         optionales Arg `flow ui [tab]` → Deep-Link
   worktime.go            → NavHost(Worktime-Today)  statt tui.New      (M3c4)
+  docs.go                bleibt Standalone (DocsModel, schon chrome-leicht)
 
 internal/tui/worktime.go (+ worktime-exklusive Monolith-Files)         ← retired (M3c4)
 internal/tui/docs.go + styles.go                                       ← BLEIBEN (docs.go
@@ -88,14 +93,14 @@ internal/tui/docs.go + styles.go                                       ← BLEIB
 |---|---|---|
 | **M3c1** | Worktime-**Today**-Route: voller Port aus `main` (Datumszeile · Headline mit Status-Pille + Total-Threshold + Ziel% · `BarColored` · Ziel·noch·**ETA** prominenter · Sessions-Liste mit Pause-Trennern + Cursor `▎` · Footer max 4) **+ Interaktivität** (j/k, s start/stop, x Booking, Session-Edit, Note-Attach, Dialoge). Daten rekonstruiert aus `Today`+`ListSessions`, Live via SSE. Lokale threshold/badge/eta-Helfer. | Today rendert design-getreu; start/stop/booking/edit/note funktionieren; SSE-Live-Update sichtbar; Unit-Tests (Render-Golden + Reducer) grün. |
 | **M3c2** | Worktime-**Sibling-Routes** Woche · Stats(Range week\|month) · DayOffs · Export, revived aufs Design-System, + Push/Pop-Wiring (`w/t/d/e`→Push, `esc`→Pop) im Worktime-Stack. **Kein** Heatmap (M3d). | Jede Sibling-Route pusht/poppt korrekt; Breadcrumb zeigt Tiefe; Daten live; Tests grün. |
-| **M3c3** | **Home-Dashboard**-Route (responsiv 2-col→stacked, Drill-Navigation) ersetzt die M3b-Placeholder-Home; **Docs**-Screen als Route gewrappt; `flow ui`-Shell auf **3 Tabs** (Home·Worktime·Docs) verdrahtet. | `flow ui` zeigt echten Tagesstand auf Home; Drill in Tabs; Docs-Tab navigierbar; Tabstrip + Palette über 3 Tabs grün. |
+| **M3c3** | **Home-Dashboard**-Route (responsiv 2-col→stacked, Drill-Navigation) ersetzt die M3b-Placeholder-Home; **Docs**-Screen als Route gewrappt; `flow ui`-Shell auf **3 Tabs** (Home·Worktime·Docs) verdrahtet; **`flow ui [tab]` Deep-Link** (Positions-Arg wählt Start-Tab, unbekannt→Home). | `flow ui` zeigt echten Tagesstand auf Home; `flow ui worktime`/`flow ui docs` starten direkt auf dem Tab; Drill in Tabs; Tabstrip + Palette über 3 Tabs grün. |
 | **M3c4** | **NavHost** + **Repoint Standalone**: `flow worktime` → `NavHost(Worktime-Today)` mit pushbaren Siblings; Legacy `tui.New`-Pfad retiren. **Achtung:** `internal/tui/docs.go` bleibt (M3c3-Route-Wrap) und teilt sich `styles.go` mit dem Monolithen — die exakte Lösch-Menge wird im M3c4-Plan per Import-/Symbol-Analyse bestimmt (nur worktime-exklusive Files; `styles.go` bleibt solange `docs.go` darin lebt; geteilte Styles ggf. in ein eigenes File splitten). | `flow worktime` standalone: Today + w/t/d/e-Push + esc-Pop live; `flow ui` + `flow docs` unberührt; `make ci` grün (≥80 %); kein toter worktime-Monolith-Code mehr. |
 
 ## Testing & Done-Gate
 
 - **Unit-Tests** pro Route-Package: Render-Golden fürs Chrome-freie Body (Today-Headline/Bar/Summary, Home-Layout breit vs. gestapelt), Reducer-Tests (Cursor-Bewegung, start/stop-Cmds, Push/Pop-Emission, Dialog-Flow).
 - **Daten-Rekonstruktions-Tests:** Today aus synthetischen `Today`+`[]WorkSession` (heute-Filter TZ-Kanten, ETA-Berechnung, Pause-Trenner aus Gaps).
-- **Done-Gate (live, M3c-gesamt):** `flow ui` gegen den Dev-Stack ([[reference_flow_dev_env]]) — Home zeigt echten Tagesstand; Tab nach Worktime; Today live (SSE `session.started/stopped`); `w/t/d/e` push + `esc` back; Docs-Tab navigierbar; Standalone `flow worktime` läuft mit Today + Siblings; `make ci` grün, Coverage ≥ 80 %.
+- **Done-Gate (live, M3c-gesamt):** `flow ui` gegen den Dev-Stack ([[reference_flow_dev_env]]) — Home zeigt echten Tagesstand; Tab nach Worktime; Today live (SSE `session.started/stopped`); `w/t/d/e` push + `esc` back; Docs-Tab navigierbar. **Beide Direktsprung-Modi:** Standalone `flow worktime` (NavHost, kein Tabstrip) läuft mit Today + Siblings; `flow docs` standalone unverändert; Deep-Links `flow ui worktime` / `flow ui docs` starten die Voll-Shell auf dem richtigen Tab. `make ci` grün, Coverage ≥ 80 %.
 
 ## Referenzen
 
