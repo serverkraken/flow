@@ -2,8 +2,10 @@ package httpserver
 
 import (
 	"errors"
+	"html"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -11,12 +13,36 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// renderSnippet escapes the snippet then replaces the highlight sentinels with
+// <mark> tags — escape-first so no document content can inject HTML. Returns a
+// safe HTML string (rendered raw in the template via @templ.Raw).
+func renderSnippet(s string) string {
+	esc := html.EscapeString(s)
+	esc = strings.ReplaceAll(esc, domain.HighlightStart, "<mark>")
+	esc = strings.ReplaceAll(esc, domain.HighlightEnd, "</mark>")
+	return esc
+}
+
+// encodeListQuery encodes the active tags plus an optional q into a "?..." string
+// (empty when nothing is set) for the SSE-refresh hx-get on the list container.
+func encodeListQuery(tags []string, q string) string {
+	v := url.Values{}
+	for _, t := range tags {
+		v.Add("tag", t)
+	}
+	if q != "" {
+		v.Set("q", q)
+	}
+	enc := v.Encode()
+	if enc == "" {
+		return ""
+	}
+	return "?" + enc
+}
+
 func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageData, error) {
 	active := r.URL.Query()["tag"]
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, active)
-	if err != nil {
-		return webui.DocsPageData{}, err
-	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	allTags, err := s.ListTags.Execute(r.Context(), u.ID)
 	if err != nil {
 		return webui.DocsPageData{}, err
@@ -31,16 +57,37 @@ func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageDat
 			Tag: tc.Tag, Count: tc.Count, Active: activeSet[tc.Tag], Href: toggleTagHref(active, tc.Tag),
 		})
 	}
+	data := webui.DocsPageData{
+		User: u.Username, AllTags: chips, ActiveTags: active,
+		SearchQ: q, Query: encodeListQuery(active, q),
+	}
+	if q != "" {
+		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, active)
+		if err != nil {
+			return webui.DocsPageData{}, err
+		}
+		results := make([]webui.SearchRow, 0, len(hits))
+		for _, h := range hits {
+			results = append(results, webui.SearchRow{
+				DocRow:  webui.DocRow{ID: h.ID, Type: string(h.Type), Path: h.Path, Title: h.Title, Tags: h.Tags},
+				Snippet: renderSnippet(h.Snippet),
+			})
+		}
+		data.Results = results
+		return data, nil
+	}
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, active)
+	if err != nil {
+		return webui.DocsPageData{}, err
+	}
 	rows := make([]webui.DocRow, 0, len(list))
 	for _, d := range list {
 		rows = append(rows, webui.DocRow{
 			ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title, Tags: d.Tags,
 		})
 	}
-	return webui.DocsPageData{
-		User: u.Username, Docs: rows,
-		AllTags: chips, ActiveTags: active, Query: encodeTagQuery(active),
-	}, nil
+	data.Docs = rows
+	return data, nil
 }
 
 // toggleTagHref returns the /docs URL with tag added to (or removed from) the current filter set.

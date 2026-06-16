@@ -14,7 +14,16 @@ type DocsPageData struct {
 	Form       *DocFormValues
 	AllTags    []TagChip
 	ActiveTags []string
-	Query      string // encoded "?tag=..." to preserve filter on SSE refresh ("" when none)
+	Query      string      // encoded "?tag=...&q=..." to preserve filter+search on SSE refresh ("" when none)
+	SearchQ    string      // raw current search query (echoed into the search box)
+	Results    []SearchRow // populated when SearchQ != ""
+}
+
+// SearchRow is one search hit: a doc row plus its rendered (highlighted) snippet
+// HTML (already escaped + <mark>-wrapped by the handler; rendered via templ.Raw).
+type SearchRow struct {
+	DocRow
+	Snippet string
 }
 
 // TagChip is one tag in the filter bar.
@@ -69,6 +78,9 @@ templ DocsPage(d DocsPageData) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>flow · docs</title>
 			<link rel="stylesheet" href="/static/app.css"/>
+			<style>
+				mark { background: #fde68a; color: inherit; padding: 0 1px; border-radius: 2px; }
+			</style>
 			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
 			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
 		</head>
@@ -100,6 +112,12 @@ templ DocsListFragment(d DocsPageData) {
 		<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Documents</h2>
 		<a href="/docs/new" class="rounded bg-slate-900 px-3 py-1 text-xs text-white hover:bg-slate-700">+ new doc</a>
 	</div>
+	<form method="get" action="/docs" class="mb-3">
+		for _, t := range d.ActiveTags {
+			<input type="hidden" name="tag" value={ t }/>
+		}
+		<input type="search" name="q" value={ d.SearchQ } placeholder="Suche…" class="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-slate-500 focus:outline-none"/>
+	</form>
 	if len(d.AllTags) > 0 {
 		<div class="mb-3 flex flex-wrap items-center gap-1.5">
 			for _, c := range d.AllTags {
@@ -114,29 +132,51 @@ templ DocsListFragment(d DocsPageData) {
 			}
 		</div>
 	}
-	if len(d.Docs) == 0 {
-		<p class="text-sm text-slate-400">no documents yet</p>
+	if d.SearchQ != "" {
+		if len(d.Results) == 0 {
+			<p class="text-sm text-slate-400">no matches for "{ d.SearchQ }"</p>
+		} else {
+			<ul class="divide-y divide-slate-100">
+				for _, r := range d.Results {
+					<li class="py-2">
+						<a href={ templ.SafeURL("/docs/" + r.ID) } class="block hover:text-slate-700">
+							<div class="flex items-center justify-between text-sm">
+								<span class="font-medium text-slate-800">{ r.Title }</span>
+								<span class="text-xs text-slate-400">{ r.Type }</span>
+							</div>
+							<div class="mt-0.5 text-xs text-slate-500">
+								@templ.Raw(r.Snippet)
+							</div>
+						</a>
+					</li>
+				}
+			</ul>
+		}
 	} else {
-		<ul class="divide-y divide-slate-100">
-			for _, doc := range d.Docs {
-				<li class="py-2">
-					<a href={ templ.SafeURL("/docs/" + doc.ID) } class="block hover:text-slate-700">
-						<div class="flex items-center justify-between text-sm">
-							<span class="font-medium text-slate-800">{ doc.Title }</span>
-							<span class="text-xs text-slate-400">{ doc.Type }</span>
-						</div>
-						<div class="mt-0.5 font-mono text-xs text-slate-500">{ doc.Path }</div>
-					</a>
-					if len(doc.Tags) > 0 {
-						<div class="mt-1 flex flex-wrap gap-1">
-							for _, t := range doc.Tags {
-								<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{ "#" + t }</span>
-							}
-						</div>
-					}
-				</li>
-			}
-		</ul>
+		if len(d.Docs) == 0 {
+			<p class="text-sm text-slate-400">no documents yet</p>
+		} else {
+			<ul class="divide-y divide-slate-100">
+				for _, doc := range d.Docs {
+					<li class="py-2">
+						<a href={ templ.SafeURL("/docs/" + doc.ID) } class="block hover:text-slate-700">
+							<div class="flex items-center justify-between text-sm">
+								<span class="font-medium text-slate-800">{ doc.Title }</span>
+								<span class="text-xs text-slate-400">{ doc.Type }</span>
+							</div>
+							<div class="mt-0.5 font-mono text-xs text-slate-500">{ doc.Path }</div>
+						</a>
+						if len(doc.Tags) > 0 {
+							<div class="mt-1 flex flex-wrap gap-1">
+								for _, t := range doc.Tags {
+									<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{ "#" + t }</span>
+								}
+							</div>
+						}
+					</li>
+				}
+			</ul>
+		}
 	}
 }
 

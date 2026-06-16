@@ -49,6 +49,7 @@ func newWebDocsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *tes
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
+		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 	}
 	return srv, codec, docs
 }
@@ -866,5 +867,49 @@ func TestWebDocView_WikilinksAndBacklinks(t *testing.T) {
 	wantHref := `href="/docs/` + destID + `"`
 	if !strings.Contains(srcBody, wantHref) {
 		t.Errorf("src doc page: expected wikilink anchor %q, got: %.400s", wantHref, srcBody)
+	}
+}
+
+// TestWebDocsList_Search verifies that GET /ui/docs/list?q=... narrows the list
+// to matching docs and renders highlighted snippets via <mark>.
+func TestWebDocsList_Search(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "search-a", OwnerID: "u1", Type: domain.DocFree,
+		Path: "search-a", Title: "Kompendium",
+		Body: "notes about kompendium", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "search-b", OwnerID: "u1", Type: domain.DocFree,
+		Path: "search-b", Title: "Other",
+		Body: "x", CreatedAt: time.Now(), UpdatedAt: time.Now().Add(-time.Minute),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/docs/list?q=Kompendium", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /ui/docs/list?q=Kompendium status=%d body=%.300s", res.StatusCode, body)
+	}
+	if !strings.Contains(body, "Kompendium") {
+		t.Fatalf("search did not return matching doc: %.400s", body)
+	}
+	if strings.Contains(body, ">Other<") {
+		t.Fatalf("search should not include non-matching doc 'Other': %.400s", body)
+	}
+	if !strings.Contains(body, "<mark>") {
+		t.Fatalf("snippet highlight <mark> missing: %.400s", body)
 	}
 }
