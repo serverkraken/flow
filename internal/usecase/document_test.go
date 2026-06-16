@@ -322,6 +322,15 @@ func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([
 func (s errDocStore) Search(_ context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
 	panic("unexpected Search")
 }
+func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]domain.Document, error) {
+	panic("unexpected StaleDocuments")
+}
+func (s errDocStore) ReplaceChunks(_ context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
+	panic("unexpected ReplaceChunks")
+}
+func (s errDocStore) SemanticSearch(_ context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+	panic("unexpected SemanticSearch")
+}
 
 func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
 	ctx := context.Background()
@@ -456,6 +465,60 @@ func TestSearchDocuments(t *testing.T) {
 	}
 	if len(hits) != 1 || hits[0].ID != "a" {
 		t.Fatalf("got %#v, want [a]", hits)
+	}
+}
+
+func TestSearchDocuments_FusesSemanticArm(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha keyword"})
+	_, _ = docs.Create(ctx, domain.Document{ID: "b", OwnerID: "u", Type: domain.DocFree, Path: "b", Title: "Beta", Body: "totally different"})
+	texts := []string{"Beta\n\ntotally different"}
+	vecs, _ := emb.Embed(ctx, texts)
+	if err := docs.ReplaceChunks(ctx, "b", "u", texts, vecs); err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.SearchDocuments{Docs: docs, Embedder: emb}
+	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, h := range hits {
+		got[h.ID] = true
+	}
+	if !got["a"] || !got["b"] {
+		t.Fatalf("fused result should contain a (keyword) and b (semantic): %#v", hits)
+	}
+}
+
+func TestSearchDocuments_DegradesWhenEmbedderErrors(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	emb.Err = context.DeadlineExceeded
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha keyword"})
+
+	uc := usecase.SearchDocuments{Docs: docs, Embedder: emb}
+	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	if err != nil {
+		t.Fatalf("degrade must not error: %v", err)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" {
+		t.Fatalf("degrade should return keyword-only [a], got %#v", hits)
+	}
+}
+
+func TestSearchDocuments_NilEmbedderIsKeywordOnly(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha keyword"})
+	uc := usecase.SearchDocuments{Docs: docs} // no Embedder
+	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	if err != nil || len(hits) != 1 || hits[0].ID != "a" {
+		t.Fatalf("nil embedder → keyword-only [a]; got %#v err %v", hits, err)
 	}
 }
 
