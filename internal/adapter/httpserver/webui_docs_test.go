@@ -48,6 +48,7 @@ func newWebDocsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *tes
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
+		ListTags:          usecase.ListTags{Docs: docs},
 	}
 	return srv, codec, docs
 }
@@ -683,6 +684,67 @@ func TestWebDocUpdate_TagsDerivedFromFrontmatter(t *testing.T) {
 	// Verify title+body were updated.
 	if stored.Title != "Updated Title" {
 		t.Errorf("want title='Updated Title', got %q", stored.Title)
+	}
+}
+
+// TestWebDocsList_FilterBarAndChips verifies that:
+//   - GET /docs shows tag chips for all tags when documents have tags.
+//   - GET /ui/docs/list?tag=go&tag=tui filters to only docs that carry BOTH tags.
+func TestWebDocsList_FilterBarAndChips(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+
+	// Seed doc A with tags [go, tui].
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "tag-a", OwnerID: "u1", Type: domain.DocFree,
+		Path: "doc-a", Title: "Doc Alpha",
+		Tags:      []string{"go", "tui"},
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+	// Seed doc B with tags [web].
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "tag-b", OwnerID: "u1", Type: domain.DocFree,
+		Path: "doc-b", Title: "Doc Beta",
+		Tags:      []string{"web"},
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+	cookie := &http.Cookie{Name: "flow_session", Value: cookieVal}
+
+	authedGet := func(path string) string {
+		t.Helper()
+		req, _ := http.NewRequest("GET", ts.URL+path, nil)
+		req.AddCookie(cookie)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s status=%d body=%.300s", path, res.StatusCode, b)
+		}
+		return string(b)
+	}
+
+	// GET /docs — filter bar should list all tags (#go, #tui, #web).
+	body := authedGet("/docs")
+	if !strings.Contains(body, "#go") {
+		t.Errorf("GET /docs: expected '#go' chip in filter bar, got: %.400s", body)
+	}
+	if !strings.Contains(body, "#web") {
+		t.Errorf("GET /docs: expected '#web' chip in filter bar, got: %.400s", body)
+	}
+
+	// GET /ui/docs/list?tag=go&tag=tui — AND filter: should include Doc Alpha, not Doc Beta.
+	filtered := authedGet("/ui/docs/list?tag=go&tag=tui")
+	if !strings.Contains(filtered, "Doc Alpha") {
+		t.Errorf("GET /ui/docs/list?tag=go&tag=tui: expected 'Doc Alpha' in body, got: %.400s", filtered)
+	}
+	if strings.Contains(filtered, "Doc Beta") {
+		t.Errorf("GET /ui/docs/list?tag=go&tag=tui: 'Doc Beta' should be filtered out, got: %.400s", filtered)
 	}
 }
 

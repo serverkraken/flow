@@ -1,14 +1,34 @@
 package webui
 
-import "html/template"
+import (
+	"html/template"
+	"strconv"
+)
 
 // DocsPageData is the view model for the docs screen.
 type DocsPageData struct {
-	User    string
-	Docs    []DocRow
-	Current *DocDetail
-	Error   string
-	Form    *DocFormValues
+	User       string
+	Docs       []DocRow
+	Current    *DocDetail
+	Error      string
+	Form       *DocFormValues
+	AllTags    []TagChip
+	ActiveTags []string
+	Query      string // encoded "?tag=..." to preserve filter on SSE refresh ("" when none)
+}
+
+// TagChip is one tag in the filter bar.
+type TagChip struct {
+	Tag    string
+	Count  int
+	Active bool
+	Href   string // toggles this tag in the current filter
+}
+
+// TagLink pairs a tag string with a pre-encoded /docs?tag=… href.
+type TagLink struct {
+	Tag  string
+	Href string
 }
 
 // DocRow is one document in the list.
@@ -17,6 +37,7 @@ type DocRow struct {
 	Type  string
 	Path  string
 	Title string
+	Tags  []string
 }
 
 // DocDetail is the full document view model.
@@ -28,6 +49,7 @@ type DocDetail struct {
 	HTML      template.HTML
 	Body      string
 	Backlinks []DocRow // referenced-by
+	Tags      []TagLink
 }
 
 // DocFormValues carries submitted form values back to the form on error.
@@ -52,7 +74,7 @@ templ DocsPage(d DocsPageData) {
 		</head>
 		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
 			<main class="mx-auto max-w-md p-4">
-				<div id="dc" hx-get="/ui/docs/list" hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted" hx-swap="innerHTML">
+				<div id="dc" hx-get={ "/ui/docs/list" + d.Query } hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted" hx-swap="innerHTML">
 					@DocsFragment(d)
 				</div>
 			</main>
@@ -78,6 +100,20 @@ templ DocsListFragment(d DocsPageData) {
 		<h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Documents</h2>
 		<a href="/docs/new" class="rounded bg-slate-900 px-3 py-1 text-xs text-white hover:bg-slate-700">+ new doc</a>
 	</div>
+	if len(d.AllTags) > 0 {
+		<div class="mb-3 flex flex-wrap items-center gap-1.5">
+			for _, c := range d.AllTags {
+				if c.Active {
+					<a href={ templ.SafeURL(c.Href) } class="rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">{ "#" + c.Tag + " (" + strconv.Itoa(c.Count) + ")" }</a>
+				} else {
+					<a href={ templ.SafeURL(c.Href) } class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200">{ "#" + c.Tag + " (" + strconv.Itoa(c.Count) + ")" }</a>
+				}
+			}
+			if len(d.ActiveTags) > 0 {
+				<a href="/docs" class="ml-1 text-xs text-slate-400 hover:text-slate-600">Filter zurücksetzen</a>
+			}
+		</div>
+	}
 	if len(d.Docs) == 0 {
 		<p class="text-sm text-slate-400">no documents yet</p>
 	} else {
@@ -91,6 +127,13 @@ templ DocsListFragment(d DocsPageData) {
 						</div>
 						<div class="mt-0.5 font-mono text-xs text-slate-500">{ doc.Path }</div>
 					</a>
+					if len(doc.Tags) > 0 {
+						<div class="mt-1 flex flex-wrap gap-1">
+							for _, t := range doc.Tags {
+								<span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{ "#" + t }</span>
+							}
+						</div>
+					}
 				</li>
 			}
 		</ul>
@@ -145,6 +188,13 @@ templ DocView(d DocsPageData) {
 								<span class="text-xs text-slate-400">{ d.Current.Type }</span>
 							</div>
 							<div class="mb-3 font-mono text-xs text-slate-400">{ d.Current.Path }</div>
+							if len(d.Current.Tags) > 0 {
+								<div class="mb-3 flex flex-wrap gap-1">
+									for _, t := range d.Current.Tags {
+										<a href={ templ.SafeURL(t.Href) } class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-200">{ "#" + t.Tag }</a>
+									}
+								</div>
+							}
 							<div class="prose prose-sm max-w-none text-slate-700">
 								@templ.Raw(string(d.Current.HTML))
 							</div>

@@ -3,6 +3,7 @@ package httpserver
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -11,17 +12,68 @@ import (
 )
 
 func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageData, error) {
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
+	active := r.URL.Query()["tag"]
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, active)
 	if err != nil {
 		return webui.DocsPageData{}, err
+	}
+	allTags, err := s.ListTags.Execute(r.Context(), u.ID)
+	if err != nil {
+		return webui.DocsPageData{}, err
+	}
+	activeSet := map[string]bool{}
+	for _, t := range active {
+		activeSet[t] = true
+	}
+	chips := make([]webui.TagChip, 0, len(allTags))
+	for _, tc := range allTags {
+		chips = append(chips, webui.TagChip{
+			Tag: tc.Tag, Count: tc.Count, Active: activeSet[tc.Tag], Href: toggleTagHref(active, tc.Tag),
+		})
 	}
 	rows := make([]webui.DocRow, 0, len(list))
 	for _, d := range list {
 		rows = append(rows, webui.DocRow{
-			ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title,
+			ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title, Tags: d.Tags,
 		})
 	}
-	return webui.DocsPageData{User: u.Username, Docs: rows}, nil
+	return webui.DocsPageData{
+		User: u.Username, Docs: rows,
+		AllTags: chips, ActiveTags: active, Query: encodeTagQuery(active),
+	}, nil
+}
+
+// toggleTagHref returns the /docs URL with tag added to (or removed from) the current filter set.
+func toggleTagHref(active []string, tag string) string {
+	var next []string
+	removed := false
+	for _, t := range active {
+		if t == tag {
+			removed = true
+			continue
+		}
+		next = append(next, t)
+	}
+	if !removed {
+		next = append(next, tag)
+	}
+	return "/docs" + encodeTagQuery(next)
+}
+
+// singleTagHref returns the /docs URL filtered to exactly one tag.
+func singleTagHref(tag string) string {
+	return "/docs" + encodeTagQuery([]string{tag})
+}
+
+func encodeTagQuery(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	q := url.Values{}
+	for _, t := range tags {
+		q.Add("tag", t)
+	}
+	return "?" + q.Encode()
 }
 
 func (s *Server) handleWebDocsHome(w http.ResponseWriter, r *http.Request) {
@@ -82,11 +134,15 @@ func (s *Server) handleWebDocView(w http.ResponseWriter, r *http.Request) {
 		blRows = append(blRows, webui.DocRow{ID: ref.ID, Type: string(ref.Type), Path: ref.Path, Title: ref.Title})
 	}
 
+	tagLinks := make([]webui.TagLink, 0, len(doc.Tags))
+	for _, t := range doc.Tags {
+		tagLinks = append(tagLinks, webui.TagLink{Tag: t, Href: singleTagHref(t)})
+	}
 	d := webui.DocsPageData{
 		User: u.Username,
 		Current: &webui.DocDetail{
 			ID: doc.ID, Type: string(doc.Type), Path: doc.Path, Title: doc.Title,
-			HTML: rendered, Body: doc.Body, Backlinks: blRows,
+			HTML: rendered, Body: doc.Body, Backlinks: blRows, Tags: tagLinks,
 		},
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
