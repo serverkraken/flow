@@ -44,7 +44,9 @@ func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, tags [
 }
 
 func (uc SearchDocuments) warn(msg string, err error) {
-	if uc.Log != nil {
-		uc.Log.Warn(msg, "err", err)
+	log := uc.Log
+	if log == nil {
+		log = slog.Default()
 	}
+	log.Warn(msg, "err", err)
 }

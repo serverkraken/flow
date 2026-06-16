@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -80,7 +81,9 @@ func run() error {
 	embedBatch := getenvInt("FLOW_EMBED_BATCH", 16)
 	embedder := embed.NewOllama(ollamaHost, embedModel)
 	embedWorker := worker.NewEmbedWorker(documentStore, embedder, embedInterval, embedBatch, logger)
-	go embedWorker.Run(ctx)
+	var workerWG sync.WaitGroup
+	workerWG.Add(1)
+	go func() { defer workerWG.Done(); embedWorker.Run(ctx) }()
 
 	srv := &httpserver.Server{
 		Verifier: verifier,
@@ -150,7 +153,9 @@ func run() error {
 	slog.Info("shutting down")
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	return httpSrv.Shutdown(shutCtx)
+	shutErr := httpSrv.Shutdown(shutCtx)
+	workerWG.Wait() // let the embed worker observe ctx cancel and exit before the deferred pool.Close
+	return shutErr
 }
 
 func getenvDefault(key, def string) string {

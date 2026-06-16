@@ -278,7 +278,7 @@ FROM (
   WHERE c.owner_id = $1
   ORDER BY c.document_id, dist
 ) x
-JOIN documents d ON d.id = x.did`
+JOIN documents d ON d.id = x.did AND d.owner_id = $1`
 	args := []any{ownerID, vectorLiteral(query)}
 	if len(tags) > 0 {
 		q += `
