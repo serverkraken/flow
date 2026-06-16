@@ -1,0 +1,87 @@
+package shell_test
+
+import (
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/tui/shell"
+	"github.com/serverkraken/flow/internal/tui/theme"
+)
+
+func newShell() shell.Shell {
+	return shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		shell.NewHomeRoute("alice"),
+		stubRoute{title: "Worktime", push: stubRoute{title: "Detail"}},
+	})
+}
+
+func TestShell_windowSize(t *testing.T) {
+	next, _ := newShell().Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	s := next.(shell.Shell)
+	if s.Width() != 120 || s.Height() != 40 {
+		t.Fatalf("size = %dx%d", s.Width(), s.Height())
+	}
+}
+
+func TestShell_tabSwitchByDigitAndTab(t *testing.T) {
+	next, _ := newShell().Update(tea.KeyPressMsg{Text: "2"})
+	if next.(shell.Shell).ActiveTab() != 1 {
+		t.Fatal("digit 2 -> tab 1")
+	}
+	next2, _ := newShell().Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if next2.(shell.Shell).ActiveTab() != 1 {
+		t.Fatal("tab -> next")
+	}
+}
+
+func TestShell_paletteOpenClose(t *testing.T) {
+	next, _ := newShell().Update(tea.KeyPressMsg{Text: ":"})
+	s := next.(shell.Shell)
+	if !s.PaletteOpen() {
+		t.Fatal("':' opens palette")
+	}
+	// Esc inside palette emits PaletteDismissedMsg; feed it back.
+	_, cmd := s.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	next2, _ := s.Update(cmd())
+	if next2.(shell.Shell).PaletteOpen() {
+		t.Fatal("dismiss closes palette")
+	}
+}
+
+func TestShell_drillDownAndBack(t *testing.T) {
+	// Switch to tab 1 (stub that pushes "Detail" on Enter).
+	s, _ := newShell().Update(tea.KeyPressMsg{Text: "2"})
+	sh := s.(shell.Shell)
+	// Enter -> route emits PushRouteMsg; feed the produced msg back.
+	_, cmd := sh.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter should produce a push command")
+	}
+	pushed, _ := sh.Update(cmd())
+	sh = pushed.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("after push depth = %d want 2", sh.ActiveDepth())
+	}
+	// Esc pops back.
+	back, _ := sh.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if back.(shell.Shell).ActiveDepth() != 1 {
+		t.Fatal("esc should pop back to depth 1")
+	}
+}
+
+func TestShell_quit(t *testing.T) {
+	_, cmd := newShell().Update(tea.KeyPressMsg{Text: "q"})
+	if cmd == nil {
+		t.Fatal("q should quit")
+	}
+}
+
+func TestShell_viewNoPanic(t *testing.T) {
+	s, _ := newShell().Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("View panicked: %v", r)
+		}
+	}()
+	_ = s.(shell.Shell).View()
+}

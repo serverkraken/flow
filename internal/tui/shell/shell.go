@@ -1,0 +1,257 @@
+package shell
+
+import (
+	"context"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/breadcrumb"
+	"github.com/serverkraken/flow/internal/tui/ui/header"
+	"github.com/serverkraken/flow/internal/tui/ui/help"
+	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+	"github.com/serverkraken/flow/internal/tui/ui/overlay"
+	"github.com/serverkraken/flow/internal/tui/ui/tabstrip"
+	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
+)
+
+// Shell is the root tea.Model for `flow ui`.
+type Shell struct {
+	tabs      []*NavStack
+	activeTab int
+
+	palette     Palette
+	paletteOpen bool
+	helpOpen    bool
+
+	width, height int
+	user          string
+	pal           theme.Palette
+
+	client *apiclient.Client
+	events <-chan apiclient.ClientEvent
+}
+
+type shellEventsReadyMsg struct{ ch <-chan apiclient.ClientEvent }
+type shellEventMsg struct{ ev apiclient.ClientEvent }
+type shellErrMsg struct{ err error }
+
+// tabSwitchMsg requests a tab change (emitted by palette entries).
+type tabSwitchMsg int
+
+// New creates a Shell with a single Home tab. client may be nil (tests).
+// pal is the visual palette (theme.Load()).
+func New(client *apiclient.Client, user string, pal theme.Palette) Shell {
+	s := Shell{user: user, pal: pal, client: client}
+	return s.WithTabs([]Route{NewHomeRoute(user)})
+}
+
+// WithTabs (re)builds the tab set; each Route becomes a stack root and gets a
+// palette entry. Used in New, tests, and future M3c wiring.
+func (s Shell) WithTabs(routes []Route) Shell {
+	s.tabs = make([]*NavStack, len(routes))
+	entries := make([]PaletteEntry, len(routes))
+	for i, r := range routes {
+		s.tabs[i] = NewNavStack(r)
+		idx := i
+		entries[i] = PaletteEntry{Label: r.Title(), Action: func() tea.Msg { return tabSwitchMsg(idx) }}
+	}
+	s.palette = NewPalette(entries)
+	if s.activeTab >= len(s.tabs) {
+		s.activeTab = 0
+	}
+	return s
+}
+
+// Accessors (used by tests + cmd).
+func (s Shell) Width() int        { return s.width }
+func (s Shell) Height() int       { return s.height }
+func (s Shell) ActiveTab() int    { return s.activeTab }
+func (s Shell) PaletteOpen() bool { return s.paletteOpen }
+func (s Shell) ActiveDepth() int  { return s.tabs[s.activeTab].Len() }
+
+// Init subscribes to SSE if a client is present.
+func (s Shell) Init() tea.Cmd {
+	if s.client == nil {
+		return nil
+	}
+	cl := s.client
+	return func() tea.Msg {
+		ch, err := cl.Events(context.Background())
+		if err != nil {
+			return shellErrMsg{err}
+		}
+		return shellEventsReadyMsg{ch}
+	}
+}
+
+// Update is the central dispatcher.
+func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+		var cmds []tea.Cmd
+		for _, ns := range s.tabs {
+			if c := ns.UpdateTop(msg); c != nil {
+				cmds = append(cmds, c)
+			}
+		}
+		return s, tea.Batch(cmds...)
+
+	case shellEventsReadyMsg:
+		s.events = msg.ch
+		return s, waitForShellEvent(msg.ch)
+	case shellEventMsg:
+		var cmds []tea.Cmd
+		for _, ns := range s.tabs { // broadcast to all tabs
+			if c := ns.UpdateTop(msg); c != nil {
+				cmds = append(cmds, c)
+			}
+		}
+		cmds = append(cmds, waitForShellEvent(s.events))
+		return s, tea.Batch(cmds...)
+	case shellErrMsg:
+		return s, nil // swallow for M3b; M3c can toast
+
+	case PushRouteMsg:
+		s.tabs[s.activeTab].Push(msg.Route)
+		return s, msg.Route.Init()
+	case PopRouteMsg:
+		s.tabs[s.activeTab].Pop()
+		return s, nil
+
+	case PaletteSelectedMsg:
+		s.paletteOpen = false
+		return s.Update(msg.Entry.Action())
+	case PaletteDismissedMsg:
+		s.paletteOpen = false
+		return s, nil
+	case tabSwitchMsg:
+		if i := int(msg); i >= 0 && i < len(s.tabs) {
+			s.activeTab = i
+		}
+		return s, nil
+
+	case tea.KeyPressMsg:
+		return s.handleKey(msg)
+	}
+
+	// default: forward to active route
+	return s, s.tabs[s.activeTab].UpdateTop(msg)
+}
+
+func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if s.paletteOpen {
+		var cmd tea.Cmd
+		s.palette, cmd = s.palette.Update(k)
+		return s, cmd
+	}
+	switch {
+	case k.Code == tea.KeyEsc:
+		if s.helpOpen {
+			s.helpOpen = false
+			return s, nil
+		}
+		s.tabs[s.activeTab].Pop()
+		return s, nil
+	case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
+		return s, tea.Quit
+	case k.Text == ":":
+		s.paletteOpen = true
+		s.palette = s.palette.Reset()
+		return s, nil
+	case k.Text == "?":
+		s.helpOpen = !s.helpOpen
+		return s, nil
+	case k.Code == tea.KeyTab && k.Mod == tea.ModShift:
+		s.activeTab = (s.activeTab - 1 + len(s.tabs)) % len(s.tabs)
+		return s, nil
+	case k.Code == tea.KeyTab:
+		s.activeTab = (s.activeTab + 1) % len(s.tabs)
+		return s, nil
+	case len(k.Text) == 1 && k.Text[0] >= '1' && k.Text[0] <= '9':
+		if i := int(k.Text[0] - '1'); i < len(s.tabs) {
+			s.activeTab = i
+		}
+		return s, nil
+	default:
+		return s, s.tabs[s.activeTab].UpdateTop(k)
+	}
+}
+
+// View renders header + tabstrip + breadcrumb + body + footer.
+func (s Shell) View() tea.View {
+	titles := make([]string, len(s.tabs))
+	for i, ns := range s.tabs {
+		titles[i] = ns.Top().Title()
+	}
+	head := header.Render("flow", s.user, max(s.width, 1), s.pal)
+	tabs := tabstrip.Render(titles, s.activeTab, max(s.width, 1), s.pal)
+	crumbs := breadcrumb.Render(s.tabs[s.activeTab].Crumbs(), s.pal)
+
+	chrome := 2 // header + tabstrip
+	if crumbs != "" {
+		chrome++
+	}
+	chrome++ // footer
+	contentH := s.height - chrome
+	if contentH < 0 {
+		contentH = 0
+	}
+
+	var body, footer string
+	switch {
+	case s.helpOpen:
+		body = overlay.Render(s.renderHelp(), s.width, contentH)
+		footer = keyhint.Render([]keyhint.Hint{{Key: "esc", Desc: "schließen"}}, s.pal)
+	case s.paletteOpen:
+		modalW := min(theme.DefaultBox, max(s.width-4, 10))
+		modal := titlebox.Render("Palette", s.palette.View(modalW-2, s.pal), modalW, s.pal)
+		body = overlay.Render(modal, s.width, contentH)
+		footer = keyhint.Render([]keyhint.Hint{{Key: "enter", Desc: "wählen"}, {Key: "esc", Desc: "schließen"}}, s.pal)
+	default:
+		top := s.tabs[s.activeTab].Top()
+		body = top.View(Frame{Width: s.width, Height: contentH, Pal: s.pal})
+		footer = keyhint.Render(top.KeyHints(), s.pal)
+	}
+
+	parts := []string{head, tabs}
+	if crumbs != "" {
+		parts = append(parts, crumbs)
+	}
+	parts = append(parts, body, footer)
+	v := tea.NewView(strings.Join(parts, "\n"))
+	v.AltScreen = true
+	return v
+}
+
+func (s Shell) renderHelp() string {
+	top := s.tabs[s.activeTab].Top()
+	keys := make([][2]string, 0, len(top.KeyHints())+5)
+	for _, h := range top.KeyHints() {
+		keys = append(keys, [2]string{h.Key, h.Desc})
+	}
+	sections := []help.Section{
+		{Title: "Aktueller Screen", Keys: keys},
+		{Title: "Global", Keys: [][2]string{
+			{"Tab / Shift+Tab", "Tab wechseln"},
+			{"1-9", "Tab direkt"},
+			{":", "Palette"},
+			{"esc", "zurück / schließen"},
+			{"q", "Beenden"},
+		}},
+	}
+	return help.Render("Tastatur", sections, theme.KeyHintWidth, theme.DefaultBox, s.pal)
+}
+
+func waitForShellEvent(ch <-chan apiclient.ClientEvent) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return shellEventMsg{ev}
+	}
+}
