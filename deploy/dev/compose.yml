@@ -27,5 +27,13 @@ services:
     volumes:
       - ./dex.yaml:/etc/dex/config.yaml:ro
 
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
 volumes:
   flow_dev_pgdata:
+  ollama-data:

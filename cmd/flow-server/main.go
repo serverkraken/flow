@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/embed"
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/oidcauth"
 	"github.com/serverkraken/flow/internal/adapter/oidcverify"
@@ -23,6 +25,7 @@ import (
 	"github.com/serverkraken/flow/internal/config"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
+	"github.com/serverkraken/flow/internal/worker"
 )
 
 func main() {
@@ -67,6 +70,17 @@ func run() error {
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
 	bus := sse.NewBus()
+	logger := slog.Default()
+
+	// Semantic-search embedder + background embedding worker. Without Ollama
+	// reachable the worker logs WARNs and search degrades to keyword-only.
+	ollamaHost := getenvDefault("FLOW_OLLAMA_HOST", "http://localhost:11434")
+	embedModel := getenvDefault("FLOW_EMBED_MODEL", "nomic-embed-text")
+	embedInterval := getenvDuration("FLOW_EMBED_INTERVAL", 15*time.Second)
+	embedBatch := getenvInt("FLOW_EMBED_BATCH", 16)
+	embedder := embed.NewOllama(ollamaHost, embedModel)
+	embedWorker := worker.NewEmbedWorker(documentStore, embedder, embedInterval, embedBatch, logger)
+	go embedWorker.Run(ctx)
 
 	srv := &httpserver.Server{
 		Verifier: verifier,
@@ -105,14 +119,14 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetProjectRate:    usecase.SetProjectRate{Projects: projectStore},
-		CreateDocument:    usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock},
+		CreateDocument:    usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		GetDocument:       usecase.GetDocument{Docs: documentStore},
 		ListDocuments:     usecase.ListDocuments{Docs: documentStore},
-		UpdateDocument:    usecase.UpdateDocument{Docs: documentStore, Clock: clock},
+		UpdateDocument:    usecase.UpdateDocument{Docs: documentStore, Clock: clock, Notifier: embedWorker},
 		DeleteDocument:    usecase.DeleteDocument{Docs: documentStore},
 		BacklinksDocument: usecase.Backlinks{Docs: documentStore},
 		ListTags:          usecase.ListTags{Docs: documentStore},
-		SearchDocuments:   usecase.SearchDocuments{Docs: documentStore},
+		SearchDocuments:   usecase.SearchDocuments{Docs: documentStore, Embedder: embedder, Log: logger},
 		Users:             userStore,
 		OIDCAuth:          authn,
 		Session:           websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
@@ -137,4 +151,29 @@ func run() error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return httpSrv.Shutdown(shutCtx)
+}
+
+func getenvDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func getenvDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return def
+}
+
+func getenvInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
