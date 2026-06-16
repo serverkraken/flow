@@ -1,0 +1,38 @@
+// Package shell is the flow sidekick-shell: a top tabstrip, a :-command
+// palette, and a per-tab nav-stack router. Each screen implements Route and
+// is hosted by the Shell tea.Model (or, chrome-less, by RouteHost).
+package shell
+
+import (
+	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+)
+
+// Frame is the usable content area handed to a Route's View, after the shell
+// chrome (header, tabstrip, breadcrumb, footer) has been subtracted. It also
+// carries the active palette so routes never reach for a global.
+type Frame struct {
+	Width  int
+	Height int
+	Pal    theme.Palette
+}
+
+// Route is the contract every hosted screen, drill-down, and modal implements.
+// Update returns the (possibly swapped) Route so the nav-stack can replace it
+// without type assertions; to navigate, a Route returns a command emitting
+// PushRouteMsg/PopRouteMsg which the Shell applies to the active stack.
+type Route interface {
+	Title() string
+	Init() tea.Cmd
+	Update(msg tea.Msg) (Route, tea.Cmd)
+	View(f Frame) string
+	KeyHints() []keyhint.Hint
+}
+
+// PushRouteMsg asks the Shell to push Route onto the active tab's nav-stack
+// (a drill-down). Emit it as a tea.Cmd from a Route's Update.
+type PushRouteMsg struct{ Route Route }
+
+// PopRouteMsg asks the Shell to pop the active tab's nav-stack (a back).
+type PopRouteMsg struct{}
