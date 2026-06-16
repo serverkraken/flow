@@ -296,6 +296,39 @@ func TestUpdateDocument_TagsFromFrontmatter(t *testing.T) {
 	}
 }
 
+// errDocStore is a minimal ports.DocumentStore stub that returns errListFail
+// from List and panics on all other methods (they must not be called).
+type errDocStore struct{ err error }
+
+func (s errDocStore) Create(_ context.Context, d domain.Document) (domain.Document, error) {
+	panic("unexpected Create")
+}
+func (s errDocStore) Get(_ context.Context, ownerID, id string) (domain.Document, error) {
+	panic("unexpected Get")
+}
+func (s errDocStore) List(_ context.Context, ownerID string, _ ...string) ([]domain.Document, error) {
+	return nil, s.err
+}
+func (s errDocStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {
+	panic("unexpected Update")
+}
+func (s errDocStore) Delete(_ context.Context, ownerID, id string) error { panic("unexpected Delete") }
+func (s errDocStore) ReplaceLinks(_ context.Context, srcDocID, ownerID string, targets []string) error {
+	panic("unexpected ReplaceLinks")
+}
+func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
+	panic("unexpected Backlinks")
+}
+
+func TestListTags_StoreError(t *testing.T) {
+	sentinel := errors.New("store failure")
+	uc := usecase.ListTags{Docs: errDocStore{err: sentinel}}
+	_, err := uc.Execute(context.Background(), "u")
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("want sentinel error, got %v", err)
+	}
+}
+
 func TestListDocuments_TagFilter(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	ctx := context.Background()

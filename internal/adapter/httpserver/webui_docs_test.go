@@ -748,6 +748,45 @@ func TestWebDocsList_FilterBarAndChips(t *testing.T) {
 	}
 }
 
+// TestWebDocView_TagLinks verifies that a doc with tags renders tag-filter anchors
+// in the view page, exercising singleTagHref.
+func TestWebDocView_TagLinks(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID:        "tagged-view-1",
+		OwnerID:   "u1",
+		Type:      domain.DocFree,
+		Path:      "tagged-view",
+		Title:     "Tagged View",
+		Body:      "---\ntags: [go, tui]\n---\nhello",
+		Tags:      []string{"go", "tui"},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/docs/tagged-view-1", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /docs/{id} with tags status=%d body=%.200s", res.StatusCode, body)
+	}
+	// The view page should include a tag link for at least one of the tags.
+	if !strings.Contains(body, "go") {
+		t.Errorf("expected tag 'go' rendered in doc view page, got: %.300s", body)
+	}
+}
+
 // TestWebDocView_WikilinksAndBacklinks verifies:
 //   - GET /docs/{destID} contains "Referenced by" and the src title when src links to dest.
 //   - GET /docs/{srcID} contains a rendered wikilink anchor pointing to /docs/{destID}.

@@ -111,6 +111,7 @@ func run() error {
 		UpdateDocument:    usecase.UpdateDocument{Docs: documentStore, Clock: clock},
 		DeleteDocument:    usecase.DeleteDocument{Docs: documentStore},
 		BacklinksDocument: usecase.Backlinks{Docs: documentStore},
+		ListTags:          usecase.ListTags{Docs: documentStore},
 		Users:             userStore,
 		OIDCAuth:          authn,
 		Session:           websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),

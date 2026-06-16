@@ -1,7 +1,9 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -401,6 +403,72 @@ func TestHandleListTags(t *testing.T) {
 	}
 	if tags[0].Count != 2 {
 		t.Errorf("want count 2 for tag %q, got %d", "go", tags[0].Count)
+	}
+}
+
+// failingDocStore is a ports.DocumentStore stub whose List always returns an error.
+// All other methods delegate to a FakeDocumentStore so the server can still boot.
+type failingDocStore struct {
+	*testutil.FakeDocumentStore
+	listErr error
+}
+
+func (s *failingDocStore) List(_ context.Context, ownerID string, _ ...string) ([]domain.Document, error) {
+	return nil, s.listErr
+}
+
+func newFailingDocServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	bus := sse.NewBus()
+	failing := &failingDocStore{
+		FakeDocumentStore: testutil.NewFakeDocumentStore(),
+		listErr:           errors.New("db down"),
+	}
+	sessions := testutil.NewFakeSessionStore()
+	settings := testutil.NewFakeUserSettingsStore()
+	dayOffs := testutil.NewFakeDayOffStore()
+	listDayOffs := usecase.ListDayOffs{Store: dayOffs, Settings: settings, Loc: time.UTC}
+	stats := usecase.StatsComputer{
+		Sessions: sessions, Settings: settings, DayOffs: listDayOffs, Clock: clk, Loc: time.UTC,
+	}
+	srv := &httpserver.Server{
+		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               bus,
+		Clock:             clk,
+		Stats:             stats,
+		CreateDocument:    usecase.CreateDocument{Docs: failing, IDs: ids, Clock: clk},
+		GetDocument:       usecase.GetDocument{Docs: failing},
+		ListDocuments:     usecase.ListDocuments{Docs: failing},
+		UpdateDocument:    usecase.UpdateDocument{Docs: failing, Clock: clk},
+		DeleteDocument:    usecase.DeleteDocument{Docs: failing},
+		BacklinksDocument: usecase.Backlinks{Docs: failing},
+		ListTags:          usecase.ListTags{Docs: failing},
+	}
+	return httptest.NewServer(srv.Routes())
+}
+
+func TestHandleListDocuments_StoreError(t *testing.T) {
+	ts := newFailingDocServer(t)
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	res := doDoc(t, ts, "GET", "/api/v1/documents", "")
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("want 500 on store error, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleListTags_StoreError(t *testing.T) {
+	ts := newFailingDocServer(t)
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	res := doDoc(t, ts, "GET", "/api/v1/documents/tags", "")
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("want 500 on store error, got %d", res.StatusCode)
 	}
 }
 
