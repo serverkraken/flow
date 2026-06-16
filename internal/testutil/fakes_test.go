@@ -82,3 +82,29 @@ func mustCreate(t *testing.T, s *FakeDocumentStore, id, owner, path string, proj
 		t.Fatal(err)
 	}
 }
+
+func TestFakeDocumentStore_ListTagFilter(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	mk := func(id string, tags ...string) {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("a", "go", "tui")
+	mk("b", "go")
+	mk("c", "web")
+
+	all, _ := s.List(ctx, "u")
+	if len(all) != 3 {
+		t.Fatalf("unfiltered = %d, want 3", len(all))
+	}
+	goDocs, _ := s.List(ctx, "u", "go")
+	if len(goDocs) != 2 {
+		t.Fatalf("tag=go = %d, want 2", len(goDocs))
+	}
+	both, _ := s.List(ctx, "u", "go", "tui")
+	if len(both) != 1 || both[0].ID != "a" {
+		t.Fatalf("tag=go,tui = %#v, want [a]", both)
+	}
+}

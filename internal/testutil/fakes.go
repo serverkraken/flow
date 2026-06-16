@@ -375,12 +375,12 @@ func (s *FakeDocumentStore) Get(_ context.Context, ownerID, id string) (domain.D
 	return d, nil
 }
 
-func (s *FakeDocumentStore) List(_ context.Context, ownerID string) ([]domain.Document, error) {
+func (s *FakeDocumentStore) List(_ context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []domain.Document
 	for _, d := range s.m {
-		if d.OwnerID == ownerID {
+		if d.OwnerID == ownerID && hasAllTags(d.Tags, tags) {
 			out = append(out, d)
 		}
 	}
@@ -393,6 +393,22 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string) ([]domain.Do
 		}
 	}
 	return out, nil
+}
+
+func hasAllTags(have, want []string) bool {
+	for _, w := range want {
+		found := false
+		for _, h := range have {
+			if h == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {

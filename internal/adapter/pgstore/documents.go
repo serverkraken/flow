@@ -49,9 +49,15 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 	return d, err
 }
 
-func (s *DocumentStore) List(ctx context.Context, ownerID string) ([]domain.Document, error) {
-	const q = `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1 ORDER BY updated_at DESC`
-	rows, err := s.pool.Query(ctx, q, ownerID)
+func (s *DocumentStore) List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
+	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
+	args := []any{ownerID}
+	if len(tags) > 0 {
+		q += ` AND tags @> $2`
+		args = append(args, tags)
+	}
+	q += ` ORDER BY updated_at DESC`
+	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: list documents: %w", err)
 	}

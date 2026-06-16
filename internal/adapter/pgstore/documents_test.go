@@ -109,6 +109,47 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ListTagFilter(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-tagf", "sub-tagf", "tagfuser", "tagf@x.de", "Tag Filter")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	owner := "u-tagf"
+
+	st := pgstore.NewDocumentStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+	mk := func(id, path string, tags ...string) {
+		_, err := st.Create(ctx, domain.Document{
+			ID: id, OwnerID: owner, Type: domain.DocFree, Path: path, Tags: tags,
+			CreatedAt: now, UpdatedAt: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("tf-a", "a", "go", "tui")
+	mk("tf-b", "b", "go")
+
+	got, err := st.List(ctx, owner, "go", "tui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Path != "a" {
+		t.Fatalf("List(go,tui) = %#v, want [a]", got)
+	}
+}
+
 func TestDocumentStore_Links(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

@@ -114,7 +114,9 @@ type FeedTokenStore interface {
 type DocumentStore interface {
 	Create(ctx context.Context, d domain.Document) (domain.Document, error)
 	Get(ctx context.Context, ownerID, id string) (domain.Document, error)
-	List(ctx context.Context, ownerID string) ([]domain.Document, error)
+	// List returns the owner's documents newest-first. When tags are given, only
+	// documents containing ALL of them are returned (AND semantics).
+	List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
 	// ReplaceLinks rewrites the outbound wikilink targets of one document
