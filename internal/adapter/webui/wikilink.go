@@ -13,6 +13,8 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
+
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // WikilinkResolver maps a wikilink target string to an href, an
@@ -46,6 +48,9 @@ func getDocPolicy() *bluemonday.Policy {
 // resolve returns ok=false the link renders as a broken-wikilink span
 // instead.
 func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
+	if _, start := domain.ParseFrontmatter(src); start > 0 {
+		src = src[start:]
+	}
 	gm := goldmark.New(
 		goldmark.WithParserOptions(
 			parser.WithInlineParsers(

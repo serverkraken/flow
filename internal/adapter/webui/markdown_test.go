@@ -18,3 +18,13 @@ func TestRenderMarkdown_SanitizesScript(t *testing.T) {
 		t.Errorf("unsafe content not sanitized: %q", got)
 	}
 }
+
+func TestRenderMarkdown_SkipsFrontmatter(t *testing.T) {
+	html := string(RenderMarkdown("---\ntags: [go]\n---\n# Hello\n"))
+	if strings.Contains(html, "tags:") {
+		t.Fatalf("frontmatter leaked into output: %q", html)
+	}
+	if !strings.Contains(html, "<h1") {
+		t.Fatalf("body heading missing: %q", html)
+	}
+}

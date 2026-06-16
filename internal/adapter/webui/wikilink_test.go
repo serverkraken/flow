@@ -45,3 +45,11 @@ func TestRenderDocument_RealLinksNative(t *testing.T) {
 		t.Errorf("real markdown links should render natively:\n%s", html)
 	}
 }
+
+func TestRenderDocument_SkipsFrontmatter(t *testing.T) {
+	resolve := func(string) (string, string, bool) { return "", "", false }
+	html := string(RenderDocument("---\ntags: [go]\n---\n[[x]]\n", resolve))
+	if strings.Contains(html, "tags:") {
+		t.Fatalf("frontmatter leaked: %q", html)
+	}
+}
