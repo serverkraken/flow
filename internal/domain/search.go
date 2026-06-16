@@ -27,3 +27,14 @@ type SearchHit struct {
 	Document
 	Snippet string `json:"snippet"`
 }
+
+// SemanticHit is a document matched by vector similarity. The Document is
+// embedded for ergonomic field access (.ID/.Title). Snippet is the text of the
+// document's best-matching chunk; Distance is the cosine distance (smaller =
+// closer). Internal type — not serialized to the wire (fusion turns it into a
+// SearchHit).
+type SemanticHit struct {
+	Document
+	Snippet  string
+	Distance float32
+}

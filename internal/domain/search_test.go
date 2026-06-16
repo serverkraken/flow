@@ -34,6 +34,17 @@ func TestHighlightSentinels(t *testing.T) {
 	}
 }
 
+func TestSemanticHit_EmbedsDocument(t *testing.T) {
+	h := SemanticHit{
+		Document: Document{ID: "a", Type: DocFree, Path: "p", Title: "T"},
+		Snippet:  "best chunk text",
+		Distance: 0.25,
+	}
+	if h.ID != "a" || h.Snippet != "best chunk text" || h.Distance != 0.25 {
+		t.Fatalf("unexpected: %#v", h)
+	}
+}
+
 func TestStripHighlightSentinels(t *testing.T) {
 	tests := []struct {
 		in   string
