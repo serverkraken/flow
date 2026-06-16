@@ -10,6 +10,7 @@ var (
 	colGreen  = lipgloss.Color("#9ece6a")
 	colRed    = lipgloss.Color("#f7768e")
 	colCyan   = lipgloss.Color("#7dcfff")
+	colPurple = lipgloss.Color("#bb9af7")
 
 	styleHeader     = lipgloss.NewStyle().Foreground(colAccent).Bold(true)
 	styleRunning    = lipgloss.NewStyle().Foreground(colBg).Background(colGreen).Bold(true).Padding(0, 1)
@@ -22,4 +23,5 @@ var (
 	styleWikiBroken = lipgloss.NewStyle().Foreground(colRed).Strikethrough(true)
 	styleWebLink    = lipgloss.NewStyle().Foreground(colCyan).Underline(true)
 	styleLinkFocus  = lipgloss.NewStyle().Foreground(colBg).Background(colAccent).Bold(true)
+	styleSearchHit  = lipgloss.NewStyle().Foreground(colBg).Background(colPurple).Bold(true)
 )

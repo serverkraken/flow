@@ -1066,6 +1066,46 @@ func TestDocs_RenderViewSkipsFrontmatter(t *testing.T) {
 	}
 }
 
+func TestDocs_SearchInputAndRun(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m2, _ := m.Update(tea.KeyPressMsg{Text: "/"})
+	dm := m2.(DocsModel)
+	if dm.mode != modeSearch {
+		t.Fatalf("mode = %v, want modeSearch", dm.mode)
+	}
+	m3, _ := dm.Update(tea.KeyPressMsg{Text: "g"})
+	dm = m3.(DocsModel)
+	m4, _ := dm.Update(tea.KeyPressMsg{Text: "o"})
+	dm = m4.(DocsModel)
+	if dm.searchQuery != "go" {
+		t.Fatalf("searchQuery = %q, want go", dm.searchQuery)
+	}
+	m5, _ := dm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	dm = m5.(DocsModel)
+	if dm.mode != modeList {
+		t.Fatalf("esc did not return to list: %v", dm.mode)
+	}
+}
+
+func TestDocs_RenderSearchHighlights(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m.mode = modeSearch
+	m.searching = true
+	m.searchHits = []domain.SearchHit{
+		{Document: domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "Kompendium"},
+			Snippet: "see " + domain.HighlightStart + "Kompendium" + domain.HighlightEnd + " here"},
+	}
+	var b strings.Builder
+	m.renderSearch(&b)
+	out := b.String()
+	if !strings.Contains(out, "Kompendium") {
+		t.Fatalf("snippet not rendered: %q", out)
+	}
+	if strings.Contains(out, domain.HighlightStart) || strings.Contains(out, domain.HighlightEnd) {
+		t.Fatalf("raw sentinels leaked into output: %q", out)
+	}
+}
+
 func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
 	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] or http://x.io"}

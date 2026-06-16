@@ -35,6 +35,7 @@ const (
 	modeCreating                 // entering slug/type/title before $EDITOR
 	modeDeleting                 // confirming a delete
 	modeFiltering                // tag-filter overlay
+	modeSearch                   // / search input + results
 )
 
 // create-form fields, navigated with tab/enter.
@@ -75,6 +76,11 @@ type DocsModel struct {
 	filterWork   []string          // working set while in modeFiltering
 	filterOpts   []domain.TagCount // available tags for the overlay
 	filterCursor int
+
+	searchQuery string             // current query buffer (input phase)
+	searching   bool               // true once a query has been run (results phase)
+	searchHits  []domain.SearchHit
+	searchSel   int
 }
 
 // NewDocs builds the docs model. client/ed/op may be nil in tests that only drive
@@ -132,6 +138,23 @@ func (m DocsModel) reload() tea.Cmd {
 }
 
 type tagsLoadedMsg struct{ tags []domain.TagCount }
+type searchDoneMsg struct{ hits []domain.SearchHit }
+
+func (m DocsModel) runSearch(q string) tea.Cmd {
+	if m.client == nil {
+		return nil
+	}
+	tags := m.filterTags
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		hits, err := m.client.Search(ctx, q, tags...)
+		if err != nil {
+			return errMsg{err}
+		}
+		return searchDoneMsg{hits: hits}
+	}
+}
 
 func (m DocsModel) loadTags() tea.Cmd {
 	if m.client == nil {
@@ -309,6 +332,11 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.filterCursor = 0
 		m.mode = modeFiltering
 		return m, nil
+	case searchDoneMsg:
+		m.searchHits = msg.hits
+		m.searching = true
+		m.searchSel = 0
+		return m, nil
 	case eventsReadyMsg:
 		m.events = msg.ch
 		return m, waitForEvent(msg.ch)
@@ -350,6 +378,8 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteKey(k)
 	case modeFiltering:
 		return m.handleFilterKey(k)
+	case modeSearch:
+		return m.handleSearchKey(k)
 	case modeView:
 		switch {
 		case k.Code == tea.KeyEsc:
@@ -421,6 +451,12 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case k.Text == "f":
 		return m, m.loadTags()
+	case k.Text == "/":
+		m.mode = modeSearch
+		m.searchQuery = ""
+		m.searching = false
+		m.searchHits = nil
+		return m, nil
 	}
 	return m, nil
 }
@@ -578,6 +614,44 @@ func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeList
 		m.sel = 0
 		return m, m.reload()
+	}
+	return m, nil
+}
+
+func (m DocsModel) handleSearchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case k.Code == tea.KeyEsc:
+		m.mode = modeList
+		m.searching = false
+		m.searchHits = nil
+		return m, nil
+	case k.Code == tea.KeyEnter:
+		if !m.searching {
+			if strings.TrimSpace(m.searchQuery) == "" {
+				return m, nil
+			}
+			return m, m.runSearch(m.searchQuery)
+		}
+		if len(m.searchHits) == 0 {
+			return m, nil
+		}
+		return m, m.loadDoc(m.searchHits[m.searchSel].ID, false)
+	case m.searching && k.Text == "j":
+		if m.searchSel < len(m.searchHits)-1 {
+			m.searchSel++
+		}
+		return m, nil
+	case m.searching && k.Text == "k":
+		if m.searchSel > 0 {
+			m.searchSel--
+		}
+		return m, nil
+	case !m.searching && k.Code == tea.KeyBackspace:
+		m.searchQuery = dropLast(m.searchQuery)
+		return m, nil
+	case !m.searching && k.Text != "":
+		m.searchQuery += k.Text
+		return m, nil
 	}
 	return m, nil
 }
@@ -754,6 +828,8 @@ func (m DocsModel) View() tea.View {
 		b.WriteString("\n" + styleWarn.Render("  delete this document? y / n") + "\n")
 	case modeFiltering:
 		m.renderFilter(&b)
+	case modeSearch:
+		m.renderSearch(&b)
 	default:
 		m.renderList(&b)
 	}
@@ -791,8 +867,10 @@ func (m DocsModel) footer() string {
 		return "y confirm · n/esc cancel"
 	case modeFiltering:
 		return "j/k move · space toggle · c clear · enter apply · esc cancel"
+	case modeSearch:
+		return "query eingeben · enter suchen · esc abbrechen"
 	default:
-		return "j/k move · enter view · n new · e edit · d delete · f filter · q quit"
+		return "j/k move · enter view · n new · e edit · d delete · f filter · / suchen · q quit"
 	}
 }
 
@@ -888,6 +966,49 @@ func (m DocsModel) renderFilter(b *strings.Builder) {
 		}
 		b.WriteString(line + "\n")
 	}
+}
+
+func (m DocsModel) renderSearch(b *strings.Builder) {
+	if !m.searching {
+		b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /") + m.searchQuery + "▏" + "\n")
+		return
+	}
+	b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /"+m.searchQuery) + "\n")
+	if len(m.searchHits) == 0 {
+		b.WriteString(styleMuted.Render("  Keine Treffer.") + "\n")
+		return
+	}
+	for i, h := range m.searchHits {
+		var title string
+		if i == m.searchSel {
+			title = styleSel.Render("▸ " + h.Title)
+		} else {
+			title = "  " + h.Title
+		}
+		b.WriteString(title + styleMuted.Render("  "+h.Path) + "\n")
+		b.WriteString("    " + highlightSnippet(h.Snippet) + "\n")
+	}
+}
+
+// highlightSnippet replaces the shared sentinels with a lipgloss highlight.
+func highlightSnippet(s string) string {
+	var out strings.Builder
+	for {
+		i := strings.Index(s, domain.HighlightStart)
+		if i < 0 {
+			out.WriteString(styleMuted.Render(s))
+			break
+		}
+		j := strings.Index(s, domain.HighlightEnd)
+		if j < 0 || j < i {
+			out.WriteString(styleMuted.Render(s))
+			break
+		}
+		out.WriteString(styleMuted.Render(s[:i]))
+		out.WriteString(styleSearchHit.Render(s[i+len(domain.HighlightStart) : j]))
+		s = s[j+len(domain.HighlightEnd):]
+	}
+	return out.String()
 }
 
 func (m DocsModel) renderCreate(b *strings.Builder) {
