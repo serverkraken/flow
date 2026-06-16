@@ -34,6 +34,7 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 		d.Date = &now
 		d.Path = domain.DailyPath(now)
 	}
+	d.Tags, _ = domain.ParseFrontmatter(d.Body)
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}

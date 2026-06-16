@@ -7,7 +7,8 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// UpdateDocument edits title/body/tags of an owner's document. Path/type/project
+// UpdateDocument edits the title and body of an owner's document; tags are
+// derived from the body's frontmatter, not taken as input. Path/type/project
 // are immutable in the spine.
 type UpdateDocument struct {
 	Docs  ports.DocumentStore
@@ -17,7 +18,6 @@ type UpdateDocument struct {
 type UpdateDocumentInput struct {
 	Title string
 	Body  string
-	Tags  []string
 }
 
 func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in UpdateDocumentInput) (domain.Document, error) {
@@ -25,7 +25,8 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	if err != nil {
 		return domain.Document{}, err
 	}
-	cur.Title, cur.Body, cur.Tags = in.Title, in.Body, in.Tags
+	cur.Title, cur.Body = in.Title, in.Body
+	cur.Tags, _ = domain.ParseFrontmatter(in.Body)
 	cur.UpdatedAt = uc.Clock.Now()
 	updated, err := uc.Docs.Update(ctx, cur)
 	if err != nil {

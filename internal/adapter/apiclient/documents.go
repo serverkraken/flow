@@ -36,9 +36,8 @@ func (c *Client) GetDocument(ctx context.Context, id string) (domain.Document, e
 
 // UpdateDocumentInput mirrors the server's update payload.
 type UpdateDocumentInput struct {
-	Title string   `json:"title"`
-	Body  string   `json:"body"`
-	Tags  []string `json:"tags,omitempty"`
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 
 func (c *Client) UpdateDocument(ctx context.Context, id string, in UpdateDocumentInput) (domain.Document, error) {

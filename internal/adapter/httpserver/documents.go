@@ -72,9 +72,8 @@ func (s *Server) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateDocReq struct {
-	Title string   `json:"title"`
-	Body  string   `json:"body"`
-	Tags  []string `json:"tags"`
+	Title string `json:"title"`
+	Body  string `json:"body"`
 }
 
 func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +86,6 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	doc, err := s.UpdateDocument.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateDocumentInput{
 		Title: req.Title,
 		Body:  req.Body,
-		Tags:  req.Tags,
 	})
 	switch {
 	case errors.Is(err, ports.ErrDocumentNotFound):

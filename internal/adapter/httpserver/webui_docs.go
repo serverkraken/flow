@@ -169,21 +169,9 @@ func (s *Server) handleWebDocUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_ = r.ParseForm()
 
-	// Fetch existing doc to preserve immutable tags (FIX 4: prevent tag data-loss).
-	existing, err := s.GetDocument.Execute(r.Context(), u.ID, id)
-	if errors.Is(err, ports.ErrDocumentNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-
-	_, err = s.UpdateDocument.Execute(r.Context(), u.ID, id, usecase.UpdateDocumentInput{
+	_, err := s.UpdateDocument.Execute(r.Context(), u.ID, id, usecase.UpdateDocumentInput{
 		Title: r.FormValue("title"),
 		Body:  r.FormValue("body"),
-		Tags:  existing.Tags,
 	})
 	if errors.Is(err, ports.ErrDocumentNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)

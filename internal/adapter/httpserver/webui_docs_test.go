@@ -634,14 +634,15 @@ func TestWebDocCreate_InvalidDocument(t *testing.T) {
 	}
 }
 
-// FIX 4: WebUI update must preserve existing tags (not wipe them).
-func TestWebDocUpdate_PreservesTags(t *testing.T) {
+// Tags are derived from YAML frontmatter in the submitted body; pre-existing
+// store tags are replaced, not preserved.
+func TestWebDocUpdate_TagsDerivedFromFrontmatter(t *testing.T) {
 	srv, codec, docs := newWebDocsServer(t)
-	// Pre-seed a doc WITH tags set via the API.
+	// Pre-seed a doc with stale tags (will be replaced by frontmatter derivation).
 	_, _ = docs.Create(context.Background(), domain.Document{
 		ID: "tag-doc-1", OwnerID: "u1", Type: domain.DocFree,
 		Path: "tagged/doc", Title: "Tagged Doc", Body: "original body",
-		Tags:      []string{"go", "flow"},
+		Tags:      []string{"old-tag"},
 		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
 
@@ -649,9 +650,10 @@ func TestWebDocUpdate_PreservesTags(t *testing.T) {
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
 
+	// Submit body with frontmatter — tags come from here, not preserved from store.
 	form := url.Values{
 		"title": {"Updated Title"},
-		"body":  {"updated body"},
+		"body":  {"---\ntags: [go, flow]\n---\nupdated body"},
 	}.Encode()
 
 	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -670,13 +672,13 @@ func TestWebDocUpdate_PreservesTags(t *testing.T) {
 		t.Fatalf("POST /docs/{id} want 303, got %d", res.StatusCode)
 	}
 
-	// Verify tags were NOT wiped.
+	// Verify tags are derived from the submitted frontmatter (not from old store value).
 	stored, err := docs.Get(context.Background(), "u1", "tag-doc-1")
 	if err != nil {
 		t.Fatalf("getting doc after update: %v", err)
 	}
 	if len(stored.Tags) != 2 {
-		t.Errorf("want 2 preserved tags, got %d: %v", len(stored.Tags), stored.Tags)
+		t.Errorf("want 2 frontmatter-derived tags, got %d: %v", len(stored.Tags), stored.Tags)
 	}
 	// Verify title+body were updated.
 	if stored.Title != "Updated Title" {

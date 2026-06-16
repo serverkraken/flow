@@ -3,6 +3,8 @@ package usecase_test
 import (
 	"context"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -100,7 +102,7 @@ func TestUpdateDocument(t *testing.T) {
 	clk.T = t1
 	update := usecase.UpdateDocument{Docs: docs, Clock: clk}
 	updated, err := update.Execute(ctx, "u1", created.ID, usecase.UpdateDocumentInput{
-		Title: "New title", Body: "new body", Tags: []string{"go"},
+		Title: "New title", Body: "new body",
 	})
 	if err != nil {
 		t.Fatalf("update: %v", err)
@@ -233,6 +235,42 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 	}
 	if len(u2Docs) != 1 {
 		t.Errorf("u2 list: got %d docs, want 1", len(u2Docs))
+	}
+}
+
+func TestCreateDocument_TagsFromFrontmatter(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	uc := usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(context.Background(), "u", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "note", Title: "Note",
+		Body: "---\ntags: [Go, go, tui]\n---\nhello",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"go", "tui"}; !reflect.DeepEqual(got.Tags, want) {
+		t.Fatalf("tags = %#v, want %#v", got.Tags, want)
+	}
+	if !strings.HasPrefix(got.Body, "---\n") {
+		t.Fatal("body must keep frontmatter verbatim")
+	}
+}
+
+func TestUpdateDocument_TagsFromFrontmatter(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	seed, _ := docs.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "n", Tags: []string{"old"},
+	})
+	uc := usecase.UpdateDocument{Docs: docs, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
+		Title: "N", Body: "---\ntags: [new]\n---\nbody",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"new"}; !reflect.DeepEqual(got.Tags, want) {
+		t.Fatalf("tags = %#v, want %#v", got.Tags, want)
 	}
 }
 
