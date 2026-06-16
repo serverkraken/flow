@@ -130,6 +130,90 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	_ = res.Body.Close()
 }
 
+func TestSessionEditDeleteRoutes(t *testing.T) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeProjectStore()
+	users := testutil.NewFakeUserStore()
+	srv := &httpserver.Server{
+		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:           sse.NewBus(),
+		Clock:         clk,
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:  usecase.ListProjects{Projects: ps},
+		EditSession:   usecase.EditSession{Sessions: ss},
+		DeleteSession: usecase.DeleteSession{Sessions: ss},
+	}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	do := func(method, path, body string) *http.Response {
+		req, _ := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer x")
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return res
+	}
+
+	// start then stop (with a project) to get a completed session
+	res := do("POST", "/api/v1/projects", `{"name":"Flow"}`)
+	var proj domain.Project
+	_ = json.NewDecoder(res.Body).Decode(&proj)
+	_ = res.Body.Close()
+	res = do("POST", "/api/v1/sessions", `{}`)
+	var s domain.WorkSession
+	_ = json.NewDecoder(res.Body).Decode(&s)
+	_ = res.Body.Close()
+	res = do("POST", "/api/v1/sessions/"+s.ID+"/stop", `{"projectId":"`+proj.ID+`"}`)
+	_ = res.Body.Close()
+
+	// PATCH edit: set a tag
+	res = do("PATCH", "/api/v1/sessions/"+s.ID, `{"projectId":"`+proj.ID+`","tag":"deep","note":"","start":"2026-06-14T09:00:00Z","stop":"2026-06-14T11:00:00Z"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("edit status %d, want 200", res.StatusCode)
+	}
+	var edited domain.WorkSession
+	_ = json.NewDecoder(res.Body).Decode(&edited)
+	_ = res.Body.Close()
+	if edited.Tag != "deep" {
+		t.Fatalf("edit did not persist tag: %+v", edited)
+	}
+
+	// PATCH invalid times -> 400
+	res = do("PATCH", "/api/v1/sessions/"+s.ID, `{"start":"2026-06-14T11:00:00Z","stop":"2026-06-14T09:00:00Z"}`)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid edit status %d, want 400", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// PATCH unknown id -> 404 (owner-scoping enforced by the store)
+	res = do("PATCH", "/api/v1/sessions/does-not-exist", `{"start":"2026-06-14T09:00:00Z","stop":"2026-06-14T11:00:00Z"}`)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown-id edit status %d, want 404", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// DELETE -> 204, then 404
+	res = do("DELETE", "/api/v1/sessions/"+s.ID, "")
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete status %d, want 204", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	res = do("DELETE", "/api/v1/sessions/"+s.ID, "")
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("double delete status %d, want 404", res.StatusCode)
+	}
+	_ = res.Body.Close()
+}
+
 func TestListSessionsAndProjects(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}

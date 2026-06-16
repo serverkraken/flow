@@ -100,6 +100,8 @@ func run() error {
 		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
 		ListProjects:  usecase.ListProjects{Projects: projectStore},
+		EditSession:   usecase.EditSession{Sessions: sessionStore},
+		DeleteSession: usecase.DeleteSession{Sessions: sessionStore},
 		AddDayOffs:    usecase.AddDayOffs{Store: dayOffStore, Bus: bus},
 		DeleteDayOff:  usecase.DeleteDayOff{Store: dayOffStore, Bus: bus},
 		ListDayOffs:   usecase.ListDayOffs{Store: dayOffStore, Settings: settingsStore, Loc: time.Local},

@@ -8,6 +8,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -116,6 +117,54 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		list = []domain.Project{}
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+type editSessionReq struct {
+	ProjectID *string    `json:"projectId"`
+	Tag       string     `json:"tag"`
+	Note      string     `json:"note"`
+	Start     time.Time  `json:"start"`
+	Stop      *time.Time `json:"stop"`
+}
+
+func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req editSessionReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	sess, err := s.EditSession.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.EditSessionInput{
+		ProjectID: req.ProjectID, Tag: req.Tag, Note: req.Note, Start: req.Start, Stop: req.Stop,
+	})
+	switch {
+	case errors.Is(err, domain.ErrStopBeforeStart):
+		http.Error(w, "invalid session times", http.StatusBadRequest)
+		return
+	case errors.Is(err, ports.ErrSessionNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	writeJSON(w, http.StatusOK, sess)
+}
+
+func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	switch err := s.DeleteSession.Execute(r.Context(), u.ID, id); {
+	case errors.Is(err, ports.ErrSessionNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // startOfDay truncates t to local midnight.
