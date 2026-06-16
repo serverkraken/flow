@@ -102,6 +102,17 @@ func (c *Client) StopSession(ctx context.Context, id, projectID string) (domain.
 	return s, err
 }
 
+func (c *Client) EditSession(ctx context.Context, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	var s domain.WorkSession
+	err := c.do(ctx, http.MethodPatch, "/api/v1/sessions/"+id,
+		map[string]any{"projectId": projectID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+	return s, err
+}
+
+func (c *Client) DeleteSession(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/sessions/"+id, nil, nil)
+}
+
 func (c *Client) ListSessions(ctx context.Context) ([]domain.WorkSession, error) {
 	var out []domain.WorkSession
 	err := c.do(ctx, http.MethodGet, "/api/v1/sessions", nil, &out)

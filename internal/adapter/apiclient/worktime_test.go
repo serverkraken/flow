@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 )
@@ -56,5 +57,37 @@ func TestEventsStream(t *testing.T) {
 	ev := <-ch
 	if ev.Type != "session.started" || ev.Data["id"] != "s1" {
 		t.Fatalf("event = %+v", ev)
+	}
+}
+
+func TestEditAndDeleteSession(t *testing.T) {
+	var sawPatch, sawDelete bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/sessions/s1":
+			sawPatch = true
+			_, _ = w.Write([]byte(`{"id":"s1","tag":"deep","start":"2026-06-14T09:00:00Z"}`))
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/sessions/s1":
+			sawDelete = true
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+
+	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	stop := start.Add(2 * time.Hour)
+	s, err := c.EditSession(context.Background(), "s1", nil, "deep", "", start, &stop)
+	if err != nil || s.Tag != "deep" {
+		t.Fatalf("EditSession = %+v err=%v", s, err)
+	}
+	if err := c.DeleteSession(context.Background(), "s1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	if !sawPatch || !sawDelete {
+		t.Fatalf("server not hit: patch=%v delete=%v", sawPatch, sawDelete)
 	}
 }
