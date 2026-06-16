@@ -34,7 +34,8 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 		d.Date = &now
 		d.Path = domain.DailyPath(now)
 	}
-	d.Tags, _ = domain.ParseFrontmatter(d.Body)
+	tags, bodyStart := domain.ParseFrontmatter(d.Body)
+	d.Tags = tags
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}
@@ -45,7 +46,7 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	// Link extraction is deliberately non-atomic: the document is already
 	// persisted above. A ReplaceLinks failure surfaces as an error even though
 	// the create succeeded; a subsequent save heals the link index.
-	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body)); err != nil {
+	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
 	}
 	return created, nil

@@ -320,6 +320,63 @@ func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([
 	panic("unexpected Backlinks")
 }
 
+func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
+	ctx := context.Background()
+	store := testutil.NewFakeDocumentStore()
+	ids := &testutil.FakeIDGen{}
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}
+	uc := usecase.CreateDocument{Docs: store, IDs: ids, Clock: clk}
+
+	// Body has [[ghost]] INSIDE frontmatter (quoted to keep valid YAML) and
+	// [[real]] in the actual body text. Only "real" should be indexed.
+	got, err := uc.Execute(ctx, "u", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "note", Title: "N",
+		Body: "---\ntags: [go]\nref: \"[[ghost]]\"\n---\nsee [[real]] here",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Seed target docs so Backlinks can resolve them.
+	_, _ = store.Create(ctx, domain.Document{
+		ID: "ghost-doc", OwnerID: "u", Type: domain.DocFree, Path: "ghost",
+		Title: "Ghost", CreatedAt: clk.T, UpdatedAt: clk.T,
+	})
+	_, _ = store.Create(ctx, domain.Document{
+		ID: "real-doc", OwnerID: "u", Type: domain.DocFree, Path: "real",
+		Title: "Real", CreatedAt: clk.T, UpdatedAt: clk.T,
+	})
+
+	bl := usecase.Backlinks{Docs: store}
+
+	// "real" must appear as a backlink of got
+	realRefs, err := bl.Execute(ctx, "u", "real-doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, d := range realRefs {
+		if d.ID == got.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected %q to be a backlink of 'real', backlinks = %v", got.ID, realRefs)
+	}
+
+	// "ghost" must NOT appear as a backlink — it was only inside frontmatter
+	ghostRefs, err := bl.Execute(ctx, "u", "ghost-doc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range ghostRefs {
+		if d.ID == got.ID {
+			t.Errorf("got %q incorrectly recorded as a backlink of 'ghost' (frontmatter wikilink leaked)", got.ID)
+		}
+	}
+}
+
 func TestListTags_StoreError(t *testing.T) {
 	sentinel := errors.New("store failure")
 	uc := usecase.ListTags{Docs: errDocStore{err: sentinel}}

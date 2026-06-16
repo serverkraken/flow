@@ -26,7 +26,8 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 		return domain.Document{}, err
 	}
 	cur.Title, cur.Body = in.Title, in.Body
-	cur.Tags, _ = domain.ParseFrontmatter(in.Body)
+	tags, bodyStart := domain.ParseFrontmatter(in.Body)
+	cur.Tags = tags
 	cur.UpdatedAt = uc.Clock.Now()
 	updated, err := uc.Docs.Update(ctx, cur)
 	if err != nil {
@@ -35,7 +36,7 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	// Link extraction is deliberately non-atomic: the update is already
 	// persisted above. A ReplaceLinks failure surfaces as an error even though
 	// the update succeeded; a subsequent save heals the link index.
-	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body)); err != nil {
+	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
 	}
 	return updated, nil
