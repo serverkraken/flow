@@ -238,6 +238,28 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 	}
 }
 
+func TestListTags(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	for _, d := range []domain.Document{
+		{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Tags: []string{"go", "tui"}},
+		{ID: "b", OwnerID: "u", Type: domain.DocFree, Path: "b", Tags: []string{"go"}},
+	} {
+		if _, err := docs.Create(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	uc := usecase.ListTags{Docs: docs}
+	got, err := uc.Execute(ctx, "u")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.TagCount{{Tag: "go", Count: 2}, {Tag: "tui", Count: 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
 func TestCreateDocument_TagsFromFrontmatter(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	uc := usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
