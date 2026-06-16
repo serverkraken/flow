@@ -65,6 +65,18 @@ func (c *Client) DeleteDocument(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/documents/"+id, nil, nil)
 }
 
+// Search runs a server-side ranked search; tags AND-filter the results.
+func (c *Client) Search(ctx context.Context, q string, tags ...string) ([]domain.SearchHit, error) {
+	v := url.Values{}
+	v.Set("q", q)
+	for _, t := range tags {
+		v.Add("tag", t)
+	}
+	var out []domain.SearchHit
+	err := c.do(ctx, http.MethodGet, "/api/v1/documents?"+v.Encode(), nil, &out)
+	return out, err
+}
+
 func (c *Client) Backlinks(ctx context.Context, id string) ([]domain.BacklinkRef, error) {
 	var out []domain.BacklinkRef
 	err := c.do(ctx, http.MethodGet, "/api/v1/documents/"+id+"/backlinks", nil, &out)

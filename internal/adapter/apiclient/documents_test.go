@@ -250,6 +250,28 @@ func TestClientTags(t *testing.T) {
 	}
 }
 
+func TestSearch_QueryAndTags(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"a","snippet":"hi"}]`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	hits, err := c.Search(context.Background(), "kompend", "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery != "q=kompend&tag=go" {
+		t.Fatalf("query = %q, want q=kompend&tag=go", gotQuery)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" || hits[0].Snippet != "hi" {
+		t.Fatalf("decode failed: %#v", hits)
+	}
+}
+
 func TestClient_Backlinks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
