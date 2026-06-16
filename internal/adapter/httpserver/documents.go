@@ -47,7 +47,7 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

@@ -214,7 +214,7 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 		t.Fatalf("create u2/c: %v", err)
 	}
 
-	u1Docs, err := list.Execute(ctx, "u1")
+	u1Docs, err := list.Execute(ctx, "u1", nil)
 	if err != nil {
 		t.Fatalf("list u1: %v", err)
 	}
@@ -227,11 +227,32 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 		}
 	}
 
-	u2Docs, err := list.Execute(ctx, "u2")
+	u2Docs, err := list.Execute(ctx, "u2", nil)
 	if err != nil {
 		t.Fatalf("list u2: %v", err)
 	}
 	if len(u2Docs) != 1 {
 		t.Errorf("u2 list: got %d docs, want 1", len(u2Docs))
+	}
+}
+
+func TestListDocuments_TagFilter(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	for _, d := range []domain.Document{
+		{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Tags: []string{"go", "tui"}},
+		{ID: "b", OwnerID: "u", Type: domain.DocFree, Path: "b", Tags: []string{"go"}},
+	} {
+		if _, err := docs.Create(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	uc := usecase.ListDocuments{Docs: docs}
+	got, err := uc.Execute(ctx, "u", []string{"go", "tui"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "a" {
+		t.Fatalf("got %#v, want [a]", got)
 	}
 }

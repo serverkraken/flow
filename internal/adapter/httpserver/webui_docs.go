@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageData, error) {
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
 	if err != nil {
 		return webui.DocsPageData{}, err
 	}
@@ -59,7 +59,7 @@ func (s *Server) handleWebDocView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	all, err := s.ListDocuments.Execute(r.Context(), u.ID)
+	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
