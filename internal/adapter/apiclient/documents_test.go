@@ -212,6 +212,44 @@ func TestCreateDocument_NonOKStatus(t *testing.T) {
 	}
 }
 
+func TestListDocuments_TagQuery(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	if _, err := c.ListDocuments(context.Background(), "go", "tui"); err != nil {
+		t.Fatal(err)
+	}
+	if gotQuery != "tag=go&tag=tui" {
+		t.Fatalf("query = %q, want tag=go&tag=tui", gotQuery)
+	}
+}
+
+func TestClientTags(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/documents/tags" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"tag":"go","count":2}]`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	got, err := c.Tags(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Tag != "go" || got[0].Count != 2 {
+		t.Fatalf("got %#v", got)
+	}
+}
+
 func TestClient_Backlinks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {

@@ -3,6 +3,7 @@ package apiclient
 import (
 	"context"
 	"net/http"
+	"net/url"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -22,9 +23,23 @@ func (c *Client) CreateDocument(ctx context.Context, in CreateDocumentInput) (do
 	return out, err
 }
 
-func (c *Client) ListDocuments(ctx context.Context) ([]domain.Document, error) {
+func (c *Client) ListDocuments(ctx context.Context, tags ...string) ([]domain.Document, error) {
+	path := "/api/v1/documents"
+	if len(tags) > 0 {
+		q := url.Values{}
+		for _, t := range tags {
+			q.Add("tag", t)
+		}
+		path += "?" + q.Encode()
+	}
 	var out []domain.Document
-	err := c.do(ctx, http.MethodGet, "/api/v1/documents", nil, &out)
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
+}
+
+func (c *Client) Tags(ctx context.Context) ([]domain.TagCount, error) {
+	var out []domain.TagCount
+	err := c.do(ctx, http.MethodGet, "/api/v1/documents/tags", nil, &out)
 	return out, err
 }
 
