@@ -4,7 +4,7 @@
 **Milestone:** M3c — die dritte Slice der M3-Vertikale (nach M3a Design-System-Revival, M3b Sidekick-Shell).
 **Status:** approved (Brainstorm abgeschlossen), bereit für Sub-Slice-Pläne.
 **Parent-Spec:** `docs/superpowers/specs/2026-06-16-flow-rebuild-m3-tui-design-system-shell.md` (M3-Übersicht).
-**Scope-Schnitt:** Diese Spec ist die **Übersicht** für M3c. Ausführung in **Sub-Slices M3c1–M3c4** (je eigener Plan, subagent-driven wie M3b).
+**Scope-Schnitt:** Diese Spec ist die **Übersicht** für M3c. Ausführung in **Sub-Slices M3c0–M3c4** (je eigener Plan, subagent-driven wie M3b) — M3c0 ist eine Backend-Vorstufe (Session-Mutation-API), M3c1–M3c4 sind die TUI-Surfaces.
 
 ## Problem / Motivation
 
@@ -14,7 +14,7 @@ Heute existieren zwei parallele, unbefriedigende Worktime-Implementierungen: der
 
 ## Locked Decisions (aus dem M3c-Brainstorm)
 
-1. **Today-Scope: voller Port.** Die Worktime-Today-Route portiert die `main`-Surface originalgetreu **inkl.** Interaktivität: j/k-Cursor, start/stop, Projekt-Booking beim Stop, Session-Edit, Note-Attach, Dialoge.
+1. **Today-Scope: voller Port — braucht eine Backend-Vorstufe.** Die Worktime-Today-Route portiert die `main`-Surface originalgetreu **inkl.** Interaktivität: j/k-Cursor, start (mit Tag/Note), stop mit Projekt-Booking, **Session-Edit/Delete/Tag/Note** + Dialoge. **Aber:** die Rebuild-API kennt heute nur Start/Stop/List — Edit/Delete/Tag-on-existing existieren weder als Endpoint noch als apiclient-Methode. Daher **erst eine Backend-Vorstufe** (`M3c0`, Session-Mutation-API), dann der volle Today-Port. **Ausnahmen vom „vollen Port":** *Pause/Resume* wird **nicht** als eigener Server-State gebaut — der Rebuild modelliert Pausen als Session-Gaps (`s` = start/stop genügt; das Render zeigt Gap-Trenner). *Note-Attach* (`o/O/R/n`, Session↔Kompendium-Verknüpfung) ist eine **eigenständige Feature** (neue Link-Daten, berührt beide Vertikalen) und wird als **separate spätere Slice** geführt, nicht in M3c.
 2. **Home-Scope: Anzeige + Drill.** Read-only Dashboard; Enter/Tasten **springen** in den passenden Tab (Drill-Navigation über die Shell). Keine Mutationen von Home aus.
 3. **Tabs in M3c: Home · Worktime · Docs.** Drei echte Tabs. Stats-Tab (mit Heatmap/Burndown), Projects-Tab, DayOffs/Export **als eigene Tabs** sowie der custom Markdown-Viewer + Wikilink-Drill bleiben **M3d**.
 4. **Standalone: Repoint + Modals.** `flow worktime` wird auf die neue Today-Route umgehängt; die Geschwister-Surfaces (Woche/Stats-Range/DayOffs/Export) sind als **pushbare Routes** erreichbar — derselbe Route-Typ in `flow ui` (Worktime-Tab-Stack) und Standalone. Der Rebuild-Monolith-Pfad `tui.New` wird retired.
@@ -44,12 +44,24 @@ Das `main`-Render lehnte an einem reichen `domain.Day`-Aggregat (`Total(now)`, `
 | Pause-Trenner | aus aufeinanderfolgenden Session-Gaps (`s.Start - prevStop`) — wie `main`, aber **kein** „in Pause seit"-Hinweis (kein Pause-State). |
 | `IsPaused()`/`PausedAt` | **entfällt** (Glyph/Label/Logik werden gestrichen). |
 
-**Kein Server-Change in M3c.** Sollte sich die Rekonstruktion als zu brüchig erweisen (z.B. TZ-Kanten bei der „heute"-Filterung), ist die Eskalation ein dedizierter Server-`/today`-Detail-Endpoint in einer späteren Slice — nicht in M3c.
+**Server-Change in M3c ist auf M3c0 begrenzt** (Session-Mutation: edit/delete). Die **`/today`-Aggregat-Rekonstruktion bleibt client-seitig** — kein neuer `/today`-Detail-Endpoint. Sollte sich die Rekonstruktion als zu brüchig erweisen (z.B. TZ-Kanten bei der „heute"-Filterung), ist die Eskalation ein dedizierter Server-`/today`-Detail-Endpoint in einer späteren Slice — nicht in M3c.
 
 **Threshold-Color / Status-Badge:** `totalThresholdColor` + `todayStatusBadge` (Parent-Spec: status_adapter) wurden in M3a auf M3d verschoben. M3c1 bringt eine **lokale Kopie im Worktime-Route-Package**; die Promotion zu einem geteilten `internal/tui/ui/status_adapter` passiert in M3d, wenn ein zweiter Konsument (Stats-Heatmap) existiert.
 
 ## Architektur
 
+**Backend-Vorstufe (M3c0) — Session-Mutation-API:**
+```
+internal/ports/ports.go         SessionStore +Update +Delete            (M3c0)
+internal/usecase/edit_session.go    EditSession (start/stop/tag/note)   (M3c0)
+internal/usecase/delete_session.go  DeleteSession                       (M3c0)
+internal/adapter/pgstore/…          Update/Delete SQL (Tabelle existiert,
+                                    keine Migration nötig)              (M3c0)
+internal/adapter/httpapi/…          PATCH + DELETE /api/v1/sessions/{id}(M3c0)
+internal/adapter/apiclient/…        EditSession(id,…) · DeleteSession(id)(M3c0)
+```
+
+**TUI (M3c1–M3c4):**
 ```
 internal/tui/
   shell/                 (M3b — Shell, NavStack, Palette, RouteHost, Route-Contract)
@@ -91,7 +103,8 @@ internal/tui/docs.go + styles.go                                       ← BLEIB
 
 | Sub-Slice | Inhalt | Done-Gate-Kern |
 |---|---|---|
-| **M3c1** | Worktime-**Today**-Route: voller Port aus `main` (Datumszeile · Headline mit Status-Pille + Total-Threshold + Ziel% · `BarColored` · Ziel·noch·**ETA** prominenter · Sessions-Liste mit Pause-Trennern + Cursor `▎` · Footer max 4) **+ Interaktivität** (j/k, s start/stop, x Booking, Session-Edit, Note-Attach, Dialoge). Daten rekonstruiert aus `Today`+`ListSessions`, Live via SSE. Lokale threshold/badge/eta-Helfer. | Today rendert design-getreu; start/stop/booking/edit/note funktionieren; SSE-Live-Update sichtbar; Unit-Tests (Render-Golden + Reducer) grün. |
+| **M3c0** | **Backend: Session-Mutation-API.** `SessionStore.Update`+`Delete` (pgstore UPDATE/DELETE, Tabelle existiert), Usecases `EditSession` (start/stop/tag/note, validiert: kein Overlap, Stop>Start, Owner-Scope) + `DeleteSession` (Owner-Scope); httpapi `PATCH`/`DELETE /api/v1/sessions/{id}` (If-Match/Owner-Auth wie bestehende Routes); apiclient `EditSession`/`DeleteSession`. Publiziert SSE `session.*`. Reines Backend, keine TUI. | curl-Smoke: PATCH ändert Tag/Note/Zeiten, DELETE entfernt, beide owner-scoped + 404 bei fremd; Unit-Tests (usecase + pgstore Docker) grün; `make ci` grün. |
+| **M3c1** | Worktime-**Today**-Route: voller Port aus `main` (Datumszeile · Headline mit Status-Pille + Total-Threshold + Ziel% · `BarColored` · Ziel·noch·**ETA** prominenter · Sessions-Liste mit Gap-Trennern + Cursor `▎` · Footer max 4) **+ Interaktivität** (j/k-Cursor, s start, x stop+Booking, Edit-Dialog Start/Stop/Tag/Note via M3c0, Delete via confirm). **Kein** Pause (Gaps), **kein** Note-Attach (separate Slice). Daten rekonstruiert aus `Today`+`ListSessions`, Live via SSE. Lokale threshold/badge/eta-Helfer. | Today rendert design-getreu; start/stop/booking/**edit/delete** funktionieren live; SSE-Live-Update sichtbar; Unit-Tests (Render-Golden + Reducer) grün. |
 | **M3c2** | Worktime-**Sibling-Routes** Woche · Stats(Range week\|month) · DayOffs · Export, revived aufs Design-System, + Push/Pop-Wiring (`w/t/d/e`→Push, `esc`→Pop) im Worktime-Stack. **Kein** Heatmap (M3d). | Jede Sibling-Route pusht/poppt korrekt; Breadcrumb zeigt Tiefe; Daten live; Tests grün. |
 | **M3c3** | **Home-Dashboard**-Route (responsiv 2-col→stacked, Drill-Navigation) ersetzt die M3b-Placeholder-Home; **Docs**-Screen als Route gewrappt; `flow ui`-Shell auf **3 Tabs** (Home·Worktime·Docs) verdrahtet; **`flow ui [tab]` Deep-Link** (Positions-Arg wählt Start-Tab, unbekannt→Home). | `flow ui` zeigt echten Tagesstand auf Home; `flow ui worktime`/`flow ui docs` starten direkt auf dem Tab; Drill in Tabs; Tabstrip + Palette über 3 Tabs grün. |
 | **M3c4** | **NavHost** + **Repoint Standalone**: `flow worktime` → `NavHost(Worktime-Today)` mit pushbaren Siblings; Legacy `tui.New`-Pfad retiren. **Achtung:** `internal/tui/docs.go` bleibt (M3c3-Route-Wrap) und teilt sich `styles.go` mit dem Monolithen — die exakte Lösch-Menge wird im M3c4-Plan per Import-/Symbol-Analyse bestimmt (nur worktime-exklusive Files; `styles.go` bleibt solange `docs.go` darin lebt; geteilte Styles ggf. in ein eigenes File splitten). | `flow worktime` standalone: Today + w/t/d/e-Push + esc-Pop live; `flow ui` + `flow docs` unberührt; `make ci` grün (≥80 %); kein toter worktime-Monolith-Code mehr. |
@@ -105,4 +118,3 @@ internal/tui/docs.go + styles.go                                       ← BLEIB
 ## Referenzen
 
 Parent: `2026-06-16-flow-rebuild-m3-tui-design-system-shell.md` · [[project_flow_rebuild_m3b]] (Shell/Route/NavStack/RouteHost) · [[project_flow_rebuild_m3a]] (theme+ui, `BarColored` ported) · `main`-Referenz `internal/frontend/tui/screen/worktime/today_render.go` · [[feedback_no_monoliths]] · [[feedback_no_icons]] · [[reference_soenne_worktime_workflow]] (TUI-primary, Project-Picker beim Booking) · [[reference_flow_launch_modes]] (sidekick vs. standalone) · [[feedback_navigation_discoverability_over_minimalism]] · [[reference_flow_dev_env]] (Done-Gate-Stack) · [[feedback_subagent_git_commits_isolated]] (Ausführung) · [[feedback_long_lived_integration_branch]] (`rebuild` bleibt Integrations-Branch) · [[feedback_dont_descope_hobby_projects]] (Scope einmal geflaggt, dann gebaut).
-```
