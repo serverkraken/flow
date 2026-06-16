@@ -190,6 +190,11 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	if len(hits) != 1 || hits[0].Path != "a" {
 		t.Fatalf(`search "kompend" = %#v, want [a]`, hits)
 	}
+	// prefix/partial hit must also be highlighted (prefix tsquery union in ts_headline)
+	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
+		t.Fatalf(`search "kompend": expected highlighted snippet (prefix hit), got %q`, hits[0].Snippet)
+	}
+
 	exact, err := st.Search(ctx, owner, "compendium", nil)
 	if err != nil {
 		t.Fatal(err)
@@ -197,6 +202,16 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	if len(exact) == 0 || !strings.Contains(exact[0].Snippet, domain.HighlightStart) {
 		t.Fatalf("expected highlighted snippet, got %#v", exact)
 	}
+
+	// punctuation-only query: no error, no rows (edge case for ''::tsquery guard)
+	punct, err := st.Search(ctx, owner, "!!!", nil)
+	if err != nil {
+		t.Fatalf(`search "!!!": unexpected error: %v`, err)
+	}
+	if len(punct) != 0 {
+		t.Fatalf(`search "!!!": expected 0 results, got %d`, len(punct))
+	}
+
 	none, err := st.Search(ctx, owner, "kompend", []string{"missing"})
 	if err != nil {
 		t.Fatal(err)

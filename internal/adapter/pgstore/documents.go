@@ -149,8 +149,14 @@ var headlineOpts = "StartSel=" + domain.HighlightStart + ",StopSel=" + domain.Hi
 
 func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
 	sb := `SELECT ` + prefixedDocCols + `,
-  ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq, $3) AS snippet
-FROM documents d, websearch_to_tsquery('simple', $2) ftsq
+  ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq || pq.prefixq, $3) AS snippet
+FROM documents d,
+     websearch_to_tsquery('simple', $2) ftsq,
+     (SELECT coalesce(
+        to_tsquery('simple',
+          (SELECT string_agg(w || ':*', ' | ')
+           FROM unnest(tsvector_to_array(to_tsvector('simple', $2))) AS w)),
+        ''::tsquery)) AS pq(prefixq)
 WHERE d.owner_id = $1`
 	args := []any{ownerID, q, headlineOpts}
 	if len(tags) > 0 {
