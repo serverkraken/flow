@@ -2,13 +2,36 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+// partialErrDocStore wraps FakeDocumentStore and can inject errors for specific methods.
+type partialErrDocStore struct {
+	*testutil.FakeDocumentStore
+	backlinksErr error
+	listErr      error
+}
+
+func (s *partialErrDocStore) Backlinks(ctx context.Context, ownerID, targetPath string) ([]domain.Document, error) {
+	if s.backlinksErr != nil {
+		return nil, s.backlinksErr
+	}
+	return s.FakeDocumentStore.Backlinks(ctx, ownerID, targetPath)
+}
+
+func (s *partialErrDocStore) List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.FakeDocumentStore.List(ctx, ownerID, tags...)
+}
 
 func TestBacklinks_FiltersByScope(t *testing.T) {
 	ctx := context.Background()
@@ -70,5 +93,48 @@ func TestBacklinks_DropsForeignProjectFalsePositive(t *testing.T) {
 	}
 	if len(refs) != 0 {
 		t.Fatalf("notesA should have no backlinks (srcB resolves to notesB), got %v", refs)
+	}
+}
+
+func TestBacklinks_GetNotFound(t *testing.T) {
+	ctx := context.Background()
+	store := testutil.NewFakeDocumentStore()
+	uc := usecase.Backlinks{Docs: store}
+	// Target doc does not exist: Get returns ErrDocumentNotFound
+	_, err := uc.Execute(ctx, "o", "no-such-id")
+	if !errors.Is(err, ports.ErrDocumentNotFound) {
+		t.Fatalf("want ErrDocumentNotFound, got %v", err)
+	}
+}
+
+func TestBacklinks_BacklinksStoreError(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	base := testutil.NewFakeDocumentStore()
+	_, _ = base.Create(ctx, domain.Document{
+		ID: "t", OwnerID: "o", Type: domain.DocFree,
+		Path: "target", Title: "T", CreatedAt: now, UpdatedAt: now,
+	})
+	store := &partialErrDocStore{FakeDocumentStore: base, backlinksErr: errors.New("backlinks fail")}
+	uc := usecase.Backlinks{Docs: store}
+	_, err := uc.Execute(ctx, "o", "t")
+	if err == nil {
+		t.Fatal("want error from Backlinks, got nil")
+	}
+}
+
+func TestBacklinks_ListStoreError(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	base := testutil.NewFakeDocumentStore()
+	_, _ = base.Create(ctx, domain.Document{
+		ID: "t", OwnerID: "o", Type: domain.DocFree,
+		Path: "target", Title: "T", CreatedAt: now, UpdatedAt: now,
+	})
+	store := &partialErrDocStore{FakeDocumentStore: base, listErr: errors.New("list fail")}
+	uc := usecase.Backlinks{Docs: store}
+	_, err := uc.Execute(ctx, "o", "t")
+	if err == nil {
+		t.Fatal("want error from List, got nil")
 	}
 }

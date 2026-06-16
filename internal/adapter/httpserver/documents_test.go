@@ -407,15 +407,45 @@ func TestHandleListTags(t *testing.T) {
 	}
 }
 
-// failingDocStore is a ports.DocumentStore stub whose List always returns an error.
-// All other methods delegate to a FakeDocumentStore so the server can still boot.
+// failingDocStore is a ports.DocumentStore stub whose configured methods always
+// return an error. All other methods delegate to a FakeDocumentStore so the
+// server can still boot.
 type failingDocStore struct {
 	*testutil.FakeDocumentStore
-	listErr error
+	listErr      error
+	searchErr    error
+	createErr    error
+	getErr       error
+	backlinksErr error
 }
 
-func (s *failingDocStore) List(_ context.Context, ownerID string, _ ...string) ([]domain.Document, error) {
+func (s *failingDocStore) List(_ context.Context, _ string, _ ...string) ([]domain.Document, error) {
 	return nil, s.listErr
+}
+
+func (s *failingDocStore) Search(_ context.Context, _, _ string, _ []string) ([]domain.SearchHit, error) {
+	return nil, s.searchErr
+}
+
+func (s *failingDocStore) Create(_ context.Context, d domain.Document) (domain.Document, error) {
+	if s.createErr != nil {
+		return domain.Document{}, s.createErr
+	}
+	return s.FakeDocumentStore.Create(context.Background(), d)
+}
+
+func (s *failingDocStore) Get(_ context.Context, ownerID, id string) (domain.Document, error) {
+	if s.getErr != nil {
+		return domain.Document{}, s.getErr
+	}
+	return s.FakeDocumentStore.Get(context.Background(), ownerID, id)
+}
+
+func (s *failingDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
+	if s.backlinksErr != nil {
+		return nil, s.backlinksErr
+	}
+	return s.FakeDocumentStore.Backlinks(context.Background(), ownerID, targetPath)
 }
 
 func newFailingDocServer(t *testing.T) *httptest.Server {
@@ -426,6 +456,10 @@ func newFailingDocServer(t *testing.T) *httptest.Server {
 	failing := &failingDocStore{
 		FakeDocumentStore: testutil.NewFakeDocumentStore(),
 		listErr:           errors.New("db down"),
+		searchErr:         errors.New("search db down"),
+		createErr:         errors.New("create db down"),
+		getErr:            errors.New("get db down"),
+		backlinksErr:      errors.New("backlinks db down"),
 	}
 	sessions := testutil.NewFakeSessionStore()
 	settings := testutil.NewFakeUserSettingsStore()
@@ -447,6 +481,7 @@ func newFailingDocServer(t *testing.T) *httptest.Server {
 		DeleteDocument:    usecase.DeleteDocument{Docs: failing},
 		BacklinksDocument: usecase.Backlinks{Docs: failing},
 		ListTags:          usecase.ListTags{Docs: failing},
+		SearchDocuments:   usecase.SearchDocuments{Docs: failing},
 	}
 	return httptest.NewServer(srv.Routes())
 }
@@ -456,6 +491,43 @@ func TestHandleListDocuments_StoreError(t *testing.T) {
 	defer ts.Close()
 	primeUser(t, ts.URL)
 	res := doDoc(t, ts, "GET", "/api/v1/documents", "")
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("want 500 on store error, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleListDocuments_SearchError(t *testing.T) {
+	ts := newFailingDocServer(t)
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	// ?q= triggers SearchDocuments; failing store returns error → 500
+	res := doDoc(t, ts, "GET", "/api/v1/documents?q=anything", "")
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("want 500 on search store error, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleCreateDocument_StoreError(t *testing.T) {
+	ts := newFailingDocServer(t)
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	// Valid payload but store.Create returns a generic error → 500
+	body := `{"type":"free","path":"err-path","title":"T","body":"B"}`
+	res := doDoc(t, ts, "POST", "/api/v1/documents", body)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("want 500 on store error, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleDocumentBacklinks_StoreError(t *testing.T) {
+	ts := newFailingDocServer(t)
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	// store.Get returns a generic error (not ErrDocumentNotFound) → 500
+	res := doDoc(t, ts, "GET", "/api/v1/documents/any-id/backlinks", "")
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("want 500 on store error, got %d", res.StatusCode)

@@ -870,6 +870,65 @@ func TestWebDocView_WikilinksAndBacklinks(t *testing.T) {
 	}
 }
 
+// TestWebDocsList_Empty verifies the "no documents yet" empty state is rendered
+// when the user has no docs and no search query is active.
+func TestWebDocsList_Empty(t *testing.T) {
+	srv, codec, _ := newWebDocsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/docs/list", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /ui/docs/list (empty) status=%d body=%.200s", res.StatusCode, body)
+	}
+	if !strings.Contains(body, "no documents yet") {
+		t.Fatalf("expected 'no documents yet' in empty state, got: %.300s", body)
+	}
+}
+
+// TestWebDocsList_SearchNoResults verifies the "no matches" state when a search
+// query returns zero results.
+func TestWebDocsList_SearchNoResults(t *testing.T) {
+	srv, codec, docs := newWebDocsServer(t)
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "xyz-doc", OwnerID: "u1", Type: domain.DocFree,
+		Path: "xyz-doc", Title: "Xyz", Body: "xyz",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/docs/list?q=zzznomatch", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /ui/docs/list?q=zzznomatch status=%d body=%.200s", res.StatusCode, body)
+	}
+	if !strings.Contains(body, "no matches") {
+		t.Fatalf("expected 'no matches' in zero-results state, got: %.300s", body)
+	}
+}
+
 // TestWebDocsList_Search verifies that GET /ui/docs/list?q=... narrows the list
 // to matching docs and renders highlighted snippets via <mark>.
 func TestWebDocsList_Search(t *testing.T) {
