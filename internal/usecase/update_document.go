@@ -11,8 +11,9 @@ import (
 // derived from the body's frontmatter, not taken as input. Path/type/project
 // are immutable in the spine.
 type UpdateDocument struct {
-	Docs  ports.DocumentStore
-	Clock ports.Clock
+	Docs     ports.DocumentStore
+	Clock    ports.Clock
+	Notifier ports.DocChangeNotifier // optional; nil → no notification
 }
 
 type UpdateDocumentInput struct {
@@ -38,6 +39,9 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	// the update succeeded; a subsequent save heals the link index.
 	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
+	}
+	if uc.Notifier != nil {
+		uc.Notifier.DocumentChanged()
 	}
 	return updated, nil
 }

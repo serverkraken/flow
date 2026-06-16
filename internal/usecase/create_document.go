@@ -10,9 +10,10 @@ import (
 // CreateDocument stamps id+timestamps, derives the daily path from the date,
 // validates, and persists an owner-scoped document.
 type CreateDocument struct {
-	Docs  ports.DocumentStore
-	IDs   ports.IDGen
-	Clock ports.Clock
+	Docs     ports.DocumentStore
+	IDs      ports.IDGen
+	Clock    ports.Clock
+	Notifier ports.DocChangeNotifier // optional; nil → no notification
 }
 
 // CreateDocumentInput is the caller-supplied shape (the use case fills the rest).
@@ -49,6 +50,9 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	// the create succeeded; a subsequent save heals the link index.
 	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
+	}
+	if uc.Notifier != nil {
+		uc.Notifier.DocumentChanged()
 	}
 	return created, nil
 }

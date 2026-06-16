@@ -159,3 +159,9 @@ type Editor interface {
 type Embedder interface {
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 }
+
+// DocChangeNotifier is notified after a document is created or updated, so the
+// embedding worker can re-embed promptly. Optional for callers (nil → no-op).
+type DocChangeNotifier interface {
+	DocumentChanged()
+}

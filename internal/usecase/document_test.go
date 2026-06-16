@@ -522,6 +522,51 @@ func TestSearchDocuments_NilEmbedderIsKeywordOnly(t *testing.T) {
 	}
 }
 
+// countingNotifier records how many times DocumentChanged is called.
+type countingNotifier struct{ n int }
+
+func (c *countingNotifier) DocumentChanged() { c.n++ }
+
+func TestCreateDocument_NotifiesOnWrite(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	note := &countingNotifier{}
+	ctx := context.Background()
+	uc := usecase.CreateDocument{
+		Docs:     docs,
+		IDs:      &testutil.FakeIDGen{},
+		Clock:    testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)},
+		Notifier: note,
+	}
+	if _, err := uc.Execute(ctx, "u1", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "docs/test", Title: "Test",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if note.n != 1 {
+		t.Fatalf("expected 1 notify, got %d", note.n)
+	}
+}
+
+func TestUpdateDocument_NotifiesOnWrite(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}
+	seed, _ := docs.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "n", Title: "Old",
+		CreatedAt: clk.T, UpdatedAt: clk.T,
+	})
+	note := &countingNotifier{}
+	uc := usecase.UpdateDocument{Docs: docs, Clock: clk, Notifier: note}
+	if _, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
+		Title: "New", Body: "new body",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if note.n != 1 {
+		t.Fatalf("expected 1 notify, got %d", note.n)
+	}
+}
+
 func TestListDocuments_TagFilter(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	ctx := context.Background()
