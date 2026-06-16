@@ -165,7 +165,7 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case k.Text == "?":
 		s.helpOpen = !s.helpOpen
 		return s, nil
-	case k.Code == tea.KeyTab && k.Mod == tea.ModShift:
+	case k.Code == tea.KeyTab && k.Mod.Contains(tea.ModShift):
 		s.activeTab = (s.activeTab - 1 + len(s.tabs)) % len(s.tabs)
 		return s, nil
 	case k.Code == tea.KeyTab:
