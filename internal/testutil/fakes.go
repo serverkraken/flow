@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -338,13 +339,30 @@ func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) err
 // FakeDocumentStore is an in-memory ports.DocumentStore.
 // Create returns ErrDocumentExists on an (owner, coalesce(projectID,""), path) collision.
 type FakeDocumentStore struct {
-	mu    sync.Mutex
-	m     map[string]domain.Document // keyed by id
-	links map[string][]string        // srcDocID -> target paths
+	mu         sync.Mutex
+	m          map[string]domain.Document // keyed by id
+	links      map[string][]string        // srcDocID -> target paths
+	chunks     map[string][]fakeChunk     // docID -> chunks
+	chunksHash map[string]string          // docID -> stamped hash
 }
 
 func NewFakeDocumentStore() *FakeDocumentStore {
-	return &FakeDocumentStore{m: map[string]domain.Document{}, links: map[string][]string{}}
+	return &FakeDocumentStore{
+		m:          map[string]domain.Document{},
+		links:      map[string][]string{},
+		chunks:     map[string][]fakeChunk{},
+		chunksHash: map[string]string{},
+	}
+}
+
+type fakeChunk struct {
+	content string
+	emb     []float32
+}
+
+func fakeDocHash(d domain.Document) string {
+	sum := sha256.Sum256([]byte(d.Title + d.Body))
+	return string(sum[:])
 }
 
 func docCollisionKey(ownerID string, projectID *string, path string) string {
@@ -509,6 +527,80 @@ func fakeSnippet(text string, start, n int) string {
 		end = len(text)
 	}
 	return text[:start] + domain.HighlightStart + text[start:end] + domain.HighlightEnd + text[end:]
+}
+
+func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Document
+	for _, d := range s.m {
+		if s.chunksHash[d.ID] != fakeDocHash(d) {
+			out = append(out, d)
+			if len(out) >= limit {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (s *FakeDocumentStore) ReplaceChunks(_ context.Context, docID, _ string, contents []string, embeddings [][]float32) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cs := make([]fakeChunk, len(contents))
+	for i := range contents {
+		cs[i] = fakeChunk{content: contents[i], emb: embeddings[i]}
+	}
+	s.chunks[docID] = cs
+	if d, ok := s.m[docID]; ok {
+		s.chunksHash[docID] = fakeDocHash(d)
+	}
+	return nil
+}
+
+func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var hits []domain.SemanticHit
+	for _, d := range s.m {
+		if d.OwnerID != ownerID || !hasAllTags(d.Tags, tags) {
+			continue
+		}
+		best := -1.0
+		bestContent := ""
+		for _, c := range s.chunks[d.ID] {
+			sim := cosine(query, c.emb)
+			if sim > best {
+				best = sim
+				bestContent = c.content
+			}
+		}
+		if bestContent == "" {
+			continue
+		}
+		hits = append(hits, domain.SemanticHit{Document: d, Snippet: bestContent, Distance: float32(1 - best)})
+	}
+	sort.Slice(hits, func(i, j int) bool { return hits[i].Distance < hits[j].Distance })
+	if len(hits) > limit {
+		hits = hits[:limit]
+	}
+	return hits, nil
+}
+
+func cosine(a, b []float32) float64 {
+	if len(a) != len(b) || len(a) == 0 {
+		return -1
+	}
+	var dot, na, nb float64
+	for i := range a {
+		dot += float64(a[i]) * float64(b[i])
+		na += float64(a[i]) * float64(a[i])
+		nb += float64(b[i]) * float64(b[i])
+	}
+	if na == 0 || nb == 0 {
+		return -1
+	}
+	return dot / (math.Sqrt(na) * math.Sqrt(nb))
 }
 
 // FakeEmbedder returns deterministic unit vectors derived from a hash of each

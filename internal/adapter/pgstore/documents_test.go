@@ -279,3 +279,77 @@ func TestDocumentStore_Links(t *testing.T) {
 		t.Fatalf("after delete s2, backlinks(beta) = %v, want none", got)
 	}
 }
+
+func TestDocumentStore_SemanticSearch(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("sem-owner", "sub-sem", "semuser", "sem@x.de", "Sem User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	owner := "sem-owner"
+
+	s := pgstore.NewDocumentStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	vec := func(v float32) []float32 {
+		out := make([]float32, 768)
+		for i := range out {
+			out[i] = v
+		}
+		return out
+	}
+
+	mkDoc := func(id, title, body string, tags ...string) {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: owner, Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkDoc("near", "Near", "near doc", "go")
+	mkDoc("far", "Far", "far doc")
+
+	if err := s.ReplaceChunks(ctx, "near", owner, []string{"near chunk"}, [][]float32{vec(0.9)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ReplaceChunks(ctx, "far", owner, []string{"far chunk"}, [][]float32{vec(-0.9)}); err != nil {
+		t.Fatal(err)
+	}
+
+	hits, err := s.SemanticSearch(ctx, owner, vec(1.0), nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 || hits[0].Path != "near" {
+		t.Fatalf("want near first, got %#v", hits)
+	}
+	if hits[0].Snippet != "near chunk" {
+		t.Fatalf("snippet = %q, want near chunk", hits[0].Snippet)
+	}
+	tagged, _ := s.SemanticSearch(ctx, owner, vec(1.0), []string{"go"}, 10)
+	if len(tagged) != 1 || tagged[0].Path != "near" {
+		t.Fatalf("tag-filtered semantic = %#v, want [near]", tagged)
+	}
+	mkDoc("fresh", "Fresh", "fresh")
+	stale, _ := s.StaleDocuments(ctx, 100)
+	foundFresh := false
+	for _, d := range stale {
+		if d.Path == "fresh" {
+			foundFresh = true
+		}
+		if d.Path == "near" {
+			t.Fatalf("near should not be stale after ReplaceChunks")
+		}
+	}
+	if !foundFresh {
+		t.Fatal("fresh doc should be stale")
+	}
+}

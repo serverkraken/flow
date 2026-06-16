@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -204,6 +206,127 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 		}
 	}
 	return domain.SearchHit{Document: d, Snippet: snippet}, nil
+}
+
+// vectorLiteral formats a vector as a pgvector text literal ("[1,2,3]") for a
+// $N::vector bind — no extra dependency needed.
+func vectorLiteral(v []float32) string {
+	var b strings.Builder
+	b.WriteByte('[')
+	for i, x := range v {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatFloat(float64(x), 'f', -1, 32))
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
+func (s *DocumentStore) StaleDocuments(ctx context.Context, limit int) ([]domain.Document, error) {
+	q := `SELECT ` + docCols + ` FROM documents
+WHERE chunks_hash IS DISTINCT FROM md5(coalesce(title,'')||coalesce(body,''))
+ORDER BY updated_at ASC
+LIMIT $1`
+	rows, err := s.pool.Query(ctx, q, limit)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: stale documents: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Document
+	for rows.Next() {
+		d, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: replace chunks begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `DELETE FROM document_chunks WHERE document_id = $1`, docID); err != nil {
+		return fmt.Errorf("pgstore: delete chunks: %w", err)
+	}
+	for i := range contents {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO document_chunks (document_id, owner_id, chunk_index, content, embedding)
+			 VALUES ($1,$2,$3,$4,$5::vector)`,
+			docID, ownerID, i, contents[i], vectorLiteral(embeddings[i])); err != nil {
+			return fmt.Errorf("pgstore: insert chunk: %w", err)
+		}
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE documents SET chunks_hash = md5(coalesce(title,'')||coalesce(body,'')) WHERE id = $1`,
+		docID); err != nil {
+		return fmt.Errorf("pgstore: stamp chunks_hash: %w", err)
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+	q := `SELECT ` + prefixedDocCols + `, x.content, x.dist
+FROM (
+  SELECT DISTINCT ON (c.document_id) c.document_id AS did, c.content AS content,
+         (c.embedding <=> $2::vector) AS dist
+  FROM document_chunks c
+  WHERE c.owner_id = $1
+  ORDER BY c.document_id, dist
+) x
+JOIN documents d ON d.id = x.did`
+	args := []any{ownerID, vectorLiteral(query)}
+	if len(tags) > 0 {
+		q += `
+WHERE d.tags @> $3
+ORDER BY x.dist
+LIMIT $4`
+		args = append(args, tags, limit)
+	} else {
+		q += `
+ORDER BY x.dist
+LIMIT $3`
+		args = append(args, limit)
+	}
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: semantic search: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.SemanticHit
+	for rows.Next() {
+		h, err := scanSemanticHit(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+// scanSemanticHit scans prefixedDocCols (same order as scanDocument) + a
+// trailing content + dist column.
+func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
+	var d domain.Document
+	var typ string
+	var extra []byte
+	var content string
+	var dist float32
+	if err := r.Scan(&d.ID, &d.OwnerID, &d.ProjectID, &typ, &d.Path, &d.Title, &d.Body,
+		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &content, &dist); err != nil {
+		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
+	}
+	d.Type = domain.DocumentType(typ)
+	if len(extra) > 0 {
+		if err := json.Unmarshal(extra, &d.Extra); err != nil {
+			return domain.SemanticHit{}, fmt.Errorf("pgstore: unmarshal extra: %w", err)
+		}
+	}
+	return domain.SemanticHit{Document: d, Snippet: content, Distance: dist}, nil
 }
 
 func isUniqueViolation(err error) bool {

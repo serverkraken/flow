@@ -130,6 +130,21 @@ type DocumentStore interface {
 	// documents carrying all of them. Empty q is not expected here (callers use
 	// List for the no-query path).
 	Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error)
+
+	// StaleDocuments returns up to limit documents whose chunks are missing or
+	// out of date (chunks_hash != md5(title||body)), across all owners, for the
+	// embedding worker.
+	StaleDocuments(ctx context.Context, limit int) ([]domain.Document, error)
+
+	// ReplaceChunks atomically replaces a document's chunks with the given
+	// (content, embedding) pairs (len-equal, may be empty) and stamps chunks_hash
+	// so the document is no longer stale.
+	ReplaceChunks(ctx context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error
+
+	// SemanticSearch returns the owner's documents whose chunks are nearest to the
+	// query vector (cosine), best chunk per document, optionally AND-filtered by
+	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
+	SemanticSearch(ctx context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error)
 }
 
 // Editor opens an interactive editor on initial content and returns the

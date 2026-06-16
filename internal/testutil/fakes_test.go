@@ -159,3 +159,48 @@ func TestFakeDocumentStore_ListTagFilter(t *testing.T) {
 		t.Fatalf("tag=go,tui = %#v, want [a]", both)
 	}
 }
+
+func TestFakeStore_ChunksAndSemantic(t *testing.T) {
+	s := NewFakeDocumentStore()
+	e := NewFakeEmbedder()
+	ctx := context.Background()
+	mk := func(id, title, body string, tags ...string) domain.Document {
+		d, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	a := mk("a", "Alpha", "alpha body", "go")
+	mk("b", "Beta", "beta body")
+
+	stale, err := s.StaleDocuments(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stale) != 2 {
+		t.Fatalf("want 2 stale, got %d", len(stale))
+	}
+
+	texts := []string{"Alpha\n\nalpha body"}
+	vecs, _ := e.Embed(ctx, texts)
+	if err := s.ReplaceChunks(ctx, a.ID, a.OwnerID, texts, vecs); err != nil {
+		t.Fatal(err)
+	}
+	stale, _ = s.StaleDocuments(ctx, 10)
+	if len(stale) != 1 || stale[0].ID != "b" {
+		t.Fatalf("want only b stale, got %#v", stale)
+	}
+
+	hits, err := s.SemanticSearch(ctx, "u", vecs[0], nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" || hits[0].Snippet == "" {
+		t.Fatalf("semantic want [a] with snippet, got %#v", hits)
+	}
+	none, _ := s.SemanticSearch(ctx, "u", vecs[0], []string{"missing"}, 10)
+	if len(none) != 0 {
+		t.Fatalf("tag-filtered semantic want 0, got %d", len(none))
+	}
+}
