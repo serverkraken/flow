@@ -1106,6 +1106,63 @@ func TestDocs_RenderSearchHighlights(t *testing.T) {
 	}
 }
 
+func TestDocsEventMsg_SearchMode_RerunsSearch(t *testing.T) {
+	// When a document SSE event arrives while in modeSearch with an active query,
+	// the handler should return a non-nil cmd that triggers re-search rather than
+	// a plain list reload, so search results stay live.
+	c := apiclient.New("http://example.invalid", "tok")
+	m := NewDocs(c, nil, nil, "tester")
+	ch := make(chan apiclient.ClientEvent, 1)
+	next, _ := m.Update(eventsReadyMsg{ch: ch})
+	m = next.(DocsModel)
+
+	// Simulate an active search result state.
+	m.mode = modeSearch
+	m.searching = true
+	m.searchQuery = "kompend"
+	m.searchHits = []domain.SearchHit{
+		{Document: domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "Kompendium"},
+			Snippet: domain.HighlightStart + "Kompendium" + domain.HighlightEnd},
+	}
+
+	_, cmd := m.Update(eventMsg{ev: apiclient.ClientEvent{Type: string(domain.EventDocumentUpdated)}})
+	if cmd == nil {
+		t.Fatal("eventMsg in modeSearch with active query should return a non-nil cmd")
+	}
+}
+
+func TestDocsEventMsg_SearchMode_EmptyQuery_FallsBackToReload(t *testing.T) {
+	// When search mode is active but the query is empty (typing phase), the
+	// handler should fall back to the plain reload, not runSearch("").
+	c := apiclient.New("http://example.invalid", "tok")
+	m := NewDocs(c, nil, nil, "tester")
+	ch := make(chan apiclient.ClientEvent, 1)
+	next, _ := m.Update(eventsReadyMsg{ch: ch})
+	m = next.(DocsModel)
+
+	m.mode = modeSearch
+	m.searching = false // still in input phase
+	m.searchQuery = ""
+
+	_, cmd := m.Update(eventMsg{ev: apiclient.ClientEvent{Type: string(domain.EventDocumentUpdated)}})
+	if cmd == nil {
+		t.Fatal("eventMsg in modeSearch input phase should return a non-nil batch cmd (reload+listen)")
+	}
+}
+
+func TestHighlightSnippet_StrayStartSentinel(t *testing.T) {
+	// An unmatched HighlightStart (no closing HighlightEnd) must not let a raw
+	// control char reach the terminal output.
+	stray := "before " + domain.HighlightStart + "after"
+	got := highlightSnippet(stray)
+	if strings.Contains(got, domain.HighlightStart) || strings.Contains(got, domain.HighlightEnd) {
+		t.Fatalf("stray sentinel leaked into TUI output: %q", got)
+	}
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Fatalf("text around stray sentinel should be preserved: %q", got)
+	}
+}
+
 func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
 	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] or http://x.io"}

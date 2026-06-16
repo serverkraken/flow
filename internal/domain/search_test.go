@@ -33,3 +33,23 @@ func TestHighlightSentinels(t *testing.T) {
 		t.Fatal("sentinels must be distinct and non-empty")
 	}
 }
+
+func TestStripHighlightSentinels(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"hello", "hello"},
+		{"", ""},
+		{HighlightStart + "match" + HighlightEnd, "match"},
+		{"a" + HighlightStart + "b" + HighlightStart + "c" + HighlightEnd + "d" + HighlightEnd + "e", "abcde"},
+		{HighlightStart + HighlightEnd, ""},
+		{"plain text without sentinels", "plain text without sentinels"},
+	}
+	for _, tc := range tests {
+		got := StripHighlightSentinels(tc.in)
+		if got != tc.want {
+			t.Errorf("StripHighlightSentinels(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

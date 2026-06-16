@@ -380,6 +380,60 @@ func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
 	}
 }
 
+func TestCreateDocument_StripsHighlightSentinels(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	uc := usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(context.Background(), "u", usecase.CreateDocumentInput{
+		Type:  domain.DocFree,
+		Path:  "note",
+		Title: "Title\x02with\x03sentinels",
+		Body:  "Body\x02contains\x03sentinels too",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Title, domain.HighlightStart) || strings.Contains(got.Title, domain.HighlightEnd) {
+		t.Errorf("Title still contains sentinel: %q", got.Title)
+	}
+	if strings.Contains(got.Body, domain.HighlightStart) || strings.Contains(got.Body, domain.HighlightEnd) {
+		t.Errorf("Body still contains sentinel: %q", got.Body)
+	}
+	if got.Title != "Titlewithsentinels" {
+		t.Errorf("Title = %q, want Titlewithsentinels", got.Title)
+	}
+	if got.Body != "Bodycontainssentinels too" {
+		t.Errorf("Body = %q, want Bodycontainssentinels too", got.Body)
+	}
+}
+
+func TestUpdateDocument_StripsHighlightSentinels(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	seed, _ := docs.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "n",
+	})
+	uc := usecase.UpdateDocument{Docs: docs, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
+		Title: "Up\x02dated\x03Title",
+		Body:  "Up\x02dated\x03Body",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(got.Title, domain.HighlightStart) || strings.Contains(got.Title, domain.HighlightEnd) {
+		t.Errorf("Title still contains sentinel: %q", got.Title)
+	}
+	if strings.Contains(got.Body, domain.HighlightStart) || strings.Contains(got.Body, domain.HighlightEnd) {
+		t.Errorf("Body still contains sentinel: %q", got.Body)
+	}
+	if got.Title != "UpdatedTitle" {
+		t.Errorf("Title = %q, want UpdatedTitle", got.Title)
+	}
+	if got.Body != "UpdatedBody" {
+		t.Errorf("Body = %q, want UpdatedBody", got.Body)
+	}
+}
+
 func TestListTags_StoreError(t *testing.T) {
 	sentinel := errors.New("store failure")
 	uc := usecase.ListTags{Docs: errDocStore{err: sentinel}}

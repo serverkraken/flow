@@ -341,8 +341,13 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.events = msg.ch
 		return m, waitForEvent(msg.ch)
 	case eventMsg:
-		// Any document.* event → reload list and re-arm the listener.
-		cmds := []tea.Cmd{m.reload(), waitForEvent(m.events)}
+		// Any document.* event → reload list (or re-run active search) and re-arm.
+		cmds := []tea.Cmd{waitForEvent(m.events)}
+		if m.mode == modeSearch && m.searching && strings.TrimSpace(m.searchQuery) != "" {
+			cmds = append(cmds, m.runSearch(m.searchQuery))
+		} else {
+			cmds = append(cmds, m.reload())
+		}
 		if m.mode == modeView && m.viewing != nil {
 			cmds = append(cmds, m.loadDocNoPush(m.viewing.ID))
 		}
@@ -1001,7 +1006,11 @@ func highlightSnippet(s string) string {
 		}
 		j := strings.Index(s, domain.HighlightEnd)
 		if j < 0 || j < i {
-			out.WriteString(styleMuted.Render(s))
+			// Stray/unmatched sentinel — strip it so no raw control char reaches
+			// the terminal (belt-and-suspenders: write boundary already strips them).
+			safe := strings.ReplaceAll(s, domain.HighlightStart, "")
+			safe = strings.ReplaceAll(safe, domain.HighlightEnd, "")
+			out.WriteString(styleMuted.Render(safe))
 			break
 		}
 		out.WriteString(styleMuted.Render(s[:i]))

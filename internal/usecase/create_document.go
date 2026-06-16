@@ -28,7 +28,8 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	now := uc.Clock.Now()
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, ProjectID: in.ProjectID, Type: in.Type,
-		Path: in.Path, Title: in.Title, Body: in.Body, CreatedAt: now, UpdatedAt: now,
+		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
+		CreatedAt: now, UpdatedAt: now,
 	}
 	if in.Type == domain.DocDaily {
 		d.Date = &now

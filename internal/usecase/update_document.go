@@ -25,7 +25,7 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	if err != nil {
 		return domain.Document{}, err
 	}
-	cur.Title, cur.Body = in.Title, in.Body
+	cur.Title, cur.Body = domain.StripHighlightSentinels(in.Title), domain.StripHighlightSentinels(in.Body)
 	tags, bodyStart := domain.ParseFrontmatter(in.Body)
 	cur.Tags = tags
 	cur.UpdatedAt = uc.Clock.Now()

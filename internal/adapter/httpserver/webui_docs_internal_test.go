@@ -28,6 +28,22 @@ func TestRenderSnippet_NoInjection(t *testing.T) {
 	}
 }
 
+func TestRenderSnippet_StrayStentinelDropped(t *testing.T) {
+	// An unmatched HighlightStart with no matching HighlightEnd must not produce
+	// an unclosed <mark> tag that would corrupt the page layout.
+	stray := "before " + domain.HighlightStart + "after"
+	got := renderSnippet(stray)
+	if strings.Contains(got, "<mark>") {
+		t.Fatalf("unmatched sentinel should not produce <mark>: %q", got)
+	}
+	if strings.Contains(got, domain.HighlightStart) || strings.Contains(got, domain.HighlightEnd) {
+		t.Fatalf("raw sentinel should be stripped from output: %q", got)
+	}
+	if !strings.Contains(got, "before") || !strings.Contains(got, "after") {
+		t.Fatalf("text around stray sentinel should be preserved: %q", got)
+	}
+}
+
 func TestEncodeListQuery(t *testing.T) {
 	tests := []struct {
 		name string

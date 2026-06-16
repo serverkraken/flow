@@ -15,12 +15,65 @@ import (
 
 // renderSnippet escapes the snippet then replaces the highlight sentinels with
 // <mark> tags — escape-first so no document content can inject HTML. Returns a
-// safe HTML string (rendered raw in the template via @templ.Raw).
+// safe HTML string (rendered raw in the template via @templ.Raw). Stray
+// (unmatched) sentinels are removed before html-escaping so they can never
+// become an unclosed <mark> that corrupts the page layout.
 func renderSnippet(s string) string {
+	// Belt-and-suspenders: strip stray sentinels before escaping so they can
+	// never produce an unclosed <mark>. html.EscapeString passes \x02/\x03
+	// through unchanged, so we handle them before they become HTML tokens.
+	s = stripStraySentinels(s)
 	esc := html.EscapeString(s)
 	esc = strings.ReplaceAll(esc, domain.HighlightStart, "<mark>")
 	esc = strings.ReplaceAll(esc, domain.HighlightEnd, "</mark>")
 	return esc
+}
+
+// stripStraySentinels removes HighlightStart/HighlightEnd bytes that are not
+// balanced (each Start must be followed by an End with no nested Start in
+// between). Matched pairs are left intact so ts_headline output is honoured.
+func stripStraySentinels(s string) string {
+	starts := strings.Count(s, domain.HighlightStart)
+	ends := strings.Count(s, domain.HighlightEnd)
+	if starts == 0 && ends == 0 {
+		return s
+	}
+	if starts != ends {
+		// Unbalanced: strip all sentinels.
+		return domain.StripHighlightSentinels(s)
+	}
+	// Equal counts: verify ordering — each Start must precede its matching End.
+	// Walk through and remove any Start that isn't followed by an End before the
+	// next Start, and vice versa.
+	var out strings.Builder
+	for {
+		i := strings.Index(s, domain.HighlightStart)
+		if i < 0 {
+			out.WriteString(s)
+			break
+		}
+		j := strings.Index(s[i:], domain.HighlightEnd)
+		if j < 0 {
+			// No End after this Start: strip all remaining sentinels.
+			out.WriteString(strings.ReplaceAll(strings.ReplaceAll(s, domain.HighlightStart, ""), domain.HighlightEnd, ""))
+			break
+		}
+		j += i // absolute index
+		// Check there is no nested Start between i and j.
+		between := s[i+len(domain.HighlightStart) : j]
+		if strings.Contains(between, domain.HighlightStart) {
+			// Nested/malformed: strip and continue.
+			out.WriteString(s[:i])
+			s = s[i+len(domain.HighlightStart):]
+			continue
+		}
+		out.WriteString(s[:i])
+		out.WriteString(domain.HighlightStart)
+		out.WriteString(between)
+		out.WriteString(domain.HighlightEnd)
+		s = s[j+len(domain.HighlightEnd):]
+	}
+	return out.String()
 }
 
 // encodeListQuery encodes the active tags plus an optional q into a "?..." string
