@@ -53,6 +53,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
+		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 	}
 	return srv, bus
 }
@@ -469,6 +470,73 @@ func TestHandleListTags_StoreError(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("want 500 on store error, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleListDocuments_SearchQuery(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// doc "a": title contains "Kompendium" — query "kompend" should match
+	resA := doDoc(t, ts, "POST", "/api/v1/documents",
+		`{"type":"free","path":"a","title":"Kompendium","body":"x"}`)
+	_ = resA.Body.Close()
+	if resA.StatusCode != http.StatusCreated {
+		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
+	}
+
+	// doc "b": no match
+	resB := doDoc(t, ts, "POST", "/api/v1/documents",
+		`{"type":"free","path":"b","title":"Other","body":"y"}`)
+	_ = resB.Body.Close()
+	if resB.StatusCode != http.StatusCreated {
+		t.Fatalf("create B: want 201, got %d", resB.StatusCode)
+	}
+
+	res := doDoc(t, ts, "GET", "/api/v1/documents?q=kompend", "")
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var hits []domain.SearchHit
+	if err := json.NewDecoder(res.Body).Decode(&hits); err != nil {
+		t.Fatalf("decode hits: %v", err)
+	}
+	if len(hits) != 1 || hits[0].Path != "a" {
+		t.Fatalf("got %#v, want [a]", hits)
+	}
+	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
+		t.Fatalf("missing snippet markers: %q", hits[0].Snippet)
+	}
+}
+
+func TestHandleListDocuments_NoQueryUnchanged(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	resA := doDoc(t, ts, "POST", "/api/v1/documents",
+		`{"type":"free","path":"noq-a","title":"A","body":""}`)
+	_ = resA.Body.Close()
+	if resA.StatusCode != http.StatusCreated {
+		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
+	}
+
+	res := doDoc(t, ts, "GET", "/api/v1/documents", "")
+	defer func() { _ = res.Body.Close() }()
+
+	var list []domain.Document
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(list) != 1 || list[0].Path != "noq-a" {
+		t.Fatalf("plain list broke: %#v", list)
 	}
 }
 

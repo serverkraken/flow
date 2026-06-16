@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -47,7 +48,20 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, r.URL.Query()["tag"])
+	tags := r.URL.Query()["tag"]
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, tags)
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		if hits == nil {
+			hits = []domain.SearchHit{}
+		}
+		writeJSON(w, http.StatusOK, hits)
+		return
+	}
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, tags)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

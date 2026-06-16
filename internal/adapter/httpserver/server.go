@@ -48,6 +48,7 @@ type Server struct {
 	DeleteDocument    usecase.DeleteDocument
 	BacklinksDocument usecase.Backlinks
 	ListTags          usecase.ListTags
+	SearchDocuments   usecase.SearchDocuments
 
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
