@@ -1,0 +1,112 @@
+package theme
+
+import (
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+)
+
+// tmuxKeys ist die 1:1-Liste der vom Adapter konsumierten tmux-Optionen.
+// Aus der Liste leitet Load() den Overlay-Mapping ab; tmuxOption-Caching
+// liest sie als Schlüsselmenge (siehe loadTmuxCache).
+var tmuxKeys = []string{
+	"@tn_bg", "@tn_fg", "@tn_accent", "@tn_dim", "@tn_border",
+	"@tn_purple", "@tn_green", "@tn_red", "@tn_orange",
+	"@tn_yellow", "@tn_cyan",
+}
+
+// Load returns the canonical Default palette overlaid with the
+// per-machine tmux user-options @tn_* (bg/fg/accent/dim/border/<hues>).
+// Missing tmux server, missing options, or empty values silently fall
+// back to the canonical defaults — Load never fails, so libraries and
+// stand-alone tools can call it unconditionally.
+//
+// The tmux key surface mirrors the legacy 11-field shape historically
+// used by components/theme: @tn_accent overrides the canonical
+// Blue (= Sem.Accent), @tn_dim overrides FgMuted, @tn_border overrides
+// BgCode, the hue keys (@tn_purple / @tn_green / …) override their
+// like-named canonical hues 1:1.
+//
+// Caching: Load liest tmux-Optionen einmal pro Prozess (siehe
+// tmuxCacheOnce). Worktime-Status-Segment kann pro tmux-Refresh-Tick
+// laufen; ohne Cache spawnten wir 11 `tmux show-options`-Subprozesse pro
+// 5 s — gemessbar im perf-Profile.
+func Load() Palette {
+	p := Default
+	cache := loadTmuxCache()
+	overlay := []struct {
+		key  string
+		dest *Color
+	}{
+		{"@tn_bg", &p.Bg},
+		{"@tn_fg", &p.Fg},
+		{"@tn_accent", &p.Blue},
+		{"@tn_dim", &p.FgMuted},
+		{"@tn_border", &p.BgCode},
+		{"@tn_purple", &p.Purple},
+		{"@tn_green", &p.Green},
+		{"@tn_red", &p.Red},
+		{"@tn_orange", &p.Orange},
+		{"@tn_yellow", &p.Yellow},
+		{"@tn_cyan", &p.Cyan},
+	}
+	for _, o := range overlay {
+		if v := cache[o.key]; v != "" {
+			*o.dest = Color(v)
+		}
+	}
+	return p
+}
+
+// Init is a no-op under lipgloss v2: Style.Render() always emits
+// 24-bit TrueColor escape sequences, and bubbletea v2 handles
+// downsampling at the output layer based on the terminal's actual
+// capability. The legacy v1 implementation forced TrueColor on the
+// default Renderer to work around tmux's TERM=screen-256color, which
+// caused termenv to downsample. v2 has no global Renderer to mutate;
+// the function is kept as a stable startup hook for future profile
+// tuning and so existing call-sites in cmd/flow/main.go and CLI entry
+// points stay valid.
+func Init() {}
+
+var (
+	tmuxCacheOnce sync.Once
+	tmuxCacheMap  map[string]string
+)
+
+// loadTmuxCache liest alle tmux-Keys einmal pro Prozess in eine Map und
+// gibt sie cached zurück. Vorher rief Load() pro Aufruf 11×
+// `tmux show-options` als Subprozess (200-500 µs pro spawn auf macOS),
+// und Load() wird jeden tmux-Refresh-Tick im Worktime-Status-Segment
+// erneut aufgerufen — das war messbar.
+//
+// Trade-off: ein Live-Update der @tn_*-Variablen während eines
+// laufenden flow-Prozesses greift nicht mehr. In der Praxis kein
+// Verlust — die Variablen werden in tmux.conf gesetzt und beim Reload
+// gibt es einen flow-Restart.
+func loadTmuxCache() map[string]string {
+	tmuxCacheOnce.Do(func() {
+		tmuxCacheMap = make(map[string]string, len(tmuxKeys))
+		if os.Getenv("TMUX") == "" {
+			// Außerhalb tmux: keine Spawns versuchen.
+			return
+		}
+		for _, k := range tmuxKeys {
+			tmuxCacheMap[k] = readTmuxOption(k)
+		}
+	})
+	return tmuxCacheMap
+}
+
+// readTmuxOption reads a single tmux global user-option. Returns "" when
+// tmux is not running, the option is unset, or the lookup fails.
+// Unbeschränkt aufrufbar — wird von loadTmuxCache nur einmal pro Key
+// pro Prozess aufgerufen.
+func readTmuxOption(name string) string {
+	out, err := exec.Command("tmux", "show-options", "-gqv", name).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
