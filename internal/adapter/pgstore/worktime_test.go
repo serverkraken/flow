@@ -69,6 +69,26 @@ func TestSessionStoreLifecycle(t *testing.T) {
 	if _, err := sessions.Stop(ctx, "u1", "nope", &pid, stopAt); !errors.Is(err, ports.ErrSessionNotFound) {
 		t.Fatalf("want ErrSessionNotFound, got %v", err)
 	}
+
+	// Update: overwrite tag/note (and project/times) — owner-scoped
+	updated, err := sessions.Update(ctx, "u1", "s1", &pid, "focus", "revised", now, &stopAt)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if updated.Tag != "focus" || updated.Note != "revised" {
+		t.Fatalf("Update did not persist: %+v", updated)
+	}
+	// foreign-owner Update -> not found
+	if _, err := sessions.Update(ctx, "nobody", "s1", nil, "", "", now, &stopAt); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Fatalf("foreign Update: want ErrSessionNotFound, got %v", err)
+	}
+	// Delete -> ok, then double-delete -> not found
+	if err := sessions.Delete(ctx, "u1", "s1"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := sessions.Delete(ctx, "u1", "s1"); !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Fatalf("double Delete: want ErrSessionNotFound, got %v", err)
+	}
 }
 
 func TestProjectStoreListOwnerScoped(t *testing.T) {

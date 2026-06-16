@@ -41,6 +41,8 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"GET", "/api/v1/events"},
 		{"POST", "/api/v1/sessions"},
 		{"POST", "/api/v1/sessions/x/stop"},
+		{"PATCH", "/api/v1/sessions/x"},
+		{"DELETE", "/api/v1/sessions/x"},
 		{"GET", "/api/v1/sessions"},
 		{"POST", "/api/v1/projects"},
 		{"GET", "/api/v1/projects"},

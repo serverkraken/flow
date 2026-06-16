@@ -134,6 +134,10 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+	if req.Start.IsZero() {
+		http.Error(w, "start required", http.StatusBadRequest)
+		return
+	}
 	sess, err := s.EditSession.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.EditSessionInput{
 		ProjectID: req.ProjectID, Tag: req.Tag, Note: req.Note, Start: req.Start, Stop: req.Stop,
 	})
