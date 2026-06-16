@@ -389,6 +389,22 @@ func TestListTags_StoreError(t *testing.T) {
 	}
 }
 
+func TestSearchDocuments(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	if _, err := docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Kompendium", Body: "x", Tags: []string{"go"}}); err != nil {
+		t.Fatal(err)
+	}
+	uc := usecase.SearchDocuments{Docs: docs}
+	hits, err := uc.Execute(ctx, "u", "kompend", []string{"go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" {
+		t.Fatalf("got %#v, want [a]", hits)
+	}
+}
+
 func TestListDocuments_TagFilter(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	ctx := context.Background()
