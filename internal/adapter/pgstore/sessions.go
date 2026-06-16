@@ -51,6 +51,30 @@ RETURNING id, owner_id, project_id, tag, note, start_at, stop_at, created_at`
 	return ws, err
 }
 
+func (s *SessionStore) Update(ctx context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	const q = `
+UPDATE work_sessions SET project_id=$1, tag=$2, note=$3, start_at=$4, stop_at=$5
+WHERE owner_id=$6 AND id=$7
+RETURNING id, owner_id, project_id, tag, note, start_at, stop_at, created_at`
+	ws, err := scanSession(s.pool.QueryRow(ctx, q, projectID, tag, note, start, stop, ownerID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	return ws, err
+}
+
+func (s *SessionStore) Delete(ctx context.Context, ownerID, id string) error {
+	const q = `DELETE FROM work_sessions WHERE owner_id=$1 AND id=$2`
+	ct, err := s.pool.Exec(ctx, q, ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: delete session: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ports.ErrSessionNotFound
+	}
+	return nil
+}
+
 func (s *SessionStore) List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error) {
 	const q = `
 SELECT id, owner_id, project_id, tag, note, start_at, stop_at, created_at
