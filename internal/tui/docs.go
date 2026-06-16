@@ -30,10 +30,11 @@ type urlOpener interface {
 type docMode int
 
 const (
-	modeList     docMode = iota // browsing the list
-	modeView                    // reading one document's body
-	modeCreating                // entering slug/type/title before $EDITOR
-	modeDeleting                // confirming a delete
+	modeList      docMode = iota // browsing the list
+	modeView                     // reading one document's body
+	modeCreating                 // entering slug/type/title before $EDITOR
+	modeDeleting                 // confirming a delete
+	modeFiltering                // tag-filter overlay
 )
 
 // create-form fields, navigated with tab/enter.
@@ -69,6 +70,11 @@ type DocsModel struct {
 	linkFocus int      // -1 = none focused
 	viewStack []string // doc-id back-stack for in-TUI wikilink nav
 	backlinks []domain.BacklinkRef
+
+	filterTags   []string          // applied filter (AND)
+	filterWork   []string          // working set while in modeFiltering
+	filterOpts   []domain.TagCount // available tags for the overlay
+	filterCursor int
 }
 
 // NewDocs builds the docs model. client/ed/op may be nil in tests that only drive
@@ -117,11 +123,28 @@ func (m DocsModel) reload() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		docs, err := m.client.ListDocuments(ctx)
+		docs, err := m.client.ListDocuments(ctx, m.filterTags...)
 		if err != nil {
 			return errMsg{err}
 		}
 		return docsLoadedMsg{docs: docs}
+	}
+}
+
+type tagsLoadedMsg struct{ tags []domain.TagCount }
+
+func (m DocsModel) loadTags() tea.Cmd {
+	if m.client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		tags, err := m.client.Tags(ctx)
+		if err != nil {
+			return errMsg{err}
+		}
+		return tagsLoadedMsg{tags: tags}
 	}
 }
 
@@ -255,6 +278,9 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case docViewMsg:
 		d := msg.doc
+		if _, start := domain.ParseFrontmatter(d.Body); start > 0 {
+			d.Body = d.Body[start:]
+		}
 		m.viewing = &d
 		m.mode = modeView
 		m.viewLinks = buildBodyLinks(d.Body, d, m.docs)
@@ -276,6 +302,12 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			seen[r.ID] = true
 			m.viewLinks = append(m.viewLinks, linkTarget{kind: linkWiki, docID: r.ID, label: r.Title})
 		}
+		return m, nil
+	case tagsLoadedMsg:
+		m.filterOpts = msg.tags
+		m.filterWork = append([]string(nil), m.filterTags...)
+		m.filterCursor = 0
+		m.mode = modeFiltering
 		return m, nil
 	case eventsReadyMsg:
 		m.events = msg.ch
@@ -316,6 +348,8 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleCreateKey(k)
 	case modeDeleting:
 		return m.handleDeleteKey(k)
+	case modeFiltering:
+		return m.handleFilterKey(k)
 	case modeView:
 		switch {
 		case k.Code == tea.KeyEsc:
@@ -385,6 +419,8 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.mode = modeDeleting
 		return m, nil
+	case k.Text == "f":
+		return m, m.loadTags()
 	}
 	return m, nil
 }
@@ -512,6 +548,58 @@ func (m DocsModel) handleDeleteKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case k.Code == tea.KeyEsc:
+		m.mode = modeList // discard working changes
+		return m, nil
+	case k.Text == "j":
+		if m.filterCursor < len(m.filterOpts)-1 {
+			m.filterCursor++
+		}
+		return m, nil
+	case k.Text == "k":
+		if m.filterCursor > 0 {
+			m.filterCursor--
+		}
+		return m, nil
+	case k.Text == " ":
+		if m.filterCursor < len(m.filterOpts) {
+			m.filterWork = toggleStr(m.filterWork, m.filterOpts[m.filterCursor].Tag)
+		}
+		return m, nil
+	case k.Text == "c":
+		m.filterWork = nil
+		return m, nil
+	case k.Code == tea.KeyEnter:
+		m.filterTags = append([]string(nil), m.filterWork...)
+		m.mode = modeList
+		m.sel = 0
+		return m, m.reload()
+	}
+	return m, nil
+}
+
+// toggleStr adds s to xs if absent, removes it if present.
+func toggleStr(xs []string, s string) []string {
+	for i, x := range xs {
+		if x == s {
+			return append(xs[:i:i], xs[i+1:]...)
+		}
+	}
+	return append(xs, s)
+}
+
+// containsStr reports whether xs contains s.
+func containsStr(xs []string, s string) bool {
+	for _, x := range xs {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 func nextDocType(t domain.DocumentType) domain.DocumentType {
@@ -664,6 +752,8 @@ func (m DocsModel) View() tea.View {
 	case modeDeleting:
 		m.renderList(&b)
 		b.WriteString("\n" + styleWarn.Render("  delete this document? y / n") + "\n")
+	case modeFiltering:
+		m.renderFilter(&b)
 	default:
 		m.renderList(&b)
 	}
@@ -699,23 +789,43 @@ func (m DocsModel) footer() string {
 		return "tab next · space type · enter next/open editor · esc cancel"
 	case modeDeleting:
 		return "y confirm · n/esc cancel"
+	case modeFiltering:
+		return "j/k move · space toggle · c clear · enter apply · esc cancel"
 	default:
-		return "j/k move · enter view · n new · e edit · d delete · q quit"
+		return "j/k move · enter view · n new · e edit · d delete · f filter · q quit"
 	}
+}
+
+// tagSuffix builds a "#tag1 #tag2" string for display.
+func tagSuffix(tags []string) string {
+	parts := make([]string, len(tags))
+	for i, t := range tags {
+		parts[i] = "#" + t
+	}
+	return strings.Join(parts, " ")
 }
 
 func (m DocsModel) renderList(b *strings.Builder) {
 	b.WriteString(styleHeader.Render("Documents") + "\n")
+	if len(m.filterTags) > 0 {
+		b.WriteString(styleMuted.Render("  filter: "+tagSuffix(m.filterTags)) + "\n")
+	}
 	if len(m.docs) == 0 {
 		b.WriteString(styleMuted.Render("  no documents yet — press n to create one") + "\n")
 		return
 	}
 	for i, d := range m.docs {
-		line := fmt.Sprintf("  %-7s %s  %s", d.Type, d.Path, d.Title)
-		if i == m.sel {
-			line = styleSel.Render(fmt.Sprintf("▸ %-7s %s  %s", d.Type, d.Path, d.Title))
+		tags := ""
+		if len(d.Tags) > 0 {
+			tags = styleMuted.Render("  " + tagSuffix(d.Tags))
 		}
-		b.WriteString(line + "\n")
+		if i == m.sel {
+			line := styleSel.Render(fmt.Sprintf("▸ %-7s %s  %s", d.Type, d.Path, d.Title)) + tags
+			b.WriteString(line + "\n")
+		} else {
+			line := fmt.Sprintf("  %-7s %s  %s", d.Type, d.Path, d.Title) + tags
+			b.WriteString(line + "\n")
+		}
 	}
 }
 
@@ -725,8 +835,15 @@ func (m DocsModel) renderView(b *strings.Builder) {
 		return
 	}
 	d := m.viewing
-	b.WriteString(styleHeader.Render(d.Title) + styleMuted.Render("  "+string(d.Type)+" · "+d.Path) + "\n\n")
+	hdr := styleHeader.Render(d.Title) + styleMuted.Render("  "+string(d.Type)+" · "+d.Path)
+	if len(d.Tags) > 0 {
+		hdr += styleMuted.Render("  " + tagSuffix(d.Tags))
+	}
+	b.WriteString(hdr + "\n\n")
 	body := d.Body
+	if _, start := domain.ParseFrontmatter(body); start > 0 {
+		body = body[start:]
+	}
 	if strings.TrimSpace(body) == "" {
 		b.WriteString(styleMuted.Render("  (empty)") + "\n")
 		return
@@ -749,6 +866,25 @@ func (m DocsModel) renderBacklinks(b *strings.Builder) {
 			line = "  " + styleWikiValid.Render("→ "+r.Path)
 		} else {
 			line += styleMuted.Render("  " + r.Path)
+		}
+		b.WriteString(line + "\n")
+	}
+}
+
+func (m DocsModel) renderFilter(b *strings.Builder) {
+	b.WriteString(styleHeader.Render("Filter by tag") + "\n")
+	if len(m.filterOpts) == 0 {
+		b.WriteString(styleMuted.Render("  no tags yet") + "\n")
+		return
+	}
+	for i, tc := range m.filterOpts {
+		mark := "  [ ] "
+		if containsStr(m.filterWork, tc.Tag) {
+			mark = "  [x] "
+		}
+		line := fmt.Sprintf("%s#%s (%d)", mark, tc.Tag, tc.Count)
+		if i == m.filterCursor {
+			line = styleSel.Render("▸ " + strings.TrimLeft(line, " "))
 		}
 		b.WriteString(line + "\n")
 	}

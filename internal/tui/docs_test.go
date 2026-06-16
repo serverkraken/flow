@@ -977,6 +977,95 @@ func TestBacklinksMsg_NoDuplicateInFocusCycle(t *testing.T) {
 	}
 }
 
+func TestDocs_FilterOverlayToggleApply(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m.docs = []domain.Document{{ID: "a", Type: domain.DocFree, Path: "a", Tags: []string{"go"}}}
+	m.filterOpts = []domain.TagCount{{Tag: "go", Count: 1}, {Tag: "tui", Count: 2}}
+	m.mode = modeFiltering
+
+	// cursor starts at 0 (= "go"), space toggles "go" into filterWork
+	m2, _ := m.Update(tea.KeyPressMsg{Text: " "})
+	dm := m2.(DocsModel)
+	if len(dm.filterWork) != 1 || dm.filterWork[0] != "go" {
+		t.Fatalf("working set = %#v, want [go]", dm.filterWork)
+	}
+	// enter applies the working set and returns to modeList
+	m3, _ := dm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	dm = m3.(DocsModel)
+	if dm.mode != modeList {
+		t.Fatalf("mode = %v, want modeList", dm.mode)
+	}
+	if len(dm.filterTags) != 1 || dm.filterTags[0] != "go" {
+		t.Fatalf("active filter = %#v, want [go]", dm.filterTags)
+	}
+}
+
+func TestDocs_FilterToggleOff(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m.filterOpts = []domain.TagCount{{Tag: "go", Count: 1}, {Tag: "tui", Count: 2}}
+	m.filterCursor = 0
+	m.mode = modeFiltering
+
+	// First space: "go" is absent from filterWork → toggleStr adds it.
+	m2, _ := m.Update(tea.KeyPressMsg{Text: " "})
+	dm := m2.(DocsModel)
+	if len(dm.filterWork) != 1 || dm.filterWork[0] != "go" {
+		t.Fatalf("after first space: filterWork = %#v, want [go]", dm.filterWork)
+	}
+
+	// Second space: "go" is present → toggleStr removes it (remove branch).
+	m3, _ := dm.Update(tea.KeyPressMsg{Text: " "})
+	dm = m3.(DocsModel)
+	if len(dm.filterWork) != 0 {
+		t.Fatalf("after second space: filterWork = %#v, want []", dm.filterWork)
+	}
+}
+
+func TestDocs_FilterEscDiscards(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m.mode = modeFiltering
+	m.filterTags = []string{"old"}
+	m.filterWork = []string{"new"}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	dm := m2.(DocsModel)
+	if dm.mode != modeList {
+		t.Fatalf("esc: mode = %v, want modeList", dm.mode)
+	}
+	if len(dm.filterTags) != 1 || dm.filterTags[0] != "old" {
+		t.Fatalf("esc: filterTags = %#v, want [old] (pending filterWork must not be applied)", dm.filterTags)
+	}
+}
+
+func TestDocs_FilterClear(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	m.mode = modeFiltering
+	m.filterWork = []string{"go", "tui"}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Text: "c"})
+	dm := m2.(DocsModel)
+	if len(dm.filterWork) != 0 {
+		t.Fatalf("c: filterWork = %#v, want nil/empty", dm.filterWork)
+	}
+}
+
+func TestDocs_RenderViewSkipsFrontmatter(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "u")
+	d := domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "A",
+		Body: "---\ntags: [go]\n---\nhello body", Tags: []string{"go"}}
+	m.viewing = &d
+	m.mode = modeView
+	var b strings.Builder
+	m.renderView(&b)
+	out := b.String()
+	if strings.Contains(out, "tags:") {
+		t.Fatalf("frontmatter leaked into view: %q", out)
+	}
+	if !strings.Contains(out, "hello body") {
+		t.Fatalf("body missing: %q", out)
+	}
+}
+
 func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
 	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] or http://x.io"}
