@@ -79,6 +79,11 @@ type SessionStore interface {
 	Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error)
 	Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error)
 	List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error)
+	// Update overwrites a session's project/tag/note/start/stop. Owner-scoped;
+	// returns ErrSessionNotFound for a missing or foreign session.
+	Update(ctx context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	// Delete removes a session. Owner-scoped; ErrSessionNotFound if absent.
+	Delete(ctx context.Context, ownerID, id string) error
 }
 
 // DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,

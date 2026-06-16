@@ -187,6 +187,38 @@ func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, projectID
 	return e, nil
 }
 
+func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[id]
+	if !ok || e.OwnerID != ownerID {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	e.ProjectID = projectID
+	e.Tag = tag
+	e.Note = note
+	e.Start = start
+	if stop != nil {
+		t := *stop
+		e.Stop = &t
+	} else {
+		e.Stop = nil
+	}
+	s.m[id] = e
+	return e, nil
+}
+
+func (s *FakeSessionStore) Delete(_ context.Context, ownerID, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[id]
+	if !ok || e.OwnerID != ownerID {
+		return ports.ErrSessionNotFound
+	}
+	delete(s.m, id)
+	return nil
+}
+
 func (s *FakeSessionStore) List(_ context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
