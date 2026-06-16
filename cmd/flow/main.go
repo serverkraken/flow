@@ -9,7 +9,7 @@ import (
 )
 
 func rootCmd() *cobra.Command {
-	root := &cobra.Command{Use: "flow", Short: "flow client"}
+	root := &cobra.Command{Use: "flow", Short: "flow client", RunE: runUI}
 	root.AddCommand(whoamiCmd())
 	root.AddCommand(worktimeCmd())
 	root.AddCommand(loginCmd())
@@ -18,6 +18,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(exportCmd())
 	root.AddCommand(projectCmd())
 	root.AddCommand(docsCmd())
+	root.AddCommand(uiCmd())
 	return root
 }
 
