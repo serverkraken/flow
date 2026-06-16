@@ -50,6 +50,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
+		ListTags:          usecase.ListTags{Docs: docs},
 	}
 	return srv, bus
 }
@@ -298,6 +299,108 @@ func TestHandleDeleteDocument_NotFound(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func mustDocJSON(t *testing.T, docType, path, title, body string) string {
+	t.Helper()
+	b, err := json.Marshal(map[string]string{
+		"type":  docType,
+		"path":  path,
+		"title": title,
+		"body":  body,
+	})
+	if err != nil {
+		t.Fatalf("marshal doc: %v", err)
+	}
+	return string(b)
+}
+
+func TestHandleListDocuments_TagFilter(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// doc "a": tags [go, tui] via frontmatter
+	resA := doDoc(t, ts, "POST", "/api/v1/documents",
+		mustDocJSON(t, "free", "tag-filter-a", "A", "---\ntags: [go, tui]\n---\nsome content"))
+	_ = resA.Body.Close()
+	if resA.StatusCode != http.StatusCreated {
+		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
+	}
+
+	// doc "b": tags [go] only via frontmatter
+	resB := doDoc(t, ts, "POST", "/api/v1/documents",
+		mustDocJSON(t, "free", "tag-filter-b", "B", "---\ntags: [go]\n---\nother content"))
+	_ = resB.Body.Close()
+	if resB.StatusCode != http.StatusCreated {
+		t.Fatalf("create B: want 201, got %d", resB.StatusCode)
+	}
+
+	// GET ?tag=go&tag=tui — AND filter: only doc A matches
+	res := doDoc(t, ts, "GET", "/api/v1/documents?tag=go&tag=tui", "")
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var list []domain.Document
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("want exactly 1 doc, got %d: %+v", len(list), list)
+	}
+	if list[0].Path != "tag-filter-a" {
+		t.Errorf("want doc with path tag-filter-a, got %q", list[0].Path)
+	}
+}
+
+func TestHandleListTags(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// doc "a": tags [go, tui]
+	resA := doDoc(t, ts, "POST", "/api/v1/documents",
+		mustDocJSON(t, "free", "tags-list-a", "A", "---\ntags: [go, tui]\n---\nsome content"))
+	_ = resA.Body.Close()
+	if resA.StatusCode != http.StatusCreated {
+		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
+	}
+
+	// doc "b": tags [go]
+	resB := doDoc(t, ts, "POST", "/api/v1/documents",
+		mustDocJSON(t, "free", "tags-list-b", "B", "---\ntags: [go]\n---\nother content"))
+	_ = resB.Body.Close()
+	if resB.StatusCode != http.StatusCreated {
+		t.Fatalf("create B: want 201, got %d", resB.StatusCode)
+	}
+
+	// GET /api/v1/documents/tags
+	res := doDoc(t, ts, "GET", "/api/v1/documents/tags", "")
+	defer func() { _ = res.Body.Close() }()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var tags []domain.TagCount
+	if err := json.NewDecoder(res.Body).Decode(&tags); err != nil {
+		t.Fatalf("decode tags: %v", err)
+	}
+	if len(tags) == 0 {
+		t.Fatal("want at least 1 tag, got empty slice")
+	}
+	// "go" should appear with count 2 (both docs), and be first (highest count)
+	if tags[0].Tag != "go" {
+		t.Errorf("want first tag %q, got %q", "go", tags[0].Tag)
+	}
+	if tags[0].Count != 2 {
+		t.Errorf("want count 2 for tag %q, got %d", "go", tags[0].Count)
 	}
 }
 

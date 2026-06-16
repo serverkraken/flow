@@ -47,7 +47,7 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, r.URL.Query()["tag"])
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -111,6 +111,19 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 		s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (s *Server) handleListTags(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	tags, err := s.ListTags.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if tags == nil {
+		tags = []domain.TagCount{}
+	}
+	writeJSON(w, http.StatusOK, tags)
 }
 
 func (s *Server) handleDocumentBacklinks(w http.ResponseWriter, r *http.Request) {
