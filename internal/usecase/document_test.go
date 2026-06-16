@@ -319,6 +319,9 @@ func (s errDocStore) ReplaceLinks(_ context.Context, srcDocID, ownerID string, t
 func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
 	panic("unexpected Backlinks")
 }
+func (s errDocStore) Search(_ context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+	panic("unexpected Search")
+}
 
 func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
 	ctx := context.Background()

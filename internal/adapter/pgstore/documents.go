@@ -142,6 +142,64 @@ ORDER BY d.updated_at DESC`
 	return out, rows.Err()
 }
 
+// headlineOpts carries the highlight sentinels to ts_headline. Passed as a bound
+// parameter (not a SQL literal) so the control chars need no escaping.
+var headlineOpts = "StartSel=" + domain.HighlightStart + ",StopSel=" + domain.HighlightEnd +
+	",MaxFragments=1,MinWords=5,MaxWords=18,HighlightAll=false"
+
+func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+	sb := `SELECT ` + prefixedDocCols + `,
+  ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq, $3) AS snippet
+FROM documents d, websearch_to_tsquery('simple', $2) ftsq
+WHERE d.owner_id = $1`
+	args := []any{ownerID, q, headlineOpts}
+	if len(tags) > 0 {
+		sb += ` AND d.tags @> $4`
+		args = append(args, tags)
+	}
+	sb += `
+  AND (d.search @@ ftsq OR $2 <% (coalesce(d.title,'')||' '||coalesce(d.body,'')))
+ORDER BY (d.search @@ ftsq) DESC,
+         ts_rank(d.search, ftsq) DESC,
+         GREATEST(word_similarity($2, d.title), word_similarity($2, d.body)) DESC,
+         d.updated_at DESC
+LIMIT 100`
+
+	rows, err := s.pool.Query(ctx, sb, args...)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: search documents: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.SearchHit
+	for rows.Next() {
+		h, err := scanSearchHit(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+// scanSearchHit scans prefixedDocCols + a trailing snippet column.
+func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
+	var d domain.Document
+	var typ string
+	var extra []byte
+	var snippet string
+	if err := r.Scan(&d.ID, &d.OwnerID, &d.ProjectID, &typ, &d.Path, &d.Title, &d.Body,
+		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &snippet); err != nil {
+		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
+	}
+	d.Type = domain.DocumentType(typ)
+	if len(extra) > 0 {
+		if err := json.Unmarshal(extra, &d.Extra); err != nil {
+			return domain.SearchHit{}, fmt.Errorf("pgstore: unmarshal extra: %w", err)
+		}
+	}
+	return domain.SearchHit{Document: d, Snippet: snippet}, nil
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

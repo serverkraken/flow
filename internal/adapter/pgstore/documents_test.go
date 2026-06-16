@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,6 +148,61 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Path != "a" {
 		t.Fatalf("List(go,tui) = %#v, want [a]", got)
+	}
+}
+
+func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-srch", "sub-srch", "srchuser", "srch@x.de", "Search User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	owner := "u-srch"
+
+	st := pgstore.NewDocumentStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+	mk := func(id, path, title, body string, tags ...string) {
+		_, err := st.Create(ctx, domain.Document{
+			ID: id, OwnerID: owner, Type: domain.DocFree, Path: path,
+			Title: title, Body: body, Tags: tags, CreatedAt: now, UpdatedAt: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("srch-a", "a", "Kompendium", "notes about the compendium", "go")
+	mk("srch-b", "b", "Anderes", "etwas ganz anderes")
+
+	hits, err := st.Search(ctx, owner, "kompend", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Path != "a" {
+		t.Fatalf(`search "kompend" = %#v, want [a]`, hits)
+	}
+	exact, err := st.Search(ctx, owner, "compendium", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exact) == 0 || !strings.Contains(exact[0].Snippet, domain.HighlightStart) {
+		t.Fatalf("expected highlighted snippet, got %#v", exact)
+	}
+	none, err := st.Search(ctx, owner, "kompend", []string{"missing"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("tag-filtered search = %d, want 0", len(none))
 	}
 }
 

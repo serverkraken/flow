@@ -125,6 +125,11 @@ type DocumentStore interface {
 	// Backlinks returns the owner's documents whose recorded outbound links
 	// include targetPath (candidate sources; the use case re-resolves scope).
 	Backlinks(ctx context.Context, ownerID, targetPath string) ([]domain.Document, error)
+	// Search returns owner documents matching q (FTS + fuzzy), ranked, each with
+	// a highlighted snippet. When tags are given, results are AND-filtered to
+	// documents carrying all of them. Empty q is not expected here (callers use
+	// List for the no-query path).
+	Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error)
 }
 
 // Editor opens an interactive editor on initial content and returns the

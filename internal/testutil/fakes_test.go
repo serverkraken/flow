@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -80,6 +81,33 @@ func mustCreate(t *testing.T, s *FakeDocumentStore, id, owner, path string, proj
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestFakeDocumentStore_Search(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+	mk := func(id, title, body string, tags ...string) {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: "u", Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("a", "Kompendium", "about the compendium", "go")
+	mk("b", "Other", "unrelated text")
+
+	hits, err := s.Search(ctx, "u", "kompend", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "a" {
+		t.Fatalf("search kompend = %#v, want [a]", hits)
+	}
+	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
+		t.Fatalf("snippet missing highlight markers: %q", hits[0].Snippet)
+	}
+	none, _ := s.Search(ctx, "u", "kompend", []string{"missing"})
+	if len(none) != 0 {
+		t.Fatalf("tag-filtered search = %d, want 0", len(none))
 	}
 }
 

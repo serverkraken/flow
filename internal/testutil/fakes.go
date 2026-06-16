@@ -4,6 +4,7 @@ package testutil
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -470,4 +471,40 @@ func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath str
 		}
 	}
 	return out, nil
+}
+
+func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ql := strings.ToLower(q)
+	var out []domain.SearchHit
+	for _, d := range s.m {
+		if d.OwnerID != ownerID || !hasAllTags(d.Tags, tags) {
+			continue
+		}
+		hay := strings.ToLower(d.Title + " " + d.Body)
+		idx := strings.Index(hay, ql)
+		if ql == "" || idx < 0 {
+			continue
+		}
+		out = append(out, domain.SearchHit{Document: d, Snippet: fakeSnippet(d.Title+" "+d.Body, idx, len(q))})
+	}
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[j].UpdatedAt.After(out[i].UpdatedAt) {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	return out, nil
+}
+
+// fakeSnippet wraps the matched [start,start+n) span of text with the shared
+// highlight sentinels — enough to exercise host snippet rendering in tests.
+func fakeSnippet(text string, start, n int) string {
+	end := start + n
+	if end > len(text) {
+		end = len(text)
+	}
+	return text[:start] + domain.HighlightStart + text[start:end] + domain.HighlightEnd + text[end:]
 }
