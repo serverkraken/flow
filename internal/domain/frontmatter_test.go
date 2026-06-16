@@ -20,6 +20,7 @@ func TestParseFrontmatter(t *testing.T) {
 		{"missing close fence", "---\ntags: [go]\nbody without close", nil, 0},
 		{"unparseable yaml", "---\ntags: [go\n---\nbody", nil, 0},
 		{"close at EOF", "---\ntags: [go]\n---", []string{"go"}, 18},
+		{"dot close", "---\ntags: [a]\n...\nbody", []string{"a"}, 18},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -34,6 +35,15 @@ func TestParseFrontmatter(t *testing.T) {
 				_ = tc.body[start:] // must not panic
 			}
 		})
+	}
+}
+
+func TestCollectTags_Empty(t *testing.T) {
+	if got := CollectTags(nil); len(got) != 0 {
+		t.Fatalf("CollectTags(nil) = %#v, want empty", got)
+	}
+	if got := CollectTags([]Document{{Tags: nil}}); len(got) != 0 {
+		t.Fatalf("CollectTags(no tags) = %#v, want empty", got)
 	}
 }
 
