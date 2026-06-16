@@ -137,3 +137,10 @@ type DocumentStore interface {
 type Editor interface {
 	Edit(ctx context.Context, initial []byte) ([]byte, error)
 }
+
+// Embedder turns texts into embedding vectors (one per input, order-preserving).
+// Implementations are batched. A non-nil error means the backend (e.g. Ollama) is
+// unavailable; callers degrade gracefully.
+type Embedder interface {
+	Embed(ctx context.Context, texts []string) ([][]float32, error)
+}

@@ -3,7 +3,9 @@ package testutil
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -507,4 +509,44 @@ func fakeSnippet(text string, start, n int) string {
 		end = len(text)
 	}
 	return text[:start] + domain.HighlightStart + text[start:end] + domain.HighlightEnd + text[end:]
+}
+
+// FakeEmbedder returns deterministic unit vectors derived from a hash of each
+// text — identical text yields an identical vector, so similarity *ordering* is
+// reproducible without a real model. It does NOT model semantic nearness; tests
+// assert wiring/ordering, not embedding quality. Set Err to simulate Ollama down.
+type FakeEmbedder struct {
+	Dim int
+	Err error
+}
+
+func NewFakeEmbedder() *FakeEmbedder { return &FakeEmbedder{Dim: 768} }
+
+func (f *FakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	out := make([][]float32, len(texts))
+	for i, t := range texts {
+		out[i] = pseudoVec(t, f.Dim)
+	}
+	return out, nil
+}
+
+func pseudoVec(s string, dim int) []float32 {
+	h := sha256.Sum256([]byte(s))
+	v := make([]float32, dim)
+	var norm float64
+	for i := 0; i < dim; i++ {
+		x := float32(int(h[i%len(h)])-128) / 128.0
+		x += float32((i*2654435761)%1000) / 1000.0
+		v[i] = x
+		norm += float64(x) * float64(x)
+	}
+	if n := float32(math.Sqrt(norm)); n > 0 {
+		for i := range v {
+			v[i] /= n
+		}
+	}
+	return v
 }

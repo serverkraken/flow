@@ -11,6 +11,29 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
+func TestFakeEmbedder_DeterministicAndError(t *testing.T) {
+	e := NewFakeEmbedder()
+	a, err := e.Embed(context.Background(), []string{"hello", "world"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(a) != 2 || len(a[0]) != e.Dim {
+		t.Fatalf("shape wrong: %d vecs, dim %d", len(a), len(a[0]))
+	}
+	b, _ := e.Embed(context.Background(), []string{"hello"})
+	for i := range a[0] {
+		if a[0][i] != b[0][i] {
+			t.Fatalf("not deterministic at %d", i)
+		}
+	}
+	e.Err = errTest
+	if _, err := e.Embed(context.Background(), []string{"x"}); err == nil {
+		t.Fatal("expected error when Err set")
+	}
+}
+
+var errTest = errors.New("boom")
+
 func TestFakeUserStoreRoundTrip(t *testing.T) {
 	s := NewFakeUserStore()
 	if _, err := s.GetBySub(context.Background(), "x"); !errors.Is(err, ports.ErrUserNotFound) {
