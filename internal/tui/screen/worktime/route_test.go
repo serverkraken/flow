@@ -197,6 +197,58 @@ func TestOpenEdit_GuardsCursorBounds(t *testing.T) {
 	}
 }
 
+func TestView_RendersEachDialogAndHints(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	frame := shell.Frame{Width: 60, Height: 20, Pal: theme.Load()}
+
+	if r.Title() == "" {
+		t.Fatal("Title empty")
+	}
+
+	// not loaded → lädt placeholder
+	if got := r.View(frame); got == "" {
+		t.Fatal("View (unloaded) empty")
+	}
+
+	r.loaded = true
+	r.st = todayState{
+		Running:   true,
+		ActiveID:  "run",
+		Completed: []completedSession{{ID: "s1"}},
+	}
+
+	// body view + idle/running KeyHints
+	if got := r.View(frame); got == "" {
+		t.Fatal("View (body) empty")
+	}
+	if len(r.KeyHints()) == 0 {
+		t.Fatal("KeyHints (body) empty")
+	}
+	r.st.Running = false
+	if len(r.KeyHints()) == 0 {
+		t.Fatal("KeyHints (idle) empty")
+	}
+
+	// each dialog branch must render via renderDialog + emit dialogHints
+	for _, d := range []dialogKind{dialogBooking, dialogEdit, dialogDelete} {
+		r.dialog = d
+		if d == dialogBooking {
+			r.booking = bookingState{projects: []domain.Project{{ID: "p1", Name: "Flow"}}}
+		}
+		if d == dialogEdit {
+			_, _ = r.openEdit()
+			r.dialog = dialogEdit
+		}
+		if got := r.View(frame); d != dialogDelete && got == "" {
+			t.Fatalf("View dialog %v empty", d)
+		}
+		if len(r.KeyHints()) == 0 {
+			t.Fatalf("dialogHints %v empty", d)
+		}
+	}
+}
+
 func TestActions_EditSubmitCallsEdit(t *testing.T) {
 	f := &fakeAPI{}
 	r := newTestRoute(f)

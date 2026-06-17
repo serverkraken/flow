@@ -254,7 +254,7 @@ func (r *TodayRoute) renderEdit(f shell.Frame) string {
 	var b strings.Builder
 	b.WriteString("\n  Session bearbeiten (tab wechselt · enter speichert · esc bricht ab)\n\n")
 	for i, ti := range r.edit.form {
-		b.WriteString(fmt.Sprintf("  %-6s %s\n", labels[i], ti.View()))
+		fmt.Fprintf(&b, "  %-6s %s\n", labels[i], ti.View())
 	}
 	return b.String()
 }
