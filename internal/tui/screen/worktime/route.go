@@ -9,6 +9,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 	"github.com/serverkraken/flow/internal/tui/ui/toast"
 )
@@ -112,6 +113,9 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		return r, nil
 	case projectsMsg:
 		r.booking.projects = m.projects
+		if r.booking.sel >= len(m.projects) {
+			r.booking.sel = 0
+		}
 		return r, nil
 	case toast.DismissedMsg:
 		r.toast, _ = r.toast.Update(m)
@@ -119,6 +123,24 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	case shell.EventMsg:
 		if isSessionEvent(m.Ev.Type) {
 			return r, r.loadCmd()
+		}
+		return r, nil
+	case reloadMsg:
+		return r, r.loadCmd()
+	case confirm.ResultMsg:
+		open := r.dialog == dialogDelete
+		r.dialog = dialogNone
+		if open && m.Confirmed && r.cursor < len(r.st.Completed) {
+			id := r.st.Completed[r.cursor].ID
+			api := r.api
+			return r, func() tea.Msg {
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := api.DeleteSession(ctx, id); err != nil {
+					return loadedMsg{err: err}
+				}
+				return reloadMsg{}
+			}
 		}
 		return r, nil
 	case tea.KeyPressMsg:

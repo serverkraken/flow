@@ -5,11 +5,17 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 )
+
+func keyPress(s string) tea.KeyPressMsg { return tea.KeyPressMsg{Text: s} }
+func keyEnterMsg() tea.KeyPressMsg       { return tea.KeyPressMsg{Code: tea.KeyEnter} }
+func confirmResult(ok bool) tea.Msg      { return confirm.ResultMsg{Confirmed: ok} }
 
 type fakeAPI struct {
 	today    apiclient.Today
@@ -99,5 +105,115 @@ func TestRoute_CursorMoves(t *testing.T) {
 	r.applyKey("k")
 	if r.cursor != 2 {
 		t.Fatalf("cursor wrap = %d", r.cursor)
+	}
+}
+
+func TestActions_StartWhenIdle(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	r.loaded = true
+	r.st = todayState{Running: false}
+	_, cmd := r.handleKey(keyPress("s"))
+	if cmd == nil {
+		t.Fatal("expected start cmd")
+	}
+	cmd()
+	if !f.started {
+		t.Fatal("StartSession not called")
+	}
+}
+
+func TestActions_StopOpensBookingThenBooks(t *testing.T) {
+	f := &fakeAPI{projects: []domain.Project{{ID: "p1", Name: "Flow"}}}
+	r := newTestRoute(f)
+	r.loaded = true
+	r.st = todayState{Running: true, ActiveID: "run"}
+	_, _ = r.handleKey(keyPress("s"))
+	if r.dialog != dialogBooking {
+		t.Fatalf("dialog = %v, want booking", r.dialog)
+	}
+	r.booking.projects = f.projects
+	_, cmd := r.handleKey(keyEnterMsg())
+	if cmd != nil {
+		cmd()
+	}
+	if r.dialog != dialogNone || f.stopped[1] != "p1" {
+		t.Fatalf("stop booking failed: dialog=%v stopped=%v", r.dialog, f.stopped)
+	}
+}
+
+func TestActions_DeleteConfirmCallsDelete(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	r.loaded = true
+	r.st = todayState{Completed: []completedSession{{ID: "s1"}}}
+	r.cursor = 0
+	_, _ = r.handleKey(keyPress("D"))
+	if r.dialog != dialogDelete {
+		t.Fatalf("dialog = %v, want delete", r.dialog)
+	}
+	_, cmd := r.Update(confirmResult(true))
+	if cmd != nil {
+		cmd()
+	}
+	if f.deleted != "s1" {
+		t.Fatalf("DeleteSession not called: %q", f.deleted)
+	}
+}
+
+func TestBooking_SelClampedOnShorterProjectList(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	r.loaded = true
+	r.st = todayState{Running: true, ActiveID: "run"}
+	r.dialog = dialogBooking
+	r.booking = bookingState{projects: []domain.Project{{ID: "p1"}, {ID: "p2"}, {ID: "p3"}}, sel: 2}
+	// a refresh with a shorter list must clamp sel (no panic on subsequent enter)
+	r.Update(projectsMsg{projects: []domain.Project{{ID: "p1"}}})
+	if r.booking.sel != 0 {
+		t.Fatalf("sel not clamped: %d", r.booking.sel)
+	}
+	// enter now books p1 without panicking
+	_, cmd := r.handleKey(keyEnterMsg())
+	if cmd != nil {
+		cmd()
+	}
+	if f.stopped[1] != "p1" {
+		t.Fatalf("expected stop on p1, got %q", f.stopped[1])
+	}
+}
+
+func TestOpenEdit_GuardsCursorBounds(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	r.loaded = true
+	r.st = todayState{Completed: []completedSession{{ID: "s1"}}}
+	r.cursor = 5 // stale, beyond list
+	if _, _ = r.openEdit(); r.dialog == dialogEdit {
+		t.Fatal("openEdit should not open with out-of-range cursor")
+	}
+	if _, _ = r.openDelete(); r.dialog == dialogDelete {
+		t.Fatal("openDelete should not open with out-of-range cursor")
+	}
+}
+
+func TestActions_EditSubmitCallsEdit(t *testing.T) {
+	f := &fakeAPI{}
+	r := newTestRoute(f)
+	r.loaded = true
+	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 14, 10, 0, 0, 0, time.UTC)
+	r.st = todayState{Completed: []completedSession{{ID: "s1", Start: start, Stop: stop}}}
+	r.cursor = 0
+	_, _ = r.handleKey(keyPress("E"))
+	if r.dialog != dialogEdit {
+		t.Fatalf("dialog = %v, want edit", r.dialog)
+	}
+	cmd := r.submitEdit()
+	if cmd != nil {
+		cmd()
+	}
+	if f.edited != "s1" {
+		t.Fatalf("EditSession not called: %q", f.edited)
 	}
 }
