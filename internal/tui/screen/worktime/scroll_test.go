@@ -1,6 +1,7 @@
 package worktime
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -45,5 +46,28 @@ func TestFitHeight_SmallBudgetNeverExceeds(t *testing.T) {
 func TestBodyBudget(t *testing.T) {
 	if got := bodyBudget(20); got != 20 {
 		t.Fatalf("bodyBudget = %d", got)
+	}
+}
+
+func TestWindowRows_OverflowCountsAreConsistent(t *testing.T) {
+	pal := theme.Load()
+	mid := make([]string, 20)
+	for i := range mid {
+		mid[i] = fmt.Sprintf("r%d", i)
+	}
+	// focus mid-list so BOTH markers appear; budget 5, focus 15 -> start=13, end=18
+	out := windowRows(mid, 15, 5, pal)
+	if len(out) != 5 {
+		t.Fatalf("want 5 rows, got %d", len(out))
+	}
+	top := plain(out[0])
+	bot := plain(out[len(out)-1])
+	// above the window: rows 0..12 fully hidden = 13
+	if !strings.Contains(top, "13 darüber") {
+		t.Fatalf("top marker = %q, want '13 darüber'", top)
+	}
+	// below the window: rows 18,19 fully hidden = 2 (consistent: excludes the displaced boundary row)
+	if !strings.Contains(bot, "2 darunter") {
+		t.Fatalf("bottom marker = %q, want '2 darunter'", bot)
 	}
 }

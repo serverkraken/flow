@@ -59,7 +59,7 @@ func windowRows(mid []string, focus, budget int, pal theme.Palette) []string {
 		out = append(out, mid[start:end]...)
 	}
 	if end < len(mid) {
-		out[len(out)-1] = theme.Dim(fmt.Sprintf("  %s %d darunter", glyphs.Down, len(mid)-end+1), pal)
+		out[len(out)-1] = theme.Dim(fmt.Sprintf("  %s %d darunter", glyphs.Down, len(mid)-end), pal)
 	}
 	return out
 }
