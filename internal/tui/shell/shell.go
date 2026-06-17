@@ -34,7 +34,11 @@ type Shell struct {
 }
 
 type shellEventsReadyMsg struct{ ch <-chan apiclient.ClientEvent }
-type shellEventMsg struct{ ev apiclient.ClientEvent }
+
+// EventMsg carries one server SSE event, broadcast by the Shell to every
+// tab's top route so routes can refresh. Exported so route packages outside
+// `shell` can type-switch on it.
+type EventMsg struct{ Ev apiclient.ClientEvent }
 type shellErrMsg struct{ err error }
 
 // tabSwitchMsg requests a tab change (emitted by palette entries).
@@ -103,7 +107,7 @@ func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case shellEventsReadyMsg:
 		s.events = msg.ch
 		return s, waitForShellEvent(msg.ch)
-	case shellEventMsg:
+	case EventMsg:
 		var cmds []tea.Cmd
 		for _, ns := range s.tabs { // broadcast to all tabs
 			if c := ns.UpdateTop(msg); c != nil {
@@ -252,6 +256,6 @@ func waitForShellEvent(ch <-chan apiclient.ClientEvent) tea.Cmd {
 		if !ok {
 			return nil
 		}
-		return shellEventMsg{ev}
+		return EventMsg{Ev: ev}
 	}
 }
