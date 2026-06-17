@@ -69,6 +69,39 @@ func TestShell_drillDownAndBack(t *testing.T) {
 	}
 }
 
+// initCountRoute records how often its Init() is invoked (through a shared
+// pointer, so value copies inside the NavStack still count).
+type initCountRoute struct {
+	stubRoute
+	calls *int
+}
+
+func (r initCountRoute) Init() tea.Cmd { *r.calls++; return nil }
+
+func TestShell_initsActiveTabRouteAtStartup(t *testing.T) {
+	var home, work int
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		initCountRoute{stubRoute{title: "Home"}, &home},
+		initCountRoute{stubRoute{title: "Worktime"}, &work},
+	})
+	_ = s.Init()
+	if home != 1 {
+		t.Fatalf("active tab Init calls = %d, want 1", home)
+	}
+}
+
+func TestShell_initsTabRouteOnSwitch(t *testing.T) {
+	var home, work int
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		initCountRoute{stubRoute{title: "Home"}, &home},
+		initCountRoute{stubRoute{title: "Worktime"}, &work},
+	})
+	_ = s.Init()
+	if _, _ = s.Update(tea.KeyPressMsg{Text: "2"}); work != 1 {
+		t.Fatalf("switched-to tab Init calls = %d, want 1", work)
+	}
+}
+
 func TestShell_quit(t *testing.T) {
 	_, cmd := newShell().Update(tea.KeyPressMsg{Text: "q"})
 	if cmd == nil {

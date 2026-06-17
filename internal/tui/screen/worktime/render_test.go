@@ -41,6 +41,10 @@ func TestRenderBody_HeadlineBarSummarySessions(t *testing.T) {
 	if !strings.Contains(body, "09:00 → 10:00") {
 		t.Errorf("missing completed session line")
 	}
+	// The running row ticks at second resolution so the clock visibly moves.
+	if !strings.Contains(body, "11:00 → …") || !strings.Contains(body, "1h 00m 00s") {
+		t.Errorf("running row should show live seconds:\n%s", body)
+	}
 }
 
 func TestRenderBody_EmptyState(t *testing.T) {

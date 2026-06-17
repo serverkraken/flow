@@ -75,19 +75,36 @@ func (s Shell) ActiveTab() int    { return s.activeTab }
 func (s Shell) PaletteOpen() bool { return s.paletteOpen }
 func (s Shell) ActiveDepth() int  { return s.tabs[s.activeTab].Len() }
 
-// Init subscribes to SSE if a client is present.
+// Init loads the initial (active) tab's route and subscribes to SSE if a
+// client is present. Without initing the active tab route, a root tab never
+// loads its data or starts its tick loop until an SSE event happens to arrive.
 func (s Shell) Init() tea.Cmd {
-	if s.client == nil {
+	cmds := []tea.Cmd{s.initActiveTab()}
+	if s.client != nil {
+		cl := s.client
+		cmds = append(cmds, func() tea.Msg {
+			ch, err := cl.Events(context.Background())
+			if err != nil {
+				return shellErrMsg{err}
+			}
+			return shellEventsReadyMsg{ch}
+		})
+	}
+	return tea.Batch(cmds...)
+}
+
+// initActiveTab returns the active tab's top route's Init cmd so the tab loads
+// (and starts any tick loop) when it first becomes visible.
+func (s Shell) initActiveTab() tea.Cmd { return s.tabs[s.activeTab].Top().Init() }
+
+// switchTo activates tab i (if valid and different) and returns its route's
+// Init cmd so the newly-visible tab (re)loads.
+func (s *Shell) switchTo(i int) tea.Cmd {
+	if i < 0 || i >= len(s.tabs) || i == s.activeTab {
 		return nil
 	}
-	cl := s.client
-	return func() tea.Msg {
-		ch, err := cl.Events(context.Background())
-		if err != nil {
-			return shellErrMsg{err}
-		}
-		return shellEventsReadyMsg{ch}
-	}
+	s.activeTab = i
+	return s.initActiveTab()
 }
 
 // Update is the central dispatcher.
@@ -133,10 +150,8 @@ func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.paletteOpen = false
 		return s, nil
 	case tabSwitchMsg:
-		if i := int(msg); i >= 0 && i < len(s.tabs) {
-			s.activeTab = i
-		}
-		return s, nil
+		cmd := s.switchTo(int(msg))
+		return s, cmd
 
 	case tea.KeyPressMsg:
 		return s.handleKey(msg)
@@ -170,16 +185,14 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.helpOpen = !s.helpOpen
 		return s, nil
 	case k.Code == tea.KeyTab && k.Mod.Contains(tea.ModShift):
-		s.activeTab = (s.activeTab - 1 + len(s.tabs)) % len(s.tabs)
-		return s, nil
+		cmd := s.switchTo((s.activeTab - 1 + len(s.tabs)) % len(s.tabs))
+		return s, cmd
 	case k.Code == tea.KeyTab:
-		s.activeTab = (s.activeTab + 1) % len(s.tabs)
-		return s, nil
+		cmd := s.switchTo((s.activeTab + 1) % len(s.tabs))
+		return s, cmd
 	case len(k.Text) == 1 && k.Text[0] >= '1' && k.Text[0] <= '9':
-		if i := int(k.Text[0] - '1'); i < len(s.tabs) {
-			s.activeTab = i
-		}
-		return s, nil
+		cmd := s.switchTo(int(k.Text[0] - '1'))
+		return s, cmd
 	default:
 		return s, s.tabs[s.activeTab].UpdateTop(k)
 	}

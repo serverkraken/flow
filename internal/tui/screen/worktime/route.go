@@ -69,7 +69,13 @@ func NewTodayRoute(api todayAPI, now func() time.Time, pal theme.Palette) *Today
 
 func (r *TodayRoute) Title() string { return "Worktime" }
 
-func (r *TodayRoute) Init() tea.Cmd { return r.loadCmd() }
+func (r *TodayRoute) Init() tea.Cmd {
+	// Fresh (re)entry: any prior tick loop has already stopped (its ticks now
+	// route to whichever tab is active), so clear the guard to let loadedMsg
+	// restart the live tick.
+	r.ticking = false
+	return r.loadCmd()
+}
 
 func (r *TodayRoute) loadCmd() tea.Cmd {
 	api := r.api

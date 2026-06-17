@@ -99,7 +99,7 @@ func renderSessionsList(st todayState, cursor, inner int, now time.Time, pal the
 	if st.Running && st.Active != nil {
 		elapsed := now.Sub(*st.Active)
 		rows = append(rows, theme.Active(
-			fmt.Sprintf("  %s %s → …   %s", glyphs.Active, st.Active.Format("15:04"), formatDur(elapsed)), pal))
+			fmt.Sprintf("  %s %s → …   %s", glyphs.Active, st.Active.Format("15:04"), formatDurLive(elapsed)), pal))
 	}
 	for i, s := range st.Completed {
 		if s.GapBefore > 0 {
