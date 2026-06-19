@@ -94,3 +94,37 @@ func TestDatepicker_singleDigitMonthAutoCommits(t *testing.T) {
 		t.Fatalf("single-digit month: %q, want 2026-07-15", m.Value())
 	}
 }
+
+func TestDatepicker_calendarStructure(t *testing.T) {
+	m := datepicker.New(time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), theme.Default)
+	cal := m.Calendar(time.Time{})
+	if !strings.Contains(cal, "Juli 2026") {
+		t.Fatalf("calendar missing month header: %q", cal)
+	}
+	if !strings.Contains(cal, "Mo Di Mi Do Fr Sa So") {
+		t.Fatalf("calendar missing weekday header: %q", cal)
+	}
+	for _, day := range []string{" 1", "15", "31"} {
+		if !strings.Contains(cal, day) {
+			t.Fatalf("calendar missing day %q:\n%s", day, cal)
+		}
+	}
+}
+
+func TestDatepicker_calendarMarksSelectedAndToday(t *testing.T) {
+	m20 := datepicker.New(time.Date(2026, 7, 20, 0, 0, 0, 0, time.UTC), theme.Default)
+	m21 := datepicker.New(time.Date(2026, 7, 21, 0, 0, 0, 0, time.UTC), theme.Default)
+	// Changing the selected day changes the rendered grid (selection is marked).
+	if m20.Calendar(time.Time{}) == m21.Calendar(time.Time{}) {
+		t.Fatal("selected-day marking should differ between day 20 and 21")
+	}
+	// today in the shown month changes the grid; today in another month does not.
+	todayIn := time.Date(2026, 7, 5, 0, 0, 0, 0, time.UTC)
+	todayOut := time.Date(2026, 8, 5, 0, 0, 0, 0, time.UTC)
+	if m20.Calendar(todayIn) == m20.Calendar(time.Time{}) {
+		t.Fatal("today-in-month should change the grid")
+	}
+	if m20.Calendar(todayOut) != m20.Calendar(time.Time{}) {
+		t.Fatal("today outside the shown month should not change the grid")
+	}
+}

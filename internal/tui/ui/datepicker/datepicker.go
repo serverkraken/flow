@@ -6,6 +6,7 @@ package datepicker
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -195,4 +196,40 @@ func (m Model) View() string {
 	}
 	wd := weekdayShort(time.Date(m.y, time.Month(m.mo), m.d, 0, 0, 0, 0, time.UTC).Weekday())
 	return segs[0] + "-" + segs[1] + "-" + segs[2] + "  (" + wd + ")"
+}
+
+// monthNames are the German month names indexed 1..12.
+var monthNames = [...]string{"", "Januar", "Februar", "März", "April", "Mai", "Juni",
+	"Juli", "August", "September", "Oktober", "November", "Dezember"}
+
+// Calendar renders a read-only Monday-first month grid of the selected date's
+// month. The selected day is accent-highlighted; today (when it falls in the
+// shown month) is dimmed. Pass the zero time to omit the today highlight. It is
+// pure rendering — it does not change the selection.
+func (m Model) Calendar(today time.Time) string {
+	first := time.Date(m.y, time.Month(m.mo), 1, 0, 0, 0, 0, time.UTC)
+	lead := (int(first.Weekday()) + 6) % 7 // Monday=0
+	n := daysIn(m.y, m.mo)
+	todayInMonth := !today.IsZero() && today.Year() == m.y && int(today.Month()) == m.mo
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "  %s %d\n", monthNames[m.mo], m.y)
+	b.WriteString("  Mo Di Mi Do Fr Sa So\n  ")
+	for i := 0; i < lead; i++ {
+		b.WriteString("   ")
+	}
+	for day := 1; day <= n; day++ {
+		cell := fmt.Sprintf("%2d", day)
+		switch {
+		case day == m.d:
+			cell = theme.Active(cell, m.pal)
+		case todayInMonth && today.Day() == day:
+			cell = theme.Dim(cell, m.pal)
+		}
+		b.WriteString(cell + " ")
+		if (lead+day)%7 == 0 {
+			b.WriteString("\n  ")
+		}
+	}
+	return b.String()
 }
