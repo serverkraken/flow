@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -71,5 +76,46 @@ func TestImportDate(t *testing.T) {
 	}
 	if importDate(vaultFrontmatter{}, "notes/foo.md") != nil {
 		t.Fatal("non-date file should yield nil")
+	}
+}
+
+func TestProjectResolver_MatchesThenCreates(t *testing.T) {
+	var created []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{{ID: "p-existing", Name: "gitlab.com/a/existing"}})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+			var in map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			created = append(created, in["name"])
+			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-new", Name: in["name"]})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	pr := newProjectResolver(c, false)
+
+	// existing → matched by Name, no create
+	id, err := pr.resolve(context.Background(), "gitlab.com/a/existing")
+	if err != nil || id == nil || *id != "p-existing" {
+		t.Fatalf("match existing: id=%v err=%v", id, err)
+	}
+	// unknown → created with full path as name
+	id2, _ := pr.resolve(context.Background(), "gitlab.com/a/brand-new")
+	if id2 == nil || *id2 != "p-new" {
+		t.Fatalf("create: id=%v", id2)
+	}
+	// same path again → cached, no second create
+	_, _ = pr.resolve(context.Background(), "gitlab.com/a/brand-new")
+	if len(created) != 1 || created[0] != "gitlab.com/a/brand-new" {
+		t.Fatalf("created = %v (want exactly one, full path)", created)
+	}
+	if pr.created != 1 {
+		t.Fatalf("pr.created = %d, want 1", pr.created)
+	}
+	// empty project path → nil id, no error
+	if id3, err := pr.resolve(context.Background(), ""); err != nil || id3 != nil {
+		t.Fatalf("empty path: id=%v err=%v", id3, err)
 	}
 }

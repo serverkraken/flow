@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"gopkg.in/yaml.v3"
 )
@@ -100,4 +102,74 @@ func importDate(fm vaultFrontmatter, filename string) *time.Time {
 		return &t
 	}
 	return nil
+}
+
+// projectResolver find-or-creates flow projects for vault `project:` paths,
+// caching results for the run. Existing projects are matched by Name or Slug
+// (the vault path, or its slugified form); unknown paths are created with the
+// full path as the project name (the only field apiclient.CreateProject sets,
+// and a stable idempotency key across re-runs).
+type projectResolver struct {
+	client   *apiclient.Client
+	cache    map[string]string // vault project path → flow project id
+	existing map[string]string // Name/Slug → flow project id (lazy-loaded)
+	dryRun   bool
+	created  int
+}
+
+func newProjectResolver(c *apiclient.Client, dryRun bool) *projectResolver {
+	return &projectResolver{client: c, cache: map[string]string{}, dryRun: dryRun}
+}
+
+func (pr *projectResolver) load(ctx context.Context) error {
+	if pr.existing != nil {
+		return nil
+	}
+	pr.existing = map[string]string{}
+	list, err := pr.client.ListProjects(ctx)
+	if err != nil {
+		return err
+	}
+	for _, p := range list {
+		if p.Name != "" {
+			pr.existing[p.Name] = p.ID
+		}
+		if p.Slug != "" {
+			pr.existing[p.Slug] = p.ID
+		}
+	}
+	return nil
+}
+
+func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*string, error) {
+	if projectPath == "" {
+		return nil, nil
+	}
+	if id, ok := pr.cache[projectPath]; ok {
+		return &id, nil
+	}
+	if err := pr.load(ctx); err != nil {
+		return nil, err
+	}
+	if id, ok := pr.existing[projectPath]; ok {
+		pr.cache[projectPath] = id
+		return &id, nil
+	}
+	if id, ok := pr.existing[slugify(projectPath)]; ok {
+		pr.cache[projectPath] = id
+		return &id, nil
+	}
+	pr.created++
+	if pr.dryRun {
+		id := "(dry-run)"
+		pr.cache[projectPath] = id
+		return &id, nil
+	}
+	p, err := pr.client.CreateProject(ctx, projectPath)
+	if err != nil {
+		return nil, err
+	}
+	pr.cache[projectPath] = p.ID
+	pr.existing[p.Name] = p.ID
+	return &p.ID, nil
 }
