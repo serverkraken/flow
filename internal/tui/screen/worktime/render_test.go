@@ -47,6 +47,30 @@ func TestRenderBody_HeadlineBarSummarySessions(t *testing.T) {
 	}
 }
 
+func TestRenderBody_ShowsProjectBeforeTag(t *testing.T) {
+	pal := theme.Load()
+	loc := time.UTC
+	now := time.Date(2026, 6, 14, 12, 0, 0, 0, loc)
+	c1Start := time.Date(2026, 6, 14, 9, 0, 0, 0, loc)
+	c1Stop := time.Date(2026, 6, 14, 10, 0, 0, 0, loc)
+	st := todayState{
+		Completed: []completedSession{
+			{ID: "a", Start: c1Start, Stop: c1Stop, Elapsed: time.Hour, Tag: "deep", Project: "Flow"},
+			{ID: "b", Start: c1Start.Add(2 * time.Hour), Stop: c1Stop.Add(2 * time.Hour), Elapsed: time.Hour},
+		},
+		Target: 8 * time.Hour,
+	}
+	body := plain(renderBody(st, 0, 80, 24, now, nil, pal))
+	// Project name sits before the tag in the same trailing hint.
+	if !strings.Contains(body, "Flow [deep]") {
+		t.Errorf("project should render before tag as %q:\n%s", "Flow [deep]", body)
+	}
+	// A session without a project still renders its row, just no project name.
+	if !strings.Contains(body, "11:00 → 12:00") {
+		t.Errorf("project-less session row missing:\n%s", body)
+	}
+}
+
 func TestRenderBody_EmptyState(t *testing.T) {
 	pal := theme.Load()
 	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)

@@ -38,6 +38,7 @@ const (
 type loadedMsg struct {
 	today    apiclient.Today
 	sessions []domain.WorkSession
+	projects []domain.Project
 	err      error
 }
 type projectsMsg struct{ projects []domain.Project }
@@ -89,7 +90,13 @@ func (r *TodayRoute) loadCmd() tea.Cmd {
 			return loadedMsg{err: err}
 		}
 		sessions, err := api.ListSessions(ctx)
-		return loadedMsg{today: today, sessions: sessions, err: err}
+		if err != nil {
+			return loadedMsg{err: err}
+		}
+		// Projects resolve each session's ProjectID to a display name; a
+		// failure here only drops the names, not the session list.
+		projects, _ := api.ListProjects(ctx)
+		return loadedMsg{today: today, sessions: sessions, projects: projects}
 	}
 }
 
@@ -103,7 +110,7 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		r.loaded = true
 		r.err = m.err
 		if m.err == nil {
-			r.st = reconstruct(m.today, m.sessions, r.now())
+			r.st = reconstruct(m.today, m.sessions, m.projects, r.now())
 			if r.cursor >= len(r.st.Completed) {
 				r.cursor = max(0, len(r.st.Completed)-1)
 			}

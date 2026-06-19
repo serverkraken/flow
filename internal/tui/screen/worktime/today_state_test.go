@@ -30,7 +30,7 @@ func TestReconstruct_FiltersTodayAndComputesFields(t *testing.T) {
 	}
 	today := apiclient.Today{TargetMin: 480, LoggedMin: 90, Running: true}
 
-	st := reconstruct(today, sessions, now)
+	st := reconstruct(today, sessions, nil, now)
 
 	if len(st.Completed) != 2 {
 		t.Fatalf("Completed = %d, want 2 (today, stopped)", len(st.Completed))
@@ -73,8 +73,35 @@ func TestReconstruct_LocalTZBoundary(t *testing.T) {
 	now := time.Date(2026, 6, 14, 23, 45, 0, 0, loc)
 	s := time.Date(2026, 6, 14, 23, 30, 0, 0, loc)
 	e := time.Date(2026, 6, 14, 23, 40, 0, 0, loc)
-	st := reconstruct(apiclient.Today{}, []domain.WorkSession{{ID: "x", Start: s, Stop: &e}}, now)
+	st := reconstruct(apiclient.Today{}, []domain.WorkSession{{ID: "x", Start: s, Stop: &e}}, nil, now)
 	if len(st.Completed) != 1 {
 		t.Fatalf("late-night session dropped: %d", len(st.Completed))
+	}
+}
+
+func TestReconstruct_ResolvesProjectName(t *testing.T) {
+	loc := time.UTC
+	now := time.Date(2026, 6, 14, 12, 0, 0, 0, loc)
+	s := time.Date(2026, 6, 14, 9, 0, 0, 0, loc)
+	e := time.Date(2026, 6, 14, 10, 0, 0, 0, loc)
+	s2 := time.Date(2026, 6, 14, 10, 30, 0, 0, loc)
+	e2 := time.Date(2026, 6, 14, 11, 0, 0, 0, loc)
+	pid := "p1"
+	gone := "p-deleted"
+	sessions := []domain.WorkSession{
+		{ID: "a", Start: s, Stop: &e, ProjectID: &pid},   // resolvable
+		{ID: "b", Start: s2, Stop: &e2, ProjectID: &gone}, // unknown id -> empty
+	}
+	projects := []domain.Project{{ID: "p1", Name: "Flow"}}
+
+	st := reconstruct(apiclient.Today{}, sessions, projects, now)
+	if len(st.Completed) != 2 {
+		t.Fatalf("Completed = %d, want 2", len(st.Completed))
+	}
+	if st.Completed[0].Project != "Flow" {
+		t.Fatalf("Completed[0].Project = %q, want Flow", st.Completed[0].Project)
+	}
+	if st.Completed[1].Project != "" {
+		t.Fatalf("Completed[1].Project = %q, want empty (unknown/no project)", st.Completed[1].Project)
 	}
 }

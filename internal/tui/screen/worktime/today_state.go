@@ -15,6 +15,7 @@ type completedSession struct {
 	Elapsed   time.Duration
 	Tag       string
 	Note      string
+	Project   string // resolved project name ("" if none or unknown)
 	GapBefore time.Duration
 }
 
@@ -34,8 +35,13 @@ func sameLocalDay(a, b time.Time) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-func reconstruct(today apiclient.Today, sessions []domain.WorkSession, now time.Time) todayState {
+func reconstruct(today apiclient.Today, sessions []domain.WorkSession, projects []domain.Project, now time.Time) todayState {
 	st := todayState{Target: time.Duration(today.TargetMin) * time.Minute, Running: today.Running}
+
+	nameByID := make(map[string]string, len(projects))
+	for _, p := range projects {
+		nameByID[p.ID] = p.Name
+	}
 
 	todays := make([]domain.WorkSession, 0, len(sessions))
 	for _, s := range sessions {
@@ -61,9 +67,13 @@ func reconstruct(today apiclient.Today, sessions []domain.WorkSession, now time.
 			}
 		}
 		el := s.Stop.Sub(s.Start)
+		project := ""
+		if s.ProjectID != nil {
+			project = nameByID[*s.ProjectID]
+		}
 		st.Completed = append(st.Completed, completedSession{
 			ID: s.ID, Start: s.Start, Stop: *s.Stop, Elapsed: el,
-			Tag: s.Tag, Note: s.Note, GapBefore: gap,
+			Tag: s.Tag, Note: s.Note, Project: project, GapBefore: gap,
 		})
 		st.Logged += el
 		prevStop = *s.Stop

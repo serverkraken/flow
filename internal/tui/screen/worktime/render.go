@@ -3,6 +3,7 @@ package worktime
 import (
 	"fmt"
 	"image/color"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -108,10 +109,15 @@ func renderSessionsList(st todayState, cursor, inner int, now time.Time, pal the
 		}
 		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)
-		hint := ""
-		if s.Tag != "" {
-			hint = "[" + s.Tag + "]"
+		// Trailing dim hint: project name first, then the tag chip.
+		var hintParts []string
+		if s.Project != "" {
+			hintParts = append(hintParts, s.Project)
 		}
+		if s.Tag != "" {
+			hintParts = append(hintParts, "["+s.Tag+"]")
+		}
+		hint := strings.Join(hintParts, " ")
 		if i == cursor {
 			focus = len(rows)
 		}
