@@ -68,6 +68,16 @@ func (s Shell) WithTabs(routes []Route) Shell {
 	return s
 }
 
+// WithActiveTab sets the initially-visible tab (clamped to range). Used by the
+// `flow ui [tab]` deep-link to start on Worktime/Docs instead of Home.
+func (s Shell) WithActiveTab(i int) Shell {
+	if i < 0 || i >= len(s.tabs) {
+		i = 0
+	}
+	s.activeTab = i
+	return s
+}
+
 // Accessors (used by tests + cmd).
 func (s Shell) Width() int        { return s.width }
 func (s Shell) Height() int       { return s.height }
@@ -164,6 +174,14 @@ func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tabSwitchMsg:
 		cmd := s.switchTo(int(msg))
 		return s, cmd
+
+	case SwitchTabMsg:
+		for i, ns := range s.tabs {
+			if ns.Root().Title() == msg.Title {
+				return s, s.switchTo(i)
+			}
+		}
+		return s, nil
 
 	case tea.KeyPressMsg:
 		return s.handleKey(msg)

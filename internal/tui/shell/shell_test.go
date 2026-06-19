@@ -188,6 +188,38 @@ func TestShell_nonCapturingRouteStillSwitchesTabOnDigit(t *testing.T) {
 	}
 }
 
+func TestShell_switchTabByTitle(t *testing.T) {
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		stubRoute{title: "Home"},
+		stubRoute{title: "Worktime"},
+		stubRoute{title: "Docs"},
+	})
+	next, _ := s.Update(shell.SwitchTabMsg{Title: "Docs"})
+	if next.(shell.Shell).ActiveTab() != 2 {
+		t.Fatalf("SwitchTabMsg{Docs} should activate tab 2, got %d", next.(shell.Shell).ActiveTab())
+	}
+	// Unknown title is a no-op (stays put).
+	again, _ := next.(shell.Shell).Update(shell.SwitchTabMsg{Title: "Nope"})
+	if again.(shell.Shell).ActiveTab() != 2 {
+		t.Fatalf("unknown SwitchTabMsg should be a no-op, got %d", again.(shell.Shell).ActiveTab())
+	}
+}
+
+func TestShell_withActiveTabStartsThere(t *testing.T) {
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		stubRoute{title: "Home"},
+		stubRoute{title: "Worktime"},
+		stubRoute{title: "Docs"},
+	}).WithActiveTab(1)
+	if s.ActiveTab() != 1 {
+		t.Fatalf("WithActiveTab(1) => ActiveTab %d, want 1", s.ActiveTab())
+	}
+	// Out of range clamps to 0.
+	if shell.New(nil, "a", theme.Default).WithActiveTab(9).ActiveTab() != 0 {
+		t.Fatal("WithActiveTab(out-of-range) should clamp to 0")
+	}
+}
+
 func TestShell_switchRoute_pushesAtRootThenReplaces(t *testing.T) {
 	var rootInit, aInit, bInit int
 	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}

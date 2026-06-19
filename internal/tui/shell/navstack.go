@@ -11,6 +11,9 @@ type NavStack struct {
 // NewNavStack returns a stack whose only (permanent) entry is root.
 func NewNavStack(root Route) *NavStack { return &NavStack{stack: []Route{root}} }
 
+// Root returns the bottom (tab-root) route of the stack.
+func (n *NavStack) Root() Route { return n.stack[0] }
+
 // Top returns the visible Route.
 func (n *NavStack) Top() Route { return n.stack[len(n.stack)-1] }
 

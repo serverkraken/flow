@@ -43,6 +43,11 @@ type PopRouteMsg struct{}
 // stack. Emit it as a tea.Cmd from a Route's Update (see wtnav.Registry.Nav).
 type SwitchRouteMsg struct{ Route Route }
 
+// SwitchTabMsg asks the Shell to activate the tab whose nav-stack ROOT route
+// title equals Title (a no-op if no tab matches). Emit it from a Route to drill
+// laterally into another tab (e.g. the Home dashboard jumping to Worktime).
+type SwitchTabMsg struct{ Title string }
+
 // InputCapturer lets a route signal it is in text-entry mode. While the active
 // tab's top route reports CapturesInput()==true, the Shell forwards every key
 // to it instead of consuming digits/Tab/Esc/q/:/? as global shortcuts. It is an
