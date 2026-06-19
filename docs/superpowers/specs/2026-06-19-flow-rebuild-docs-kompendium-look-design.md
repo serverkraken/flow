@@ -192,8 +192,13 @@ Daily/free unchanged (`daily/2026-05-18`, `notes/foo`).
 ## 12. Out of scope / follow-ups
 
 - Visual refresh of Heute/Woche/Stats/Frei/Home using the new components — separate plan(s).
-- Migration or deletion of any legacy file still wired as a standalone subcommand — separate plan.
 - Strict "only this project" exclusive filter toggle — only if requested later.
+- **Phase 2 — Legacy `tui.New(...)` Model removal (committed):** `styles.go` +
+  `worktime.go`/`stats.go`/`dayoffs.go`/`export.go` remain because `cmd/flow/worktime.go` still wires
+  them for standalone `flow worktime`. Phase 2 migrates standalone `flow worktime` onto the modern
+  `shell` + `screen/worktime` routes and then DELETES these files + `styles.go`, so the whole TUI is
+  clean (no `col*`, no legacy Model). Own spec+plan. (Verified during Phase-1 Task 10: after the
+  `docs.go` migration these four files + `styles.go` are the only remaining `styles.go` consumers.)
 
 ## 13. Resolved decisions (no open questions)
 
