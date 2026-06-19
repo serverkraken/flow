@@ -218,6 +218,11 @@ func (r *TodayRoute) View(f shell.Frame) string {
 	return renderBody(r.st, r.cursor, f.Width, f.Height, r.now(), &r.toast, f.Pal)
 }
 
+// CapturesInput reports that Today owns the keyboard while a dialog is open, so
+// the Shell forwards digits/Tab/Esc/etc. to the dialog instead of treating them
+// as global shortcuts. Implements shell.InputCapturer.
+func (r *TodayRoute) CapturesInput() bool { return r.dialog != dialogNone }
+
 func (r *TodayRoute) KeyHints() []keyhint.Hint {
 	if r.dialog != dialogNone {
 		return r.dialogHints()

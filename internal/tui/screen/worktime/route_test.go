@@ -259,6 +259,20 @@ func TestView_RendersEachDialogAndHints(t *testing.T) {
 	}
 }
 
+func TestTodayRoute_capturesInputWhileDialogOpen(t *testing.T) {
+	r := newTestRoute(&fakeAPI{})
+	if r.CapturesInput() {
+		t.Fatal("Today should not capture input in the list state")
+	}
+	// Open the booking dialog: press 's' while a session is running → dialogBooking.
+	r.loaded = true
+	r.st = todayState{Running: true, ActiveID: "run"}
+	r.Update(keyPress("s"))
+	if !r.CapturesInput() {
+		t.Fatal("Today should capture input while a dialog is open")
+	}
+}
+
 func TestActions_EditSubmitCallsEdit(t *testing.T) {
 	f := &fakeAPI{}
 	r := newTestRoute(f)
