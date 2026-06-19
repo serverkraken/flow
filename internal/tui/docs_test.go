@@ -1141,7 +1141,7 @@ func TestBuildBodyLinks(t *testing.T) {
 
 func TestStyleBodyLine_BrokenWikilink(t *testing.T) {
 	src := domain.Document{ID: "s", Path: "s"}
-	out := styleBodyLine("x [[ghost]] y", src, nil, -1, func(string) int { return -1 })
+	out := styleBodyLine("x [[ghost]] y", src, nil, -1, func(string) int { return -1 }, theme.Default)
 	if !strings.Contains(out, "⊘") {
 		t.Fatalf("broken wikilink should carry the ⊘ glyph: %q", out)
 	}
@@ -1346,7 +1346,7 @@ func TestHighlightSnippet_StrayStartSentinel(t *testing.T) {
 	// An unmatched HighlightStart (no closing HighlightEnd) must not let a raw
 	// control char reach the terminal output.
 	stray := "before " + domain.HighlightStart + "after"
-	got := highlightSnippet(stray)
+	got := highlightSnippet(stray, theme.Default)
 	if strings.Contains(got, domain.HighlightStart) || strings.Contains(got, domain.HighlightEnd) {
 		t.Fatalf("stray sentinel leaked into TUI output: %q", got)
 	}

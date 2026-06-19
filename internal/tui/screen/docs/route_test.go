@@ -18,8 +18,8 @@ func TestDocsRoute_titleAndRenders(t *testing.T) {
 		t.Fatalf("title = %q, want Docs", r.Title())
 	}
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "docs") { // DocsModel renders a "flow · docs" header
-		t.Fatalf("docs body should contain the docs header:\n%s", body)
+	if !strings.Contains(body, "kompendium") { // DocsModel renders a "kompendium" list header
+		t.Fatalf("docs body should contain the kompendium list header:\n%s", body)
 	}
 	if len(r.KeyHints()) == 0 {
 		t.Fatal("docs route should expose key hints")

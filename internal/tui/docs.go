@@ -1007,7 +1007,7 @@ func buildBodyLinks(body string, src domain.Document, all []domain.Document) []l
 // styleBodyLine renders one body line with styled wikilink + weblink segments.
 // focusIdx / focusOf are used by Task 13 to highlight the focused link; here
 // they are accepted but the highlight is wired later.
-func styleBodyLine(line string, src domain.Document, all []domain.Document, focusIdx int, focusOf func(target string) int) string {
+func styleBodyLine(line string, src domain.Document, all []domain.Document, focusIdx int, focusOf func(target string) int, pal theme.Palette) string {
 	type seg struct {
 		start, end int
 		text       string
@@ -1025,14 +1025,14 @@ func styleBodyLine(line string, src domain.Document, all []domain.Document, focu
 		}
 		var styled string
 		if ok {
-			styled = styleWikiValid.Render("→ " + label)
+			styled = lipgloss.NewStyle().Foreground(pal.Sem().Accent).Underline(true).Render("→ " + label)
 		} else {
-			styled = styleWikiBroken.Render("⊘ " + label)
+			styled = lipgloss.NewStyle().Foreground(pal.Sem().Danger).Strikethrough(true).Render("⊘ " + label)
 		}
 		segs = append(segs, seg{sp.Start, sp.End, styled})
 	}
 	for _, ws := range findWeblinks(line) {
-		styled := osc8(ws.URL, styleWebLink.Render(ws.Display))
+		styled := osc8(ws.URL, lipgloss.NewStyle().Foreground(pal.Sem().Info).Underline(true).Render(ws.Display))
 		segs = append(segs, seg{ws.Start, ws.End, styled})
 	}
 	if len(segs) == 0 {
@@ -1067,7 +1067,10 @@ func osc8(url, text string) string {
 
 func (m DocsModel) View() tea.View {
 	var b strings.Builder
-	b.WriteString(styleHeader.Render("flow · docs") + styleMuted.Render("  "+m.user) + "\n\n")
+	pal := m.pal
+	if m.mode == modeView || m.mode == modeCreating || m.mode == modeSearch {
+		b.WriteString(theme.Heading("flow · docs", pal) + theme.Dim("  "+m.user, pal) + "\n\n")
+	}
 
 	switch m.mode {
 	case modeView:
@@ -1084,7 +1087,7 @@ func (m DocsModel) View() tea.View {
 		m.renderCreate(&b)
 	case modeDeleting:
 		m.renderList(&b)
-		b.WriteString("\n" + styleWarn.Render("  delete this document? y / n") + "\n")
+		b.WriteString("\n" + theme.Danger("  delete this document? y / n", pal) + "\n")
 	case modeFiltering:
 		m.renderFilter(&b)
 	case modeSearch:
@@ -1101,17 +1104,17 @@ func (m DocsModel) View() tea.View {
 		if lt.kind == linkWeb {
 			tgt = lt.url
 		}
-		b.WriteString("\n" + styleLinkFocus.Render(" ▸ "+tgt+" ") + styleMuted.Render("  enter to follow") + "\n")
+		b.WriteString("\n" + lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Accent).Bold(true).Render(" ▸ "+tgt+" ") + theme.Dim("  enter to follow", pal) + "\n")
 	}
 
 	b.WriteString("\n")
 	if m.status != "" {
-		b.WriteString(styleOk.Render("  "+m.status) + "\n")
+		b.WriteString(theme.Success("  "+m.status, pal) + "\n")
 	}
 	if m.err != nil {
-		b.WriteString(styleErr.Render("error: "+m.err.Error()) + "\n")
+		b.WriteString(theme.Err("error: "+m.err.Error(), pal) + "\n")
 	}
-	b.WriteString(styleMuted.Render(m.footer()) + "\n")
+	b.WriteString(theme.Dim(m.footer(), pal) + "\n")
 
 	v := tea.NewView(b.String())
 	v.AltScreen = true
@@ -1270,14 +1273,15 @@ func (m DocsModel) docsPerPage() int {
 }
 
 func (m DocsModel) renderView(b *strings.Builder) {
+	pal := m.pal
 	if m.viewing == nil {
-		b.WriteString(styleMuted.Render("  (nothing to show)") + "\n")
+		b.WriteString(theme.Dim("  (nothing to show)", pal) + "\n")
 		return
 	}
 	d := m.viewing
-	hdr := styleHeader.Render(d.Title) + styleMuted.Render("  "+string(d.Type)+" · "+d.Path)
+	hdr := theme.Heading(d.Title, pal) + theme.Dim("  "+string(d.Type)+" · "+d.Path, pal)
 	if len(d.Tags) > 0 {
-		hdr += styleMuted.Render("  " + tagSuffix(d.Tags))
+		hdr += theme.Dim("  "+tagSuffix(d.Tags), pal)
 	}
 	b.WriteString(hdr + "\n\n")
 	body := d.Body
@@ -1285,36 +1289,38 @@ func (m DocsModel) renderView(b *strings.Builder) {
 		body = body[start:]
 	}
 	if strings.TrimSpace(body) == "" {
-		b.WriteString(styleMuted.Render("  (empty)") + "\n")
+		b.WriteString(theme.Dim("  (empty)", pal) + "\n")
 		return
 	}
 	for _, ln := range strings.Split(body, "\n") {
-		b.WriteString("  " + styleBodyLine(ln, *d, m.docs, m.linkFocus, func(string) int { return -1 }) + "\n")
+		b.WriteString("  " + styleBodyLine(ln, *d, m.docs, m.linkFocus, func(string) int { return -1 }, pal) + "\n")
 	}
 	m.renderBacklinks(b)
 }
 
 func (m DocsModel) renderBacklinks(b *strings.Builder) {
+	pal := m.pal
 	if len(m.backlinks) == 0 {
 		return
 	}
-	b.WriteString("\n" + styleMuted.Render("  ↩ Referenced by") + "\n")
+	b.WriteString("\n" + theme.Dim("  ↩ Referenced by", pal) + "\n")
 	for _, r := range m.backlinks {
 		label := r.Title
-		line := "  " + styleWikiValid.Render("→ "+label)
+		line := "  " + lipgloss.NewStyle().Foreground(pal.Sem().Accent).Underline(true).Render("→ "+label)
 		if label == "" {
-			line = "  " + styleWikiValid.Render("→ "+r.Path)
+			line = "  " + lipgloss.NewStyle().Foreground(pal.Sem().Accent).Underline(true).Render("→ "+r.Path)
 		} else {
-			line += styleMuted.Render("  " + r.Path)
+			line += theme.Dim("  "+r.Path, pal)
 		}
 		b.WriteString(line + "\n")
 	}
 }
 
 func (m DocsModel) renderFilter(b *strings.Builder) {
-	b.WriteString(styleHeader.Render("Filter by tag") + "\n")
+	pal := m.pal
+	b.WriteString(theme.Heading("Filter by tag", pal) + "\n")
 	if len(m.filterOpts) == 0 {
-		b.WriteString(styleMuted.Render("  no tags yet") + "\n")
+		b.WriteString(theme.Dim("  no tags yet", pal) + "\n")
 		return
 	}
 	for i, tc := range m.filterOpts {
@@ -1324,7 +1330,7 @@ func (m DocsModel) renderFilter(b *strings.Builder) {
 		}
 		line := fmt.Sprintf("%s#%s (%d)", mark, tc.Tag, tc.Count)
 		if i == m.filterCursor {
-			line = styleSel.Render("▸ " + strings.TrimLeft(line, " "))
+			line = lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Accent).Render("▸ " + strings.TrimLeft(line, " "))
 		}
 		b.WriteString(line + "\n")
 	}
@@ -1344,13 +1350,14 @@ func (m DocsModel) renderProjectFilter(b *strings.Builder) {
 }
 
 func (m DocsModel) renderSearch(b *strings.Builder) {
+	pal := m.pal
 	if !m.searching {
-		b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /") + m.searchQuery + "▏" + "\n")
+		b.WriteString(theme.Heading("Suchen", pal) + theme.Dim("  /", pal) + m.searchQuery + "▏" + "\n")
 		return
 	}
 	if len(m.searchHits) == 0 {
-		b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /"+m.searchQuery) + "\n")
-		b.WriteString(styleMuted.Render("  Keine Treffer.") + "\n")
+		b.WriteString(theme.Heading("Suchen", pal) + theme.Dim("  /"+m.searchQuery, pal) + "\n")
+		b.WriteString(theme.Dim("  Keine Treffer.", pal) + "\n")
 		return
 	}
 
@@ -1373,10 +1380,10 @@ func (m DocsModel) renderSearch(b *strings.Builder) {
 		title := h.Title
 		if i == m.searchSel {
 			marker = glyphs.AccentBar + " "
-			title = lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render(h.Title)
+			title = lipgloss.NewStyle().Foreground(pal.Sem().Accent).Bold(true).Render(h.Title)
 		}
-		body.WriteString(" " + marker + title + styleMuted.Render("  "+h.Path) + "\n")
-		for _, ln := range wrapSnippet(h.Snippet, snipW, 2) {
+		body.WriteString(" " + marker + title + theme.Dim("  "+h.Path, pal) + "\n")
+		for _, ln := range wrapSnippet(h.Snippet, snipW, 2, pal) {
 			body.WriteString("   " + ln + "\n")
 		}
 		if i < len(m.searchHits)-1 {
@@ -1416,7 +1423,7 @@ func snippetVisibleWidth(s string) int {
 // wrapSnippet cleans a snippet and word-wraps it to at most maxLines lines of
 // the given visible width, returning each line already highlight-rendered. A
 // trailing "…" on the last line marks content that did not fit.
-func wrapSnippet(snippet string, width, maxLines int) []string {
+func wrapSnippet(snippet string, width, maxLines int, pal theme.Palette) []string {
 	cleaned := cleanSnippet(snippet)
 	if cleaned == "" {
 		return nil
@@ -1451,18 +1458,18 @@ func wrapSnippet(snippet string, width, maxLines int) []string {
 	}
 	out := make([]string, len(raw))
 	for i, ln := range raw {
-		out[i] = highlightSnippet(ln)
+		out[i] = highlightSnippet(ln, pal)
 	}
 	return out
 }
 
 // highlightSnippet replaces the shared sentinels with a lipgloss highlight.
-func highlightSnippet(s string) string {
+func highlightSnippet(s string, pal theme.Palette) string {
 	var out strings.Builder
 	for {
 		i := strings.Index(s, domain.HighlightStart)
 		if i < 0 {
-			out.WriteString(styleMuted.Render(s))
+			out.WriteString(theme.Dim(s, pal))
 			break
 		}
 		j := strings.Index(s, domain.HighlightEnd)
@@ -1471,31 +1478,32 @@ func highlightSnippet(s string) string {
 			// the terminal (belt-and-suspenders: write boundary already strips them).
 			safe := strings.ReplaceAll(s, domain.HighlightStart, "")
 			safe = strings.ReplaceAll(safe, domain.HighlightEnd, "")
-			out.WriteString(styleMuted.Render(safe))
+			out.WriteString(theme.Dim(safe, pal))
 			break
 		}
-		out.WriteString(styleMuted.Render(s[:i]))
-		out.WriteString(styleSearchHit.Render(s[i+len(domain.HighlightStart) : j]))
+		out.WriteString(theme.Dim(s[:i], pal))
+		out.WriteString(lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Highlight).Bold(true).Render(s[i+len(domain.HighlightStart) : j]))
 		s = s[j+len(domain.HighlightEnd):]
 	}
 	return out.String()
 }
 
 func (m DocsModel) renderCreate(b *strings.Builder) {
-	b.WriteString(styleHeader.Render("New document") + "\n")
-	b.WriteString(fieldLine("type ", string(m.newType), m.field == fldType) + "\n")
-	b.WriteString(fieldLine("slug ", m.newPath, m.field == fldPath) + "\n")
-	b.WriteString(fieldLine("title", m.newTitle, m.field == fldTitle) + "\n")
+	pal := m.pal
+	b.WriteString(theme.Heading("New document", pal) + "\n")
+	b.WriteString(fieldLine("type ", string(m.newType), m.field == fldType, pal) + "\n")
+	b.WriteString(fieldLine("slug ", m.newPath, m.field == fldPath, pal) + "\n")
+	b.WriteString(fieldLine("title", m.newTitle, m.field == fldTitle, pal) + "\n")
 }
 
-func fieldLine(label, val string, active bool) string {
+func fieldLine(label, val string, active bool, pal theme.Palette) string {
 	caret := ""
 	if active {
 		caret = "▏"
 	}
 	prefix := "  "
 	if active {
-		prefix = styleSel.Render("▸ ")
+		prefix = lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Accent).Render("▸ ")
 	}
-	return prefix + styleMuted.Render(label+": ") + val + caret
+	return prefix + theme.Dim(label+": ", pal) + val + caret
 }
