@@ -44,6 +44,7 @@ type Route struct {
 	api      API
 	pal      theme.Palette
 	reg      wtnav.Registry
+	now      func() time.Time
 	list     []apiclient.DayOff
 	settings apiclient.Settings
 	cursor   int
@@ -55,8 +56,12 @@ type Route struct {
 }
 
 // NewRoute builds the Frei route. reg drives lateral w/t/d/e navigation.
-func NewRoute(api API, pal theme.Palette, reg wtnav.Registry) *Route {
-	return &Route{api: api, pal: pal, reg: reg}
+// now is the clock function; pass nil to use time.Now.
+func NewRoute(api API, pal theme.Palette, reg wtnav.Registry, now func() time.Time) *Route {
+	if now == nil {
+		now = time.Now
+	}
+	return &Route{api: api, pal: pal, reg: reg, now: now}
 }
 
 func (r *Route) Title() string { return "Frei" }

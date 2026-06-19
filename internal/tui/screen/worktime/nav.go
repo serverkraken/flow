@@ -1,6 +1,8 @@
 package worktime
 
 import (
+	"time"
+
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/dayoffs"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/export"
@@ -20,7 +22,7 @@ func BuildRegistry(client *apiclient.Client, pal theme.Palette) wtnav.Registry {
 	reg = wtnav.Registry{
 		"w": func() shell.Route { return week.NewRoute(client, pal, reg) },
 		"t": func() shell.Route { return statsrange.NewRoute(client, pal, reg) },
-		"d": func() shell.Route { return dayoffs.NewRoute(client, pal, reg) },
+		"d": func() shell.Route { return dayoffs.NewRoute(client, pal, reg, time.Now) },
 		"e": func() shell.Route { return export.NewRoute(client, nil, pal, reg) },
 	}
 	return reg

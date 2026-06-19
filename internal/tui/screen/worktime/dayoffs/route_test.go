@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -58,12 +59,18 @@ func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 	return r
 }
 
+func fixedNow() time.Time { return time.Date(2026, 6, 18, 9, 0, 0, 0, time.UTC) }
+
+func newRoute(api dayoffs.API) shell.Route {
+	return dayoffs.NewRoute(api, theme.Default, wtnav.Registry{}, fixedNow)
+}
+
 func TestDayOffsRoute_listsAndTitle(t *testing.T) {
 	api := &fakeAPI{
 		list:     []apiclient.DayOff{{Day: "2026-12-25", Kind: "holiday", Label: "Weihnachten", Holiday: true}},
 		settings: apiclient.Settings{DefaultTargetMin: 480},
 	}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "2026-12-25") || !strings.Contains(body, "Weihnachten") {
@@ -76,7 +83,7 @@ func TestDayOffsRoute_listsAndTitle(t *testing.T) {
 
 func TestDayOffsRoute_deleteConfirmFlow(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Urlaub"}}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	// Open delete dialog with D
 	r2, _ := r.Update(tea.KeyPressMsg{Text: "D"})
@@ -90,42 +97,9 @@ func TestDayOffsRoute_deleteConfirmFlow(t *testing.T) {
 
 func TestDayOffsRoute_navEmitsSwitch(t *testing.T) {
 	reg := wtnav.Registry{"w": func() shell.Route { return nil }}
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, reg)
+	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, reg, fixedNow)
 	if _, cmd := r.Update(tea.KeyPressMsg{Text: "w"}); cmd == nil {
 		t.Fatal("w should emit a nav cmd")
-	}
-}
-
-// TestDayOffsRoute_addDialogSubmitToDefaultsToFrom opens the add dialog, types
-// a date into the Von field, leaves Bis empty, advances to the Label field and
-// submits. The API should receive the typed from value (to defaults to from).
-func TestDayOffsRoute_addDialogSubmitToDefaultsToFrom(t *testing.T) {
-	api := &fakeAPI{}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
-	r = drain(r, r.Init())
-
-	// Open add dialog
-	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
-
-	// Type date into Von field character by character
-	for _, ch := range "2026-08-15" {
-		r, _ = r.Update(tea.KeyPressMsg{Text: string(ch)})
-	}
-
-	// Tab to Bis field (leave empty), then Tab to Label field
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-
-	// Enter on last field submits
-	r, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	r = drain(r, cmd)
-
-	if api.addedFrom != "2026-08-15" {
-		t.Fatalf("addedFrom = %q, want 2026-08-15", api.addedFrom)
-	}
-	// Also verify the dialog was dismissed (Title is still "Frei").
-	if r.Title() != "Frei" {
-		t.Fatalf("title after submit = %q, want Frei", r.Title())
 	}
 }
 
@@ -134,7 +108,7 @@ func TestDayOffsRoute_addDialogSubmitToDefaultsToFrom(t *testing.T) {
 // enter calls SetTargetConfig with the correct minutes value.
 func TestDayOffsRoute_targetEditDigitFilterAndSubmit(t *testing.T) {
 	api := &fakeAPI{settings: apiclient.Settings{DefaultTargetMin: 480}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 
 	// Open target-edit dialog
@@ -168,7 +142,7 @@ func TestDayOffsRoute_bundeslandSet(t *testing.T) {
 	// Set current Bundesland to "BW" so openBundesland initialises blSel=0,
 	// making the j-key deterministically advance to index 1 = "BY".
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 
 	// Open Bundesland dialog (blSel starts at 0 = "BW")
@@ -193,7 +167,7 @@ func TestDayOffsRoute_bundeslandSet(t *testing.T) {
 // TestDayOffsRoute_sseReload verifies that dayoff.changed and settings.changed
 // events trigger a reload cmd, and that an unrelated event does not.
 func TestDayOffsRoute_sseReload(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 
 	// dayoff.changed -> reload
@@ -217,7 +191,7 @@ func TestDayOffsRoute_sseReload(t *testing.T) {
 
 // TestDayOffsRoute_loadingState verifies the placeholder text before data arrives.
 func TestDayOffsRoute_loadingState(t *testing.T) {
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "lädt") {
 		t.Fatalf("loading state should show 'lädt'; got:\n%s", body)
@@ -227,7 +201,7 @@ func TestDayOffsRoute_loadingState(t *testing.T) {
 // TestDayOffsRoute_errorState verifies the error text when load fails.
 func TestDayOffsRoute_errorState(t *testing.T) {
 	api := &fakeAPI{listErr: errors.New("db error")}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Fehler") {
@@ -237,8 +211,8 @@ func TestDayOffsRoute_errorState(t *testing.T) {
 
 // TestDayOffsRoute_keyHintsInListState verifies KeyHints returns non-empty hints in list state.
 func TestDayOffsRoute_keyHintsInListState(t *testing.T) {
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
-	hints := r.KeyHints()
+	r := newRoute(&fakeAPI{})
+	hints := r.(*dayoffs.Route).KeyHints()
 	if len(hints) == 0 {
 		t.Fatal("KeyHints in list state should return non-empty hints")
 	}
@@ -246,12 +220,11 @@ func TestDayOffsRoute_keyHintsInListState(t *testing.T) {
 
 // TestDayOffsRoute_keyHintsWhileAddDialogOpen verifies KeyHints returns dialog hints when open.
 func TestDayOffsRoute_keyHintsWhileAddDialogOpen(t *testing.T) {
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
-	var sr shell.Route = r
-	sr = drain(sr, sr.Init())
-	sr, _ = sr.Update(tea.KeyPressMsg{Text: "a"})
+	r := newRoute(&fakeAPI{})
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
 	// Call KeyHints via the concrete *dayoffs.Route
-	cr := sr.(*dayoffs.Route)
+	cr := r.(*dayoffs.Route)
 	hints := cr.KeyHints()
 	if len(hints) == 0 {
 		t.Fatal("KeyHints in add-dialog state should return non-empty hints")
@@ -260,7 +233,7 @@ func TestDayOffsRoute_keyHintsWhileAddDialogOpen(t *testing.T) {
 
 // TestDayOffsRoute_addDialogView verifies the add-dialog renders expected text.
 func TestDayOffsRoute_addDialogView(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
@@ -271,7 +244,7 @@ func TestDayOffsRoute_addDialogView(t *testing.T) {
 
 // TestDayOffsRoute_bundeslandDialogView verifies the Bundesland-dialog renders expected text.
 func TestDayOffsRoute_bundeslandDialogView(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
@@ -282,7 +255,7 @@ func TestDayOffsRoute_bundeslandDialogView(t *testing.T) {
 
 // TestDayOffsRoute_targetEditDialogView verifies the target-edit dialog renders expected text.
 func TestDayOffsRoute_targetEditDialogView(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "g"})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
@@ -297,7 +270,7 @@ func TestDayOffsRoute_cursorNavJK(t *testing.T) {
 		{Day: "2026-07-01", Kind: "urlaub", Label: "A"},
 		{Day: "2026-07-02", Kind: "urlaub", Label: "B"},
 	}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 
 	// Move down
@@ -318,7 +291,7 @@ func TestDayOffsRoute_cursorNavJK(t *testing.T) {
 // TestDayOffsRoute_emptyListRendersNoItems verifies the "keine" placeholder.
 func TestDayOffsRoute_emptyListRendersNoItems(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{}, settings: apiclient.Settings{DefaultTargetMin: 480}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "keine") {
@@ -334,7 +307,7 @@ func TestDayOffsRoute_weekdayTargetsInView(t *testing.T) {
 			WeekdayTargetMin: map[string]int{"1": 360, "5": 240},
 		},
 	}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Mo") || !strings.Contains(body, "Fr") {
@@ -351,7 +324,7 @@ func TestDayOffsRoute_holidayAndNonHolidayGlyphs(t *testing.T) {
 		},
 		settings: apiclient.Settings{DefaultTargetMin: 480},
 	}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Tag der Einheit") {
@@ -364,7 +337,7 @@ func TestDayOffsRoute_holidayAndNonHolidayGlyphs(t *testing.T) {
 
 // TestDayOffsRoute_addDialogEsc dismisses the add dialog on Esc.
 func TestDayOffsRoute_addDialogEsc(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -376,7 +349,7 @@ func TestDayOffsRoute_addDialogEsc(t *testing.T) {
 
 // TestDayOffsRoute_targetEditEsc dismisses the target-edit dialog on Esc.
 func TestDayOffsRoute_targetEditEsc(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "g"})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -389,7 +362,7 @@ func TestDayOffsRoute_targetEditEsc(t *testing.T) {
 
 // TestDayOffsRoute_bundeslandEsc dismisses the Bundesland dialog on Esc.
 func TestDayOffsRoute_bundeslandEsc(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -399,12 +372,13 @@ func TestDayOffsRoute_bundeslandEsc(t *testing.T) {
 	}
 }
 
-// TestDayOffsRoute_addDialogUpKey verifies the Up key navigates backward in add form.
+// TestDayOffsRoute_addDialogUpKey verifies the Up key is forwarded to the focused picker
+// (steps the active segment) and the dialog remains open.
 func TestDayOffsRoute_addDialogUpKey(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
-	// Tab down then Up to go back
+	// Tab to Bis then Up (steps Bis picker, does not close dialog)
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	// Form should still be open
@@ -417,7 +391,7 @@ func TestDayOffsRoute_addDialogUpKey(t *testing.T) {
 // TestDayOffsRoute_bundeslandNavK verifies the k key decrements in Bundesland dialog.
 func TestDayOffsRoute_bundeslandNavK(t *testing.T) {
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BY"}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 	// Move j down then k up
@@ -431,7 +405,7 @@ func TestDayOffsRoute_bundeslandNavK(t *testing.T) {
 
 // TestDayOffsRoute_targetEditBackspace verifies backspace removes last digit.
 func TestDayOffsRoute_targetEditBackspace(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "g"})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "4"})
@@ -446,7 +420,7 @@ func TestDayOffsRoute_targetEditBackspace(t *testing.T) {
 // TestDayOffsRoute_deleteDialogOpensOnD verifies D opens delete confirmation.
 func TestDayOffsRoute_deleteDialogOpensOnD(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Test"}}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "D"})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
@@ -457,7 +431,7 @@ func TestDayOffsRoute_deleteDialogOpensOnD(t *testing.T) {
 
 // TestDayOffsRoute_addDialogEnterAdvancesField verifies Enter in non-last field advances.
 func TestDayOffsRoute_addDialogEnterAdvancesField(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
 	// Enter on Von field (not last field) should advance to Bis
@@ -468,9 +442,9 @@ func TestDayOffsRoute_addDialogEnterAdvancesField(t *testing.T) {
 	}
 }
 
-// TestDayOffsRoute_addDialogDownKey verifies KeyDown navigates in add form.
+// TestDayOffsRoute_addDialogDownKey verifies KeyDown is forwarded to the focused picker.
 func TestDayOffsRoute_addDialogDownKey(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -483,7 +457,7 @@ func TestDayOffsRoute_addDialogDownKey(t *testing.T) {
 // TestDayOffsRoute_bundeslandNavUpKey verifies KeyUp works in Bundesland dialog.
 func TestDayOffsRoute_bundeslandNavUpKey(t *testing.T) {
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BY"}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "j"})
@@ -496,7 +470,7 @@ func TestDayOffsRoute_bundeslandNavUpKey(t *testing.T) {
 
 // TestDayOffsRoute_bundeslandNavDownKey verifies KeyDown works in Bundesland dialog.
 func TestDayOffsRoute_bundeslandNavDownKey(t *testing.T) {
-	var r shell.Route = dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
+	r := newRoute(&fakeAPI{})
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -508,11 +482,10 @@ func TestDayOffsRoute_bundeslandNavDownKey(t *testing.T) {
 
 // TestDayOffsRoute_keyHintsWhileBundeslandOpen verifies KeyHints returns dialog hints for Bundesland dialog.
 func TestDayOffsRoute_keyHintsWhileBundeslandOpen(t *testing.T) {
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
-	var sr shell.Route = r
-	sr = drain(sr, sr.Init())
-	sr, _ = sr.Update(tea.KeyPressMsg{Text: "b"})
-	cr := sr.(*dayoffs.Route)
+	r := newRoute(&fakeAPI{})
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
+	cr := r.(*dayoffs.Route)
 	hints := cr.KeyHints()
 	if len(hints) == 0 {
 		t.Fatal("KeyHints in Bundesland-dialog state should return non-empty hints")
@@ -522,11 +495,10 @@ func TestDayOffsRoute_keyHintsWhileBundeslandOpen(t *testing.T) {
 // TestDayOffsRoute_keyHintsWhileDeleteOpen verifies KeyHints returns delete dialog hints.
 func TestDayOffsRoute_keyHintsWhileDeleteOpen(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Test"}}}
-	r := dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
-	var sr shell.Route = r
-	sr = drain(sr, sr.Init())
-	sr, _ = sr.Update(tea.KeyPressMsg{Text: "D"})
-	cr := sr.(*dayoffs.Route)
+	r := newRoute(api)
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "D"})
+	cr := r.(*dayoffs.Route)
 	hints := cr.KeyHints()
 	if len(hints) == 0 {
 		t.Fatal("KeyHints in delete-dialog state should return non-empty hints")
@@ -535,11 +507,10 @@ func TestDayOffsRoute_keyHintsWhileDeleteOpen(t *testing.T) {
 
 // TestDayOffsRoute_keyHintsWhileTargetEditOpen verifies KeyHints returns target hints.
 func TestDayOffsRoute_keyHintsWhileTargetEditOpen(t *testing.T) {
-	r := dayoffs.NewRoute(&fakeAPI{}, theme.Default, wtnav.Registry{})
-	var sr shell.Route = r
-	sr = drain(sr, sr.Init())
-	sr, _ = sr.Update(tea.KeyPressMsg{Text: "g"})
-	cr := sr.(*dayoffs.Route)
+	r := newRoute(&fakeAPI{})
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "g"})
+	cr := r.(*dayoffs.Route)
 	hints := cr.KeyHints()
 	if len(hints) == 0 {
 		t.Fatal("KeyHints in target-edit dialog state should return non-empty hints")
@@ -548,7 +519,7 @@ func TestDayOffsRoute_keyHintsWhileTargetEditOpen(t *testing.T) {
 
 func TestDayOffsRoute_capturesInputWhileDialogOpen(t *testing.T) {
 	api := &fakeAPI{}
-	r := dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r2 := drain(r, r.Init())
 	if r2.(interface{ CapturesInput() bool }).CapturesInput() {
 		t.Fatal("dayoffs should not capture in the list state")
@@ -563,7 +534,7 @@ func TestDayOffsRoute_capturesInputWhileDialogOpen(t *testing.T) {
 // TestDayOffsRoute_targetEditEmptyEnterNoOp verifies Enter with empty digits is a no-op.
 func TestDayOffsRoute_targetEditEmptyEnterNoOp(t *testing.T) {
 	api := &fakeAPI{settings: apiclient.Settings{DefaultTargetMin: 480}}
-	var r shell.Route = dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "g"})
 	// Enter with empty input - should be a no-op (dialog stays open)
@@ -574,5 +545,52 @@ func TestDayOffsRoute_targetEditEmptyEnterNoOp(t *testing.T) {
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Tagesziel") {
 		t.Fatalf("target dialog should remain open after empty Enter; got:\n%s", body)
+	}
+}
+
+func TestDayOffsRoute_addViaDatepicker(t *testing.T) {
+	api := &fakeAPI{}
+	r := drain(newRoute(api), nil)
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"}) // open add dialog; Von focused, defaults to today
+	// Von defaults to fixedNow (2026-06-18); step year segment +0, set day to 20 via digits.
+	// seg starts at year; move to day and type 20.
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight}) // -> month
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight}) // -> day
+	r, _ = r.Update(tea.KeyPressMsg{Text: "2"})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "0"}) // Von day = 20
+	// Tab to Bis (defaults to Von), Tab to Label, type a label, Tab back? Submit via enter on last field.
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Label
+	for _, c := range []string{"U", "r", "l", "a", "u", "b"} {
+		r, _ = r.Update(tea.KeyPressMsg{Text: c})
+	}
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // submit on last field
+	_ = drain(r2, cmd)
+	if api.addedFrom != "2026-06-20" {
+		t.Fatalf("addedFrom = %q, want 2026-06-20", api.addedFrom)
+	}
+}
+
+func TestDayOffsRoute_addRejectsBisBeforeVon(t *testing.T) {
+	api := &fakeAPI{}
+	r := drain(newRoute(api), nil)
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
+	// Set Von to day 20, leave Bis defaulting to Von (=20), then lower Bis to 10.
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "2"})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "0"})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // Bis (=20)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "1"})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "0"}) // Bis day = 10 (< Von 20)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})  // Label
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_ = drain(r2, cmd)
+	if api.addedFrom != "" {
+		t.Fatalf("submit with Bis<Von must not call AddDayOffs (addedFrom=%q)", api.addedFrom)
 	}
 }

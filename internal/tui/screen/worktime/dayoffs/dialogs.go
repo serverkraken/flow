@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
+	"github.com/serverkraken/flow/internal/tui/ui/datepicker"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 	"github.com/serverkraken/flow/internal/tui/ui/picker"
@@ -32,11 +33,14 @@ var bundeslaender = []string{
 }
 
 type dialogState struct {
-	target  string
-	addForm []textinput.Model
-	addCur  int
-	confirm confirm.Model
-	blSel   int
+	target    string
+	vonDP     datepicker.Model
+	bisDP     datepicker.Model
+	bisEdited bool // once true, Bis stops tracking Von
+	label     textinput.Model
+	addCur    int // 0=Von, 1=Bis, 2=Label
+	confirm   confirm.Model
+	blSel     int
 }
 
 func (r *Route) openTargetEdit() (shell.Route, tea.Cmd) {
@@ -46,14 +50,15 @@ func (r *Route) openTargetEdit() (shell.Route, tea.Cmd) {
 }
 
 func (r *Route) openAdd() (shell.Route, tea.Cmd) {
-	from := form.NewTextInput("YYYY-MM-DD", r.pal)
-	to := form.NewTextInput("YYYY-MM-DD (leer = wie von)", r.pal)
-	label := form.NewTextInput("z.B. Urlaub", r.pal)
-	cmd := from.Focus()
-	r.dlg.addForm = []textinput.Model{from, to, label}
+	today := r.now()
+	r.dlg.vonDP = datepicker.New(today, r.pal)
+	r.dlg.bisDP = datepicker.New(today, r.pal)
+	r.dlg.bisEdited = false
+	r.dlg.label = form.NewTextInput("z.B. Urlaub", r.pal)
+	r.dlg.vonDP.Focus()
 	r.dlg.addCur = 0
 	r.dialog = dialogAdd
-	return r, cmd
+	return r, nil
 }
 
 func (r *Route) openDelete() (shell.Route, tea.Cmd) {
@@ -119,42 +124,67 @@ func (r *Route) handleAddKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 	case tea.KeyEsc:
 		r.dialog = dialogNone
 		return r, nil
-	case tea.KeyTab, tea.KeyDown:
+	case tea.KeyTab:
 		r.addFocus(+1)
 		return r, nil
-	case tea.KeyUp:
-		r.addFocus(-1)
-		return r, nil
 	case tea.KeyEnter:
-		if r.dlg.addCur == len(r.dlg.addForm)-1 {
+		if r.dlg.addCur == 2 {
 			return r, r.submitAdd()
 		}
 		r.addFocus(+1)
 		return r, nil
 	}
-	var cmd tea.Cmd
-	r.dlg.addForm[r.dlg.addCur], cmd = r.dlg.addForm[r.dlg.addCur].Update(k)
-	return r, cmd
+	switch r.dlg.addCur {
+	case 0: // Von — mirror into Bis while Bis is untouched
+		if k.Text == "t" {
+			_ = r.dlg.vonDP.SetValue(r.now().Format("2006-01-02"))
+		} else {
+			r.dlg.vonDP = r.dlg.vonDP.Update(k)
+		}
+		if !r.dlg.bisEdited {
+			_ = r.dlg.bisDP.SetValue(r.dlg.vonDP.Value())
+		}
+	case 1: // Bis — latch bisEdited when the value actually changes
+		if k.Text == "t" {
+			_ = r.dlg.bisDP.SetValue(r.now().Format("2006-01-02"))
+			r.dlg.bisEdited = true
+		} else {
+			before := r.dlg.bisDP.Value()
+			r.dlg.bisDP = r.dlg.bisDP.Update(k)
+			if r.dlg.bisDP.Value() != before {
+				r.dlg.bisEdited = true
+			}
+		}
+	case 2:
+		var cmd tea.Cmd
+		r.dlg.label, cmd = r.dlg.label.Update(k)
+		return r, cmd
+	}
+	return r, nil
 }
 
-func (r *Route) addFocus(d int) {
-	r.dlg.addForm[r.dlg.addCur].Blur()
-	n := len(r.dlg.addForm)
-	r.dlg.addCur = (r.dlg.addCur + d + n) % n
-	// Focus() returns a cursor-blink cmd; intentionally discarded — the dialog re-renders on the next key.
-	_ = r.dlg.addForm[r.dlg.addCur].Focus()
+func (r *Route) addFocus(delta int) {
+	r.dlg.addCur = (r.dlg.addCur + delta + 3) % 3
+	r.dlg.vonDP.Blur()
+	r.dlg.bisDP.Blur()
+	r.dlg.label.Blur()
+	switch r.dlg.addCur {
+	case 0:
+		r.dlg.vonDP.Focus()
+	case 1:
+		r.dlg.bisDP.Focus()
+	case 2:
+		_ = r.dlg.label.Focus()
+	}
 }
 
 func (r *Route) submitAdd() tea.Cmd {
-	from := strings.TrimSpace(r.dlg.addForm[0].Value())
-	to := strings.TrimSpace(r.dlg.addForm[1].Value())
-	label := strings.TrimSpace(r.dlg.addForm[2].Value())
-	if from == "" {
-		return nil
+	from := r.dlg.vonDP.Value()
+	to := r.dlg.bisDP.Value()
+	if to < from { // ISO yyyy-mm-dd compares lexically
+		return nil // keep dialog open; invalid range
 	}
-	if to == "" {
-		to = from
-	}
+	label := strings.TrimSpace(r.dlg.label.Value())
 	api := r.api
 	r.dialog = dialogNone
 	return func() tea.Msg {
@@ -229,11 +259,16 @@ func (r *Route) renderDialog(f shell.Frame) string {
 	case dialogTarget:
 		return "\n  Neues Tagesziel (Minuten): " + r.dlg.target + "▏\n  Ziffern · enter ok · esc ab\n"
 	case dialogAdd:
-		labels := []string{"Von", "Bis", "Label"}
 		var b strings.Builder
-		b.WriteString("\n  Frei-Tag anlegen (tab wechselt · enter speichert · esc ab)\n\n")
-		for i, ti := range r.dlg.addForm {
-			fmt.Fprintf(&b, "  %-6s %s\n", labels[i], ti.View())
+		b.WriteString("\n  Frei-Tag anlegen (tab wechselt · t heute · enter speichert · esc ab)\n\n")
+		fmt.Fprintf(&b, "  Von    %s\n", r.dlg.vonDP.View())
+		fmt.Fprintf(&b, "  Bis    %s\n", r.dlg.bisDP.View())
+		fmt.Fprintf(&b, "  Label  %s\n", r.dlg.label.View())
+		switch r.dlg.addCur {
+		case 0:
+			b.WriteString("\n" + r.dlg.vonDP.Calendar(r.now()) + "\n")
+		case 1:
+			b.WriteString("\n" + r.dlg.bisDP.Calendar(r.now()) + "\n")
 		}
 		return b.String()
 	case dialogDelete:
@@ -258,7 +293,7 @@ func (r *Route) dialogHints() []keyhint.Hint {
 	case dialogTarget:
 		return []keyhint.Hint{{Key: "enter", Desc: "ok"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogAdd:
-		return []keyhint.Hint{{Key: "tab", Desc: "Feld"}, {Key: "enter", Desc: "speichern"}, {Key: "esc", Desc: "abbrechen"}}
+		return []keyhint.Hint{{Key: "tab", Desc: "Feld"}, {Key: "t", Desc: "heute"}, {Key: "enter", Desc: "speichern"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogDelete:
 		return []keyhint.Hint{{Key: "y", Desc: "löschen"}, {Key: "n", Desc: "abbrechen"}}
 	case dialogBundesland:
