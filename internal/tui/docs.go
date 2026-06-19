@@ -129,6 +129,13 @@ type viewerState struct{ focus int }
 // the shell's FullScreener takeover via the docs route adapter.
 func (m DocsModel) InViewMode() bool { return m.mode == modeView }
 
+// visibleDocs returns the project-filtered subset of m.docs. It is the single
+// authoritative source for both navigation (j/k/enter/e/d) and rendering, so
+// m.sel always maps to the same row in both the key handlers and renderList.
+func (m DocsModel) visibleDocs() []domain.Document {
+	return applyProjectFilter(m.docs, m.projFilter)
+}
+
 // focusState exposes the current wikilink focus index (test-only accessor).
 func (m DocsModel) focusState() int {
 	if m.viewer == nil {
@@ -428,8 +435,8 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.SetViewport(msg.Width, msg.Height), nil
 	case docsLoadedMsg:
 		m.docs = msg.docs
-		if m.sel >= len(m.docs) {
-			m.sel = max(0, len(m.docs)-1)
+		if vis := m.visibleDocs(); m.sel >= len(vis) {
+			m.sel = max(0, len(vis)-1)
 		}
 		return m, nil
 	case projectsLoadedMsg:
@@ -614,7 +621,7 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
 		return m, tea.Quit
 	case k.Text == "j":
-		if m.sel < len(m.docs)-1 {
+		if m.sel < len(m.visibleDocs())-1 {
 			m.sel++
 		}
 		return m, nil
@@ -624,10 +631,11 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case k.Code == tea.KeyEnter:
-		if len(m.docs) == 0 {
+		vis := m.visibleDocs()
+		if len(vis) == 0 {
 			return m, nil
 		}
-		return m, m.loadDoc(m.docs[m.sel].ID, false)
+		return m, m.loadDoc(vis[m.sel].ID, false)
 	case k.Text == "n":
 		m.mode = modeCreating
 		m.field = fldType
@@ -637,12 +645,13 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.err = nil
 		return m, nil
 	case k.Text == "e":
-		if len(m.docs) == 0 {
+		vis := m.visibleDocs()
+		if len(vis) == 0 {
 			return m, nil
 		}
-		return m, m.buildEditorCmd(m.docs[m.sel].ID)
+		return m, m.buildEditorCmd(vis[m.sel].ID)
 	case k.Text == "d":
-		if len(m.docs) == 0 {
+		if len(m.visibleDocs()) == 0 {
 			return m, nil
 		}
 		m.mode = modeDeleting
@@ -796,10 +805,11 @@ func (m DocsModel) handleDeleteKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case k.Text == "y":
 		m.mode = modeList
-		if len(m.docs) == 0 {
+		vis := m.visibleDocs()
+		if len(vis) == 0 {
 			return m, nil
 		}
-		return m, m.deleteCmd(m.docs[m.sel].ID)
+		return m, m.deleteCmd(vis[m.sel].ID)
 	case k.Code == tea.KeyEsc || k.Text == "n":
 		m.mode = modeList
 		return m, nil
@@ -1173,7 +1183,7 @@ func tagSuffix(tags []string) string {
 
 func (m DocsModel) renderList(b *strings.Builder) {
 	pal := m.pal
-	visible := applyProjectFilter(m.docs, m.projFilter)
+	visible := m.visibleDocs()
 	counts := docCounts(visible)
 
 	segs := []countbar.Seg{
