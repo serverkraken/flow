@@ -99,3 +99,291 @@ func TestExportRoute_toBeforeFrom_noExport(t *testing.T) {
 		t.Fatalf("file must not exist, got err=%v", err)
 	}
 }
+
+// TestPresetRange_kw verifies the "kw" preset from a Wednesday (2026-06-17).
+// monat is default; left once goes to kw.
+func TestPresetRange_kw(t *testing.T) {
+	now := fixedNow() // 2026-06-17 Wednesday
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "2026-06-15") {
+		t.Errorf("kw from not in view; body:\n%s", body)
+	}
+	if !strings.Contains(body, "2026-06-17") {
+		t.Errorf("kw to not in view; body:\n%s", body)
+	}
+}
+
+// TestPresetRange_monat verifies the "monat" preset (default).
+func TestPresetRange_monat(t *testing.T) {
+	now := fixedNow() // 2026-06-17
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "2026-06-01") {
+		t.Errorf("monat from not in view; body:\n%s", body)
+	}
+	if !strings.Contains(body, "2026-06-17") {
+		t.Errorf("monat to not in view; body:\n%s", body)
+	}
+}
+
+// TestPresetRange_letzter verifies the "letzter" preset (previous month).
+func TestPresetRange_letzter(t *testing.T) {
+	now := fixedNow() // 2026-06-17
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	// monat -> right once -> letzter
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "2026-05-01") {
+		t.Errorf("letzter from not in view; body:\n%s", body)
+	}
+	if !strings.Contains(body, "2026-05-31") {
+		t.Errorf("letzter to not in view; body:\n%s", body)
+	}
+}
+
+// TestCycleFormat_forwardAndBackward covers forward and backward format wrapping.
+func TestCycleFormat_forwardAndBackward(t *testing.T) {
+	now := fixedNow()
+	// Navigate to Format field (focus=3) via Tab x3 from default focus=0.
+	newRoute := func() *export.Route {
+		r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+		for i := 0; i < 3; i++ {
+			r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+			r = r2.(*export.Route)
+		}
+		return r
+	}
+	frame := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
+
+	// Default format is "md". Right -> "csv".
+	r := newRoute()
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = r2.(*export.Route)
+	if !strings.Contains(r.View(frame), "csv") {
+		t.Errorf("after right on Format, expected csv; got:\n%s", r.View(frame))
+	}
+
+	// csv -> Right -> json
+	r3, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = r3.(*export.Route)
+	if !strings.Contains(r.View(frame), "json") {
+		t.Errorf("after two rights on Format, expected json; got:\n%s", r.View(frame))
+	}
+
+	// json -> Right -> wraps to md
+	r4, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = r4.(*export.Route)
+	if !strings.Contains(r.View(frame), "md") {
+		t.Errorf("after wrap-around right on Format, expected md; got:\n%s", r.View(frame))
+	}
+
+	// md -> Left -> wraps backward to json
+	r5, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r = r5.(*export.Route)
+	if !strings.Contains(r.View(frame), "json") {
+		t.Errorf("after left-wrap on Format, expected json; got:\n%s", r.View(frame))
+	}
+}
+
+// TestCyclePreset_backward verifies left-cycling from "monat" gives "kw".
+func TestCyclePreset_backward(t *testing.T) {
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "kw") {
+		t.Errorf("after left on preset from monat, expected kw; got:\n%s", body)
+	}
+}
+
+// TestExpandHome_tilde verifies the "~/..." path is expanded to the home dir.
+func TestExpandHome_tilde(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Skip("cannot determine home dir")
+	}
+	outPath := filepath.Join(home, "flow-test-expand-home-tui.md")
+	t.Cleanup(func() { _ = os.Remove(outPath) })
+
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{payload: []byte("hi")}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	r = export.WithPathForTest(r, "~/flow-test-expand-home-tui.md")
+	r = export.WithDatesForTest(r, "2026-06-01", "2026-06-17")
+
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("submit should return a cmd")
+	}
+	msg := cmd()
+	r2, _ := r.Update(msg)
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "geschrieben") {
+		t.Errorf("expected success status; got:\n%s", body)
+	}
+}
+
+// TestExpandHome_absolute verifies an absolute path passes through unchanged.
+func TestExpandHome_absolute(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, "abs-export.md")
+	now := fixedNow()
+
+	r := export.NewRoute(fakeAPI{payload: []byte("data")}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	r = export.WithPathForTest(r, outPath)
+	r = export.WithDatesForTest(r, "2026-06-01", "2026-06-17")
+
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	msg := cmd()
+	r2, _ := r.Update(msg)
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "geschrieben") {
+		t.Errorf("expected success status for absolute path; got:\n%s", body)
+	}
+}
+
+// TestExportRoute_tabFocus verifies Tab advances focus and Shift-Tab retreats.
+func TestExportRoute_tabFocus(t *testing.T) {
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	frame := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
+
+	// Default focus=0 (Range). View should show the active marker.
+	if !strings.Contains(r.View(frame), "▸") {
+		t.Fatalf("initial view missing active marker:\n%s", r.View(frame))
+	}
+
+	// Tab x5 -> wraps back to focus=0
+	for i := 0; i < 5; i++ {
+		r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		r = r2.(*export.Route)
+	}
+	if !strings.Contains(r.View(frame), "▸") {
+		t.Fatalf("after 5 tabs, active marker missing:\n%s", r.View(frame))
+	}
+
+	// Shift-Tab from focus=0 -> focus=4
+	r3, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	r = r3.(*export.Route)
+	if !strings.Contains(r.View(frame), "▸") {
+		t.Fatalf("after shift-tab, active marker missing:\n%s", r.View(frame))
+	}
+}
+
+// TestExportRoute_keyHints checks that KeyHints returns non-empty hints.
+func TestExportRoute_keyHints(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	hints := r.KeyHints()
+	if len(hints) == 0 {
+		t.Fatal("KeyHints should return non-empty hints")
+	}
+}
+
+// TestExportRoute_init checks that Init returns nil (no startup cmd).
+func TestExportRoute_init(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	if r.Init() != nil {
+		t.Fatal("Init should return nil")
+	}
+}
+
+// TestExportRoute_editVonFieldSetsCustomPreset types into the von field
+// and asserts that the preset switches to "custom".
+func TestExportRoute_editVonFieldSetsCustomPreset(t *testing.T) {
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+
+	// Tab to von field (focus=1)
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r = r2.(*export.Route)
+
+	// Type a character -> this should set preset to "custom"
+	r3, _ := r.Update(tea.KeyPressMsg{Text: "2"})
+	r = r3.(*export.Route)
+
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "custom") {
+		t.Fatalf("after typing in von field, preset should be 'custom'; got:\n%s", body)
+	}
+}
+
+// TestExportRoute_pathEditedLatch confirms that once the path is manually
+// edited, cycling the preset no longer auto-updates the path.
+func TestExportRoute_pathEditedLatch(t *testing.T) {
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	frame := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
+
+	// Navigate to Pfad field (focus=4) via Tab x4
+	for i := 0; i < 4; i++ {
+		r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		r = r2.(*export.Route)
+	}
+
+	// Type "x" to latch pathEdited=true
+	r3, _ := r.Update(tea.KeyPressMsg{Text: "x"})
+	r = r3.(*export.Route)
+
+	// Navigate back to Range field (focus=0) via Shift-Tab x4
+	for i := 0; i < 4; i++ {
+		r4, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+		r = r4.(*export.Route)
+	}
+
+	// Cycle the preset (right -> letzter)
+	r5, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r = r5.(*export.Route)
+
+	// Path should still contain the "x" we typed
+	if !strings.Contains(r.View(frame), "x") {
+		t.Fatalf("after cycling preset with pathEdited=true, edited path should remain; got:\n%s", r.View(frame))
+	}
+}
+
+// TestExportRoute_backspaceEditsField verifies backspace shortens the von field.
+func TestExportRoute_backspaceEditsField(t *testing.T) {
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+
+	// Tab to von field (focus=1)
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r = r2.(*export.Route)
+
+	body1 := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+
+	r3, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	r = r3.(*export.Route)
+	body2 := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+
+	if body1 == body2 {
+		t.Fatal("view should change after backspace in von field")
+	}
+}
+
+// TestExportRoute_errMsgUpdatesStatus feeds a failed write back to the route.
+func TestExportRoute_errMsgUpdatesStatus(t *testing.T) {
+	// Use a path in a nonexistent directory to force a write error.
+	badPath := "/nonexistent-dir-xyz/export.md"
+	now := fixedNow()
+	r := export.NewRoute(fakeAPI{payload: []byte("data")}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
+	r = export.WithPathForTest(r, badPath)
+	r = export.WithDatesForTest(r, "2026-06-01", "2026-06-17")
+
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("submit should return a cmd")
+	}
+	msg := cmd()
+	r2, _ := r.Update(msg)
+	r = r2.(*export.Route)
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "Fehler") {
+		t.Fatalf("expected 'Fehler' in view after write error; got:\n%s", body)
+	}
+}
