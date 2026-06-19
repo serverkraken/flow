@@ -100,20 +100,7 @@ func Render(source string, width int, opts ...Option) (string, error) {
 	src := []byte(source)
 
 	nr := newNodeRenderer(width, o)
-	// Priority 100 puts our NodeRenderer ahead of every renderer the
-	// GFM extension installs (table / strikethrough / tasklist / linkify
-	// register at priority 500). Without that, goldmark dispatches
-	// tables to GFM's bundled HTML renderer and our renderTable never
-	// fires.
-	md := goldmark.New(
-		goldmark.WithExtensions(extension.GFM, extension.Footnote),
-		goldmark.WithParserOptions(
-			parser.WithInlineParsers(util.Prioritized(wikiLinkParser{}, 100)),
-		),
-		goldmark.WithRenderer(renderer.NewRenderer(
-			renderer.WithNodeRenderers(util.Prioritized(nr, 100)),
-		)),
-	)
+	md := newGoldmark(nr)
 
 	var buf bytes.Buffer
 	if err := md.Convert(src, &buf); err != nil {
@@ -136,6 +123,27 @@ func Render(source string, width int, opts ...Option) (string, error) {
 		body = ansi.Strip(body)
 	}
 	return body, nil
+}
+
+// newGoldmark builds the shared goldmark parser+renderer configuration: GFM +
+// footnote extensions, the custom `[[id]]` inline parser, and nr as the sole
+// node renderer. Both Render and ValidWikilinkTargets construct their goldmark
+// through here so the wikilink parse (and thus which `[[…]]` count as links —
+// code blocks/spans are literal) is byte-for-byte identical between rendering
+// and enumeration. Priority 100 puts our NodeRenderer ahead of every renderer
+// the GFM extension installs (table / strikethrough / tasklist / linkify
+// register at priority 500). Without that, goldmark dispatches tables to GFM's
+// bundled HTML renderer and our renderTable never fires.
+func newGoldmark(nr *nodeRenderer) goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(extension.GFM, extension.Footnote),
+		goldmark.WithParserOptions(
+			parser.WithInlineParsers(util.Prioritized(wikiLinkParser{}, 100)),
+		),
+		goldmark.WithRenderer(renderer.NewRenderer(
+			renderer.WithNodeRenderers(util.Prioritized(nr, 100)),
+		)),
+	)
 }
 
 // buildOptions collects opts, fills in defaults, and resolves NO_COLOR.
