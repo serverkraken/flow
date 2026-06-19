@@ -196,7 +196,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		{Key: "g/a/D", Desc: "Ziel/Add/Del"},
 		{Key: "b", Desc: "Bundesland"},
-		{Key: "w/t", Desc: "Woche/Stats"},
+		{Key: "w/t/e", Desc: "Woche/Stats/Export"},
 		{Key: "esc", Desc: "zurück"},
 	}
 }
