@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
@@ -49,11 +50,136 @@ func weekdayShort(w time.Weekday) string {
 }
 
 // daysIn returns the number of days in month mo of year y.
-// Used by Update (Task 6) to clamp the day segment after month/year changes.
-//
-//nolint:unused
+// Used by Update to clamp the day segment after month/year changes.
 func daysIn(y, mo int) int {
 	return time.Date(y, time.Month(mo)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+}
+
+// Update applies one key: ←/→ move the active segment, ↑/↓ step it, digits fill
+// it. It never returns a command and never reads the clock.
+func (m Model) Update(k tea.KeyPressMsg) Model {
+	switch k.Code {
+	case tea.KeyLeft:
+		m.commit()
+		if m.seg > 0 {
+			m.seg--
+		}
+	case tea.KeyRight:
+		m.commit()
+		if m.seg < 2 {
+			m.seg++
+		}
+	case tea.KeyUp:
+		m.commit()
+		m.step(+1)
+	case tea.KeyDown:
+		m.commit()
+		m.step(-1)
+	default:
+		if len(k.Text) == 1 && k.Text[0] >= '0' && k.Text[0] <= '9' {
+			m.typeDigit(int(k.Text[0] - '0'))
+		}
+	}
+	return m
+}
+
+// commit clamps the current fields to a valid date and resets the typing buffer.
+func (m *Model) commit() {
+	if m.y < 1 {
+		m.y = 1
+	}
+	if m.mo < 1 {
+		m.mo = 1
+	} else if m.mo > 12 {
+		m.mo = 12
+	}
+	if m.d < 1 {
+		m.d = 1
+	}
+	if n := daysIn(m.y, m.mo); m.d > n {
+		m.d = n
+	}
+	m.typed = 0
+}
+
+// step increments (delta +1) or decrements the active segment with rollover for
+// month and day; the day is clamped when year/month change.
+func (m *Model) step(delta int) {
+	switch m.seg {
+	case 0:
+		m.y += delta
+		if m.y < 1 {
+			m.y = 1
+		}
+		if n := daysIn(m.y, m.mo); m.d > n {
+			m.d = n
+		}
+	case 1:
+		m.mo += delta
+		if m.mo > 12 {
+			m.mo = 1
+		} else if m.mo < 1 {
+			m.mo = 12
+		}
+		if n := daysIn(m.y, m.mo); m.d > n {
+			m.d = n
+		}
+	case 2:
+		n := daysIn(m.y, m.mo)
+		m.d += delta
+		if m.d > n {
+			m.d = 1
+		} else if m.d < 1 {
+			m.d = n
+		}
+	}
+}
+
+// advance commits the active segment and moves focus to the next one.
+func (m *Model) advance() {
+	m.commit()
+	if m.seg < 2 {
+		m.seg++
+	}
+}
+
+// typeDigit accumulates a typed digit into the active segment, auto-advancing
+// when the segment is full or cannot take another digit.
+func (m *Model) typeDigit(dg int) {
+	switch m.seg {
+	case 0: // year: 4 digits
+		if m.typed == 0 {
+			m.y = dg
+		} else {
+			m.y = (m.y*10 + dg) % 10000
+		}
+		m.typed++
+		if m.typed >= 4 {
+			m.advance()
+		}
+	case 1: // month: 1-2 digits
+		if m.typed == 0 {
+			m.mo = dg
+			m.typed = 1
+			if dg >= 2 { // 2..9 can't start a valid 2-digit month
+				m.advance()
+			}
+		} else {
+			m.mo = m.mo*10 + dg
+			m.advance()
+		}
+	case 2: // day: 1-2 digits
+		if m.typed == 0 {
+			m.d = dg
+			m.typed = 1
+			if dg >= 4 { // 4..9 can't start a valid 2-digit day
+				m.advance()
+			}
+		} else {
+			m.d = m.d*10 + dg
+			m.advance()
+		}
+	}
 }
 
 // View renders the one-line stepper "‹2026›-‹07›-‹20›  (Mo)"; the active segment
