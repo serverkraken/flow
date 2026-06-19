@@ -366,6 +366,30 @@ func TestExportRoute_backspaceEditsField(t *testing.T) {
 	}
 }
 
+func TestExportRoute_capturesOnTextFieldsNotChoiceFields(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	// focus 0 = Range (choice) → not capturing
+	if r.CapturesInput() {
+		t.Fatal("Range field must not capture (globals stay reachable)")
+	}
+	// Tab to focus 1 = von (text/picker) → capturing
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if !r.CapturesInput() {
+		t.Fatal("von field must capture input")
+	}
+}
+
+func TestExportRoute_escEmitsPop(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	if cmd == nil {
+		t.Fatal("Esc should emit a command")
+	}
+	if _, ok := cmd().(shell.PopRouteMsg); !ok {
+		t.Fatalf("Esc should emit shell.PopRouteMsg, got %T", cmd())
+	}
+}
+
 // TestExportRoute_errMsgUpdatesStatus feeds a failed write back to the route.
 func TestExportRoute_errMsgUpdatesStatus(t *testing.T) {
 	// Use a path in a nonexistent directory to force a write error.

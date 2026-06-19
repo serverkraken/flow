@@ -56,6 +56,14 @@ func NewRoute(api API, now func() time.Time, pal theme.Palette, reg wtnav.Regist
 func (r *Route) Title() string { return "Export" }
 func (r *Route) Init() tea.Cmd { return nil }
 
+// CapturesInput reports input capture while a text/picker field (von/bis/Pfad)
+// is focused, so digits/Tab/Esc reach the field. On the Range/Format choice
+// fields it returns false, leaving global shortcuts + lateral nav reachable.
+// Implements shell.InputCapturer.
+func (r *Route) CapturesInput() bool {
+	return r.focus == 1 || r.focus == 2 || r.focus == 4
+}
+
 func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	switch m := msg.(type) {
 	case doneMsg:
@@ -71,6 +79,9 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 }
 
 func (r *Route) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
+	if k.Code == tea.KeyEsc {
+		return r, func() tea.Msg { return shell.PopRouteMsg{} }
+	}
 	// Sibling-nav keys (w/t/d/e) pass through only when not in a text field.
 	if cmd := navKey(r.reg, r.focus, k); cmd != nil {
 		return r, cmd
