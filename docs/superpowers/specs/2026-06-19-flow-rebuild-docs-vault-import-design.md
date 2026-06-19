@@ -89,9 +89,13 @@ flow docs import <dir>
      Validierungsfehler. Route-Registrierung analog zur bestehenden `POST /documents`.
 
 3. **apiclient** (`internal/adapter/apiclient/documents.go`)
-   - `ImportDocumentInput` (mirror) + `func (c *Client) ImportDocument(ctx, in) (domain.Document, error)`.
-   - 409 → typisierter Fehler (z.B. `ErrConflict` / `errors.Is`-fähig), damit die CLI „skip existing"
-     von echten Fehlern unterscheidet.
+   - `ImportDocumentInput` (mirror, mit `date?` + `projectId?`) + `func (c *Client) ImportDocument(ctx, in) (domain.Document, error)`.
+   - **Constraint:** `Client.do` gibt aktuell für Status ≥ 300 nur einen untypisierten
+     `fmt.Errorf("…status %d")` zurück. → Einen typisierten `APIError{Method, Path, StatusCode}`
+     aus `do` zurückgeben (Message identisch, implementiert `error` → bestehende `err != nil`-Caller
+     unberührt) + `IsConflict(err) bool` (StatusCode == 409), damit die CLI „skip existing" von
+     echten Fehlern unterscheidet. Primäre Idempotenz bleibt der Pre-List-Pfad-Check; `409` ist der
+     Race-Backstop.
 
 4. **CLI `flow docs import`** (`cmd/flow/docs_import.go`)
    - Cobra-Subcommand unter dem bestehenden `docs`-Command (`flow docs` ohne Args bleibt TUI;
@@ -106,7 +110,17 @@ flow docs import <dir>
      4. Existiert Pfad schon und kein `--update` → **skip** (zählen). Sonst `ImportDocument`
         (bzw. `UpdateDocument` bei `--update`).
    - Feld-Ableitung pro Datei:
-     - `Path` = Frontmatter `id`; Fallback: Relativpfad-ohne-`.md`.
+     - `Path` = **slugify**(Frontmatter `id`; Fallback Relativpfad-ohne-`.md`). **Wichtig:**
+       `Document.Validate` verlangt `SlugOK(Path)` mit `slugRe =
+       ^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$` — nur Kleinbuchstaben,
+       Ziffern, `-` und `/`. Viele Vault-`id`s sind das **nicht** (`notes/Onboarding`,
+       `gitlab.com`, `_project`, Leerzeichen) und würden sonst mit `400` abgelehnt.
+       `slugify`: pro `/`-Segment lowercase, jede Nicht-`[a-z0-9]`-Folge → ein `-`,
+       führende/abschließende `-` je Segment trimmen, leere Segmente droppen. Verlustfrei
+       für Navigation (keine Wikilinks); der Original-Name bleibt im **Title**.
+       `daily/2026-04-28` bleibt unverändert (schon kanonisch). Edge: `gitlab.com` und das
+       Shell-Artefakt `gitlab.com>` slugifizieren beide → `gitlab-com`; eine dadurch
+       entstehende Pfad-Kollision wird als Duplicate übersprungen (akzeptiert).
      - `Type` = Frontmatter `type`; Fallback `free`; muss ∈ {daily,project,free,agent} sein.
      - `Date` = Frontmatter `date` (`2006-01-02`); Fallback: Dateiname `YYYY-MM-DD` wenn `type=daily`;
        sonst `nil`.
@@ -123,10 +137,14 @@ flow docs import <dir>
 ### Projekt-Mapping (find-or-create, CLI-seitig)
 
 - Lazy: beim ersten `project:` einmal `ListProjects` → Index nach `Slug` und `Name`.
+- **Constraint:** `apiclient.CreateProject(ctx, name)` nimmt **nur einen Namen** (Slug/Color/
+  Glyph leitet der Server ab) → der Name ist der einzige client-setzbare Idempotenz-Schlüssel.
 - Für einen `project:`-Pfad `p`:
-  - Match wenn ein vorhandenes Projekt `Slug == p` ∥ `Name == p` ∥ `Name == lastSegment(p)` → dessen `ID`.
-  - sonst `CreateProject(name = lastSegment(p), slug = p, Default Color/Glyph)` → neue `ID`.
-- `lastSegment(p)` = Teil nach dem letzten `/`.
+  - Match wenn ein vorhandenes Projekt `Name == p` ∥ `Slug == p` ∥ `Slug == slugify(p)` → dessen `ID`.
+  - sonst `CreateProject(name = p)` (voller Pfad als Name → eindeutig + idempotent über Re-Runs) → neue `ID`.
+- Name = voller Pfad ist in der Worktime-Projektliste lang, aber kollisionsfrei; Soenne kann
+  später umbenennen. (Kurzer `lastSegment`-Name wäre kollisionsanfällig und ist via apiclient
+  ohnehin nicht eindeutig setzbar.)
 - Cache `p → ID` für den Lauf; neu angelegte Projekte in der Zusammenfassung zählen.
 - `--dry-run`: nicht anlegen — „würde Projekt X anlegen" melden.
 
