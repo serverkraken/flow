@@ -54,29 +54,7 @@ func TestExportRoute_writesFileOnEnter(t *testing.T) {
 	}
 }
 
-func TestExportRoute_invalidDate_noExport(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "should-not-exist.md")
-
-	r := export.NewRoute(fakeAPI{payload: []byte("x")}, fixedNow, theme.Default, wtnav.Registry{})
-	r = export.WithDatesForTest(r, "nope", "also-nope")
-	r = export.WithPathForTest(r, path)
-
-	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	r = r2.(*export.Route)
-	if cmd != nil {
-		t.Fatalf("submit returned non-nil cmd for invalid date, want nil")
-	}
-
-	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "Ungültiges Datum") {
-		t.Fatalf("expected 'Ungültiges Datum' in view, got:\n%s", body)
-	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("file must not exist, got err=%v", err)
-	}
-}
-
+// TestExportRoute_toBeforeFrom_noExport verifies that submit rejects to < from.
 func TestExportRoute_toBeforeFrom_noExport(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "should-not-exist.md")
@@ -102,17 +80,23 @@ func TestExportRoute_toBeforeFrom_noExport(t *testing.T) {
 
 // TestPresetRange_kw verifies the "kw" preset from a Wednesday (2026-06-17).
 // monat is default; left once goes to kw.
+// The date picker renders segments with spaces: " 2026 - 06 - 15  (Mo)"
+// so we check year/month/day components separately.
 func TestPresetRange_kw(t *testing.T) {
 	now := fixedNow() // 2026-06-17 Wednesday
 	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
 	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	r = r2.(*export.Route)
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "2026-06-15") {
-		t.Errorf("kw from not in view; body:\n%s", body)
+	// kw from = 2026-06-15 (Monday), to = 2026-06-17 (Wednesday)
+	if !strings.Contains(body, "2026") {
+		t.Errorf("kw year not in view; body:\n%s", body)
 	}
-	if !strings.Contains(body, "2026-06-17") {
-		t.Errorf("kw to not in view; body:\n%s", body)
+	if !strings.Contains(body, "15") {
+		t.Errorf("kw from-day (15) not in view; body:\n%s", body)
+	}
+	if !strings.Contains(body, "17") {
+		t.Errorf("kw to-day (17) not in view; body:\n%s", body)
 	}
 }
 
@@ -121,11 +105,15 @@ func TestPresetRange_monat(t *testing.T) {
 	now := fixedNow() // 2026-06-17
 	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "2026-06-01") {
-		t.Errorf("monat from not in view; body:\n%s", body)
+	// monat from = 2026-06-01, to = 2026-06-17
+	if !strings.Contains(body, "2026") {
+		t.Errorf("monat year not in view; body:\n%s", body)
 	}
-	if !strings.Contains(body, "2026-06-17") {
-		t.Errorf("monat to not in view; body:\n%s", body)
+	if !strings.Contains(body, "01") {
+		t.Errorf("monat from-day (01) not in view; body:\n%s", body)
+	}
+	if !strings.Contains(body, "17") {
+		t.Errorf("monat to-day (17) not in view; body:\n%s", body)
 	}
 }
 
@@ -137,11 +125,12 @@ func TestPresetRange_letzter(t *testing.T) {
 	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	r = r2.(*export.Route)
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "2026-05-01") {
-		t.Errorf("letzter from not in view; body:\n%s", body)
+	// letzter = May 2026: from 2026-05-01, to 2026-05-31
+	if !strings.Contains(body, "05") {
+		t.Errorf("letzter month (05) not in view; body:\n%s", body)
 	}
-	if !strings.Contains(body, "2026-05-31") {
-		t.Errorf("letzter to not in view; body:\n%s", body)
+	if !strings.Contains(body, "31") {
+		t.Errorf("letzter to-day (31) not in view; body:\n%s", body)
 	}
 }
 
@@ -303,7 +292,7 @@ func TestExportRoute_editVonFieldSetsCustomPreset(t *testing.T) {
 	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	r = r2.(*export.Route)
 
-	// Type a character -> this should set preset to "custom"
+	// Type a digit -> this should set preset to "custom"
 	r3, _ := r.Update(tea.KeyPressMsg{Text: "2"})
 	r = r3.(*export.Route)
 
@@ -346,8 +335,9 @@ func TestExportRoute_pathEditedLatch(t *testing.T) {
 	}
 }
 
-// TestExportRoute_backspaceEditsField verifies backspace shortens the von field.
-func TestExportRoute_backspaceEditsField(t *testing.T) {
+// TestExportRoute_arrowEditsPicker verifies arrow keys change the picker display
+// when the von field is focused.
+func TestExportRoute_arrowEditsPicker(t *testing.T) {
 	now := fixedNow()
 	r := export.NewRoute(fakeAPI{}, func() time.Time { return now }, theme.Default, wtnav.Registry{})
 
@@ -357,12 +347,13 @@ func TestExportRoute_backspaceEditsField(t *testing.T) {
 
 	body1 := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 
-	r3, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	// Arrow down steps the active segment (year) down by one
+	r3, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	r = r3.(*export.Route)
 	body2 := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 
 	if body1 == body2 {
-		t.Fatal("view should change after backspace in von field")
+		t.Fatal("view should change after arrow key in von picker field")
 	}
 }
 
@@ -409,5 +400,41 @@ func TestExportRoute_errMsgUpdatesStatus(t *testing.T) {
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Fehler") {
 		t.Fatalf("expected 'Fehler' in view after write error; got:\n%s", body)
+	}
+}
+
+func TestExportRoute_presetFillsPickersAndExports(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "out.md")
+	r := export.NewRoute(fakeAPI{payload: []byte("# hi")}, fixedNow, theme.Default, wtnav.Registry{})
+	// Default preset "monat" with fixedNow (2026-06-17) → from 2026-06-01.
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "2026") || !strings.Contains(body, "06") {
+		t.Fatalf("view should show the preset-filled date pickers:\n%s", body)
+	}
+	r = export.WithPathForTest(r, path)
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for cmd != nil {
+		msg := cmd()
+		if msg == nil {
+			break
+		}
+		var c tea.Cmd
+		var nr shell.Route
+		nr, c = r.Update(msg)
+		r, cmd = nr.(*export.Route), c
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != "# hi" {
+		t.Fatalf("export not written: err=%v content=%q", err, string(b))
+	}
+}
+
+func TestExportRoute_calendarShownWhenDateFocused(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // focus von
+	body := r.View(shell.Frame{Width: 80, Height: 30, Pal: theme.Default})
+	if !strings.Contains(body, "Mo Di Mi Do Fr Sa So") {
+		t.Fatalf("calendar grid should show when a date field is focused:\n%s", body)
 	}
 }

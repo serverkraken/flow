@@ -13,6 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/datepicker"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
@@ -32,7 +33,8 @@ type Route struct {
 	reg wtnav.Registry
 
 	preset     string
-	from, to   string
+	vonDP      datepicker.Model
+	bisDP      datepicker.Model
 	format     string
 	path       string
 	pathEdited bool
@@ -46,11 +48,26 @@ func NewRoute(api API, now func() time.Time, pal theme.Palette, reg wtnav.Regist
 		now = time.Now
 	}
 	from, to := presetRange("monat", now())
-	return &Route{
+	von := mustDate(from)
+	bis := mustDate(to)
+	r := &Route{
 		api: api, now: now, pal: pal, reg: reg,
-		preset: "monat", format: "md", from: from, to: to,
+		preset: "monat", format: "md",
+		vonDP: datepicker.New(von, pal), bisDP: datepicker.New(bis, pal),
 		path: defaultPath(from, to, "md"),
 	}
+	r.vonDP.Focus()
+	return r
+}
+
+// mustDate parses a yyyy-mm-dd produced by presetRange; presetRange always emits
+// valid dates, so a parse failure is a programming error.
+func mustDate(s string) time.Time {
+	t, err := time.Parse(dayFmt, s)
+	if err != nil {
+		panic("export: bad preset date " + s)
+	}
+	return t
 }
 
 func (r *Route) Title() string { return "Export" }
@@ -86,11 +103,38 @@ func (r *Route) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 	if cmd := navKey(r.reg, r.focus, k); cmd != nil {
 		return r, cmd
 	}
+
+	// Route keys to the focused date picker when von (1) or bis (2) is active.
+	if r.focus == 1 || r.focus == 2 {
+		if k.Text == "t" {
+			r.setFocusedDate(r.now().Format(dayFmt))
+			return r, nil
+		}
+		switch k.Code {
+		case tea.KeyLeft, tea.KeyRight, tea.KeyUp, tea.KeyDown:
+			r.editFocusedPicker(k)
+			r.preset = "custom"
+			r.refreshPath()
+			return r, nil
+		case tea.KeyTab:
+			// fall through to Tab handling below
+		default:
+			if len(k.Text) == 1 && k.Text[0] >= '0' && k.Text[0] <= '9' {
+				r.editFocusedPicker(k)
+				r.preset = "custom"
+				r.refreshPath()
+				return r, nil
+			}
+		}
+	}
+
 	switch {
 	case k.Code == tea.KeyTab && k.Mod.Contains(tea.ModShift):
 		r.focus = (r.focus + 4) % 5
+		r.syncPickerFocus()
 	case k.Code == tea.KeyTab:
 		r.focus = (r.focus + 1) % 5
+		r.syncPickerFocus()
 	case k.Code == tea.KeyEnter:
 		return r, r.submit()
 	case k.Code == tea.KeyLeft, k.Code == tea.KeyRight:
@@ -131,7 +175,9 @@ func (r *Route) cycleField(dir int) {
 	case 0:
 		r.preset = cyclePreset(r.preset, dir)
 		if r.preset != "custom" {
-			r.from, r.to = presetRange(r.preset, r.now())
+			f, to := presetRange(r.preset, r.now())
+			_ = r.vonDP.SetValue(f)
+			_ = r.bisDP.SetValue(to)
 		}
 		r.refreshPath()
 	case 3:
@@ -142,43 +188,60 @@ func (r *Route) cycleField(dir int) {
 
 func (r *Route) editField(fn func(string) string) {
 	switch r.focus {
-	case 1:
-		r.from = fn(r.from)
-		r.preset = "custom"
-		r.refreshPath()
-	case 2:
-		r.to = fn(r.to)
-		r.preset = "custom"
-		r.refreshPath()
 	case 4:
 		r.path = fn(r.path)
 		r.pathEdited = true
 	}
 }
 
+func (r *Route) editFocusedPicker(k tea.KeyPressMsg) {
+	if r.focus == 1 {
+		r.vonDP = r.vonDP.Update(k)
+	} else {
+		r.bisDP = r.bisDP.Update(k)
+	}
+}
+
+func (r *Route) setFocusedDate(s string) {
+	if r.focus == 1 {
+		_ = r.vonDP.SetValue(s)
+	} else {
+		_ = r.bisDP.SetValue(s)
+	}
+	r.preset = "custom"
+	r.refreshPath()
+}
+
+func (r *Route) syncPickerFocus() {
+	r.vonDP.Blur()
+	r.bisDP.Blur()
+	switch r.focus {
+	case 1:
+		r.vonDP.Focus()
+	case 2:
+		r.bisDP.Focus()
+	}
+}
+
 func (r *Route) refreshPath() {
 	if !r.pathEdited {
-		r.path = defaultPath(r.from, r.to, r.format)
+		r.path = defaultPath(r.vonDP.Value(), r.bisDP.Value(), r.format)
 	}
 }
 
 func (r *Route) submit() tea.Cmd {
-	from, errF := time.Parse(dayFmt, r.from)
-	to, errT := time.Parse(dayFmt, r.to)
-	if errF != nil || errT != nil {
-		r.status = "Ungültiges Datum (yyyy-mm-dd)"
-		return nil
-	}
-	if to.Before(from) {
+	from := r.vonDP.Value()
+	to := r.bisDP.Value()
+	if to < from {
 		r.status = "bis muss >= von sein"
 		return nil
 	}
 	r.status = "exportiere…"
-	api, fromS, toS, format, path := r.api, r.from, r.to, r.format, expandHome(r.path)
+	api, format, path := r.api, r.format, expandHome(r.path)
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		b, err := api.Export(ctx, fromS, toS, format, "")
+		b, err := api.Export(ctx, from, to, format, "")
 		if err != nil {
 			return errMsg{err}
 		}
@@ -200,11 +263,24 @@ func (r *Route) View(f shell.Frame) string {
 		}
 		fmt.Fprintf(&b, "%s%-8s %s\n", cur, label, val)
 	}
+	fieldRaw := func(idx int, label, val string) {
+		cur := "  "
+		if r.focus == idx {
+			cur = theme.Active("▸", f.Pal) + " "
+		}
+		fmt.Fprintf(&b, "%s%-8s %s\n", cur, label, val)
+	}
 	field(0, "Range", r.preset)
-	field(1, "von", r.from)
-	field(2, "bis", r.to)
+	fieldRaw(1, "von", r.vonDP.View())
+	fieldRaw(2, "bis", r.bisDP.View())
 	field(3, "Format", r.format)
 	field(4, "Pfad", r.path)
+	switch r.focus {
+	case 1:
+		b.WriteString("\n" + r.vonDP.Calendar(r.now()))
+	case 2:
+		b.WriteString("\n" + r.bisDP.Calendar(r.now()))
+	}
 	if r.status != "" {
 		b.WriteString("\n  " + theme.Dim(r.status, f.Pal) + "\n")
 	}
@@ -226,14 +302,15 @@ func WithPathForTest(r *Route, path string) *Route {
 	r.path = path
 	r.pathEdited = true
 	r.focus = 4
+	r.syncPickerFocus()
 	return r
 }
 
-// WithDatesForTest overrides the from/to date strings directly (test seam for
-// submit error-path tests — invalid date and to-before-from).
+// WithDatesForTest overrides the von/bis date pickers directly (test seam).
+// Invalid date strings are ignored (picker keeps its current value).
 func WithDatesForTest(r *Route, from, to string) *Route {
-	r.from = from
-	r.to = to
+	_ = r.vonDP.SetValue(from)
+	_ = r.bisDP.SetValue(to)
 	r.preset = "custom"
 	return r
 }
