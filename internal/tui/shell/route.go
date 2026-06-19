@@ -42,3 +42,9 @@ type PopRouteMsg struct{}
 // replaces the top Route, so switching between siblings never deepens the
 // stack. Emit it as a tea.Cmd from a Route's Update (see wtnav.Registry.Nav).
 type SwitchRouteMsg struct{ Route Route }
+
+// InputCapturer lets a route signal it is in text-entry mode. While the active
+// tab's top route reports CapturesInput()==true, the Shell forwards every key
+// to it instead of consuming digits/Tab/Esc/q/:/? as global shortcuts. It is an
+// optional interface — routes that don't implement it keep the global shortcuts.
+type InputCapturer interface{ CapturesInput() bool }

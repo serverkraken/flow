@@ -179,6 +179,9 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.palette, cmd = s.palette.Update(k)
 		return s, cmd
 	}
+	if ic, ok := s.tabs[s.activeTab].Top().(InputCapturer); ok && ic.CapturesInput() && !s.helpOpen {
+		return s, s.tabs[s.activeTab].UpdateTop(k)
+	}
 	switch {
 	case k.Code == tea.KeyEsc:
 		if s.helpOpen {

@@ -144,6 +144,50 @@ func TestShell_viewNoPanic(t *testing.T) {
 	_ = s.(shell.Shell).View()
 }
 
+// captureRoute is a stubRoute that captures input and records keys it receives.
+type captureRoute struct {
+	stubRoute
+	capturing bool
+	gotKeys   *[]string
+}
+
+func (r captureRoute) CapturesInput() bool { return r.capturing }
+func (r captureRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
+		*r.gotKeys = append(*r.gotKeys, k.Text)
+	}
+	return r, nil
+}
+
+func TestShell_capturingRouteReceivesDigitInsteadOfTabSwitch(t *testing.T) {
+	var keys []string
+	cap := captureRoute{stubRoute{title: "Form"}, true, &keys}
+	other := stubRoute{title: "Other"}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{cap, other})
+
+	// Active tab 0 captures: "2" must reach the route, NOT switch to tab 1.
+	next, _ := s.Update(tea.KeyPressMsg{Text: "2"})
+	sh := next.(shell.Shell)
+	if sh.ActiveTab() != 0 {
+		t.Fatalf("capturing route: digit must not switch tab (activeTab=%d)", sh.ActiveTab())
+	}
+	if len(keys) != 1 || keys[0] != "2" {
+		t.Fatalf("capturing route should receive '2', got %v", keys)
+	}
+}
+
+func TestShell_nonCapturingRouteStillSwitchesTabOnDigit(t *testing.T) {
+	var keys []string
+	cap := captureRoute{stubRoute{title: "Form"}, false, &keys}
+	other := stubRoute{title: "Other"}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{cap, other})
+
+	next, _ := s.Update(tea.KeyPressMsg{Text: "2"})
+	if next.(shell.Shell).ActiveTab() != 1 {
+		t.Fatal("non-capturing route: digit '2' should switch to tab 1")
+	}
+}
+
 func TestShell_switchRoute_pushesAtRootThenReplaces(t *testing.T) {
 	var rootInit, aInit, bInit int
 	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}
