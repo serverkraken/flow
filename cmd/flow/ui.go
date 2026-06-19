@@ -6,21 +6,41 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/adapter/editor"
+	"github.com/serverkraken/flow/internal/adapter/opener"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	docsscreen "github.com/serverkraken/flow/internal/tui/screen/docs"
 	"github.com/spf13/cobra"
 )
 
 func uiCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "ui",
-		Short: "Sidekick-Shell (TUI) — alle Screens in einem Programm",
+		Use:   "ui [tab]",
+		Short: "Sidekick-Shell (TUI) — Home · Worktime · Docs in einem Programm",
+		Args:  cobra.MaximumNArgs(1),
 		RunE:  runUI,
 	}
 }
 
-func runUI(cmd *cobra.Command, _ []string) error {
+// tabIndexForArg maps an optional positional arg to a start-tab index
+// (0=Home, 1=Worktime, 2=Docs); unknown/empty → Home.
+func tabIndexForArg(args []string) int {
+	if len(args) == 0 {
+		return 0
+	}
+	switch args[0] {
+	case "worktime", "work", "w":
+		return 1
+	case "docs", "doc", "d":
+		return 2
+	default:
+		return 0
+	}
+}
+
+func runUI(cmd *cobra.Command, args []string) error {
 	client, err := clientFromStore(cmd.Context())
 	if err != nil {
 		return err
@@ -32,11 +52,14 @@ func runUI(cmd *cobra.Command, _ []string) error {
 		os.Stderr = logf
 	}
 	pal := theme.Load()
-	m := shell.New(client, os.Getenv("USER"), pal).
+	user := os.Getenv("USER")
+	m := shell.New(client, user, pal).
 		WithTabs([]shell.Route{
-			shell.NewHomeRoute(client, pal, os.Getenv("USER")),
+			shell.NewHomeRoute(client, pal, user),
 			worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
-		})
+			docsscreen.NewRoute(client, editor.New(), opener.New(), pal, user),
+		}).
+		WithActiveTab(tabIndexForArg(args))
 	_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
 	return err
 }
