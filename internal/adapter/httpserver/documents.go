@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -153,5 +154,38 @@ func (s *Server) handleDocumentBacklinks(w http.ResponseWriter, r *http.Request)
 			refs = []domain.BacklinkRef{}
 		}
 		writeJSON(w, http.StatusOK, refs)
+	}
+}
+
+type importDocReq struct {
+	Type      string     `json:"type"`
+	Path      string     `json:"path"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Date      *time.Time `json:"date"`
+	ProjectID *string    `json:"projectId"`
+}
+
+func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req importDocReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	doc, err := s.ImportDocument.Execute(r.Context(), u.ID, usecase.ImportDocumentInput{
+		Type: domain.DocumentType(req.Type), Path: req.Path, Title: req.Title,
+		Body: req.Body, Date: req.Date, ProjectID: req.ProjectID,
+	})
+	switch {
+	case errors.Is(err, domain.ErrInvalidDocument):
+		http.Error(w, "invalid document", http.StatusBadRequest)
+	case errors.Is(err, ports.ErrDocumentExists):
+		http.Error(w, "path already exists", http.StatusConflict)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.Bus.Publish(domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
+		writeJSON(w, http.StatusCreated, doc)
 	}
 }

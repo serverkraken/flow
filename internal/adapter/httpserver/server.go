@@ -44,6 +44,7 @@ type Server struct {
 
 	// m2a documents
 	CreateDocument    usecase.CreateDocument
+	ImportDocument    usecase.ImportDocument
 	GetDocument       usecase.GetDocument
 	ListDocuments     usecase.ListDocuments
 	UpdateDocument    usecase.UpdateDocument
@@ -91,6 +92,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/v1/projects/{id}/rate", s.auth(http.HandlerFunc(s.handleSetProjectRate)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
+	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
 	mux.Handle("GET /api/v1/documents", s.auth(http.HandlerFunc(s.handleListDocuments)))
 	mux.Handle("GET /api/v1/documents/tags", s.auth(http.HandlerFunc(s.handleListTags)))
 	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))

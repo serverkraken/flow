@@ -125,6 +125,7 @@ func run() error {
 		},
 		SetProjectRate:    usecase.SetProjectRate{Projects: projectStore},
 		CreateDocument:    usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
+		ImportDocument:    usecase.ImportDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		GetDocument:       usecase.GetDocument{Docs: documentStore},
 		ListDocuments:     usecase.ListDocuments{Docs: documentStore},
 		UpdateDocument:    usecase.UpdateDocument{Docs: documentStore, Clock: clock, Notifier: embedWorker},

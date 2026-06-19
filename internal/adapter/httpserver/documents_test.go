@@ -47,6 +47,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		Clock:             clk,
 		Stats:             stats,
 		CreateDocument:    usecase.CreateDocument{Docs: docs, IDs: ids, Clock: clk},
+		ImportDocument:    usecase.ImportDocument{Docs: docs, IDs: ids, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
@@ -475,6 +476,7 @@ func newFailingDocServer(t *testing.T) *httptest.Server {
 		Clock:             clk,
 		Stats:             stats,
 		CreateDocument:    usecase.CreateDocument{Docs: failing, IDs: ids, Clock: clk},
+		ImportDocument:    usecase.ImportDocument{Docs: failing, IDs: ids, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: failing},
 		ListDocuments:     usecase.ListDocuments{Docs: failing},
 		UpdateDocument:    usecase.UpdateDocument{Docs: failing, Clock: clk},
@@ -609,6 +611,52 @@ func TestHandleListDocuments_NoQueryUnchanged(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].Path != "noq-a" {
 		t.Fatalf("plain list broke: %#v", list)
+	}
+}
+
+func TestImportDocument_HappyDailyHistorical(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	body := `{"type":"daily","path":"daily/2026-04-28","title":"2026-04-28","body":"# 2026-04-28\n","date":"2026-04-28T00:00:00Z"}`
+	res := doDoc(t, ts, "POST", "/api/v1/documents/import", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", res.StatusCode)
+	}
+}
+
+func TestImportDocument_BadType(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/import", `{"type":"bogus","path":"x","title":"T","body":"B"}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestImportDocument_DuplicatePath(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	body := `{"type":"free","path":"notes/dup","title":"T","body":"B"}`
+	res1 := doDoc(t, ts, "POST", "/api/v1/documents/import", body)
+	_ = res1.Body.Close()
+	res := doDoc(t, ts, "POST", "/api/v1/documents/import", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", res.StatusCode)
 	}
 }
 
