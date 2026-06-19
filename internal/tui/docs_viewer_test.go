@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
 func stripANSIForTest(s string) string { return ansi.Strip(s) }
@@ -20,13 +21,13 @@ func TestDocs_WindowSizeMsgSizesViewerOverlay(t *testing.T) {
 
 	// Without a WindowSizeMsg the overlay has no size → fallback (empty
 	// overlayView): the pre-fix standalone behaviour Soenne hit.
-	nosize, _ := NewDocs(nil, nil, nil, "t").Update(docViewMsg{doc: doc})
+	nosize, _ := NewDocs(nil, nil, nil, theme.Default, "t").Update(docViewMsg{doc: doc})
 	if ov := nosize.(DocsModel).overlayView(); ov != "" {
 		t.Fatalf("no WindowSizeMsg: overlay should be unsized (fallback), got:\n%s", ov)
 	}
 
 	// After a size, opening the doc renders the fullscreen markdown overlay.
-	sized, _ := NewDocs(nil, nil, nil, "t").Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sized, _ := NewDocs(nil, nil, nil, theme.Default, "t").Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	shown, _ := sized.(DocsModel).Update(docViewMsg{doc: doc})
 	ov := shown.(DocsModel).overlayView()
 	if ov == "" {
@@ -40,7 +41,7 @@ func TestDocs_WindowSizeMsgSizesViewerOverlay(t *testing.T) {
 // Regression: search results render inside a box with single-line, markdown-
 // stripped snippets (no raw `###`, no ragged indentation).
 func TestDocs_SearchResultsAreBoxedAndCleaned(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "t")
+	m := NewDocs(nil, nil, nil, theme.Default, "t")
 	m.width = 80
 	m.mode = modeSearch
 	m.searching = true

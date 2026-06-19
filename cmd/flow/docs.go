@@ -8,6 +8,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/editor"
 	"github.com/serverkraken/flow/internal/adapter/opener"
 	"github.com/serverkraken/flow/internal/tui"
+	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +28,7 @@ func docsCmd() *cobra.Command {
 				defer func() { _ = logf.Close() }()
 				os.Stderr = logf
 			}
-			m := tui.NewDocs(client, editor.New(), opener.New(), os.Getenv("USER"))
+			m := tui.NewDocs(client, editor.New(), opener.New(), theme.Load(), os.Getenv("USER"))
 			_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
 			return err
 		},

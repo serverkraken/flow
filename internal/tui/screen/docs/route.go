@@ -34,7 +34,7 @@ type Route struct {
 // NewRoute builds the Docs route. ed/op may be nil in tests (the $EDITOR/open
 // paths are never hit there).
 func NewRoute(client *apiclient.Client, ed Editor, op Opener, pal theme.Palette, user string) *Route {
-	return &Route{m: tui.NewDocs(client, ed, op, user), pal: pal}
+	return &Route{m: tui.NewDocs(client, ed, op, pal, user), pal: pal}
 }
 
 func (r *Route) Title() string { return "Docs" }

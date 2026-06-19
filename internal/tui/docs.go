@@ -99,12 +99,18 @@ type DocsModel struct {
 	searching   bool               // true once a query has been run (results phase)
 	searchHits  []domain.SearchHit
 	searchSel   int
+
+	pal        theme.Palette
+	projects   []domain.Project
+	projByID   map[string]domain.Project
+	projFilter string // selected project ID; "" = all projects
+	projCursor int    // cursor in the project-filter picker
 }
 
 // NewDocs builds the docs model. client/ed/op may be nil in tests that only drive
 // Update and never trigger the network, $EDITOR, or URL-opener paths.
-func NewDocs(client *apiclient.Client, ed docEditor, op urlOpener, user string) DocsModel {
-	return DocsModel{client: client, editor: ed, opener: op, user: user, newType: domain.DocFree, linkFocus: -1}
+func NewDocs(client *apiclient.Client, ed docEditor, op urlOpener, pal theme.Palette, user string) DocsModel {
+	return DocsModel{client: client, editor: ed, opener: op, pal: pal, user: user, newType: domain.DocFree, linkFocus: -1}
 }
 
 // viewerState is the heap cell the fullscreen viewer's RenderFunc closes over,
@@ -216,7 +222,7 @@ type editorDoneMsg struct {
 }
 
 func (m DocsModel) Init() tea.Cmd {
-	return tea.Batch(m.reload(), m.subscribe())
+	return tea.Batch(m.reload(), m.loadProjects(), m.subscribe())
 }
 
 func (m DocsModel) reload() tea.Cmd {
@@ -265,6 +271,23 @@ func (m DocsModel) loadTags() tea.Cmd {
 			return errMsg{err}
 		}
 		return tagsLoadedMsg{tags: tags}
+	}
+}
+
+type projectsLoadedMsg struct{ projects []domain.Project }
+
+func (m DocsModel) loadProjects() tea.Cmd {
+	if m.client == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		ps, err := m.client.ListProjects(ctx)
+		if err != nil {
+			return errMsg{err}
+		}
+		return projectsLoadedMsg{projects: ps}
 	}
 }
 
@@ -400,6 +423,13 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.docs = msg.docs
 		if m.sel >= len(m.docs) {
 			m.sel = max(0, len(m.docs)-1)
+		}
+		return m, nil
+	case projectsLoadedMsg:
+		m.projects = msg.projects
+		m.projByID = make(map[string]domain.Project, len(msg.projects))
+		for _, p := range msg.projects {
+			m.projByID[p.ID] = p
 		}
 		return m, nil
 	case docViewMsg:

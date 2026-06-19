@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
 func strptr(s string) *string { return &s }
@@ -68,5 +69,18 @@ func TestDocExcerpt_WrapAndCap(t *testing.T) {
 	}
 	if got := docCounts([]domain.Document{{Type: domain.DocDaily}, {Type: domain.DocDaily}, {Type: domain.DocFree}}); got[domain.DocDaily] != 2 || got[domain.DocFree] != 1 {
 		t.Errorf("docCounts = %+v, want daily:2 free:1", got)
+	}
+}
+
+func TestUpdate_ProjectsLoaded_BuildsIndex(t *testing.T) {
+	t.Parallel()
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
+	nm, _ := m.Update(projectsLoadedMsg{projects: []domain.Project{
+		{ID: "p1", Slug: "serverkraken/flow"},
+		{ID: "p2", Slug: "other/repo"},
+	}})
+	dm := nm.(DocsModel)
+	if len(dm.projByID) != 2 || dm.projByID["p1"].Slug != "serverkraken/flow" {
+		t.Fatalf("projByID = %+v, want 2 entries indexed by id", dm.projByID)
 	}
 }

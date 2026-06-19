@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
 // fakeDocEditor is a test double for docEditor that avoids any real $EDITOR call.
@@ -130,7 +131,7 @@ func sampleDocs() []domain.Document {
 }
 
 func TestDocsLoadedPopulatesAndRenders(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 	if len(m.docs) != 2 {
@@ -143,7 +144,7 @@ func TestDocsLoadedPopulatesAndRenders(t *testing.T) {
 }
 
 func TestDocsJKNavigation(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 
@@ -166,7 +167,7 @@ func TestDocsJKNavigation(t *testing.T) {
 }
 
 func TestDocsEnterShowsBody(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 
@@ -183,7 +184,7 @@ func TestDocsEnterShowsBody(t *testing.T) {
 }
 
 func TestDocs_InViewModeTracksMode(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	if m.InViewMode() {
 		t.Fatal("list mode: InViewMode must be false")
 	}
@@ -194,7 +195,7 @@ func TestDocs_InViewModeTracksMode(t *testing.T) {
 }
 
 func TestDocs_TabCyclesWikilinkFocus(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	// Seed the doc set so the wikilink target (d2 = agents/reviewer) resolves.
 	seeded, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = seeded.(DocsModel)
@@ -214,7 +215,7 @@ func TestDocs_TabCyclesWikilinkFocus(t *testing.T) {
 // overlay (via SetViewport) renders the markdown body through the render closure
 // (exercising the wikilink adapter's Resolve), and overlayView returns it.
 func TestDocs_ViewerRendersSizedOverlay(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	seeded, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = seeded.(DocsModel)
 	doc := sampleDocs()[0]
@@ -235,7 +236,7 @@ func TestDocs_ViewerRendersSizedOverlay(t *testing.T) {
 }
 
 func TestDocsCapturesInput(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	if m.CapturesInput() {
 		t.Fatal("modeList should not capture input (host Tab/digits nav must work)")
 	}
@@ -252,7 +253,7 @@ func TestDocsCapturesInput(t *testing.T) {
 }
 
 func TestDocsEscReturnsToList(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
 	m = next.(DocsModel)
 	next2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
@@ -265,7 +266,7 @@ func TestDocsEscReturnsToList(t *testing.T) {
 func TestDocsEventTriggersReload(t *testing.T) {
 	// non-nil client so reload() returns a real cmd.
 	c := apiclient.New("http://example.invalid", "tok")
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	// arm events channel
 	ch := make(chan apiclient.ClientEvent, 1)
 	next, _ := m.Update(eventsReadyMsg{ch: ch})
@@ -286,7 +287,7 @@ func TestDocsEventMsg_ModeView_AlsoReloadsDoc(t *testing.T) {
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
 
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	// Load the doc list.
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
@@ -308,7 +309,7 @@ func TestDocsEventMsg_ModeView_AlsoReloadsDoc(t *testing.T) {
 	}
 
 	// Also verify that in modeList the cmd is still non-nil (the reload+listen batch).
-	m2 := NewDocs(c, nil, nil, "tester")
+	m2 := NewDocs(c, nil, nil, theme.Default, "tester")
 	next2, _ := m2.Update(eventsReadyMsg{ch: ch})
 	m2 = next2.(DocsModel)
 	_, cmd2 := m2.Update(eventMsg{ev: apiclient.ClientEvent{Type: string(domain.EventDocumentCreated)}})
@@ -318,7 +319,7 @@ func TestDocsEventMsg_ModeView_AlsoReloadsDoc(t *testing.T) {
 }
 
 func TestDocsNKeyOpensCreate(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	if m.mode != modeCreating {
@@ -331,7 +332,7 @@ func TestDocsNKeyOpensCreate(t *testing.T) {
 }
 
 func TestDocsCreateFormTypingAndCancel(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	// advance to slug field
@@ -356,7 +357,7 @@ func TestDocsCreateFormTypingAndCancel(t *testing.T) {
 }
 
 func TestDocsDeleteConfirmFlow(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 	next, _ = m.Update(tea.KeyPressMsg{Text: "d"})
@@ -373,7 +374,7 @@ func TestDocsDeleteConfirmFlow(t *testing.T) {
 }
 
 func TestDocsQuitKey(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	_, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
 	if cmd == nil {
 		t.Fatal("q should return a quit command")
@@ -391,7 +392,7 @@ func TestDocsNextDocType(t *testing.T) {
 
 func TestDocsSavedReloads(t *testing.T) {
 	c := apiclient.New("http://example.invalid", "tok")
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	_, cmd := m.Update(docSavedMsg{})
 	if cmd == nil {
 		t.Fatal("docSavedMsg should trigger a reload cmd")
@@ -403,7 +404,7 @@ func TestDocsSavedReloads(t *testing.T) {
 func TestDocsInit_ReturnsCmdWithClient(t *testing.T) {
 	c, stop := newFakeDocSrv(t, nil)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	cmd := m.Init()
 	if cmd == nil {
 		t.Fatal("Init with real client must return non-nil cmd")
@@ -414,7 +415,7 @@ func TestDocsReload_ReturnsDocsLoadedMsg(t *testing.T) {
 	seed := sampleDocs()
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	cmd := m.reload()
 	if cmd == nil {
 		t.Fatal("reload() with real client must return non-nil cmd")
@@ -432,7 +433,7 @@ func TestDocsReload_ReturnsDocsLoadedMsg(t *testing.T) {
 func TestDocsSubscribe_ReturnsEventsReadyMsg(t *testing.T) {
 	c, stop := newFakeDocSrv(t, nil)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	cmd := m.subscribe()
 	if cmd == nil {
 		t.Fatal("subscribe() with real client must return non-nil cmd")
@@ -450,7 +451,7 @@ func TestDocsLoadDoc_ReturnsDocViewMsg(t *testing.T) {
 	}
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	cmd := m.loadDoc("d1", false)
 	if cmd == nil {
 		t.Fatal("loadDoc with real client must return non-nil cmd")
@@ -471,7 +472,7 @@ func TestDocsLoadDoc_ThenViewRendersBody(t *testing.T) {
 	}
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	// Simulate docViewMsg being fed back after loadDoc.
 	next, _ := m.Update(docViewMsg{doc: seed[0]})
 	m = next.(DocsModel)
@@ -507,7 +508,7 @@ func TestDocs_TabFocusMatchesEnterFollow_CodeFenceDrift(t *testing.T) {
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
 
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 
@@ -562,7 +563,7 @@ func TestDocs_SameIdReloadPreservesFocus(t *testing.T) {
 	seed := []domain.Document{
 		{ID: "da", Type: domain.DocFree, Path: "alpha", Title: "Alpha"},
 	}
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 
@@ -601,7 +602,7 @@ func TestDocs_SameIdReloadPreservesFocus(t *testing.T) {
 }
 
 func TestDocsRenderView_Empty(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	emptyDoc := domain.Document{ID: "e1", Type: domain.DocFree, Path: "p", Title: "Empty", Body: "   "}
 	next, _ := m.Update(docViewMsg{doc: emptyDoc})
 	m = next.(DocsModel)
@@ -614,7 +615,7 @@ func TestDocsRenderView_Empty(t *testing.T) {
 func TestDocsPersist_Create_PostsToAPI(t *testing.T) {
 	c, stop := newFakeDocSrv(t, nil)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	done := editorDoneMsg{
 		body:  []byte("my content"),
 		typ:   domain.DocFree,
@@ -637,7 +638,7 @@ func TestDocsPersist_Update_PutsToAPI(t *testing.T) {
 	}
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	done := editorDoneMsg{
 		body:   []byte("new body"),
 		editID: "d1",
@@ -659,7 +660,7 @@ func TestDocsDeleteCmd_DeletesAndReturnsDocSavedMsg(t *testing.T) {
 	}
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	// Load docs into model.
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
@@ -677,7 +678,7 @@ func TestDocsDeleteKey_YConfirms(t *testing.T) {
 	seed := sampleDocs()
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 	// Enter delete mode.
@@ -694,7 +695,7 @@ func TestDocsDeleteKey_YConfirms(t *testing.T) {
 }
 
 func TestDocsDeleteKey_EscCancels(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 	next, _ = m.Update(tea.KeyPressMsg{Text: "d"})
@@ -707,7 +708,7 @@ func TestDocsDeleteKey_EscCancels(t *testing.T) {
 }
 
 func TestDocsBuildEditor_NilEditor_ReturnsErrMsg(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	msg := m.buildEditor([]byte("seed"), "", domain.DocFree, "path", "title")
 	if _, ok := msg.(errMsg); !ok {
 		t.Fatalf("buildEditor with nil editor should return errMsg, got %T", msg)
@@ -716,7 +717,7 @@ func TestDocsBuildEditor_NilEditor_ReturnsErrMsg(t *testing.T) {
 
 func TestDocsBuildEditor_FakeEditor_ReturnsEditorReq(t *testing.T) {
 	ed := &fakeDocEditor{fixedBody: []byte("edited content")}
-	m := NewDocs(nil, ed, nil, "tester")
+	m := NewDocs(nil, ed, nil, theme.Default, "tester")
 	msg := m.buildEditor([]byte("seed"), "id-1", domain.DocFree, "path/x", "Title X")
 	req, ok := msg.(editorReq)
 	if !ok {
@@ -740,7 +741,7 @@ func TestDocsBuildEditor_FakeEditor_ReturnsEditorReq(t *testing.T) {
 
 func TestDocsBuildEditor_FakeEditor_CmdError_ReturnsErrMsg(t *testing.T) {
 	ed := &fakeDocEditor{cmdErr: fmt.Errorf("editor: test error")}
-	m := NewDocs(nil, ed, nil, "tester")
+	m := NewDocs(nil, ed, nil, theme.Default, "tester")
 	msg := m.buildEditor([]byte("seed"), "", domain.DocFree, "p", "t")
 	if _, ok := msg.(errMsg); !ok {
 		t.Fatalf("buildEditor cmd error should return errMsg, got %T", msg)
@@ -754,7 +755,7 @@ func TestDocsBuildEditorCmd_LoadsAndThenEdits(t *testing.T) {
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
 	ed := &fakeDocEditor{fixedBody: []byte("edited")}
-	m := NewDocs(c, ed, nil, "tester")
+	m := NewDocs(c, ed, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 
@@ -772,7 +773,7 @@ func TestDocsBuildEditorCmd_LoadsAndThenEdits(t *testing.T) {
 
 func TestDocsBuildCreateEditorCmd_ProducesEditorReq(t *testing.T) {
 	ed := &fakeDocEditor{fixedBody: []byte("created content")}
-	m := NewDocs(nil, ed, nil, "tester")
+	m := NewDocs(nil, ed, nil, theme.Default, "tester")
 	// Set up create form state.
 	m.mode = modeCreating
 	m.newType = domain.DocFree
@@ -811,7 +812,7 @@ func TestDocsDropLast(t *testing.T) {
 }
 
 func TestDocsHandleCreateKey_SpaceCyclesType(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel) // modeCreating, field=fldType, newType=DocFree
 	next, _ = m.Update(tea.KeyPressMsg{Text: " "})
@@ -828,7 +829,7 @@ func TestDocsHandleCreateKey_SpaceCyclesType(t *testing.T) {
 }
 
 func TestDocsHandleCreateKey_BackspaceOnPathAndTitle(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	// Advance to path field.
@@ -867,7 +868,7 @@ func TestDocsHandleCreateKey_BackspaceOnPathAndTitle(t *testing.T) {
 }
 
 func TestDocsHandleCreateKey_EnterAdvancesField(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	// Enter on type field → advance to path.
@@ -879,7 +880,7 @@ func TestDocsHandleCreateKey_EnterAdvancesField(t *testing.T) {
 }
 
 func TestDocsHandleCreateKey_EnterOnTitle_InvalidSlug(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	// Advance to title field.
@@ -897,7 +898,7 @@ func TestDocsHandleCreateKey_EnterOnTitle_InvalidSlug(t *testing.T) {
 }
 
 func TestDocsHandleCreateKey_EnterOnTitle_EmptyTitle(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(tea.KeyPressMsg{Text: "n"})
 	m = next.(DocsModel)
 	// Advance to title field.
@@ -924,7 +925,7 @@ func TestDocsViewMode_EKeyOpensEditor(t *testing.T) {
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
 	ed := &fakeDocEditor{fixedBody: []byte("edited")}
-	m := NewDocs(c, ed, nil, "tester")
+	m := NewDocs(c, ed, nil, theme.Default, "tester")
 	// Enter view mode.
 	next, _ := m.Update(docViewMsg{doc: seed[0]})
 	m = next.(DocsModel)
@@ -936,7 +937,7 @@ func TestDocsViewMode_EKeyOpensEditor(t *testing.T) {
 }
 
 func TestDocsViewMode_EKey_NilViewing(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	// Manually set modeView but no viewing doc.
 	m.mode = modeView
 	next, cmd := m.Update(tea.KeyPressMsg{Text: "e"})
@@ -950,7 +951,7 @@ func TestDocsViewMode_EKey_NilViewing(t *testing.T) {
 // markdown viewer owns the keyboard, so `q` no longer quits the program from
 // view mode — it is forwarded to the overlay (which leaves the screen running).
 func TestDocsViewMode_QDoesNotQuit(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
 	m = next.(DocsModel)
 	nm, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
@@ -974,7 +975,7 @@ func TestDocsListMode_EKey_WithDocs(t *testing.T) {
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
 	ed := &fakeDocEditor{fixedBody: []byte("edited")}
-	m := NewDocs(c, ed, nil, "tester")
+	m := NewDocs(c, ed, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 	_, cmd := m.Update(tea.KeyPressMsg{Text: "e"})
@@ -984,7 +985,7 @@ func TestDocsListMode_EKey_WithDocs(t *testing.T) {
 }
 
 func TestDocsListMode_EKey_NoDocs(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	_, cmd := m.Update(tea.KeyPressMsg{Text: "e"})
 	if cmd != nil {
 		t.Fatal("e with no docs should return nil cmd")
@@ -992,7 +993,7 @@ func TestDocsListMode_EKey_NoDocs(t *testing.T) {
 }
 
 func TestDocsListMode_DKey_NoDocs(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, cmd := m.Update(tea.KeyPressMsg{Text: "d"})
 	_ = next
 	if cmd != nil {
@@ -1001,7 +1002,7 @@ func TestDocsListMode_DKey_NoDocs(t *testing.T) {
 }
 
 func TestDocsEditorDoneMsg_WithError_SetsErr(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	done := editorDoneMsg{err: fmt.Errorf("editor failed")}
 	next, _ := m.Update(done)
 	m = next.(DocsModel)
@@ -1016,7 +1017,7 @@ func TestDocsEditorDoneMsg_WithError_SetsErr(t *testing.T) {
 func TestDocsEditorDoneMsg_NoError_CallsPersist(t *testing.T) {
 	c, stop := newFakeDocSrv(t, nil)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	done := editorDoneMsg{
 		body:  []byte("new content"),
 		path:  "new/path",
@@ -1030,7 +1031,7 @@ func TestDocsEditorDoneMsg_NoError_CallsPersist(t *testing.T) {
 }
 
 func TestDocsEnterKey_NoDocs(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil {
 		t.Fatal("Enter with no docs should return nil cmd")
@@ -1041,7 +1042,7 @@ func TestDocsEnterKey_WithDocs(t *testing.T) {
 	seed := sampleDocs()
 	c, stop := newFakeDocSrv(t, seed)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: seed})
 	m = next.(DocsModel)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -1052,7 +1053,7 @@ func TestDocsEnterKey_WithDocs(t *testing.T) {
 
 func TestDocsSelClamp_OnLoad(t *testing.T) {
 	// Start with 2 docs selected at index 1; reload with only 1 doc.
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 	next, _ = m.Update(tea.KeyPressMsg{Text: "j"})
@@ -1069,7 +1070,7 @@ func TestDocsSelClamp_OnLoad(t *testing.T) {
 }
 
 func TestDocsUnhandledMsg(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	_, cmd := m.Update(struct{}{})
 	if cmd != nil {
 		t.Fatal("unhandled msg should return nil cmd")
@@ -1077,7 +1078,7 @@ func TestDocsUnhandledMsg(t *testing.T) {
 }
 
 func TestDocsView_DeletingMode_ShowsPrompt(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 	next, _ = m.Update(tea.KeyPressMsg{Text: "d"})
@@ -1089,7 +1090,7 @@ func TestDocsView_DeletingMode_ShowsPrompt(t *testing.T) {
 }
 
 func TestDocsView_ErrorDisplayed(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(errMsg{err: fmt.Errorf("test err")})
 	out := next.(DocsModel).View().Content
 	if !strings.Contains(out, "error:") {
@@ -1100,7 +1101,7 @@ func TestDocsView_ErrorDisplayed(t *testing.T) {
 func TestDocsView_StatusDisplayed(t *testing.T) {
 	c, stop := newFakeDocSrv(t, nil)
 	defer stop()
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	// docSavedMsg sets status.
 	next, _ := m.Update(docSavedMsg{})
 	m = next.(DocsModel)
@@ -1112,7 +1113,7 @@ func TestDocsView_StatusDisplayed(t *testing.T) {
 }
 
 func TestDocsView_EmptyList(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "tester")
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	out := m.View().Content
 	if !strings.Contains(out, "no documents yet") {
 		t.Fatalf("empty list view should hint user to create:\n%s", out)
@@ -1169,7 +1170,7 @@ func TestBacklinksMsg_NoDuplicateInFocusCycle(t *testing.T) {
 }
 
 func TestDocs_FilterOverlayToggleApply(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m.docs = []domain.Document{{ID: "a", Type: domain.DocFree, Path: "a", Tags: []string{"go"}}}
 	m.filterOpts = []domain.TagCount{{Tag: "go", Count: 1}, {Tag: "tui", Count: 2}}
 	m.mode = modeFiltering
@@ -1192,7 +1193,7 @@ func TestDocs_FilterOverlayToggleApply(t *testing.T) {
 }
 
 func TestDocs_FilterToggleOff(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m.filterOpts = []domain.TagCount{{Tag: "go", Count: 1}, {Tag: "tui", Count: 2}}
 	m.filterCursor = 0
 	m.mode = modeFiltering
@@ -1213,7 +1214,7 @@ func TestDocs_FilterToggleOff(t *testing.T) {
 }
 
 func TestDocs_FilterEscDiscards(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m.mode = modeFiltering
 	m.filterTags = []string{"old"}
 	m.filterWork = []string{"new"}
@@ -1229,7 +1230,7 @@ func TestDocs_FilterEscDiscards(t *testing.T) {
 }
 
 func TestDocs_FilterClear(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m.mode = modeFiltering
 	m.filterWork = []string{"go", "tui"}
 
@@ -1241,7 +1242,7 @@ func TestDocs_FilterClear(t *testing.T) {
 }
 
 func TestDocs_RenderViewSkipsFrontmatter(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	d := domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "A",
 		Body: "---\ntags: [go]\n---\nhello body", Tags: []string{"go"}}
 	m.viewing = &d
@@ -1258,7 +1259,7 @@ func TestDocs_RenderViewSkipsFrontmatter(t *testing.T) {
 }
 
 func TestDocs_SearchInputAndRun(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m2, _ := m.Update(tea.KeyPressMsg{Text: "/"})
 	dm := m2.(DocsModel)
 	if dm.mode != modeSearch {
@@ -1279,7 +1280,7 @@ func TestDocs_SearchInputAndRun(t *testing.T) {
 }
 
 func TestDocs_RenderSearchHighlights(t *testing.T) {
-	m := NewDocs(nil, nil, nil, "u")
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m.mode = modeSearch
 	m.searching = true
 	m.searchHits = []domain.SearchHit{
@@ -1302,7 +1303,7 @@ func TestDocsEventMsg_SearchMode_RerunsSearch(t *testing.T) {
 	// the handler should return a non-nil cmd that triggers re-search rather than
 	// a plain list reload, so search results stay live.
 	c := apiclient.New("http://example.invalid", "tok")
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	ch := make(chan apiclient.ClientEvent, 1)
 	next, _ := m.Update(eventsReadyMsg{ch: ch})
 	m = next.(DocsModel)
@@ -1326,7 +1327,7 @@ func TestDocsEventMsg_SearchMode_EmptyQuery_FallsBackToReload(t *testing.T) {
 	// When search mode is active but the query is empty (typing phase), the
 	// handler should fall back to the plain reload, not runSearch("").
 	c := apiclient.New("http://example.invalid", "tok")
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	ch := make(chan apiclient.ClientEvent, 1)
 	next, _ := m.Update(eventsReadyMsg{ch: ch})
 	m = next.(DocsModel)
@@ -1364,7 +1365,7 @@ func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	c, stop := newFakeDocSrv(t, []domain.Document{src, dest})
 	defer stop()
 
-	m := NewDocs(c, nil, nil, "tester")
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
 	seeded, _ := m.Update(docsLoadedMsg{docs: []domain.Document{src, dest}})
 	m = seeded.(DocsModel)
 	v, _ := m.Update(docViewMsg{doc: src})
