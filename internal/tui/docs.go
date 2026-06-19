@@ -21,6 +21,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/countbar"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
+	"github.com/serverkraken/flow/internal/tui/ui/picker"
 	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
 )
 
@@ -41,12 +42,13 @@ type urlOpener interface {
 type docMode int
 
 const (
-	modeList      docMode = iota // browsing the list
-	modeView                     // reading one document's body
-	modeCreating                 // entering slug/type/title before $EDITOR
-	modeDeleting                 // confirming a delete
-	modeFiltering                // tag-filter overlay
-	modeSearch                   // / search input + results
+	modeList          docMode = iota // browsing the list
+	modeView                         // reading one document's body
+	modeCreating                     // entering slug/type/title before $EDITOR
+	modeDeleting                     // confirming a delete
+	modeFiltering                    // tag-filter overlay
+	modeSearch                       // / search input + results
+	modeProjectFilter                // project-filter picker
 )
 
 // create-form fields, navigated with tab/enter.
@@ -562,6 +564,8 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKey(k)
 	case modeSearch:
 		return m.handleSearchKey(k)
+	case modeProjectFilter:
+		return m.handleProjectFilterKey(k)
 	case modeView:
 		// While the overlay's in-document search input is active it owns every
 		// key (typing the query, Enter/Esc inside search) — forward verbatim.
@@ -650,6 +654,10 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.searchQuery = ""
 		m.searching = false
 		m.searchHits = nil
+		return m, nil
+	case k.Text == "p":
+		m.mode = modeProjectFilter
+		m.projCursor = 0
 		return m, nil
 	}
 	return m, nil
@@ -827,6 +835,36 @@ func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeList
 		m.sel = 0
 		return m, m.reload()
+	}
+	return m, nil
+}
+
+func (m DocsModel) handleProjectFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	// entries: 0 = "Alle Projekte", 1..N = m.projects
+	last := len(m.projects)
+	switch {
+	case k.Code == tea.KeyEsc:
+		m.mode = modeList
+		return m, nil
+	case k.Text == "j":
+		if m.projCursor < last {
+			m.projCursor++
+		}
+		return m, nil
+	case k.Text == "k":
+		if m.projCursor > 0 {
+			m.projCursor--
+		}
+		return m, nil
+	case k.Code == tea.KeyEnter:
+		if m.projCursor == 0 {
+			m.projFilter = ""
+		} else if m.projCursor-1 < len(m.projects) {
+			m.projFilter = m.projects[m.projCursor-1].ID
+		}
+		m.mode = modeList
+		m.sel = 0
+		return m, nil
 	}
 	return m, nil
 }
@@ -1051,6 +1089,8 @@ func (m DocsModel) View() tea.View {
 		m.renderFilter(&b)
 	case modeSearch:
 		m.renderSearch(&b)
+	case modeProjectFilter:
+		m.renderProjectFilter(&b)
 	default:
 		m.renderList(&b)
 	}
@@ -1112,8 +1152,10 @@ func (m DocsModel) footer() string {
 		return "j/k move · space toggle · c clear · enter apply · esc cancel"
 	case modeSearch:
 		return "query eingeben · enter suchen · esc abbrechen"
+	case modeProjectFilter:
+		return "j/k move · enter wählen · esc abbrechen"
 	default:
-		return "j/k move · enter view · n new · e edit · d delete · f filter · / suchen · q quit"
+		return "j/k move · enter view · n new · e edit · d delete · p projekt · f filter · / suchen · q quit"
 	}
 }
 
@@ -1285,6 +1327,19 @@ func (m DocsModel) renderFilter(b *strings.Builder) {
 			line = styleSel.Render("▸ " + strings.TrimLeft(line, " "))
 		}
 		b.WriteString(line + "\n")
+	}
+}
+
+func (m DocsModel) renderProjectFilter(b *strings.Builder) {
+	pal := m.pal
+	b.WriteString(theme.Heading("Projekt-Filter", pal) + "\n\n")
+	width := m.width
+	if width < 20 {
+		width = 60
+	}
+	b.WriteString(picker.Row(m.projCursor == 0, "Alle Projekte", "", width-4, pal) + "\n")
+	for i, p := range m.projects {
+		b.WriteString(picker.Row(m.projCursor == i+1, p.Slug, "", width-4, pal) + "\n")
 	}
 }
 

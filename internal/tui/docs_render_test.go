@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -100,5 +101,38 @@ func TestRenderList_KompendiumLook(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("renderList missing %q in:\n%s", want, out)
 		}
+	}
+}
+
+func TestProjectFilter_OpenSelectClear(t *testing.T) {
+	t.Parallel()
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
+	m.projects = []domain.Project{{ID: "p1", Slug: "serverkraken/flow"}}
+	m.projByID = map[string]domain.Project{"p1": m.projects[0]}
+
+	// open picker with "p"
+	nm, _ := m.Update(tea.KeyPressMsg{Text: "p"})
+	m = nm.(DocsModel)
+	if m.mode != modeProjectFilter {
+		t.Fatalf("after p: mode = %v, want modeProjectFilter", m.mode)
+	}
+	// move to the project (index 1) and select
+	m.projCursor = 1
+	nm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = nm.(DocsModel)
+	if m.projFilter != "p1" {
+		t.Fatalf("projFilter = %q, want p1", m.projFilter)
+	}
+	if m.mode != modeList {
+		t.Fatalf("after select: mode = %v, want modeList", m.mode)
+	}
+	// re-open, choose index 0 ("Alle") to clear
+	nm, _ = m.Update(tea.KeyPressMsg{Text: "p"})
+	m = nm.(DocsModel)
+	m.projCursor = 0
+	nm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = nm.(DocsModel)
+	if m.projFilter != "" {
+		t.Fatalf("after Alle: projFilter = %q, want empty", m.projFilter)
 	}
 }
