@@ -1,6 +1,7 @@
 package shell_test
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -217,6 +218,38 @@ func TestShell_withActiveTabStartsThere(t *testing.T) {
 	// Out of range clamps to 0.
 	if shell.New(nil, "a", theme.Default).WithActiveTab(9).ActiveTab() != 0 {
 		t.Fatal("WithActiveTab(out-of-range) should clamp to 0")
+	}
+}
+
+// fullScreenRoute embeds stubRoute but overrides View to return a distinct
+// body string ("BODY") so the test can tell the body apart from the tabstrip
+// title ("Docs") in the rendered output.
+type fullScreenRoute struct{ stubRoute }
+
+func (r fullScreenRoute) FullScreen() bool                           { return true }
+func (r fullScreenRoute) View(_ shell.Frame) string                  { return "BODY" }
+func (r fullScreenRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) { return r, nil }
+
+func TestShell_fullScreenSuppressesChrome(t *testing.T) {
+	normal := shell.New(nil, "alice", theme.Default).
+		WithTabs([]shell.Route{stubRoute{title: "Docs"}})
+	full := shell.New(nil, "alice", theme.Default).
+		WithTabs([]shell.Route{fullScreenRoute{stubRoute{title: "Docs"}}})
+	// Give both a size.
+	n, _ := normal.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	f, _ := full.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	nv := n.(shell.Shell).View().Content
+	fv := f.(shell.Shell).View().Content
+	// The tab strip title appears in normal chrome but not in fullscreen.
+	if !strings.Contains(nv, "Docs") {
+		t.Fatalf("normal view should show the tabstrip:\n%s", nv)
+	}
+	if strings.Contains(fv, "Docs") {
+		t.Fatalf("fullscreen view must suppress the tabstrip chrome:\n%s", fv)
+	}
+	// The body content must be present in fullscreen.
+	if !strings.Contains(fv, "BODY") {
+		t.Fatalf("fullscreen view must contain body content:\n%s", fv)
 	}
 }
 

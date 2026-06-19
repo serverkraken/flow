@@ -53,3 +53,9 @@ type SwitchTabMsg struct{ Title string }
 // to it instead of consuming digits/Tab/Esc/q/:/? as global shortcuts. It is an
 // optional interface — routes that don't implement it keep the global shortcuts.
 type InputCapturer interface{ CapturesInput() bool }
+
+// FullScreener lets the active tab's top route take over the whole terminal,
+// suppressing the shell's header/tabstrip/breadcrumb/footer. Used by the Docs
+// viewer for an immersive read (matches main's old ModeView takeover). Combine
+// with InputCapturer so the shell also forwards every key to the route.
+type FullScreener interface{ FullScreen() bool }
