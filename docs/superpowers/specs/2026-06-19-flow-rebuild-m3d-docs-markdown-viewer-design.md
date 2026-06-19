@@ -98,21 +98,47 @@ Wikilink "back" reuses `DocsModel`'s existing `viewStack` (drill = push id, `Esc
 ### 4. Renderer wiring in DocsModel
 
 - On `docViewMsg` (full doc body loaded), build the overlay with a `buildRenderFunc()` closure that
-  calls `markdown.Render(body, width, WithWikilinks(adapter), WithFrontmatter(fm), WithBacklinks(bl))`.
-- `wikiAdapter` (~20 lines) resolves `[[links]]` against the loaded doc set and emits
-  `flow://docs/<id>` URIs for valid links; the viewer turns Enter-on-wikilink into in-TUI navigation
-  (push `viewStack`, reload), while bare web URLs open in the OS browser via the existing opener.
+  calls `markdown.Render(body, width, WithWikilinks(adapter), WithFrontmatter(fm), WithBacklinks(bl),
+  WithFocusedWikilink(state.focus))`.
+- `wikiAdapter` (~20 lines) resolves `[[links]]` against the loaded doc set (`domain.ResolveWikilink`)
+  and emits `flow://docs/<id>` URIs for valid links; the viewer turns Enter-on-wikilink into in-TUI
+  navigation (push `viewStack`, reload), while bare web URLs open in the OS browser via the existing
+  opener.
 - Frontmatter card fed from `domain.Document` type/title/date/project/tags; backlinks footer fed
-  from the `apiclient` backlinks call mapped to the renderer's `BacklinkRef{ID, Title}` shape.
+  from the `apiclient.Backlinks` call mapped from `domain.BacklinkRef{ID,Path,Title,Type}` to the
+  renderer's `BacklinkRef{ID, Title}` shape.
 - On render error, fall back to the raw body (never blank).
+
+### 5. Keyboard wikilink navigation with visible focus (chosen: full)
+
+The user is keyboard-primary and wants in-body focus, so the renderer gains a focus contract and
+DocsModel drives it:
+
+- **Renderer:** new `WithFocusedWikilink(idx int)` option (idx < 0 = none). The wikilink inline
+  renderer keeps a per-render ordinal counter; the `idx`-th **valid** wikilink renders in a focused
+  style (a `Focused` role added to `MarkdownRoles`, e.g. reverse/accent), the rest as today
+  (valid `→` / broken `⊘`). Weblinks stay OSC-8 click-only (as in old Kompendium).
+- **Focus state lives in a heap cell** `*viewerState{ focus int }` held by `DocsModel` and captured
+  by the `buildRenderFunc` closure, so focus survives bubbletea's value-copies and the closure always
+  reads the current focus. `Tab`/`⇧Tab` mutate `state.focus` (cycle over the doc's valid wikilinks),
+  then trigger an overlay re-render (`overlay.Rerender()` re-runs the RenderFunc at the current size)
+  and scroll the focused link into view.
+- **Key ownership in `modeView`:** DocsModel intercepts `Tab`/`⇧Tab` (cycle focus), `Enter` (follow:
+  wiki → push `viewStack` + reload; the focused wikilink id comes from the wikiAdapter's resolution),
+  `e` (edit), and `Esc` (pop one `viewStack` level, or leave to list). **All other keys forward to
+  the overlay** (scroll j/k/g/G/ctrl-d/u/pgup/pgdn, `/`-search + n/N, code-copy `c`). While the
+  overlay is in its own `/`-search input, it reports `CapturesInput()==true` (new accessor, mirrors
+  the docs/route pattern) and DocsModel forwards **every** key to it. The overlay is built with
+  `WithCloseKeys()` empty so it never self-closes — DocsModel owns leaving.
 
 ## Components & responsibilities
 
 - `internal/tui/markdown/theme` — palette → lipgloss role bundle. Pure, tested.
 - `internal/tui/markdown` — markdown source → ANSI string. Pure (given width + options), tested with
-  golden ANSI fixtures ported from `main`.
+  golden ANSI fixtures ported from `main`. **Adds** `WithFocusedWikilink(idx)` + a `Focused` role.
 - `internal/tui/ui/markdown_overlay` — interactive viewport view-model (scroll/search/copy/chrome).
-  Tested via reducer + golden render tests.
+  Tested via reducer + golden render tests. **Adds** `Rerender()` (re-run RenderFunc at current size)
+  and `CapturesInput() bool` (true while in `/`-search input).
 - `internal/tui/shell` — `FullScreener` interface + `Shell.View` takeover branch. Tested: chrome
   suppressed when the top route reports fullscreen, present otherwise.
 - `internal/tui/docs.go` (+ `internal/tui/screen/docs/route.go`) — mount overlay in `modeView`,
@@ -120,10 +146,11 @@ Wikilink "back" reuses `DocsModel`'s existing `viewStack` (drill = push id, `Esc
 
 ## Data flow
 
-open doc (`enter`) → `loadDoc` → `docViewMsg{doc}` → build overlay + render markdown → `modeView`
-→ shell sees `FullScreen()==true` → renders overlay over full screen; all keys forwarded
-(`InputCapturer`). Wikilink `enter` → resolve `flow://docs/<id>` → push `viewStack` → reload →
-re-render. `Esc` → pop one level, or leave to list (chrome returns).
+open doc (`enter`) → `loadDoc` → `docViewMsg{doc}` → build overlay + render markdown (focus = -1) →
+`modeView` → shell sees `FullScreen()==true` → renders overlay over full screen; keys forwarded
+(`InputCapturer`). `Tab`/`⇧Tab` → mutate `state.focus` → `overlay.Rerender()` + scroll-to-focus.
+`Enter` on focused wikilink → push `viewStack` → reload → re-render (focus reset). `Esc` → pop one
+level, or leave to list (chrome returns). Scroll/`/`-search/`c`-copy keys → forwarded to overlay.
 
 ## Error handling
 
@@ -141,12 +168,17 @@ re-render. `Esc` → pop one level, or leave to list (chrome returns).
   target selection, close keys.
 - Shell test: `FullScreener` true ⇒ no header/tabstrip/breadcrumb/footer in `View()`; false ⇒ chrome
   present.
-- Docs wiring tests: `FullScreen()` true only in `modeView`; wikilink drill pushes `viewStack`; `Esc`
-  pops then leaves; render-error fallback.
+- Renderer focus test: `WithFocusedWikilink(n)` styles the n-th valid wikilink differently from the
+  others (ANSI-stripped position check + style-present check).
+- Docs wiring tests: `FullScreen()` true only in `modeView`; `Tab` advances `state.focus` (cycles,
+  wraps); `Enter` on focused wikilink pushes `viewStack` + loads target; `Esc` pops then leaves;
+  in-doc `/`-search makes the overlay capture all keys; render-error fallback.
 - `make ci` green, coverage ≥ 80 %.
 - Live done-gate vs the dev stack: open a doc → fullscreen render of headings/code/table/callouts;
-  wikilink valid/broken + drill/back; frontmatter card; backlinks footer; `/`-search; code-copy;
-  `Esc` returns to the list with shell chrome back; `flow docs` standalone still works.
+  `Tab`/`⇧Tab` cycles wikilinks with a **visible focus highlight** + scroll-to-focus, `Enter` drills
+  in, `Esc` goes back/leaves; valid/broken wikilink markers; frontmatter card; backlinks footer;
+  `/`-search; code-copy; weblink OSC-8 click; `Esc` returns to the list with shell chrome back;
+  `flow docs` standalone still works.
 
 ## Scope boundaries (deliberately out)
 
