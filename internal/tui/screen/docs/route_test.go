@@ -33,3 +33,23 @@ func TestDocsRoute_updateReturnsRoute(t *testing.T) {
 		t.Fatal("Update must return a Route")
 	}
 }
+
+// TestDocsRoute_capturesInputInSubmode guards the bug where the shell ate the
+// New-Document form's Tab/Esc keys: the adapter must implement
+// shell.InputCapturer and report capture once the docs screen leaves list mode.
+func TestDocsRoute_capturesInputInSubmode(t *testing.T) {
+	r := docs.NewRoute(nil, nil, nil, theme.Default, "alice")
+	ic, ok := interface{}(r).(shell.InputCapturer)
+	if !ok {
+		t.Fatal("docs.Route must implement shell.InputCapturer")
+	}
+	if ic.CapturesInput() {
+		t.Fatal("list mode: route must not capture (host nav must work)")
+	}
+	// 'n' opens the create form; the adapter must now report capture so the
+	// shell forwards Tab/Esc to the form instead of switching tabs.
+	r.Update(tea.KeyPressMsg{Text: "n"})
+	if !ic.CapturesInput() {
+		t.Fatal("create mode: route must report CapturesInput()==true")
+	}
+}

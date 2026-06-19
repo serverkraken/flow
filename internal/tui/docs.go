@@ -375,6 +375,15 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// CapturesInput reports that the docs screen owns the keyboard whenever it is
+// in a sub-mode (creating / viewing / searching / filtering / deleting): every
+// key then belongs to the model — New-Document field nav (Tab), link cycling
+// (Tab/Shift+Tab in view), search/filter text entry, delete confirm — rather
+// than the host shell's global Tab/digits/':' shortcuts. In the list it returns
+// false so host navigation works. The docs route adapter exposes this as
+// shell.InputCapturer.
+func (m DocsModel) CapturesInput() bool { return m.mode != modeList }
+
 func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeCreating:

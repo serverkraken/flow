@@ -48,6 +48,13 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 
 func (r *Route) View(shell.Frame) string { return r.m.View().Content }
 
+// CapturesInput delegates to the wrapped DocsModel so the shell forwards every
+// key to the docs screen while it is in a text-entry / sub-mode (e.g. the New
+// Document form's Tab field-nav or Esc cancel). Without this the shell treats
+// Tab as tab-switch and the form keys never arrive. Implements
+// shell.InputCapturer.
+func (r *Route) CapturesInput() bool { return r.m.CapturesInput() }
+
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		{Key: "j/k", Desc: "wählen"},

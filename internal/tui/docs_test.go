@@ -182,6 +182,23 @@ func TestDocsEnterShowsBody(t *testing.T) {
 	}
 }
 
+func TestDocsCapturesInput(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "tester")
+	if m.CapturesInput() {
+		t.Fatal("modeList should not capture input (host Tab/digits nav must work)")
+	}
+	// 'n' opens the create form — Tab/space/text now belong to the form.
+	create, _ := m.Update(tea.KeyPressMsg{Text: "n"})
+	if !create.(DocsModel).CapturesInput() {
+		t.Fatal("modeCreating should capture input")
+	}
+	// view mode cycles links with Tab/Shift+Tab — also captures.
+	view, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
+	if !view.(DocsModel).CapturesInput() {
+		t.Fatal("modeView should capture input")
+	}
+}
+
 func TestDocsEscReturnsToList(t *testing.T) {
 	m := NewDocs(nil, nil, nil, "tester")
 	next, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
