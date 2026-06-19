@@ -233,6 +233,21 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // View renders header + tabstrip + breadcrumb + body + footer.
 func (s Shell) View() tea.View {
+	// FullScreener: if the active top route requests full-screen and no
+	// overlay is open, skip all chrome and render the route over the full
+	// terminal area. Help/palette overlays take precedence: the guard below
+	// skips fullscreen when either is open, falling through to the switch.
+	if !s.helpOpen && !s.paletteOpen {
+		top := s.tabs[s.activeTab].Top()
+		if fs, ok := top.(FullScreener); ok && fs.FullScreen() {
+			v := tea.NewView(top.View(Frame{Width: max(s.width, 1), Height: max(s.height, 1), Pal: s.pal}))
+			v.AltScreen = true
+			return v
+		}
+	}
+
+	// Chrome strings are only needed for the non-fullscreen path, so build them
+	// after the FullScreener early-return rather than discarding them per frame.
 	titles := make([]string, len(s.tabs))
 	for i, ns := range s.tabs {
 		titles[i] = ns.Top().Title()
@@ -249,19 +264,6 @@ func (s Shell) View() tea.View {
 	contentH := s.height - chrome
 	if contentH < 0 {
 		contentH = 0
-	}
-
-	// FullScreener: if the active top route requests full-screen and no
-	// overlay is open, skip all chrome and render the route over the full
-	// terminal area. Help/palette overlays take precedence: the guard below
-	// skips fullscreen when either is open, falling through to the switch.
-	if !s.helpOpen && !s.paletteOpen {
-		top := s.tabs[s.activeTab].Top()
-		if fs, ok := top.(FullScreener); ok && fs.FullScreen() {
-			v := tea.NewView(top.View(Frame{Width: max(s.width, 1), Height: max(s.height, 1), Pal: s.pal}))
-			v.AltScreen = true
-			return v
-		}
 	}
 
 	var body, footer string

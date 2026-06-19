@@ -1,6 +1,5 @@
 package markdown
 
-
 // Renderer is the option-less markdown renderer typed for
 // ports.MarkdownRenderer. Surfaces that don't need a wikilink resolver
 // (cheatsheet today; any future plain-Markdown viewer) can wire one of
