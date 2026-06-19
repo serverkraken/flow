@@ -84,3 +84,21 @@ func TestUpdate_ProjectsLoaded_BuildsIndex(t *testing.T) {
 		t.Fatalf("projByID = %+v, want 2 entries indexed by id", dm.projByID)
 	}
 }
+
+func TestRenderList_KompendiumLook(t *testing.T) {
+	t.Parallel()
+	d := time.Date(2026, 5, 18, 0, 0, 0, 0, time.UTC)
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
+	m.width = 80
+	m.height = 40
+	m.docs = []domain.Document{
+		{Type: domain.DocDaily, Path: "daily/2026-05-18", Date: &d, Body: "First on-call schedule note"},
+		{Type: domain.DocFree, Path: "notes/foo", UpdatedAt: d},
+	}
+	out := m.View().Content
+	for _, want := range []string{"kompendium", "Notizen", "TÄGL.", "FREI", "daily/2026-05-18", "2026-05-18", "1/2"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("renderList missing %q in:\n%s", want, out)
+		}
+	}
+}

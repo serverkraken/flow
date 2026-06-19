@@ -8,12 +8,17 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/bubbles/v2/paginator"
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/kindcolor"
 	"github.com/serverkraken/flow/internal/tui/markdown"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/badge"
+	"github.com/serverkraken/flow/internal/tui/ui/chip"
+	"github.com/serverkraken/flow/internal/tui/ui/countbar"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
 	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
@@ -1122,27 +1127,104 @@ func tagSuffix(tags []string) string {
 }
 
 func (m DocsModel) renderList(b *strings.Builder) {
-	b.WriteString(styleHeader.Render("Documents") + "\n")
-	if len(m.filterTags) > 0 {
-		b.WriteString(styleMuted.Render("  filter: "+tagSuffix(m.filterTags)) + "\n")
+	pal := m.pal
+	visible := applyProjectFilter(m.docs, m.projFilter)
+	counts := docCounts(visible)
+
+	segs := []countbar.Seg{
+		{Glyph: kindcolor.Glyph(domain.DocDaily), Label: "täglich", N: counts[domain.DocDaily], Color: kindcolor.Color(domain.DocDaily, pal)},
+		{Glyph: kindcolor.Glyph(domain.DocProject), Label: "projekt", N: counts[domain.DocProject], Color: kindcolor.Color(domain.DocProject, pal)},
+		{Glyph: kindcolor.Glyph(domain.DocFree), Label: "frei", N: counts[domain.DocFree], Color: kindcolor.Color(domain.DocFree, pal)},
 	}
-	if len(m.docs) == 0 {
-		b.WriteString(styleMuted.Render("  no documents yet — press n to create one") + "\n")
+	if counts[domain.DocAgent] > 0 {
+		segs = append(segs, countbar.Seg{Glyph: kindcolor.Glyph(domain.DocAgent), Label: "agent", N: counts[domain.DocAgent], Color: kindcolor.Color(domain.DocAgent, pal)})
+	}
+	b.WriteString(theme.Heading("kompendium", pal) + theme.Dim(" — ", pal) +
+		countbar.Render(len(visible), len(m.docs), "Notizen", segs, pal) + "\n")
+
+	if m.projFilter != "" {
+		if p, ok := m.projByID[m.projFilter]; ok {
+			c := pal.Sem().Accent
+			if p.Color != "" {
+				c = theme.Color(p.Color)
+			}
+			label := p.Slug
+			if p.Glyph != "" {
+				label = p.Glyph + " " + p.Slug
+			}
+			b.WriteString(chip.Render(label, c, pal) + "\n")
+		}
+	}
+	if len(m.filterTags) > 0 {
+		b.WriteString(theme.Dim("  filter: "+tagSuffix(m.filterTags), pal) + "\n")
+	}
+
+	b.WriteString("\n" + theme.Dim("notizen", pal) + "\n\n")
+
+	if len(visible) == 0 {
+		b.WriteString(theme.Dim("  keine Notizen — n für neu", pal) + "\n")
 		return
 	}
-	for i, d := range m.docs {
-		tags := ""
-		if len(d.Tags) > 0 {
-			tags = styleMuted.Render("  " + tagSuffix(d.Tags))
-		}
-		if i == m.sel {
-			line := styleSel.Render(fmt.Sprintf("▸ %-7s %s  %s", d.Type, d.Path, d.Title)) + tags
-			b.WriteString(line + "\n")
-		} else {
-			line := fmt.Sprintf("  %-7s %s  %s", d.Type, d.Path, d.Title) + tags
-			b.WriteString(line + "\n")
-		}
+
+	width := m.width
+	if width < 20 {
+		width = 80
 	}
+	perPage := m.docsPerPage()
+	if m.sel >= len(visible) {
+		m.sel = len(visible) - 1
+	}
+	if m.sel < 0 {
+		m.sel = 0
+	}
+	pager := paginator.New(paginator.WithPerPage(perPage))
+	pager.Type = paginator.Dots
+	pager.ActiveDot = lipgloss.NewStyle().Foreground(pal.Sem().Accent).Render(glyphs.Filled)
+	pager.InactiveDot = theme.Dim(glyphs.Empty, pal)
+	pager.SetTotalPages(len(visible))
+	pager.Page = m.sel / perPage
+	start, end := pager.GetSliceBounds(len(visible))
+	for i := start; i < end; i++ {
+		m.writeDocRow(b, visible[i], i == m.sel, width)
+	}
+	b.WriteString("\n" + pager.View() + theme.Dim(fmt.Sprintf("  %d/%d", m.sel+1, len(visible)), pal) + "\n")
+}
+
+func (m DocsModel) writeDocRow(b *strings.Builder, d domain.Document, selected bool, width int) {
+	pal := m.pal
+	stripe := "  "
+	if selected {
+		stripe = lipgloss.NewStyle().Foreground(pal.Sem().Active).Render(glyphs.AccentBar) + " "
+	}
+	labelStyle := lipgloss.NewStyle().Foreground(pal.Fg)
+	if selected {
+		labelStyle = labelStyle.Bold(true)
+	}
+	b.WriteString(stripe +
+		theme.Dim(dateCell(d), pal) + "  " +
+		badgeForType(d.Type, pal) + "  " +
+		labelStyle.Render(projRowLabel(d, m.projByID)) + "\n")
+	for _, line := range docExcerpt(d.Body, width-6, 2) {
+		b.WriteString("   " + theme.Dim(line, pal) + "\n")
+	}
+	b.WriteString("\n")
+}
+
+func badgeForType(t domain.DocumentType, p theme.Palette) string {
+	return badge.Render(kindcolor.Badge(t), kindcolor.Color(t, p), p)
+}
+
+// docsPerPage derives rows-per-page from the terminal height (each row is ~3
+// lines: header + up to 2 excerpt lines + blank). Falls back to 5 when unknown.
+func (m DocsModel) docsPerPage() int {
+	if m.height < 12 {
+		return 5
+	}
+	n := (m.height - 8) / 3
+	if n < 1 {
+		n = 1
+	}
+	return n
 }
 
 func (m DocsModel) renderView(b *strings.Builder) {

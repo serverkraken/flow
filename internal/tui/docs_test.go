@@ -1115,7 +1115,7 @@ func TestDocsView_StatusDisplayed(t *testing.T) {
 func TestDocsView_EmptyList(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	out := m.View().Content
-	if !strings.Contains(out, "no documents yet") {
+	if !strings.Contains(out, "keine Notizen") {
 		t.Fatalf("empty list view should hint user to create:\n%s", out)
 	}
 }
