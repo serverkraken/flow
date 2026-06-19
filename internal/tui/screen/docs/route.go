@@ -72,6 +72,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 		{Key: "enter", Desc: "öffnen"},
 		{Key: "n", Desc: "neu"},
 		{Key: "e", Desc: "edit"},
+		{Key: "p", Desc: "Projekt"},
 		{Key: "/", Desc: "suchen"},
 		{Key: "f", Desc: "Filter"},
 	}
