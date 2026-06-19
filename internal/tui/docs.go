@@ -391,9 +391,25 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if _, start := domain.ParseFrontmatter(d.Body); start > 0 {
 			d.Body = d.Body[start:]
 		}
+		// A same-id docViewMsg is an SSE live-reload of the doc the user is
+		// already reading (a document.* event re-fired loadDocNoPush) — not a
+		// navigation. Preserve the wikilink focus and the overlay scroll: just
+		// refresh the source + render closure (so edited content and backlinks
+		// show up) and Rerender in place. Only a genuine navigation (different
+		// id, or no overlay yet) does the full reset (focus=-1, scroll 0).
+		sameDoc := m.overlayReady && m.viewing != nil && m.viewing.ID == d.ID
 		m.viewing = &d
 		m.mode = modeView
 		m.viewLinks = buildBodyLinks(d.Body, d, m.docs)
+		if sameDoc {
+			// Rebind the render closure to the refreshed doc (new title/tags/
+			// body) against the EXISTING viewer cell so focus is preserved, and
+			// push the new source — both via in-place setters that keep the
+			// overlay scroll offset. backlinks refresh arrives via loadBacklinks.
+			m.overlay = m.overlay.SetRender(m.buildRenderFunc(d, m.viewer))
+			m.overlay = m.overlay.SetSource(d.Body)
+			return m, m.loadBacklinks(d.ID)
+		}
 		m.linkFocus = -1
 		m.backlinks = nil
 		m.viewer = &viewerState{focus: -1}
@@ -402,11 +418,12 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadBacklinks(d.ID)
 	case backlinksMsg:
 		m.backlinks = msg.refs
-		// Rebuild the render closure so the "Referenced by" footer appears.
-		// The route adapter re-applies the frame size via SetViewport on the
-		// next View(), so the fresh overlay does not need its old dimensions.
+		// Rebind the render closure so the "Referenced by" footer appears. Use
+		// SetRender (in place) rather than rebuilding the overlay so the scroll
+		// offset and wikilink focus are preserved — important on a same-doc SSE
+		// reload, where the user may already have scrolled/focused a link.
 		if m.overlayReady && m.viewing != nil {
-			m.overlay = m.newViewerOverlay(*m.viewing, m.viewer)
+			m.overlay = m.overlay.SetRender(m.buildRenderFunc(*m.viewing, m.viewer))
 		}
 		seen := make(map[string]bool, len(m.viewLinks))
 		for _, lt := range m.viewLinks {
@@ -588,15 +605,21 @@ func (m DocsModel) buildEditorCmd(id string) tea.Cmd {
 	return m.loadDoc(id, true)
 }
 
-// validWikiTargets returns the resolvable wikilink target doc-ids in body order
-// (one entry per [[link]] span, matching the renderer's focus indexing).
+// validWikiTargets returns the resolvable wikilink target doc-ids in render
+// order (one entry per valid [[link]] the renderer highlights). It drives off
+// markdown.ValidWikilinkTargets — the SAME goldmark parse the renderer uses —
+// so wikilinks inside code blocks/spans are excluded exactly as the renderer's
+// validWikilinkIdx counting excludes them. This keeps cycleWikiFocus's cycle
+// length and followFocusedWikilink's target index in lockstep with the
+// highlight ordinal: Tab highlights link i ⇔ Enter follows ids[i].
 func (m DocsModel) validWikiTargets() []string {
 	var ids []string
 	if m.viewing == nil {
 		return ids
 	}
-	for _, sp := range domain.FindWikilinks(m.viewing.Body) {
-		if d, ok := domain.ResolveWikilink(*m.viewing, sp.Target, m.docs); ok {
+	adapter := wikiAdapter{src: *m.viewing, all: m.docs}
+	for _, target := range markdown.ValidWikilinkTargets(m.viewing.Body, adapter) {
+		if d, ok := domain.ResolveWikilink(*m.viewing, target, m.docs); ok {
 			ids = append(ids, d.ID)
 		}
 	}

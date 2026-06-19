@@ -487,6 +487,119 @@ func TestDocsLoadDoc_ThenViewRendersBody(t *testing.T) {
 	}
 }
 
+// TestDocs_TabFocusMatchesEnterFollow_CodeFenceDrift is the Finding #1
+// regression: a doc whose body has a resolvable [[wikilink]] inside a fenced
+// code block AND an inline code span must NOT throw off the Tab-focus /
+// Enter-follow alignment. The renderer (goldmark) treats `[[…]]` in code as
+// literal text and only highlights {alpha, beta}; the model must enumerate the
+// same set so cycling focus visits exactly {alpha, beta} and Enter on the 2nd
+// focus follows beta — not the in-code links.
+func TestDocs_TabFocusMatchesEnterFollow_CodeFenceDrift(t *testing.T) {
+	// All four targets are resolvable docs, so the ONLY thing excluding the
+	// in-code ones is the goldmark parse parity — a naive byte scan would
+	// wrongly include incode/inspan and desync focus from follow.
+	seed := []domain.Document{
+		{ID: "da", Type: domain.DocFree, Path: "alpha", Title: "Alpha"},
+		{ID: "db", Type: domain.DocFree, Path: "beta", Title: "Beta"},
+		{ID: "dc", Type: domain.DocFree, Path: "incode", Title: "InCode"},
+		{ID: "ds", Type: domain.DocFree, Path: "inspan", Title: "InSpan"},
+	}
+	c, stop := newFakeDocSrv(t, seed)
+	defer stop()
+
+	m := NewDocs(c, nil, nil, "tester")
+	next, _ := m.Update(docsLoadedMsg{docs: seed})
+	m = next.(DocsModel)
+
+	doc := domain.Document{
+		ID:   "doc",
+		Type: domain.DocFree,
+		Path: "host",
+		Body: "see [[alpha]]\n```\n[[incode]]\n```\nand `[[inspan]]` then [[beta]]",
+	}
+	next, _ = m.Update(docViewMsg{doc: doc})
+	m = next.(DocsModel)
+
+	// Exactly two valid wikilinks survive the code exclusion.
+	if got := m.validWikiTargets(); len(got) != 2 {
+		t.Fatalf("validWikiTargets should be {alpha,beta}=2, got %d: %#v", len(got), got)
+	}
+
+	// Tab once → focus the first link (alpha).
+	n1, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = n1.(DocsModel)
+	if m.focusState() != 0 {
+		t.Fatalf("after first Tab, focus = %d, want 0", m.focusState())
+	}
+	// Tab again → focus the second link (beta).
+	n2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = n2.(DocsModel)
+	if m.focusState() != 1 {
+		t.Fatalf("after second Tab, focus = %d, want 1", m.focusState())
+	}
+
+	// Enter on the 2nd focus must follow beta (db), NOT incode/inspan.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("Enter on a focused wikilink should produce a loadDoc cmd")
+	}
+	msg := cmd()
+	viewMsg, ok := msg.(docViewMsg)
+	if !ok {
+		t.Fatalf("expected docViewMsg from follow, got %T: %v", msg, msg)
+	}
+	if viewMsg.doc.ID != "db" {
+		t.Fatalf("Enter followed doc %q (%s), want db (beta)", viewMsg.doc.ID, viewMsg.doc.Path)
+	}
+}
+
+// TestDocs_SameIdReloadPreservesFocus is the Finding #2 regression: an SSE
+// document.* event while reading re-fires docViewMsg for the SAME doc id. That
+// must preserve the wikilink focus (and overlay scroll) instead of snapping
+// focus to -1 and scroll to top. A genuine navigation (different id) still
+// resets focus to -1.
+func TestDocs_SameIdReloadPreservesFocus(t *testing.T) {
+	seed := []domain.Document{
+		{ID: "da", Type: domain.DocFree, Path: "alpha", Title: "Alpha"},
+	}
+	m := NewDocs(nil, nil, nil, "tester")
+	next, _ := m.Update(docsLoadedMsg{docs: seed})
+	m = next.(DocsModel)
+
+	doc := domain.Document{ID: "doc", Type: domain.DocFree, Path: "host", Body: "see [[alpha]] now"}
+	next, _ = m.Update(docViewMsg{doc: doc})
+	m = next.(DocsModel)
+	m = m.SetViewport(80, 24)
+
+	// Focus the first (only) valid wikilink.
+	n1, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m = n1.(DocsModel)
+	if m.focusState() != 0 {
+		t.Fatalf("setup: focus should be 0 after Tab, got %d", m.focusState())
+	}
+	// Same-id reload (SSE): focus must be preserved, and the body content must
+	// refresh in-place (so an edit shows up) rather than rebuilding a fresh
+	// focus=-1 overlay.
+	sameID := doc
+	sameID.Body = "see [[alpha]] now (edited)"
+	r1, _ := m.Update(docViewMsg{doc: sameID})
+	m = r1.(DocsModel)
+	if m.focusState() != 0 {
+		t.Fatalf("same-id reload reset focus to %d, want preserved 0", m.focusState())
+	}
+	if !strings.Contains(m.overlay.View(), "edited") {
+		t.Fatalf("same-id reload should refresh body content (edited), got:\n%s", m.overlay.View())
+	}
+
+	// Different-id reload (genuine navigation): focus resets to -1.
+	other := domain.Document{ID: "other", Type: domain.DocFree, Path: "other", Body: "nothing"}
+	r2, _ := m.Update(docViewMsg{doc: other})
+	m = r2.(DocsModel)
+	if m.focusState() != -1 {
+		t.Fatalf("different-id navigation should reset focus to -1, got %d", m.focusState())
+	}
+}
+
 func TestDocsRenderView_Empty(t *testing.T) {
 	m := NewDocs(nil, nil, nil, "tester")
 	emptyDoc := domain.Document{ID: "e1", Type: domain.DocFree, Path: "p", Title: "Empty", Body: "   "}

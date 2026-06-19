@@ -27,6 +27,16 @@ func (m Model) SetTitle(title string) Model {
 	return m
 }
 
+// SetRender swaps the RenderFunc and re-renders in place, preserving the
+// current scroll position (rerender → viewport.SetContent does not reset
+// yOffset). Hosts use this when the render closure must be rebound to refreshed
+// state (e.g. a same-document SSE reload that updates title / tags / backlinks)
+// without rebuilding the overlay — which would snap scroll back to the top.
+func (m Model) SetRender(render RenderFunc) Model {
+	m.render = render
+	return m.rerender()
+}
+
 // SetSource replaces the markdown body and re-renders. Clears any
 // prior SetError surface: a successful body load wipes the failure
 // banner. Hosts use this when the underlying document changes (e.g.
