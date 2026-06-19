@@ -8,11 +8,15 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/markdown"
+	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
+	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
 )
 
 // docEditor is the slice of the editor adapter the docs screen needs. Kept as a
@@ -79,6 +83,12 @@ type DocsModel struct {
 	viewer       *viewerState
 	overlay      markdown_overlay.Model
 	overlayReady bool
+
+	// Terminal size, learned from tea.WindowSizeMsg. Sizes the modeView overlay
+	// in standalone `flow docs` (in `flow ui` the route's Frame→SetSize bridge
+	// sizes it instead) and bounds the search-results box.
+	width  int
+	height int
 
 	filterTags   []string          // applied filter (AND)
 	filterWork   []string          // working set while in modeFiltering
@@ -380,6 +390,12 @@ func (m DocsModel) deleteCmd(id string) tea.Cmd {
 
 func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// Standalone `flow docs` learns its size here and forwards it (overlay +
+		// search-box width) via the same sink the `flow ui` route uses. In
+		// `flow ui` the route re-sizes from its Frame after this, so its Frame
+		// width wins for the chrome-bounded search box.
+		return m.SetViewport(msg.Width, msg.Height), nil
 	case docsLoadedMsg:
 		m.docs = msg.docs
 		if m.sel >= len(m.docs) {
@@ -415,6 +431,10 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewer = &viewerState{focus: -1}
 		m.overlay = m.newViewerOverlay(d, m.viewer)
 		m.overlayReady = true
+		// Size the fresh overlay from the last known terminal size so standalone
+		// `flow docs` renders the rich viewer immediately (the route's Frame
+		// bridge re-sizes it every frame in `flow ui`).
+		m = m.SetViewport(m.width, m.height)
 		return m, m.loadBacklinks(d.ID)
 	case backlinksMsg:
 		m.backlinks = msg.refs
@@ -1032,10 +1052,13 @@ func (m DocsModel) overlayView() string {
 	return m.overlay.View()
 }
 
-// SetViewport sizes the in-view overlay from the host frame. The docs route
-// adapter calls this from View(f) before rendering — the Frame→SetSize bridge
-// the shell requires (no WindowSizeMsg is used for sizing).
+// SetViewport records the host size and sizes the in-view overlay. It is the
+// single sizing sink: in `flow ui` the docs route adapter calls it from View(f)
+// every frame (the Frame→SetSize bridge — so width tracks the chrome-bounded
+// content area, which also bounds the search box); in standalone `flow docs`
+// the WindowSizeMsg handler calls it with the full terminal size.
 func (m DocsModel) SetViewport(w, h int) DocsModel {
+	m.width, m.height = w, h
 	if m.overlayReady {
 		m.overlay = m.overlay.SetSize(w, h)
 	}
@@ -1158,21 +1181,112 @@ func (m DocsModel) renderSearch(b *strings.Builder) {
 		b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /") + m.searchQuery + "▏" + "\n")
 		return
 	}
-	b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /"+m.searchQuery) + "\n")
 	if len(m.searchHits) == 0 {
+		b.WriteString(styleHeader.Render("Suchen") + styleMuted.Render("  /"+m.searchQuery) + "\n")
 		b.WriteString(styleMuted.Render("  Keine Treffer.") + "\n")
 		return
 	}
-	for i, h := range m.searchHits {
-		var title string
-		if i == m.searchSel {
-			title = styleSel.Render("▸ " + h.Title)
-		} else {
-			title = "  " + h.Title
-		}
-		b.WriteString(title + styleMuted.Render("  "+h.Path) + "\n")
-		b.WriteString("    " + highlightSnippet(h.Snippet) + "\n")
+
+	bw := m.width
+	if bw > 80 {
+		bw = 80
 	}
+	if bw < 24 {
+		bw = 72 // standalone fallback before the first WindowSizeMsg
+	}
+	inner := bw - 2    // titlebox interior, between the │ pipes
+	snipW := inner - 4 // snippet column: 1 lead space + 3-space hanging indent
+	if snipW < 8 {
+		snipW = 8
+	}
+
+	var body strings.Builder
+	for i, h := range m.searchHits {
+		marker := "  "
+		title := h.Title
+		if i == m.searchSel {
+			marker = glyphs.AccentBar + " "
+			title = lipgloss.NewStyle().Foreground(colAccent).Bold(true).Render(h.Title)
+		}
+		body.WriteString(" " + marker + title + styleMuted.Render("  "+h.Path) + "\n")
+		for _, ln := range wrapSnippet(h.Snippet, snipW, 2) {
+			body.WriteString("   " + ln + "\n")
+		}
+		if i < len(m.searchHits)-1 {
+			body.WriteString("\n")
+		}
+	}
+	box := titlebox.Render("Suchen · /"+m.searchQuery, strings.TrimRight(body.String(), "\n"), bw, theme.Default)
+	b.WriteString(box + "\n")
+}
+
+// cleanSnippet collapses a search snippet's whitespace and newlines into a
+// single line and drops the markdown punctuation that would otherwise leak into
+// the preview (heading #, list/quote markers, code backticks). The highlight
+// sentinels are preserved so the matched term can still be emphasised.
+func cleanSnippet(s string) string {
+	s = strings.ReplaceAll(s, "`", "")
+	fields := strings.Fields(s) // collapses runs of whitespace incl. newlines
+	out := fields[:0]
+	for _, f := range fields {
+		switch f {
+		case "#", "##", "###", "####", "#####", "-", "*", ">", "•":
+			continue // standalone markdown marker — not useful in a preview
+		}
+		out = append(out, f)
+	}
+	return strings.Join(out, " ")
+}
+
+// snippetVisibleWidth measures a snippet word's on-screen width, ignoring the
+// highlight sentinels (zero-width control bytes that become ANSI on render).
+func snippetVisibleWidth(s string) int {
+	s = strings.ReplaceAll(s, domain.HighlightStart, "")
+	s = strings.ReplaceAll(s, domain.HighlightEnd, "")
+	return lipgloss.Width(s)
+}
+
+// wrapSnippet cleans a snippet and word-wraps it to at most maxLines lines of
+// the given visible width, returning each line already highlight-rendered. A
+// trailing "…" on the last line marks content that did not fit.
+func wrapSnippet(snippet string, width, maxLines int) []string {
+	cleaned := cleanSnippet(snippet)
+	if cleaned == "" {
+		return nil
+	}
+	var raw []string
+	var cur strings.Builder
+	curW := 0
+	truncated := false
+	for _, word := range strings.Fields(cleaned) {
+		ww := snippetVisibleWidth(word)
+		if curW > 0 && curW+1+ww > width {
+			raw = append(raw, cur.String())
+			cur.Reset()
+			curW = 0
+			if len(raw) == maxLines {
+				truncated = true
+				break
+			}
+		}
+		if curW > 0 {
+			cur.WriteByte(' ')
+			curW++
+		}
+		cur.WriteString(word)
+		curW += ww
+	}
+	if !truncated && cur.Len() > 0 {
+		raw = append(raw, cur.String())
+	}
+	if truncated && len(raw) > 0 {
+		raw[len(raw)-1] = strings.TrimRight(raw[len(raw)-1], " ") + " …"
+	}
+	out := make([]string, len(raw))
+	for i, ln := range raw {
+		out[i] = highlightSnippet(ln)
+	}
+	return out
 }
 
 // highlightSnippet replaces the shared sentinels with a lipgloss highlight.
