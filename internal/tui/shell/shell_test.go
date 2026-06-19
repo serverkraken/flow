@@ -78,6 +78,31 @@ type initCountRoute struct {
 
 func (r initCountRoute) Init() tea.Cmd { *r.calls++; return nil }
 
+// Popping back to a revealed route must re-Init it, just like push/switch/tab
+// switch do — so a root route that paused background work (e.g. Today's live
+// clock) while drilled-over resumes when it becomes the active top again.
+func TestShell_pop_reinitsRevealedRoute(t *testing.T) {
+	var rootInit, childInit int
+	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}
+	child := initCountRoute{stubRoute{title: "Woche"}, &childInit}
+
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+	next, _ := s.Update(shell.PushRouteMsg{Route: child})
+	sh := next.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("after push depth = %d, want 2", sh.ActiveDepth())
+	}
+	before := rootInit
+	next2, _ := sh.Update(shell.PopRouteMsg{})
+	sh2 := next2.(shell.Shell)
+	if sh2.ActiveDepth() != 1 {
+		t.Fatalf("after pop depth = %d, want 1", sh2.ActiveDepth())
+	}
+	if rootInit != before+1 {
+		t.Fatalf("pop should re-Init the revealed route (rootInit=%d, want %d)", rootInit, before+1)
+	}
+}
+
 func TestShell_initsActiveTabRouteAtStartup(t *testing.T) {
 	var home, work int
 	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{

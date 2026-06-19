@@ -141,7 +141,10 @@ func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, msg.Route.Init()
 	case PopRouteMsg:
 		s.tabs[s.activeTab].Pop()
-		return s, nil
+		// Re-Init the revealed route so a root that paused background work while
+		// drilled-over (e.g. Today's live clock) resumes — matching the Init
+		// contract of push/switch/tab-switch.
+		return s, s.tabs[s.activeTab].Top().Init()
 
 	case SwitchRouteMsg:
 		ns := s.tabs[s.activeTab]
