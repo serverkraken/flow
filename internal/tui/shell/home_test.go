@@ -72,3 +72,11 @@ func TestHomeRoute_reloadsOnSessionEvent(t *testing.T) {
 		t.Fatal("a session event should trigger a reload cmd")
 	}
 }
+
+func TestHomeRoute_reloadsOnProjectEvent(t *testing.T) {
+	r := shell.NewHomeRoute(fakeDash{}, theme.Default, "alice")
+	_, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventProjectCreated)}})
+	if cmd == nil {
+		t.Fatal("a project.created event should trigger a reload cmd")
+	}
+}

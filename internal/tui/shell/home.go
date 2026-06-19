@@ -192,7 +192,8 @@ func homeRelevantEvent(t string) bool {
 	switch domain.EventType(t) {
 	case domain.EventSessionStarted, domain.EventSessionStopped,
 		domain.EventSessionUpdated, domain.EventSessionDeleted,
-		domain.EventDayOffChanged, domain.EventSettingsChanged:
+		domain.EventDayOffChanged, domain.EventSettingsChanged,
+		domain.EventProjectCreated:
 		return true
 	}
 	// Any document.* event also refreshes the knowledge column.
