@@ -1,0 +1,68 @@
+package markdown_overlay
+
+// config holds the resolved Option set. Unexported; callers configure
+// via With* funcs declared alongside each feature.
+type config struct {
+	title          string
+	source         string
+	enableSearch   bool
+	enableCodeCopy bool
+	closeKeys      []string
+	footerExtras   []string
+}
+
+// Option configures a Model at New time. Composable.
+type Option func(*config)
+
+func defaultConfig() config {
+	return config{
+		closeKeys: []string{"q", "esc", "b"},
+	}
+}
+
+// WithTitle sets the title shown in the chrome's title row and status
+// bar's path segment.
+func WithTitle(title string) Option {
+	return func(c *config) { c.title = title }
+}
+
+// WithSource sets the initial markdown body. Equivalent to calling
+// SetSource after New; offered as an option so simple call sites stay
+// declarative.
+func WithSource(src string) Option {
+	return func(c *config) { c.source = src }
+}
+
+// WithCloseKeys overrides the default close-key set (q, esc, b). Empty
+// keys input is ignored; the default stays in effect.
+func WithCloseKeys(keys ...string) Option {
+	return func(c *config) {
+		if len(keys) > 0 {
+			c.closeKeys = append([]string{}, keys...)
+		}
+	}
+}
+
+// WithSearch enables the `/` key, the textinput-driven search mode, the
+// match-bar gutter, and the match-counter status-bar segment. Disabled
+// by default — explicit opt-in keeps simple overlays free of an
+// unwanted key surface.
+func WithSearch() Option {
+	return func(c *config) { c.enableSearch = true }
+}
+
+// WithCodeCopy enables the `c` key, fenced-code-block extraction, and
+// the copy-status status-bar segment. Pushes the snippet body through
+// pbcopy / wl-copy / xclip / xsel; falls back to an OSC 52 sequence
+// for headless / SSH terminals.
+func WithCodeCopy() Option {
+	return func(c *config) { c.enableCodeCopy = true }
+}
+
+// WithFooterExtras appends additional dim-styled hints to the footer
+// row (between the built-in scroll/search/copy/close hints). For
+// host-specific keys the overlay doesn't know about (e.g. a parent's
+// "b → back to list" alongside its own close-keys).
+func WithFooterExtras(hints ...string) Option {
+	return func(c *config) { c.footerExtras = append([]string{}, hints...) }
+}
