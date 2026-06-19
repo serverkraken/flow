@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -154,5 +156,62 @@ func TestProjectResolver_DryRunCreatesNoApi(t *testing.T) {
 	// assert created counter incremented
 	if pr.created != 1 {
 		t.Fatalf("pr.created = %d, want 1", pr.created)
+	}
+}
+
+func writeFile(t *testing.T, dir, rel, content string) {
+	t.Helper()
+	p := filepath.Join(dir, rel)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunImport_ImportsSkipsAndDryRun(t *testing.T) {
+	var posts int
+	existing := []domain.Document{{ID: "d-exist", Path: "notes/existing"}}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/documents":
+			_ = json.NewEncoder(w).Encode(existing)
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.URL.Path == "/api/v1/documents/import":
+			posts++
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(domain.Document{ID: "new"})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := t.TempDir()
+	writeFile(t, dir, "daily/2026-04-28.md", "---\nid: daily/2026-04-28\ntype: daily\ndate: \"2026-04-28\"\n---\n# 2026-04-28\n")
+	writeFile(t, dir, "notes/Onboarding.md", "---\nid: notes/Onboarding\ntype: free\n---\n# Onboarding\n")
+	writeFile(t, dir, "notes/existing.md", "---\nid: notes/existing\ntype: free\n---\n# Existing\n") // path already on server
+
+	// dry-run writes nothing
+	st, err := runImport(context.Background(), c, dir, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posts != 0 {
+		t.Fatalf("dry-run posted %d (want 0)", posts)
+	}
+	if st.imported != 2 || st.skipped != 1 {
+		t.Fatalf("dry-run stats = %+v (want imported 2, skipped 1)", st)
+	}
+
+	// real run imports the 2 new, skips the existing
+	posts = 0
+	st, err = runImport(context.Background(), c, dir, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posts != 2 || st.imported != 2 || st.skipped != 1 {
+		t.Fatalf("run posts=%d stats=%+v (want 2 imported, 1 skipped)", posts, st)
 	}
 }

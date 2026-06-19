@@ -12,7 +12,7 @@ import (
 )
 
 func docsCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "docs",
 		Short: "Compendium documents (TUI)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -32,4 +32,6 @@ func docsCmd() *cobra.Command {
 			return err
 		},
 	}
+	cmd.AddCommand(docsImportCmd())
+	return cmd
 }

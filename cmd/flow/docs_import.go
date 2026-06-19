@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -9,6 +12,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
@@ -173,4 +177,148 @@ func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*st
 	pr.cache[projectPath] = p.ID
 	pr.existing[p.Name] = p.ID
 	return &p.ID, nil
+}
+
+type importStats struct {
+	imported, skipped, updated, failed, projectsCreated int
+	failures                                            []string // "path: reason"
+}
+
+// runImport walks dir for *.md, derives each note's flow identity, resolves its
+// project, and imports it (skip-existing, or --update). Errors are isolated
+// per file; the walk continues.
+func runImport(ctx context.Context, c *apiclient.Client, dir string, dryRun, update bool) (importStats, error) {
+	var st importStats
+
+	// Pre-list existing paths once for idempotency (+ id for --update).
+	docs, err := c.ListDocuments(ctx)
+	if err != nil {
+		return st, fmt.Errorf("list documents: %w", err)
+	}
+	existingID := make(map[string]string, len(docs))
+	for _, d := range docs {
+		existingID[d.Path] = d.ID
+	}
+
+	pr := newProjectResolver(c, dryRun)
+
+	walkErr := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(strings.ToLower(d.Name()), ".md") {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, p)
+		raw, rerr := os.ReadFile(p)
+		if rerr != nil {
+			st.failed++
+			st.failures = append(st.failures, rel+": read: "+rerr.Error())
+			return nil
+		}
+		body := string(raw)
+		fm := parseVaultFrontmatter(body)
+
+		rawID := fm.ID
+		if rawID == "" {
+			rawID = strings.TrimSuffix(rel, ".md")
+		}
+		path := slugify(rawID)
+		if path == "" {
+			st.failed++
+			st.failures = append(st.failures, rel+": empty path after slugify")
+			return nil
+		}
+		typ := fm.Type
+		if typ == "" {
+			typ = "free"
+		}
+		title := titleFromBody(body)
+		if title == "" {
+			title = strings.TrimSuffix(filepath.Base(rel), ".md")
+		}
+		var date *time.Time
+		if typ == "daily" {
+			date = importDate(fm, rel)
+		}
+		projectID, perr := pr.resolve(ctx, fm.Project)
+		if perr != nil {
+			st.failed++
+			st.failures = append(st.failures, rel+": project: "+perr.Error())
+			return nil
+		}
+
+		if id, exists := existingID[path]; exists {
+			if !update {
+				st.skipped++
+				return nil
+			}
+			if dryRun {
+				st.updated++
+				return nil
+			}
+			if _, uerr := c.UpdateDocument(ctx, id, apiclient.UpdateDocumentInput{Title: title, Body: body}); uerr != nil {
+				st.failed++
+				st.failures = append(st.failures, rel+": update: "+uerr.Error())
+				return nil
+			}
+			st.updated++
+			return nil
+		}
+
+		if dryRun {
+			st.imported++
+			existingID[path] = "(dry-run)"
+			return nil
+		}
+		if _, ierr := c.ImportDocument(ctx, apiclient.ImportDocumentInput{
+			Type: typ, Path: path, Title: title, Body: body, Date: date, ProjectID: projectID,
+		}); ierr != nil {
+			if apiclient.IsConflict(ierr) { // race backstop
+				st.skipped++
+				return nil
+			}
+			st.failed++
+			st.failures = append(st.failures, rel+": import: "+ierr.Error())
+			return nil
+		}
+		st.imported++
+		existingID[path] = "(new)"
+		return nil
+	})
+	st.projectsCreated = pr.created
+	return st, walkErr
+}
+
+func docsImportCmd() *cobra.Command {
+	var dryRun, update bool
+	cmd := &cobra.Command{
+		Use:   "import <dir>",
+		Short: "Import a markdown vault into the compendium",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			st, err := runImport(cmd.Context(), c, args[0], dryRun, update)
+			if err != nil {
+				return err
+			}
+			mode := ""
+			if dryRun {
+				mode = " (dry-run)"
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				"importiert %d · aktualisiert %d · übersprungen %d · Projekte angelegt %d · Fehler %d%s\n",
+				st.imported, st.updated, st.skipped, st.projectsCreated, st.failed, mode)
+			for _, f := range st.failures {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+f)
+			}
+			if st.failed > 0 {
+				return fmt.Errorf("%d Datei(en) fehlgeschlagen", st.failed)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "parse und plane den Import, ohne zu schreiben")
+	cmd.Flags().BoolVar(&update, "update", false, "vorhandene Dokumente (per Pfad) überschreiben statt überspringen")
+	return cmd
 }
