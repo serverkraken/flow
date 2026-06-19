@@ -87,6 +87,12 @@ func New(render RenderFunc, opts ...Option) Model {
 // startup work.
 func (m Model) Init() tea.Cmd { return nil }
 
+// CapturesInput reports true while the overlay's in-document search
+// input is active. The host (DocsModel) must forward every key to the
+// overlay via Update while this returns true, instead of handling nav
+// keys itself.
+func (m Model) CapturesInput() bool { return m.mode == ModeSearch }
+
 // ExitMsg is emitted when the user hits a configured close key. The
 // host model must observe it in its own Update and clear its overlay
 // state field; the overlay does not know what triggered its presence

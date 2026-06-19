@@ -9,6 +9,15 @@ func (m Model) SetSize(w, h int) Model {
 	return m.rerender()
 }
 
+// Rerender re-runs the RenderFunc at the current width (e.g. after the
+// host changed focus state the render closure reads) and refreshes the
+// viewport content, preserving the existing scroll position. SetContent
+// does not reset yOffset, so the offset is maintained naturally through
+// the rerender() → viewport.SetContent() call chain.
+func (m Model) Rerender() Model {
+	return m.SetSize(m.width, m.height)
+}
+
 // SetTitle replaces the title shown in the chrome. Does NOT rerender
 // (asymmetric to SetSource): the title is read live from cfg.title by
 // the chrome on every View(), so the next paint picks up the change
