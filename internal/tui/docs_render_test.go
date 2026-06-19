@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -57,6 +59,12 @@ func TestDocExcerpt_WrapAndCap(t *testing.T) {
 	lines := docExcerpt("alpha beta gamma delta epsilon zeta eta", 11, 2)
 	if len(lines) != 2 {
 		t.Fatalf("excerpt lines = %d, want 2", len(lines))
+	}
+	if last := lines[1]; !strings.HasSuffix(last, "…") {
+		t.Errorf("truncated line %q does not end with …", last)
+	}
+	if w := lipgloss.Width(lines[1]); w > 11 {
+		t.Errorf("truncated line width %d > max 11", w)
 	}
 	if got := docCounts([]domain.Document{{Type: domain.DocDaily}, {Type: domain.DocDaily}, {Type: domain.DocFree}}); got[domain.DocDaily] != 2 || got[domain.DocFree] != 1 {
 		t.Errorf("docCounts = %+v, want daily:2 free:1", got)

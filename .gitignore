@@ -7,3 +7,6 @@ coverage.html
 # Claude memory-bank files (never committed)
 CLAUDE.md
 CLAUDE-*.md
+
+# brainstorming visual companion
+.superpowers/
