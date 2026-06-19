@@ -119,3 +119,40 @@ func TestProjectResolver_MatchesThenCreates(t *testing.T) {
 		t.Fatalf("empty path: id=%v err=%v", id3, err)
 	}
 }
+
+func TestProjectResolver_DryRunCreatesNoApi(t *testing.T) {
+	var postCount int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+			postCount++
+			var in map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-new", Name: in["name"]})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	pr := newProjectResolver(c, true) // dry-run=true
+
+	// resolve unknown project in dry-run mode
+	id, err := pr.resolve(context.Background(), "unknown/project")
+	if err != nil {
+		t.Fatalf("resolve in dry-run: err=%v", err)
+	}
+	if id == nil {
+		t.Fatal("resolve in dry-run: want non-nil id")
+	}
+
+	// assert no POST was made
+	if postCount != 0 {
+		t.Fatalf("dry-run made %d POST requests, want 0", postCount)
+	}
+
+	// assert created counter incremented
+	if pr.created != 1 {
+		t.Fatalf("pr.created = %d, want 1", pr.created)
+	}
+}

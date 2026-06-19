@@ -159,8 +159,8 @@ func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*st
 		pr.cache[projectPath] = id
 		return &id, nil
 	}
-	pr.created++
 	if pr.dryRun {
+		pr.created++
 		id := "(dry-run)"
 		pr.cache[projectPath] = id
 		return &id, nil
@@ -169,6 +169,7 @@ func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*st
 	if err != nil {
 		return nil, err
 	}
+	pr.created++
 	pr.cache[projectPath] = p.ID
 	pr.existing[p.Name] = p.ID
 	return &p.ID, nil
