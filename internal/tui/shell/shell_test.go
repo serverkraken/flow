@@ -10,7 +10,7 @@ import (
 
 func newShell() shell.Shell {
 	return shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
-		shell.NewHomeRoute("alice"),
+		shell.NewHomeRoute(nil, theme.Default, "alice"),
 		stubRoute{title: "Worktime", push: stubRoute{title: "Detail"}},
 	})
 }

@@ -48,7 +48,7 @@ type tabSwitchMsg int
 // pal is the visual palette (theme.Load()).
 func New(client *apiclient.Client, user string, pal theme.Palette) Shell {
 	s := Shell{user: user, pal: pal, client: client}
-	return s.WithTabs([]Route{NewHomeRoute(user)})
+	return s.WithTabs([]Route{NewHomeRoute(client, pal, user)})
 }
 
 // WithTabs (re)builds the tab set; each Route becomes a stack root and gets a

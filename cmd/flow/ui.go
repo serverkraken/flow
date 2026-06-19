@@ -34,7 +34,7 @@ func runUI(cmd *cobra.Command, _ []string) error {
 	pal := theme.Load()
 	m := shell.New(client, os.Getenv("USER"), pal).
 		WithTabs([]shell.Route{
-			shell.NewHomeRoute(os.Getenv("USER")),
+			shell.NewHomeRoute(client, pal, os.Getenv("USER")),
 			worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
 		})
 	_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
