@@ -59,7 +59,10 @@ type MarkdownRoles struct {
 	// Wikilinks
 	WikilinkValid  lipgloss.Style // resolved wikilink (cyan, underlined, OSC 8 wrapped)
 	WikilinkBroken lipgloss.Style // unresolved wikilink (red + strike, no link)
-	ImageChip      lipgloss.Style // textual image placeholder until P1.13
+	// WikilinkFocused styles the keyboard-focused wikilink (reverse video over
+	// the valid-link accent) so it stands out from the other links.
+	WikilinkFocused lipgloss.Style
+	ImageChip       lipgloss.Style // textual image placeholder until P1.13
 
 	// Frontmatter card
 	CardBadgeDaily   lipgloss.Style // [DAILY] type badge
@@ -248,7 +251,8 @@ func MarkdownRolesFor(p canonical.Palette) MarkdownRoles {
 		TableCell:   color().Foreground(p.Fg),
 		TableRowAlt: color().Background(p.BgChipSoft).Foreground(p.Fg),
 
-		WikilinkValid: color().Foreground(p.Cyan),
+		WikilinkValid:   color().Foreground(p.Cyan),
+		WikilinkFocused: color().Foreground(p.Sem().Accent).Reverse(true),
 		// A11y-3 (audit §2.5): kein Faint() auf Prose. Faint reduziert
 		// die terminal-Foreground-Helligkeit um 30–50 %; auf einem schon
 		// schwachen Red-on-BgBar fällt das unter WCAG AA. Die Brokenness

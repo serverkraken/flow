@@ -132,12 +132,22 @@ func (r *nodeRenderer) renderWikiLink(w util.BufWriter, _ []byte, n ast.Node, en
 // →/⊘ — both are common Unicode; → reads as "follows / link to" and
 // ⊘ reads as "no entry / not found", much closer to what the eye
 // expects from a notebook cross-reference.
+//
+// When opts.focusedWikilink matches the 0-based ordinal of this valid
+// link, the WikilinkFocused style is used instead of WikilinkValid so
+// keyboard focus is visually distinct.
 func (r *nodeRenderer) styleWikiLink(display, uri string, valid bool) string {
 	if !valid {
 		return r.roles.WikilinkBroken.Render("⊘ " + display)
 	}
+	idx := r.validWikilinkIdx
+	r.validWikilinkIdx++
 	r.osc8ID++
-	return osc8Wrap(uri, r.osc8ID, r.roles.WikilinkValid.Render("→ "+display))
+	style := r.roles.WikilinkValid
+	if r.opts.focusedWikilink >= 0 && idx == r.opts.focusedWikilink {
+		style = r.roles.WikilinkFocused
+	}
+	return osc8Wrap(uri, r.osc8ID, style.Render("→ "+display))
 }
 
 // osc8Wrap returns text wrapped in an OSC 8 hyperlink with the given

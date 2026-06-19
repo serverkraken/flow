@@ -50,6 +50,12 @@ type nodeRenderer struct {
 	// into one click target.
 	osc8ID int
 
+	// validWikilinkIdx counts how many valid wikilinks have been
+	// rendered so far in this Render call (0-based). Compared against
+	// opts.focusedWikilink so the n-th valid link is drawn with the
+	// WikilinkFocused style instead of WikilinkValid.
+	validWikilinkIdx int
+
 	// handlersCache memoises the per-kind renderer-func map. Populated
 	// by handlers() on first call; consumed by both dispatch (for
 	// sub-buffer rendering of children) and RegisterFuncs (for

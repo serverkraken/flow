@@ -30,11 +30,12 @@ type Option func(*options)
 // options carries the resolved per-call settings. Internal — callers
 // only see the With… helpers.
 type options struct {
-	frontmatter *Frontmatter
-	backlinks   []BacklinkRef
-	resolver    WikilinkResolver
-	noColor     bool
-	nerdFont    bool
+	frontmatter     *Frontmatter
+	backlinks       []BacklinkRef
+	resolver        WikilinkResolver
+	focusedWikilink int
+	noColor         bool
+	nerdFont        bool
 	// palette is the canonical color set the renderer reads from.
 	// Defaulted in buildOptions when the caller omits WithPalette so
 	// existing call-sites don't need to change.
@@ -80,6 +81,12 @@ func WithNerdFont(nerdFont bool) Option {
 // contrast / NO_COLOR fixtures). Omit to use theme.Default.
 func WithPalette(p theme.Palette) Option {
 	return func(o *options) { o.palette = p }
+}
+
+// WithFocusedWikilink highlights the idx-th valid wikilink (0-based) as the
+// keyboard-focused link. idx < 0 means no focus (default).
+func WithFocusedWikilink(idx int) Option {
+	return func(o *options) { o.focusedWikilink = idx }
 }
 
 // Render parses source as CommonMark + GFM and returns ANSI output
@@ -136,7 +143,7 @@ func Render(source string, width int, opts ...Option) (string, error) {
 // WithNoColor(false) cannot accidentally re-enable color when the user
 // asked for none via env.
 func buildOptions(opts []Option) options {
-	o := options{}
+	o := options{focusedWikilink: -1}
 	for _, fn := range opts {
 		fn(&o)
 	}
