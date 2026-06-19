@@ -118,3 +118,32 @@ func TestShell_viewNoPanic(t *testing.T) {
 	}()
 	_ = s.(shell.Shell).View()
 }
+
+func TestShell_switchRoute_pushesAtRootThenReplaces(t *testing.T) {
+	var rootInit, aInit, bInit int
+	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}
+	routeA := initCountRoute{stubRoute{title: "Woche"}, &aInit}
+	routeB := initCountRoute{stubRoute{title: "Stats"}, &bInit}
+
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+
+	// At root (depth 1): SwitchRouteMsg pushes -> depth 2, crumb tip "Woche".
+	next, _ := s.Update(shell.SwitchRouteMsg{Route: routeA})
+	sh := next.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("after switch at root depth = %d, want 2", sh.ActiveDepth())
+	}
+	if aInit != 1 { // the Shell must Init the pushed route (stub Init returns nil)
+		t.Fatalf("switch at root should Init the new route (aInit=%d)", aInit)
+	}
+
+	// In a sibling (depth 2): SwitchRouteMsg replaces top -> stays depth 2.
+	next2, _ := sh.Update(shell.SwitchRouteMsg{Route: routeB})
+	sh2 := next2.(shell.Shell)
+	if sh2.ActiveDepth() != 2 {
+		t.Fatalf("after lateral switch depth = %d, want 2 (replace, not push)", sh2.ActiveDepth())
+	}
+	if bInit != 1 {
+		t.Fatalf("lateral switch should Init the replacement (bInit=%d)", bInit)
+	}
+}

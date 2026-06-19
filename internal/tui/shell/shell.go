@@ -143,6 +143,15 @@ func (s Shell) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.tabs[s.activeTab].Pop()
 		return s, nil
 
+	case SwitchRouteMsg:
+		ns := s.tabs[s.activeTab]
+		if ns.Len() == 1 {
+			ns.Push(msg.Route)
+		} else {
+			ns.ReplaceTop(msg.Route)
+		}
+		return s, msg.Route.Init()
+
 	case PaletteSelectedMsg:
 		s.paletteOpen = false
 		return s.Update(msg.Entry.Action())

@@ -36,3 +36,9 @@ type PushRouteMsg struct{ Route Route }
 
 // PopRouteMsg asks the Shell to pop the active tab's nav-stack (a back).
 type PopRouteMsg struct{}
+
+// SwitchRouteMsg performs a lateral move: if the active tab's nav-stack is at
+// its root (depth 1) it pushes Route (entering the sibling group); otherwise it
+// replaces the top Route, so switching between siblings never deepens the
+// stack. Emit it as a tea.Cmd from a Route's Update (see wtnav.Registry.Nav).
+type SwitchRouteMsg struct{ Route Route }
