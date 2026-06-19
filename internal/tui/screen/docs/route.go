@@ -46,7 +46,18 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	return r, cmd
 }
 
-func (r *Route) View(shell.Frame) string { return r.m.View().Content }
+// View bridges the host frame size into the wrapped DocsModel (so the fullscreen
+// markdown viewer overlay is sized from f.Width/f.Height, never a stored
+// WindowSizeMsg) and renders the model's content.
+func (r *Route) View(f shell.Frame) string {
+	r.m = r.m.SetViewport(f.Width, f.Height)
+	return r.m.View().Content
+}
+
+// FullScreen reports fullscreen while the docs screen is reading a document, so
+// the shell suppresses its chrome and hands the viewer the whole terminal.
+// Implements shell.FullScreener.
+func (r *Route) FullScreen() bool { return r.m.InViewMode() }
 
 // CapturesInput delegates to the wrapped DocsModel so the shell forwards every
 // key to the docs screen while it is in a text-entry / sub-mode (e.g. the New

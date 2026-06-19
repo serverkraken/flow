@@ -34,6 +34,20 @@ func TestDocsRoute_updateReturnsRoute(t *testing.T) {
 	}
 }
 
+// TestDocsRoute_implementsFullScreenerListFalse asserts the docs route satisfies
+// shell.FullScreener and reports false while in the document list (the true case
+// needs an unexported docViewMsg, covered in the package tui test + done-gate).
+func TestDocsRoute_implementsFullScreenerListFalse(t *testing.T) {
+	r := docs.NewRoute(nil, nil, nil, theme.Default, "alice")
+	fs, ok := interface{}(r).(shell.FullScreener)
+	if !ok {
+		t.Fatal("docs.Route must implement shell.FullScreener")
+	}
+	if fs.FullScreen() {
+		t.Fatal("list mode: FullScreen() must be false")
+	}
+}
+
 // TestDocsRoute_capturesInputInSubmode guards the bug where the shell ate the
 // New-Document form's Tab/Esc keys: the adapter must implement
 // shell.InputCapturer and report capture once the docs screen leaves list mode.

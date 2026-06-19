@@ -182,6 +182,58 @@ func TestDocsEnterShowsBody(t *testing.T) {
 	}
 }
 
+func TestDocs_InViewModeTracksMode(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "tester")
+	if m.InViewMode() {
+		t.Fatal("list mode: InViewMode must be false")
+	}
+	v, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
+	if !v.(DocsModel).InViewMode() {
+		t.Fatal("after docViewMsg: InViewMode must be true")
+	}
+}
+
+func TestDocs_TabCyclesWikilinkFocus(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "tester")
+	// Seed the doc set so the wikilink target (d2 = agents/reviewer) resolves.
+	seeded, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
+	m = seeded.(DocsModel)
+	// A body with two valid wikilinks (both resolve to d2 within sampleDocs()).
+	doc := sampleDocs()[0]
+	doc.Body = "see [[" + sampleDocs()[1].Path + "]] and [[" + sampleDocs()[1].Path + "]]"
+	v, _ := m.Update(docViewMsg{doc: doc})
+	m = v.(DocsModel)
+	start := m.focusState()
+	n, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if n.(DocsModel).focusState() == start {
+		t.Fatalf("Tab should advance the wikilink focus index (still %d)", start)
+	}
+}
+
+// TestDocs_ViewerRendersSizedOverlay drives the full fullscreen path: a sized
+// overlay (via SetViewport) renders the markdown body through the render closure
+// (exercising the wikilink adapter's Resolve), and overlayView returns it.
+func TestDocs_ViewerRendersSizedOverlay(t *testing.T) {
+	m := NewDocs(nil, nil, nil, "tester")
+	seeded, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
+	m = seeded.(DocsModel)
+	doc := sampleDocs()[0]
+	doc.Body = "intro\n\nsee [[" + sampleDocs()[1].Path + "]] there"
+	v, _ := m.Update(docViewMsg{doc: doc})
+	m = v.(DocsModel)
+
+	// Size the overlay from a host frame (the Frame→SetSize bridge the route does).
+	m = m.SetViewport(80, 24)
+	out := m.overlayView()
+	if out == "" {
+		t.Fatal("sized viewer overlay must render non-empty content")
+	}
+	// The full View() must surface the body via the overlay (not the legacy path).
+	if !strings.Contains(m.View().Content, "intro") {
+		t.Fatalf("viewer should render the document body:\n%s", m.View().Content)
+	}
+}
+
 func TestDocsCapturesInput(t *testing.T) {
 	m := NewDocs(nil, nil, nil, "tester")
 	if m.CapturesInput() {
@@ -781,13 +833,26 @@ func TestDocsViewMode_EKey_NilViewing(t *testing.T) {
 	}
 }
 
-func TestDocsViewMode_QQuits(t *testing.T) {
+// TestDocsViewMode_QDoesNotQuit pins the M3d behaviour change: the fullscreen
+// markdown viewer owns the keyboard, so `q` no longer quits the program from
+// view mode — it is forwarded to the overlay (which leaves the screen running).
+func TestDocsViewMode_QDoesNotQuit(t *testing.T) {
 	m := NewDocs(nil, nil, nil, "tester")
 	next, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
 	m = next.(DocsModel)
-	_, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
-	if cmd == nil {
-		t.Fatal("q in view mode should return quit cmd")
+	nm, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
+	if !nm.(DocsModel).InViewMode() {
+		t.Fatal("q in view mode must not leave the viewer")
+	}
+	if cmd != nil {
+		// The overlay may emit a (non-quit) cmd; assert it is not tea.Quit by
+		// checking the model is still alive and in view mode (above). A nil cmd
+		// is also fine — the only forbidden outcome is quitting.
+		if msg := cmd(); msg != nil {
+			if _, isQuit := msg.(tea.QuitMsg); isQuit {
+				t.Fatal("q in view mode must not quit the program")
+			}
+		}
 	}
 }
 
@@ -967,10 +1032,6 @@ func TestStyleBodyLine_BrokenWikilink(t *testing.T) {
 		t.Fatalf("broken wikilink should carry the ⊘ glyph: %q", out)
 	}
 }
-
-type fakeOpener struct{ opened []string }
-
-func (f *fakeOpener) Open(url string) error { f.opened = append(f.opened, url); return nil }
 
 func TestBacklinksMsg_NoDuplicateInFocusCycle(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
@@ -1180,39 +1241,47 @@ func TestHighlightSnippet_StrayStartSentinel(t *testing.T) {
 	}
 }
 
+// TestDocsView_TabFocusAndEnter exercises the M3d fullscreen-viewer wikilink
+// focus path: Tab over the valid wikilinks (tracked on the heap-cell viewer),
+// and Enter follows the focused link in-TUI (push back-stack + loadDoc). The
+// non-focusable weblink is rendered by the overlay (OSC 8), not by linkFocus.
 func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	dest := domain.Document{ID: "d-dest", Path: "dest", Title: "Dest", Type: domain.DocFree}
-	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] or http://x.io"}
-	op := &fakeOpener{}
-	m := DocsModel{
-		mode:      modeView,
-		viewing:   &src,
-		docs:      []domain.Document{src, dest},
-		opener:    op,
-		linkFocus: -1,
+	src := domain.Document{ID: "d-src", Path: "src", Type: domain.DocFree, Body: "go [[dest]] and [[dest]]"}
+	c, stop := newFakeDocSrv(t, []domain.Document{src, dest})
+	defer stop()
+
+	m := NewDocs(c, nil, nil, "tester")
+	seeded, _ := m.Update(docsLoadedMsg{docs: []domain.Document{src, dest}})
+	m = seeded.(DocsModel)
+	v, _ := m.Update(docViewMsg{doc: src})
+	m = v.(DocsModel)
+
+	if got := len(m.validWikiTargets()); got != 2 {
+		t.Fatalf("setup: want 2 valid wikilink targets, got %d", got)
 	}
-	m.viewLinks = buildBodyLinks(src.Body, src, m.docs)
-	if len(m.viewLinks) != 2 {
-		t.Fatalf("setup: want 2 links, got %d", len(m.viewLinks))
+	if m.focusState() != -1 {
+		t.Fatalf("initial focus = %d, want -1", m.focusState())
 	}
 
 	m2, _ := m.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	mm := m2.(DocsModel)
-	if mm.linkFocus != 0 {
-		t.Fatalf("after Tab, linkFocus = %d, want 0", mm.linkFocus)
+	if mm.focusState() != 0 {
+		t.Fatalf("after Tab, focus = %d, want 0", mm.focusState())
 	}
-
 	m3, _ := mm.handleKey(tea.KeyPressMsg{Code: tea.KeyTab})
 	mmm := m3.(DocsModel)
-	if mmm.linkFocus != 1 {
-		t.Fatalf("after 2nd Tab, linkFocus = %d, want 1", mmm.linkFocus)
+	if mmm.focusState() != 1 {
+		t.Fatalf("after 2nd Tab, focus = %d, want 1", mmm.focusState())
 	}
-	_, cmd := mmm.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	// Enter follows the focused wikilink: pushes src onto the back-stack and
+	// returns a loadDoc cmd (resolving to a docViewMsg for the target).
+	m4, cmd := mmm.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
-		t.Fatal("Enter on weblink should return a cmd")
+		t.Fatal("Enter on a focused wikilink should return a loadDoc cmd")
 	}
-	cmd()
-	if len(op.opened) != 1 || op.opened[0] != "http://x.io" {
-		t.Fatalf("opener.Open = %v, want [http://x.io]", op.opened)
+	if stack := m4.(DocsModel).viewStack; len(stack) != 1 || stack[0] != "d-src" {
+		t.Fatalf("Enter should push the current doc onto the back-stack, got %v", stack)
 	}
 }

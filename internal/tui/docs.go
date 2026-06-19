@@ -11,6 +11,8 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/markdown"
+	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
 )
 
 // docEditor is the slice of the editor adapter the docs screen needs. Kept as a
@@ -72,6 +74,12 @@ type DocsModel struct {
 	viewStack []string // doc-id back-stack for in-TUI wikilink nav
 	backlinks []domain.BacklinkRef
 
+	// Fullscreen markdown viewer (modeView). viewer is a heap cell so the
+	// RenderFunc closure sees focus updates across DocsModel value-copies.
+	viewer       *viewerState
+	overlay      markdown_overlay.Model
+	overlayReady bool
+
 	filterTags   []string          // applied filter (AND)
 	filterWork   []string          // working set while in modeFiltering
 	filterOpts   []domain.TagCount // available tags for the overlay
@@ -87,6 +95,85 @@ type DocsModel struct {
 // Update and never trigger the network, $EDITOR, or URL-opener paths.
 func NewDocs(client *apiclient.Client, ed docEditor, op urlOpener, user string) DocsModel {
 	return DocsModel{client: client, editor: ed, opener: op, user: user, newType: domain.DocFree, linkFocus: -1}
+}
+
+// viewerState is the heap cell the fullscreen viewer's RenderFunc closes over,
+// so a focus change (Tab) is visible across DocsModel value-copies without
+// rebuilding the closure. focus = -1 means no wikilink focused.
+type viewerState struct{ focus int }
+
+// InViewMode reports the docs screen is reading a document fullscreen. It drives
+// the shell's FullScreener takeover via the docs route adapter.
+func (m DocsModel) InViewMode() bool { return m.mode == modeView }
+
+// focusState exposes the current wikilink focus index (test-only accessor).
+func (m DocsModel) focusState() int {
+	if m.viewer == nil {
+		return -1
+	}
+	return m.viewer.focus
+}
+
+// wikiAdapter resolves [[links]] against the loaded doc set for the renderer,
+// emitting flow://docs/<id> URIs so the viewer can detect in-TUI navigation.
+type wikiAdapter struct {
+	src domain.Document
+	all []domain.Document
+}
+
+func (w wikiAdapter) Resolve(target string) (uri, title string, ok bool) {
+	d, ok := domain.ResolveWikilink(w.src, target, w.all)
+	if !ok {
+		return "", "", false
+	}
+	return "flow://docs/" + d.ID, d.Title, true
+}
+
+// buildRenderFunc returns a RenderFunc closing over the doc + the focus cell, so
+// re-rendering after a focus change highlights the right wikilink.
+func (m DocsModel) buildRenderFunc(doc domain.Document, vs *viewerState) markdown_overlay.RenderFunc {
+	adapter := wikiAdapter{src: doc, all: m.docs}
+	fm := &markdown.Frontmatter{
+		ID:    doc.ID,
+		Type:  markdown.NoteType(string(doc.Type)),
+		Title: doc.Title,
+		Tags:  doc.Tags,
+	}
+	if doc.ProjectID != nil {
+		fm.Project = *doc.ProjectID
+	}
+	if doc.Date != nil {
+		fm.Date = doc.Date.Format("2006-01-02")
+	}
+	bl := make([]markdown.BacklinkRef, 0, len(m.backlinks))
+	for _, r := range m.backlinks {
+		bl = append(bl, markdown.BacklinkRef{ID: r.ID, Title: r.Title})
+	}
+	return func(src string, width int) string {
+		out, err := markdown.Render(src, width,
+			markdown.WithWikilinks(adapter),
+			markdown.WithFrontmatter(fm),
+			markdown.WithBacklinks(bl),
+			markdown.WithFocusedWikilink(vs.focus),
+		)
+		if err != nil {
+			return src
+		}
+		return out
+	}
+}
+
+// newViewerOverlay builds a fresh viewer overlay for doc, closing over vs.
+func (m DocsModel) newViewerOverlay(doc domain.Document, vs *viewerState) markdown_overlay.Model {
+	return markdown_overlay.New(m.buildRenderFunc(doc, vs),
+		markdown_overlay.WithSource(doc.Body),
+		markdown_overlay.WithSearch(),
+		markdown_overlay.WithCodeCopy(),
+		// DocsModel owns Esc / leaving the viewer, so the overlay must not
+		// self-close. WithCloseKeys() with no args keeps the default keys
+		// (q/esc/b), so pass a sentinel that never matches a real key press.
+		markdown_overlay.WithCloseKeys("\x00noclose"),
+	)
 }
 
 type docsLoadedMsg struct{ docs []domain.Document }
@@ -309,9 +396,18 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewLinks = buildBodyLinks(d.Body, d, m.docs)
 		m.linkFocus = -1
 		m.backlinks = nil
+		m.viewer = &viewerState{focus: -1}
+		m.overlay = m.newViewerOverlay(d, m.viewer)
+		m.overlayReady = true
 		return m, m.loadBacklinks(d.ID)
 	case backlinksMsg:
 		m.backlinks = msg.refs
+		// Rebuild the render closure so the "Referenced by" footer appears.
+		// The route adapter re-applies the frame size via SetViewport on the
+		// next View(), so the fresh overlay does not need its old dimensions.
+		if m.overlayReady && m.viewing != nil {
+			m.overlay = m.newViewerOverlay(*m.viewing, m.viewer)
+		}
 		seen := make(map[string]bool, len(m.viewLinks))
 		for _, lt := range m.viewLinks {
 			if lt.kind == linkWiki && lt.docID != "" {
@@ -395,8 +491,16 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case modeSearch:
 		return m.handleSearchKey(k)
 	case modeView:
+		// While the overlay's in-document search input is active it owns every
+		// key (typing the query, Enter/Esc inside search) — forward verbatim.
+		if m.overlayReady && m.overlay.CapturesInput() {
+			var cmd tea.Cmd
+			m.overlay, cmd = m.overlay.Update(k)
+			return m, cmd
+		}
 		switch {
 		case k.Code == tea.KeyEsc:
+			// Pop the in-TUI wikilink back-stack, or leave to the list.
 			if n := len(m.viewStack); n > 0 {
 				prev := m.viewStack[n-1]
 				m.viewStack = m.viewStack[:n-1]
@@ -406,24 +510,28 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.mode = modeList
 			m.viewLinks = nil
 			m.linkFocus = -1
+			m.overlayReady = false
+			m.viewer = nil
 			return m, nil
-		case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
-			return m, tea.Quit
 		case k.Code == tea.KeyTab && k.Mod == tea.ModShift:
-			m.linkFocus = cycleLink(m.linkFocus, len(m.viewLinks), -1)
+			m.cycleWikiFocus(-1)
 			return m, nil
 		case k.Code == tea.KeyTab:
-			m.linkFocus = cycleLink(m.linkFocus, len(m.viewLinks), +1)
+			m.cycleWikiFocus(+1)
 			return m, nil
 		case k.Code == tea.KeyEnter:
-			return m.followFocusedLink()
+			return m.followFocusedWikilink()
 		case k.Text == "e":
 			if m.viewing == nil {
 				return m, nil
 			}
 			return m, m.buildEditorCmd(m.viewing.ID)
+		default:
+			// Scroll / search-launch / code-copy belong to the overlay.
+			var cmd tea.Cmd
+			m.overlay, cmd = m.overlay.Update(k)
+			return m, cmd
 		}
-		return m, nil
 	}
 	// modeList
 	switch {
@@ -480,44 +588,57 @@ func (m DocsModel) buildEditorCmd(id string) tea.Cmd {
 	return m.loadDoc(id, true)
 }
 
-// cycleLink advances idx within [0,n) by delta, wrapping; -1/empty stays -1.
-func cycleLink(idx, n, delta int) int {
-	if n == 0 {
-		return -1
+// validWikiTargets returns the resolvable wikilink target doc-ids in body order
+// (one entry per [[link]] span, matching the renderer's focus indexing).
+func (m DocsModel) validWikiTargets() []string {
+	var ids []string
+	if m.viewing == nil {
+		return ids
 	}
-	if idx < 0 {
-		if delta > 0 {
-			return 0
+	for _, sp := range domain.FindWikilinks(m.viewing.Body) {
+		if d, ok := domain.ResolveWikilink(*m.viewing, sp.Target, m.docs); ok {
+			ids = append(ids, d.ID)
 		}
-		return n - 1
 	}
-	return (idx + delta + n) % n
+	return ids
 }
 
-// followFocusedLink acts on the focused link: load a wikilink target in-TUI
-// (pushing the current doc onto the back-stack) or open a weblink externally.
-func (m DocsModel) followFocusedLink() (tea.Model, tea.Cmd) {
-	if m.linkFocus < 0 || m.linkFocus >= len(m.viewLinks) {
+// cycleWikiFocus advances the focused wikilink by delta (wrapping) and rerenders
+// the overlay so the highlight follows. No-op when there are no valid targets.
+func (m *DocsModel) cycleWikiFocus(delta int) {
+	if m.viewer == nil {
+		return
+	}
+	n := len(m.validWikiTargets())
+	if n == 0 {
+		return
+	}
+	if m.viewer.focus < 0 {
+		// First Tab focuses the first link (Shift+Tab the last).
+		if delta > 0 {
+			m.viewer.focus = 0
+		} else {
+			m.viewer.focus = n - 1
+		}
+	} else {
+		m.viewer.focus = (m.viewer.focus + delta + n) % n
+	}
+	if m.overlayReady {
+		m.overlay = m.overlay.Rerender()
+	}
+}
+
+// followFocusedWikilink loads the focused wikilink target in-TUI, pushing the
+// current doc onto the back-stack. No-op when nothing is focused.
+func (m DocsModel) followFocusedWikilink() (tea.Model, tea.Cmd) {
+	ids := m.validWikiTargets()
+	if m.viewer == nil || m.viewer.focus < 0 || m.viewer.focus >= len(ids) {
 		return m, nil
 	}
-	lt := m.viewLinks[m.linkFocus]
-	switch lt.kind {
-	case linkWeb:
-		url := lt.url
-		op := m.opener
-		return m, func() tea.Msg {
-			if op != nil {
-				_ = op.Open(url)
-			}
-			return nil
-		}
-	case linkWiki:
-		if m.viewing != nil {
-			m.viewStack = append(m.viewStack, m.viewing.ID)
-		}
-		return m, m.loadDoc(lt.docID, false)
+	if m.viewing != nil {
+		m.viewStack = append(m.viewStack, m.viewing.ID)
 	}
-	return m, nil
+	return m, m.loadDoc(ids[m.viewer.focus], false)
 }
 
 // loadDocNoPush loads a doc for the back-stack (Esc) without pushing again.
@@ -834,7 +955,15 @@ func (m DocsModel) View() tea.View {
 
 	switch m.mode {
 	case modeView:
-		m.renderView(&b)
+		// Prefer the fullscreen markdown overlay; fall back to the legacy
+		// line renderer when the overlay has no size yet (standalone
+		// `flow docs` before its first WindowSizeMsg, or a screen too small
+		// for chrome) so the body is never blank.
+		if ov := m.overlayView(); ov != "" {
+			b.WriteString(ov)
+		} else {
+			m.renderView(&b)
+		}
 	case modeCreating:
 		m.renderCreate(&b)
 	case modeDeleting:
@@ -848,7 +977,7 @@ func (m DocsModel) View() tea.View {
 		m.renderList(&b)
 	}
 
-	if m.mode == modeView && m.linkFocus >= 0 && m.linkFocus < len(m.viewLinks) {
+	if m.mode == modeView && !m.overlayReady && m.linkFocus >= 0 && m.linkFocus < len(m.viewLinks) {
 		lt := m.viewLinks[m.linkFocus]
 		tgt := lt.label
 		if lt.kind == linkWeb {
@@ -869,6 +998,25 @@ func (m DocsModel) View() tea.View {
 	v := tea.NewView(b.String())
 	v.AltScreen = true
 	return v
+}
+
+// overlayView renders the fullscreen viewer body, or "" when the overlay is not
+// ready or has no usable size (callers fall back to the legacy renderer).
+func (m DocsModel) overlayView() string {
+	if !m.overlayReady {
+		return ""
+	}
+	return m.overlay.View()
+}
+
+// SetViewport sizes the in-view overlay from the host frame. The docs route
+// adapter calls this from View(f) before rendering — the Frame→SetSize bridge
+// the shell requires (no WindowSizeMsg is used for sizing).
+func (m DocsModel) SetViewport(w, h int) DocsModel {
+	if m.overlayReady {
+		m.overlay = m.overlay.SetSize(w, h)
+	}
+	return m
 }
 
 func (m DocsModel) footer() string {
