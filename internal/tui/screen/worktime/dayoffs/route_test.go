@@ -546,6 +546,20 @@ func TestDayOffsRoute_keyHintsWhileTargetEditOpen(t *testing.T) {
 	}
 }
 
+func TestDayOffsRoute_capturesInputWhileDialogOpen(t *testing.T) {
+	api := &fakeAPI{}
+	r := dayoffs.NewRoute(api, theme.Default, wtnav.Registry{})
+	r2 := drain(r, r.Init())
+	if r2.(interface{ CapturesInput() bool }).CapturesInput() {
+		t.Fatal("dayoffs should not capture in the list state")
+	}
+	// 'a' opens the add dialog.
+	r3, _ := r2.Update(tea.KeyPressMsg{Text: "a"})
+	if !r3.(interface{ CapturesInput() bool }).CapturesInput() {
+		t.Fatal("dayoffs should capture while the add dialog is open")
+	}
+}
+
 // TestDayOffsRoute_targetEditEmptyEnterNoOp verifies Enter with empty digits is a no-op.
 func TestDayOffsRoute_targetEditEmptyEnterNoOp(t *testing.T) {
 	api := &fakeAPI{settings: apiclient.Settings{DefaultTargetMin: 480}}

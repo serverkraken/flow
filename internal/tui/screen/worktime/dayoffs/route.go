@@ -61,6 +61,10 @@ func NewRoute(api API, pal theme.Palette, reg wtnav.Registry) *Route {
 
 func (r *Route) Title() string { return "Frei" }
 
+// CapturesInput reports that the route owns the keyboard while a dialog is open.
+// Implements shell.InputCapturer.
+func (r *Route) CapturesInput() bool { return r.dialog != dialogNone }
+
 func (r *Route) Init() tea.Cmd { return r.loadCmd() }
 
 func (r *Route) loadCmd() tea.Cmd {
