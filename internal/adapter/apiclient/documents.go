@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -80,5 +81,21 @@ func (c *Client) Search(ctx context.Context, q string, tags ...string) ([]domain
 func (c *Client) Backlinks(ctx context.Context, id string) ([]domain.BacklinkRef, error) {
 	var out []domain.BacklinkRef
 	err := c.do(ctx, http.MethodGet, "/api/v1/documents/"+id+"/backlinks", nil, &out)
+	return out, err
+}
+
+// ImportDocumentInput mirrors the server's import payload (verbatim persist).
+type ImportDocumentInput struct {
+	Type      string     `json:"type"`
+	Path      string     `json:"path"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Date      *time.Time `json:"date,omitempty"`
+	ProjectID *string    `json:"projectId,omitempty"`
+}
+
+func (c *Client) ImportDocument(ctx context.Context, in ImportDocumentInput) (domain.Document, error) {
+	var out domain.Document
+	err := c.do(ctx, http.MethodPost, "/api/v1/documents/import", in, &out)
 	return out, err
 }

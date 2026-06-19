@@ -3,6 +3,7 @@ package apiclient_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -292,5 +293,44 @@ func TestClient_Backlinks(t *testing.T) {
 	}
 	if len(refs) != 1 || refs[0].ID != "s1" || refs[0].Type != domain.DocFree {
 		t.Fatalf("refs = %v", refs)
+	}
+}
+
+func TestImportDocument_PostsBodyAndPath(t *testing.T) {
+	var gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(domain.Document{ID: "d1"})
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	d0 := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
+	pid := "p1"
+	_, err := c.ImportDocument(context.Background(), apiclient.ImportDocumentInput{
+		Type: "project", Path: "projects/foo/readme", Title: "Foo", Body: "B", Date: &d0, ProjectID: &pid,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/documents/import" {
+		t.Fatalf("path = %q", gotPath)
+	}
+	if !strings.Contains(gotBody, `"projectId":"p1"`) || !strings.Contains(gotBody, `"date":"2026-04-28`) {
+		t.Fatalf("body missing fields: %s", gotBody)
+	}
+}
+
+func TestImportDocument_ConflictIsTyped(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	_, err := c.ImportDocument(context.Background(), apiclient.ImportDocumentInput{Type: "free", Path: "x", Title: "T", Body: "B"})
+	if !apiclient.IsConflict(err) {
+		t.Fatalf("want IsConflict, got %v", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -80,12 +81,30 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode >= 300 {
-		return fmt.Errorf("apiclient: %s %s: status %d", method, path, res.StatusCode)
+		return &APIError{Method: method, Path: path, StatusCode: res.StatusCode}
 	}
 	if out != nil {
 		return json.NewDecoder(res.Body).Decode(out)
 	}
 	return nil
+}
+
+// APIError is returned by do for any non-2xx response so callers can branch on
+// the status (e.g. skip a 409 conflict). The message is unchanged, so existing
+// `err != nil` callers are unaffected.
+type APIError struct {
+	Method, Path string
+	StatusCode   int
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("apiclient: %s %s: status %d", e.Method, e.Path, e.StatusCode)
+}
+
+// IsConflict reports whether err is an APIError with HTTP 409.
+func IsConflict(err error) bool {
+	var ae *APIError
+	return errors.As(err, &ae) && ae.StatusCode == http.StatusConflict
 }
 
 func (c *Client) StartSession(ctx context.Context, projectID *string, tag, note string) (domain.WorkSession, error) {
