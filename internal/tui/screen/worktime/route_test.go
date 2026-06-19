@@ -49,7 +49,17 @@ func (f *fakeAPI) CreateProject(_ context.Context, name string) (domain.Project,
 
 func fixedNow() time.Time { return time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC) }
 
-func newTestRoute(f *fakeAPI) *TodayRoute { return NewTodayRoute(f, fixedNow, theme.Load()) }
+func newTestRoute(f *fakeAPI) *TodayRoute {
+	return NewTodayRoute(f, fixedNow, theme.Load(), BuildRegistry(nil, theme.Load()))
+}
+
+func TestTodayRoute_wKeyEmitsSwitch(t *testing.T) {
+	r := newTestRoute(&fakeAPI{})
+	_, cmd := r.Update(keyPress("w"))
+	if cmd == nil {
+		t.Fatal("Today: w should emit a switch cmd")
+	}
+}
 
 func TestRoute_LoadPopulatesState(t *testing.T) {
 	f := &fakeAPI{today: apiclient.Today{TargetMin: 480, LoggedMin: 60}, sessions: []domain.WorkSession{

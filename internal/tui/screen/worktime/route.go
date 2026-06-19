@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
@@ -46,6 +47,7 @@ type TodayRoute struct {
 	api todayAPI
 	now func() time.Time
 	pal theme.Palette
+	reg wtnav.Registry // lateral sibling navigation
 
 	st      todayState
 	cursor  int
@@ -60,11 +62,11 @@ type TodayRoute struct {
 	confirm confirmState
 }
 
-func NewTodayRoute(api todayAPI, now func() time.Time, pal theme.Palette) *TodayRoute {
+func NewTodayRoute(api todayAPI, now func() time.Time, pal theme.Palette, reg wtnav.Registry) *TodayRoute {
 	if now == nil {
 		now = time.Now
 	}
-	return &TodayRoute{api: api, now: now, pal: pal}
+	return &TodayRoute{api: api, now: now, pal: pal, reg: reg}
 }
 
 func (r *TodayRoute) Title() string { return "Worktime" }
@@ -177,6 +179,8 @@ func (r *TodayRoute) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		r.cursor = 0
 	case k.Text == "G":
 		r.cursor = max(0, len(r.st.Completed)-1)
+	case k.Text == "w" || k.Text == "t" || k.Text == "d" || k.Text == "e":
+		return r, r.reg.Nav(k.Text)
 	case k.Text == "s":
 		return r.startOrStop()
 	case k.Text == "E" || k.Code == tea.KeyEnter:

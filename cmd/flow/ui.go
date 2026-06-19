@@ -31,10 +31,11 @@ func runUI(cmd *cobra.Command, _ []string) error {
 		defer func() { _ = logf.Close() }()
 		os.Stderr = logf
 	}
-	m := shell.New(client, os.Getenv("USER"), theme.Load()).
+	pal := theme.Load()
+	m := shell.New(client, os.Getenv("USER"), pal).
 		WithTabs([]shell.Route{
 			shell.NewHomeRoute(os.Getenv("USER")),
-			worktime.NewTodayRoute(client, time.Now, theme.Load()),
+			worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
 		})
 	_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
 	return err
