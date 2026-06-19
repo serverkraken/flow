@@ -253,7 +253,8 @@ func (s Shell) View() tea.View {
 
 	// FullScreener: if the active top route requests full-screen and no
 	// overlay is open, skip all chrome and render the route over the full
-	// terminal area. Help/palette overlays take precedence (checked above).
+	// terminal area. Help/palette overlays take precedence: the guard below
+	// skips fullscreen when either is open, falling through to the switch.
 	if !s.helpOpen && !s.paletteOpen {
 		top := s.tabs[s.activeTab].Top()
 		if fs, ok := top.(FullScreener); ok && fs.FullScreen() {
