@@ -237,6 +237,9 @@ func runImport(ctx context.Context, c *apiclient.Client, dir string, dryRun, upd
 		var date *time.Time
 		if typ == "daily" {
 			date = importDate(fm, rel)
+			if date != nil {
+				title = date.Format("2006-01-02")
+			}
 		}
 		projectID, perr := pr.resolve(ctx, fm.Project)
 		if perr != nil {

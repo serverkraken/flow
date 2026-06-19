@@ -215,3 +215,42 @@ func TestRunImport_ImportsSkipsAndDryRun(t *testing.T) {
 		t.Fatalf("run posts=%d stats=%+v (want 2 imported, 1 skipped)", posts, st)
 	}
 }
+
+func TestRunImport_DailyTitleIsDate(t *testing.T) {
+	var importedDocs []apiclient.ImportDocumentInput
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/documents":
+			_ = json.NewEncoder(w).Encode([]domain.Document{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/documents/import":
+			var in apiclient.ImportDocumentInput
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			importedDocs = append(importedDocs, in)
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(domain.Document{ID: "new"})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := t.TempDir()
+	// Daily note with date in frontmatter; first H1 is a section heading, not the date
+	writeFile(t, dir, "daily/2026-05-11.md", "---\nid: daily/2026-05-11\ntype: daily\ndate: \"2026-05-11\"\n---\n# Tickets\n\nSome daily content")
+
+	st, err := runImport(context.Background(), c, dir, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.imported != 1 {
+		t.Fatalf("expected 1 imported, got %d", st.imported)
+	}
+	if len(importedDocs) != 1 {
+		t.Fatalf("expected 1 imported document, got %d", len(importedDocs))
+	}
+	doc := importedDocs[0]
+	if doc.Title != "2026-05-11" {
+		t.Errorf("daily title = %q, want %q", doc.Title, "2026-05-11")
+	}
+}
