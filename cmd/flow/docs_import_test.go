@@ -27,10 +27,25 @@ func TestSlugify_ProducesValidSlugs(t *testing.T) {
 }
 
 func TestParseVaultFrontmatter(t *testing.T) {
+	// Happy path: proper frontmatter block
 	body := "---\nid: notes/Onboarding\ntype: free\n---\n# Onboarding\nbody"
 	fm := parseVaultFrontmatter(body)
 	if fm.ID != "notes/Onboarding" || fm.Type != "free" {
 		t.Fatalf("fm = %+v", fm)
+	}
+
+	// No frontmatter: body does not start with "---\n"
+	bodyNoFM := "# Onboarding\nbody"
+	fm2 := parseVaultFrontmatter(bodyNoFM)
+	if fm2 != (vaultFrontmatter{}) {
+		t.Fatalf("body with no frontmatter should return zero value, got %+v", fm2)
+	}
+
+	// Opening fence but no closing fence: should return zero value
+	bodyNoClosed := "---\nid: notes/Onboarding\ntype: free\n# Body without close"
+	fm3 := parseVaultFrontmatter(bodyNoClosed)
+	if fm3 != (vaultFrontmatter{}) {
+		t.Fatalf("body with opening fence but no closing fence should return zero value, got %+v", fm3)
 	}
 }
 

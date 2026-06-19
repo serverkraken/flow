@@ -39,6 +39,7 @@ type vaultFrontmatter struct {
 
 // parseVaultFrontmatter extracts the leading "---\n … \n---" YAML block.
 // Returns the zero value when there is no frontmatter or it is malformed.
+// The closing fence must be a line equal to "---" or "..." (line-exact, no suffix).
 func parseVaultFrontmatter(body string) vaultFrontmatter {
 	const open = "---\n"
 	var fm vaultFrontmatter
@@ -46,10 +47,29 @@ func parseVaultFrontmatter(body string) vaultFrontmatter {
 		return fm
 	}
 	rest := body[len(open):]
-	end := strings.Index(rest, "\n---")
+
+	end := -1
+	for off := 0; off <= len(rest); {
+		nl := strings.IndexByte(rest[off:], '\n')
+		var line string
+		if nl < 0 {
+			line = rest[off:]
+		} else {
+			line = rest[off : off+nl]
+		}
+		if line == "---" || line == "..." {
+			end = off
+			break
+		}
+		if nl < 0 {
+			break
+		}
+		off += nl + 1
+	}
 	if end < 0 {
 		return fm
 	}
+
 	_ = yaml.Unmarshal([]byte(rest[:end]), &fm)
 	return fm
 }
