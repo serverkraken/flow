@@ -29,7 +29,7 @@ Separately, entering dates as raw `YYYY-MM-DD` text is error-prone; a guided pic
 ## Goals
 
 1. Keystrokes reach the focused field/dialog when a route is in input mode; shell shortcuts still work in list/command views.
-2. A reusable `internal/tui/ui/datepicker` segment-stepper component.
+2. A reusable `internal/tui/ui/datepicker` segment-stepper component, with a weekday label and a read-only month grid for visual confirmation (reduces mis-selection).
 3. Date entry in Frei (Von/Bis) and Export (von/bis) uses the picker.
 
 ## Non-Goals
@@ -92,7 +92,8 @@ type Model struct{ /* y, m, d ints; seg (0=year,1=month,2=day); focused bool; pa
 
 func New(initial time.Time, pal theme.Palette) Model
 func (m Model) Update(k tea.KeyPressMsg) Model   // pure value editor, no tea.Cmd, no clock
-func (m Model) View() string            // e.g. "‹2026›-‹07›-‹20›", focused segment accented
+func (m Model) View() string            // one-line stepper "‹2026›-‹07›-‹20›  (Mo)", focused segment accented
+func (m Model) Calendar(today time.Time) string // read-only month grid (see below); today passed in
 func (m Model) Value() string           // "YYYY-MM-DD"
 func (m *Model) SetValue(s string) error // parse "YYYY-MM-DD"; ignore/return err on bad input
 func (m *Model) Focus()
@@ -100,7 +101,9 @@ func (m *Model) Blur()
 func (m Model) Focused() bool
 ```
 
-The component is **clock-free and deterministic** — it never reads the host time. (No `tea.Cmd` return; no `time.Now`.)
+The component is **clock-free and deterministic** — it never reads the host time. (No `tea.Cmd` return; no `time.Now`.) The weekday label in `View()` is computed from the *selected* date (no clock). `Calendar` takes `today` as a parameter so the "today" highlight is deterministic; pass `r.now()` from the route (or the zero `time.Time` to skip the today highlight).
+
+**Month grid (`Calendar`).** A read-only, Monday-first month view of the *selected* date's month: a `Mo Di Mi Do Fr Sa So` header, the days laid out in weeks, the **selected day boxed/accented**, and **today** marked (dim/underline). It is pure rendering that reflects the stepper state live — there is **no separate calendar navigation**, so it adds no input model or keys. The route decides whether/where to show it (see Phase C).
 
 **Key behavior** (only consumed while focused; the embedding route routes keys to it):
 - `←` / `→` — move the active segment (year → month → day), clamped at the ends (no wrap across segments).
@@ -112,7 +115,7 @@ The component is **clock-free and deterministic** — it never reads the host ti
 
 **Rendering.** Single line; the focused segment is wrapped in accent-colored guillemets/markers via `theme`. Non-focused segments plain. Width is fixed and small, so it drops into any dialog row.
 
-**Edge cases to cover in tests:** segment clamping at ends, month/day rollover, day clamping on month/year change (Jan 31 → Feb), multi-digit entry + auto-advance, partial/invalid digit clamp, `Value()`/`SetValue()` round-trip, leap-year Feb 29. (The `t`=today shortcut is tested at the route level, not here.)
+**Edge cases to cover in tests:** segment clamping at ends, month/day rollover, day clamping on month/year change (Jan 31 → Feb), multi-digit entry + auto-advance, partial/invalid digit clamp, `Value()`/`SetValue()` round-trip, leap-year Feb 29, the `View()` weekday label (e.g. 2026-07-20 → `Mo`), and `Calendar(today)` rendering (correct month header + week layout, selected day marked, today marked when `today` is in the shown month, not marked when it isn't). (The `t`=today shortcut is tested at the route level, not here.)
 
 ---
 
@@ -124,6 +127,7 @@ The add form becomes `[Von datepicker] [Bis datepicker] [Label textinput]`.
 - `Bis` defaults to `Von`'s value when the dialog opens; a single day-off = `Von == Bis`.
 - On submit: validate `Bis ≥ Von` (else keep the dialog open with a hint); send `AddDayOffs(from=Von, to=Bis, kind="urlaub", label, …)`. The old "leave Bis empty" path is gone.
 - `kind`/skip-weekends behavior unchanged.
+- The dialog renders the **month grid of the focused picker** (`Von` or `Bis`) below the fields, via `picker.Calendar(r.now())`. When the Label field is focused, no grid is shown.
 
 ### Export route
 - `von` / `bis` text fields become datepickers; `Pfad` stays a textinput; `Range`/`Format` stay choice-cyclers.
@@ -131,6 +135,7 @@ The add form becomes `[Von datepicker] [Bis datepicker] [Label textinput]`.
 - `←` / `→` act on the focused field: cycle on `Range`/`Format`, move segment on `von`/`bis`.
 - Add the `Esc` → `shell.PopRouteMsg{}` handler (per Phase A Esc contract).
 - `submit()` validation (`to ≥ from`, valid dates) is simplified — the picker guarantees well-formed dates, so the parse-error branch becomes a `to < from` check only.
+- When `von` or `bis` is focused, render that picker's month grid (`picker.Calendar(r.now())`) below the form; on `Range`/`Format`/`Pfad` focus, no grid.
 
 ---
 
