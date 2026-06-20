@@ -104,3 +104,26 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 		t.Fatalf("delete status=%d", code)
 	}
 }
+
+func TestWebDayOffPage_ListsAllManualKinds(t *testing.T) {
+	srv, codec := newWebDayOffServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/dayoffs", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	for _, want := range []string{"Urlaub", "Krank", "Gleittag", "Sonderurlaub", "Kind krank", "Fortbildung"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("day-offs page select missing %q;\n%.400s", want, body)
+		}
+	}
+}

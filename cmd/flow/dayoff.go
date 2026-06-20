@@ -56,7 +56,7 @@ func dayoffAddCmd() *cobra.Command {
 			return c.AddDayOffs(cmd.Context(), args[0], args[1], kind, label, targetMin, skipWeekends)
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "vacation", "vacation|sick")
+	cmd.Flags().StringVar(&kind, "kind", "vacation", "vacation|sick|flex|special|childsick|training")
 	cmd.Flags().StringVar(&label, "label", "", "optional label")
 	cmd.Flags().IntVar(&targetMin, "target-min", 0, "half-day target in minutes (0 = full day off)")
 	cmd.Flags().BoolVar(&skipWeekends, "skip-weekends", true, "skip Sat/Sun")
