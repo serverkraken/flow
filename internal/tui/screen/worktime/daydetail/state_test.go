@@ -70,3 +70,16 @@ func TestBuildRows_ProjectIDPropagated(t *testing.T) {
 		t.Fatalf("project id not propagated: %+v", rows)
 	}
 }
+
+func TestBuildRows_NotePropagated(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.UTC)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(10 * time.Hour)
+	sessions := []domain.WorkSession{
+		{ID: "s1", Start: s, Stop: &e, Note: "meeting notes"},
+	}
+	rows := buildRows(sessions, day)
+	if len(rows) != 1 || rows[0].Note != "meeting notes" {
+		t.Fatalf("note not propagated: %+v", rows)
+	}
+}

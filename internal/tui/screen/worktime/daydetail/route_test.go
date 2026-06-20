@@ -30,6 +30,8 @@ type fakeAPI struct {
 	// Edit/Delete tracking fields (Task 7).
 	editCalls    int
 	lastEditID   string
+	lastEditTag  string
+	lastEditNote string
 	lastEditStop *time.Time
 	editErr      error
 	delCalls     int
@@ -63,9 +65,11 @@ func (f *fakeAPI) AddSession(_ context.Context, projectID *string, start, stop t
 	return domain.WorkSession{ID: "new", Start: start, Stop: &stop}, nil
 }
 
-func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, tag, note string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
 	f.editCalls++
 	f.lastEditID = id
+	f.lastEditTag = tag
+	f.lastEditNote = note
 	f.lastEditStop = stop
 	if f.editErr != nil {
 		return domain.WorkSession{}, f.editErr
@@ -494,5 +498,44 @@ func TestDayDetail_OverlapErrorShowsToast(t *testing.T) {
 	}
 	if !strings.Contains(out, "09:00") {
 		t.Fatalf("dialog should still render the typed Von value '09:00', got: %q", out)
+	}
+}
+
+// TestDayDetail_EditPreservesNote verifies that editing a session that has an
+// existing note — while only changing the Bis time — submits EditSession with
+// the original note intact (not "").
+func TestDayDetail_EditPreservesNote(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{sessions: []domain.WorkSession{
+		{ID: "a", Start: s, Stop: &e, Tag: "deep", Note: "original note"},
+	}}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	// 'e' opens the edit dialog prefilled with Von=09:00, Bis=11:00, Tag=deep, Note=original note.
+	r = press(t, r, keyRune('e'))
+
+	// Tab from Von → Bis, clear "11:00", type "12:00" (only change Bis).
+	r = press(t, r, keyTab()) // → Bis
+	r = clearField(t, r)
+	r = typeInto(t, r, "12:00")
+
+	// Tab to Tag, Tab to Notiz (last field). Do NOT clear or retype the note.
+	r = press(t, r, keyTab()) // → Tag
+	r = press(t, r, keyTab()) // → Notiz
+
+	// Enter on Notiz submits.
+	r = press(t, r, keyEnter())
+
+	if f.editCalls != 1 {
+		t.Fatalf("EditSession calls = %d, want 1", f.editCalls)
+	}
+	if f.lastEditNote != "original note" {
+		t.Fatalf("EditSession note = %q, want %q (note must be preserved when not cleared)", f.lastEditNote, "original note")
+	}
+	if f.lastEditStop == nil || !f.lastEditStop.Equal(day.Add(12*time.Hour)) {
+		t.Fatalf("edit stop = %v, want 12:00 on the context day", f.lastEditStop)
 	}
 }

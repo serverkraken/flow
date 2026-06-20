@@ -337,6 +337,7 @@ func (r *Route) openEdit(row dayRow) tea.Cmd {
 	tag := form.NewTextInput("z.B. deep, meeting", r.pal)
 	tag.SetValue(row.Tag)
 	note := form.NewTextInput("kurzer Text", r.pal)
+	note.SetValue(row.Note)
 
 	y, m, d := row.Start.Date()
 	date := time.Date(y, m, d, 0, 0, 0, 0, row.Start.Location())

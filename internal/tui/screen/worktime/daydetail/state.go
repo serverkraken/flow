@@ -18,6 +18,7 @@ type dayRow struct {
 	Running bool   // true when Stop was nil (session still active)
 	Project string // ProjectID; resolved to name at render time
 	Tag     string
+	Note    string
 }
 
 // buildRows converts a slice of WorkSession into sorted dayRows. Sessions are
@@ -29,8 +30,9 @@ func buildRows(sessions []domain.WorkSession, _ time.Time) []dayRow {
 	rows := make([]dayRow, 0, len(sessions))
 	for _, s := range sessions {
 		r := dayRow{
-			ID:  s.ID,
-			Tag: s.Tag,
+			ID:   s.ID,
+			Tag:  s.Tag,
+			Note: s.Note,
 		}
 		if s.ProjectID != nil {
 			r.Project = *s.ProjectID
