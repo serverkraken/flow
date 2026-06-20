@@ -18,15 +18,44 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 type startReq struct {
-	ProjectID *string `json:"projectId"`
-	Tag       string  `json:"tag"`
-	Note      string  `json:"note"`
+	ProjectID *string    `json:"projectId"`
+	Tag       string     `json:"tag"`
+	Note      string     `json:"note"`
+	Start     *time.Time `json:"start"`
+	Stop      *time.Time `json:"stop"`
 }
 
 func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req startReq
 	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	// Nachbuchen: both timestamps present → create a complete past session.
+	if req.Start != nil || req.Stop != nil {
+		if req.Start == nil || req.Stop == nil {
+			http.Error(w, "start and stop are required together", http.StatusBadRequest)
+			return
+		}
+		sess, err := s.AddSession.Execute(r.Context(), u.ID, req.ProjectID, *req.Start, *req.Stop, req.Tag, req.Note)
+		switch {
+		case errors.Is(err, domain.ErrStopBeforeStart),
+			errors.Is(err, domain.ErrFutureSession),
+			errors.Is(err, domain.ErrInvalidSession):
+			http.Error(w, "invalid session times", http.StatusBadRequest)
+			return
+		case errors.Is(err, domain.ErrOverlap):
+			http.Error(w, "session overlaps an existing session", http.StatusConflict)
+			return
+		case err != nil:
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		s.Bus.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+		writeJSON(w, http.StatusCreated, sess)
+		return
+	}
+
+	// Live start (unchanged).
 	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.ProjectID, req.Tag, req.Note)
 	if errors.Is(err, domain.ErrAlreadyRunning) {
 		http.Error(w, "a session is already running", http.StatusConflict)
@@ -72,7 +101,20 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 			since = t
 		}
 	}
-	list, err := s.ListSessions.Execute(r.Context(), u.ID, since)
+	var (
+		list []domain.WorkSession
+		err  error
+	)
+	if q := r.URL.Query().Get("until"); q != "" {
+		until, perr := time.Parse(time.RFC3339, q)
+		if perr != nil {
+			http.Error(w, "bad until", http.StatusBadRequest)
+			return
+		}
+		list, err = s.ListSessionsRange.Execute(r.Context(), u.ID, since, until)
+	} else {
+		list, err = s.ListSessions.Execute(r.Context(), u.ID, since)
+	}
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
