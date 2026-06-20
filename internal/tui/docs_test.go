@@ -143,26 +143,26 @@ func TestDocsLoadedPopulatesAndRenders(t *testing.T) {
 	}
 }
 
-func TestDocsJKNavigation(t *testing.T) {
+func TestDocsArrowNavigation(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
 
-	next2, _ := m.Update(tea.KeyPressMsg{Text: "j"})
+	next2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = next2.(DocsModel)
 	if m.sel != 1 {
-		t.Fatalf("j: sel = %d, want 1", m.sel)
+		t.Fatalf("down: sel = %d, want 1", m.sel)
 	}
 	// clamp at end
-	next3, _ := m.Update(tea.KeyPressMsg{Text: "j"})
+	next3, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = next3.(DocsModel)
 	if m.sel != 1 {
-		t.Fatalf("j clamp: sel = %d, want 1", m.sel)
+		t.Fatalf("down clamp: sel = %d, want 1", m.sel)
 	}
-	next4, _ := m.Update(tea.KeyPressMsg{Text: "k"})
+	next4, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
 	m = next4.(DocsModel)
 	if m.sel != 0 {
-		t.Fatalf("k: sel = %d, want 0", m.sel)
+		t.Fatalf("up: sel = %d, want 0", m.sel)
 	}
 }
 
@@ -1056,7 +1056,7 @@ func TestDocsSelClamp_OnLoad(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docsLoadedMsg{docs: sampleDocs()})
 	m = next.(DocsModel)
-	next, _ = m.Update(tea.KeyPressMsg{Text: "j"})
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = next.(DocsModel)
 	if m.sel != 1 {
 		t.Fatalf("sel = %d, want 1", m.sel)
@@ -1410,5 +1410,28 @@ func TestDocsView_TabFocusAndEnter(t *testing.T) {
 	}
 	if stack := m4.(DocsModel).viewStack; len(stack) != 1 || stack[0] != "d-src" {
 		t.Fatalf("Enter should push the current doc onto the back-stack, got %v", stack)
+	}
+}
+
+func TestDocs_ListArrowsMoveNotJK(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
+	m.docs = []domain.Document{
+		{ID: "a", Type: domain.DocFree, Path: "a", Title: "A"},
+		{ID: "b", Type: domain.DocFree, Path: "b", Title: "B"},
+	}
+	// Arrow down moves the selection.
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m2.(DocsModel).sel != 1 {
+		t.Fatalf("KeyDown: sel=%d, want 1", m2.(DocsModel).sel)
+	}
+	// 'j' no longer navigates (it is not a list-nav key).
+	m3, _ := m.Update(tea.KeyPressMsg{Text: "j"})
+	if m3.(DocsModel).sel != 0 {
+		t.Fatalf("'j' must not move the cursor: sel=%d, want 0", m3.(DocsModel).sel)
+	}
+	// End jumps to the last row.
+	m4, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	if m4.(DocsModel).sel != 1 {
+		t.Fatalf("End: sel=%d, want 1", m4.(DocsModel).sel)
 	}
 }

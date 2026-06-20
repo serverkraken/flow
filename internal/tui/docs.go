@@ -22,6 +22,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/docrow"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
+	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
 )
 
@@ -617,19 +618,13 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	// modeList
+	if cur, ok := listnav.New().Set(m.sel, len(m.visibleDocs())).Handle(k, len(m.visibleDocs()), m.docsPerPage()); ok {
+		m.sel = cur.Index()
+		return m, nil
+	}
 	switch {
 	case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
 		return m, tea.Quit
-	case k.Text == "j":
-		if m.sel < len(m.visibleDocs())-1 {
-			m.sel++
-		}
-		return m, nil
-	case k.Text == "k":
-		if m.sel > 0 {
-			m.sel--
-		}
-		return m, nil
 	case k.Code == tea.KeyEnter:
 		vis := m.visibleDocs()
 		if len(vis) == 0 {
@@ -880,13 +875,13 @@ func projectFilterItems(ps []domain.Project) []fuzzylist.Item {
 }
 
 func (m DocsModel) handleSearchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case k.Code == tea.KeyEsc:
+	switch k.Code {
+	case tea.KeyEsc:
 		m.mode = modeList
 		m.searching = false
 		m.searchHits = nil
 		return m, nil
-	case k.Code == tea.KeyEnter:
+	case tea.KeyEnter:
 		if !m.searching {
 			if strings.TrimSpace(m.searchQuery) == "" {
 				return m, nil
@@ -897,16 +892,16 @@ func (m DocsModel) handleSearchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.loadDoc(m.searchHits[m.searchSel].ID, false)
-	case m.searching && k.Text == "j":
-		if m.searchSel < len(m.searchHits)-1 {
-			m.searchSel++
+	}
+	// Search-results navigation: only when results are focused (m.searching==true means
+	// hits are shown; m.searching==false means the user is still typing the query).
+	if m.searching {
+		if cur, ok := listnav.New().Set(m.searchSel, len(m.searchHits)).Handle(k, len(m.searchHits), m.docsPerPage()); ok {
+			m.searchSel = cur.Index()
+			return m, nil
 		}
-		return m, nil
-	case m.searching && k.Text == "k":
-		if m.searchSel > 0 {
-			m.searchSel--
-		}
-		return m, nil
+	}
+	switch {
 	case !m.searching && k.Code == tea.KeyBackspace:
 		m.searchQuery = dropLast(m.searchQuery)
 		return m, nil

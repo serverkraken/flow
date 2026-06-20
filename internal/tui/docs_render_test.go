@@ -106,7 +106,7 @@ func TestRenderList_KompendiumLook(t *testing.T) {
 
 // TestFilteredCursorDesync verifies that with an active project filter the
 // cursor (m.sel) maps to the VISIBLE set, not the unfiltered m.docs slice.
-// Before the fix, j/k clamped against len(m.docs) and enter/e/d indexed
+// Before the fix, arrow-nav clamped against len(m.docs) and enter/e/d indexed
 // m.docs[m.sel], so a hidden doc sorted before visible ones would cause the
 // wrong document to be opened or deleted.
 func TestFilteredCursorDesync(t *testing.T) {
@@ -141,16 +141,16 @@ func TestFilteredCursorDesync(t *testing.T) {
 		t.Errorf("vis[sel=%d].ID = %q, want free-a (enter would open wrong doc)", m.sel, vis[m.sel].ID)
 	}
 
-	// Pressing j must not advance sel past the VISIBLE set boundary (len 2, not 3).
-	nm, _ := m.Update(tea.KeyPressMsg{Text: "j"})
+	// Pressing down must not advance sel past the VISIBLE set boundary (len 2, not 3).
+	nm, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = nm.(DocsModel)
 	if m.sel != 1 {
-		t.Fatalf("after j: sel = %d, want 1", m.sel)
+		t.Fatalf("after down: sel = %d, want 1", m.sel)
 	}
-	nm, _ = m.Update(tea.KeyPressMsg{Text: "j"})
+	nm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = nm.(DocsModel)
 	if m.sel != 1 {
-		t.Errorf("after second j at boundary: sel = %d, want 1 (clamped to visible len-1)", m.sel)
+		t.Errorf("after second down at boundary: sel = %d, want 1 (clamped to visible len-1)", m.sel)
 	}
 }
 
