@@ -340,6 +340,82 @@ func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	}
 }
 
+// TestDayDetail_EscViaBackChainStaysInDialog exercises Esc THROUGH the shell
+// back-chain (shell.ResolveBack), not via r.Update(Esc) directly. At a drill
+// depth ≥2 (Woche→daydetail) a back key would pop the route — unless the route
+// reports CapturesText() while a dialog is open, in which case the shell must
+// forward the key to the route so its own Esc handler can cancel the dialog.
+//
+// FAILS before the CapturesText addition (ResolveBack returns BackPop with a
+// dialog open) and PASSES after (BackForward).
+func TestDayDetail_EscViaBackChainStaysInDialog(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}}}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	// No dialog open: at depth 2 a back key must pop the route.
+	if got := shell.ResolveBack(r, 2, false); got != shell.BackPop {
+		t.Fatalf("no dialog: ResolveBack = %v, want BackPop", got)
+	}
+
+	// Open the edit dialog, then re-check: Esc must now be forwarded to the
+	// route (BackForward) so the dialog's own Esc handler can cancel it.
+	r = press(t, r, keyRune('e'))
+	if got := shell.ResolveBack(r, 2, false); got != shell.BackForward {
+		t.Fatalf("dialog open: ResolveBack = %v, want BackForward", got)
+	}
+
+	// And Esc forwarded into the route must close the dialog cleanly, with no
+	// API side effect.
+	r = press(t, r, tea.KeyPressMsg{Code: tea.KeyEsc})
+	dr := r.(*daydetail.Route)
+	if dr.DialogOpen() {
+		t.Fatal("Esc must close the open dialog")
+	}
+	if f.editCalls != 0 || f.delCalls != 0 {
+		t.Fatalf("Esc cancel must not call the API (edit=%d del=%d)", f.editCalls, f.delCalls)
+	}
+}
+
+// TestDayDetail_LateProjectLoadDoesNotClobberDialog covers the async-race guard:
+// 'n' with no cached projects fires loadProjectsCmd async; during that window
+// CapturesInput is false so 'e' can open the edit dialog. When the late
+// nachbuchenLoadProjectsMsg arrives it must NOT open the Nachbuchen dialog over
+// the already-open edit dialog (no two dialogs at once).
+func TestDayDetail_LateProjectLoadDoesNotClobberDialog(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{
+		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}},
+		projects: []domain.Project{{ID: "p1", Name: "Acme"}},
+	}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	// Open the edit dialog first (simulating it being opened during the
+	// in-flight project load window).
+	r = press(t, r, keyRune('e'))
+	dr := r.(*daydetail.Route)
+	if !dr.DialogOpen() {
+		t.Fatal("precondition: edit dialog should be open")
+	}
+
+	// Now deliver a late nachbuchenLoadProjectsMsg (the async project load
+	// resolving). It must be ignored because a dialog is already open.
+	r2, _ := r.Update(daydetail.LateProjectsMsgForTest([]domain.Project{{ID: "p1", Name: "Acme"}}))
+	dr2 := r2.(*daydetail.Route)
+	if dr2.NachbuchenOpenForTest() {
+		t.Fatal("late project-load must not open Nachbuchen over an already-open dialog")
+	}
+	if !dr2.DialogOpen() {
+		t.Fatal("the original edit dialog must remain open")
+	}
+}
+
 // clearField sends Backspace enough times to empty a prefilled HH:MM input.
 func clearField(t *testing.T, r shell.Route) shell.Route {
 	t.Helper()

@@ -68,6 +68,12 @@ func (r *Route) Title() string {
 	return "Tag · " + r.day.Format("02.01.2006")
 }
 
+// CapturesText keeps Esc/q inside an open dialog (so they cancel the dialog
+// instead of popping the whole route via the shell back-chain). daydetail
+// implements shell.InputCapturer for non-back keys, but the back keys travel
+// the shell.ResolveBack chain — only a TextCapturer keeps them in the route.
+func (r *Route) CapturesText() bool { return r.nachb != nil || r.edit != nil || r.del != nil }
+
 // Init triggers the first data load.
 func (r *Route) Init() tea.Cmd {
 	return r.loadCmd()
@@ -139,6 +145,12 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		if m.err != nil {
 			r.toast = toast.NewDanger("Projekte konnten nicht geladen werden: "+m.err.Error(), r.pal)
 			return r, r.toast.Init()
+		}
+		// Guard the async race: while the project load was in flight, e/d may
+		// have opened the edit or delete dialog (CapturesInput was still false).
+		// Ignore the late load rather than clobbering an already-open dialog.
+		if r.edit != nil || r.del != nil {
+			return r, nil
 		}
 		r.projects = m.projects
 		r.nachb = openNachbuchen(r.pal, r.projects)
