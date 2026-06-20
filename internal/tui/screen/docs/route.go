@@ -69,11 +69,16 @@ func (r *Route) CapturesInput() bool { return r.m.CapturesInput() }
 // CapturesText implements shell.TextCapturer.
 func (r *Route) CapturesText() bool { return r.m.CapturesText() }
 
-// Back implements shell.Backer, delegating to the wrapped DocsModel.
+// Back implements shell.Backer. It must NOT mutate the receiver: ResolveBack
+// calls Back() once to probe `handled` and the shell calls it again to apply,
+// so Back() has to be referentially transparent — it returns a new route
+// carrying the resolved model rather than mutating r.m in place (a pointer-
+// receiver `r.m = nm` would double-pop the docs viewStack, skipping a level).
 func (r *Route) Back() (shell.Route, tea.Cmd, bool) {
 	nm, cmd, ok := r.m.Back()
-	r.m = nm
-	return r, cmd, ok
+	nr := *r // shallow copy: pal is a value; m is replaced below
+	nr.m = nm
+	return &nr, cmd, ok
 }
 
 func (r *Route) KeyHints() []keyhint.Hint {

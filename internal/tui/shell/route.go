@@ -69,4 +69,11 @@ type TextCapturer interface{ CapturesText() bool }
 // Backer lets a route resolve one level of "back" within its own internal state
 // (e.g. document view → list, clear an active filter) before the frame pops the
 // nav-stack or quits. ok=false means "nothing internal — frame decides".
+//
+// Contract: Back() MUST NOT mutate its receiver. It is called twice per back
+// key — once by ResolveBack to probe `handled`, then again by the Shell to
+// apply — so it has to be referentially transparent: return the new (possibly
+// swapped) Route carrying the resolved state rather than mutating in place. A
+// receiver-mutating implementation double-applies the back step (e.g. pops a
+// drill-stack twice), skipping a level.
 type Backer interface{ Back() (Route, tea.Cmd, bool) }

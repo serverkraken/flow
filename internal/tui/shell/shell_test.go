@@ -1,10 +1,16 @@
 package shell_test
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/screen/docs"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 )
@@ -357,4 +363,178 @@ func TestShell_switchRoute_pushesAtRootThenReplaces(t *testing.T) {
 	if bInit != 1 {
 		t.Fatalf("lateral switch should Init the replacement (bInit=%d)", bInit)
 	}
+}
+
+// --- docs back double-pop regression (end-to-end through the Shell) ---------
+
+// chainDocSrv serves three wikilink-chained docs (Alpha->Bravo->Charlie) so the
+// test can drive the REAL docs route into a viewStack of depth 2 via the public
+// Update path. Each body carries a unique sentinel so the test can tell which
+// doc the viewer is rendering (a title is ambiguous: a body links to the next
+// doc, so that title appears as a label even while reading the current doc).
+func chainDocSrv(t *testing.T) (*apiclient.Client, func()) {
+	t.Helper()
+	all := []domain.Document{
+		{ID: "d1", Type: domain.DocFree, Path: "docs/a", Title: "Alpha", Body: "BODY_OF_ALPHA\n\n[[docs/b]]"},
+		{ID: "d2", Type: domain.DocFree, Path: "docs/b", Title: "Bravo", Body: "BODY_OF_BRAVO\n\n[[docs/c]]"},
+		{ID: "d3", Type: domain.DocFree, Path: "docs/c", Title: "Charlie", Body: "BODY_OF_CHARLIE"},
+	}
+	stored := map[string]domain.Document{}
+	for _, d := range all {
+		stored[d.ID] = d
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/documents", func(w http.ResponseWriter, _ *http.Request) {
+		list := make([]domain.Document, 0, len(all))
+		for _, d := range all {
+			list = append(list, stored[d.ID])
+		}
+		_ = json.NewEncoder(w).Encode(list)
+	})
+	mux.HandleFunc("GET /api/v1/documents/{id}", func(w http.ResponseWriter, r *http.Request) {
+		d, ok := stored[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(d)
+	})
+	mux.HandleFunc("GET /api/v1/documents/{id}/backlinks", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.BacklinkRef{})
+	})
+	srv := httptest.NewServer(mux)
+	return apiclient.New(srv.URL, "tok"), srv.Close
+}
+
+// drainRoute runs cmd to completion against the route, acting as the bubbletea
+// runtime (feeding every produced msg back). It Views after each step to size
+// the modeView overlay. Batches are fanned out; only the last non-nil child cmd
+// is chained — enough for the single-docViewMsg-per-navigation chain here.
+func drainRoute(t *testing.T, r shell.Route, cmd tea.Cmd) shell.Route {
+	t.Helper()
+	for i := 0; cmd != nil && i < 20; i++ {
+		msg := cmd()
+		if msg == nil {
+			break
+		}
+		if b, ok := msg.(tea.BatchMsg); ok {
+			var next tea.Cmd
+			for _, c := range b {
+				if c == nil {
+					continue
+				}
+				m := c()
+				if m == nil {
+					continue
+				}
+				var nc tea.Cmd
+				r, nc = r.Update(m)
+				if nc != nil {
+					next = nc
+				}
+			}
+			cmd = next
+		} else {
+			r, cmd = r.Update(msg)
+		}
+		r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	}
+	return r
+}
+
+// docsRouteAtDepth2 returns the real docs route reading Charlie (d3) with d1,d2
+// on its internal wikilink viewStack.
+func docsRouteAtDepth2(t *testing.T) shell.Route {
+	t.Helper()
+	c, stop := chainDocSrv(t)
+	t.Cleanup(stop)
+	var r shell.Route = docs.NewRoute(c, nil, nil, theme.Default, "alice")
+	frame := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
+
+	r = drainRoute(t, r, r.Init()) // load list
+	r.View(frame)
+
+	var cmd tea.Cmd
+	r, cmd = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open Alpha (d1)
+	r = drainRoute(t, r, cmd)
+	if !strings.Contains(r.View(frame), "BODY_OF_ALPHA") {
+		t.Fatal("setup: expected to be reading Alpha (d1)")
+	}
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})     // focus [[docs/b]]
+	r, cmd = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // follow -> Bravo (d2)
+	r = drainRoute(t, r, cmd)
+	if !strings.Contains(r.View(frame), "BODY_OF_BRAVO") {
+		t.Fatal("setup: expected to follow to Bravo (d2)")
+	}
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})     // focus [[docs/c]]
+	r, cmd = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // follow -> Charlie (d3)
+	r = drainRoute(t, r, cmd)
+	if !strings.Contains(r.View(frame), "BODY_OF_CHARLIE") {
+		t.Fatal("setup: expected to follow to Charlie (d3)")
+	}
+	return r
+}
+
+// TestShell_docsBackPopsExactlyOneLevel is the end-to-end guard for the
+// double-pop bug: pressing q once while reading Charlie (viewStack [d1,d2]) must
+// pop EXACTLY ONE level back to Bravo (d2), staying in modeView. ResolveBack
+// calls the route's Back() once to probe and the shell calls it again to apply;
+// if the adapter's Back() mutates its receiver the probe pops a level too, so q
+// skips Bravo and lands on Alpha (d1).
+func TestShell_docsBackPopsExactlyOneLevel(t *testing.T) {
+	r := docsRouteAtDepth2(t)
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{r})
+	next, _ := s.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	sh := next.(shell.Shell)
+
+	// One q-press through the shell back-chain. The BackRoute branch returns a
+	// loadDocNoPush cmd (-> docViewMsg) which the runtime would deliver; drain it
+	// through the Shell so the revealed doc actually renders.
+	var model tea.Model = sh
+	var cmd tea.Cmd
+	model, cmd = model.Update(tea.KeyPressMsg{Text: "q"})
+	model = drainShell(t, model, cmd)
+	v := model.(shell.Shell).View().Content
+
+	if !strings.Contains(v, "BODY_OF_BRAVO") {
+		t.Fatalf("q must pop exactly one level to Bravo (d2):\n%s", v)
+	}
+	if strings.Contains(v, "BODY_OF_ALPHA") {
+		t.Fatalf("q skipped a level to Alpha (d1) — the docs adapter's Back() mutated on the ResolveBack probe:\n%s", v)
+	}
+}
+
+// drainShell runs cmd to completion against the Shell, feeding produced msgs
+// back (the runtime's job). Batches are fanned out; the last non-nil child cmd
+// is chained.
+func drainShell(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
+	t.Helper()
+	for i := 0; cmd != nil && i < 20; i++ {
+		msg := cmd()
+		if msg == nil {
+			break
+		}
+		if b, ok := msg.(tea.BatchMsg); ok {
+			var next tea.Cmd
+			for _, c := range b {
+				if c == nil {
+					continue
+				}
+				cm := c()
+				if cm == nil {
+					continue
+				}
+				var nc tea.Cmd
+				m, nc = m.Update(cm)
+				if nc != nil {
+					next = nc
+				}
+			}
+			cmd = next
+		} else {
+			m, cmd = m.Update(msg)
+		}
+		m.(shell.Shell).View()
+	}
+	return m
 }
