@@ -29,6 +29,28 @@ func run(cmd tea.Cmd) tea.Msg {
 	return cmd()
 }
 
+func TestRegistry_NavEmitsSwitchForKnownKey(t *testing.T) {
+	reg := wtnav.Registry{"w": func() shell.Route { return stubRoute{title: "Woche"} }}
+	cmd := reg.Nav("w")
+	if cmd == nil {
+		t.Fatal("Nav(known key) should return a cmd")
+	}
+	msg, ok := cmd().(shell.SwitchRouteMsg)
+	if !ok {
+		t.Fatalf("Nav cmd should emit SwitchRouteMsg, got %T", cmd())
+	}
+	if msg.Route.Title() != "Woche" {
+		t.Fatalf("switch target = %q, want Woche", msg.Route.Title())
+	}
+}
+
+func TestRegistry_NavNilForUnknownKey(t *testing.T) {
+	reg := wtnav.Registry{}
+	if reg.Nav("z") != nil {
+		t.Fatal("Nav(unknown key) should return nil")
+	}
+}
+
 func testReg() wtnav.Registry {
 	return wtnav.Registry{
 		"w": func() shell.Route { return stubRoute{title: "Woche"} },
