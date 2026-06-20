@@ -3,6 +3,7 @@ package shell
 import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
@@ -30,8 +31,25 @@ func (h RouteHost) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.route, cmd = h.route.Update(msg)
 		return h, cmd
 	case tea.KeyPressMsg:
-		if msg.Text == "q" || msg.Code == tea.KeyEsc || (msg.Code == 'c' && msg.Mod == tea.ModCtrl) {
+		if msg.Code == 'c' && msg.Mod == tea.ModCtrl {
 			return h, tea.Quit
+		}
+		if grammar.Back.Matches(msg) {
+			switch ResolveBack(h.route, 1, false) {
+			case BackForward:
+				var cmd tea.Cmd
+				h.route, cmd = h.route.Update(msg)
+				return h, cmd
+			case BackRoute:
+				if b, ok := h.route.(Backer); ok {
+					nr, cmd, _ := b.Back()
+					h.route = nr
+					return h, cmd
+				}
+				return h, nil
+			default: // BackPop unreachable at depth 1, BackQuit
+				return h, tea.Quit
+			}
 		}
 	}
 	var cmd tea.Cmd
