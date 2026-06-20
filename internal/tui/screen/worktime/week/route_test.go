@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/screen/worktime/daydetail"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/week"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
@@ -24,6 +25,9 @@ type fakeAPI struct {
 	days []apiclient.WeekDay
 	err  error
 }
+
+// Compile-time check that fakeAPI satisfies daydetail.API.
+var _ daydetail.API = fakeAPI{}
 
 func (f fakeAPI) GetWeek(_ context.Context, _ string) ([]apiclient.WeekDay, error) {
 	return f.days, f.err
