@@ -23,8 +23,9 @@ import (
 
 // loadedMsg carries the result of a ListSessionsRange fetch.
 type loadedMsg struct {
-	rows []dayRow
-	err  error
+	rows     []dayRow
+	projects []domain.Project // fetched alongside sessions to resolve row project names
+	err      error
 }
 
 // Route lists one day's completed (and running) sessions. It satisfies shell.Route.
@@ -40,7 +41,8 @@ type Route struct {
 
 	// nachb is non-nil while the Nachbuchen (Add) dialog is open.
 	nachb    *nachbuchenState
-	projects []domain.Project // cached project list for the dialog
+	projects []domain.Project  // cached project list for the dialog
+	projName map[string]string // id→name for resolving project names in rows
 }
 
 // NewRoute builds a DayDetail route for the given date. Only the date part of
@@ -79,7 +81,10 @@ func (r *Route) loadCmd() tea.Cmd {
 		if err != nil {
 			return loadedMsg{err: err}
 		}
-		return loadedMsg{rows: buildRows(sessions, day)}
+		// Fetch projects too so rows can render the project NAME, not the ID.
+		// A project-list failure must not hide the sessions, so ignore its error.
+		ps, _ := api.ListProjects(ctx)
+		return loadedMsg{rows: buildRows(sessions, day), projects: ps}
 	}
 }
 
@@ -115,6 +120,13 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		if m.err == nil {
 			r.rows = m.rows
 			r.cur = r.cur.Clamp(len(r.rows))
+			if m.projects != nil {
+				r.projects = m.projects
+				r.projName = make(map[string]string, len(m.projects))
+				for _, p := range m.projects {
+					r.projName[p.ID] = p.Name
+				}
+			}
 		}
 		return r, nil
 
@@ -136,6 +148,7 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		if r.nachb != nil {
 			id := m.id
 			r.nachb.projID = &id
+			r.nachb.projName = m.name
 			r.nachb.focus = focusVon
 			_ = r.nachb.von.Focus()
 		}
@@ -219,7 +232,7 @@ func (r *Route) View(f shell.Frame) string {
 	} else {
 		b.WriteString("\n")
 		for i, row := range r.rows {
-			label := renderRowLabel(row)
+			label := renderRowLabel(row, r.projName)
 			hint := renderRowHint(row)
 			b.WriteString(picker.Row(i == r.cur.Index(), label, hint, inner, f.Pal))
 			b.WriteString("\n")
@@ -235,19 +248,40 @@ func (r *Route) View(f shell.Frame) string {
 	return b.String()
 }
 
-// renderRowLabel formats the primary "Von–Bis · Dauer" display of a session row.
-func renderRowLabel(row dayRow) string {
+// renderRowLabel formats the primary "Von–Bis · Projekt · Dauer" display of a
+// session row. projName resolves a row's ProjectID to its display name; when the
+// id is unknown (map miss) the raw id is shown, and an unset project is omitted.
+func renderRowLabel(row dayRow, projName map[string]string) string {
 	start := row.Start.Format("15:04")
+	proj := resolveProjectName(row.Project, projName)
 	if row.Running {
+		if proj != "" {
+			return fmt.Sprintf("%s → läuft   ·  %s", start, proj)
+		}
 		return fmt.Sprintf("%s → läuft", start)
 	}
 	stop := row.Stop.Format("15:04")
 	durMin := int(row.Dur.Minutes())
+	if proj != "" {
+		return fmt.Sprintf("%s → %s  ·  %s  ·  %s", start, stop, proj, wtfmt.FormatMin(durMin))
+	}
 	return fmt.Sprintf("%s → %s   %s", start, stop, wtfmt.FormatMin(durMin))
 }
 
-// renderRowHint returns the trailing dim hint for a row (tag only for Task 4;
-// project name added in Task 6).
+// resolveProjectName maps a row's ProjectID to its display name. An empty id
+// (no project) yields "". A miss in the map falls back to the raw id so a stale
+// cache never hides which project a row belongs to.
+func resolveProjectName(id string, projName map[string]string) string {
+	if id == "" {
+		return ""
+	}
+	if name, ok := projName[id]; ok {
+		return name
+	}
+	return id
+}
+
+// renderRowHint returns the trailing dim hint for a row (the tag, if any).
 func renderRowHint(row dayRow) string {
 	if row.Tag != "" {
 		return "[" + row.Tag + "]"

@@ -31,13 +31,14 @@ const (
 
 // nachbuchenState holds the model for the Nachbuchen (Add) dialog.
 type nachbuchenState struct {
-	proj   fuzzylist.Model
-	projID *string // resolved after project is selected
-	von    textinput.Model
-	bis    textinput.Model
-	tag    textinput.Model
-	note   textinput.Model
-	focus  nachbuchenFocus
+	proj     fuzzylist.Model
+	projID   *string // resolved after project is selected
+	projName string  // display name of the selected project (empty until picked)
+	von      textinput.Model
+	bis      textinput.Model
+	tag      textinput.Model
+	note     textinput.Model
+	focus    nachbuchenFocus
 }
 
 // projectItems converts a domain project slice to fuzzylist items.
@@ -68,8 +69,9 @@ func openNachbuchen(pal theme.Palette, projects []domain.Project) *nachbuchenSta
 
 // nachbuchenProjectMsg is sent when an inline project create resolves.
 type nachbuchenProjectMsg struct {
-	id  string
-	err error
+	id   string
+	name string
+	err  error
 }
 
 // nachbuchenDoneMsg is sent when AddSession completes (or errors).
@@ -115,12 +117,13 @@ func (r *Route) handleNachbuchenKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 					if err != nil {
 						return nachbuchenProjectMsg{err: err}
 					}
-					return nachbuchenProjectMsg{id: p.ID}
+					return nachbuchenProjectMsg{id: p.ID, name: p.Name}
 				}
 			}
 			// Existing project selected — advance to Von.
 			id := it.ID
 			nb.projID = &id
+			nb.projName = it.Label
 			nb.focus = focusVon
 			_ = nb.von.Focus()
 			r.nachb = nb
@@ -234,7 +237,9 @@ func (r *Route) submitNachbuchen() (shell.Route, tea.Cmd) {
 
 	projID := nb.projID
 	api := r.api
-	r.nachb = nil // close dialog; on error a toast is shown (dialog stays closed)
+	// Do NOT close the dialog here. It is cleared only in the
+	// nachbuchenDoneMsg success branch, so an error (e.g. overlap/409) keeps
+	// the dialog open and populated and the user never loses typed input.
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -264,7 +269,9 @@ func (r *Route) renderNachbuchen(f shell.Frame) string {
 	}
 
 	// Text-field phase.
-	if nb.projID != nil {
+	if nb.projName != "" {
+		fmt.Fprintf(&b, "  Projekt: %s\n\n", nb.projName)
+	} else if nb.projID != nil {
 		fmt.Fprintf(&b, "  Projekt: %s\n\n", *nb.projID)
 	} else {
 		b.WriteString("  Projekt: (kein)\n\n")
@@ -280,7 +287,7 @@ func (r *Route) renderNachbuchen(f shell.Frame) string {
 // nachbuchenHints returns the key-hint strip for the Nachbuchen dialog.
 func nachbuchenHints() []keyhint.Hint {
 	return []keyhint.Hint{
-		{Key: "tab", Desc: "Feld"},
+		{Key: "tab/↑↓", Desc: "Feld"},
 		{Key: "enter", Desc: "speichern"},
 		{Key: "esc", Desc: "abbrechen"},
 	}

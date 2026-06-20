@@ -60,13 +60,31 @@ func apiErr(status int) error {
 	return fmt.Errorf("apiclient: POST /api/v1/sessions: status %d", status)
 }
 
+// runCmd executes a tea.Cmd but gives up if it does not return promptly. Async
+// I/O cmds (the fake API loads) complete instantly, while timer/tick cmds
+// (toast's 2s tea.Tick, the textinput cursor blink at 530ms) would otherwise
+// block the synchronous test driver and make every dialog test take seconds.
+// Returning (nil,false) on timeout means "this is a non-terminal timer cmd —
+// stop draining" without weakening any assertion.
+func runCmd(cmd tea.Cmd) (tea.Msg, bool) {
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	select {
+	case msg := <-done:
+		return msg, true
+	case <-time.After(10 * time.Millisecond):
+		return nil, false
+	}
+}
+
 // drive runs the route's Init command (if non-nil) and feeds the result back.
-// It drains up to 10 rounds of commands so async loads complete synchronously.
+// It drains up to 10 rounds of commands so async loads complete synchronously,
+// stopping at terminal messages (and skipping blocking timer/tick cmds).
 func drive(t *testing.T, r shell.Route, cmd tea.Cmd) shell.Route {
 	t.Helper()
 	for i := 0; cmd != nil && i < 10; i++ {
-		msg := cmd()
-		if msg == nil {
+		msg, ok := runCmd(cmd)
+		if !ok || msg == nil {
 			break
 		}
 		var newCmd tea.Cmd
@@ -317,5 +335,22 @@ func TestDayDetail_OverlapErrorShowsToast(t *testing.T) {
 	// The error message contains the apiclient error which embeds "status 409".
 	if !strings.Contains(out, "409") && !strings.Contains(out, "speichern") {
 		t.Fatalf("expected error toast with status or 'speichern', got: %q", out)
+	}
+
+	// CRITICAL: the dialog must stay OPEN on error so the user keeps the typed
+	// project + Von + Bis + tag + note instead of having to re-enter everything.
+	dr, ok := r2.(*daydetail.Route)
+	if !ok {
+		t.Fatalf("route is %T, want *daydetail.Route", r2)
+	}
+	if !dr.DialogOpen() {
+		t.Fatal("Nachbuchen dialog must stay open after an AddSession error (user must not lose input)")
+	}
+	// And the populated fields must still be rendered (project name + Von value).
+	if !strings.Contains(out, "Acme") {
+		t.Fatalf("dialog should still render the picked project name 'Acme', got: %q", out)
+	}
+	if !strings.Contains(out, "09:00") {
+		t.Fatalf("dialog should still render the typed Von value '09:00', got: %q", out)
 	}
 }

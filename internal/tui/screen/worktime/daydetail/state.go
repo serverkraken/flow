@@ -7,16 +7,16 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// dayRow is one session rendered as a list entry. Project name resolution is
-// deferred to Task 6 when ListProjects joins the API interface; for now the
-// Project field carries the raw ProjectID (or "" when unset).
+// dayRow is one session rendered as a list entry. The Project field carries the
+// raw ProjectID (or "" when unset); the route resolves it to a display name at
+// render time via its id→name map (see renderRowLabel).
 type dayRow struct {
 	ID      string
 	Start   time.Time
 	Stop    time.Time // zero when session is running
 	Dur     time.Duration
 	Running bool   // true when Stop was nil (session still active)
-	Project string // ProjectID for now; resolved to name in Task 6
+	Project string // ProjectID; resolved to name at render time
 	Tag     string
 }
 
