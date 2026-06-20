@@ -62,7 +62,7 @@ func (m Model) renderFooter() string {
 	if lineW < 1 {
 		lineW = 1
 	}
-	scrollHint := s.footer.Render("j/k → scrollen")
+	scrollHint := s.footer.Render("↑/↓ → scrollen")
 	closeHint := s.footer.Render(strings.Join(m.cfg.closeKeys, "/") + " → zurück")
 
 	// Optional hints in priority order (search → code-copy → host extras).

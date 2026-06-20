@@ -12,6 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
@@ -83,12 +84,13 @@ func (r *Route) Back() (shell.Route, tea.Cmd, bool) {
 
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
-		{Key: "j/k", Desc: "wählen"},
-		{Key: "enter", Desc: "öffnen"},
+		grammar.MoveUp.Hint(),
+		grammar.Open.Hint(),
 		{Key: "n", Desc: "neu"},
 		{Key: "e", Desc: "edit"},
 		{Key: "p", Desc: "Projekt"},
-		{Key: "/", Desc: "suchen"},
+		grammar.Search.Hint(),
 		{Key: "f", Desc: "Filter"},
+		grammar.Back.Hint(),
 	}
 }

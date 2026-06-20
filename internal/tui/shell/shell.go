@@ -345,11 +345,12 @@ func (s Shell) renderHelp() string {
 	sections := []help.Section{
 		{Title: "Aktueller Screen", Keys: keys},
 		{Title: "Global", Keys: [][2]string{
-			{"Tab / Shift+Tab", "Tab wechseln"},
-			{"1-9", "Tab direkt"},
+			{grammar.MoveUp.KeyLabel, grammar.MoveUp.Desc},
+			{grammar.Back.KeyLabel + " / Esc", "zurück / beenden"},
+			{"Tab / 1–9", "Tab wechseln"},
+			{grammar.Search.KeyLabel, grammar.Search.Desc},
+			{grammar.Help.KeyLabel, grammar.Help.Desc},
 			{":", "Palette"},
-			{"esc", "zurück / schließen"},
-			{"q", "Beenden"},
 		}},
 	}
 	return help.Render("Tastatur", sections, theme.KeyHintWidth, theme.DefaultBox, s.pal)

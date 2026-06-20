@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	"github.com/serverkraken/flow/internal/tui/ui/toast"
@@ -221,7 +222,7 @@ func (r *TodayRoute) KeyHints() []keyhint.Hint {
 	} else {
 		hints = append(hints, keyhint.Hint{Key: "s", Desc: "starten"})
 	}
-	hints = append(hints, keyhint.Hint{Key: "↑/↓", Desc: "bewegen"})
+	hints = append(hints, grammar.MoveUp.Hint())
 	if len(r.st.Completed) > 0 {
 		hints = append(hints, keyhint.Hint{Key: "enter", Desc: "bearbeiten"})
 	}

@@ -28,6 +28,18 @@ func TestHintSearchInput_HasCanonicalShape(t *testing.T) {
 	}
 }
 
+func TestHints_NoVimKeys(t *testing.T) {
+	for name, s := range map[string]string{
+		"HintNav": tuistrings.HintNav, "HintQuit": tuistrings.HintQuit, "HintBack": tuistrings.HintBack,
+	} {
+		for _, bad := range []string{"j/k", " j ", " k ", "g/G"} {
+			if strings.Contains(s, bad) {
+				t.Errorf("%s = %q still advertises vim key %q", name, s, bad)
+			}
+		}
+	}
+}
+
 func TestTruncate_NoOpWhenWithinWidth(t *testing.T) {
 	t.Parallel()
 	got := tuistrings.Truncate("hello", 10)

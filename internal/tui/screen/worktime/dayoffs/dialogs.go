@@ -275,7 +275,7 @@ func (r *Route) renderDialog(f shell.Frame) string {
 		return r.dlg.confirm.View()
 	case dialogBundesland:
 		var b strings.Builder
-		b.WriteString("\n  Bundesland wählen (j/k · enter · esc)\n\n")
+		b.WriteString("\n  Bundesland wählen (↑/↓ · enter · esc)\n\n")
 		for i, land := range bundeslaender {
 			label := land
 			if label == "" {
@@ -297,7 +297,7 @@ func (r *Route) dialogHints() []keyhint.Hint {
 	case dialogDelete:
 		return []keyhint.Hint{{Key: "y", Desc: "löschen"}, {Key: "n", Desc: "abbrechen"}}
 	case dialogBundesland:
-		return []keyhint.Hint{{Key: "j/k", Desc: "wählen"}, {Key: "enter", Desc: "setzen"}, {Key: "esc", Desc: "abbrechen"}}
+		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "setzen"}, {Key: "esc", Desc: "abbrechen"}}
 	}
 	return nil
 }

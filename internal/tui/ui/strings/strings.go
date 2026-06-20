@@ -19,7 +19,7 @@ const (
 	HintFilter = "/ → suchen"
 	HintHelp   = "? → Hilfe"
 	HintQuit   = "q → schließen"
-	HintNav    = "j/k → navigieren  ·  Enter → wählen"
+	HintNav    = "↑/↓ → bewegen  ·  Enter → öffnen"
 	// HintConfirm: brackets um die default-Action `[y/Enter]` — A11y-6
 	// non-color cue. Mirrors confirm.Model.View() one-to-one so a y/n
 	// dialog and a hint-strip never disagree.
@@ -27,7 +27,7 @@ const (
 	// HintBack steht für das Zurückspringen aus einem Sub-State in den
 	// Eltern-State (menu-Sub-Picker, range/target/land/correct). Semantisch
 	// verschieden von HintCancel ("abbrechen" verwirft, "zurück" navigiert).
-	HintBack = "Esc → zurück"
+	HintBack = "q → zurück"
 	// HintClearFilter steht für die zweistufige Filter-Escape in
 	// fuzzy-Pickern (palette, projects): Esc leert den Filtertext,
 	// Ctrl+U setzt zusätzlich Cursor + Pin zurück.

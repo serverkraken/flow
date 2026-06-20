@@ -1195,13 +1195,13 @@ func (m DocsModel) footer() string {
 	case modeDeleting:
 		return "y confirm · n/esc cancel"
 	case modeFiltering:
-		return "j/k move · space toggle · c clear · enter apply · esc cancel"
+		return "↑/↓ move · space toggle · c clear · enter apply · esc cancel"
 	case modeSearch:
 		return "query eingeben · enter suchen · esc abbrechen"
 	case modeProjectFilter:
 		return "tippen → filtern · ↑/↓ wählen · enter anwenden · esc abbrechen"
 	default:
-		return "j/k move · enter view · n new · e edit · d delete · p projekt · f filter · / suchen · q quit"
+		return "↑/↓ move · enter view · n new · e edit · d delete · p projekt · f filter · / suchen · q quit"
 	}
 }
 
