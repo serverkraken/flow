@@ -85,15 +85,22 @@ func HasOverlap(existing []WorkSession, start time.Time, stop *time.Time, exclud
 - Lives in `internal/domain/` next to `WorkSession`. New sentinel
   `ErrOverlap` in `internal/domain/errors.go`.
 
-Wired into **every** session-mutating usecase as the shared rule:
-- `AddSession` (Nachbuchen) — primary.
-- `EditSession` — gains an overlap guard (today it has none), excluding self.
-- `StartSession` / `StopSession` — call the same helper for completeness; given
-  the no-future rule these rarely trip, but the invariant is uniform and any
-  future mutation path inherits it.
+`HasOverlap` is the single source of the rule; it is enforced at every path that
+accepts an **arbitrary** interval:
+- `AddSession` (Nachbuchen) — primary, excludes nothing.
+- `EditSession` — gains an overlap guard (today it has none), excludes self.
 
-Each usecase fetches the relevant same-day sessions via `ListRange(owner,
-startOfDay, endOfDay)` and calls `HasOverlap`. No extra store query type needed.
+`StartSession` / `StopSession` use `Clock.Now()`, not arbitrary times, and cannot
+introduce an overlap by construction: only one running timer is allowed
+(`ErrAlreadyRunning`), and the no-future rule guarantees every stored session ends
+≤ now, so a live start at now never intersects an existing interval. They
+therefore need no check — the invariant holds for them automatically. Any future
+path that takes arbitrary times must call `HasOverlap`.
+
+Each enforcing usecase fetches the candidate's surrounding sessions via
+`ListRange` (a window around the candidate day, `[dayStart-24h, dayStart+48h)`, to
+also catch a cross-midnight neighbour) and calls `HasOverlap`. No extra store
+query type needed.
 
 ### AddSession usecase
 
