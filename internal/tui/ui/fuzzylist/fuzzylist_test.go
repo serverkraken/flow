@@ -72,6 +72,31 @@ func TestInlineCreate(t *testing.T) {
 	}
 }
 
+func TestFuzzyList_HomeEnd(t *testing.T) {
+	t.Parallel()
+	m := fuzzylist.New(items(), theme.Default) // 3 items, cursor 0
+	// End must move to last item (ID "3", label "oraya").
+	m = m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	if it, _, ok := m.Selection(); !ok || it.ID != "3" {
+		t.Fatalf("End must select last item, got ok=%v id=%q", ok, it.ID)
+	}
+	// Home must return to first item.
+	m = m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	if it, _, ok := m.Selection(); !ok || it.ID != items()[0].ID {
+		t.Fatalf("Home must select first item, got id=%q", it.ID)
+	}
+	// PageDown from position 0 moves by 5 (clamped to last=2).
+	m = m.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	if it, _, ok := m.Selection(); !ok || it.ID != "3" {
+		t.Fatalf("PageDown from 0 must clamp to last item, got ok=%v id=%q", ok, it.ID)
+	}
+	// PageUp from last moves by -5 (clamped to 0).
+	m = m.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	if it, _, ok := m.Selection(); !ok || it.ID != "1" {
+		t.Fatalf("PageUp from last must clamp to first item, got ok=%v id=%q", ok, it.ID)
+	}
+}
+
 func TestSetItemsPreservesQuery(t *testing.T) {
 	t.Parallel()
 	m := fuzzylist.New(nil, theme.Default)

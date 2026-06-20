@@ -12,6 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzymatch"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/picker"
 )
 
@@ -83,7 +84,8 @@ func (m Model) Selection() (it Item, isCreate, ok bool) {
 }
 
 // Update handles text→query, Backspace, and cursor movement (Up/Down +
-// Ctrl+n/Ctrl+p). Every other rune (including j/k) is typed into the query.
+// Ctrl+n/Ctrl+p + Home/End/PageUp/PageDown). Every other rune (including j/k)
+// is typed into the query.
 func (m Model) Update(k tea.KeyPressMsg) Model {
 	switch {
 	case k.Code == tea.KeyUp || (k.Code == 'p' && k.Mod == tea.ModCtrl):
@@ -96,6 +98,20 @@ func (m Model) Update(k tea.KeyPressMsg) Model {
 			m.cursor++
 		}
 		return m
+	case grammar.Top.Matches(k):
+		m.cursor = 0
+		return m
+	case grammar.Bottom.Matches(k):
+		m.cursor = m.rowCount() - 1
+		return m
+	case grammar.PageDown.Matches(k):
+		m.cursor += 5
+		m.cursor = clampCursor(m.cursor, m.rowCount())
+		return m
+	case grammar.PageUp.Matches(k):
+		m.cursor -= 5
+		m.cursor = clampCursor(m.cursor, m.rowCount())
+		return m
 	case k.Code == tea.KeyBackspace:
 		if rn := []rune(m.query); len(rn) > 0 {
 			m.query = string(rn[:len(rn)-1])
@@ -106,6 +122,20 @@ func (m Model) Update(k tea.KeyPressMsg) Model {
 		return m.refilter()
 	}
 	return m
+}
+
+// clampCursor bounds c to [0, rowCount-1]. rowCount of 0 returns 0.
+func clampCursor(c, rowCount int) int {
+	if rowCount == 0 {
+		return 0
+	}
+	if c < 0 {
+		return 0
+	}
+	if c >= rowCount {
+		return rowCount - 1
+	}
+	return c
 }
 
 func (m Model) refilter() Model {
