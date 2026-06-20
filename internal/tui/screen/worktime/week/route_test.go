@@ -54,6 +54,13 @@ func (f fakeAPI) CreateProject(_ context.Context, _ string) (domain.Project, err
 	return domain.Project{}, nil
 }
 
+// EditSession, DeleteSession are no-op stubs required by the daydetail.API
+// compile-time guard now that Task 7 extended the interface.
+func (f fakeAPI) EditSession(_ context.Context, _ string, _ *string, _, _ string, _ time.Time, _ *time.Time) (domain.WorkSession, error) {
+	return domain.WorkSession{}, nil
+}
+func (f fakeAPI) DeleteSession(_ context.Context, _ string) error { return nil }
+
 func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 	for i := 0; cmd != nil && i < 20; i++ {
 		msg := cmd()

@@ -12,6 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
@@ -85,9 +86,10 @@ type nachbuchenLoadProjectsMsg struct {
 	err      error
 }
 
-// CapturesInput implements shell.InputCapturer — while the Nachbuchen dialog is
-// open the shell must forward all keys to this route directly.
-func (r *Route) CapturesInput() bool { return r.nachb != nil }
+// CapturesInput implements shell.InputCapturer — while any modal (Nachbuchen,
+// edit, or delete confirm) is open the shell must forward all keys to this route
+// directly instead of treating them as navigation.
+func (r *Route) CapturesInput() bool { return r.nachb != nil || r.edit != nil || r.del != nil }
 
 // handleNachbuchenKey processes a key press while the Nachbuchen dialog is open.
 func (r *Route) handleNachbuchenKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
@@ -290,5 +292,253 @@ func nachbuchenHints() []keyhint.Hint {
 		{Key: "tab/↑↓", Desc: "Feld"},
 		{Key: "enter", Desc: "speichern"},
 		{Key: "esc", Desc: "abbrechen"},
+	}
+}
+
+// ---- Edit dialog -----------------------------------------------------------
+
+// editFocus enumerates the focus order in the edit dialog.
+type editFocus int
+
+const (
+	editVon editFocus = iota
+	editBis
+	editTag
+	editNote
+)
+
+// editState holds the model for the edit (bearbeiten) dialog. It mirrors Today's
+// editState but lives here to keep daydetail free of the worktime package.
+type editState struct {
+	id    string
+	date  time.Time // start-of-day of the edited session's date
+	von   textinput.Model
+	bis   textinput.Model
+	tag   textinput.Model
+	note  textinput.Model
+	focus editFocus
+}
+
+// editDoneMsg is sent when EditSession completes (or errors).
+type editDoneMsg struct {
+	err error
+}
+
+// openEdit builds the edit dialog, prefilling Von/Bis (HH:MM) and Tag/Notiz from
+// the selected row. The session date is normalised to midnight so submit can add
+// the parsed HH:MM offset back onto it.
+func (r *Route) openEdit(row dayRow) tea.Cmd {
+	von := form.NewTextInput("HH:MM", r.pal)
+	von.SetValue(row.Start.Format("15:04"))
+	bis := form.NewTextInput("HH:MM oder +1h30m", r.pal)
+	if !row.Running {
+		bis.SetValue(row.Stop.Format("15:04"))
+	}
+	tag := form.NewTextInput("z.B. deep, meeting", r.pal)
+	tag.SetValue(row.Tag)
+	note := form.NewTextInput("kurzer Text", r.pal)
+
+	y, m, d := row.Start.Date()
+	date := time.Date(y, m, d, 0, 0, 0, 0, row.Start.Location())
+	cmd := von.Focus()
+	r.edit = &editState{
+		id:    row.ID,
+		date:  date,
+		von:   von,
+		bis:   bis,
+		tag:   tag,
+		note:  note,
+		focus: editVon,
+	}
+	return cmd
+}
+
+// handleEditKey processes a key press while the edit dialog is open.
+func (r *Route) handleEditKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
+	switch {
+	case k.Code == tea.KeyEsc:
+		r.edit = nil
+		return r, nil
+	case k.Code == tea.KeyTab && k.Mod.Contains(tea.ModShift):
+		r.editFocusBy(-1)
+		return r, nil
+	case k.Code == tea.KeyTab || k.Code == tea.KeyDown:
+		r.editFocusBy(+1)
+		return r, nil
+	case k.Code == tea.KeyUp:
+		r.editFocusBy(-1)
+		return r, nil
+	case k.Code == tea.KeyEnter:
+		if r.edit.focus == editNote {
+			return r.submitEdit()
+		}
+		r.editFocusBy(+1)
+		return r, nil
+	}
+
+	var cmd tea.Cmd
+	ed := r.edit
+	switch ed.focus {
+	case editVon:
+		ed.von, cmd = ed.von.Update(k)
+	case editBis:
+		ed.bis, cmd = ed.bis.Update(k)
+	case editTag:
+		ed.tag, cmd = ed.tag.Update(k)
+	case editNote:
+		ed.note, cmd = ed.note.Update(k)
+	}
+	r.edit = ed
+	return r, cmd
+}
+
+// editFocusBy moves focus by delta (±1) across [editVon..editNote], clamping at
+// the edges instead of wrapping.
+func (r *Route) editFocusBy(d int) {
+	ed := r.edit
+	r.blurEditField(ed)
+	cur := int(ed.focus) + d
+	if cur < int(editVon) {
+		cur = int(editVon)
+	}
+	if cur > int(editNote) {
+		cur = int(editNote)
+	}
+	ed.focus = editFocus(cur)
+	r.edit = ed
+	r.focusEditField()
+}
+
+func (r *Route) blurEditField(ed *editState) {
+	switch ed.focus {
+	case editVon:
+		ed.von.Blur()
+	case editBis:
+		ed.bis.Blur()
+	case editTag:
+		ed.tag.Blur()
+	case editNote:
+		ed.note.Blur()
+	}
+}
+
+func (r *Route) focusEditField() {
+	ed := r.edit
+	switch ed.focus {
+	case editVon:
+		_ = ed.von.Focus()
+	case editBis:
+		_ = ed.bis.Focus()
+	case editTag:
+		_ = ed.tag.Focus()
+	case editNote:
+		_ = ed.note.Focus()
+	}
+}
+
+// submitEdit validates fields and calls api.EditSession. Modelled verbatim on
+// Today's submitEdit: the dialog is NOT closed here — it is cleared only in the
+// editDoneMsg success branch, so an error (e.g. overlap/409) keeps the dialog
+// open and populated.
+func (r *Route) submitEdit() (shell.Route, tea.Cmd) {
+	ed := r.edit
+	vonStr := strings.TrimSpace(ed.von.Value())
+	bisStr := strings.TrimSpace(ed.bis.Value())
+	tag := strings.TrimSpace(ed.tag.Value())
+	note := strings.TrimSpace(ed.note.Value())
+
+	vonD, err := wtfmt.ParseHM(vonStr)
+	if err != nil {
+		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
+		return r, r.toast.Init()
+	}
+	startTime := ed.date.Add(vonD)
+	stopTime, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg(bisStr), startTime, time.Now())
+	if err != nil {
+		r.toast = toast.NewDanger("Stop ungültig", r.pal)
+		return r, r.toast.Init()
+	}
+
+	id := ed.id
+	api := r.api
+	return r, func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, editErr := api.EditSession(ctx, id, nil, tag, note, startTime, &stopTime)
+		if editErr != nil {
+			return editDoneMsg{err: editErr}
+		}
+		return editDoneMsg{}
+	}
+}
+
+// renderEdit renders the edit overlay into the given frame.
+func (r *Route) renderEdit(f shell.Frame) string {
+	ed := r.edit
+	if ed == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n  Session bearbeiten  ")
+	b.WriteString(theme.Dim("tab wechselt · enter speichert · esc bricht ab", f.Pal))
+	b.WriteString("\n\n")
+	labels := []string{"Von  ", "Bis  ", "Tag  ", "Notiz"}
+	fields := []textinput.Model{ed.von, ed.bis, ed.tag, ed.note}
+	for i, ti := range fields {
+		fmt.Fprintf(&b, "  %s %s\n", labels[i], ti.View())
+	}
+	return b.String()
+}
+
+func editHints() []keyhint.Hint {
+	return []keyhint.Hint{
+		{Key: "tab/↑↓", Desc: "Feld"},
+		{Key: "enter", Desc: "speichern"},
+		{Key: "esc", Desc: "abbrechen"},
+	}
+}
+
+// ---- Delete confirm --------------------------------------------------------
+
+// delState holds the delete-confirm model plus the id targeted for deletion.
+type delState struct {
+	id    string
+	model confirm.Model
+}
+
+// openDelete builds the danger confirm for the selected row.
+func (r *Route) openDelete(row dayRow) {
+	detail := row.Start.Format("15:04")
+	if !row.Running {
+		detail = fmt.Sprintf("%s → %s", row.Start.Format("15:04"), row.Stop.Format("15:04"))
+	}
+	r.del = &delState{
+		id:    row.ID,
+		model: confirm.NewDanger("Session löschen?", detail, r.pal),
+	}
+}
+
+// delDoneMsg is sent when DeleteSession completes (or errors).
+type delDoneMsg struct {
+	err error
+}
+
+// deleteCmd issues the DeleteSession call for the confirmed id.
+func (r *Route) deleteCmd(id string) tea.Cmd {
+	api := r.api
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := api.DeleteSession(ctx, id); err != nil {
+			return delDoneMsg{err: err}
+		}
+		return delDoneMsg{}
+	}
+}
+
+func deleteHints() []keyhint.Hint {
+	return []keyhint.Hint{
+		{Key: "y", Desc: "löschen"},
+		{Key: "n", Desc: "abbrechen"},
 	}
 }

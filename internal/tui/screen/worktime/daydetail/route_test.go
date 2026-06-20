@@ -26,6 +26,15 @@ type fakeAPI struct {
 	lastStop      time.Time
 	lastProjectID *string
 	addErr        error
+
+	// Edit/Delete tracking fields (Task 7).
+	editCalls    int
+	lastEditID   string
+	lastEditStop *time.Time
+	editErr      error
+	delCalls     int
+	lastDelID    string
+	delErr       error
 }
 
 func (f *fakeAPI) ListSessionsRange(_ context.Context, since, until time.Time) ([]domain.WorkSession, error) {
@@ -52,6 +61,22 @@ func (f *fakeAPI) AddSession(_ context.Context, projectID *string, start, stop t
 		return domain.WorkSession{}, f.addErr
 	}
 	return domain.WorkSession{ID: "new", Start: start, Stop: &stop}, nil
+}
+
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
+	f.editCalls++
+	f.lastEditID = id
+	f.lastEditStop = stop
+	if f.editErr != nil {
+		return domain.WorkSession{}, f.editErr
+	}
+	return domain.WorkSession{ID: id}, nil
+}
+
+func (f *fakeAPI) DeleteSession(_ context.Context, id string) error {
+	f.delCalls++
+	f.lastDelID = id
+	return f.delErr
 }
 
 // apiErr returns a fake error with the given HTTP status code string embedded,
@@ -308,6 +333,114 @@ func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	}
 	if dr.DialogOpen() {
 		t.Fatal("Nachbuchen dialog must close after successful AddSession")
+	}
+}
+
+// clearField sends Backspace enough times to empty a prefilled HH:MM input.
+func clearField(t *testing.T, r shell.Route) shell.Route {
+	t.Helper()
+	for i := 0; i < 8; i++ {
+		r = press(t, r, tea.KeyPressMsg{Code: tea.KeyBackspace})
+	}
+	return r
+}
+
+func TestDayDetail_EditSubmitsEditSession(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tag: "old"}}}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	// 'e' opens the edit dialog on the selected row (row 0), prefilled 09:00/11:00.
+	r = press(t, r, keyRune('e'))
+	// Tab from Von → Bis, clear "11:00", type "12:00".
+	r = press(t, r, keyTab())
+	r = clearField(t, r)
+	r = typeInto(t, r, "12:00")
+	// Tab to Tag, Tab to Notiz (last field), then Enter to submit.
+	r = press(t, r, keyTab())
+	r = press(t, r, keyTab())
+	r = press(t, r, keyEnter())
+
+	if f.editCalls != 1 || f.lastEditID != "a" {
+		t.Fatalf("EditSession calls=%d id=%q, want 1/a", f.editCalls, f.lastEditID)
+	}
+	if f.lastEditStop == nil || !f.lastEditStop.Equal(day.Add(12*time.Hour)) {
+		t.Fatalf("edit stop = %v, want 12:00 on the context day", f.lastEditStop)
+	}
+
+	// After a successful submit the dialog must close.
+	dr := r.(*daydetail.Route)
+	if dr.DialogOpen() {
+		t.Fatal("edit dialog must close after successful EditSession")
+	}
+}
+
+func TestDayDetail_EditErrorKeepsDialogOpen(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{
+		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tag: "old"}},
+		editErr:  apiErr(409),
+	}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	r = press(t, r, keyRune('e'))
+	r = press(t, r, keyTab()) // → Bis
+	r = press(t, r, keyTab()) // → Tag
+	r = press(t, r, keyTab()) // → Notiz
+
+	// Submit: run the edit cmd, feed the error msg back, but stop before the
+	// toast timer so the dialog state is observable.
+	r2, cmd := r.Update(keyEnter())
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			r2, _ = r2.Update(msg)
+		}
+	}
+	dr := r2.(*daydetail.Route)
+	if !dr.DialogOpen() {
+		t.Fatal("edit dialog must stay open after an EditSession error (user must not lose input)")
+	}
+}
+
+func TestDayDetail_DeleteConfirms(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}}}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	r = press(t, r, keyRune('d')) // open delete confirm
+	_ = press(t, r, keyRune('y')) // confirm (confirm.Model accepts y/Enter)
+
+	if f.delCalls != 1 || f.lastDelID != "a" {
+		t.Fatalf("DeleteSession calls=%d id=%q, want 1/a", f.delCalls, f.lastDelID)
+	}
+}
+
+func TestDayDetail_DeleteCancelDoesNotDelete(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	s := day.Add(9 * time.Hour)
+	e := day.Add(11 * time.Hour)
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}}}
+	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
+	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
+
+	r = press(t, r, keyRune('d')) // open delete confirm
+	r = press(t, r, keyRune('n')) // cancel
+
+	if f.delCalls != 0 {
+		t.Fatalf("DeleteSession calls=%d, want 0 after cancel", f.delCalls)
+	}
+	dr := r.(*daydetail.Route)
+	if dr.DialogOpen() {
+		t.Fatal("delete confirm must close after cancel")
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 	"github.com/serverkraken/flow/internal/tui/ui/listnav"
@@ -40,7 +41,11 @@ type Route struct {
 	toast  toast.Model
 
 	// nachb is non-nil while the Nachbuchen (Add) dialog is open.
-	nachb    *nachbuchenState
+	nachb *nachbuchenState
+	// edit is non-nil while the edit (bearbeiten) dialog is open.
+	edit *editState
+	// del is non-nil while the delete confirm is open.
+	del      *delState
 	projects []domain.Project  // cached project list for the dialog
 	projName map[string]string // id→name for resolving project names in rows
 }
@@ -163,6 +168,36 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		r.toast = toast.NewSuccess("Session gespeichert", r.pal)
 		return r, tea.Batch(r.toast.Init(), r.loadCmd())
 
+	case editDoneMsg:
+		if m.err != nil {
+			// Keep the edit dialog OPEN so the user does not lose typed input.
+			r.toast = toast.NewDanger("Konnte nicht speichern: "+m.err.Error(), r.pal)
+			return r, r.toast.Init()
+		}
+		r.edit = nil
+		r.toast = toast.NewSuccess("Session gespeichert", r.pal)
+		return r, tea.Batch(r.toast.Init(), r.loadCmd())
+
+	case confirm.ResultMsg:
+		open := r.del != nil
+		var id string
+		if r.del != nil {
+			id = r.del.id
+		}
+		r.del = nil
+		if open && m.Confirmed {
+			return r, r.deleteCmd(id)
+		}
+		return r, nil
+
+	case delDoneMsg:
+		if m.err != nil {
+			r.toast = toast.NewDanger("Konnte nicht löschen: "+m.err.Error(), r.pal)
+			return r, r.toast.Init()
+		}
+		r.toast = toast.NewSuccess("Session gelöscht", r.pal)
+		return r, tea.Batch(r.toast.Init(), r.loadCmd())
+
 	case shell.EventMsg:
 		if isSessionEvent(m.Ev.Type) {
 			return r, r.loadCmd()
@@ -174,9 +209,22 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		return r, nil
 
 	case tea.KeyPressMsg:
-		// While the Nachbuchen dialog is open, forward all keys to it.
+		// While a dialog/confirm is open, forward all keys to it.
 		if r.nachb != nil {
 			return r.handleNachbuchenKey(m)
+		}
+		if r.edit != nil {
+			return r.handleEditKey(m)
+		}
+		if r.del != nil {
+			// Esc always cancels the confirm.
+			if m.Code == tea.KeyEsc {
+				r.del = nil
+				return r, nil
+			}
+			cm, cmd := r.del.model.Update(m)
+			r.del.model = cm
+			return r, cmd
 		}
 		if c, ok := r.cur.Handle(m, len(r.rows), 5); ok {
 			r.cur = c
@@ -192,6 +240,13 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 				return r, nil
 			}
 			return r, r.loadProjectsCmd()
+		}
+		if grammar.Edit.Matches(m) && len(r.rows) > 0 {
+			return r, r.openEdit(r.rows[r.cur.Index()])
+		}
+		if grammar.Delete.Matches(m) && len(r.rows) > 0 {
+			r.openDelete(r.rows[r.cur.Index()])
+			return r, nil
 		}
 	}
 	return r, nil
@@ -210,9 +265,18 @@ func (r *Route) View(f shell.Frame) string {
 		return b.String()
 	}
 
-	// While the Nachbuchen dialog is open, render it instead of the list.
-	if r.nachb != nil {
-		b.WriteString(r.renderNachbuchen(f))
+	// While a dialog/confirm is open, render it instead of the list.
+	if r.nachb != nil || r.edit != nil || r.del != nil {
+		switch {
+		case r.nachb != nil:
+			b.WriteString(r.renderNachbuchen(f))
+		case r.edit != nil:
+			b.WriteString(r.renderEdit(f))
+		case r.del != nil:
+			b.WriteString("\n  ")
+			b.WriteString(r.del.model.View())
+			b.WriteString("\n")
+		}
 		// Show toast below dialog if visible.
 		for _, line := range toast.SlotRows(&r.toast, "  ") {
 			b.WriteString(line)
@@ -292,12 +356,19 @@ func renderRowHint(row dayRow) string {
 
 // KeyHints returns the advertised key bindings for the footer strip.
 func (r *Route) KeyHints() []keyhint.Hint {
-	if r.nachb != nil {
+	switch {
+	case r.nachb != nil:
 		return nachbuchenHints()
+	case r.edit != nil:
+		return editHints()
+	case r.del != nil:
+		return deleteHints()
 	}
 	return []keyhint.Hint{
 		grammar.MoveUp.Hint(),
 		{Key: "n", Desc: "Nachbuchen"},
+		grammar.Edit.Hint(),
+		grammar.Delete.Hint(),
 		{Key: "esc", Desc: "zurück"},
 	}
 }

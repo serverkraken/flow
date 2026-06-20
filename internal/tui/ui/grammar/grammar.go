@@ -66,6 +66,8 @@ var (
 	PageUp   = Binding{ID: "page.up", Keys: []Key{Special(tea.KeyPgUp)}, KeyLabel: "bild↑/↓", Desc: "blättern"}
 	PageDown = Binding{ID: "page.down", Keys: []Key{Special(tea.KeyPgDown)}, KeyLabel: "bild↑/↓", Desc: "blättern"}
 	Open     = Binding{ID: "open", Keys: []Key{Special(tea.KeyEnter)}, KeyLabel: "enter", Desc: "öffnen"}
+	Edit     = Binding{ID: "edit", Keys: []Key{Rune("e")}, KeyLabel: "e", Desc: "bearbeiten"}
+	Delete   = Binding{ID: "delete", Keys: []Key{Rune("d")}, KeyLabel: "d", Desc: "löschen"}
 	Back     = Binding{ID: "back", Keys: []Key{Rune("q"), Special(tea.KeyEsc)}, KeyLabel: "q", Desc: "zurück"}
 	Quit     = Binding{ID: "quit", Keys: []Key{Rune("q"), Special(tea.KeyEsc)}, KeyLabel: "q", Desc: "beenden"}
 	Search   = Binding{ID: "search", Keys: []Key{Rune("/")}, KeyLabel: "/", Desc: "suchen"}
