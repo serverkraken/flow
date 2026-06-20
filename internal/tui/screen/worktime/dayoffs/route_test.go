@@ -22,6 +22,7 @@ type fakeAPI struct {
 	settings   apiclient.Settings
 	deleted    string
 	addedFrom  string
+	addedKind  string
 	bundesland string
 	listErr    error
 }
@@ -36,8 +37,9 @@ func (f *fakeAPI) SetTargetConfig(_ context.Context, def int, _ map[string]int) 
 	f.settings.DefaultTargetMin = def
 	return nil
 }
-func (f *fakeAPI) AddDayOffs(_ context.Context, from, _, _, _ string, _ int, _ bool) error {
+func (f *fakeAPI) AddDayOffs(_ context.Context, from, _, kind, _ string, _ int, _ bool) error {
 	f.addedFrom = from
+	f.addedKind = kind
 	return nil
 }
 func (f *fakeAPI) DeleteDayOff(_ context.Context, day string) error {
@@ -562,8 +564,9 @@ func TestDayOffsRoute_addViaDatepicker(t *testing.T) {
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight}) // -> day
 	r, _ = r.Update(tea.KeyPressMsg{Text: "2"})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "0"}) // Von day = 20
-	// Tab to Bis (defaults to Von), Tab to Label, type a label, Tab back? Submit via enter on last field.
+	// Tab Von→Bis→Kategorie→Label (Label is now field 3).
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Kategorie
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Label
 	for _, c := range []string{"U", "r", "l", "a", "u", "b"} {
 		r, _ = r.Update(tea.KeyPressMsg{Text: c})
@@ -572,6 +575,9 @@ func TestDayOffsRoute_addViaDatepicker(t *testing.T) {
 	_ = drain(r2, cmd)
 	if api.addedFrom != "2026-06-20" {
 		t.Fatalf("addedFrom = %q, want 2026-06-20", api.addedFrom)
+	}
+	if api.addedKind != "vacation" {
+		t.Fatalf("addedKind = %q, want vacation (default)", api.addedKind)
 	}
 }
 
@@ -635,11 +641,29 @@ func TestDayOffsRoute_addRejectsBisBeforeVon(t *testing.T) {
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "1"})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "0"}) // Bis day = 10 (< Von 20)
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})  // Label
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Kategorie
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Label
 	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	_ = drain(r2, cmd)
 	if api.addedFrom != "" {
 		t.Fatalf("submit with Bis<Von must not call AddDayOffs (addedFrom=%q)", api.addedFrom)
+	}
+}
+
+// TestDayOffsRoute_addSubmitsDefaultKind verifies that submitting the add form
+// without touching the category sends the default kind "vacation".
+func TestDayOffsRoute_addSubmitsDefaultKind(t *testing.T) {
+	api := &fakeAPI{}
+	r := drain(newRoute(api), nil)
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})          // open add; Von focused (today=2026-06-18)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Kategorie
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Label
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // submit
+	_ = drain(r2, cmd)
+	if api.addedKind != "vacation" {
+		t.Fatalf("addedKind = %q, want vacation", api.addedKind)
 	}
 }
 

@@ -9,7 +9,11 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/kindcolor"
 	"github.com/serverkraken/flow/internal/tui/shell"
+	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/datepicker"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
@@ -39,7 +43,8 @@ type dialogState struct {
 	bisDP     datepicker.Model
 	bisEdited bool // once true, Bis stops tracking Von
 	label     textinput.Model
-	addCur    int // 0=Von, 1=Bis, 2=Label
+	kind      domain.Kind
+	addCur    int // 0=Von, 1=Bis, 2=Kategorie, 3=Label
 	confirm   confirm.Model
 	blSel     int
 }
@@ -56,6 +61,7 @@ func (r *Route) openAdd() (shell.Route, tea.Cmd) {
 	r.dlg.bisDP = datepicker.New(today, r.pal)
 	r.dlg.bisEdited = false
 	r.dlg.label = form.NewTextInput("z.B. Urlaub", r.pal)
+	r.dlg.kind = domain.KindVacation
 	r.dlg.vonDP.Focus()
 	r.dlg.addCur = 0
 	r.dialog = dialogAdd
@@ -129,7 +135,7 @@ func (r *Route) handleAddKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		r.addFocus(+1)
 		return r, nil
 	case tea.KeyEnter:
-		if r.dlg.addCur == 2 {
+		if r.dlg.addCur == 3 {
 			return r, r.submitAdd()
 		}
 		r.addFocus(+1)
@@ -156,7 +162,8 @@ func (r *Route) handleAddKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 				r.dlg.bisEdited = true
 			}
 		}
-	case 2:
+	case 2: // Kategorie — picker only (Task 5); ignore typed keys here
+	case 3: // Label
 		var cmd tea.Cmd
 		r.dlg.label, cmd = r.dlg.label.Update(k)
 		return r, cmd
@@ -165,7 +172,7 @@ func (r *Route) handleAddKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 }
 
 func (r *Route) addFocus(delta int) {
-	r.dlg.addCur = (r.dlg.addCur + delta + 3) % 3
+	r.dlg.addCur = (r.dlg.addCur + delta + 4) % 4
 	r.dlg.vonDP.Blur()
 	r.dlg.bisDP.Blur()
 	r.dlg.label.Blur()
@@ -174,9 +181,10 @@ func (r *Route) addFocus(delta int) {
 		r.dlg.vonDP.Focus()
 	case 1:
 		r.dlg.bisDP.Focus()
-	case 2:
+	case 3:
 		_ = r.dlg.label.Focus()
 	}
+	// case 2 (Kategorie) has no focusable widget.
 }
 
 func (r *Route) submitAdd() tea.Cmd {
@@ -186,12 +194,13 @@ func (r *Route) submitAdd() tea.Cmd {
 		return nil // keep dialog open; invalid range
 	}
 	label := strings.TrimSpace(r.dlg.label.Value())
+	kindStr := string(r.dlg.kind)
 	api := r.api
 	r.dialog = dialogNone
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := api.AddDayOffs(ctx, from, to, "urlaub", label, 0, true); err != nil {
+		if err := api.AddDayOffs(ctx, from, to, kindStr, label, 0, true); err != nil {
 			return loadedMsg{err: err}
 		}
 		return reloadMsg{}
@@ -258,9 +267,15 @@ func (r *Route) renderDialog(f shell.Frame) string {
 	case dialogAdd:
 		var b strings.Builder
 		b.WriteString("\n  Frei-Tag anlegen (tab wechselt · t heute · enter speichert · esc ab)\n\n")
-		fmt.Fprintf(&b, "  Von    %s\n", r.dlg.vonDP.View())
-		fmt.Fprintf(&b, "  Bis    %s\n", r.dlg.bisDP.View())
-		fmt.Fprintf(&b, "  Label  %s\n", r.dlg.label.View())
+		fmt.Fprintf(&b, "  Von       %s\n", r.dlg.vonDP.View())
+		fmt.Fprintf(&b, "  Bis       %s\n", r.dlg.bisDP.View())
+		catMarker := "  "
+		if r.dlg.addCur == 2 {
+			catMarker = "▸ "
+		}
+		catLabel := fgColor(r.dlg.kind.LabelDe(), kindcolor.DayOffColor(r.dlg.kind, f.Pal))
+		fmt.Fprintf(&b, "  Kategorie %s%s\n", catMarker, catLabel)
+		fmt.Fprintf(&b, "  Label     %s\n", r.dlg.label.View())
 		switch r.dlg.addCur {
 		case 0:
 			b.WriteString("\n" + r.dlg.vonDP.Calendar(r.now()) + "\n")
@@ -297,6 +312,12 @@ func (r *Route) dialogHints() []keyhint.Hint {
 		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "setzen"}, {Key: "esc", Desc: "abbrechen"}}
 	}
 	return nil
+}
+
+// fgColor renders s in an arbitrary theme.Color. theme exposes no generic Fg
+// builder (builders cover named semantic roles only), so we use lipgloss here.
+func fgColor(s string, c theme.Color) string {
+	return lipgloss.NewStyle().Foreground(c).Render(s)
 }
 
 func parseDigits(s string) int {
