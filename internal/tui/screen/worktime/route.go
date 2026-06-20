@@ -181,6 +181,9 @@ func (r *TodayRoute) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		r.cursor = cur.Index()
 		return r, nil
 	}
+	if cmd := wtnav.Lateral(r.reg, wtnav.IdxHeute, k); cmd != nil {
+		return r, cmd
+	}
 	switch {
 	case k.Text == "w" || k.Text == "t" || k.Text == "d" || k.Text == "e":
 		return r, r.reg.Nav(k.Text)
@@ -195,17 +198,22 @@ func (r *TodayRoute) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 }
 
 func (r *TodayRoute) View(f shell.Frame) string {
+	strip := wtnav.Strip(wtnav.IdxHeute, f.Width, f.Pal) + "\n"
 	if !r.loaded {
-		return theme.Dim("  Heute lädt …", f.Pal)
+		return strip + theme.Dim("  Heute lädt …", f.Pal)
 	}
 	if r.err != nil {
-		return theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
+		return strip + theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
 	}
 	if r.dialog != dialogNone {
-		return r.renderDialog(f)
+		return strip + r.renderDialog(f)
 	}
-	return renderBody(r.st, r.cursor, f.Width, f.Height, r.now(), &r.toast, f.Pal)
+	return strip + renderBody(r.st, r.cursor, f.Width, f.Height, r.now(), &r.toast, f.Pal)
 }
+
+// HideBreadcrumb implements shell.BreadcrumbHider — the sub-tab strip shows the
+// position, so the frame breadcrumb would be redundant.
+func (r *TodayRoute) HideBreadcrumb() bool { return true }
 
 // CapturesInput reports that Today owns the keyboard while a dialog is open, so
 // the Shell forwards digits/Tab/Esc/etc. to the dialog instead of treating them
@@ -226,9 +234,7 @@ func (r *TodayRoute) KeyHints() []keyhint.Hint {
 	if len(r.st.Completed) > 0 {
 		hints = append(hints, keyhint.Hint{Key: "enter", Desc: "bearbeiten"})
 	}
+	hints = append(hints, keyhint.Hint{Key: "←/→", Desc: "Bereich"})
 	hints = append(hints, keyhint.Hint{Key: "?", Desc: "Hilfe"})
-	if len(hints) > 4 {
-		hints = hints[:4]
-	}
 	return hints
 }

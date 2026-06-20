@@ -2,6 +2,7 @@ package worktime
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -324,5 +325,28 @@ func TestActions_EditSubmitCallsEdit(t *testing.T) {
 	}
 	if f.edited != "s1" {
 		t.Fatalf("EditSession not called: %q", f.edited)
+	}
+}
+
+func TestToday_StripAndLateralAndHideCrumb(t *testing.T) {
+	reg := BuildRegistry(nil, theme.Default)
+	r := NewTodayRoute(nil, time.Now, theme.Default, reg)
+	// Strip is visible even before load.
+	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+		if !strings.Contains(out, l) {
+			t.Fatalf("Today View missing sub-tab %q", l)
+		}
+	}
+	if !r.HideBreadcrumb() {
+		t.Fatal("Today must hide the breadcrumb (strip shows position)")
+	}
+	// → from Heute navigates to Woche.
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	if cmd == nil {
+		t.Fatal("→ on Heute must emit a navigation command")
+	}
+	if sw, ok := cmd().(shell.SwitchRouteMsg); !ok || sw.Route.Title() != "Woche" {
+		t.Fatalf("→ on Heute must switch to Woche, got %#v", cmd())
 	}
 }
