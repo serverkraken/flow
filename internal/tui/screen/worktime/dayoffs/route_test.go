@@ -14,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
 type fakeAPI struct {
@@ -646,6 +647,37 @@ func TestDayOffsRoute_addRejectsBisBeforeVon(t *testing.T) {
 // via arrow keys (grammar nav via listnav) and that "j" is no longer a nav key.
 // RED phase: before migration j still moves; KeyDown does move (was already wired).
 // GREEN phase after migration: KeyDown moves, j does NOT move.
+// statsStub is a minimal shell.Route used by wtnav.Registry in nav tests.
+type statsStub struct{}
+
+func (statsStub) Init() tea.Cmd                          { return nil }
+func (statsStub) Update(tea.Msg) (shell.Route, tea.Cmd) { return statsStub{}, nil }
+func (statsStub) View(shell.Frame) string                { return "" }
+func (statsStub) Title() string                          { return "Stats" }
+func (statsStub) KeyHints() []keyhint.Hint               { return nil }
+
+// TestDayoffs_StripAndLeftPopsAndHideCrumb verifies the sub-tab strip is rendered,
+// HideBreadcrumb returns true, and ← emits a navigation command.
+func TestDayoffs_StripAndLeftPopsAndHideCrumb(t *testing.T) {
+	reg := wtnav.Registry{"t": func() shell.Route { return statsStub{} }}
+	r := dayoffs.NewRoute(nil, theme.Default, reg, time.Now)
+	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+		if !strings.Contains(out, l) {
+			t.Fatalf("Frei View missing sub-tab %q", l)
+		}
+	}
+	if !r.HideBreadcrumb() {
+		t.Fatal("Frei must hide breadcrumb")
+	}
+	// ← from Frei (idx 3) → Stats via reg.
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	_ = r2
+	if cmd == nil {
+		t.Fatal("← on Frei must emit a command")
+	}
+}
+
 func TestBundesland_ArrowsMoveNotJK(t *testing.T) {
 	// BW is index 0 in bundeslaender; BY is index 1.
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}
