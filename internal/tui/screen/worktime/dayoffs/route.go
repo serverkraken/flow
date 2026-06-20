@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/kindcolor"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
@@ -186,11 +187,14 @@ func (r *Route) View(f shell.Frame) string {
 		b.WriteString(theme.Dim("  keine Frei-Tage dieses Jahr", f.Pal) + "\n")
 	}
 	for i, d := range r.list {
-		label := d.Label
-		if label == "" {
-			label = d.Kind
+		k := domain.Kind(d.Kind)
+		cat := k.LabelDe()
+		text := cat
+		if d.Label != "" && d.Label != cat {
+			text += " — " + d.Label
 		}
-		row := fmt.Sprintf("  %s %s  %s", dayOffGlyph(d.Holiday, f.Pal), d.Day, label)
+		glyph := fgColor("○", kindcolor.DayOffColor(k, f.Pal))
+		row := fmt.Sprintf("  %s %s  %s", glyph, d.Day, text)
 		if i == r.cursor {
 			row = theme.Active(row, f.Pal)
 		}
@@ -213,13 +217,6 @@ func (r *Route) KeyHints() []keyhint.Hint {
 		{Key: "e", Desc: "Export"},
 		{Key: "esc", Desc: "zurück"},
 	}
-}
-
-func dayOffGlyph(holiday bool, pal theme.Palette) string {
-	if holiday {
-		return theme.Dim("○", pal)
-	}
-	return "○"
 }
 
 func weekdayShort(key string) string {

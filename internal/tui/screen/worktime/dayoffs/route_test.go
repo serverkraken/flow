@@ -757,6 +757,21 @@ func TestDayOffsRoute_kindPickerEsc(t *testing.T) {
 	}
 }
 
+// TestDayOffsRoute_listShowsCategoryLabel verifies the German category label is
+// rendered for a non-holiday entry (here a Gleittag), independent of free-text label.
+func TestDayOffsRoute_listShowsCategoryLabel(t *testing.T) {
+	api := &fakeAPI{
+		list:     []apiclient.DayOff{{Day: "2026-09-10", Kind: "flex", Label: ""}},
+		settings: apiclient.Settings{DefaultTargetMin: 480},
+	}
+	r := newRoute(api)
+	r = drain(r, r.Init())
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "Gleittag") {
+		t.Fatalf("list should show category label 'Gleittag'; got:\n%s", body)
+	}
+}
+
 func TestBundesland_ArrowsMoveNotJK(t *testing.T) {
 	// BW is index 0 in bundeslaender; BY is index 1.
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}
