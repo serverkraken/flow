@@ -288,7 +288,7 @@ func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	r = press(t, r, keyTab())
 
 	// Enter on Note (last field) submits.
-	press(t, r, keyEnter())
+	r = press(t, r, keyEnter())
 
 	if f.addCalls != 1 {
 		t.Fatalf("AddSession calls = %d, want 1", f.addCalls)
@@ -299,6 +299,15 @@ func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	}
 	if f.lastProjectID == nil || *f.lastProjectID != "p1" {
 		t.Fatalf("AddSession project = %v, want p1", f.lastProjectID)
+	}
+
+	// After successful submit, the dialog must close.
+	dr, ok := r.(*daydetail.Route)
+	if !ok {
+		t.Fatalf("route is %T, want *daydetail.Route", r)
+	}
+	if dr.DialogOpen() {
+		t.Fatal("Nachbuchen dialog must close after successful AddSession")
 	}
 }
 

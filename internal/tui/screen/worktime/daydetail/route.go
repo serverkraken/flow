@@ -159,6 +159,7 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 			r.toast = toast.NewDanger("Konnte nicht speichern: "+m.err.Error(), r.pal)
 			return r, r.toast.Init()
 		}
+		r.nachb = nil
 		r.toast = toast.NewSuccess("Session gespeichert", r.pal)
 		return r, tea.Batch(r.toast.Init(), r.loadCmd())
 

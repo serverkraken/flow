@@ -75,9 +75,13 @@ rebuild's DTO (`apiclient.WeekDay`: `LoggedMin`, `TargetMin`, `IsToday`,
   - `TargetMin > 0 && LoggedMin >= TargetMin` → `PaceDotHit`
   - `IsToday` → `PaceDotRunning` (today, target not yet met)
   - else → `PaceDotMissed`
-- Colour mapping (TUI): Hit → `Sem().Success`, Running → `Sem().Active`, DayOff →
-  the day-off kind colour (reuse the existing `kindcolor`/`theme.KindColor`
-  mapping the dayoffs route uses), Missed → `Sem().Border`/`FgMuted`.
+- Colour mapping (TUI): Hit → `Sem().Success`, Running → `Sem().Active`, Missed →
+  `Sem().Border`/`FgMuted`. DayOff → by kind, using existing Sem slots (no
+  day-off-kind colour helper exists in the rebuild — `kindcolor` is docs-only —
+  so define a small local map in the pacedot file): `KindHoliday → Sem().Info`,
+  `KindVacation → Sem().Accent`, `KindSick → Sem().Warning`, unknown → `FgMuted`.
+  (The old design's Blue/Purple/Orange map onto Info/Accent/Warning; the rebuild
+  theme has no Purple/Orange semantic slots.)
 
 ### week route data
 - `API` interface gains `ListDayOffs(ctx, from, to string) ([]apiclient.DayOff, error)`
