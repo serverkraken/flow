@@ -3,6 +3,8 @@ package worktime
 import (
 	"testing"
 	"time"
+
+	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 )
 
 func TestFormatDur(t *testing.T) {
@@ -38,21 +40,21 @@ func TestPctOfTarget(t *testing.T) {
 }
 
 func TestParseHM(t *testing.T) {
-	d, err := parseHM("09:30")
+	d, err := wtfmt.ParseHM("09:30")
 	if err != nil || d != 9*time.Hour+30*time.Minute {
-		t.Fatalf("parseHM(09:30) = %v, %v", d, err)
+		t.Fatalf("ParseHM(09:30) = %v, %v", d, err)
 	}
-	if _, err := parseHM("nonsense"); err == nil {
-		t.Fatal("parseHM(nonsense) should error")
+	if _, err := wtfmt.ParseHM("nonsense"); err == nil {
+		t.Fatal("ParseHM(nonsense) should error")
 	}
 }
 
 func TestParseStopRelativeAndAbsolute(t *testing.T) {
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 6, 14, 18, 0, 0, 0, time.UTC)
-	got, err := parseStop(normalizeDurationArg("+1h30m"), start, now)
+	got, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg("+1h30m"), start, now)
 	if err != nil || !got.Equal(start.Add(90*time.Minute)) {
-		t.Fatalf("parseStop(+1h30m) = %v, %v", got, err)
+		t.Fatalf("ParseStop(+1h30m) = %v, %v", got, err)
 	}
 }
 

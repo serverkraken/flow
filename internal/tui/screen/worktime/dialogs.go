@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
@@ -178,14 +179,14 @@ func (r *TodayRoute) submitEdit() tea.Cmd {
 	stopStr := strings.TrimSpace(r.edit.form[1].Value())
 	tag := strings.TrimSpace(r.edit.form[2].Value())
 	note := strings.TrimSpace(r.edit.form[3].Value())
-	startD, err := parseHM(startStr)
+	startD, err := wtfmt.ParseHM(startStr)
 	if err != nil {
 		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
 		return r.toast.Init()
 	}
 	base := time.Date(r.edit.date.Year(), r.edit.date.Month(), r.edit.date.Day(), 0, 0, 0, 0, r.edit.date.Location())
 	startTime := base.Add(startD)
-	stopTime, err := parseStop(normalizeDurationArg(stopStr), startTime, r.now())
+	stopTime, err := wtfmt.ParseStop(wtfmt.NormalizeDurationArg(stopStr), startTime, r.now())
 	if err != nil {
 		r.toast = toast.NewDanger("Stop ungültig", r.pal)
 		return r.toast.Init()
