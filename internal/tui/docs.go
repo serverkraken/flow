@@ -851,19 +851,13 @@ func (m DocsModel) handleDeleteKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if cur, ok := listnav.New().Set(m.filterCursor, len(m.filterOpts)).Handle(k, len(m.filterOpts), m.docsPerPage()); ok {
+		m.filterCursor = cur.Index()
+		return m, nil
+	}
 	switch {
 	case k.Code == tea.KeyEsc:
 		m.mode = modeList // discard working changes
-		return m, nil
-	case k.Text == "j":
-		if m.filterCursor < len(m.filterOpts)-1 {
-			m.filterCursor++
-		}
-		return m, nil
-	case k.Text == "k":
-		if m.filterCursor > 0 {
-			m.filterCursor--
-		}
 		return m, nil
 	case k.Text == " ":
 		if m.filterCursor < len(m.filterOpts) {

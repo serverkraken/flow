@@ -14,6 +14,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/datepicker"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	"github.com/serverkraken/flow/internal/tui/ui/picker"
 )
 
@@ -198,18 +199,14 @@ func (r *Route) submitAdd() tea.Cmd {
 }
 
 func (r *Route) handleBundeslandKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
-	switch {
-	case k.Code == tea.KeyEsc:
+	if cur, ok := listnav.New().Set(r.dlg.blSel, len(bundeslaender)).Handle(k, len(bundeslaender), 5); ok {
+		r.dlg.blSel = cur.Index()
+		return r, nil
+	}
+	switch k.Code {
+	case tea.KeyEsc:
 		r.dialog = dialogNone
-	case k.Text == "j" || k.Code == tea.KeyDown:
-		if r.dlg.blSel < len(bundeslaender)-1 {
-			r.dlg.blSel++
-		}
-	case k.Text == "k" || k.Code == tea.KeyUp:
-		if r.dlg.blSel > 0 {
-			r.dlg.blSel--
-		}
-	case k.Code == tea.KeyEnter:
+	case tea.KeyEnter:
 		land := bundeslaender[r.dlg.blSel]
 		r.dialog = dialogNone
 		return r, r.setBundeslandCmd(land)

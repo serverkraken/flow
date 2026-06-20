@@ -140,7 +140,7 @@ func TestDayOffsRoute_targetEditDigitFilterAndSubmit(t *testing.T) {
 // Verifies api.bundesland is set to "BY".
 func TestDayOffsRoute_bundeslandSet(t *testing.T) {
 	// Set current Bundesland to "BW" so openBundesland initialises blSel=0,
-	// making the j-key deterministically advance to index 1 = "BY".
+	// making KeyDown deterministically advance to index 1 = "BY".
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
@@ -149,7 +149,7 @@ func TestDayOffsRoute_bundeslandSet(t *testing.T) {
 	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
 
 	// Move down once -> index 1 = "BY"
-	r, _ = r.Update(tea.KeyPressMsg{Text: "j"})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 
 	// Confirm
 	r, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -639,5 +639,39 @@ func TestDayOffsRoute_addRejectsBisBeforeVon(t *testing.T) {
 	_ = drain(r2, cmd)
 	if api.addedFrom != "" {
 		t.Fatalf("submit with Bis<Von must not call AddDayOffs (addedFrom=%q)", api.addedFrom)
+	}
+}
+
+// TestBundesland_ArrowsMoveNotJK verifies that the Bundesland picker navigates
+// via arrow keys (grammar nav via listnav) and that "j" is no longer a nav key.
+// RED phase: before migration j still moves; KeyDown does move (was already wired).
+// GREEN phase after migration: KeyDown moves, j does NOT move.
+func TestBundesland_ArrowsMoveNotJK(t *testing.T) {
+	// BW is index 0 in bundeslaender; BY is index 1.
+	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}
+	r := newRoute(api)
+	r = drain(r, r.Init())
+
+	// Open Bundesland dialog (blSel starts at 0 = "BW").
+	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
+
+	// KeyDown must move to index 1 = "BY".
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	// Confirm to capture selection.
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	drain(r2, cmd)
+	if api.bundesland != "BY" {
+		t.Fatalf("KeyDown: bundesland = %q, want BY", api.bundesland)
+	}
+
+	// Reset: reopen dialog (blSel=0 again) and send Text "j".
+	// After migration, "j" must NOT move the cursor, so Enter should set "BW".
+	api.bundesland = ""
+	r, _ = r.Update(tea.KeyPressMsg{Text: "b"})
+	r, _ = r.Update(tea.KeyPressMsg{Text: "j"})
+	r3, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	drain(r3, cmd)
+	if api.bundesland != "BW" {
+		t.Fatalf("Text j: bundesland = %q, want BW (j must not navigate)", api.bundesland)
 	}
 }

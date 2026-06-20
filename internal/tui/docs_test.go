@@ -1462,3 +1462,46 @@ func TestDocs_BackFromListNothing(t *testing.T) {
 		t.Fatal("Back from a clean list must report ok=false (frame pops/quits)")
 	}
 }
+
+// TestDocs_FilterArrowsMoveNotJK verifies that tag-filter overlay navigation
+// uses arrow keys (listnav grammar) and not j/k.
+// RED phase: before migration KeyDown does nothing (only j moves cursor).
+func TestDocs_FilterArrowsMoveNotJK(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "tester")
+
+	// Open filter overlay by injecting a tagsLoadedMsg with ≥2 tags.
+	tags := []domain.TagCount{
+		{Tag: "alpha", Count: 1},
+		{Tag: "beta", Count: 2},
+		{Tag: "gamma", Count: 3},
+	}
+	next, _ := m.Update(tagsLoadedMsg{tags: tags})
+	m = next.(DocsModel)
+	if m.mode != modeFiltering {
+		t.Fatal("tagsLoadedMsg should switch to modeFiltering")
+	}
+	if m.filterCursor != 0 {
+		t.Fatalf("initial filterCursor = %d, want 0", m.filterCursor)
+	}
+
+	// KeyDown should move cursor to 1 (grammar nav).
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m = next.(DocsModel)
+	if m.filterCursor != 1 {
+		t.Fatalf("KeyDown: filterCursor = %d, want 1", m.filterCursor)
+	}
+
+	// Text "j" must NOT move cursor (j/k are banned navigation keys).
+	next, _ = m.Update(tea.KeyPressMsg{Text: "j"})
+	m = next.(DocsModel)
+	if m.filterCursor != 1 {
+		t.Fatalf("Text j: filterCursor = %d, want 1 (j must not navigate)", m.filterCursor)
+	}
+
+	// KeyEnd should jump to last index.
+	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	m = next.(DocsModel)
+	if m.filterCursor != len(tags)-1 {
+		t.Fatalf("KeyEnd: filterCursor = %d, want %d", m.filterCursor, len(tags)-1)
+	}
+}
