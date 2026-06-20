@@ -705,6 +705,58 @@ func TestDayoffs_StripAndLeftPopsAndHideCrumb(t *testing.T) {
 	}
 }
 
+// TestDayOffsRoute_kindPickerSelectsKind opens the add form, enters the kind
+// picker from the Kategorie field, moves down once (vacation→sick), confirms,
+// then submits — addedKind must be "sick".
+func TestDayOffsRoute_kindPickerSelectsKind(t *testing.T) {
+	api := &fakeAPI{}
+	r := drain(newRoute(api), nil)
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})          // open add; Von focused
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Kategorie
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open kind picker
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})  // vacation(0) -> sick(1)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // confirm -> back to add form
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // Kategorie -> Label
+	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // submit
+	_ = drain(r2, cmd)
+	if api.addedKind != "sick" {
+		t.Fatalf("addedKind = %q, want sick", api.addedKind)
+	}
+}
+
+// TestDayOffsRoute_kindPickerView verifies the picker lists German kind labels.
+func TestDayOffsRoute_kindPickerView(t *testing.T) {
+	r := newRoute(&fakeAPI{})
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open picker
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	for _, want := range []string{"Gleittag", "Sonderurlaub", "Kind krank", "Fortbildung"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("kind picker missing %q; got:\n%s", want, body)
+		}
+	}
+}
+
+// TestDayOffsRoute_kindPickerEsc returns to the add form without changing kind.
+func TestDayOffsRoute_kindPickerEsc(t *testing.T) {
+	r := newRoute(&fakeAPI{})
+	r = drain(r, r.Init())
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open picker
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})   // back to add form
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "Frei-Tag anlegen") {
+		t.Fatalf("Esc from kind picker should return to add form; got:\n%s", body)
+	}
+}
+
 func TestBundesland_ArrowsMoveNotJK(t *testing.T) {
 	// BW is index 0 in bundeslaender; BY is index 1.
 	api := &fakeAPI{settings: apiclient.Settings{Bundesland: "BW"}}

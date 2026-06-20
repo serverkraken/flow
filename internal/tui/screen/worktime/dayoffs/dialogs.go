@@ -30,6 +30,7 @@ const (
 	dialogAdd
 	dialogDelete
 	dialogBundesland
+	dialogKindPick
 )
 
 var bundeslaender = []string{
@@ -47,6 +48,7 @@ type dialogState struct {
 	addCur    int // 0=Von, 1=Bis, 2=Kategorie, 3=Label
 	confirm   confirm.Model
 	blSel     int
+	kindSel   int
 }
 
 func (r *Route) openTargetEdit() (shell.Route, tea.Cmd) {
@@ -89,6 +91,33 @@ func (r *Route) openBundesland() (shell.Route, tea.Cmd) {
 	return r, nil
 }
 
+func (r *Route) openKindPick() (shell.Route, tea.Cmd) {
+	r.dlg.kindSel = 0
+	for i, k := range domain.SelectableKinds {
+		if k == r.dlg.kind {
+			r.dlg.kindSel = i
+		}
+	}
+	r.dialog = dialogKindPick
+	return r, nil
+}
+
+func (r *Route) handleKindPickKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
+	n := len(domain.SelectableKinds)
+	if cur, ok := listnav.New().Set(r.dlg.kindSel, n).Handle(k, n, 6); ok {
+		r.dlg.kindSel = cur.Index()
+		return r, nil
+	}
+	switch k.Code {
+	case tea.KeyEsc:
+		r.dialog = dialogAdd
+	case tea.KeyEnter:
+		r.dlg.kind = domain.SelectableKinds[r.dlg.kindSel]
+		r.dialog = dialogAdd
+	}
+	return r, nil
+}
+
 func (r *Route) handleDialogKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 	switch r.dialog {
 	case dialogTarget:
@@ -101,6 +130,8 @@ func (r *Route) handleDialogKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		return r, cmd
 	case dialogBundesland:
 		return r.handleBundeslandKey(k)
+	case dialogKindPick:
+		return r.handleKindPickKey(k)
 	}
 	return r, nil
 }
@@ -135,7 +166,10 @@ func (r *Route) handleAddKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		r.addFocus(+1)
 		return r, nil
 	case tea.KeyEnter:
-		if r.dlg.addCur == 3 {
+		switch r.dlg.addCur {
+		case 2: // Kategorie — open the kind picker
+			return r.openKindPick()
+		case 3: // Label — submit
 			return r, r.submitAdd()
 		}
 		r.addFocus(+1)
@@ -296,6 +330,14 @@ func (r *Route) renderDialog(f shell.Frame) string {
 			b.WriteString(picker.Row(i == r.dlg.blSel, label, "", f.Width-4, f.Pal) + "\n")
 		}
 		return b.String()
+	case dialogKindPick:
+		var b strings.Builder
+		b.WriteString("\n  Kategorie wählen (↑/↓ · enter · esc)\n\n")
+		for i, k := range domain.SelectableKinds {
+			label := fgColor(k.LabelDe(), kindcolor.DayOffColor(k, f.Pal))
+			b.WriteString(picker.Row(i == r.dlg.kindSel, label, "", f.Width-4, f.Pal) + "\n")
+		}
+		return b.String()
 	}
 	return ""
 }
@@ -310,6 +352,8 @@ func (r *Route) dialogHints() []keyhint.Hint {
 		return []keyhint.Hint{{Key: "y", Desc: "löschen"}, {Key: "n", Desc: "abbrechen"}}
 	case dialogBundesland:
 		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "setzen"}, {Key: "esc", Desc: "abbrechen"}}
+	case dialogKindPick:
+		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "setzen"}, {Key: "esc", Desc: "zurück"}}
 	}
 	return nil
 }
