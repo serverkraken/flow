@@ -25,6 +25,10 @@ func (f fakeAPI) GetWeek(_ context.Context, _ string) ([]apiclient.WeekDay, erro
 	return f.days, f.err
 }
 
+func (f fakeAPI) ListDayOffs(_ context.Context, _, _ string) ([]apiclient.DayOff, error) {
+	return nil, nil
+}
+
 func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 	for i := 0; cmd != nil && i < 20; i++ {
 		msg := cmd()

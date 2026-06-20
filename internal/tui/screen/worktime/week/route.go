@@ -23,10 +23,12 @@ import (
 // API is the narrow client surface WeekRoute needs (*apiclient.Client satisfies it).
 type API interface {
 	GetWeek(ctx context.Context, ref string) ([]apiclient.WeekDay, error)
+	ListDayOffs(ctx context.Context, from, to string) ([]apiclient.DayOff, error)
 }
 
 type loadedMsg struct {
 	days []apiclient.WeekDay
+	offs []apiclient.DayOff
 	err  error
 }
 
@@ -36,6 +38,7 @@ type Route struct {
 	pal    theme.Palette
 	reg    wtnav.Registry
 	days   []apiclient.WeekDay
+	offs   map[string]apiclient.DayOff
 	loaded bool
 	err    error
 }
@@ -55,7 +58,14 @@ func (r *Route) loadCmd() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		days, err := api.GetWeek(ctx, "")
-		return loadedMsg{days: days, err: err}
+		if err != nil {
+			return loadedMsg{err: err}
+		}
+		var offs []apiclient.DayOff
+		if len(days) > 0 {
+			offs, err = api.ListDayOffs(ctx, days[0].Date, days[len(days)-1].Date)
+		}
+		return loadedMsg{days: days, offs: offs, err: err}
 	}
 }
 
@@ -63,6 +73,10 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	switch m := msg.(type) {
 	case loadedMsg:
 		r.loaded, r.err, r.days = true, m.err, m.days
+		r.offs = make(map[string]apiclient.DayOff, len(m.offs))
+		for _, o := range m.offs {
+			r.offs[o.Day] = o
+		}
 		return r, nil
 	case shell.EventMsg:
 		if isSessionEvent(m.Ev.Type) {
