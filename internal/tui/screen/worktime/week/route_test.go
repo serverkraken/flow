@@ -177,10 +177,13 @@ func TestWeek_StripAndLeftPopsAndHideCrumb(t *testing.T) {
 	}
 	r := week.NewRoute(nil, theme.Default, reg)
 	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
-	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei"} {
 		if !strings.Contains(out, l) {
 			t.Fatalf("Woche View missing sub-tab %q", l)
 		}
+	}
+	if strings.Contains(out, "Export") {
+		t.Fatal("Woche strip must not contain Export (it is a drilled route)")
 	}
 	if !r.HideBreadcrumb() {
 		t.Fatal("Woche must hide breadcrumb")

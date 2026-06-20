@@ -235,8 +235,11 @@ func TestStats_StripAndLateralAndHideCrumb(t *testing.T) {
 	reg := wtnav.Registry{"w": func() shell.Route { return wocheStub{} }}
 	r := statsrange.NewRoute(nil, theme.Default, reg)
 	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
-	if !strings.Contains(out, "Stats") || !strings.Contains(out, "Export") {
+	if !strings.Contains(out, "Stats") {
 		t.Fatalf("Stats View missing strip labels:\n%s", out)
+	}
+	if strings.Contains(out, "Export") {
+		t.Fatal("Stats strip must not contain Export (it is a drilled route)")
 	}
 	if !r.HideBreadcrumb() {
 		t.Fatal("Stats must hide breadcrumb")

@@ -357,16 +357,18 @@ func TestExportRoute_arrowEditsPicker(t *testing.T) {
 	}
 }
 
-func TestExportRoute_capturesOnTextFieldsNotChoiceFields(t *testing.T) {
+// TestExportRoute_capturesInputAlways verifies that CapturesInput returns true
+// at every focus (the export form is a drilled route that owns all input).
+// Focus mutation is tested via Tab-stepping since this is an external test.
+func TestExportRoute_capturesInputAlways(t *testing.T) {
 	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
-	// focus 0 = Range (choice) → not capturing
-	if r.CapturesInput() {
-		t.Fatal("Range field must not capture (globals stay reachable)")
-	}
-	// Tab to focus 1 = von (text/picker) → capturing
-	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if !r.CapturesInput() {
-		t.Fatal("von field must capture input")
+	// Step through all 5 focuses via Tab and confirm CapturesInput stays true.
+	for i := 0; i < 5; i++ {
+		if !r.CapturesInput() {
+			t.Fatalf("CapturesInput must be true at focus iteration %d", i)
+		}
+		r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		r = r2.(*export.Route)
 	}
 }
 
@@ -439,20 +441,22 @@ func TestExportRoute_calendarShownWhenDateFocused(t *testing.T) {
 	}
 }
 
-func TestExport_StripAndHideCrumbAndArrowsStillEditDate(t *testing.T) {
+// TestExport_CapturesAllFocusesNoStripNoCrumbHider verifies the drilled-form
+// contract: no strip tab labels in View, no HideBreadcrumb, arrows edit fields.
+func TestExport_CapturesAllFocusesNoStripNoCrumbHider(t *testing.T) {
 	r := export.NewRoute(nil, time.Now, theme.Default, nil)
+	// View must not render sub-tab strip labels.
 	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
-	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
-		if !strings.Contains(out, l) {
-			t.Fatalf("Export View missing sub-tab %q", l)
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei"} {
+		if strings.Contains(out, l) {
+			t.Fatalf("Export View must not render the strip tab %q: %q", l, out)
 		}
 	}
-	if !r.HideBreadcrumb() {
-		t.Fatal("Export must hide breadcrumb")
+	// Export must NOT implement BreadcrumbHider (breadcrumb shows for the drill).
+	if _, ok := interface{}(r).(interface{ HideBreadcrumb() bool }); ok {
+		t.Fatal("Export must not implement HideBreadcrumb (it is a drilled route)")
 	}
-	// ←/→ must NOT switch sub-tabs on Export (it edits the date/field). With a
-	// nil registry, a sub-tab switch would have been a no-op anyway; assert the
-	// route does not return a SwitchRouteMsg/PopRouteMsg for ←.
+	// ←/→ must edit the date/field, not switch sub-tabs (nil registry is safe).
 	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
 	if cmd != nil {
 		if m := cmd(); func() bool { _, a := m.(shell.SwitchRouteMsg); _, b := m.(shell.PopRouteMsg); return a || b }() {

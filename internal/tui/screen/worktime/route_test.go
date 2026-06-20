@@ -333,10 +333,13 @@ func TestToday_StripAndLateralAndHideCrumb(t *testing.T) {
 	r := NewTodayRoute(nil, time.Now, theme.Default, reg)
 	// Strip is visible even before load.
 	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
-	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei"} {
 		if !strings.Contains(out, l) {
 			t.Fatalf("Today View missing sub-tab %q", l)
 		}
+	}
+	if strings.Contains(out, "Export") {
+		t.Fatal("Today strip must not contain Export (it is a drilled route)")
 	}
 	if !r.HideBreadcrumb() {
 		t.Fatal("Today must hide the breadcrumb (strip shows position)")

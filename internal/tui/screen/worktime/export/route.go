@@ -73,13 +73,12 @@ func mustDate(s string) time.Time {
 func (r *Route) Title() string { return "Export" }
 func (r *Route) Init() tea.Cmd { return nil }
 
-// CapturesInput reports input capture while a text/picker field (von/bis/Pfad)
-// is focused, so digits/Tab/Esc reach the field. On the Range/Format choice
-// fields it returns false, leaving global shortcuts + lateral nav reachable.
-// Implements shell.InputCapturer.
-func (r *Route) CapturesInput() bool {
-	return r.focus == 1 || r.focus == 2 || r.focus == 4
-}
+// CapturesInput reports that the export form owns the keyboard at every focus:
+// it is a multi-field form (Range/von/bis/Format/Pfad), so Tab/Shift+Tab field
+// cycling, ←/→ value+date editing, and digits must all reach the route rather
+// than the shell. q/Esc still reach the back chain (handled in the shell before
+// this guard), returning to Heute. Implements shell.InputCapturer.
+func (r *Route) CapturesInput() bool { return true }
 
 func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	switch m := msg.(type) {
@@ -284,11 +283,8 @@ func (r *Route) View(f shell.Frame) string {
 	if r.status != "" {
 		b.WriteString("\n  " + theme.Dim(r.status, f.Pal) + "\n")
 	}
-	return wtnav.Strip(wtnav.IdxExport, f.Width, f.Pal) + "\n" + b.String()
+	return b.String()
 }
-
-// HideBreadcrumb implements shell.BreadcrumbHider.
-func (r *Route) HideBreadcrumb() bool { return true }
 
 // KeyHints returns the key hints for the export form.
 func (r *Route) KeyHints() []keyhint.Hint {
@@ -297,7 +293,6 @@ func (r *Route) KeyHints() []keyhint.Hint {
 		{Key: "←/→", Desc: "wählen"},
 		{Key: "enter", Desc: "export"},
 		{Key: "esc", Desc: "zurück"},
-		{Key: "w/t/d/e", Desc: "Bereich"},
 	}
 }
 
