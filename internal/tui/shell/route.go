@@ -77,3 +77,8 @@ type TextCapturer interface{ CapturesText() bool }
 // receiver-mutating implementation double-applies the back step (e.g. pops a
 // drill-stack twice), skipping a level.
 type Backer interface{ Back() (Route, tea.Cmd, bool) }
+
+// BreadcrumbHider lets a route suppress the frame's drill-down breadcrumb when
+// it renders its own location indicator (e.g. the Worktime sub-tab strip), so
+// the position is not shown twice.
+type BreadcrumbHider interface{ HideBreadcrumb() bool }

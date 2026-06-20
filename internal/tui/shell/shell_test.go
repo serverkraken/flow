@@ -504,6 +504,51 @@ func TestShell_docsBackPopsExactlyOneLevel(t *testing.T) {
 	}
 }
 
+// hiderRoute is a depth-2 child route that suppresses the breadcrumb.
+type hiderRoute struct{ stubRoute }
+
+func (h hiderRoute) HideBreadcrumb() bool { return true }
+func (h hiderRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
+	_, cmd := h.stubRoute.Update(msg)
+	return h, cmd
+}
+
+func TestShell_BreadcrumbHiddenWhenRouteOptsOut(t *testing.T) {
+	// Build a Shell with a root; push a hiderRoute so the nav-stack is at depth 2
+	// and Crumbs() yields two entries (root title + child title).
+	root := stubRoute{title: "Worktime"}
+	child := hiderRoute{stubRoute{title: "Woche"}}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+	next, _ := s.Update(shell.PushRouteMsg{Route: child})
+	sh := next.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("setup: expected depth 2, got %d", sh.ActiveDepth())
+	}
+	// Give a real window size so View renders chrome.
+	sized, _ := sh.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	out := sized.(shell.Shell).View().Content
+	if strings.Contains(out, "›") {
+		t.Fatalf("breadcrumb separator must be absent when top hides it:\n%s", out)
+	}
+}
+
+func TestShell_BreadcrumbShownForPlainRoute(t *testing.T) {
+	// Same setup but a plain stub (no HideBreadcrumb) — breadcrumb must appear.
+	root := stubRoute{title: "Worktime"}
+	child := stubRoute{title: "Woche"}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+	next, _ := s.Update(shell.PushRouteMsg{Route: child})
+	sh := next.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("setup: expected depth 2, got %d", sh.ActiveDepth())
+	}
+	sized, _ := sh.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	out := sized.(shell.Shell).View().Content
+	if !strings.Contains(out, "›") {
+		t.Fatalf("breadcrumb separator expected for a non-hider at depth 2:\n%s", out)
+	}
+}
+
 // drainShell runs cmd to completion against the Shell, feeding produced msgs
 // back (the runtime's job). Batches are fanned out; the last non-nil child cmd
 // is chained.

@@ -275,6 +275,9 @@ func (s Shell) View() tea.View {
 	head := header.Render("flow", s.user, max(s.width, 1), s.pal)
 	tabs := tabstrip.Render(titles, s.activeTab, max(s.width, 1), s.pal)
 	crumbs := breadcrumb.Render(s.tabs[s.activeTab].Crumbs(), s.pal)
+	if bh, ok := s.tabs[s.activeTab].Top().(BreadcrumbHider); ok && bh.HideBreadcrumb() {
+		crumbs = ""
+	}
 
 	chrome := 2 // header + tabstrip
 	if crumbs != "" {
