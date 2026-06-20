@@ -26,12 +26,12 @@ func (r Registry) Nav(key string) tea.Cmd {
 }
 
 // Sub-tab indices into SubTabs; each Worktime route declares which one it is.
+// Export is intentionally absent: it is a drilled form, not a strip tab.
 const (
 	IdxHeute = iota
 	IdxWoche
 	IdxStats
 	IdxFrei
-	IdxExport
 )
 
 // SubTab is one Worktime sub-tab: the strip label and its accelerator key
@@ -48,7 +48,6 @@ var SubTabs = []SubTab{
 	{Label: "Woche", Key: "w"},
 	{Label: "Stats", Key: "t"},
 	{Label: "Frei", Key: "d"},
-	{Label: "Export", Key: "e"},
 }
 
 // Strip renders the Worktime sub-tab strip with active highlighted, reusing the

@@ -60,12 +60,15 @@ func testReg() wtnav.Registry {
 	}
 }
 
-func TestStrip_ContainsAllLabels(t *testing.T) {
+func TestStrip_ContainsFourLabelsNotExport(t *testing.T) {
 	out := wtnav.Strip(wtnav.IdxStats, 200, theme.Default)
-	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei"} {
 		if !strings.Contains(out, l) {
 			t.Fatalf("strip missing %q: %q", l, out)
 		}
+	}
+	if strings.Contains(out, "Export") {
+		t.Fatalf("Export must no longer be a strip tab: %q", out)
 	}
 }
 
@@ -95,8 +98,11 @@ func TestLateral_ClampsAtEnds(t *testing.T) {
 	if wtnav.Lateral(testReg(), wtnav.IdxHeute, key(tea.KeyLeft)) != nil {
 		t.Fatal("← from Heute must clamp to nil")
 	}
-	if wtnav.Lateral(testReg(), wtnav.IdxExport, key(tea.KeyRight)) != nil {
-		t.Fatal("→ from Export must clamp to nil")
+}
+
+func TestLateral_RightFromFreiClamps(t *testing.T) {
+	if wtnav.Lateral(testReg(), wtnav.IdxFrei, key(tea.KeyRight)) != nil {
+		t.Fatal("→ from Frei (last tab) must clamp to nil")
 	}
 }
 
