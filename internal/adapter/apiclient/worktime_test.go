@@ -91,3 +91,26 @@ func TestEditAndDeleteSession(t *testing.T) {
 		t.Fatalf("server not hit: patch=%v delete=%v", sawPatch, sawDelete)
 	}
 }
+
+func TestClient_ListSessionsSince(t *testing.T) {
+	var gotSince string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSince = r.URL.Query().Get("since")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[{"id":"s1","start":"2026-06-01T09:00:00Z"}]`))
+	}))
+	defer ts.Close()
+
+	c := apiclient.New(ts.URL, "tok")
+	since := time.Date(2026, 3, 22, 8, 0, 0, 0, time.UTC)
+	out, err := c.ListSessionsSince(context.Background(), since)
+	if err != nil {
+		t.Fatalf("ListSessionsSince: %v", err)
+	}
+	if len(out) != 1 || out[0].ID != "s1" {
+		t.Fatalf("decoded sessions = %+v, want one with id s1", out)
+	}
+	if got, want := gotSince, since.Format(time.RFC3339); got != want {
+		t.Errorf("since query = %q, want %q", got, want)
+	}
+}

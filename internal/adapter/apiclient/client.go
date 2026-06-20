@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -135,6 +136,14 @@ func (c *Client) DeleteSession(ctx context.Context, id string) error {
 func (c *Client) ListSessions(ctx context.Context) ([]domain.WorkSession, error) {
 	var out []domain.WorkSession
 	err := c.do(ctx, http.MethodGet, "/api/v1/sessions", nil, &out)
+	return out, err
+}
+
+// ListSessionsSince returns sessions with start >= since.
+func (c *Client) ListSessionsSince(ctx context.Context, since time.Time) ([]domain.WorkSession, error) {
+	var out []domain.WorkSession
+	path := "/api/v1/sessions?since=" + url.QueryEscape(since.Format(time.RFC3339))
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
 	return out, err
 }
 
