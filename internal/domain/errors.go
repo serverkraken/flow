@@ -12,6 +12,8 @@ var (
 	ErrNoActiveSession = errors.New("no active session")
 	ErrStopBeforeStart = errors.New("stop must be after start")
 	ErrProjectRequired = errors.New("a project is required to book the session")
+	ErrFutureSession   = errors.New("session times must not be in the future")
+	ErrOverlap         = errors.New("session overlaps an existing session")
 	ErrInvalidDayOff   = errors.New("invalid day-off")
 	ErrInvalidRange    = errors.New("invalid range")
 	ErrInvalidTarget   = errors.New("invalid target")
