@@ -38,6 +38,31 @@ func TestComputeWeekSummary(t *testing.T) {
 	}
 }
 
+// TestComputeWeekSummary_ExcludesWeekendTargets locks the Mon–Fri-only rule:
+// the server emits a default target for Sat/Sun too, so a normal week must read
+// 40h (5×8h), not 56h — and weekend logged time is excluded as well.
+func TestComputeWeekSummary_ExcludesWeekendTargets(t *testing.T) {
+	days := []apiclient.WeekDay{
+		{Date: "2026-06-15", TargetMin: 480, LoggedMin: 480}, // Mon
+		{Date: "2026-06-16", TargetMin: 480, LoggedMin: 480}, // Tue
+		{Date: "2026-06-17", TargetMin: 480, LoggedMin: 480}, // Wed
+		{Date: "2026-06-18", TargetMin: 480, LoggedMin: 480}, // Thu
+		{Date: "2026-06-19", TargetMin: 480, LoggedMin: 480}, // Fri
+		{Date: "2026-06-20", TargetMin: 480, LoggedMin: 120}, // Sat — server still emits 8h + some logged
+		{Date: "2026-06-21", TargetMin: 480, LoggedMin: 0},   // Sun — server still emits 8h
+	}
+	s := computeWeekSummary(days, nil)
+	if s.totalTarget != 2400 { // 5×480, NOT 7×480
+		t.Fatalf("totalTarget=%d, want 2400 (Mon–Fri only)", s.totalTarget)
+	}
+	if s.totalLogged != 2400 { // Sat's 120 excluded
+		t.Fatalf("totalLogged=%d, want 2400 (weekend logged excluded)", s.totalLogged)
+	}
+	if s.workdays != 5 {
+		t.Fatalf("workdays=%d, want 5", s.workdays)
+	}
+}
+
 // TestIsWeekendDate verifies the weekend-detection helper.
 func TestIsWeekendDate(t *testing.T) {
 	if !isWeekendDate("2026-06-20") { // Saturday

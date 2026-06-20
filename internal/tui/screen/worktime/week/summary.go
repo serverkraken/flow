@@ -29,10 +29,13 @@ func isWeekendDate(date string) bool {
 	return wd == time.Saturday || wd == time.Sunday
 }
 
-// computeWeekSummary aggregates week totals and goal counters. Totals sum all
-// days (day-off/weekend targets are already 0 from the server); workdays/hits/
-// expected count only non-weekend, non-day-off days. "expected" = past workdays
-// plus today if already hit, using the IsToday flag to avoid clock calls.
+// computeWeekSummary aggregates week totals and goal counters. Only Mon–Fri
+// count toward the week (a normal week is 40h = 5×8h); weekends are excluded
+// from both totals entirely — the server still emits a default target for Sat/
+// Sun, so summing all seven days would inflate the week target. Day-off
+// weekdays keep their (server-netted, 0) target in the totals but are not
+// counted as workdays/hits. "expected" = past workdays plus today if already
+// hit, using the IsToday flag to avoid clock calls.
 func computeWeekSummary(days []apiclient.WeekDay, offs map[string]apiclient.DayOff) weekSummary {
 	var s weekSummary
 	todayIdx := -1
@@ -42,11 +45,11 @@ func computeWeekSummary(days []apiclient.WeekDay, offs map[string]apiclient.DayO
 		}
 	}
 	for i, d := range days {
+		if isWeekendDate(d.Date) {
+			continue // weekends never count toward the Mon–Fri week
+		}
 		s.totalLogged += d.LoggedMin
 		s.totalTarget += d.TargetMin
-		if isWeekendDate(d.Date) {
-			continue
-		}
 		if _, off := offs[d.Date]; off {
 			continue
 		}
