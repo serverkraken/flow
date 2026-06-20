@@ -38,9 +38,10 @@ func TestDocs_WindowSizeMsgSizesViewerOverlay(t *testing.T) {
 	}
 }
 
-// Regression: search results render inside a box with single-line, markdown-
-// stripped snippets (no raw `###`, no ragged indentation).
-func TestDocs_SearchResultsAreBoxedAndCleaned(t *testing.T) {
+// Regression: search results render in the SAME kompendium list-row style as the
+// normal docs view (no surrounding box), with single-line, markdown-stripped
+// snippets (no raw `###`, no ragged indentation) as the row excerpt.
+func TestDocs_SearchResultsListStyleAndCleaned(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "t")
 	m.width = 80
 	m.mode = modeSearch
@@ -52,8 +53,8 @@ func TestDocs_SearchResultsAreBoxedAndCleaned(t *testing.T) {
 	}}
 
 	out := stripANSIForTest(m.View().Content)
-	if !strings.Contains(out, "╭") || !strings.Contains(out, "╰") {
-		t.Fatalf("search results should be wrapped in a box:\n%s", out)
+	if strings.Contains(out, "╭") || strings.Contains(out, "╰") {
+		t.Fatalf("search results must NOT be boxed — use the plain list-row look:\n%s", out)
 	}
 	if strings.Contains(out, "###") {
 		t.Fatalf("snippet should drop raw markdown heading markers:\n%s", out)

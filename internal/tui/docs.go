@@ -19,10 +19,10 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/badge"
 	"github.com/serverkraken/flow/internal/tui/ui/chip"
 	"github.com/serverkraken/flow/internal/tui/ui/countbar"
+	"github.com/serverkraken/flow/internal/tui/ui/docrow"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
-	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
 )
 
 // docEditor is the slice of the editor adapter the docs screen needs. Kept as a
@@ -1239,43 +1239,107 @@ func (m DocsModel) renderList(b *strings.Builder) {
 	pager.SetTotalPages(len(visible))
 	pager.Page = m.sel / perPage
 	start, end := pager.GetSliceBounds(len(visible))
+	var rb strings.Builder
 	for i := start; i < end; i++ {
-		m.writeDocRow(b, visible[i], i == m.sel, width)
+		m.writeDocRow(&rb, visible[i], i == m.sel, m.bodyExcerpt(visible[i].Body, width))
 	}
+	// Pad (or clamp) the rows region to a fixed height so the pager + footer
+	// ("bottombar") stay statically pinned to the bottom and do not drift as the
+	// user scrolls between pages of differing content height.
+	rowsStr := rb.String()
+	if target := m.rowsRegionHeight(); target >= 0 {
+		rendered := strings.Count(rowsStr, "\n")
+		if rendered > target {
+			rowsStr = strings.Join(strings.SplitN(rowsStr, "\n", target+1)[:target], "\n")
+			if target > 0 {
+				rowsStr += "\n"
+			}
+			rendered = target
+		}
+		rowsStr += strings.Repeat("\n", target-rendered)
+	}
+	b.WriteString(rowsStr)
 	b.WriteString("\n" + pager.View() + theme.Dim(fmt.Sprintf("  %d/%d", m.sel+1, len(visible)), pal) + "\n")
 }
 
-func (m DocsModel) writeDocRow(b *strings.Builder, d domain.Document, selected bool, width int) {
-	pal := m.pal
-	stripe := "  "
-	if selected {
-		stripe = lipgloss.NewStyle().Foreground(pal.Sem().Active).Render(glyphs.AccentBar) + " "
+// rowsRegionHeight is the fixed line budget for the doc-rows block so the pager
+// and keyhint footer stay pinned to the bottom of the terminal. It mirrors the
+// chrome accounted for in docsPerPage. Returns -1 when the height is unknown
+// (first frame), signalling "render rows as-is, no padding".
+func (m DocsModel) rowsRegionHeight() int {
+	if m.height <= 0 {
+		return -1
 	}
-	labelStyle := lipgloss.NewStyle().Foreground(pal.Fg)
-	if selected {
-		labelStyle = labelStyle.Bold(true)
+	overhead := 9 // countbar(1) + "notizen" spacer(3) + pager block(2) + footer tail(2) + final newline(1)
+	if m.status != "" {
+		overhead++
 	}
-	b.WriteString(stripe +
-		theme.Dim(dateCell(d), pal) + "  " +
-		badgeForType(d.Type, pal) + "  " +
-		labelStyle.Render(projRowLabel(d, m.projByID)) + "\n")
-	for _, line := range docExcerpt(d.Body, width-6, 2) {
-		b.WriteString("   " + theme.Dim(line, pal) + "\n")
+	if m.err != nil {
+		overhead++
 	}
-	b.WriteString("\n")
+	if m.projFilter != "" {
+		overhead++
+	}
+	if len(m.filterTags) > 0 {
+		overhead++
+	}
+	if n := m.height - overhead; n > 0 {
+		return n
+	}
+	return 0
+}
+
+// writeDocRow renders one document row in the kompendium list style: an accent
+// stripe when selected, the date cell, the kind badge, the project/title label,
+// then the given excerpt lines (already styled). The list passes the dimmed body
+// excerpt; the search view passes the highlighted match snippet, so both surfaces
+// share one row look.
+func (m DocsModel) writeDocRow(b *strings.Builder, d domain.Document, selected bool, excerpt []string) {
+	b.WriteString(docrow.Render(docrow.Row{
+		Date:     dateCell(d),
+		Badge:    badgeForType(d.Type, m.pal),
+		Label:    projRowLabel(d, m.projByID),
+		Excerpt:  excerpt,
+		Selected: selected,
+	}, m.pal))
+}
+
+// bodyExcerpt returns the dimmed first lines of a document body for a list row.
+func (m DocsModel) bodyExcerpt(body string, width int) []string {
+	lines := docExcerpt(body, width-6, 2)
+	out := make([]string, len(lines))
+	for i, ln := range lines {
+		out[i] = theme.Dim(ln, m.pal)
+	}
+	return out
 }
 
 func badgeForType(t domain.DocumentType, p theme.Palette) string {
 	return badge.Render(kindcolor.Badge(t), kindcolor.Color(t, p), p)
 }
 
-// docsPerPage derives rows-per-page from the terminal height (each row is ~3
-// lines: header + up to 2 excerpt lines + blank). Falls back to 5 when unknown.
+// docsPerPage derives rows-per-page from the terminal height so the list page,
+// the countbar and the keyhint footer always fit on screen. Each doc row is up
+// to 4 lines (title + up to 2 excerpt lines + a blank). The fixed chrome is the
+// countbar (1), the "notizen" spacer (3), the pager line (2), a trailing blank
+// (1), the footer (1) and the final newline (1) = 9 rows; the optional
+// status/error and active filter lines are reserved when present so they never
+// push the footer below the fold.
 func (m DocsModel) docsPerPage() int {
-	if m.height < 12 {
-		return 5
+	if m.height <= 0 {
+		return 5 // unsized first frame before the first WindowSizeMsg
 	}
-	n := (m.height - 8) / 3
+	overhead := 9
+	if m.status != "" || m.err != nil {
+		overhead++
+	}
+	if m.projFilter != "" {
+		overhead++
+	}
+	if len(m.filterTags) > 0 {
+		overhead++
+	}
+	n := (m.height - overhead) / 4
 	if n < 1 {
 		n = 1
 	}
@@ -1370,37 +1434,69 @@ func (m DocsModel) renderSearch(b *strings.Builder) {
 		return
 	}
 
-	bw := m.width
-	if bw > 80 {
-		bw = 80
-	}
-	if bw < 24 {
-		bw = 72 // standalone fallback before the first WindowSizeMsg
-	}
-	inner := bw - 2    // titlebox interior, between the │ pipes
-	snipW := inner - 4 // snippet column: 1 lead space + 3-space hanging indent
-	if snipW < 8 {
-		snipW = 8
+	width := m.width
+	if width < 20 {
+		width = 80
 	}
 
-	var body strings.Builder
-	for i, h := range m.searchHits {
-		marker := "  "
-		title := h.Title
-		if i == m.searchSel {
-			marker = glyphs.AccentBar + " "
-			title = lipgloss.NewStyle().Foreground(pal.Sem().Accent).Bold(true).Render(h.Title)
-		}
-		body.WriteString(" " + marker + title + theme.Dim("  "+h.Path, pal) + "\n")
-		for _, ln := range wrapSnippet(h.Snippet, snipW, 2, pal) {
-			body.WriteString("   " + ln + "\n")
-		}
-		if i < len(m.searchHits)-1 {
-			body.WriteString("\n")
+	b.WriteString(theme.Heading("Suchen", pal) +
+		theme.Dim(fmt.Sprintf("  /%s  ·  %d Treffer", m.searchQuery, len(m.searchHits)), pal) + "\n\n")
+
+	// Window the hits around the selection so a long result set fits the window
+	// and the footer stays pinned, mirroring the list's paginated rows region.
+	target := m.searchRowsHeight()
+	perPage := 4
+	if target > 0 {
+		if perPage = target / 4; perPage < 1 {
+			perPage = 1
 		}
 	}
-	box := titlebox.Render("Suchen · /"+m.searchQuery, strings.TrimRight(body.String(), "\n"), bw, theme.Default)
-	b.WriteString(box + "\n")
+	start := (m.searchSel / perPage) * perPage
+	end := start + perPage
+	if end > len(m.searchHits) {
+		end = len(m.searchHits)
+	}
+	var rb strings.Builder
+	for i := start; i < end; i++ {
+		// Same row look as the kompendium list, but the excerpt is the matched
+		// snippet (dimmed text with the hit term highlighted) instead of the body.
+		m.writeDocRow(&rb, m.searchHits[i].Document, i == m.searchSel, wrapSnippet(m.searchHits[i].Snippet, width-6, 2, pal))
+	}
+	rowsStr := rb.String()
+	if target >= 0 {
+		rendered := strings.Count(rowsStr, "\n")
+		if rendered > target {
+			rowsStr = strings.Join(strings.SplitN(rowsStr, "\n", target+1)[:target], "\n")
+			if target > 0 {
+				rowsStr += "\n"
+			}
+			rendered = target
+		}
+		rowsStr += strings.Repeat("\n", target-rendered)
+	}
+	b.WriteString(rowsStr)
+	b.WriteString("\n" + theme.Dim(fmt.Sprintf("  %d/%d Treffer", m.searchSel+1, len(m.searchHits)), pal) + "\n")
+}
+
+// searchRowsHeight is the fixed line budget for the search results block so the
+// footer stays pinned to the bottom. Returns -1 when the height is unknown.
+func (m DocsModel) searchRowsHeight() int {
+	if m.height <= 0 {
+		return -1
+	}
+	// top "flow · docs" heading(2) + "Suchen" heading(2) + position line block(2)
+	// + view tail blank+footer(2) + final newline(1) = 9.
+	overhead := 9
+	if m.status != "" {
+		overhead++
+	}
+	if m.err != nil {
+		overhead++
+	}
+	if n := m.height - overhead; n > 0 {
+		return n
+	}
+	return 0
 }
 
 // cleanSnippet collapses a search snippet's whitespace and newlines into a
