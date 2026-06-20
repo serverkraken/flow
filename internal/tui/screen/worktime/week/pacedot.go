@@ -6,6 +6,7 @@ package week
 import (
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/kindcolor"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 )
@@ -43,12 +44,10 @@ func paceGlyph(k paceDotKind) string {
 	return glyphs.Filled
 }
 
-// paceColor maps a pace-dot kind to a theme color. Day-off sub-kinds reuse
-// the semantic slots that match their visual identity per design-system-audit:
-// holiday=Schedule (blue, calendar event), vacation=Highlight (purple,
-// Urlaub-identity per semantic.go comment), sick=Notice (orange, Krank-class).
-// The brief suggested Accent for vacation and Info for holiday; the actual
-// semantic.go slots are more specific — Schedule and Highlight are correct.
+// paceColor maps a pace-dot kind to a theme color. Day-off hues are delegated
+// to kindcolor.DayOffColor so the Frei list and Woche dots share a single
+// source of truth and all 7 kinds (holiday/vacation/sick/flex/special/
+// childsick/training) are covered automatically.
 func paceColor(k paceDotKind, off *apiclient.DayOff, p theme.Palette) theme.Color {
 	sem := p.Sem()
 	switch k {
@@ -58,14 +57,7 @@ func paceColor(k paceDotKind, off *apiclient.DayOff, p theme.Palette) theme.Colo
 		return sem.Active
 	case paceDotDayOff:
 		if off != nil {
-			switch domain.Kind(off.Kind) {
-			case domain.KindHoliday:
-				return sem.Schedule
-			case domain.KindVacation:
-				return sem.Highlight
-			case domain.KindSick:
-				return sem.Notice
-			}
+			return kindcolor.DayOffColor(domain.Kind(off.Kind), p)
 		}
 		return p.FgMuted
 	}

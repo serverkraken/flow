@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/kindcolor"
+	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 )
 
@@ -30,6 +33,17 @@ func TestPaceGlyph(t *testing.T) {
 	for _, k := range []paceDotKind{paceDotHit, paceDotRunning, paceDotDayOff} {
 		if paceGlyph(k) != glyphs.Filled {
 			t.Fatalf("kind %v must use ● (glyphs.Filled)", k)
+		}
+	}
+}
+
+func TestPaceColor_DayOffKindsMatchKindcolor(t *testing.T) {
+	p := theme.Default
+	for _, k := range []string{"holiday", "vacation", "sick", "flex", "special", "childsick", "training"} {
+		off := &apiclient.DayOff{Kind: k}
+		want := kindcolor.DayOffColor(domain.Kind(k), p)
+		if got := paceColor(paceDotDayOff, off, p); got != want {
+			t.Errorf("paceColor(dayoff %q) = %v, want %v", k, got, want)
 		}
 	}
 }
