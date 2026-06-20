@@ -169,3 +169,28 @@ func TestWeekRoute_allNavKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestWeek_StripAndLeftPopsAndHideCrumb(t *testing.T) {
+	reg := wtnav.Registry{
+		"w": func() shell.Route { return week.NewRoute(nil, theme.Default, nil) },
+		"t": func() shell.Route { return stubTitle("Stats") },
+	}
+	r := week.NewRoute(nil, theme.Default, reg)
+	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+		if !strings.Contains(out, l) {
+			t.Fatalf("Woche View missing sub-tab %q", l)
+		}
+	}
+	if !r.HideBreadcrumb() {
+		t.Fatal("Woche must hide breadcrumb")
+	}
+	// ← from Woche pops back to Heute (deterministic, no registry needed).
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if cmd == nil {
+		t.Fatal("← on Woche must emit a command")
+	}
+	if _, ok := cmd().(shell.PopRouteMsg); !ok {
+		t.Fatalf("← on Woche must pop to Heute, got %#v", cmd())
+	}
+}

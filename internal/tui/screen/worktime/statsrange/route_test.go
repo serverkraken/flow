@@ -221,3 +221,28 @@ func TestStatsRoute_sseNonSessionEvent(t *testing.T) {
 		t.Fatal("non-session event should not trigger reload cmd")
 	}
 }
+
+// wocheStub is a minimal Route stub for lateral nav tests in statsrange.
+type wocheStub struct{}
+
+func (wocheStub) Title() string                          { return "Woche" }
+func (wocheStub) Init() tea.Cmd                          { return nil }
+func (wocheStub) Update(tea.Msg) (shell.Route, tea.Cmd) { return wocheStub{}, nil }
+func (wocheStub) View(shell.Frame) string                { return "Woche" }
+func (wocheStub) KeyHints() []keyhint.Hint               { return nil }
+
+func TestStats_StripAndLateralAndHideCrumb(t *testing.T) {
+	reg := wtnav.Registry{"w": func() shell.Route { return wocheStub{} }}
+	r := statsrange.NewRoute(nil, theme.Default, reg)
+	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
+	if !strings.Contains(out, "Stats") || !strings.Contains(out, "Export") {
+		t.Fatalf("Stats View missing strip labels:\n%s", out)
+	}
+	if !r.HideBreadcrumb() {
+		t.Fatal("Stats must hide breadcrumb")
+	}
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft}) // → Woche via reg
+	if cmd == nil {
+		t.Fatal("← on Stats must emit a command")
+	}
+}

@@ -70,6 +70,9 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		}
 		return r, nil
 	case tea.KeyPressMsg:
+		if cmd := wtnav.Lateral(r.reg, wtnav.IdxWoche, m); cmd != nil {
+			return r, cmd
+		}
 		if cmd := navKey(r.reg, m); cmd != nil {
 			return r, cmd
 		}
@@ -78,11 +81,12 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 }
 
 func (r *Route) View(f shell.Frame) string {
+	strip := wtnav.Strip(wtnav.IdxWoche, f.Width, f.Pal) + "\n"
 	if !r.loaded {
-		return theme.Dim("  Woche lädt …", f.Pal)
+		return strip + theme.Dim("  Woche lädt …", f.Pal)
 	}
 	if r.err != nil {
-		return theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
+		return strip + theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
 	}
 	cells := 20
 	var b strings.Builder
@@ -101,14 +105,15 @@ func (r *Route) View(f shell.Frame) string {
 			wtfmt.FormatMin(d.LoggedMin), wtfmt.FormatMin(d.TargetMin))
 		b.WriteString("  " + line + "\n")
 	}
-	return b.String()
+	return strip + b.String()
 }
+
+// HideBreadcrumb implements shell.BreadcrumbHider.
+func (r *Route) HideBreadcrumb() bool { return true }
 
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
-		{Key: "t", Desc: "Stats"},
-		{Key: "d", Desc: "Frei"},
-		{Key: "e", Desc: "Export"},
+		{Key: "←/→", Desc: "Bereich"},
 		{Key: "esc", Desc: "zurück"},
 	}
 }
