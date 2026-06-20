@@ -43,11 +43,6 @@ func paceGlyph(k paceDotKind) string {
 	return glyphs.Filled
 }
 
-// paceColor is consumed by the Woche route view (see route.go) to color each
-// Mon–Fri dot. The blank assignment below keeps the linter happy while the
-// caller is being wired up in the next task.
-var _ = paceColor
-
 // paceColor maps a pace-dot kind to a theme color. Day-off sub-kinds reuse
 // the semantic slots that match their visual identity per design-system-audit:
 // holiday=Schedule (blue, calendar event), vacation=Highlight (purple,

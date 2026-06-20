@@ -110,15 +110,27 @@ func (r *Route) View(f shell.Frame) string {
 		if d.IsToday {
 			marker = theme.Active(glyphs.Active, f.Pal) + " "
 		}
-		pct := 0
-		if d.TargetMin > 0 {
-			pct = d.LoggedMin * 100 / d.TargetMin
+		var detail string
+		if off, ok := r.offs[d.Date]; ok {
+			label := off.Label
+			if label == "" {
+				label = off.Kind
+			}
+			detail = theme.Dim(label, f.Pal)
+		} else if isWeekendDate(d.Date) {
+			detail = theme.Dim("Wochenende", f.Pal)
+		} else {
+			pct := 0
+			if d.TargetMin > 0 {
+				pct = d.LoggedMin * 100 / d.TargetMin
+			}
+			detail = fmt.Sprintf("%s  %s / %s",
+				statusbar.Bar(pct, cells, f.Pal),
+				wtfmt.FormatMin(d.LoggedMin), wtfmt.FormatMin(d.TargetMin))
 		}
-		line := fmt.Sprintf("%s%s  %s  %s / %s",
-			marker, d.Date, statusbar.Bar(pct, cells, f.Pal),
-			wtfmt.FormatMin(d.LoggedMin), wtfmt.FormatMin(d.TargetMin))
-		b.WriteString("  " + line + "\n")
+		b.WriteString("  " + marker + d.Date + "  " + detail + "\n")
 	}
+	b.WriteString(r.renderSummary(f.Width))
 	return strip + b.String()
 }
 
