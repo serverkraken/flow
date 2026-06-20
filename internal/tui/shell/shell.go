@@ -286,10 +286,34 @@ func (s Shell) View() tea.View {
 	if crumbs != "" {
 		parts = append(parts, crumbs)
 	}
-	parts = append(parts, body, footer)
+	// Normalize the body to exactly contentH rows so the footer is always pinned
+	// to the bottom of the terminal — routes that underfill their height budget
+	// (Home/Woche/Stats/Frei/Export ignore Frame.Height; Today underfills when
+	// sessions are few) must not leave the footer floating mid-screen, and a
+	// route that overfills must not push it off the bottom.
+	parts = append(parts, fitVertical(body, contentH), footer)
 	v := tea.NewView(strings.Join(parts, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+// fitVertical normalizes body to exactly h terminal rows — padding with blank
+// rows below (content stays top-aligned) or truncating extra rows. This keeps
+// the shell footer pinned to the bottom regardless of how tall the active route
+// renders. Self-windowing routes (Today, Docs) already return <= h rows, so they
+// are only padded, never clipped.
+func fitVertical(body string, h int) string {
+	if h <= 0 {
+		return ""
+	}
+	lines := strings.Split(body, "\n")
+	if len(lines) > h {
+		lines = lines[:h]
+	}
+	for len(lines) < h {
+		lines = append(lines, "")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s Shell) renderHelp() string {
