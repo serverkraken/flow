@@ -1305,7 +1305,13 @@ func (m DocsModel) writeDocRow(b *strings.Builder, d domain.Document, selected b
 }
 
 // bodyExcerpt returns the dimmed first lines of a document body for a list row.
+// The YAML frontmatter is stripped first so the preview shows the actual content
+// rather than dumping id/type/project/date — which the date cell, badge and title
+// already display.
 func (m DocsModel) bodyExcerpt(body string, width int) []string {
+	if _, start := domain.ParseFrontmatter(body); start > 0 {
+		body = body[start:]
+	}
 	lines := docExcerpt(body, width-6, 2)
 	out := make([]string, len(lines))
 	for i, ln := range lines {

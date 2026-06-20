@@ -1258,6 +1258,19 @@ func TestDocs_RenderViewSkipsFrontmatter(t *testing.T) {
 	}
 }
 
+func TestDocs_BodyExcerptSkipsFrontmatter(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
+	body := "---\nid: projects/x\ntype: project\nproject: x\ndate: \"2026-06-19\"\n---\nhello body content"
+	lines := m.bodyExcerpt(body, 80)
+	joined := strings.Join(lines, " ")
+	if strings.Contains(joined, "type:") || strings.Contains(joined, "project:") {
+		t.Fatalf("frontmatter leaked into list excerpt: %q", joined)
+	}
+	if !strings.Contains(joined, "hello") {
+		t.Fatalf("body missing from excerpt: %q", joined)
+	}
+}
+
 func TestDocs_SearchInputAndRun(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "u")
 	m2, _ := m.Update(tea.KeyPressMsg{Text: "/"})
