@@ -527,7 +527,7 @@ func TestDayDetail_EditPreservesNote(t *testing.T) {
 	r = press(t, r, keyTab()) // → Notiz
 
 	// Enter on Notiz submits.
-	r = press(t, r, keyEnter())
+	press(t, r, keyEnter())
 
 	if f.editCalls != 1 {
 		t.Fatalf("EditSession calls = %d, want 1", f.editCalls)
