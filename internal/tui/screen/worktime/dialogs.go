@@ -72,11 +72,11 @@ func (r *TodayRoute) handleDialogKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 }
 
 func (r *TodayRoute) handleBookingKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
-	switch {
-	case k.Code == tea.KeyEsc:
+	switch k.Code {
+	case tea.KeyEsc:
 		r.dialog = dialogNone
 		return r, nil
-	case k.Code == tea.KeyEnter:
+	case tea.KeyEnter:
 		it, isCreate, ok := r.booking.list.Selection()
 		if !ok {
 			return r, nil

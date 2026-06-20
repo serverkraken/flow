@@ -850,11 +850,11 @@ func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m DocsModel) handleProjectFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case k.Code == tea.KeyEsc:
+	switch k.Code {
+	case tea.KeyEsc:
 		m.mode = modeList
 		return m, nil
-	case k.Code == tea.KeyEnter:
+	case tea.KeyEnter:
 		if it, _, ok := m.projList.Selection(); ok {
 			m.projFilter = it.ID // "" = Alle Projekte
 		}
