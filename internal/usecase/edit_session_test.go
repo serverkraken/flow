@@ -40,3 +40,45 @@ func TestEditSession(t *testing.T) {
 		t.Fatal("foreign edit should fail")
 	}
 }
+
+func TestEditSession_RejectsOverlap(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	// existing other session 09:00–11:00
+	aStop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "a", OwnerID: "u1",
+		Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &aStop}); err != nil {
+		t.Fatalf("seed a: %v", err)
+	}
+	// session under edit, currently 13:00–14:00
+	bStop := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "b", OwnerID: "u1",
+		Start: time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC), Stop: &bStop}); err != nil {
+		t.Fatalf("seed b: %v", err)
+	}
+	uc := usecase.EditSession{Sessions: ss}
+	// move b onto a → overlap
+	newStart := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	newStop := time.Date(2026, 6, 15, 10, 30, 0, 0, time.UTC)
+	if _, err := uc.Execute(ctx, "u1", "b", usecase.EditSessionInput{Start: newStart, Stop: &newStop}); !errors.Is(err, domain.ErrOverlap) {
+		t.Fatalf("want ErrOverlap, got %v", err)
+	}
+}
+
+func TestEditSession_NoSelfOverlap(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	bStop := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "b", OwnerID: "u1",
+		Start: time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC), Stop: &bStop}); err != nil {
+		t.Fatalf("seed b: %v", err)
+	}
+	uc := usecase.EditSession{Sessions: ss}
+	// edit b's note but keep overlapping times — must NOT report self-overlap
+	if _, err := uc.Execute(ctx, "u1", "b", usecase.EditSessionInput{
+		Note:  "updated",
+		Start: time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC), Stop: &bStop,
+	}); err != nil {
+		t.Fatalf("self-edit should succeed, got %v", err)
+	}
+}
