@@ -117,6 +117,17 @@ func TestBackfillSession_MixedTimestamps400(t *testing.T) {
 	}
 }
 
+func TestBackfillSession_StopOnly400(t *testing.T) {
+	// Symmetric XOR case: providing only stop (no start) must also return 400.
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"stop": "2026-06-15T10:00:00Z"})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("stop-only status = %d, want 400", res.StatusCode)
+	}
+}
+
 func TestLiveStart_StillWorks(t *testing.T) {
 	srv, _ := newWorktimeServer(t)
 	ts := httptest.NewServer(srv.Routes())

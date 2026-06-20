@@ -78,6 +78,36 @@ func TestEditSession_NotFound(t *testing.T) {
 	}
 }
 
+func TestEditSession_OverlapWithRunningOutsideWindow(t *testing.T) {
+	// Regression: a running session (Stop==nil) that started more than 24h before
+	// the edited session's target day is not returned by ListRange, so without the
+	// explicit Running() check HasOverlap would miss it.
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	// Running session "r" started 2026-06-12 08:00 — well outside the ListRange window.
+	if _, err := ss.Create(ctx, domain.WorkSession{
+		ID: "r", OwnerID: "u1",
+		Start: time.Date(2026, 6, 12, 8, 0, 0, 0, time.UTC), Stop: nil,
+	}); err != nil {
+		t.Fatalf("seed running: %v", err)
+	}
+	// Session "b" currently at 13:00–14:00 on 2026-06-15.
+	bStop := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
+	if _, err := ss.Create(ctx, domain.WorkSession{
+		ID: "b", OwnerID: "u1",
+		Start: time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC), Stop: &bStop,
+	}); err != nil {
+		t.Fatalf("seed b: %v", err)
+	}
+	uc := usecase.EditSession{Sessions: ss}
+	// Edit "b" into 09:00–10:00 — inside the interval spanned by the running session "r".
+	newStart := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	newStop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := uc.Execute(ctx, "u1", "b", usecase.EditSessionInput{Start: newStart, Stop: &newStop}); !errors.Is(err, domain.ErrOverlap) {
+		t.Fatalf("want ErrOverlap (running session spans target interval), got %v", err)
+	}
+}
+
 func TestEditSession_NoSelfOverlap(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()

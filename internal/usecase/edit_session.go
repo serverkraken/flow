@@ -37,6 +37,15 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
+	// Also include any running session (Stop == nil): it may have started outside
+	// the ListRange window but its interval is [start, +inf) and can still overlap
+	// the candidate. The existing excludeID safely prevents self-collision because
+	// a running session being edited carries a different id than id.
+	if run, ok, rerr := uc.Sessions.Running(ctx, ownerID); rerr != nil {
+		return domain.WorkSession{}, rerr
+	} else if ok {
+		existing = append(existing, run)
+	}
 	if domain.HasOverlap(existing, in.Start, in.Stop, id) {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}

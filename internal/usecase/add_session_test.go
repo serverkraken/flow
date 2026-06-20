@@ -85,3 +85,25 @@ func TestAddSession_Overlap(t *testing.T) {
 		t.Fatalf("want ErrOverlap, got %v", err)
 	}
 }
+
+func TestAddSession_OverlapWithRunningOutsideWindow(t *testing.T) {
+	// Regression: a running session (Stop==nil) that started more than 24h before
+	// the candidate day is not returned by ListRange (start_at filter), so without
+	// the explicit Running() check HasOverlap would miss it.
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	// Running session started on 2026-06-12 08:00 — more than 24h before candidate day.
+	if _, err := ss.Create(ctx, domain.WorkSession{
+		ID: "running", OwnerID: "u1",
+		Start: time.Date(2026, 6, 12, 8, 0, 0, 0, time.UTC), Stop: nil,
+	}); err != nil {
+		t.Fatalf("seed running session: %v", err)
+	}
+	now := time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)
+	uc := newAddSession(ss, now)
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrOverlap) {
+		t.Fatalf("want ErrOverlap (running session spans candidate), got %v", err)
+	}
+}

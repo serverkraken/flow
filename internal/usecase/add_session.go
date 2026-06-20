@@ -36,6 +36,14 @@ func (uc AddSession) Execute(ctx context.Context, ownerID string, projectID *str
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
+	// Also include any running session (Stop == nil): it may have started outside
+	// the ListRange window but its interval is [start, +inf) and can still overlap
+	// the candidate. ListRange filters on start_at only, so it would miss it.
+	if run, ok, rerr := uc.Sessions.Running(ctx, ownerID); rerr != nil {
+		return domain.WorkSession{}, rerr
+	} else if ok {
+		existing = append(existing, run)
+	}
 	if domain.HasOverlap(existing, start, &stop, "") {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}
