@@ -45,6 +45,19 @@ func (s stubTitle) Update(tea.Msg) (shell.Route, tea.Cmd) { return s, nil }
 func (s stubTitle) View(shell.Frame) string                { return string(s) }
 func (s stubTitle) KeyHints() []keyhint.Hint               { return nil }
 
+func TestWeek_KeyHintsAdvertiseExport(t *testing.T) {
+	r := week.NewRoute(nil, theme.Default, nil)
+	found := false
+	for _, h := range r.KeyHints() {
+		if h.Key == "e" && h.Desc == "Export" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("Woche KeyHints must advertise {e, Export} now that Export left the strip")
+	}
+}
+
 func TestWeekRoute_rendersDays(t *testing.T) {
 	api := fakeAPI{days: []apiclient.WeekDay{
 		{Date: "2026-06-15", LoggedMin: 480, TargetMin: 480, Workday: true},

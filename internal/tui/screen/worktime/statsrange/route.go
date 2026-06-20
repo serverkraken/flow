@@ -149,6 +149,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		{Key: "m/W", Desc: "Monat/KW"},
 		{Key: "←/→", Desc: "Bereich"},
+		{Key: "e", Desc: "Export"},
 		{Key: "esc", Desc: "zurück"},
 	}
 }

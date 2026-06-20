@@ -235,6 +235,7 @@ func (r *TodayRoute) KeyHints() []keyhint.Hint {
 		hints = append(hints, keyhint.Hint{Key: "enter", Desc: "bearbeiten"})
 	}
 	hints = append(hints, keyhint.Hint{Key: "←/→", Desc: "Bereich"})
+	hints = append(hints, keyhint.Hint{Key: "e", Desc: "Export"})
 	hints = append(hints, keyhint.Hint{Key: "?", Desc: "Hilfe"})
 	return hints
 }
