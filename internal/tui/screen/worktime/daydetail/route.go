@@ -65,7 +65,7 @@ func NewRoute(api API, pal theme.Palette, day time.Time) *Route {
 
 // Title returns the route breadcrumb label.
 func (r *Route) Title() string {
-	return "Tag · " + r.day.Format("02.01.2006")
+	return "Tag · " + r.day.Format("Mon 02.01.")
 }
 
 // CapturesText keeps Esc/q inside an open dialog (so they cancel the dialog
@@ -245,7 +245,7 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		if grammar.Back.Matches(m) {
 			return r, func() tea.Msg { return shell.PopRouteMsg{} }
 		}
-		if m.Text == "n" {
+		if grammar.Nachbuchen.Matches(m) {
 			// Open Nachbuchen: load projects first (or use cache).
 			if len(r.projects) > 0 {
 				r.nachb = openNachbuchen(r.pal, r.projects)
@@ -378,7 +378,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 	}
 	return []keyhint.Hint{
 		grammar.MoveUp.Hint(),
-		{Key: "n", Desc: "Nachbuchen"},
+		grammar.Nachbuchen.Hint(),
 		grammar.Edit.Hint(),
 		grammar.Delete.Hint(),
 		{Key: "esc", Desc: "zurück"},
