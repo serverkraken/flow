@@ -111,14 +111,38 @@ func TestRoute_CursorMoves(t *testing.T) {
 	f := &fakeAPI{}
 	r := newTestRoute(f)
 	r.st = todayState{Completed: make([]completedSession, 3)}
-	r.applyKey("j")
-	if r.cursor != 1 {
-		t.Fatalf("cursor j = %d", r.cursor)
+	// Down moves cursor forward.
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if r2.(*TodayRoute).cursor != 1 {
+		t.Fatalf("cursor Down = %d, want 1", r2.(*TodayRoute).cursor)
 	}
-	r.applyKey("k")
-	r.applyKey("k")
-	if r.cursor != 2 {
-		t.Fatalf("cursor wrap = %d", r.cursor)
+	// Down again moves to 2.
+	r3, _ := r2.(*TodayRoute).Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if r3.(*TodayRoute).cursor != 2 {
+		t.Fatalf("cursor Down again = %d, want 2", r3.(*TodayRoute).cursor)
+	}
+	// Down at last item clamps (no wrap to 0).
+	r4, _ := r3.(*TodayRoute).Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if r4.(*TodayRoute).cursor != 2 {
+		t.Fatalf("cursor Down at bottom = %d, want 2 (no wrap)", r4.(*TodayRoute).cursor)
+	}
+}
+
+func TestToday_ArrowsClampNoWrap(t *testing.T) {
+	r := newTestRoute(&fakeAPI{})
+	r.st = todayState{Completed: make([]completedSession, 3)}
+	r.loaded = true
+
+	// Up at index 0 must clamp (no wrap to last item).
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if r2.(*TodayRoute).cursor != 0 {
+		t.Fatalf("Up at top must clamp (no wrap): cursor=%d, want 0", r2.(*TodayRoute).cursor)
+	}
+
+	// 'j' must no longer navigate.
+	r3, _ := r.Update(tea.KeyPressMsg{Text: "j"})
+	if r3.(*TodayRoute).cursor != 0 {
+		t.Fatalf("'j' must not move: cursor=%d, want 0", r3.(*TodayRoute).cursor)
 	}
 }
 

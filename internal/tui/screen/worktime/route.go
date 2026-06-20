@@ -12,6 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	"github.com/serverkraken/flow/internal/tui/ui/toast"
 )
 
@@ -175,15 +176,11 @@ func (r *TodayRoute) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 	if r.dialog != dialogNone {
 		return r.handleDialogKey(k)
 	}
+	if cur, ok := listnav.New().Set(r.cursor, len(r.st.Completed)).Handle(k, len(r.st.Completed), 5); ok {
+		r.cursor = cur.Index()
+		return r, nil
+	}
 	switch {
-	case k.Text == "j" || k.Code == tea.KeyDown:
-		r.applyKey("j")
-	case k.Text == "k" || k.Code == tea.KeyUp:
-		r.applyKey("k")
-	case k.Text == "g":
-		r.cursor = 0
-	case k.Text == "G":
-		r.cursor = max(0, len(r.st.Completed)-1)
 	case k.Text == "w" || k.Text == "t" || k.Text == "d" || k.Text == "e":
 		return r, r.reg.Nav(k.Text)
 	case k.Text == "s":
@@ -194,20 +191,6 @@ func (r *TodayRoute) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		return r.openDelete()
 	}
 	return r, nil
-}
-
-func (r *TodayRoute) applyKey(key string) {
-	n := len(r.st.Completed)
-	if n == 0 {
-		r.cursor = 0
-		return
-	}
-	switch key {
-	case "j":
-		r.cursor = (r.cursor + 1) % n
-	case "k":
-		r.cursor = (r.cursor + n - 1) % n
-	}
 }
 
 func (r *TodayRoute) View(f shell.Frame) string {
@@ -238,7 +221,7 @@ func (r *TodayRoute) KeyHints() []keyhint.Hint {
 	} else {
 		hints = append(hints, keyhint.Hint{Key: "s", Desc: "starten"})
 	}
-	hints = append(hints, keyhint.Hint{Key: "j/k", Desc: "bewegen"})
+	hints = append(hints, keyhint.Hint{Key: "↑/↓", Desc: "bewegen"})
 	if len(r.st.Completed) > 0 {
 		hints = append(hints, keyhint.Hint{Key: "enter", Desc: "bearbeiten"})
 	}
