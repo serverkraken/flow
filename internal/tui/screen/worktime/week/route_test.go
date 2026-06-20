@@ -17,6 +17,9 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
+// keyEnter returns a tea.KeyPressMsg for the Enter key.
+func keyEnter() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyEnter} }
+
 type fakeAPI struct {
 	days []apiclient.WeekDay
 	err  error
@@ -27,6 +30,11 @@ func (f fakeAPI) GetWeek(_ context.Context, _ string) ([]apiclient.WeekDay, erro
 }
 
 func (f fakeAPI) ListDayOffs(_ context.Context, _, _ string) ([]apiclient.DayOff, error) {
+	return nil, nil
+}
+
+// ListSessionsRange makes fakeAPI satisfy daydetail.API so enter-push works in tests.
+func (f fakeAPI) ListSessionsRange(_ context.Context, _, _ time.Time) ([]domain.WorkSession, error) {
 	return nil, nil
 }
 
@@ -391,5 +399,43 @@ func TestWeekRoute_CursorMovesAndClamps(t *testing.T) {
 	}
 	if got := wr.SelectedIndex(); got != 0 {
 		t.Fatalf("cursor clamped top = %d, want 0", got)
+	}
+}
+
+// TestWeekRoute_EnterPushesDayDetail verifies that pressing enter on a day row
+// returns a shell.PushRouteMsg carrying a daydetail route for that day.
+func TestWeekRoute_EnterPushesDayDetail(t *testing.T) {
+	// newLoadedWeekRoute loads 5 rows; row 0 is "2026-06-16".
+	r := newLoadedWeekRoute(t)
+
+	_, cmd := r.Update(keyEnter())
+	if cmd == nil {
+		t.Fatal("enter on day row produced no command")
+	}
+	msg := cmd()
+	push, ok := msg.(shell.PushRouteMsg)
+	if !ok {
+		t.Fatalf("enter msg = %T, want shell.PushRouteMsg", msg)
+	}
+	if push.Route == nil {
+		t.Fatal("pushed route is nil")
+	}
+	// Row 0 is "2026-06-16"; title should contain "16".
+	if !strings.Contains(push.Route.Title(), "16") {
+		t.Fatalf("pushed route title = %q, want day 16 from date 2026-06-16", push.Route.Title())
+	}
+}
+
+// TestWeekRoute_EnterHintAdvertised verifies KeyHints includes "enter" → "Tag öffnen".
+func TestWeekRoute_EnterHintAdvertised(t *testing.T) {
+	r := week.NewRoute(fakeAPI{}, theme.Default, wtnav.Registry{})
+	found := false
+	for _, h := range r.KeyHints() {
+		if h.Key == "enter" && h.Desc == "Tag öffnen" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("KeyHints must advertise {enter, Tag öffnen}")
 	}
 }

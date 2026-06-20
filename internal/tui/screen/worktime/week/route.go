@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/tui/screen/worktime/daydetail"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtnav"
 	"github.com/serverkraken/flow/internal/tui/shell"
@@ -38,6 +39,7 @@ type loadedMsg struct {
 // Route renders the current week. It reloads on session.* SSE events.
 type Route struct {
 	api    API
+	ddapi  daydetail.API  // nil when api does not satisfy daydetail.API (e.g. test stubs)
 	pal    theme.Palette
 	reg    wtnav.Registry
 	days   []apiclient.WeekDay
@@ -49,8 +51,14 @@ type Route struct {
 }
 
 // NewRoute builds the Woche route. reg drives lateral w/t/d/e navigation.
+// If api also satisfies daydetail.API (e.g. *apiclient.Client), enter on a day
+// row will push the daydetail route; otherwise enter is a no-op.
 func NewRoute(api API, pal theme.Palette, reg wtnav.Registry) *Route {
-	return &Route{api: api, pal: pal, reg: reg, cur: listnav.New()}
+	var dd daydetail.API
+	if da, ok := api.(daydetail.API); ok {
+		dd = da
+	}
+	return &Route{api: api, ddapi: dd, pal: pal, reg: reg, cur: listnav.New()}
 }
 
 // SelectedIndex returns the index of the currently selected day row.
@@ -118,6 +126,14 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 				return r, r.loadCmd()
 			}
 			return r, nil // clamp: no future weeks
+		case grammar.Open.Matches(m) && len(r.days) > 0 && r.ddapi != nil:
+			d := r.days[r.cur.Index()]
+			day, err := time.ParseInLocation("2006-01-02", d.Date, time.Local)
+			if err != nil {
+				return r, nil
+			}
+			child := daydetail.NewRoute(r.ddapi, r.pal, day)
+			return r, func() tea.Msg { return shell.PushRouteMsg{Route: child} }
 		}
 		if cmd := wtnav.Lateral(r.reg, wtnav.IdxWoche, m); cmd != nil {
 			return r, cmd
@@ -217,6 +233,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 		{Key: "←/→", Desc: "Bereich"},
 		grammar.WeekPrev.Hint(),
 		grammar.WeekNext.Hint(),
+		{Key: "enter", Desc: "Tag öffnen"},
 		{Key: "e", Desc: "Export"},
 		{Key: "esc", Desc: "zurück"},
 	}
