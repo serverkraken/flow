@@ -214,3 +214,58 @@ func TestWeek_StripAndLeftPopsAndHideCrumb(t *testing.T) {
 		t.Fatalf("← on Woche must pop to Heute, got %#v", cmd())
 	}
 }
+
+// keyDown / keyUp build tea.KeyPressMsg for arrow key navigation.
+func keyDown() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyDown} }
+func keyUp() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: tea.KeyUp} }
+
+// newLoadedWeekRoute constructs a *week.Route and feeds it a loadedMsg with
+// 5 day rows so cursor movement can be tested without a real server.
+func newLoadedWeekRoute(t *testing.T) *week.Route {
+	t.Helper()
+	days := []apiclient.WeekDay{
+		{Date: "2026-06-16", LoggedMin: 480, TargetMin: 480, Workday: true},
+		{Date: "2026-06-17", LoggedMin: 240, TargetMin: 480, Workday: true},
+		{Date: "2026-06-18", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-19", LoggedMin: 60, TargetMin: 480, IsToday: true, Workday: true},
+		{Date: "2026-06-20", LoggedMin: 0, TargetMin: 0, Workday: false},
+	}
+	api := fakeAPI{days: days}
+	r := week.NewRoute(api, theme.Default, wtnav.Registry{})
+	// Drain Init to populate days via the loadedMsg.
+	r2 := drain(r, r.Init())
+	wr, ok := r2.(*week.Route)
+	if !ok {
+		t.Fatalf("drain returned %T, want *week.Route", r2)
+	}
+	return wr
+}
+
+func TestWeekRoute_CursorMovesAndClamps(t *testing.T) {
+	r := newLoadedWeekRoute(t)
+	// down twice
+	r2, _ := r.Update(keyDown())
+	wr, ok := r2.(*week.Route)
+	if !ok {
+		t.Fatalf("Update returned %T, want *week.Route", r2)
+	}
+	wr2, _ := wr.Update(keyDown())
+	wr, ok = wr2.(*week.Route)
+	if !ok {
+		t.Fatalf("Update returned %T, want *week.Route", wr2)
+	}
+	if got := wr.SelectedIndex(); got != 2 {
+		t.Fatalf("cursor after 2×down = %d, want 2", got)
+	}
+	// up past top clamps at 0
+	for i := 0; i < 5; i++ {
+		x, _ := wr.Update(keyUp())
+		wr, ok = x.(*week.Route)
+		if !ok {
+			t.Fatalf("Update returned %T, want *week.Route", x)
+		}
+	}
+	if got := wr.SelectedIndex(); got != 0 {
+		t.Fatalf("cursor clamped top = %d, want 0", got)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
@@ -17,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	"github.com/serverkraken/flow/internal/tui/ui/statusbar"
 )
 
@@ -39,14 +41,19 @@ type Route struct {
 	reg    wtnav.Registry
 	days   []apiclient.WeekDay
 	offs   map[string]apiclient.DayOff
+	cur    listnav.Cursor // selected day index (clamped, arrows/Home/End/PgUp/PgDn)
 	loaded bool
 	err    error
 }
 
 // NewRoute builds the Woche route. reg drives lateral w/t/d/e navigation.
 func NewRoute(api API, pal theme.Palette, reg wtnav.Registry) *Route {
-	return &Route{api: api, pal: pal, reg: reg}
+	return &Route{api: api, pal: pal, reg: reg, cur: listnav.New()}
 }
+
+// SelectedIndex returns the index of the currently selected day row.
+// It is used by View and exposed for testing.
+func (r *Route) SelectedIndex() int { return r.cur.Index() }
 
 func (r *Route) Title() string { return "Woche" }
 
@@ -77,6 +84,7 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		for _, o := range m.offs {
 			r.offs[o.Day] = o
 		}
+		r.cur = r.cur.Clamp(len(r.days))
 		return r, nil
 	case shell.EventMsg:
 		if isSessionEvent(m.Ev.Type) {
@@ -84,6 +92,10 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		}
 		return r, nil
 	case tea.KeyPressMsg:
+		if c, ok := r.cur.Handle(m, len(r.days), 0); ok {
+			r.cur = c
+			return r, nil
+		}
 		if cmd := wtnav.Lateral(r.reg, wtnav.IdxWoche, m); cmd != nil {
 			return r, cmd
 		}
@@ -103,12 +115,25 @@ func (r *Route) View(f shell.Frame) string {
 		return strip + theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
 	}
 	cells := 20
+	sem := f.Pal.Sem()
+	selBarStyle := lipgloss.NewStyle().Foreground(sem.Accent)
+	selLabelStyle := lipgloss.NewStyle().Foreground(f.Pal.Fg).Bold(true)
+	defLabelStyle := lipgloss.NewStyle().Foreground(f.Pal.Fg)
 	var b strings.Builder
 	b.WriteString("\n")
-	for _, d := range r.days {
-		marker := "  "
+	for i, d := range r.days {
+		selected := i == r.cur.Index()
+		// Left edge: selection bar (▎) for cursor row, space otherwise.
+		// IsToday marker (▶) is shown independently of the cursor.
+		var selBar string
+		if selected {
+			selBar = selBarStyle.Render(glyphs.AccentBar)
+		} else {
+			selBar = " "
+		}
+		todayMarker := " "
 		if d.IsToday {
-			marker = theme.Active(glyphs.Active, f.Pal) + " "
+			todayMarker = theme.Active(glyphs.Active, f.Pal)
 		}
 		var detail string
 		if off, ok := r.offs[d.Date]; ok {
@@ -128,7 +153,13 @@ func (r *Route) View(f shell.Frame) string {
 				statusbar.Bar(pct, cells, f.Pal),
 				wtfmt.FormatMin(d.LoggedMin), wtfmt.FormatMin(d.TargetMin))
 		}
-		b.WriteString("  " + marker + d.Date + "  " + detail + "\n")
+		var dateStr string
+		if selected {
+			dateStr = selLabelStyle.Render(d.Date)
+		} else {
+			dateStr = defLabelStyle.Render(d.Date)
+		}
+		b.WriteString(" " + selBar + " " + todayMarker + " " + dateStr + "  " + detail + "\n")
 	}
 	b.WriteString(r.renderSummary(f.Width))
 	return strip + b.String()
