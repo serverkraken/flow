@@ -3,9 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/serverkraken/flow/internal/tui"
+	"github.com/serverkraken/flow/internal/tui/screen/worktime"
+	"github.com/serverkraken/flow/internal/tui/shell"
+	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +28,11 @@ func worktimeCmd() *cobra.Command {
 				defer func() { _ = logf.Close() }()
 				os.Stderr = logf
 			}
-			m := tui.New(client, os.Getenv("USER"))
+			pal := theme.Load()
+			m := shell.New(client, os.Getenv("USER"), pal).
+				WithTabs([]shell.Route{
+					worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
+				})
 			_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
 			return err
 		},
