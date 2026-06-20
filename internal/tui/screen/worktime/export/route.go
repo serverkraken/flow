@@ -284,8 +284,11 @@ func (r *Route) View(f shell.Frame) string {
 	if r.status != "" {
 		b.WriteString("\n  " + theme.Dim(r.status, f.Pal) + "\n")
 	}
-	return b.String()
+	return wtnav.Strip(wtnav.IdxExport, f.Width, f.Pal) + "\n" + b.String()
 }
+
+// HideBreadcrumb implements shell.BreadcrumbHider.
+func (r *Route) HideBreadcrumb() bool { return true }
 
 // KeyHints returns the key hints for the export form.
 func (r *Route) KeyHints() []keyhint.Hint {
@@ -294,6 +297,7 @@ func (r *Route) KeyHints() []keyhint.Hint {
 		{Key: "←/→", Desc: "wählen"},
 		{Key: "enter", Desc: "export"},
 		{Key: "esc", Desc: "zurück"},
+		{Key: "w/t/d/e", Desc: "Bereich"},
 	}
 }
 

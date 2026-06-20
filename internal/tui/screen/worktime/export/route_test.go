@@ -438,3 +438,25 @@ func TestExportRoute_calendarShownWhenDateFocused(t *testing.T) {
 		t.Fatalf("calendar grid should show when a date field is focused:\n%s", body)
 	}
 }
+
+func TestExport_StripAndHideCrumbAndArrowsStillEditDate(t *testing.T) {
+	r := export.NewRoute(nil, time.Now, theme.Default, nil)
+	out := r.View(shell.Frame{Width: 200, Height: 24, Pal: theme.Default})
+	for _, l := range []string{"Heute", "Woche", "Stats", "Frei", "Export"} {
+		if !strings.Contains(out, l) {
+			t.Fatalf("Export View missing sub-tab %q", l)
+		}
+	}
+	if !r.HideBreadcrumb() {
+		t.Fatal("Export must hide breadcrumb")
+	}
+	// ←/→ must NOT switch sub-tabs on Export (it edits the date/field). With a
+	// nil registry, a sub-tab switch would have been a no-op anyway; assert the
+	// route does not return a SwitchRouteMsg/PopRouteMsg for ←.
+	_, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if cmd != nil {
+		if m := cmd(); func() bool { _, a := m.(shell.SwitchRouteMsg); _, b := m.(shell.PopRouteMsg); return a || b }() {
+			t.Fatalf("← on Export must not switch sub-tabs, got %#v", m)
+		}
+	}
+}
