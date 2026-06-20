@@ -71,4 +71,6 @@ var (
 	Search   = Binding{ID: "search", Keys: []Key{Rune("/")}, KeyLabel: "/", Desc: "suchen"}
 	Help     = Binding{ID: "help", Keys: []Key{Rune("?")}, KeyLabel: "?", Desc: "Hilfe"}
 	NextTab  = Binding{ID: "tab.next", Keys: []Key{Special(tea.KeyTab)}, KeyLabel: "tab", Desc: "wechseln"}
+	WeekPrev = Binding{ID: "week.prev", Keys: []Key{Rune("[")}, KeyLabel: "[", Desc: "Woche zurück"}
+	WeekNext = Binding{ID: "week.next", Keys: []Key{Rune("]")}, KeyLabel: "]", Desc: "Woche vor"}
 )

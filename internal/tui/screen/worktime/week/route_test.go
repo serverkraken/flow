@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -218,6 +219,129 @@ func TestWeek_StripAndLeftPopsAndHideCrumb(t *testing.T) {
 // keyDown / keyUp build tea.KeyPressMsg for arrow key navigation.
 func keyDown() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyDown} }
 func keyUp() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: tea.KeyUp} }
+
+// keyRune builds a KeyPressMsg for a printable rune key.
+func keyRune(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Text: string(r)} }
+
+// trackingWeekAPI records the last ref passed to GetWeek and detects positive offset usage.
+type trackingWeekAPI struct {
+	lastRef   string
+	callCount int
+}
+
+func (f *trackingWeekAPI) GetWeek(_ context.Context, ref string) ([]apiclient.WeekDay, error) {
+	f.callCount++
+	f.lastRef = ref
+	// Return a fixed 7-day week for any ref.
+	return []apiclient.WeekDay{
+		{Date: "2026-06-15", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-16", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-17", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-18", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-19", LoggedMin: 0, TargetMin: 480, Workday: true},
+		{Date: "2026-06-20", LoggedMin: 0, TargetMin: 0, Workday: false},
+		{Date: "2026-06-21", LoggedMin: 0, TargetMin: 0, Workday: false},
+	}, nil
+}
+
+func (f *trackingWeekAPI) ListDayOffs(_ context.Context, _, _ string) ([]apiclient.DayOff, error) {
+	return nil, nil
+}
+
+// runCmd executes a tea.Cmd and feeds the resulting message back into the route.
+func runCmd(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	if cmd == nil {
+		return nil
+	}
+	return cmd()
+}
+
+// lastRefIsOneWeekBack checks that the recorded ref is in the ISO week immediately
+// before the current week. Tolerant to Monday-anchor convention.
+func lastRefIsOneWeekBack(t *testing.T, ref string) bool {
+	t.Helper()
+	if ref == "" {
+		return false
+	}
+	parsed, err := time.Parse("2006-01-02", ref)
+	if err != nil {
+		t.Fatalf("lastRef %q is not a valid date: %v", ref, err)
+	}
+	refYear, refWeek := parsed.ISOWeek()
+	nowYear, nowWeek := time.Now().ISOWeek()
+	// One week back: handle year boundary
+	expectedYear, expectedWeek := nowYear, nowWeek-1
+	if expectedWeek == 0 {
+		expectedYear--
+		// Last ISO week of the previous year
+		dec28 := time.Date(expectedYear, time.December, 28, 0, 0, 0, 0, time.UTC)
+		_, expectedWeek = dec28.ISOWeek()
+	}
+	return refYear == expectedYear && refWeek == expectedWeek
+}
+
+func testPalette() theme.Palette { return theme.Default }
+func testRegistry() wtnav.Registry { return wtnav.Registry{} }
+
+func TestWeekRoute_PrevNextWeekRefAndForwardClamp(t *testing.T) {
+	fake := &trackingWeekAPI{}
+	r := week.NewRoute(fake, testPalette(), testRegistry())
+	// Drain Init (triggers initial load with ref "")
+	initCmd := r.Init()
+	msg := runCmd(t, initCmd)
+	var r1 shell.Route = r
+	r1, _ = r1.Update(msg)
+
+	// press [ → offset becomes -1, loadCmd is fired
+	r2, cmd := r1.Update(keyRune('['))
+	_ = runCmd(t, cmd) // execute so GetWeek is called on the fake
+	if !lastRefIsOneWeekBack(t, fake.lastRef) {
+		t.Fatalf("after '[' the GetWeek ref = %q, want one ISO week back", fake.lastRef)
+	}
+
+	// press ] from offset -1 → offset back to 0; still in the past, so load fires
+	r3, cmd2 := r2.Update(keyRune(']'))
+	_ = runCmd(t, cmd2)
+
+	// press ] again from offset 0 → must clamp (no positive offset, no future week)
+	prevCallCount := fake.callCount
+	prevLastRef := fake.lastRef
+	_, cmd3 := r3.Update(keyRune(']'))
+	msg3 := runCmd(t, cmd3)
+	if msg3 != nil {
+		// If a cmd was returned and fires something, it must not have used a positive ref
+		if fake.callCount > prevCallCount {
+			// A new GetWeek call was made — check offset wasn't positive
+			if fake.lastRef != "" && fake.lastRef != prevLastRef {
+				// Parse to verify it's not in the future week
+				parsed, err := time.Parse("2006-01-02", fake.lastRef)
+				if err == nil {
+					refYear, refWeek := parsed.ISOWeek()
+					nowYear, nowWeek := time.Now().ISOWeek()
+					if refYear > nowYear || (refYear == nowYear && refWeek > nowWeek) {
+						t.Fatal("next-week past current week must be clamped to offset 0: got future week ref")
+					}
+				}
+			}
+		}
+	}
+	// The definitive check: if cmd3 was nil, we clamped correctly.
+	// If cmd3 was non-nil but for ref "" (current week), that's also OK.
+	if cmd3 != nil {
+		// Verify it didn't fire a GetWeek with a future ref
+		if fake.callCount > prevCallCount {
+			parsed, err := time.Parse("2006-01-02", fake.lastRef)
+			if err == nil {
+				refYear, refWeek := parsed.ISOWeek()
+				nowYear, nowWeek := time.Now().ISOWeek()
+				if refYear > nowYear || (refYear == nowYear && refWeek > nowWeek) {
+					t.Fatal("clamp failed: GetWeek called with a future-week ref")
+				}
+			}
+		}
+	}
+}
 
 // newLoadedWeekRoute constructs a *week.Route and feeds it a loadedMsg with
 // 5 day rows so cursor movement can be tested without a real server.

@@ -17,6 +17,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	"github.com/serverkraken/flow/internal/tui/ui/statusbar"
@@ -42,6 +43,7 @@ type Route struct {
 	days   []apiclient.WeekDay
 	offs   map[string]apiclient.DayOff
 	cur    listnav.Cursor // selected day index (clamped, arrows/Home/End/PgUp/PgDn)
+	offset int            // week offset from current week (0 = current, -1 = last week, etc.)
 	loaded bool
 	err    error
 }
@@ -59,12 +61,22 @@ func (r *Route) Title() string { return "Woche" }
 
 func (r *Route) Init() tea.Cmd { return r.loadCmd() }
 
+// weekRef returns a YYYY-MM-DD inside the week `offset` weeks from now (offset<=0).
+// Returns "" when offset==0 to let the server resolve the current week.
+func (r *Route) weekRef() string {
+	if r.offset == 0 {
+		return ""
+	}
+	return time.Now().AddDate(0, 0, r.offset*7).Format("2006-01-02")
+}
+
 func (r *Route) loadCmd() tea.Cmd {
 	api := r.api
+	ref := r.weekRef()
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		days, err := api.GetWeek(ctx, "")
+		days, err := api.GetWeek(ctx, ref)
 		if err != nil {
 			return loadedMsg{err: err}
 		}
@@ -96,6 +108,17 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 			r.cur = c
 			return r, nil
 		}
+		switch {
+		case grammar.WeekPrev.Matches(m):
+			r.offset--
+			return r, r.loadCmd()
+		case grammar.WeekNext.Matches(m):
+			if r.offset < 0 {
+				r.offset++
+				return r, r.loadCmd()
+			}
+			return r, nil // clamp: no future weeks
+		}
 		if cmd := wtnav.Lateral(r.reg, wtnav.IdxWoche, m); cmd != nil {
 			return r, cmd
 		}
@@ -106,6 +129,24 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	return r, nil
 }
 
+// weekRangeHeader returns a header line showing the week range derived from r.days.
+// Example: "‹ KW 25  2026-06-15 – 2026-06-21 ›"
+func (r *Route) weekRangeHeader(pal theme.Palette) string {
+	if len(r.days) == 0 {
+		return ""
+	}
+	first := r.days[0].Date
+	last := r.days[len(r.days)-1].Date
+	// Parse first date to get ISO week number.
+	t, err := time.Parse("2006-01-02", first)
+	if err != nil {
+		return "  ‹ " + first + " – " + last + " ›"
+	}
+	_, kw := t.ISOWeek()
+	label := fmt.Sprintf("‹ KW %d  %s – %s ›", kw, first, last)
+	return "  " + theme.Dim(label, pal)
+}
+
 func (r *Route) View(f shell.Frame) string {
 	strip := wtnav.Strip(wtnav.IdxWoche, f.Width, f.Pal) + "\n"
 	if !r.loaded {
@@ -113,6 +154,9 @@ func (r *Route) View(f shell.Frame) string {
 	}
 	if r.err != nil {
 		return strip + theme.Dim("  Fehler: "+r.err.Error(), f.Pal)
+	}
+	if header := r.weekRangeHeader(f.Pal); header != "" {
+		strip += header + "\n"
 	}
 	cells := 20
 	sem := f.Pal.Sem()
@@ -171,6 +215,8 @@ func (r *Route) HideBreadcrumb() bool { return true }
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		{Key: "←/→", Desc: "Bereich"},
+		grammar.WeekPrev.Hint(),
+		grammar.WeekNext.Hint(),
 		{Key: "e", Desc: "Export"},
 		{Key: "esc", Desc: "zurück"},
 	}
