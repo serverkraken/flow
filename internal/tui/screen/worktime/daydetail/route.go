@@ -27,8 +27,7 @@ type loadedMsg struct {
 	err  error
 }
 
-// Route lists one day's completed (and running) sessions. It is a leaf — no
-// dialogs; those arrive in Tasks 6/7. It satisfies shell.Route.
+// Route lists one day's completed (and running) sessions. It satisfies shell.Route.
 type Route struct {
 	api    API
 	pal    theme.Palette
@@ -38,6 +37,10 @@ type Route struct {
 	loaded bool
 	err    error
 	toast  toast.Model
+
+	// nachb is non-nil while the Nachbuchen (Add) dialog is open.
+	nachb    *nachbuchenState
+	projects []domain.Project // cached project list for the dialog
 }
 
 // NewRoute builds a DayDetail route for the given date. Only the date part of
@@ -92,6 +95,17 @@ func isSessionEvent(t string) bool {
 	return false
 }
 
+// loadProjectsCmd fetches the project list for the Nachbuchen dialog.
+func (r *Route) loadProjectsCmd() tea.Cmd {
+	api := r.api
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		ps, err := api.ListProjects(ctx)
+		return nachbuchenLoadProjectsMsg{projects: ps, err: err}
+	}
+}
+
 // Update handles all incoming messages.
 func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	switch m := msg.(type) {
@@ -104,6 +118,37 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		}
 		return r, nil
 
+	case nachbuchenLoadProjectsMsg:
+		if m.err != nil {
+			r.toast = toast.NewDanger("Projekte konnten nicht geladen werden: "+m.err.Error(), r.pal)
+			return r, r.toast.Init()
+		}
+		r.projects = m.projects
+		r.nachb = openNachbuchen(r.pal, r.projects)
+		return r, nil
+
+	case nachbuchenProjectMsg:
+		if m.err != nil {
+			r.toast = toast.NewDanger("Projekt konnte nicht erstellt werden: "+m.err.Error(), r.pal)
+			return r, r.toast.Init()
+		}
+		// Inline-create succeeded — advance to Von.
+		if r.nachb != nil {
+			id := m.id
+			r.nachb.projID = &id
+			r.nachb.focus = focusVon
+			_ = r.nachb.von.Focus()
+		}
+		return r, nil
+
+	case nachbuchenDoneMsg:
+		if m.err != nil {
+			r.toast = toast.NewDanger("Konnte nicht speichern: "+m.err.Error(), r.pal)
+			return r, r.toast.Init()
+		}
+		r.toast = toast.NewSuccess("Session gespeichert", r.pal)
+		return r, tea.Batch(r.toast.Init(), r.loadCmd())
+
 	case shell.EventMsg:
 		if isSessionEvent(m.Ev.Type) {
 			return r, r.loadCmd()
@@ -115,12 +160,24 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		return r, nil
 
 	case tea.KeyPressMsg:
+		// While the Nachbuchen dialog is open, forward all keys to it.
+		if r.nachb != nil {
+			return r.handleNachbuchenKey(m)
+		}
 		if c, ok := r.cur.Handle(m, len(r.rows), 5); ok {
 			r.cur = c
 			return r, nil
 		}
 		if grammar.Back.Matches(m) {
 			return r, func() tea.Msg { return shell.PopRouteMsg{} }
+		}
+		if m.Text == "n" {
+			// Open Nachbuchen: load projects first (or use cache).
+			if len(r.projects) > 0 {
+				r.nachb = openNachbuchen(r.pal, r.projects)
+				return r, nil
+			}
+			return r, r.loadProjectsCmd()
 		}
 	}
 	return r, nil
@@ -136,6 +193,17 @@ func (r *Route) View(f shell.Frame) string {
 	}
 	if r.err != nil {
 		b.WriteString(theme.Dim("  Fehler: "+r.err.Error(), f.Pal))
+		return b.String()
+	}
+
+	// While the Nachbuchen dialog is open, render it instead of the list.
+	if r.nachb != nil {
+		b.WriteString(r.renderNachbuchen(f))
+		// Show toast below dialog if visible.
+		for _, line := range toast.SlotRows(&r.toast, "  ") {
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
 		return b.String()
 	}
 
@@ -189,8 +257,12 @@ func renderRowHint(row dayRow) string {
 
 // KeyHints returns the advertised key bindings for the footer strip.
 func (r *Route) KeyHints() []keyhint.Hint {
+	if r.nachb != nil {
+		return nachbuchenHints()
+	}
 	return []keyhint.Hint{
 		grammar.MoveUp.Hint(),
+		{Key: "n", Desc: "Nachbuchen"},
 		{Key: "esc", Desc: "zurück"},
 	}
 }

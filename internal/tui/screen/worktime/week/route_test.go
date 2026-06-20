@@ -42,6 +42,18 @@ func (f fakeAPI) ListSessionsRange(_ context.Context, _, _ time.Time) ([]domain.
 	return nil, nil
 }
 
+// AddSession, ListProjects, CreateProject are no-op stubs required by
+// the daydetail.API compile-time guard now that Task 6 extended the interface.
+func (f fakeAPI) AddSession(_ context.Context, _ *string, _, _ time.Time, _, _ string) (domain.WorkSession, error) {
+	return domain.WorkSession{}, nil
+}
+func (f fakeAPI) ListProjects(_ context.Context) ([]domain.Project, error) {
+	return nil, nil
+}
+func (f fakeAPI) CreateProject(_ context.Context, _ string) (domain.Project, error) {
+	return domain.Project{}, nil
+}
+
 func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 	for i := 0; cmd != nil && i < 20; i++ {
 		msg := cmd()
