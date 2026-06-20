@@ -11,6 +11,34 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
+func TestFakeSessionStore_ListRange(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	mk := func(id string, h int) domain.WorkSession {
+		start := time.Date(2026, 6, 15, h, 0, 0, 0, time.UTC)
+		stop := start.Add(time.Hour)
+		return domain.WorkSession{ID: id, OwnerID: "u1", Start: start, Stop: &stop}
+	}
+	for _, ws := range []domain.WorkSession{mk("a", 8), mk("b", 10), mk("c", 23)} {
+		if _, err := ss.Create(ctx, ws); err != nil {
+			t.Fatalf("seed %s: %v", ws.ID, err)
+		}
+	}
+	since := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	until := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	got, err := ss.ListRange(ctx, "u1", since, until)
+	if err != nil {
+		t.Fatalf("ListRange: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "b" {
+		t.Fatalf("ListRange = %+v, want only b", got)
+	}
+	// foreign owner sees nothing
+	if g, _ := ss.ListRange(ctx, "other", since, until); len(g) != 0 {
+		t.Fatalf("foreign ListRange = %+v, want empty", g)
+	}
+}
+
 func TestFakeSessionStore_UpdateAndDelete(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()

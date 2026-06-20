@@ -96,6 +96,27 @@ ORDER BY start_at DESC`
 	return out, rows.Err()
 }
 
+func (s *SessionStore) ListRange(ctx context.Context, ownerID string, since, until time.Time) ([]domain.WorkSession, error) {
+	const q = `
+SELECT id, owner_id, project_id, tag, note, start_at, stop_at, created_at
+FROM work_sessions WHERE owner_id=$1 AND start_at >= $2 AND start_at < $3
+ORDER BY start_at DESC`
+	rows, err := s.pool.Query(ctx, q, ownerID, since, until)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: list sessions range: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.WorkSession
+	for rows.Next() {
+		ws, err := scanSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ws)
+	}
+	return out, rows.Err()
+}
+
 func scanSession(r rowScanner) (domain.WorkSession, error) {
 	var ws domain.WorkSession
 	if err := r.Scan(&ws.ID, &ws.OwnerID, &ws.ProjectID, &ws.Tag, &ws.Note, &ws.Start, &ws.Stop, &ws.CreatedAt); err != nil {

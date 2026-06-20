@@ -231,6 +231,18 @@ func (s *FakeSessionStore) List(_ context.Context, ownerID string, since time.Ti
 	return out, nil
 }
 
+func (s *FakeSessionStore) ListRange(_ context.Context, ownerID string, since, until time.Time) ([]domain.WorkSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.WorkSession
+	for _, e := range s.m {
+		if e.OwnerID == ownerID && !e.Start.Before(since) && e.Start.Before(until) {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
 // FakeDayOffStore is an in-memory ports.DayOffStore keyed by (owner, yyyy-mm-dd).
 type FakeDayOffStore struct {
 	mu sync.Mutex

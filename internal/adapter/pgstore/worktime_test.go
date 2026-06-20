@@ -91,6 +91,45 @@ func TestSessionStoreLifecycle(t *testing.T) {
 	}
 }
 
+func TestSessionStore_ListRange(t *testing.T) {
+	pool, err := pgstore.NewPool(context.Background(), startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	// Seed a user so FK on work_sessions.owner_id is satisfied.
+	users := pgstore.NewUserStore(pool)
+	owner := "u-range-" + t.Name()
+	u, _ := domain.NewUser(owner, "sub-range", "range-user", "range@x.de", "Range")
+	if _, err := users.UpsertBySub(context.Background(), u); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	store := pgstore.NewSessionStore(pool)
+	ctx := context.Background()
+	mk := func(id string, h int) domain.WorkSession {
+		start := time.Date(2026, 6, 15, h, 0, 0, 0, time.UTC)
+		stop := start.Add(time.Hour)
+		return domain.WorkSession{ID: id, OwnerID: owner, Start: start, Stop: &stop, CreatedAt: start}
+	}
+	for _, ws := range []domain.WorkSession{mk("r-a", 8), mk("r-b", 10), mk("r-c", 23)} {
+		if _, err := store.Create(ctx, ws); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	got, err := store.ListRange(ctx, owner,
+		time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("ListRange: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "r-b" {
+		t.Fatalf("ListRange = %+v, want only r-b", got)
+	}
+}
+
 func TestProjectStoreListOwnerScoped(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

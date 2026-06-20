@@ -79,6 +79,9 @@ type SessionStore interface {
 	Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error)
 	Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error)
 	List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error)
+	// ListRange returns sessions with since <= Start < until, newest first.
+	// Owner-scoped. Used for past-day views and the overlap check.
+	ListRange(ctx context.Context, ownerID string, since, until time.Time) ([]domain.WorkSession, error)
 	// Update overwrites a session's project/tag/note/start/stop. Owner-scoped;
 	// returns ErrSessionNotFound for a missing or foreign session.
 	Update(ctx context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
