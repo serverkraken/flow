@@ -18,6 +18,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
+	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 )
 
 // API is the narrow client surface DayOffsRoute needs (*apiclient.Client satisfies it).
@@ -126,15 +127,11 @@ func (r *Route) handleKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 	if r.dialog != dialogNone {
 		return r.handleDialogKey(k)
 	}
+	if cur, ok := listnav.New().Set(r.cursor, len(r.list)).Handle(k, len(r.list), 5); ok {
+		r.cursor = cur.Index()
+		return r, nil
+	}
 	switch k.Text {
-	case "j":
-		if len(r.list) > 0 {
-			r.cursor = (r.cursor + 1) % len(r.list)
-		}
-	case "k":
-		if len(r.list) > 0 {
-			r.cursor = (r.cursor + len(r.list) - 1) % len(r.list)
-		}
 	case "g":
 		return r.openTargetEdit()
 	case "a":

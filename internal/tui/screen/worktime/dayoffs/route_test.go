@@ -264,27 +264,29 @@ func TestDayOffsRoute_targetEditDialogView(t *testing.T) {
 	}
 }
 
-// TestDayOffsRoute_cursorNavJK verifies j/k cursor navigation.
-func TestDayOffsRoute_cursorNavJK(t *testing.T) {
+// TestDayOffsRoute_cursorNavArrows verifies arrow key cursor navigation (listnav, no j/k).
+func TestDayOffsRoute_cursorNavArrows(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{
 		{Day: "2026-07-01", Kind: "urlaub", Label: "A"},
 		{Day: "2026-07-02", Kind: "urlaub", Label: "B"},
 	}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
+	f := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
 
-	// Move down
-	r, _ = r.Update(tea.KeyPressMsg{Text: "j"})
-	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body, "B") {
-		t.Fatalf("after j, second row should be visible; got:\n%s", body)
+	// Capture view before Down to detect actual cursor change.
+	bodyBefore := r.View(f)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	bodyAfterDown := r.View(f)
+	if bodyAfterDown == bodyBefore {
+		t.Fatalf("Down should move cursor (view unchanged);\n%s", bodyAfterDown)
 	}
 
-	// Move back up
-	r, _ = r.Update(tea.KeyPressMsg{Text: "k"})
-	body2 := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
-	if !strings.Contains(body2, "A") {
-		t.Fatalf("after k, first row should be visible; got:\n%s", body2)
+	// Move back up.
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	bodyAfterUp := r.View(f)
+	if bodyAfterUp != bodyBefore {
+		t.Fatalf("Up should restore cursor to 0 (view differs from baseline);\n%s", bodyAfterUp)
 	}
 }
 
@@ -569,6 +571,51 @@ func TestDayOffsRoute_addViaDatepicker(t *testing.T) {
 	_ = drain(r2, cmd)
 	if api.addedFrom != "2026-06-20" {
 		t.Fatalf("addedFrom = %q, want 2026-06-20", api.addedFrom)
+	}
+}
+
+// TestDayoffs_ArrowsClampNoWrap verifies that Up at top clamps (no wrap) and that
+// 'j' no longer moves the list cursor (verb keys removed per unified grammar).
+// We verify position via the highlighted row in View: the active row is rendered via
+// theme.Active which wraps it differently from plain rows.
+func TestDayoffs_ArrowsClampNoWrap(t *testing.T) {
+	api := &fakeAPI{list: []apiclient.DayOff{
+		{Day: "2026-07-01", Kind: "urlaub", Label: "A"},
+		{Day: "2026-07-02", Kind: "urlaub", Label: "B"},
+	}}
+	r := newRoute(api)
+	r = drain(r, r.Init())
+
+	f := shell.Frame{Width: 80, Height: 24, Pal: theme.Default}
+
+	// Baseline: cursor is on item A (index 0). Move Down to item B.
+	rDown, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	bodyDown := rDown.View(f)
+	if !strings.Contains(bodyDown, "2026-07-02") {
+		t.Fatalf("Down should move to second item; view:\n%s", bodyDown)
+	}
+	// Move Up back to A — cursor should be 0.
+	rUp, _ := rDown.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	bodyUp := rUp.View(f)
+	if !strings.Contains(bodyUp, "2026-07-01") {
+		t.Fatalf("Up should return to first item; view:\n%s", bodyUp)
+	}
+	// Up again at top must clamp: view must not change (still shows A as active, B inactive).
+	rUpClamp, _ := rUp.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	bodyUpClamp := rUpClamp.View(f)
+	if bodyUpClamp != bodyUp {
+		t.Fatalf("Up at top must clamp (no wrap); view changed:\n%s", bodyUpClamp)
+	}
+
+	// 'j' must NOT navigate (list cursor stays at 0, view unchanged).
+	// Capture baseline BEFORE Update because *Route mutates in place.
+	r2 := newRoute(api)
+	r2 = drain(r2, r2.Init())
+	bodyBase2 := r2.View(f)
+	rJ, _ := r2.Update(tea.KeyPressMsg{Text: "j"})
+	bodyJ := rJ.View(f)
+	if bodyJ != bodyBase2 {
+		t.Fatalf("'j' must not move list cursor; view changed:\nbefore: %q\nafter:  %q", bodyBase2, bodyJ)
 	}
 }
 
