@@ -38,6 +38,15 @@ func (f fakeSessionStore) Update(context.Context, string, string, *string, strin
 func (f fakeSessionStore) Delete(context.Context, string, string) error {
 	return nil
 }
+func (f fakeSessionStore) ListRange(_ context.Context, _ string, since, until time.Time) ([]domain.WorkSession, error) {
+	var out []domain.WorkSession
+	for _, s := range f.list {
+		if !s.Start.Before(since) && s.Start.Before(until) {
+			out = append(out, s)
+		}
+	}
+	return out, nil
+}
 
 // fakeStatsSettings is a settings fake that carries full Settings (including
 // DefaultTargetMin). Named differently from dayoffs_test.go's fakeSettings
