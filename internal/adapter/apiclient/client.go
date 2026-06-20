@@ -147,6 +147,23 @@ func (c *Client) ListSessionsSince(ctx context.Context, since time.Time) ([]doma
 	return out, err
 }
 
+// AddSession backfills a complete past session with explicit start/stop.
+func (c *Client) AddSession(ctx context.Context, projectID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+	var s domain.WorkSession
+	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
+		map[string]any{"projectId": projectID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+	return s, err
+}
+
+// ListSessionsRange returns sessions with since <= start < until.
+func (c *Client) ListSessionsRange(ctx context.Context, since, until time.Time) ([]domain.WorkSession, error) {
+	var out []domain.WorkSession
+	path := "/api/v1/sessions?since=" + url.QueryEscape(since.Format(time.RFC3339)) +
+		"&until=" + url.QueryEscape(until.Format(time.RFC3339))
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
+}
+
 func (c *Client) CreateProject(ctx context.Context, name string) (domain.Project, error) {
 	var p domain.Project
 	err := c.do(ctx, http.MethodPost, "/api/v1/projects", map[string]any{"name": name}, &p)

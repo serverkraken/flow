@@ -2,8 +2,10 @@ package apiclient_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,5 +114,44 @@ func TestClient_ListSessionsSince(t *testing.T) {
 	}
 	if got, want := gotSince, since.Format(time.RFC3339); got != want {
 		t.Errorf("since query = %q, want %q", got, want)
+	}
+}
+
+func TestAddSessionAndListRange(t *testing.T) {
+	var gotBody map[string]any
+	var gotRangeQuery string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"s9","start":"2026-06-15T09:00:00Z"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/sessions":
+			gotRangeQuery = r.URL.RawQuery
+			_, _ = w.Write([]byte(`[{"id":"s9","start":"2026-06-15T09:00:00Z"}]`))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL)
+		}
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	s, err := c.AddSession(context.Background(), nil, start, stop, "deep", "n")
+	if err != nil || s.ID != "s9" {
+		t.Fatalf("AddSession = %+v err=%v", s, err)
+	}
+	if gotBody["start"] == nil || gotBody["stop"] == nil || gotBody["tag"] != "deep" {
+		t.Fatalf("AddSession body missing fields: %+v", gotBody)
+	}
+
+	list, err := c.ListSessionsRange(context.Background(), start, stop)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("ListSessionsRange = %+v err=%v", list, err)
+	}
+	if !strings.Contains(gotRangeQuery, "since=") || !strings.Contains(gotRangeQuery, "until=") {
+		t.Fatalf("range query missing since/until: %q", gotRangeQuery)
 	}
 }
