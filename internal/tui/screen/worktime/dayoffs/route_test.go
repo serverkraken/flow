@@ -85,7 +85,7 @@ func TestDayOffsRoute_listsAndTitle(t *testing.T) {
 }
 
 func TestDayOffsRoute_deleteConfirmFlow(t *testing.T) {
-	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Urlaub"}}}
+	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "vacation", Label: "Urlaub"}}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
 	// Open delete dialog with D
@@ -270,8 +270,8 @@ func TestDayOffsRoute_targetEditDialogView(t *testing.T) {
 // TestDayOffsRoute_cursorNavArrows verifies arrow key cursor navigation (listnav, no j/k).
 func TestDayOffsRoute_cursorNavArrows(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{
-		{Day: "2026-07-01", Kind: "urlaub", Label: "A"},
-		{Day: "2026-07-02", Kind: "urlaub", Label: "B"},
+		{Day: "2026-07-01", Kind: "vacation", Label: "A"},
+		{Day: "2026-07-02", Kind: "vacation", Label: "B"},
 	}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
@@ -325,7 +325,7 @@ func TestDayOffsRoute_holidayAndNonHolidayGlyphs(t *testing.T) {
 	api := &fakeAPI{
 		list: []apiclient.DayOff{
 			{Day: "2026-10-03", Kind: "holiday", Label: "Tag der Einheit", Holiday: true},
-			{Day: "2026-08-01", Kind: "urlaub", Label: "Urlaub", Holiday: false},
+			{Day: "2026-08-01", Kind: "vacation", Label: "Urlaub", Holiday: false},
 		},
 		settings: apiclient.Settings{DefaultTargetMin: 480},
 	}
@@ -424,7 +424,7 @@ func TestDayOffsRoute_targetEditBackspace(t *testing.T) {
 
 // TestDayOffsRoute_deleteDialogOpensOnD verifies D opens delete confirmation.
 func TestDayOffsRoute_deleteDialogOpensOnD(t *testing.T) {
-	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Test"}}}
+	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "vacation", Label: "Test"}}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "D"})
@@ -499,7 +499,7 @@ func TestDayOffsRoute_keyHintsWhileBundeslandOpen(t *testing.T) {
 
 // TestDayOffsRoute_keyHintsWhileDeleteOpen verifies KeyHints returns delete dialog hints.
 func TestDayOffsRoute_keyHintsWhileDeleteOpen(t *testing.T) {
-	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "urlaub", Label: "Test"}}}
+	api := &fakeAPI{list: []apiclient.DayOff{{Day: "2026-07-01", Kind: "vacation", Label: "Test"}}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
 	r, _ = r.Update(tea.KeyPressMsg{Text: "D"})
@@ -587,8 +587,8 @@ func TestDayOffsRoute_addViaDatepicker(t *testing.T) {
 // theme.Active which wraps it differently from plain rows.
 func TestDayoffs_ArrowsClampNoWrap(t *testing.T) {
 	api := &fakeAPI{list: []apiclient.DayOff{
-		{Day: "2026-07-01", Kind: "urlaub", Label: "A"},
-		{Day: "2026-07-02", Kind: "urlaub", Label: "B"},
+		{Day: "2026-07-01", Kind: "vacation", Label: "A"},
+		{Day: "2026-07-02", Kind: "vacation", Label: "B"},
 	}}
 	r := newRoute(api)
 	r = drain(r, r.Init())
@@ -769,6 +769,23 @@ func TestDayOffsRoute_listShowsCategoryLabel(t *testing.T) {
 	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
 	if !strings.Contains(body, "Gleittag") {
 		t.Fatalf("list should show category label 'Gleittag'; got:\n%s", body)
+	}
+}
+
+// TestDayOffsRoute_listShowsVacationCategoryLabel verifies that a canonical
+// "vacation" entry with an empty free-text label renders the category label
+// "Urlaub" in the list (exercises the real vacation render path, not the
+// unknown-kind fallback).
+func TestDayOffsRoute_listShowsVacationCategoryLabel(t *testing.T) {
+	api := &fakeAPI{
+		list:     []apiclient.DayOff{{Day: "2026-08-15", Kind: "vacation", Label: ""}},
+		settings: apiclient.Settings{DefaultTargetMin: 480},
+	}
+	r := newRoute(api)
+	r = drain(r, r.Init())
+	body := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if !strings.Contains(body, "Urlaub") {
+		t.Fatalf("list should show category label 'Urlaub' for canonical vacation kind; got:\n%s", body)
 	}
 }
 
