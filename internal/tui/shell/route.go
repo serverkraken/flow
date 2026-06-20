@@ -59,3 +59,14 @@ type InputCapturer interface{ CapturesInput() bool }
 // viewer for an immersive read (matches main's old ModeView takeover). Combine
 // with InputCapturer so the shell also forwards every key to the route.
 type FullScreener interface{ FullScreen() bool }
+
+// TextCapturer lets a route signal it is in a *literal text-entry* field, where
+// even the back keys (q/Esc) belong to the route (q is typed, the route's own
+// Esc cancels the field). Narrower than InputCapturer, which also covers
+// non-text key forwarding (e.g. the doc viewer's Tab/scroll).
+type TextCapturer interface{ CapturesText() bool }
+
+// Backer lets a route resolve one level of "back" within its own internal state
+// (e.g. document view → list, clear an active filter) before the frame pops the
+// nav-stack or quits. ok=false means "nothing internal — frame decides".
+type Backer interface{ Back() (Route, tea.Cmd, bool) }
