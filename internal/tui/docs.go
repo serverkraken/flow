@@ -19,9 +19,9 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/badge"
 	"github.com/serverkraken/flow/internal/tui/ui/chip"
 	"github.com/serverkraken/flow/internal/tui/ui/countbar"
+	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
-	"github.com/serverkraken/flow/internal/tui/ui/picker"
 	"github.com/serverkraken/flow/internal/tui/ui/titlebox"
 )
 
@@ -110,8 +110,8 @@ type DocsModel struct {
 	pal        theme.Palette
 	projects   []domain.Project
 	projByID   map[string]domain.Project
-	projFilter string // selected project ID; "" = all projects
-	projCursor int    // cursor in the project-filter picker
+	projFilter string        // selected project ID; "" = all projects
+	projList   fuzzylist.Model // project-filter picker (fuzzy)
 }
 
 // NewDocs builds the docs model. client/ed/op may be nil in tests that only drive
@@ -666,7 +666,7 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case k.Text == "p":
 		m.mode = modeProjectFilter
-		m.projCursor = 0
+		m.projList = fuzzylist.New(projectFilterItems(m.projects), m.pal)
 		return m, nil
 	}
 	return m, nil
@@ -850,33 +850,33 @@ func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m DocsModel) handleProjectFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	// entries: 0 = "Alle Projekte", 1..N = m.projects
-	last := len(m.projects)
 	switch {
 	case k.Code == tea.KeyEsc:
 		m.mode = modeList
 		return m, nil
-	case k.Text == "j":
-		if m.projCursor < last {
-			m.projCursor++
-		}
-		return m, nil
-	case k.Text == "k":
-		if m.projCursor > 0 {
-			m.projCursor--
-		}
-		return m, nil
 	case k.Code == tea.KeyEnter:
-		if m.projCursor == 0 {
-			m.projFilter = ""
-		} else if m.projCursor-1 < len(m.projects) {
-			m.projFilter = m.projects[m.projCursor-1].ID
+		if it, _, ok := m.projList.Selection(); ok {
+			m.projFilter = it.ID // "" = Alle Projekte
 		}
 		m.mode = modeList
 		m.sel = 0
 		return m, nil
+	default:
+		m.projList = m.projList.Update(k)
+		return m, nil
 	}
-	return m, nil
+}
+
+// projectFilterItems builds the fuzzylist items for the project-filter picker.
+// The first entry is always "Alle Projekte" (ID ""), followed by one item per
+// project using its Slug as the label.
+func projectFilterItems(ps []domain.Project) []fuzzylist.Item {
+	out := make([]fuzzylist.Item, 0, len(ps)+1)
+	out = append(out, fuzzylist.Item{ID: "", Label: "Alle Projekte"})
+	for _, p := range ps {
+		out = append(out, fuzzylist.Item{ID: p.ID, Label: p.Slug})
+	}
+	return out
 }
 
 func (m DocsModel) handleSearchKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -1166,7 +1166,7 @@ func (m DocsModel) footer() string {
 	case modeSearch:
 		return "query eingeben · enter suchen · esc abbrechen"
 	case modeProjectFilter:
-		return "j/k move · enter wählen · esc abbrechen"
+		return "tippen → filtern · ↑/↓ wählen · enter anwenden · esc abbrechen"
 	default:
 		return "j/k move · enter view · n new · e edit · d delete · p projekt · f filter · / suchen · q quit"
 	}
@@ -1348,15 +1348,14 @@ func (m DocsModel) renderFilter(b *strings.Builder) {
 
 func (m DocsModel) renderProjectFilter(b *strings.Builder) {
 	pal := m.pal
-	b.WriteString(theme.Heading("Projekt-Filter", pal) + "\n\n")
+	b.WriteString(theme.Heading("Projekt-Filter", pal) + "  ")
+	b.WriteString(theme.Dim("tippen → filtern  ·  ↑/↓ → wählen  ·  enter → anwenden  ·  esc", pal))
+	b.WriteString("\n\n")
 	width := m.width
 	if width < 20 {
 		width = 60
 	}
-	b.WriteString(picker.Row(m.projCursor == 0, "Alle Projekte", "", width-4, pal) + "\n")
-	for i, p := range m.projects {
-		b.WriteString(picker.Row(m.projCursor == i+1, p.Slug, "", width-4, pal) + "\n")
-	}
+	b.WriteString(m.projList.View(width - 4))
 }
 
 func (m DocsModel) renderSearch(b *strings.Builder) {

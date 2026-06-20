@@ -154,32 +154,29 @@ func TestFilteredCursorDesync(t *testing.T) {
 	}
 }
 
-func TestProjectFilter_OpenSelectClear(t *testing.T) {
+func TestProjectFilter_FuzzySelectAndClear(t *testing.T) {
 	t.Parallel()
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
-	m.projects = []domain.Project{{ID: "p1", Slug: "serverkraken/flow"}}
-	m.projByID = map[string]domain.Project{"p1": m.projects[0]}
-
-	// open picker with "p"
+	m.projects = []domain.Project{{ID: "p1", Slug: "serverkraken/flow"}, {ID: "p2", Slug: "other/repo"}}
+	// open the filter
 	nm, _ := m.Update(tea.KeyPressMsg{Text: "p"})
 	m = nm.(DocsModel)
 	if m.mode != modeProjectFilter {
-		t.Fatalf("after p: mode = %v, want modeProjectFilter", m.mode)
+		t.Fatalf("mode = %v, want modeProjectFilter", m.mode)
 	}
-	// move to the project (index 1) and select
-	m.projCursor = 1
+	// type to fuzzy-match "other/repo", then Enter selects it
+	for _, r := range "repo" {
+		nm, _ = m.Update(tea.KeyPressMsg{Text: string(r)})
+		m = nm.(DocsModel)
+	}
 	nm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = nm.(DocsModel)
-	if m.projFilter != "p1" {
-		t.Fatalf("projFilter = %q, want p1", m.projFilter)
+	if m.projFilter != "p2" {
+		t.Fatalf("projFilter = %q, want p2", m.projFilter)
 	}
-	if m.mode != modeList {
-		t.Fatalf("after select: mode = %v, want modeList", m.mode)
-	}
-	// re-open, choose index 0 ("Alle") to clear
+	// reopen, Enter on the first row ("Alle Projekte") clears
 	nm, _ = m.Update(tea.KeyPressMsg{Text: "p"})
 	m = nm.(DocsModel)
-	m.projCursor = 0
 	nm, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = nm.(DocsModel)
 	if m.projFilter != "" {
