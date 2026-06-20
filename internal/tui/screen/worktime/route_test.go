@@ -11,6 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
+	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 )
 
 func keyPress(s string) tea.KeyPressMsg { return tea.KeyPressMsg{Text: s} }
@@ -29,7 +30,10 @@ type fakeAPI struct {
 
 func (f *fakeAPI) GetToday(context.Context) (apiclient.Today, error)          { return f.today, nil }
 func (f *fakeAPI) ListSessions(context.Context) ([]domain.WorkSession, error) { return f.sessions, nil }
-func (f *fakeAPI) ListProjects(context.Context) ([]domain.Project, error)     { return f.projects, nil }
+func (f *fakeAPI) ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error) {
+	return f.sessions, nil
+}
+func (f *fakeAPI) ListProjects(context.Context) ([]domain.Project, error) { return f.projects, nil }
 func (f *fakeAPI) StartSession(context.Context, *string, string, string) (domain.WorkSession, error) {
 	f.started = true
 	return domain.WorkSession{ID: "new"}, nil
@@ -142,7 +146,8 @@ func TestActions_StopOpensBookingThenBooks(t *testing.T) {
 	if r.dialog != dialogBooking {
 		t.Fatalf("dialog = %v, want booking", r.dialog)
 	}
-	r.booking.projects = f.projects
+	// feed the project list into the fuzzylist via projectsMsg
+	r.booking.list = r.booking.list.SetItems(projectItems(f.projects))
 	_, cmd := r.handleKey(keyEnterMsg())
 	if cmd != nil {
 		cmd()
@@ -171,18 +176,22 @@ func TestActions_DeleteConfirmCallsDelete(t *testing.T) {
 	}
 }
 
-func TestBooking_SelClampedOnShorterProjectList(t *testing.T) {
+func TestBooking_FuzzylistClampsOnShorterProjectList(t *testing.T) {
 	f := &fakeAPI{}
 	r := newTestRoute(f)
 	r.loaded = true
 	r.st = todayState{Running: true, ActiveID: "run"}
 	r.dialog = dialogBooking
-	r.booking = bookingState{projects: []domain.Project{{ID: "p1"}, {ID: "p2"}, {ID: "p3"}}, sel: 2}
-	// a refresh with a shorter list must clamp sel (no panic on subsequent enter)
-	r.Update(projectsMsg{projects: []domain.Project{{ID: "p1"}}})
-	if r.booking.sel != 0 {
-		t.Fatalf("sel not clamped: %d", r.booking.sel)
+	r.booking = bookingState{list: fuzzylist.New(
+		[]fuzzylist.Item{{ID: "p1", Label: "Alpha"}, {ID: "p2", Label: "Beta"}, {ID: "p3", Label: "Gamma"}},
+		theme.Load(),
+	).WithCreateHint("neu: %s")}
+	// navigate to item 2 (cursor=2)
+	for i := 0; i < 2; i++ {
+		r.booking.list = r.booking.list.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
+	// a refresh with a shorter list must clamp cursor (no panic on subsequent enter)
+	r.Update(projectsMsg{projects: []domain.Project{{ID: "p1", Name: "Alpha"}}})
 	// enter now books p1 without panicking
 	_, cmd := r.handleKey(keyEnterMsg())
 	if cmd != nil {
@@ -244,7 +253,7 @@ func TestView_RendersEachDialogAndHints(t *testing.T) {
 	for _, d := range []dialogKind{dialogBooking, dialogEdit, dialogDelete} {
 		r.dialog = d
 		if d == dialogBooking {
-			r.booking = bookingState{projects: []domain.Project{{ID: "p1", Name: "Flow"}}}
+			r.booking = bookingState{list: fuzzylist.New([]fuzzylist.Item{{ID: "p1", Label: "Flow"}}, theme.Load()).WithCreateHint("neu: %s")}
 		}
 		if d == dialogEdit {
 			_, _ = r.openEdit()

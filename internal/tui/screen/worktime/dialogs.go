@@ -10,17 +10,24 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/shell"
+	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/confirm"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
+	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
-	"github.com/serverkraken/flow/internal/tui/ui/picker"
 	"github.com/serverkraken/flow/internal/tui/ui/toast"
 )
 
 type bookingState struct {
-	projects []domain.Project
-	sel      int
-	newName  string
+	list fuzzylist.Model
+}
+
+func projectItems(ps []domain.Project) []fuzzylist.Item {
+	out := make([]fuzzylist.Item, 0, len(ps))
+	for _, p := range ps {
+		out = append(out, fuzzylist.Item{ID: p.ID, Label: p.Name})
+	}
+	return out
 }
 
 type reloadMsg struct{}
@@ -38,13 +45,15 @@ func (r *TodayRoute) startOrStop() (shell.Route, tea.Cmd) {
 		}
 	}
 	r.dialog = dialogBooking
-	r.booking = bookingState{}
+	r.booking = bookingState{list: fuzzylist.New(nil, r.pal).WithCreateHint("neu: %s")}
 	api := r.api
+	since := r.now().AddDate(0, 0, -90)
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		ps, _ := api.ListProjects(ctx)
-		return projectsMsg{projects: ps}
+		ss, _ := api.ListSessionsSince(ctx, since)
+		return projectsMsg{projects: mruProjects(ps, ss)}
 	}
 }
 
@@ -68,11 +77,15 @@ func (r *TodayRoute) handleBookingKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) 
 		r.dialog = dialogNone
 		return r, nil
 	case k.Code == tea.KeyEnter:
+		it, isCreate, ok := r.booking.list.Selection()
+		if !ok {
+			return r, nil
+		}
 		id := r.st.ActiveID
-		name := strings.TrimSpace(r.booking.newName)
-		r.dialog = dialogNone
 		api := r.api
-		if name != "" {
+		r.dialog = dialogNone
+		if isCreate {
+			name := strings.TrimSpace(r.booking.list.Query())
 			return r, func() tea.Msg {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
@@ -86,15 +99,7 @@ func (r *TodayRoute) handleBookingKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) 
 				return reloadMsg{}
 			}
 		}
-		if len(r.booking.projects) == 0 {
-			r.dialog = dialogBooking
-			r.toast = toast.NewDanger("Keine Projekte – tippe einen Namen ein oder warte", r.pal)
-			return r, r.toast.Init()
-		}
-		if r.booking.sel >= len(r.booking.projects) {
-			r.booking.sel = 0
-		}
-		pid := r.booking.projects[r.booking.sel].ID
+		pid := it.ID
 		return r, func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -103,22 +108,10 @@ func (r *TodayRoute) handleBookingKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) 
 			}
 			return reloadMsg{}
 		}
-	case k.Code == tea.KeyBackspace:
-		if rn := []rune(r.booking.newName); len(rn) > 0 {
-			r.booking.newName = string(rn[:len(rn)-1])
-		}
-	case k.Text == "j" && r.booking.newName == "":
-		if r.booking.sel < len(r.booking.projects)-1 {
-			r.booking.sel++
-		}
-	case k.Text == "k" && r.booking.newName == "":
-		if r.booking.sel > 0 {
-			r.booking.sel--
-		}
-	case k.Text != "":
-		r.booking.newName += k.Text
+	default:
+		r.booking.list = r.booking.list.Update(k)
+		return r, nil
 	}
-	return r, nil
 }
 
 type editState struct {
@@ -238,14 +231,10 @@ func (r *TodayRoute) renderDialog(f shell.Frame) string {
 
 func (r *TodayRoute) renderBooking(f shell.Frame) string {
 	var b strings.Builder
-	b.WriteString("\n  Projekt buchen (j/k wählen · tippen = neu · enter)\n\n")
-	if r.booking.newName != "" {
-		b.WriteString("  neu: " + r.booking.newName + "\n")
-	} else {
-		for i, p := range r.booking.projects {
-			b.WriteString(picker.Row(i == r.booking.sel, p.Name, "", f.Width-4, f.Pal) + "\n")
-		}
-	}
+	b.WriteString("\n  Projekt buchen  ")
+	b.WriteString(theme.Dim("tippen → filtern  ·  ↑/↓ → wählen  ·  enter → buchen  ·  esc", f.Pal))
+	b.WriteString("\n\n")
+	b.WriteString(r.booking.list.View(f.Width - 4))
 	return b.String()
 }
 
@@ -262,7 +251,7 @@ func (r *TodayRoute) renderEdit(f shell.Frame) string {
 func (r *TodayRoute) dialogHints() []keyhint.Hint {
 	switch r.dialog {
 	case dialogBooking:
-		return []keyhint.Hint{{Key: "j/k", Desc: "wählen"}, {Key: "enter", Desc: "buchen"}, {Key: "esc", Desc: "abbrechen"}}
+		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "buchen"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogEdit:
 		return []keyhint.Hint{{Key: "tab", Desc: "Feld"}, {Key: "enter", Desc: "speichern"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogDelete:

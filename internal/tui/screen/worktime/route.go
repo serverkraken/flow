@@ -18,6 +18,7 @@ import (
 type todayAPI interface {
 	GetToday(context.Context) (apiclient.Today, error)
 	ListSessions(context.Context) ([]domain.WorkSession, error)
+	ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error)
 	ListProjects(context.Context) ([]domain.Project, error)
 	StartSession(context.Context, *string, string, string) (domain.WorkSession, error)
 	StopSession(ctx context.Context, id, projectID string) (domain.WorkSession, error)
@@ -127,10 +128,7 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		r.ticking = false
 		return r, nil
 	case projectsMsg:
-		r.booking.projects = m.projects
-		if r.booking.sel >= len(m.projects) {
-			r.booking.sel = 0
-		}
+		r.booking.list = r.booking.list.SetItems(projectItems(m.projects))
 		return r, nil
 	case toast.DismissedMsg:
 		r.toast, _ = r.toast.Update(m)
