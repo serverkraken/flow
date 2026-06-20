@@ -32,6 +32,7 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		ListSessions:      usecase.ListSessions{Sessions: sessions, Clock: clk},
 		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
+		EditSession:       usecase.EditSession{Sessions: sessions},
 	}, sessions
 }
 
@@ -123,5 +124,49 @@ func TestLiveStart_StillWorks(t *testing.T) {
 	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"tag": "live"})
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("live start status = %d, want 201", res.StatusCode)
+	}
+}
+
+func TestEditSession_OverlapConflict(t *testing.T) {
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Backfill session A: 09:00–11:00.
+	resA := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T11:00:00Z",
+	})
+	if resA.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(resA.Body)
+		t.Fatalf("seed A status = %d (%s)", resA.StatusCode, b)
+	}
+	_ = resA.Body.Close()
+
+	// Backfill session B: 13:00–15:00.
+	var sessionB domain.WorkSession
+	resB := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
+		"start": "2026-06-15T13:00:00Z", "stop": "2026-06-15T15:00:00Z",
+	})
+	if resB.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(resB.Body)
+		t.Fatalf("seed B status = %d (%s)", resB.StatusCode, b)
+	}
+	_ = json.NewDecoder(resB.Body).Decode(&sessionB)
+	_ = resB.Body.Close()
+
+	// PATCH session B onto A's interval → should get 409.
+	patchBody, _ := json.Marshal(map[string]any{
+		"start": "2026-06-15T10:00:00Z", "stop": "2026-06-15T10:30:00Z",
+	})
+	req, _ := http.NewRequest("PATCH", ts.URL+"/api/v1/sessions/"+sessionB.ID, bytes.NewReader(patchBody))
+	req.Header.Set("Authorization", "Bearer x")
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH: %v", err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusConflict {
+		t.Fatalf("overlap edit status = %d, want 409", res.StatusCode)
 	}
 }

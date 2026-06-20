@@ -39,6 +39,17 @@ FROM work_sessions WHERE owner_id=$1 AND stop_at IS NULL`
 	return ws, true, nil
 }
 
+func (s *SessionStore) Get(ctx context.Context, ownerID, id string) (domain.WorkSession, error) {
+	const q = `
+SELECT id, owner_id, project_id, tag, note, start_at, stop_at, created_at
+FROM work_sessions WHERE owner_id=$1 AND id=$2`
+	ws, err := scanSession(s.pool.QueryRow(ctx, q, ownerID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	return ws, err
+}
+
 func (s *SessionStore) Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error) {
 	const q = `
 UPDATE work_sessions SET stop_at=$1, project_id=$2

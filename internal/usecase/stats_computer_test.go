@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -46,6 +47,9 @@ func (f fakeSessionStore) ListRange(_ context.Context, _ string, since, until ti
 		}
 	}
 	return out, nil
+}
+func (f fakeSessionStore) Get(context.Context, string, string) (domain.WorkSession, error) {
+	return domain.WorkSession{}, ports.ErrSessionNotFound
 }
 
 // fakeStatsSettings is a settings fake that carries full Settings (including

@@ -190,6 +190,9 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ports.ErrSessionNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
+	case errors.Is(err, domain.ErrOverlap):
+		http.Error(w, "session overlaps an existing session", http.StatusConflict)
+		return
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

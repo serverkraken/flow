@@ -174,6 +174,16 @@ func (s *FakeSessionStore) Running(_ context.Context, ownerID string) (domain.Wo
 	return domain.WorkSession{}, false, nil
 }
 
+func (s *FakeSessionStore) Get(_ context.Context, ownerID, id string) (domain.WorkSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e, ok := s.m[id]
+	if !ok || e.OwnerID != ownerID {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	return e, nil
+}
+
 func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

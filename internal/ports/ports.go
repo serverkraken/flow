@@ -77,6 +77,9 @@ type ProjectStore interface {
 type SessionStore interface {
 	Create(ctx context.Context, s domain.WorkSession) (domain.WorkSession, error)
 	Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error)
+	// Get fetches a single session by id. Owner-scoped; returns
+	// ErrSessionNotFound for a missing or foreign session.
+	Get(ctx context.Context, ownerID, id string) (domain.WorkSession, error)
 	Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error)
 	List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error)
 	// ListRange returns sessions with since <= Start < until, newest first.

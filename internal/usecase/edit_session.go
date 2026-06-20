@@ -27,6 +27,11 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if in.Stop != nil && !in.Stop.After(in.Start) {
 		return domain.WorkSession{}, domain.ErrStopBeforeStart
 	}
+	// Existence check before overlap: a non-existent or foreign-owned session
+	// must return ErrSessionNotFound (→ 404), not ErrOverlap (→ 409).
+	if _, err := uc.Sessions.Get(ctx, ownerID, id); err != nil {
+		return domain.WorkSession{}, err
+	}
 	dayStart := time.Date(in.Start.Year(), in.Start.Month(), in.Start.Day(), 0, 0, 0, 0, in.Start.Location())
 	existing, err := uc.Sessions.ListRange(ctx, ownerID, dayStart.Add(-24*time.Hour), dayStart.Add(48*time.Hour))
 	if err != nil {

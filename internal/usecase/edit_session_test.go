@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -62,6 +63,18 @@ func TestEditSession_RejectsOverlap(t *testing.T) {
 	newStop := time.Date(2026, 6, 15, 10, 30, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", "b", usecase.EditSessionInput{Start: newStart, Stop: &newStop}); !errors.Is(err, domain.ErrOverlap) {
 		t.Fatalf("want ErrOverlap, got %v", err)
+	}
+}
+
+func TestEditSession_NotFound(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	uc := usecase.EditSession{Sessions: ss}
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := start.Add(time.Hour)
+	_, err := uc.Execute(ctx, "u1", "does-not-exist", usecase.EditSessionInput{Start: start, Stop: &stop})
+	if !errors.Is(err, ports.ErrSessionNotFound) {
+		t.Fatalf("want ErrSessionNotFound, got %v", err)
 	}
 }
 
