@@ -947,21 +947,18 @@ func TestDocsViewMode_EKey_NilViewing(t *testing.T) {
 	}
 }
 
-// TestDocsViewMode_QDoesNotQuit pins the M3d behaviour change: the fullscreen
-// markdown viewer owns the keyboard, so `q` no longer quits the program from
-// view mode — it is forwarded to the overlay (which leaves the screen running).
+// TestDocsViewMode_QDoesNotQuit pins the keyboard-grammar behaviour: in the
+// fullscreen viewer `q` (like Esc) walks back to the list rather than quitting
+// the program. It must leave view mode but never emit tea.Quit.
 func TestDocsViewMode_QDoesNotQuit(t *testing.T) {
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
 	next, _ := m.Update(docViewMsg{doc: sampleDocs()[0]})
 	m = next.(DocsModel)
 	nm, cmd := m.Update(tea.KeyPressMsg{Text: "q"})
-	if !nm.(DocsModel).InViewMode() {
-		t.Fatal("q in view mode must not leave the viewer")
+	if nm.(DocsModel).InViewMode() {
+		t.Fatal("q in view mode must walk back to the list")
 	}
 	if cmd != nil {
-		// The overlay may emit a (non-quit) cmd; assert it is not tea.Quit by
-		// checking the model is still alive and in view mode (above). A nil cmd
-		// is also fine — the only forbidden outcome is quitting.
 		if msg := cmd(); msg != nil {
 			if _, isQuit := msg.(tea.QuitMsg); isQuit {
 				t.Fatal("q in view mode must not quit the program")
@@ -1433,5 +1430,35 @@ func TestDocs_ListArrowsMoveNotJK(t *testing.T) {
 	m4, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnd})
 	if m4.(DocsModel).sel != 1 {
 		t.Fatalf("End: sel=%d, want 1", m4.(DocsModel).sel)
+	}
+}
+
+func TestDocs_CapturesTextNarrow(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
+	m.viewing = &domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "A", Body: "x"}
+	m.mode = modeView
+	if m.CapturesText() {
+		t.Fatal("modeView (no in-doc search) must NOT capture text — q/Esc go to the back chain")
+	}
+	m.mode = modeSearch
+	if !m.CapturesText() {
+		t.Fatal("modeSearch must capture text")
+	}
+}
+
+func TestDocs_BackFromView(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "u")
+	m.viewing = &domain.Document{ID: "a", Type: domain.DocFree, Path: "a", Title: "A", Body: "x"}
+	m.mode = modeView
+	nm, _, ok := m.Back()
+	if !ok || nm.mode != modeList {
+		t.Fatalf("Back from modeView → list: ok=%v mode=%v", ok, nm.mode)
+	}
+}
+
+func TestDocs_BackFromListNothing(t *testing.T) {
+	m := NewDocs(nil, nil, nil, theme.Default, "u") // no filter active
+	if _, _, ok := m.Back(); ok {
+		t.Fatal("Back from a clean list must report ok=false (frame pops/quits)")
 	}
 }

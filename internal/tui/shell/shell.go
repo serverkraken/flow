@@ -8,6 +8,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/breadcrumb"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/header"
 	"github.com/serverkraken/flow/internal/tui/ui/help"
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
@@ -197,19 +198,38 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		s.palette, cmd = s.palette.Update(k)
 		return s, cmd
 	}
-	if ic, ok := s.tabs[s.activeTab].Top().(InputCapturer); ok && ic.CapturesInput() && !s.helpOpen {
+	// A text-entry route owns most keys — but NOT the back keys, so q/Esc always
+	// reach the back chain below (a doc viewer's CapturesInput()==true yet its
+	// q/Esc must still walk back; ResolveBack then forwards or pops as needed).
+	if ic, ok := s.tabs[s.activeTab].Top().(InputCapturer); ok && ic.CapturesInput() && !s.helpOpen && !grammar.Back.Matches(k) {
 		return s, s.tabs[s.activeTab].UpdateTop(k)
 	}
 	switch {
-	case k.Code == tea.KeyEsc:
-		if s.helpOpen {
-			s.helpOpen = false
-			return s, nil
-		}
-		s.tabs[s.activeTab].Pop()
-		return s, nil
-	case k.Text == "q" || (k.Code == 'c' && k.Mod == tea.ModCtrl):
+	case k.Code == 'c' && k.Mod == tea.ModCtrl:
 		return s, tea.Quit
+	case grammar.Back.Matches(k):
+		top := s.tabs[s.activeTab].Top()
+		switch ResolveBack(top, s.tabs[s.activeTab].Len(), s.helpOpen || s.paletteOpen) {
+		case BackOverlay:
+			s.helpOpen = false
+			s.paletteOpen = false
+			return s, nil
+		case BackForward:
+			return s, s.tabs[s.activeTab].UpdateTop(k)
+		case BackRoute:
+			if b, ok := top.(Backer); ok {
+				nr, cmd, _ := b.Back()
+				s.tabs[s.activeTab].ReplaceTop(nr)
+				return s, cmd
+			}
+			return s, nil
+		case BackPop:
+			s.tabs[s.activeTab].Pop()
+			return s, nil
+		case BackQuit:
+			return s, tea.Quit
+		}
+		return s, nil
 	case k.Text == ":":
 		s.paletteOpen = true
 		s.palette = s.palette.Reset()

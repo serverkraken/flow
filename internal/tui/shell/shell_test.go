@@ -253,6 +253,83 @@ func TestShell_fullScreenSuppressesChrome(t *testing.T) {
 	}
 }
 
+// backStubRoute is a Route that reports it resolved one internal "back" level by
+// swapping itself for replacement when Back() is called.
+type backStubRoute struct {
+	stubRoute
+	replacement shell.Route
+}
+
+func (r backStubRoute) Back() (shell.Route, tea.Cmd, bool) { return r.replacement, nil, true }
+
+// TestShell_BackKeyResolves: a Backer route at the root handles Esc internally
+// (ReplaceTop with its replacement, no Quit), while q at a clean root quits.
+func TestShell_BackKeyResolves(t *testing.T) {
+	replaced := stubRoute{title: "List"}
+	root := backStubRoute{stubRoute{title: "View"}, replaced}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+
+	// Esc on a Backer root: internal back, no quit, top swapped to "List".
+	next, cmd := s.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	sh := next.(shell.Shell)
+	if cmd != nil {
+		if _, isQuit := cmd().(tea.QuitMsg); isQuit {
+			t.Fatal("Backer route must not quit on Esc")
+		}
+	}
+	if sh.ActiveDepth() != 1 {
+		t.Fatalf("Backer root: depth = %d, want 1 (replace not pop)", sh.ActiveDepth())
+	}
+	v := sh.View().Content
+	if !strings.Contains(v, "List") {
+		t.Fatalf("Back should have replaced the top route with 'List':\n%s", v)
+	}
+
+	// A clean (non-Backer) root quits on q.
+	plain := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{stubRoute{title: "Home"}})
+	_, qcmd := plain.Update(tea.KeyPressMsg{Text: "q"})
+	if qcmd == nil {
+		t.Fatal("q at a clean root should quit")
+	}
+}
+
+// textCaptureRoute captures literal text: every key (including q/Esc) belongs to
+// it. It records the keys it receives so the test can assert forwarding.
+type textCaptureRoute struct {
+	stubRoute
+	gotKeys *[]string
+}
+
+func (r textCaptureRoute) CapturesInput() bool { return true }
+func (r textCaptureRoute) CapturesText() bool  { return true }
+func (r textCaptureRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
+	if k, ok := msg.(tea.KeyPressMsg); ok {
+		*r.gotKeys = append(*r.gotKeys, k.Text)
+	}
+	return r, nil
+}
+
+// In a literal text field, q/Esc must be forwarded to the route (BackForward),
+// not consumed by the shell as a back/quit.
+func TestShell_BackKeyForwardedToTextField(t *testing.T) {
+	var keys []string
+	root := textCaptureRoute{stubRoute{title: "Form"}, &keys}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+
+	next, cmd := s.Update(tea.KeyPressMsg{Text: "q"})
+	if cmd != nil {
+		if _, isQuit := cmd().(tea.QuitMsg); isQuit {
+			t.Fatal("q in a text field must not quit — it is forwarded to the route")
+		}
+	}
+	if next.(shell.Shell).ActiveDepth() != 1 {
+		t.Fatal("text field: q must not pop")
+	}
+	if len(keys) != 1 || keys[0] != "q" {
+		t.Fatalf("text field should receive 'q', got %v", keys)
+	}
+}
+
 func TestShell_switchRoute_pushesAtRootThenReplaces(t *testing.T) {
 	var rootInit, aInit, bInit int
 	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}

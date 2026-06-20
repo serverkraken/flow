@@ -66,6 +66,16 @@ func (r *Route) FullScreen() bool { return r.m.InViewMode() }
 // shell.InputCapturer.
 func (r *Route) CapturesInput() bool { return r.m.CapturesInput() }
 
+// CapturesText implements shell.TextCapturer.
+func (r *Route) CapturesText() bool { return r.m.CapturesText() }
+
+// Back implements shell.Backer, delegating to the wrapped DocsModel.
+func (r *Route) Back() (shell.Route, tea.Cmd, bool) {
+	nm, cmd, ok := r.m.Back()
+	r.m = nm
+	return r, cmd, ok
+}
+
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		{Key: "j/k", Desc: "wählen"},

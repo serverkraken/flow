@@ -22,6 +22,7 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/docrow"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/serverkraken/flow/internal/tui/ui/glyphs"
+	"github.com/serverkraken/flow/internal/tui/ui/grammar"
 	"github.com/serverkraken/flow/internal/tui/ui/listnav"
 	markdown_overlay "github.com/serverkraken/flow/internal/tui/ui/markdown_overlay"
 )
@@ -562,6 +563,51 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // shell.InputCapturer.
 func (m DocsModel) CapturesInput() bool { return m.mode != modeList }
 
+// CapturesText reports a literal text-entry state, where back keys (q/Esc) are
+// the route's own input. Narrower than CapturesInput: modeView forwards its
+// non-back keys (Tab/scroll) but its q/Esc go to the frame back chain — unless
+// the in-document search field is active.
+func (m DocsModel) CapturesText() bool {
+	switch m.mode {
+	case modeCreating, modeFiltering, modeSearch, modeProjectFilter:
+		return true
+	case modeView:
+		return m.overlayReady && m.overlay.CapturesInput()
+	}
+	return false
+}
+
+// Back resolves one internal level: pop the in-view wikilink stack, leave the
+// viewer for the list, cancel a delete, or clear an applied filter. ok=false
+// means the list is clean and the frame should pop/quit.
+func (m DocsModel) Back() (DocsModel, tea.Cmd, bool) {
+	switch m.mode {
+	case modeView:
+		if n := len(m.viewStack); n > 0 {
+			prev := m.viewStack[n-1]
+			m.viewStack = m.viewStack[:n-1]
+			return m, m.loadDocNoPush(prev), true
+		}
+		m.viewing = nil
+		m.mode = modeList
+		m.viewLinks = nil
+		m.linkFocus = -1
+		m.overlayReady = false
+		m.viewer = nil
+		return m, nil, true
+	case modeDeleting:
+		m.mode = modeList
+		return m, nil, true
+	case modeList:
+		if len(m.filterTags) > 0 {
+			m.filterTags = nil
+			m.sel = 0
+			return m, nil, true
+		}
+	}
+	return m, nil, false
+}
+
 func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
 	case modeCreating:
@@ -583,20 +629,12 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		switch {
-		case k.Code == tea.KeyEsc:
-			// Pop the in-TUI wikilink back-stack, or leave to the list.
-			if n := len(m.viewStack); n > 0 {
-				prev := m.viewStack[n-1]
-				m.viewStack = m.viewStack[:n-1]
-				return m, m.loadDocNoPush(prev)
-			}
-			m.viewing = nil
-			m.mode = modeList
-			m.viewLinks = nil
-			m.linkFocus = -1
-			m.overlayReady = false
-			m.viewer = nil
-			return m, nil
+		case grammar.Back.Matches(k):
+			// Standalone `flow docs` (no shell frame) walks back via Back(); in the
+			// `flow ui` shell the frame's back chain calls Back() instead and these
+			// keys never reach here (CapturesInput excludes back keys).
+			nm, cmd, _ := m.Back()
+			return nm, cmd
 		case k.Code == tea.KeyTab && k.Mod == tea.ModShift:
 			m.cycleWikiFocus(-1)
 			return m, nil
