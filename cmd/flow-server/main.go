@@ -64,6 +64,7 @@ func run() error {
 
 	userStore := pgstore.NewUserStore(pool)
 	projectStore := pgstore.NewProjectStore(pool)
+	bindingStore := pgstore.NewProjectBindingStore(pool)
 	sessionStore := pgstore.NewSessionStore(pool)
 	dayOffStore := pgstore.NewDayOffStore(pool)
 	settingsStore := pgstore.NewUserSettingsStore(pool)
@@ -127,6 +128,10 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetProjectRate:    usecase.SetProjectRate{Projects: projectStore},
+		BindProject:         usecase.BindProject{Bindings: bindingStore, Projects: projectStore, IDs: ids, Clock: clock},
+		UnbindProject:       usecase.UnbindProject{Bindings: bindingStore},
+		ResolveProject:      usecase.ResolveProject{Bindings: bindingStore, Projects: projectStore},
+		ListProjectBindings: usecase.ListProjectBindings{Bindings: bindingStore},
 		CreateDocument:    usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		ImportDocument:    usecase.ImportDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		GetDocument:       usecase.GetDocument{Docs: documentStore},
