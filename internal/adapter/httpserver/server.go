@@ -44,6 +44,12 @@ type Server struct {
 	BuildExport    usecase.BuildExport
 	SetProjectRate usecase.SetProjectRate
 
+	// project bindings (resolution V0)
+	BindProject         usecase.BindProject
+	UnbindProject       usecase.UnbindProject
+	ResolveProject      usecase.ResolveProject
+	ListProjectBindings usecase.ListProjectBindings
+
 	// m2a documents
 	CreateDocument    usecase.CreateDocument
 	ImportDocument    usecase.ImportDocument
@@ -92,6 +98,13 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
 	mux.Handle("POST /api/v1/projects/{id}/rate", s.auth(http.HandlerFunc(s.handleSetProjectRate)))
+
+	// project bindings — static paths before {id} wildcard
+	mux.Handle("GET /api/v1/projects/resolve", s.auth(http.HandlerFunc(s.handleResolveProject)))
+	mux.Handle("GET /api/v1/projects/bindings", s.auth(http.HandlerFunc(s.handleListAllProjectBindings)))
+	mux.Handle("DELETE /api/v1/projects/bindings", s.auth(http.HandlerFunc(s.handleUnbindProject)))
+	mux.Handle("PUT /api/v1/projects/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindProject)))
+	mux.Handle("GET /api/v1/projects/{id}/bindings", s.auth(http.HandlerFunc(s.handleListProjectBindingsByProject)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
