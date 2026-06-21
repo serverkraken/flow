@@ -53,7 +53,9 @@ func run() error {
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		return err
 	}
-	verifier, err := oidcverify.New(ctx, cfg.OIDCIssuer, []string{cfg.OIDCClientID, cfg.OIDCCliClientID})
+	verifier, err := oidcverify.New(ctx, []oidcverify.IssuerAudiences{
+		{Issuer: cfg.OIDCIssuer, Audiences: []string{cfg.OIDCClientID, cfg.OIDCCliClientID}},
+	})
 	if err != nil {
 		return err
 	}

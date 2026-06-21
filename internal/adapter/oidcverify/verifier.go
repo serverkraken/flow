@@ -1,5 +1,5 @@
-// Package oidcverify verifies Authentik/Dex-issued JWT access/ID tokens against
-// a set of accepted audiences (the web client + the CLI client).
+// Package oidcverify verifies Authentik/Dex-issued JWT tokens against a set of
+// trusted issuers, each bound to the audiences accepted for that issuer.
 package oidcverify
 
 import (
@@ -10,30 +10,56 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-type Verifier struct {
-	v         *oidc.IDTokenVerifier
-	audiences map[string]bool
+// IssuerAudiences binds one trusted OIDC issuer to the audiences (client_ids)
+// accepted for tokens minted by that issuer.
+type IssuerAudiences struct {
+	Issuer    string
+	Audiences []string
 }
 
-// New builds a verifier from the issuer's discovery document. A token is
-// accepted if at least one of its audiences is in the allowed set.
-func New(ctx context.Context, issuer string, audiences []string) (*Verifier, error) {
-	p, err := oidc.NewProvider(ctx, issuer)
-	if err != nil {
-		return nil, fmt.Errorf("oidcverify: provider: %w", err)
+// issuerVerifier is one issuer's token verifier plus its accepted-audience set.
+type issuerVerifier struct {
+	v    *oidc.IDTokenVerifier
+	auds map[string]bool
+}
+
+// Verifier validates tokens against several issuers. Authentik runs in
+// per_provider issuer mode, so the browser provider and the CLI/device provider
+// mint tokens with distinct `iss` values AND sign against distinct JWKS; a
+// single-issuer verifier rejects the other before any audience check.
+type Verifier struct {
+	verifiers []issuerVerifier
+}
+
+// New runs OIDC discovery for each issuer (fetching its discovery doc + JWKS)
+// and builds one verifier per issuer. Each verifier skips go-oidc's built-in
+// single-client_id audience check; Verify re-applies a stricter PER-ISSUER
+// audience check. Discovery failure on any issuer fails loudly.
+func New(ctx context.Context, pairs []IssuerAudiences) (*Verifier, error) {
+	if len(pairs) == 0 {
+		return nil, fmt.Errorf("oidcverify: no issuer/audience pairs")
 	}
-	allowed := make(map[string]bool, len(audiences))
-	for _, a := range audiences {
-		if a != "" {
-			allowed[a] = true
+	vs := make([]issuerVerifier, 0, len(pairs))
+	for _, p := range pairs {
+		if p.Issuer == "" {
+			return nil, fmt.Errorf("oidcverify: empty issuer")
 		}
+		prov, err := oidc.NewProvider(ctx, p.Issuer)
+		if err != nil {
+			return nil, fmt.Errorf("oidcverify: provider(%s): %w", p.Issuer, err)
+		}
+		auds := make(map[string]bool, len(p.Audiences))
+		for _, a := range p.Audiences {
+			if a != "" {
+				auds[a] = true
+			}
+		}
+		vs = append(vs, issuerVerifier{
+			v:    prov.Verifier(&oidc.Config{SkipClientIDCheck: true}),
+			auds: auds,
+		})
 	}
-	// SkipClientIDCheck: go-oidc only compares a single clientID; we do the
-	// (multi-audience) aud check ourselves below.
-	return &Verifier{
-		v:         p.Verifier(&oidc.Config{SkipClientIDCheck: true}),
-		audiences: allowed,
-	}, nil
+	return &Verifier{verifiers: vs}, nil
 }
 
 type claims struct {
@@ -44,27 +70,33 @@ type claims struct {
 	Groups            []string `json:"groups"`
 }
 
-// Verify checks the token's signature (via the issuer JWKS), issuer, expiry,
-// and that at least one audience is in the allowed set, then extracts the
-// flow Identity.
+// Verify tries each issuer's verifier; the first whose signature, `iss`, and
+// `exp` check out OWNS the token, and that issuer's audience set must then
+// contain at least one of the token's audiences (per-issuer tightness). If no
+// issuer accepts the token, the last verifier error is returned.
 func (vr *Verifier) Verify(ctx context.Context, raw string) (ports.Identity, error) {
-	tok, err := vr.v.Verify(ctx, raw)
-	if err != nil {
-		return ports.Identity{}, fmt.Errorf("oidcverify: verify: %w", err)
-	}
-	ok := false
-	for _, a := range tok.Audience {
-		if vr.audiences[a] {
-			ok = true
-			break
+	var lastErr error
+	for _, iv := range vr.verifiers {
+		tok, err := iv.v.Verify(ctx, raw)
+		if err != nil {
+			lastErr = err
+			continue
 		}
+		ok := false
+		for _, a := range tok.Audience {
+			if iv.auds[a] {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			return ports.Identity{}, fmt.Errorf("oidcverify: audience %v not allowed for issuer %s", tok.Audience, tok.Issuer)
+		}
+		var c claims
+		if err := tok.Claims(&c); err != nil {
+			return ports.Identity{}, fmt.Errorf("oidcverify: claims: %w", err)
+		}
+		return ports.Identity{Subject: c.Sub, Username: c.PreferredUsername, Email: c.Email, Name: c.Name, Groups: c.Groups}, nil
 	}
-	if !ok {
-		return ports.Identity{}, fmt.Errorf("oidcverify: audience %v not allowed", tok.Audience)
-	}
-	var c claims
-	if err := tok.Claims(&c); err != nil {
-		return ports.Identity{}, fmt.Errorf("oidcverify: claims: %w", err)
-	}
-	return ports.Identity{Subject: c.Sub, Username: c.PreferredUsername, Email: c.Email, Name: c.Name, Groups: c.Groups}, nil
+	return ports.Identity{}, fmt.Errorf("oidcverify: no trusted issuer accepted token: %w", lastErr)
 }

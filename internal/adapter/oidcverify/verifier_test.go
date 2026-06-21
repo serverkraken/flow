@@ -91,7 +91,7 @@ func TestVerifyValidToken(t *testing.T) {
 	signed := h.signToken(t, nil)
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
+	v, err := oidcverify.New(ctx, []oidcverify.IssuerAudiences{{Issuer: h.issuer, Audiences: []string{"flow"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestVerifyRejectsExpiredToken(t *testing.T) {
 	})
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
+	v, err := oidcverify.New(ctx, []oidcverify.IssuerAudiences{{Issuer: h.issuer, Audiences: []string{"flow"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestVerifyRejectsWrongAudience(t *testing.T) {
 	})
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, []string{"flow"})
+	v, err := oidcverify.New(ctx, []oidcverify.IssuerAudiences{{Issuer: h.issuer, Audiences: []string{"flow"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestVerifyAcceptsSecondAudience(t *testing.T) {
 	cliToken := h.signToken(t, jwt.MapClaims{"aud": "flow-cli"})
 
 	ctx := oidc.InsecureIssuerURLContext(context.Background(), h.issuer)
-	v, err := oidcverify.New(ctx, h.issuer, []string{"flow", "flow-cli"})
+	v, err := oidcverify.New(ctx, []oidcverify.IssuerAudiences{{Issuer: h.issuer, Audiences: []string{"flow", "flow-cli"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
