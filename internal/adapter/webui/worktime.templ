@@ -46,44 +46,101 @@ templ WorktimeFragment(d WorktimeData) {
 			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
 			<a href="/stats" class="hover:text-slate-700">stats</a>
 			<a href="/export" class="hover:text-slate-700">export</a>
-				<a href="/docs" class="hover:text-slate-700">docs</a>
+			<a href="/docs" class="hover:text-slate-700">docs</a>
 			<form action="/auth/logout" method="post" hx-boost="false">
 				<button class="hover:text-slate-700">logout { d.User }</button>
 			</form>
 		</div>
 	</header>
-	if d.Running != nil {
-		<div class="rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 p-5 text-white shadow-lg">
-			<div class="text-4xl font-bold tabular-nums">{ fmtDur(d.Running.Elapsed(d.Now)) }</div>
-			<div class="text-sm text-white/80">running</div>
-			<form hx-post="/ui/worktime/stop" hx-target="#wt" hx-swap="innerHTML" class="mt-4 flex flex-wrap gap-2">
-				<input type="hidden" name="sessionId" value={ d.Running.ID }/>
-				<select name="projectId" class="rounded bg-white/20 px-2 py-1 text-sm">
-					for _, p := range d.Projects {
-						<option value={ p.ID }>{ p.Name }</option>
-					}
-				</select>
-				<input name="newProject" placeholder="or new project…" class="rounded bg-white/20 px-2 py-1 text-sm placeholder-white/60"/>
-				<button class="rounded bg-white/90 px-3 py-1 text-sm font-medium text-slate-900">stop</button>
+	<div class="mt-4 flex items-center justify-between text-sm">
+		<a class="rounded px-2 py-1 hover:bg-slate-100" hx-get={ "/ui/worktime?date=" + d.PrevDate } hx-target="#wt" hx-swap="innerHTML">‹ prev</a>
+		<span class="font-medium text-slate-700">{ d.Date.Format("Mon 02.01.2006") }</span>
+		if d.CanForward {
+			<a class="rounded px-2 py-1 hover:bg-slate-100" hx-get={ "/ui/worktime?date=" + d.NextDate } hx-target="#wt" hx-swap="innerHTML">next ›</a>
+		} else {
+			<span class="px-2 py-1 text-slate-300">next ›</span>
+		}
+	</div>
+	if d.Err != "" {
+		<p class="mt-2 rounded bg-rose-50 px-3 py-2 text-sm text-rose-600">{ d.Err }</p>
+	}
+	if d.IsToday {
+		if d.Running != nil {
+			<div class="rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-500 p-5 text-white shadow-lg mt-4">
+				<div class="text-4xl font-bold tabular-nums">{ fmtDur(d.Running.Elapsed(d.Now)) }</div>
+				<div class="text-sm text-white/80">running</div>
+				<form hx-post="/ui/worktime/stop" hx-target="#wt" hx-swap="innerHTML" class="mt-4 flex flex-wrap gap-2">
+					<input type="hidden" name="sessionId" value={ d.Running.ID }/>
+					<select name="projectId" class="rounded bg-white/20 px-2 py-1 text-sm">
+						for _, p := range d.Projects {
+							<option value={ p.ID }>{ p.Name }</option>
+						}
+					</select>
+					<input name="newProject" placeholder="or new project…" class="rounded bg-white/20 px-2 py-1 text-sm placeholder-white/60"/>
+					<button class="rounded bg-white/90 px-3 py-1 text-sm font-medium text-slate-900">stop</button>
+				</form>
+			</div>
+		} else {
+			<form hx-post="/ui/worktime/start" hx-target="#wt" hx-swap="innerHTML" class="mt-4">
+				<button class="w-full rounded-2xl bg-slate-900 p-5 text-left text-lg text-white">▶ start timer</button>
 			</form>
-		</div>
-	} else {
-		<form hx-post="/ui/worktime/start" hx-target="#wt" hx-swap="innerHTML">
-			<button class="w-full rounded-2xl bg-slate-900 p-5 text-left text-lg text-white">▶ start timer</button>
-		</form>
+		}
 	}
 	<section class="mt-6">
-		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Today</h2>
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Sessions</h2>
 		if len(d.Sessions) == 0 {
-			<p class="text-sm text-slate-400">no sessions yet</p>
+			<p class="text-sm text-slate-400">no sessions</p>
 		}
 		<ul class="divide-y divide-slate-100">
 			for _, s := range d.Sessions {
-				<li class="flex justify-between py-2 text-sm">
-					<span>{ s.Start.Local().Format("15:04") }</span>
-					<span class="tabular-nums text-slate-500">{ fmtDur(s.Elapsed(d.Now)) }</span>
+				<li class="py-2 text-sm">
+					<div class="flex items-center justify-between">
+						<span>{ fmtHM(s.Start) }–{ stopHM(s) } · { projName(d.Projects, s.ProjectID) }</span>
+						<span class="flex items-center gap-2">
+							<span class="tabular-nums text-slate-500">{ fmtDur(s.Elapsed(d.Now)) }</span>
+							if !s.Running() {
+								<form hx-post="/ui/worktime/delete" hx-target="#wt" hx-swap="innerHTML" hx-confirm="delete this session?">
+									<input type="hidden" name="sessionId" value={ s.ID }/>
+									<input type="hidden" name="date" value={ d.Date.Format("2006-01-02") }/>
+									<button class="text-slate-400 hover:text-rose-600">✕</button>
+								</form>
+							}
+						</span>
+					</div>
+					if !s.Running() {
+						<details class="mt-1">
+							<summary class="cursor-pointer text-xs text-slate-400 hover:text-slate-600">edit</summary>
+							<form hx-post="/ui/worktime/edit" hx-target="#wt" hx-swap="innerHTML" class="mt-2 flex flex-wrap gap-2">
+								<input type="hidden" name="sessionId" value={ s.ID }/>
+								<input type="hidden" name="date" value={ d.Date.Format("2006-01-02") }/>
+								<input name="from" value={ fmtHM(s.Start) } class="w-16 rounded border px-2 py-1"/>
+								<input name="to" value={ stopHM(s) } class="w-16 rounded border px-2 py-1"/>
+								<input name="tag" value={ s.Tag } placeholder="tag" class="w-24 rounded border px-2 py-1"/>
+								<input name="note" value={ s.Note } placeholder="note" class="flex-1 rounded border px-2 py-1"/>
+								<button class="rounded bg-slate-900 px-3 py-1 text-white">save</button>
+							</form>
+						</details>
+					}
 				</li>
 			}
 		</ul>
+	</section>
+	<section class="mt-6">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Nachbuchen</h2>
+		<form hx-post="/ui/worktime/add" hx-target="#wt" hx-swap="innerHTML" class="flex flex-wrap gap-2">
+			<input type="hidden" name="date" value={ d.Date.Format("2006-01-02") }/>
+			<input name="from" placeholder="09:00" class="w-20 rounded border px-2 py-1"/>
+			<input name="to" placeholder="17:00" class="w-20 rounded border px-2 py-1"/>
+			<select name="projectId" class="rounded border px-2 py-1">
+				<option value="">— project —</option>
+				for _, p := range d.Projects {
+					<option value={ p.ID }>{ p.Name }</option>
+				}
+			</select>
+			<input name="newProject" placeholder="or new…" class="rounded border px-2 py-1"/>
+			<input name="tag" placeholder="tag" class="w-24 rounded border px-2 py-1"/>
+			<input name="note" placeholder="note" class="flex-1 rounded border px-2 py-1"/>
+			<button class="rounded bg-slate-900 px-3 py-1 text-white">add</button>
+		</form>
 	</section>
 }

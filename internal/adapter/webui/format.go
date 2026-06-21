@@ -4,6 +4,8 @@ package webui
 import (
 	"fmt"
 	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // fmtDur renders a duration as HH:MM (clamped at zero).
@@ -48,4 +50,29 @@ func weekBarStyle(row StatsWeekRow) string {
 		pct = 100
 	}
 	return fmt.Sprintf("width: %d%%", pct)
+}
+
+
+// fmtHM renders a timestamp as local HH:MM.
+func fmtHM(t time.Time) string { return t.Local().Format("15:04") }
+
+// projName resolves a project id to its name, or "—" when unset/unknown.
+func projName(projects []domain.Project, id *string) string {
+	if id == nil {
+		return "—"
+	}
+	for _, p := range projects {
+		if p.ID == *id {
+			return p.Name
+		}
+	}
+	return "—"
+}
+
+// stopHM renders a session's stop time as HH:MM, or "…" while running.
+func stopHM(s domain.WorkSession) string {
+	if s.Stop == nil {
+		return "…"
+	}
+	return fmtHM(*s.Stop)
 }

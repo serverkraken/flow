@@ -8,27 +8,11 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+// worktimeData builds the today-only view model (used by start/stop which are
+// always today operations).
 func (s *Server) worktimeData(ctx context.Context, u domain.User) (webui.WorktimeData, error) {
-	since := startOfDay(s.Clock.Now())
-	sessions, err := s.ListSessions.Execute(ctx, u.ID, since)
-	if err != nil {
-		return webui.WorktimeData{}, err
-	}
-	projects, err := s.ListProjects.Execute(ctx, u.ID)
-	if err != nil {
-		return webui.WorktimeData{}, err
-	}
-	var running *domain.WorkSession
-	for i := range sessions {
-		if sessions[i].Running() {
-			r := sessions[i]
-			running = &r
-		}
-	}
-	return webui.WorktimeData{
-		User: u.Username, Running: running, Now: s.Clock.Now(),
-		Sessions: sessions, Projects: projects,
-	}, nil
+	today := startOfDay(s.Clock.Now())
+	return s.worktimeDataFor(ctx, u, today, "")
 }
 
 func (s *Server) renderFragment(w http.ResponseWriter, r *http.Request, u domain.User) {
@@ -43,7 +27,8 @@ func (s *Server) renderFragment(w http.ResponseWriter, r *http.Request, u domain
 
 func (s *Server) handleWebHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	d, err := s.worktimeData(r.Context(), u)
+	day := parseDayParam(s, r.URL.Query().Get("date"))
+	d, err := s.worktimeDataFor(r.Context(), u, day, "")
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -54,7 +39,14 @@ func (s *Server) handleWebHome(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWebFragment(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	s.renderFragment(w, r, u)
+	day := parseDayParam(s, r.URL.Query().Get("date"))
+	d, err := s.worktimeDataFor(r.Context(), u, day, "")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.WorktimeFragment(d).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebStart(w http.ResponseWriter, r *http.Request) {

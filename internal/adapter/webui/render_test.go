@@ -13,7 +13,7 @@ import (
 func TestFragmentShowsRunningTimer(t *testing.T) {
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	run, _ := domain.NewWorkSession("s1", "u1", nil, start)
-	d := WorktimeData{User: "msoent", Running: &run, Now: start.Add(90 * time.Minute)}
+	d := WorktimeData{User: "msoent", Running: &run, Now: start.Add(90 * time.Minute), IsToday: true}
 	var b bytes.Buffer
 	if err := WorktimeFragment(d).Render(context.Background(), &b); err != nil {
 		t.Fatal(err)
@@ -25,7 +25,7 @@ func TestFragmentShowsRunningTimer(t *testing.T) {
 
 func TestFragmentIdleShowsStart(t *testing.T) {
 	var b bytes.Buffer
-	if err := WorktimeFragment(WorktimeData{User: "x"}).Render(context.Background(), &b); err != nil {
+	if err := WorktimeFragment(WorktimeData{User: "x", IsToday: true}).Render(context.Background(), &b); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(b.String(), "start timer") {
@@ -48,13 +48,14 @@ func TestFragmentWithProjectsAndSessions(t *testing.T) {
 		Now:      start.Add(45 * time.Minute),
 		Sessions: []domain.WorkSession{run, done},
 		Projects: []domain.Project{{ID: "p1", Name: "Flow"}, {ID: "p2", Name: "Kompendium"}},
+		IsToday:  true,
 	}
 	var b bytes.Buffer
 	if err := WorktimeFragment(d).Render(context.Background(), &b); err != nil {
 		t.Fatal(err)
 	}
 	out := b.String()
-	for _, want := range []string{"Flow", "Kompendium", "Today", "09:00"} {
+	for _, want := range []string{"Flow", "Kompendium", "Sessions", "09:00"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("fragment missing %q:\n%s", want, out)
 		}
@@ -63,7 +64,7 @@ func TestFragmentWithProjectsAndSessions(t *testing.T) {
 
 func TestWorktimePageWrapsFragment(t *testing.T) {
 	var b bytes.Buffer
-	if err := WorktimePage(WorktimeData{User: "x"}).Render(context.Background(), &b); err != nil {
+	if err := WorktimePage(WorktimeData{User: "x", IsToday: true}).Render(context.Background(), &b); err != nil {
 		t.Fatal(err)
 	}
 	out := b.String()
@@ -158,5 +159,47 @@ func TestWeekDay_Total_ActiveBeforeMidnight(t *testing.T) {
 	want := time.Hour
 	if got != want {
 		t.Errorf("WeekDay.Total(active before midnight): want %v, got %v", want, got)
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestWorktimeFragment_PastDayShowsNavAndForm(t *testing.T) {
+	pid := "p1"
+	d := WorktimeData{
+		User: "alice",
+		Now:  time.Date(2026, 6, 21, 12, 0, 0, 0, time.Local),
+		Date: time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local),
+		Sessions: []domain.WorkSession{{
+			ID: "s1", ProjectID: &pid,
+			Start: time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local),
+			Stop:  ptr(time.Date(2026, 6, 18, 11, 30, 0, 0, time.Local)),
+		}},
+		Projects:   []domain.Project{{ID: "p1", Name: "Acme"}},
+		IsToday:    false,
+		PrevDate:   "2026-06-17",
+		NextDate:   "2026-06-19",
+		CanForward: true,
+	}
+	var b strings.Builder
+	if err := WorktimeFragment(d).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	html := b.String()
+	for _, want := range []string{
+		"2026-06-17",                 // prev-day link target
+		"2026-06-19",                 // next-day link target
+		"09:00",                      // session start HH:MM
+		"Acme",                       // project name
+		`name="from"`,                // Nachbuchen form field
+		`hx-post="/ui/worktime/add"`, // Nachbuchen form hx-post target
+		`/ui/worktime/delete`,        // per-row delete target
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("fragment missing %q", want)
+		}
+	}
+	if strings.Contains(html, "start timer") {
+		t.Error("past day must not show the start-timer card")
 	}
 }
