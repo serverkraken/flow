@@ -80,9 +80,7 @@ func TestRunBind_UnknownSlug(t *testing.T) {
 // --- TestRunUnbind ---
 
 func TestRunUnbind_Success(t *testing.T) {
-	_, _, deletedQuery := newBindSrv(t, nil, nil)
 	srv, _, deletedQ := newBindSrv(t, nil, nil)
-	_ = deletedQuery
 	c := apiclient.New(srv.URL, "tkn")
 
 	out, err := runUnbind(context.Background(), c, "github.com/acme/app")
