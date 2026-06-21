@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -17,12 +18,20 @@ import (
 
 // --- helpers shared across bind tests ---
 
+// newBindSrv creates an httptest server for binding tests.
+// resolveProject: if non-nil, /projects/resolve returns it as JSON (200); otherwise 404.
 func newBindSrv(t *testing.T, projects []domain.Project, bindings []domain.ProjectBinding) (srv *httptest.Server, putSlug *string, deletedPath *string) {
+	srv, putSlug, deletedPath, _ = newBindSrvWithResolve(t, projects, bindings, nil)
+	return srv, putSlug, deletedPath
+}
+
+func newBindSrvWithResolve(t *testing.T, projects []domain.Project, bindings []domain.ProjectBinding, resolveProject *domain.Project) (srv *httptest.Server, putSlug *string, deletedPath *string, resolveHit *bool) {
 	t.Helper()
 	var ps = projects
 	var bs = bindings
 	var putRemoteSlug string
 	var dpath string
+	var rHit bool
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
@@ -39,15 +48,19 @@ func newBindSrv(t *testing.T, projects []domain.Project, bindings []domain.Proje
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/bindings":
 			_ = json.NewEncoder(w).Encode(bs)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve":
-			// return 404 — no auto-resolve in these tests
-			w.WriteHeader(http.StatusNotFound)
+			rHit = true
+			if resolveProject == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(resolveProject)
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusBadRequest)
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return srv, &putRemoteSlug, &dpath
+	return srv, &putRemoteSlug, &dpath, &rHit
 }
 
 // --- TestRunBind ---
@@ -100,21 +113,47 @@ func TestRunUnbind_Success(t *testing.T) {
 
 // --- TestRunBindings ---
 
+// makeGitRepo creates a temp dir, inits a git repo, and adds a remote origin.
+// Returns the dir path. Skips the test if git is not available.
+func makeGitRepo(t *testing.T, remoteURL string) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	run("git", "init")
+	run("git", "remote", "add", "origin", remoteURL)
+	return dir
+}
+
+// TestRunBindings_MarksResolved: no FLOW_PROJECT override; cwd is a git repo whose
+// origin resolves (via /projects/resolve) to project p1 → that binding is starred.
 func TestRunBindings_MarksResolved(t *testing.T) {
-	projects := []domain.Project{{ID: "p1", Name: "Acme", Slug: "acme"}}
+	resolvedProj := &domain.Project{ID: "p1", Name: "Acme", Slug: "acme"}
+	projects := []domain.Project{*resolvedProj}
 	bindings := []domain.ProjectBinding{
 		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
-		{ID: "b2", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/other"},
+		{ID: "b2", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/other"},
 	}
-	srv, _, _ := newBindSrv(t, projects, bindings)
+	srv, _, _, _ := newBindSrvWithResolve(t, projects, bindings, resolvedProj)
 	c := apiclient.New(srv.URL, "tkn")
 
-	// resolvedRemoteSlug = "github.com/acme/app" → binding b1 is the current one
-	out, err := runBindings(context.Background(), c, "github.com/acme/app")
+	// Create a real git repo so OriginSlug returns a non-empty slug, causing /resolve to be called.
+	dir := makeGitRepo(t, "https://github.com/acme/app.git")
+
+	getenv := func(string) string { return "" }
+	out, err := runBindings(context.Background(), c, getenv, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The resolved binding should be marked with *
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	var markedLine, unmarkedLine string
 	for _, l := range lines {
@@ -133,15 +172,69 @@ func TestRunBindings_MarksResolved(t *testing.T) {
 	}
 }
 
+// TestRunBindings_FlowProjectOverride: FLOW_PROJECT=<slug> wins over git-remote;
+// the binding for that project is starred even if cwd's origin would resolve differently.
+func TestRunBindings_FlowProjectOverride(t *testing.T) {
+	// Two projects; p2 is the override target, p1 is the cwd-origin match (if resolution went by remote).
+	overrideProj := &domain.Project{ID: "p2", Name: "Override", Slug: "override-slug"}
+	projects := []domain.Project{
+		{ID: "p1", Name: "Acme", Slug: "acme"},
+		*overrideProj,
+	}
+	bindings := []domain.ProjectBinding{
+		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
+		{ID: "b2", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/other/repo"},
+	}
+	// /resolve is not expected to be called (env override takes precedence before git-remote tier).
+	srv, _, _, resolveHit := newBindSrvWithResolve(t, projects, bindings, nil)
+	c := apiclient.New(srv.URL, "tkn")
+
+	// getenv returns FLOW_PROJECT=override-slug; cwd can be anything (even /tmp — no git needed).
+	getenv := func(k string) string {
+		if k == "FLOW_PROJECT" {
+			return "override-slug"
+		}
+		return ""
+	}
+	out, err := runBindings(context.Background(), c, getenv, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var overrideLine, otherLine string
+	for _, l := range lines {
+		if strings.Contains(l, "github.com/other/repo") {
+			overrideLine = l
+		}
+		if strings.Contains(l, "github.com/acme/app") {
+			otherLine = l
+		}
+	}
+	if !strings.Contains(overrideLine, "*") {
+		t.Errorf("FLOW_PROJECT override binding should be starred:\n%s", out)
+	}
+	if strings.Contains(otherLine, "*") {
+		t.Errorf("cwd-origin binding should NOT be starred when override wins:\n%s", out)
+	}
+	if *resolveHit {
+		t.Error("/projects/resolve should NOT have been called when FLOW_PROJECT is set")
+	}
+}
+
+// TestRunBindings_NoOrigin_ListsAnyway: no env override, not in a git repo →
+// resolution yields ok=false → no star, bindings still listed.
 func TestRunBindings_NoOrigin_ListsAnyway(t *testing.T) {
 	bindings := []domain.ProjectBinding{
 		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/x/y"},
 	}
-	srv, _, _ := newBindSrv(t, nil, bindings)
+	// /resolve will be called (empty slug from non-git dir) but returns 404.
+	srv, _, _, _ := newBindSrvWithResolve(t, nil, bindings, nil)
 	c := apiclient.New(srv.URL, "tkn")
 
-	// empty originSlug means no match → no star
-	out, err := runBindings(context.Background(), c, "")
+	// Use a non-git temp dir so OriginSlug returns empty.
+	getenv := func(string) string { return "" }
+	out, err := runBindings(context.Background(), c, getenv, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

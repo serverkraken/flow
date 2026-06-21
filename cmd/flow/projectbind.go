@@ -10,6 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/gitremote"
+	"github.com/serverkraken/flow/internal/projectresolve"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
 	"github.com/spf13/cobra"
@@ -89,10 +90,11 @@ func runUnbind(ctx context.Context, c *apiclient.Client, originSlug string) (str
 	return fmt.Sprintf("unbound repo %s", originSlug), nil
 }
 
-// runBindings lists all bindings; the binding whose RemoteSlug matches originSlug
-// (the resolved current repo) is marked with *.
-// originSlug may be empty (not a git repo) — in that case no star is shown.
-func runBindings(ctx context.Context, c *apiclient.Client, originSlug string) (string, error) {
+// runBindings lists all bindings; the binding whose ProjectID matches the
+// project resolved via the resolution chain (FLOW_PROJECT env override →
+// git-remote) is marked with *.
+// getenv and cwd are injected so the function is testable without a real env/git repo.
+func runBindings(ctx context.Context, c *apiclient.Client, getenv func(string) string, cwd string) (string, error) {
 	bs, err := c.ListBindings(ctx)
 	if err != nil {
 		return "", err
@@ -100,10 +102,14 @@ func runBindings(ctx context.Context, c *apiclient.Client, originSlug string) (s
 	if len(bs) == 0 {
 		return "no bindings", nil
 	}
+
+	// Best-effort resolution: no match is fine (no star shown).
+	resolved, ok, _ := projectresolve.Resolve(ctx, c, getenv, cwd)
+
 	out := ""
 	for _, b := range bs {
 		marker := "  "
-		if b.Kind == domain.BindingRemote && originSlug != "" && b.RemoteSlug == originSlug {
+		if ok && b.ProjectID == resolved.ID {
 			marker = "* "
 		}
 		switch b.Kind {
@@ -202,16 +208,12 @@ func projectBindingsCmd() *cobra.Command {
 		Short: "list all project bindings (current repo marked with *)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Best-effort: derive current repo's origin for the * marker.
-			// Not fatal if not in a git repo.
 			cwd, _ := os.Getwd()
-			originSlug, _, _ := gitremote.OriginSlug(cwd)
-
 			c, err := clientFromStore(cmd.Context())
 			if err != nil {
 				return err
 			}
-			out, err := runBindings(cmd.Context(), c, originSlug)
+			out, err := runBindings(cmd.Context(), c, os.Getenv, cwd)
 			if err != nil {
 				return err
 			}
