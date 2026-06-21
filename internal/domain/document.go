@@ -10,15 +10,19 @@ import (
 type DocumentType string
 
 const (
-	DocDaily   DocumentType = "daily"
-	DocProject DocumentType = "project"
-	DocFree    DocumentType = "free"
-	DocAgent   DocumentType = "agent"
+	DocDaily       DocumentType = "daily"
+	DocProject     DocumentType = "project"
+	DocFree        DocumentType = "free"
+	DocAgent       DocumentType = "agent"
+	DocMemory      DocumentType = "memory"      // agent-owned
+	DocInstruction DocumentType = "instruction" // agent-owned (CLAUDE.md)
+	DocSkill       DocumentType = "skill"        // agent-owned
+	DocPlan        DocumentType = "plan"         // agent-owned
 )
 
 func (t DocumentType) valid() bool {
 	switch t {
-	case DocDaily, DocProject, DocFree, DocAgent:
+	case DocDaily, DocProject, DocFree, DocAgent, DocMemory, DocInstruction, DocSkill, DocPlan:
 		return true
 	}
 	return false
