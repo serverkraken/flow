@@ -188,12 +188,6 @@ func testItems() []fuzzylist.Item {
 	}
 }
 
-func sendKeys(m *pickProjectProgram, keys ...tea.KeyPressMsg) {
-	for _, k := range keys {
-		_, _ = m.Update(k)
-	}
-}
-
 func charKey(s string) tea.KeyPressMsg { return tea.KeyPressMsg{Text: s} }
 func downKey() tea.KeyPressMsg         { return tea.KeyPressMsg{Code: tea.KeyDown} }
 func enterKey() tea.KeyPressMsg        { return tea.KeyPressMsg{Code: tea.KeyEnter} }
@@ -256,43 +250,99 @@ func TestPickerProgram_CancelOnEsc(t *testing.T) {
 	}
 }
 
-// TestRunBindInteractive_PickExisting verifies the full non-TUI path:
-// a fake server, a picker that immediately selects the first project,
-// and the resulting BindRemote call.
-func TestRunBindInteractive_PickExisting(t *testing.T) {
-	t.Parallel()
-	projects := []domain.Project{{ID: "p1", Name: "Alpha", Slug: "alpha"}}
-	var boundProjectID string
-	var boundRemoteSlug string
+// newBindSelectionSrv is an httptest server that handles BindRemote (PUT) and
+// optionally CreateProject (POST /api/v1/projects). It records what was called.
+type bindSelectionCapture struct {
+	putProjectID   string
+	putRemoteSlug  string
+	postCreateName string
+	postCalled     bool
+}
+
+func newBindSelectionSrv(t *testing.T, createResponse domain.Project) (*httptest.Server, *bindSelectionCapture) {
+	t.Helper()
+	cap := &bindSelectionCapture{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode(projects)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/projects":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			cap.postCreateName, _ = body["name"].(string)
+			cap.postCalled = true
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(createResponse)
 		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/bindings"):
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			boundRemoteSlug, _ = body["remoteSlug"].(string)
-			boundProjectID = strings.TrimSuffix(strings.TrimSuffix(r.URL.Path, "/bindings"), "/api/v1/projects/")
+			cap.putRemoteSlug, _ = body["remoteSlug"].(string)
+			// Extract project ID from path: /api/v1/projects/<id>/bindings
+			trimmed := strings.TrimSuffix(r.URL.Path, "/bindings")
+			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/projects/")
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{RemoteSlug: boundRemoteSlug})
+			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{RemoteSlug: cap.putRemoteSlug})
 		default:
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusBadRequest)
 		}
 	}))
 	t.Cleanup(srv.Close)
+	return srv, cap
+}
+
+// TestBindSelection_PickExisting: pick-existing path calls BindRemote with the
+// picked project ID and origin slug; CreateProject is NOT called.
+func TestBindSelection_PickExisting(t *testing.T) {
+	t.Parallel()
+	srv, cap := newBindSelectionSrv(t, domain.Project{})
 	c := apiclient.New(srv.URL, "tkn")
 
-	// Call runBindRemote directly (bypasses the TUI) to verify the plumbing.
-	out, err := runBindRemote(context.Background(), c, "github.com/acme/alpha", "p1", "Alpha")
+	picked := fuzzylist.Item{ID: "p1", Label: "Alpha"}
+	out, err := bindSelection(context.Background(), c, "github.com/acme/alpha", picked, false)
 	if err != nil {
-		t.Fatalf("runBindRemote: %v", err)
+		t.Fatalf("bindSelection: %v", err)
+	}
+	if cap.postCalled {
+		t.Error("CreateProject should NOT have been called for pick-existing")
+	}
+	if cap.putProjectID != "p1" {
+		t.Errorf("PUT project ID = %q, want %q", cap.putProjectID, "p1")
+	}
+	if cap.putRemoteSlug != "github.com/acme/alpha" {
+		t.Errorf("PUT remoteSlug = %q, want %q", cap.putRemoteSlug, "github.com/acme/alpha")
 	}
 	if !strings.Contains(out, "github.com/acme/alpha") || !strings.Contains(out, "Alpha") {
 		t.Errorf("output = %q; want origin and project name", out)
 	}
-	if boundRemoteSlug != "github.com/acme/alpha" {
-		t.Errorf("PUT remoteSlug = %q", boundRemoteSlug)
+}
+
+// TestBindSelection_CreateNew: create-new path calls CreateProject(name) first,
+// then BindRemote with the server-assigned ID (not the empty item ID).
+func TestBindSelection_CreateNew(t *testing.T) {
+	t.Parallel()
+	newProject := domain.Project{ID: "p-new", Name: "Brandnew"}
+	srv, cap := newBindSelectionSrv(t, newProject)
+	c := apiclient.New(srv.URL, "tkn")
+
+	// isCreate=true: the item has no ID yet (server assigns it on create)
+	picked := fuzzylist.Item{ID: "", Label: "Brandnew"}
+	out, err := bindSelection(context.Background(), c, "github.com/acme/repo", picked, true)
+	if err != nil {
+		t.Fatalf("bindSelection: %v", err)
 	}
-	_ = boundProjectID
+	if !cap.postCalled {
+		t.Error("CreateProject should have been called for create-new")
+	}
+	if cap.postCreateName != "Brandnew" {
+		t.Errorf("CreateProject name = %q, want %q", cap.postCreateName, "Brandnew")
+	}
+	// BindRemote must use the server-assigned ID, not the empty item ID.
+	if cap.putProjectID != "p-new" {
+		t.Errorf("PUT project ID = %q, want server-assigned %q", cap.putProjectID, "p-new")
+	}
+	if cap.putRemoteSlug != "github.com/acme/repo" {
+		t.Errorf("PUT remoteSlug = %q, want %q", cap.putRemoteSlug, "github.com/acme/repo")
+	}
+	if !strings.Contains(out, "github.com/acme/repo") || !strings.Contains(out, "Brandnew") {
+		t.Errorf("output = %q; want origin and project name", out)
+	}
 }

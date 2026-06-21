@@ -38,6 +38,24 @@ func runBindRemote(ctx context.Context, c *apiclient.Client, originSlug, project
 	return fmt.Sprintf("bound repo %s → %s", originSlug, projectName), nil
 }
 
+// bindSelection acts on the picker's resolved selection:
+// if isCreate is true it calls CreateProject(picked.Label) then BindRemote with the new ID;
+// otherwise it calls BindRemote with picked.ID directly.
+// This is extracted so the post-selection logic can be unit-tested without launching the TUI.
+func bindSelection(ctx context.Context, c *apiclient.Client, originSlug string, picked fuzzylist.Item, isCreate bool) (string, error) {
+	var projectID, projectName string
+	if isCreate {
+		p, err := c.CreateProject(ctx, picked.Label)
+		if err != nil {
+			return "", fmt.Errorf("create project: %w", err)
+		}
+		projectID, projectName = p.ID, p.Name
+	} else {
+		projectID, projectName = picked.ID, picked.Label
+	}
+	return runBindRemote(ctx, c, originSlug, projectID, projectName)
+}
+
 // runBindInteractive launches the fuzzylist picker, picks or creates a project,
 // then binds originSlug to it. Returns the confirmation message.
 func runBindInteractive(ctx context.Context, c *apiclient.Client, originSlug, defaultName string, pal theme.Palette) (string, error) {
@@ -54,23 +72,13 @@ func runBindInteractive(ctx context.Context, c *apiclient.Client, originSlug, de
 	if _, err := tea.NewProgram(prog, tea.WithContext(ctx)).Run(); err != nil {
 		return "", fmt.Errorf("picker: %w", err)
 	}
-	if prog.result.cancelled || !prog.result.ok {
-		return "", fmt.Errorf("cancelled")
+	picked, isCreate, ok := prog.Selection()
+	if !ok {
+		// User cancelled (Esc/Ctrl-C) — not an error.
+		return "", nil
 	}
 
-	var projectID, projectName string
-	if prog.result.isCreate {
-		name := prog.result.item.Label
-		p, err := c.CreateProject(ctx, name)
-		if err != nil {
-			return "", fmt.Errorf("create project: %w", err)
-		}
-		projectID, projectName = p.ID, p.Name
-	} else {
-		projectID, projectName = prog.result.item.ID, prog.result.item.Label
-	}
-
-	return runBindRemote(ctx, c, originSlug, projectID, projectName)
+	return bindSelection(ctx, c, originSlug, picked, isCreate)
 }
 
 // runUnbind removes the binding for originSlug.
@@ -149,7 +157,9 @@ func projectBindCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), out)
+			if out != "" {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
+			}
 			return nil
 		},
 	}
@@ -180,7 +190,7 @@ func projectUnbindCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}
@@ -205,7 +215,7 @@ func projectBindingsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}
