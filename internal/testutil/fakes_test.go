@@ -135,7 +135,7 @@ func TestFakeDocumentStore_Search(t *testing.T) {
 	mk("a", "Kompendium", "about the compendium", "go")
 	mk("b", "Other", "unrelated text")
 
-	hits, err := s.Search(ctx, "u", "kompend", nil)
+	hits, err := s.Search(ctx, "u", "kompend", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestFakeDocumentStore_Search(t *testing.T) {
 	if !strings.Contains(hits[0].Snippet, domain.HighlightStart) {
 		t.Fatalf("snippet missing highlight markers: %q", hits[0].Snippet)
 	}
-	none, _ := s.Search(ctx, "u", "kompend", []string{"missing"})
+	none, _ := s.Search(ctx, "u", "kompend", nil, []string{"missing"})
 	if len(none) != 0 {
 		t.Fatalf("tag-filtered search = %d, want 0", len(none))
 	}
@@ -163,15 +163,15 @@ func TestFakeDocumentStore_ListTagFilter(t *testing.T) {
 	mk("b", "go")
 	mk("c", "web")
 
-	all, _ := s.List(ctx, "u")
+	all, _ := s.List(ctx, "u", nil)
 	if len(all) != 3 {
 		t.Fatalf("unfiltered = %d, want 3", len(all))
 	}
-	goDocs, _ := s.List(ctx, "u", "go")
+	goDocs, _ := s.List(ctx, "u", nil, "go")
 	if len(goDocs) != 2 {
 		t.Fatalf("tag=go = %d, want 2", len(goDocs))
 	}
-	both, _ := s.List(ctx, "u", "go", "tui")
+	both, _ := s.List(ctx, "u", nil, "go", "tui")
 	if len(both) != 1 || both[0].ID != "a" {
 		t.Fatalf("tag=go,tui = %#v, want [a]", both)
 	}
@@ -209,14 +209,14 @@ func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 		t.Fatalf("want only b stale, got %#v", stale)
 	}
 
-	hits, err := s.SemanticSearch(ctx, "u", vecs[0], nil, 10)
+	hits, err := s.SemanticSearch(ctx, "u", vecs[0], nil, nil, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(hits) != 1 || hits[0].ID != "a" || hits[0].Snippet == "" {
 		t.Fatalf("semantic want [a] with snippet, got %#v", hits)
 	}
-	none, _ := s.SemanticSearch(ctx, "u", vecs[0], []string{"missing"}, 10)
+	none, _ := s.SemanticSearch(ctx, "u", vecs[0], nil, []string{"missing"}, 10)
 	if len(none) != 0 {
 		t.Fatalf("tag-filtered semantic want 0, got %d", len(none))
 	}

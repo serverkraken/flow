@@ -461,7 +461,7 @@ func (s *FakeDocumentStore) Get(_ context.Context, ownerID, id string) (domain.D
 	return d, nil
 }
 
-func (s *FakeDocumentStore) List(_ context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
+func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []domain.Document
@@ -558,7 +558,7 @@ func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath str
 	return out, nil
 }
 
-func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ql := strings.ToLower(q)
@@ -623,7 +623,7 @@ func (s *FakeDocumentStore) ReplaceChunks(_ context.Context, docID, _ string, co
 	return nil
 }
 
-func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var hits []domain.SemanticHit

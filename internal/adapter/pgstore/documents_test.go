@@ -64,7 +64,7 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 	}
 
 	// List
-	list, err := st.List(ctx, uid)
+	list, err := st.List(ctx, uid, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	mk("tf-a", "a", "go", "tui")
 	mk("tf-b", "b", "go")
 
-	got, err := st.List(ctx, owner, "go", "tui")
+	got, err := st.List(ctx, owner, nil, "go", "tui")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	mk("srch-a", "a", "Kompendium", "notes about the compendium", "go")
 	mk("srch-b", "b", "Anderes", "etwas ganz anderes")
 
-	hits, err := st.Search(ctx, owner, "kompend", nil)
+	hits, err := st.Search(ctx, owner, "kompend", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 		t.Fatalf(`search "kompend": expected highlighted snippet (prefix hit), got %q`, hits[0].Snippet)
 	}
 
-	exact, err := st.Search(ctx, owner, "compendium", nil)
+	exact, err := st.Search(ctx, owner, "compendium", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	}
 
 	// punctuation-only query: no error, no rows (edge case for ''::tsquery guard)
-	punct, err := st.Search(ctx, owner, "!!!", nil)
+	punct, err := st.Search(ctx, owner, "!!!", nil, nil)
 	if err != nil {
 		t.Fatalf(`search "!!!": unexpected error: %v`, err)
 	}
@@ -212,7 +212,7 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 		t.Fatalf(`search "!!!": expected 0 results, got %d`, len(punct))
 	}
 
-	none, err := st.Search(ctx, owner, "kompend", []string{"missing"})
+	none, err := st.Search(ctx, owner, "kompend", nil, []string{"missing"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hits, err := s.SemanticSearch(ctx, owner, vec(1.0), nil, 10)
+	hits, err := s.SemanticSearch(ctx, owner, vec(1.0), nil, nil, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	if hits[0].Snippet != "near chunk" {
 		t.Fatalf("snippet = %q, want near chunk", hits[0].Snippet)
 	}
-	tagged, _ := s.SemanticSearch(ctx, owner, vec(1.0), []string{"go"}, 10)
+	tagged, _ := s.SemanticSearch(ctx, owner, vec(1.0), nil, []string{"go"}, 10)
 	if len(tagged) != 1 || tagged[0].Path != "near" {
 		t.Fatalf("tag-filtered semantic = %#v, want [near]", tagged)
 	}

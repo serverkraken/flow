@@ -216,7 +216,7 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 		t.Fatalf("create u2/c: %v", err)
 	}
 
-	u1Docs, err := list.Execute(ctx, "u1", nil)
+	u1Docs, err := list.Execute(ctx, "u1", nil, nil)
 	if err != nil {
 		t.Fatalf("list u1: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 		}
 	}
 
-	u2Docs, err := list.Execute(ctx, "u2", nil)
+	u2Docs, err := list.Execute(ctx, "u2", nil, nil)
 	if err != nil {
 		t.Fatalf("list u2: %v", err)
 	}
@@ -306,7 +306,7 @@ func (s errDocStore) Create(_ context.Context, d domain.Document) (domain.Docume
 func (s errDocStore) Get(_ context.Context, ownerID, id string) (domain.Document, error) {
 	panic("unexpected Get")
 }
-func (s errDocStore) List(_ context.Context, ownerID string, _ ...string) ([]domain.Document, error) {
+func (s errDocStore) List(_ context.Context, ownerID string, _ *string, _ ...string) ([]domain.Document, error) {
 	return nil, s.err
 }
 func (s errDocStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {
@@ -319,7 +319,7 @@ func (s errDocStore) ReplaceLinks(_ context.Context, srcDocID, ownerID string, t
 func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
 	panic("unexpected Backlinks")
 }
-func (s errDocStore) Search(_ context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+func (s errDocStore) Search(_ context.Context, ownerID, q string, _ *string, tags []string) ([]domain.SearchHit, error) {
 	panic("unexpected Search")
 }
 func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]domain.Document, error) {
@@ -328,7 +328,7 @@ func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]domain.Docu
 func (s errDocStore) ReplaceChunks(_ context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
 	panic("unexpected ReplaceChunks")
 }
-func (s errDocStore) SemanticSearch(_ context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+func (s errDocStore) SemanticSearch(_ context.Context, ownerID string, query []float32, _ *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	panic("unexpected SemanticSearch")
 }
 
@@ -459,7 +459,7 @@ func TestSearchDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 	uc := usecase.SearchDocuments{Docs: docs}
-	hits, err := uc.Execute(ctx, "u", "kompend", []string{"go"})
+	hits, err := uc.Execute(ctx, "u", "kompend", nil, []string{"go"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +481,7 @@ func TestSearchDocuments_FusesSemanticArm(t *testing.T) {
 	}
 
 	uc := usecase.SearchDocuments{Docs: docs, Embedder: emb}
-	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	hits, err := uc.Execute(ctx, "u", "alpha", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -502,7 +502,7 @@ func TestSearchDocuments_DegradesWhenEmbedderErrors(t *testing.T) {
 	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha keyword"})
 
 	uc := usecase.SearchDocuments{Docs: docs, Embedder: emb}
-	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	hits, err := uc.Execute(ctx, "u", "alpha", nil, nil)
 	if err != nil {
 		t.Fatalf("degrade must not error: %v", err)
 	}
@@ -516,7 +516,7 @@ func TestSearchDocuments_NilEmbedderIsKeywordOnly(t *testing.T) {
 	ctx := context.Background()
 	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha keyword"})
 	uc := usecase.SearchDocuments{Docs: docs} // no Embedder
-	hits, err := uc.Execute(ctx, "u", "alpha", nil)
+	hits, err := uc.Execute(ctx, "u", "alpha", nil, nil)
 	if err != nil || len(hits) != 1 || hits[0].ID != "a" {
 		t.Fatalf("nil embedder → keyword-only [a]; got %#v err %v", hits, err)
 	}
@@ -579,7 +579,7 @@ func TestListDocuments_TagFilter(t *testing.T) {
 		}
 	}
 	uc := usecase.ListDocuments{Docs: docs}
-	got, err := uc.Execute(ctx, "u", []string{"go", "tui"})
+	got, err := uc.Execute(ctx, "u", nil, []string{"go", "tui"})
 	if err != nil {
 		t.Fatal(err)
 	}

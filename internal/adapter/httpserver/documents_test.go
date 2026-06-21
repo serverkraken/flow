@@ -420,11 +420,11 @@ type failingDocStore struct {
 	backlinksErr error
 }
 
-func (s *failingDocStore) List(_ context.Context, _ string, _ ...string) ([]domain.Document, error) {
+func (s *failingDocStore) List(_ context.Context, _ string, _ *string, _ ...string) ([]domain.Document, error) {
 	return nil, s.listErr
 }
 
-func (s *failingDocStore) Search(_ context.Context, _, _ string, _ []string) ([]domain.SearchHit, error) {
+func (s *failingDocStore) Search(_ context.Context, _, _ string, _ *string, _ []string) ([]domain.SearchHit, error) {
 	return nil, s.searchErr
 }
 

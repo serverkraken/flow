@@ -51,7 +51,7 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 	return d, err
 }
 
-func (s *DocumentStore) List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
+func (s *DocumentStore) List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
 	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
 	args := []any{ownerID}
 	if len(tags) > 0 {
@@ -149,7 +149,7 @@ ORDER BY d.updated_at DESC`
 var headlineOpts = "StartSel=" + domain.HighlightStart + ",StopSel=" + domain.HighlightEnd +
 	",MaxFragments=1,MinWords=5,MaxWords=18,HighlightAll=false"
 
-func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error) {
+func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
 	sb := `SELECT ` + prefixedDocCols + `,
   ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq || pq.prefixq, $3) AS snippet
 FROM documents d,
@@ -269,7 +269,7 @@ func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string
 	return tx.Commit(ctx)
 }
 
-func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error) {
+func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	q := `SELECT ` + prefixedDocCols + `, x.content, x.dist
 FROM (
   SELECT DISTINCT ON (c.document_id) c.document_id AS did, c.content AS content,

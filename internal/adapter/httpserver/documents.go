@@ -50,8 +50,12 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	tags := r.URL.Query()["tag"]
+	var projectID *string
+	if v := strings.TrimSpace(r.URL.Query().Get("projectId")); v != "" {
+		projectID = &v
+	}
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, tags)
+		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, projectID, tags)
 		if err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
@@ -62,7 +66,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, hits)
 		return
 	}
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, tags)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, projectID, tags)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

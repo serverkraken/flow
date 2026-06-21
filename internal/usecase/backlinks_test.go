@@ -26,11 +26,11 @@ func (s *partialErrDocStore) Backlinks(ctx context.Context, ownerID, targetPath 
 	return s.FakeDocumentStore.Backlinks(ctx, ownerID, targetPath)
 }
 
-func (s *partialErrDocStore) List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error) {
+func (s *partialErrDocStore) List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return s.FakeDocumentStore.List(ctx, ownerID, tags...)
+	return s.FakeDocumentStore.List(ctx, ownerID, projectID, tags...)
 }
 
 func TestBacklinks_FiltersByScope(t *testing.T) {

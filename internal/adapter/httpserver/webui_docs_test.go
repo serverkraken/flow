@@ -231,7 +231,7 @@ func TestWebDocCreate(t *testing.T) {
 	}
 
 	// Verify doc was created in store.
-	list, _ := docs.List(context.Background(), "u1")
+	list, _ := docs.List(context.Background(), "u1", nil)
 	if len(list) == 0 {
 		t.Fatal("expected a doc in store after POST /docs")
 	}
@@ -489,7 +489,7 @@ func TestWebDocDelete(t *testing.T) {
 	}
 
 	// Verify doc is gone from store.
-	list, _ := docs.List(context.Background(), "u1")
+	list, _ := docs.List(context.Background(), "u1", nil)
 	for _, d := range list {
 		if d.ID == "del-doc-1" {
 			t.Fatal("doc should be deleted from store, but it still exists")
@@ -820,7 +820,7 @@ func TestWebDocView_WikilinksAndBacklinks(t *testing.T) {
 	postDoc("wikilink-src", "Src Doc", "go to [[wikilink-dest]]")
 
 	// Resolve IDs by path via the store.
-	list, err := store.List(context.Background(), "u1")
+	list, err := store.List(context.Background(), "u1", nil)
 	if err != nil {
 		t.Fatalf("store.List: %v", err)
 	}

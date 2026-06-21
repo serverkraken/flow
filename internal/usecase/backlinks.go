@@ -23,7 +23,7 @@ func (uc Backlinks) Execute(ctx context.Context, ownerID, docID string) ([]domai
 	if err != nil {
 		return nil, err
 	}
-	all, err := uc.Docs.List(ctx, ownerID)
+	all, err := uc.Docs.List(ctx, ownerID, nil)
 	if err != nil {
 		return nil, err
 	}

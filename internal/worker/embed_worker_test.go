@@ -23,7 +23,7 @@ func TestEmbedWorker_DrainEmbedsStaleDocs(t *testing.T) {
 	if len(stale) != 0 {
 		t.Fatalf("doc should be embedded (not stale), got %d stale", len(stale))
 	}
-	hits, _ := docs.SemanticSearch(ctx, "u", mustEmbed(t, emb, "Alpha\n\nalpha body"), nil, 10)
+	hits, _ := docs.SemanticSearch(ctx, "u", mustEmbed(t, emb, "Alpha\n\nalpha body"), nil, nil, 10)
 	if len(hits) != 1 || hits[0].ID != "a" {
 		t.Fatalf("expected embedded doc to be semantically findable: %#v", hits)
 	}

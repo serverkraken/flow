@@ -130,7 +130,8 @@ type DocumentStore interface {
 	Get(ctx context.Context, ownerID, id string) (domain.Document, error)
 	// List returns the owner's documents newest-first. When tags are given, only
 	// documents containing ALL of them are returned (AND semantics).
-	List(ctx context.Context, ownerID string, tags ...string) ([]domain.Document, error)
+	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
+	List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
 	// ReplaceLinks rewrites the outbound wikilink targets of one document
@@ -143,7 +144,8 @@ type DocumentStore interface {
 	// a highlighted snippet. When tags are given, results are AND-filtered to
 	// documents carrying all of them. Empty q is not expected here (callers use
 	// List for the no-query path).
-	Search(ctx context.Context, ownerID, q string, tags []string) ([]domain.SearchHit, error)
+	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
+	Search(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error)
 
 	// StaleDocuments returns up to limit documents whose chunks are missing or
 	// out of date (chunks_hash != md5(title||body)), across all owners, for the
@@ -158,7 +160,8 @@ type DocumentStore interface {
 	// SemanticSearch returns the owner's documents whose chunks are nearest to the
 	// query vector (cosine), best chunk per document, optionally AND-filtered by
 	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
-	SemanticSearch(ctx context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error)
+	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
+	SemanticSearch(ctx context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error)
 }
 
 // ProjectBindingStore persists project bindings (remote-slug and path-prefix

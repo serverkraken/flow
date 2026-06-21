@@ -115,7 +115,7 @@ func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageDat
 		SearchQ: q, Query: encodeListQuery(active, q),
 	}
 	if q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, active)
+		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nil, active)
 		if err != nil {
 			return webui.DocsPageData{}, err
 		}
@@ -129,7 +129,7 @@ func (s *Server) docsListData(r *http.Request, u domain.User) (webui.DocsPageDat
 		data.Results = results
 		return data, nil
 	}
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, active)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, active)
 	if err != nil {
 		return webui.DocsPageData{}, err
 	}
@@ -211,7 +211,7 @@ func (s *Server) handleWebDocView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil)
+	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, nil)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
