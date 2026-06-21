@@ -9,6 +9,7 @@ import (
 type Config struct {
 	DatabaseURL      string
 	OIDCIssuer       string
+	OIDCCliIssuer    string
 	OIDCClientID     string
 	OIDCCliClientID  string
 	OIDCClientSecret string
@@ -24,6 +25,7 @@ func Load(getenv func(string) string) (Config, error) {
 	c := Config{
 		DatabaseURL:      getenv("DATABASE_URL"),
 		OIDCIssuer:       getenv("FLOW_OIDC_ISSUER"),
+		OIDCCliIssuer:    getenv("FLOW_OIDC_CLI_ISSUER"),
 		OIDCClientID:     getenv("FLOW_OIDC_CLIENT_ID"),
 		OIDCCliClientID:  getenv("FLOW_OIDC_CLI_CLIENT_ID"),
 		OIDCClientSecret: getenv("FLOW_OIDC_CLIENT_SECRET"),

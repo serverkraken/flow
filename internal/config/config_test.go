@@ -63,3 +63,33 @@ func TestLoadDefaultsListenAddr(t *testing.T) {
 		t.Fatalf("ListenAddr default: got %q, want :8080", c.ListenAddr)
 	}
 }
+
+func TestLoadOptionalCliIssuer(t *testing.T) {
+	env := map[string]string{
+		"DATABASE_URL":            "postgres://x",
+		"FLOW_OIDC_ISSUER":        "https://id.example/application/o/flow/",
+		"FLOW_OIDC_CLIENT_ID":     "flow",
+		"FLOW_OIDC_CLI_CLIENT_ID": "flow-cli",
+		"FLOW_OIDC_CLIENT_SECRET": "shh",
+		"FLOW_PUBLIC_BASE_URL":    "https://flow.example",
+		"FLOW_SESSION_SECRET":     "sess",
+		"FLOW_OIDC_CLI_ISSUER":    "https://id.example/application/o/flow-cli/",
+	}
+	c, err := Load(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.OIDCCliIssuer != "https://id.example/application/o/flow-cli/" {
+		t.Fatalf("OIDCCliIssuer = %q", c.OIDCCliIssuer)
+	}
+
+	// Optional: Load must still succeed with FLOW_OIDC_CLI_ISSUER unset.
+	delete(env, "FLOW_OIDC_CLI_ISSUER")
+	c2, err := Load(func(k string) string { return env[k] })
+	if err != nil {
+		t.Fatalf("Load without cli issuer must succeed: %v", err)
+	}
+	if c2.OIDCCliIssuer != "" {
+		t.Fatalf("OIDCCliIssuer should be empty, got %q", c2.OIDCCliIssuer)
+	}
+}
