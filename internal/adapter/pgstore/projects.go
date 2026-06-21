@@ -73,6 +73,18 @@ func (s *ProjectStore) SetRate(ctx context.Context, ownerID, id string, rate *do
 	return nil
 }
 
+func (s *ProjectStore) Delete(ctx context.Context, ownerID, id string) error {
+	const q = `DELETE FROM projects WHERE owner_id=$1 AND id=$2`
+	tag, err := s.pool.Exec(ctx, q, ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: delete project: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrProjectNotFound
+	}
+	return nil
+}
+
 // rateCols maps an optional Money to the two nullable columns (both-or-neither).
 func rateCols(m *domain.Money) (*int64, *string) {
 	if m == nil {
