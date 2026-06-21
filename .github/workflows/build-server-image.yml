@@ -82,14 +82,11 @@ jobs:
 
       - name: Surface image digest
         # Plan 2 (homelab-study, a separate GitOps repo) pins this digest by
-        # hand, so make it prominent in the run log AND the job summary rather
-        # than only a buried log line. (No job-level `outputs:` block: there is
-        # no same-repo downstream job consuming it via needs.build.outputs.)
+        # hand, so echo it to the log and the job summary. Canonical per-line
+        # appends to $GITHUB_STEP_SUMMARY (no brace group). No job-level
+        # outputs block: no same-repo downstream job consumes it.
         run: |
           echo "Image digest: ${{ steps.build.outputs.digest }}"
-          {
-            echo "### flow-server image"
-            echo ""
-            echo "- Tags: \`${{ steps.tags.outputs.tags }}\`"
-            echo "- Digest: \`${{ steps.build.outputs.digest }}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "### flow-server image" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tags: \`${{ steps.tags.outputs.tags }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Digest: \`${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
