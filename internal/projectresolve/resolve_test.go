@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/projectresolve"
 )
 
@@ -166,6 +167,40 @@ func TestResolve_UnknownEnvSlug(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `"nope"`) {
 		t.Fatalf("error message should mention the slug, got: %v", err)
+	}
+}
+
+// TestResolve_PathTier: FLOW_PROJECT unset, bare non-git dir → /resolve is called with non-empty machine id + cleaned cwd.
+func TestResolve_PathTier(t *testing.T) {
+	var gotMachine, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/projects/resolve":
+			gotMachine = r.URL.Query().Get("machine")
+			gotPath = r.URL.Query().Get("path")
+			if gotMachine != "" {
+				_ = json.NewEncoder(w).Encode(domain.Project{ID: "p1", Slug: "x"})
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tkn")
+	dir := t.TempDir() // bare, non-git
+	p, ok, err := projectresolve.Resolve(context.Background(), c, func(string) string { return "" }, dir)
+	if err != nil || !ok || p.ID != "p1" {
+		t.Fatalf("%+v %v %v", p, ok, err)
+	}
+	if gotMachine == "" {
+		t.Fatal("machine id not sent")
+	}
+	if gotPath != filepath.Clean(dir) {
+		t.Fatalf("path %q not cleaned-cwd %q", gotPath, filepath.Clean(dir))
 	}
 }
 
