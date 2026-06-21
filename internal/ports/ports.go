@@ -61,6 +61,7 @@ var (
 	ErrFeedTokenNotFound = errors.New("feed token not found")
 	ErrDocumentNotFound  = errors.New("document not found")
 	ErrDocumentExists    = errors.New("document already exists")
+	ErrBindingNotFound   = errors.New("ports: binding not found")
 )
 
 // ProjectStore persists projects. All reads are owner-scoped.
@@ -156,6 +157,18 @@ type DocumentStore interface {
 	// query vector (cosine), best chunk per document, optionally AND-filtered by
 	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
 	SemanticSearch(ctx context.Context, ownerID string, query []float32, tags []string, limit int) ([]domain.SemanticHit, error)
+}
+
+// ProjectBindingStore persists project bindings (remote-slug and path-prefix
+// rules). All reads are owner-scoped. Upsert replaces an existing row with
+// the same kind-key: (owner, remote_slug) for BindingRemote, or
+// (owner, machine_id, path) for BindingPath.
+type ProjectBindingStore interface {
+	Upsert(ctx context.Context, b domain.ProjectBinding) (domain.ProjectBinding, error)
+	DeleteRemote(ctx context.Context, ownerID, remoteSlug string) error
+	DeletePath(ctx context.Context, ownerID, machineID, path string) error
+	List(ctx context.Context, ownerID string) ([]domain.ProjectBinding, error)
+	ListByProject(ctx context.Context, ownerID, projectID string) ([]domain.ProjectBinding, error)
 }
 
 // Editor opens an interactive editor on initial content and returns the

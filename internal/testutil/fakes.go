@@ -657,6 +657,92 @@ func cosine(a, b []float32) float64 {
 	return dot / (math.Sqrt(na) * math.Sqrt(nb))
 }
 
+// FakeProjectBindingStore is an in-memory ports.ProjectBindingStore.
+// Upsert replaces an existing row by kind-key: (owner, remote_slug) for
+// BindingRemote, or (owner, machine_id, path) for BindingPath.
+type FakeProjectBindingStore struct {
+	mu    sync.Mutex
+	items []domain.ProjectBinding
+}
+
+func NewFakeProjectBindingStore() *FakeProjectBindingStore { return &FakeProjectBindingStore{} }
+
+// bindingKey returns the natural key for upsert/delete matching.
+func bindingKey(b domain.ProjectBinding) string {
+	if b.Kind == domain.BindingRemote {
+		return "remote\x00" + b.OwnerID + "\x00" + b.RemoteSlug
+	}
+	return "path\x00" + b.OwnerID + "\x00" + b.MachineID + "\x00" + b.Path
+}
+
+func (s *FakeProjectBindingStore) Upsert(_ context.Context, b domain.ProjectBinding) (domain.ProjectBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := bindingKey(b)
+	for i, existing := range s.items {
+		if bindingKey(existing) == key {
+			s.items[i] = b
+			return b, nil
+		}
+	}
+	s.items = append(s.items, b)
+	return b, nil
+}
+
+func (s *FakeProjectBindingStore) DeleteRemote(_ context.Context, ownerID, remoteSlug string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	want := bindingKey(domain.ProjectBinding{Kind: domain.BindingRemote, OwnerID: ownerID, RemoteSlug: remoteSlug})
+	out := s.items[:0]
+	for _, b := range s.items {
+		if bindingKey(b) != want {
+			out = append(out, b)
+		}
+	}
+	s.items = out
+	return nil
+}
+
+func (s *FakeProjectBindingStore) DeletePath(_ context.Context, ownerID, machineID, path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	want := bindingKey(domain.ProjectBinding{Kind: domain.BindingPath, OwnerID: ownerID, MachineID: machineID, Path: path})
+	out := s.items[:0]
+	for _, b := range s.items {
+		if bindingKey(b) != want {
+			out = append(out, b)
+		}
+	}
+	s.items = out
+	return nil
+}
+
+func (s *FakeProjectBindingStore) List(_ context.Context, ownerID string) ([]domain.ProjectBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.ProjectBinding
+	for _, b := range s.items {
+		if b.OwnerID == ownerID {
+			cp := b
+			out = append(out, cp)
+		}
+	}
+	return out, nil
+}
+
+func (s *FakeProjectBindingStore) ListByProject(_ context.Context, ownerID, projectID string) ([]domain.ProjectBinding, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.ProjectBinding
+	for _, b := range s.items {
+		if b.OwnerID == ownerID && b.ProjectID == projectID {
+			cp := b
+			out = append(out, cp)
+		}
+	}
+	return out, nil
+}
+
 // FakeEmbedder returns deterministic unit vectors derived from a hash of each
 // text — identical text yields an identical vector, so similarity *ordering* is
 // reproducible without a real model. It does NOT model semantic nearness; tests

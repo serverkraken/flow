@@ -57,6 +57,23 @@ func TestFakeIDGenMonotonic(t *testing.T) {
 	}
 }
 
+func TestFakeProjectBindingStore_UpsertReassignDelete(t *testing.T) {
+	s := NewFakeProjectBindingStore()
+	ctx := context.Background()
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b1", OwnerID: "u", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "r"})
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b2", OwnerID: "u", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "r"}) // reassign
+	got, _ := s.List(ctx, "u")
+	if len(got) != 1 || got[0].ProjectID != "p2" {
+		t.Fatalf("reassign: %+v", got)
+	}
+	if err := s.DeleteRemote(ctx, "u", "r"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.List(ctx, "u"); len(got) != 0 {
+		t.Fatalf("after delete: %+v", got)
+	}
+}
+
 func TestFakeDocumentStore_Links(t *testing.T) {
 	ctx := context.Background()
 	s := NewFakeDocumentStore()
