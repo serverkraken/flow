@@ -16,8 +16,8 @@ const (
 	DocAgent       DocumentType = "agent"
 	DocMemory      DocumentType = "memory"      // agent-owned
 	DocInstruction DocumentType = "instruction" // agent-owned (CLAUDE.md)
-	DocSkill       DocumentType = "skill"        // agent-owned
-	DocPlan        DocumentType = "plan"         // agent-owned
+	DocSkill       DocumentType = "skill"       // agent-owned
+	DocPlan        DocumentType = "plan"        // agent-owned
 )
 
 func (t DocumentType) valid() bool {
