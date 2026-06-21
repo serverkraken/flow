@@ -71,7 +71,7 @@ func sessionAddCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}
@@ -163,7 +163,7 @@ func sessionListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprint(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}
@@ -285,7 +285,7 @@ func sessionEditCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), out)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), out)
 			return nil
 		},
 	}

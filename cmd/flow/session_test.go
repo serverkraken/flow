@@ -97,7 +97,7 @@ func TestRunSessionList_RendersDay(t *testing.T) {
 
 func TestRunSessionDelete(t *testing.T) {
 	var deleted string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {
 			deleted = r.URL.Path
 		}
