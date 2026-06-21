@@ -10,6 +10,12 @@ type WorktimeData struct {
 	Now      time.Time
 	Sessions []domain.WorkSession
 	Projects []domain.Project
+	Date       time.Time
+	IsToday    bool
+	PrevDate   string
+	NextDate   string
+	CanForward bool
+	Err        string
 }
 
 templ WorktimePage(d WorktimeData) {
