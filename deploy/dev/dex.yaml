@@ -22,6 +22,9 @@ staticClients:
     secret: flow-dev-secret
     name: flow (dev)
     redirectURIs:
+      # flow-server serves https in dev (self-signed, for browser HTTP/2); keep
+      # http too so it still works if FLOW_DEV is unset.
+      - https://localhost:8080/auth/callback
       - http://localhost:8080/auth/callback
   - id: flow-cli
     public: true

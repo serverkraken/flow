@@ -94,6 +94,9 @@ func (p *persistingSource) Token() (*oauth2.Token, error) {
 func clientFromStore(ctx context.Context) (*apiclient.Client, error) {
 	cfg := clientconfig.Load(os.Getenv)
 	if t := os.Getenv("FLOW_TOKEN"); t != "" {
+		if cfg.InsecureTLS {
+			return apiclient.NewInsecure(cfg.ServerURL, t), nil
+		}
 		return apiclient.New(cfg.ServerURL, t), nil
 	}
 	store := tokenstore.Open()
@@ -106,6 +109,10 @@ func clientFromStore(ctx context.Context) (*apiclient.Client, error) {
 	}
 	base := &lazyDeviceSource{ctx: ctx, cfg: cfg, last: loaded}
 	src := &persistingSource{base: base, store: store, last: loaded}
-	rt := &oauth2.Transport{Source: src, Base: http.DefaultTransport}
+	transport := http.DefaultTransport
+	if cfg.InsecureTLS {
+		transport = apiclient.InsecureBase()
+	}
+	rt := &oauth2.Transport{Source: src, Base: transport}
 	return apiclient.NewTransport(cfg.ServerURL, rt), nil
 }

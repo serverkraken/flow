@@ -4,6 +4,7 @@ package apiclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,7 +24,14 @@ type Client struct {
 
 // New builds a client that sends a fixed bearer token (CI / FLOW_TOKEN override).
 func New(base, token string) *Client {
-	return NewTransport(base, staticBearer{token})
+	return NewTransport(base, staticBearer{token: token})
+}
+
+// NewInsecure is New but skips TLS certificate verification. Use ONLY against
+// the dev stack, whose flow-server presents a self-signed cert so the browser
+// can negotiate HTTP/2 (FLOW_INSECURE_TLS=1). Never use against a real server.
+func NewInsecure(base, token string) *Client {
+	return NewTransport(base, staticBearer{token: token, base: InsecureBase()})
 }
 
 // NewTransport builds a client whose auth (and refresh) is handled by rt.
@@ -31,13 +39,30 @@ func NewTransport(base string, rt http.RoundTripper) *Client {
 	return &Client{base: base, rt: rt, hc: &http.Client{Timeout: 15 * time.Second, Transport: rt}}
 }
 
-// staticBearer injects a fixed bearer token on every request.
-type staticBearer struct{ token string }
+// InsecureBase returns an http.RoundTripper that does NOT verify server
+// certificates — for the dev stack's self-signed flow-server only. Never use
+// this in production.
+func InsecureBase() http.RoundTripper {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // dev self-signed cert (FLOW_INSECURE_TLS)
+	return t
+}
+
+// staticBearer injects a fixed bearer token on every request. base defaults to
+// http.DefaultTransport when nil.
+type staticBearer struct {
+	token string
+	base  http.RoundTripper
+}
 
 func (b staticBearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	r2 := r.Clone(r.Context())
 	r2.Header.Set("Authorization", "Bearer "+b.token)
-	return http.DefaultTransport.RoundTrip(r2)
+	base := b.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(r2)
 }
 
 func (c *Client) Whoami(ctx context.Context) (domain.User, error) {

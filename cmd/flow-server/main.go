@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -144,7 +145,22 @@ func run() error {
 	srvErr := make(chan error, 1)
 	go func() {
 		slog.Info("listening", "addr", cfg.ListenAddr, "dev", cfg.Dev)
-		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		var err error
+		if cfg.Dev {
+			// Serve TLS in dev so browsers negotiate HTTP/2 (multiplexes the SSE
+			// stream + page loads over one connection, dodging the HTTP/1.1
+			// per-host connection-starvation). Self-signed; dev only.
+			tlsCfg, terr := devTLSConfig(filepath.Join(os.TempDir(), "flow-dev-tls"))
+			if terr != nil {
+				srvErr <- fmt.Errorf("flow-server: dev TLS: %w", terr)
+				return
+			}
+			httpSrv.TLSConfig = tlsCfg
+			err = httpSrv.ListenAndServeTLS("", "")
+		} else {
+			err = httpSrv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			srvErr <- err
 		}
 	}()
