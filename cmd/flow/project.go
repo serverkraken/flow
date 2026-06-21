@@ -40,13 +40,13 @@ func projectRmCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slug := args[0]
 			if !yes {
-				fmt.Fprintf(cmd.OutOrStdout(),
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(),
 					"delete project %s? its sessions and documents will be kept but un-assigned [y/N]: ", slug)
 				scanner := bufio.NewScanner(cmd.InOrStdin())
 				scanner.Scan()
 				answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
 				if answer != "y" && answer != "yes" {
-					fmt.Fprintln(cmd.OutOrStdout(), "aborted")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "aborted")
 					return nil
 				}
 			}
@@ -57,7 +57,7 @@ func projectRmCmd() *cobra.Command {
 			if err := runProjectRm(cmd.Context(), c, slug); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "deleted project %s\n", slug)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "deleted project %s\n", slug)
 			return nil
 		},
 	}

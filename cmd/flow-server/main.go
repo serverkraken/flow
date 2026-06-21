@@ -128,6 +128,7 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetProjectRate:    usecase.SetProjectRate{Projects: projectStore},
+		DeleteProject:     usecase.DeleteProject{Projects: projectStore},
 		BindProject:         usecase.BindProject{Bindings: bindingStore, Projects: projectStore, IDs: ids, Clock: clock},
 		UnbindProject:       usecase.UnbindProject{Bindings: bindingStore},
 		ResolveProject:      usecase.ResolveProject{Bindings: bindingStore, Projects: projectStore},
