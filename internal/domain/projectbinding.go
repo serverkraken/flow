@@ -1,6 +1,14 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+// pathSep is the separator for client paths. flow clients are macOS/Linux, so
+// paths are "/"-separated; hardcoding it keeps the domain pure (no os import)
+// and avoids comparing with the SERVER's separator (the path is the client's).
+const pathSep = "/"
 
 type BindingKind string
 
@@ -28,6 +36,21 @@ func ResolveBinding(bs []ProjectBinding, remoteSlug, machineID, cwd string) (Pro
 			}
 		}
 	}
-	// Slice 2: else longest-prefix path match for machineID over cwd.
+	// Path tier: longest segment-boundary prefix of cwd among this machine's path bindings.
+	var best ProjectBinding
+	bestLen := -1
+	for _, b := range bs {
+		if b.Kind != BindingPath || b.MachineID != machineID || b.Path == "" {
+			continue
+		}
+		if cwd == b.Path || strings.HasPrefix(cwd, b.Path+pathSep) {
+			if len(b.Path) > bestLen {
+				best, bestLen = b, len(b.Path)
+			}
+		}
+	}
+	if bestLen >= 0 {
+		return best, true
+	}
 	return ProjectBinding{}, false
 }
