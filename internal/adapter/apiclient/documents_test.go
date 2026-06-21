@@ -334,3 +334,30 @@ func TestImportDocument_ConflictIsTyped(t *testing.T) {
 		t.Fatalf("want IsConflict, got %v", err)
 	}
 }
+
+func TestListDocumentsScoped_QueryParams(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	pid := "proj-a"
+	if _, err := c.ListDocumentsScoped(context.Background(), &pid, "go"); err != nil {
+		t.Fatalf("ListDocumentsScoped: %v", err)
+	}
+	if !strings.Contains(gotQuery, "projectId=proj-a") || !strings.Contains(gotQuery, "tag=go") {
+		t.Fatalf("query = %q, want projectId=proj-a & tag=go", gotQuery)
+	}
+
+	if _, err := c.SearchScoped(context.Background(), "widget", strptrAC("none")); err != nil {
+		t.Fatalf("SearchScoped: %v", err)
+	}
+	if !strings.Contains(gotQuery, "projectId=none") || !strings.Contains(gotQuery, "q=widget") {
+		t.Fatalf("query = %q, want projectId=none & q=widget", gotQuery)
+	}
+}
+
+func strptrAC(s string) *string { return &s }

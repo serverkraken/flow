@@ -25,13 +25,22 @@ func (c *Client) CreateDocument(ctx context.Context, in CreateDocumentInput) (do
 }
 
 func (c *Client) ListDocuments(ctx context.Context, tags ...string) ([]domain.Document, error) {
+	return c.ListDocumentsScoped(ctx, nil, tags...)
+}
+
+// ListDocumentsScoped lists documents, optionally scoped to a project.
+// projectID: nil → all; "none" → unassigned; else a project ID.
+func (c *Client) ListDocumentsScoped(ctx context.Context, projectID *string, tags ...string) ([]domain.Document, error) {
+	q := url.Values{}
+	if projectID != nil {
+		q.Set("projectId", *projectID)
+	}
+	for _, t := range tags {
+		q.Add("tag", t)
+	}
 	path := "/api/v1/documents"
-	if len(tags) > 0 {
-		q := url.Values{}
-		for _, t := range tags {
-			q.Add("tag", t)
-		}
-		path += "?" + q.Encode()
+	if enc := q.Encode(); enc != "" {
+		path += "?" + enc
 	}
 	var out []domain.Document
 	err := c.do(ctx, http.MethodGet, path, nil, &out)
@@ -68,8 +77,16 @@ func (c *Client) DeleteDocument(ctx context.Context, id string) error {
 
 // Search runs a server-side ranked search; tags AND-filter the results.
 func (c *Client) Search(ctx context.Context, q string, tags ...string) ([]domain.SearchHit, error) {
+	return c.SearchScoped(ctx, q, nil, tags...)
+}
+
+// SearchScoped is Search, optionally scoped to a project (see ListDocumentsScoped).
+func (c *Client) SearchScoped(ctx context.Context, q string, projectID *string, tags ...string) ([]domain.SearchHit, error) {
 	v := url.Values{}
 	v.Set("q", q)
+	if projectID != nil {
+		v.Set("projectId", *projectID)
+	}
 	for _, t := range tags {
 		v.Add("tag", t)
 	}
