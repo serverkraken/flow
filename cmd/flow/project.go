@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +17,51 @@ func projectCmd() *cobra.Command {
 	cmd.AddCommand(projectBindCmd())
 	cmd.AddCommand(projectUnbindCmd())
 	cmd.AddCommand(projectBindingsCmd())
+	cmd.AddCommand(projectRmCmd())
+	return cmd
+}
+
+// runProjectRm resolves slug to an ID and deletes the project.
+// The confirmation prompt is kept in RunE so this helper remains unit-testable.
+func runProjectRm(ctx context.Context, c *apiclient.Client, slug string) error {
+	id, err := resolveSlug(ctx, c, slug)
+	if err != nil {
+		return err
+	}
+	return c.DeleteProject(ctx, id)
+}
+
+func projectRmCmd() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "rm <slug>",
+		Short: "delete a project (sessions and documents are kept but un-assigned)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slug := args[0]
+			if !yes {
+				fmt.Fprintf(cmd.OutOrStdout(),
+					"delete project %s? its sessions and documents will be kept but un-assigned [y/N]: ", slug)
+				scanner := bufio.NewScanner(cmd.InOrStdin())
+				scanner.Scan()
+				answer := strings.TrimSpace(strings.ToLower(scanner.Text()))
+				if answer != "y" && answer != "yes" {
+					fmt.Fprintln(cmd.OutOrStdout(), "aborted")
+					return nil
+				}
+			}
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			if err := runProjectRm(cmd.Context(), c, slug); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "deleted project %s\n", slug)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip confirmation prompt (for scripting)")
 	return cmd
 }
 
