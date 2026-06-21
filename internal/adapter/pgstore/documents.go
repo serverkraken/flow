@@ -25,6 +25,21 @@ const docCols = `id, owner_id, project_id, type, path, title, body, tags, doc_da
 
 const prefixedDocCols = `d.id, d.owner_id, d.project_id, d.type, d.path, d.title, d.body, d.tags, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
 
+// appendProjectFilter adds a project predicate to q, binding the next positional
+// parameter when needed. projectID == nil → no filter; *projectID == "none" →
+// IS NULL (unassigned); otherwise equality. col is the (possibly qualified)
+// column, e.g. "project_id" or "d.project_id".
+func appendProjectFilter(q, col string, args *[]any, projectID *string) string {
+	if projectID == nil {
+		return q
+	}
+	if *projectID == "none" {
+		return q + ` AND ` + col + ` IS NULL`
+	}
+	*args = append(*args, *projectID)
+	return q + fmt.Sprintf(` AND %s = $%d`, col, len(*args))
+}
+
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
@@ -54,9 +69,10 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 func (s *DocumentStore) List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
 	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
 	args := []any{ownerID}
+	q = appendProjectFilter(q, "project_id", &args, projectID)
 	if len(tags) > 0 {
-		q += ` AND tags @> $2`
 		args = append(args, tags)
+		q += fmt.Sprintf(` AND tags @> $%d`, len(args))
 	}
 	q += ` ORDER BY updated_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)
@@ -161,9 +177,10 @@ FROM documents d,
         ''::tsquery)) AS pq(prefixq)
 WHERE d.owner_id = $1`
 	args := []any{ownerID, q, headlineOpts}
+	sb = appendProjectFilter(sb, "d.project_id", &args, projectID)
 	if len(tags) > 0 {
-		sb += ` AND d.tags @> $4`
 		args = append(args, tags)
+		sb += fmt.Sprintf(` AND d.tags @> $%d`, len(args))
 	}
 	sb += `
   AND (d.search @@ ftsq OR $2 <% (coalesce(d.title,'')||' '||coalesce(d.body,'')))
@@ -280,18 +297,24 @@ FROM (
 ) x
 JOIN documents d ON d.id = x.did AND d.owner_id = $1`
 	args := []any{ownerID, vectorLiteral(query)}
-	if len(tags) > 0 {
-		q += `
-WHERE d.tags @> $3
-ORDER BY x.dist
-LIMIT $4`
-		args = append(args, tags, limit)
-	} else {
-		q += `
-ORDER BY x.dist
-LIMIT $3`
-		args = append(args, limit)
+	var preds []string
+	if projectID != nil {
+		if *projectID == "none" {
+			preds = append(preds, "d.project_id IS NULL")
+		} else {
+			args = append(args, *projectID)
+			preds = append(preds, fmt.Sprintf("d.project_id = $%d", len(args)))
+		}
 	}
+	if len(tags) > 0 {
+		args = append(args, tags)
+		preds = append(preds, fmt.Sprintf("d.tags @> $%d", len(args)))
+	}
+	if len(preds) > 0 {
+		q += "\nWHERE " + strings.Join(preds, " AND ")
+	}
+	args = append(args, limit)
+	q += fmt.Sprintf("\nORDER BY x.dist\nLIMIT $%d", len(args))
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: semantic search: %w", err)
