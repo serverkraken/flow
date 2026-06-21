@@ -44,6 +44,7 @@ func TestLoadInsecureTLS(t *testing.T) {
 		want                   bool
 	}{
 		{"https://localhost:8080", "", true},
+		{"https://LOCALHOST:8080", "", true}, // case-insensitive host
 		{"https://127.0.0.1:8080", "", true},
 		{"https://[::1]:8080", "", true},
 		{"http://localhost:8080", "", false},        // loopback but not TLS

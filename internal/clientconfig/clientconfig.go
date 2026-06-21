@@ -1,7 +1,10 @@
 // Package clientconfig loads flow CLI/TUI configuration from the environment.
 package clientconfig
 
-import "net/url"
+import (
+	"net/url"
+	"strings"
+)
 
 type Config struct {
 	ServerURL   string
@@ -50,7 +53,7 @@ func isLoopbackHTTPS(raw string) bool {
 	if err != nil || u.Scheme != "https" {
 		return false
 	}
-	switch u.Hostname() {
+	switch strings.ToLower(u.Hostname()) {
 	case "localhost", "127.0.0.1", "::1":
 		return true
 	default:

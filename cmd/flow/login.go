@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"golang.org/x/oauth2"
@@ -49,8 +50,16 @@ func loginCmd() *cobra.Command {
 			}); err != nil {
 				return fmt.Errorf("store token: %w", err)
 			}
+			// Honor the dev self-signed cert (matches clientFromStore); without
+			// this the post-login Whoami fails with x509 against the dev server
+			// even though the token was stored fine.
+			base := http.DefaultTransport
+			if cfg.InsecureTLS {
+				base = apiclient.InsecureBase()
+			}
 			u, err := apiclient.NewTransport(cfg.ServerURL, &oauth2.Transport{
 				Source: oauth2.StaticTokenSource(tok),
+				Base:   base,
 			}).Whoami(ctx)
 			if err != nil {
 				return fmt.Errorf("token stored but server rejected it: %w", err)
