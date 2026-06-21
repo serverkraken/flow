@@ -38,8 +38,8 @@ cat <<'EOF'
 
 dev env up.
   start server:  make dev-run
-  browser:       http://localhost:8080/      (login: msoent@dev.local / password)
-  TUI token:     export FLOW_TOKEN=$(make -s dev-token)
+  browser:       https://localhost:8080/     (self-signed cert — accept once; login: msoent@dev.local / password)
+  TUI token:     export FLOW_TOKEN=$(make -s dev-token)   (CLI/TUI also need FLOW_INSECURE_TLS=1; flow-cli.env sets it)
   ollama:        http://localhost:11434      (embedding model nomic-embed-text)
   tear down:     make dev-down               (add ARGS=-v to drop the db volume)
 EOF
