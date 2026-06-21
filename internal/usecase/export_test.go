@@ -33,6 +33,7 @@ func (f *fakeProjectStore) SetRate(_ context.Context, _, _ string, rate *domain.
 	f.setRate = rate
 	return nil
 }
+func (f *fakeProjectStore) Delete(_ context.Context, _, _ string) error { return nil }
 
 func TestBuildExport_AggregatesByProject(t *testing.T) {
 	loc := time.UTC

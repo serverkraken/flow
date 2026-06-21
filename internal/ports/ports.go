@@ -71,6 +71,8 @@ type ProjectStore interface {
 	Get(ctx context.Context, ownerID, id string) (domain.Project, error)
 	// SetRate sets (rate != nil) or clears (rate == nil) the project's rate.
 	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
+	// Delete removes a project. Owner-scoped; returns ErrProjectNotFound if absent or foreign.
+	Delete(ctx context.Context, ownerID, id string) error
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running
