@@ -2,7 +2,13 @@
 
 **Goal:** Run the `rebuild`-branch flow-server live at **https://flow.thebackend.org** (replacing the abandoned `next`-code deployment), with full hybrid search, so the WebUI, `flow login`, and **flow-mcp** can be dogfooded against a real server instead of only the in-memory loopback / local dev stack.
 
-**Status:** brainstormed + design-approved 2026-06-21. Next: `writing-plans` (likely split into flow-repo slices + a homelab-study slice). Not started.
+**Status:** brainstormed + design-approved 2026-06-21. Split into two plans. **WS1 (flow-repo) DONE 2026-06-21** — plan `docs/superpowers/plans/2026-06-21-flow-rebuild-server-deploy-ws1-flow-repo.md`, executed subagent-driven (8 commits, opus final review READY-TO-PUSH, dev-fallback smoke green); `rebuild` pushed to origin, image built by CI. **Image to pin in Plan 2:**
+`ghcr.io/serverkraken/flow-server@sha256:10ed4575c7df06df3103c0957aba5956aa8d643ccab043c64af2dac143f12d3e` (tags `:rebuild` + `:80a31e7399ddfe6f14c854eb0857003c9909974a`). **WS2–4 (homelab-study) = Plan 2, not started** (its own `writing-plans` pass; carry-forwards below).
+
+> **Plan 2 carry-forwards (from the WS1 opus final review):**
+> 1. Pin the **`@sha256` digest above**, not `:rebuild` (stale-mirror gotcha).
+> 2. The two-issuer prod path is only unit-tested (dev stack is single-issuer Dex). The Authentik dogfood is the first real two-issuer wire test — MUST (a) verify a CLI token (`aud=flow-cli`, `iss=…/o/flow-cli/`) against `/whoami` → 200 AND (b) confirm a web token carrying the CLI audience is **rejected**.
+> 3. Confirm `FLOW_OIDC_CLI_ISSUER` (prod) genuinely differs from `FLOW_OIDC_ISSUER`. If they accidentally match, `VerifierPairs` silently collapses to the (less strict) union fallback with no error — eyeball the rendered manifest.
 
 ## Context — the two-repo reality
 
