@@ -5,6 +5,8 @@ coverage.html
 cover*.out
 # built flow binary (go build ./cmd/flow → ./flow)
 /flow
+/flow-server
+/flow-mcp
 .env
 .DS_Store
 # Claude memory-bank files (never committed)
