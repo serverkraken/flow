@@ -1,13 +1,17 @@
 // Package clientconfig loads flow CLI/TUI configuration from the environment.
 package clientconfig
 
+import "net/url"
+
 type Config struct {
 	ServerURL   string
 	OIDCIssuer  string
 	CliClientID string
-	// InsecureTLS skips server-certificate verification. Set FLOW_INSECURE_TLS=1
-	// ONLY for the dev stack, whose flow-server presents a self-signed cert so
-	// the browser can use HTTP/2. Never enable against a real deployment.
+	// InsecureTLS skips server-certificate verification. It is set by
+	// FLOW_INSECURE_TLS=1, and auto-enabled for an https loopback server (the
+	// dev stack's self-signed flow-server on localhost) so a bare `flow ui`
+	// works without extra env. Never true for a non-loopback https server
+	// unless FLOW_INSECURE_TLS=1 is set explicitly.
 	InsecureTLS bool
 }
 
@@ -24,10 +28,32 @@ func Load(getenv func(string) string) Config {
 		InsecureTLS: getenv("FLOW_INSECURE_TLS") == "1",
 	}
 	if c.ServerURL == "" {
-		c.ServerURL = "http://localhost:8080"
+		// Dev default is https: flow-server serves self-signed TLS in dev so the
+		// browser negotiates HTTP/2 (real deployments set FLOW_SERVER_URL).
+		c.ServerURL = "https://localhost:8080"
 	}
 	if c.CliClientID == "" {
 		c.CliClientID = "flow-cli"
 	}
+	// A self-signed cert on a loopback host is definitionally local dev; trust it
+	// without requiring FLOW_INSECURE_TLS so a bare `flow ui` works in dev.
+	if isLoopbackHTTPS(c.ServerURL) {
+		c.InsecureTLS = true
+	}
 	return c
+}
+
+// isLoopbackHTTPS reports whether raw is an https URL pointing at a loopback
+// host (localhost / 127.0.0.1 / ::1).
+func isLoopbackHTTPS(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" {
+		return false
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
 }
