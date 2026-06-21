@@ -88,7 +88,10 @@ func (h *handlers) getDoc(ctx context.Context, _ *mcp.CallToolRequest, in getDoc
 	if !h.authed {
 		return h.loginRequired(), nil, nil
 	}
-	sc, _ := h.resolveScope(ctx, "") // path lookups use the cwd-resolved default scope
+	sc, err := h.resolveScope(ctx, "") // path lookups use the cwd-resolved default scope
+	if err != nil {
+		return errorResult(err.Error()), nil, nil
+	}
 	id, err := h.resolveDocRef(ctx, in.ID, in.Path, sc)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
@@ -137,7 +140,10 @@ func (h *handlers) backlinks(ctx context.Context, _ *mcp.CallToolRequest, in bac
 	if !h.authed {
 		return h.loginRequired(), nil, nil
 	}
-	sc, _ := h.resolveScope(ctx, "")
+	sc, err := h.resolveScope(ctx, "")
+	if err != nil {
+		return errorResult(err.Error()), nil, nil
+	}
 	id, err := h.resolveDocRef(ctx, in.ID, in.Path, sc)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
