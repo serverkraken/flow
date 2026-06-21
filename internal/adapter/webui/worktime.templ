@@ -16,6 +16,7 @@ type WorktimeData struct {
 	NextDate   string
 	CanForward bool
 	Err        string
+	Bindings   []domain.ProjectBinding
 }
 
 templ WorktimePage(d WorktimeData) {
@@ -150,4 +151,23 @@ templ WorktimeFragment(d WorktimeData) {
 			<button class="rounded bg-slate-900 px-3 py-1 text-white">add</button>
 		</form>
 	</section>
+	if len(d.Bindings) > 0 {
+		<section class="mt-6">
+			<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Project Bindings</h2>
+			<ul class="divide-y divide-slate-100">
+				for _, b := range d.Bindings {
+					<li class="py-1 text-sm text-slate-600">
+						if b.Kind == domain.BindingRemote {
+							<span class="font-mono text-slate-800">{ b.RemoteSlug }</span>
+							<span class="ml-2 text-xs text-slate-400">remote</span>
+						} else {
+							<span class="text-slate-500">{ b.MachineLabel }:</span>
+							<span class="ml-1 font-mono text-slate-800">{ b.Path }</span>
+							<span class="ml-2 text-xs text-slate-400">path</span>
+						}
+					</li>
+				}
+			</ul>
+		</section>
+	}
 }

@@ -49,6 +49,10 @@ func (s *Server) worktimeDataFor(ctx context.Context, u domain.User, day time.Ti
 	if err != nil {
 		return webui.WorktimeData{}, err
 	}
+	bindings, err := s.ListProjectBindings.Execute(ctx, u.ID)
+	if err != nil {
+		return webui.WorktimeData{}, err
+	}
 	today := startOfDay(s.Clock.Now())
 	isToday := day.Equal(today)
 	var running *domain.WorkSession
@@ -67,6 +71,7 @@ func (s *Server) worktimeDataFor(ctx context.Context, u domain.User, day time.Ti
 		Now:        s.Clock.Now(),
 		Sessions:   sessions,
 		Projects:   projects,
+		Bindings:   bindings,
 		Date:       day,
 		IsToday:    isToday,
 		PrevDate:   day.AddDate(0, 0, -1).Format(dayLayout),

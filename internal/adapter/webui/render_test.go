@@ -195,6 +195,45 @@ func TestWeekDay_Total_ActiveBeforeMidnight(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+// TestFragmentShowsBindings verifies that WorktimeFragment renders the
+// project-bindings panel when WorktimeData.Bindings is populated.
+func TestFragmentShowsBindings(t *testing.T) {
+	bindings := []domain.ProjectBinding{
+		{
+			ID: "b1", OwnerID: "u1", ProjectID: "p1",
+			Kind:       domain.BindingRemote,
+			RemoteSlug: "serverkraken/flow",
+		},
+		{
+			ID: "b2", OwnerID: "u1", ProjectID: "p1",
+			Kind:         domain.BindingPath,
+			MachineLabel: "laptop",
+			Path:         "/home/user/projects/flow",
+		},
+	}
+	d := WorktimeData{
+		User:     "msoent",
+		IsToday:  false,
+		Date:     time.Date(2026, 6, 21, 0, 0, 0, 0, time.UTC),
+		Now:      time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC),
+		Bindings: bindings,
+	}
+	var b bytes.Buffer
+	if err := WorktimeFragment(d).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if !strings.Contains(out, "serverkraken/flow") {
+		t.Errorf("fragment missing remote slug %q:\n%s", "serverkraken/flow", out)
+	}
+	if !strings.Contains(out, "laptop") {
+		t.Errorf("fragment missing machine label %q:\n%s", "laptop", out)
+	}
+	if !strings.Contains(out, "/home/user/projects/flow") {
+		t.Errorf("fragment missing path %q:\n%s", "/home/user/projects/flow", out)
+	}
+}
+
 func TestWorktimeFragment_PastDayShowsNavAndForm(t *testing.T) {
 	pid := "p1"
 	d := WorktimeData{
