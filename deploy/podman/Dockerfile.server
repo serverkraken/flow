@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.7
+#
+# flow-server image (rebuild branch).
+#
+# Builder: golang:1.25-alpine (matches go.mod toolchain go 1.25.7). Unlike the
+# next chart's image there is NO Node/npm step — the WebUI assets are committed
+# and go:embed-ed: internal/adapter/webui/static/app.css plus the generated
+# *_templ.go. templ is a go.mod tool directive, so we regenerate via
+# `go tool templ generate ./...` (a no-op against the committed files, kept for
+# a clean-room build).
+#
+# -buildvcs=false: the build runs from a git worktree whose .git is a file (and
+# CI checks out a detached tree); flow-server reads no VCS/version stamp, so we
+# disable VCS stamping to keep both local `podman build` and CI deterministic.
+#
+# Runtime: distroless/static-debian12:nonroot — no shell, uid 65532.
+#
+# Build: podman build -t flow-server:dev -f deploy/podman/Dockerfile.server .
+
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go tool templ generate ./...
+RUN CGO_ENABLED=0 GOFLAGS="-trimpath -buildvcs=false" \
+    go build -ldflags="-s -w" -o /out/flow-server ./cmd/flow-server
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/flow-server /usr/local/bin/flow-server
+USER nonroot
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/flow-server"]
