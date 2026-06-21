@@ -96,16 +96,17 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	srv := &httpserver.Server{
-		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
-		Clock:         clk,
-		Users:         users,
-		Session:       codec,
-		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
-		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
+		Ensure:            usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               sse.NewBus(),
+		Clock:             clk,
+		Users:             users,
+		Session:           codec,
+		StartSession:      usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:       usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		ListSessions:      usecase.ListSessions{Sessions: ss, Clock: clk},
+		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		CreateProject:     usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:      usecase.ListProjects{Projects: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
