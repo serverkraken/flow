@@ -200,3 +200,7 @@ func (c *Client) ListProjects(ctx context.Context) ([]domain.Project, error) {
 	err := c.do(ctx, http.MethodGet, "/api/v1/projects", nil, &out)
 	return out, err
 }
+
+func (c *Client) DeleteProject(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/projects/"+id, nil, nil)
+}

@@ -9,6 +9,7 @@ const (
 	EventSessionUpdated  EventType = "session.updated"
 	EventSessionDeleted  EventType = "session.deleted"
 	EventProjectCreated  EventType = "project.created"
+	EventProjectDeleted  EventType = "project.deleted"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
 

@@ -161,6 +161,21 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	switch err := s.DeleteProject.Execute(r.Context(), u.ID, id); {
+	case errors.Is(err, ports.ErrProjectNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	w.WriteHeader(http.StatusNoContent)
+}
+
 type editSessionReq struct {
 	ProjectID *string    `json:"projectId"`
 	Tag       string     `json:"tag"`

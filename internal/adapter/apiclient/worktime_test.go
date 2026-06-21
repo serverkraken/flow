@@ -117,6 +117,26 @@ func TestClient_ListSessionsSince(t *testing.T) {
 	}
 }
 
+func TestClient_DeleteProject(t *testing.T) {
+	var sawDelete bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete && r.URL.Path == "/api/v1/projects/p1" {
+			sawDelete = true
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+	if err := c.DeleteProject(context.Background(), "p1"); err != nil {
+		t.Fatalf("DeleteProject: %v", err)
+	}
+	if !sawDelete {
+		t.Fatal("server DELETE /api/v1/projects/p1 was not called")
+	}
+}
+
 func TestAddSessionAndListRange(t *testing.T) {
 	var gotBody map[string]any
 	var gotRangeQuery string
