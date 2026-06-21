@@ -42,6 +42,21 @@ func (c *Client) UnbindRemote(ctx context.Context, remoteSlug string) error {
 	return c.do(ctx, http.MethodDelete, path, nil, nil)
 }
 
+// BindPath calls PUT /api/v1/projects/{projectID}/bindings with kind=path.
+func (c *Client) BindPath(ctx context.Context, projectID, machineID, machineLabel, path string) (domain.ProjectBinding, error) {
+	var b domain.ProjectBinding
+	err := c.do(ctx, http.MethodPut, "/api/v1/projects/"+projectID+"/bindings",
+		map[string]any{"kind": "path", "machineId": machineID, "machineLabel": machineLabel, "path": path}, &b)
+	return b, err
+}
+
+// UnbindPath calls DELETE /api/v1/projects/bindings?kind=path&machine=<machineID>&path=<path>.
+func (c *Client) UnbindPath(ctx context.Context, machineID, path string) error {
+	reqPath := "/api/v1/projects/bindings?kind=path&machine=" + url.QueryEscape(machineID) +
+		"&path=" + url.QueryEscape(path)
+	return c.do(ctx, http.MethodDelete, reqPath, nil, nil)
+}
+
 // ListBindings calls GET /api/v1/projects/bindings.
 func (c *Client) ListBindings(ctx context.Context) ([]domain.ProjectBinding, error) {
 	var out []domain.ProjectBinding
