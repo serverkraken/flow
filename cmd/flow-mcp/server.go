@@ -1,6 +1,9 @@
 package main
 
 import (
+	"context"
+	"sync"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
@@ -10,18 +13,29 @@ const serverName = "flow-mcp"
 const serverVersion = "0.1.0"
 
 // handlers carries the dependencies every tool needs: the authenticated client,
-// whether auth succeeded at boot, and the cwd-resolved project.
+// whether auth succeeded at boot, the cwd-resolved project, and a lazily-fetched
+// project-ref cache used to resolve explicit `project` arguments (slug/name/id).
 type handlers struct {
 	client  *apiclient.Client
 	authed  bool
 	proj    domain.Project
 	matched bool
+
+	// project-ref cache, guarded by projMu. listProjects is the fetch seam
+	// (defaults to client.ListProjects; overridable in unit tests).
+	projMu       sync.Mutex
+	projects     []domain.Project
+	projFetched  bool
+	listProjects func(ctx context.Context) ([]domain.Project, error)
 }
 
 // newServer builds the MCP server and registers the spine's tools. Kept
 // dependency-injected (no global state, no I/O) so loopback tests can drive it.
 func newServer(client *apiclient.Client, authed bool, proj domain.Project, matched bool) *mcp.Server {
 	h := &handlers{client: client, authed: authed, proj: proj, matched: matched}
+	if client != nil {
+		h.listProjects = client.ListProjects
+	}
 	s := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_project_context",

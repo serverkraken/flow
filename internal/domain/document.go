@@ -20,10 +20,21 @@ const (
 	DocPlan        DocumentType = "plan"        // agent-owned
 )
 
+// DocumentTypes returns every valid document type in canonical order. It is the
+// single source of truth for the type set; valid() and external validators
+// (flow-mcp's type filter) both derive from it, so a new type is added here once.
+func DocumentTypes() []DocumentType {
+	return []DocumentType{
+		DocDaily, DocProject, DocFree, DocAgent,
+		DocMemory, DocInstruction, DocSkill, DocPlan,
+	}
+}
+
 func (t DocumentType) valid() bool {
-	switch t {
-	case DocDaily, DocProject, DocFree, DocAgent, DocMemory, DocInstruction, DocSkill, DocPlan:
-		return true
+	for _, v := range DocumentTypes() {
+		if t == v {
+			return true
+		}
 	}
 	return false
 }
