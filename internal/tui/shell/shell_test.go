@@ -110,6 +110,34 @@ func TestShell_pop_reinitsRevealedRoute(t *testing.T) {
 	}
 }
 
+// Popping back via the Esc/q back-chain (ResolveBack -> BackPop) must re-Init the
+// revealed route too, exactly like the programmatic PopRouteMsg path — otherwise a
+// drilled-in child (e.g. daydetail after a Nachbuchen) returns to a stale parent
+// (e.g. Woche showing pre-edit per-day totals) until it is manually reloaded.
+func TestShell_backKeyPop_reinitsRevealedRoute(t *testing.T) {
+	var rootInit, childInit int
+	root := initCountRoute{stubRoute{title: "Worktime"}, &rootInit}
+	child := initCountRoute{stubRoute{title: "Woche"}, &childInit}
+
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{root})
+	next, _ := s.Update(shell.PushRouteMsg{Route: child})
+	sh := next.(shell.Shell)
+	if sh.ActiveDepth() != 2 {
+		t.Fatalf("after push depth = %d, want 2", sh.ActiveDepth())
+	}
+	before := rootInit
+	// Esc on a plain (non-Backer, non-TextCapturer) child at depth 2 resolves to
+	// BackPop. The revealed root must be re-Init'd.
+	back, _ := sh.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	sh2 := back.(shell.Shell)
+	if sh2.ActiveDepth() != 1 {
+		t.Fatalf("after esc-pop depth = %d, want 1", sh2.ActiveDepth())
+	}
+	if rootInit != before+1 {
+		t.Fatalf("esc/BackPop should re-Init the revealed route (rootInit=%d, want %d)", rootInit, before+1)
+	}
+}
+
 func TestShell_initsActiveTabRouteAtStartup(t *testing.T) {
 	var home, work int
 	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{

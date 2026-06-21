@@ -225,7 +225,10 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return s, nil
 		case BackPop:
 			s.tabs[s.activeTab].Pop()
-			return s, nil
+			// Re-Init the revealed route, mirroring the PopRouteMsg path: a parent
+			// drilled-over (e.g. Woche under a daydetail Nachbuchen) must refresh
+			// when revealed, not show stale data until manually reloaded.
+			return s, s.tabs[s.activeTab].Top().Init()
 		case BackQuit:
 			return s, tea.Quit
 		}
