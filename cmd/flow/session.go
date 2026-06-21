@@ -215,8 +215,11 @@ func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sess
 		}
 		stop = &t
 	}
-	if stop == nil || !stop.After(start) {
-		return "", fmt.Errorf("resulting range is invalid (stop must be after start)")
+	if stop == nil {
+		return "", fmt.Errorf("session %q is still running — pass --to to set its stop time (or stop it first)", id)
+	}
+	if !stop.After(start) {
+		return "", fmt.Errorf("--to must be after --from (start)")
 	}
 	projectID := cur.ProjectID
 	if in.Project != nil {

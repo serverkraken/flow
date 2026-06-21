@@ -112,6 +112,27 @@ func TestRunSessionDelete(t *testing.T) {
 	}
 }
 
+func TestRunSessionEdit_RunningSessionGivesClearError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" && r.URL.Path == "/api/v1/sessions" {
+			// A running session: Stop omitted (nil).
+			_ = json.NewEncoder(w).Encode([]domain.WorkSession{{
+				ID: "s1", Tag: "old", Start: time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local),
+			}})
+			return
+		}
+		t.Errorf("unexpected %s %s (must not PATCH a running session)", r.Method, r.URL.Path)
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	newTag := "new"
+	_, err := runSessionEdit(context.Background(), c, "s1", sessionEditInput{Tag: &newTag})
+	if err == nil || !strings.Contains(err.Error(), "still running") {
+		t.Fatalf("want a 'still running' error, got %v", err)
+	}
+}
+
 func TestRunSessionEdit_MergesOnlyChangedFields(t *testing.T) {
 	pid := "p1"
 	existingStart := time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local)
