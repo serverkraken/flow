@@ -109,3 +109,15 @@ func TestNewRejectsEmptyPairs(t *testing.T) {
 		t.Fatal("expected error for empty pairs")
 	}
 }
+
+func TestNewRejectsEmptyIssuer(t *testing.T) {
+	if _, err := New(context.Background(), []IssuerAudiences{{Issuer: "", Audiences: []string{"x"}}}); err == nil {
+		t.Fatal("expected error for empty issuer")
+	}
+}
+
+func TestNewRejectsEmptyAudiences(t *testing.T) {
+	if _, err := New(context.Background(), []IssuerAudiences{{Issuer: "https://issuer.example", Audiences: nil}}); err == nil {
+		t.Fatal("expected error for empty audiences")
+	}
+}

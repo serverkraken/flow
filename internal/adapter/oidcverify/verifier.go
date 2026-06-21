@@ -44,6 +44,9 @@ func New(ctx context.Context, pairs []IssuerAudiences) (*Verifier, error) {
 		if p.Issuer == "" {
 			return nil, fmt.Errorf("oidcverify: empty issuer")
 		}
+		if len(p.Audiences) == 0 {
+			return nil, fmt.Errorf("oidcverify: no audiences for issuer %s", p.Issuer)
+		}
 		prov, err := oidc.NewProvider(ctx, p.Issuer)
 		if err != nil {
 			return nil, fmt.Errorf("oidcverify: provider(%s): %w", p.Issuer, err)
