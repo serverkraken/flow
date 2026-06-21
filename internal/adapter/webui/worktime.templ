@@ -31,7 +31,7 @@ templ WorktimePage(d WorktimeData) {
 		</head>
 		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
 			<main class="mx-auto max-w-md p-4">
-				<div id="wt" hx-get="/ui/worktime" hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:project.created" hx-swap="innerHTML">
+				<div id="wt" hx-get="/ui/worktime" hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:project.created" hx-swap="innerHTML">
 					@WorktimeFragment(d)
 				</div>
 			</main>
