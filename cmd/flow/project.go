@@ -10,6 +10,9 @@ import (
 func projectCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "project", Short: "manage projects"}
 	cmd.AddCommand(projectRateCmd())
+	cmd.AddCommand(projectBindCmd())
+	cmd.AddCommand(projectUnbindCmd())
+	cmd.AddCommand(projectBindingsCmd())
 	return cmd
 }
 
