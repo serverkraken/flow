@@ -41,6 +41,26 @@ func newServer(client *apiclient.Client, authed bool, proj domain.Project, match
 		Name:        "flow_project_context",
 		Description: "Report which flow project the current working directory resolves to, and how many Kompendium documents are in scope. Call this first to orient.",
 	}, h.projectContext)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_search_docs",
+		Description: "Search the Kompendium (hybrid keyword + semantic). Scoped to the current project by default; pass project='global' to search everything. Returns matching documents with snippets.",
+	}, h.searchDocs)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_list_docs",
+		Description: "List Kompendium documents (metadata only) in the current project by default. Filter by project, tags, or type.",
+	}, h.listDocs)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_get_doc",
+		Description: "Fetch one document's full content by id, or by path within the current project.",
+	}, h.getDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_list_tags",
+		Description: "List tag counts for filtering — across the current project by default, or project='global' for all.",
+	}, h.listTags)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_backlinks",
+		Description: "List documents that link (via wikilinks) to a given document, by id or path. Navigates the memory graph.",
+	}, h.backlinks)
 	return s
 }
 
