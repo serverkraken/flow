@@ -466,7 +466,7 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *s
 	defer s.mu.Unlock()
 	var out []domain.Document
 	for _, d := range s.m {
-		if d.OwnerID == ownerID && hasAllTags(d.Tags, tags) {
+		if d.OwnerID == ownerID && matchesProject(d.ProjectID, projectID) && hasAllTags(d.Tags, tags) {
 			out = append(out, d)
 		}
 	}
@@ -479,6 +479,16 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *s
 		}
 	}
 	return out, nil
+}
+
+func matchesProject(docPID, filter *string) bool {
+	if filter == nil {
+		return true
+	}
+	if *filter == "none" {
+		return docPID == nil
+	}
+	return docPID != nil && *docPID == *filter
 }
 
 func hasAllTags(have, want []string) bool {
@@ -564,7 +574,7 @@ func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, project
 	ql := strings.ToLower(q)
 	var out []domain.SearchHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || !matchesProject(d.ProjectID, projectID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		hay := strings.ToLower(d.Title + " " + d.Body)
@@ -628,7 +638,7 @@ func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, qu
 	defer s.mu.Unlock()
 	var hits []domain.SemanticHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || !matchesProject(d.ProjectID, projectID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		best := -1.0
