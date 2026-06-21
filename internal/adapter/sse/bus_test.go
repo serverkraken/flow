@@ -48,6 +48,75 @@ func TestCancelUnsubscribes(t *testing.T) {
 	}
 }
 
+func TestBusCapsPerUserEvictingOldest(t *testing.T) {
+	b := sse.NewBus()
+	b.SetMaxPerUser(3)
+	var chans []<-chan domain.Event
+	var cancels []func()
+	for i := 0; i < 3; i++ {
+		ch, cancel := b.Subscribe("u")
+		chans = append(chans, ch)
+		cancels = append(cancels, cancel)
+	}
+	// 4th subscription is over the cap → must evict the oldest (chans[0]).
+	ch4, cancel4 := b.Subscribe("u")
+	defer cancel4()
+	defer func() {
+		for _, c := range cancels {
+			c()
+		}
+	}()
+
+	// oldest channel is closed by eviction.
+	select {
+	case _, ok := <-chans[0]:
+		if ok {
+			t.Fatal("oldest subscriber channel should be closed after eviction")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("oldest channel not closed — no eviction happened")
+	}
+	// the newest still receives events.
+	b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "u"})
+	select {
+	case ev := <-ch4:
+		if ev.Type != domain.EventSessionStarted {
+			t.Fatalf("wrong event %v", ev.Type)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("newest subscriber should still receive events")
+	}
+	// a still-live middle subscriber (chans[1]) was NOT evicted.
+	select {
+	case ev := <-chans[1]:
+		if ev.Type != domain.EventSessionStarted {
+			t.Fatalf("wrong event %v", ev.Type)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("second subscriber should still be live")
+	}
+}
+
+func TestBusCapIsolatesUsers(t *testing.T) {
+	b := sse.NewBus()
+	b.SetMaxPerUser(2)
+	chA, cancelA := b.Subscribe("a")
+	defer cancelA()
+	// Fill user b to its cap and beyond; eviction must not touch user a.
+	for i := 0; i < 3; i++ {
+		_, _ = b.Subscribe("b")
+	}
+	b.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: "a"})
+	select {
+	case ev := <-chA:
+		if ev.Type != domain.EventSessionStarted {
+			t.Fatalf("wrong event %v", ev.Type)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("user a must be unaffected by user b eviction")
+	}
+}
+
 func TestBusConcurrentPublishSubscribeCancel(t *testing.T) {
 	b := sse.NewBus()
 	var wg sync.WaitGroup
