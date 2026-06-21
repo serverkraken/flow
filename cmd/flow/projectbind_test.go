@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/clientmachine"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/fuzzylist"
@@ -437,5 +438,108 @@ func TestBindSelection_CreateNew(t *testing.T) {
 	}
 	if !strings.Contains(out, "github.com/acme/repo") || !strings.Contains(out, "Brandnew") {
 		t.Errorf("output = %q; want origin and project name", out)
+	}
+}
+
+// --- Path-binding helpers ---
+
+// newPathBindSrv creates an httptest server that captures PUT/DELETE for path bindings.
+// It records the PUT body fields and the DELETE query string.
+type pathBindCapture struct {
+	putProjectID string
+	putKind      string
+	putMachineID string
+	putPath      string
+	deleteQuery  string
+}
+
+func newPathBindSrv(t *testing.T) (*httptest.Server, *pathBindCapture) {
+	t.Helper()
+	cap := &pathBindCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/bindings"):
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			cap.putKind, _ = body["kind"].(string)
+			cap.putMachineID, _ = body["machineId"].(string)
+			// extract project ID from /api/v1/projects/<id>/bindings
+			trimmed := strings.TrimSuffix(r.URL.Path, "/bindings")
+			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/projects/")
+			cap.putPath, _ = body["path"].(string)
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{Kind: domain.BindingPath})
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/projects/bindings":
+			cap.deleteQuery = r.URL.RawQuery
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv, cap
+}
+
+// TestRunBindPath_Success: runBindPath calls BindPath with kind=path,
+// the machine ID, and the cleaned cwd; returns a confirmation message.
+func TestRunBindPath_Success(t *testing.T) {
+	t.Parallel()
+	srv, cap := newPathBindSrv(t)
+	c := apiclient.New(srv.URL, "tkn")
+	m := clientmachine.Machine{ID: "m-123", Label: "myhost"}
+	cwd := "/home/user/projects/myapp"
+
+	out, err := runBindPath(context.Background(), c, m, cwd, "proj-1", "MyApp")
+	if err != nil {
+		t.Fatalf("runBindPath: %v", err)
+	}
+	if cap.putKind != "path" {
+		t.Errorf("PUT kind = %q, want %q", cap.putKind, "path")
+	}
+	if cap.putProjectID != "proj-1" {
+		t.Errorf("PUT projectID = %q, want %q", cap.putProjectID, "proj-1")
+	}
+	if cap.putMachineID != "m-123" {
+		t.Errorf("PUT machineID = %q, want %q", cap.putMachineID, "m-123")
+	}
+	if cap.putPath != cwd {
+		t.Errorf("PUT path = %q, want %q", cap.putPath, cwd)
+	}
+	if !strings.Contains(out, cwd) {
+		t.Errorf("output should contain cwd %q: %q", cwd, out)
+	}
+	if !strings.Contains(out, "myhost") {
+		t.Errorf("output should contain machine label %q: %q", "myhost", out)
+	}
+	if !strings.Contains(out, "MyApp") {
+		t.Errorf("output should contain project name %q: %q", "MyApp", out)
+	}
+}
+
+// TestRunUnbindPath_Success: runUnbindPath calls UnbindPath with the machine ID
+// and the cleaned cwd; returns a confirmation message.
+func TestRunUnbindPath_Success(t *testing.T) {
+	t.Parallel()
+	srv, cap := newPathBindSrv(t)
+	c := apiclient.New(srv.URL, "tkn")
+	m := clientmachine.Machine{ID: "m-123", Label: "myhost"}
+	cwd := "/home/user/projects/myapp"
+
+	out, err := runUnbindPath(context.Background(), c, m, cwd)
+	if err != nil {
+		t.Fatalf("runUnbindPath: %v", err)
+	}
+	if !strings.Contains(cap.deleteQuery, "m-123") {
+		t.Errorf("DELETE query should contain machine ID: %q", cap.deleteQuery)
+	}
+	if !strings.Contains(cap.deleteQuery, "kind=path") {
+		t.Errorf("DELETE query should contain kind=path: %q", cap.deleteQuery)
+	}
+	if !strings.Contains(out, cwd) {
+		t.Errorf("output should contain cwd %q: %q", cwd, out)
+	}
+	if !strings.Contains(out, "myhost") {
+		t.Errorf("output should contain machine label %q: %q", "myhost", out)
 	}
 }
