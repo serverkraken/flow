@@ -200,4 +200,236 @@ func TestProjectBindingStore(t *testing.T) {
 			}
 		}
 	})
+
+	// Re-create p-bind-2 (was cascade-deleted above) so path sub-tests can use both projects.
+	p2recreated, _ := domain.NewProject("p-bind-2", "u-bind", "Project 2", "project-2", now)
+	if _, err := projects.Create(ctx, p2recreated); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("path: upsert creates binding", func(t *testing.T) {
+		b := domain.ProjectBinding{
+			ID:           "path-bind-1",
+			OwnerID:      "u-bind",
+			ProjectID:    "p-bind-1",
+			Kind:         domain.BindingPath,
+			MachineID:    "machine-a",
+			MachineLabel: "laptop",
+			Path:         "/a/b",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		got, err := st.Upsert(ctx, b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Kind != domain.BindingPath {
+			t.Errorf("want kind path, got %q", got.Kind)
+		}
+		if got.ProjectID != "p-bind-1" {
+			t.Errorf("want project p-bind-1, got %q", got.ProjectID)
+		}
+		if got.MachineID != "machine-a" {
+			t.Errorf("want machine-a, got %q", got.MachineID)
+		}
+		if got.Path != "/a/b" {
+			t.Errorf("want path /a/b, got %q", got.Path)
+		}
+	})
+
+	t.Run("path: re-upsert same (owner,machine,path) reassigns project to p2", func(t *testing.T) {
+		b2 := domain.ProjectBinding{
+			ID:           "path-bind-1b", // different id — conflict target must win
+			OwnerID:      "u-bind",
+			ProjectID:    "p-bind-2",
+			Kind:         domain.BindingPath,
+			MachineID:    "machine-a",
+			MachineLabel: "laptop-renamed",
+			Path:         "/a/b",
+			CreatedAt:    now,
+			UpdatedAt:    now.Add(time.Second),
+		}
+		got, err := st.Upsert(ctx, b2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.ProjectID != "p-bind-2" {
+			t.Errorf("want project reassigned to p-bind-2, got %q", got.ProjectID)
+		}
+		if got.MachineLabel != "laptop-renamed" {
+			t.Errorf("want machine_label updated to laptop-renamed, got %q", got.MachineLabel)
+		}
+
+		// verify exactly ONE path row for (owner, machine, /a/b)
+		all, err := st.List(ctx, "u-bind")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pathRows []domain.ProjectBinding
+		for _, b := range all {
+			if b.Kind == domain.BindingPath && b.MachineID == "machine-a" && b.Path == "/a/b" {
+				pathRows = append(pathRows, b)
+			}
+		}
+		if len(pathRows) != 1 {
+			t.Fatalf("want exactly 1 path row for (machine-a, /a/b), got %d", len(pathRows))
+		}
+		if pathRows[0].ProjectID != "p-bind-2" {
+			t.Errorf("stored path binding still has old project %q", pathRows[0].ProjectID)
+		}
+	})
+
+	t.Run("path: different path is a separate row", func(t *testing.T) {
+		b := domain.ProjectBinding{
+			ID:           "path-bind-2",
+			OwnerID:      "u-bind",
+			ProjectID:    "p-bind-1",
+			Kind:         domain.BindingPath,
+			MachineID:    "machine-a",
+			MachineLabel: "laptop",
+			Path:         "/a/c",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if _, err := st.Upsert(ctx, b); err != nil {
+			t.Fatal(err)
+		}
+
+		all, err := st.List(ctx, "u-bind")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pathRows []domain.ProjectBinding
+		for _, b := range all {
+			if b.Kind == domain.BindingPath && b.MachineID == "machine-a" {
+				pathRows = append(pathRows, b)
+			}
+		}
+		if len(pathRows) != 2 {
+			t.Fatalf("want 2 path rows for machine-a (paths /a/b and /a/c), got %d", len(pathRows))
+		}
+	})
+
+	t.Run("path: ListByProject returns path rows", func(t *testing.T) {
+		byP1, err := st.ListByProject(ctx, "u-bind", "p-bind-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var pathForP1 int
+		for _, b := range byP1 {
+			if b.Kind == domain.BindingPath {
+				pathForP1++
+			}
+		}
+		if pathForP1 != 1 {
+			t.Errorf("want 1 path binding for p-bind-1, got %d", pathForP1)
+		}
+	})
+
+	t.Run("path: DeletePath removes only the target row", func(t *testing.T) {
+		if err := st.DeletePath(ctx, "u-bind", "machine-a", "/a/b"); err != nil {
+			t.Fatal(err)
+		}
+		all, err := st.List(ctx, "u-bind")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range all {
+			if b.Kind == domain.BindingPath && b.Path == "/a/b" {
+				t.Error("path binding /a/b still present after DeletePath")
+			}
+		}
+		// /a/c must still be there
+		var found bool
+		for _, b := range all {
+			if b.Kind == domain.BindingPath && b.Path == "/a/c" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("path binding /a/c was unexpectedly deleted")
+		}
+	})
+
+	t.Run("path: DeletePath missing returns ErrBindingNotFound", func(t *testing.T) {
+		err := st.DeletePath(ctx, "u-bind", "machine-a", "/no/such/path")
+		if !errors.Is(err, ports.ErrBindingNotFound) {
+			t.Errorf("want ErrBindingNotFound, got %v", err)
+		}
+	})
+
+	t.Run("path: cascade on project delete removes path binding", func(t *testing.T) {
+		// /a/c points to p-bind-1; deleting p-bind-1 must cascade
+		const delQ = `DELETE FROM projects WHERE id=$1`
+		if _, err := pool.Exec(ctx, delQ, "p-bind-1"); err != nil {
+			t.Fatal(err)
+		}
+		all, err := st.List(ctx, "u-bind")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range all {
+			if b.ProjectID == "p-bind-1" {
+				t.Error("path binding not cascade-deleted with project")
+			}
+		}
+	})
+
+	t.Run("path: remote and path bindings for same owner+project coexist", func(t *testing.T) {
+		// Re-create p-bind-1 (just cascade-deleted above) for this coexistence test.
+		p1recreated, _ := domain.NewProject("p-bind-coex", "u-bind", "Coex Project", "coex-project", now)
+		if _, err := projects.Create(ctx, p1recreated); err != nil {
+			t.Fatal(err)
+		}
+
+		remote := domain.ProjectBinding{
+			ID:         "coex-remote",
+			OwnerID:    "u-bind",
+			ProjectID:  "p-bind-coex",
+			Kind:       domain.BindingRemote,
+			RemoteSlug: "github.com/org/coex-repo",
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		path := domain.ProjectBinding{
+			ID:           "coex-path",
+			OwnerID:      "u-bind",
+			ProjectID:    "p-bind-coex",
+			Kind:         domain.BindingPath,
+			MachineID:    "machine-b",
+			MachineLabel: "desktop",
+			Path:         "/work/coex",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		if _, err := st.Upsert(ctx, remote); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Upsert(ctx, path); err != nil {
+			t.Fatal(err)
+		}
+
+		byProject, err := st.ListByProject(ctx, "u-bind", "p-bind-coex")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var hasRemote, hasPath bool
+		for _, b := range byProject {
+			if b.Kind == domain.BindingRemote {
+				hasRemote = true
+			}
+			if b.Kind == domain.BindingPath {
+				hasPath = true
+			}
+		}
+		if !hasRemote {
+			t.Error("coexistence test: remote binding missing from ListByProject")
+		}
+		if !hasPath {
+			t.Error("coexistence test: path binding missing from ListByProject")
+		}
+		if len(byProject) != 2 {
+			t.Errorf("want 2 bindings for coex project (1 remote + 1 path), got %d", len(byProject))
+		}
+	})
 }
