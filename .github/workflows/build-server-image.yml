@@ -80,5 +80,16 @@ jobs:
           cache-from: type=gha,scope=flow-server
           cache-to: type=gha,mode=max,scope=flow-server
 
-      - name: Print image digest
-        run: echo "Image digest:: ${{ steps.build.outputs.digest }}"
+      - name: Surface image digest
+        # Plan 2 (homelab-study, a separate GitOps repo) pins this digest by
+        # hand, so make it prominent in the run log AND the job summary rather
+        # than only a buried log line. (No job-level `outputs:` block: there is
+        # no same-repo downstream job consuming it via needs.build.outputs.)
+        run: |
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
+          {
+            echo "### flow-server image"
+            echo ""
+            echo "- Tags: \`${{ steps.tags.outputs.tags }}\`"
+            echo "- Digest: \`${{ steps.build.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
