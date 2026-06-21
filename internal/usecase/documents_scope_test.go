@@ -43,30 +43,53 @@ func TestListDocuments_ProjectScope(t *testing.T) {
 
 func TestSearchDocuments_ProjectScopeReachesSemanticArm(t *testing.T) {
 	ctx := context.Background()
-	fake := seedScopeFake(t)
+	fake := testutil.NewFakeDocumentStore()
 	emb := testutil.NewFakeEmbedder()
-	chunkVec := func(body string) []float32 {
-		v, err := emb.Embed(ctx, []string{body})
-		if err != nil {
-			t.Fatalf("embed: %v", err)
-		}
-		return v[0]
+	// "needle" appears in NO document body, so the keyword arm returns nothing
+	// and every returned hit must originate from the semantic arm.
+	const query = "needle"
+	qvec, err := emb.Embed(ctx, []string{query})
+	if err != nil {
+		t.Fatalf("embed query: %v", err)
 	}
-	// one chunk per doc so the semantic arm has candidates
-	_ = fake.ReplaceChunks(ctx, "d-a", "u1", []string{"alpha thing"}, [][]float32{chunkVec("alpha thing")})
-	_ = fake.ReplaceChunks(ctx, "d-b", "u1", []string{"beta thing"}, [][]float32{chunkVec("beta thing")})
+	mk := func(id string, proj *string) {
+		if _, err := fake.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u1", ProjectID: proj, Type: domain.DocFree,
+			Path: id, Title: id, Body: "haystack " + id, // deliberately lacks "needle"
+		}); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+		// chunk embedding == query vector → the semantic arm ranks it top
+		if err := fake.ReplaceChunks(ctx, id, "u1", []string{"haystack"}, [][]float32{qvec[0]}); err != nil {
+			t.Fatalf("chunks %s: %v", id, err)
+		}
+	}
+	mk("d-a", pa("proj-a"))
+	mk("d-b", pa("proj-b"))
 
 	uc := usecase.SearchDocuments{Docs: fake, Embedder: emb}
-	got, err := uc.Execute(ctx, "u1", "thing", pa("proj-a"), nil)
+	got, err := uc.Execute(ctx, "u1", query, pa("proj-a"), nil)
 	if err != nil {
 		t.Fatalf("Search err: %v", err)
 	}
-	if len(got) == 0 {
-		t.Fatal("Search(proj-a) returned no hits")
-	}
+	// d-a is reachable ONLY via the semantic arm (its body lacks "needle");
+	// d-b (proj-b) must be excluded by the semantic arm's project scope.
+	var sawA, sawB bool
 	for _, h := range got {
+		switch h.ID {
+		case "d-a":
+			sawA = true
+		case "d-b":
+			sawB = true
+		}
 		if h.ProjectID == nil || *h.ProjectID != "proj-a" {
 			t.Fatalf("hit %s escaped project scope (projectID=%v)", h.ID, h.ProjectID)
 		}
+	}
+	if !sawA {
+		t.Fatal("semantic arm did not return d-a (scoped to proj-a) — keyword arm cannot, body lacks the query term")
+	}
+	if sawB {
+		t.Fatal("semantic arm leaked d-b from proj-b: project scope not applied to the semantic arm")
 	}
 }
