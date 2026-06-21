@@ -2,17 +2,19 @@
 # Asserts a start fired over REST shows up on the SSE stream (the M1a Done-gate,
 # server side). Requires a running flow-server + DB and a real token.
 set -euo pipefail
-BASE="${BASE:-http://localhost:8080}"
+BASE="${BASE:-https://localhost:8080}"
 : "${TOKEN:?set TOKEN to an allowlisted Authentik access token}"
 auth=(-H "Authorization: Bearer $TOKEN")
+# Dev flow-server uses a self-signed cert; FLOW_INSECURE_TLS=1 (dev only) adds -k.
+insecure=(); [ "${FLOW_INSECURE_TLS:-}" = "1" ] && insecure=(-k)
 
 tmp=$(mktemp)
-curl -N "${auth[@]}" "$BASE/api/v1/events" >"$tmp" 2>/dev/null &
+curl "${insecure[@]}" -N "${auth[@]}" "$BASE/api/v1/events" >"$tmp" 2>/dev/null &
 spid=$!
 trap 'kill "$spid" 2>/dev/null || true; rm -f "$tmp"' EXIT
 sleep 1
 
-curl -fsS -X POST "${auth[@]}" -H 'Content-Type: application/json' -d '{}' \
+curl "${insecure[@]}" -fsS -X POST "${auth[@]}" -H 'Content-Type: application/json' -d '{}' \
   "$BASE/api/v1/sessions" >/dev/null
 
 for _ in $(seq 1 20); do
