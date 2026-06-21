@@ -115,6 +115,13 @@ templ WorktimeFragment(d WorktimeData) {
 								<input type="hidden" name="date" value={ d.Date.Format("2006-01-02") }/>
 								<input name="from" value={ fmtHM(s.Start) } class="w-16 rounded border px-2 py-1"/>
 								<input name="to" value={ stopHM(s) } class="w-16 rounded border px-2 py-1"/>
+								<select name="projectId" class="rounded border px-2 py-1">
+									<option value="">— none —</option>
+									for _, p := range d.Projects {
+										<option value={ p.ID } selected?={ isCurrentProject(s, p.ID) }>{ p.Name }</option>
+									}
+								</select>
+								<input name="newProject" placeholder="or new…" class="rounded border px-2 py-1"/>
 								<input name="tag" value={ s.Tag } placeholder="tag" class="w-24 rounded border px-2 py-1"/>
 								<input name="note" value={ s.Note } placeholder="note" class="flex-1 rounded border px-2 py-1"/>
 								<button class="rounded bg-slate-900 px-3 py-1 text-white">save</button>

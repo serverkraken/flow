@@ -76,3 +76,9 @@ func stopHM(s domain.WorkSession) string {
 	}
 	return fmtHM(*s.Stop)
 }
+
+// isCurrentProject reports whether id is the session's current project, used
+// to pre-select the edit form's project <option> so a save preserves it.
+func isCurrentProject(s domain.WorkSession, id string) bool {
+	return s.ProjectID != nil && *s.ProjectID == id
+}

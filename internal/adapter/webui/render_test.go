@@ -62,6 +62,37 @@ func TestFragmentWithProjectsAndSessions(t *testing.T) {
 	}
 }
 
+// Regression: the per-row edit form must carry a projectId <select> that
+// pre-selects the session's current project. Without it, saving an edit
+// (e.g. changing the stop time) submits an empty projectId and silently
+// wipes the session's project association.
+func TestFragmentEditFormPreselectsProject(t *testing.T) {
+	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
+	pid := "p2"
+	done, _ := domain.NewWorkSession("s2", "u1", &pid, day.Add(9*time.Hour))
+	stop := day.Add(11 * time.Hour)
+	done.Stop = &stop
+	d := WorktimeData{
+		User:     "msoent",
+		Now:      time.Date(2026, 6, 21, 12, 0, 0, 0, time.Local),
+		Date:     day,
+		Sessions: []domain.WorkSession{done},
+		Projects: []domain.Project{{ID: "p1", Name: "Flow"}, {ID: "p2", Name: "Kompendium"}},
+		IsToday:  false,
+	}
+	var b bytes.Buffer
+	if err := WorktimeFragment(d).Render(context.Background(), &b); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	if !strings.Contains(out, `name="projectId"`) {
+		t.Fatalf("edit form has no projectId select:\n%s", out)
+	}
+	if !strings.Contains(out, `value="p2" selected`) {
+		t.Errorf("current project p2 not pre-selected in edit form:\n%s", out)
+	}
+}
+
 func TestWorktimePageWrapsFragment(t *testing.T) {
 	var b bytes.Buffer
 	if err := WorktimePage(WorktimeData{User: "x", IsToday: true}).Render(context.Background(), &b); err != nil {
