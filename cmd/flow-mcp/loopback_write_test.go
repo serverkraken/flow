@@ -181,6 +181,26 @@ func TestLoopback_DeleteGuard(t *testing.T) {
 	}
 }
 
+func TestLoopback_CreateNoneScope(t *testing.T) {
+	sess := authedWriteServer(t)
+	// Create a doc with project="none" — must produce an unassigned document.
+	res, out := callText(t, sess, "flow_create_doc", map[string]any{
+		"type": "memory", "path": "notes/unassigned", "title": "Unassigned", "body": "no project", "project": "none",
+	})
+	if res.IsError {
+		t.Fatalf("create with project=none errored: %s", out)
+	}
+	// Extract the id from the create result ("Created memory [new1] Unassigned · …")
+	if !strings.Contains(out, "new1") {
+		t.Fatalf("expected id new1 in create result, got %q", out)
+	}
+	// Round-trip via flow_get_doc: formatDoc renders "project: —" when ProjectID is nil.
+	_, got := callText(t, sess, "flow_get_doc", map[string]any{"id": "new1"})
+	if !strings.Contains(got, "project: —") {
+		t.Fatalf("get after create-with-none = %q; want 'project: —' (nil ProjectID)", got)
+	}
+}
+
 func TestLoopback_WriteTools_DegradedRequireLogin(t *testing.T) {
 	sess := connect(t, newServer(nil, false, domain.Project{}, false))
 	for _, tc := range []struct {
