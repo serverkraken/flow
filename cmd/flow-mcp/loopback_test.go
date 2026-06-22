@@ -230,6 +230,171 @@ func fakeReadBackend(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
+// fakeBindBackend extends fakeReadBackend with POST /projects and PUT /projects/{id}/bindings.
+// bindCalled is written (true) on the first PUT bindings call, to assert bind happened.
+func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
+	t.Helper()
+	docs := readFixture()
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
+	})
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Project{
+			{ID: "p1", Name: "Alpha", Slug: "alpha"},
+			{ID: "p2", Name: "Beta", Slug: "beta"},
+		})
+	})
+	mux.HandleFunc("POST /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Name string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		slug := strings.ToLower(strings.ReplaceAll(body.Name, " ", "-"))
+		_ = json.NewEncoder(w).Encode(domain.Project{ID: "pX", Name: body.Name, Slug: slug})
+	})
+	mux.HandleFunc("PUT /api/v1/projects/{id}/bindings", func(w http.ResponseWriter, _ *http.Request) {
+		if bindCalled != nil {
+			*bindCalled = true
+		}
+		_ = json.NewEncoder(w).Encode(domain.ProjectBinding{})
+	})
+	mux.HandleFunc("GET /api/v1/documents/tags", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.CollectTags(docs))
+	})
+	mux.HandleFunc("GET /api/v1/documents/{id}/backlinks", func(w http.ResponseWriter, r *http.Request) {
+		var out []domain.BacklinkRef
+		if r.PathValue("id") == "d1" {
+			out = []domain.BacklinkRef{{ID: "d2", Path: "notes/todo", Title: "Todo", Type: domain.DocFree}}
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	mux.HandleFunc("GET /api/v1/documents/{id}", func(w http.ResponseWriter, r *http.Request) {
+		for _, d := range docs {
+			if d.ID == r.PathValue("id") {
+				_ = json.NewEncoder(w).Encode(d)
+				return
+			}
+		}
+		http.Error(w, "not found", http.StatusNotFound)
+	})
+	mux.HandleFunc("GET /api/v1/documents", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		pid, hasPid := q.Get("projectId"), q.Has("projectId")
+		query := q.Get("q")
+		if query != "" {
+			var hits []domain.SearchHit
+			for _, d := range docs {
+				if !scopedMatch(d, pid, hasPid) {
+					continue
+				}
+				if strings.Contains(strings.ToLower(d.Title+" "+d.Body), strings.ToLower(query)) {
+					hits = append(hits, domain.SearchHit{Document: d, Snippet: d.Body})
+				}
+			}
+			_ = json.NewEncoder(w).Encode(hits)
+			return
+		}
+		var out []domain.Document
+		for _, d := range docs {
+			if scopedMatch(d, pid, hasPid) {
+				out = append(out, d)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	return httptest.NewServer(mux)
+}
+
+// TestLoopback_BindProject covers the 5 required assertions for the 11th tool.
+func TestLoopback_BindProject(t *testing.T) {
+	ctx := context.Background()
+	var bindCalled bool
+	be := fakeBindBackend(t, &bindCalled)
+	t.Cleanup(be.Close)
+	client := apiclient.New(be.URL, "tok")
+	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	mgr, h := managerFor(t, client, proj)
+	_ = mgr
+	sess := connect(t, h.srv)
+
+	// 1. Tool surface = 11: both flow_list_projects and flow_bind_project present.
+	tools, err := sess.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	if len(tools.Tools) != 11 {
+		t.Fatalf("tool count = %d, want 11; got %v", len(tools.Tools), toolNames(tools.Tools))
+	}
+	if !hasTool(tools.Tools, "flow_list_projects") {
+		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))
+	}
+	if !hasTool(tools.Tools, "flow_bind_project") {
+		t.Fatalf("flow_bind_project not advertised; got %v", toolNames(tools.Tools))
+	}
+
+	// 2. flow_list_projects returns fixture projects.
+	_, lpTxt := callText(t, sess, "flow_list_projects", map[string]any{})
+	if !strings.Contains(lpTxt, "Alpha") || !strings.Contains(lpTxt, "alpha") {
+		t.Fatalf("flow_list_projects = %q, want 'Alpha'/'alpha'", lpTxt)
+	}
+
+	// 3. create-then-bind: create_name + kind:remote (deterministic — the test process
+	// runs inside the flow-rebuild git checkout which has a git origin).
+	bindCalled = false
+	res, bindTxt := callText(t, sess, "flow_bind_project", map[string]any{
+		"create_name": "Scratch",
+		"kind":        "remote",
+	})
+	if res.IsError {
+		t.Fatalf("create-then-bind IsError: %s", bindTxt)
+	}
+	if !strings.Contains(bindTxt, "Scratch") {
+		t.Fatalf("bind result = %q, want it to name 'Scratch'", bindTxt)
+	}
+	if !bindCalled {
+		t.Fatalf("PUT /api/v1/projects/{id}/bindings was never called")
+	}
+
+	// 4. error case: neither project nor create_name.
+	resErr, errTxt := callText(t, sess, "flow_bind_project", map[string]any{})
+	if !resErr.IsError {
+		t.Fatalf("no-ref bind: want IsError, got %q", errTxt)
+	}
+	if !strings.Contains(errTxt, "project") || !strings.Contains(errTxt, "create_name") {
+		t.Fatalf("no-ref error = %q, want mention of 'project' and 'create_name'", errTxt)
+	}
+
+	// 5. Re-resolve after bind: set FLOW_PROJECT=beta so refreshResolved (triggered
+	// inside bindProject) deterministically picks Beta from the fixture ListProjects.
+	// Then assert flow_project_context reports Beta.
+	//
+	// Strategy: FLOW_PROJECT env approach — projectresolve.Resolve checks FLOW_PROJECT
+	// first and matches against ListProjects by slug; our fixture serves beta/p2.
+	// This avoids dependency on the GET /projects/resolve endpoint (not in fixture).
+	t.Setenv("FLOW_PROJECT", "beta")
+	bindCalled = false
+	resRe, reTxt := callText(t, sess, "flow_bind_project", map[string]any{
+		"project": "alpha",
+		"kind":    "remote",
+	})
+	if resRe.IsError {
+		t.Fatalf("re-resolve bind IsError: %s", reTxt)
+	}
+	// Now flow_project_context should see Beta (set by refreshResolved).
+	resCtx, ctxTxt := callText(t, sess, "flow_project_context", map[string]any{})
+	if resCtx.IsError {
+		t.Fatalf("project_context after re-resolve IsError: %s", ctxTxt)
+	}
+	if !strings.Contains(ctxTxt, "Beta") {
+		t.Fatalf("project_context after re-resolve = %q, want 'Beta' (refreshResolved ran)", ctxTxt)
+	}
+}
+
 // authedReadServer builds an MCP server authed and scoped to project Alpha (p1).
 func authedReadServer(t *testing.T) *mcp.ClientSession {
 	t.Helper()

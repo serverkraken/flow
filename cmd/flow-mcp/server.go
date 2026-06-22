@@ -90,6 +90,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Name:        "flow_list_projects",
 		Description: "List all flow projects (id, name, slug). Use this to find an existing project before flow_bind_project, to avoid creating a duplicate.",
 	}, h.listProjectsTool)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_bind_project",
+		Description: "Bind the current working directory to a flow project so other tools auto-scope here. Pass project (existing id/slug/name) or create_name (to create one). Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind.",
+	}, h.bindProject)
 	return s, h
 }
 
@@ -115,9 +119,10 @@ func (h *handlers) resultErr(err error) *mcp.CallToolResult {
 	return errorResult("flow server error: " + err.Error())
 }
 
-// postAuthInit runs once on the first successful auth (mgr.onAuth): resolve the
-// cwd→project, then register the project's documents as resources.
-func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
+// refreshResolved re-resolves the cwd→project and re-registers the project's
+// documents as resources, overwriting the resolved state under projMu. Run once
+// by postAuthInit and again by flow_bind_project after a successful bind.
+func (h *handlers) refreshResolved(ctx context.Context, c *apiclient.Client) {
 	proj, matched := resolveProject(ctx, c, mcpLog())
 	h.projMu.Lock()
 	h.proj, h.matched = proj, matched
@@ -125,6 +130,11 @@ func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
 	if err := h.registerResources(ctx, c); err != nil {
 		mcpLog().Warn("could not register document resources", "err", err)
 	}
+}
+
+// postAuthInit runs once on the first successful auth (mgr.onAuth).
+func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
+	h.refreshResolved(ctx, c)
 }
 
 // mcpLog returns a stderr logger for use by the MCP server. stdout is owned
