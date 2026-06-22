@@ -1,0 +1,461 @@
+# flow `rebuild` Server Deploy — Plan 2 (WS2–4, homelab-study GitOps) Runbook
+
+> **Execution model:** This is a **GitOps deploy runbook**, NOT a TDD plan — execute it **inline, controller-driven** (superpowers:executing-plans), not subagent-driven: it does live-cluster operations and one **destructive** DB cutover that must not be delegated. "Tests" here are `kubectl`/`curl` verifications. Steps use `- [ ]` checkboxes.
+
+**Goal:** Cut the live deployment at `https://flow.thebackend.org` over from the abandoned `next` image to the WS1 `rebuild` image — fresh pgvector-enabled Postgres, the renamed env surface, Ollama wired — so WebUI + `flow login` + flow-mcp dogfood against a real server.
+
+**Architecture:** Edit the flow `.j2` templates in `homelab-study`, `task configure` (makejinja render + SOPS encrypt + kubeconform), commit the rendered `kubernetes/**`, merge to `main`, let ArgoCD apply. The flow-db gets a **fresh** bootstrap (rebuild's goose chain `0001–0012` differs from next's) with the `vector` extension pre-created; flow-server rolls to the pinned WS1 digest.
+
+**Tech Stack:** homelab-study (makejinja `#{ }#`/`#% %#` delimiters, SOPS+age via ksops, ArgoCD auto-sync `targetRevision: main`), CloudNativePG 1.29.1, kubectl/argocd CLIs (cluster reachable).
+
+## Global Constraints
+
+- **Worktree:** all edits in `/Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy` (branch `feat/flow-rebuild-deploy` off `main`).
+- **WS1 image digest to pin (verbatim):** `ghcr.io/serverkraken/flow-server@sha256:10ed4575c7df06df3103c0957aba5956aa8d643ccab043c64af2dac143f12d3e`. Pin the **digest**, never `:rebuild` (stale node-mirror gotcha).
+- **pgvector is ALREADY in the operand image.** The standard `ghcr.io/cloudnative-pg/postgresql:17-bookworm` (non-minimal) bundles pgvector — verified against CNPG docs and the live `immich-db` which runs `CREATE EXTENSION vector` on the same image. **Do NOT build or switch images.** The only DB change is pre-creating the extension at bootstrap.
+- **`CREATE EXTENSION` privilege:** the CNPG app user `flow` is NOT a superuser (`enableSuperuserAccess: false`). Pre-create the extension via `bootstrap.initdb.postInitApplicationSQL` (runs as superuser at fresh bootstrap) so rebuild's `0010` migration (`CREATE EXTENSION IF NOT EXISTS vector`) no-ops. Mirrors the established Immich pattern in this repo.
+- **rebuild has only `GET /healthz`** (trivial `{"status":"ok"}` 200) — there is **no `/readyz`**. Both liveness AND readiness probes must target `/healthz` (next's `/readyz` would 404 → pod never Ready).
+- **Env rename map (live `next` → `rebuild`), apply EXACTLY:** `FLOW_SERVER_ADDR`→`FLOW_LISTEN_ADDR`; `FLOW_SERVER_BASE_URL`→`FLOW_PUBLIC_BASE_URL`; `FLOW_PG_DSN`→`DATABASE_URL` (same `flow-db-app:uri` secret); drop `FLOW_COOKIE_HASH_KEY`+`FLOW_COOKIE_BLOCK_KEY`, add `FLOW_SESSION_SECRET`; add `FLOW_OIDC_CLI_CLIENT_ID="flow-cli"`; add `FLOW_OLLAMA_HOST`/`FLOW_EMBED_MODEL`/`_INTERVAL`/`_BATCH`; keep `FLOW_OIDC_ISSUER`/`FLOW_OIDC_CLI_ISSUER`/`FLOW_OIDC_CLIENT_ID`/`FLOW_OIDC_CLIENT_SECRET`/`FLOW_ALLOWED_SUBS`/`TZ`. **`FLOW_DEV` must stay UNSET** (prod uses Secure cookies; TLS terminates at ingress).
+- **`FLOW_SESSION_SECRET`** is an HS256 JWT signing key (`[]byte(secret)`, any length) → generate `openssl rand -hex 32`.
+- **Authentik blueprint `52-app-flow.yaml.j2` needs NO change** — already two `per_provider` providers (`flow-web`: authorization_code+refresh, `flow-cli` public: device_code+refresh, both `sub_mode: user_username`, distinct issuers `…/o/flow/` vs `…/o/flow-cli/`, callback `/auth/callback`, device oob). WS3 is verification only. The distinct issuers satisfy the WS1-review carry-forward (`FLOW_OIDC_CLI_ISSUER` ≠ `FLOW_OIDC_ISSUER`).
+- **GitOps hygiene:** `task configure` re-encrypts EVERY `*.sops.yaml` with a fresh SOPS IV. After rendering, `git checkout --` every `kubernetes/**` file you did NOT intend to change (reset metadata-only drift); each commit's diff must be 100% intentional.
+- **The new worktree lacks `config.yaml`/`secrets.yaml`** (gitignored, live only in the main checkout) — symlink them in before `task configure` (Task 1). Edits to `secrets.yaml` mutate the shared canonical secret store (correct — it is not branch-specific).
+
+---
+
+## File Structure
+
+| File (in worktree, templates under `bootstrap/templates/kubernetes/apps/flow/`) | Responsibility | Action |
+|---|---|---|
+| `flow-db/cnpg-cluster.yaml.j2` | pre-create `vector` extension at fresh bootstrap | Modify (add `postInitApplicationSQL`) |
+| `flow-server/secret.sops.yaml.j2` | drop cookie keys, add `session_secret` | Modify |
+| `flow-server/deployment.yaml.j2` | env rewrite + image digest pin + probes→`/healthz` | Modify |
+| `<repo-root>/secrets.yaml` (shared, gitignored) | add `secrets.flow.session_secret`, remove cookie keys | Modify |
+| `…/identity/config/blueprints/52-app-flow.yaml.j2` | OIDC providers | **Verify only — no edit** |
+
+Render targets (auto-generated by `task configure`, committed): the matching `kubernetes/apps/flow/**` files.
+
+---
+
+### Task 1: Worktree data setup (symlink config/secrets, sanity-render)
+
+**Files:** symlinks only.
+
+- [ ] **Step 1: Symlink the gitignored data files into the worktree**
+
+```bash
+cd /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy
+ln -sf ../../config.yaml config.yaml
+ln -sf ../../secrets.yaml secrets.yaml
+ls -l config.yaml secrets.yaml   # both resolve to the main-checkout files
+```
+
+- [ ] **Step 2: Confirm they are gitignored in the worktree (won't be committed)**
+
+Run: `git check-ignore config.yaml secrets.yaml`
+Expected: both printed (ignored). If not ignored, STOP — do not risk committing secrets.
+
+- [ ] **Step 3: Baseline render to confirm tooling works BEFORE any edit**
+
+```bash
+cd /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy
+mise exec -- task configure   # answer the overwrite prompt: yes
+git status --short | head -40
+```
+Expected: renders cleanly; `git status` shows ONLY SOPS-IV drift (no intentional change yet).
+
+- [ ] **Step 4: Reset the baseline drift (intentional-diffs-only hygiene)**
+
+```bash
+git checkout -- kubernetes/
+git status --short   # expect clean
+```
+
+---
+
+### Task 2: flow-db — pre-create the `vector` extension at fresh bootstrap
+
+**Files:**
+- Modify: `bootstrap/templates/kubernetes/apps/flow/flow-db/cnpg-cluster.yaml.j2`
+
+**Interfaces:**
+- Produces: a `flow-db` Cluster whose **fresh** bootstrap creates `extension vector` as superuser. Consumed by Task 8 (rebuild migration `0010` no-ops) and Task 7's recreate.
+
+- [ ] **Step 1: Add `postInitApplicationSQL` under `bootstrap.initdb`**
+
+The current block (verbatim) is:
+```yaml
+  bootstrap:
+    initdb:
+      database: flow
+      owner: flow
+```
+Change it to:
+```yaml
+  bootstrap:
+    initdb:
+      database: flow
+      owner: flow
+      # flow's goose migration 0010 runs `CREATE EXTENSION IF NOT EXISTS vector`
+      # as the non-superuser app user `flow`, which lacks privilege to create a
+      # non-trusted extension. Pre-create it here as the bootstrap superuser so
+      # the migration no-ops. pgvector ships in the standard :17-bookworm image
+      # (same as immich-db). Only runs on a FRESH cluster bootstrap.
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector;
+```
+Leave `imageName: ghcr.io/cloudnative-pg/postgresql:17-bookworm` UNCHANGED, and the backup/storage/affinity blocks untouched.
+
+- [ ] **Step 2: Verify the edit (no other change in this file)**
+
+Run: `git -C /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy diff -- bootstrap/templates/kubernetes/apps/flow/flow-db/cnpg-cluster.yaml.j2`
+Expected: only the `postInitApplicationSQL` addition (4 + comment lines).
+
+---
+
+### Task 3: Secret — drop cookie keys, add `session_secret`
+
+**Files:**
+- Modify: `bootstrap/templates/kubernetes/apps/flow/flow-server/secret.sops.yaml.j2`
+- Modify: `<repo-root>/secrets.yaml` (shared, via the worktree symlink)
+
+**Interfaces:**
+- Produces: `flow-server-secrets` Secret with key `session_secret` (and without `cookie_hash_key`/`cookie_block_key`). Consumed by Task 4's `FLOW_SESSION_SECRET` env.
+
+- [ ] **Step 1: Generate the session secret and add it to `secrets.yaml`**
+
+```bash
+cd /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy
+SS=$(openssl rand -hex 32); echo "session_secret=$SS"
+yq -i ".secrets.flow.session_secret = \"$SS\"" secrets.yaml
+yq -i "del(.secrets.flow.cookie_hash_key, .secrets.flow.cookie_block_key)" secrets.yaml
+yq '.secrets.flow | keys' secrets.yaml   # expect: oidc_client_id, oidc_client_secret, session_secret, allowed_subs, backup_s3_*
+```
+
+- [ ] **Step 2: Edit the secret template — swap cookie keys for `session_secret`**
+
+In `secret.sops.yaml.j2`, the current `stringData` lines for the cookie keys are:
+```yaml
+  # Securecookie keys: 64 hex chars each (32 random bytes). Generate via
+  #   openssl rand -hex 32
+  cookie_hash_key: "#{ secrets.flow.cookie_hash_key }#"
+  cookie_block_key: "#{ secrets.flow.cookie_block_key }#"
+```
+Replace those four lines with:
+```yaml
+  # HS256 session-cookie signing key for the rebuild server (FLOW_SESSION_SECRET).
+  # Any length; generate via `openssl rand -hex 32`. Replaces next's cookie
+  # hash/block pair (securecookie) — rebuild signs a JWT session cookie instead.
+  session_secret: "#{ secrets.flow.session_secret }#"
+```
+Leave `oidc_client_id`, `oidc_client_secret`, `allowed_subs` lines unchanged.
+
+- [ ] **Step 3: Verify the template edit**
+
+Run: `git -C …/flow-rebuild-deploy diff -- bootstrap/templates/kubernetes/apps/flow/flow-server/secret.sops.yaml.j2`
+Expected: cookie_hash_key/cookie_block_key lines gone, session_secret line added.
+
+---
+
+### Task 4: flow-server Deployment — env rewrite + image pin + probes
+
+**Files:**
+- Modify: `bootstrap/templates/kubernetes/apps/flow/flow-server/deployment.yaml.j2`
+
+**Interfaces:**
+- Consumes: `flow-server-secrets:session_secret` (Task 3); the fresh flow-db (Task 7).
+- Produces: the rebuild Deployment ArgoCD rolls out in Task 8.
+
+- [ ] **Step 1: Pin the WS1 image digest + drop the stale R1 TODO**
+
+Replace lines 32–36 (the `# TODO(R1 deploy)…` comment + `image:` line) with:
+```yaml
+          # rebuild server image, WS1 multi-arch build (digest-pinned; the node
+          # mirror serves stale tags, only the immutable digest rolls forward).
+          image: ghcr.io/serverkraken/flow-server@sha256:10ed4575c7df06df3103c0957aba5956aa8d643ccab043c64af2dac143f12d3e
+          imagePullPolicy: Always
+```
+
+- [ ] **Step 2: Replace the entire `env:` block**
+
+Replace the whole `env:` list (current lines 40–83, `TZ` through `allowed_subs`) with:
+```yaml
+          env:
+            - name: TZ
+              value: "Europe/Berlin"
+            - name: FLOW_LISTEN_ADDR
+              value: ":8080"
+            - name: FLOW_PUBLIC_BASE_URL
+              value: "https://flow.thebackend.org"
+            # Postgres DSN from the CNPG-generated app secret (flow-db-app:uri).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: flow-db-app
+                  key: uri
+            - name: FLOW_OIDC_ISSUER
+              value: "https://id.thebackend.org/application/o/flow/"
+            - name: FLOW_OIDC_CLI_ISSUER
+              value: "https://id.thebackend.org/application/o/flow-cli/"
+            - name: FLOW_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: flow-server-secrets
+                  key: oidc_client_id
+            - name: FLOW_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: flow-server-secrets
+                  key: oidc_client_secret
+            # Public CLI/device client id — flow-server advertises it via
+            # /api/v1/oidc/config; must equal the blueprint flow-cli client_id.
+            - name: FLOW_OIDC_CLI_CLIENT_ID
+              value: "flow-cli"
+            - name: FLOW_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: flow-server-secrets
+                  key: session_secret
+            - name: FLOW_ALLOWED_SUBS
+              valueFrom:
+                secretKeyRef:
+                  name: flow-server-secrets
+                  key: allowed_subs
+            # Semantic search: in-cluster Ollama embedder + background worker.
+            # Unreachable/model-absent → WARN + degrade to keyword (non-fatal).
+            - name: FLOW_OLLAMA_HOST
+              value: "http://ollama.ollama.svc.cluster.local:11434"
+            - name: FLOW_EMBED_MODEL
+              value: "nomic-embed-text"
+            - name: FLOW_EMBED_INTERVAL
+              value: "15s"
+            - name: FLOW_EMBED_BATCH
+              value: "16"
+```
+Do NOT add `FLOW_DEV`.
+
+- [ ] **Step 3: Point BOTH probes at `/healthz`**
+
+The current readinessProbe uses `path: /readyz` (lines ~92–97). rebuild has no `/readyz`. Change the readinessProbe's `httpGet.path` from `/readyz` to `/healthz` and drop its now-stale `# /readyz pings Postgres…` comment. Liveness already uses `/healthz` — leave it. Result: both probes `httpGet: { path: /healthz, port: http }`.
+
+- [ ] **Step 4: Verify the deployment edit**
+
+Run: `git -C …/flow-rebuild-deploy diff -- bootstrap/templates/kubernetes/apps/flow/flow-server/deployment.yaml.j2`
+Expected: image digest swapped, env block fully rewritten (no `FLOW_SERVER_ADDR`/`FLOW_SERVER_BASE_URL`/`FLOW_PG_DSN`/`FLOW_COOKIE_*` remain; new names present), readinessProbe path `/healthz`.
+
+- [ ] **Step 5: Grep-assert no stale env names survive in the template**
+
+Run: `rg -n "FLOW_SERVER_ADDR|FLOW_SERVER_BASE_URL|FLOW_PG_DSN|FLOW_COOKIE|readyz|FLOW_DEV" bootstrap/templates/kubernetes/apps/flow/flow-server/deployment.yaml.j2`
+Expected: no matches.
+
+---
+
+### Task 5: Render + SOPS + commit
+
+**Files:** the rendered `kubernetes/apps/flow/**` + the three templates.
+
+- [ ] **Step 1: Render (template + SOPS-encrypt + kubeconform)**
+
+```bash
+cd /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy
+mise exec -- task configure   # answer overwrite prompt: yes
+```
+Expected: completes; kubeconform passes for the flow manifests.
+
+- [ ] **Step 2: Reset unintended SOPS-IV drift, keep only flow changes**
+
+```bash
+git status --short
+# Reset every changed file OUTSIDE the flow app that only differs by SOPS IV:
+git checkout -- $(git diff --name-only | rg -v '^kubernetes/apps/flow/|^bootstrap/templates/kubernetes/apps/flow/')
+git status --short   # expect ONLY: bootstrap/templates/.../flow/** + kubernetes/apps/flow/**
+```
+
+- [ ] **Step 3: Sanity-check the rendered deployment + secret + cluster**
+
+```bash
+rg -n "image:|FLOW_LISTEN_ADDR|DATABASE_URL|FLOW_SESSION_SECRET|FLOW_OIDC_CLI_CLIENT_ID|FLOW_OLLAMA_HOST|/healthz" kubernetes/apps/flow/flow-server/deployment.yaml
+rg -n "postInitApplicationSQL|CREATE EXTENSION" kubernetes/apps/flow/flow-db/cnpg-cluster.yaml
+sops -d kubernetes/apps/flow/flow-server/secret.sops.yaml | yq '.stringData | keys'   # expect session_secret present, no cookie_* 
+```
+Expected: digest pinned, renamed env present, `/healthz` on both probes, postInitApplicationSQL present, secret keys correct.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add bootstrap/templates/kubernetes/apps/flow/ kubernetes/apps/flow/
+git commit -m "feat(flow): cut over to rebuild server image (pgvector, renamed env, ollama)
+
+- flow-server: pin WS1 rebuild digest; rename FLOW_SERVER_ADDR/BASE_URL→
+  FLOW_LISTEN_ADDR/PUBLIC_BASE_URL, FLOW_PG_DSN→DATABASE_URL; swap cookie
+  hash/block keys for FLOW_SESSION_SECRET; add FLOW_OIDC_CLI_CLIENT_ID +
+  Ollama embed vars; both probes → /healthz (rebuild has no /readyz).
+- flow-db: postInitApplicationSQL CREATE EXTENSION vector (app user is not
+  superuser; pgvector already in the standard :17-bookworm image).
+- secret: session_secret in, cookie keys out."
+```
+
+---
+
+### Task 6: PR + merge to `main`
+
+- [ ] **Step 1: Push the branch + open a PR**
+
+```bash
+cd /Users/msoent/SourceCode/serverkraken/homelab-study/.worktrees/flow-rebuild-deploy
+git push -u origin feat/flow-rebuild-deploy
+gh pr create --repo serverkraken/homelab-study --base main --head feat/flow-rebuild-deploy \
+  --title "feat(flow): cut over to rebuild server image (pgvector + renamed env)" \
+  --body "Plan 2 of the flow rebuild deploy. Pins the WS1 image digest, rewrites the env surface, pre-creates the pgvector extension at flow-db bootstrap, wires Ollama. Requires a one-time destructive flow-db recreate at cutover (next data is throwaway). Authentik blueprint unchanged."
+```
+
+- [ ] **Step 2: GATE — confirm with the user before merge (this lands on the ArgoCD-synced `main`)**
+
+State: merging makes ArgoCD apply the Deployment+Cluster spec changes; flow-server will crash-loop on the OLD DB until Task 7's recreate. Get explicit go-ahead, then merge (squash to match repo convention):
+```bash
+gh pr merge --repo serverkraken/homelab-study --squash --delete-branch=false
+```
+
+---
+
+### Task 7: DESTRUCTIVE cutover — recreate flow-db fresh  ⚠️ user-gated
+
+> **Destructive + irreversible-ish.** Drops next's `flow-db` data (Barman backups remain in S3). Confirm with the user immediately before Step 2. The data is throwaway dogfood data (design-approved), but the live DB is being deleted.
+
+**Files:** none (live cluster ops).
+
+- [ ] **Step 1: Pause ArgoCD auto-sync on the flow apps (controlled cutover)**
+
+```bash
+argocd app set flow-db --sync-policy none
+argocd app set flow-server --sync-policy none
+```
+(If the app names differ, find them: `argocd app list | rg flow`.)
+
+- [ ] **Step 2: GATE — confirm the destructive drop, then delete the cluster + PVCs**
+
+After explicit user "yes":
+```bash
+# Optional pre-clean of the WAL/backup destination so the fresh cluster doesn't
+# collide with next's archive (see Risks). Decide with the user: clear the S3
+# prefix s3://cnpg-flow/ OR accept a new destinationPath. If clearing is chosen,
+# do it via the minio client BEFORE recreate.
+kubectl delete cluster.postgresql.cnpg.io flow-db -n flow
+kubectl delete pvc -n flow -l cnpg.io/cluster=flow-db   # drop the data volumes
+kubectl get pvc,pods -n flow   # expect flow-db PVCs/pods gone
+```
+
+- [ ] **Step 3: Recreate flow-db fresh via ArgoCD (now with postInitApplicationSQL)**
+
+```bash
+argocd app sync flow-db
+kubectl -n flow wait --for=condition=Ready cluster.postgresql.cnpg.io/flow-db --timeout=300s
+kubectl get pods -n flow -l cnpg.io/cluster=flow-db
+```
+Expected: `flow-db-1`/`flow-db-2` fresh + healthy.
+
+- [ ] **Step 4: Verify the `vector` extension exists in the fresh DB**
+
+```bash
+# read-only check via a one-off psql in the primary pod (CNPG ships psql)
+kubectl exec -n flow flow-db-1 -c postgres -- psql -U postgres -d flow -tAc \
+  "SELECT extname FROM pg_extension WHERE extname='vector';"
+```
+Expected: prints `vector`. (This is a read-only verification on the just-bootstrapped, empty DB — confirm with the user that the one-off `kubectl exec` is acceptable; if not, verify indirectly via Task 8's successful migration logs.)
+
+---
+
+### Task 8: flow-server rollout + migration verification
+
+**Files:** none (live).
+
+- [ ] **Step 1: Re-enable + sync flow-server to the rebuild image**
+
+```bash
+argocd app sync flow-server
+kubectl -n flow rollout status deploy/flow-server --timeout=180s
+```
+
+- [ ] **Step 2: Verify migrations applied + pod Ready**
+
+```bash
+kubectl -n flow logs deploy/flow-server | rg -i "goose|migrat|listening|vector|error" | head -30
+kubectl get pods -n flow -l app=flow-server
+```
+Expected: goose applies `0001…0012` (or "no migrations to run" on a later restart), `listening`, NO `oidcverify: provider` error, pod `1/1 Ready`. The successful `0010` proves the `vector` extension is usable.
+
+- [ ] **Step 3: Re-enable ArgoCD auto-sync on both flow apps**
+
+```bash
+argocd app set flow-db --sync-policy automated --auto-prune --self-heal
+argocd app set flow-server --sync-policy automated --auto-prune --self-heal
+```
+(Match the flags other apps use: `argocd app get flow-server -o yaml | rg -A3 syncPolicy` on a sibling if unsure.)
+
+- [ ] **Step 4: Public endpoint smoke**
+
+```bash
+curl -fsS -o /dev/null -w "%{http_code}\n" https://flow.thebackend.org/healthz   # 200
+curl -fsS -o /dev/null -w "%{http_code}\n" https://flow.thebackend.org/           # 200 (WebUI/landing)
+```
+
+---
+
+### Task 9: Ollama `nomic-embed-text` model pull (non-blocking)
+
+**Files:** optional one-shot Job manifest (or manual).
+
+- [ ] **Step 1: Pull the embedding model into the in-cluster Ollama**
+
+Preferred (GitOps): add a one-shot `Job` that runs `ollama pull nomic-embed-text` against `http://ollama.ollama.svc.cluster.local:11434`, OR do it manually after confirming with the user (manual is a live op):
+```bash
+# manual (user-confirmed): trigger a pull via the Ollama API (no exec needed)
+kubectl -n ollama run ollama-pull --restart=Never --image=curlimages/curl --rm -it -- \
+  curl -fsS http://ollama.ollama.svc.cluster.local:11434/api/pull -d '{"model":"nomic-embed-text"}'
+```
+Until present, flow WARNs and search degrades to keyword — non-fatal, so this does NOT block Tasks 7–8.
+
+- [ ] **Step 2: Verify embedding worker picks it up**
+
+```bash
+kubectl -n flow logs deploy/flow-server | rg -i "embed|ollama|nomic|degrade" | tail
+```
+Expected: no persistent embedder error once the model is present.
+
+---
+
+### Task 10: WS3 — Authentik verification (no change expected)
+
+**Files:** none (verify `52-app-flow.yaml.j2` as-is).
+
+- [ ] **Step 1: Use the `authentik-expert` skill to verify the live providers**
+
+Confirm in Authentik (admin UI or API) that BOTH providers are healthy with the right config: `flow-web` (confidential, grants `authorization_code`+`refresh_token`, issuer `…/o/flow/`, redirect `/auth/callback`); `flow-cli` (public, client_id `flow-cli`, grants `device_code`+`refresh_token`, issuer `…/o/flow-cli/`, redirect oob); both `sub_mode: user_username`. No blueprint edit expected — if a gap is found, that becomes a new task.
+
+---
+
+### Task 11: WS4 — Dogfood done-gate
+
+**Files:** none.
+
+- [ ] **Step 1: WebUI (browser auth-code)** — open `https://flow.thebackend.org` → Authentik login → worktime + docs render, SSE live-sync works.
+- [ ] **Step 2: CLI device-flow + the two-issuer carry-forward** — `FLOW_SERVER_URL=https://flow.thebackend.org FLOW_OIDC_ISSUER=https://id.thebackend.org/application/o/flow-cli/ flow login` → `flow whoami` 200 for `msoent`. Then the **negative** half: confirm a token minted for the **web** audience does NOT pass as a CLI token and vice-versa (per-issuer audiences) — at minimum confirm `whoami` works only with the cli-issuer token.
+- [ ] **Step 3: flow-mcp** — point the built `flow-mcp` at the prod server (stored token) and call `flow_project_context`, `flow_search_docs`, `flow_get_doc` against the real Kompendium.
+- [ ] **Step 4: Semantic search** — once `nomic-embed-text` is pulled, a semantic query returns results; otherwise it degrades to keyword (acceptable).
+
+---
+
+## Self-Review
+
+**Spec coverage (design WS2–4):** WS2a pgvector image → **eliminated** (image already has it; Task 2 pre-creates the extension instead). WS2b fresh DB → Task 7. WS2c env rewrite + digest pin → Task 4. WS2d secrets → Task 3. WS2e Ollama model → Task 9. WS3 Authentik → Task 10. WS4 dogfood → Task 11. Render/commit/sync mechanics → Tasks 1, 5, 6, 8.
+
+**Placeholder scan:** exact env block, exact secret keys, exact cnpg edit, exact commands, exact digest — no TBD/TODO left (the one stale in-repo `TODO(R1 deploy)` comment is explicitly removed in Task 4).
+
+**Consistency:** `flow-server-secrets:session_secret` (Task 3) == `FLOW_SESSION_SECRET` secretKeyRef (Task 4); `flow-db-app:uri` == `DATABASE_URL`; `flow-cli` literal == blueprint client_id (Task 10); image digest identical to Global Constraints + WS1.
+
+## Risks / execution-time decisions
+
+- **CNPG Barman WAL collision on recreate:** the fresh `flow-db` reuses `destinationPath s3://cnpg-flow/`, which still holds next's WAL/backups. CNPG may refuse to archive into a non-empty destination. Mitigation (decide with user at Task 7): clear the `s3://cnpg-flow/` prefix via the minio client before recreate, OR temporarily point `destinationPath` at `s3://cnpg-flow-rebuild/`. Watch the new cluster's `cnpg.io` events / WAL-archive status after bootstrap.
+- **Crash-loop window:** between merge (Task 6) and the fresh DB (Task 7), flow-server may CrashLoopBackOff against the old schema. The auto-sync pause (Task 7 Step 1) plus doing the recreate promptly minimizes it; it self-heals once the fresh DB is up.
+- **`kubectl exec` for verification** (Task 7 Step 4) is a live-pod read — needs user approval; the indirect proof is Task 8's successful `0010` migration.
+- **Secret rotation:** the new `FLOW_SESSION_SECRET` invalidates any existing browser sessions (none worth keeping — fresh deploy).
