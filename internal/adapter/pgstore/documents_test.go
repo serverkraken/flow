@@ -341,11 +341,11 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	mkDoc("fresh", "Fresh", "fresh")
 	stale, _ := s.StaleDocuments(ctx, 100)
 	foundFresh := false
-	for _, d := range stale {
-		if d.Path == "fresh" {
+	for _, sd := range stale {
+		if sd.Doc.Path == "fresh" {
 			foundFresh = true
 		}
-		if d.Path == "near" {
+		if sd.Doc.Path == "near" {
 			t.Fatalf("near should not be stale after ReplaceChunks")
 		}
 	}

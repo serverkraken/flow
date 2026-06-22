@@ -130,6 +130,13 @@ type FeedTokenStore interface {
 	Revoke(ctx context.Context, userID, token string) error
 }
 
+// StaleDoc is a document needing (re)embedding plus its prior consecutive
+// embed-failure count, so the worker computes backoff without an extra read.
+type StaleDoc struct {
+	Doc      domain.Document
+	Attempts int
+}
+
 // DocumentStore persists compendium documents. All reads are owner-scoped.
 // Create returns ErrDocumentExists on a (owner, project, path) collision.
 type DocumentStore interface {
@@ -154,10 +161,10 @@ type DocumentStore interface {
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
 	Search(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error)
 
-	// StaleDocuments returns up to limit documents whose chunks are missing or
-	// out of date (chunks_hash != md5(title||body)), across all owners, for the
-	// embedding worker.
-	StaleDocuments(ctx context.Context, limit int) ([]domain.Document, error)
+	// StaleDocuments returns up to limit documents needing (re)embedding
+	// (chunks_hash out of date), excluding dead-lettered docs and those still
+	// within a backoff window, each with its prior consecutive failure count.
+	StaleDocuments(ctx context.Context, limit int) ([]StaleDoc, error)
 
 	// ReplaceChunks atomically replaces a document's chunks with the given
 	// (content, embedding) pairs (len-equal, may be empty) and stamps chunks_hash

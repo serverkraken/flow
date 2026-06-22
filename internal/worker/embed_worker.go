@@ -76,12 +76,12 @@ func (w *EmbedWorker) drain(ctx context.Context) {
 		if len(docs) == 0 {
 			return
 		}
-		for _, d := range docs {
+		for _, sd := range docs {
 			if ctx.Err() != nil {
 				return
 			}
-			if err := w.embedOne(ctx, d); err != nil {
-				w.log.Warn("embed worker: embed doc", "id", d.ID, "err", err)
+			if err := w.embedOne(ctx, sd.Doc); err != nil {
+				w.log.Warn("embed worker: embed doc", "id", sd.Doc.ID, "err", err)
 				return // backend likely down; retry next tick
 			}
 		}

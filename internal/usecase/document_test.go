@@ -322,7 +322,7 @@ func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([
 func (s errDocStore) Search(_ context.Context, ownerID, q string, _ *string, tags []string) ([]domain.SearchHit, error) {
 	panic("unexpected Search")
 }
-func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]domain.Document, error) {
+func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]ports.StaleDoc, error) {
 	panic("unexpected StaleDocuments")
 }
 func (s errDocStore) ReplaceChunks(_ context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {

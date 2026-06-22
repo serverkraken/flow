@@ -604,17 +604,23 @@ func fakeSnippet(text string, start, n int) string {
 	return text[:start] + domain.HighlightStart + text[start:end] + domain.HighlightEnd + text[end:]
 }
 
-func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]domain.Document, error) {
+func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]ports.StaleDoc, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []domain.Document
+	var out []ports.StaleDoc
 	for _, d := range s.m {
 		if s.chunksHash[d.ID] != fakeDocHash(d) {
-			out = append(out, d)
-			if len(out) >= limit {
-				break
-			}
+			out = append(out, ports.StaleDoc{Doc: d})
 		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Doc.UpdatedAt.Equal(out[j].Doc.UpdatedAt) {
+			return out[i].Doc.ID < out[j].Doc.ID
+		}
+		return out[i].Doc.UpdatedAt.Before(out[j].Doc.UpdatedAt)
+	})
+	if len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }

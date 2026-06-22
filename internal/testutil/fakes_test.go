@@ -205,7 +205,7 @@ func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale, _ = s.StaleDocuments(ctx, 10)
-	if len(stale) != 1 || stale[0].ID != "b" {
+	if len(stale) != 1 || stale[0].Doc.ID != "b" {
 		t.Fatalf("want only b stale, got %#v", stale)
 	}
 

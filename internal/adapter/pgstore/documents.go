@@ -240,27 +240,6 @@ func vectorLiteral(v []float32) string {
 	return b.String()
 }
 
-func (s *DocumentStore) StaleDocuments(ctx context.Context, limit int) ([]domain.Document, error) {
-	q := `SELECT ` + docCols + ` FROM documents
-WHERE chunks_hash IS DISTINCT FROM md5(coalesce(title,'')||coalesce(body,''))
-ORDER BY updated_at ASC
-LIMIT $1`
-	rows, err := s.pool.Query(ctx, q, limit)
-	if err != nil {
-		return nil, fmt.Errorf("pgstore: stale documents: %w", err)
-	}
-	defer rows.Close()
-	var out []domain.Document
-	for rows.Next() {
-		d, err := scanDocument(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
-	}
-	return out, rows.Err()
-}
-
 func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
