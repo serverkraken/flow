@@ -508,6 +508,65 @@ func TestLoopback_ListTags_And_Backlinks(t *testing.T) {
 	}
 }
 
+// TestLoopback_ListTags_Scoped asserts that flow_list_tags scopes correctly:
+// project=alpha → tags from d1+d2 (go, design) only; no beta.
+// project=beta  → tags from d3 (beta) only; no go or design.
+// (Spec §5 "project=alpha → its tags, NOT beta" assertion.)
+func TestLoopback_ListTags_Scoped(t *testing.T) {
+	sess := authedReadServer(t)
+
+	// alpha scope: d1 has tags [go, design], d2 has [go] → expect go + design, not beta.
+	_, alphaTags := callText(t, sess, "flow_list_tags", map[string]any{"project": "alpha"})
+	if !strings.Contains(alphaTags, "- go") {
+		t.Fatalf("alpha tags = %q, want '- go'", alphaTags)
+	}
+	if !strings.Contains(alphaTags, "- design") {
+		t.Fatalf("alpha tags = %q, want '- design'", alphaTags)
+	}
+	if strings.Contains(alphaTags, "- beta") {
+		t.Fatalf("alpha tags = %q, must NOT contain '- beta'", alphaTags)
+	}
+
+	// beta scope: d3 has tags [beta] → expect beta, not go or design.
+	_, betaTags := callText(t, sess, "flow_list_tags", map[string]any{"project": "beta"})
+	if !strings.Contains(betaTags, "- beta") {
+		t.Fatalf("beta tags = %q, want '- beta'", betaTags)
+	}
+	if strings.Contains(betaTags, "- go") {
+		t.Fatalf("beta tags = %q, must NOT contain '- go'", betaTags)
+	}
+	if strings.Contains(betaTags, "- design") {
+		t.Fatalf("beta tags = %q, must NOT contain '- design'", betaTags)
+	}
+}
+
+// TestLoopback_Search_EmptyQueryErrors asserts that flow_search_docs with an
+// empty or whitespace-only query returns IsError=true and "query is required".
+// An omitted query is caught earlier by JSON-schema validation (also IsError, different
+// message); the handler guard is tested via "" and "   ".
+// (Spec §5 empty-query error assertion.)
+func TestLoopback_Search_EmptyQueryErrors(t *testing.T) {
+	sess := authedReadServer(t)
+
+	// explicitly empty string — reaches the handler guard
+	resEmpty, gotEmpty := callText(t, sess, "flow_search_docs", map[string]any{"query": ""})
+	if !resEmpty.IsError {
+		t.Fatalf("empty query (empty string): want IsError=true, got %q", gotEmpty)
+	}
+	if !strings.Contains(gotEmpty, "query is required") {
+		t.Fatalf("empty query (empty string): want 'query is required', got %q", gotEmpty)
+	}
+
+	// whitespace-only string — TrimSpace makes this empty too
+	resWS, gotWS := callText(t, sess, "flow_search_docs", map[string]any{"query": "   "})
+	if !resWS.IsError {
+		t.Fatalf("whitespace query: want IsError=true, got %q", gotWS)
+	}
+	if !strings.Contains(gotWS, "query is required") {
+		t.Fatalf("whitespace query: want 'query is required', got %q", gotWS)
+	}
+}
+
 func TestLoopback_ReadTools_DegradedRequireLogin(t *testing.T) {
 	sess := degradedSession(t)
 	for _, tc := range []struct {
