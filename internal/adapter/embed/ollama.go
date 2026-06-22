@@ -49,11 +49,34 @@ type embedResp struct {
 	Embeddings [][]float32 `json:"embeddings"`
 }
 
+// maxInputsPerCall caps how many texts go in one /api/embed request so a large
+// document never grows a single call past the client timeout.
+const maxInputsPerCall = 64
+
 // Embed implements ports.Embedder.
 func (o *Ollama) Embed(ctx context.Context, texts []string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
+	out := make([][]float32, 0, len(texts))
+	for start := 0; start < len(texts); start += maxInputsPerCall {
+		end := start + maxInputsPerCall
+		if end > len(texts) {
+			end = len(texts)
+		}
+		vecs, err := o.embedOnce(ctx, texts[start:end])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, vecs...)
+	}
+	if len(out) != len(texts) {
+		return nil, fmt.Errorf("ollama embed: got %d vectors for %d texts", len(out), len(texts))
+	}
+	return out, nil
+}
+
+func (o *Ollama) embedOnce(ctx context.Context, texts []string) ([][]float32, error) {
 	body, err := json.Marshal(embedReq{Model: o.model, Input: texts})
 	if err != nil {
 		return nil, err
