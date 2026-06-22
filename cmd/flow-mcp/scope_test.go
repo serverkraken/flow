@@ -43,11 +43,17 @@ func TestResolveScope_DefaultUnmatchedIsGlobal(t *testing.T) {
 
 func TestResolveScope_GlobalAndNoneSentinels(t *testing.T) {
 	h := &handlers{matched: true, proj: domain.Project{ID: "p1"}}
-	g, _ := h.resolveScope(context.Background(), "global")
+	g, err := h.resolveScope(context.Background(), "global")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if g.projectID != nil {
 		t.Fatalf("global projectID = %v, want nil", g.projectID)
 	}
-	n, _ := h.resolveScope(context.Background(), "none")
+	n, err := h.resolveScope(context.Background(), "none")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n.projectID == nil || *n.projectID != "none" {
 		t.Fatalf("none projectID = %v, want &\"none\"", n.projectID)
 	}

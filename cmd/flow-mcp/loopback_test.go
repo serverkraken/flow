@@ -37,7 +37,8 @@ func fakeBackend(t *testing.T, docs int) *httptest.Server {
 
 func connect(t *testing.T, srv *mcp.Server) *mcp.ClientSession {
 	t.Helper()
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	ct, st := mcp.NewInMemoryTransports()
 	go func() { _ = srv.Run(ctx, st) }()
 	cl := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)

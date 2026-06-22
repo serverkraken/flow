@@ -78,8 +78,9 @@ func TestAuthManager_Do_RetriesOnceOn401ThenSucceeds(t *testing.T) {
 }
 
 func TestAuthManager_Do_NonAuthErrorNotRetried(t *testing.T) {
+	builds := 0
 	m := newAuthManager(
-		func(context.Context) (*apiclient.Client, error) { return dummyClient(), nil },
+		func(context.Context) (*apiclient.Client, error) { builds++; return dummyClient(), nil },
 		func(context.Context, *apiclient.Client) {},
 	)
 	calls := 0
@@ -90,6 +91,9 @@ func TestAuthManager_Do_NonAuthErrorNotRetried(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("fn called %d times, want 1 (no retry on non-auth error)", calls)
+	}
+	if builds != 1 {
+		t.Fatalf("builds = %d, want 1 (no rebuild on non-auth error)", builds)
 	}
 }
 

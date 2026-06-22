@@ -87,7 +87,7 @@ func (h *handlers) updateDoc(ctx context.Context, _ *mcp.CallToolRequest, in upd
 		}
 		h.removeResource(d.ID)
 		h.addResource(ctx, d)
-		out = fmt.Sprintf("Updated [%s] %s · %s.", d.ID, d.Title, d.Path)
+		out = fmt.Sprintf("Updated %s [%s] %s · %s.", d.Type, d.ID, d.Title, d.Path)
 		return nil
 	})
 	if err != nil {

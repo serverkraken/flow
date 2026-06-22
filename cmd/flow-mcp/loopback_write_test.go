@@ -47,13 +47,19 @@ func TestLoopback_Resources_BootAndLiveSync(t *testing.T) {
 	}
 	// create in-project → a new resource appears
 	_, _ = callText(t, sess, "flow_create_doc", map[string]any{"type": "memory", "path": "notes/r", "title": "R", "body": "rbody"})
-	rs, _ = sess.ListResources(ctx, nil)
+	rs, err = sess.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !hasResource(rs.Resources, "flow://doc/new1") {
 		t.Fatalf("after create resources = %v, want new1", resourceURIs(rs.Resources))
 	}
 	// delete (agent-owned, no confirm needed) → resource removed
 	_, _ = callText(t, sess, "flow_delete_doc", map[string]any{"id": "new1"})
-	rs, _ = sess.ListResources(ctx, nil)
+	rs, err = sess.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if hasResource(rs.Resources, "flow://doc/new1") {
 		t.Fatalf("after delete resources still has new1: %v", resourceURIs(rs.Resources))
 	}

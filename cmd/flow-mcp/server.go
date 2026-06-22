@@ -137,9 +137,11 @@ func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
 	h.refreshResolved(ctx, c)
 }
 
-// mcpLog returns a stderr logger for use by the MCP server. stdout is owned
-// by StdioTransport for the JSON-RPC stream.
-func mcpLog() *slog.Logger { return slog.New(slog.NewTextHandler(os.Stderr, nil)) }
+// mcpLogger is the package-level stderr logger for the MCP server. stdout is
+// owned by StdioTransport for the JSON-RPC stream.
+var mcpLogger = slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+func mcpLog() *slog.Logger { return mcpLogger }
 
 // textResult wraps a plain-text success result.
 func textResult(s string) *mcp.CallToolResult {
