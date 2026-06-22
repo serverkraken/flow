@@ -238,11 +238,20 @@ func (s *Server) handleWebDocView(w http.ResponseWriter, r *http.Request) {
 	for _, t := range doc.Tags {
 		tagLinks = append(tagLinks, webui.TagLink{Tag: t, Href: singleTagHref(t)})
 	}
+	var embedView *webui.EmbedView
+	if st, serr := s.GetEmbedStatus.Execute(r.Context(), u.ID, id); serr == nil {
+		embedView = &webui.EmbedView{
+			State:     string(st.State),
+			LastError: truncateError(st.LastError),
+			ShowRetry: st.State == domain.EmbedFailed,
+		}
+	}
 	d := webui.DocsPageData{
 		User: u.Username,
 		Current: &webui.DocDetail{
 			ID: doc.ID, Type: string(doc.Type), Path: doc.Path, Title: doc.Title,
 			HTML: rendered, Body: doc.Body, Backlinks: blRows, Tags: tagLinks,
+			Embed: embedView,
 		},
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -355,4 +364,33 @@ func (s *Server) handleWebDocDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	http.Redirect(w, r, "/docs", http.StatusSeeOther)
+}
+
+func (s *Server) handleWebDocReembed(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if err := s.RetryEmbedding.Execute(r.Context(), u.ID, id); err != nil {
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if r.Header.Get("HX-Request") == "" {
+		http.Redirect(w, r, "/docs/"+id, http.StatusSeeOther)
+		return
+	}
+	// After a retry the doc is queued again.
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.EmbedBadge(id, webui.EmbedView{State: "pending"}).Render(r.Context(), w)
+}
+
+// truncateError shortens an embed error for inline display.
+func truncateError(s string) string {
+	const max = 80
+	if len(s) > max {
+		return s[:max] + "…"
+	}
+	return s
 }

@@ -63,6 +63,8 @@ type Server struct {
 	BacklinksDocument usecase.Backlinks
 	ListTags          usecase.ListTags
 	SearchDocuments   usecase.SearchDocuments
+	RetryEmbedding    usecase.RetryEmbedding
+	GetEmbedStatus    usecase.GetEmbedStatus
 
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
@@ -155,6 +157,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /docs/{id}/edit", s.webAuth(http.HandlerFunc(s.handleWebDocEdit)))
 	mux.Handle("POST /docs/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocUpdate)))
 	mux.Handle("POST /docs/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebDocDelete)))
+	mux.Handle("POST /docs/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux

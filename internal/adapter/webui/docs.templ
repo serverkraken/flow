@@ -59,6 +59,37 @@ type DocDetail struct {
 	Body      string
 	Backlinks []DocRow // referenced-by
 	Tags      []TagLink
+	Embed     *EmbedView // embedding status (nil → not shown)
+}
+
+// EmbedView is the embedding-status chip shown on a document.
+type EmbedView struct {
+	State     string // ok | pending | retrying | failed
+	LastError string // already truncated by the handler
+	ShowRetry bool   // true when dead-lettered (manual retry offered)
+}
+
+templ EmbedBadge(docID string, e EmbedView) {
+	<div class="mb-3 flex items-center gap-2 text-xs">
+		switch e.State {
+			case "ok":
+				<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">embedded</span>
+			case "pending":
+				<span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">embedding queued</span>
+			case "retrying":
+				<span class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">embedding retrying</span>
+			case "failed":
+				<span class="rounded-full bg-rose-50 px-2 py-0.5 text-rose-700">embedding failed</span>
+		}
+		if e.LastError != "" {
+			<span class="font-mono text-slate-400">{ e.LastError }</span>
+		}
+		if e.ShowRetry {
+			<form hx-post={ "/docs/" + docID + "/reembed" } hx-target="closest div" hx-swap="outerHTML" class="inline">
+				<button type="submit" class="rounded bg-slate-800 px-2 py-0.5 text-white hover:bg-slate-700">Retry</button>
+			</form>
+		}
+	</div>
 }
 
 // DocFormValues carries submitted form values back to the form on error.
@@ -228,6 +259,9 @@ templ DocView(d DocsPageData) {
 								<span class="text-xs text-slate-400">{ d.Current.Type }</span>
 							</div>
 							<div class="mb-3 font-mono text-xs text-slate-400">{ d.Current.Path }</div>
+							if d.Current.Embed != nil {
+								@EmbedBadge(d.Current.ID, *d.Current.Embed)
+							}
 							if len(d.Current.Tags) > 0 {
 								<div class="mb-3 flex flex-wrap gap-1">
 									for _, t := range d.Current.Tags {

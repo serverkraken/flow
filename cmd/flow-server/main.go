@@ -143,6 +143,8 @@ func run() error {
 		BacklinksDocument: usecase.Backlinks{Docs: documentStore},
 		ListTags:          usecase.ListTags{Docs: documentStore},
 		SearchDocuments:   usecase.SearchDocuments{Docs: documentStore, Embedder: embedder, Log: logger},
+		RetryEmbedding:    usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker},
+		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: documentStore},
 		Users:             userStore,
 		OIDCAuth:          authn,
 		Session:           websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),

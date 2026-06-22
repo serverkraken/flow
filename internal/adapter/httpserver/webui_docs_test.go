@@ -50,6 +50,8 @@ func newWebDocsServer(t *testing.T) (*httpserver.Server, *websession.Codec, *tes
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
+		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: docs},
+		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs}, // Notifier nil is fine for tests
 	}
 	return srv, codec, docs
 }
