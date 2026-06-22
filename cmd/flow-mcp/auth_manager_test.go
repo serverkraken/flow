@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
+
+	"golang.org/x/oauth2"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/clientauth"
@@ -153,5 +156,14 @@ func TestIsAuthError(t *testing.T) {
 	}
 	if isAuthError(&apiclient.APIError{StatusCode: http.StatusInternalServerError}) {
 		t.Error("500 is NOT an auth error")
+	}
+}
+
+func TestIsAuthError_OAuthRetrieveError(t *testing.T) {
+	if !isAuthError(&oauth2.RetrieveError{Response: &http.Response{StatusCode: 400}}) {
+		t.Error("oauth2.RetrieveError is an auth error")
+	}
+	if !isAuthError(fmt.Errorf("refresh: %w", &oauth2.RetrieveError{})) {
+		t.Error("wrapped oauth2.RetrieveError is an auth error")
 	}
 }

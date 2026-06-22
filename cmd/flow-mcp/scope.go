@@ -63,7 +63,7 @@ func (h *handlers) lookupProject(ctx context.Context, ref string) (domain.Projec
 	if p, ok := matchProject(ps, ref); ok {
 		return p, nil
 	}
-	return domain.Project{}, fmt.Errorf("unknown project %q. Use 'global' (all projects), 'none' (unassigned), or a known slug: %s", ref, slugList(ps))
+	return domain.Project{}, errGuard{fmt.Errorf("unknown project %q. Use 'global' (all projects), 'none' (unassigned), or a known slug: %s", ref, slugList(ps))}
 }
 
 // projectList returns the cached project list, fetching it once via the seam.
