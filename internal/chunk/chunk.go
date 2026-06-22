@@ -36,6 +36,14 @@ func Split(title, body string) []string {
 			end = len(r)
 		}
 		w := strings.TrimSpace(string(r[start:end]))
+		if w == "" {
+			// all-whitespace window: emit nothing (no empty embed input, no
+			// degenerate title-only duplicate).
+			if end == len(r) {
+				break
+			}
+			continue
+		}
 		if title != "" {
 			w = title + "\n\n" + w
 		}

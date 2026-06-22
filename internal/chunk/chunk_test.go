@@ -43,3 +43,26 @@ func TestSplit_LongBody_MultipleOverlappingChunks(t *testing.T) {
 }
 
 func min(a, b int) int { if a < b { return a }; return b }
+
+func TestSplit_WhitespaceGap_EmptyTitle_NeverEmptyChunk(t *testing.T) {
+	body := "A" + strings.Repeat(" ", 4000) + "Z" // forces an all-whitespace middle window
+	got := Split("", body)
+	if len(got) == 0 {
+		t.Fatalf("want >=1 chunk for non-empty body")
+	}
+	for i, c := range got {
+		if c == "" {
+			t.Fatalf("chunk %d is empty; Split must never emit an empty chunk: %#v", i, got)
+		}
+	}
+}
+
+func TestSplit_WhitespaceGap_WithTitle_NoTitleOnlyDuplicate(t *testing.T) {
+	body := "A" + strings.Repeat(" ", 4000) + "Z"
+	got := Split("T", body)
+	for i, c := range got {
+		if c == "T\n\n" {
+			t.Fatalf("chunk %d is a degenerate title-only duplicate: %#v", i, got)
+		}
+	}
+}
