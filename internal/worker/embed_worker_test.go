@@ -2,10 +2,14 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
@@ -16,7 +20,7 @@ func TestEmbedWorker_DrainEmbedsStaleDocs(t *testing.T) {
 	if _, err := docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "alpha body"}); err != nil {
 		t.Fatal(err)
 	}
-	w := NewEmbedWorker(docs, emb, 0, 10, slog.Default())
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
 	w.drain(ctx)
 
 	stale, _ := docs.StaleDocuments(ctx, 10)
@@ -35,7 +39,7 @@ func TestEmbedWorker_OllamaDown_LeavesStale(t *testing.T) {
 	emb.Err = errDown
 	ctx := context.Background()
 	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "Alpha", Body: "x"})
-	w := NewEmbedWorker(docs, emb, 0, 10, slog.Default())
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
 	w.drain(ctx)
 	stale, _ := docs.StaleDocuments(ctx, 10)
 	if len(stale) != 1 {
@@ -43,11 +47,74 @@ func TestEmbedWorker_OllamaDown_LeavesStale(t *testing.T) {
 	}
 }
 
-var errDown = &downErr{}
+// errDown is transient so drain stops without penalizing the doc.
+var errDown = fmt.Errorf("ollama down: %w", ports.ErrEmbedTransient)
 
-type downErr struct{}
+func TestEmbedWorker_PerDocFailure_NoHeadOfLineBlock(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	// poison doc fails per-doc (NOT transient); healthy doc succeeds.
+	emb.FailFunc = func(texts []string) error {
+		for _, s := range texts {
+			if strings.Contains(s, "POISON") {
+				return fmt.Errorf("bad content")
+			}
+		}
+		return nil
+	}
+	ctx := context.Background()
+	old := time.Now().Add(-2 * time.Hour)
+	newer := time.Now().Add(-1 * time.Hour)
+	_, _ = docs.Create(ctx, domain.Document{ID: "poison", OwnerID: "u", Type: domain.DocFree, Path: "p", Title: "P", Body: "POISON body", UpdatedAt: old})
+	_, _ = docs.Create(ctx, domain.Document{ID: "good", OwnerID: "u", Type: domain.DocFree, Path: "g", Title: "G", Body: "good body", UpdatedAt: newer})
 
-func (*downErr) Error() string { return "ollama down" }
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+	w.drain(ctx)
+
+	// healthy doc embedded despite the poison doc ahead of it
+	stale, _ := docs.StaleDocuments(ctx, 10)
+	for _, sd := range stale {
+		if sd.Doc.ID == "good" {
+			t.Fatalf("healthy doc must be embedded (poison must not block the queue)")
+		}
+	}
+	// poison doc recorded a failure with attempts=1, not dead yet
+	if s, _ := docs.EmbedStatus(ctx, "u", "poison"); s.State != domain.EmbedRetrying || s.Attempts != 1 {
+		t.Fatalf("poison want retrying attempts=1, got %#v", s)
+	}
+}
+
+func TestEmbedWorker_PerDocFailure_DeadLettersAtCap(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	emb.FailFunc = func(texts []string) error { return fmt.Errorf("always bad") }
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{ID: "x", OwnerID: "u", Type: domain.DocFree, Path: "x", Title: "X", Body: "b"})
+	// pre-seed 4 prior failures (maxAttempts default 5) that are already due
+	_ = docs.RecordEmbedFailure(ctx, "x", "u", 4, time.Now().Add(-time.Hour), false, "prev")
+
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+	w.drain(ctx)
+
+	if s, _ := docs.EmbedStatus(ctx, "u", "x"); s.State != domain.EmbedFailed || s.Attempts != 5 {
+		t.Fatalf("want failed attempts=5, got %#v", s)
+	}
+}
+
+func TestEmbedWorker_Transient_StopsDrain_NoPenalty(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	emb.FailFunc = func(texts []string) error { return fmt.Errorf("down: %w", ports.ErrEmbedTransient) }
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Title: "A", Body: "b"})
+
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+	w.drain(ctx)
+
+	if s, _ := docs.EmbedStatus(ctx, "u", "a"); s.State != domain.EmbedPending {
+		t.Fatalf("transient failure must NOT record a per-doc failure; want pending, got %v", s.State)
+	}
+}
 
 func mustEmbed(t *testing.T, e *testutil.FakeEmbedder, s string) []float32 {
 	t.Helper()

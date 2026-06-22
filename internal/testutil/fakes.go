@@ -831,14 +831,21 @@ func (s *FakeProjectBindingStore) ListByProject(_ context.Context, ownerID, proj
 // text — identical text yields an identical vector, so similarity *ordering* is
 // reproducible without a real model. It does NOT model semantic nearness; tests
 // assert wiring/ordering, not embedding quality. Set Err to simulate Ollama down.
+// Set FailFunc for per-call error injection (checked before Err).
 type FakeEmbedder struct {
-	Dim int
-	Err error
+	Dim      int
+	Err      error
+	FailFunc func(texts []string) error // optional per-call hook (checked before Err)
 }
 
 func NewFakeEmbedder() *FakeEmbedder { return &FakeEmbedder{Dim: 768} }
 
 func (f *FakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
+	if f.FailFunc != nil {
+		if err := f.FailFunc(texts); err != nil {
+			return nil, err
+		}
+	}
 	if f.Err != nil {
 		return nil, f.Err
 	}

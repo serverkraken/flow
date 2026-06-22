@@ -82,7 +82,7 @@ func run() error {
 	embedInterval := getenvDuration("FLOW_EMBED_INTERVAL", 15*time.Second)
 	embedBatch := getenvInt("FLOW_EMBED_BATCH", 16)
 	embedder := embed.NewOllama(ollamaHost, embedModel)
-	embedWorker := worker.NewEmbedWorker(documentStore, embedder, embedInterval, embedBatch, logger)
+	embedWorker := worker.NewEmbedWorker(documentStore, embedder, embedInterval, embedBatch, worker.EmbedPolicy{}, logger)
 	var workerWG sync.WaitGroup
 	workerWG.Add(1)
 	go func() { defer workerWG.Done(); embedWorker.Run(ctx) }()
