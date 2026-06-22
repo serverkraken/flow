@@ -262,6 +262,39 @@ func TestLoopback_CreateNoneScope(t *testing.T) {
 	}
 }
 
+func TestLoopback_Resources_OutOfScopeCreateNotRegistered(t *testing.T) {
+	sess, _ := authedWriteServerWithResources(t)
+	ctx := context.Background()
+
+	// baseline: only the seeded in-scope doc (d-human) is a resource
+	rs, err := sess.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeCount := len(rs.Resources)
+
+	// create in "global" scope → ProjectID nil → not in scope of p1
+	res, out := callText(t, sess, "flow_create_doc", map[string]any{
+		"type": "memory", "path": "notes/oob", "title": "OutOfBand", "body": "nowhere", "project": "global",
+	})
+	if res.IsError {
+		t.Fatalf("out-of-scope create errored: %s", out)
+	}
+
+	// resource list must not grow — the new doc is not in p1
+	rs, err = sess.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rs.Resources) != beforeCount {
+		t.Fatalf("resource count after out-of-scope create: got %d, want %d; resources: %v",
+			len(rs.Resources), beforeCount, resourceURIs(rs.Resources))
+	}
+	if hasResource(rs.Resources, "flow://doc/new1") {
+		t.Fatalf("out-of-scope doc new1 must not appear as a resource; resources: %v", resourceURIs(rs.Resources))
+	}
+}
+
 func TestLoopback_WriteTools_DegradedRequireLogin(t *testing.T) {
 	sess := connect(t, newServer(nil, false, domain.Project{}, false))
 	for _, tc := range []struct {

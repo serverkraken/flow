@@ -68,6 +68,9 @@ func (h *handlers) addResource(d domain.Document) {
 }
 
 // removeResource unregisters a document's resource (safe if it was never added).
+// RemoveResources is a no-op for URIs that were never registered, so this can be
+// called unconditionally after a delete even for out-of-scope docs that addResource
+// skipped.
 func (h *handlers) removeResource(id string) {
 	if h.srv == nil {
 		return
