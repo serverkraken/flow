@@ -14,6 +14,67 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+func authedWriteServerWithResources(t *testing.T) (*mcp.ClientSession, *handlers) {
+	t.Helper()
+	be := fakeWriteBackend(t)
+	t.Cleanup(be.Close)
+	client := apiclient.New(be.URL, "tok")
+	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	srv, h := newServerH(client, true, proj, true)
+	if err := h.registerResources(context.Background()); err != nil {
+		t.Fatalf("registerResources: %v", err)
+	}
+	return connect(t, srv), h
+}
+
+func TestLoopback_Resources_BootAndLiveSync(t *testing.T) {
+	sess, _ := authedWriteServerWithResources(t)
+	ctx := context.Background()
+
+	// boot: the one seeded project doc (d-human) is a resource
+	rs, err := sess.ListResources(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasResource(rs.Resources, "flow://doc/d-human") {
+		t.Fatalf("boot resources = %v, want d-human", resourceURIs(rs.Resources))
+	}
+	// read returns the (fresh) body
+	rr, err := sess.ReadResource(ctx, &mcp.ReadResourceParams{URI: "flow://doc/d-human"})
+	if err != nil || len(rr.Contents) == 0 || !strings.Contains(rr.Contents[0].Text, "human note") {
+		t.Fatalf("read d-human = (%+v,%v), want the body", rr, err)
+	}
+	// create in-project → a new resource appears
+	_, _ = callText(t, sess, "flow_create_doc", map[string]any{"type": "memory", "path": "notes/r", "title": "R", "body": "rbody"})
+	rs, _ = sess.ListResources(ctx, nil)
+	if !hasResource(rs.Resources, "flow://doc/new1") {
+		t.Fatalf("after create resources = %v, want new1", resourceURIs(rs.Resources))
+	}
+	// delete (agent-owned, no confirm needed) → resource removed
+	_, _ = callText(t, sess, "flow_delete_doc", map[string]any{"id": "new1"})
+	rs, _ = sess.ListResources(ctx, nil)
+	if hasResource(rs.Resources, "flow://doc/new1") {
+		t.Fatalf("after delete resources still has new1: %v", resourceURIs(rs.Resources))
+	}
+}
+
+func hasResource(rs []*mcp.Resource, uri string) bool {
+	for _, r := range rs {
+		if r.URI == uri {
+			return true
+		}
+	}
+	return false
+}
+
+func resourceURIs(rs []*mcp.Resource) []string {
+	var u []string
+	for _, r := range rs {
+		u = append(u, r.URI)
+	}
+	return u
+}
+
 // fakeWriteBackend serves the CRUD endpoints the write tools touch, backed by an
 // in-memory map. p1 = the resolved project (Alpha).
 func fakeWriteBackend(t *testing.T) *httptest.Server {

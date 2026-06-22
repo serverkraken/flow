@@ -23,7 +23,10 @@ func main() {
 		proj, matched = resolveProject(ctx, client, log)
 	}
 
-	srv := newServer(client, authed, proj, matched)
+	srv, h := newServerH(client, authed, proj, matched)
+	if err := h.registerResources(ctx); err != nil {
+		log.Warn("could not register document resources", "err", err)
+	}
 	if err := srv.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		log.Error("flow-mcp exited", "err", err)
 		os.Exit(1)

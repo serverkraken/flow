@@ -21,6 +21,10 @@ type handlers struct {
 	proj    domain.Project
 	matched bool
 
+	// srv is the MCP server this handlers instance is wired to; used by resource
+	// helpers to call AddResource/RemoveResources. Set by newServerH.
+	srv *mcp.Server
+
 	// project-ref cache, guarded by projMu. listProjects is the fetch seam
 	// (defaults to client.ListProjects; overridable in unit tests).
 	projMu       sync.Mutex
@@ -32,11 +36,19 @@ type handlers struct {
 // newServer builds the MCP server and registers the spine's tools. Kept
 // dependency-injected (no global state, no I/O) so loopback tests can drive it.
 func newServer(client *apiclient.Client, authed bool, proj domain.Project, matched bool) *mcp.Server {
+	s, _ := newServerH(client, authed, proj, matched)
+	return s
+}
+
+// newServerH is newServer but also returns the handlers it wired — used by
+// main (for resource registration) and tests that need the live *handlers.
+func newServerH(client *apiclient.Client, authed bool, proj domain.Project, matched bool) (*mcp.Server, *handlers) {
 	h := &handlers{client: client, authed: authed, proj: proj, matched: matched}
 	if client != nil {
 		h.listProjects = client.ListProjects
 	}
 	s := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
+	h.srv = s
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_project_context",
 		Description: "Report which flow project the current working directory resolves to, and how many Kompendium documents are in scope. Call this first to orient.",
@@ -73,7 +85,7 @@ func newServer(client *apiclient.Client, authed bool, proj domain.Project, match
 		Name:        "flow_delete_doc",
 		Description: "Delete a document by id. Deleting a human-owned note (daily/project/free) requires confirm=true.",
 	}, h.deleteDoc)
-	return s
+	return s, h
 }
 
 // textResult wraps a plain-text success result.

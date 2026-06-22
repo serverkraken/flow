@@ -42,6 +42,7 @@ func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in cre
 	if err != nil {
 		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
 	}
+	h.addResource(d)
 	return textResult(fmt.Sprintf("Created %s [%s] %s · %s.", d.Type, d.ID, d.Title, d.Path)), nil, nil
 }
 
@@ -74,6 +75,8 @@ func (h *handlers) updateDoc(ctx context.Context, _ *mcp.CallToolRequest, in upd
 	if err != nil {
 		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
 	}
+	h.removeResource(d.ID)
+	h.addResource(d)
 	return textResult(fmt.Sprintf("Updated [%s] %s · %s.", d.ID, d.Title, d.Path)), nil, nil
 }
 
@@ -99,5 +102,6 @@ func (h *handlers) deleteDoc(ctx context.Context, _ *mcp.CallToolRequest, in del
 	if err := h.client.DeleteDocument(ctx, in.ID); err != nil {
 		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
 	}
+	h.removeResource(cur.ID)
 	return textResult(fmt.Sprintf("Deleted [%s] %s.", cur.ID, cur.Title)), nil, nil
 }
