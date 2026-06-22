@@ -87,8 +87,11 @@ func formatProjects(ps []domain.Project) string {
 	if len(ps) == 0 {
 		return "No projects yet. Use flow_bind_project with create_name to make one."
 	}
+	sorted := make([]domain.Project, len(ps))
+	copy(sorted, ps)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 	var b strings.Builder
-	for _, p := range ps {
+	for _, p := range sorted {
 		fmt.Fprintf(&b, "%s (%s) — %s\n", p.Name, p.Slug, p.ID)
 	}
 	return strings.TrimRight(b.String(), "\n")

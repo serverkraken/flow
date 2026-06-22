@@ -135,4 +135,4 @@ This is the expected behavior. The server starts successfully and registers its 
 
 ## 7. Clean Shutdown
 
-flow-mcp exits with status 0 when the host (Claude Code) closes the stdio connection at the end of a session. Only abnormal termination — such as a crash or an OS-level kill — produces a non-zero exit code. No special teardown steps are required; the server holds no persistent state that needs flushing on exit.
+flow-mcp exits with status 0 when the host (Claude Code) closes the stdio connection cleanly (stdin EOF causes `srv.Run` to return nil). A non-zero exit (status 1) means `srv.Run` returned a transport error such as a broken pipe mid-session, or the process was killed abnormally by the OS or a crash. No special teardown steps are required; the server holds no persistent state that needs flushing on exit.

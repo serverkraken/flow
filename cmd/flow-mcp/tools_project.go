@@ -52,6 +52,7 @@ type listProjectsIn struct{}
 func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest, _ listProjectsIn) (*mcp.CallToolResult, any, error) {
 	var ps []domain.Project
 	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		// Deliberately fetches fresh (not via the projectList cache) so a just-created project is always visible before binding.
 		got, e := c.ListProjects(ctx)
 		if e != nil {
 			return e
