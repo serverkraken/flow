@@ -262,6 +262,9 @@ func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string
 		docID); err != nil {
 		return fmt.Errorf("pgstore: stamp chunks_hash: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM document_embed_failures WHERE document_id = $1`, docID); err != nil {
+		return fmt.Errorf("pgstore: clear embed failure: %w", err)
+	}
 	return tx.Commit(ctx)
 }
 

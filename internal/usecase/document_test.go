@@ -331,6 +331,15 @@ func (s errDocStore) ReplaceChunks(_ context.Context, docID, ownerID string, con
 func (s errDocStore) SemanticSearch(_ context.Context, ownerID string, query []float32, _ *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	panic("unexpected SemanticSearch")
 }
+func (s errDocStore) RecordEmbedFailure(_ context.Context, docID, ownerID string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
+	panic("unexpected RecordEmbedFailure")
+}
+func (s errDocStore) ClearEmbedFailure(_ context.Context, docID, ownerID string) error {
+	panic("unexpected ClearEmbedFailure")
+}
+func (s errDocStore) EmbedStatus(_ context.Context, ownerID, docID string) (domain.EmbedStatus, error) {
+	panic("unexpected EmbedStatus")
+}
 
 func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
 	ctx := context.Background()

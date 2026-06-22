@@ -409,6 +409,7 @@ type FakeDocumentStore struct {
 	links      map[string][]string        // srcDocID -> target paths
 	chunks     map[string][]fakeChunk     // docID -> chunks
 	chunksHash map[string]string          // docID -> stamped hash
+	embedFail  map[string]fakeEmbedFail
 }
 
 func NewFakeDocumentStore() *FakeDocumentStore {
@@ -417,12 +418,20 @@ func NewFakeDocumentStore() *FakeDocumentStore {
 		links:      map[string][]string{},
 		chunks:     map[string][]fakeChunk{},
 		chunksHash: map[string]string{},
+		embedFail:  map[string]fakeEmbedFail{},
 	}
 }
 
 type fakeChunk struct {
 	content string
 	emb     []float32
+}
+
+type fakeEmbedFail struct {
+	attempts  int
+	nextRetry time.Time
+	lastErr   string
+	dead      bool
 }
 
 func fakeDocHash(d domain.Document) string {
@@ -607,11 +616,20 @@ func fakeSnippet(text string, start, n int) string {
 func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]ports.StaleDoc, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
 	var out []ports.StaleDoc
 	for _, d := range s.m {
-		if s.chunksHash[d.ID] != fakeDocHash(d) {
-			out = append(out, ports.StaleDoc{Doc: d})
+		if s.chunksHash[d.ID] == fakeDocHash(d) {
+			continue
 		}
+		attempts := 0
+		if f, ok := s.embedFail[d.ID]; ok {
+			if f.dead || f.nextRetry.After(now) {
+				continue
+			}
+			attempts = f.attempts
+		}
+		out = append(out, ports.StaleDoc{Doc: d, Attempts: attempts})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Doc.UpdatedAt.Equal(out[j].Doc.UpdatedAt) {
@@ -636,7 +654,46 @@ func (s *FakeDocumentStore) ReplaceChunks(_ context.Context, docID, _ string, co
 	if d, ok := s.m[docID]; ok {
 		s.chunksHash[docID] = fakeDocHash(d)
 	}
+	delete(s.embedFail, docID)
 	return nil
+}
+
+func (s *FakeDocumentStore) RecordEmbedFailure(_ context.Context, docID, _ string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.embedFail[docID] = fakeEmbedFail{attempts: attempts, nextRetry: nextRetryAt, lastErr: lastErr, dead: dead}
+	return nil
+}
+
+func (s *FakeDocumentStore) ClearEmbedFailure(_ context.Context, docID, _ string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.embedFail, docID)
+	return nil
+}
+
+func (s *FakeDocumentStore) EmbedStatus(_ context.Context, ownerID, docID string) (domain.EmbedStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[docID]
+	if !ok || d.OwnerID != ownerID {
+		return domain.EmbedStatus{}, ports.ErrDocumentNotFound
+	}
+	if f, ok := s.embedFail[docID]; ok {
+		st := domain.EmbedStatus{Attempts: f.attempts, LastError: f.lastErr}
+		if f.dead {
+			st.State = domain.EmbedFailed
+		} else {
+			st.State = domain.EmbedRetrying
+			nr := f.nextRetry
+			st.NextRetry = &nr
+		}
+		return st, nil
+	}
+	if s.chunksHash[docID] != fakeDocHash(d) {
+		return domain.EmbedStatus{State: domain.EmbedPending}, nil
+	}
+	return domain.EmbedStatus{State: domain.EmbedOK}, nil
 }
 
 func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error) {

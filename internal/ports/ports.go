@@ -176,6 +176,15 @@ type DocumentStore interface {
 	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
 	SemanticSearch(ctx context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error)
+
+	// RecordEmbedFailure upserts the per-document embed-failure state used for
+	// backoff and dead-lettering.
+	RecordEmbedFailure(ctx context.Context, docID, ownerID string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error
+	// ClearEmbedFailure removes a document's recorded embed failure (manual
+	// retry); a successful ReplaceChunks clears it implicitly.
+	ClearEmbedFailure(ctx context.Context, docID, ownerID string) error
+	// EmbedStatus returns the owner-scoped embedding status of one document.
+	EmbedStatus(ctx context.Context, ownerID, docID string) (domain.EmbedStatus, error)
 }
 
 // ProjectBindingStore persists project bindings (remote-slug and path-prefix
