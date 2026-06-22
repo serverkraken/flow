@@ -2,6 +2,7 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
@@ -15,6 +16,7 @@ type Server struct {
 	Bus      ports.EventBus
 	Clock    ports.Clock
 	Dev      bool
+	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready
 
 	// worktime usecases
 	StartSession  usecase.StartSession
@@ -71,6 +73,7 @@ type Server struct {
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
+	mux.HandleFunc("GET /readyz", s.handleReady)
 	mux.Handle("GET /api/v1/me", s.auth(http.HandlerFunc(s.handleMe)))
 	mux.Handle("GET /api/v1/events", s.authAny(http.HandlerFunc(s.handleEvents)))
 

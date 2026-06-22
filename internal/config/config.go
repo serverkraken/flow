@@ -16,6 +16,7 @@ type Config struct {
 	PublicBaseURL    string
 	SessionSecret    string
 	AllowedSubs      map[string]bool
+	AllowedGroups    map[string]bool
 	ListenAddr       string
 	Dev              bool
 }
@@ -34,10 +35,16 @@ func Load(getenv func(string) string) (Config, error) {
 		ListenAddr:       getenv("FLOW_LISTEN_ADDR"),
 		Dev:              getenv("FLOW_DEV") == "1",
 		AllowedSubs:      map[string]bool{},
+		AllowedGroups:    map[string]bool{},
 	}
 	for _, s := range strings.Split(getenv("FLOW_ALLOWED_SUBS"), ",") {
 		if s = strings.TrimSpace(s); s != "" {
 			c.AllowedSubs[s] = true
+		}
+	}
+	for _, g := range strings.Split(getenv("FLOW_ALLOWED_GROUPS"), ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			c.AllowedGroups[g] = true
 		}
 	}
 	if c.ListenAddr == "" {

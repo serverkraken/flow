@@ -25,7 +25,6 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/uuidgen"
 	"github.com/serverkraken/flow/internal/adapter/websession"
 	"github.com/serverkraken/flow/internal/config"
-	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/serverkraken/flow/internal/worker"
 )
@@ -89,11 +88,12 @@ func run() error {
 	go func() { defer workerWG.Done(); embedWorker.Run(ctx) }()
 
 	srv := &httpserver.Server{
+		Ready:    func(ctx context.Context) error { return pool.Ping(ctx) },
 		Verifier: verifier,
 		Ensure: usecase.EnsureUser{
 			Users: userStore,
 			IDs:   ids,
-			Allow: func(id ports.Identity) bool { return cfg.AllowedSubs[id.Username] || cfg.AllowedSubs[id.Subject] },
+			Allow: usecase.AllowList(cfg.AllowedSubs, cfg.AllowedGroups),
 		},
 		Bus:           bus,
 		Clock:         clock,

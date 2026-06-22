@@ -11,6 +11,19 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if s.Ready != nil {
+		if err := s.Ready(r.Context()); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(`{"status":"not ready"}`))
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	w.Header().Set("Content-Type", "application/json")
