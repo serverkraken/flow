@@ -4,6 +4,7 @@ package clientauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,6 +18,12 @@ import (
 	"github.com/serverkraken/flow/internal/clientconfig"
 	"github.com/serverkraken/flow/internal/ports"
 )
+
+// ErrNotLoggedIn marks "no usable stored credential" — the caller should prompt
+// the user to run `flow login`. Both the build-time "no token" case and the
+// "access token expired and no issuer to refresh" case wrap it so callers can
+// errors.Is them without string-matching.
+var ErrNotLoggedIn = errors.New("not logged in — run `flow login`")
 
 // lazyDeviceSource hands out the stored access token while it is still valid,
 // and only builds the refreshing device-flow source — which performs OIDC
@@ -44,7 +51,7 @@ func (s *lazyDeviceSource) Token() (*oauth2.Token, error) {
 			return cached, nil // fast path: no issuer, no discovery round-trip
 		}
 		if s.cfg.OIDCIssuer == "" {
-			return nil, fmt.Errorf("access token expired and FLOW_OIDC_ISSUER is not set — run `flow login` (or set FLOW_OIDC_ISSUER)")
+			return nil, fmt.Errorf("access token expired and FLOW_OIDC_ISSUER is not set: %w", ErrNotLoggedIn)
 		}
 		flow, err := oidcdevice.New(s.ctx, s.cfg.OIDCIssuer, s.cfg.CliClientID)
 		if err != nil {
@@ -103,7 +110,7 @@ func Client(ctx context.Context) (*apiclient.Client, error) {
 		return nil, err
 	}
 	if !ok || loaded.AccessToken == "" {
-		return nil, fmt.Errorf("not logged in — run `flow login`")
+		return nil, ErrNotLoggedIn
 	}
 	base := &lazyDeviceSource{ctx: ctx, cfg: cfg, last: loaded}
 	src := &persistingSource{base: base, store: store, last: loaded}

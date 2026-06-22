@@ -133,6 +133,12 @@ func IsConflict(err error) bool {
 	return errors.As(err, &ae) && ae.StatusCode == http.StatusConflict
 }
 
+// IsUnauthorized reports whether err is (or wraps) an APIError with HTTP 401.
+func IsUnauthorized(err error) bool {
+	var ae *APIError
+	return errors.As(err, &ae) && ae.StatusCode == http.StatusUnauthorized
+}
+
 func (c *Client) StartSession(ctx context.Context, projectID *string, tag, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
