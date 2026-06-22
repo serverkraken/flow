@@ -81,7 +81,8 @@ func run() error {
 	embedModel := getenvDefault("FLOW_EMBED_MODEL", "nomic-embed-text")
 	embedInterval := getenvDuration("FLOW_EMBED_INTERVAL", 15*time.Second)
 	embedBatch := getenvInt("FLOW_EMBED_BATCH", 16)
-	embedder := embed.NewOllama(ollamaHost, embedModel)
+	embedTimeout := getenvDuration("FLOW_EMBED_TIMEOUT", 60*time.Second)
+	embedder := embed.NewOllama(ollamaHost, embedModel, embedTimeout)
 	embedWorker := worker.NewEmbedWorker(documentStore, embedder, embedInterval, embedBatch, worker.EmbedPolicy{}, logger)
 	var workerWG sync.WaitGroup
 	workerWG.Add(1)

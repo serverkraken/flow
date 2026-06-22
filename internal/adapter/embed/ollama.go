@@ -24,19 +24,29 @@ type Ollama struct {
 	client *http.Client
 }
 
+// defaultEmbedTimeout bounds a single /api/embed HTTP call. On a CPU-only
+// Ollama a large document's chunk batch can take well over a minute, so the
+// timeout is configurable (FLOW_EMBED_TIMEOUT): too tight and the worker times
+// out and stalls behind that document.
+const defaultEmbedTimeout = 60 * time.Second
+
 // NewOllama returns an Ollama embedder. Empty host/model fall back to the
-// localhost default and nomic-embed-text.
-func NewOllama(host, model string) *Ollama {
+// localhost default and nomic-embed-text; a timeout <= 0 falls back to
+// defaultEmbedTimeout.
+func NewOllama(host, model string, timeout time.Duration) *Ollama {
 	if host == "" {
 		host = "http://localhost:11434"
 	}
 	if model == "" {
 		model = "nomic-embed-text"
 	}
+	if timeout <= 0 {
+		timeout = defaultEmbedTimeout
+	}
 	return &Ollama{
 		host:   strings.TrimRight(host, "/"),
 		model:  model,
-		client: &http.Client{Timeout: 60 * time.Second},
+		client: &http.Client{Timeout: timeout},
 	}
 }
 

@@ -28,7 +28,7 @@ func TestOllamaEmbed_SubBatchesAndPreservesOrder(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	o := embed.NewOllama(srv.URL, "test-model")
+	o := embed.NewOllama(srv.URL, "test-model", 0)
 	texts := make([]string, 130)
 	for i := range texts {
 		texts[i] = strings.Repeat("x", i+1) // unique length per input
