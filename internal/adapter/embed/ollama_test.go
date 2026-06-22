@@ -3,9 +3,12 @@ package embed
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 func TestOllama_Embed_OK(t *testing.T) {
@@ -46,5 +49,40 @@ func TestOllama_Embed_ErrorStatus(t *testing.T) {
 	o := NewOllama(srv.URL, "x")
 	if _, err := o.Embed(context.Background(), []string{"a"}); err == nil {
 		t.Fatal("expected error on non-200")
+	}
+}
+
+func TestOllamaEmbed_ClassifiesStatus(t *testing.T) {
+	cases := []struct {
+		code      int
+		transient bool
+	}{
+		{http.StatusServiceUnavailable, true}, // 503
+		{http.StatusTooManyRequests, true},    // 429
+		{http.StatusNotFound, true},           // 404 model-not-found
+		{http.StatusBadRequest, false},        // 400
+		{http.StatusInternalServerError, false}, // 500 on one doc
+	}
+	for _, c := range cases {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "boom", c.code)
+		}))
+		o := NewOllama(srv.URL, "m")
+		_, err := o.Embed(context.Background(), []string{"hi"})
+		srv.Close()
+		if err == nil {
+			t.Fatalf("status %d: want error", c.code)
+		}
+		if got := errors.Is(err, ports.ErrEmbedTransient); got != c.transient {
+			t.Fatalf("status %d: transient=%v want %v (err=%v)", c.code, got, c.transient, err)
+		}
+	}
+}
+
+func TestOllamaEmbed_ConnError_IsTransient(t *testing.T) {
+	o := NewOllama("http://127.0.0.1:1", "m") // nothing listening
+	_, err := o.Embed(context.Background(), []string{"hi"})
+	if err == nil || !errors.Is(err, ports.ErrEmbedTransient) {
+		t.Fatalf("want transient connection error, got %v", err)
 	}
 }

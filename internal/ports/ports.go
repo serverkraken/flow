@@ -62,6 +62,13 @@ var (
 	ErrDocumentNotFound  = errors.New("document not found")
 	ErrDocumentExists    = errors.New("document already exists")
 	ErrBindingNotFound   = errors.New("ports: binding not found")
+
+	// ErrEmbedTransient marks an embed failure as transient/global — the backend is
+	// unavailable or misconfigured (connection error, timeout, HTTP 503/429, or a
+	// missing model 404) — rather than caused by one document's content. The embed
+	// worker tests for it with errors.Is to decide whether to back off a single
+	// document or just stop and retry the whole batch next tick.
+	ErrEmbedTransient = errors.New("embed backend transient failure")
 )
 
 // ProjectStore persists projects. All reads are owner-scoped.

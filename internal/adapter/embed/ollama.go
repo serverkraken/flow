@@ -76,6 +76,15 @@ func (o *Ollama) Embed(ctx context.Context, texts []string) ([][]float32, error)
 	return out, nil
 }
 
+// isTransientStatus reports whether an Ollama HTTP status means the backend is
+// unavailable or misconfigured (retry later) rather than this input being bad.
+// 404 = model not found — a server-config problem that fails every document.
+func isTransientStatus(code int) bool {
+	return code == http.StatusServiceUnavailable ||
+		code == http.StatusTooManyRequests ||
+		code == http.StatusNotFound
+}
+
 func (o *Ollama) embedOnce(ctx context.Context, texts []string) ([][]float32, error) {
 	body, err := json.Marshal(embedReq{Model: o.model, Input: texts})
 	if err != nil {
@@ -88,11 +97,15 @@ func (o *Ollama) embedOnce(ctx context.Context, texts []string) ([][]float32, er
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := o.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("ollama embed: %w", err)
+		// dial failure / connection refused / reset / client timeout — environmental.
+		return nil, fmt.Errorf("ollama embed: %w: %w", ports.ErrEmbedTransient, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<12))
+		if isTransientStatus(resp.StatusCode) {
+			return nil, fmt.Errorf("ollama embed: %w: status %d: %s", ports.ErrEmbedTransient, resp.StatusCode, strings.TrimSpace(string(b)))
+		}
 		return nil, fmt.Errorf("ollama embed: status %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
 	}
 	var er embedResp
