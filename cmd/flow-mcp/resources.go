@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -16,7 +17,8 @@ func docURI(id string) string { return docURIPrefix + id }
 // inScope reports whether a document belongs to the resolved project — only such
 // documents are exposed as resources.
 func (h *handlers) inScope(d domain.Document) bool {
-	return h.matched && d.ProjectID != nil && *d.ProjectID == h.proj.ID
+	proj, matched := h.resolved()
+	return matched && d.ProjectID != nil && *d.ProjectID == proj.ID
 }
 
 // resourceFor builds the resource descriptor for a document.
@@ -34,30 +36,38 @@ func resourceFor(d domain.Document) *mcp.Resource {
 }
 
 // registerResources lists the resolved project's documents and registers a
-// resource per document. No-op when unauthenticated or no project is bound.
-func (h *handlers) registerResources(ctx context.Context) error {
-	if !h.authed || !h.matched {
+// resource per document. No-op when no project is bound. Called from postAuthInit
+// with the freshly-built client.
+func (h *handlers) registerResources(ctx context.Context, c *apiclient.Client) error {
+	proj, matched := h.resolved()
+	if !matched {
 		return nil
 	}
-	docs, err := h.client.ListDocumentsScoped(ctx, &h.proj.ID)
+	docs, err := c.ListDocumentsScoped(ctx, &proj.ID)
 	if err != nil {
 		return err
 	}
 	for _, d := range docs {
-		h.addResource(d)
+		h.addResource(ctx, d)
 	}
 	return nil
 }
 
 // addResource registers (or refreshes) a document's resource. The read handler
-// fetches the body fresh via GetDocument so content never goes stale.
-func (h *handlers) addResource(d domain.Document) {
+// fetches the body fresh via GetDocument so content never goes stale. The read
+// closure fetches the current client from the manager so reads survive a token
+// rebuild.
+func (h *handlers) addResource(ctx context.Context, d domain.Document) {
 	if h.srv == nil || !h.inScope(d) {
 		return
 	}
 	id := d.ID
 	h.srv.AddResource(resourceFor(d), func(ctx context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		doc, err := h.client.GetDocument(ctx, id)
+		c, err := h.mgr.client(ctx)
+		if err != nil {
+			return nil, err
+		}
+		doc, err := c.GetDocument(ctx, id)
 		if err != nil {
 			return nil, err
 		}

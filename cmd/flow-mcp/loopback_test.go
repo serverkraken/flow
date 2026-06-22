@@ -10,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/clientauth"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -48,6 +49,29 @@ func connect(t *testing.T, srv *mcp.Server) *mcp.ClientSession {
 	return sess
 }
 
+// managerFor builds an authManager that always returns the given client, with
+// the resolved project seeded directly (fixtures lack the V0 resolution
+// endpoints, so onAuth is disabled here). Returns the manager and the handlers
+// whose h.srv the caller connects to.
+func managerFor(t *testing.T, client *apiclient.Client, proj domain.Project) (*authManager, *handlers) {
+	t.Helper()
+	mgr := newAuthManager(func(context.Context) (*apiclient.Client, error) { return client, nil }, nil)
+	_, h := newServerH(mgr) // newServerH sets mgr.onAuth = h.postAuthInit …
+	mgr.onAuth = nil        // … which we disable: loopback fixtures can't drive V0 resolution.
+	h.projMu.Lock()
+	h.proj, h.matched = proj, true
+	h.projMu.Unlock()
+	return mgr, h
+}
+
+// degradedSession builds a logged-out server (build always fails).
+func degradedSession(t *testing.T) *mcp.ClientSession {
+	t.Helper()
+	mgr := newAuthManager(func(context.Context) (*apiclient.Client, error) { return nil, clientauth.ErrNotLoggedIn }, nil)
+	_, h := newServerH(mgr)
+	return connect(t, h.srv)
+}
+
 func TestLoopback_ProjectContext_Authed(t *testing.T) {
 	ctx := context.Background()
 	be := fakeBackend(t, 2)
@@ -55,7 +79,9 @@ func TestLoopback_ProjectContext_Authed(t *testing.T) {
 	client := apiclient.New(be.URL, "tok")
 	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
 
-	sess := connect(t, newServer(client, true, proj, true))
+	mgr, h := managerFor(t, client, proj)
+	_ = mgr
+	sess := connect(t, h.srv)
 
 	tools, err := sess.ListTools(ctx, nil)
 	if err != nil {
@@ -80,7 +106,7 @@ func TestLoopback_ProjectContext_Authed(t *testing.T) {
 
 func TestLoopback_ProjectContext_DegradedRequiresLogin(t *testing.T) {
 	ctx := context.Background()
-	sess := connect(t, newServer(nil, false, domain.Project{}, false))
+	sess := degradedSession(t)
 	res, err := sess.CallTool(ctx, &mcp.CallToolParams{Name: "flow_project_context", Arguments: map[string]any{}})
 	if err != nil {
 		t.Fatalf("CallTool: %v", err)
@@ -211,7 +237,9 @@ func authedReadServer(t *testing.T) *mcp.ClientSession {
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
 	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
-	return connect(t, newServer(client, true, proj, true))
+	mgr, h := managerFor(t, client, proj)
+	_ = mgr
+	return connect(t, h.srv)
 }
 
 func callText(t *testing.T, sess *mcp.ClientSession, name string, args map[string]any) (*mcp.CallToolResult, string) {
@@ -315,7 +343,7 @@ func TestLoopback_ListTags_And_Backlinks(t *testing.T) {
 }
 
 func TestLoopback_ReadTools_DegradedRequireLogin(t *testing.T) {
-	sess := connect(t, newServer(nil, false, domain.Project{}, false))
+	sess := degradedSession(t)
 	for _, tc := range []struct {
 		name string
 		args map[string]any

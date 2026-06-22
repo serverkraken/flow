@@ -20,11 +20,12 @@ func authedWriteServerWithResources(t *testing.T) (*mcp.ClientSession, *handlers
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
 	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
-	srv, h := newServerH(client, true, proj, true)
-	if err := h.registerResources(context.Background()); err != nil {
+	mgr, h := managerFor(t, client, proj)
+	if err := h.registerResources(context.Background(), client); err != nil {
 		t.Fatalf("registerResources: %v", err)
 	}
-	return connect(t, srv), h
+	_ = mgr
+	return connect(t, h.srv), h
 }
 
 func TestLoopback_Resources_BootAndLiveSync(t *testing.T) {
@@ -156,7 +157,10 @@ func authedWriteServer(t *testing.T) *mcp.ClientSession {
 	be := fakeWriteBackend(t)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
-	return connect(t, newServer(client, true, domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}, true))
+	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	mgr, h := managerFor(t, client, proj)
+	_ = mgr
+	return connect(t, h.srv)
 }
 
 func TestLoopback_WriteTools_Advertised(t *testing.T) {
@@ -296,7 +300,7 @@ func TestLoopback_Resources_OutOfScopeCreateNotRegistered(t *testing.T) {
 }
 
 func TestLoopback_WriteTools_DegradedRequireLogin(t *testing.T) {
-	sess := connect(t, newServer(nil, false, domain.Project{}, false))
+	sess := degradedSession(t)
 	for _, tc := range []struct {
 		name string
 		args map[string]any
@@ -309,5 +313,53 @@ func TestLoopback_WriteTools_DegradedRequireLogin(t *testing.T) {
 		if !res.IsError || !strings.Contains(got, "Login required") {
 			t.Fatalf("%s degraded = (IsError=%v, %q), want Login required", tc.name, res.IsError, got)
 		}
+	}
+}
+
+// TestLoopback_Reauth_TransparentRetryOn401 proves mgr.Do resets+rebuilds+retries
+// within a single tool call when the backend returns a 401 on the first request.
+func TestLoopback_Reauth_TransparentRetryOn401(t *testing.T) {
+	var mu sync.Mutex
+	first := true
+	p1 := "p1"
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", Email: "dev@x"})
+	})
+	mux.HandleFunc("GET /api/v1/documents", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		f := first
+		first = false
+		mu.Unlock()
+		if f {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]domain.Document{{ID: "d1", OwnerID: "u1", ProjectID: &p1, Type: domain.DocMemory, Path: "p", Title: "t"}})
+	})
+	be := httptest.NewServer(mux)
+	t.Cleanup(be.Close)
+
+	builds := 0
+	mgr := newAuthManager(func(context.Context) (*apiclient.Client, error) {
+		builds++
+		return apiclient.New(be.URL, "tok"), nil
+	}, nil)
+	srv, h := newServerH(mgr)
+	mgr.onAuth = nil // seed resolution directly; fixture lacks V0 endpoints
+	h.projMu.Lock()
+	h.proj, h.matched = domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}, true
+	h.projMu.Unlock()
+	sess := connect(t, srv)
+
+	res, out := callText(t, sess, "flow_list_docs", map[string]any{})
+	if res.IsError {
+		t.Fatalf("list after transparent reauth = error %q, want success", out)
+	}
+	if !strings.Contains(out, "d1") {
+		t.Fatalf("list = %q, want d1 after retry", out)
+	}
+	if builds < 2 {
+		t.Fatalf("builds = %d, want >= 2 (initial + rebuild on 401)", builds)
 	}
 }

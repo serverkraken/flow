@@ -9,24 +9,28 @@ import (
 	"os"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/serverkraken/flow/internal/domain"
 )
 
 func main() {
 	ctx := context.Background()
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	client, authed := bootClient(ctx, log)
-	var proj domain.Project
-	var matched bool
-	if authed {
-		proj, matched = resolveProject(ctx, client, log)
+	mgr := newBootManager()
+	srv, h := newServerH(mgr) // wires mgr.onAuth = h.postAuthInit
+	_ = h
+
+	// Eager warm: if a valid token is stored, this builds the client, fires the
+	// run-once post-auth init (resolve project + register resources), and logs
+	// who we are. Failures are expected when logged out — the server still starts
+	// and recovers on the first authed tool call.
+	if c, err := mgr.client(ctx); err != nil {
+		log.Warn("not authenticated at boot; tools will require login until `flow login`", "err", err)
+	} else if u, err := c.Whoami(ctx); err != nil {
+		log.Warn("token present but server rejected it; will retry lazily", "err", err)
+	} else {
+		log.Info("flow-mcp authenticated", "user", u.Email)
 	}
 
-	srv, h := newServerH(client, authed, proj, matched)
-	if err := h.registerResources(ctx); err != nil {
-		log.Warn("could not register document resources", "err", err)
-	}
 	if err := srv.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		log.Error("flow-mcp exited", "err", err)
 		os.Exit(1)

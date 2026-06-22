@@ -1,25 +1,11 @@
 package main
 
-import (
-	"context"
-	"log/slog"
+import "github.com/serverkraken/flow/internal/clientauth"
 
-	"github.com/serverkraken/flow/internal/adapter/apiclient"
-	"github.com/serverkraken/flow/internal/clientauth"
-)
-
-// bootClient builds the authenticated client and verifies the token against the
-// server. On any failure it returns authed=false so the server still starts and
-// every tool surfaces a clean "run flow login" message instead of crashing.
-func bootClient(ctx context.Context, log *slog.Logger) (*apiclient.Client, bool) {
-	client, err := clientauth.Client(ctx)
-	if err != nil {
-		log.Warn("not authenticated; tools will require login", "err", err)
-		return nil, false
-	}
-	if _, err := client.Whoami(ctx); err != nil {
-		log.Warn("token rejected by server; tools will require login", "err", err)
-		return client, false
-	}
-	return client, true
+// newBootManager builds the authManager whose client is the shared clientauth
+// builder (it re-reads the stored token on each build, so a fresh `flow login`
+// is picked up without a reconnect). onAuth is wired by newServerH; auth is
+// driven lazily by the first tool call (and an eager warm in main).
+func newBootManager() *authManager {
+	return newAuthManager(clientauth.Client, nil)
 }

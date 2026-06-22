@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -20,9 +21,6 @@ type searchDocsIn struct {
 }
 
 func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in searchDocsIn) (*mcp.CallToolResult, any, error) {
-	if !h.authed {
-		return h.loginRequired(), nil, nil
-	}
 	if strings.TrimSpace(in.Query) == "" {
 		return errorResult("query is required"), nil, nil
 	}
@@ -30,25 +28,33 @@ func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in se
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
 	}
-	sc, err := h.resolveScope(ctx, in.Project)
+	var out string
+	err = h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		sc, err := h.resolveScope(ctx, in.Project)
+		if err != nil {
+			return err
+		}
+		hits, err := c.SearchScoped(ctx, in.Query, sc.projectID, in.Tags...)
+		if err != nil {
+			return err
+		}
+		if typ != "" {
+			hits = filterHitsByType(hits, typ)
+		}
+		limit := in.Limit
+		if limit <= 0 {
+			limit = defaultSearchLimit
+		}
+		if len(hits) > limit {
+			hits = hits[:limit]
+		}
+		out = formatSearchHits(hits, in.Query, sc)
+		return nil
+	})
 	if err != nil {
-		return errorResult(err.Error()), nil, nil
+		return h.resultErr(err), nil, nil
 	}
-	hits, err := h.client.SearchScoped(ctx, in.Query, sc.projectID, in.Tags...)
-	if err != nil {
-		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
-	}
-	if typ != "" {
-		hits = filterHitsByType(hits, typ)
-	}
-	limit := in.Limit
-	if limit <= 0 {
-		limit = defaultSearchLimit
-	}
-	if len(hits) > limit {
-		hits = hits[:limit]
-	}
-	return textResult(formatSearchHits(hits, in.Query, sc)), nil, nil
+	return textResult(out), nil, nil
 }
 
 type listDocsIn struct {
@@ -58,25 +64,30 @@ type listDocsIn struct {
 }
 
 func (h *handlers) listDocs(ctx context.Context, _ *mcp.CallToolRequest, in listDocsIn) (*mcp.CallToolResult, any, error) {
-	if !h.authed {
-		return h.loginRequired(), nil, nil
-	}
 	typ, err := checkType(in.Type)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
 	}
-	sc, err := h.resolveScope(ctx, in.Project)
+	var out string
+	err = h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		sc, err := h.resolveScope(ctx, in.Project)
+		if err != nil {
+			return err
+		}
+		docs, err := c.ListDocumentsScoped(ctx, sc.projectID, in.Tags...)
+		if err != nil {
+			return err
+		}
+		if typ != "" {
+			docs = filterDocsByType(docs, typ)
+		}
+		out = formatDocList(docs, sc)
+		return nil
+	})
 	if err != nil {
-		return errorResult(err.Error()), nil, nil
+		return h.resultErr(err), nil, nil
 	}
-	docs, err := h.client.ListDocumentsScoped(ctx, sc.projectID, in.Tags...)
-	if err != nil {
-		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
-	}
-	if typ != "" {
-		docs = filterDocsByType(docs, typ)
-	}
-	return textResult(formatDocList(docs, sc)), nil, nil
+	return textResult(out), nil, nil
 }
 
 type getDocIn struct {
@@ -85,22 +96,24 @@ type getDocIn struct {
 }
 
 func (h *handlers) getDoc(ctx context.Context, _ *mcp.CallToolRequest, in getDocIn) (*mcp.CallToolResult, any, error) {
-	if !h.authed {
-		return h.loginRequired(), nil, nil
-	}
-	sc, err := h.resolveScope(ctx, "") // path lookups use the cwd-resolved default scope
+	var out string
+	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		sc, _ := h.resolveScope(ctx, "") // path lookups use the cwd-resolved default scope
+		id, err := h.resolveDocRef(ctx, c, in.ID, in.Path, sc)
+		if err != nil {
+			return err
+		}
+		d, err := c.GetDocument(ctx, id)
+		if err != nil {
+			return err
+		}
+		out = formatDoc(d, h.projectName(ctx, d.ProjectID))
+		return nil
+	})
 	if err != nil {
-		return errorResult(err.Error()), nil, nil
+		return h.resultErr(err), nil, nil
 	}
-	id, err := h.resolveDocRef(ctx, in.ID, in.Path, sc)
-	if err != nil {
-		return errorResult(err.Error()), nil, nil
-	}
-	d, err := h.client.GetDocument(ctx, id)
-	if err != nil {
-		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
-	}
-	return textResult(formatDoc(d, h.projectName(ctx, d.ProjectID))), nil, nil
+	return textResult(out), nil, nil
 }
 
 type listTagsIn struct {
@@ -108,27 +121,32 @@ type listTagsIn struct {
 }
 
 func (h *handlers) listTags(ctx context.Context, _ *mcp.CallToolRequest, in listTagsIn) (*mcp.CallToolResult, any, error) {
-	if !h.authed {
-		return h.loginRequired(), nil, nil
-	}
-	sc, err := h.resolveScope(ctx, in.Project)
-	if err != nil {
-		return errorResult(err.Error()), nil, nil
-	}
-	var tags []domain.TagCount
-	if sc.projectID == nil { // global → the efficient owner-wide tag-count endpoint
-		tags, err = h.client.Tags(ctx)
-	} else { // scoped (a project, or "none") → aggregate over the scoped documents
-		var docs []domain.Document
-		docs, err = h.client.ListDocumentsScoped(ctx, sc.projectID)
-		if err == nil {
-			tags = domain.CollectTags(docs)
+	var out string
+	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		sc, err := h.resolveScope(ctx, in.Project)
+		if err != nil {
+			return err
 		}
-	}
+		var tags []domain.TagCount
+		if sc.projectID == nil { // global → the efficient owner-wide tag-count endpoint
+			tags, err = c.Tags(ctx)
+		} else { // scoped (a project, or "none") → aggregate over the scoped documents
+			var docs []domain.Document
+			docs, err = c.ListDocumentsScoped(ctx, sc.projectID)
+			if err == nil {
+				tags = domain.CollectTags(docs)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		out = formatTags(tags, sc)
+		return nil
+	})
 	if err != nil {
-		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
+		return h.resultErr(err), nil, nil
 	}
-	return textResult(formatTags(tags, sc)), nil, nil
+	return textResult(out), nil, nil
 }
 
 type backlinksIn struct {
@@ -137,32 +155,34 @@ type backlinksIn struct {
 }
 
 func (h *handlers) backlinks(ctx context.Context, _ *mcp.CallToolRequest, in backlinksIn) (*mcp.CallToolResult, any, error) {
-	if !h.authed {
-		return h.loginRequired(), nil, nil
-	}
-	sc, err := h.resolveScope(ctx, "")
-	if err != nil {
-		return errorResult(err.Error()), nil, nil
-	}
-	id, err := h.resolveDocRef(ctx, in.ID, in.Path, sc)
-	if err != nil {
-		return errorResult(err.Error()), nil, nil
-	}
-	refs, err := h.client.Backlinks(ctx, id)
-	if err != nil {
-		return errorResult(fmt.Sprintf("flow server error: %v", err)), nil, nil
-	}
 	ref := strings.TrimSpace(in.ID)
 	if ref == "" {
 		ref = strings.TrimSpace(in.Path)
 	}
-	return textResult(formatBacklinks(refs, ref)), nil, nil
+	var out string
+	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		sc, _ := h.resolveScope(ctx, "")
+		id, err := h.resolveDocRef(ctx, c, in.ID, in.Path, sc)
+		if err != nil {
+			return err
+		}
+		refs, err := c.Backlinks(ctx, id)
+		if err != nil {
+			return err
+		}
+		out = formatBacklinks(refs, ref)
+		return nil
+	})
+	if err != nil {
+		return h.resultErr(err), nil, nil
+	}
+	return textResult(out), nil, nil
 }
 
 // resolveDocRef turns a tool's id/path arguments into a document id. Exactly one
 // of id or path must be set. A path is looked up within the given scope; a path
 // matching zero or multiple documents is an actionable error (never a silent miss).
-func (h *handlers) resolveDocRef(ctx context.Context, id, path string, sc scope) (string, error) {
+func (h *handlers) resolveDocRef(ctx context.Context, c *apiclient.Client, id, path string, sc scope) (string, error) {
 	id, path = strings.TrimSpace(id), strings.TrimSpace(path)
 	switch {
 	case id != "" && path != "":
@@ -172,7 +192,7 @@ func (h *handlers) resolveDocRef(ctx context.Context, id, path string, sc scope)
 	case path == "":
 		return "", fmt.Errorf("pass either id or path")
 	}
-	docs, err := h.client.ListDocumentsScoped(ctx, sc.projectID)
+	docs, err := c.ListDocumentsScoped(ctx, sc.projectID)
 	if err != nil {
 		return "", fmt.Errorf("flow server error: %v", err)
 	}

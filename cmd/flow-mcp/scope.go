@@ -25,9 +25,9 @@ type scope struct {
 func (h *handlers) resolveScope(ctx context.Context, project string) (scope, error) {
 	switch p := strings.TrimSpace(project); p {
 	case "":
-		if h.matched {
-			id := h.proj.ID
-			return scope{projectID: &id, label: "in project " + h.proj.Name}, nil
+		if proj, matched := h.resolved(); matched {
+			id := proj.ID
+			return scope{projectID: &id, label: "in project " + proj.Name}, nil
 		}
 		return scope{projectID: nil, label: "across all projects (no project is bound to this directory — use flow_bind_project)"}, nil
 	case "global":

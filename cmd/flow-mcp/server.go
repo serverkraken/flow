@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"log/slog"
+	"os"
 	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -12,41 +15,39 @@ import (
 const serverName = "flow-mcp"
 const serverVersion = "0.1.0"
 
-// handlers carries the dependencies every tool needs: the authenticated client,
-// whether auth succeeded at boot, the cwd-resolved project, and a lazily-fetched
-// project-ref cache used to resolve explicit `project` arguments (slug/name/id).
+// handlers carries the dependencies every tool needs: the authManager (which
+// owns the authenticated client and recovery lifecycle), the cwd-resolved
+// project (written once by onAuth under projMu), and a lazily-fetched
+// project-ref cache used to resolve explicit `project` arguments.
 type handlers struct {
-	client  *apiclient.Client
-	authed  bool
+	mgr *authManager
+	srv *mcp.Server
+
+	// resolved-project state, written once by onAuth under projMu.
 	proj    domain.Project
 	matched bool
 
-	// srv is the MCP server this handlers instance is wired to; used by resource
-	// helpers to call AddResource/RemoveResources. Set by newServerH.
-	srv *mcp.Server
-
-	// project-ref cache, guarded by projMu. listProjects is the fetch seam
-	// (defaults to client.ListProjects; overridable in unit tests).
+	// project-ref cache (2b), guarded by projMu. listProjects fetches via the
+	// manager's current client so a rebuild is always reflected.
 	projMu       sync.Mutex
 	projects     []domain.Project
 	projFetched  bool
 	listProjects func(ctx context.Context) ([]domain.Project, error)
 }
 
-// newServer builds the MCP server and registers the spine's tools. Kept
-// dependency-injected (no global state, no I/O) so loopback tests can drive it.
-func newServer(client *apiclient.Client, authed bool, proj domain.Project, matched bool) *mcp.Server {
-	s, _ := newServerH(client, authed, proj, matched)
-	return s
-}
-
-// newServerH is newServer but also returns the handlers it wired — used by
-// main (for resource registration) and tests that need the live *handlers.
-func newServerH(client *apiclient.Client, authed bool, proj domain.Project, matched bool) (*mcp.Server, *handlers) {
-	h := &handlers{client: client, authed: authed, proj: proj, matched: matched}
-	if client != nil {
-		h.listProjects = client.ListProjects
+// newServerH builds the server + handlers and returns both. It also sets
+// mgr.onAuth to this handlers' run-once post-auth init and h.srv to the server,
+// and wires the project-ref fetch seam through the manager.
+func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
+	h := &handlers{mgr: mgr}
+	h.listProjects = func(ctx context.Context) ([]domain.Project, error) {
+		c, err := mgr.client(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return c.ListProjects(ctx)
 	}
+	mgr.onAuth = h.postAuthInit
 	s := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	h.srv = s
 	mcp.AddTool(s, &mcp.Tool{
@@ -87,6 +88,44 @@ func newServerH(client *apiclient.Client, authed bool, proj domain.Project, matc
 	}, h.deleteDoc)
 	return s, h
 }
+
+// resolved returns the project + matched flag under the projMu lock, safe for
+// concurrent access since onAuth may write these during a live session.
+func (h *handlers) resolved() (domain.Project, bool) {
+	h.projMu.Lock()
+	defer h.projMu.Unlock()
+	return h.proj, h.matched
+}
+
+// resultErr maps a backend error to a tool result: errGuard errors render
+// verbatim; errLoginRequired → the standard login-required message; anything
+// else → a generic actionable error.
+func (h *handlers) resultErr(err error) *mcp.CallToolResult {
+	var g errGuard
+	if errors.As(err, &g) {
+		return errorResult(g.Error())
+	}
+	if errors.Is(err, errLoginRequired) {
+		return h.loginRequired()
+	}
+	return errorResult("flow server error: " + err.Error())
+}
+
+// postAuthInit runs once on the first successful auth (mgr.onAuth): resolve the
+// cwd→project, then register the project's documents as resources.
+func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
+	proj, matched := resolveProject(ctx, c, mcpLog())
+	h.projMu.Lock()
+	h.proj, h.matched = proj, matched
+	h.projMu.Unlock()
+	if err := h.registerResources(ctx, c); err != nil {
+		mcpLog().Warn("could not register document resources", "err", err)
+	}
+}
+
+// mcpLog returns a stderr logger for use by the MCP server. stdout is owned
+// by StdioTransport for the JSON-RPC stream.
+func mcpLog() *slog.Logger { return slog.New(slog.NewTextHandler(os.Stderr, nil)) }
 
 // textResult wraps a plain-text success result.
 func textResult(s string) *mcp.CallToolResult {
