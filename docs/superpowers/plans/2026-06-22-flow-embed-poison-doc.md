@@ -4,7 +4,7 @@
 
 **Goal:** Make the flow-server embed worker actually embed every document (remove the two self-inflicted deterministic failure modes) and survive the rest gracefully — no head-of-line block, no retry-storm, with per-doc backoff → dead-letter visible and retryable in the WebUI.
 
-**Architecture:** Two layers. Layer 1 removes the poison sources: `chunk.Split` stops emitting empty chunks, and `embed.Ollama` sub-batches inputs so a large doc never trips the fixed 60s timeout. Layer 2 is the safety net: a persisted `document_embed_failures` side table drives per-doc capped backoff → dead-letter; the worker classifies transient (Ollama down/misconfigured) vs per-doc errors via `ports.ErrEmbedTransient`, continues past per-doc failures, and the WebUI shows status + a Retry button.
+**Architecture:** Two layers. Layer 1 removes the poison sources: `chunk.Split` stops emitting empty chunks, and `embed.Ollama` sub-batches inputs so a large doc never trips the fixed 60s timeout. Layer 2 is the safety net: a persisted `document_embed_failures` side table drives per-doc capped backoff → dead-letter; the worker classifies transient (Ollama down/misconfigured) vs per-doc errors via `ports.ErrEmbedTransient`, continues past per-doc failures, and the WebUI shows status + a Retry button. A small read-path guard (B4) bounds the search query-embed with a short timeout so `?q=` degrades to keyword-only fast when the backend is slow.
 
 **Tech Stack:** Go, hexagonal layout (`domain` / `ports` / `adapter` / `usecase` / `worker`), Postgres via pgx + goose migrations, templ + htmx WebUI, bubbletea/lipgloss elsewhere (not touched here).
 
@@ -1586,7 +1586,117 @@ git commit -m "feat(webui): embed status badge + POST /docs/{id}/reembed retry (
 
 ---
 
-### Task 9: Wiring verification + done-gate
+### Task 9: Search — fast query-embed degrade (B4)
+
+**Files:**
+- Modify: `internal/usecase/search_documents.go`
+- Create: `internal/usecase/search_documents_test.go`
+
+**Interfaces:**
+- Consumes: `ports.Embedder`, `ports.DocumentStore`.
+- Produces: `usecase.SearchDocuments` gains `QueryEmbedTimeout time.Duration` (`<=0` → 3s). The query-embed call is bounded by this timeout; on timeout/error `Execute` returns keyword-only (the existing degrade path).
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/usecase/search_documents_test.go`:
+
+```go
+package usecase_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
+	"github.com/serverkraken/flow/internal/usecase"
+)
+
+// blockingEmbedder blocks until the context is cancelled — a hung/slow Ollama.
+type blockingEmbedder struct{}
+
+func (blockingEmbedder) Embed(ctx context.Context, _ []string) ([][]float32, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func TestSearchDocuments_QueryEmbedTimeout_DegradesFast(t *testing.T) {
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	_, _ = docs.Create(ctx, domain.Document{ID: "d", OwnerID: "u", Type: domain.DocFree, Path: "d", Title: "Alpha", Body: "alpha body"})
+
+	uc := usecase.SearchDocuments{Docs: docs, Embedder: blockingEmbedder{}, QueryEmbedTimeout: 50 * time.Millisecond}
+	start := time.Now()
+	_, err := uc.Execute(ctx, "u", "alpha", nil, nil)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("search must degrade to keyword-only, got err %v", err)
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("query embed must time out fast and degrade, took %v", elapsed)
+	}
+}
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `go test ./internal/usecase/ -run TestSearchDocuments_QueryEmbedTimeout -v`
+Expected: FAIL — `unknown field QueryEmbedTimeout` (compile error).
+
+- [ ] **Step 3: Implement the bounded query embed**
+
+In `internal/usecase/search_documents.go`: add `"time"` to imports, add the field + default constant, and wrap the query embed in a timeout context.
+
+Struct (add the field):
+
+```go
+type SearchDocuments struct {
+	Docs              ports.DocumentStore
+	Embedder          ports.Embedder // optional; nil → keyword-only
+	Limit             int            // candidates per semantic arm; <=0 → 50
+	QueryEmbedTimeout time.Duration  // <=0 → defaultQueryEmbedTimeout
+	Log               *slog.Logger   // optional
+}
+
+// defaultQueryEmbedTimeout bounds the query-embed call so search degrades to
+// keyword-only quickly when the embed backend is slow or down.
+const defaultQueryEmbedTimeout = 3 * time.Second
+```
+
+Replace the embed call in `Execute` (the `vecs, err := uc.Embedder.Embed(ctx, []string{q})` block):
+
+```go
+	timeout := uc.QueryEmbedTimeout
+	if timeout <= 0 {
+		timeout = defaultQueryEmbedTimeout
+	}
+	embedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	vecs, err := uc.Embedder.Embed(embedCtx, []string{q})
+	if err != nil || len(vecs) == 0 {
+		uc.warn("semantic search degraded; keyword-only", err)
+		return keyword, nil
+	}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `go test ./internal/usecase/ -run TestSearchDocuments -v`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add internal/usecase/search_documents.go internal/usecase/search_documents_test.go
+git commit -m "feat(search): bound query embed (3s) → fast keyword-only degrade (Säule B B4)" # (+ standard trailers)
+```
+
+(`main.go` needs no change — the zero `QueryEmbedTimeout` field takes the 3s default.)
+
+---
+
+### Task 10: Wiring verification + done-gate
 
 **Files:**
 - Verify only (no new code unless a gap is found).
@@ -1625,6 +1735,7 @@ Document the outcome in the final commit message or a follow-up note:
 2. **Layer 1 proof (calls now go through):** create a doc with an **empty title** and a body containing a long run of spaces between two words; create a second, large doc (paste a few hundred lines). Wait one embed interval. Both become searchable via semantic search (`?q=` with a semantic term) — neither stalls. Previously the empty-title/whitespace doc would have thrown a vector-count mismatch and the large doc could time out.
 3. **Layer 2 proof (resilience):** `docker stop` the Ollama container (or point `FLOW_OLLAMA_HOST` at a dead port), create a doc → server logs show no storm and the worker does not wedge; restart Ollama → the doc embeds on the next tick.
 4. **WebUI retry:** for any doc, confirm the status chip renders; (dead-letter is covered by unit/pgstore/httpserver tests) confirm the Retry button on a `failed` doc posts to `/docs/{id}/reembed` and the chip swaps to "embedding queued".
+5. **Search degrade (B4):** with Ollama stopped, run a `?q=` search and confirm it returns keyword-only results in ~3s (not ~60s).
 
 - [ ] **Step 5: Final commit / branch note**
 
@@ -1639,7 +1750,7 @@ git commit --allow-empty -m "chore(flow-embed): Säule B done-gate verified (CI 
 ## Self-Review
 
 **Spec coverage:**
-- §3.1 empty-chunk filter → Task 1. §3.2 sub-batching → Task 2. §3.7 classification + §3.4 `ErrEmbedTransient` → Task 3. §3.3 migration + §3.4 `StaleDoc`/sig → Task 4. §3.5 `EmbedStatus` + §3.8 pgstore methods + `ReplaceChunks` clear → Task 5. §3.6 drain/backoff/policy → Task 6. §3.9 `RetryEmbedding` (+ status read) → Task 7. §3.9 WebUI badge + route + §3.10 wiring → Task 8. §6 done-gate → Task 9. All spec sections map to a task.
+- §3.1 empty-chunk filter → Task 1. §3.2 sub-batching → Task 2. §3.7 classification + §3.4 `ErrEmbedTransient` → Task 3. §3.3 migration + §3.4 `StaleDoc`/sig → Task 4. §3.5 `EmbedStatus` + §3.8 pgstore methods + `ReplaceChunks` clear → Task 5. §3.6 drain/backoff/policy → Task 6. §3.9 `RetryEmbedding` (+ status read) → Task 7. §3.9 WebUI badge + route + §3.10 wiring → Task 8. §3.11 search query-embed degrade (B4) → Task 9. §6 done-gate → Task 10. All spec sections map to a task.
 - `domain.EmbedState` constants used in Tasks 5–8 are defined once (Task 5 Step 1).
 - `Execute` (not `Exec`) method name matches the codebase convention (`GetDocument.Execute`) — used consistently in Tasks 7–8.
 - `EmbedPolicy` ctor arg order `(docs, e, interval, batch, pol, log)` is identical in the constructor (Task 6 Step 5), the test call sites (Task 6 Step 6a), and `main.go` (Task 6 Step 7, Task 8 Step 5).

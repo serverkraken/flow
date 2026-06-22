@@ -317,6 +317,16 @@ func (uc RetryEmbedding) Exec(ctx context.Context, ownerID, docID string) error 
 - Construct `usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker}` and add it
   to the handlers struct; mount `POST /docs/{id}/reembed`.
 
+#### 3.11 Search: fast query-embed degrade (B4)
+
+`SearchDocuments.Execute` embeds the query (`Embedder.Embed(ctx, []string{q})`) on the
+request context before fusing the semantic + keyword arms; it already degrades to
+keyword-only when the embed errors, but today that only fires after the Ollama client's
+60s timeout, so `?q=` hangs when Ollama is slow. Bound the query embed with a short timeout
+(`QueryEmbedTimeout`, default **3s**) so search degrades to keyword-only almost immediately.
+With Layer 1 the worker no longer pins Ollama, so this is mainly defensive — a small,
+self-contained guard on the read path. File: `internal/usecase/search_documents.go`.
+
 ## 4. File layout (Keine Monolithen)
 
 ```
@@ -330,6 +340,7 @@ internal/domain/embed_status.go                        # NEW: EmbedState/EmbedSt
 internal/worker/embed_worker.go                        # drain refactor + EmbedPolicy + clock
 internal/worker/backoff.go                             # NEW pure backoff (+ _test)
 internal/usecase/retry_embedding.go                    # NEW RetryEmbedding usecase (+ _test)
+internal/usecase/search_documents.go                   # B4: 3s query-embed timeout → fast keyword degrade
 internal/adapter/httpserver/webui_docs.go              # handleWebDocReembed + status in view
 internal/adapter/httpserver/server.go                  # mount POST /docs/{id}/reembed
 internal/adapter/webui/docs.templ                      # status badge + Retry button
@@ -354,6 +365,8 @@ cmd/flow-server/main.go                                # EmbedPolicy + RetryEmbe
   `EmbedStatus` derives each of the four states; `ClearEmbedFailure` restores eligibility.
 - **httpserver:** `POST /docs/{id}/reembed` exists, owner-scoped, kicks the notifier; the doc
   view renders each status.
+- **search (B4):** a blocking embedder + a tiny `QueryEmbedTimeout` → `Execute` returns
+  keyword-only quickly (does not wait for the backend's full timeout).
 - `make ci` green at/above the current coverage gate (lint = `golangci-lint run`; ST1005:
   error strings lowercase, no trailing punctuation).
 
@@ -373,7 +386,9 @@ cmd/flow-server/main.go                                # EmbedPolicy + RetryEmbe
    (that is the goal), so it is verified by the worker unit tests (per-doc error → backoff →
    `dead` at `maxAttempts`) and the pgstore/httpserver tests; the live gate confirms the
    **Retry** button visibly clears state and re-queues a doc to `pending`.
-5. **Deploy** (shared with Säule A's post-merge step if landed together): `:rebuild` image
+5. **Live — Search degrade (B4):** with Ollama stopped, a `?q=` search returns keyword-only
+   in ~3s (not ~60s).
+6. **Deploy** (shared with Säule A's post-merge step if landed together): `:rebuild` image
    build → homelab-study digest bump → ArgoCD sync.
 
 ## 7. Out of scope / sequencing
@@ -381,4 +396,5 @@ cmd/flow-server/main.go                                # EmbedPolicy + RetryEmbe
 Säule A (durable auth) is independent and already implemented; this work may land and deploy
 together with it (one digest bump) or separately. No background keep-alive, no model change,
 no CLI/TUI surface, no live SSE embed-completion push. Paragraph-aware chunking remains a
-possible future refinement.
+possible future refinement. Ollama infra/capacity (the homelab-study Ollama deployment, "B5")
+is a separate infra ticket, not part of this code change.
