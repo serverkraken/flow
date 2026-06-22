@@ -30,6 +30,19 @@ func DocumentTypes() []DocumentType {
 	}
 }
 
+// HumanOwned reports whether documents of this type are authored by the human
+// (daily / project / free notes) rather than the agent. It drives flow-mcp's
+// write guard: mutating a human-owned document needs explicit confirmation.
+// Expressed as a positive set so any future (agent) type is unguarded by default.
+func (t DocumentType) HumanOwned() bool {
+	switch t {
+	case DocDaily, DocProject, DocFree:
+		return true
+	default:
+		return false
+	}
+}
+
 func (t DocumentType) valid() bool {
 	for _, v := range DocumentTypes() {
 		if t == v {
