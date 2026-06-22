@@ -61,6 +61,18 @@ func newServer(client *apiclient.Client, authed bool, proj domain.Project, match
 		Name:        "flow_backlinks",
 		Description: "List documents that link (via wikilinks) to a given document, by id or path. Navigates the memory graph.",
 	}, h.backlinks)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_create_doc",
+		Description: "Create a Kompendium document in the current project by default. Tags are set via YAML frontmatter in the body. Type must be one of: daily, project, free, agent, memory, instruction, skill, plan.",
+	}, h.createDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_update_doc",
+		Description: "Update a document's title and/or body by id (partial: omit a field to keep it). Modifying a human-owned note (daily/project/free) requires confirm=true.",
+	}, h.updateDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_delete_doc",
+		Description: "Delete a document by id. Deleting a human-owned note (daily/project/free) requires confirm=true.",
+	}, h.deleteDoc)
 	return s
 }
 
