@@ -3,19 +3,25 @@ package usecase
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
+// defaultQueryEmbedTimeout bounds the query-embed call so search degrades to
+// keyword-only quickly when the embed backend is slow or down.
+const defaultQueryEmbedTimeout = 3 * time.Second
+
 // SearchDocuments runs a ranked keyword search (FTS + fuzzy) and, when an Embedder
 // is configured and reachable, fuses it with a semantic (vector) arm via RRF.
 // If the Embedder errors (e.g. Ollama down) the search degrades to keyword-only.
 type SearchDocuments struct {
-	Docs     ports.DocumentStore
-	Embedder ports.Embedder // optional; nil → keyword-only
-	Limit    int            // candidates per semantic arm; <=0 → 50
-	Log      *slog.Logger   // optional
+	Docs              ports.DocumentStore
+	Embedder          ports.Embedder // optional; nil → keyword-only
+	Limit             int            // candidates per semantic arm; <=0 → 50
+	QueryEmbedTimeout time.Duration  // <=0 → defaultQueryEmbedTimeout
+	Log               *slog.Logger   // optional
 }
 
 func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
@@ -26,7 +32,13 @@ func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, projec
 	if uc.Embedder == nil {
 		return keyword, nil
 	}
-	vecs, err := uc.Embedder.Embed(ctx, []string{q})
+	timeout := uc.QueryEmbedTimeout
+	if timeout <= 0 {
+		timeout = defaultQueryEmbedTimeout
+	}
+	embedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	vecs, err := uc.Embedder.Embed(embedCtx, []string{q})
 	if err != nil || len(vecs) == 0 {
 		uc.warn("semantic search degraded; keyword-only", err)
 		return keyword, nil
