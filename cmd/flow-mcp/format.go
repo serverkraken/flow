@@ -81,6 +81,19 @@ func formatTags(tags []domain.TagCount, sc scope) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// formatProjects renders the project list as concise lines the model can read
+// to pick an existing project before binding.
+func formatProjects(ps []domain.Project) string {
+	if len(ps) == 0 {
+		return "No projects yet. Use flow_bind_project with create_name to make one."
+	}
+	var b strings.Builder
+	for _, p := range ps {
+		fmt.Fprintf(&b, "%s (%s) — %s\n", p.Name, p.Slug, p.ID)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
 // formatBacklinks renders inbound wikilink references to a document.
 func formatBacklinks(refs []domain.BacklinkRef, label string) string {
 	if len(refs) == 0 {

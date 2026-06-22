@@ -73,3 +73,19 @@ func TestFormatBacklinks(t *testing.T) {
 		t.Errorf("empty backlinks = %q, want a 'No documents link' message", empty)
 	}
 }
+
+func TestFormatProjects(t *testing.T) {
+	ps := []domain.Project{
+		{ID: "p1", Name: "Alpha", Slug: "alpha"},
+		{ID: "p2", Name: "Beta Project", Slug: "beta"},
+	}
+	got := formatProjects(ps)
+	for _, want := range []string{"Alpha", "alpha", "p1", "Beta Project", "beta", "p2"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("formatProjects missing %q in:\n%s", want, got)
+		}
+	}
+	if formatProjects(nil) == "" {
+		t.Fatal("formatProjects(nil) must return a non-empty 'no projects' message")
+	}
+}

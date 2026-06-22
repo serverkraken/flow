@@ -6,6 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // projectContextIn has no parameters.
@@ -38,4 +39,25 @@ func (h *handlers) projectContext(ctx context.Context, _ *mcp.CallToolRequest, _
 	}
 	msg := fmt.Sprintf("Project: %s (%s) — %d document(s) in scope. Resolved for this working directory.", proj.Name, proj.Slug, count)
 	return textResult(msg), nil, nil
+}
+
+// listProjectsIn has no parameters.
+type listProjectsIn struct{}
+
+// listProjectsTool lists all projects (id/name/slug) so the model can pick an
+// existing one before binding instead of duplicate-creating.
+func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest, _ listProjectsIn) (*mcp.CallToolResult, any, error) {
+	var ps []domain.Project
+	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		got, e := c.ListProjects(ctx)
+		if e != nil {
+			return e
+		}
+		ps = got
+		return nil
+	})
+	if err != nil {
+		return h.resultErr(err), nil, nil
+	}
+	return textResult(formatProjects(ps)), nil, nil
 }

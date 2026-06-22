@@ -86,6 +86,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Name:        "flow_delete_doc",
 		Description: "Delete a document by id. Deleting a human-owned note (daily/project/free) requires confirm=true.",
 	}, h.deleteDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_list_projects",
+		Description: "List all flow projects (id, name, slug). Use this to find an existing project before flow_bind_project, to avoid creating a duplicate.",
+	}, h.listProjectsTool)
 	return s, h
 }
 
