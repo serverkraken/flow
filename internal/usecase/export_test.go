@@ -29,6 +29,9 @@ func (f fakeProjectStore) Get(_ context.Context, _, id string) (domain.Project, 
 	}
 	return domain.Project{}, nil
 }
+func (f *fakeProjectStore) Update(_ context.Context, _ string, p domain.Project) (domain.Project, error) {
+	return p, nil
+}
 func (f *fakeProjectStore) SetRate(_ context.Context, _, _ string, rate *domain.Money) error {
 	f.setRate = rate
 	return nil
