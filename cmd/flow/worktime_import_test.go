@@ -141,6 +141,50 @@ func TestParseDayOffLine(t *testing.T) {
 	}
 }
 
+func TestRunWorktimeImport_DayOffs(t *testing.T) {
+	var added []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/dayoffs":
+			var in map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			added = append(added, in)
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := t.TempDir()
+	tsv := "# comment header\n" +
+		"2026-01-01\tholiday\tNeujahr\n" + // skipped (holiday)
+		"2026-04-29\tvacation\tJules Geburtstag\n" +
+		"2026-06-01\tsick\tKrank\n"
+	writeFile(t, dir, "worktime-dayoffs.tsv", tsv)
+
+	st, err := runWorktimeImport(context.Background(), c, dir, "Import", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.DayOffs != 2 {
+		t.Fatalf("DayOffs = %d, want 2", st.DayOffs)
+	}
+	if st.Skipped != 1 { // the holiday
+		t.Fatalf("Skipped = %d, want 1 (holiday)", st.Skipped)
+	}
+	if len(added) != 2 {
+		t.Fatalf("AddDayOffs calls = %d, want 2", len(added))
+	}
+	if added[0]["from"] != added[0]["to"] || added[0]["from"] != "2026-04-29" {
+		t.Fatalf("first dayoff from/to = %v/%v", added[0]["from"], added[0]["to"])
+	}
+	if added[0]["kind"] != "vacation" {
+		t.Fatalf("first dayoff kind = %v, want vacation", added[0]["kind"])
+	}
+}
+
 func TestParseLogLine(t *testing.T) {
 	// valid line: 08:16→16:18 = 28920s
 	e, ok, err := parseLogLine(5, "2026-05-04\t08:16\t16:18\t28920")

@@ -114,14 +114,53 @@ func absDur(d time.Duration) time.Duration {
 }
 
 // runWorktimeImport reads ~/worktime's files from dir and imports them.
-// Per-row failures are isolated and collected; the run continues. (Day-offs and
-// links are added in later tasks.)
+// Per-row failures are isolated and collected; the run continues. (Links are
+// added in a later task.)
 func runWorktimeImport(ctx context.Context, c *apiclient.Client, dir, projectName string, dryRun bool) (wtImportStats, error) {
 	var st wtImportStats
 	if err := importSessions(ctx, c, dir, projectName, dryRun, &st); err != nil {
 		return st, err
 	}
+	if err := importDayOffs(ctx, c, dir, dryRun, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+func importDayOffs(ctx context.Context, c *apiclient.Client, dir string, dryRun bool, st *wtImportStats) error {
+	raw, err := os.ReadFile(filepath.Join(dir, "worktime-dayoffs.tsv"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read worktime-dayoffs.tsv: %w", err)
+	}
+	for i, line := range strings.Split(string(raw), "\n") {
+		e, ok, perr := parseDayOffLine(i+1, line)
+		if perr != nil {
+			st.Failed++
+			st.Failures = append(st.Failures, fmt.Sprintf("worktime-dayoffs.tsv:%d: %v", i+1, perr))
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if e.Kind == domain.KindHoliday {
+			st.Skipped++ // computed from Bundesland, never stored
+			continue
+		}
+		if dryRun {
+			st.DayOffs++
+			continue
+		}
+		if derr := c.AddDayOffs(ctx, e.Date, e.Date, string(e.Kind), e.Label, e.TargetMin, false); derr != nil {
+			st.Failed++
+			st.Failures = append(st.Failures, fmt.Sprintf("worktime-dayoffs.tsv:%d: %v", e.Line, derr))
+			continue
+		}
+		st.DayOffs++
+	}
+	return nil
 }
 
 func importSessions(ctx context.Context, c *apiclient.Client, dir, projectName string, dryRun bool, st *wtImportStats) error {
