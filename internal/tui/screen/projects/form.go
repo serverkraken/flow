@@ -25,6 +25,10 @@ type FormAPI interface {
 
 var _ FormAPI = (*apiclient.Client)(nil)
 
+// The form is a literal text-entry surface — guard that it keeps satisfying
+// shell.TextCapturer so q/Esc stay field input instead of popping the route.
+var _ shell.TextCapturer = (*FormRoute)(nil)
+
 // formErrMsg carries an API error back to the Update loop from an async cmd.
 type formErrMsg struct{ err string }
 
@@ -128,6 +132,14 @@ func NewFormRoute(api FormAPI, pal theme.Palette, editing *domain.Project) *Form
 
 // CapturesInput implements shell.InputCapturer — form owns all keys.
 func (r *FormRoute) CapturesInput() bool { return true }
+
+// CapturesText implements shell.TextCapturer. The whole form is a text-entry
+// surface, so the shell must forward EVERY key — including q and Esc, which
+// grammar.Back also matches — to the form rather than treating them as global
+// back-keys. Without this, ResolveBack pops the pushed form on a q/Esc, so a
+// user could not type "q" into a field (e.g. an upstream URL with ?q=). The
+// form's own Esc handler then owns cancel.
+func (r *FormRoute) CapturesText() bool { return true }
 
 // FocusIdx exposes the current focus index (test seam).
 func (r *FormRoute) FocusIdx() int { return r.focusIdx }
