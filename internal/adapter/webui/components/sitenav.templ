@@ -1,0 +1,53 @@
+package components
+
+// NavItem is one navigation destination. LabelKey is an i18n key resolved at
+// render time; Glyph is a sense-bearing inline Unicode mark (aria-hidden).
+type NavItem struct {
+	Key, Href, LabelKey, Glyph string
+}
+
+// PrimaryNav is the locked top-level set (spec §16): Heute · Wissen · Projekte · Stats.
+func PrimaryNav() []NavItem {
+	return []NavItem{
+		{"today", "/", "nav.today", "▶"},
+		{"wissen", "/wissen", "nav.knowledge", "◆"},
+		{"projekte", "/projekte", "nav.projects", "●"},
+		{"stats", "/stats", "nav.stats", "▲"},
+	}
+}
+
+// SecondaryNav is the overflow set: Frei · Export · Einstellungen.
+func SecondaryNav() []NavItem {
+	return []NavItem{
+		{"frei", "/frei", "nav.dayoffs", "★"},
+		{"export", "/export", "nav.export", "▰"},
+		{"einstellungen", "/einstellungen", "nav.settings", "·"},
+	}
+}
+
+// SiteNav renders the desktop sidebar nav list; the item matching active is
+// marked aria-current and visually highlighted.
+templ SiteNav(active string) {
+	<nav class="flex-1 px-3 space-y-1" aria-label={ T(ctx, "nav.primary") }>
+		for _, l := range PrimaryNav() {
+			if l.Key == active {
+				<a href={ templ.SafeURL(l.Href) } aria-current="page"
+					class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+					<span class="w-5 text-center text-[.95rem]" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
+				</a>
+			} else {
+				<a href={ templ.SafeURL(l.Href) }
+					class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
+				</a>
+			}
+		}
+		<div class="my-2 border-t border-line2"></div>
+		for _, l := range SecondaryNav() {
+			<a href={ templ.SafeURL(l.Href) }
+				class="flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.9rem] font-medium text-muted hover:bg-sunken hover:text-ink transition-colors">
+				<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
+			</a>
+		}
+	</nav>
+}

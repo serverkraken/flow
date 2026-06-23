@@ -1,0 +1,67 @@
+package components
+
+// AppShell is the responsive page chrome: desktop sidebar (md+), mobile top
+// bar, mobile bottom-tab, and a main column with optional breadcrumb + subnav
+// slots above the content. Any slot component may be nil.
+templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
+	// ── Desktop sidebar (md+) ──
+	<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+		<div class="px-6 pt-7 pb-6 flex items-center justify-between">
+			<a href="/" class="inline-flex items-center gap-2.5" aria-label={ T(ctx, "app.name") }>
+				<span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+				<span class="font-display text-[1.45rem] font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
+			</a>
+			@ThemeToggle()
+		</div>
+		@SiteNav(active)
+		<div class="px-3 pb-5">
+			<form action="/auth/logout" method="post" hx-boost="false">
+				<button class="w-full text-left flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.85rem] text-muted hover:bg-sunken hover:text-ink transition-colors">
+					<span class="w-5 text-center text-faint" aria-hidden="true">›</span> { T(ctx, "nav.logout") }
+				</button>
+			</form>
+		</div>
+	</aside>
+	// ── Mobile top bar ──
+	<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+		<div class="flex items-center justify-between px-4 h-14">
+			<a href="/" class="inline-flex items-center gap-2" aria-label={ T(ctx, "app.name") }>
+				<span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+				<span class="font-display text-xl font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
+			</a>
+			@ThemeToggle()
+		</div>
+	</header>
+	// ── Main column ──
+	<main class="md:pl-[248px] pb-28 md:pb-12">
+		<div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+			if breadcrumb != nil {
+				@breadcrumb
+			}
+			if subnav != nil {
+				@subnav
+			}
+			@content
+		</div>
+	</main>
+	// ── Mobile bottom-tab ──
+	<nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-xl border-t border-line" aria-label={ T(ctx, "nav.primary") }>
+		<ul class="grid grid-cols-4">
+			for _, l := range PrimaryNav() {
+				<li>
+					if l.Key == active {
+						<a href={ templ.SafeURL(l.Href) } aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+							<span class="text-[1.1rem] leading-none" aria-hidden="true">{ l.Glyph }</span>
+							<span class="text-[.66rem] font-medium">{ T(ctx, l.LabelKey) }</span>
+						</a>
+					} else {
+						<a href={ templ.SafeURL(l.Href) } class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+							<span class="text-[1.1rem] leading-none" aria-hidden="true">{ l.Glyph }</span>
+							<span class="text-[.66rem] font-medium">{ T(ctx, l.LabelKey) }</span>
+						</a>
+					}
+				</li>
+			}
+		</ul>
+	</nav>
+}

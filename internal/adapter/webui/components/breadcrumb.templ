@@ -1,0 +1,25 @@
+package components
+
+// Crumb is one breadcrumb segment. A Crumb with empty Href is the current
+// page (rendered as text, aria-current).
+type Crumb struct {
+	Href, Label string
+}
+
+// Breadcrumb renders a "/"-separated trail; the last/empty-Href crumb is current.
+templ Breadcrumb(items []Crumb) {
+	<nav class="mb-4 text-[.82rem] text-muted" aria-label="Breadcrumb">
+		<ol class="flex items-center gap-1.5 flex-wrap">
+			for i, c := range items {
+				<li class="inline-flex items-center gap-1.5">
+					if c.Href != "" && i < len(items)-1 {
+						<a href={ templ.SafeURL(c.Href) } class="hover:text-ink transition-colors">{ c.Label }</a>
+						<span class="text-faint" aria-hidden="true">›</span>
+					} else {
+						<span class="text-ink font-medium" aria-current="page">{ c.Label }</span>
+					}
+				</li>
+			}
+		</ol>
+	</nav>
+}
