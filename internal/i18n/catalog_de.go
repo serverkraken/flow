@@ -39,6 +39,7 @@ func init() {
 			"page.next":           "Weiter",
 			"page.more":           "Mehr laden",
 			"page.label":          "Seitennavigation",
+			"page.page":           "Seite",
 			// empty states
 			"empty.default":       "Nichts vorhanden",
 			// confirm dialog defaults

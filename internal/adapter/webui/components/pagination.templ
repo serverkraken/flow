@@ -65,7 +65,7 @@ templ Pagination(p PageNav) {
 				</span>
 			}
 		</div>
-		<span class="text-[.82rem] text-muted tnum">Seite { strconv.Itoa(p.Page) } / { strconv.Itoa(p.Pages()) }</span>
+		<span class="text-[.82rem] text-muted tnum">{ T(ctx, "page.page") } { strconv.Itoa(p.Page) } / { strconv.Itoa(p.Pages()) }</span>
 		if p.HasNext() {
 			<a href={ templ.SafeURL(p.NextHref()) }
 				class="rounded-xl border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">

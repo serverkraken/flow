@@ -34,6 +34,7 @@ func init() {
 			"page.next":           "Next",
 			"page.more":           "Load more",
 			"page.label":          "Pagination",
+			"page.page":           "Page",
 			"empty.default":       "Nothing here",
 			"confirm.title":       "Are you sure?",
 			"confirm.deleteBody":  "This action cannot be undone.",
