@@ -2,12 +2,16 @@ package httpserver
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // projectsListData loads the owner's projects and applies the status filter.
@@ -146,4 +150,212 @@ func (s *Server) handleWebProjectsList(w http.ResponseWriter, r *http.Request) {
 	d := s.projectsListData(r, u)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.ProjectsFragment(d).Render(r.Context(), w)
+}
+
+// ---------------------------------------------------------------------------
+// Project form helpers
+// ---------------------------------------------------------------------------
+
+// parseRate reads the optional rate form fields. Blank amount → (nil, nil) =
+// "clear the rate". A malformed amount → error (re-rendered as a form error).
+func parseRate(amount, currency string) (*domain.Money, error) {
+	amount = strings.TrimSpace(amount)
+	if amount == "" {
+		return nil, nil
+	}
+	f, err := strconv.ParseFloat(amount, 64)
+	if err != nil || f < 0 {
+		return nil, fmt.Errorf("ungültiger Satz %q", amount)
+	}
+	cur := strings.TrimSpace(currency)
+	if cur == "" {
+		cur = "EUR"
+	}
+	return &domain.Money{Amount: int64(f*100 + 0.5), Currency: cur}, nil
+}
+
+func formValues(r *http.Request) webui.ProjectFormValues {
+	return webui.ProjectFormValues{
+		Name:         r.FormValue("name"),
+		Slug:         r.FormValue("slug"),
+		Description:  r.FormValue("description"),
+		UpstreamGit:  r.FormValue("upstreamGit"),
+		Status:       r.FormValue("status"),
+		Color:        r.FormValue("color"),
+		Glyph:        r.FormValue("glyph"),
+		RateAmount:   r.FormValue("rateAmount"),
+		RateCurrency: r.FormValue("rateCurrency"),
+	}
+}
+
+// orStatus defaults an empty status form value to "active".
+func orStatus(s string) string {
+	if s == "" {
+		return "active"
+	}
+	return s
+}
+
+// ---------------------------------------------------------------------------
+// Project form handlers
+// ---------------------------------------------------------------------------
+
+func (s *Server) handleWebProjectNew(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.ProjectForm(webui.ProjectFormData{
+		User: u.Username,
+		Vals: webui.ProjectFormValues{Status: "active"},
+	}, nil).Render(r.Context(), w)
+}
+
+func (s *Server) handleWebProjectCreate(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	vals := formValues(r)
+	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
+	reRender := func(msg string) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Error: msg, Vals: vals}, nil).Render(r.Context(), w)
+	}
+	if vals.Name == "" {
+		reRender("Name erforderlich")
+		return
+	}
+	if rerr != nil {
+		reRender(rerr.Error())
+		return
+	}
+	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateProject
+	p, err := s.CreateProject.Execute(r.Context(), u.ID, vals.Name, vals.Slug, vals.Color, vals.Glyph)
+	if err != nil {
+		reRender("Konnte Projekt nicht anlegen: " + err.Error())
+		return
+	}
+	// compose description/upstream/status (auto-syncs binding; validates upstream)
+	p, err = s.UpdateProject.Execute(r.Context(), u.ID, p.ID, usecase.UpdateProjectInput{
+		Name:        p.Name,
+		Slug:        p.Slug,
+		Color:       p.Color,
+		Glyph:       p.Glyph,
+		Description: vals.Description,
+		UpstreamGit: vals.UpstreamGit,
+		Status:      domain.ProjectStatus(orStatus(vals.Status)),
+	})
+	if err != nil {
+		reRender(err.Error())
+		return
+	}
+	if rate != nil {
+		_ = s.SetProjectRate.Execute(r.Context(), u.ID, p.ID, rate)
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
+}
+
+func (s *Server) handleWebProjectEdit(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	p, err := s.GetProject.Execute(r.Context(), u.ID, r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	vals := webui.ProjectFormValues{
+		Name:        p.Name,
+		Slug:        p.Slug,
+		Description: p.Description,
+		UpstreamGit: p.UpstreamGit,
+		Status:      string(p.Status),
+		Color:       p.Color,
+		Glyph:       p.Glyph,
+	}
+	if p.Rate != nil {
+		vals.RateAmount = fmt.Sprintf("%d.%02d", p.Rate.Amount/100, p.Rate.Amount%100)
+		vals.RateCurrency = p.Rate.Currency
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Vals: vals}, &p).Render(r.Context(), w)
+}
+
+func (s *Server) handleWebProjectUpdate(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	vals := formValues(r)
+	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
+	cur, gerr := s.GetProject.Execute(r.Context(), u.ID, id)
+	if gerr != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	reRender := func(msg string) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Error: msg, Vals: vals}, &cur).Render(r.Context(), w)
+	}
+	if rerr != nil {
+		reRender(rerr.Error())
+		return
+	}
+	p, err := s.UpdateProject.Execute(r.Context(), u.ID, id, usecase.UpdateProjectInput{
+		Name:        vals.Name,
+		Slug:        vals.Slug,
+		Color:       vals.Color,
+		Glyph:       vals.Glyph,
+		Description: vals.Description,
+		UpstreamGit: vals.UpstreamGit,
+		Status:      domain.ProjectStatus(orStatus(vals.Status)),
+	})
+	switch {
+	case errors.Is(err, ports.ErrProjectNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case errors.Is(err, domain.ErrInvalidProject) || errors.Is(err, domain.ErrInvalidUpstream):
+		reRender(err.Error())
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// rate==nil clears any existing rate
+	_ = s.SetProjectRate.Execute(r.Context(), u.ID, id, rate)
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	http.Redirect(w, r, "/projects/"+id, http.StatusSeeOther)
+}
+
+// handleWebProjectStatus applies a single status transition (full-replace
+// UpdateProject preserving current fields).
+func (s *Server) handleWebProjectStatus(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	cur, err := s.GetProject.Execute(r.Context(), u.ID, id)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	_, err = s.UpdateProject.Execute(r.Context(), u.ID, id, usecase.UpdateProjectInput{
+		Name:        cur.Name,
+		Slug:        cur.Slug,
+		Color:       cur.Color,
+		Glyph:       cur.Glyph,
+		Description: cur.Description,
+		UpstreamGit: cur.UpstreamGit,
+		Status:      domain.ProjectStatus(r.FormValue("status")),
+	})
+	if err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	http.Redirect(w, r, "/projects/"+id, http.StatusSeeOther)
+}
+
+func (s *Server) handleWebProjectDelete(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if err := s.DeleteProject.Execute(r.Context(), u.ID, id); err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	http.Redirect(w, r, "/projects", http.StatusSeeOther)
 }

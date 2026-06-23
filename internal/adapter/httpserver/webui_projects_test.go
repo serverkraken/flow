@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +97,92 @@ func getWebProjects(t *testing.T, ts *httptest.Server, c *http.Cookie, path stri
 		}
 	}
 	return res.StatusCode, string(b)
+}
+
+func postWebForm(t *testing.T, ts *httptest.Server, c *http.Cookie, path string, form url.Values) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(form.Encode()))
+	req.AddCookie(c)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+func TestWebProjectCreateEditStatusDelete(t *testing.T) {
+	ts, c, ps := newWebProjectsServer(t)
+
+	// CREATE with upstream + color + rate
+	res := postWebForm(t, ts, c, "/projects", url.Values{
+		"name": {"PM Web"}, "slug": {"pm-web"}, "description": {"# Hi"},
+		"upstreamGit": {"git@github.com:serverkraken/pmweb.git"}, "status": {"active"},
+		"color": {domain.ProjectColors[0]}, "glyph": {domain.ProjectGlyphs[0]},
+		"rateAmount": {"90.00"}, "rateCurrency": {"EUR"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create status %d, want 303", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	if !strings.HasPrefix(loc, "/projects/") {
+		t.Fatalf("create redirect = %q", loc)
+	}
+	id := strings.TrimPrefix(loc, "/projects/")
+
+	// the cockpit reflects the saved fields + rate earnings
+	_, body := getWeb(t, ts, c, "/projects/"+id)
+	if !strings.Contains(body, "PM Web") || !strings.Contains(body, "github.com/serverkraken/pmweb") {
+		t.Errorf("created project not reflected: %s", body)
+	}
+
+	// EDIT → pause + change description
+	res = postWebForm(t, ts, c, "/projects/"+id, url.Values{
+		"name": {"PM Web"}, "slug": {"pm-web"}, "description": {"changed"},
+		"upstreamGit": {"git@github.com:serverkraken/pmweb.git"}, "status": {"paused"},
+		"color": {domain.ProjectColors[0]}, "glyph": {""}, "rateAmount": {""}, "rateCurrency": {"EUR"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("edit status %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	p, _ := ps.Get(context.Background(), "u1", id)
+	if p.Status != domain.ProjectPaused {
+		t.Errorf("edit did not pause: %s", p.Status)
+	}
+	if p.Rate != nil {
+		t.Errorf("blank rateAmount must clear the rate, got %+v", p.Rate)
+	}
+
+	// STATUS action → archive
+	res = postWebForm(t, ts, c, "/projects/"+id+"/status", url.Values{"status": {"archived"}})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status action %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	p, _ = ps.Get(context.Background(), "u1", id)
+	if p.Status != domain.ProjectArchived {
+		t.Errorf("status action did not archive: %s", p.Status)
+	}
+
+	// CREATE with bad upstream → 400 + re-rendered form
+	res = postWebForm(t, ts, c, "/projects", url.Values{"name": {"Bad"}, "upstreamGit": {"garbage"}, "status": {"active"}})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad upstream status %d, want 400", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// DELETE
+	res = postWebForm(t, ts, c, "/projects/"+id+"/delete", url.Values{})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("delete status %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	if _, err := ps.Get(context.Background(), "u1", id); err == nil {
+		t.Errorf("project should be deleted")
+	}
 }
 
 func TestWebProjectCockpit(t *testing.T) {
