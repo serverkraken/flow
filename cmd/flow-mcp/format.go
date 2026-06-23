@@ -92,7 +92,11 @@ func formatProjects(ps []domain.Project) string {
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 	var b strings.Builder
 	for _, p := range sorted {
-		fmt.Fprintf(&b, "%s (%s) — %s\n", p.Name, p.Slug, p.ID)
+		line := fmt.Sprintf("%s (%s) — %s — %s", p.Name, p.Slug, p.Status, p.ID)
+		if p.UpstreamGit != "" {
+			line += " — " + p.UpstreamGit
+		}
+		b.WriteString(line + "\n")
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

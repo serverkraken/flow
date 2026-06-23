@@ -89,3 +89,15 @@ func TestFormatProjects(t *testing.T) {
 		t.Fatal("formatProjects(nil) must return a non-empty 'no projects' message")
 	}
 }
+
+func TestFormatProjectsIncludesStatus(t *testing.T) {
+	out := formatProjects([]domain.Project{
+		{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.ProjectPaused, UpstreamGit: "git@github.com:serverkraken/flow.git"},
+	})
+	if !strings.Contains(out, "paused") {
+		t.Errorf("formatProjects must include status, got %q", out)
+	}
+	if !strings.Contains(out, "github.com") {
+		t.Errorf("formatProjects must include upstream, got %q", out)
+	}
+}

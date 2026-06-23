@@ -40,7 +40,11 @@ func (h *handlers) projectContext(ctx context.Context, _ *mcp.CallToolRequest, _
 	if err != nil {
 		return h.resultErr(err), nil, nil
 	}
-	msg := fmt.Sprintf("Project: %s (%s) — %d document(s) in scope. Resolved for this working directory.", proj.Name, proj.Slug, count)
+	msg := fmt.Sprintf("Project: %s (%s) — status %s — %d document(s) in scope.", proj.Name, proj.Slug, proj.Status, count)
+	if proj.UpstreamGit != "" {
+		msg += " Upstream: " + proj.UpstreamGit + "."
+	}
+	msg += " Resolved for this working directory."
 	return textResult(msg), nil, nil
 }
 
