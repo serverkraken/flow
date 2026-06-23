@@ -114,8 +114,7 @@ func absDur(d time.Duration) time.Duration {
 }
 
 // runWorktimeImport reads ~/worktime's files from dir and imports them.
-// Per-row failures are isolated and collected; the run continues. (Links are
-// added in a later task.)
+// Per-row failures are isolated and collected; the run continues.
 func runWorktimeImport(ctx context.Context, c *apiclient.Client, dir, projectName string, dryRun bool) (wtImportStats, error) {
 	var st wtImportStats
 	if err := importSessions(ctx, c, dir, projectName, dryRun, &st); err != nil {
@@ -124,7 +123,33 @@ func runWorktimeImport(ctx context.Context, c *apiclient.Client, dir, projectNam
 	if err := importDayOffs(ctx, c, dir, dryRun, &st); err != nil {
 		return st, err
 	}
+	if err := importLinks(dir, &st); err != nil {
+		return st, err
+	}
 	return st, nil
+}
+
+// importLinks parses worktime-links.tsv but writes nothing: the day↔daily-doc
+// relationship is already encoded by the daily/<date> path convention that
+// `flow docs import` preserves.
+func importLinks(dir string, st *wtImportStats) error {
+	raw, err := os.ReadFile(filepath.Join(dir, "worktime-links.tsv"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read worktime-links.tsv: %w", err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		f := strings.Split(strings.TrimSpace(line), "\t")
+		if len(f) < 2 || f[0] == "" {
+			continue
+		}
+		st.Links++
+		st.Warnings = append(st.Warnings, fmt.Sprintf(
+			"worktime-links.tsv: %s → %s (covered by daily/<date> convention, nicht importiert)", f[0], f[1]))
+	}
+	return nil
 }
 
 func importDayOffs(ctx context.Context, c *apiclient.Client, dir string, dryRun bool, st *wtImportStats) error {

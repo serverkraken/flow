@@ -5,12 +5,37 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
+
+// acceptAllServer returns a test server that accepts every write and returns
+// fresh empty projects/sessions. If sessionConflict is true, every POST to
+// /api/v1/sessions returns 409 (simulates a fully-idempotent re-run).
+func acceptAllServer(t *testing.T, sessionConflict bool) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-import", Name: "Import"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/sessions":
+			if sessionConflict {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "overlap"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(domain.WorkSession{ID: "s"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/dayoffs":
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+}
 
 func TestRunWorktimeImport_Sessions(t *testing.T) {
 	var added []map[string]any
@@ -210,5 +235,51 @@ func TestParseLogLine(t *testing.T) {
 	e2, ok, err := parseLogLine(1, "2026-04-24\t07:34\t07:42\t259703")
 	if err != nil || !ok || e2.Seconds != 259703 {
 		t.Fatalf("anomaly: ok=%v err=%v e=%+v", ok, err, e2)
+	}
+}
+
+func TestRunWorktimeImport_FullFixture(t *testing.T) {
+	srv := acceptAllServer(t, false)
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := filepath.Join("testdata", "worktime")
+	st, err := runWorktimeImport(context.Background(), c, dir, "Import", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Sessions != 4 {
+		t.Fatalf("Sessions = %d, want 4", st.Sessions)
+	}
+	if st.DayOffs != 2 {
+		t.Fatalf("DayOffs = %d, want 2", st.DayOffs)
+	}
+	if st.Skipped != 1 { // one holiday
+		t.Fatalf("Skipped = %d, want 1", st.Skipped)
+	}
+	if st.Links != 1 {
+		t.Fatalf("Links = %d, want 1", st.Links)
+	}
+	if st.Failed != 0 {
+		t.Fatalf("Failed = %d (%v), want 0", st.Failed, st.Failures)
+	}
+}
+
+// Idempotency: when the server reports every session as an overlap (409) and
+// day-offs upsert, a re-run imports nothing new.
+func TestRunWorktimeImport_Idempotent(t *testing.T) {
+	srv := acceptAllServer(t, true) // every AddSession → 409
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	st, err := runWorktimeImport(context.Background(), c, filepath.Join("testdata", "worktime"), "Import", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Sessions != 0 {
+		t.Fatalf("re-run Sessions = %d, want 0", st.Sessions)
+	}
+	if st.Skipped != 5 { // 4 overlapping sessions + 1 holiday
+		t.Fatalf("re-run Skipped = %d, want 5", st.Skipped)
 	}
 }
