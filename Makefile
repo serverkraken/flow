@@ -4,7 +4,7 @@ COVER_OUT       := coverage.out
 COVER_THRESHOLD := 80
 COVER_PKG       := ./internal/...
 
-.PHONY: build test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate dev-up dev-down dev-run dev-token dev-login
+.PHONY: build test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css dev-up dev-down dev-run dev-token dev-login
 build:
 	@mkdir -p bin
 	go build -o bin/flow-server ./cmd/flow-server
@@ -52,4 +52,7 @@ verify-generate:
 		exit 1; \
 	fi
 	@echo "verify-generate: OK"
-ci: lint verify-generate cover build
+# verify-css checks the committed app.css matches a fresh tailwind build.
+verify-css:
+	@./scripts/verify-css.sh
+ci: lint verify-generate verify-css cover build
