@@ -169,8 +169,11 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 
 	// Re-read confirms persistence.
 	re, err := st.Get(ctx, "u-upd", "p-upd")
-	if err != nil || re.Status != domain.ProjectPaused || re.Description != "# Notes\nhello" {
-		t.Errorf("Get after Update: %+v err=%v", re, err)
+	if err != nil {
+		t.Fatalf("Get after Update: %v", err)
+	}
+	if re.Status != domain.ProjectPaused || re.Description != "# Notes\nhello" {
+		t.Errorf("Get after Update: %+v", re)
 	}
 
 	// Unknown id → ErrProjectNotFound.
@@ -178,6 +181,11 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	miss.ID = "nope"
 	if _, err := st.Update(ctx, "u-upd", miss); !errors.Is(err, ports.ErrProjectNotFound) {
 		t.Errorf("unknown id: want ErrProjectNotFound, got %v", err)
+	}
+
+	// Foreign owner (real id, wrong owner) → ErrProjectNotFound.
+	if _, err := st.Update(ctx, "someone-else", upd); !errors.Is(err, ports.ErrProjectNotFound) {
+		t.Errorf("foreign owner: want ErrProjectNotFound, got %v", err)
 	}
 }
 
