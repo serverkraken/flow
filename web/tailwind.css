@@ -5,6 +5,7 @@
    (package components) are covered. */
 @source "../internal/adapter/webui/**/*.templ";
 @source "../internal/adapter/webui/**/*.go";
+@source not "../internal/adapter/webui/static/**";
 
 /* ════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — one Studio identity, two themes (port of

@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-//go:embed static/app.css
+//go:embed all:static
 var staticFS embed.FS
 
 // StaticHandler serves the embedded static assets (mount under /static/).
