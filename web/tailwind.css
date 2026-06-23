@@ -87,10 +87,13 @@
 
 /* ════════════════════════════════════════════════════════════════════
    THEME MAP — expose tokens as Tailwind utilities. In Tailwind v4 the
-   @theme block defines design tokens; --color-* names become bg-*/text-*/
-   border-* utilities, and opacity modifiers (bg-x/NN) are emitted by v4 as
-   color-mix() — so the colors are mapped as plain rgb(var(--x)), NOT the
-   v3 rgb(var(--x)/<alpha-value>) form (which breaks @theme in v4.1.5).
+   @theme block defines design tokens; --color-NAME tokens become the
+   bg-, text- and border- utilities, and opacity modifiers (bg-x-slash-NN)
+   are emitted by v4 as color-mix(), so the colors are mapped as plain
+   rgb(var(--x)). Do NOT use the Tailwind-v3 alpha-value placeholder form
+   inside @theme (it breaks the @theme block in v4.1.5).
+   NOTE: never write a literal star-slash inside this comment — it would
+   close the CSS comment early and corrupt the build (latent bug fixed here).
    ════════════════════════════════════════════════════════════════════ */
 @theme {
   --color-canvas:  rgb(var(--canvas));
