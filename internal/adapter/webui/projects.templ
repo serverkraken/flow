@@ -326,13 +326,13 @@ templ ProjectForm(d ProjectFormData, editing *domain.Project) {
 				<div class="flex gap-2">
 					<button class="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700">Speichern</button>
 					<a href="/projects" class="rounded border border-slate-300 px-4 py-2 hover:bg-slate-100">Abbrechen</a>
-					if editing != nil {
-						<form method="post" action={ templ.SafeURL("/projects/" + editing.ID + "/delete") } hx-boost="false" class="ml-auto">
-							<button class="rounded border border-rose-300 px-4 py-2 text-rose-700 hover:bg-rose-50">Löschen</button>
-						</form>
-					}
 				</div>
 			</form>
+			if editing != nil {
+				<form method="post" action={ templ.SafeURL("/projects/" + editing.ID + "/delete") } hx-boost="false" class="mt-2 flex">
+					<button class="ml-auto rounded border border-rose-300 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50">Löschen</button>
+				</form>
+			}
 		</body>
 	</html>
 }

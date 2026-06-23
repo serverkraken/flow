@@ -156,6 +156,23 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 		t.Errorf("blank rateAmount must clear the rate, got %+v", p.Rate)
 	}
 
+	// REGRESSION GUARD: the delete <form> must NOT be nested inside the outer edit
+	// <form>. HTML5 reparents a nested form's button to the outer form, which would
+	// silently turn "Löschen" into an UPDATE submit. Assert a </form> closes the
+	// outer edit form BEFORE the delete-form action appears.
+	_, edit := getWeb(t, ts, c, "/projects/"+id+"/edit")
+	outerIdx := strings.Index(edit, `action="/projects/`+id+`"`)
+	delIdx := strings.Index(edit, `action="/projects/`+id+`/delete"`)
+	if outerIdx < 0 || delIdx < 0 {
+		t.Fatalf("edit form missing outer (%d) or delete (%d) action; body=%.600s", outerIdx, delIdx, edit)
+	}
+	if delIdx < outerIdx {
+		t.Fatalf("delete action appears before the outer edit-form action")
+	}
+	if !strings.Contains(edit[outerIdx:delIdx], "</form>") {
+		t.Errorf("delete form is nested inside the outer edit form (no </form> between the two actions)")
+	}
+
 	// STATUS action → archive
 	res = postWebForm(t, ts, c, "/projects/"+id+"/status", url.Values{"status": {"archived"}})
 	if res.StatusCode != http.StatusSeeOther {

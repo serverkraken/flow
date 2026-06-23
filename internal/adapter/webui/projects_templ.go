@@ -1085,7 +1085,7 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" class=\"w-20 rounded border border-slate-300 px-2 py-1\"></div></div><div class=\"flex gap-2\"><button class=\"rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700\">Speichern</button> <a href=\"/projects\" class=\"rounded border border-slate-300 px-4 py-2 hover:bg-slate-100\">Abbrechen</a> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" class=\"w-20 rounded border border-slate-300 px-2 py-1\"></div></div><div class=\"flex gap-2\"><button class=\"rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700\">Speichern</button> <a href=\"/projects\" class=\"rounded border border-slate-300 px-4 py-2 hover:bg-slate-100\">Abbrechen</a></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1099,12 +1099,12 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "\" hx-boost=\"false\" class=\"ml-auto\"><button class=\"rounded border border-rose-300 px-4 py-2 text-rose-700 hover:bg-rose-50\">Löschen</button></form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "\" hx-boost=\"false\" class=\"mt-2 flex\"><button class=\"ml-auto rounded border border-rose-300 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50\">Löschen</button></form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "</div></form></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "</body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
