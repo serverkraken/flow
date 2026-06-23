@@ -55,7 +55,7 @@ func (uc UpdateProject) Execute(ctx context.Context, ownerID, id string, in Upda
 		return domain.Project{}, err
 	}
 	if cur.UpstreamGit != p.UpstreamGit {
-		if err := uc.syncRemoteBinding(ctx, ownerID, id, cur.UpstreamGit, newSlug); err != nil {
+		if err := uc.syncRemoteBinding(ctx, ownerID, saved.ID, cur.UpstreamGit, newSlug); err != nil {
 			return domain.Project{}, err
 		}
 	}

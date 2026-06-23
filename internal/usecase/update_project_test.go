@@ -124,6 +124,11 @@ func TestUpdateProject_BadStatusRejected(t *testing.T) {
 	if _, err := uc.Execute(context.Background(), "u1", "p1", in); !errors.Is(err, domain.ErrInvalidProject) {
 		t.Fatalf("want ErrInvalidProject, got %v", err)
 	}
+	// nothing persisted
+	got, _ := ps.Get(context.Background(), "u1", "p1")
+	if got.Status == "weird" {
+		t.Errorf("bad status must not be persisted, got %q", got.Status)
+	}
 }
 
 func TestUpdateProject_NotFound(t *testing.T) {
