@@ -1,0 +1,9 @@
+package components
+
+// Card is the standard surface container. class appends extra utilities
+// (grid spans, padding overrides, …) onto the base card styling.
+templ Card(class string, body templ.Component) {
+	<article class={ "rounded-3xl bg-surface border border-line shadow-soft p-6", class }>
+		@body
+	</article>
+}

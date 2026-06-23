@@ -1,0 +1,18 @@
+package components
+
+func valueHue(hue string) string {
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "text-" + hue
+	default:
+		return "text-ink"
+	}
+}
+
+// StatTile shows an eyebrow label (i18n key) over a large mono tnum value.
+templ StatTile(labelKey, value, hue string) {
+	<div class="rounded-2xl bg-sunken/70 py-3 px-3 text-center">
+		<div class="eyebrow uppercase text-[.62rem] font-semibold text-muted">{ T(ctx, labelKey) }</div>
+		<div class={ "mt-1 font-mono text-[1.05rem] font-semibold tnum", valueHue(hue) }>{ value }</div>
+	</div>
+}

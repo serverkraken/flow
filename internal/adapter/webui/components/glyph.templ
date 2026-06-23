@@ -1,0 +1,6 @@
+package components
+
+// Glyph renders a decorative inline Unicode mark (aria-hidden). cls sets color/size.
+templ Glyph(g, cls string) {
+	<span class={ cls } aria-hidden="true">{ g }</span>
+}
