@@ -11,6 +11,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/spf13/cobra"
 )
 
 // berlinLoc is the timezone all legacy worktime timestamps are interpreted in.
@@ -186,6 +187,59 @@ func importDayOffs(ctx context.Context, c *apiclient.Client, dir string, dryRun 
 		st.DayOffs++
 	}
 	return nil
+}
+
+func worktimeImportCmd() *cobra.Command {
+	var dryRun bool
+	var projectName string
+	cmd := &cobra.Command{
+		Use:   "import [dir]",
+		Short: "Importiere Worktime-Daten aus einer alten flow-Installation (~/worktime)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir := args0OrDefault(args)
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			st, err := runWorktimeImport(cmd.Context(), c, dir, projectName, dryRun)
+			if err != nil {
+				return err
+			}
+			mode := ""
+			if dryRun {
+				mode = " (dry-run)"
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(),
+				"gebucht %d · freie Tage %d · übersprungen %d · Links %d · Projekt %q · Projekte angelegt %d · Fehler %d%s\n",
+				st.Sessions, st.DayOffs, st.Skipped, st.Links, projectName, st.ProjectsCreated, st.Failed, mode)
+			for _, wmsg := range st.Warnings {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  ⚠ "+wmsg)
+			}
+			for _, f := range st.Failures {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  "+f)
+			}
+			if st.Failed > 0 {
+				return fmt.Errorf("%d Zeile(n) fehlgeschlagen", st.Failed)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "parse und plane den Import, ohne zu schreiben")
+	cmd.Flags().StringVar(&projectName, "project", "Import", "Projekt, dem importierte Sessions zugeordnet werden")
+	return cmd
+}
+
+// args0OrDefault returns the positional dir arg, or ~/worktime when omitted.
+func args0OrDefault(args []string) string {
+	if len(args) == 1 {
+		return args[0]
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "worktime"
+	}
+	return filepath.Join(home, "worktime")
 }
 
 func importSessions(ctx context.Context, c *apiclient.Client, dir, projectName string, dryRun bool, st *wtImportStats) error {

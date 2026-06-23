@@ -283,3 +283,29 @@ func TestRunWorktimeImport_Idempotent(t *testing.T) {
 		t.Fatalf("re-run Skipped = %d, want 5", st.Skipped)
 	}
 }
+
+func TestWorktimeImportCmd_DefaultsAndFlags(t *testing.T) {
+	cmd := worktimeImportCmd()
+	if cmd.Use != "import [dir]" {
+		t.Fatalf("Use = %q", cmd.Use)
+	}
+	pf := cmd.Flags().Lookup("project")
+	if pf == nil || pf.DefValue != "Import" {
+		t.Fatalf("--project flag missing or wrong default: %+v", pf)
+	}
+	if cmd.Flags().Lookup("dry-run") == nil {
+		t.Fatal("--dry-run flag missing")
+	}
+}
+
+func TestWorktimeCmd_HasImportSubcommand(t *testing.T) {
+	var found bool
+	for _, sub := range worktimeCmd().Commands() {
+		if sub.Name() == "import" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("flow worktime is missing the import subcommand")
+	}
+}

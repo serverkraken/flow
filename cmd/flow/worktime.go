@@ -13,7 +13,7 @@ import (
 )
 
 func worktimeCmd() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "worktime",
 		Short: "Worktime timer (TUI)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -37,4 +37,6 @@ func worktimeCmd() *cobra.Command {
 			return err
 		},
 	}
+	cmd.AddCommand(worktimeImportCmd())
+	return cmd
 }
