@@ -27,13 +27,18 @@ COPY . .
 
 # Build the Tailwind v4 stylesheet IN the image so the go:embed-ed app.css is
 # always fresh (fixes the "commit app.css by hand" gotcha). Pin the standalone
-# CLI; pick the binary for the build arch (amd64/arm64).
+# CLI; pick the binary for the build arch (amd64/arm64). The base image is
+# Alpine (musl libc), so use the *-musl* standalone builds — the glibc builds
+# fail at runtime with "tailwindcss: not found" (missing dynamic loader). The
+# musl build is dynamically linked against the C++ runtime, so install
+# libstdc++/libgcc too (otherwise it fails relocating __cxxabiv/std symbols).
 ARG TAILWIND_VERSION=v4.1.5
 RUN set -eux; \
+    apk add --no-cache libstdc++ libgcc; \
     arch="$(uname -m)"; \
     case "$arch" in \
-      x86_64)  tw="tailwindcss-linux-x64" ;; \
-      aarch64) tw="tailwindcss-linux-arm64" ;; \
+      x86_64)  tw="tailwindcss-linux-x64-musl" ;; \
+      aarch64) tw="tailwindcss-linux-arm64-musl" ;; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
     wget -q -O /usr/local/bin/tailwindcss \
