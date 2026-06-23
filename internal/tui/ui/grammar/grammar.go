@@ -69,6 +69,7 @@ var (
 	Edit       = Binding{ID: "edit", Keys: []Key{Rune("e")}, KeyLabel: "e", Desc: "bearbeiten"}
 	Delete     = Binding{ID: "delete", Keys: []Key{Rune("d")}, KeyLabel: "d", Desc: "löschen"}
 	Nachbuchen = Binding{ID: "nachbuchen", Keys: []Key{Rune("n")}, KeyLabel: "n", Desc: "Nachbuchen"}
+	New        = Binding{ID: "new", Keys: []Key{Rune("n")}, KeyLabel: "n", Desc: "Neu"}
 	Back     = Binding{ID: "back", Keys: []Key{Rune("q"), Special(tea.KeyEsc)}, KeyLabel: "q", Desc: "zurück"}
 	Quit     = Binding{ID: "quit", Keys: []Key{Rune("q"), Special(tea.KeyEsc)}, KeyLabel: "q", Desc: "beenden"}
 	Search   = Binding{ID: "search", Keys: []Key{Rune("/")}, KeyLabel: "/", Desc: "suchen"}

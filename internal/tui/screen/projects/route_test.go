@@ -35,6 +35,28 @@ func drainInit(r *projects.Route) { // run Init's load cmd synchronously
 
 func view(r *projects.Route) string { return r.View(shell.Frame{Width: 80, Height: 24}) }
 
+// The `n` footer hint must read "Neu", not the shared grammar.Nachbuchen
+// "Nachbuchen" label (which confused a real user into not finding project
+// creation in the Projekte tab).
+func TestListNewHintReadsNeuNotNachbuchen(t *testing.T) {
+	r := projects.NewRoute(&fakeAPI{ps: seed()}, theme.Default, "msoent")
+	var nHint, foundNeu bool
+	for _, h := range r.KeyHints() {
+		if h.Key == "n" {
+			nHint = true
+			if h.Desc == "Neu" {
+				foundNeu = true
+			}
+			if h.Desc == "Nachbuchen" {
+				t.Errorf("n hint still labelled %q — must be \"Neu\"", h.Desc)
+			}
+		}
+	}
+	if !nHint || !foundNeu {
+		t.Errorf("expected an n→\"Neu\" key hint; got nHint=%v foundNeu=%v", nHint, foundNeu)
+	}
+}
+
 // keyPress builds a tea.KeyPressMsg for a printable rune (matches week/route_test.go keyRune).
 func keyPress(r rune) tea.KeyPressMsg { return tea.KeyPressMsg{Text: string(r)} }
 

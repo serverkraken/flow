@@ -113,7 +113,7 @@ func (r *Route) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 			r.applyFilter()
 			return r, nil
 
-		case grammar.Nachbuchen.Matches(m): // `n` — new project
+		case grammar.New.Matches(m): // `n` — new project
 			if r.formFor != nil {
 				return r, push(r.formFor(nil))
 			}
@@ -142,7 +142,7 @@ func (r *Route) View(f shell.Frame) string { return renderView(r, f) }
 func (r *Route) KeyHints() []keyhint.Hint {
 	return []keyhint.Hint{
 		grammar.Open.Hint(),
-		grammar.Nachbuchen.Hint(),
+		grammar.New.Hint(),
 		{Key: "[ ]", Desc: "Filter"},
 		grammar.MoveUp.Hint(),
 	}
