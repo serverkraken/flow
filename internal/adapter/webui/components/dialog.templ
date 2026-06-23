@@ -1,0 +1,61 @@
+package components
+
+// Dialog is a styled native <dialog>. Open it with a trigger carrying
+// data-dialog-open="<id>"; close via the ✕ button, Esc, or backdrop. The
+// included dialog.js wires focus-trap and return-focus (idempotent loader).
+templ Dialog(id, titleKey string, body templ.Component) {
+	<dialog id={ id } aria-modal="true" aria-labelledby={ id + "-title" }
+		class="m-auto w-[min(92vw,32rem)] rounded-3xl border border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
+		<div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-line2">
+			<h2 id={ id + "-title" } class="font-display text-lg font-semibold">{ T(ctx, titleKey) }</h2>
+			@IconButton("✕", T(ctx, "common.close"), templ.Attributes{"data-dialog-close": true, "type": "button"})
+		</div>
+		<div class="px-6 py-5">
+			@body
+		</div>
+	</dialog>
+	<script src="/static/js/dialog.js" defer></script>
+}
+
+// ConfirmSpec configures a ConfirmDialog. Empty key fields fall back to safe
+// delete-confirmation defaults.
+type ConfirmSpec struct {
+	ID              string
+	TitleKey        string
+	BodyKey         string
+	ConfirmLabelKey string
+	ConfirmAttrs    templ.Attributes
+}
+
+func (s ConfirmSpec) withDefaults() ConfirmSpec {
+	if s.TitleKey == "" {
+		s.TitleKey = "confirm.title"
+	}
+	if s.BodyKey == "" {
+		s.BodyKey = "confirm.deleteBody"
+	}
+	if s.ConfirmLabelKey == "" {
+		s.ConfirmLabelKey = "common.delete"
+	}
+	return s
+}
+
+// ConfirmDialog is the mandatory in-design confirmation for destructive
+// actions. Abbrechen is the focused default (safe); the confirm button is
+// danger-styled and carries ConfirmAttrs (e.g. hx-post to the destructive route).
+templ ConfirmDialog(spec ConfirmSpec) {
+	{{ s := spec.withDefaults() }}
+	<dialog id={ s.ID } aria-modal="true" aria-labelledby={ s.ID + "-title" }
+		class="m-auto w-[min(92vw,26rem)] rounded-3xl border border-line bg-surface text-ink p-6 shadow-lift backdrop:bg-ink/40">
+		<h2 id={ s.ID + "-title" } class="font-display text-lg font-semibold">{ T(ctx, s.TitleKey) }</h2>
+		<p class="mt-2 text-[.9rem] text-body">{ T(ctx, s.BodyKey) }</p>
+		<div class="mt-6 flex items-center justify-end gap-3">
+			<button type="button" data-dialog-close autofocus
+				class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken">
+				{ T(ctx, "common.cancel") }
+			</button>
+			@Button(BtnDanger, T(ctx, s.ConfirmLabelKey), "", s.ConfirmAttrs)
+		</div>
+	</dialog>
+	<script src="/static/js/dialog.js" defer></script>
+}
