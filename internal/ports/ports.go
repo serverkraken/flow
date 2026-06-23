@@ -76,6 +76,10 @@ type ProjectStore interface {
 	Create(ctx context.Context, p domain.Project) (domain.Project, error)
 	List(ctx context.Context, ownerID string) ([]domain.Project, error)
 	Get(ctx context.Context, ownerID, id string) (domain.Project, error)
+	// Update overwrites a project's mutable metadata (name, slug, color, glyph,
+	// description, upstream_git, status). Rate is NOT touched (see SetRate).
+	// Owner-scoped; returns ErrProjectNotFound for a missing or foreign project.
+	Update(ctx context.Context, ownerID string, p domain.Project) (domain.Project, error)
 	// SetRate sets (rate != nil) or clears (rate == nil) the project's rate.
 	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
 	// Delete removes a project. Owner-scoped; returns ErrProjectNotFound if absent or foreign.

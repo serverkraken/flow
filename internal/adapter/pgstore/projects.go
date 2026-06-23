@@ -17,17 +17,17 @@ func NewProjectStore(pool *pgxpool.Pool) *ProjectStore { return &ProjectStore{po
 
 func (s *ProjectStore) Create(ctx context.Context, p domain.Project) (domain.Project, error) {
 	const q = `
-INSERT INTO projects (id, owner_id, name, slug, color, glyph, status, created_at, updated_at, rate_amount, rate_currency)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING id, owner_id, name, slug, color, glyph, status, created_at, updated_at, rate_amount, rate_currency`
+INSERT INTO projects (id, owner_id, name, slug, color, glyph, description, upstream_git, status, created_at, updated_at, rate_amount, rate_currency)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+RETURNING id, owner_id, name, slug, color, glyph, description, upstream_git, status, created_at, updated_at, rate_amount, rate_currency`
 	ra, rc := rateCols(p.Rate)
 	return scanProject(s.pool.QueryRow(ctx, q,
-		p.ID, p.OwnerID, p.Name, p.Slug, p.Color, p.Glyph, string(p.Status), p.CreatedAt, p.UpdatedAt, ra, rc))
+		p.ID, p.OwnerID, p.Name, p.Slug, p.Color, p.Glyph, p.Description, p.UpstreamGit, string(p.Status), p.CreatedAt, p.UpdatedAt, ra, rc))
 }
 
 func (s *ProjectStore) List(ctx context.Context, ownerID string) ([]domain.Project, error) {
 	const q = `
-SELECT id, owner_id, name, slug, color, glyph, status, created_at, updated_at, rate_amount, rate_currency
+SELECT id, owner_id, name, slug, color, glyph, description, upstream_git, status, created_at, updated_at, rate_amount, rate_currency
 FROM projects WHERE owner_id=$1 ORDER BY name`
 	rows, err := s.pool.Query(ctx, q, ownerID)
 	if err != nil {
@@ -47,13 +47,26 @@ FROM projects WHERE owner_id=$1 ORDER BY name`
 
 func (s *ProjectStore) Get(ctx context.Context, ownerID, id string) (domain.Project, error) {
 	const q = `
-SELECT id, owner_id, name, slug, color, glyph, status, created_at, updated_at, rate_amount, rate_currency
+SELECT id, owner_id, name, slug, color, glyph, description, upstream_git, status, created_at, updated_at, rate_amount, rate_currency
 FROM projects WHERE owner_id=$1 AND id=$2`
 	p, err := scanProject(s.pool.QueryRow(ctx, q, ownerID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Project{}, ports.ErrProjectNotFound
 	}
 	return p, err
+}
+
+func (s *ProjectStore) Update(ctx context.Context, ownerID string, p domain.Project) (domain.Project, error) {
+	const q = `
+UPDATE projects SET name=$1, slug=$2, color=$3, glyph=$4, description=$5, upstream_git=$6, status=$7, updated_at=$8
+WHERE owner_id=$9 AND id=$10
+RETURNING id, owner_id, name, slug, color, glyph, description, upstream_git, status, created_at, updated_at, rate_amount, rate_currency`
+	got, err := scanProject(s.pool.QueryRow(ctx, q,
+		p.Name, p.Slug, p.Color, p.Glyph, p.Description, p.UpstreamGit, string(p.Status), p.UpdatedAt, ownerID, p.ID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Project{}, ports.ErrProjectNotFound
+	}
+	return got, err
 }
 
 type rowScanner interface {
@@ -99,7 +112,7 @@ func scanProject(r rowScanner) (domain.Project, error) {
 	var status string
 	var ra *int64
 	var rc *string
-	if err := r.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Slug, &p.Color, &p.Glyph, &status, &p.CreatedAt, &p.UpdatedAt, &ra, &rc); err != nil {
+	if err := r.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Slug, &p.Color, &p.Glyph, &p.Description, &p.UpstreamGit, &status, &p.CreatedAt, &p.UpdatedAt, &ra, &rc); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Project{}, err
 		}

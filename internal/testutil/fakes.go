@@ -126,6 +126,26 @@ func (s *FakeProjectStore) Get(_ context.Context, ownerID, id string) (domain.Pr
 	return p, nil
 }
 
+func (s *FakeProjectStore) Update(_ context.Context, ownerID string, p domain.Project) (domain.Project, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.m[p.ID]
+	if !ok || existing.OwnerID != ownerID {
+		return domain.Project{}, ports.ErrProjectNotFound
+	}
+	// mirror pgstore: rate is not mutated here
+	existing.Name = p.Name
+	existing.Slug = p.Slug
+	existing.Color = p.Color
+	existing.Glyph = p.Glyph
+	existing.Description = p.Description
+	existing.UpstreamGit = p.UpstreamGit
+	existing.Status = p.Status
+	existing.UpdatedAt = p.UpdatedAt
+	s.m[p.ID] = existing
+	return existing, nil
+}
+
 func (s *FakeProjectStore) SetRate(_ context.Context, ownerID, id string, rate *domain.Money) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

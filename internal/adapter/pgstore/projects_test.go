@@ -120,6 +120,67 @@ VALUES ($1, $2, $3, 'remote', $4, $5, $6)`
 	}
 }
 
+func TestProjectStore_UpdateRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-upd", "sub-upd", "upduser", "upd@x.de", "Upd User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewProjectStore(pool)
+	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
+	proj, _ := domain.NewProject("p-upd", "u-upd", "Acme", "acme", now)
+	if _, err := st.Create(ctx, proj); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set a rate so we can prove Update preserves it.
+	if err := st.SetRate(ctx, "u-upd", "p-upd", &domain.Money{Amount: 9000, Currency: "EUR"}); err != nil {
+		t.Fatal(err)
+	}
+
+	upd := proj
+	upd.Name = "Acme Reloaded"
+	upd.Description = "# Notes\nhello"
+	upd.UpstreamGit = "git@github.com:acme/reloaded.git"
+	upd.Status = domain.ProjectPaused
+	upd.UpdatedAt = now.Add(time.Hour)
+	got, err := st.Update(ctx, "u-upd", upd)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.Name != "Acme Reloaded" || got.Description != "# Notes\nhello" ||
+		got.UpstreamGit != "git@github.com:acme/reloaded.git" || got.Status != domain.ProjectPaused {
+		t.Errorf("Update returned %+v", got)
+	}
+	if got.Rate == nil || got.Rate.Amount != 9000 {
+		t.Errorf("Update must preserve rate, got %+v", got.Rate)
+	}
+
+	// Re-read confirms persistence.
+	re, err := st.Get(ctx, "u-upd", "p-upd")
+	if err != nil || re.Status != domain.ProjectPaused || re.Description != "# Notes\nhello" {
+		t.Errorf("Get after Update: %+v err=%v", re, err)
+	}
+
+	// Unknown id → ErrProjectNotFound.
+	miss := upd
+	miss.ID = "nope"
+	if _, err := st.Update(ctx, "u-upd", miss); !errors.Is(err, ports.ErrProjectNotFound) {
+		t.Errorf("unknown id: want ErrProjectNotFound, got %v", err)
+	}
+}
+
 func TestProjectStore_RateRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
