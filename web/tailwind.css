@@ -1,3 +1,189 @@
 @import "tailwindcss";
+
+/* Scan templ + Go in both webui and the new components subpackage for class
+   usage. Keep both globs so existing pages (package webui) and new components
+   (package components) are covered. */
 @source "../internal/adapter/webui/**/*.templ";
 @source "../internal/adapter/webui/**/*.go";
+
+/* ════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — one Studio identity, two themes (port of
+   direction-b-studio.html). Space-separated RGB triplets so colors compose
+   as rgb(var(--x)) in @theme (v4 adds opacity via color-mix for bg-x/NN)
+   and as rgb(var(--x)/.NN) in our own hand-written rules.
+   NOTE: do NOT use the Tailwind-v3 rgb(var(--x)/<alpha-value>) form inside
+   @theme — v4.1.5 does not substitute the placeholder and it silently
+   breaks the entire @theme block (zero utilities emitted).
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── LIGHT (default) — cool, crisp ── */
+:root {
+  color-scheme: light;
+  --canvas:  251 252 254;
+  --surface: 255 255 255;
+  --sunken:  244 246 251;
+  --line:    230 233 242;
+  --line2:   238 241 248;
+  --ink:      27  34  51;
+  --body:     72  82 106;
+  --muted:   138 147 166;
+  --faint:   174 182 199;
+
+  --blue:     59 111 246;
+  --cyan:     11 165 214;
+  --green:    39 165 103;
+  --purple:  139  92 246;
+  --magenta: 225  29 116;
+  --yellow:  217 138  11;
+  --orange:  234 106  43;
+  --red:     224  69  91;
+  --teal:     14 155 142;
+  --oncolor: 255 255 255;
+
+  --shadow:         27  34  51;
+  --shadow-accent:  59 111 246;
+
+  --code-bg:    15  20  38;
+  --code-fg:   201 212 245;
+  --halo:       59 111 246;
+  --halo-a:    0.16;
+  --scrollthumb: 217 223 236;
+}
+
+/* ── DARK — soft navy productivity, hues lifted for contrast ── */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas:  14  17  28;
+  --surface: 22  26  40;
+  --sunken:  28  33  50;
+  --line:    42  49  72;
+  --line2:   34  40  60;
+  --ink:     226 231 245;
+  --body:    166 175 199;
+  --muted:   122 132 158;
+  --faint:    82  92 120;
+
+  --blue:    122 162 247;
+  --cyan:    125 207 255;
+  --green:   158 206 106;
+  --purple:  187 154 247;
+  --magenta: 247 110 168;
+  --yellow:  224 175 104;
+  --orange:  255 158 100;
+  --red:     247 118 142;
+  --teal:    115 218 202;
+  --oncolor:  16  19  30;
+
+  --shadow:          0   0   0;
+  --shadow-accent:  18  24  48;
+
+  --code-bg:   10  13  24;
+  --code-fg:  201 212 245;
+  --halo:    122 162 247;
+  --halo-a:    0.20;
+  --scrollthumb: 49  57  84;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   THEME MAP — expose tokens as Tailwind utilities. In Tailwind v4 the
+   @theme block defines design tokens; --color-* names become bg-*/text-*/
+   border-* utilities, and opacity modifiers (bg-x/NN) are emitted by v4 as
+   color-mix() — so the colors are mapped as plain rgb(var(--x)), NOT the
+   v3 rgb(var(--x)/<alpha-value>) form (which breaks @theme in v4.1.5).
+   ════════════════════════════════════════════════════════════════════ */
+@theme {
+  --color-canvas:  rgb(var(--canvas));
+  --color-surface: rgb(var(--surface));
+  --color-sunken:  rgb(var(--sunken));
+  --color-line:    rgb(var(--line));
+  --color-line2:   rgb(var(--line2));
+  --color-ink:     rgb(var(--ink));
+  --color-body:    rgb(var(--body));
+  --color-muted:   rgb(var(--muted));
+  --color-faint:   rgb(var(--faint));
+
+  --color-blue:    rgb(var(--blue));
+  --color-cyan:    rgb(var(--cyan));
+  --color-green:   rgb(var(--green));
+  --color-purple:  rgb(var(--purple));
+  --color-magenta: rgb(var(--magenta));
+  --color-yellow:  rgb(var(--yellow));
+  --color-orange:  rgb(var(--orange));
+  --color-red:     rgb(var(--red));
+  --color-teal:    rgb(var(--teal));
+  --color-oncolor: rgb(var(--oncolor));
+
+  --font-display: "Clash Display", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  --shadow-soft: 0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10);
+  --shadow-lift: 0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18);
+  --shadow-ring: 0 10px 50px -12px rgb(var(--shadow-accent) / .30);
+
+  --animate-breathe: breathe 2.2s ease-in-out infinite;
+  --animate-rise:    rise .6s cubic-bezier(.21,.85,.27,1) both;
+}
+
+@keyframes breathe { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+@keyframes rise { 0% { opacity: 0; transform: translateY(10px) } 100% { opacity: 1; transform: none } }
+
+/* ════════════════════════════════════════════════════════════════════
+   LOCAL FONTS — vendored woff2 (no Google/Fontshare CDN at runtime).
+   Files added in Task 4 under static/fonts; served at /static/fonts/.
+   ════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/static/fonts/ClashDisplay-Variable.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("/static/fonts/Inter-Variable.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/static/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BASE — page chrome, focus, reduced-motion, tabular nums.
+   ════════════════════════════════════════════════════════════════════ */
+html, body { background: rgb(var(--canvas)); }
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color .35s ease, color .35s ease;
+}
+aside, header, nav, article, input, .theme-fade {
+  transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+}
+
+.font-display { letter-spacing: -0.015em; }
+.tnum { font-variant-numeric: tabular-nums; }
+.eyebrow { letter-spacing: .14em; }
+
+*:focus-visible {
+  outline: 2px solid rgb(var(--blue));
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Theme-toggle knob slide + sun/moon swap (driven by data-theme). */
+.toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+:root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+.toggle-sun { display:inline; } .toggle-moon { display:none; }
+:root[data-theme="dark"] .toggle-sun { display:none; }
+:root[data-theme="dark"] .toggle-moon { display:inline; }
+
+/* Styled native <dialog> backdrop (Task 8). */
+dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
