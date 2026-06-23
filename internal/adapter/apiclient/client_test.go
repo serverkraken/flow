@@ -1,7 +1,9 @@
 package apiclient_test
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -144,5 +146,38 @@ func TestNewTransportSetsAuth(t *testing.T) {
 	}
 	if gotAuth != "Bearer from-rt" {
 		t.Fatalf("auth header: %q", gotAuth)
+	}
+}
+
+func TestClientUpdateAndGetProject(t *testing.T) {
+	var gotMethod, gotPath, gotBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		_ = json.NewEncoder(w).Encode(domain.Project{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.ProjectPaused, UpstreamGit: "git@github.com:serverkraken/flow.git"})
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+
+	got, err := c.UpdateProject(context.Background(), "p1", apiclient.UpdateProjectFields{
+		Name: "Flow", Slug: "flow", Status: "paused", UpstreamGit: "git@github.com:serverkraken/flow.git",
+	})
+	if err != nil || got.Status != domain.ProjectPaused {
+		t.Fatalf("UpdateProject: %+v err=%v", got, err)
+	}
+	if gotMethod != "PATCH" || gotPath != "/api/v1/projects/p1" {
+		t.Errorf("method/path = %s %s", gotMethod, gotPath)
+	}
+	if !strings.Contains(gotBody, `"status":"paused"`) {
+		t.Errorf("body missing status: %s", gotBody)
+	}
+
+	one, err := c.GetProject(context.Background(), "p1")
+	if err != nil || one.Slug != "flow" {
+		t.Fatalf("GetProject: %+v err=%v", one, err)
+	}
+	if gotMethod != "GET" || gotPath != "/api/v1/projects/p1" {
+		t.Errorf("GET method/path = %s %s", gotMethod, gotPath)
 	}
 }
