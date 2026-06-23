@@ -1,0 +1,87 @@
+package components
+
+// Base is the full HTML hull every page renders inside. It loads only local
+// assets (app.css, vendored htmx, vendored fonts), sets data-theme before
+// first paint (no-flash), wires the SSE body, and exposes toggleTheme() plus a
+// client-side live timer. The page-specific markup is passed as body.
+templ Base(title string, body templ.Component) {
+	<!DOCTYPE html>
+	<html lang="de" class="scroll-smooth">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>flow · { title }</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Inter-Variable.woff2" crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/ClashDisplay-Variable.woff2" crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/JetBrainsMono-Variable.woff2" crossorigin/>
+			<script src="/static/vendor/htmx.min.js" defer></script>
+			<script src="/static/vendor/htmx-ext-sse.js" defer></script>
+			// No-flash theme init: set data-theme BEFORE first paint.
+			<script>
+				(function () {
+					try {
+						var saved = localStorage.getItem('flow-theme');
+						var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+						document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+					} catch (e) {
+						document.documentElement.setAttribute('data-theme', 'light');
+					}
+				})();
+			</script>
+		</head>
+		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink" hx-ext="sse" sse-connect="/api/v1/events">
+			@body
+			// Theme toggle wiring: flips data-theme, persists, syncs aria-pressed, cross-tab sync.
+			<script>
+				(function () {
+					var root = document.documentElement;
+					function syncToggles() {
+						var dark = root.getAttribute('data-theme') === 'dark';
+						document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+							b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+							b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+						});
+					}
+					window.toggleTheme = function () {
+						var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+						root.setAttribute('data-theme', next);
+						try { localStorage.setItem('flow-theme', next); } catch (e) {}
+						syncToggles();
+					};
+					window.addEventListener('storage', function (e) {
+						if (e.key === 'flow-theme' && e.newValue) {
+							root.setAttribute('data-theme', e.newValue);
+							syncToggles();
+						}
+					});
+					syncToggles();
+				})();
+			</script>
+			// Client-side live timer: advances any [data-timer]/[data-mini-timer]
+			// independently of htmx fragment refreshes. Reads a base elapsed (seconds)
+			// and start epoch from data attributes on the [data-timer] element.
+			<script>
+				(function () {
+					var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+					var hero  = document.querySelector('[data-timer]');
+					var minis = document.querySelectorAll('[data-mini-timer]');
+					if (!hero && minis.length === 0) return;
+					var base  = hero ? parseInt(hero.getAttribute('data-base') || '0', 10) : 0;
+					var start = Date.now();
+					function p(n) { return n < 10 ? '0' + n : '' + n; }
+					function tick() {
+						var elapsed = base + Math.floor((Date.now() - start) / 1000);
+						var h = Math.floor(elapsed / 3600);
+						var m = Math.floor((elapsed % 3600) / 60);
+						var s = elapsed % 60;
+						if (hero) hero.textContent = h + 'h ' + p(m) + 'm ' + p(s) + 's';
+						minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+					}
+					tick();
+					setInterval(tick, reduce ? 60000 : 1000);
+				})();
+			</script>
+		</body>
+	</html>
+}

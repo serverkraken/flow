@@ -1,0 +1,19 @@
+package components
+
+// ThemeToggle is the ☀/☾ light/dark switch. It flips data-theme via the
+// inline toggleTheme() defined in Base's theme-sync script and persists to
+// localStorage('flow-theme'). aria-pressed is kept in sync by that script.
+templ ThemeToggle() {
+	<button
+		type="button"
+		onclick="toggleTheme()"
+		data-theme-toggle
+		class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+		aria-label={ T(ctx, "theme.toggle") }
+		aria-pressed="false"
+		title={ T(ctx, "theme.toggle") }
+	>
+		<span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+		<span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+	</button>
+}
