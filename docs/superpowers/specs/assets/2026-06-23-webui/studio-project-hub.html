@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>flow — Projekt · flow</title>
+
+<!-- ── Fonts ─────────────────────────────────────────────────────────────
+     Display : Clash Display (Fontshare) — characterful geometric grotesk
+     Body    : Inter (Google) — clean, neutral, highly readable
+     Mono    : JetBrains Mono (Google) — ONLY for timer + durations
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Clash Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        colors: {
+          /* ── Semantic tokens (resolve per theme via CSS custom props) ──
+             Same utility class names as before; only the *values* now flip
+             between the light and dark Studio palettes. <alpha-value> keeps
+             Tailwind's /opacity modifiers (bg-blue/10 etc.) working. */
+          canvas:  'rgb(var(--canvas)  / <alpha-value>)',  /* page background */
+          surface: 'rgb(var(--surface) / <alpha-value>)',  /* cards */
+          sunken:  'rgb(var(--sunken)  / <alpha-value>)',  /* recessed wells */
+          line:    'rgb(var(--line)    / <alpha-value>)',  /* hairline borders */
+          line2:   'rgb(var(--line2)   / <alpha-value>)',  /* fainter dividers */
+          ink:     'rgb(var(--ink)     / <alpha-value>)',  /* primary text */
+          body:    'rgb(var(--body)    / <alpha-value>)',  /* secondary text */
+          muted:   'rgb(var(--muted)   / <alpha-value>)',  /* tertiary / labels */
+          faint:   'rgb(var(--faint)   / <alpha-value>)',  /* glyph ghosts */
+
+          /* Project hues — retuned per theme for correct contrast on each base */
+          blue:    'rgb(var(--blue)    / <alpha-value>)',
+          cyan:    'rgb(var(--cyan)    / <alpha-value>)',
+          green:   'rgb(var(--green)   / <alpha-value>)',
+          purple:  'rgb(var(--purple)  / <alpha-value>)',
+          magenta: 'rgb(var(--magenta) / <alpha-value>)',
+          yellow:  'rgb(var(--yellow)  / <alpha-value>)',
+          orange:  'rgb(var(--orange)  / <alpha-value>)',
+          red:     'rgb(var(--red)     / <alpha-value>)',
+          teal:    'rgb(var(--teal)    / <alpha-value>)',
+          /* fixed-white text token that stays readable on colored fills in both modes */
+          oncolor: 'rgb(var(--oncolor) / <alpha-value>)',
+        },
+        borderRadius: { '2xl': '1.25rem', '3xl': '1.75rem' },
+        boxShadow: {
+          /* Cool, soft elevation — driven by a per-theme shadow tint var */
+          'soft':  '0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10)',
+          'lift':  '0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18)',
+          'ring':  '0 10px 50px -12px rgb(var(--shadow-accent) / .30)',
+        },
+        keyframes: {
+          breathe: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.45' } },
+          rise:    { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } },
+        },
+        animation: {
+          breathe: 'breathe 2.2s ease-in-out infinite',
+          rise:    'rise .6s cubic-bezier(.21,.85,.27,1) both',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- No-flash theme init: set data-theme BEFORE first paint.
+     Priority: saved choice → prefers-color-scheme → light. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('flow-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — one Studio identity, two themes.
+     Values are space-separated RGB triplets so Tailwind's rgb(var(--x)/α)
+     and our own rgb(var(--x)/.NN) usages both work.
+     ════════════════════════════════════════════════════════════════════ */
+
+  /* ── LIGHT (default) — cool, crisp, NOT warm cream ── */
+  :root {
+    color-scheme: light;
+    --canvas:  251 252 254;   /* #FBFCFE */
+    --surface: 255 255 255;   /* #FFFFFF */
+    --sunken:  244 246 251;   /* #F4F6FB */
+    --line:    230 233 242;   /* #E6E9F2 */
+    --line2:   238 241 248;   /* #EEF1F8 */
+    --ink:      27  34  51;   /* #1B2233 */
+    --body:     72  82 106;   /* #48526A */
+    --muted:   138 147 166;   /* #8A93A6 */
+    --faint:   174 182 199;   /* #AEB6C7 */
+
+    --blue:     59 111 246;   /* #3B6FF6 */
+    --cyan:     11 165 214;   /* #0BA5D6 */
+    --green:    39 165 103;   /* #27A567 */
+    --purple:  139  92 246;   /* #8B5CF6 */
+    --magenta: 225  29 116;   /* #E11D74 */
+    --yellow:  217 138  11;   /* #D98A0B */
+    --orange:  234 106  43;   /* #EA6A2B */
+    --red:     224  69  91;   /* #E0455B */
+    --teal:     14 155 142;   /* #0E9B8E */
+    --oncolor: 255 255 255;   /* text on colored fills */
+
+    --shadow:         27  34  51;   /* slate, drives soft elevation */
+    --shadow-accent:  59 111 246;   /* bluish tint in the lift shadow */
+
+    /* code block stays a deep cool slate in BOTH themes (an editorial inset) */
+    --code-bg:    15  20  38;   /* #0F1426 */
+    --code-fg:   201 212 245;   /* #C9D4F5 */
+    --halo:       59 111 246;   /* timer halo color = project hue */
+    --halo-a:    0.16;
+    --scrollthumb: 217 223 236; /* #D9DFEC */
+  }
+
+  /* ── DARK — sophisticated dark productivity, soft navy (NOT pure black,
+        NOT a terminal). Same hues, retuned brighter for dark contrast. ── */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --canvas:  14  17  28;     /* #0E111C  deep cool navy-black */
+    --surface: 22  26  40;     /* #161A28  card */
+    --sunken:  28  33  50;     /* #1C2132  recessed well */
+    --line:    42  49  72;     /* #2A3148  hairline */
+    --line2:   34  40  60;     /* #22283C  fainter divider */
+    --ink:     226 231 245;    /* #E2E7F5  primary text (soft, not #fff) */
+    --body:    166 175 199;    /* #A6AFC7  secondary */
+    --muted:   122 132 158;    /* #7A849E  tertiary */
+    --faint:    82  92 120;    /* #525C78  glyph ghosts */
+
+    /* hues lifted for contrast against the navy base */
+    --blue:    122 162 247;    /* #7AA2F7 */
+    --cyan:    125 207 255;    /* #7DCFFF */
+    --green:   158 206 106;    /* #9ECE6A */
+    --purple:  187 154 247;    /* #BB9AF7 */
+    --magenta: 247 110 168;    /* #F76EA8 */
+    --yellow:  224 175 104;    /* #E0AF68 */
+    --orange:  255 158 100;    /* #FF9E64 */
+    --red:     247 118 142;    /* #F7768E */
+    --teal:    115 218 202;    /* #73DACA */
+    --oncolor:  16  19  30;    /* dark ink on bright colored fills */
+
+    --shadow:          0   0   0;   /* pure black for depth on dark */
+    --shadow-accent:  18  24  48;   /* very subtle navy bloom */
+
+    --code-bg:   10  13  24;    /* slightly deeper than surface */
+    --code-fg:  201 212 245;
+    --halo:    122 162 247;
+    --halo-a:    0.20;
+    --scrollthumb: 49  57  84;  /* #313954 */
+  }
+
+  html, body { background: rgb(var(--canvas)); }
+  body {
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    /* gentle cross-fade on theme flip (suppressed under reduced-motion) */
+    transition: background-color .35s ease, color .35s ease;
+  }
+  /* let common surfaces ease too, so the toggle feels designed not jarring */
+  aside, header, nav, article, input, .theme-fade {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+  }
+
+  /* Display tracking — Clash looks best slightly tightened at large sizes */
+  .font-display { letter-spacing: -0.015em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .eyebrow { letter-spacing: .14em; }
+
+  /* Visible, on-brand keyboard focus (cool blue ring, token-driven) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--blue));
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* Soft colored halo behind the focal identity header (project hue, per-theme alpha) */
+  .timer-halo::before {
+    content: "";
+    position: absolute; inset: -14% -8% auto -8%; height: 70%;
+    background: radial-gradient(60% 90% at 50% 0%, rgb(var(--halo) / var(--halo-a)), transparent 70%);
+    filter: blur(8px); z-index: 0; pointer-events: none;
+  }
+
+  /* Wikilink underline that doesn't look like a default <a> */
+  .wikilink {
+    background-image: linear-gradient(transparent 62%, rgb(var(--purple) / .28) 62%);
+    text-decoration: none;
+  }
+  .wikilink:hover { background-image: linear-gradient(transparent 0%, rgb(var(--purple) / .28) 0%); }
+
+  /* Rendered-markdown card typography (editorial reading rhythm) */
+  .prose-studio h2 { font-family:'Clash Display'; font-weight:600; letter-spacing:-.01em; }
+  .prose-studio p, .prose-studio li, .prose-studio td, .prose-studio th { line-height: 1.7; }
+  .prose-studio :where(code):not(pre code) {
+    font-family:'JetBrains Mono'; font-size:.82em; background:rgb(var(--sunken));
+    border:1px solid rgb(var(--line)); border-radius:7px; padding:.08em .42em; color:rgb(var(--blue));
+  }
+  .prose-studio pre {
+    font-family:'JetBrains Mono'; font-size:.82rem; line-height:1.65;
+    background:rgb(var(--code-bg)); color:rgb(var(--code-fg));
+    border:1px solid rgb(var(--line)); border-radius:14px; padding:1rem 1.1rem; overflow:auto;
+  }
+  .prose-studio pre .tok-flag { color:#7DCFFF; }
+  .prose-studio pre .tok-path { color:#9ECE6A; }
+
+  /* Custom scrollbars inside scroll wells (token-driven) */
+  .scroll-thin::-webkit-scrollbar { height:6px; width:6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:rgb(var(--scrollthumb)); border-radius:99px; }
+
+  /* Theme-toggle knob slide */
+  .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+  :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+  .toggle-sun { display:inline; }   .toggle-moon { display:none; }
+  :root[data-theme="dark"] .toggle-sun { display:none; }
+  :root[data-theme="dark"] .toggle-moon { display:inline; }
+
+  /* calendar heat cells inherit a project hue via currentColor on the cell */
+  .heat { background: currentColor; }
+
+  /* hide horizontal scrollbar on the mobile Kennzahlen rail (still scrolls) */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .animate-breathe { opacity: 1 !important; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink">
+
+<!-- ════════════════════ DESKTOP SIDEBAR (md+) ════════════════════ -->
+<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+  <div class="px-6 pt-7 pb-6 flex items-center justify-between">
+    <a href="#" class="group inline-flex items-center gap-2.5" aria-label="flow Startseite">
+      <span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+      <span class="font-display text-[1.45rem] font-semibold tracking-tight">flow</span>
+    </a>
+    <!-- Theme toggle (desktop) -->
+    <button type="button" onclick="toggleTheme()" data-theme-toggle
+            class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+            aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+      <span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+      <span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 space-y-1" aria-label="Hauptnavigation">
+    <a href="#heute"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▶</span> Heute
+    </a>
+    <a href="#wissen"   class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">◆</span> Wissen
+    </a>
+    <a href="#projekte" aria-current="page"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+      <span class="w-5 text-center text-[.95rem]" aria-hidden="true">●</span> Projekte
+    </a>
+    <a href="#stats"    class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▲</span> Stats
+    </a>
+    <a href="#frei"     class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">★</span> Frei
+    </a>
+  </nav>
+
+  <!-- Live status pill in sidebar foot -->
+  <div class="px-3 pb-3">
+    <div class="rounded-xl border border-line bg-sunken/60 px-3.5 py-3">
+      <div class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-green">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+        Läuft
+      </div>
+      <div class="mt-1.5 font-mono text-[.95rem] font-medium tnum text-ink" data-mini-timer>02:14:33</div>
+      <div class="text-[.78rem] text-muted truncate">flow · #rebuild</div>
+    </div>
+  </div>
+
+  <div class="px-3 pb-5">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sunken transition-colors group">
+      <span class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.8rem] font-semibold">MS</span>
+      <span class="min-w-0">
+        <span class="block text-[.85rem] font-medium leading-tight truncate">Martin S.</span>
+        <span class="block text-[.74rem] text-muted group-hover:text-blue transition-colors">Abmelden ›</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<!-- ════════════════════ MOBILE TOP BAR ════════════════════ -->
+<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+  <div class="flex items-center justify-between px-4 h-14">
+    <a href="#" class="inline-flex items-center gap-2" aria-label="flow Startseite">
+      <span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+      <span class="font-display text-xl font-semibold tracking-tight">flow</span>
+    </a>
+    <div class="flex items-center gap-2.5">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green"></span></span>
+        <span class="font-mono tnum" data-mini-timer>02:14:33</span>
+      </span>
+      <!-- Theme toggle (mobile) -->
+      <button type="button" onclick="toggleTheme()" data-theme-toggle
+              class="grid place-items-center h-9 w-9 rounded-full border border-line bg-sunken text-body active:scale-95 transition"
+              aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+        <span class="toggle-sun text-base" aria-hidden="true">☀</span>
+        <span class="toggle-moon text-base" aria-hidden="true">☾</span>
+      </button>
+      <button class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.74rem] font-semibold" aria-label="Konto">MS</button>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="md:pl-[248px] pb-28 md:pb-12">
+  <div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+
+    <!-- Breadcrumb · Projekte › flow -->
+    <nav class="flex items-center gap-1.5 text-[.8rem] mb-5 animate-rise" aria-label="Brotkrumen">
+      <a href="#projekte" class="text-muted hover:text-blue transition-colors">Projekte</a>
+      <span class="text-faint" aria-hidden="true">›</span>
+      <span class="flex items-center gap-1.5 font-medium text-ink"><span class="text-blue" aria-hidden="true">◆</span> flow</span>
+    </nav>
+
+    <!-- ════════ SECTION 1 — IDENTITY HEADER (the Sammelstelle opener) ════════ -->
+    <section id="projekte" class="scroll-mt-20">
+      <article class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift animate-rise">
+        <!-- accent rail in project color -->
+        <span class="absolute inset-y-0 left-0 w-1 bg-blue" aria-hidden="true"></span>
+
+        <div class="relative timer-halo p-6 sm:p-8">
+          <div class="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+
+            <!-- identity block -->
+            <div class="min-w-0">
+              <p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-3">Projekt-Workspace · Sammelstelle</p>
+              <div class="flex items-center gap-3.5">
+                <span class="grid place-items-center h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-blue/10 text-blue text-[1.6rem] sm:text-[1.9rem] shrink-0" aria-hidden="true">◆</span>
+                <h1 class="font-display text-[2.1rem] sm:text-[2.75rem] font-semibold leading-none tracking-tight text-blue">flow</h1>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-3 py-1 text-[.74rem] font-semibold text-green self-center">
+                  <span class="relative flex h-2 w-2" aria-hidden="true"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+                  aktiv
+                </span>
+              </div>
+              <!-- upstream git slug, subtly near the title -->
+              <p class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.86rem] text-muted">
+                <span class="inline-flex items-center gap-1.5 font-mono tnum">
+                  <span class="text-faint" aria-hidden="true">⌥</span> github.com/serverkraken/flow
+                </span>
+                <span class="hidden sm:inline text-faint" aria-hidden="true">·</span>
+                <span class="inline-flex items-center gap-1.5">
+                  Stundensatz <span class="font-mono tnum font-semibold text-ink">95,00 €/h</span>
+                </span>
+              </p>
+            </div>
+
+            <!-- action buttons -->
+            <div class="flex items-center gap-2.5 shrink-0">
+              <button class="inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3 text-[.92rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 active:scale-[.99] transition">
+                <span aria-hidden="true">✎</span> Bearbeiten
+              </button>
+              <button class="inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-5 py-3 text-[.92rem] font-semibold text-body shadow-soft hover:text-yellow hover:border-yellow/40 active:scale-[.99] transition">
+                <span aria-hidden="true">‖</span> Pausieren
+              </button>
+            </div>
+          </div>
+
+          <!-- ── Kennzahlen: stat-card row (mono numbers) ── -->
+          <!-- mobile: horizontally-scrollable; sm+: responsive grid -->
+          <dl class="relative z-10 mt-7 flex gap-3 overflow-x-auto no-scrollbar snap-x sm:grid sm:grid-cols-3 sm:gap-3 lg:grid-cols-6 sm:overflow-visible">
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-sunken/70 border border-line2 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Stunden gesamt</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-ink">142h 30m</dd>
+            </div>
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-sunken/70 border border-line2 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Diese Woche</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-blue">12h 10m</dd>
+            </div>
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-sunken/70 border border-line2 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Dieser Monat</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-ink">48h 05m</dd>
+            </div>
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-green/[.09] border border-green/20 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-green">Verdienst gesamt</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-green">13.537,50 €</dd>
+            </div>
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-sunken/70 border border-line2 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Sessions</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-ink">96</dd>
+            </div>
+            <div class="snap-start shrink-0 w-[46%] sm:w-auto rounded-2xl bg-sunken/70 border border-line2 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Docs</dt>
+              <dd class="mt-1.5 font-mono text-[1.15rem] font-semibold tnum text-ink">7</dd>
+            </div>
+          </dl>
+        </div>
+      </article>
+    </section>
+
+    <!-- ════════ WORKSPACE: 2-column (main + sticky side rail) ════════ -->
+    <div class="mt-5 md:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6 items-start">
+
+      <!-- ░░░░░░░░ MAIN COLUMN ░░░░░░░░ -->
+      <div class="lg:col-span-2 space-y-5 md:space-y-6">
+
+        <!-- ── SECTION 3 — Beschreibung (rendered markdown) ── -->
+        <article class="rounded-3xl bg-surface border border-line shadow-soft overflow-hidden animate-rise">
+          <header class="flex items-center justify-between gap-3 border-b border-line2 px-6 sm:px-8 py-4">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="grid place-items-center h-7 w-7 rounded-lg bg-blue/10 text-blue text-[.85rem]" aria-hidden="true">›</span>
+              <h2 class="font-display text-[1.05rem] font-semibold truncate">Beschreibung</h2>
+            </div>
+            <span class="hidden sm:inline font-mono text-[.74rem] tnum text-muted">README.md</span>
+          </header>
+
+          <div class="prose-studio px-6 sm:px-8 py-6 sm:py-7 max-w-none text-body">
+            <h2 class="text-[1.4rem] text-ink mb-2">Über flow</h2>
+            <p class="mb-4 text-[.96rem]">
+              <strong class="text-ink font-semibold">flow</strong> ist die selbst-gehostete Cockpit-App für
+              Zeiterfassung und persönliches Wissen — eine Binary, server-gerendert, OIDC-Login. Dieser
+              Workspace bündelt <em>alles</em> zum Projekt an einem Ort: Kennzahlen, Notizen, Sitzungen und Bindungen.
+            </p>
+            <ul class="mb-1 space-y-1.5 text-[.96rem]">
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> <strong class="text-ink font-medium">Worktime</strong> — Timer, Tages- und Wochenziele, Nachbuchen</li>
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> <strong class="text-ink font-medium">Wissen</strong> — Markdown-Notizen mit Wikilinks und Suche</li>
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> <strong class="text-ink font-medium">Projekte</strong> — Farbe, Glyph, Satz und Git-Bindungen</li>
+            </ul>
+          </div>
+        </article>
+
+        <!-- ── SECTION 4 — Projekt-Notizen ── -->
+        <section class="animate-rise" style="animation-delay:.05s">
+          <div class="flex items-end justify-between mb-4">
+            <div>
+              <p class="eyebrow uppercase text-[.7rem] font-semibold text-green mb-1">Kompendium · 7 Dokumente</p>
+              <h2 class="font-display text-[1.35rem] font-semibold tracking-tight">Projekt-Notizen</h2>
+            </div>
+            <a href="#" class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.85rem] font-medium text-body shadow-soft hover:text-green hover:border-green/40 transition-colors">
+              <span aria-hidden="true">✚</span> Neu
+            </a>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- project note -->
+            <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition ring-1 ring-green/20">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-md bg-green/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+                <span class="font-mono text-[.74rem] tnum text-muted">2026-06-21</span>
+              </div>
+              <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-green transition-colors">flow WebUI — Spec</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#webui</span>
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              </div>
+            </a>
+            <!-- project note -->
+            <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition ring-1 ring-green/20">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-md bg-green/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+                <span class="font-mono text-[.74rem] tnum text-muted">2026-06-14</span>
+              </div>
+              <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-green transition-colors">Architektur-Entscheidungen</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#ops</span>
+              </div>
+            </a>
+            <!-- project note -->
+            <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition ring-1 ring-green/20">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-md bg-green/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+                <span class="font-mono text-[.74rem] tnum text-muted">2026-06-07</span>
+              </div>
+              <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-green transition-colors">Deploy &amp; Homelab</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#ops</span>
+              </div>
+            </a>
+            <!-- linked daily -->
+            <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-md bg-blue/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-blue"><span aria-hidden="true">●</span> Tägl.</span>
+                <span class="font-mono text-[.74rem] tnum text-muted">2026-06-23</span>
+              </div>
+              <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-blue transition-colors">2026-06-23 Daily</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#webui</span>
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              </div>
+            </a>
+            <!-- linked daily -->
+            <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition sm:col-span-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-md bg-blue/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-blue"><span aria-hidden="true">●</span> Tägl.</span>
+                <span class="font-mono text-[.74rem] tnum text-muted">2026-06-20</span>
+              </div>
+              <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-blue transition-colors">2026-06-20 Daily</p>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              </div>
+            </a>
+          </div>
+        </section>
+
+        <!-- ── SECTION 5 — Letzte Sessions (Worktime) ── -->
+        <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise" style="animation-delay:.1s">
+          <div class="flex items-center justify-between mb-1">
+            <h2 class="font-display text-lg font-semibold">Letzte Sitzungen</h2>
+            <a href="#" class="text-[.8rem] font-medium text-blue hover:underline underline-offset-2">Alle in Historie ›</a>
+          </div>
+          <p class="text-[.82rem] text-muted mb-5">
+            <span>Diese Woche</span>
+            <span class="font-mono tnum text-ink font-semibold ml-1">12h 10m</span> auf
+            <span class="text-blue font-medium">flow</span>
+          </p>
+
+          <!-- weekly-hours bar / sparkline -->
+          <ul class="space-y-2.5 mb-5">
+            <li class="flex items-center gap-3">
+              <span class="w-7 text-[.78rem] font-semibold text-muted">Mo</span>
+              <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue/70" style="width:34%"></div></div>
+              <span class="w-14 text-right font-mono text-[.78rem] tnum">2h 42m</span>
+            </li>
+            <li class="flex items-center gap-3">
+              <span class="w-7 text-[.78rem] font-semibold text-muted">Di</span>
+              <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue/70" style="width:21%"></div></div>
+              <span class="w-14 text-right font-mono text-[.78rem] tnum">1h 38m</span>
+            </li>
+            <li class="flex items-center gap-3">
+              <span class="w-7 text-[.78rem] font-semibold text-muted">Mi</span>
+              <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue/70" style="width:40%"></div></div>
+              <span class="w-14 text-right font-mono text-[.78rem] tnum">3h 08m</span>
+            </li>
+            <li class="flex items-center gap-3">
+              <span class="w-7 text-[.78rem] font-semibold text-muted">Do</span>
+              <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue/70" style="width:13%"></div></div>
+              <span class="w-14 text-right font-mono text-[.78rem] tnum">1h 00m</span>
+            </li>
+            <li class="flex items-center gap-3 rounded-lg -mx-1.5 px-1.5 py-1 bg-blue/[.05]">
+              <span class="w-7 text-[.78rem] font-semibold text-blue">Fr</span>
+              <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue" style="width:48%"></div></div>
+              <span class="w-14 text-right font-mono text-[.78rem] tnum text-blue font-semibold">3h 42m</span>
+              <span class="text-blue text-[.8rem] animate-breathe" title="Heute · läuft" aria-label="Heute, läuft">●</span>
+            </li>
+          </ul>
+
+          <!-- recent session rows -->
+          <ul class="divide-y divide-line2 border-t border-line2 pt-1">
+            <li class="flex items-center gap-4 py-3">
+              <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.9rem]" aria-hidden="true">▶</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[.86rem] font-medium font-mono tnum">Fr · 23.06.</p>
+                <p class="text-[.8rem] text-muted font-mono tnum">11:58–läuft</p>
+              </div>
+              <span class="hidden sm:inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              <span class="font-mono text-[.92rem] font-semibold tnum text-blue w-16 text-right">2h 14m</span>
+            </li>
+            <li class="flex items-center gap-4 py-3">
+              <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.9rem]" aria-hidden="true">◆</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[.86rem] font-medium font-mono tnum">Fr · 23.06.</p>
+                <p class="text-[.8rem] text-muted font-mono tnum">09:12–10:48</p>
+              </div>
+              <span class="hidden sm:inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              <span class="font-mono text-[.92rem] font-semibold tnum w-16 text-right">1h 36m</span>
+            </li>
+            <li class="flex items-center gap-4 py-3">
+              <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.9rem]" aria-hidden="true">◆</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[.86rem] font-medium font-mono tnum">Do · 22.06.</p>
+                <p class="text-[.8rem] text-muted font-mono tnum">14:30–15:30</p>
+              </div>
+              <span class="hidden sm:inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#webui</span>
+              <span class="font-mono text-[.92rem] font-semibold tnum w-16 text-right">1h 00m</span>
+            </li>
+            <li class="flex items-center gap-4 py-3">
+              <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.9rem]" aria-hidden="true">◆</span>
+              <div class="min-w-0 flex-1">
+                <p class="text-[.86rem] font-medium font-mono tnum">Mi · 21.06.</p>
+                <p class="text-[.8rem] text-muted font-mono tnum">09:40–12:48</p>
+              </div>
+              <span class="hidden sm:inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              <span class="font-mono text-[.92rem] font-semibold tnum w-16 text-right">3h 08m</span>
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      <!-- ░░░░░░░░ STICKY SIDE RAIL ░░░░░░░░ -->
+      <aside class="space-y-5 md:space-y-6 lg:sticky lg:top-6 self-start">
+
+        <!-- ── SECTION 2b — Kennzahlen-Highlight (earnings focal) ── -->
+        <article class="rounded-3xl bg-gradient-to-br from-[#1B2233] to-[#2A3350] text-white p-6 shadow-lift animate-rise">
+          <p class="eyebrow uppercase text-[.7rem] font-semibold text-white/55">Verdienst gesamt</p>
+          <div class="mt-1.5 flex items-baseline gap-2">
+            <span class="font-mono text-[2rem] font-semibold tnum leading-none">13.537,50 €</span>
+          </div>
+          <p class="text-[.82rem] text-white/65 mt-2 font-mono tnum">142,5 h × 95,00 €/h</p>
+          <div class="mt-5 grid grid-cols-2 gap-3">
+            <div class="rounded-2xl bg-white/[.08] px-3.5 py-3">
+              <dt class="eyebrow uppercase text-[.6rem] font-semibold text-white/55">Stunden</dt>
+              <dd class="mt-1 font-mono text-[.98rem] font-semibold tnum">142h 30m</dd>
+            </div>
+            <div class="rounded-2xl bg-white/[.08] px-3.5 py-3">
+              <dt class="eyebrow uppercase text-[.6rem] font-semibold text-white/55">Sessions</dt>
+              <dd class="mt-1 font-mono text-[.98rem] font-semibold tnum">96</dd>
+            </div>
+          </div>
+        </article>
+
+        <!-- ── SECTION 6 — Bindings / Worktrees ── -->
+        <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise" style="animation-delay:.05s">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-lg font-semibold">Bindungen</h2>
+            <span class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Remote · Pfade</span>
+          </div>
+
+          <ul class="space-y-2.5">
+            <!-- remote binding -->
+            <li class="flex items-start gap-3 rounded-2xl bg-sunken/60 border border-line2 px-3.5 py-3">
+              <span class="grid place-items-center h-8 w-8 rounded-lg bg-purple/10 text-purple text-[.9rem] shrink-0" aria-hidden="true">◆</span>
+              <div class="min-w-0">
+                <p class="eyebrow uppercase text-[.6rem] font-semibold text-purple">Remote</p>
+                <p class="mt-0.5 font-mono text-[.8rem] tnum text-ink break-all">github.com/serverkraken/flow</p>
+              </div>
+            </li>
+            <!-- machine path binding -->
+            <li class="flex items-start gap-3 rounded-2xl bg-sunken/60 border border-line2 px-3.5 py-3">
+              <span class="grid place-items-center h-8 w-8 rounded-lg bg-teal/10 text-teal text-[.9rem] shrink-0" aria-hidden="true">●</span>
+              <div class="min-w-0">
+                <p class="eyebrow uppercase text-[.6rem] font-semibold text-teal">macbook</p>
+                <p class="mt-0.5 font-mono text-[.8rem] tnum text-ink break-all">~/SourceCode/serverkraken/flow-rebuild</p>
+              </div>
+            </li>
+            <!-- worktree path binding -->
+            <li class="flex items-start gap-3 rounded-2xl bg-sunken/60 border border-line2 px-3.5 py-3">
+              <span class="grid place-items-center h-8 w-8 rounded-lg bg-teal/10 text-teal text-[.9rem] shrink-0" aria-hidden="true">●</span>
+              <div class="min-w-0">
+                <p class="eyebrow uppercase text-[.6rem] font-semibold text-teal">macbook · worktree</p>
+                <p class="mt-0.5 font-mono text-[.8rem] tnum text-ink break-all">~/SourceCode/serverkraken/flow</p>
+              </div>
+            </li>
+          </ul>
+        </article>
+
+        <!-- ── SECTION 7 — Tags ── -->
+        <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise" style="animation-delay:.1s">
+          <h2 class="font-display text-lg font-semibold mb-4">Tags</h2>
+          <div class="flex flex-wrap gap-2">
+            <a href="#" class="inline-flex items-center rounded-full bg-blue/[.08] px-3 py-1.5 text-[.82rem] font-medium text-blue hover:bg-blue/[.14] transition-colors">#rebuild</a>
+            <a href="#" class="inline-flex items-center rounded-full bg-blue/[.08] px-3 py-1.5 text-[.82rem] font-medium text-blue hover:bg-blue/[.14] transition-colors">#webui</a>
+            <a href="#" class="inline-flex items-center rounded-full bg-blue/[.08] px-3 py-1.5 text-[.82rem] font-medium text-blue hover:bg-blue/[.14] transition-colors">#ops</a>
+          </div>
+        </article>
+      </aside>
+    </div>
+
+    <!-- footer -->
+    <footer class="mt-14 mb-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line2 pt-6 text-[.78rem] text-muted">
+      <p>flow · selbst-gehostet · OIDC</p>
+      <p class="font-mono tnum">v0.9 · rebuild · <span class="text-green">●</span> Live-Sync aktiv</p>
+    </footer>
+  </div>
+</main>
+
+<!-- ════════════════════ MOBILE BOTTOM TAB BAR (≤md) ════════════════════ -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-t border-line"
+     aria-label="Hauptnavigation" style="padding-bottom:env(safe-area-inset-bottom)">
+  <ul class="grid grid-cols-5">
+    <li>
+      <a href="#heute" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▶</span>
+        <span class="text-[.66rem] font-medium">Heute</span>
+      </a>
+    </li>
+    <li>
+      <a href="#wissen" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">◆</span>
+        <span class="text-[.66rem] font-medium">Wissen</span>
+      </a>
+    </li>
+    <!-- center FAB: Start/Stopp -->
+    <li class="relative">
+      <button class="absolute left-1/2 -translate-x-1/2 -top-5 grid place-items-center h-13 w-13 rounded-2xl bg-red text-oncolor shadow-ring active:scale-95 transition"
+              aria-label="Sitzung stoppen" style="height:3.25rem;width:3.25rem">
+        <span class="text-lg" aria-hidden="true">■</span>
+      </button>
+      <span class="block py-2.5 text-center text-[.66rem] font-medium text-muted mt-5">Stopp</span>
+    </li>
+    <li>
+      <a href="#projekte" aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">●</span>
+        <span class="text-[.66rem] font-semibold">Projekte</span>
+      </a>
+    </li>
+    <li>
+      <a href="#stats" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▲</span>
+        <span class="text-[.66rem] font-medium">Stats</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- ════════════════════ Theme toggle ════════════════════ -->
+<script>
+  (function () {
+    var root   = document.documentElement;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function syncToggles() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+      });
+    }
+
+    // expose for the inline onclick handlers
+    window.toggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      // reduced-motion users: hard cut, no cross-fade
+      if (reduce) {
+        root.setAttribute('data-theme', next);
+      } else {
+        root.setAttribute('data-theme', next);
+      }
+      try { localStorage.setItem('flow-theme', next); } catch (e) {}
+      syncToggles();
+    };
+
+    // keep tabs/devices in sync if changed elsewhere
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'flow-theme' && e.newValue) {
+        root.setAttribute('data-theme', e.newValue);
+        syncToggles();
+      }
+    });
+
+    syncToggles(); // reflect the no-flash initial choice on the buttons
+  })();
+</script>
+
+<!-- ════════════════════ Tiny live-timer script ════════════════════ -->
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // base elapsed: 2h 14m 33s (the currently running session on flow)
+  var base = (2 * 3600) + (14 * 60) + 33;
+  var start = Date.now();
+
+  var minis = document.querySelectorAll('[data-mini-timer]');
+
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function tick() {
+    var elapsed = base + Math.floor((Date.now() - start) / 1000);
+    var h = Math.floor(elapsed / 3600);
+    var m = Math.floor((elapsed % 3600) / 60);
+    var s = elapsed % 60;
+    minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+  }
+
+  tick();
+  if (!reduce) {
+    setInterval(tick, 1000);
+  } else {
+    // still advance once a minute so it isn't frozen-stale, but no per-second motion
+    setInterval(tick, 60000);
+  }
+})();
+</script>
+</body>
+</html>

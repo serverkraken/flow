@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>flow — Studio</title>
+
+<!-- ── Fonts ─────────────────────────────────────────────────────────────
+     Display : Clash Display (Fontshare) — characterful geometric grotesk
+     Body    : Inter (Google) — clean, neutral, highly readable
+     Mono    : JetBrains Mono (Google) — ONLY for timer + durations
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Clash Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        colors: {
+          /* ── Semantic tokens (resolve per theme via CSS custom props) ──
+             Same utility class names as before; only the *values* now flip
+             between the light and dark Studio palettes. <alpha-value> keeps
+             Tailwind's /opacity modifiers (bg-blue/10 etc.) working. */
+          canvas:  'rgb(var(--canvas)  / <alpha-value>)',  /* page background */
+          surface: 'rgb(var(--surface) / <alpha-value>)',  /* cards */
+          sunken:  'rgb(var(--sunken)  / <alpha-value>)',  /* recessed wells */
+          line:    'rgb(var(--line)    / <alpha-value>)',  /* hairline borders */
+          line2:   'rgb(var(--line2)   / <alpha-value>)',  /* fainter dividers */
+          ink:     'rgb(var(--ink)     / <alpha-value>)',  /* primary text */
+          body:    'rgb(var(--body)    / <alpha-value>)',  /* secondary text */
+          muted:   'rgb(var(--muted)   / <alpha-value>)',  /* tertiary / labels */
+          faint:   'rgb(var(--faint)   / <alpha-value>)',  /* glyph ghosts */
+
+          /* Project hues — retuned per theme for correct contrast on each base */
+          blue:    'rgb(var(--blue)    / <alpha-value>)',
+          cyan:    'rgb(var(--cyan)    / <alpha-value>)',
+          green:   'rgb(var(--green)   / <alpha-value>)',
+          purple:  'rgb(var(--purple)  / <alpha-value>)',
+          magenta: 'rgb(var(--magenta) / <alpha-value>)',
+          yellow:  'rgb(var(--yellow)  / <alpha-value>)',
+          orange:  'rgb(var(--orange)  / <alpha-value>)',
+          red:     'rgb(var(--red)     / <alpha-value>)',
+          teal:    'rgb(var(--teal)    / <alpha-value>)',
+          /* fixed-white text token that stays readable on colored fills in both modes */
+          oncolor: 'rgb(var(--oncolor) / <alpha-value>)',
+        },
+        borderRadius: { '2xl': '1.25rem', '3xl': '1.75rem' },
+        boxShadow: {
+          /* Cool, soft elevation — driven by a per-theme shadow tint var */
+          'soft':  '0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10)',
+          'lift':  '0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18)',
+          'ring':  '0 10px 50px -12px rgb(var(--shadow-accent) / .30)',
+        },
+        keyframes: {
+          breathe: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.45' } },
+          rise:    { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } },
+        },
+        animation: {
+          breathe: 'breathe 2.2s ease-in-out infinite',
+          rise:    'rise .6s cubic-bezier(.21,.85,.27,1) both',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- No-flash theme init: set data-theme BEFORE first paint.
+     Priority: saved choice → prefers-color-scheme → light. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('flow-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — one Studio identity, two themes.
+     Values are space-separated RGB triplets so Tailwind's rgb(var(--x)/α)
+     and our own rgb(var(--x)/.NN) usages both work.
+     ════════════════════════════════════════════════════════════════════ */
+
+  /* ── LIGHT (default) — cool, crisp, NOT warm cream ── */
+  :root {
+    color-scheme: light;
+    --canvas:  251 252 254;   /* #FBFCFE */
+    --surface: 255 255 255;   /* #FFFFFF */
+    --sunken:  244 246 251;   /* #F4F6FB */
+    --line:    230 233 242;   /* #E6E9F2 */
+    --line2:   238 241 248;   /* #EEF1F8 */
+    --ink:      27  34  51;   /* #1B2233 */
+    --body:     72  82 106;   /* #48526A */
+    --muted:   138 147 166;   /* #8A93A6 */
+    --faint:   174 182 199;   /* #AEB6C7 */
+
+    --blue:     59 111 246;   /* #3B6FF6 */
+    --cyan:     11 165 214;   /* #0BA5D6 */
+    --green:    39 165 103;   /* #27A567 */
+    --purple:  139  92 246;   /* #8B5CF6 */
+    --magenta: 225  29 116;   /* #E11D74 */
+    --yellow:  217 138  11;   /* #D98A0B */
+    --orange:  234 106  43;   /* #EA6A2B */
+    --red:     224  69  91;   /* #E0455B */
+    --teal:     14 155 142;   /* #0E9B8E */
+    --oncolor: 255 255 255;   /* text on colored fills */
+
+    --shadow:         27  34  51;   /* slate, drives soft elevation */
+    --shadow-accent:  59 111 246;   /* bluish tint in the lift shadow */
+
+    /* code block stays a deep cool slate in BOTH themes (an editorial inset) */
+    --code-bg:    15  20  38;   /* #0F1426 */
+    --code-fg:   201 212 245;   /* #C9D4F5 */
+    --halo:       59 111 246;   /* timer halo color = project hue */
+    --halo-a:    0.16;
+    --scrollthumb: 217 223 236; /* #D9DFEC */
+  }
+
+  /* ── DARK — sophisticated dark productivity, soft navy (NOT pure black,
+        NOT a terminal). Same hues, retuned brighter for dark contrast. ── */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --canvas:  14  17  28;     /* #0E111C  deep cool navy-black */
+    --surface: 22  26  40;     /* #161A28  card */
+    --sunken:  28  33  50;     /* #1C2132  recessed well */
+    --line:    42  49  72;     /* #2A3148  hairline */
+    --line2:   34  40  60;     /* #22283C  fainter divider */
+    --ink:     226 231 245;    /* #E2E7F5  primary text (soft, not #fff) */
+    --body:    166 175 199;    /* #A6AFC7  secondary */
+    --muted:   122 132 158;    /* #7A849E  tertiary */
+    --faint:    82  92 120;    /* #525C78  glyph ghosts */
+
+    /* hues lifted for contrast against the navy base */
+    --blue:    122 162 247;    /* #7AA2F7 */
+    --cyan:    125 207 255;    /* #7DCFFF */
+    --green:   158 206 106;    /* #9ECE6A */
+    --purple:  187 154 247;    /* #BB9AF7 */
+    --magenta: 247 110 168;    /* #F76EA8 */
+    --yellow:  224 175 104;    /* #E0AF68 */
+    --orange:  255 158 100;    /* #FF9E64 */
+    --red:     247 118 142;    /* #F7768E */
+    --teal:    115 218 202;    /* #73DACA */
+    --oncolor:  16  19  30;    /* dark ink on bright colored fills */
+
+    --shadow:          0   0   0;   /* pure black for depth on dark */
+    --shadow-accent:  18  24  48;   /* very subtle navy bloom */
+
+    --code-bg:   10  13  24;    /* slightly deeper than surface */
+    --code-fg:  201 212 245;
+    --halo:    122 162 247;
+    --halo-a:    0.20;
+    --scrollthumb: 49  57  84;  /* #313954 */
+  }
+
+  html, body { background: rgb(var(--canvas)); }
+  body {
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    /* gentle cross-fade on theme flip (suppressed under reduced-motion) */
+    transition: background-color .35s ease, color .35s ease;
+  }
+  /* let common surfaces ease too, so the toggle feels designed not jarring */
+  aside, header, nav, article, input, .theme-fade {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+  }
+
+  /* Display tracking — Clash looks best slightly tightened at large sizes */
+  .font-display { letter-spacing: -0.015em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .eyebrow { letter-spacing: .14em; }
+
+  /* Visible, on-brand keyboard focus (cool blue ring, token-driven) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--blue));
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* Soft colored halo behind the focal timer (project hue, per-theme alpha) */
+  .timer-halo::before {
+    content: "";
+    position: absolute; inset: -14% -8% auto -8%; height: 70%;
+    background: radial-gradient(60% 90% at 50% 0%, rgb(var(--halo) / var(--halo-a)), transparent 70%);
+    filter: blur(8px); z-index: 0; pointer-events: none;
+  }
+
+  /* Wikilink underline that doesn't look like a default <a> */
+  .wikilink {
+    background-image: linear-gradient(transparent 62%, rgb(var(--purple) / .28) 62%);
+    text-decoration: none;
+  }
+  .wikilink:hover { background-image: linear-gradient(transparent 0%, rgb(var(--purple) / .28) 0%); }
+
+  /* Rendered-markdown card typography (editorial reading rhythm) */
+  .prose-studio h2 { font-family:'Clash Display'; font-weight:600; letter-spacing:-.01em; }
+  .prose-studio p, .prose-studio li, .prose-studio td, .prose-studio th { line-height: 1.7; }
+  .prose-studio :where(code):not(pre code) {
+    font-family:'JetBrains Mono'; font-size:.82em; background:rgb(var(--sunken));
+    border:1px solid rgb(var(--line)); border-radius:7px; padding:.08em .42em; color:rgb(var(--blue));
+  }
+  .prose-studio pre {
+    font-family:'JetBrains Mono'; font-size:.82rem; line-height:1.65;
+    background:rgb(var(--code-bg)); color:rgb(var(--code-fg));
+    border:1px solid rgb(var(--line)); border-radius:14px; padding:1rem 1.1rem; overflow:auto;
+  }
+  .prose-studio pre .tok-flag { color:#7DCFFF; }
+  .prose-studio pre .tok-path { color:#9ECE6A; }
+
+  /* Custom scrollbars inside scroll wells (token-driven) */
+  .scroll-thin::-webkit-scrollbar { height:6px; width:6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:rgb(var(--scrollthumb)); border-radius:99px; }
+
+  /* Theme-toggle knob slide */
+  .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+  :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+  .toggle-sun { display:inline; }   .toggle-moon { display:none; }
+  :root[data-theme="dark"] .toggle-sun { display:none; }
+  :root[data-theme="dark"] .toggle-moon { display:inline; }
+
+  /* calendar heat cells inherit a project hue via currentColor on the cell */
+  .heat { background: currentColor; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .animate-breathe { opacity: 1 !important; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink">
+
+<!-- ════════════════════ DESKTOP SIDEBAR (md+) ════════════════════ -->
+<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+  <div class="px-6 pt-7 pb-6 flex items-center justify-between">
+    <a href="#" class="group inline-flex items-center gap-2.5" aria-label="flow Startseite">
+      <span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+      <span class="font-display text-[1.45rem] font-semibold tracking-tight">flow</span>
+    </a>
+    <!-- Theme toggle (desktop) -->
+    <button type="button" onclick="toggleTheme()" data-theme-toggle
+            class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+            aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+      <span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+      <span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 space-y-1" aria-label="Hauptnavigation">
+    <a href="#heute" aria-current="page"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+      <span class="w-5 text-center text-[.95rem]" aria-hidden="true">▶</span> Heute
+    </a>
+    <a href="#wissen"   class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">◆</span> Wissen
+    </a>
+    <a href="#projekte" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">●</span> Projekte
+    </a>
+    <a href="#stats"    class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▲</span> Stats
+    </a>
+    <a href="#frei"     class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">★</span> Frei
+    </a>
+  </nav>
+
+  <!-- Live status pill in sidebar foot -->
+  <div class="px-3 pb-3">
+    <div class="rounded-xl border border-line bg-sunken/60 px-3.5 py-3">
+      <div class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-green">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+        Läuft
+      </div>
+      <div class="mt-1.5 font-mono text-[.95rem] font-medium tnum text-ink" data-mini-timer>02:14:33</div>
+      <div class="text-[.78rem] text-muted truncate">flow · #rebuild</div>
+    </div>
+  </div>
+
+  <div class="px-3 pb-5">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sunken transition-colors group">
+      <span class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.8rem] font-semibold">MS</span>
+      <span class="min-w-0">
+        <span class="block text-[.85rem] font-medium leading-tight truncate">Martin S.</span>
+        <span class="block text-[.74rem] text-muted group-hover:text-blue transition-colors">Abmelden ›</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<!-- ════════════════════ MOBILE TOP BAR ════════════════════ -->
+<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+  <div class="flex items-center justify-between px-4 h-14">
+    <a href="#" class="inline-flex items-center gap-2" aria-label="flow Startseite">
+      <span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+      <span class="font-display text-xl font-semibold tracking-tight">flow</span>
+    </a>
+    <div class="flex items-center gap-2.5">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green"></span></span>
+        <span class="font-mono tnum" data-mini-timer>02:14:33</span>
+      </span>
+      <!-- Theme toggle (mobile) -->
+      <button type="button" onclick="toggleTheme()" data-theme-toggle
+              class="grid place-items-center h-9 w-9 rounded-full border border-line bg-sunken text-body active:scale-95 transition"
+              aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+        <span class="toggle-sun text-base" aria-hidden="true">☀</span>
+        <span class="toggle-moon text-base" aria-hidden="true">☾</span>
+      </button>
+      <button class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.74rem] font-semibold" aria-label="Konto">MS</button>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="md:pl-[248px] pb-28 md:pb-12">
+  <div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+
+    <!-- Page heading + search -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-7 md:mb-9 animate-rise">
+      <div>
+        <p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">Dienstag · 23. Juni 2026</p>
+        <h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">Heute</h1>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <label class="relative flex-1 sm:flex-none">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted text-sm" aria-hidden="true">›</span>
+          <input type="search" placeholder="Suchen…" aria-label="Suchen"
+                 class="w-full sm:w-56 rounded-xl border border-line bg-surface py-2.5 pl-9 pr-3 text-[.9rem] placeholder:text-faint shadow-soft focus:border-blue/40 transition-colors" />
+        </label>
+        <button class="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-[.9rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 transition-colors">
+          <span aria-hidden="true">✚</span> Neu
+        </button>
+      </div>
+    </div>
+
+    <!-- ════════ SECTION B — HEUTE (HERO) ════════ -->
+    <section id="heute" class="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6 scroll-mt-20">
+
+      <!-- ░░ SIGNATURE: live timer focal card ░░ -->
+      <article class="lg:col-span-2 relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift animate-rise">
+        <!-- accent rail in project color -->
+        <span class="absolute inset-y-0 left-0 w-1 bg-blue" aria-hidden="true"></span>
+
+        <div class="relative timer-halo p-6 sm:p-8 lg:p-10">
+          <!-- header row: project identity + running glyph -->
+          <div class="relative z-10 flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3">
+              <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[1.05rem]" aria-hidden="true">◆</span>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-blue text-sm animate-breathe" aria-hidden="true">▶</span>
+                  <span class="eyebrow uppercase text-[.72rem] font-semibold text-green">Läuft</span>
+                </div>
+                <p class="text-[.95rem] font-semibold mt-0.5">serverkraken · <span class="text-blue">flow</span></p>
+              </div>
+            </div>
+            <span class="inline-flex items-center rounded-full bg-blue/[.08] text-blue px-3 py-1 text-[.78rem] font-medium">#rebuild</span>
+          </div>
+
+          <!-- the time -->
+          <div class="relative z-10 mt-7 sm:mt-8 flex items-end gap-6 flex-wrap">
+            <!-- progress ring (project color) -->
+            <div class="relative shrink-0" aria-hidden="true">
+              <svg width="112" height="112" viewBox="0 0 112 112" class="rotate-[-90deg]">
+                <circle cx="56" cy="56" r="50" fill="none" style="stroke:rgb(var(--line))" stroke-width="9"/>
+                <circle cx="56" cy="56" r="50" fill="none" style="stroke:rgb(var(--blue))" stroke-width="9" stroke-linecap="round"
+                        stroke-dasharray="314.16" stroke-dashoffset="224" data-ring />
+              </svg>
+              <div class="absolute inset-0 grid place-items-center">
+                <span class="font-display text-[1.15rem] font-semibold text-blue tnum">28%</span>
+              </div>
+            </div>
+
+            <div class="min-w-0">
+              <div class="font-mono font-medium tnum text-ink leading-none text-[3.1rem] sm:text-[4.2rem] lg:text-[4.6rem]"
+                   data-timer aria-label="Verstrichene Zeit der laufenden Sitzung" role="timer">
+                2h 14m 33s
+              </div>
+              <p class="mt-2 text-[.9rem] text-muted">Gestartet um <span class="font-medium text-body tnum">11:58</span> · Tagesziel <span class="font-mono tnum">8h 00m</span></p>
+            </div>
+          </div>
+
+          <!-- actions + quiet supporting stats -->
+          <div class="relative z-10 mt-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+            <button class="inline-flex items-center justify-center gap-2 rounded-2xl bg-red px-6 py-3.5 text-[.98rem] font-semibold text-oncolor shadow-soft hover:bg-red/90 active:scale-[.99] transition w-full sm:w-auto">
+              <span aria-hidden="true">■</span> Stopp
+            </button>
+
+            <dl class="grid grid-cols-3 gap-5 sm:gap-7 flex-1">
+              <div>
+                <dt class="eyebrow uppercase text-[.68rem] font-semibold text-muted">Heute gesamt</dt>
+                <dd class="mt-1 font-mono text-[1.05rem] font-semibold tnum">5h 42m</dd>
+              </div>
+              <div>
+                <dt class="eyebrow uppercase text-[.68rem] font-semibold text-muted">Tagesziel</dt>
+                <dd class="mt-1 font-mono text-[1.05rem] font-semibold tnum text-body">8h 00m</dd>
+              </div>
+              <div>
+                <dt class="eyebrow uppercase text-[.68rem] font-semibold text-muted">Saldo</dt>
+                <dd class="mt-1 font-mono text-[1.05rem] font-semibold tnum text-red">−2h 18m</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- day progress bar -->
+          <div class="relative z-10 mt-6">
+            <div class="flex items-center justify-between text-[.74rem] text-muted mb-1.5">
+              <span>Tagesfortschritt</span>
+              <span class="font-mono tnum">5h 42m / 8h 00m</span>
+            </div>
+            <div class="h-2.5 w-full rounded-full bg-sunken overflow-hidden" role="progressbar" aria-valuenow="71" aria-valuemin="0" aria-valuemax="100" aria-label="Tagesfortschritt 71 Prozent">
+              <div class="h-full rounded-full bg-gradient-to-r from-blue to-cyan" style="width:71%"></div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ░░ Start + quick stats column ░░ -->
+      <div class="flex flex-col gap-5 md:gap-6">
+        <!-- Start card — intentionally a deep inverted accent card in BOTH themes
+             (fixed navy hexes, not tokens, so it never washes out in dark mode) -->
+        <article class="rounded-3xl bg-gradient-to-br from-[#1B2233] to-[#2A3350] text-white p-6 shadow-lift animate-rise" style="animation-delay:.05s">
+          <p class="eyebrow uppercase text-[.7rem] font-semibold text-white/55">Neue Sitzung</p>
+          <h2 class="font-display text-2xl font-semibold mt-1 leading-tight">Zeit erfassen</h2>
+          <p class="text-[.86rem] text-white/65 mt-1.5">Starte den Timer und buche auf ein Projekt.</p>
+          <button class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-[.98rem] font-semibold text-[#1B2233] hover:bg-white/90 active:scale-[.99] transition">
+            <span class="text-[#3B6FF6]" aria-hidden="true">▶</span> Start
+          </button>
+          <p class="mt-3 text-center text-[.78rem] text-white/55">Projekt wählen · oder <span class="underline decoration-white/30 underline-offset-2">Nachbuchen</span></p>
+        </article>
+
+        <!-- Stats glance (Section D) -->
+        <article id="stats" class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise scroll-mt-20" style="animation-delay:.1s">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-lg font-semibold">Auf einen Blick</h2>
+            <a href="#stats" class="text-[.8rem] font-medium text-blue hover:underline underline-offset-2">Stats ›</a>
+          </div>
+
+          <dl class="grid grid-cols-3 gap-3 text-center">
+            <div class="rounded-2xl bg-sunken/70 py-3">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Heute</dt>
+              <dd class="mt-1 font-mono text-[.98rem] font-semibold tnum">5h 42m</dd>
+            </div>
+            <div class="rounded-2xl bg-sunken/70 py-3">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Woche</dt>
+              <dd class="mt-1 font-mono text-[.98rem] font-semibold tnum">32h 10m</dd>
+            </div>
+            <div class="rounded-2xl bg-green/[.09] py-3">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-green">Streak</dt>
+              <dd class="mt-1 font-mono text-[.98rem] font-semibold tnum text-green flex items-center justify-center gap-1">6 <span class="text-[.8rem]" aria-hidden="true">▲</span></dd>
+            </div>
+          </dl>
+
+          <!-- tiny sparkline / burndown -->
+          <div class="mt-4">
+            <div class="flex items-center justify-between text-[.72rem] text-muted mb-1.5">
+              <span>Burndown · 14 Tage</span><span class="text-green font-medium">auf Kurs</span>
+            </div>
+            <svg viewBox="0 0 220 48" class="w-full h-12" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="spark" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%"   style="stop-color:rgb(var(--blue))" stop-opacity=".22"/>
+                  <stop offset="100%" style="stop-color:rgb(var(--blue))" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,40 L18,36 L36,38 L54,28 L72,30 L90,22 L108,24 L126,16 L144,18 L162,12 L180,15 L198,8 L220,10 L220,48 L0,48 Z" fill="url(#spark)"/>
+              <path d="M0,40 L18,36 L36,38 L54,28 L72,30 L90,22 L108,24 L126,16 L144,18 L162,12 L180,15 L198,8 L220,10"
+                    fill="none" style="stroke:rgb(var(--blue))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="220" cy="10" r="3" style="fill:rgb(var(--blue))"/>
+            </svg>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ░░ Heutige Sessions ░░ -->
+    <section class="mt-5 md:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
+      <article class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-display text-lg font-semibold">Heutige Sitzungen</h2>
+          <span class="text-[.8rem] text-muted">3 Einträge</span>
+        </div>
+        <ul class="divide-y divide-line2">
+          <!-- row template -->
+          <li class="flex items-center gap-4 py-3">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[.95rem]" aria-hidden="true">◆</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.92rem] font-semibold truncate">flow <span class="ml-1.5 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span></p>
+              <p class="text-[.8rem] text-muted font-mono tnum">09:12–10:48</p>
+            </div>
+            <span class="font-mono text-[.92rem] font-semibold tnum">1h 36m</span>
+          </li>
+          <li class="flex items-center gap-4 py-3">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-teal/10 text-teal text-[.95rem]" aria-hidden="true">●</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.92rem] font-semibold truncate">homelab-study <span class="ml-1.5 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#ops</span></p>
+              <p class="text-[.8rem] text-muted font-mono tnum">10:55–11:47</p>
+            </div>
+            <span class="font-mono text-[.92rem] font-semibold tnum">52m</span>
+          </li>
+          <li class="flex items-center gap-4 py-3">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-purple/10 text-purple text-[.95rem]" aria-hidden="true">▶</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-[.92rem] font-semibold truncate">serverkraken <span class="ml-1.5 inline-flex items-center rounded-md bg-sunken px-1.5 py-0.5 text-[.72rem] font-medium text-body">#webui</span></p>
+              <p class="text-[.8rem] text-muted font-mono tnum">11:58–läuft</p>
+            </div>
+            <span class="font-mono text-[.92rem] font-semibold tnum text-blue">2h 14m</span>
+          </li>
+        </ul>
+        <button class="mt-4 w-full rounded-2xl border border-dashed border-line py-3 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
+          <span aria-hidden="true">✚</span> Sitzung nachbuchen
+        </button>
+      </article>
+
+      <!-- ░░ Diese Woche strip ░░ -->
+      <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise" style="animation-delay:.05s">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="font-display text-lg font-semibold">Diese Woche</h2>
+          <span class="eyebrow uppercase text-[.62rem] font-semibold text-muted">KW 26</span>
+        </div>
+        <p class="text-[.82rem] text-muted mb-5">
+          <span class="text-muted">Woche gesamt</span>
+          <span class="font-mono tnum text-ink font-semibold ml-1">32h 10m</span> / <span class="font-mono tnum">40h 00m</span>
+        </p>
+
+        <ul class="space-y-2.5">
+          <!-- day = label · bar · hours · pace dot -->
+          <li class="flex items-center gap-3">
+            <span class="w-7 text-[.78rem] font-semibold text-muted">Mo</span>
+            <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-green/70" style="width:95%"></div></div>
+            <span class="w-14 text-right font-mono text-[.78rem] tnum">7h 36m</span>
+            <span class="text-green text-[.8rem]" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+          <li class="flex items-center gap-3">
+            <span class="w-7 text-[.78rem] font-semibold text-muted">Di</span>
+            <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-green/70" style="width:100%"></div></div>
+            <span class="w-14 text-right font-mono text-[.78rem] tnum">8h 12m</span>
+            <span class="text-green text-[.8rem]" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+          <li class="flex items-center gap-3">
+            <span class="w-7 text-[.78rem] font-semibold text-muted">Mi</span>
+            <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-yellow/70" style="width:64%"></div></div>
+            <span class="w-14 text-right font-mono text-[.78rem] tnum">5h 08m</span>
+            <span class="text-faint text-[.8rem]" title="Ziel verfehlt" aria-label="Ziel verfehlt">○</span>
+          </li>
+          <li class="flex items-center gap-3">
+            <span class="w-7 text-[.78rem] font-semibold text-muted">Do</span>
+            <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-green/70" style="width:91%"></div></div>
+            <span class="w-14 text-right font-mono text-[.78rem] tnum">7h 18m</span>
+            <span class="text-green text-[.8rem]" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+          <li class="flex items-center gap-3 rounded-lg -mx-1.5 px-1.5 py-1 bg-blue/[.05]">
+            <span class="w-7 text-[.78rem] font-semibold text-blue">Fr</span>
+            <div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue" style="width:71%"></div></div>
+            <span class="w-14 text-right font-mono text-[.78rem] tnum text-blue font-semibold">5h 42m</span>
+            <span class="text-blue text-[.8rem] animate-breathe" title="Heute · läuft" aria-label="Heute, läuft">●</span>
+          </li>
+        </ul>
+
+        <div class="mt-5 flex items-center gap-2 text-[.78rem] text-muted">
+          <span class="inline-flex items-center gap-1"><span class="text-green">●</span> erreicht</span>
+          <span class="inline-flex items-center gap-1"><span class="text-faint">○</span> verfehlt</span>
+          <span class="inline-flex items-center gap-1"><span class="text-blue">●</span> heute</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- ════════ DESKTOP DENSITY — Monat + Projekt-Verteilung (lg+ only) ════════
+         The wide canvas a power-user wants: a full month heat-calendar and a
+         project-distribution panel. Hidden on mobile to keep that view clean. -->
+    <section class="hidden lg:grid lg:grid-cols-3 gap-6 mt-6">
+
+      <!-- Month calendar (spans 2 of 3 cols) -->
+      <article class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-6 theme-fade">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5">Monat</p>
+            <h2 class="font-display text-lg font-semibold">Juni 2026</h2>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="hidden xl:flex items-center gap-1.5 text-[.72rem] text-muted">
+              <span class="text-faint" aria-hidden="true">░</span><span class="text-blue/40" aria-hidden="true">▒</span><span class="text-blue/70" aria-hidden="true">▓</span><span class="text-blue" aria-hidden="true">█</span>
+              <span class="ml-1">mehr Zeit</span>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="grid place-items-center h-8 w-8 rounded-lg border border-line text-muted hover:text-blue hover:border-blue/40 transition-colors" aria-label="Vormonat"><span aria-hidden="true">‹</span></button>
+              <button class="grid place-items-center h-8 w-8 rounded-lg border border-line text-muted hover:text-blue hover:border-blue/40 transition-colors" aria-label="Folgemonat"><span aria-hidden="true">›</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- weekday header -->
+        <div class="grid grid-cols-7 gap-2 mb-2">
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Mo</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Di</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Mi</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Do</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">Fr</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-faint">Sa</div>
+          <div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-faint">So</div>
+        </div>
+
+        <!-- day grid -->
+        <div class="grid grid-cols-7 gap-2">
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">1</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 36m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">2</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">█</span><span class="font-mono text-[.62rem] tnum text-body">8h 12m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">3</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▒</span><span class="font-mono text-[.62rem] tnum text-body">5h 06m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">4</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 18m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">5</span><span class="text-green text-[.7rem]" title="frei" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-green">Gleittag</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">6</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">7</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">8</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">█</span><span class="font-mono text-[.62rem] tnum text-body">8h 00m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">9</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 54m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">10</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▒</span><span class="font-mono text-[.62rem] tnum text-body">6h 12m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">11</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">█</span><span class="font-mono text-[.62rem] tnum text-body">8h 24m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">12</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 06m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">13</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">14</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">15</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 42m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">16</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">█</span><span class="font-mono text-[.62rem] tnum text-body">8h 06m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">17</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▒</span><span class="font-mono text-[.62rem] tnum text-body">5h 36m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">18</span><span class="text-faint text-[.62rem] " title="Ziel verfehlt" aria-hidden="true">○</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 00m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">19</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">█</span><span class="font-mono text-[.62rem] tnum text-body">8h 18m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">20</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">21</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">22</span><span class="text-green text-[.62rem] " title="Ziel erreicht" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▓</span><span class="font-mono text-[.62rem] tnum text-body">7h 36m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-blue/40 bg-blue/[.06] ring-1 ring-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-blue font-semibold tnum">23</span><span class="text-blue text-[.62rem] animate-breathe" title="Heute, läuft" aria-hidden="true">●</span></div><div class="flex items-center justify-between"><span class="text-blue text-[.8rem] leading-none" aria-hidden="true">▒</span><span class="font-mono text-[.62rem] tnum text-blue">5h 42m</span></div></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">24</span><span class="text-faint text-[.62rem] " title="geplant" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-faint">geplant</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">25</span><span class="text-faint text-[.62rem] " title="geplant" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-faint">geplant</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">26</span><span class="text-faint text-[.62rem] " title="geplant" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-faint">geplant</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">27</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line2 bg-sunken/40"><div class="flex items-start justify-between"><span class="text-[.72rem] text-faint tnum">28</span></div><span class="text-faint text-[.7rem]" aria-hidden="true">·</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">29</span><span class="text-faint text-[.62rem] " title="geplant" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-faint">geplant</span></div>
+              <div class="relative rounded-xl border p-2 h-[64px] flex flex-col justify-between transition-colors border-line bg-surface hover:border-blue/30"><div class="flex items-start justify-between"><span class="text-[.72rem] text-muted tnum">30</span><span class="text-faint text-[.62rem] " title="geplant" aria-hidden="true">○</span></div><span class="font-mono text-[.6rem] tnum text-faint">geplant</span></div>
+
+        </div>
+
+        <!-- month footer totals -->
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line2 pt-4">
+          <div class="flex items-center gap-5 text-[.78rem]">
+            <span class="text-muted">Monat gesamt <span class="font-mono tnum text-ink font-semibold ml-1">142h 18m</span></span>
+            <span class="text-muted">Ziel <span class="font-mono tnum ml-1">168h 00m</span></span>
+            <span class="text-red">Saldo <span class="font-mono tnum ml-1">−25h 42m</span></span>
+          </div>
+          <div class="flex items-center gap-3 text-[.72rem] text-muted">
+            <span class="inline-flex items-center gap-1"><span class="text-green" aria-hidden="true">●</span> erreicht</span>
+            <span class="inline-flex items-center gap-1"><span class="text-faint" aria-hidden="true">○</span> verfehlt</span>
+            <span class="inline-flex items-center gap-1"><span class="text-green" aria-hidden="true">○</span> frei</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Projekt-Verteilung -->
+      <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 theme-fade flex flex-col">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="eyebrow uppercase text-[.7rem] font-semibold text-purple mb-0.5">Verteilung</p>
+            <h2 class="font-display text-lg font-semibold">Projekte · Woche</h2>
+          </div>
+          <a href="#projekte" class="text-[.8rem] font-medium text-blue hover:underline underline-offset-2">Alle ›</a>
+        </div>
+
+        <!-- donut (conic gradient driven by project hue tokens) -->
+        <div class="flex items-center justify-center my-2">
+          <div class="relative h-36 w-36">
+            <div class="absolute inset-0 rounded-full"
+                 style="background: conic-gradient(rgb(var(--blue)) 0 57%, rgb(var(--teal)) 57% 84%, rgb(var(--purple)) 84% 100%);"></div>
+            <div class="absolute inset-[14px] rounded-full bg-surface grid place-items-center theme-fade">
+              <div class="text-center">
+                <div class="font-mono text-lg font-semibold tnum text-ink">32h 10m</div>
+                <div class="text-[.68rem] text-muted">diese Woche</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- legend with mini bars -->
+        <ul class="mt-4 space-y-3">
+          <li>
+            <div class="flex items-center justify-between text-[.84rem] mb-1">
+              <span class="flex items-center gap-2 font-medium"><span class="text-blue" aria-hidden="true">◆</span> flow</span>
+              <span class="font-mono tnum text-body">18h 24m</span>
+            </div>
+            <div class="h-1.5 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-blue" style="width:57%"></div></div>
+          </li>
+          <li>
+            <div class="flex items-center justify-between text-[.84rem] mb-1">
+              <span class="flex items-center gap-2 font-medium"><span class="text-teal" aria-hidden="true">●</span> homelab-study</span>
+              <span class="font-mono tnum text-body">8h 52m</span>
+            </div>
+            <div class="h-1.5 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-teal" style="width:27%"></div></div>
+          </li>
+          <li>
+            <div class="flex items-center justify-between text-[.84rem] mb-1">
+              <span class="flex items-center gap-2 font-medium"><span class="text-purple" aria-hidden="true">▶</span> serverkraken</span>
+              <span class="font-mono tnum text-body">4h 54m</span>
+            </div>
+            <div class="h-1.5 rounded-full bg-sunken overflow-hidden"><div class="h-full rounded-full bg-purple" style="width:16%"></div></div>
+          </li>
+        </ul>
+
+        <div class="mt-auto pt-5 flex items-center justify-between text-[.78rem] border-t border-line2 mt-5">
+          <span class="text-muted">Abrechenbar</span>
+          <span class="font-mono tnum font-semibold text-green">2.166 €</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- ════════ SECTION C — WISSEN / KOMPENDIUM ════════ -->
+    <section id="wissen" class="mt-10 md:mt-14 scroll-mt-20">
+      <div class="flex items-end justify-between mb-5 md:mb-6">
+        <div>
+          <p class="eyebrow uppercase text-[.72rem] font-semibold text-purple mb-1">Kompendium</p>
+          <h2 class="font-display text-[1.6rem] sm:text-2xl font-semibold tracking-tight">Wissen</h2>
+        </div>
+        <a href="#" class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.85rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">
+          <span aria-hidden="true">✚</span> Neu
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-5 md:gap-6">
+
+        <!-- doc list -->
+        <div class="lg:col-span-2 space-y-3">
+          <!-- daily -->
+          <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition">
+            <div class="flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-blue/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-blue"><span aria-hidden="true">●</span> Tägl.</span>
+              <span class="font-mono text-[.74rem] tnum text-muted">2026-06-23</span>
+            </div>
+            <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-blue transition-colors">2026-06-23 Daily</p>
+            <div class="mt-2 flex gap-1.5">
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#webui</span>
+            </div>
+          </a>
+          <!-- project note -->
+          <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition ring-1 ring-green/20">
+            <div class="flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-green/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+              <span class="font-mono text-[.74rem] tnum text-muted">2026-06-21</span>
+            </div>
+            <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-green transition-colors">flow WebUI — Spec</p>
+            <div class="mt-2 flex gap-1.5">
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#webui</span>
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#rebuild</span>
+            </div>
+          </a>
+          <!-- free note -->
+          <a href="#" class="group block rounded-2xl bg-surface border border-line shadow-soft p-4 hover:shadow-lift hover:-translate-y-0.5 transition">
+            <div class="flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-purple/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-purple"><span aria-hidden="true">○</span> Frei</span>
+              <span class="font-mono text-[.74rem] tnum text-muted">2026-06-18</span>
+            </div>
+            <p class="mt-2 font-display text-[1.05rem] font-medium group-hover:text-purple transition-colors">Tokyonight Notes</p>
+            <div class="mt-2 flex gap-1.5">
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#tokyonight</span>
+              <span class="rounded-md bg-sunken px-2 py-0.5 text-[.72rem] font-medium text-body">#ops</span>
+            </div>
+          </a>
+        </div>
+
+        <!-- rendered markdown sample (premium reading experience) -->
+        <article class="lg:col-span-3 rounded-3xl bg-surface border border-line shadow-lift overflow-hidden">
+          <!-- doc chrome -->
+          <header class="flex items-center justify-between gap-3 border-b border-line2 px-6 sm:px-8 py-4">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="grid place-items-center h-7 w-7 rounded-lg bg-green/10 text-green text-[.85rem]" aria-hidden="true">◆</span>
+              <span class="font-display text-[1.05rem] font-medium truncate">flow WebUI — Spec</span>
+            </div>
+            <span class="hidden sm:inline font-mono text-[.74rem] tnum text-muted">/wissen/flow-webui-spec</span>
+          </header>
+
+          <div class="prose-studio px-6 sm:px-8 py-6 sm:py-7 max-w-none text-body">
+            <h2 class="text-[1.4rem] text-ink mb-2">Architektur</h2>
+            <p class="mb-4 text-[.96rem]">
+              Die WebUI ist <strong class="text-ink font-semibold">server-gerendert</strong> mit templ-Komponenten und htmx
+              für partielle Updates — kein SPA-Framework, eine Binary, ein Deploy.
+            </p>
+
+            <ul class="mb-4 space-y-1.5 text-[.96rem]">
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> Komponenten in <code>templ</code>, getypt zur Compile-Zeit</li>
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> Interaktion via <code>htmx</code>-Attribute, kein Client-State</li>
+              <li class="flex gap-2.5"><span class="text-blue mt-px shrink-0" aria-hidden="true">·</span> Live-Sync über SSE — der Timer tickt serverseitig</li>
+            </ul>
+
+            <p class="mb-5 text-[.96rem]">
+              Die Tokens leben zentral in
+              <a href="#" class="wikilink font-medium text-purple">[[Design-Tokens]]</a> —
+              siehe Tag <span class="inline-flex items-center rounded-md bg-purple/10 px-1.5 py-0.5 text-[.78rem] font-medium text-purple">#tokyonight</span>.
+            </p>
+
+            <!-- GFM table -->
+            <div class="mb-5 overflow-hidden rounded-xl border border-line">
+              <table class="w-full text-[.9rem] border-collapse">
+                <thead>
+                  <tr class="bg-sunken/80 text-left">
+                    <th class="px-4 py-2.5 font-semibold text-ink border-b border-line">Schicht</th>
+                    <th class="px-4 py-2.5 font-semibold text-ink border-b border-line">Tech</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="px-4 py-2.5 border-b border-line2">Web</td>
+                    <td class="px-4 py-2.5 border-b border-line2"><code>templ</code> + <code>htmx</code></td>
+                  </tr>
+                  <tr class="bg-canvas/40">
+                    <td class="px-4 py-2.5">Stil</td>
+                    <td class="px-4 py-2.5"><code>Tailwind</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p class="mb-3 text-[.96rem]">Stylesheet bauen mit <code>make web</code>:</p>
+
+            <!-- fenced code block -->
+            <pre><span class="text-[#565f89] select-none">$</span> tailwindcss <span class="tok-flag">--input</span> <span class="tok-path">web/tailwind.css</span> \
+  <span class="tok-flag">--output</span> <span class="tok-path">static/app.css</span> <span class="tok-flag">--minify</span></pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ════════ Bottom marker sections (nav targets) ════════ -->
+    <section id="projekte" class="mt-10 md:mt-14 scroll-mt-20">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">Identität · Farbe · Glyph · Satz</p>
+          <h2 class="font-display text-[1.6rem] sm:text-2xl font-semibold tracking-tight">Projekte</h2>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- project card: flow -->
+        <article class="rounded-2xl bg-surface border border-line shadow-soft p-5 hover:shadow-lift transition relative overflow-hidden">
+          <span class="absolute inset-y-0 left-0 w-1 bg-blue" aria-hidden="true"></span>
+          <div class="flex items-center gap-2.5">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-blue/10 text-blue text-[1.05rem]" aria-hidden="true">◆</span>
+            <span class="font-display text-[1.1rem] font-semibold">flow</span>
+          </div>
+          <dl class="mt-4 flex items-center justify-between text-[.82rem]">
+            <div><dt class="text-muted">Diese Woche</dt><dd class="font-mono tnum font-semibold mt-0.5">18h 24m</dd></div>
+            <div class="text-right"><dt class="text-muted">Satz</dt><dd class="font-mono tnum font-semibold mt-0.5">95 €/h</dd></div>
+          </dl>
+        </article>
+        <!-- homelab-study -->
+        <article class="rounded-2xl bg-surface border border-line shadow-soft p-5 hover:shadow-lift transition relative overflow-hidden">
+          <span class="absolute inset-y-0 left-0 w-1 bg-teal" aria-hidden="true"></span>
+          <div class="flex items-center gap-2.5">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-teal/10 text-teal text-[1.05rem]" aria-hidden="true">●</span>
+            <span class="font-display text-[1.1rem] font-semibold">homelab-study</span>
+          </div>
+          <dl class="mt-4 flex items-center justify-between text-[.82rem]">
+            <div><dt class="text-muted">Diese Woche</dt><dd class="font-mono tnum font-semibold mt-0.5">8h 52m</dd></div>
+            <div class="text-right"><dt class="text-muted">Satz</dt><dd class="font-mono tnum font-semibold mt-0.5">—</dd></div>
+          </dl>
+        </article>
+        <!-- serverkraken -->
+        <article class="rounded-2xl bg-surface border border-line shadow-soft p-5 hover:shadow-lift transition relative overflow-hidden">
+          <span class="absolute inset-y-0 left-0 w-1 bg-purple" aria-hidden="true"></span>
+          <div class="flex items-center gap-2.5">
+            <span class="grid place-items-center h-9 w-9 rounded-xl bg-purple/10 text-purple text-[1.05rem]" aria-hidden="true">▶</span>
+            <span class="font-display text-[1.1rem] font-semibold">serverkraken</span>
+          </div>
+          <dl class="mt-4 flex items-center justify-between text-[.82rem]">
+            <div><dt class="text-muted">Diese Woche</dt><dd class="font-mono tnum font-semibold mt-0.5">4h 54m</dd></div>
+            <div class="text-right"><dt class="text-muted">Satz</dt><dd class="font-mono tnum font-semibold mt-0.5">110 €/h</dd></div>
+          </dl>
+        </article>
+      </div>
+    </section>
+
+    <section id="frei" class="mt-10 md:mt-14 scroll-mt-20">
+      <div class="flex items-end justify-between mb-5">
+        <div>
+          <p class="eyebrow uppercase text-[.72rem] font-semibold text-purple mb-1">Urlaub · Feiertage · Abwesenheit</p>
+          <h2 class="font-display text-[1.6rem] sm:text-2xl font-semibold tracking-tight">Frei</h2>
+        </div>
+        <a href="#" class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.85rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">
+          <span aria-hidden="true">✚</span> Neu
+        </a>
+      </div>
+      <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <li class="rounded-2xl bg-surface border border-line shadow-soft p-4 flex items-center gap-3">
+          <span class="grid place-items-center h-10 w-10 rounded-xl bg-blue/10 text-blue text-[1.05rem]" aria-hidden="true">★</span>
+          <div><p class="font-medium text-[.92rem]">Tag der Dt. Einheit</p><p class="text-[.78rem] text-muted">Feiertag · 03.10.</p></div>
+        </li>
+        <li class="rounded-2xl bg-surface border border-line shadow-soft p-4 flex items-center gap-3">
+          <span class="grid place-items-center h-10 w-10 rounded-xl bg-purple/10 text-purple text-[1.05rem]" aria-hidden="true">☼</span>
+          <div><p class="font-medium text-[.92rem]">Sommerurlaub</p><p class="text-[.78rem] text-muted">Urlaub · 14.–25.07.</p></div>
+        </li>
+        <li class="rounded-2xl bg-surface border border-line shadow-soft p-4 flex items-center gap-3">
+          <span class="grid place-items-center h-10 w-10 rounded-xl bg-green/10 text-green text-[1.05rem]" aria-hidden="true">○</span>
+          <div><p class="font-medium text-[.92rem]">Brückentag</p><p class="text-[.78rem] text-muted">Gleittag · 02.10.</p></div>
+        </li>
+        <li class="rounded-2xl bg-surface border border-line shadow-soft p-4 flex items-center gap-3">
+          <span class="grid place-items-center h-10 w-10 rounded-xl bg-cyan/10 text-cyan text-[1.05rem]" aria-hidden="true">◆</span>
+          <div><p class="font-medium text-[.92rem]">Go Conf 2026</p><p class="text-[.78rem] text-muted">Fortbildung · 12.09.</p></div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- footer -->
+    <footer class="mt-14 mb-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line2 pt-6 text-[.78rem] text-muted">
+      <p>flow · selbst-gehostet · OIDC</p>
+      <p class="font-mono tnum">v0.9 · rebuild · <span class="text-green">●</span> Live-Sync aktiv</p>
+    </footer>
+  </div>
+</main>
+
+<!-- ════════════════════ MOBILE BOTTOM TAB BAR (≤md) ════════════════════ -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-t border-line"
+     aria-label="Hauptnavigation" style="padding-bottom:env(safe-area-inset-bottom)">
+  <ul class="grid grid-cols-5">
+    <li>
+      <a href="#heute" aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▶</span>
+        <span class="text-[.66rem] font-semibold">Heute</span>
+      </a>
+    </li>
+    <li>
+      <a href="#wissen" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">◆</span>
+        <span class="text-[.66rem] font-medium">Wissen</span>
+      </a>
+    </li>
+    <!-- center FAB: Start/Stopp -->
+    <li class="relative">
+      <button class="absolute left-1/2 -translate-x-1/2 -top-5 grid place-items-center h-13 w-13 rounded-2xl bg-red text-oncolor shadow-ring active:scale-95 transition"
+              aria-label="Sitzung stoppen" style="height:3.25rem;width:3.25rem">
+        <span class="text-lg" aria-hidden="true">■</span>
+      </button>
+      <span class="block py-2.5 text-center text-[.66rem] font-medium text-muted mt-5">Stopp</span>
+    </li>
+    <li>
+      <a href="#stats" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▲</span>
+        <span class="text-[.66rem] font-medium">Stats</span>
+      </a>
+    </li>
+    <li>
+      <a href="#frei" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">★</span>
+        <span class="text-[.66rem] font-medium">Frei</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- ════════════════════ Theme toggle ════════════════════ -->
+<script>
+  (function () {
+    var root   = document.documentElement;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function syncToggles() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+      });
+    }
+
+    // expose for the inline onclick handlers
+    window.toggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      // reduced-motion users: hard cut, no cross-fade
+      if (reduce) {
+        root.setAttribute('data-theme', next);
+      } else {
+        root.setAttribute('data-theme', next);
+      }
+      try { localStorage.setItem('flow-theme', next); } catch (e) {}
+      syncToggles();
+    };
+
+    // keep tabs/devices in sync if changed elsewhere
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'flow-theme' && e.newValue) {
+        root.setAttribute('data-theme', e.newValue);
+        syncToggles();
+      }
+    });
+
+    syncToggles(); // reflect the no-flash initial choice on the buttons
+  })();
+</script>
+
+<!-- ════════════════════ Tiny live-timer script ════════════════════ -->
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // base elapsed: 2h 14m 33s
+  var base = (2 * 3600) + (14 * 60) + 33;
+  var start = Date.now();
+
+  var hero  = document.querySelector('[data-timer]');
+  var minis = document.querySelectorAll('[data-mini-timer]');
+  var ring  = document.querySelector('[data-ring]');
+  var goal  = 8 * 3600; // 8h
+  var circ  = 2 * Math.PI * 50; // r=50
+
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function tick() {
+    var elapsed = base + Math.floor((Date.now() - start) / 1000);
+    var h = Math.floor(elapsed / 3600);
+    var m = Math.floor((elapsed % 3600) / 60);
+    var s = elapsed % 60;
+
+    if (hero) hero.textContent = h + 'h ' + p(m) + 'm ' + p(s) + 's';
+    minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+
+    if (ring) {
+      var frac = Math.min(elapsed / goal, 1);
+      ring.setAttribute('stroke-dashoffset', (circ * (1 - frac)).toFixed(1));
+    }
+  }
+
+  tick();
+  if (!reduce) {
+    setInterval(tick, 1000);
+  } else {
+    // still advance once a minute so it isn't frozen-stale, but no per-second motion
+    setInterval(tick, 60000);
+  }
+})();
+</script>
+</body>
+</html>

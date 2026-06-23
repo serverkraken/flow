@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>flow — Woche</title>
+
+<!-- ── Fonts ─────────────────────────────────────────────────────────────
+     Display : Clash Display (Fontshare) — characterful geometric grotesk
+     Body    : Inter (Google) — clean, neutral, highly readable
+     Mono    : JetBrains Mono (Google) — ONLY for timer + durations
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Clash Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        colors: {
+          /* ── Semantic tokens (resolve per theme via CSS custom props) ──
+             Same utility class names as before; only the *values* now flip
+             between the light and dark Studio palettes. <alpha-value> keeps
+             Tailwind's /opacity modifiers (bg-blue/10 etc.) working. */
+          canvas:  'rgb(var(--canvas)  / <alpha-value>)',  /* page background */
+          surface: 'rgb(var(--surface) / <alpha-value>)',  /* cards */
+          sunken:  'rgb(var(--sunken)  / <alpha-value>)',  /* recessed wells */
+          line:    'rgb(var(--line)    / <alpha-value>)',  /* hairline borders */
+          line2:   'rgb(var(--line2)   / <alpha-value>)',  /* fainter dividers */
+          ink:     'rgb(var(--ink)     / <alpha-value>)',  /* primary text */
+          body:    'rgb(var(--body)    / <alpha-value>)',  /* secondary text */
+          muted:   'rgb(var(--muted)   / <alpha-value>)',  /* tertiary / labels */
+          faint:   'rgb(var(--faint)   / <alpha-value>)',  /* glyph ghosts */
+
+          /* Project hues — retuned per theme for correct contrast on each base */
+          blue:    'rgb(var(--blue)    / <alpha-value>)',
+          cyan:    'rgb(var(--cyan)    / <alpha-value>)',
+          green:   'rgb(var(--green)   / <alpha-value>)',
+          purple:  'rgb(var(--purple)  / <alpha-value>)',
+          magenta: 'rgb(var(--magenta) / <alpha-value>)',
+          yellow:  'rgb(var(--yellow)  / <alpha-value>)',
+          orange:  'rgb(var(--orange)  / <alpha-value>)',
+          red:     'rgb(var(--red)     / <alpha-value>)',
+          teal:    'rgb(var(--teal)    / <alpha-value>)',
+          /* fixed-white text token that stays readable on colored fills in both modes */
+          oncolor: 'rgb(var(--oncolor) / <alpha-value>)',
+        },
+        borderRadius: { '2xl': '1.25rem', '3xl': '1.75rem' },
+        boxShadow: {
+          /* Cool, soft elevation — driven by a per-theme shadow tint var */
+          'soft':  '0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10)',
+          'lift':  '0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18)',
+          'ring':  '0 10px 50px -12px rgb(var(--shadow-accent) / .30)',
+        },
+        keyframes: {
+          breathe: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.45' } },
+          rise:    { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } },
+          grow:    { '0%': { transform: 'scaleX(0)' }, '100%': { transform: 'scaleX(1)' } },
+        },
+        animation: {
+          breathe: 'breathe 2.2s ease-in-out infinite',
+          rise:    'rise .6s cubic-bezier(.21,.85,.27,1) both',
+          grow:    'grow .7s cubic-bezier(.21,.85,.27,1) both',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- No-flash theme init: set data-theme BEFORE first paint.
+     Priority: saved choice → prefers-color-scheme → light. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('flow-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — one Studio identity, two themes.
+     Values are space-separated RGB triplets so Tailwind's rgb(var(--x)/α)
+     and our own rgb(var(--x)/.NN) usages both work.
+     ════════════════════════════════════════════════════════════════════ */
+
+  /* ── LIGHT (default) — cool, crisp, NOT warm cream ── */
+  :root {
+    color-scheme: light;
+    --canvas:  251 252 254;   /* #FBFCFE */
+    --surface: 255 255 255;   /* #FFFFFF */
+    --sunken:  244 246 251;   /* #F4F6FB */
+    --line:    230 233 242;   /* #E6E9F2 */
+    --line2:   238 241 248;   /* #EEF1F8 */
+    --ink:      27  34  51;   /* #1B2233 */
+    --body:     72  82 106;   /* #48526A */
+    --muted:   138 147 166;   /* #8A93A6 */
+    --faint:   174 182 199;   /* #AEB6C7 */
+
+    --blue:     59 111 246;   /* #3B6FF6 */
+    --cyan:     11 165 214;   /* #0BA5D6 */
+    --green:    39 165 103;   /* #27A567 */
+    --purple:  139  92 246;   /* #8B5CF6 */
+    --magenta: 225  29 116;   /* #E11D74 */
+    --yellow:  217 138  11;   /* #D98A0B */
+    --orange:  234 106  43;   /* #EA6A2B */
+    --red:     224  69  91;   /* #E0455B */
+    --teal:     14 155 142;   /* #0E9B8E */
+    --oncolor: 255 255 255;   /* text on colored fills */
+
+    --shadow:         27  34  51;   /* slate, drives soft elevation */
+    --shadow-accent:  59 111 246;   /* bluish tint in the lift shadow */
+
+    /* code block stays a deep cool slate in BOTH themes (an editorial inset) */
+    --code-bg:    15  20  38;   /* #0F1426 */
+    --code-fg:   201 212 245;   /* #C9D4F5 */
+    --halo:       39 165 103;   /* week banner halo = success hue (over-target) */
+    --halo-a:    0.14;
+    --scrollthumb: 217 223 236; /* #D9DFEC */
+  }
+
+  /* ── DARK — sophisticated dark productivity, soft navy (NOT pure black,
+        NOT a terminal). Same hues, retuned brighter for dark contrast. ── */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --canvas:  14  17  28;     /* #0E111C  deep cool navy-black */
+    --surface: 22  26  40;     /* #161A28  card */
+    --sunken:  28  33  50;     /* #1C2132  recessed well */
+    --line:    42  49  72;     /* #2A3148  hairline */
+    --line2:   34  40  60;     /* #22283C  fainter divider */
+    --ink:     226 231 245;    /* #E2E7F5  primary text (soft, not #fff) */
+    --body:    166 175 199;    /* #A6AFC7  secondary */
+    --muted:   122 132 158;    /* #7A849E  tertiary */
+    --faint:    82  92 120;    /* #525C78  glyph ghosts */
+
+    /* hues lifted for contrast against the navy base */
+    --blue:    122 162 247;    /* #7AA2F7 */
+    --cyan:    125 207 255;    /* #7DCFFF */
+    --green:   158 206 106;    /* #9ECE6A */
+    --purple:  187 154 247;    /* #BB9AF7 */
+    --magenta: 247 110 168;    /* #F76EA8 */
+    --yellow:  224 175 104;    /* #E0AF68 */
+    --orange:  255 158 100;    /* #FF9E64 */
+    --red:     247 118 142;    /* #F7768E */
+    --teal:    115 218 202;    /* #73DACA */
+    --oncolor:  16  19  30;    /* dark ink on bright colored fills */
+
+    --shadow:          0   0   0;   /* pure black for depth on dark */
+    --shadow-accent:  18  24  48;   /* very subtle navy bloom */
+
+    --code-bg:   10  13  24;    /* slightly deeper than surface */
+    --code-fg:  201 212 245;
+    --halo:    158 206 106;
+    --halo-a:    0.18;
+    --scrollthumb: 49  57  84;  /* #313954 */
+  }
+
+  html, body { background: rgb(var(--canvas)); }
+  body {
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    /* gentle cross-fade on theme flip (suppressed under reduced-motion) */
+    transition: background-color .35s ease, color .35s ease;
+  }
+  /* let common surfaces ease too, so the toggle feels designed not jarring */
+  aside, header, nav, article, input, .theme-fade {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+  }
+
+  /* Display tracking — Clash looks best slightly tightened at large sizes */
+  .font-display { letter-spacing: -0.015em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .eyebrow { letter-spacing: .14em; }
+
+  /* Visible, on-brand keyboard focus (cool blue ring, token-driven) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--blue));
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* Soft colored halo behind the focal week banner (success hue = over-target) */
+  .timer-halo::before {
+    content: "";
+    position: absolute; inset: -14% -8% auto -8%; height: 70%;
+    background: radial-gradient(60% 90% at 50% 0%, rgb(var(--halo) / var(--halo-a)), transparent 70%);
+    filter: blur(8px); z-index: 0; pointer-events: none;
+  }
+
+  /* ── Worktime week bars ─────────────────────────────────────────────
+     A day bar is a flex track: [ base fill | overflow segment ] inside a
+     recessed well, with a dashed target marker laid over the top. The
+     overflow segment uses a brighter tint + faint diagonal hatch so the
+     "past 8h" portion reads as a distinct, tasteful surplus.            */
+  .wk-track { position: relative; }
+  .wk-target {
+    position: absolute; top: -3px; bottom: -3px; width: 2px;
+    background: rgb(var(--ink) / .28);
+    border-radius: 2px;
+  }
+  :root[data-theme="dark"] .wk-target { background: rgb(var(--ink) / .35); }
+  .wk-overflow {
+    background-color: rgb(var(--green));
+    background-image: repeating-linear-gradient(
+      45deg, transparent 0 5px, rgb(var(--oncolor) / .22) 5px 7px);
+  }
+  /* grow animation origin */
+  .wk-fill { transform-origin: left center; }
+
+  /* Custom scrollbars inside scroll wells (token-driven) */
+  .scroll-thin::-webkit-scrollbar { height:6px; width:6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:rgb(var(--scrollthumb)); border-radius:99px; }
+
+  /* Theme-toggle knob slide */
+  .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+  :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+  .toggle-sun { display:inline; }   .toggle-moon { display:none; }
+  :root[data-theme="dark"] .toggle-sun { display:none; }
+  :root[data-theme="dark"] .toggle-moon { display:inline; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .animate-breathe { opacity: 1 !important; }
+    .wk-fill { transform: none !important; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink">
+
+<!-- ════════════════════ DESKTOP SIDEBAR (md+) ════════════════════ -->
+<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+  <div class="px-6 pt-7 pb-6 flex items-center justify-between">
+    <a href="#" class="group inline-flex items-center gap-2.5" aria-label="flow Startseite">
+      <span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+      <span class="font-display text-[1.45rem] font-semibold tracking-tight">flow</span>
+    </a>
+    <!-- Theme toggle (desktop) -->
+    <button type="button" onclick="toggleTheme()" data-theme-toggle
+            class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+            aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+      <span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+      <span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 space-y-1" aria-label="Hauptnavigation">
+    <a href="#woche" aria-current="page"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+      <span class="w-5 text-center text-[.95rem]" aria-hidden="true">▶</span> Heute
+    </a>
+    <a href="#wissen"   class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">◆</span> Wissen
+    </a>
+    <a href="#projekte" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">●</span> Projekte
+    </a>
+    <a href="#stats"    class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▲</span> Stats
+    </a>
+    <a href="#frei"     class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">★</span> Frei
+    </a>
+  </nav>
+
+  <!-- Live status pill in sidebar foot -->
+  <div class="px-3 pb-3">
+    <div class="rounded-xl border border-line bg-sunken/60 px-3.5 py-3">
+      <div class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-green">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+        Läuft
+      </div>
+      <div class="mt-1.5 font-mono text-[.95rem] font-medium tnum text-ink" data-mini-timer>02:14:33</div>
+      <div class="text-[.78rem] text-muted truncate">flow · #rebuild</div>
+    </div>
+  </div>
+
+  <div class="px-3 pb-5">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sunken transition-colors group">
+      <span class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.8rem] font-semibold">MS</span>
+      <span class="min-w-0">
+        <span class="block text-[.85rem] font-medium leading-tight truncate">Martin S.</span>
+        <span class="block text-[.74rem] text-muted group-hover:text-blue transition-colors">Abmelden ›</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<!-- ════════════════════ MOBILE TOP BAR ════════════════════ -->
+<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+  <div class="flex items-center justify-between px-4 h-14">
+    <a href="#" class="inline-flex items-center gap-2" aria-label="flow Startseite">
+      <span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+      <span class="font-display text-xl font-semibold tracking-tight">flow</span>
+    </a>
+    <div class="flex items-center gap-2.5">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green"></span></span>
+        <span class="font-mono tnum" data-mini-timer>02:14:33</span>
+      </span>
+      <!-- Theme toggle (mobile) -->
+      <button type="button" onclick="toggleTheme()" data-theme-toggle
+              class="grid place-items-center h-9 w-9 rounded-full border border-line bg-sunken text-body active:scale-95 transition"
+              aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+        <span class="toggle-sun text-base" aria-hidden="true">☀</span>
+        <span class="toggle-moon text-base" aria-hidden="true">☾</span>
+      </button>
+      <button class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.74rem] font-semibold" aria-label="Konto">MS</button>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="md:pl-[248px] pb-28 md:pb-12">
+  <div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+
+    <!-- Page heading + week navigation -->
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6 animate-rise">
+      <div>
+        <p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">Worktime · Wochenübersicht</p>
+        <h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">Woche</h1>
+      </div>
+
+      <!-- ‹ KW 21 · 18.–24.05.2026 › + Diese Woche -->
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="inline-flex items-center rounded-xl border border-line bg-surface shadow-soft overflow-hidden" role="group" aria-label="Woche wählen">
+          <button class="grid place-items-center h-10 w-10 text-muted hover:text-blue hover:bg-sunken transition-colors" aria-label="Vorige Woche"><span aria-hidden="true">‹</span></button>
+          <div class="px-3.5 text-center border-x border-line2 leading-tight py-1.5">
+            <div class="font-display text-[.95rem] font-semibold">KW&nbsp;21</div>
+            <div class="font-mono text-[.72rem] tnum text-muted">18.–24.05.2026</div>
+          </div>
+          <button class="grid place-items-center h-10 w-10 text-muted hover:text-blue hover:bg-sunken transition-colors" aria-label="Nächste Woche"><span aria-hidden="true">›</span></button>
+        </div>
+        <button class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[.88rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">
+          <span aria-hidden="true">●</span> Diese Woche
+        </button>
+      </div>
+    </div>
+
+    <!-- ════════ WORKTIME SUB-TAB STRIP — Woche active ════════ -->
+    <nav class="mb-7 md:mb-8 -mx-1 overflow-x-auto scroll-thin" aria-label="Worktime-Ansichten">
+      <ul class="flex items-center gap-1 min-w-max px-1 text-[.9rem]">
+        <li><a href="#" class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+          <span class="text-faint" aria-hidden="true">▶</span> Heute</a></li>
+        <li><a href="#woche" aria-current="page" class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 font-semibold bg-blue/[.08] text-blue ring-1 ring-blue/15">
+          <span aria-hidden="true">▰</span> Woche</a></li>
+        <li><a href="#" class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+          <span class="text-faint" aria-hidden="true">█</span> Historie</a></li>
+        <li><a href="#" class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+          <span class="text-faint" aria-hidden="true">▲</span> Stats</a></li>
+        <li><a href="#" class="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+          <span class="text-faint" aria-hidden="true">★</span> Frei</a></li>
+      </ul>
+    </nav>
+
+    <!-- ════════ LAYOUT: days (main) + summary rail (aside) ════════ -->
+    <div id="woche" class="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6 scroll-mt-20">
+
+      <!-- ░░ MAIN COLUMN — per-day rows ░░ -->
+      <section class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6 md:p-7 animate-rise" aria-label="Tage der Woche">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <h2 class="font-display text-lg font-semibold shrink-0">Tage</h2>
+          <span class="text-[.8rem] text-muted text-right"><span class="font-mono tnum text-body font-medium">5</span> Arbeitstage<span class="hidden sm:inline"> · Ziel je <span class="font-mono tnum">8h 00m</span></span></span>
+        </div>
+        <!-- micro-legend over the bars -->
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.74rem] text-muted mt-2 mb-5">
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-green" aria-hidden="true"></span> Ziel erreicht</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm wk-overflow" aria-hidden="true"></span> über Ziel</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-yellow/70" aria-hidden="true"></span> unter Ziel</span>
+          <span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-cyan" aria-hidden="true"></span> heute · läuft</span>
+          <span class="inline-flex items-center gap-1.5"><span class="text-ink/40 font-bold leading-none" aria-hidden="true">┊</span> Ziel 8h</span>
+        </div>
+
+        <ul class="space-y-2">
+
+          <!-- ── Mo 9h 24m / 8h — over target ── -->
+          <li class="group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-semibold leading-none">Mo</div>
+              <div class="font-mono text-[.7rem] tnum text-muted mt-0.5">18.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="wk-track h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="564" aria-valuemin="0" aria-valuemax="564" aria-valuetext="9h 24m von 8h 00m Ziel · über Ziel" aria-label="Montag, 9 Stunden 24 Minuten von 8 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:14%;animation-delay:.06s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right tabular-nums">
+              <span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">9h 24m</span>
+              <span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / 8h 00m</span>
+              <div class="font-mono text-[.72rem] tnum text-green leading-none mt-0.5">+1h 24m</div>
+            </div>
+            <span class="text-green text-[.85rem] shrink-0 w-3 text-center" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+
+          <!-- ── Di 9h 04m ── -->
+          <li class="group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-semibold leading-none">Di</div>
+              <div class="font-mono text-[.7rem] tnum text-muted mt-0.5">19.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="wk-track h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="544" aria-valuemin="0" aria-valuemax="544" aria-valuetext="9h 04m von 8h 00m Ziel · über Ziel" aria-label="Dienstag, 9 Stunden 4 Minuten von 8 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%;animation-delay:.04s"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:10.67%;animation-delay:.1s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right tabular-nums">
+              <span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">9h 04m</span>
+              <span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / 8h 00m</span>
+              <div class="font-mono text-[.72rem] tnum text-green leading-none mt-0.5">+1h 04m</div>
+            </div>
+            <span class="text-green text-[.85rem] shrink-0 w-3 text-center" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+
+          <!-- ── Mi 9h 02m ── -->
+          <li class="group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-semibold leading-none">Mi</div>
+              <div class="font-mono text-[.7rem] tnum text-muted mt-0.5">20.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="wk-track h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="542" aria-valuemin="0" aria-valuemax="542" aria-valuetext="9h 02m von 8h 00m Ziel · über Ziel" aria-label="Mittwoch, 9 Stunden 2 Minuten von 8 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%;animation-delay:.08s"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:10.33%;animation-delay:.14s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right tabular-nums">
+              <span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">9h 02m</span>
+              <span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / 8h 00m</span>
+              <div class="font-mono text-[.72rem] tnum text-green leading-none mt-0.5">+1h 02m</div>
+            </div>
+            <span class="text-green text-[.85rem] shrink-0 w-3 text-center" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+
+          <!-- ── Do 9h 01m ── -->
+          <li class="group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-semibold leading-none">Do</div>
+              <div class="font-mono text-[.7rem] tnum text-muted mt-0.5">21.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="wk-track h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="541" aria-valuemin="0" aria-valuemax="541" aria-valuetext="9h 01m von 8h 00m Ziel · über Ziel" aria-label="Donnerstag, 9 Stunden 1 Minute von 8 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%;animation-delay:.12s"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:10.17%;animation-delay:.18s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right tabular-nums">
+              <span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">9h 01m</span>
+              <span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / 8h 00m</span>
+              <div class="font-mono text-[.72rem] tnum text-green leading-none mt-0.5">+1h 01m</div>
+            </div>
+            <span class="text-green text-[.85rem] shrink-0 w-3 text-center" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+
+          <!-- ── Fr 9h 18m ── -->
+          <li class="group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-semibold leading-none">Fr</div>
+              <div class="font-mono text-[.7rem] tnum text-muted mt-0.5">22.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="wk-track h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="558" aria-valuemin="0" aria-valuemax="558" aria-valuetext="9h 18m von 8h 00m Ziel · über Ziel" aria-label="Freitag, 9 Stunden 18 Minuten von 8 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%;animation-delay:.16s"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:13%;animation-delay:.22s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right tabular-nums">
+              <span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">9h 18m</span>
+              <span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / 8h 00m</span>
+              <div class="font-mono text-[.72rem] tnum text-green leading-none mt-0.5">+1h 18m</div>
+            </div>
+            <span class="text-green text-[.85rem] shrink-0 w-3 text-center" title="Ziel erreicht" aria-label="Ziel erreicht">●</span>
+          </li>
+
+          <!-- divider before weekend -->
+          <li aria-hidden="true" class="!my-1"><div class="border-t border-line2"></div></li>
+
+          <!-- ── Sa Wochenende (muted, no bar) ── -->
+          <li class="flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-medium leading-none text-muted">Sa</div>
+              <div class="font-mono text-[.7rem] tnum text-faint mt-0.5">23.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <span class="text-[.82rem] text-muted">Wochenende</span>
+            </div>
+            <span class="text-faint text-[.85rem] shrink-0 w-3 text-center" aria-hidden="true">·</span>
+          </li>
+
+          <!-- ── So Wochenende ── -->
+          <li class="flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2">
+            <div class="w-[3.4rem] shrink-0">
+              <div class="text-[.92rem] font-medium leading-none text-muted">So</div>
+              <div class="font-mono text-[.7rem] tnum text-faint mt-0.5">24.05.</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <span class="text-[.82rem] text-muted">Wochenende</span>
+            </div>
+            <span class="text-faint text-[.85rem] shrink-0 w-3 text-center" aria-hidden="true">·</span>
+          </li>
+        </ul>
+
+        <!-- robustness note: how other day states render (this week uses none) -->
+        <div class="mt-5 rounded-2xl border border-dashed border-line bg-sunken/40 px-4 py-3">
+          <p class="eyebrow uppercase text-[.62rem] font-semibold text-muted mb-2.5">Weitere Tageszustände</p>
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[.8rem]">
+            <span class="inline-flex items-center gap-2">
+              <span class="grid place-items-center h-6 w-6 rounded-lg bg-purple/10 text-purple text-[.8rem]" aria-hidden="true">☼</span>
+              <span class="text-body">Urlaub</span>
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <span class="grid place-items-center h-6 w-6 rounded-lg bg-orange/10 text-orange text-[.8rem]" aria-hidden="true">○</span>
+              <span class="text-body">Krank</span>
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <span class="grid place-items-center h-6 w-6 rounded-lg bg-blue/10 text-blue text-[.8rem]" aria-hidden="true">★</span>
+              <span class="text-body">Feiertag</span>
+            </span>
+            <span class="inline-flex items-center gap-2">
+              <span class="grid place-items-center h-6 w-6 rounded-lg bg-cyan/10 text-cyan text-[.8rem]" aria-hidden="true">●</span>
+              <span class="text-body">Heute · läuft</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ░░ SUMMARY RAIL — WOCHE GESAMT + KENNZAHLEN ░░ -->
+      <div class="flex flex-col gap-5 md:gap-6">
+
+        <!-- ░░ SIGNATURE: WOCHE GESAMT banner (over-target = success) ░░ -->
+        <article class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift animate-rise" style="animation-delay:.05s">
+          <!-- accent rail = success (over target) -->
+          <span class="absolute inset-y-0 left-0 w-1 bg-green" aria-hidden="true"></span>
+
+          <div class="relative timer-halo p-6 sm:p-7">
+            <div class="relative z-10 flex items-center justify-between gap-3">
+              <p class="eyebrow uppercase text-[.7rem] font-semibold text-muted">Woche gesamt</p>
+              <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+                <span aria-hidden="true">▲</span> über Ziel
+              </span>
+            </div>
+
+            <!-- big mono total -->
+            <div class="relative z-10 mt-3">
+              <div class="font-mono font-medium tnum text-ink leading-none text-[2.7rem] sm:text-[3rem]">45h 49m</div>
+              <p class="mt-1.5 text-[.9rem] text-muted">von Ziel <span class="font-mono tnum text-body font-medium">40h 00m</span> · Mo–Fr</p>
+            </div>
+
+            <!-- strong week bar with overflow segment -->
+            <div class="relative z-10 mt-5">
+              <div class="wk-track h-3.5 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+                   aria-valuenow="2749" aria-valuemin="0" aria-valuemax="2749" aria-valuetext="45h 49m von 40h 00m Ziel · über Ziel" aria-label="Woche gesamt, 45 Stunden 49 Minuten von 40 Stunden Ziel, über Ziel">
+                <div class="flex h-full w-full">
+                  <div class="wk-fill h-full bg-green animate-grow" style="width:80%;animation-delay:.1s"></div>
+                  <div class="wk-fill wk-overflow h-full animate-grow rounded-r-full" style="width:11.63%;animation-delay:.18s"></div>
+                </div>
+                <span class="wk-target" style="left:80%" aria-hidden="true"></span>
+              </div>
+              <div class="flex items-center justify-between mt-2 text-[.74rem]">
+                <span class="text-muted">Erfüllung <span class="font-mono tnum text-green font-semibold">115%</span></span>
+                <span class="text-muted">Ziel bei <span class="text-ink/50" aria-hidden="true">┊</span> 40h</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ░░ KENNZAHLEN ░░ -->
+        <article class="rounded-3xl bg-surface border border-line shadow-soft p-6 animate-rise" style="animation-delay:.1s">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display text-lg font-semibold">Kennzahlen</h2>
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+              <span aria-hidden="true">▲</span> auf Kurs
+            </span>
+          </div>
+
+          <!-- stat tiles -->
+          <dl class="grid grid-cols-2 gap-3">
+            <div class="rounded-2xl bg-sunken/70 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Schnitt / Tag</dt>
+              <dd class="mt-1 font-mono text-[1.15rem] font-semibold tnum">9h 09m</dd>
+            </div>
+            <div class="rounded-2xl bg-sunken/70 px-4 py-3.5">
+              <dt class="eyebrow uppercase text-[.62rem] font-semibold text-muted">Ziele</dt>
+              <dd class="mt-1 font-mono text-[1.15rem] font-semibold tnum text-green flex items-baseline gap-1.5">5<span class="text-[.85rem] text-muted font-medium">/ 5</span></dd>
+            </div>
+            <div class="col-span-2 rounded-2xl bg-green/[.09] px-4 py-3.5 flex items-center justify-between">
+              <div>
+                <dt class="eyebrow uppercase text-[.62rem] font-semibold text-green">Saldo</dt>
+                <dd class="mt-1 font-mono text-[1.4rem] font-semibold tnum text-green">+5h 49m</dd>
+              </div>
+              <span class="text-green text-2xl" aria-hidden="true">▲</span>
+            </div>
+          </dl>
+
+          <!-- pace dots: 5 filled = 5/5 hit -->
+          <div class="mt-5">
+            <div class="flex items-center justify-between text-[.74rem] text-muted mb-2">
+              <span>Ziel-Pace · Mo–Fr</span>
+              <span class="font-medium text-green">5/5 erreicht</span>
+            </div>
+            <div class="flex items-center justify-between rounded-2xl bg-sunken/60 px-4 py-3" role="img" aria-label="Pace: 5 von 5 Zielen erreicht">
+              <span class="flex flex-col items-center gap-1.5"><span class="text-green text-[1.1rem] leading-none" aria-hidden="true">●</span><span class="text-[.66rem] font-medium text-muted">Mo</span></span>
+              <span class="flex flex-col items-center gap-1.5"><span class="text-green text-[1.1rem] leading-none" aria-hidden="true">●</span><span class="text-[.66rem] font-medium text-muted">Di</span></span>
+              <span class="flex flex-col items-center gap-1.5"><span class="text-green text-[1.1rem] leading-none" aria-hidden="true">●</span><span class="text-[.66rem] font-medium text-muted">Mi</span></span>
+              <span class="flex flex-col items-center gap-1.5"><span class="text-green text-[1.1rem] leading-none" aria-hidden="true">●</span><span class="text-[.66rem] font-medium text-muted">Do</span></span>
+              <span class="flex flex-col items-center gap-1.5"><span class="text-green text-[1.1rem] leading-none" aria-hidden="true">●</span><span class="text-[.66rem] font-medium text-muted">Fr</span></span>
+            </div>
+            <!-- pace-dot legend incl. the Rückstand design variant -->
+            <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[.72rem] text-muted">
+              <span class="inline-flex items-center gap-1"><span class="text-green" aria-hidden="true">●</span> erreicht</span>
+              <span class="inline-flex items-center gap-1"><span class="text-faint" aria-hidden="true">○</span> verfehlt</span>
+              <span class="inline-flex items-center gap-1"><span class="text-cyan" aria-hidden="true">●</span> heute</span>
+              <span class="inline-flex items-center gap-1 text-orange/90"><span aria-hidden="true">▼</span> Rückstand</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- footer -->
+    <footer class="mt-12 md:mt-14 mb-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line2 pt-6 text-[.78rem] text-muted">
+      <p>flow · selbst-gehostet · OIDC</p>
+      <p class="font-mono tnum">v0.9 · rebuild · <span class="text-green">●</span> Live-Sync aktiv</p>
+    </footer>
+  </div>
+</main>
+
+<!-- ════════════════════ MOBILE BOTTOM TAB BAR (≤md) ════════════════════ -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-t border-line"
+     aria-label="Hauptnavigation" style="padding-bottom:env(safe-area-inset-bottom)">
+  <ul class="grid grid-cols-5">
+    <li>
+      <a href="#woche" aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▶</span>
+        <span class="text-[.66rem] font-semibold">Heute</span>
+      </a>
+    </li>
+    <li>
+      <a href="#wissen" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">◆</span>
+        <span class="text-[.66rem] font-medium">Wissen</span>
+      </a>
+    </li>
+    <!-- center FAB: Start/Stopp -->
+    <li class="relative">
+      <button class="absolute left-1/2 -translate-x-1/2 -top-5 grid place-items-center h-13 w-13 rounded-2xl bg-red text-oncolor shadow-ring active:scale-95 transition"
+              aria-label="Sitzung stoppen" style="height:3.25rem;width:3.25rem">
+        <span class="text-lg" aria-hidden="true">■</span>
+      </button>
+      <span class="block py-2.5 text-center text-[.66rem] font-medium text-muted mt-5">Stopp</span>
+    </li>
+    <li>
+      <a href="#stats" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▲</span>
+        <span class="text-[.66rem] font-medium">Stats</span>
+      </a>
+    </li>
+    <li>
+      <a href="#frei" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">★</span>
+        <span class="text-[.66rem] font-medium">Frei</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- ════════════════════ Theme toggle ════════════════════ -->
+<script>
+  (function () {
+    var root   = document.documentElement;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function syncToggles() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+      });
+    }
+
+    // expose for the inline onclick handlers
+    window.toggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('flow-theme', next); } catch (e) {}
+      syncToggles();
+    };
+
+    // keep tabs/devices in sync if changed elsewhere
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'flow-theme' && e.newValue) {
+        root.setAttribute('data-theme', e.newValue);
+        syncToggles();
+      }
+    });
+
+    syncToggles(); // reflect the no-flash initial choice on the buttons
+  })();
+</script>
+
+<!-- ════════════════════ Tiny live-timer script (sidebar/mobile pill) ════════════════════ -->
+<script>
+(function () {
+  // base elapsed: 2h 14m 33s — keeps the live "Läuft" pill ticking like Studio.
+  var base = (2 * 3600) + (14 * 60) + 33;
+  var start = Date.now();
+  var minis = document.querySelectorAll('[data-mini-timer]');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var elapsed = base + Math.floor((Date.now() - start) / 1000);
+    var h = Math.floor(elapsed / 3600);
+    var m = Math.floor((elapsed % 3600) / 60);
+    var s = elapsed % 60;
+    minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+  }
+  tick();
+  setInterval(tick, reduce ? 60000 : 1000);
+})();
+</script>
+</body>
+</html>

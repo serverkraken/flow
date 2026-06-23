@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="de" class="scroll-smooth">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>flow WebUI — Spec · Wissen · flow</title>
+
+<!-- ── Fonts ─────────────────────────────────────────────────────────────
+     Display : Clash Display (Fontshare) — characterful geometric grotesk
+     Body    : Inter (Google) — clean, neutral, highly readable
+     Mono    : JetBrains Mono (Google) — durations + code
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@400,500,600,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['"Clash Display"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        },
+        colors: {
+          /* ── Semantic tokens (resolve per theme via CSS custom props) ──
+             Same utility class names as before; only the *values* now flip
+             between the light and dark Studio palettes. <alpha-value> keeps
+             Tailwind's /opacity modifiers (bg-blue/10 etc.) working. */
+          canvas:  'rgb(var(--canvas)  / <alpha-value>)',  /* page background */
+          surface: 'rgb(var(--surface) / <alpha-value>)',  /* cards */
+          sunken:  'rgb(var(--sunken)  / <alpha-value>)',  /* recessed wells */
+          line:    'rgb(var(--line)    / <alpha-value>)',  /* hairline borders */
+          line2:   'rgb(var(--line2)   / <alpha-value>)',  /* fainter dividers */
+          ink:     'rgb(var(--ink)     / <alpha-value>)',  /* primary text */
+          body:    'rgb(var(--body)    / <alpha-value>)',  /* secondary text */
+          muted:   'rgb(var(--muted)   / <alpha-value>)',  /* tertiary / labels */
+          faint:   'rgb(var(--faint)   / <alpha-value>)',  /* glyph ghosts */
+
+          /* Project hues — retuned per theme for correct contrast on each base */
+          blue:    'rgb(var(--blue)    / <alpha-value>)',
+          cyan:    'rgb(var(--cyan)    / <alpha-value>)',
+          green:   'rgb(var(--green)   / <alpha-value>)',
+          purple:  'rgb(var(--purple)  / <alpha-value>)',
+          magenta: 'rgb(var(--magenta) / <alpha-value>)',
+          yellow:  'rgb(var(--yellow)  / <alpha-value>)',
+          orange:  'rgb(var(--orange)  / <alpha-value>)',
+          red:     'rgb(var(--red)     / <alpha-value>)',
+          teal:    'rgb(var(--teal)    / <alpha-value>)',
+          /* fixed-white text token that stays readable on colored fills in both modes */
+          oncolor: 'rgb(var(--oncolor) / <alpha-value>)',
+        },
+        borderRadius: { '2xl': '1.25rem', '3xl': '1.75rem' },
+        boxShadow: {
+          /* Cool, soft elevation — driven by a per-theme shadow tint var */
+          'soft':  '0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10)',
+          'lift':  '0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18)',
+          'ring':  '0 10px 50px -12px rgb(var(--shadow-accent) / .30)',
+        },
+        keyframes: {
+          breathe: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.45' } },
+          rise:    { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'none' } },
+        },
+        animation: {
+          breathe: 'breathe 2.2s ease-in-out infinite',
+          rise:    'rise .6s cubic-bezier(.21,.85,.27,1) both',
+        },
+      },
+    },
+  };
+</script>
+
+<!-- No-flash theme init: set data-theme BEFORE first paint.
+     Priority: saved choice → prefers-color-scheme → light. -->
+<script>
+  (function () {
+    try {
+      var saved = localStorage.getItem('flow-theme');
+      var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = saved || (prefersDark ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+  })();
+</script>
+
+<style>
+  /* ════════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — one Studio identity, two themes.
+     Values are space-separated RGB triplets so Tailwind's rgb(var(--x)/α)
+     and our own rgb(var(--x)/.NN) usages both work.
+     ════════════════════════════════════════════════════════════════════ */
+
+  /* ── LIGHT (default) — cool, crisp, NOT warm cream ── */
+  :root {
+    color-scheme: light;
+    --canvas:  251 252 254;   /* #FBFCFE */
+    --surface: 255 255 255;   /* #FFFFFF */
+    --sunken:  244 246 251;   /* #F4F6FB */
+    --line:    230 233 242;   /* #E6E9F2 */
+    --line2:   238 241 248;   /* #EEF1F8 */
+    --ink:      27  34  51;   /* #1B2233 */
+    --body:     72  82 106;   /* #48526A */
+    --muted:   138 147 166;   /* #8A93A6 */
+    --faint:   174 182 199;   /* #AEB6C7 */
+
+    --blue:     59 111 246;   /* #3B6FF6 */
+    --cyan:     11 165 214;   /* #0BA5D6 */
+    --green:    39 165 103;   /* #27A567 */
+    --purple:  139  92 246;   /* #8B5CF6 */
+    --magenta: 225  29 116;   /* #E11D74 */
+    --yellow:  217 138  11;   /* #D98A0B */
+    --orange:  234 106  43;   /* #EA6A2B */
+    --red:     224  69  91;   /* #E0455B */
+    --teal:     14 155 142;   /* #0E9B8E */
+    --oncolor: 255 255 255;   /* text on colored fills */
+
+    --shadow:         27  34  51;   /* slate, drives soft elevation */
+    --shadow-accent:  59 111 246;   /* bluish tint in the lift shadow */
+
+    /* code block stays a deep cool slate in BOTH themes (an editorial inset) */
+    --code-bg:    15  20  38;   /* #0F1426 */
+    --code-fg:   201 212 245;   /* #C9D4F5 */
+    --halo:       59 111 246;   /* timer halo color = project hue */
+    --halo-a:    0.16;
+    --scrollthumb: 217 223 236; /* #D9DFEC */
+  }
+
+  /* ── DARK — sophisticated dark productivity, soft navy (NOT pure black,
+        NOT a terminal). Same hues, retuned brighter for dark contrast. ── */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --canvas:  14  17  28;     /* #0E111C  deep cool navy-black */
+    --surface: 22  26  40;     /* #161A28  card */
+    --sunken:  28  33  50;     /* #1C2132  recessed well */
+    --line:    42  49  72;     /* #2A3148  hairline */
+    --line2:   34  40  60;     /* #22283C  fainter divider */
+    --ink:     226 231 245;    /* #E2E7F5  primary text (soft, not #fff) */
+    --body:    166 175 199;    /* #A6AFC7  secondary */
+    --muted:   122 132 158;    /* #7A849E  tertiary */
+    --faint:    82  92 120;    /* #525C78  glyph ghosts */
+
+    /* hues lifted for contrast against the navy base */
+    --blue:    122 162 247;    /* #7AA2F7 */
+    --cyan:    125 207 255;    /* #7DCFFF */
+    --green:   158 206 106;    /* #9ECE6A */
+    --purple:  187 154 247;    /* #BB9AF7 */
+    --magenta: 247 110 168;    /* #F76EA8 */
+    --yellow:  224 175 104;    /* #E0AF68 */
+    --orange:  255 158 100;    /* #FF9E64 */
+    --red:     247 118 142;    /* #F7768E */
+    --teal:    115 218 202;    /* #73DACA */
+    --oncolor:  16  19  30;    /* dark ink on bright colored fills */
+
+    --shadow:          0   0   0;   /* pure black for depth on dark */
+    --shadow-accent:  18  24  48;   /* very subtle navy bloom */
+
+    --code-bg:   10  13  24;    /* slightly deeper than surface */
+    --code-fg:  201 212 245;
+    --halo:    122 162 247;
+    --halo-a:    0.20;
+    --scrollthumb: 49  57  84;  /* #313954 */
+  }
+
+  html, body { background: rgb(var(--canvas)); }
+  body {
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    /* gentle cross-fade on theme flip (suppressed under reduced-motion) */
+    transition: background-color .35s ease, color .35s ease;
+  }
+  /* let common surfaces ease too, so the toggle feels designed not jarring */
+  aside, header, nav, article, input, .theme-fade {
+    transition: background-color .35s ease, border-color .35s ease, color .35s ease;
+  }
+
+  /* Display tracking — Clash looks best slightly tightened at large sizes */
+  .font-display { letter-spacing: -0.015em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .eyebrow { letter-spacing: .14em; }
+
+  /* Visible, on-brand keyboard focus (cool blue ring, token-driven) */
+  *:focus-visible {
+    outline: 2px solid rgb(var(--blue));
+    outline-offset: 2px;
+    border-radius: 10px;
+  }
+
+  /* Wikilink underline that doesn't look like a default <a> (heritage treatment) */
+  .wikilink {
+    background-image: linear-gradient(transparent 62%, rgb(var(--purple) / .28) 62%);
+    text-decoration: none;
+  }
+  .wikilink:hover { background-image: linear-gradient(transparent 0%, rgb(var(--purple) / .28) 0%); }
+  /* a broken wikilink — target does not exist — reads danger-red and dashed */
+  .wikilink-broken {
+    color: rgb(var(--red));
+    text-decoration: underline dashed rgb(var(--red) / .55);
+    text-underline-offset: 3px;
+    cursor: not-allowed;
+  }
+
+  /* ════════════════════════════════════════════════════════════════════
+     PROSE — Studio editorial reading rhythm, extended to full GFM.
+     Builds on the canonical Studio prose base; adds h1/h3/h4, lists,
+     task lists, blockquotes, tables, code tokens, hr, footnotes, figures.
+     ════════════════════════════════════════════════════════════════════ */
+  .prose-studio { color: rgb(var(--body)); }
+
+  .prose-studio h1, .prose-studio h2, .prose-studio h3, .prose-studio h4 {
+    font-family: 'Clash Display'; letter-spacing: -.01em; color: rgb(var(--ink));
+    scroll-margin-top: 6rem; /* so anchor jumps clear the sticky header */
+  }
+  .prose-studio h1 { font-weight: 600; font-size: 1.9rem; line-height: 1.15; margin: 0 0 .9rem; }
+  .prose-studio h2 { font-weight: 600; font-size: 1.4rem;  line-height: 1.25; margin: 2.1rem 0 .7rem; }
+  .prose-studio h3 { font-weight: 600; font-size: 1.12rem; line-height: 1.3;  margin: 1.7rem 0 .5rem; }
+  .prose-studio h4 { font-weight: 600; font-size: .98rem;  line-height: 1.3;  margin: 1.3rem 0 .4rem;
+                     text-transform: uppercase; letter-spacing: .06em; color: rgb(var(--body)); }
+  /* an anchor link reveal on heading hover (keyboard-focusable too) */
+  .prose-studio .h-anchor {
+    margin-left:.4rem; color: rgb(var(--faint)); opacity:0; text-decoration:none;
+    font-family:'JetBrains Mono'; font-size:.8em; transition:opacity .15s, color .15s;
+  }
+  .prose-studio h2:hover .h-anchor,
+  .prose-studio h3:hover .h-anchor,
+  .prose-studio .h-anchor:focus-visible { opacity:1; }
+  .prose-studio .h-anchor:hover { color: rgb(var(--blue)); }
+
+  .prose-studio p { margin: 0 0 1rem; font-size: .98rem; line-height: 1.78; }
+  .prose-studio :where(td, th) { line-height: 1.6; }
+  .prose-studio strong { color: rgb(var(--ink)); font-weight: 600; }
+  .prose-studio em { font-style: italic; }
+  .prose-studio del { color: rgb(var(--muted)); text-decoration-thickness: 1.5px; }
+
+  /* inline links (non-wiki) */
+  .prose-studio a.link {
+    color: rgb(var(--blue)); text-decoration: none;
+    background-image: linear-gradient(rgb(var(--blue) / .35), rgb(var(--blue) / .35));
+    background-size: 100% 1px; background-position: 0 1.15em; background-repeat: no-repeat;
+  }
+  .prose-studio a.link:hover { background-size: 100% 1.5px; }
+
+  /* inline code (verbatim from Studio) */
+  .prose-studio :where(code):not(pre code) {
+    font-family:'JetBrains Mono'; font-size:.82em; background:rgb(var(--sunken));
+    border:1px solid rgb(var(--line)); border-radius:7px; padding:.08em .42em; color:rgb(var(--blue));
+  }
+
+  /* lists */
+  .prose-studio ul, .prose-studio ol { margin: 0 0 1.1rem; padding: 0; }
+  .prose-studio li { font-size: .98rem; line-height: 1.7; }
+  .prose-studio ul:not(.task-list) > li,
+  .prose-studio ol > li { position: relative; padding-left: 1.5rem; margin: .3rem 0; }
+  .prose-studio ul:not(.task-list) > li::before {
+    content: "·"; position: absolute; left: .35rem; top: -.05em;
+    color: rgb(var(--blue)); font-weight: 700; font-size: 1.1em;
+  }
+  .prose-studio ol { counter-reset: ol; }
+  .prose-studio ol > li { counter-increment: ol; }
+  .prose-studio ol > li::before {
+    content: counter(ol) "."; position: absolute; left: 0; top: 0;
+    color: rgb(var(--blue)); font-family:'JetBrains Mono'; font-weight: 600; font-size: .82em;
+    font-variant-numeric: tabular-nums; line-height: 1.8;
+  }
+  /* nested lists tighten */
+  .prose-studio li > ul, .prose-studio li > ol { margin: .3rem 0 .2rem; }
+
+  /* GFM task lists — heritage glyphs ☐ / ☑ */
+  .prose-studio .task-list { list-style: none; }
+  .prose-studio .task-list > li {
+    position: relative; padding-left: 1.8rem; margin: .35rem 0; display: block;
+  }
+  .prose-studio .task-list > li::before {
+    position: absolute; left: 0; top: -.02em; font-size: 1.05em; line-height: 1.6;
+  }
+  .prose-studio .task-list > li.task-open::before  { content: "☐"; color: rgb(var(--muted)); }
+  .prose-studio .task-list > li.task-done::before  { content: "☑"; color: rgb(var(--green)); }
+  .prose-studio .task-list > li.task-done { color: rgb(var(--muted)); }
+  .prose-studio .task-list > li.task-done .t { text-decoration: line-through; text-decoration-color: rgb(var(--faint)); }
+
+  /* blockquote */
+  .prose-studio blockquote {
+    margin: 1.2rem 0; padding: .2rem 0 .2rem 1.1rem;
+    border-left: 3px solid rgb(var(--purple) / .55);
+    color: rgb(var(--body)); font-style: italic;
+  }
+  .prose-studio blockquote p { margin: .25rem 0; }
+  .prose-studio blockquote cite { display:block; font-style: normal; font-size:.82rem; color: rgb(var(--muted)); margin-top:.35rem; }
+
+  /* GFM tables */
+  .prose-studio .tablewrap { margin: 1.3rem 0; overflow: hidden; border:1px solid rgb(var(--line)); border-radius: 14px; }
+  .prose-studio table { width:100%; border-collapse: collapse; font-size:.9rem; }
+  .prose-studio thead tr { background: rgb(var(--sunken) / .8); text-align:left; }
+  .prose-studio th { padding:.65rem 1rem; font-weight:600; color: rgb(var(--ink)); border-bottom:1px solid rgb(var(--line)); }
+  .prose-studio td { padding:.6rem 1rem; border-bottom:1px solid rgb(var(--line2)); }
+  .prose-studio tbody tr:last-child td { border-bottom:0; }
+  .prose-studio tbody tr:nth-child(even) { background: rgb(var(--canvas) / .5); }
+  .prose-studio td.num, .prose-studio th.num { text-align:right; font-family:'JetBrains Mono'; font-variant-numeric: tabular-nums; }
+
+  /* fenced code block (deep editorial inset in BOTH themes) */
+  .prose-studio .codeblock { margin: 1.2rem 0; border-radius: 14px; overflow: hidden; border:1px solid rgb(var(--line)); }
+  .prose-studio .codeblock-head {
+    display:flex; align-items:center; justify-content:space-between;
+    background: rgb(var(--code-bg)); border-bottom: 1px solid rgb(255 255 255 / .06);
+    padding: .5rem .8rem .5rem 1rem;
+  }
+  .prose-studio .codeblock-lang {
+    font-family:'JetBrains Mono'; font-size:.68rem; font-weight:600; letter-spacing:.12em;
+    text-transform: uppercase; color: #7DCFFF;
+  }
+  .prose-studio .copy-btn {
+    display:inline-flex; align-items:center; gap:.4rem; cursor:pointer;
+    font-family:'JetBrains Mono'; font-size:.68rem; color:#9aa5ce;
+    background: rgb(255 255 255 / .06); border:1px solid rgb(255 255 255 / .08);
+    border-radius:8px; padding:.2rem .55rem; transition: background .15s, color .15s;
+  }
+  .prose-studio .copy-btn:hover { color:#C9D4F5; background: rgb(255 255 255 / .12); }
+  .prose-studio .copy-btn.copied { color:#9ECE6A; }
+  .prose-studio pre {
+    font-family:'JetBrains Mono'; font-size:.82rem; line-height:1.7; margin:0;
+    background:rgb(var(--code-bg)); color:rgb(var(--code-fg));
+    padding:1rem 1.1rem; overflow:auto;
+  }
+  .prose-studio pre code { font: inherit; color: inherit; background: none; border: 0; padding: 0; }
+
+  /* syntax token palette — chosen for AA contrast on the #0F1426 / #0A0D18 code-bg.
+     Same hex in both themes (the code inset is constant). */
+  .tok-kw  { color:#BB9AF7; }   /* keyword / control     */
+  .tok-fn  { color:#7AA2F7; }   /* function / type name  */
+  .tok-str { color:#9ECE6A; }   /* string / path         */
+  .tok-num { color:#FF9E64; }   /* number / constant     */
+  .tok-com { color:#565F89; font-style: italic; }  /* comment */
+  .tok-op  { color:#89DDFF; }   /* operator / punctuation accent */
+  .tok-var { color:#C0CAF5; }   /* identifier            */
+  .tok-flag{ color:#7DCFFF; }   /* CLI flag (heritage)   */
+  .tok-path{ color:#9ECE6A; }   /* CLI path (heritage)   */
+  .tok-prompt { color:#565F89; user-select:none; }   /* shell $ */
+
+  /* horizontal rule */
+  .prose-studio hr { border:0; border-top:1px solid rgb(var(--line)); margin:2rem 0; }
+
+  /* figure + caption (image placeholder) */
+  .prose-studio figure { margin: 1.4rem 0; }
+  .prose-studio .figframe {
+    border:1px solid rgb(var(--line)); border-radius:14px; overflow:hidden;
+    background:
+      linear-gradient(135deg, rgb(var(--blue)/.08), rgb(var(--purple)/.08)),
+      repeating-linear-gradient(45deg, rgb(var(--line)/.5) 0 1px, transparent 1px 11px);
+    aspect-ratio: 16/8; display:grid; place-items:center;
+  }
+  .prose-studio .figframe .ph {
+    font-family:'JetBrains Mono'; font-size:.72rem; letter-spacing:.1em; text-transform:uppercase;
+    color: rgb(var(--muted)); display:flex; align-items:center; gap:.5rem;
+  }
+  .prose-studio figcaption { margin-top:.55rem; font-size:.8rem; color: rgb(var(--muted)); text-align:center; }
+  .prose-studio figcaption .fignum { color: rgb(var(--blue)); font-weight:600; }
+
+  /* footnotes */
+  .prose-studio sup.fnref { font-size:.7em; line-height:0; }
+  .prose-studio sup.fnref a { color: rgb(var(--blue)); text-decoration:none; padding:0 .1em; }
+  .prose-studio .footnotes { margin-top: 2rem; padding-top: 1rem; border-top:1px solid rgb(var(--line2)); }
+  .prose-studio .footnotes ol > li { font-size:.82rem; color: rgb(var(--muted)); }
+  .prose-studio .footnotes a.fnback { color: rgb(var(--blue)); text-decoration:none; margin-left:.3rem; }
+
+  /* ── Callouts (NOTE/TIP/WARNING/IMPORTANT/DANGER) — heritage hue map ──
+     Color set per-callout via the --c var on the root element. */
+  .callout {
+    --c: var(--blue);
+    margin: 1.3rem 0; border-radius: 14px; padding: .85rem 1rem .9rem 1rem;
+    border: 1px solid rgb(var(--c) / .35);
+    background: rgb(var(--c) / .07);
+    position: relative;
+  }
+  .callout > .callout-head {
+    display:flex; align-items:center; gap:.5rem;
+    font-weight: 700; font-size:.7rem; letter-spacing:.12em; text-transform:uppercase;
+    color: rgb(var(--c)); margin-bottom:.35rem;
+  }
+  .callout > .callout-head .gly { font-size:.95rem; line-height:1; }
+  .callout > p { margin: .2rem 0 0; color: rgb(var(--body)); font-size:.92rem; }
+  .callout > p:first-of-type { margin-top:0; }
+  .callout-note      { --c: var(--cyan); }
+  .callout-tip       { --c: var(--green); }
+  .callout-warning   { --c: var(--yellow); }
+  .callout-important { --c: var(--purple); }
+  .callout-danger    { --c: var(--red); }
+
+  /* ── Table-of-contents scroll-spy state ── */
+  .toc a {
+    display:block; padding:.28rem .65rem; border-radius:9px; font-size:.84rem; line-height:1.35;
+    color: rgb(var(--muted)); text-decoration:none; border-left:2px solid transparent;
+    transition: color .15s, background .15s, border-color .15s;
+  }
+  .toc a:hover { color: rgb(var(--ink)); background: rgb(var(--sunken) / .7); }
+  .toc a.lvl-3 { padding-left: 1.35rem; font-size:.8rem; }
+  .toc a.active {
+    color: rgb(var(--blue)); background: rgb(var(--blue) / .08);
+    border-left-color: rgb(var(--blue)); font-weight: 600;
+  }
+
+  /* reading progress bar (top hairline) */
+  .read-progress { transform-origin: 0 50%; }
+
+  /* overflow menu */
+  .menu-pop { transform-origin: top right; }
+  details[data-menu] > summary { list-style: none; cursor: pointer; }
+  details[data-menu] > summary::-webkit-details-marker { display:none; }
+
+  /* Theme-toggle knob slide */
+  .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
+  :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+  .toggle-sun { display:inline; }   .toggle-moon { display:none; }
+  :root[data-theme="dark"] .toggle-sun { display:none; }
+  :root[data-theme="dark"] .toggle-moon { display:inline; }
+
+  /* Custom scrollbars inside scroll wells (token-driven) */
+  .scroll-thin::-webkit-scrollbar { height:6px; width:6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background:rgb(var(--scrollthumb)); border-radius:99px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .animate-breathe { opacity: 1 !important; }
+  }
+</style>
+</head>
+
+<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink">
+
+<!-- reading-progress hairline (top of viewport) -->
+<div class="fixed top-0 inset-x-0 z-[60] h-0.5 bg-transparent pointer-events-none" aria-hidden="true">
+  <div data-read-progress class="read-progress h-full w-full bg-gradient-to-r from-blue to-cyan scale-x-0"></div>
+</div>
+
+<!-- ════════════════════ DESKTOP SIDEBAR (md+) ════════════════════ -->
+<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+  <div class="px-6 pt-7 pb-6 flex items-center justify-between">
+    <a href="#" class="group inline-flex items-center gap-2.5" aria-label="flow Startseite">
+      <span class="grid place-items-center h-9 w-9 rounded-xl bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-lg shadow-soft">f</span>
+      <span class="font-display text-[1.45rem] font-semibold tracking-tight">flow</span>
+    </a>
+    <!-- Theme toggle (desktop) -->
+    <button type="button" onclick="toggleTheme()" data-theme-toggle
+            class="relative grid place-items-center h-8 w-8 rounded-lg border border-line bg-sunken text-body hover:text-blue hover:border-blue/40 transition-colors"
+            aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+      <span class="toggle-sun text-[.95rem]" aria-hidden="true">☀</span>
+      <span class="toggle-moon text-[.95rem]" aria-hidden="true">☾</span>
+    </button>
+  </div>
+
+  <nav class="flex-1 px-3 space-y-1" aria-label="Hauptnavigation">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▶</span> Heute
+    </a>
+    <a href="#" aria-current="page"
+       class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium bg-blue/[.08] text-blue">
+      <span class="w-5 text-center text-[.95rem]" aria-hidden="true">◆</span> Wissen
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">●</span> Projekte
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">▲</span> Stats
+    </a>
+    <a href="#" class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+      <span class="w-5 text-center text-faint" aria-hidden="true">★</span> Frei
+    </a>
+  </nav>
+
+  <!-- Live status pill in sidebar foot -->
+  <div class="px-3 pb-3">
+    <div class="rounded-xl border border-line bg-sunken/60 px-3.5 py-3">
+      <div class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-green">
+        <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-green"></span></span>
+        Läuft
+      </div>
+      <div class="mt-1.5 font-mono text-[.95rem] font-medium tnum text-ink" data-mini-timer>02:14:33</div>
+      <div class="text-[.78rem] text-muted truncate">flow · #rebuild</div>
+    </div>
+  </div>
+
+  <div class="px-3 pb-5">
+    <a href="#" class="flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-sunken transition-colors group">
+      <span class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.8rem] font-semibold">MS</span>
+      <span class="min-w-0">
+        <span class="block text-[.85rem] font-medium leading-tight truncate">Martin S.</span>
+        <span class="block text-[.74rem] text-muted group-hover:text-blue transition-colors">Abmelden ›</span>
+      </span>
+    </a>
+  </div>
+</aside>
+
+<!-- ════════════════════ MOBILE TOP BAR ════════════════════ -->
+<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
+  <div class="flex items-center justify-between px-4 h-14">
+    <div class="flex items-center gap-2 min-w-0">
+      <a href="#" class="grid place-items-center h-9 w-9 -ml-1 rounded-lg text-body hover:text-blue transition-colors" aria-label="Zurück zu Wissen">
+        <span class="text-lg" aria-hidden="true">‹</span>
+      </a>
+      <a href="#" class="inline-flex items-center gap-2" aria-label="flow Startseite">
+        <span class="grid place-items-center h-7 w-7 rounded-lg bg-gradient-to-br from-blue to-purple text-oncolor font-display font-semibold text-sm">f</span>
+        <span class="font-display text-xl font-semibold tracking-tight">flow</span>
+      </a>
+    </div>
+    <div class="flex items-center gap-2.5">
+      <span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 px-2.5 py-1 text-[.72rem] font-semibold text-green">
+        <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full rounded-full bg-green/60 animate-breathe"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green"></span></span>
+        <span class="font-mono tnum" data-mini-timer>02:14:33</span>
+      </span>
+      <!-- Theme toggle (mobile) -->
+      <button type="button" onclick="toggleTheme()" data-theme-toggle
+              class="grid place-items-center h-9 w-9 rounded-full border border-line bg-sunken text-body active:scale-95 transition"
+              aria-label="Hell/Dunkel umschalten" aria-pressed="false" title="Hell/Dunkel">
+        <span class="toggle-sun text-base" aria-hidden="true">☀</span>
+        <span class="toggle-moon text-base" aria-hidden="true">☾</span>
+      </button>
+      <button class="grid place-items-center h-9 w-9 rounded-full bg-ink text-canvas text-[.74rem] font-semibold" aria-label="Konto">MS</button>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="md:pl-[248px] pb-28 md:pb-12">
+  <div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-5 md:pt-8">
+
+    <!-- Breadcrumb -->
+    <nav class="mb-5 md:mb-6 flex items-center gap-2 text-[.82rem] animate-rise" aria-label="Brotkrümel">
+      <a href="#" class="text-muted hover:text-blue transition-colors">Wissen</a>
+      <span class="text-faint" aria-hidden="true">›</span>
+      <span class="text-body font-medium truncate">flow WebUI — Spec</span>
+    </nav>
+
+    <!-- ════════ Reading layout: column + right meta/ToC rail ════════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:gap-10 xl:gap-12">
+
+      <!-- ░░ THE DOCUMENT (hero = rendered body) ░░ -->
+      <article class="min-w-0 animate-rise">
+
+        <!-- Document header -->
+        <header class="mb-7 md:mb-9">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <!-- kind badge -->
+              <span class="inline-flex items-center gap-1.5 rounded-md bg-green/10 px-2 py-0.5 text-[.68rem] font-bold eyebrow uppercase text-green">
+                <span aria-hidden="true">◆</span> Proj.
+              </span>
+              <!-- title -->
+              <h1 class="font-display text-[2rem] sm:text-[2.6rem] font-semibold leading-[1.05] tracking-tight mt-3">
+                flow WebUI — Spec
+              </h1>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-2 shrink-0">
+              <a href="#" class="inline-flex items-center gap-1.5 rounded-xl bg-ink px-4 py-2.5 text-[.88rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 transition-colors">
+                <span aria-hidden="true">✎</span> Bearbeiten
+              </a>
+              <!-- overflow menu (native <details>, no framework) -->
+              <details data-menu class="relative">
+                <summary class="grid place-items-center h-[42px] w-[42px] rounded-xl border border-line bg-surface text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors"
+                         aria-label="Weitere Aktionen" title="Mehr" role="button" tabindex="0">
+                  <span aria-hidden="true" class="tracking-tight text-lg leading-none">⋯</span>
+                </summary>
+                <div class="menu-pop absolute right-0 mt-2 w-56 rounded-2xl border border-line bg-surface shadow-lift p-1.5 z-50 animate-rise">
+                  <button class="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-[.88rem] text-body hover:bg-sunken hover:text-ink transition-colors text-left">
+                    <span class="w-4 text-center text-muted" aria-hidden="true">›</span> Verlinkung kopieren
+                  </button>
+                  <button class="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-[.88rem] text-body hover:bg-sunken hover:text-ink transition-colors text-left">
+                    <span class="w-4 text-center text-muted" aria-hidden="true">↧</span> Export · Markdown
+                  </button>
+                  <div class="my-1 h-px bg-line2" role="separator"></div>
+                  <button class="w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-[.88rem] text-red hover:bg-red/10 transition-colors text-left">
+                    <span class="w-4 text-center" aria-hidden="true">✗</span> Löschen
+                  </button>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <!-- meta line: project link · date · reading time · tags -->
+          <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[.85rem] text-muted">
+            <a href="#" class="inline-flex items-center gap-1.5 font-medium text-blue hover:underline underline-offset-2">
+              <span aria-hidden="true">◆</span> flow
+            </a>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="text-faint" aria-hidden="true">·</span> aktualisiert <span class="font-mono tnum text-body">23.06.2026</span>
+            </span>
+            <span class="inline-flex items-center gap-1.5">
+              <span class="text-faint" aria-hidden="true">·</span> <span class="font-mono tnum">4 Min.</span> Lesezeit
+            </span>
+            <span class="inline-flex flex-wrap gap-1.5">
+              <a href="#" class="rounded-md bg-sunken px-2 py-0.5 text-[.74rem] font-medium text-body hover:text-blue transition-colors">#webui</a>
+              <a href="#" class="rounded-md bg-sunken px-2 py-0.5 text-[.74rem] font-medium text-body hover:text-blue transition-colors">#rebuild</a>
+              <a href="#" class="rounded-md bg-sunken px-2 py-0.5 text-[.74rem] font-medium text-body hover:text-blue transition-colors">#spec</a>
+            </span>
+          </div>
+        </header>
+
+        <!-- ░░ MOBILE: collapsible ToC at top ░░ -->
+        <details class="lg:hidden mb-7 rounded-2xl border border-line bg-surface shadow-soft overflow-hidden">
+          <summary class="flex items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none">
+            <span class="inline-flex items-center gap-2 text-[.78rem] font-semibold eyebrow uppercase text-muted">
+              <span class="text-blue" aria-hidden="true">▸</span> Inhalt
+            </span>
+            <span class="text-faint text-[.8rem]" aria-hidden="true">▾</span>
+          </summary>
+          <nav class="toc px-2 pb-3" aria-label="Inhaltsverzeichnis (mobil)" data-toc-mobile></nav>
+        </details>
+
+        <!-- ░░ The reading column — feature-complete GFM body ░░ -->
+        <div class="prose-studio max-w-[70ch]" data-doc-body>
+
+          <p class="!text-[1.06rem] !leading-[1.8] text-body">
+            Diese Spezifikation beschreibt die <strong>web-basierte Begleitung</strong> zu <code>flow</code> —
+            <em>server-gerendert</em>, eine Binary, ein Deploy. Sie gilt als <a href="#" class="link">verbindlicher Referenzpunkt</a>
+            für den Rebuild und ersetzt die alte <del>SPA-Skizze</del> vollständig.
+          </p>
+
+          <!-- NOTE callout -->
+          <div class="callout callout-note" role="note">
+            <div class="callout-head"><span class="gly" aria-hidden="true">›</span> Notiz</div>
+            <p>Die WebUI ist eine <strong>Begleitung</strong>, kein Ersatz für die TUI. Der Terminal-Cockpit
+            bleibt die primäre Oberfläche; das Web spiegelt denselben Server-State.</p>
+          </div>
+
+          <h2 id="ueberblick">Überblick<a href="#ueberblick" class="h-anchor" aria-label="Anker zu Überblick">#</a></h2>
+          <p>
+            Das Produkt erfüllt zwei Aufgaben: <strong>Worktime</strong> (Live-Zeiterfassung) und
+            <strong>Wissen</strong> (Markdown-Kompendium). Beide teilen sich Identität, Tokens und Navigation.
+            Die Tokens leben zentral in
+            <a href="#" class="wikilink font-medium text-purple">[[Design-Tokens]]</a>;
+            ein noch nicht angelegter Abschnitt ist
+            <a href="#" class="wikilink-broken font-medium" aria-disabled="true" title="Seite existiert noch nicht">[[Fehlende Seite]]</a>.
+          </p>
+
+          <h3 id="ziele">Ziele<a href="#ziele" class="h-anchor" aria-label="Anker zu Ziele">#</a></h3>
+          <p>Die drei Leitsätze, an denen jede Entscheidung gemessen wird:</p>
+          <ul>
+            <li><strong>Übersichtlich</strong> — eine Sache pro Blick, klare Hierarchie.</li>
+            <li><strong>Modern</strong> — web-native Patterns, kein nachgebautes Terminal.</li>
+            <li><strong>Bunt</strong> — Projektfarben tragen Bedeutung, nicht Dekoration.</li>
+          </ul>
+
+          <h3 id="nicht-ziele">Nicht-Ziele<a href="#nicht-ziele" class="h-anchor" aria-label="Anker zu Nicht-Ziele">#</a></h3>
+          <ol>
+            <li>Kein clientseitiges State-Management-Framework.</li>
+            <li>Keine Offline-First-Synchronisierung in Phase 1.</li>
+            <li>Kein Mehrbenutzer-Modell — <code>flow</code> bleibt Single-User.</li>
+          </ol>
+
+          <!-- TIP callout -->
+          <div class="callout callout-tip" role="note">
+            <div class="callout-head"><span class="gly" aria-hidden="true">✚</span> Tipp</div>
+            <p>Beim Prototyping zuerst die <em>Heute</em>-Ansicht bauen — sie ist der Lackmustest für
+            Live-Sync, Glyph-Sprache und Farb-Identität in einem.</p>
+          </div>
+
+          <h2 id="architektur">Architektur<a href="#architektur" class="h-anchor" aria-label="Anker zu Architektur">#</a></h2>
+          <p>
+            Die WebUI ist <strong>server-gerendert</strong> mit templ-Komponenten und <code>htmx</code>
+            für partielle Updates — kein SPA-Framework, kein Client-State. Live-Sync läuft über
+            <strong>SSE</strong>: der Timer tickt serverseitig, der Browser hört nur zu.
+          </p>
+
+          <!-- GFM table -->
+          <div class="tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Schicht</th>
+                  <th scope="col">Tech</th>
+                  <th scope="col" class="num">Anteil</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>Web</td><td><code>templ</code> + <code>htmx</code></td><td class="num">52%</td></tr>
+                <tr><td>Stil</td><td><code>Tailwind</code></td><td class="num">23%</td></tr>
+                <tr><td>Live</td><td><code>SSE</code> + <code>Go</code></td><td class="num">15%</td></tr>
+                <tr><td>Daten</td><td><code>Postgres</code> + <code>pgvector</code></td><td class="num">10%</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 id="build">Build-Pipeline<a href="#build" class="h-anchor" aria-label="Anker zu Build-Pipeline">#</a></h3>
+          <p>Das Stylesheet wird mit <code>make web</code> gebaut. Der Shell-Aufruf dahinter:</p>
+
+          <!-- fenced code block 1: bash -->
+          <figure class="codeblock" role="group" aria-label="Codeblock, Sprache bash">
+            <div class="codeblock-head">
+              <span class="codeblock-lang">bash</span>
+              <button type="button" class="copy-btn" data-copy aria-label="Code kopieren">
+                <span class="cp-glyph" aria-hidden="true">›</span><span class="cp-label">Kopieren</span>
+              </button>
+            </div>
+<pre data-code><code><span class="tok-prompt">$</span> tailwindcss <span class="tok-flag">--input</span> <span class="tok-path">web/tailwind.css</span> \
+    <span class="tok-flag">--output</span> <span class="tok-path">static/app.css</span> <span class="tok-flag">--minify</span>
+<span class="tok-prompt">$</span> templ generate <span class="tok-op">&amp;&amp;</span> go build <span class="tok-flag">-o</span> <span class="tok-path">bin/flow</span> <span class="tok-path">./cmd/flow</span></code></pre>
+          </figure>
+
+          <p>Der Live-Sync-Handler bündelt Sitzungs-Events und streamt sie als SSE an verbundene Clients:</p>
+
+          <!-- fenced code block 2: go -->
+          <figure class="codeblock" role="group" aria-label="Codeblock, Sprache Go">
+            <div class="codeblock-head">
+              <span class="codeblock-lang">go</span>
+              <button type="button" class="copy-btn" data-copy aria-label="Code kopieren">
+                <span class="cp-glyph" aria-hidden="true">›</span><span class="cp-label">Kopieren</span>
+              </button>
+            </div>
+<pre data-code><code><span class="tok-com">// streamSessions schreibt Live-Events als SSE.</span>
+<span class="tok-kw">func</span> <span class="tok-fn">streamSessions</span>(w http.<span class="tok-fn">ResponseWriter</span>, ch <span class="tok-op">&lt;-</span><span class="tok-kw">chan</span> <span class="tok-fn">Event</span>) <span class="tok-kw">error</span> {
+    w.<span class="tok-fn">Header</span>().<span class="tok-fn">Set</span>(<span class="tok-str">"Content-Type"</span>, <span class="tok-str">"text/event-stream"</span>)
+    <span class="tok-kw">for</span> ev <span class="tok-op">:=</span> <span class="tok-kw">range</span> ch {
+        <span class="tok-kw">if</span> ev.Kind <span class="tok-op">==</span> <span class="tok-str">"session.started"</span> {
+            <span class="tok-fn">fmt</span>.<span class="tok-fn">Fprintf</span>(w, <span class="tok-str">"data: %s\n\n"</span>, ev.<span class="tok-fn">JSON</span>())
+            w.(http.<span class="tok-fn">Flusher</span>).<span class="tok-fn">Flush</span>()
+        }
+    }
+    <span class="tok-kw">return</span> <span class="tok-num">nil</span>
+}</code></pre>
+          </figure>
+
+          <!-- WARNING callout -->
+          <div class="callout callout-warning" role="note">
+            <div class="callout-head"><span class="gly" aria-hidden="true">▲</span> Achtung</div>
+            <p>CI baut <code>app.css</code> <strong>nicht</strong> automatisch — <code>make web</code> läuft nur lokal.
+            Wer das vergisst, deployt ein leeres Stylesheet. Vor jedem Release prüfen.</p>
+          </div>
+
+          <h2 id="oberflaeche">Oberfläche<a href="#oberflaeche" class="h-anchor" aria-label="Anker zu Oberfläche">#</a></h2>
+          <p>
+            Die fünf Sektionen — Heute, Wissen, Projekte, Stats, Frei — teilen sich eine Shell.
+            Die Glyph-Sprache ist <strong>echt</strong>: ein Status-Mark bedeutet immer dasselbe.
+          </p>
+
+          <h4 id="status-glyphen">Status-Glyphen</h4>
+          <p>Der laufende Timer nutzt <span class="text-green font-medium">▶</span> (läuft),
+          gestoppte Sitzungen <span class="text-body">■</span>, erreichte Tagesziele
+          <span class="text-green">●</span>, verfehlte <span class="text-faint">○</span>.</p>
+
+          <!-- task list -->
+          <p class="!mb-2">Umsetzungsstand der Markdown-Parität:</p>
+          <ul class="task-list">
+            <li class="task-done"><span class="t">Überschriften H1–H4 + Inhaltsverzeichnis</span></li>
+            <li class="task-done"><span class="t">GFM-Tabellen, Code-Blöcke mit Syntax-Highlighting</span></li>
+            <li class="task-done"><span class="t">Wikilinks <code>[[…]]</code> inkl. Broken-Link-Erkennung</span></li>
+            <li class="task-open"><span class="t">Mermaid-Diagramme (geplant für Phase 2)</span></li>
+            <li class="task-open"><span class="t">Inline-Kommentare / Annotationen</span></li>
+          </ul>
+
+          <!-- IMPORTANT callout -->
+          <div class="callout callout-important" role="note">
+            <div class="callout-head"><span class="gly" aria-hidden="true">★</span> Wichtig</div>
+            <p>Frontmatter ist die <strong>einzige Quelle</strong> für Tags. Tags aus dem Schreib-API
+            werden verworfen — sonst driften zwei Wahrheiten auseinander.</p>
+          </div>
+
+          <h2 id="referenzen">Referenzen<a href="#referenzen" class="h-anchor" aria-label="Anker zu Referenzen">#</a></h2>
+          <blockquote>
+            <p>„Struktur kodiert Bedeutung — Glyphen, Trenner und Labels sollen <em>wahr</em> sein,
+            nicht dekorativ."</p>
+            <cite>— flow Design-Prinzipien<sup class="fnref"><a href="#fn1" id="fnref1" aria-label="Fußnote 1">[1]</a></sup></cite>
+          </blockquote>
+
+          <p>
+            Ein Überblick der Token-Skala findet sich im Anhang. Externe Lektüre:
+            <a href="#" class="link">Tokyonight-Spezifikation</a> und die
+            <a href="#" class="link">templ-Dokumentation</a>.
+          </p>
+
+          <!-- figure / image placeholder -->
+          <figure>
+            <div class="figframe">
+              <span class="ph"><span aria-hidden="true">◆</span> Abbildung · Token-Skala</span>
+            </div>
+            <figcaption><span class="fignum">Abb. 1</span> · Die Studio-Farbskala über beide Themes (Platzhalter).</figcaption>
+          </figure>
+
+          <!-- DANGER callout -->
+          <div class="callout callout-danger" role="note">
+            <div class="callout-head"><span class="gly" aria-hidden="true">✗</span> Vorsicht</div>
+            <p>Niemals den <code>--minify</code>-Schritt überspringen und gleichzeitig die CDN-Variante
+            ausliefern: das verdoppelt Tailwind und <strong>bricht</strong> die Token-Auflösung im Dark-Theme.</p>
+          </div>
+
+          <hr />
+
+          <!-- footnotes -->
+          <section class="footnotes" aria-label="Fußnoten">
+            <h4 id="fussnoten" class="!mt-0 !mb-2">Fußnoten</h4>
+            <ol>
+              <li id="fn1">
+                Aus dem internen Dokument „flow Design-Prinzipien", Abschnitt 7.
+                <a href="#fnref1" class="fnback" aria-label="Zurück zur Fußnotenreferenz 1">↩</a>
+              </li>
+            </ol>
+          </section>
+        </div>
+      </article>
+
+      <!-- ░░ RIGHT RAIL — ToC + meta + backlinks (desktop) ░░ -->
+      <aside class="hidden lg:block" aria-label="Dokument-Beiwerk">
+        <div class="sticky top-8 space-y-5">
+
+          <!-- Table of Contents (auto-built) -->
+          <nav class="rounded-2xl bg-surface border border-line shadow-soft p-4" aria-label="Inhaltsverzeichnis">
+            <p class="flex items-center gap-2 text-[.7rem] font-semibold eyebrow uppercase text-muted mb-2.5 px-1.5">
+              <span class="text-blue" aria-hidden="true">▸</span> Auf dieser Seite
+            </p>
+            <div class="toc max-h-[52vh] overflow-auto scroll-thin" data-toc></div>
+          </nav>
+
+          <!-- Document meta -->
+          <div class="rounded-2xl bg-surface border border-line shadow-soft p-4">
+            <p class="text-[.7rem] font-semibold eyebrow uppercase text-muted mb-3 px-0.5">Details</p>
+            <dl class="space-y-2.5 text-[.84rem]">
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted">Art</dt>
+                <dd class="inline-flex items-center gap-1.5 font-medium text-green"><span aria-hidden="true">◆</span> Projekt</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted">Projekt</dt>
+                <dd><a href="#" class="inline-flex items-center gap-1.5 font-medium text-blue hover:underline underline-offset-2"><span aria-hidden="true">◆</span> flow</a></dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted">Erstellt</dt>
+                <dd class="font-mono tnum text-body">21.06.2026</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted">Aktualisiert</dt>
+                <dd class="font-mono tnum text-body">23.06.2026</dd>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <dt class="text-muted">Wörter</dt>
+                <dd class="font-mono tnum text-body">412</dd>
+              </div>
+              <div class="flex items-start justify-between gap-3">
+                <dt class="text-muted pt-0.5">Pfad</dt>
+                <dd class="font-mono text-[.74rem] tnum text-muted text-right break-all">/wissen/<wbr>flow-webui-spec</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Backlinks -->
+          <div class="rounded-2xl bg-surface border border-line shadow-soft p-4">
+            <p class="flex items-center justify-between text-[.7rem] font-semibold eyebrow uppercase text-muted mb-3 px-0.5">
+              <span>Referenziert von</span>
+              <span class="font-mono tnum text-faint normal-case tracking-normal">3</span>
+            </p>
+            <ul class="space-y-2">
+              <li>
+                <a href="#" class="group block rounded-xl border border-line bg-canvas/40 px-3 py-2.5 hover:border-blue/40 hover:bg-sunken/60 transition">
+                  <span class="inline-flex items-center gap-1.5 rounded bg-blue/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-blue"><span aria-hidden="true">●</span> Tägl.</span>
+                  <p class="mt-1.5 text-[.86rem] font-medium leading-snug group-hover:text-blue transition-colors">2026-06-23 Daily</p>
+                  <p class="text-[.72rem] text-muted mt-0.5"><span class="text-blue" aria-hidden="true">◆</span> flow</p>
+                </a>
+              </li>
+              <li>
+                <a href="#" class="group block rounded-xl border border-line bg-canvas/40 px-3 py-2.5 hover:border-purple/40 hover:bg-sunken/60 transition">
+                  <span class="inline-flex items-center gap-1.5 rounded bg-purple/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-purple"><span aria-hidden="true">○</span> Frei</span>
+                  <p class="mt-1.5 text-[.86rem] font-medium leading-snug group-hover:text-purple transition-colors">Tokyonight Notes</p>
+                  <p class="text-[.72rem] text-muted mt-0.5">ohne Projekt</p>
+                </a>
+              </li>
+              <li>
+                <a href="#" class="group block rounded-xl border border-line bg-canvas/40 px-3 py-2.5 hover:border-green/40 hover:bg-sunken/60 transition">
+                  <span class="inline-flex items-center gap-1.5 rounded bg-green/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+                  <p class="mt-1.5 text-[.86rem] font-medium leading-snug group-hover:text-green transition-colors">Design-Tokens</p>
+                  <p class="text-[.72rem] text-muted mt-0.5"><span class="text-blue" aria-hidden="true">◆</span> flow</p>
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ░░ MOBILE: backlinks at the bottom ░░ -->
+    <section class="lg:hidden mt-10">
+      <p class="flex items-center justify-between text-[.7rem] font-semibold eyebrow uppercase text-muted mb-3 px-0.5">
+        <span>Referenziert von</span>
+        <span class="font-mono tnum text-faint normal-case tracking-normal">3</span>
+      </p>
+      <ul class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <li>
+          <a href="#" class="group block rounded-2xl border border-line bg-surface shadow-soft px-4 py-3 hover:border-blue/40 transition">
+            <span class="inline-flex items-center gap-1.5 rounded bg-blue/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-blue"><span aria-hidden="true">●</span> Tägl.</span>
+            <p class="mt-1.5 text-[.88rem] font-medium group-hover:text-blue transition-colors">2026-06-23 Daily</p>
+            <p class="text-[.74rem] text-muted mt-0.5"><span class="text-blue" aria-hidden="true">◆</span> flow</p>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="group block rounded-2xl border border-line bg-surface shadow-soft px-4 py-3 hover:border-purple/40 transition">
+            <span class="inline-flex items-center gap-1.5 rounded bg-purple/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-purple"><span aria-hidden="true">○</span> Frei</span>
+            <p class="mt-1.5 text-[.88rem] font-medium group-hover:text-purple transition-colors">Tokyonight Notes</p>
+            <p class="text-[.74rem] text-muted mt-0.5">ohne Projekt</p>
+          </a>
+        </li>
+        <li>
+          <a href="#" class="group block rounded-2xl border border-line bg-surface shadow-soft px-4 py-3 hover:border-green/40 transition">
+            <span class="inline-flex items-center gap-1.5 rounded bg-green/10 px-1.5 py-0.5 text-[.6rem] font-bold eyebrow uppercase text-green"><span aria-hidden="true">◆</span> Proj.</span>
+            <p class="mt-1.5 text-[.88rem] font-medium group-hover:text-green transition-colors">Design-Tokens</p>
+            <p class="text-[.74rem] text-muted mt-0.5"><span class="text-blue" aria-hidden="true">◆</span> flow</p>
+          </a>
+        </li>
+      </ul>
+    </section>
+
+    <!-- footer -->
+    <footer class="mt-14 mb-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-line2 pt-6 text-[.78rem] text-muted">
+      <p>flow · selbst-gehostet · OIDC</p>
+      <p class="font-mono tnum">v0.9 · rebuild · <span class="text-green">●</span> Live-Sync aktiv</p>
+    </footer>
+  </div>
+</main>
+
+<!-- ════════════════════ MOBILE BOTTOM TAB BAR (≤md) ════════════════════ -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-t border-line"
+     aria-label="Hauptnavigation" style="padding-bottom:env(safe-area-inset-bottom)">
+  <ul class="grid grid-cols-5">
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▶</span>
+        <span class="text-[.66rem] font-medium">Heute</span>
+      </a>
+    </li>
+    <li>
+      <a href="#" aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">◆</span>
+        <span class="text-[.66rem] font-semibold">Wissen</span>
+      </a>
+    </li>
+    <!-- center FAB: Start/Stopp -->
+    <li class="relative">
+      <button class="absolute left-1/2 -translate-x-1/2 -top-5 grid place-items-center rounded-2xl bg-red text-oncolor shadow-ring active:scale-95 transition"
+              aria-label="Sitzung stoppen" style="height:3.25rem;width:3.25rem">
+        <span class="text-lg" aria-hidden="true">■</span>
+      </button>
+      <span class="block py-2.5 text-center text-[.66rem] font-medium text-muted mt-5">Stopp</span>
+    </li>
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">▲</span>
+        <span class="text-[.66rem] font-medium">Stats</span>
+      </a>
+    </li>
+    <li>
+      <a href="#" class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+        <span class="text-[1.1rem] leading-none" aria-hidden="true">★</span>
+        <span class="text-[.66rem] font-medium">Frei</span>
+      </a>
+    </li>
+  </ul>
+</nav>
+
+<!-- ════════════════════ Theme toggle ════════════════════ -->
+<script>
+  (function () {
+    var root   = document.documentElement;
+
+    function syncToggles() {
+      var dark = root.getAttribute('data-theme') === 'dark';
+      document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
+      });
+    }
+
+    window.toggleTheme = function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('flow-theme', next); } catch (e) {}
+      syncToggles();
+    };
+
+    window.addEventListener('storage', function (e) {
+      if (e.key === 'flow-theme' && e.newValue) {
+        root.setAttribute('data-theme', e.newValue);
+        syncToggles();
+      }
+    });
+
+    syncToggles();
+  })();
+</script>
+
+<!-- ════════════════════ Mini live-timer (sidebar + mobile pills) ════════════════════ -->
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var base = (2 * 3600) + (14 * 60) + 33;       // 2h 14m 33s
+  var start = Date.now();
+  var minis = document.querySelectorAll('[data-mini-timer]');
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+  function tick() {
+    var elapsed = base + Math.floor((Date.now() - start) / 1000);
+    var h = Math.floor(elapsed / 3600), m = Math.floor((elapsed % 3600) / 60), s = elapsed % 60;
+    minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+  }
+  tick();
+  setInterval(tick, reduce ? 60000 : 1000);
+})();
+</script>
+
+<!-- ════════════════════ ToC builder + scroll-spy + reading progress + copy ════════════════════ -->
+<script>
+(function () {
+  var body = document.querySelector('[data-doc-body]');
+  if (!body) return;
+
+  /* ── Build the ToC from H2/H3 headings (skip the footnotes h4) ── */
+  var headings = Array.prototype.filter.call(
+    body.querySelectorAll('h2, h3'),
+    function (h) { return h.id && h.closest('.footnotes') === null; }
+  );
+
+  function buildInto(container) {
+    if (!container) return;
+    container.innerHTML = '';
+    headings.forEach(function (h) {
+      var a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.textContent = h.textContent.replace(/#$/, '').trim();
+      a.className = (h.tagName === 'H3') ? 'lvl-3' : 'lvl-2';
+      a.setAttribute('data-toc-link', h.id);
+      container.appendChild(a);
+    });
+  }
+  var deskToc   = document.querySelector('[data-toc]');
+  var mobileToc = document.querySelector('[data-toc-mobile]');
+  buildInto(deskToc);
+  buildInto(mobileToc);
+
+  /* ── Scroll-spy: highlight the section currently in view ── */
+  var links = {};
+  document.querySelectorAll('[data-toc-link]').forEach(function (a) {
+    (links[a.getAttribute('data-toc-link')] = links[a.getAttribute('data-toc-link')] || []).push(a);
+  });
+
+  var current = null;
+  function setActive(id) {
+    if (id === current) return;
+    Object.keys(links).forEach(function (key) {
+      links[key].forEach(function (a) {
+        a.classList.toggle('active', key === id);
+        if (key === id) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+    });
+    current = id;
+  }
+
+  if ('IntersectionObserver' in window) {
+    var visible = {};
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) visible[en.target.id] = en.boundingClientRect.top;
+        else delete visible[en.target.id];
+      });
+      // choose the topmost visible heading
+      var best = null, bestTop = Infinity;
+      Object.keys(visible).forEach(function (id) {
+        if (visible[id] < bestTop) { bestTop = visible[id]; best = id; }
+      });
+      if (best) setActive(best);
+    }, { rootMargin: '-96px 0px -65% 0px', threshold: 0 });
+    headings.forEach(function (h) { obs.observe(h); });
+  } else if (headings.length) {
+    setActive(headings[0].id);
+  }
+
+  /* ── Reading-progress bar (scaleX of document scroll) ── */
+  var bar = document.querySelector('[data-read-progress]');
+  if (bar) {
+    var ticking = false;
+    function updateProgress() {
+      var doc = document.documentElement;
+      var max = (doc.scrollHeight - doc.clientHeight) || 1;
+      var frac = Math.min(Math.max(window.scrollY / max, 0), 1);
+      bar.style.transform = 'scaleX(' + frac + ')';
+      ticking = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(updateProgress); }
+    }, { passive: true });
+    updateProgress();
+  }
+
+  /* ── Copy buttons on code blocks ── */
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var fig = btn.closest('figure');
+      var pre = fig && fig.querySelector('[data-code]');
+      if (!pre) return;
+      var text = pre.innerText;
+      var done = function () {
+        btn.classList.add('copied');
+        var lbl = btn.querySelector('.cp-label'), gly = btn.querySelector('.cp-glyph');
+        var oldL = lbl ? lbl.textContent : '', oldG = gly ? gly.textContent : '';
+        if (lbl) lbl.textContent = 'Kopiert';
+        if (gly) gly.textContent = '✓';
+        setTimeout(function () {
+          btn.classList.remove('copied');
+          if (lbl) lbl.textContent = oldL;
+          if (gly) gly.textContent = oldG;
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(done);
+      } else {
+        done();
+      }
+    });
+  });
+
+  /* ── Broken wikilink: announce instead of navigating ── */
+  document.querySelectorAll('.wikilink-broken').forEach(function (a) {
+    a.addEventListener('click', function (e) { e.preventDefault(); });
+  });
+
+  /* ── Close the overflow menu on outside-click / Esc ── */
+  var menu = document.querySelector('details[data-menu]');
+  if (menu) {
+    document.addEventListener('click', function (e) {
+      if (menu.open && !menu.contains(e.target)) menu.removeAttribute('open');
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && menu.open) {
+        menu.removeAttribute('open');
+        var s = menu.querySelector('summary'); if (s) s.focus();
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>
