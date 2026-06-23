@@ -62,7 +62,10 @@ func (s *Server) projectWorktime(r *http.Request, u domain.User, p domain.Projec
 			continue
 		}
 		if sess.Running() {
-			continue // skip active sessions (no stop time)
+			// Skip active sessions (no stop time). This diverges from the worktime
+			// day-view, which counts running sessions via Elapsed(now): the cockpit
+			// Σ is a settled-time summary, so running time is excluded until stopped.
+			continue
 		}
 		d := sess.Elapsed(now)
 		totalDur += d
@@ -225,6 +228,16 @@ func (s *Server) handleWebProjectCreate(w http.ResponseWriter, r *http.Request) 
 	if rerr != nil {
 		reRender(rerr.Error())
 		return
+	}
+	// Reject a bad upstream up front so we never create a half-configured project
+	// (mirrors REST handleCreateProject). Bad git input is the common error path;
+	// without this guard CreateProject would succeed and the later UpdateProject
+	// failure would leave an orphan name-only project behind.
+	if vals.UpstreamGit != "" {
+		if _, ok := domain.NormalizeRemoteSlug(vals.UpstreamGit); !ok {
+			reRender("Ungültige Upstream-Git-URL")
+			return
+		}
 	}
 	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateProject
 	p, err := s.CreateProject.Execute(r.Context(), u.ID, vals.Name, vals.Slug, vals.Color, vals.Glyph)

@@ -185,11 +185,23 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	}
 
 	// CREATE with bad upstream → 400 + re-rendered form
+	before, _ := ps.List(context.Background(), "u1")
 	res = postWebForm(t, ts, c, "/projects", url.Values{"name": {"Bad"}, "upstreamGit": {"garbage"}, "status": {"active"}})
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad upstream status %d, want 400", res.StatusCode)
 	}
 	_ = res.Body.Close()
+	// Up-front upstream validation must reject BEFORE CreateProject, so no orphan
+	// name-only project is left behind.
+	after, _ := ps.List(context.Background(), "u1")
+	if len(after) != len(before) {
+		t.Errorf("bad upstream created an orphan project: count %d → %d", len(before), len(after))
+	}
+	for _, pr := range after {
+		if pr.Name == "Bad" {
+			t.Errorf("bad upstream left orphan project %q (id=%s)", pr.Name, pr.ID)
+		}
+	}
 
 	// DELETE
 	res = postWebForm(t, ts, c, "/projects/"+id+"/delete", url.Values{})
