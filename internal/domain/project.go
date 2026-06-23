@@ -10,6 +10,7 @@ type ProjectStatus string
 
 const (
 	ProjectActive   ProjectStatus = "active"
+	ProjectPaused   ProjectStatus = "paused"
 	ProjectArchived ProjectStatus = "archived"
 )
 
@@ -23,6 +24,8 @@ type Project struct {
 	Slug      string        `json:"slug"`
 	Color     string        `json:"color"`
 	Glyph     string        `json:"glyph"`
+	Description string      `json:"description"`
+	UpstreamGit string      `json:"upstreamGit"`
 	Rate      *Money        `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
 	Status    ProjectStatus `json:"status"`
 	CreatedAt time.Time     `json:"createdAt"`
@@ -45,4 +48,21 @@ func NewProject(id, ownerID, name, slug string, now time.Time) (Project, error) 
 		ID: id, OwnerID: ownerID, Name: name, Slug: slug,
 		Status: ProjectActive, CreatedAt: now, UpdatedAt: now,
 	}, nil
+}
+
+// Validate checks the invariants enforced on every mutation: a project needs a
+// name and slug, and its status must be one of the three known states.
+func (p Project) Validate() error {
+	switch {
+	case p.Name == "":
+		return fmt.Errorf("%w: name required", ErrInvalidProject)
+	case p.Slug == "":
+		return fmt.Errorf("%w: slug required", ErrInvalidProject)
+	}
+	switch p.Status {
+	case ProjectActive, ProjectPaused, ProjectArchived:
+		return nil
+	default:
+		return fmt.Errorf("%w: invalid status %q", ErrInvalidProject, p.Status)
+	}
 }

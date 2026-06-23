@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -32,4 +33,40 @@ func TestNewProjectValidates(t *testing.T) {
 			t.Fatalf("%s: expected error", label)
 		}
 	}
+}
+
+func TestProjectValidate(t *testing.T) {
+	base := func() Project {
+		return Project{Name: "Flow", Slug: "flow", Status: ProjectActive}
+	}
+	t.Run("ok active/paused/archived", func(t *testing.T) {
+		for _, st := range []ProjectStatus{ProjectActive, ProjectPaused, ProjectArchived} {
+			p := base()
+			p.Status = st
+			if err := p.Validate(); err != nil {
+				t.Errorf("status %q: unexpected error %v", st, err)
+			}
+		}
+	})
+	t.Run("missing name", func(t *testing.T) {
+		p := base()
+		p.Name = ""
+		if !errors.Is(p.Validate(), ErrInvalidProject) {
+			t.Errorf("want ErrInvalidProject for empty name")
+		}
+	})
+	t.Run("missing slug", func(t *testing.T) {
+		p := base()
+		p.Slug = ""
+		if !errors.Is(p.Validate(), ErrInvalidProject) {
+			t.Errorf("want ErrInvalidProject for empty slug")
+		}
+	})
+	t.Run("bad status", func(t *testing.T) {
+		p := base()
+		p.Status = "weird"
+		if !errors.Is(p.Validate(), ErrInvalidProject) {
+			t.Errorf("want ErrInvalidProject for bad status")
+		}
+	})
 }
