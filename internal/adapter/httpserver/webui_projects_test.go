@@ -17,6 +17,12 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// getWeb is an alias for getWebProjects, used by cockpit and future webui tests.
+func getWeb(t *testing.T, ts *httptest.Server, c *http.Cookie, path string) (int, string) {
+	t.Helper()
+	return getWebProjects(t, ts, c, path)
+}
+
 // newWebProjectsServer builds a webui-capable server with the project usecases
 // wired and a seeded user; returns the test server, a session cookie, and the
 // fake project store for seeding.
@@ -31,6 +37,8 @@ func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testut
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("test-secret-test-secret-test-12", time.Hour)
 
+	ss := testutil.NewFakeSessionStore()
+	docs := testutil.NewFakeDocumentStore()
 	srv := &httpserver.Server{
 		Users:   users,
 		Session: codec,
@@ -41,12 +49,15 @@ func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testut
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateProject:  usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:   usecase.ListProjects{Projects: ps},
-		GetProject:     usecase.GetProject{Projects: ps},
-		UpdateProject:  usecase.UpdateProject{Projects: ps, Bindings: bs, IDs: ids, Clock: clk},
-		DeleteProject:  usecase.DeleteProject{Projects: ps},
-		SetProjectRate: usecase.SetProjectRate{Projects: ps},
+		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
+		ListProjects:        usecase.ListProjects{Projects: ps},
+		GetProject:          usecase.GetProject{Projects: ps},
+		UpdateProject:       usecase.UpdateProject{Projects: ps, Bindings: bs, IDs: ids, Clock: clk},
+		DeleteProject:       usecase.DeleteProject{Projects: ps},
+		SetProjectRate:      usecase.SetProjectRate{Projects: ps},
+		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
+		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListDocuments:       usecase.ListDocuments{Docs: docs},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
@@ -85,6 +96,36 @@ func getWebProjects(t *testing.T, ts *httptest.Server, c *http.Cookie, path stri
 		}
 	}
 	return res.StatusCode, string(b)
+}
+
+func TestWebProjectCockpit(t *testing.T) {
+	ts, c, ps := newWebProjectsServer(t)
+	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
+	p, _ := domain.NewProject("p1", "u1", "Flow", "flow", now)
+	p.Description = "# Notiz\nhallo"
+	p.UpstreamGit = "git@github.com:serverkraken/flow.git"
+	p.Status = domain.ProjectPaused
+	p.Color = domain.ProjectColors[0]
+	_, _ = ps.Create(context.Background(), p)
+
+	code, body := getWeb(t, ts, c, "/projects/p1")
+	if code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	for _, want := range []string{"Flow", "pausiert", "github.com/serverkraken/flow", "Bearbeiten"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("cockpit missing %q", want)
+		}
+	}
+	// rendered markdown description (goldmark → <h1>)
+	if !strings.Contains(body, "Notiz") {
+		t.Errorf("description should render")
+	}
+	// unknown id → 404
+	code404, _ := getWeb(t, ts, c, "/projects/nope")
+	if code404 != http.StatusNotFound {
+		t.Errorf("unknown id status %d, want 404", code404)
+	}
 }
 
 func TestWebProjectsListAndFilter(t *testing.T) {

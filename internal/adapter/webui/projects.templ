@@ -1,6 +1,12 @@
 package webui
 
-import "github.com/serverkraken/flow/internal/domain"
+import (
+	"fmt"
+	"html/template"
+	"strings"
+
+	"github.com/serverkraken/flow/internal/domain"
+)
 
 // ProjectsPageData is the list view model.
 type ProjectsPageData struct {
@@ -95,4 +101,175 @@ func filterChip(active bool) string {
 		return "rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white"
 	}
 	return "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
+}
+
+// ---------------------------------------------------------------------------
+// Project cockpit (GET /projects/{id})
+// ---------------------------------------------------------------------------
+
+// ProjectCockpit is the view model for the read-only project detail page.
+type ProjectCockpit struct {
+	User            string
+	P               domain.Project
+	DescriptionHTML template.HTML
+	TotalHours      float64
+	WeekHours       float64
+	MonthHours      float64
+	Earnings        string // formatted "€" string, "" when no rate
+	Docs            []domain.Document
+	Bindings        []domain.ProjectBinding
+}
+
+templ ProjectView(d ProjectCockpit) {
+	<!DOCTYPE html>
+	<html lang="de">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · { d.P.Name }</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-3xl p-6">
+				@Nav("projekte", d.User)
+				<div id="pv" hx-get={ "/projects/" + d.P.ID } hx-trigger="sse:project.updated" hx-swap="outerHTML">
+					@projectCockpitBody(d)
+				</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ projectCockpitBody(d ProjectCockpit) {
+	<div class="mb-4 flex items-center justify-between">
+		<h2 class="flex items-center gap-2 text-xl font-semibold">
+			@glyphSwatch(d.P)
+			{ d.P.Name }
+			@statusBadge(d.P.Status)
+		</h2>
+		<div class="flex gap-2 text-sm">
+			<a href={ templ.SafeURL("/projects/" + d.P.ID + "/edit") } class="rounded bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-700">Bearbeiten</a>
+			@statusActionButton(d.P)
+		</div>
+	</div>
+	if d.DescriptionHTML != "" {
+		<div class="prose prose-slate mb-6 max-w-none text-sm">@templ.Raw(string(d.DescriptionHTML))</div>
+	} else {
+		<p class="mb-6 text-sm text-slate-400">—</p>
+	}
+	if d.P.UpstreamGit != "" {
+		<section class="mb-6">
+			<h3 class="mb-1 text-sm font-medium text-slate-700">Git</h3>
+			<code class="rounded bg-slate-100 px-2 py-1 text-xs">{ gitDisplay(d.P.UpstreamGit) }</code>
+		</section>
+	}
+	<section class="mb-6">
+		<h3 class="mb-1 text-sm font-medium text-slate-700">Worktime</h3>
+		<div class="flex gap-6 text-sm text-slate-600">
+			<span>Σ { fmtHours(d.TotalHours) }</span>
+			<span>Woche { fmtHours(d.WeekHours) }</span>
+			<span>Monat { fmtHours(d.MonthHours) }</span>
+			if d.Earnings != "" {
+				<span class="font-medium text-slate-800">{ d.Earnings }</span>
+			}
+		</div>
+	</section>
+	<section class="mb-6">
+		<h3 class="mb-1 text-sm font-medium text-slate-700">Dokumente ({ fmtCount(len(d.Docs)) })</h3>
+		if len(d.Docs) == 0 {
+			<p class="text-sm text-slate-400">—</p>
+		} else {
+			<ul class="divide-y divide-slate-100">
+				for _, doc := range d.Docs {
+					<li class="py-1 text-sm">
+						<a href={ templ.SafeURL("/docs/" + doc.ID) } class="hover:text-slate-700">{ doc.Title }</a>
+					</li>
+				}
+			</ul>
+		}
+	</section>
+	<section>
+		<h3 class="mb-1 text-sm font-medium text-slate-700">Bindings</h3>
+		if len(d.Bindings) == 0 {
+			<p class="text-sm text-slate-400">—</p>
+		} else {
+			<ul class="text-xs text-slate-500">
+				for _, b := range d.Bindings {
+					<li class="font-mono">{ string(b.Kind) }: { bindingTarget(b) }</li>
+				}
+			</ul>
+		}
+	</section>
+}
+
+// statusActionButton offers the single most relevant lifecycle transition.
+templ statusActionButton(p domain.Project) {
+	switch p.Status {
+		case domain.ProjectActive:
+			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+				<input type="hidden" name="status" value="paused"/>
+				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Pausieren</button>
+			</form>
+		case domain.ProjectPaused:
+			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+				<input type="hidden" name="status" value="active"/>
+				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Fortsetzen</button>
+			</form>
+		case domain.ProjectArchived:
+			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+				<input type="hidden" name="status" value="active"/>
+				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Reaktivieren</button>
+			</form>
+	}
+	if p.Status != domain.ProjectArchived {
+		<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+			<input type="hidden" name="status" value="archived"/>
+			<button class="rounded border border-slate-300 px-3 py-1.5 text-slate-500 hover:bg-slate-100">Archivieren</button>
+		</form>
+	}
+}
+
+// bindingTarget returns the display target for a binding: slug for remote, path for local.
+func bindingTarget(b domain.ProjectBinding) string {
+	if b.RemoteSlug != "" {
+		return b.RemoteSlug
+	}
+	return b.Path
+}
+
+// fmtHours formats a float64 hour count as "HH:MM".
+func fmtHours(h float64) string {
+	total := int(h * 60)
+	if total < 0 {
+		total = 0
+	}
+	return fmt.Sprintf("%02d:%02d", total/60, total%60)
+}
+
+// fmtCount formats an int as a decimal string.
+func fmtCount(n int) string { return fmt.Sprintf("%d", n) }
+
+// gitDisplay normalises a git remote URL to a human-friendly "host/path" form.
+// SSH  git@github.com:org/repo.git  → github.com/org/repo
+// HTTPS https://github.com/org/repo.git → github.com/org/repo
+// Anything else is returned unchanged.
+func gitDisplay(raw string) string {
+	// SSH: git@host:path
+	if after, ok := strings.CutPrefix(raw, "git@"); ok {
+		colonIdx := strings.Index(after, ":")
+		if colonIdx > 0 {
+			host := after[:colonIdx]
+			path := strings.TrimSuffix(after[colonIdx+1:], ".git")
+			return host + "/" + path
+		}
+	}
+	// HTTPS: https://host/path
+	for _, scheme := range []string{"https://", "http://"} {
+		if after, ok := strings.CutPrefix(raw, scheme); ok {
+			return strings.TrimSuffix(after, ".git")
+		}
+	}
+	return raw
 }

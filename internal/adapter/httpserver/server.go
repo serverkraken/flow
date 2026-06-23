@@ -165,6 +165,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /projects", s.webAuth(http.HandlerFunc(s.handleWebProjectsHome)))
 	mux.Handle("GET /ui/projects/list", s.webAuth(http.HandlerFunc(s.handleWebProjectsList)))
+	mux.Handle("GET /projects/{id}", s.webAuth(http.HandlerFunc(s.handleWebProjectView)))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux
