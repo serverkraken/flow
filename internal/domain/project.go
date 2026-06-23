@@ -58,6 +58,10 @@ func (p Project) Validate() error {
 		return fmt.Errorf("%w: name required", ErrInvalidProject)
 	case p.Slug == "":
 		return fmt.Errorf("%w: slug required", ErrInvalidProject)
+	case !ValidProjectColor(p.Color):
+		return fmt.Errorf("%w: invalid color %q", ErrInvalidProject, p.Color)
+	case !ValidProjectGlyph(p.Glyph):
+		return fmt.Errorf("%w: invalid glyph %q", ErrInvalidProject, p.Glyph)
 	}
 	switch p.Status {
 	case ProjectActive, ProjectPaused, ProjectArchived:
