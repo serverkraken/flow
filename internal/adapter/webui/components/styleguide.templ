@@ -1,0 +1,99 @@
+package components
+
+// StyleguidePage is the /ui showcase: it renders every Slice-0 component inside
+// the real Base + AppShell chrome (so the theme toggle and offline assets are
+// exercised end-to-end), in a single page that reads in both themes.
+templ StyleguidePage() {
+	@Base("Design-System", styleguideBody())
+}
+
+templ styleguideBody() {
+	@AppShell("today", nil, styleguideSubnav(), styleguideContent())
+}
+
+templ styleguideSubnav() {
+	@TabStrip([]Tab{
+		{Key: "today", Href: "/", LabelKey: "nav.today"},
+		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
+		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
+		{Key: "stats", Href: "/stats", LabelKey: "nav.stats"},
+		{Key: "frei", Href: "/frei", LabelKey: "nav.dayoffs"},
+	}, "today")
+}
+
+templ styleguideContent() {
+	@Breadcrumb([]Crumb{{Href: "/", Label: "flow"}, {Label: T(ctx, "styleguide.title")}})
+	<header class="mb-8">
+		<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ T(ctx, "styleguide.subtitle") }</p>
+		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ T(ctx, "styleguide.title") }</h1>
+	</header>
+	// Buttons
+	@Card("mb-6", sgButtons())
+	// Badges + Chips
+	@Card("mb-6", sgBadgesChips())
+	// StatTiles
+	@Card("mb-6", sgStatTiles())
+	// EmptyState
+	@Card("mb-6", sgEmpty())
+	// Dialogs
+	@Card("mb-6", sgDialogs())
+	// Pagination (middle page so both edges enabled)
+	@Card("mb-6", sgPagination())
+}
+
+templ sgButtons() {
+	<h2 class="font-display text-lg font-semibold mb-4">Buttons</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Button(BtnPrimary, T(ctx, "common.save"), "✓", nil)
+		@Button(BtnSecondary, T(ctx, "common.edit"), "", nil)
+		@Button(BtnGhost, T(ctx, "common.cancel"), "", nil)
+		@Button(BtnDanger, T(ctx, "common.delete"), "■", nil)
+		@IconButton("✚", T(ctx, "common.new"), nil)
+	</div>
+}
+
+templ sgBadgesChips() {
+	<h2 class="font-display text-lg font-semibold mb-4">Badges &amp; Chips</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Badge(KindDaily)
+		@Badge(KindProject)
+		@Badge(KindFree)
+		@Badge(KindAgent)
+		@Chip("flow", "blue")
+		@Chip("homelab", "teal")
+		@Chip("serverkraken", "purple")
+		@Tag("rebuild")
+	</div>
+}
+
+templ sgStatTiles() {
+	<h2 class="font-display text-lg font-semibold mb-4">StatTiles</h2>
+	<div class="grid grid-cols-3 gap-3">
+		@StatTile("nav.today", "5h 42m", "")
+		@StatTile("nav.week", "32h 10m", "")
+		@StatTile("nav.stats", "6 ▲", "green")
+	</div>
+}
+
+templ sgEmpty() {
+	<h2 class="font-display text-lg font-semibold mb-4">EmptyState</h2>
+	@EmptyState("·", "empty.default", "empty.default")
+}
+
+templ sgDialogs() {
+	<h2 class="font-display text-lg font-semibold mb-4">Dialoge</h2>
+	<div class="flex flex-wrap items-center gap-3">
+		@Button(BtnSecondary, T(ctx, "common.edit"), "", templ.Attributes{"data-dialog-open": "sgEditDlg", "type": "button"})
+		@Button(BtnDanger, T(ctx, "common.delete"), "■", templ.Attributes{"data-dialog-open": "sgDelDlg", "type": "button"})
+	</div>
+	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`))
+	@ConfirmDialog(ConfirmSpec{
+		ID:           "sgDelDlg",
+		ConfirmAttrs: templ.Attributes{"type": "button", "data-dialog-close": true},
+	})
+}
+
+templ sgPagination() {
+	<h2 class="font-display text-lg font-semibold mb-4">Pagination</h2>
+	@Pagination(PageNav{Page: 2, Total: 95, PageSize: 20, BaseHref: "/ui"})
+}

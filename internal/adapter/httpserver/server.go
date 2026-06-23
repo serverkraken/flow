@@ -173,6 +173,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /projects/{id}/status", s.webAuth(http.HandlerFunc(s.handleWebProjectStatus)))
 	mux.Handle("POST /projects/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebProjectDelete)))
 
+	// WebUI design-system showcase (Slice 0 deliverable; handler in webui_styleguide.go).
+	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))
+
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux
 }
