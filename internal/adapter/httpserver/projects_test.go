@@ -1,7 +1,6 @@
 package httpserver_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -104,10 +103,8 @@ func TestDeleteProject_UnknownID404(t *testing.T) {
 
 // remoteSlugs returns all remote binding slugs stored in bs (across all owners).
 func remoteSlugs(bs *testutil.FakeProjectBindingStore) []string {
-	// The FakeIDGen yields "id-1" for the first user created via EnsureUser.
-	all, _ := bs.List(context.Background(), "id-1")
 	var out []string
-	for _, b := range all {
+	for _, b := range bs.All() {
 		if b.Kind == domain.BindingRemote {
 			out = append(out, b.RemoteSlug)
 		}

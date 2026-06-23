@@ -834,6 +834,15 @@ func (s *FakeProjectBindingStore) List(_ context.Context, ownerID string) ([]dom
 	return out, nil
 }
 
+// All returns every stored binding regardless of owner (test introspection).
+func (s *FakeProjectBindingStore) All() []domain.ProjectBinding {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]domain.ProjectBinding, len(s.items))
+	copy(out, s.items)
+	return out
+}
+
 func (s *FakeProjectBindingStore) ListByProject(_ context.Context, ownerID, projectID string) ([]domain.ProjectBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

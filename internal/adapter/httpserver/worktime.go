@@ -196,7 +196,7 @@ func filterProjectsByStatus(in []domain.Project, status string) []domain.Project
 			want[s] = true
 		}
 	}
-	var out []domain.Project
+	out := []domain.Project{}
 	for _, p := range in {
 		if want[string(p.Status)] {
 			out = append(out, p)
