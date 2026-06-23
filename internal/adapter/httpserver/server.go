@@ -25,6 +25,8 @@ type Server struct {
 	CreateProject usecase.CreateProject
 	ListProjects  usecase.ListProjects
 	DeleteProject usecase.DeleteProject
+	UpdateProject usecase.UpdateProject
+	GetProject    usecase.GetProject
 	EditSession   usecase.EditSession
 	DeleteSession usecase.DeleteSession
 	AddSession        usecase.AddSession
@@ -87,6 +89,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/v1/projects", s.auth(http.HandlerFunc(s.handleCreateProject)))
 	mux.Handle("GET /api/v1/projects", s.auth(http.HandlerFunc(s.handleListProjects)))
 	mux.Handle("DELETE /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleDeleteProject)))
+	mux.Handle("GET /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleGetProject)))
+	mux.Handle("PATCH /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleUpdateProject)))
 
 	mux.Handle("GET /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleListDayOffs)))
 	mux.Handle("POST /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleAddDayOffs)))

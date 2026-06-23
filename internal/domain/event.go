@@ -10,6 +10,7 @@ const (
 	EventSessionDeleted  EventType = "session.deleted"
 	EventProjectCreated  EventType = "project.created"
 	EventProjectDeleted  EventType = "project.deleted"
+	EventProjectUpdated  EventType = "project.updated"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
 

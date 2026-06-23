@@ -104,6 +104,8 @@ func run() error {
 		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
 		ListProjects:  usecase.ListProjects{Projects: projectStore},
+		UpdateProject: usecase.UpdateProject{Projects: projectStore, Bindings: bindingStore, IDs: ids, Clock: clock},
+		GetProject:    usecase.GetProject{Projects: projectStore},
 		EditSession:   usecase.EditSession{Sessions: sessionStore},
 		DeleteSession:     usecase.DeleteSession{Sessions: sessionStore},
 		AddSession:        usecase.AddSession{Sessions: sessionStore, IDs: ids, Clock: clock},

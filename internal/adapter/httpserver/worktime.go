@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -126,10 +127,12 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 type createProjReq struct {
-	Name  string `json:"name"`
-	Slug  string `json:"slug"`
-	Color string `json:"color"`
-	Glyph string `json:"glyph"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Color       string `json:"color"`
+	Glyph       string `json:"glyph"`
+	Description string `json:"description"`
+	UpstreamGit string `json:"upstreamGit"`
 }
 
 func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
@@ -139,10 +142,28 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
+	// Reject a bad upstream up front so we never create a half-configured project.
+	if req.UpstreamGit != "" {
+		if _, ok := domain.NormalizeRemoteSlug(req.UpstreamGit); !ok {
+			http.Error(w, "invalid upstream git url", http.StatusBadRequest)
+			return
+		}
+	}
 	p, err := s.CreateProject.Execute(r.Context(), u.ID, req.Name, req.Slug, req.Color, req.Glyph)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+	// Apply optional description/upstream (auto-syncs the remote binding).
+	if req.Description != "" || req.UpstreamGit != "" {
+		p, err = s.UpdateProject.Execute(r.Context(), u.ID, p.ID, usecase.UpdateProjectInput{
+			Name: p.Name, Slug: p.Slug, Color: p.Color, Glyph: p.Glyph,
+			Description: req.Description, UpstreamGit: req.UpstreamGit, Status: p.Status,
+		})
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
 	writeJSON(w, http.StatusCreated, p)
@@ -155,10 +176,33 @@ func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	list = filterProjectsByStatus(list, r.URL.Query().Get("status"))
 	if list == nil {
 		list = []domain.Project{}
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// filterProjectsByStatus keeps projects whose status is in the comma-separated
+// `status` query (e.g. "active,paused"). Empty query → all (backward compatible).
+func filterProjectsByStatus(in []domain.Project, status string) []domain.Project {
+	status = strings.TrimSpace(status)
+	if status == "" {
+		return in
+	}
+	want := map[string]bool{}
+	for _, s := range strings.Split(status, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			want[s] = true
+		}
+	}
+	var out []domain.Project
+	for _, p := range in {
+		if want[string(p.Status)] {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -174,6 +218,57 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventProjectDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	p, err := s.GetProject.Execute(r.Context(), u.ID, r.PathValue("id"))
+	switch {
+	case errors.Is(err, ports.ErrProjectNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, p)
+}
+
+type updateProjReq struct {
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Color       string `json:"color"`
+	Glyph       string `json:"glyph"`
+	Description string `json:"description"`
+	UpstreamGit string `json:"upstreamGit"`
+	Status      string `json:"status"`
+}
+
+func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req updateProjReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	p, err := s.UpdateProject.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateProjectInput{
+		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
+		Description: req.Description, UpstreamGit: req.UpstreamGit,
+		Status: domain.ProjectStatus(req.Status),
+	})
+	switch {
+	case errors.Is(err, ports.ErrProjectNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case errors.Is(err, domain.ErrInvalidProject) || errors.Is(err, domain.ErrInvalidUpstream):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	writeJSON(w, http.StatusOK, p)
 }
 
 type editSessionReq struct {
