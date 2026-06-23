@@ -1,11 +1,93 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 )
+
+func TestRunWorktimeImport_Sessions(t *testing.T) {
+	var added []map[string]any
+	conflictOnSecond := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-import", Name: "Import"})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/sessions":
+			var in map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			added = append(added, in)
+			conflictOnSecond++
+			if conflictOnSecond == 2 { // simulate an already-imported (overlap) row
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "overlap"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(domain.WorkSession{ID: "s1"})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := t.TempDir()
+	// line 1 is the anomaly (8min clock, 259703s recorded) → warning + import
+	// line 2 will get the simulated 409 → skipped
+	log := "2026-04-24\t07:34\t07:42\t259703\n2026-05-04\t08:16\t16:18\t28920\n"
+	writeFile(t, dir, "worktime.log", log)
+
+	st, err := runWorktimeImport(context.Background(), c, dir, "Import", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Sessions != 1 || st.Skipped != 1 {
+		t.Fatalf("stats = %+v (want Sessions 1, Skipped 1)", st)
+	}
+	if st.ProjectsCreated != 1 {
+		t.Fatalf("ProjectsCreated = %d, want 1", st.ProjectsCreated)
+	}
+	if len(st.Warnings) != 1 {
+		t.Fatalf("want 1 divergence warning, got %v", st.Warnings)
+	}
+	if len(added) != 2 {
+		t.Fatalf("AddSession calls = %d, want 2", len(added))
+	}
+}
+
+func TestRunWorktimeImport_SessionsDryRun(t *testing.T) {
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
+			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "POST":
+			posts++
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	dir := t.TempDir()
+	writeFile(t, dir, "worktime.log", "2026-05-04\t08:16\t16:18\t28920\n")
+
+	st, err := runWorktimeImport(context.Background(), c, dir, "Import", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if posts != 0 {
+		t.Fatalf("dry-run made %d POSTs, want 0", posts)
+	}
+	if st.Sessions != 1 {
+		t.Fatalf("dry-run Sessions = %d, want 1", st.Sessions)
+	}
+}
 
 func TestParseDateTimeBerlin(t *testing.T) {
 	got, err := parseDateTimeBerlin("2026-05-04", "08:16")
