@@ -163,6 +163,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /docs/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebDocDelete)))
 	mux.Handle("POST /docs/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 
+	mux.Handle("GET /projects", s.webAuth(http.HandlerFunc(s.handleWebProjectsHome)))
+	mux.Handle("GET /ui/projects/list", s.webAuth(http.HandlerFunc(s.handleWebProjectsList)))
+
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
 	return mux
 }

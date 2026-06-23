@@ -1,0 +1,98 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/domain"
+
+// ProjectsPageData is the list view model.
+type ProjectsPageData struct {
+	User     string
+	Status   string // active filter token: "" (=active+paused default), "archived", "all"
+	Projects []domain.Project
+}
+
+templ ProjectsPage(d ProjectsPageData) {
+	<!DOCTYPE html>
+	<html lang="de">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>flow · projekte</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
+		</head>
+		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
+			<main class="mx-auto max-w-md p-4">
+				@ProjectsFragment(d)
+			</main>
+		</body>
+	</html>
+}
+
+templ ProjectsFragment(d ProjectsPageData) {
+	@Nav("projekte", d.User)
+	<div class="mb-4 flex items-center justify-between">
+		<div class="flex gap-2 text-sm">
+			<a href="/projects" class={ filterChip(d.Status == "") }>aktiv + pausiert</a>
+			<a href="/projects?status=archived" class={ filterChip(d.Status == "archived") }>archiviert</a>
+			<a href="/projects?status=all" class={ filterChip(d.Status == "all") }>alle</a>
+		</div>
+		<a href="/projects/new" class="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700">Neues Projekt</a>
+	</div>
+	<div
+		id="pc"
+		hx-get="/ui/projects/list"
+		hx-trigger="sse:project.created, sse:project.updated, sse:project.deleted"
+		hx-swap="innerHTML"
+		hx-include="[name='status']"
+	>
+		<input type="hidden" name="status" value={ d.Status }/>
+		@projectsList(d.Projects)
+	</div>
+}
+
+templ projectsList(ps []domain.Project) {
+	if len(ps) == 0 {
+		<p class="py-8 text-center text-sm text-slate-400">Keine Projekte.</p>
+	} else {
+		<ul class="divide-y divide-slate-100">
+			for _, p := range ps {
+				<li class="py-2">
+					<a href={ templ.SafeURL("/projects/" + p.ID) } class="block hover:bg-slate-50">
+						<div class="flex items-center justify-between text-sm">
+							<span class="flex items-center gap-2 font-medium text-slate-800">
+								@glyphSwatch(p)
+								{ p.Name }
+							</span>
+							@statusBadge(p.Status)
+						</div>
+						if p.UpstreamGit != "" {
+							<div class="mt-0.5 font-mono text-xs text-slate-500">{ p.UpstreamGit }</div>
+						}
+					</a>
+				</li>
+			}
+		</ul>
+	}
+}
+
+// glyphSwatch renders the project's color dot + glyph (both optional).
+templ glyphSwatch(p domain.Project) {
+	if ColorHex(p.Color) != "" {
+		<span class="inline-block h-2.5 w-2.5 rounded-full" style={ "background-color:" + ColorHex(p.Color) }></span>
+	}
+	if p.Glyph != "" {
+		<span class="font-mono text-slate-500">{ p.Glyph }</span>
+	}
+}
+
+templ statusBadge(s domain.ProjectStatus) {
+	{{ label, classes := StatusBadge(s) }}
+	<span class={ classes }>{ label }</span>
+}
+
+func filterChip(active bool) string {
+	if active {
+		return "rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white"
+	}
+	return "rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-200"
+}
