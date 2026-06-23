@@ -3,6 +3,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 func TestParseDateTimeBerlin(t *testing.T) {
@@ -17,6 +19,43 @@ func TestParseDateTimeBerlin(t *testing.T) {
 	}
 	if _, err := parseDateTimeBerlin("nope", "08:16"); err == nil {
 		t.Fatal("bad date should error")
+	}
+}
+
+func TestParseDayOffLine(t *testing.T) {
+	// comment line → skipped
+	if _, ok, err := parseDayOffLine(1, "# worktime day-offs — TSV: ..."); ok || err != nil {
+		t.Fatalf("comment: ok=%v err=%v", ok, err)
+	}
+	// blank line → skipped
+	if _, ok, err := parseDayOffLine(2, ""); ok || err != nil {
+		t.Fatalf("blank: ok=%v err=%v", ok, err)
+	}
+	// vacation row
+	e, ok, err := parseDayOffLine(3, "2026-04-29\tvacation\tJules Geburtstag")
+	if err != nil || !ok {
+		t.Fatalf("vacation: ok=%v err=%v", ok, err)
+	}
+	if e.Kind != domain.KindVacation || e.Date != "2026-04-29" || e.Label != "Jules Geburtstag" || e.TargetMin != 0 {
+		t.Fatalf("entry = %+v", e)
+	}
+	// holiday row parses with KindHoliday (caller skips it)
+	h, ok, err := parseDayOffLine(4, "2026-01-01\tholiday\tNeujahr")
+	if err != nil || !ok || h.Kind != domain.KindHoliday {
+		t.Fatalf("holiday: ok=%v err=%v kind=%v", ok, err, h.Kind)
+	}
+	// optional hours column → TargetMin
+	hr, ok, err := parseDayOffLine(5, "2026-06-05\tvacation\tHalbtag\t4")
+	if err != nil || !ok || hr.TargetMin != 240 {
+		t.Fatalf("hours: ok=%v err=%v target=%d", ok, err, hr.TargetMin)
+	}
+	// unknown kind → error
+	if _, _, err := parseDayOffLine(6, "2026-06-05\tbogus\tX"); err == nil {
+		t.Fatal("unknown kind should error")
+	}
+	// too few columns → error
+	if _, _, err := parseDayOffLine(7, "2026-06-05"); err == nil {
+		t.Fatal("too few columns should error")
 	}
 }
 

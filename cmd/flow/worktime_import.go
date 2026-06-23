@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // berlinLoc is the timezone all legacy worktime timestamps are interpreted in.
@@ -29,6 +31,44 @@ type logEntry struct {
 	Line        int
 	Start, Stop time.Time
 	Seconds     int
+}
+
+type dayOffEntry struct {
+	Line      int
+	Date      string
+	Kind      domain.Kind
+	Label     string
+	TargetMin int
+}
+
+// parseDayOffLine parses "date<TAB>kind<TAB>label[<TAB>hours]". ok=false for
+// blank and "#"-comment lines. The Kind may be KindHoliday; the caller skips
+// holidays (the server refuses to store them).
+func parseDayOffLine(lineNo int, raw string) (dayOffEntry, bool, error) {
+	t := strings.TrimSpace(raw)
+	if t == "" || strings.HasPrefix(t, "#") {
+		return dayOffEntry{}, false, nil
+	}
+	f := strings.Split(raw, "\t")
+	if len(f) < 3 {
+		return dayOffEntry{}, false, fmt.Errorf("expected at least 3 tab-separated columns, got %d", len(f))
+	}
+	if _, err := time.Parse("2006-01-02", f[0]); err != nil {
+		return dayOffEntry{}, false, fmt.Errorf("date: %w", err)
+	}
+	kind, ok := domain.ParseKind(f[1])
+	if !ok {
+		return dayOffEntry{}, false, fmt.Errorf("unknown kind %q", f[1])
+	}
+	e := dayOffEntry{Line: lineNo, Date: f[0], Kind: kind, Label: strings.TrimSpace(f[2])}
+	if len(f) >= 4 && strings.TrimSpace(f[3]) != "" {
+		hours, err := strconv.ParseFloat(strings.TrimSpace(f[3]), 64)
+		if err != nil {
+			return dayOffEntry{}, false, fmt.Errorf("hours: %w", err)
+		}
+		e.TargetMin = int(hours * 60)
+	}
+	return e, true, nil
 }
 
 // parseLogLine parses a tab-separated "date<TAB>start<TAB>end<TAB>seconds" row.
