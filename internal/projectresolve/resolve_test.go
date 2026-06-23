@@ -204,6 +204,85 @@ func TestResolve_PathTier(t *testing.T) {
 	}
 }
 
+// TestResolve_recordsCheckoutForGitRepo: a git-repo resolution records slug→toplevel via the recordCheckout seam.
+func TestResolve_recordsCheckoutForGitRepo(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+
+	// Stub the record seam (restore after).
+	var gotSlug, gotRoot string
+	restore := projectresolve.SetRecordCheckoutForTest(func(slug, root string) error {
+		gotSlug, gotRoot = slug, root
+		return nil
+	})
+	defer restore()
+
+	// Set up a temp git repo with a remote.
+	repo := t.TempDir()
+	run := func(args ...string) {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = repo
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	run("git", "init")
+	run("git", "remote", "add", "origin", "git@github.com:acme/flow.git")
+
+	// Server: resolve returns a project bound to the remote slug.
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve" {
+			slug := r.URL.Query().Get("slug")
+			_, _ = w.Write([]byte(projectJSON("p1", "Flow", slug)))
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	c := apiclient.New(ts.URL, "tkn")
+	p, ok, err := projectresolve.Resolve(context.Background(), c, func(string) string { return "" }, repo)
+	if err != nil || !ok {
+		t.Fatalf("resolve ok=%v err=%v", ok, err)
+	}
+	if p.Slug == "" {
+		t.Errorf("resolved slug is empty")
+	}
+	if gotSlug != "github.com/acme/flow" {
+		t.Errorf("recorded slug = %q, want github.com/acme/flow", gotSlug)
+	}
+	if gotRoot == "" {
+		t.Error("expected a non-empty recorded checkout root")
+	}
+}
+
+// TestResolve_doesNotRecordOutsideGitRepo: FLOW_PROJECT path and non-git paths must not record a checkout.
+func TestResolve_doesNotRecordOutsideGitRepo(t *testing.T) {
+	called := false
+	restore := projectresolve.SetRecordCheckoutForTest(func(string, string) error { called = true; return nil })
+	defer restore()
+
+	projects := []map[string]string{
+		{"id": "p1", "name": "Flow", "slug": "flow", "status": "active"},
+	}
+	ts := newTestServer(t, projects, "", nil)
+	defer ts.Close()
+
+	c := apiclient.New(ts.URL, "tkn")
+	// FLOW_PROJECT set → early-return path, must not record.
+	_, _, _ = projectresolve.Resolve(context.Background(), c, func(k string) string {
+		if k == "FLOW_PROJECT" {
+			return "flow"
+		}
+		return ""
+	}, t.TempDir())
+	if called {
+		t.Error("FLOW_PROJECT / non-git path must not record a checkout")
+	}
+}
+
 // TestResolve_OutsideGitRepo: no env, not a git repo → /resolve called with empty slug (server returns 404 → ok=false).
 func TestResolve_OutsideGitRepo(t *testing.T) {
 	dir := filepath.Join(os.TempDir(), "not-a-repo-"+t.Name())

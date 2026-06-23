@@ -7,10 +7,23 @@ import (
 	"path/filepath"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/clientcheckout"
 	"github.com/serverkraken/flow/internal/clientmachine"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/gitremote"
+	"github.com/serverkraken/flow/internal/gitworktree"
 )
+
+// recordCheckout records a resolved git repo's slug→root on this machine. A
+// package var so tests can stub it (the real impl writes to the user config dir).
+var recordCheckout = clientcheckout.Record
+
+// SetRecordCheckoutForTest swaps the record hook and returns a restore func.
+func SetRecordCheckoutForTest(f func(slug, root string) error) func() {
+	prev := recordCheckout
+	recordCheckout = f
+	return func() { recordCheckout = prev }
+}
 
 // Resolve answers "which project is cwd?" using a precedence chain:
 //
@@ -33,6 +46,11 @@ func Resolve(ctx context.Context, c *apiclient.Client, getenv func(string) strin
 	}
 
 	remoteSlug, _, _ := gitremote.OriginSlug(cwd)
+	if remoteSlug != "" {
+		if root, ok, _ := gitworktree.Root(cwd); ok {
+			_ = recordCheckout(remoteSlug, root) // non-fatal
+		}
+	}
 
 	m, err := clientmachine.Load()
 	if err != nil {
