@@ -76,14 +76,18 @@ func DayOffFragment(d DayOffData) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<header class=\"mb-4 flex items-center justify-between\"><h1 class=\"text-lg font-semibold text-slate-900\">flow · dayoffs</h1><div class=\"flex gap-4 text-sm text-slate-500\"><a href=\"/\" class=\"hover:text-slate-700\">worktime</a> <a href=\"/stats\" class=\"hover:text-slate-700\">stats</a> <a href=\"/export\" class=\"hover:text-slate-700\">export</a> <a href=\"/docs\" class=\"hover:text-slate-700\">docs</a></div></header><form hx-post=\"/ui/dayoffs/add\" hx-target=\"#do\" hx-swap=\"innerHTML\" class=\"mb-4 grid grid-cols-2 gap-2\"><input type=\"date\" name=\"from\" required class=\"rounded border px-2 py-1 text-sm\"> <input type=\"date\" name=\"to\" required class=\"rounded border px-2 py-1 text-sm\"> <select name=\"kind\" class=\"rounded border px-2 py-1 text-sm\"><option value=\"vacation\">Urlaub</option> <option value=\"sick\">Krank</option> <option value=\"flex\">Gleittag</option> <option value=\"special\">Sonderurlaub</option> <option value=\"childsick\">Kind krank</option> <option value=\"training\">Fortbildung</option></select> <input name=\"label\" placeholder=\"label (optional)\" class=\"rounded border px-2 py-1 text-sm\"> <label class=\"col-span-2 flex items-center gap-2 text-sm text-slate-500\"><input type=\"checkbox\" name=\"skipWeekends\" value=\"true\" checked> skip weekends</label> <button class=\"col-span-2 rounded bg-slate-900 px-3 py-1 text-sm text-white\">add</button></form><section><h2 class=\"mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500\">")
+		templ_7745c5c3_Err = Nav("dayoffs", d.User).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<form hx-post=\"/ui/dayoffs/add\" hx-target=\"#do\" hx-swap=\"innerHTML\" class=\"mb-4 grid grid-cols-2 gap-2\"><input type=\"date\" name=\"from\" required class=\"rounded border px-2 py-1 text-sm\"> <input type=\"date\" name=\"to\" required class=\"rounded border px-2 py-1 text-sm\"> <select name=\"kind\" class=\"rounded border px-2 py-1 text-sm\"><option value=\"vacation\">Urlaub</option> <option value=\"sick\">Krank</option> <option value=\"flex\">Gleittag</option> <option value=\"special\">Sonderurlaub</option> <option value=\"childsick\">Kind krank</option> <option value=\"training\">Fortbildung</option></select> <input name=\"label\" placeholder=\"label (optional)\" class=\"rounded border px-2 py-1 text-sm\"> <label class=\"col-span-2 flex items-center gap-2 text-sm text-slate-500\"><input type=\"checkbox\" name=\"skipWeekends\" value=\"true\" checked> skip weekends</label> <button class=\"col-span-2 rounded bg-slate-900 px-3 py-1 text-sm text-white\">add</button></form><section><h2 class=\"mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(d.Bundesland)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 62, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 54, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -101,7 +105,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(o.Day)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 67, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 59, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -115,7 +119,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 70, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 62, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -129,7 +133,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(o.Kind)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 72, Col: 16}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 64, Col: 16}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -142,7 +146,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 72, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 64, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -161,7 +165,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(o.Day)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 78, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 70, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -184,7 +188,7 @@ func DayOffFragment(d DayOffData) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(d.FeedURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 88, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/dayoffs.templ`, Line: 80, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {

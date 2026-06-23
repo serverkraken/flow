@@ -1,0 +1,33 @@
+package webui
+
+// navLink is one top-level destination. active==key dims it as the current page.
+type navLink struct {
+	Key, Href, Label string
+}
+
+var navLinks = []navLink{
+	{"worktime", "/", "worktime"},
+	{"dayoffs", "/dayoffs", "dayoffs"},
+	{"stats", "/stats", "stats"},
+	{"export", "/export", "export"},
+	{"docs", "/docs", "docs"},
+	{"projekte", "/projects", "projekte"},
+}
+
+templ Nav(active, user string) {
+	<header class="mb-4 flex items-center justify-between">
+		<h1 class="text-lg font-semibold text-slate-900">flow</h1>
+		<div class="flex gap-4 text-sm text-slate-500">
+			for _, l := range navLinks {
+				if l.Key == active {
+					<a href={ templ.SafeURL(l.Href) } class="font-medium text-slate-900" aria-current="page">{ l.Label }</a>
+				} else {
+					<a href={ templ.SafeURL(l.Href) } class="hover:text-slate-700">{ l.Label }</a>
+				}
+			}
+			<form action="/auth/logout" method="post" hx-boost="false">
+				<button class="hover:text-slate-700">logout { user }</button>
+			</form>
+		</div>
+	</header>
+}

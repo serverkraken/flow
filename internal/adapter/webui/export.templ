@@ -39,15 +39,7 @@ templ ExportPage(d ExportPageData) {
 }
 
 templ ExportFragment(d ExportPageData) {
-	<header class="mb-4 flex items-center justify-between">
-		<h1 class="text-lg font-semibold text-slate-900">flow · export</h1>
-		<div class="flex gap-4 text-sm text-slate-500">
-			<a href="/" class="hover:text-slate-700">worktime</a>
-			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
-			<a href="/stats" class="hover:text-slate-700">stats</a>
-			<a href="/docs" class="hover:text-slate-700">docs</a>
-		</div>
-	</header>
+	@Nav("export", d.User)
 	<!-- date range form -->
 	<section class="mb-4">
 		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Zeitraum</h2>

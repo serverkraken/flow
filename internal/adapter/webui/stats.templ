@@ -58,15 +58,7 @@ templ StatsPage(d StatsData) {
 }
 
 templ StatsFragment(d StatsData) {
-	<header class="mb-4 flex items-center justify-between">
-		<h1 class="text-lg font-semibold text-slate-900">flow · stats</h1>
-		<div class="flex gap-4 text-sm text-slate-500">
-			<a href="/" class="hover:text-slate-700">worktime</a>
-			<a href="/dayoffs" class="hover:text-slate-700">dayoffs</a>
-			<a href="/export" class="hover:text-slate-700">export</a>
-			<a href="/docs" class="hover:text-slate-700">docs</a>
-		</div>
-	</header>
+	@Nav("stats", d.User)
 	<!-- today saldo block -->
 	<section class="mb-4">
 		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Heute</h2>
