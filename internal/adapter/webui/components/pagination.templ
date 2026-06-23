@@ -1,0 +1,76 @@
+package components
+
+import "strconv"
+
+// PageNav is the presentation state for a paginated list. Backend wires Page,
+// Total and PageSize in later slices; this component is pure presentation.
+type PageNav struct {
+	Page, Total, PageSize int
+	BaseHref              string
+}
+
+func (p PageNav) Pages() int {
+	if p.PageSize <= 0 {
+		return 1
+	}
+	n := (p.Total + p.PageSize - 1) / p.PageSize
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+func (p PageNav) HasPrev() bool { return p.Page > 1 }
+func (p PageNav) HasNext() bool { return p.Page < p.Pages() }
+
+func (p PageNav) hrefFor(page int) string {
+	sep := "?"
+	for i := 0; i < len(p.BaseHref); i++ {
+		if p.BaseHref[i] == '?' {
+			sep = "&"
+			break
+		}
+	}
+	return p.BaseHref + sep + "page=" + strconv.Itoa(page)
+}
+
+func (p PageNav) PrevHref() string { return p.hrefFor(p.Page - 1) }
+func (p PageNav) NextHref() string { return p.hrefFor(p.Page + 1) }
+
+// Pagination renders Zurück / "Seite X / Y" / Weiter plus a "Mehr laden" link.
+// Edge buttons are aria-disabled (and rendered as <span>) when unavailable.
+templ Pagination(p PageNav) {
+	<nav class="mt-6 flex items-center justify-between gap-3" aria-label={ T(ctx, "page.label") }>
+		<div class="flex items-center gap-2">
+			if p.HasPrev() {
+				<a href={ templ.SafeURL(p.PrevHref()) }
+					class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					<span aria-hidden="true">‹</span> { T(ctx, "page.prev") }
+				</a>
+			} else {
+				<span aria-disabled="true"
+					class="inline-flex items-center gap-1.5 rounded-xl border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
+					<span aria-hidden="true">‹</span> { T(ctx, "page.prev") }
+				</span>
+			}
+			if p.HasNext() {
+				<a href={ templ.SafeURL(p.NextHref()) }
+					class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					{ T(ctx, "page.next") } <span aria-hidden="true">›</span>
+				</a>
+			} else {
+				<span aria-disabled="true"
+					class="inline-flex items-center gap-1.5 rounded-xl border border-line2 bg-sunken/50 px-3.5 py-2 text-[.86rem] font-medium text-faint cursor-not-allowed">
+					{ T(ctx, "page.next") } <span aria-hidden="true">›</span>
+				</span>
+			}
+		</div>
+		<span class="text-[.82rem] text-muted tnum">Seite { strconv.Itoa(p.Page) } / { strconv.Itoa(p.Pages()) }</span>
+		if p.HasNext() {
+			<a href={ templ.SafeURL(p.NextHref()) }
+				class="rounded-xl border border-dashed border-line px-3.5 py-2 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
+				{ T(ctx, "page.more") }
+			</a>
+		}
+	</nav>
+}
