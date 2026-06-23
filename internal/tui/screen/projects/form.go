@@ -7,14 +7,11 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/tui/kindcolor"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
 	"github.com/serverkraken/flow/internal/tui/ui/form"
-	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
 // FormAPI is the narrow write surface the form route needs. A fake implements
@@ -27,6 +24,9 @@ type FormAPI interface {
 }
 
 var _ FormAPI = (*apiclient.Client)(nil)
+
+// formErrMsg carries an API error back to the Update loop from an async cmd.
+type formErrMsg struct{ err string }
 
 // FormValues is the exported snapshot of the form field values — used by
 // FillForTest and Values so tests can inspect/set form state without driving key events.
@@ -160,9 +160,10 @@ func (r *FormRoute) FillForTest(v FormValues) {
 	r.glyphIx = indexOf(glyphChoices, v.Glyph)
 }
 
-// Submit runs the create/edit compose synchronously (so tests can inspect API
-// state immediately) and returns a cmd that emits the result message.
-// Mirrors the WebUI Slice-2 handler logic.
+// Submit validates fields synchronously (no I/O) then returns a tea.Cmd that
+// executes the API compose off the event loop. On validation error it sets
+// r.err and returns (r, nil). On success the cmd either returns
+// shell.PopRouteMsg{} or formErrMsg{} which Update handles.
 func (r *FormRoute) Submit() (shell.Route, tea.Cmd) {
 	v := r.Values()
 	if strings.TrimSpace(v.Name) == "" {
@@ -179,36 +180,40 @@ func (r *FormRoute) Submit() (shell.Route, tea.Cmd) {
 		cur = "EUR"
 	}
 
-	ctx := context.Background()
-	var id string
-	if r.editing != nil {
-		id = r.editing.ID
-	} else {
-		p, err := r.api.CreateProject(ctx, v.Name)
-		if err != nil {
-			r.err = fmt.Sprintf("Projekt anlegen: %v", err)
-			return r, nil
+	// Snapshot immutable state for the closure — r.editing pointer is safe
+	// because the form is not re-created during the in-flight request.
+	api := r.api
+	editing := r.editing
+
+	return r, func() tea.Msg {
+		ctx := context.Background()
+		var id string
+		if editing != nil {
+			id = editing.ID
+		} else {
+			p, err := api.CreateProject(ctx, v.Name)
+			if err != nil {
+				return formErrMsg{fmt.Sprintf("Projekt anlegen: %v", err)}
+			}
+			id = p.ID
 		}
-		id = p.ID
+		if _, err := api.UpdateProject(ctx, id, UpdateFields{
+			Name:        v.Name,
+			Slug:        v.Slug,
+			Color:       v.Color,
+			Glyph:       v.Glyph,
+			Description: v.Description,
+			UpstreamGit: v.UpstreamGit,
+			Status:      v.Status,
+		}); err != nil {
+			return formErrMsg{fmt.Sprintf("Projekt speichern: %v", err)}
+		}
+		// nil clears the rate; a value sets it.
+		if err := api.SetProjectRate(ctx, id, rate, cur); err != nil {
+			return formErrMsg{fmt.Sprintf("Satz setzen: %v", err)}
+		}
+		return shell.PopRouteMsg{}
 	}
-	if _, err := r.api.UpdateProject(ctx, id, UpdateFields{
-		Name:        v.Name,
-		Slug:        v.Slug,
-		Color:       v.Color,
-		Glyph:       v.Glyph,
-		Description: v.Description,
-		UpstreamGit: v.UpstreamGit,
-		Status:      v.Status,
-	}); err != nil {
-		r.err = fmt.Sprintf("Projekt speichern: %v", err)
-		return r, nil
-	}
-	// nil clears the rate; a value sets it.
-	if err := r.api.SetProjectRate(ctx, id, rate, cur); err != nil {
-		r.err = fmt.Sprintf("Satz setzen: %v", err)
-		return r, nil
-	}
-	return r, func() tea.Msg { return shell.PopRouteMsg{} }
 }
 
 // Title implements shell.Route.
@@ -225,6 +230,10 @@ func (r *FormRoute) Init() tea.Cmd { return textinput.Blink }
 // Update implements shell.Route.
 func (r *FormRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	switch m := msg.(type) {
+	case formErrMsg:
+		r.err = m.err
+		return r, nil
+
 	case tea.KeyPressMsg:
 		switch {
 		case m.Code == tea.KeyEsc:
@@ -263,101 +272,6 @@ func (r *FormRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		}
 	}
 	return r, nil
-}
-
-// View implements shell.Route.
-func (r *FormRoute) View(f shell.Frame) string {
-	pal := f.Pal
-	if pal.Bg == "" {
-		pal = r.pal
-	}
-	sem := pal.Sem()
-	var b strings.Builder
-
-	// --- error line ---
-	if r.err != "" {
-		errStyle := lipgloss.NewStyle().Foreground(sem.Danger)
-		b.WriteString("  " + errStyle.Render("! "+r.err) + "\n\n")
-	}
-
-	labelStyle := lipgloss.NewStyle().Foreground(pal.FgMuted)
-	label := func(s string) string { return labelStyle.Render(fmt.Sprintf("  %-13s", s)) }
-
-	// Helper: selector row rendered as "‹ value ›"
-	selStr := func(val string) string {
-		return lipgloss.NewStyle().Foreground(pal.Fg).Render("‹ " + val + " ›")
-	}
-
-	// Focus indicator.
-	focusStyle := lipgloss.NewStyle().Foreground(sem.Accent)
-	focusBar := func(idx int) string {
-		if r.focusIdx == idx {
-			return focusStyle.Render("▎")
-		}
-		return " "
-	}
-
-	// Text fields.
-	textFields := []struct {
-		focus int
-		label string
-		ti    int
-	}{
-		{focusName, "Name", 0},
-		{focusSlug, "Slug", 1},
-		{focusDescription, "Beschreibung", 2},
-		{focusUpstream, "Upstream Git", 3},
-	}
-	for _, f := range textFields {
-		b.WriteString(focusBar(f.focus) + label(f.label) + r.inputs[f.ti].View() + "\n")
-	}
-	b.WriteString("\n")
-
-	// Status selector.
-	statusVal := statusLabel(domain.ProjectStatus(statusChoices[r.statusIx]))
-	b.WriteString(focusBar(focusStatus) + label("Status") + selStr(statusVal) + "\n")
-
-	// Farbe selector: show swatch color via kindcolor.
-	colorName := colorChoices[r.colorIx]
-	var colorDisplay string
-	if colorName == "" {
-		colorDisplay = "(keine)"
-	} else {
-		swatchColor := kindcolor.ProjectColor(colorName, pal)
-		colorDisplay = lipgloss.NewStyle().Foreground(swatchColor).Render("■") + " " + colorName
-	}
-	b.WriteString(focusBar(focusColor) + label("Farbe") + selStr(colorDisplay) + "\n")
-
-	// Glyph selector.
-	glyphVal := glyphChoices[r.glyphIx]
-	if glyphVal == "" {
-		glyphVal = "(kein)"
-	}
-	b.WriteString(focusBar(focusGlyph) + label("Glyph") + selStr(glyphVal) + "\n")
-
-	b.WriteString("\n")
-
-	// Rate fields.
-	b.WriteString(focusBar(focusRateAmount) + label("Stundensatz") + r.inputs[4].View() + "\n")
-	b.WriteString(focusBar(focusRateCurrency) + label("Währung") + r.inputs[5].View() + "\n")
-
-	b.WriteString("\n")
-
-	// Footer hint.
-	hintStyle := lipgloss.NewStyle().Foreground(pal.FgMuted)
-	b.WriteString("  " + hintStyle.Render("Enter speichern · Esc abbrechen · ←/→ Auswahl") + "\n")
-
-	return b.String()
-}
-
-// KeyHints implements shell.Route.
-func (r *FormRoute) KeyHints() []keyhint.Hint {
-	return []keyhint.Hint{
-		{Key: "enter", Desc: "speichern"},
-		{Key: "esc", Desc: "abbrechen"},
-		{Key: "←/→", Desc: "Auswahl"},
-		{Key: "tab", Desc: "Feld"},
-	}
 }
 
 // focusNext moves focus by delta steps (mod focusCount), updating text-input

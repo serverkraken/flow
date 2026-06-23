@@ -44,6 +44,12 @@ func TestFormCreateComposes(t *testing.T) {
 		RateCurrency: "EUR",
 	})
 	_, cmd := r.Submit()
+	if cmd == nil {
+		t.Fatal("Submit must return a non-nil cmd on valid input")
+	}
+	// Execute the cmd to drive the API calls.
+	msg := cmd()
+	// API side-effects must be present after the cmd runs.
 	if api.created.Name != "PM TUI" {
 		t.Fatalf("CreateProject not called with name: %+v", api.created)
 	}
@@ -53,12 +59,9 @@ func TestFormCreateComposes(t *testing.T) {
 	if !api.rateSet || api.rateCents == nil || *api.rateCents != 9000 {
 		t.Errorf("rate should be 9000 cents, got set=%v cents=%v", api.rateSet, api.rateCents)
 	}
-	if cmd != nil {
-		if msg := cmd(); msg != nil {
-			if _, ok := msg.(shell.PopRouteMsg); !ok {
-				t.Errorf("success should pop, got %T", msg)
-			}
-		}
+	// On success the cmd must return PopRouteMsg.
+	if _, ok := msg.(shell.PopRouteMsg); !ok {
+		t.Errorf("success should pop, got %T", msg)
 	}
 }
 
@@ -73,12 +76,21 @@ func TestFormEditClearsRateOnBlank(t *testing.T) {
 		RateAmount:   "",
 		RateCurrency: "EUR",
 	})
-	_, _ = r.Submit()
+	_, cmd := r.Submit()
+	if cmd == nil {
+		t.Fatal("Submit must return a non-nil cmd on valid input")
+	}
+	// Execute the cmd to drive the API calls.
+	msg := cmd()
 	if api.updated.Status != "paused" {
 		t.Errorf("edit should set paused, got %q", api.updated.Status)
 	}
 	if !api.rateSet || api.rateCents != nil {
 		t.Errorf("blank rate must clear (nil), got set=%v cents=%v", api.rateSet, api.rateCents)
+	}
+	// On success the cmd must return PopRouteMsg.
+	if _, ok := msg.(shell.PopRouteMsg); !ok {
+		t.Errorf("success should pop, got %T", msg)
 	}
 }
 
