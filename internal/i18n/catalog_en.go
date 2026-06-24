@@ -78,6 +78,7 @@ func init() {
 			"kennzahlen.behind":  "behind",
 			"week.total":         "Week total",
 			"week.target":        "Target",
+			"week.weekdays":      "Mon–Fri",
 			// today surface
 			"heute.title":   "Today",
 			"heute.start":   "Start",

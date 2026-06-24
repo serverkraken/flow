@@ -50,6 +50,28 @@ func TestSessionBlock_PositionAndUnassigned(t *testing.T) {
 			t.Errorf("SessionBlock missing %q", w)
 		}
 	}
+	// Unassigned blocks must NOT inject a --c custom property.
+	if strings.Contains(out, "--c:") {
+		t.Errorf("SessionBlock unassigned: must not emit --c custom property, got: %s", out)
+	}
+}
+
+func TestSessionBlock_KnownHueEmitsCSSVar(t *testing.T) {
+	out := render(t, components.SessionBlock(components.SessionBlockVM{
+		ID: "b2", TopPx: 60, HeightPx: 90, Title: "flow", Glyph: "◆",
+		TimeRange: "09:00–10:30", Hue: "blue", Size: "md",
+	}))
+	if !strings.Contains(out, "--c:var(--blue)") {
+		t.Errorf("SessionBlock blue hue: expected --c:var(--blue), got: %s", out)
+	}
+	// Unknown hue must not inject anything.
+	out2 := render(t, components.SessionBlock(components.SessionBlockVM{
+		ID: "b3", TopPx: 0, HeightPx: 30, Title: "x", Glyph: "·",
+		TimeRange: "08:00–08:30", Hue: "unknown-color",
+	}))
+	if strings.Contains(out2, "--c:") {
+		t.Errorf("SessionBlock unknown hue: must not emit --c custom property, got: %s", out2)
+	}
 }
 
 func TestKennzahlenPanel(t *testing.T) {

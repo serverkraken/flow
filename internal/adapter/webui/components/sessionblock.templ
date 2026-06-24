@@ -18,12 +18,25 @@ func blockClasses(vm SessionBlockVM) string {
 	return cls
 }
 
+// blockHueProp returns the CSS custom-property fragment for a known hue
+// ("--c:var(--blue); " etc.) or an empty string for unknown/empty hues.
+// This whitelist prevents arbitrary strings from being injected into inline
+// styles — exactly the same guard used by rowTileClass / valueHue siblings.
+func blockHueProp(hue string) string {
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "--c:var(--" + hue + "); "
+	default:
+		return ""
+	}
+}
+
 // blockStyle builds the inline style: position/height always, plus the hue
 // custom property (--c) for assigned blocks so the rail + tint pick it up.
 func blockStyle(vm SessionBlockVM) string {
 	s := "top:" + itoa(vm.TopPx) + "px; height:" + itoa(vm.HeightPx) + "px"
-	if !vm.Unassigned && vm.Hue != "" {
-		s = "--c:var(--" + vm.Hue + "); " + s
+	if !vm.Unassigned {
+		s = blockHueProp(vm.Hue) + s
 	}
 	return s
 }

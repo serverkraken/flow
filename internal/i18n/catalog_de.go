@@ -87,6 +87,7 @@ func init() {
 			"kennzahlen.behind":  "Rückstand",
 			"week.total":         "Woche gesamt",
 			"week.target":        "Ziel",
+			"week.weekdays":      "Mo–Fr",
 			// today surface
 			"heute.title":   "Heute",
 			"heute.start":   "Starten",
