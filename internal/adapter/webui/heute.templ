@@ -237,7 +237,7 @@ templ heuteAddForm(vm HeuteVM) {
 			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "sessions.project") }</span>
 			<select name="projectId"
 				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
-				<option value="">{ components.T(ctx, "heute.target") }</option>
+				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
 				for _, p := range vm.Projects {
 					<option value={ p.ID }>{ p.Name }</option>
 				}
