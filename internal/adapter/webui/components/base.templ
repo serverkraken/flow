@@ -64,22 +64,31 @@ templ Base(title string, body templ.Component) {
 			<script>
 				(function () {
 					var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-					var hero  = document.querySelector('[data-timer]');
-					var minis = document.querySelectorAll('[data-mini-timer]');
-					if (!hero && minis.length === 0) return;
-					var base  = hero ? parseInt(hero.getAttribute('data-base') || '0', 10) : 0;
-					var start = Date.now();
+					var hero, minis, base, start;
 					function p(n) { return n < 10 ? '0' + n : '' + n; }
+					// (Re)capture the timer element + its base elapsed. Must run again after
+					// every htmx swap: a start/stop/error replaces #content with a NEW
+					// [data-timer] node, and a stale reference would never tick (seconds
+					// only appeared after a full page refresh otherwise).
+					function bind() {
+						hero  = document.querySelector('[data-timer]');
+						minis = document.querySelectorAll('[data-mini-timer]');
+						base  = hero ? parseInt(hero.getAttribute('data-base') || '0', 10) : 0;
+						start = Date.now();
+						tick();
+					}
 					function tick() {
+						if (!hero && (!minis || minis.length === 0)) return;
 						var elapsed = base + Math.floor((Date.now() - start) / 1000);
 						var h = Math.floor(elapsed / 3600);
 						var m = Math.floor((elapsed % 3600) / 60);
 						var s = elapsed % 60;
 						if (hero) hero.textContent = h + 'h ' + p(m) + 'm ' + p(s) + 's';
-						minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+						if (minis) minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
 					}
-					tick();
+					bind();
 					setInterval(tick, reduce ? 60000 : 1000);
+					document.body.addEventListener('htmx:afterSwap', bind);
 				})();
 			</script>
 		</body>
