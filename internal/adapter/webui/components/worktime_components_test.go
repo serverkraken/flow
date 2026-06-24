@@ -45,7 +45,7 @@ func TestSessionBlock_PositionAndUnassigned(t *testing.T) {
 		ID: "b1", TopPx: 120, HeightPx: 72, Title: "ohne Projekt", Glyph: "○",
 		TimeRange: "10:15–11:05", Unassigned: true, Size: "sm",
 	}))
-	for _, w := range []string{"top:120px", "height:72px", "block-unassigned", "data-session-id=\"b1\""} {
+	for _, w := range []string{"top:120px", "height:72px", "wtblock-unassigned", "data-session-id=\"b1\""} {
 		if !strings.Contains(out, w) {
 			t.Errorf("SessionBlock missing %q", w)
 		}

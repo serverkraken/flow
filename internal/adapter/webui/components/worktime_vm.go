@@ -32,7 +32,7 @@ type SessionBlockVM struct {
 	Tag        string
 	Unassigned bool
 	Running    bool
-	Size       string // "" | "sm" | "md" (drives detail reveal; see mockup .block-sm/.block-md)
+	Size       string // "" | "sm" | "md" (drives detail reveal; see .wtblock-sm/.wtblock-md)
 	// EditTo / EditTag / EditNote / EditProjectID carry the session's current
 	// values into the block wrapper data-attrs so the single-edit dialog can
 	// prefill all fields from the clicked block (no extra server round-trip).
