@@ -19,16 +19,16 @@ type Server struct {
 	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready
 
 	// worktime usecases
-	StartSession  usecase.StartSession
-	StopSession   usecase.StopSession
-	ListSessions  usecase.ListSessions
-	CreateProject usecase.CreateProject
-	ListProjects  usecase.ListProjects
-	DeleteProject usecase.DeleteProject
-	UpdateProject usecase.UpdateProject
-	GetProject    usecase.GetProject
-	EditSession   usecase.EditSession
-	DeleteSession usecase.DeleteSession
+	StartSession      usecase.StartSession
+	StopSession       usecase.StopSession
+	ListSessions      usecase.ListSessions
+	CreateProject     usecase.CreateProject
+	ListProjects      usecase.ListProjects
+	DeleteProject     usecase.DeleteProject
+	UpdateProject     usecase.UpdateProject
+	GetProject        usecase.GetProject
+	EditSession       usecase.EditSession
+	DeleteSession     usecase.DeleteSession
 	AddSession        usecase.AddSession
 	ListSessionsRange usecase.ListSessionsRange
 	ListSessionsPage  usecase.ListSessionsPage
@@ -146,6 +146,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /ui/worktime/add", s.webAuth(http.HandlerFunc(s.handleWebAdd)))
 	mux.Handle("POST /ui/worktime/edit", s.webAuth(http.HandlerFunc(s.handleWebEdit)))
 	mux.Handle("POST /ui/worktime/delete", s.webAuth(http.HandlerFunc(s.handleWebDelete)))
+
+	// Woche (week) page + fragment (Slice 1, Task 7)
+	mux.Handle("GET /woche", s.webAuth(http.HandlerFunc(s.handleWocheHome)))
+	mux.Handle("GET /ui/woche/fragment", s.webAuth(http.HandlerFunc(s.handleWocheFragment)))
 
 	mux.Handle("GET /dayoffs", s.webAuth(http.HandlerFunc(s.handleWebDayOffHome)))
 	mux.Handle("GET /ui/dayoffs", s.webAuth(http.HandlerFunc(s.handleWebDayOffFragment)))

@@ -1,0 +1,156 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// WochePage is the full Woche (week) page on the Slice-0 AppShell. Worktime
+// lives under the "Heute" top-tab, so the AppShell active key stays "today" and
+// the worktime sub-tab strip marks "week".
+templ WochePage(vm WocheVM) {
+	@components.Base("woche", wocheBody(vm))
+}
+
+templ wocheBody(vm WocheVM) {
+	@components.AppShell("today", nil, worktimeSubnav("week"), wocheOuter(vm))
+}
+
+// wocheOuter is the SSE-swap container: it reloads the inner WocheFragment on any
+// session / day-off / settings mutation, preserving the displayed week via the
+// ?week= query echoed back into hx-get.
+templ wocheOuter(vm WocheVM) {
+	<div id="content"
+		hx-get={ wocheFragmentURL(vm.WeekStart, vm.IsCurrent) }
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:dayoff.changed, sse:settings.changed"
+		hx-swap="innerHTML">
+		@WocheFragment(vm)
+	</div>
+}
+
+// WocheFragment is the inner content re-rendered live and on KW navigation.
+templ WocheFragment(vm WocheVM) {
+	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6">
+		<div>
+			<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ components.T(ctx, "woche.eyebrow") }</p>
+			<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "nav.week") }</h1>
+		</div>
+		@wocheNav(vm)
+	</div>
+	<section class="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
+		@wocheDaysCard(vm)
+		<div class="flex flex-col gap-5 md:gap-6">
+			@components.WeekTotalBanner(vm.Total)
+			@components.KennzahlenPanel(vm.Kennzahlen)
+		</div>
+	</section>
+}
+
+// wocheNav is the ‹ KW · range › calendar-week stepper plus the "Diese Woche"
+// jump. Forward navigation is clamped: on the current week neither the › button
+// nor "Diese Woche" is shown.
+templ wocheNav(vm WocheVM) {
+	<div class="flex flex-wrap items-center gap-2.5">
+		<div class="inline-flex items-center rounded-xl border border-line bg-surface shadow-soft overflow-hidden" role="group" aria-label={ components.T(ctx, "woche.pick") }>
+			<button type="button" aria-label={ components.T(ctx, "woche.prev") }
+				hx-get={ wocheWeekURL(vm.PrevWeek) } hx-target="#content" hx-swap="innerHTML"
+				class="grid place-items-center h-10 w-10 text-muted hover:text-blue hover:bg-sunken transition-colors">
+				<span aria-hidden="true">‹</span>
+			</button>
+			<div class="px-3.5 text-center border-x border-line2 leading-tight py-1.5">
+				<div class="font-display text-[.95rem] font-semibold">{ vm.KWLabel }</div>
+				<div class="font-mono text-[.72rem] tnum text-muted">{ vm.WeekLabel }</div>
+			</div>
+			if vm.CanForward {
+				<button type="button" aria-label={ components.T(ctx, "woche.next") }
+					hx-get={ wocheWeekURL(vm.NextWeek) } hx-target="#content" hx-swap="innerHTML"
+					class="grid place-items-center h-10 w-10 text-muted hover:text-blue hover:bg-sunken transition-colors">
+					<span aria-hidden="true">›</span>
+				</button>
+			} else {
+				<span class="grid place-items-center h-10 w-10 text-faint" aria-hidden="true">›</span>
+			}
+		</div>
+		if !vm.IsCurrent {
+			<button type="button"
+				hx-get="/ui/woche/fragment" hx-target="#content" hx-swap="innerHTML"
+				class="inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[.88rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">
+				<span aria-hidden="true">●</span> { components.T(ctx, "woche.thisWeek") }
+			</button>
+		}
+	</div>
+}
+
+// wocheDaysCard is the main column: per-day bars (Mo–Fr) plus muted weekend rows.
+templ wocheDaysCard(vm WocheVM) {
+	<section class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6 md:p-7" aria-label={ components.T(ctx, "woche.days") }>
+		<div class="flex items-center justify-between gap-2 mb-1">
+			<h2 class="font-display text-lg font-semibold shrink-0">{ components.T(ctx, "woche.days") }</h2>
+			<span class="text-[.8rem] text-muted text-right">
+				<span class="font-mono tnum text-body font-medium">5</span> { components.T(ctx, "woche.workdays") }<span class="hidden sm:inline"> · { components.T(ctx, "woche.goalEach") } <span class="font-mono tnum">{ vm.WorkdayGoal }</span></span>
+			</span>
+		</div>
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.74rem] text-muted mt-2 mb-5">
+			<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-green" aria-hidden="true"></span> { components.T(ctx, "woche.legendHit") }</span>
+			<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-yellow/70" aria-hidden="true"></span> { components.T(ctx, "woche.legendUnder") }</span>
+			<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-3 rounded-sm bg-cyan" aria-hidden="true"></span> { components.T(ctx, "woche.legendToday") }</span>
+		</div>
+		<ul class="space-y-2">
+			for _, d := range vm.Days {
+				if d.Weekend {
+					@wocheWeekendRow(d)
+				} else {
+					@wocheDayRow(d)
+				}
+			}
+		</ul>
+	</section>
+}
+
+// wocheDayRow is one Mon–Fri row: weekday + date, the progress bar, the
+// logged/target durations + delta, and a trailing status dot (or a day-off chip).
+templ wocheDayRow(d WocheDayVM) {
+	<li class={ "group flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2.5 hover:bg-sunken/60 transition-colors", templ.KV("bg-blue/[.04]", d.IsToday) }>
+		<div class="w-[3.4rem] shrink-0">
+			<div class={ wocheLabelClass(d) }>{ d.Label }</div>
+			<div class="font-mono text-[.7rem] tnum text-muted mt-0.5">{ d.DateLabel }</div>
+		</div>
+		<div class="flex-1 min-w-0">
+			if d.DayOff {
+				<span class={ "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[.74rem] font-medium", wocheDayOffChip(d.DayOffHue) }>
+					<span aria-hidden="true">○</span> { d.DayOffLabel }
+				</span>
+			} else {
+				@wocheDayBar(d)
+			}
+		</div>
+		<div class="shrink-0 text-right tabular-nums">
+			<span class="font-mono text-[.9rem] sm:text-[.95rem] font-semibold tnum">{ d.Dur }</span>
+			<span class="hidden sm:inline font-mono text-[.82rem] tnum text-muted"> / { d.TargetDur }</span>
+			if d.Saldo != "" {
+				<div class={ wocheSaldoHue(d.SaldoPos) }>{ d.Saldo }</div>
+			}
+		</div>
+		<span class={ wocheDayDotClass(d) } aria-hidden="true">{ wocheDayDotGlyph(d) }</span>
+	</li>
+}
+
+// wocheDayBar renders the recessed track + variant-colored fill for a workday.
+templ wocheDayBar(d WocheDayVM) {
+	<div class="h-3 w-full rounded-full bg-sunken overflow-hidden" role="progressbar"
+		aria-valuenow={ wochePctStr(d.Pct) } aria-valuemin="0" aria-valuemax="100"
+		aria-label={ d.Label + " " + d.Dur + " / " + d.TargetDur }>
+		<div class={ "h-full rounded-full transition-[width]", wocheBarFill(d.Variant) } style={ wocheDayBarStyle(d) }></div>
+	</div>
+}
+
+// wocheWeekendRow is a muted Sat/Sun row with no bar.
+templ wocheWeekendRow(d WocheDayVM) {
+	<li class="flex items-center gap-3 sm:gap-4 rounded-2xl px-2 sm:px-3 py-2">
+		<div class="w-[3.4rem] shrink-0">
+			<div class="text-[.92rem] font-medium leading-none text-muted">{ d.Label }</div>
+			<div class="font-mono text-[.7rem] tnum text-faint mt-0.5">{ d.DateLabel }</div>
+		</div>
+		<div class="flex-1 min-w-0">
+			<span class="text-[.82rem] text-muted">{ components.T(ctx, "woche.weekend") }</span>
+		</div>
+		<span class="text-faint text-[.85rem] shrink-0 w-3 text-center" aria-hidden="true">·</span>
+	</li>
+}
