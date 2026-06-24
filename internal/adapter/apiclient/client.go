@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"net/url"
 	"time"
 
@@ -233,4 +234,47 @@ func (c *Client) UpdateProject(ctx context.Context, id string, in UpdateProjectF
 	var p domain.Project
 	err := c.do(ctx, http.MethodPatch, "/api/v1/projects/"+id, in, &p)
 	return p, err
+}
+
+// ReassignSessions assigns one project to many sessions; returns the count changed.
+func (c *Client) ReassignSessions(ctx context.Context, projectID string, ids []string) (int, error) {
+	var out struct {
+		Updated int `json:"updated"`
+	}
+	err := c.do(ctx, http.MethodPost, "/api/v1/sessions/reassign",
+		map[string]any{"ids": ids, "projectId": projectID}, &out)
+	return out.Updated, err
+}
+
+// BulkDeleteSessions deletes many sessions; returns the count deleted.
+func (c *Client) BulkDeleteSessions(ctx context.Context, ids []string) (int, error) {
+	var out struct {
+		Deleted int `json:"deleted"`
+	}
+	err := c.do(ctx, http.MethodPost, "/api/v1/sessions/bulk-delete",
+		map[string]any{"ids": ids}, &out)
+	return out.Deleted, err
+}
+
+// ListSessionsPage returns one page (newest-first) plus the total from X-Total-Count.
+func (c *Client) ListSessionsPage(ctx context.Context, limit, offset int) ([]domain.WorkSession, int, error) {
+	path := fmt.Sprintf("/api/v1/sessions?limit=%d&offset=%d", limit, offset)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+path, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	res, err := c.hc.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode >= 300 {
+		return nil, 0, &APIError{Method: http.MethodGet, Path: path, StatusCode: res.StatusCode}
+	}
+	var out []domain.WorkSession
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return nil, 0, err
+	}
+	total, _ := strconv.Atoi(res.Header.Get("X-Total-Count"))
+	return out, total, nil
 }

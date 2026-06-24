@@ -51,7 +51,8 @@ type Server struct {
 	SetProjectRate usecase.SetProjectRate
 
 	// slice 1 bulk ops
-	BulkAssignProject usecase.BulkAssignProject
+	BulkAssignProject  usecase.BulkAssignProject
+	BulkDeleteSessions usecase.BulkDeleteSessions
 
 	// project bindings (resolution V0)
 	BindProject         usecase.BindProject
@@ -87,6 +88,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("POST /api/v1/sessions", s.auth(http.HandlerFunc(s.handleStartSession)))
 	mux.Handle("POST /api/v1/sessions/reassign", s.authAny(http.HandlerFunc(s.handleReassignSessions)))
+	mux.Handle("POST /api/v1/sessions/bulk-delete", s.authAny(http.HandlerFunc(s.handleBulkDeleteSessions)))
 	mux.Handle("POST /api/v1/sessions/{id}/stop", s.auth(http.HandlerFunc(s.handleStopSession)))
 	mux.Handle("GET /api/v1/sessions", s.auth(http.HandlerFunc(s.handleListSessions)))
 	mux.Handle("PATCH /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleEditSession)))

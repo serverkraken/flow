@@ -383,6 +383,30 @@ func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]int{"updated": n})
 }
 
+type bulkDeleteReq struct {
+	IDs []string `json:"ids"`
+}
+
+func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req bulkDeleteReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	n, err := s.BulkDeleteSessions.Execute(r.Context(), u.ID, req.IDs)
+	switch {
+	case errors.Is(err, usecase.ErrNoSessions):
+		http.Error(w, "no sessions selected", http.StatusBadRequest)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
+	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
+}
+
 // startOfDay truncates t to local midnight.
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())

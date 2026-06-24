@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 func TestStartSessionAndListProjects(t *testing.T) {
@@ -173,5 +174,48 @@ func TestAddSessionAndListRange(t *testing.T) {
 	}
 	if !strings.Contains(gotRangeQuery, "since=") || !strings.Contains(gotRangeQuery, "until=") {
 		t.Fatalf("range query missing since/until: %q", gotRangeQuery)
+	}
+}
+
+func TestClient_ReassignAndPage(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/sessions/reassign", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]int{"updated": 3})
+	})
+	mux.HandleFunc("GET /api/v1/sessions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Total-Count", "7")
+		_ = json.NewEncoder(w).Encode([]domain.WorkSession{{ID: "a"}})
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+	if n, err := c.ReassignSessions(context.Background(), "p1", []string{"a", "b", "c"}); err != nil || n != 3 {
+		t.Fatalf("reassign n=%d err=%v", n, err)
+	}
+	items, total, err := c.ListSessionsPage(context.Background(), 5, 0)
+	if err != nil || total != 7 || len(items) != 1 {
+		t.Fatalf("page items=%d total=%d err=%v", len(items), total, err)
+	}
+}
+
+func TestClient_BulkDeleteSessions(t *testing.T) {
+	var sawDelete bool
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions/bulk-delete" {
+			sawDelete = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]int{"deleted": 2})
+			return
+		}
+		t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+	n, err := c.BulkDeleteSessions(context.Background(), []string{"s1", "s2"})
+	if err != nil || n != 2 {
+		t.Fatalf("BulkDeleteSessions n=%d err=%v", n, err)
+	}
+	if !sawDelete {
+		t.Fatal("server POST /api/v1/sessions/bulk-delete was not called")
 	}
 }

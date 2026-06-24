@@ -347,3 +347,78 @@ func TestHandleReassignSessions_ForeignProject(t *testing.T) {
 		t.Fatalf("foreign project status = %d, want 404", res.StatusCode)
 	}
 }
+
+// newBulkDeleteServer builds a server with BulkDeleteSessions wired.
+func newBulkDeleteServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore) {
+	t.Helper()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
+	sessions := testutil.NewFakeSessionStore()
+	ids := &testutil.FakeIDGen{}
+	srv := &httpserver.Server{
+		Verifier:           testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
+		Ensure:             usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:                sse.NewBus(),
+		Clock:              clk,
+		Dev:                true,
+		StartSession:       usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
+		ListSessions:       usecase.ListSessions{Sessions: sessions, Clock: clk},
+		AddSession:         usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
+		ListSessionsRange:  usecase.ListSessionsRange{Sessions: sessions},
+		EditSession:        usecase.EditSession{Sessions: sessions},
+		ListSessionsPage:   usecase.ListSessionsPage{Sessions: sessions},
+		BulkDeleteSessions: usecase.BulkDeleteSessions{Sessions: sessions},
+	}
+	return srv, sessions
+}
+
+func TestHandleBulkDeleteSessions(t *testing.T) {
+	srv, sessions := newBulkDeleteServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Seed a session via the HTTP API. FakeIDGen: EnsureUser→"id-1", session→"id-2".
+	const ownerID = "id-1"
+	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tag": "work",
+	})
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("seed session status = %d (%s)", res.StatusCode, b)
+	}
+	var created domain.WorkSession
+	_ = json.NewDecoder(res.Body).Decode(&created)
+	_ = res.Body.Close()
+
+	// Bulk-delete the session (plus a missing id that should be skipped).
+	deleteRes := authPost(t, ts.URL+"/api/v1/sessions/bulk-delete", map[string]any{
+		"ids": []string{created.ID, "missing"},
+	})
+	if deleteRes.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(deleteRes.Body)
+		t.Fatalf("bulk-delete status = %d (%s)", deleteRes.StatusCode, b)
+	}
+	var out map[string]int
+	_ = json.NewDecoder(deleteRes.Body).Decode(&out)
+	_ = deleteRes.Body.Close()
+	if out["deleted"] != 1 {
+		t.Fatalf("deleted = %d, want 1", out["deleted"])
+	}
+
+	// Verify via the store: session is gone.
+	ctx := context.Background()
+	if _, err := sessions.Get(ctx, ownerID, created.ID); err == nil {
+		t.Fatal("session still exists after bulk-delete")
+	}
+}
+
+func TestHandleBulkDeleteSessions_EmptyIDs(t *testing.T) {
+	srv, _ := newBulkDeleteServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	res := authPost(t, ts.URL+"/api/v1/sessions/bulk-delete", map[string]any{
+		"ids": []string{},
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty ids status = %d, want 400", res.StatusCode)
+	}
+}
