@@ -83,3 +83,21 @@ func TestBuildRows_NotePropagated(t *testing.T) {
 		t.Fatalf("note not propagated: %+v", rows)
 	}
 }
+
+// TestResolveProjectName covers all 3 branches of resolveProjectName.
+func TestResolveProjectName(t *testing.T) {
+	m := map[string]string{"p1": "Acme"}
+
+	// Empty id → "".
+	if got := resolveProjectName("", m); got != "" {
+		t.Errorf("empty id: got %q, want %q", got, "")
+	}
+	// Found in map → display name.
+	if got := resolveProjectName("p1", m); got != "Acme" {
+		t.Errorf("found id: got %q, want %q", got, "Acme")
+	}
+	// Not found in map → fallback to raw id.
+	if got := resolveProjectName("unknown-id", m); got != "unknown-id" {
+		t.Errorf("unknown id: got %q, want %q", got, "unknown-id")
+	}
+}

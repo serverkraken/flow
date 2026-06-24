@@ -464,3 +464,31 @@ func TestExport_CapturesAllFocusesNoStripNoCrumbHider(t *testing.T) {
 		}
 	}
 }
+
+// TestExportRoute_SetFocusedDate exercises setFocusedDate (0% coverage).
+// After tabbing to focus=1 (Von), pressing 't' must call setFocusedDate which
+// updates vonDP to today's date and resets the preset to "custom".
+func TestExportRoute_SetFocusedDate(t *testing.T) {
+	r := export.NewRoute(fakeAPI{}, fixedNow, theme.Default, wtnav.Registry{})
+	// Tab once: focus moves from 0 (Preset) to 1 (Von).
+	r2, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r = r2.(*export.Route)
+	// Now press 't': this triggers setFocusedDate(today) on the von picker.
+	r3, cmd := r.Update(tea.KeyPressMsg{Text: "t"})
+	r = r3.(*export.Route)
+	if cmd != nil {
+		t.Error("setFocusedDate should return nil cmd")
+	}
+	// View should render without panicking.
+	out := r.View(shell.Frame{Width: 80, Height: 24, Pal: theme.Default})
+	if out == "" {
+		t.Error("View should return non-empty output after setFocusedDate")
+	}
+	// Pressing 't' with focus=2 (Bis) should also call setFocusedDate for bisDP.
+	r4, _ := r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r = r4.(*export.Route)
+	_, cmd = r.Update(tea.KeyPressMsg{Text: "t"})
+	if cmd != nil {
+		t.Error("setFocusedDate on bisDP should return nil cmd")
+	}
+}

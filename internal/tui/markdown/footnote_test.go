@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/yuin/goldmark/ast"
 )
 
 // TestRender_Footnote_RefRendersAsSuperscript: a `[^1]` reference
@@ -90,5 +91,29 @@ func TestSuperscript_DigitMapping(t *testing.T) {
 	}
 	if got := superscript(0); got == "" {
 		t.Error("superscript(0) should fall back to plain marker, got empty")
+	}
+}
+
+// TestRenderFootnote_DirectCall exercises renderFootnote and
+// renderFootnoteBacklink directly (both at 0% coverage). These no-op handlers
+// suppress the HTML fallback renderer for goldmark's Footnote and
+// FootnoteBacklink AST node kinds. Since they return static values they are
+// trivially safe to call with nil arguments.
+func TestRenderFootnote_DirectCall(t *testing.T) {
+	t.Parallel()
+	r := &nodeRenderer{}
+	status, err := r.renderFootnote(nil, nil, nil, false)
+	if err != nil {
+		t.Fatalf("renderFootnote returned error: %v", err)
+	}
+	if status != ast.WalkSkipChildren {
+		t.Errorf("renderFootnote status = %v, want WalkSkipChildren", status)
+	}
+	status2, err2 := r.renderFootnoteBacklink(nil, nil, nil, false)
+	if err2 != nil {
+		t.Fatalf("renderFootnoteBacklink returned error: %v", err2)
+	}
+	if status2 != ast.WalkSkipChildren {
+		t.Errorf("renderFootnoteBacklink status = %v, want WalkSkipChildren", status2)
 	}
 }

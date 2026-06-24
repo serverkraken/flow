@@ -221,3 +221,54 @@ func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 		t.Fatalf("tag-filtered semantic want 0, got %d", len(none))
 	}
 }
+
+// TestFakeFeedTokenStore_Revoke covers FakeFeedTokenStore.Revoke (at 0%).
+func TestFakeFeedTokenStore_Revoke(t *testing.T) {
+	s := NewFakeFeedTokenStore()
+	ctx := context.Background()
+	ft := domain.FeedToken{UserID: "u1", Token: "tok-abc"}
+	if err := s.Create(ctx, ft); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// Revoke with wrong userID should be a no-op (token stays).
+	if err := s.Revoke(ctx, "wrong-user", "tok-abc"); err != nil {
+		t.Fatalf("Revoke(wrong user): %v", err)
+	}
+	if uid, err := s.Resolve(ctx, "tok-abc"); err != nil || uid != "u1" {
+		t.Errorf("after revoke with wrong user, token should still resolve: uid=%q err=%v", uid, err)
+	}
+	// Revoke with correct userID removes the token.
+	if err := s.Revoke(ctx, "u1", "tok-abc"); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	if _, err := s.Resolve(ctx, "tok-abc"); err == nil {
+		t.Error("after revoke, Resolve should return an error")
+	}
+}
+
+// TestFakeProjectBindingStore_DeletePath covers FakeProjectBindingStore.DeletePath (at 0%).
+func TestFakeProjectBindingStore_DeletePath(t *testing.T) {
+	s := NewFakeProjectBindingStore()
+	ctx := context.Background()
+	b := domain.ProjectBinding{
+		ID:        "b1",
+		OwnerID:   "u1",
+		ProjectID: "p1",
+		Kind:      domain.BindingPath,
+		MachineID: "mac-1",
+		Path:      "/home/user/proj",
+	}
+	if _, err := s.Upsert(ctx, b); err != nil {
+		t.Fatalf("Upsert: %v", err)
+	}
+	// DeletePath removes the binding.
+	if err := s.DeletePath(ctx, "u1", "mac-1", "/home/user/proj"); err != nil {
+		t.Fatalf("DeletePath: %v", err)
+	}
+	all := s.All()
+	for _, got := range all {
+		if got.ID == "b1" {
+			t.Error("binding should have been deleted by DeletePath")
+		}
+	}
+}

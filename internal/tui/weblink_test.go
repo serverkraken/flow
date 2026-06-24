@@ -26,3 +26,19 @@ func TestFindWeblinks(t *testing.T) {
 		})
 	}
 }
+
+// TestSortByStart covers the sortByStart swap branch (currently at 50%).
+// The existing findWeblinks tests never produce out-of-order spans, so the
+// swap path (s[i], s[j] = s[j], s[i]) is never executed.
+func TestSortByStart(t *testing.T) {
+	spans := []weblinkSpan{
+		{Start: 10, End: 20, URL: "http://b.com", Display: "b"},
+		{Start: 2, End: 8, URL: "http://a.com", Display: "a"},
+		{Start: 5, End: 9, URL: "http://m.com", Display: "m"},
+	}
+	sortByStart(spans)
+	if spans[0].Start != 2 || spans[1].Start != 5 || spans[2].Start != 10 {
+		t.Errorf("sortByStart: got starts %d %d %d, want 2 5 10",
+			spans[0].Start, spans[1].Start, spans[2].Start)
+	}
+}

@@ -71,3 +71,9 @@ func TestPalette_NoEmptyFields(t *testing.T) {
 		})
 	}
 }
+
+// TestThemeInit covers theme.Init (0% coverage). It is a no-op startup hook
+// kept for call-site compatibility; verify it doesn't panic.
+func TestThemeInit(t *testing.T) {
+	theme.Init()
+}

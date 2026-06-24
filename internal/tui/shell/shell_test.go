@@ -611,3 +611,28 @@ func drainShell(t *testing.T, m tea.Model, cmd tea.Cmd) tea.Model {
 	}
 	return m
 }
+
+// TestShell_helpOverlay exercises renderHelp (0% coverage) by pressing '?'
+// to open the help overlay and then calling View().
+func TestShell_helpOverlay(t *testing.T) {
+	s := newShell()
+	// Give the shell a window size so overlay rendering has dimensions.
+	next, _ := s.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	s = next.(shell.Shell)
+
+	// Press '?' to open the help panel.
+	next2, _ := s.Update(tea.KeyPressMsg{Text: "?"})
+	s = next2.(shell.Shell)
+
+	// View must call renderHelp without panicking.
+	out := s.View().Content
+	if !strings.Contains(out, "Tastatur") && !strings.Contains(out, "Global") {
+		// renderHelp produces a help overlay with "Tastatur" or "Global" section.
+		t.Error("help overlay should contain 'Tastatur' or 'Global' section header")
+	}
+
+	// Press '?' again to close it.
+	next3, _ := s.Update(tea.KeyPressMsg{Text: "?"})
+	s = next3.(shell.Shell)
+	_ = s.View() // should not panic with helpOpen=false
+}

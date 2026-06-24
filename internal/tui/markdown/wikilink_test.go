@@ -114,3 +114,12 @@ func TestRender_Wikilink_OSC8IDStampPresent(t *testing.T) {
 		t.Errorf("OSC 8 missing id= stamp: %q", out)
 	}
 }
+
+// TestWikiLinkDump covers wikiLink.Dump via goldmark's AST debug helper.
+// Dump is only called by goldmark's ast.Dump() utility; exercise it directly
+// with an empty source slice to verify it does not panic.
+func TestWikiLinkDump(t *testing.T) {
+	t.Parallel()
+	w := &wikiLink{Target: "note-1", Display: "Note 1"}
+	w.Dump([]byte{}, 0)
+}

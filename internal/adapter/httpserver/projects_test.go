@@ -236,3 +236,13 @@ func TestListProjectsStatusFilter(t *testing.T) {
 		t.Errorf("status=active,paused → 1, got %d", len(act))
 	}
 }
+
+// TestGetProject_NotFound covers the ErrProjectNotFound branch of handleGetProject.
+func TestGetProject_NotFound(t *testing.T) {
+	_, do, _ := newProjectsSrv(t)
+	// GET a non-existent project ID → 404.
+	res := do("GET", "/api/v1/projects/does-not-exist", "")
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET /api/v1/projects/does-not-exist: status=%d, want 404", res.StatusCode)
+	}
+}

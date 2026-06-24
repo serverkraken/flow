@@ -124,3 +124,60 @@ func mustEmbed(t *testing.T, e *testutil.FakeEmbedder, s string) []float32 {
 	}
 	return v[0]
 }
+
+// TestEmbedWorker_DocumentChanged covers DocumentChanged (0% coverage).
+// DocumentChanged is a non-blocking channel send used to wake the worker.
+func TestEmbedWorker_DocumentChanged(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+
+	// Call twice to exercise both the send path and the default (drop) path.
+	w.DocumentChanged()
+	w.DocumentChanged()
+}
+
+// TestEmbedWorker_Run_CancelledContext covers Run (0% coverage).
+// With interval == 0, Run calls drain once then blocks on ctx.Done().
+// Cancelling the context immediately exercises the <-ctx.Done() return path.
+func TestEmbedWorker_Run_CancelledContext(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	done := make(chan struct{})
+	go func() {
+		w.Run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after ctx was cancelled")
+	}
+}
+
+// TestEmbedWorker_Run_WithTicker covers the ticker path in Run when interval > 0.
+func TestEmbedWorker_Run_WithTicker(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	// Very short interval — one tick fires before we cancel.
+	w := NewEmbedWorker(docs, emb, 1*time.Millisecond, 10, EmbedPolicy{}, slog.Default())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		w.Run(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not return after ctx timeout")
+	}
+}

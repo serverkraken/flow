@@ -284,3 +284,24 @@ func TestStatsComputer_isoMondayLocal_Sunday(t *testing.T) {
 		t.Errorf("week[0].Date: want %v, got %v", wantMon, wk[0].Date)
 	}
 }
+
+// TestStatsComputer_NilLocFallsBackToLocal covers the loc() fallback to
+// time.Local (the StatsComputer.Loc == nil branch, currently at 0%).
+func TestStatsComputer_NilLocFallsBackToLocal(t *testing.T) {
+	set := domain.Settings{
+		Bundesland:       "NW",
+		DefaultTargetMin: 480,
+		WeekdayTargetMin: map[time.Weekday]int{},
+	}
+	uc := usecase.StatsComputer{
+		Sessions: fakeSessionStore{},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)},
+		Loc:      nil, // nil → loc() returns time.Local (the uncovered branch)
+	}
+	_, err := uc.Today(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("Today with nil Loc: %v", err)
+	}
+}

@@ -178,3 +178,38 @@ func TestListProjectBindings_Empty(t *testing.T) {
 		t.Fatalf("expected 0, got %d", len(bindings))
 	}
 }
+
+// TestUnbindProject_Path covers the BindingPath branch of UnbindProject.Execute.
+func TestUnbindProject_Path(t *testing.T) {
+	ps := testutil.NewFakeProjectStore()
+	bs := testutil.NewFakeProjectBindingStore()
+	clk := testutil.FakeClock{T: time.Now()}
+	ids := &testutil.FakeIDGen{}
+
+	p, _ := ps.Create(context.Background(), domain.Project{ID: "p4", OwnerID: "eve", Slug: "myapp"})
+
+	binder := usecase.BindProject{Bindings: bs, Projects: ps, IDs: ids, Clock: clk}
+	if _, err := binder.Execute(context.Background(), "eve", p.ID, usecase.BindKey{
+		Kind:      domain.BindingPath,
+		MachineID: "mac-2",
+		Path:      "/home/eve/myapp",
+	}); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+
+	unbinder := usecase.UnbindProject{Bindings: bs}
+	if err := unbinder.Execute(context.Background(), "eve", usecase.BindKey{
+		Kind:      domain.BindingPath,
+		MachineID: "mac-2",
+		Path:      "/home/eve/myapp",
+	}); err != nil {
+		t.Fatalf("unbind path: %v", err)
+	}
+
+	// Verify the binding is gone.
+	list := usecase.ListProjectBindings{Bindings: bs}
+	bindings, _ := list.Execute(context.Background(), "eve")
+	if len(bindings) != 0 {
+		t.Fatalf("expected 0 bindings after unbind path, got %d", len(bindings))
+	}
+}

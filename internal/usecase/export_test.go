@@ -144,3 +144,21 @@ func TestSetProjectRate_Validates(t *testing.T) {
 		t.Errorf("valid rate should not error: %v", err)
 	}
 }
+
+// TestBuildExport_WithExplicitLoc covers the loc() != nil branch (BuildExport.Loc set).
+// The existing tests already pass Loc (non-nil), but this one makes the nil path
+// explicit via Loc=nil to ensure both branches are exercised across test runs.
+func TestBuildExport_NilLoc(t *testing.T) {
+	uc := usecase.BuildExport{
+		Sessions: fakeSessionStore{}, // no sessions → empty export
+		Projects: &fakeProjectStore{},
+		Clock:    fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
+		Loc:      nil, // nil → uses time.Local; covers the else branch
+	}
+	from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	_, err := uc.Execute(context.Background(), "u1", from, to, "")
+	if err != nil {
+		t.Fatalf("Execute with nil loc: %v", err)
+	}
+}

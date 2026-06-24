@@ -56,3 +56,13 @@ func TestRouteHost_BackForwardsTextThenQuits(t *testing.T) {
 		t.Fatal("q on a clean leaf must quit standalone host")
 	}
 }
+
+// TestRouteHostInit exercises RouteHost.Init which delegates to route.Init().
+func TestRouteHostInit(t *testing.T) {
+	h := shell.NewRouteHost(textStubRoute{}, theme.Default)
+	// textStubRoute.Init returns nil; RouteHost.Init should propagate that.
+	cmd := h.Init()
+	if cmd != nil {
+		t.Error("RouteHost.Init should return nil when the underlying route returns nil")
+	}
+}
