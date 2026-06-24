@@ -159,6 +159,20 @@ func TestSessionStore_ListPage(t *testing.T) {
 			t.Fatalf("seed: %v", err)
 		}
 	}
+	// Seed a foreign-owner session — must not affect owner's total or page.
+	foreignOwner := "u-page-foreign-" + t.Name()
+	uf, _ := domain.NewUser(foreignOwner, "sub-page-foreign", "foreign-user", "foreign@x.de", "Foreign")
+	if _, err := users.UpsertBySub(ctx, uf); err != nil {
+		t.Fatalf("seed foreign user: %v", err)
+	}
+	fst := base.Add(4 * time.Hour)
+	fsp := fst.Add(30 * time.Minute)
+	if _, err := store.Create(ctx, domain.WorkSession{
+		ID: "pF", OwnerID: foreignOwner, Start: fst, Stop: &fsp, CreatedAt: fst,
+	}); err != nil {
+		t.Fatalf("seed foreign session: %v", err)
+	}
+
 	items, total, err := store.ListPage(ctx, owner, 2, 0)
 	if err != nil {
 		t.Fatalf("ListPage: %v", err)
