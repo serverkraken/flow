@@ -228,6 +228,15 @@ func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui
 		return err
 	}
 
+	// Day-offs (Urlaub/Krank/Feiertag/…) so the calendar is complete, keyed by
+	// local date. Reuses the Woche hue/label mapping.
+	offByDate := map[string]domain.DayOff{}
+	if offs, derr := s.ListDayOffs.Execute(ctx, u.ID, weekStart, weekEnd); derr == nil {
+		for _, o := range offs {
+			offByDate[o.Date.In(loc).Format(dayLayout)] = o
+		}
+	}
+
 	// Collect minute-of-day extremes (local) for the hybrid window.
 	mins := make([]int, 0, len(sessions)*2)
 	for _, sess := range sessions {
@@ -281,6 +290,11 @@ func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui
 			IsToday:      sameLocalDay(day, now, loc),
 			IsWeekend:    i >= 5,
 			NowLineTopPx: -1,
+		}
+		if off, ok := offByDate[day.Format(dayLayout)]; ok {
+			dayVM.DayOff = true
+			dayVM.DayOffLabel = off.Kind.LabelDe()
+			dayVM.DayOffHue = dayOffHue(off.Kind)
 		}
 		var dayTotal time.Duration
 		for _, sess := range byDay[i] {

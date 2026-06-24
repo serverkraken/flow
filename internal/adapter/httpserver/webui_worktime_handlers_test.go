@@ -25,6 +25,7 @@ type worktimeTestServer struct {
 	srv   *httpserver.Server
 	ss    *testutil.FakeSessionStore
 	ps    *testutil.FakeProjectStore
+	dos   *testutil.FakeDayOffStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
 	codec *websession.Codec
@@ -78,7 +79,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
-	return &worktimeTestServer{ts: ts, srv: srv, ss: ss, ps: ps, ids: ids, clk: clk, codec: codec}
+	return &worktimeTestServer{ts: ts, srv: srv, ss: ss, ps: ps, dos: dos, ids: ids, clk: clk, codec: codec}
 }
 
 // postForm posts a form to the given path as authenticated user "u1" and

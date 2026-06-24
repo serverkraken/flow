@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -300,4 +301,27 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// TestHistorieCal_ShowsDayOffBadge covers the #8 day-off rendering: a vacation
+// day in the week must surface its label badge in the calendar.
+func TestHistorieCal_ShowsDayOffBadge(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+	// Clock is 2026-06-21 (week Mon 06-15 .. Sun 06-21). Seed vacation on Wed 06-17.
+	day := time.Date(2026, 6, 17, 0, 0, 0, 0, time.Local)
+	if err := srv.dos.Add(ctx, "u1", domain.DayOff{Date: day, Kind: domain.KindVacation, Label: "Urlaub"}); err != nil {
+		t.Fatalf("seed dayoff: %v", err)
+	}
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/historie?week=2026-06-15", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "Urlaub") {
+		t.Errorf("calendar missing day-off badge label %q", "Urlaub")
+	}
 }

@@ -77,7 +77,10 @@ type HistorieDayVM struct {
 	Dur          string // "7h 36m"
 	IsToday      bool
 	IsWeekend    bool
-	NowLineTopPx int // -1 if not today
+	NowLineTopPx int    // -1 if not today
+	DayOff       bool   // a day-off (Urlaub/Krank/…) falls on this day
+	DayOffLabel  string // kind label, e.g. "Urlaub"
+	DayOffHue    string // hue token for the day-off badge
 	Blocks       []components.SessionBlockVM
 	Rows         []components.SessionRowVM // mobile agenda
 }
@@ -245,6 +248,18 @@ func historieMonthBarClass(b HistorieMonthBar) string {
 		return "block h-1.5 rounded-full bg-" + b.Hue
 	default:
 		return "block h-1.5 rounded-full bg-blue"
+	}
+}
+
+// historieDayOffBadgeClass styles the day-off chip in a day header, tinted by
+// the kind's hue (whitelisted to prevent arbitrary class injection).
+func historieDayOffBadgeClass(hue string) string {
+	base := "mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[.58rem] font-semibold "
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return base + "bg-" + hue + "/15 text-" + hue
+	default:
+		return base + "bg-blue/15 text-blue"
 	}
 }
 

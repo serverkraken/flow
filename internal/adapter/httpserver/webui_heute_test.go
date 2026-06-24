@@ -125,3 +125,63 @@ func TestHeuteFragment_ListsSessions(t *testing.T) {
 		t.Errorf("fragment missing session row, got:\n%s", rr.Body.String())
 	}
 }
+
+// TestWebStop_NoProjectSurfacesError covers the #6 fix: stopping a running
+// session without booking a project must surface the "choose a project" error
+// (and keep the timer running) instead of silently doing nothing.
+func TestWebStop_NoProjectSurfacesError(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: start}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("POST", "/ui/worktime/stop", strings.NewReader("sessionId=run"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "Projekt wählen") {
+		t.Errorf("stop without project should surface the project-required error; body=%s", body[:min(400, len(body))])
+	}
+	// timer still running (not stopped)
+	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop != nil {
+		t.Errorf("session should NOT be stopped without a project")
+	}
+}
+
+// TestWebStop_WithProjectBooksAndStops covers the #6 happy path: stopping with a
+// project books + stops the session and returns the idle Heute (start card).
+func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+	p, err := (usecase.CreateProject{Projects: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", "flow", "", "blue", "◆")
+	if err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
+	pid := p.ID
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", ProjectID: &pid, Start: start}); err != nil {
+		t.Fatalf("seed running: %v", err)
+	}
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("POST", "/ui/worktime/stop", strings.NewReader("sessionId=run&projectId="+p.ID))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d", rr.Code)
+	}
+	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop == nil {
+		t.Errorf("session should be stopped after booking a project")
+	}
+	if !strings.Contains(rr.Body.String(), "/ui/worktime/start") {
+		t.Errorf("after stop, idle Heute (start card) should render")
+	}
+}

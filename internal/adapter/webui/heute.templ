@@ -82,13 +82,27 @@ templ heuteHero(vm HeuteVM) {
 					<p class="mt-2 text-[.9rem] text-muted">{ components.T(ctx, "heute.startedAt") } <span class="font-medium text-body tnum">{ vm.StartedAt }</span> · { components.T(ctx, "heute.target") } <span class="font-mono tnum">{ vm.TargetDur }</span></p>
 				</div>
 			</div>
-			<div class="mt-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-				<form hx-post="/ui/worktime/stop" hx-target="#content" hx-swap="innerHTML" class="w-full sm:w-auto">
+			<div class="mt-8 flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
+				// Stopping books the session to a project (mandatory). The picker is
+				// prefilled with the running session's current project; "neu" inline-creates.
+				<form hx-post="/ui/worktime/stop" hx-target="#content" hx-swap="innerHTML" class="w-full lg:w-auto flex flex-col gap-2">
 					<input type="hidden" name="sessionId" value={ vm.Running.ID }/>
-					if vm.Running.ProjectID != nil {
-						<input type="hidden" name="projectId" value={ *vm.Running.ProjectID }/>
-					}
-					@components.Button(components.BtnDanger, components.T(ctx, "heute.stop"), "■", templ.Attributes{"class": "w-full sm:w-auto"})
+					<div class="flex flex-col sm:flex-row gap-2">
+						<select name="projectId"
+							class="min-w-[11rem] rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors">
+							<option value="">{ components.T(ctx, "heute.bookProject") }</option>
+							for _, p := range vm.Projects {
+								if vm.Running.ProjectID != nil && *vm.Running.ProjectID == p.ID {
+									<option value={ p.ID } selected>{ p.Name }</option>
+								} else {
+									<option value={ p.ID }>{ p.Name }</option>
+								}
+							}
+						</select>
+						@components.Button(components.BtnDanger, components.T(ctx, "heute.stop"), "■", templ.Attributes{})
+					</div>
+					<input name="newProject" placeholder={ components.T(ctx, "heute.orNewProject") }
+						class="rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] focus:border-blue/40 transition-colors"/>
 				</form>
 				<dl class="grid grid-cols-3 gap-5 sm:gap-7 flex-1">
 					@heuteStat("heute.todayTotal", vm.LoggedDur, "")

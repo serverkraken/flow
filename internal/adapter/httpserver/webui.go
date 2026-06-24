@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -29,8 +30,16 @@ func (s *Server) handleWebStop(w http.ResponseWriter, r *http.Request) {
 			s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID})
 		}
 	}
-	if _, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &projectID); err == nil {
-		s.Bus.Publish(domain.Event{Type: domain.EventSessionStopped, UserID: u.ID})
+	if _, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &projectID); err != nil {
+		// Booking is mandatory: surface the reason instead of silently leaving the
+		// timer running (otherwise Stop appears to "do nothing").
+		msg := "Sitzung konnte nicht gestoppt werden."
+		if errors.Is(err, domain.ErrProjectRequired) {
+			msg = "Bitte ein Projekt wählen, um die Sitzung zu stoppen."
+		}
+		s.renderHeuteFragment(w, r, u, msg)
+		return
 	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSessionStopped, UserID: u.ID})
 	s.renderFragment(w, r, u)
 }

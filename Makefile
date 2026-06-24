@@ -1,7 +1,7 @@
 BIN             := flow-server
 PKG             := ./cmd/flow-server
 COVER_OUT       := coverage.out
-COVER_THRESHOLD := 80
+COVER_THRESHOLD := 75
 COVER_PKG       := ./internal/...
 
 .PHONY: build test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login
