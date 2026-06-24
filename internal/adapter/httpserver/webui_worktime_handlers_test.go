@@ -56,6 +56,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 		StopSession:         usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
 		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
+		GetRunningSession:   usecase.GetRunningSession{Sessions: ss},
 		ListSessionsPage:    usecase.ListSessionsPage{Sessions: ss},
 		BulkAssignProject:   usecase.BulkAssignProject{Sessions: ss, Projects: ps},
 		BulkDeleteSessions:  usecase.BulkDeleteSessions{Sessions: ss},

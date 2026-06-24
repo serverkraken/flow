@@ -117,7 +117,7 @@
     }
 
     // Block click: select in select-mode, otherwise open the single-edit dialog.
-    var blk = t.closest(".block[data-session-id]");
+    var blk = t.closest(".wtblock[data-session-id]");
     if (blk) {
       if (selectMode) {
         e.preventDefault(); e.stopImmediatePropagation();

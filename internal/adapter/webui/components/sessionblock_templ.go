@@ -8,20 +8,22 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// blockClasses assembles the .block class list from the VM flags.
+// blockClasses assembles the .wtblock class list from the VM flags. The class is
+// namespaced "wtblock" (NOT "block") so it never collides with Tailwind's
+// `block` (display:block) utility used on form labels etc.
 func blockClasses(vm SessionBlockVM) string {
-	cls := "block"
+	cls := "wtblock"
 	if vm.Unassigned {
-		cls += " block-unassigned"
+		cls += " wtblock-unassigned"
 	}
 	if vm.Running {
-		cls += " block-running"
+		cls += " wtblock-running"
 	}
 	switch vm.Size {
 	case "sm":
-		cls += " block-sm"
+		cls += " wtblock-sm"
 	case "md":
-		cls += " block-md"
+		cls += " wtblock-md"
 	}
 	return cls
 }
@@ -54,7 +56,7 @@ func blockTitleClass(unassigned bool) string {
 	if unassigned {
 		return "b-title text-[.74rem] font-semibold leading-tight text-muted"
 	}
-	return "b-title text-[.78rem] font-semibold leading-tight block-c"
+	return "b-title text-[.78rem] font-semibold leading-tight wtblock-c"
 }
 
 // SessionBlock renders a positioned worktime block in the time grid (ported
@@ -106,7 +108,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(blockStyle(vm))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 58, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 60, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -119,7 +121,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(vm.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 59, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 61, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -132,7 +134,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title + " " + vm.TimeRange)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 60, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 62, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -172,7 +174,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Glyph)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 65, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 67, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -190,7 +192,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Glyph)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 67, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 69, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -208,7 +210,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 69, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 71, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -221,7 +223,7 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(vm.TimeRange)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 71, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/sessionblock.templ`, Line: 73, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {

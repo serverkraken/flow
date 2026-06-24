@@ -38,7 +38,7 @@ func worktimeSubnav(active string) templ.Component {
 			{Key: "week", Href: "/woche", LabelKey: "nav.week"},
 			{Key: "history", Href: "/historie", LabelKey: "nav.history"},
 			{Key: "stats", Href: "/stats", LabelKey: "nav.stats"},
-			{Key: "frei", Href: "/frei", LabelKey: "nav.dayoffs"},
+			{Key: "frei", Href: "/dayoffs", LabelKey: "nav.dayoffs"},
 		}, active).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

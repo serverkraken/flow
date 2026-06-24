@@ -110,6 +110,7 @@ func run() error {
 		DeleteSession:     usecase.DeleteSession{Sessions: sessionStore},
 		AddSession:        usecase.AddSession{Sessions: sessionStore, IDs: ids, Clock: clock},
 		ListSessionsRange:  usecase.ListSessionsRange{Sessions: sessionStore},
+		GetRunningSession:  usecase.GetRunningSession{Sessions: sessionStore},
 		ListSessionsPage:   usecase.ListSessionsPage{Sessions: sessionStore},
 		BulkAssignProject:  usecase.BulkAssignProject{Sessions: sessionStore, Projects: projectStore},
 		BulkDeleteSessions: usecase.BulkDeleteSessions{Sessions: sessionStore},

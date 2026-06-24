@@ -59,11 +59,22 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		return webui.HeuteVM{}, err
 	}
 
+	// The running timer is a singleton and may have been started on an EARLIER
+	// day (e.g. left running overnight). Resolve it via GetRunningSession so it
+	// stays visible + stoppable on Heute regardless of its start day; fall back
+	// to scanning today's range for harnesses that don't wire the usecase.
 	var running *domain.WorkSession
-	for i := range sessions {
-		if sessions[i].Running() {
-			r := sessions[i]
-			running = &r
+	if s.GetRunningSession.Sessions != nil {
+		if r, ok, rerr := s.GetRunningSession.Execute(ctx, u.ID); rerr == nil && ok {
+			rs := r
+			running = &rs
+		}
+	} else {
+		for i := range sessions {
+			if sessions[i].Running() {
+				r := sessions[i]
+				running = &r
+			}
 		}
 	}
 

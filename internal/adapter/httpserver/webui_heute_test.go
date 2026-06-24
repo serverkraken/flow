@@ -48,6 +48,40 @@ func TestHeuteHome_RendersLiveAndSessions(t *testing.T) {
 }
 
 // TestHeuteHome_EmptyShowsStart verifies the idle state renders the start form.
+// TestHeuteHome_ShowsOvernightRunningSession is the #5 regression: a timer left
+// running from a PREVIOUS day must still appear on Heute (hero + stop control),
+// not be hidden because Heute is "today-only" — otherwise it silently blocks a
+// new start with no way to stop it.
+func TestHeuteHome_ShowsOvernightRunningSession(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+	// Clock is 2026-06-21 12:00; seed a running session that started the DAY
+	// BEFORE (no stop). It is outside today's range yet must show as running.
+	start := time.Date(2026, 6, 20, 18, 51, 0, 0, time.Local)
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "overnight", OwnerID: "u1", Start: start}); err != nil {
+		t.Fatalf("seed overnight: %v", err)
+	}
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"data-timer", "/ui/worktime/stop"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("overnight running session not surfaced on Heute: missing %q", want)
+		}
+	}
+	if strings.Contains(body, "/ui/worktime/start") {
+		t.Errorf("start card shown while a timer is running (should show the running hero)")
+	}
+}
+
 func TestHeuteHome_EmptyShowsStart(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	cookieVal, _ := srv.codec.Issue("u1")

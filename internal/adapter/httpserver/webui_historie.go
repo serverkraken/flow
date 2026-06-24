@@ -359,7 +359,10 @@ func (s *Server) historieBuildMonth(ctx context.Context, u domain.User, vm *webu
 	vm.CalWeekURL = "/historie?view=cal&cal=week"
 	vm.CalMonthURL = "/historie?view=cal&cal=month&week=" + first.Format(dayLayout)
 	vm.ListHref = "/historie?view=list"
-	vm.FragmentURL = "/historie?view=cal&cal=month&week=" + first.Format(dayLayout)
+	// SSE live-refresh must target the FRAGMENT endpoint (not the full-page
+	// route) — otherwise an `sse:session.*` event swaps a whole HTML document
+	// (Base/AppShell + a nested #content) into #content. Mirrors the week path.
+	vm.FragmentURL = "/ui/historie/calendar?cal=month&week=" + first.Format(dayLayout)
 
 	// Leading padding (Mon-first): empty cells before day 1.
 	lead := int(dayIndexMon(first))

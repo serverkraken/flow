@@ -1,19 +1,21 @@
 package components
 
-// blockClasses assembles the .block class list from the VM flags.
+// blockClasses assembles the .wtblock class list from the VM flags. The class is
+// namespaced "wtblock" (NOT "block") so it never collides with Tailwind's
+// `block` (display:block) utility used on form labels etc.
 func blockClasses(vm SessionBlockVM) string {
-	cls := "block"
+	cls := "wtblock"
 	if vm.Unassigned {
-		cls += " block-unassigned"
+		cls += " wtblock-unassigned"
 	}
 	if vm.Running {
-		cls += " block-running"
+		cls += " wtblock-running"
 	}
 	switch vm.Size {
 	case "sm":
-		cls += " block-sm"
+		cls += " wtblock-sm"
 	case "md":
-		cls += " block-md"
+		cls += " wtblock-md"
 	}
 	return cls
 }
@@ -46,7 +48,7 @@ func blockTitleClass(unassigned bool) string {
 	if unassigned {
 		return "b-title text-[.74rem] font-semibold leading-tight text-muted"
 	}
-	return "b-title text-[.78rem] font-semibold leading-tight block-c"
+	return "b-title text-[.78rem] font-semibold leading-tight wtblock-c"
 }
 
 // SessionBlock renders a positioned worktime block in the time grid (ported

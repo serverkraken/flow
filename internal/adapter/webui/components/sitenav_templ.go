@@ -18,8 +18,8 @@ type NavItem struct {
 func PrimaryNav() []NavItem {
 	return []NavItem{
 		{"today", "/", "nav.today", "▶"},
-		{"wissen", "/wissen", "nav.knowledge", "◆"},
-		{"projekte", "/projekte", "nav.projects", "●"},
+		{"wissen", "/docs", "nav.knowledge", "◆"},
+		{"projekte", "/projects", "nav.projects", "●"},
 		{"stats", "/stats", "nav.stats", "▲"},
 	}
 }
@@ -27,7 +27,7 @@ func PrimaryNav() []NavItem {
 // SecondaryNav is the overflow set: Frei · Export · Einstellungen.
 func SecondaryNav() []NavItem {
 	return []NavItem{
-		{"frei", "/frei", "nav.dayoffs", "★"},
+		{"frei", "/dayoffs", "nav.dayoffs", "★"},
 		{"export", "/export", "nav.export", "▰"},
 		{"einstellungen", "/einstellungen", "nav.settings", "·"},
 	}

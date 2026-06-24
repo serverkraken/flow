@@ -10,7 +10,9 @@ import (
 
 func TestSiteNavMarksActive(t *testing.T) {
 	out := render(t, components.SiteNav("wissen"))
-	for _, w := range []string{"Heute", "Wissen", "Projekte", "Stats", `href="/wissen"`, `aria-current="page"`} {
+	// nav items link to their REAL routes (/docs, /projects, /dayoffs), not the
+	// German label-named paths — see fix for dead sidebar links.
+	for _, w := range []string{"Heute", "Wissen", "Projekte", "Stats", `href="/docs"`, `aria-current="page"`} {
 		if !strings.Contains(out, w) {
 			t.Errorf("SiteNav missing %q", w)
 		}
