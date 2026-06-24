@@ -100,7 +100,7 @@ func run() error {
 		Clock:         clock,
 		Dev:           cfg.Dev,
 		StartSession:  usecase.StartSession{Sessions: sessionStore, IDs: ids, Clock: clock},
-		StopSession:   usecase.StopSession{Sessions: sessionStore, Projects: projectStore, Clock: clock},
+		StopSession:   usecase.StopSession{Sessions: sessionStore, Projects: projectStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessions:  usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateProject: usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
 		ListProjects:  usecase.ListProjects{Projects: projectStore},
