@@ -39,6 +39,42 @@ func TestFakeSessionStore_ListRange(t *testing.T) {
 	}
 }
 
+func TestFakeSessionStore_ListPage(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	mk := func(id string, h int) domain.WorkSession {
+		start := time.Date(2026, 6, 15, h, 0, 0, 0, time.UTC)
+		stop := start.Add(time.Hour)
+		return domain.WorkSession{ID: id, OwnerID: "u1", Start: start, Stop: &stop}
+	}
+	for _, ws := range []domain.WorkSession{mk("a", 8), mk("b", 10), mk("c", 12)} {
+		if _, err := ss.Create(ctx, ws); err != nil {
+			t.Fatalf("seed %s: %v", ws.ID, err)
+		}
+	}
+	// foreign owner must not count
+	if _, err := ss.Create(ctx, domain.WorkSession{
+		ID: "x", OwnerID: "u2",
+		Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("seed foreign: %v", err)
+	}
+	items, total, err := ss.ListPage(ctx, "u1", 2, 0)
+	if err != nil {
+		t.Fatalf("ListPage: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3", total)
+	}
+	if len(items) != 2 || items[0].ID != "c" || items[1].ID != "b" {
+		t.Fatalf("page1 = %+v, want [c b] newest-first", items)
+	}
+	page2, _, _ := ss.ListPage(ctx, "u1", 2, 2)
+	if len(page2) != 1 || page2[0].ID != "a" {
+		t.Fatalf("page2 = %+v, want [a]", page2)
+	}
+}
+
 func TestFakeSessionStore_UpdateAndDelete(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()

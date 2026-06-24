@@ -104,6 +104,10 @@ type SessionStore interface {
 	Update(ctx context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	// Delete removes a session. Owner-scoped; ErrSessionNotFound if absent.
 	Delete(ctx context.Context, ownerID, id string) error
+	// ListPage returns the owner's sessions newest-first (start_at DESC),
+	// limited to `limit` rows starting at `offset`, plus the total owner count
+	// (ignoring limit/offset) for pagination math. Owner-scoped.
+	ListPage(ctx context.Context, ownerID string, limit, offset int) (items []domain.WorkSession, total int, err error)
 }
 
 // DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,

@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -127,6 +128,46 @@ func TestSessionStore_ListRange(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != "r-b" {
 		t.Fatalf("ListRange = %+v, want only r-b", got)
+	}
+}
+
+func TestSessionStore_ListPage(t *testing.T) {
+	pool, err := pgstore.NewPool(context.Background(), startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	// Seed a user so FK on work_sessions.owner_id is satisfied.
+	users := pgstore.NewUserStore(pool)
+	owner := "u-page-" + t.Name()
+	u, _ := domain.NewUser(owner, "sub-page", "page-user", "page@x.de", "Page")
+	if _, err := users.UpsertBySub(context.Background(), u); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	store := pgstore.NewSessionStore(pool)
+	ctx := context.Background()
+	base := time.Date(2026, 6, 15, 8, 0, 0, 0, time.UTC)
+	for i := 0; i < 3; i++ {
+		st := base.Add(time.Duration(i) * time.Hour)
+		sp := st.Add(30 * time.Minute)
+		if _, err := store.Create(ctx, domain.WorkSession{
+			ID: fmt.Sprintf("p%d", i), OwnerID: owner, Start: st, Stop: &sp, CreatedAt: st,
+		}); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+	items, total, err := store.ListPage(ctx, owner, 2, 0)
+	if err != nil {
+		t.Fatalf("ListPage: %v", err)
+	}
+	if total != 3 || len(items) != 2 {
+		t.Fatalf("got total=%d len=%d, want 3 and 2", total, len(items))
+	}
+	if !items[0].Start.After(items[1].Start) {
+		t.Fatalf("not newest-first: %+v", items)
 	}
 }
 

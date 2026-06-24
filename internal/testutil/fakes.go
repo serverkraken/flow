@@ -284,6 +284,27 @@ func (s *FakeSessionStore) ListRange(_ context.Context, ownerID string, since, u
 	return out, nil
 }
 
+func (s *FakeSessionStore) ListPage(_ context.Context, ownerID string, limit, offset int) ([]domain.WorkSession, int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var all []domain.WorkSession
+	for _, e := range s.m {
+		if e.OwnerID == ownerID {
+			all = append(all, e)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].Start.After(all[j].Start) })
+	total := len(all)
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if limit <= 0 || end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 // FakeDayOffStore is an in-memory ports.DayOffStore keyed by (owner, yyyy-mm-dd).
 type FakeDayOffStore struct {
 	mu sync.Mutex

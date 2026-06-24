@@ -128,6 +128,33 @@ ORDER BY start_at DESC`
 	return out, rows.Err()
 }
 
+func (s *SessionStore) ListPage(ctx context.Context, ownerID string, limit, offset int) ([]domain.WorkSession, int, error) {
+	var total int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM work_sessions WHERE owner_id=$1`, ownerID).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("pgstore: count sessions: %w", err)
+	}
+	const q = `
+SELECT id, owner_id, project_id, tag, note, start_at, stop_at, created_at
+FROM work_sessions WHERE owner_id=$1
+ORDER BY start_at DESC
+LIMIT $2 OFFSET $3`
+	rows, err := s.pool.Query(ctx, q, ownerID, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("pgstore: list sessions page: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.WorkSession
+	for rows.Next() {
+		ws, err := scanSession(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, ws)
+	}
+	return out, total, rows.Err()
+}
+
 func scanSession(r rowScanner) (domain.WorkSession, error) {
 	var ws domain.WorkSession
 	if err := r.Scan(&ws.ID, &ws.OwnerID, &ws.ProjectID, &ws.Tag, &ws.Note, &ws.Start, &ws.Stop, &ws.CreatedAt); err != nil {
