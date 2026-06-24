@@ -151,6 +151,13 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /woche", s.webAuth(http.HandlerFunc(s.handleWocheHome)))
 	mux.Handle("GET /ui/woche/fragment", s.webAuth(http.HandlerFunc(s.handleWocheFragment)))
 
+	// Historie (calendar/month/agenda/list + bulk) page + fragments (Slice 1, Task 8)
+	mux.Handle("GET /historie", s.webAuth(http.HandlerFunc(s.handleHistorieHome)))
+	mux.Handle("GET /ui/historie/calendar", s.webAuth(http.HandlerFunc(s.handleHistorieCalendarFragment)))
+	mux.Handle("GET /ui/historie/list", s.webAuth(http.HandlerFunc(s.handleHistorieListFragment)))
+	mux.Handle("POST /ui/historie/reassign", s.webAuth(http.HandlerFunc(s.handleHistorieReassign)))
+	mux.Handle("POST /ui/historie/bulk-delete", s.webAuth(http.HandlerFunc(s.handleHistorieBulkDelete)))
+
 	mux.Handle("GET /dayoffs", s.webAuth(http.HandlerFunc(s.handleWebDayOffHome)))
 	mux.Handle("GET /ui/dayoffs", s.webAuth(http.HandlerFunc(s.handleWebDayOffFragment)))
 	mux.Handle("POST /ui/dayoffs/add", s.webAuth(http.HandlerFunc(s.handleWebDayOffAdd)))

@@ -1,0 +1,399 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// HistoriePage is the full Historie calendar page on the Slice-0 AppShell.
+// Worktime lives under the "Heute" top-tab, so the AppShell active key stays
+// "today" and the worktime sub-tab strip marks "history".
+templ HistoriePage(vm HistorieVM) {
+	@components.Base("historie", historieCalBody(vm))
+}
+
+templ historieCalBody(vm HistorieVM) {
+	@components.AppShell("today", nil, worktimeSubnav("history"), historieCalOuter(vm))
+}
+
+// historieCalOuter is the SSE-swap container: it reloads the calendar fragment
+// on any worktime/project mutation, preserving the displayed week via FragmentURL.
+templ historieCalOuter(vm HistorieVM) {
+	<div id="content"
+		hx-get={ vm.FragmentURL }
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:project.created"
+		hx-swap="innerHTML">
+		@HistorieCalendarFragment(vm)
+	</div>
+	<script src="/static/js/historie-select.js" defer></script>
+}
+
+// HistorieCalendarFragment is the inner calendar content (week or month).
+templ HistorieCalendarFragment(vm HistorieVM) {
+	@historieHeading(vm)
+	if vm.Err != "" {
+		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+	}
+	@historieToolbar(vm)
+	if vm.CalView == "month" {
+		@historieMonth(vm)
+	} else {
+		@historieWeek(vm)
+		@historieAgenda(vm)
+	}
+	@HistorieSelectionBarC(vm.Projects, "cal")
+	@historieEditDialog()
+}
+
+// historieHeading is the page eyebrow + H1.
+templ historieHeading(vm HistorieVM) {
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-5">
+		<div>
+			<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ vm.Eyebrow }</p>
+			<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "historie.title") }</h1>
+		</div>
+	</div>
+}
+
+// historieToolbar is the view toggle (Kalender|Liste), Woche|Monat, date-range
+// nav, the "Auswählen" button, and the orange unassigned banner.
+templ historieToolbar(vm HistorieVM) {
+	<div class="flex flex-col gap-3 mb-5">
+		<div class="flex flex-wrap items-center gap-2.5 justify-between">
+			<div class="flex flex-wrap items-center gap-2.5">
+				@components.SegToggle([]components.SegOption{
+					{Key: "cal", LabelKey: "historie.calendar", Href: vm.CalWeekURL},
+					{Key: "list", LabelKey: "historie.list", Href: vm.ListHref},
+				}, "cal")
+				@components.SegToggle([]components.SegOption{
+					{Key: "week", LabelKey: "historie.week", Href: vm.CalWeekURL},
+					{Key: "month", LabelKey: "historie.month", Href: vm.CalMonthURL},
+				}, vm.CalView)
+				<div class="inline-flex items-center gap-1 rounded-xl border border-line bg-surface shadow-soft">
+					<a href={ templ.SafeURL(vm.PrevHref) } class="grid place-items-center h-9 w-9 rounded-l-xl text-muted hover:text-blue transition-colors" aria-label={ components.T(ctx, "woche.prev") }><span aria-hidden="true">‹</span></a>
+					<span class="px-2 text-[.88rem] font-semibold tnum whitespace-nowrap">{ vm.RangeLabel }</span>
+					if vm.NextHref != "" {
+						<a href={ templ.SafeURL(vm.NextHref) } class="grid place-items-center h-9 w-9 rounded-r-xl text-muted hover:text-blue transition-colors" aria-label={ components.T(ctx, "woche.next") }><span aria-hidden="true">›</span></a>
+					} else {
+						<span class="grid place-items-center h-9 w-9 rounded-r-xl text-faint" aria-hidden="true">›</span>
+					}
+				</div>
+				if vm.ThisHref != "" {
+					<a href={ templ.SafeURL(vm.ThisHref) } class="rounded-xl border border-line bg-surface px-3.5 py-2 text-[.85rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors">{ components.T(ctx, "historie.thisWeek") }</a>
+				}
+			</div>
+			<button type="button" data-select-toggle
+				data-label-select={ components.T(ctx, "historie.select") }
+				data-label-done={ components.T(ctx, "historie.selectDone") }
+				class="inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-[.88rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 active:scale-[.99] transition">
+				<span aria-hidden="true">▎</span> { components.T(ctx, "historie.select") }
+			</button>
+		</div>
+		if vm.UnassignedCount > 0 {
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl border border-orange/30 bg-orange/[.07] px-4 py-2.5">
+				<span class="inline-flex items-center gap-2 text-[.86rem] font-semibold text-orange">
+					<span class="animate-attn" aria-hidden="true">○</span> { components.Tn(ctx, "historie.unassignedBanner", vm.UnassignedCount) }
+				</span>
+				<button type="button" data-select-unassigned class="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-orange/40 bg-surface px-3 py-1.5 text-[.82rem] font-semibold text-orange hover:bg-orange/10 transition-colors">
+					<span aria-hidden="true">▎</span> { components.T(ctx, "historie.selectAllUnassigned") }
+				</button>
+			</div>
+		}
+	</div>
+}
+
+// historieWeek is the desktop time-grid (md+; mobile uses the agenda).
+templ historieWeek(vm HistorieVM) {
+	<section class="hidden md:block" aria-label={ components.T(ctx, "historie.calendar") }>
+		<div class="rounded-3xl bg-surface border border-line shadow-soft overflow-hidden">
+			<div class="overflow-x-auto scroll-thin">
+				<div class="min-w-[860px]">
+					<div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line">
+						<div class="border-r border-line2"></div>
+						for _, d := range vm.Days {
+							@historieDayHead(d)
+						}
+					</div>
+					<div class="relative">
+						<div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))]">
+							@historieTimeAxis(vm)
+							for _, d := range vm.Days {
+								@historieDayColumn(vm, d)
+							}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		@historieLegend()
+	</section>
+}
+
+// historieDayHead is one clickable day-header (carries data-day-select for bulk
+// "Tag wählen" in select-mode).
+templ historieDayHead(d HistorieDayVM) {
+	<div class={ historieDayHeadClass(d) }>
+		<span class={ historieDayLabelClass(d) }>
+			{ d.Label }
+			if d.IsToday {
+				<span class="rounded-[4px] bg-cyan/15 px-1 py-px text-[.56rem] tracking-normal">{ components.T(ctx, "historie.today") }</span>
+			}
+		</span>
+		<span class="mt-0.5 flex items-center gap-1.5">
+			<span class={ historieDayNumClass(d) }>{ d.DayNum }</span>
+			if d.Dur != "" {
+				<span class={ historieDayDurClass(d) }>{ d.Dur }</span>
+			}
+		</span>
+		<button type="button" data-day-select={ d.Key } class="day-chk hidden mt-1 items-center gap-1 text-[.66rem] font-semibold text-blue">
+			<span aria-hidden="true">▢</span> { components.T(ctx, "historie.selectDay") }
+		</button>
+	</div>
+}
+
+// historieTimeAxis is the left hour-label column.
+templ historieTimeAxis(vm HistorieVM) {
+	<div class="relative border-r border-line2 select-none" style={ "height:" + itoaPx(vm.GridHeightPx) }>
+		for _, h := range vm.HourLabels {
+			<span class="absolute right-2 text-[.66rem] font-mono tnum text-faint" style={ "top:" + itoaPx(h.TopPx) }>{ h.Label }</span>
+		}
+	</div>
+}
+
+// historieDayColumn is one day's grid-lines column with positioned blocks + the
+// now-line for today.
+templ historieDayColumn(vm HistorieVM, d HistorieDayVM) {
+	<div class={ historieColumnClass(d) } data-day-col={ d.Key } style={ "height:" + itoaPx(vm.GridHeightPx) }>
+		if d.NowLineTopPx >= 0 {
+			<div class="now-line" style={ "top:" + itoaPx(d.NowLineTopPx) } aria-hidden="true"></div>
+		}
+		for _, b := range d.Blocks {
+			@historieBlock(d.Key, d.DateKey, b)
+		}
+	</div>
+}
+
+// historieBlock wraps SessionBlock with the selection data-attrs (day bucket,
+// unassigned flag) and the single-edit opener.
+templ historieBlock(dayKey, dateKey string, b components.SessionBlockVM) {
+	<div class="contents"
+		data-block-wrap
+		data-day={ dayKey }
+		data-date={ dateKey }
+		data-edit-id={ b.ID }
+		data-edit-from={ historieClockStart(b.TimeRange) }
+		data-unassigned={ historieUnFlag(b.Unassigned) }>
+		@components.SessionBlock(b)
+	</div>
+}
+
+// historieAgenda is the mobile day-grouped agenda list (≤md).
+templ historieAgenda(vm HistorieVM) {
+	<section class="md:hidden space-y-6" aria-label="Agenda">
+		for _, d := range vm.Days {
+			if len(d.Rows) > 0 {
+				<div data-day-group={ d.Key }>
+					<div class="flex items-center justify-between mb-2 pl-1">
+						<h2 class={ historieAgendaHeadClass(d) }>{ d.Label } <span class="text-muted font-normal tnum">{ d.DateLabel }</span>{ historieAgendaToday(d) }</h2>
+						if d.Dur != "" {
+							<span class="font-mono text-[.78rem] tnum text-muted">{ d.Dur }</span>
+						}
+					</div>
+					<ul class="space-y-2.5">
+						for _, row := range d.Rows {
+							@components.SessionRow(row)
+						}
+					</ul>
+				</div>
+			}
+		}
+	</section>
+}
+
+// historieMonth is the lighter month-grid view.
+templ historieMonth(vm HistorieVM) {
+	<section aria-label={ components.T(ctx, "historie.month") }>
+		<div class="rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6">
+			<div class="flex items-center justify-between mb-4">
+				<div>
+					<p class="eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5">{ components.T(ctx, "historie.month") }</p>
+					<h2 class="font-display text-lg font-semibold">{ vm.MonthLabel }</h2>
+				</div>
+				<div class="flex items-center gap-2 text-[.72rem] text-muted">
+					<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2 w-2 rounded-[2px] bg-blue"></span> { components.T(ctx, "historie.withProject") }</span>
+					<span class="inline-flex items-center gap-1.5"><span class="text-orange" aria-hidden="true">○</span> { components.T(ctx, "historie.unassigned") }</span>
+				</div>
+			</div>
+			<div class="grid grid-cols-7 gap-2 mb-2">
+				for _, wd := range []string{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"} {
+					<div class="text-center text-[.66rem] font-semibold eyebrow uppercase text-muted">{ wd }</div>
+				}
+			</div>
+			<div class="grid grid-cols-7 gap-2">
+				for _, c := range vm.MonthCells {
+					@historieMonthCell(c)
+				}
+			</div>
+			<div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line2 pt-4 text-[.78rem]">
+				<span class="text-muted">{ components.T(ctx, "historie.monthTotal") } <span class="font-mono tnum text-ink font-semibold ml-1">{ vm.MonthTotal }</span></span>
+				if vm.MonthUnassigned > 0 {
+					<span class="text-orange font-medium"><span aria-hidden="true">○</span> { components.Tn(ctx, "historie.unassignedBanner", vm.MonthUnassigned) }</span>
+				}
+			</div>
+		</div>
+	</section>
+}
+
+// historieMonthCell is one day cell (padding, or day with mini-bars + flag).
+templ historieMonthCell(c HistorieMonthCellVM) {
+	if c.Empty {
+		<div class="rounded-xl border border-transparent h-[92px]"></div>
+	} else {
+		<a href={ templ.SafeURL(c.WeekHref) } class={ historieMonthCellClass(c) }>
+			<div class="flex items-start justify-between">
+				<span class={ historieMonthNumClass(c) }>{ c.DayNum }</span>
+				if c.HasUnassigned {
+					<span class="text-orange text-[.66rem] animate-attn" aria-label={ components.T(ctx, "historie.unassigned") }>○</span>
+				} else if c.Hours != "" {
+					<span class="text-green text-[.6rem]" aria-hidden="true">●</span>
+				}
+			</div>
+			<div class="mt-auto space-y-1">
+				for _, b := range c.Bars {
+					<span class={ historieMonthBarClass(b) } style={ "width:" + itoa(b.WidthPct) + "%" }></span>
+				}
+			</div>
+			if c.Hours != "" {
+				<div class="mt-1 text-right"><span class={ historieMonthHoursClass(c) }>{ c.Hours }</span></div>
+			}
+		</a>
+	}
+}
+
+// historieLegend is the project-hue legend under the week grid.
+templ historieLegend() {
+	<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[.78rem] text-muted">
+		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] border border-dashed border-faint bg-sunken"></span> <span class="text-orange">○</span> { components.T(ctx, "historie.unassigned") }</span>
+		<span class="inline-flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-[3px] bg-cyan"></span> { components.T(ctx, "heute.running") }</span>
+	</div>
+}
+
+// ── List view ────────────────────────────────────────────────────────────────
+
+// HistorieListPage is the full Historie list page on the AppShell.
+templ HistorieListPage(vm HistorieListVM) {
+	@components.Base("historie", historieListBody(vm))
+}
+
+templ historieListBody(vm HistorieListVM) {
+	@components.AppShell("today", nil, worktimeSubnav("history"), historieListOuter(vm))
+}
+
+templ historieListOuter(vm HistorieListVM) {
+	<div id="content"
+		hx-get="/ui/historie/list"
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:project.created"
+		hx-swap="innerHTML">
+		@HistorieListFragment(vm)
+	</div>
+	<script src="/static/js/historie-select.js" defer></script>
+}
+
+// HistorieListFragment is the paginated flat list inner content.
+templ HistorieListFragment(vm HistorieListVM) {
+	@historieListHeading()
+	if vm.Err != "" {
+		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+	}
+	<div class="flex flex-wrap items-center gap-2.5 mb-5">
+		@components.SegToggle([]components.SegOption{
+			{Key: "cal", LabelKey: "historie.calendar", Href: "/historie?view=cal&cal=week"},
+			{Key: "list", LabelKey: "historie.list", Href: "/historie?view=list"},
+		}, "list")
+		<button type="button" data-select-toggle
+			data-label-select={ components.T(ctx, "historie.select") }
+			data-label-done={ components.T(ctx, "historie.selectDone") }
+			class="ml-auto inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-[.88rem] font-semibold text-canvas shadow-soft hover:bg-ink/90 active:scale-[.99] transition">
+			<span aria-hidden="true">▎</span> { components.T(ctx, "historie.select") }
+		</button>
+	</div>
+	<div class="rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6">
+		if vm.Empty {
+			@components.EmptyState("○", "historie.title", "historie.empty")
+		} else {
+			<ul class="space-y-2.5">
+				for _, row := range vm.Rows {
+					@components.SessionRow(row)
+				}
+			</ul>
+			@components.Pagination(vm.Page)
+		}
+	</div>
+	@HistorieSelectionBarC(vm.Projects, "list")
+	@historieEditDialog()
+}
+
+templ historieListHeading() {
+	<div class="mb-5">
+		<p class="eyebrow uppercase text-[.72rem] font-semibold text-blue mb-1">{ components.T(ctx, "historie.title") }</p>
+		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "historie.list") }</h1>
+	</div>
+}
+
+// ── Shared: selection bar + single-edit dialog ───────────────────────────────
+
+// HistorieSelectionBarC wires the bulk action bar with the reassign/delete URLs
+// for the active view; the selection JS fills its hidden ids field.
+templ HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) {
+	@components.SelectionActionBar(HistorieSelectionBar(components.FuzzyPickerVM{
+		ID:       "historiePicker",
+		Projects: projects,
+		FormID:   "historieBulkForm",
+	}, view))
+}
+
+// historieEditDialog reuses /ui/worktime/edit but with hx-swap="none": the
+// Historie #content already subscribes to sse:session.updated, so the fragment
+// reloads itself — we must NOT inject the Heute fragment here.
+templ historieEditDialog() {
+	@components.Dialog("editSession", "sessions.edit", historieEditForm())
+}
+
+templ historieEditForm() {
+	<form hx-post="/ui/worktime/edit" hx-swap="none" data-edit-form class="space-y-4">
+		<input type="hidden" name="sessionId" data-edit-field-id value=""/>
+		<input type="hidden" name="date" data-edit-field-date value=""/>
+		<label class="block">
+			<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.project") }</span>
+			<select name="projectId" data-edit-field-project
+				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
+				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
+			</select>
+		</label>
+		<input name="newProject" placeholder={ components.T(ctx, "picker.new") }
+			class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
+		<div class="grid grid-cols-2 gap-3">
+			<label class="block">
+				<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.start") }</span>
+				<input type="time" name="from" data-edit-field-from
+					class="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+			</label>
+			<label class="block">
+				<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.stop") }</span>
+				<input type="time" name="to" data-edit-field-to
+					class="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+			</label>
+		</div>
+		<label class="block">
+			<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.tag") }</span>
+			<input name="tag" data-edit-field-tag
+				class="mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors"/>
+		</label>
+		<label class="block">
+			<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.note") }</span>
+			<textarea name="note" data-edit-field-note rows="2"
+				class="mt-1 w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors"></textarea>
+		</label>
+		<div class="flex items-center justify-end gap-2">
+			<button type="button" data-dialog-close class="rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-muted hover:text-ink transition-colors">{ components.T(ctx, "common.cancel") }</button>
+			@components.Button(components.BtnPrimary, components.T(ctx, "sessions.save"), "", templ.Attributes{"type": "submit", "data-dialog-close": true})
+		</div>
+	</form>
+}

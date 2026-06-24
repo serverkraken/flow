@@ -66,6 +66,9 @@ func init() {
 			"historie.confirmDelete":        "Delete the selected sessions? This cannot be undone.",
 			"historie.empty":                "No sessions in range.",
 			"historie.thisWeek":             "This week",
+			"historie.today":                "today",
+			"historie.withProject":          "with project",
+			"historie.monthTotal":           "Month total",
 			// project fuzzy-picker
 			"picker.filter": "Filter projects…",
 			"picker.new":    "new",

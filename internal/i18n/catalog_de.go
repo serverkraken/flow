@@ -75,6 +75,9 @@ func init() {
 			"historie.confirmDelete":        "Ausgewählte Sitzungen löschen? Das kann nicht rückgängig gemacht werden.",
 			"historie.empty":                "Keine Sitzungen im Zeitraum.",
 			"historie.thisWeek":             "Diese Woche",
+			"historie.today":                "heute",
+			"historie.withProject":          "mit Projekt",
+			"historie.monthTotal":           "Monat gesamt",
 			// project fuzzy-picker
 			"picker.filter": "Projekt filtern…",
 			"picker.new":    "neu",
