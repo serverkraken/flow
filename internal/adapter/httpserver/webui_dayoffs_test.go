@@ -127,3 +127,41 @@ func TestWebDayOffPage_ListsAllManualKinds(t *testing.T) {
 		}
 	}
 }
+
+func TestWebSetBundesland(t *testing.T) {
+	srv, codec := newWebDayOffServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	do := func(body string) (int, string) {
+		req, _ := http.NewRequest("POST", ts.URL+"/ui/dayoffs/bundesland", strings.NewReader(body))
+		req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		_ = res.Body.Close()
+		return res.StatusCode, string(b)
+	}
+
+	// Switch to NW → 200, fragment header names the state + NW holidays appear.
+	code, body := do(url.Values{"bundesland": {"NW"}}.Encode())
+	if code != http.StatusOK {
+		t.Fatalf("set bundesland status=%d body=%.200s", code, body)
+	}
+	if !strings.Contains(body, "Nordrhein-Westfalen") {
+		t.Fatalf("fragment should name the new state, got: %.300s", body)
+	}
+	if !strings.Contains(body, "Fronleichnam") { // NW-specific holiday → recomputed
+		t.Fatalf("NW holidays should recompute (expected Fronleichnam), got: %.300s", body)
+	}
+
+	// Invalid code → 400.
+	code, _ = do(url.Values{"bundesland": {"XX"}}.Encode())
+	if code != http.StatusBadRequest {
+		t.Fatalf("want 400 for invalid bundesland, got %d", code)
+	}
+}

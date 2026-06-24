@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -152,5 +153,21 @@ func (s *Server) handleWebDayOffDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWebRegenToken(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_, _ = s.RegenIcsToken.Execute(r.Context(), u.ID)
+	s.renderDayOffFragment(w, r, u)
+}
+
+func (s *Server) handleWebSetBundesland(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	_ = r.ParseForm()
+	if err := s.SetBundesland.Execute(r.Context(), u.ID, r.FormValue("bundesland")); err != nil {
+		if errors.Is(err, domain.ErrInvalidDayOff) {
+			http.Error(w, "invalid bundesland", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	// Holidays are derived from the Bundesland → notify other tabs to reload.
+	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
 	s.renderDayOffFragment(w, r, u)
 }
