@@ -116,16 +116,19 @@
       paint(); updateCount(); return;
     }
 
-    // Block click: select in select-mode, otherwise open the single-edit dialog.
-    var blk = t.closest(".wtblock[data-session-id]");
-    if (blk) {
+    // Desktop block OR mobile agenda row click (both wrapped in [data-block-wrap]):
+    // select in select-mode, otherwise open the single-edit dialog. The row
+    // checkbox is left to the change listener.
+    var wrap = t.closest("[data-block-wrap]");
+    if (wrap && !t.closest(".row-chk")) {
+      var sid = wrap.getAttribute("data-edit-id");
       if (selectMode) {
         e.preventDefault(); e.stopImmediatePropagation();
-        toggleId(blk.getAttribute("data-session-id"));
+        toggleId(sid);
         paint(); updateCount();
       } else {
         e.preventDefault();
-        openEdit(blk);
+        openEdit(wrap);
       }
       return;
     }

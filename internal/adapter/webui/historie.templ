@@ -193,6 +193,25 @@ templ historieBlock(dayKey, dateKey string, b components.SessionBlockVM) {
 	</div>
 }
 
+// historieAgendaRow wraps a mobile agenda SessionRow with the SAME edit-data +
+// selection attrs as historieBlock, so tapping a row on mobile opens the
+// single-edit dialog (and select-mode works) — parity with the desktop blocks.
+templ historieAgendaRow(dayKey, dateKey string, b components.SessionBlockVM, row components.SessionRowVM) {
+	<div class="contents"
+		data-block-wrap
+		data-day={ dayKey }
+		data-date={ dateKey }
+		data-edit-id={ b.ID }
+		data-edit-from={ historieClockStart(b.TimeRange) }
+		data-edit-to={ b.EditTo }
+		data-edit-tag={ b.EditTag }
+		data-edit-note={ b.EditNote }
+		data-edit-project={ b.EditProjectID }
+		data-unassigned={ historieUnFlag(b.Unassigned) }>
+		@components.SessionRow(row)
+	</div>
+}
+
 // historieAgenda is the mobile day-grouped agenda list (≤md).
 templ historieAgenda(vm HistorieVM) {
 	<section class="md:hidden space-y-6" aria-label="Agenda">
@@ -206,8 +225,12 @@ templ historieAgenda(vm HistorieVM) {
 						}
 					</div>
 					<ul class="space-y-2.5">
-						for _, row := range d.Rows {
-							@components.SessionRow(row)
+						for j, row := range d.Rows {
+							if j < len(d.Blocks) {
+								@historieAgendaRow(d.Key, d.DateKey, d.Blocks[j], row)
+							} else {
+								@components.SessionRow(row)
+							}
 						}
 					</ul>
 				</div>
