@@ -42,6 +42,10 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	bus := sse.NewBus()
+	dos := testutil.NewFakeDayOffStore()
+	settings := testutil.NewFakeUserSettingsStore()
+	tokens := testutil.NewFakeFeedTokenStore()
+	listDayOffs := usecase.ListDayOffs{Store: dos, Settings: settings, Loc: time.Local}
 	srv := &httpserver.Server{
 		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:                 bus,
@@ -58,6 +62,15 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
 		ListProjects:        usecase.ListProjects{Projects: ps},
 		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListDayOffs:         listDayOffs,
+		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
+		Stats: usecase.StatsComputer{
+			Sessions: ss,
+			Settings: settings,
+			DayOffs:  listDayOffs,
+			Clock:    clk,
+			Loc:      time.Local,
+		},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
@@ -98,8 +111,9 @@ func (w *worktimeTestServer) seedSession(t *testing.T, dateStr, fromHHMM, toHHMM
 
 func TestWebAdd_BackfillsSession(t *testing.T) {
 	srv := newWorktimeTestServer(t)
+	// The Heute fragment is today-scoped (clock = 2026-06-21), so backfill today.
 	form := url.Values{
-		"date": {"2026-06-18"}, "from": {"09:00"}, "to": {"11:00"},
+		"date": {"2026-06-21"}, "from": {"09:00"}, "to": {"11:00"},
 	}
 	res := srv.postForm(t, "/ui/worktime/add", form)
 	if res.Code != http.StatusOK {
@@ -154,18 +168,19 @@ func TestWebDelete_RemovesSession(t *testing.T) {
 
 func TestWebEdit_UpdatesStop(t *testing.T) {
 	srv := newWorktimeTestServer(t)
-	srv.seedSession(t, "2026-06-18", "09:00", "11:00")
+	// Today-scoped Heute fragment (clock = 2026-06-21): seed + edit today.
+	srv.seedSession(t, "2026-06-21", "09:00", "11:00")
 	sessions, _ := usecase.ListSessionsRange{Sessions: srv.ss}.Execute(
 		context.Background(), "u1",
-		time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local),
-		time.Date(2026, 6, 19, 0, 0, 0, 0, time.Local),
+		time.Date(2026, 6, 21, 0, 0, 0, 0, time.Local),
+		time.Date(2026, 6, 22, 0, 0, 0, 0, time.Local),
 	)
 	if len(sessions) != 1 {
 		t.Fatalf("seed: expected 1 session, got %d", len(sessions))
 	}
 	sid := sessions[0].ID
 	form := url.Values{
-		"date": {"2026-06-18"}, "sessionId": {sid},
+		"date": {"2026-06-21"}, "sessionId": {sid},
 		"from": {"09:00"}, "to": {"12:30"},
 	}
 	res := srv.postForm(t, "/ui/worktime/edit", form)

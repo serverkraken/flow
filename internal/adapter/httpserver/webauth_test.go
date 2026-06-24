@@ -96,6 +96,10 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
+	dos := testutil.NewFakeDayOffStore()
+	settings := testutil.NewFakeUserSettingsStore()
+	tokens := testutil.NewFakeFeedTokenStore()
+	listDayOffs := usecase.ListDayOffs{Store: dos, Settings: settings, Loc: time.UTC}
 	srv := &httpserver.Server{
 		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:                 sse.NewBus(),
@@ -109,6 +113,15 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
 		ListProjects:        usecase.ListProjects{Projects: ps},
 		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListDayOffs:         listDayOffs,
+		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
+		Stats: usecase.StatsComputer{
+			Sessions: ss,
+			Settings: settings,
+			DayOffs:  listDayOffs,
+			Clock:    clk,
+			Loc:      time.UTC,
+		},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -124,7 +137,7 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 		t.Fatalf("home status %d", res.StatusCode)
 	}
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "start timer") {
-		t.Fatalf("home did not render the worktime screen:\n%s", string(body))
+	if !strings.Contains(string(body), "/ui/worktime/start") {
+		t.Fatalf("home did not render the Heute screen:\n%s", string(body))
 	}
 }

@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 // SelectionActionBar renders the sticky bulk-selection action bar (ported from
 // studio-worktime-calendar.html:993-1050). It carries the selection count, the
 // embedded project fuzzy-picker behind an "assign" toggle, a danger delete that
-// opens a Slice-0 ConfirmDialog (no window.confirm), and a cancel. The hidden
+// opens a Slice-0 ConfirmDialog (no native popups), and a cancel. The hidden
 // form posts the comma-joined ids (filled by the selection JS) to AssignURL or
 // DeleteURL.
 func SelectionActionBar(vm SelectionBarVM) templ.Component {

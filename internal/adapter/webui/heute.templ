@@ -1,0 +1,259 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche · Historie ·
+// Stats · Frei). Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
+templ worktimeSubnav(active string) {
+	@components.TabStrip([]components.Tab{
+		{Key: "today", Href: "/", LabelKey: "nav.today"},
+		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
+		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
+		{Key: "stats", Href: "/stats", LabelKey: "nav.stats"},
+		{Key: "frei", Href: "/frei", LabelKey: "nav.dayoffs"},
+	}, active)
+}
+
+// HeutePage is the full Heute page on the Slice-0 AppShell.
+templ HeutePage(vm HeuteVM) {
+	@components.Base("heute", heuteBody(vm))
+}
+
+templ heuteBody(vm HeuteVM) {
+	@components.AppShell("today", nil, worktimeSubnav("today"), heuteOuter(vm))
+}
+
+// heuteOuter is the SSE-swap container: it reloads the inner HeuteFragment on
+// any worktime/project event.
+templ heuteOuter(vm HeuteVM) {
+	<div id="content"
+		hx-get="/ui/worktime"
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:project.created"
+		hx-swap="innerHTML">
+		@HeuteFragment(vm)
+	</div>
+}
+
+// HeuteFragment is the inner content re-rendered live and after every mutation.
+templ HeuteFragment(vm HeuteVM) {
+	if vm.Err != "" {
+		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+	}
+	<section class="grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
+		if vm.Running != nil {
+			@heuteHero(vm)
+		} else {
+			@heuteStartCard(vm)
+		}
+		@heuteWeekCard(vm)
+	</section>
+	<section class="mt-5 md:mt-6">
+		@heuteSessionsCard(vm)
+	</section>
+}
+
+// heuteHero is the running-session focal card with the live timer.
+templ heuteHero(vm HeuteVM) {
+	<article class="lg:col-span-2 relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift">
+		<span class={ "absolute inset-y-0 left-0 w-1", heuteAccentBar(vm.RunningHue) } aria-hidden="true"></span>
+		<div class="relative p-6 sm:p-8 lg:p-10">
+			<div class="flex items-center justify-between gap-3 flex-wrap">
+				<div class="flex items-center gap-3">
+					<span class={ "grid place-items-center h-9 w-9 rounded-xl text-[1.05rem]", heuteTileClass(vm.RunningHue) } aria-hidden="true">◆</span>
+					<div>
+						<div class="flex items-center gap-2">
+							<span class="text-blue text-sm animate-breathe" aria-hidden="true">▶</span>
+							<span class="eyebrow uppercase text-[.72rem] font-semibold text-green">{ components.T(ctx, "heute.running") }</span>
+						</div>
+						<p class="text-[.95rem] font-semibold mt-0.5">{ vm.RunningName }</p>
+					</div>
+				</div>
+				if vm.RunningTag != "" {
+					<span class="inline-flex items-center rounded-full bg-blue/[.08] text-blue px-3 py-1 text-[.78rem] font-medium">#{ vm.RunningTag }</span>
+				}
+			</div>
+			<div class="mt-7 sm:mt-8 flex items-end gap-6 flex-wrap">
+				<div class="min-w-0">
+					<div class="font-mono font-medium tnum text-ink leading-none text-[3.1rem] sm:text-[4.2rem] lg:text-[4.6rem]"
+						data-timer data-base={ secStr(vm.RunningBase) }
+						aria-label={ components.T(ctx, "heute.elapsedAria") } role="timer">
+						{ vm.LoggedDur }
+					</div>
+					<p class="mt-2 text-[.9rem] text-muted">{ components.T(ctx, "heute.startedAt") } <span class="font-medium text-body tnum">{ vm.StartedAt }</span> · { components.T(ctx, "heute.target") } <span class="font-mono tnum">{ vm.TargetDur }</span></p>
+				</div>
+			</div>
+			<div class="mt-8 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+				<form hx-post="/ui/worktime/stop" hx-target="#content" hx-swap="innerHTML" class="w-full sm:w-auto">
+					<input type="hidden" name="sessionId" value={ vm.Running.ID }/>
+					if vm.Running.ProjectID != nil {
+						<input type="hidden" name="projectId" value={ *vm.Running.ProjectID }/>
+					}
+					@components.Button(components.BtnDanger, components.T(ctx, "heute.stop"), "■", templ.Attributes{"class": "w-full sm:w-auto"})
+				</form>
+				<dl class="grid grid-cols-3 gap-5 sm:gap-7 flex-1">
+					@heuteStat("heute.todayTotal", vm.LoggedDur, "")
+					@heuteStat("heute.target", vm.TargetDur, "")
+					@heuteStat("heute.balance", vm.Balance, heuteBalanceHue(vm.BalancePos))
+				</dl>
+			</div>
+			<div class="mt-6">
+				<div class="flex items-center justify-between text-[.74rem] text-muted mb-1.5">
+					<span>{ components.T(ctx, "heute.dayProgress") }</span>
+					<span class="font-mono tnum">{ vm.LoggedDur } / { vm.TargetDur }</span>
+				</div>
+				@components.ProgressBar(vm.TargetPct, vm.TargetVar)
+			</div>
+		</div>
+	</article>
+}
+
+// heuteStat is one <dt>/<dd> metric in the hero stats row.
+templ heuteStat(labelKey, value, hue string) {
+	<div>
+		<dt class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, labelKey) }</dt>
+		<dd class={ "mt-1 font-mono text-[1.05rem] font-semibold tnum", hue }>{ value }</dd>
+	</div>
+}
+
+// heuteStartCard is the idle "start a session" card.
+templ heuteStartCard(vm HeuteVM) {
+	<article class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-6 sm:p-8">
+		<p class="eyebrow uppercase text-[.7rem] font-semibold text-blue">{ components.T(ctx, "heute.newSession") }</p>
+		<h2 class="font-display text-2xl font-semibold mt-1 leading-tight">{ components.T(ctx, "heute.capture") }</h2>
+		<p class="text-[.86rem] text-muted mt-1.5">{ components.T(ctx, "heute.captureHint") }</p>
+		<form hx-post="/ui/worktime/start" hx-target="#content" hx-swap="innerHTML" class="mt-5">
+			<button class="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3.5 text-[.98rem] font-semibold text-canvas hover:bg-ink/90 active:scale-[.99] transition">
+				<span class="text-blue" aria-hidden="true">▶</span> { components.T(ctx, "heute.start") }
+			</button>
+		</form>
+	</article>
+}
+
+// heuteWeekCard is the week pace strip (Mo..Fr).
+templ heuteWeekCard(vm HeuteVM) {
+	<article class="rounded-3xl bg-surface border border-line shadow-soft p-6">
+		<div class="flex items-center justify-between mb-1">
+			<h2 class="font-display text-lg font-semibold">{ components.T(ctx, "heute.thisWeek") }</h2>
+			<span class="eyebrow uppercase text-[.62rem] font-semibold text-muted">{ vm.WeekKW }</span>
+		</div>
+		<p class="text-[.82rem] text-muted mb-5">
+			<span>{ components.T(ctx, "week.total") }</span>
+			<span class="font-mono tnum text-ink font-semibold ml-1">{ vm.WeekTotal }</span> / <span class="font-mono tnum">{ vm.WeekGoal }</span>
+		</p>
+		<ul class="space-y-2.5">
+			for _, row := range vm.WeekRows {
+				<li class={ "flex items-center gap-3", templ.KV("rounded-lg -mx-1.5 px-1.5 py-1 bg-blue/[.05]", row.IsToday) }>
+					<span class={ heuteLabelClass(row) }>{ row.Label }</span>
+					<div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden">
+						<div class={ "h-full rounded-full", heuteBarFill(row.State) } style={ heuteBarStyle(row) }></div>
+					</div>
+					<span class={ heuteValueClass(row) }>{ row.Logged }</span>
+					<span class={ heuteDotClass(row) } title={ heuteDotTitle(ctx, row) } aria-label={ heuteDotTitle(ctx, row) }>{ heuteDotGlyph(row) }</span>
+				</li>
+			}
+		</ul>
+		<div class="mt-5 flex items-center gap-3 text-[.78rem] text-muted">
+			<span class="inline-flex items-center gap-1"><span class="text-green" aria-hidden="true">●</span> { components.T(ctx, "heute.legendMet") }</span>
+			<span class="inline-flex items-center gap-1"><span class="text-faint" aria-hidden="true">○</span> { components.T(ctx, "heute.legendMiss") }</span>
+			<span class="inline-flex items-center gap-1"><span class="text-blue" aria-hidden="true">●</span> { components.T(ctx, "heute.legendToday") }</span>
+		</div>
+	</article>
+}
+
+// heuteSessionsCard lists today's sessions and the nachbuchen affordance.
+templ heuteSessionsCard(vm HeuteVM) {
+	<article class="lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-6">
+		<div class="flex items-center justify-between mb-4">
+			<h2 class="font-display text-lg font-semibold">{ components.T(ctx, "heute.sessions") }</h2>
+			<span class="text-[.8rem] text-muted">{ components.Tn(ctx, "list.entries", len(vm.Rows)) }</span>
+		</div>
+		if len(vm.Rows) == 0 && vm.Running == nil {
+			@components.EmptyState("○", "heute.emptyTitle", "heute.empty")
+		} else {
+			<ul class="space-y-2.5">
+				for _, row := range vm.Rows {
+					@heuteSessionRow(vm, row)
+				}
+			</ul>
+		}
+		<button type="button" data-dialog-open="nachbuchen-dialog"
+			class="mt-4 w-full rounded-2xl border border-dashed border-line py-3 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
+			<span aria-hidden="true">✚</span> { components.T(ctx, "heute.nachbuchen") }
+		</button>
+	</article>
+	@heuteNachbuchenDialog(vm)
+}
+
+// heuteSessionRow wraps a SessionRow with a delete control + ConfirmDialog
+// (completed sessions only — destructive action uses the in-design dialog).
+templ heuteSessionRow(vm HeuteVM, row components.SessionRowVM) {
+	<li class="flex items-center gap-3">
+		<div class="flex-1 min-w-0">
+			<ul class="contents">
+				@components.SessionRow(row)
+			</ul>
+		</div>
+		if !row.Running {
+			<button type="button" aria-label={ components.T(ctx, "common.delete") }
+				data-dialog-open={ "delete-" + row.ID }
+				class="grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors">
+				<span aria-hidden="true">✗</span>
+			</button>
+			@components.ConfirmDialog(components.ConfirmSpec{
+				ID: "delete-" + row.ID,
+				ConfirmAttrs: templ.Attributes{
+					"hx-post":   "/ui/worktime/delete",
+					"hx-target": "#content",
+					"hx-swap":   "innerHTML",
+					"hx-vals":   heuteDeleteVals(vm.DayParam, row.ID),
+					"type":      "button",
+				},
+			})
+		}
+	</li>
+}
+
+// heuteNachbuchenDialog is the add-session modal (Von–Bis backfill).
+templ heuteNachbuchenDialog(vm HeuteVM) {
+	@components.Dialog("nachbuchen-dialog", "heute.nachbuchen", heuteAddForm(vm))
+}
+
+templ heuteAddForm(vm HeuteVM) {
+	<form hx-post="/ui/worktime/add" hx-target="#content" hx-swap="innerHTML" class="space-y-4">
+		<input type="hidden" name="date" value={ vm.DayParam }/>
+		<div class="grid grid-cols-2 gap-3">
+			<label class="block">
+				<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "heute.from") }</span>
+				<input name="from" placeholder="09:00" inputmode="numeric"
+					class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+			</label>
+			<label class="block">
+				<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "heute.to") }</span>
+				<input name="to" placeholder="17:00" inputmode="numeric"
+					class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+			</label>
+		</div>
+		<label class="block">
+			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "sessions.project") }</span>
+			<select name="projectId"
+				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
+				<option value="">{ components.T(ctx, "heute.target") }</option>
+				for _, p := range vm.Projects {
+					<option value={ p.ID }>{ p.Name }</option>
+				}
+			</select>
+		</label>
+		<input name="newProject" placeholder={ components.T(ctx, "picker.new") }
+			class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
+		<div class="flex items-center gap-3">
+			<input name="tag" placeholder={ components.T(ctx, "sessions.tag") }
+				class="w-28 rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
+			<input name="note" placeholder={ components.T(ctx, "sessions.note") }
+				class="flex-1 rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
+		</div>
+		<div class="flex justify-end">
+			@components.Button(components.BtnPrimary, components.T(ctx, "heute.add"), "✚", templ.Attributes{"type": "submit"})
+		</div>
+	</form>
+}
+

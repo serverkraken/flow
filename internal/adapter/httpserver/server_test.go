@@ -328,8 +328,8 @@ func TestWebFragmentWithSession(t *testing.T) {
 	}
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	if !strings.Contains(string(body), "start timer") {
-		t.Fatalf("fragment missing start timer: %s", string(body))
+	if !strings.Contains(string(body), "/ui/worktime/start") {
+		t.Fatalf("fragment missing start form: %s", string(body))
 	}
 }
 

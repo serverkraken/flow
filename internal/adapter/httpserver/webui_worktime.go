@@ -7,11 +7,9 @@ package httpserver
 // handleEditSession / handleDeleteSession in worktime.go.
 
 import (
-	"context"
 	"net/http"
 	"time"
 
-	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -38,59 +36,11 @@ func dayTime(day time.Time, hhmm string) (time.Time, error) {
 		clock.Hour(), clock.Minute(), 0, 0, time.Local), nil
 }
 
-// worktimeDataFor builds the worktime view model for a specific local day.
-func (s *Server) worktimeDataFor(ctx context.Context, u domain.User, day time.Time, errMsg string) (webui.WorktimeData, error) {
-	day = startOfDay(day)
-	sessions, err := s.ListSessionsRange.Execute(ctx, u.ID, day, day.AddDate(0, 0, 1))
-	if err != nil {
-		return webui.WorktimeData{}, err
-	}
-	projects, err := s.ListProjects.Execute(ctx, u.ID)
-	if err != nil {
-		return webui.WorktimeData{}, err
-	}
-	bindings, err := s.ListProjectBindings.Execute(ctx, u.ID)
-	if err != nil {
-		return webui.WorktimeData{}, err
-	}
-	today := startOfDay(s.Clock.Now())
-	isToday := day.Equal(today)
-	var running *domain.WorkSession
-	if isToday {
-		for i := range sessions {
-			if sessions[i].Running() {
-				r := sessions[i]
-				running = &r
-			}
-		}
-	}
-	next := day.AddDate(0, 0, 1)
-	return webui.WorktimeData{
-		User:       u.Username,
-		Running:    running,
-		Now:        s.Clock.Now(),
-		Sessions:   sessions,
-		Projects:   projects,
-		Bindings:   bindings,
-		Date:       day,
-		IsToday:    isToday,
-		PrevDate:   day.AddDate(0, 0, -1).Format(dayLayout),
-		NextDate:   next.Format(dayLayout),
-		CanForward: !next.After(today), // clamp: never navigate past today
-		Err:        errMsg,
-	}, nil
-}
-
-// renderDay re-renders the worktime fragment for the given local day,
-// optionally with an inline error banner.
-func (s *Server) renderDay(w http.ResponseWriter, r *http.Request, u domain.User, day time.Time, errMsg string) {
-	d, err := s.worktimeDataFor(r.Context(), u, day, errMsg)
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.WorktimeFragment(d).Render(r.Context(), w)
+// renderDay re-renders the Heute fragment (today) after a mutating action,
+// optionally with an inline error banner. The day argument is retained for the
+// add/edit/delete call signatures but the Heute page is always today-scoped.
+func (s *Server) renderDay(w http.ResponseWriter, r *http.Request, u domain.User, _ time.Time, errMsg string) {
+	s.renderHeuteFragment(w, r, u, errMsg)
 }
 
 // resolveWebProject returns the chosen project id from the form, creating a
