@@ -39,9 +39,15 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, pr
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
-	ranges := domain.SplitDaily(cur.Start, uc.Clock.Now(), uc.loc())
-	// Stop the original session at the first day boundary (or `now` when the
-	// span stays within one day), booking the project.
+	now := uc.Clock.Now()
+	ranges := domain.SplitDaily(cur.Start, now, uc.loc())
+	// Defensive: without an IDGen we cannot mint chunk ids, so stop the whole
+	// span unsplit rather than panic (production always wires IDs; this guards
+	// any future composition root / harness that does not).
+	if uc.IDs == nil || len(ranges) == 1 {
+		return uc.Sessions.Stop(ctx, ownerID, sessionID, projectID, now)
+	}
+	// Stop the original session at the first day boundary, booking the project.
 	first, err := uc.Sessions.Stop(ctx, ownerID, sessionID, projectID, ranges[0].Stop)
 	if err != nil {
 		return domain.WorkSession{}, err
