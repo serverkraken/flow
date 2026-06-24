@@ -31,6 +31,7 @@ type Server struct {
 	DeleteSession usecase.DeleteSession
 	AddSession        usecase.AddSession
 	ListSessionsRange usecase.ListSessionsRange
+	ListSessionsPage  usecase.ListSessionsPage
 
 	// m1c worktime extras
 	AddDayOffs    usecase.AddDayOffs

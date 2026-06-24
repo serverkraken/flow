@@ -33,6 +33,7 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
 		EditSession:       usecase.EditSession{Sessions: sessions},
+		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
 	}, sessions
 }
 
@@ -135,6 +136,69 @@ func TestLiveStart_StillWorks(t *testing.T) {
 	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"tag": "live"})
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("live start status = %d, want 201", res.StatusCode)
+	}
+}
+
+func TestHandleListSessions_Pagination(t *testing.T) {
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Seed 3 sessions via the HTTP layer so they land under the authed user's ID.
+	times := [][2]string{
+		{"2026-06-15T08:00:00Z", "2026-06-15T09:00:00Z"},
+		{"2026-06-15T10:00:00Z", "2026-06-15T11:00:00Z"},
+		{"2026-06-15T12:00:00Z", "2026-06-15T13:00:00Z"},
+	}
+	for _, p := range times {
+		res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"start": p[0], "stop": p[1]})
+		if res.StatusCode != http.StatusCreated {
+			b, _ := io.ReadAll(res.Body)
+			t.Fatalf("seed status = %d (%s)", res.StatusCode, b)
+		}
+		_ = res.Body.Close()
+	}
+
+	// GET with ?limit=2&offset=0 — expect 2 items, X-Total-Count=3.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/sessions?limit=2&offset=0", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("status = %d (%s), want 200", res.StatusCode, b)
+	}
+	if got := res.Header.Get("X-Total-Count"); got != "3" {
+		t.Fatalf("X-Total-Count = %q, want 3", got)
+	}
+	var out []domain.WorkSession
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("len = %d, want 2", len(out))
+	}
+}
+
+func TestHandleListSessions_BadLimit(t *testing.T) {
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	for _, bad := range []string{"0", "201", "abc", "-1"} {
+		req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/sessions?limit="+bad, nil)
+		req.Header.Set("Authorization", "Bearer x")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("GET limit=%s: %v", bad, err)
+		}
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("limit=%s: status = %d, want 400", bad, res.StatusCode)
+		}
 	}
 }
 

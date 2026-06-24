@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -96,6 +97,34 @@ func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
+
+	// Paginated all-time mode: ?limit (and optional ?offset). Newest-first.
+	if q := r.URL.Query().Get("limit"); q != "" {
+		limit, err := strconv.Atoi(q)
+		if err != nil || limit < 1 || limit > 200 {
+			http.Error(w, "bad limit (1..200)", http.StatusBadRequest)
+			return
+		}
+		offset := 0
+		if o := r.URL.Query().Get("offset"); o != "" {
+			if offset, err = strconv.Atoi(o); err != nil || offset < 0 {
+				http.Error(w, "bad offset", http.StatusBadRequest)
+				return
+			}
+		}
+		list, total, err := s.ListSessionsPage.Execute(r.Context(), u.ID, limit, offset)
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+		if list == nil {
+			list = []domain.WorkSession{}
+		}
+		w.Header().Set("X-Total-Count", strconv.Itoa(total))
+		writeJSON(w, http.StatusOK, list)
+		return
+	}
+
 	since := startOfDay(s.Clock.Now())
 	if q := r.URL.Query().Get("since"); q != "" {
 		if t, err := time.Parse(time.RFC3339, q); err == nil {
