@@ -70,9 +70,9 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 		return res.StatusCode, string(b)
 	}
 
-	// Full page renders (covers DayOffPage templ + dayOffData).
+	// Full page renders (covers FreiPage templ + dayOffData).
 	code, body := do("GET", "/dayoffs", "")
-	if code != http.StatusOK || !strings.Contains(body, "flow · dayoffs") {
+	if code != http.StatusOK || !strings.Contains(body, "flow · frei") {
 		t.Fatalf("GET /dayoffs status=%d body=%.120s", code, body)
 	}
 
@@ -82,7 +82,7 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 		"kind": {"vacation"}, "label": {"Sommer"}, "skipWeekends": {"true"},
 	}.Encode()
 	code, body = do("POST", "/ui/dayoffs/add", form)
-	if code != http.StatusOK || !strings.Contains(body, "2026-06-15") {
+	if code != http.StatusOK || !strings.Contains(body, "15.06.2026") {
 		t.Fatalf("add status=%d body=%.200s", code, body)
 	}
 
@@ -94,7 +94,7 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 
 	// Fragment endpoint renders standalone.
 	code, body = do("GET", "/ui/dayoffs", "")
-	if code != http.StatusOK || !strings.Contains(body, "Calendar feed") {
+	if code != http.StatusOK || !strings.Contains(body, "name=\"bundesland\"") {
 		t.Fatalf("fragment status=%d body=%.120s", code, body)
 	}
 

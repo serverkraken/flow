@@ -3,34 +3,94 @@ package httpserver
 import (
 	"context"
 	"net/http"
+	"sort"
+	"strconv"
 	"time"
 
-	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func (s *Server) dayOffData(ctx context.Context, u domain.User) (webui.DayOffData, error) {
-	year := s.Clock.Now().Year()
-	from := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
-	to := time.Date(year, 12, 31, 0, 0, 0, 0, time.Local)
+// germanStates is the Bundesland <select> source (DE = bundesweit only).
+var germanStates = []webui.FreiBundeslandOption{
+	{Code: "DE", Name: "Bundesweit"},
+	{Code: "BW", Name: "Baden-Württemberg"},
+	{Code: "BY", Name: "Bayern"},
+	{Code: "BE", Name: "Berlin"},
+	{Code: "BB", Name: "Brandenburg"},
+	{Code: "HB", Name: "Bremen"},
+	{Code: "HH", Name: "Hamburg"},
+	{Code: "HE", Name: "Hessen"},
+	{Code: "MV", Name: "Mecklenburg-Vorpommern"},
+	{Code: "NI", Name: "Niedersachsen"},
+	{Code: "NW", Name: "Nordrhein-Westfalen"},
+	{Code: "RP", Name: "Rheinland-Pfalz"},
+	{Code: "SL", Name: "Saarland"},
+	{Code: "SN", Name: "Sachsen"},
+	{Code: "ST", Name: "Sachsen-Anhalt"},
+	{Code: "SH", Name: "Schleswig-Holstein"},
+	{Code: "TH", Name: "Thüringen"},
+}
+
+func bundeslandOptions() []webui.FreiBundeslandOption { return germanStates }
+
+func bundeslandName(code string) string {
+	for _, o := range germanStates {
+		if o.Code == code {
+			return o.Name
+		}
+	}
+	return code
+}
+
+func (s *Server) dayOffData(ctx context.Context, u domain.User) (webui.FreiVM, error) {
+	now := s.Clock.Now()
+	loc := now.Location()
+	year := now.Year()
+	from := time.Date(year, 1, 1, 0, 0, 0, 0, loc)
+	to := time.Date(year, 12, 31, 0, 0, 0, 0, loc)
+
 	list, err := s.ListDayOffs.Execute(ctx, u.ID, from, to)
 	if err != nil {
-		return webui.DayOffData{}, err
-	}
-	dtos := make([]apiclient.DayOff, 0, len(list))
-	for _, d := range list {
-		dtos = append(dtos, apiclient.DayOff{
-			Day: d.Date.Format("2006-01-02"), Kind: string(d.Kind),
-			Label: d.Label, TargetMin: int(d.Target / time.Minute),
-			Holiday: d.Kind == domain.KindHoliday,
-		})
+		return webui.FreiVM{}, err
 	}
 	set, toks, err := s.GetSettings.Execute(ctx, u.ID)
 	if err != nil {
-		return webui.DayOffData{}, err
+		return webui.FreiVM{}, err
 	}
-	return webui.DayOffData{User: u.Username, Bundesland: set.Bundesland, FeedURL: firstFeedURL(toks), DayOffs: dtos}, nil
+
+	sort.Slice(list, func(i, j int) bool { return list[i].Date.Before(list[j].Date) })
+	rows := make([]webui.FreiRowVM, 0, len(list))
+	hasOwn := false
+	for _, d := range list {
+		isHol := d.Kind == domain.KindHoliday
+		if !isHol {
+			hasOwn = true
+		}
+		rows = append(rows, webui.FreiRowVM{
+			DateLabel: d.Date.In(loc).Format("02.01.2006"),
+			KindLabel: d.Kind.LabelDe(),
+			Hue:       dayOffHue(d.Kind),
+			Label:     d.Label,
+			IsHoliday: isHol,
+			Day:       d.Date.In(loc).Format("2006-01-02"),
+		})
+	}
+
+	code, _ := domain.ValidBundesland(set.Bundesland)
+	if code == "" {
+		code = "DE"
+	}
+	return webui.FreiVM{
+		User:              u.Username,
+		BundeslandCode:    code,
+		BundeslandName:    bundeslandName(code),
+		BundeslandOptions: bundeslandOptions(),
+		Year:              strconv.Itoa(year),
+		IcsURL:            firstFeedURL(toks),
+		Rows:              rows,
+		HasOwn:            hasOwn,
+	}, nil
 }
 
 func firstFeedURL(toks []domain.FeedToken) string {
@@ -41,24 +101,24 @@ func firstFeedURL(toks []domain.FeedToken) string {
 }
 
 func (s *Server) renderDayOffFragment(w http.ResponseWriter, r *http.Request, u domain.User) {
-	d, err := s.dayOffData(r.Context(), u)
+	vm, err := s.dayOffData(r.Context(), u)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.DayOffFragment(d).Render(r.Context(), w)
+	_ = webui.FreiFragment(vm).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebDayOffHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	d, err := s.dayOffData(r.Context(), u)
+	vm, err := s.dayOffData(r.Context(), u)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.DayOffPage(d).Render(r.Context(), w)
+	_ = webui.FreiPage(vm).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebDayOffFragment(w http.ResponseWriter, r *http.Request) {
