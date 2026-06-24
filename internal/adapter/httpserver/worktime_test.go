@@ -167,7 +167,7 @@ func TestHandleListSessions_Pagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET: %v", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(res.Body)
 		t.Fatalf("status = %d (%s), want 200", res.StatusCode, b)
