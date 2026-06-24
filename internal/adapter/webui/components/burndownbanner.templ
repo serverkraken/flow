@@ -1,0 +1,27 @@
+package components
+
+// BurndownBanner renders the Monats-Burndown card: "Monat gesamt {Total}",
+// its target, an auf-Kurs / Rückstand chip, a ProgressBar filled to the logged
+// percentage, and a thin vertical pace marker at PacePct (where one should
+// stand by today). No charting library — the marker is an absolutely
+// positioned <span> over the bar.
+templ BurndownBanner(vm BurndownVM) {
+	<article class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift p-6 sm:p-7">
+		<div class="flex items-center justify-between gap-3 flex-wrap">
+			<p class="eyebrow uppercase text-[.7rem] font-semibold text-muted">{ T(ctx, "stats.monthTotal") }</p>
+			if vm.OnTrack {
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-green/10 text-green px-3 py-1 text-[.78rem] font-medium"><span aria-hidden="true">▲</span> { T(ctx, "stats.onTrack") }</span>
+			} else {
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-yellow/10 text-yellow px-3 py-1 text-[.78rem] font-medium"><span aria-hidden="true">▼</span> { T(ctx, "stats.behind") }</span>
+			}
+		</div>
+		<div class="mt-3">
+			<div class="font-mono font-medium tnum text-ink leading-none text-[2.4rem] sm:text-[2.8rem]">{ vm.Total }</div>
+			<p class="mt-1.5 text-[.9rem] text-muted">{ T(ctx, "week.target") } <span class="font-mono tnum text-body font-medium">{ vm.Target }</span></p>
+		</div>
+		<div class="relative mt-5">
+			@ProgressBar(vm.Pct, vm.Variant)
+			<span class="absolute -top-1 h-4 w-0.5 rounded-full bg-ink/70" style={ "left:" + itoa(vm.PacePct) + "%" } title={ T(ctx, "stats.pace") } aria-label={ T(ctx, "stats.pace") }></span>
+		</div>
+	</article>
+}
