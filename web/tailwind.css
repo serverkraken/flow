@@ -191,3 +191,114 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   WORKTIME CALENDAR — surface-specific rules ported verbatim from
+   docs/superpowers/specs/assets/2026-06-23-webui/studio-worktime-calendar.html.
+   These back the .seg toggle, the time-grid .block family, gridlines, the
+   now-line, the brand checkbox, and the fuzzy-picker rows — none of which are
+   plain Tailwind utilities. Hue is injected per-block via the --c custom prop.
+   ════════════════════════════════════════════════════════════════════ */
+@layer components {
+  /* Time-grid scale: 06:00 → 20:00 = 14h. One hour = 48px → grid 672px tall.
+     A session top/height is computed from minutes-since-06:00 in inline style. */
+  :root { --hour: 48px; --grid-h: 672px; }
+
+  /* hour gridlines as a repeating background on the day columns */
+  .grid-lines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(var(--line2)) 0, rgb(var(--line2)) 1px,
+      transparent 1px, transparent var(--hour)
+    );
+  }
+
+  /* A worktime block. Project hue is injected via --c (an RGB triplet) on the
+     element. Fill is a soft tint of the hue; a 3px left rail is the full hue. */
+  .block {
+    position: absolute;
+    left: 4px; right: 4px;
+    border-radius: 12px;
+    border: 1px solid rgb(var(--c) / .35);
+    background: rgb(var(--c) / .12);
+    overflow: hidden;
+    transition: box-shadow .18s ease, transform .12s ease, outline-color .15s ease;
+    outline: 2px solid transparent;
+    outline-offset: 1px;
+  }
+  :root[data-theme="dark"] .block { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
+  .block::before {
+    content:""; position:absolute; inset-block:0; left:0; width:3px; background: rgb(var(--c));
+  }
+  .block:hover { box-shadow: 0 6px 20px -8px rgb(var(--c) / .55); transform: translateY(-1px); z-index: 5; }
+  .block-c   { color: rgb(var(--c)); }                 /* hue-colored text inside a block */
+
+  /* Inner text never overflows: clamp the whole label, force the time line to a
+     single non-wrapping row, and let the title truncate with an ellipsis. */
+  .block > span { display:block; min-width:0; }
+  .block .b-title { display:flex; align-items:center; gap:.375rem; min-width:0; }
+  .block .b-title > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .block .b-time  { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* size-aware reveal: hide tag chip + import hint on short blocks; hide the
+     time line entirely on the very shortest so the title alone fits cleanly. */
+  .block .b-extra { display:none; }
+  .block .b-time  { display:none; }
+  .block.block-sm .b-time  { display:block; }   /* >= ~44px tall */
+  .block.block-md .b-time  { display:block; }
+  .block.block-md .b-extra { display:block; }   /* >= ~80px tall */
+
+  /* Unassigned block — the import mess. Neutral grey fill (reads as "empty"),
+     dashed border, plus a faint WARNING wash so the eye is pulled here first. */
+  .block-unassigned {
+    background:
+      linear-gradient(0deg, rgb(var(--yellow) / .07), rgb(var(--yellow) / .07)),
+      rgb(var(--sunken));
+    border: 1.5px dashed rgb(var(--faint));
+  }
+  :root[data-theme="dark"] .block-unassigned {
+    background:
+      linear-gradient(0deg, rgb(var(--orange) / .10), rgb(var(--orange) / .10)),
+      rgb(var(--sunken));
+    border-color: rgb(var(--muted));
+  }
+  .block-unassigned::before { background: transparent; }
+  .block-unassigned:hover { box-shadow: 0 6px 20px -8px rgb(var(--orange) / .45); border-color: rgb(var(--orange) / .8); }
+
+  /* selected state for any block (bulk mode) */
+  .block.is-selected { outline-color: rgb(var(--blue)); box-shadow: 0 6px 22px -8px rgb(var(--blue) / .6); }
+  .block.is-selected::after {
+    content:"✓"; position:absolute; top:5px; right:6px;
+    font-size:.72rem; font-weight:700; color: rgb(var(--blue));
+  }
+
+  /* running block — live cyan, breathing rail */
+  .block-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
+  :root[data-theme="dark"] .block-running { background: rgb(var(--cyan) / .2); }
+  .block-running::before { background: rgb(var(--cyan)); }
+
+  /* now-line across the grid (today) */
+  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--cyan)); z-index:8; pointer-events:none; }
+  .now-line::before {
+    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--cyan));
+    box-shadow:0 0 0 3px rgb(var(--cyan) / .25);
+  }
+
+  /* fuzzy-picker option rows */
+  .pick-row[aria-selected="true"] { background: rgb(var(--blue) / .1); }
+
+  /* checkbox styled to brand */
+  .chk {
+    appearance:none; -webkit-appearance:none;
+    height:18px; width:18px; border-radius:6px; border:1.5px solid rgb(var(--faint));
+    background:rgb(var(--surface)); display:inline-grid; place-content:center; cursor:pointer;
+    transition: background .12s ease, border-color .12s ease;
+    flex: none;
+  }
+  .chk:checked { background: rgb(var(--blue)); border-color: rgb(var(--blue)); }
+  .chk:checked::after { content:"✓"; color: rgb(var(--oncolor)); font-size:.72rem; font-weight:800; line-height:1; }
+
+  /* segmented control (Woche / Monat, Alle / …) */
+  .seg { background: rgb(var(--sunken)); border:1px solid rgb(var(--line)); border-radius: 12px; padding:3px; }
+  .seg button, .seg a { border-radius: 9px; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
+  .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
+}

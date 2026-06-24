@@ -1,0 +1,64 @@
+package components
+
+// blockClasses assembles the .block class list from the VM flags.
+func blockClasses(vm SessionBlockVM) string {
+	cls := "block"
+	if vm.Unassigned {
+		cls += " block-unassigned"
+	}
+	if vm.Running {
+		cls += " block-running"
+	}
+	switch vm.Size {
+	case "sm":
+		cls += " block-sm"
+	case "md":
+		cls += " block-md"
+	}
+	return cls
+}
+
+// blockStyle builds the inline style: position/height always, plus the hue
+// custom property (--c) for assigned blocks so the rail + tint pick it up.
+func blockStyle(vm SessionBlockVM) string {
+	s := "top:" + itoa(vm.TopPx) + "px; height:" + itoa(vm.HeightPx) + "px"
+	if !vm.Unassigned && vm.Hue != "" {
+		s = "--c:var(--" + vm.Hue + "); " + s
+	}
+	return s
+}
+
+// titleClass dims the title text for unassigned blocks.
+func blockTitleClass(unassigned bool) string {
+	if unassigned {
+		return "b-title text-[.74rem] font-semibold leading-tight text-muted"
+	}
+	return "b-title text-[.78rem] font-semibold leading-tight block-c"
+}
+
+// SessionBlock renders a positioned worktime block in the time grid (ported
+// from studio-worktime-calendar.html:600-627). Hue is injected via --c; size
+// classes drive how much detail (time line, tag) is revealed.
+templ SessionBlock(vm SessionBlockVM) {
+	<button
+		class={ blockClasses(vm) }
+		style={ blockStyle(vm) }
+		data-session-id={ vm.ID }
+		aria-label={ vm.Title + " " + vm.TimeRange }
+	>
+		<span class="px-2.5 py-1.5">
+			<span class={ blockTitleClass(vm.Unassigned) }>
+				if vm.Unassigned {
+					<span class="text-orange" aria-hidden="true">{ vm.Glyph }</span>
+				} else {
+					<span aria-hidden="true">{ vm.Glyph }</span>
+				}
+				<span>{ vm.Title }</span>
+			</span>
+			<span class="b-time mt-0.5 font-mono text-[.66rem] tnum text-body">{ vm.TimeRange }</span>
+			if vm.Tag != "" {
+				<span class="b-extra mt-1.5">@Tag(vm.Tag)</span>
+			}
+		</span>
+	</button>
+}

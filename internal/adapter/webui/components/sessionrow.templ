@@ -1,0 +1,48 @@
+package components
+
+// rowTileClass picks the glyph-tile background+text for a session row: a soft
+// hue wash for assigned projects, an orange "attention" wash when unassigned.
+func rowTileClass(hue string, unassigned bool) string {
+	if unassigned {
+		return "bg-orange/10 text-orange"
+	}
+	switch hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "bg-" + hue + "/10 text-" + hue
+	default:
+		return "bg-sunken text-body"
+	}
+}
+
+// rowShellClass picks the row container chrome: a solid card for assigned
+// sessions, a dashed "empty" frame with a faint warning wash when unassigned.
+func rowShellClass(unassigned bool) string {
+	if unassigned {
+		return "rounded-2xl border-[1.5px] border-dashed border-faint bg-orange/[.05] px-3.5 py-3"
+	}
+	return "rounded-2xl bg-surface border border-line shadow-soft px-3.5 py-3"
+}
+
+// SessionRow renders one mobile-agenda / list row for a worktime session
+// (ported from studio-worktime-calendar.html:826-862). The checkbox is present
+// for bulk mode but hidden unless Selectable.
+templ SessionRow(vm SessionRowVM) {
+	<li class={ "agenda-row flex items-center gap-3", rowShellClass(vm.Unassigned) } data-session-id={ vm.ID }>
+		<input
+			type="checkbox"
+			class={ "chk row-chk", templ.KV("hidden", !vm.Selectable) }
+			aria-label={ vm.Title + " " + vm.TimeRange }
+		/>
+		<span class={ "grid place-items-center h-9 w-9 rounded-xl text-[.95rem] flex-none", rowTileClass(vm.Hue, vm.Unassigned) } aria-hidden="true">{ vm.Glyph }</span>
+		<div class="min-w-0 flex-1">
+			<p class={ "text-[.9rem] font-semibold truncate", templ.KV("text-muted", vm.Unassigned) }>
+				{ vm.Title }
+				if vm.Tag != "" {
+					<span class="ml-1">@Tag(vm.Tag)</span>
+				}
+			</p>
+			<p class="text-[.78rem] text-muted font-mono tnum">{ vm.TimeRange }</p>
+		</div>
+		<span class={ "font-mono text-[.85rem] font-semibold tnum flex-none", templ.KV("text-muted", vm.Unassigned) }>{ vm.Duration }</span>
+	</li>
+}
