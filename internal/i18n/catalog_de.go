@@ -137,6 +137,20 @@ func init() {
 			// week surface
 			"woche.title": "Woche",
 			"woche.empty": "Keine Sitzungen diese Woche.",
+			// stats page
+			"stats.eyebrow":          "Auswertung",
+			"stats.tileToday":        "Heute",
+			"stats.tileWeek":         "Woche",
+			"stats.tileMonth":        "Monat",
+			"stats.monthTotal":       "Monat gesamt",
+			"stats.onTrack":          "auf Kurs",
+			"stats.behind":           "Rückstand",
+			"stats.pace":             "Soll-Stand heute",
+			"stats.targetConfig":     "Tagesziel",
+			"stats.defaultTarget":    "Standard-Tagesziel (Min.)",
+			"stats.weekdayOverrides": "Pro Wochentag (optional)",
+			"stats.weekdayHint":      "Leer = Standard",
+			"stats.invalidTarget":    "Ungültiges Ziel",
 			// session edit dialog
 			"sessions.edit":    "Sitzung bearbeiten",
 			"sessions.project": "Projekt",

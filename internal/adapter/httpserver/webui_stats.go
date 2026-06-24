@@ -2,32 +2,14 @@ package httpserver
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
-
-// fmtMin renders whole minutes as HH:MM.
-func fmtMin(m int) string {
-	if m < 0 {
-		m = -m
-		return fmt.Sprintf("-%02d:%02d", m/60, m%60)
-	}
-	return fmt.Sprintf("%02d:%02d", m/60, m%60)
-}
-
-// fmtSaldo renders a duration as a signed saldo string, e.g. "+01:30" or "-00:30".
-func fmtSaldo(d time.Duration) string {
-	m := int(d / time.Minute)
-	if m >= 0 {
-		return "+" + fmtMin(m)
-	}
-	return fmtMin(m)
-}
 
 // clampPct returns v clamped to [0, 100].
 func clampPct(v int) int {
@@ -40,130 +22,102 @@ func clampPct(v int) int {
 	return v
 }
 
-func (s *Server) statsData(ctx context.Context, u domain.User, rng string) (webui.StatsData, error) {
+// burndownBannerVM maps a month burndown report onto the banner VM. The pace
+// marker sits at expected-by-now / Target; expected-by-now = Total − Saldo
+// (Saldo is defined as Total − expected). Pct is the logged fill. Both clamp
+// to [0,100]; a zero target leaves both at 0.
+func burndownBannerVM(rep domain.MonthBurndownReport) components.BurndownVM {
+	pct, pace := 0, 0
+	if rep.Target > 0 {
+		pct = clampPct(int(rep.Total * 100 / rep.Target))
+		expected := rep.Total - rep.Saldo
+		pace = clampPct(int(expected * 100 / rep.Target))
+	}
+	variant := "under"
+	if rep.OnTrack {
+		variant = "hit"
+	}
+	return components.BurndownVM{
+		Total:   webui.FmtVerbose(rep.Total),
+		Target:  webui.FmtVerbose(rep.Target),
+		Pct:     pct,
+		PacePct: pace,
+		Variant: variant,
+		OnTrack: rep.OnTrack,
+	}
+}
+
+func (s *Server) statsData(ctx context.Context, u domain.User) (webui.StatsVM, error) {
 	now := s.Clock.Now()
 
 	today, err := s.Stats.Today(ctx, u.ID)
 	if err != nil {
-		return webui.StatsData{}, err
+		return webui.StatsVM{}, err
 	}
-
 	burndown, err := s.Stats.Burndown(ctx, u.ID)
 	if err != nil {
-		return webui.StatsData{}, err
+		return webui.StatsVM{}, err
 	}
-
 	weekDays, err := s.Stats.Week(ctx, u.ID, time.Time{})
 	if err != nil {
-		return webui.StatsData{}, err
+		return webui.StatsVM{}, err
 	}
-
-	if rng != "month" {
-		rng = "week"
-	}
-	rangeStats, err := s.Stats.RangeStats(ctx, u.ID, rng)
-	if err != nil {
-		return webui.StatsData{}, err
-	}
-
 	set, _, err := s.GetSettings.Execute(ctx, u.ID)
 	if err != nil {
-		return webui.StatsData{}, err
+		return webui.StatsVM{}, err
 	}
 
-	// Build week rows.
-	weekRows := make([]webui.StatsWeekRow, 0, len(weekDays))
+	// Week saldo = Mon–Fri logged − target (weekends excluded, matching Woche).
+	var weekLogged, weekTarget time.Duration
 	for _, wd := range weekDays {
-		logged := int(wd.Total(now) / time.Minute)
-		target := int(wd.Target / time.Minute)
-		pct := 0
-		if target > 0 {
-			pct = clampPct(logged * 100 / target)
+		if wd.Date.Weekday() == time.Saturday || wd.Date.Weekday() == time.Sunday {
+			continue
 		}
-		isWorkday := wd.Date.Weekday() != time.Saturday && wd.Date.Weekday() != time.Sunday
-		weekRows = append(weekRows, webui.StatsWeekRow{
-			Date:    wd.Date.Format("Mon 02.01"),
-			Logged:  fmtMin(logged),
-			Target:  fmtMin(target),
-			Pct:     pct,
-			IsToday: wd.IsToday,
-			Workday: isWorkday,
-		})
+		weekLogged += wd.Total(now)
+		weekTarget += wd.Target
 	}
+	weekSaldo := weekLogged - weekTarget
 
-	// Monthly burndown bar percentage: logged vs target.
-	monthPct := 0
-	if burndown.Target > 0 {
-		monthPct = clampPct(int(burndown.Total * 100 / burndown.Target))
-	}
-
-	rangeLabel := "Woche"
-	if rng == "month" {
-		rangeLabel = "Monat"
-	}
-
-	// Range stats.
-	rngTotal := int(rangeStats.Total / time.Minute)
-	rngAvg := int(rangeStats.Avg / time.Minute)
-	rngMax := int(rangeStats.Max / time.Minute)
-	rngMin := int(rangeStats.Min / time.Minute)
-	rngSaldo := fmtSaldo(rangeStats.Overtime)
-
-	return webui.StatsData{
-		User:         u.Username,
-		TodayLogged:  fmtMin(int(today.Logged / time.Minute)),
-		TodayTarget:  fmtMin(int(today.Target / time.Minute)),
-		TodaySaldo:   fmtSaldo(today.Saldo),
-		TodayAhead:   today.Saldo >= 0,
-		MonthTotal:   fmtMin(int(burndown.Total / time.Minute)),
-		MonthTarget:  fmtMin(int(burndown.Target / time.Minute)),
-		MonthSaldo:   fmtSaldo(burndown.Saldo),
-		MonthOnTrack: burndown.OnTrack,
-		MonthPct:     monthPct,
-		Week:         weekRows,
-		Range: webui.StatsRange{
-			Total:      fmtMin(rngTotal),
-			Avg:        fmtMin(rngAvg),
-			Max:        fmtMin(rngMax),
-			Min:        fmtMin(rngMin),
-			Workdays:   rangeStats.Workdays,
-			Hits:       rangeStats.Hits,
-			Streak:     rangeStats.Streak,
-			BestStreak: rangeStats.BestStreak,
-			Saldo:      rngSaldo,
-		},
-		RangeLabel:    rangeLabel,
-		RangeParam:    rng,
+	return webui.StatsVM{
+		TodaySaldo:    webui.FmtSaldoVerbose(today.Saldo),
+		TodayPos:      today.Saldo >= 0,
+		TodaySub:      webui.FmtVerbose(today.Logged) + " / " + webui.FmtVerbose(today.Target),
+		WeekSaldo:     webui.FmtSaldoVerbose(weekSaldo),
+		WeekPos:       weekSaldo >= 0,
+		WeekSub:       webui.FmtVerbose(weekLogged) + " / " + webui.FmtVerbose(weekTarget),
+		MonthSaldo:    webui.FmtSaldoVerbose(burndown.Saldo),
+		MonthPos:      burndown.OnTrack,
+		MonthSub:      webui.FmtVerbose(burndown.Total) + " / " + webui.FmtVerbose(burndown.Target),
+		Burndown:      burndownBannerVM(burndown),
 		DefaultTarget: strconv.Itoa(set.DefaultTargetMin),
+		Weekdays:      webui.StatsWeekdayVMs(set.WeekdayTargetMin),
 	}, nil
 }
 
-func (s *Server) renderStatsFragment(w http.ResponseWriter, r *http.Request, u domain.User, rng string) {
-	d, err := s.statsData(r.Context(), u, rng)
+func (s *Server) renderStatsFragment(w http.ResponseWriter, r *http.Request, u domain.User) {
+	vm, err := s.statsData(r.Context(), u)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.StatsFragment(d).Render(r.Context(), w)
+	_ = webui.StatsFragment(vm).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebStatsHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	rng := r.URL.Query().Get("range")
-	d, err := s.statsData(r.Context(), u, rng)
+	vm, err := s.statsData(r.Context(), u)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.StatsPage(d).Render(r.Context(), w)
+	_ = webui.StatsPage(vm).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebStatsFragment(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	rng := r.URL.Query().Get("range")
-	s.renderStatsFragment(w, r, u, rng)
+	s.renderStatsFragment(w, r, u)
 }
 
 func (s *Server) handleWebSetTarget(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +143,5 @@ func (s *Server) handleWebSetTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
-	// Preserve the range the user had selected (I2: UX-regression fix).
-	rng := r.FormValue("range")
-	s.renderStatsFragment(w, r, u, rng)
+	s.renderStatsFragment(w, r, u)
 }

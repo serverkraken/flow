@@ -25,39 +25,6 @@ func TestFmtDur(t *testing.T) {
 	}
 }
 
-func TestMonthBarPct_Clamping(t *testing.T) {
-	// Below zero → clamp to 0.
-	if got := monthBarPct(StatsData{MonthPct: -10}); got != 0 {
-		t.Errorf("monthBarPct(-10): want 0, got %d", got)
-	}
-	// Above 100 → clamp to 100.
-	if got := monthBarPct(StatsData{MonthPct: 150}); got != 100 {
-		t.Errorf("monthBarPct(150): want 100, got %d", got)
-	}
-	// In range → pass through.
-	if got := monthBarPct(StatsData{MonthPct: 75}); got != 75 {
-		t.Errorf("monthBarPct(75): want 75, got %d", got)
-	}
-}
-
-func TestWeekBarStyle_Clamping(t *testing.T) {
-	// Below zero → width: 0%.
-	got := weekBarStyle(StatsWeekRow{Pct: -5})
-	if got != "width: 0%" {
-		t.Errorf("weekBarStyle(pct=-5): want %q, got %q", "width: 0%", got)
-	}
-	// Above 100 → width: 100%.
-	got = weekBarStyle(StatsWeekRow{Pct: 120})
-	if got != "width: 100%" {
-		t.Errorf("weekBarStyle(pct=120): want %q, got %q", "width: 100%", got)
-	}
-	// Normal → pass through.
-	got = weekBarStyle(StatsWeekRow{Pct: 60})
-	if got != "width: 60%" {
-		t.Errorf("weekBarStyle(pct=60): want %q, got %q", "width: 60%", got)
-	}
-}
-
 func TestWeekDay_Total_ActivePath(t *testing.T) {
 	now := time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)
 	// An active session that started today at 12:00 → 2h elapsed.

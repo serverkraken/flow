@@ -128,6 +128,20 @@ func init() {
 			// week surface
 			"woche.title": "Week",
 			"woche.empty": "No sessions this week.",
+			// stats page
+			"stats.eyebrow":          "Analysis",
+			"stats.tileToday":        "Today",
+			"stats.tileWeek":         "Week",
+			"stats.tileMonth":        "Month",
+			"stats.monthTotal":       "Month total",
+			"stats.onTrack":          "on track",
+			"stats.behind":           "behind",
+			"stats.pace":             "Target by today",
+			"stats.targetConfig":     "Daily target",
+			"stats.defaultTarget":    "Default daily target (min)",
+			"stats.weekdayOverrides": "Per weekday (optional)",
+			"stats.weekdayHint":      "Empty = default",
+			"stats.invalidTarget":    "Invalid target",
 			// session edit dialog
 			"sessions.edit":    "Edit session",
 			"sessions.project": "Project",
