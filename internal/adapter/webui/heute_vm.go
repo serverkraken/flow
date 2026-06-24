@@ -118,8 +118,10 @@ func heuteValueClass(r HeuteWeekRow) string {
 // heuteDotClass / heuteDotGlyph render the per-day pace dot.
 func heuteDotClass(r HeuteWeekRow) string {
 	switch r.State {
+	case "running":
+		return "text-blue text-[.8rem] animate-breathe" // blink ONLY when a timer is actually running this day
 	case "today":
-		return "text-blue text-[.8rem] animate-breathe"
+		return "text-blue text-[.8rem]" // static "today" marker
 	case "hit":
 		return "text-green text-[.8rem]"
 	default:
@@ -137,6 +139,8 @@ func heuteDotGlyph(r HeuteWeekRow) string {
 // heuteDotTitle resolves the localized title/aria-label for a pace dot.
 func heuteDotTitle(ctx context.Context, r HeuteWeekRow) string {
 	switch r.State {
+	case "running":
+		return components.T(ctx, "heute.running")
 	case "today":
 		return components.T(ctx, "heute.todayPace")
 	case "hit":

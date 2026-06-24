@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -47,4 +48,30 @@ func TestHistorieBulkErr(t *testing.T) {
 			t.Errorf("historieBulkErr(%v) = %q, want to contain %q", tc.err, got, tc.want)
 		}
 	}
+}
+
+// TestEffectiveStopMin is the #13 regression: a session ending at/after the
+// start day's midnight (e.g. a split chunk 18:51→00:00 next day) must fill to
+// 24:00 (1440) on its start-day column, not collapse to minute 0.
+func TestEffectiveStopMin(t *testing.T) {
+	loc := time.UTC
+	start := time.Date(2026, 6, 23, 18, 51, 0, 0, loc)
+	t.Run("same-day stop → its minute-of-day", func(t *testing.T) {
+		stop := time.Date(2026, 6, 23, 20, 0, 0, 0, loc)
+		if got := effectiveStopMin(start, stop, loc); got != 20*60 {
+			t.Fatalf("got %d, want %d", got, 20*60)
+		}
+	})
+	t.Run("midnight next day → 1440 (fills to end of start day)", func(t *testing.T) {
+		stop := time.Date(2026, 6, 24, 0, 0, 0, 0, loc)
+		if got := effectiveStopMin(start, stop, loc); got != 24*60 {
+			t.Fatalf("got %d, want 1440", got)
+		}
+	})
+	t.Run("later day afternoon → 1440", func(t *testing.T) {
+		stop := time.Date(2026, 6, 24, 14, 0, 0, 0, loc)
+		if got := effectiveStopMin(start, stop, loc); got != 24*60 {
+			t.Fatalf("got %d, want 1440", got)
+		}
+	})
 }

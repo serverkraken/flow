@@ -130,7 +130,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		// Week pace strip (Mon..Fri).
 		if week, werr := s.Stats.Week(ctx, u.ID, time.Time{}); werr == nil {
 			vm.WeekKW = fmt.Sprintf("KW %d", isoWeek(now))
-			vm.WeekRows, vm.WeekTotal, vm.WeekGoal = heuteWeekRows(week, now)
+			vm.WeekRows, vm.WeekTotal, vm.WeekGoal = heuteWeekRows(week, now, running)
 		}
 	}
 
@@ -243,7 +243,7 @@ func isoWeek(t time.Time) int {
 // heuteWeekRows maps the stats week days into Mon..Fri pace rows and returns the
 // week total + goal labels (workweek excludes weekends, matching the worktime
 // parity rules).
-func heuteWeekRows(week []domain.WeekDay, now time.Time) ([]webui.HeuteWeekRow, string, string) {
+func heuteWeekRows(week []domain.WeekDay, now time.Time, running *domain.WorkSession) ([]webui.HeuteWeekRow, string, string) {
 	labels := map[time.Weekday]string{
 		time.Monday: "Mo", time.Tuesday: "Di", time.Wednesday: "Mi",
 		time.Thursday: "Do", time.Friday: "Fr",
@@ -264,8 +264,10 @@ func heuteWeekRows(week []domain.WeekDay, now time.Time) ([]webui.HeuteWeekRow, 
 		}
 		state := "missed"
 		switch {
+		case running != nil && sameLocalDay(wd.Date, running.Start, now.Location()):
+			state = "running" // a timer is actually running on this day → blink
 		case wd.IsToday:
-			state = "today"
+			state = "today" // static "today" marker (no blink)
 		case wd.Target > 0 && logged >= wd.Target:
 			state = "hit"
 		}

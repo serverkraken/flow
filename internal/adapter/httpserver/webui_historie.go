@@ -245,7 +245,7 @@ func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui
 		if sess.Stop != nil {
 			stop = *sess.Stop
 		}
-		mins = append(mins, minuteOfDay(stop, loc))
+		mins = append(mins, effectiveStopMin(sess.Start, stop, loc))
 	}
 	floor, ceil := gridWindow(mins)
 	vm.WindowFloorMin = floor
@@ -451,7 +451,7 @@ func historieSessionVMs(sess domain.WorkSession, projects []domain.Project, now 
 	if sess.Stop != nil {
 		stopT = *sess.Stop
 	}
-	stopMin := minuteOfDay(stopT, loc)
+	stopMin := effectiveStopMin(sess.Start, stopT, loc)
 	if stopMin < startMin {
 		stopMin = startMin
 	}
@@ -606,6 +606,17 @@ func historieMonthYear(t time.Time) string {
 func minuteOfDay(t time.Time, loc *time.Location) int {
 	lt := t.In(loc)
 	return lt.Hour()*60 + lt.Minute()
+}
+
+// effectiveStopMin returns the block's stop minute-of-day on its START-day grid
+// column. A stop that lands on a later local day (e.g. a split chunk that ends
+// at 00:00 the next day, or any cross-midnight span) fills to 24:00 (1440)
+// instead of collapsing to minute 0 of the next day.
+func effectiveStopMin(start, stop time.Time, loc *time.Location) int {
+	if !sameLocalDay(start, stop, loc) {
+		return 24 * 60
+	}
+	return minuteOfDay(stop, loc)
 }
 
 // dayIndexMon returns the Mon-first weekday index (0=Mon..6=Sun) of t.
