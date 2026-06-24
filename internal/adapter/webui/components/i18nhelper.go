@@ -1,6 +1,6 @@
 // Package components holds the reusable WebUI design-system templ components.
 // It is separate from package webui so new components never clash with the
-// existing webui exports (Nav, WorktimePage, …). All user-facing strings come
+// existing webui exports (Base, AppShell, …). All user-facing strings come
 // from internal/i18n via the T/Tn helpers below, which templates call with the
 // implicit ctx.
 package components
