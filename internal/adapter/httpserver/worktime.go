@@ -355,6 +355,34 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+type reassignReq struct {
+	IDs       []string `json:"ids"`
+	ProjectID string   `json:"projectId"`
+}
+
+func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req reassignReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	n, err := s.BulkAssignProject.Execute(r.Context(), u.ID, req.IDs, req.ProjectID)
+	switch {
+	case errors.Is(err, usecase.ErrNoSessions):
+		http.Error(w, "no sessions selected", http.StatusBadRequest)
+		return
+	case errors.Is(err, ports.ErrProjectNotFound):
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	writeJSON(w, http.StatusOK, map[string]int{"updated": n})
+}
+
 // startOfDay truncates t to local midnight.
 func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())

@@ -2,6 +2,7 @@ package httpserver_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -243,5 +244,106 @@ func TestEditSession_OverlapConflict(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusConflict {
 		t.Fatalf("overlap edit status = %d, want 409", res.StatusCode)
+	}
+}
+
+// newReassignServer builds a server with BulkAssignProject wired in addition to
+// the standard worktime usecases. Returns the server, the session store, and the
+// project store so the test can seed data.
+func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeProjectStore) {
+	t.Helper()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
+	sessions := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeProjectStore()
+	ids := &testutil.FakeIDGen{}
+	srv := &httpserver.Server{
+		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
+		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               sse.NewBus(),
+		Clock:             clk,
+		Dev:               true,
+		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
+		ListSessions:      usecase.ListSessions{Sessions: sessions, Clock: clk},
+		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
+		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
+		EditSession:       usecase.EditSession{Sessions: sessions},
+		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
+		BulkAssignProject: usecase.BulkAssignProject{Sessions: sessions, Projects: ps},
+	}
+	return srv, sessions, ps
+}
+
+func TestHandleReassignSessions(t *testing.T) {
+	srv, sessions, ps := newReassignServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Create a session via the HTTP API. The FakeIDGen is shared: first NewID()
+	// call goes to EnsureUser (user "id-1"), second to the session ID ("id-2").
+	// OwnerID is json:"-" so we cannot read it from the response; use "id-1".
+	const ownerID = "id-1"
+	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tag": "work",
+	})
+	if res.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("seed session status = %d (%s)", res.StatusCode, b)
+	}
+	var created domain.WorkSession
+	_ = json.NewDecoder(res.Body).Decode(&created)
+	_ = res.Body.Close()
+
+	// Seed a project owned by the same user (ownerID is deterministic from FakeIDGen).
+	ctx := context.Background()
+	if _, err := ps.Create(ctx, domain.Project{ID: "p1", OwnerID: ownerID, Name: "flow"}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+
+	// Reassign the session.
+	reassignRes := authPost(t, ts.URL+"/api/v1/sessions/reassign", map[string]any{
+		"ids": []string{created.ID}, "projectId": "p1",
+	})
+	if reassignRes.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(reassignRes.Body)
+		t.Fatalf("reassign status = %d (%s)", reassignRes.StatusCode, b)
+	}
+	var out map[string]int
+	_ = json.NewDecoder(reassignRes.Body).Decode(&out)
+	_ = reassignRes.Body.Close()
+	if out["updated"] != 1 {
+		t.Fatalf("updated = %d, want 1", out["updated"])
+	}
+
+	// Verify via the store directly.
+	got, err := sessions.Get(ctx, ownerID, created.ID)
+	if err != nil {
+		t.Fatalf("store Get: %v", err)
+	}
+	if got.ProjectID == nil || *got.ProjectID != "p1" {
+		t.Fatalf("session not reassigned: %+v", got)
+	}
+}
+
+func TestHandleReassignSessions_EmptyIDs(t *testing.T) {
+	srv, _, _ := newReassignServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	res := authPost(t, ts.URL+"/api/v1/sessions/reassign", map[string]any{
+		"ids": []string{}, "projectId": "p1",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty ids status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestHandleReassignSessions_ForeignProject(t *testing.T) {
+	srv, _, _ := newReassignServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	res := authPost(t, ts.URL+"/api/v1/sessions/reassign", map[string]any{
+		"ids": []string{"a"}, "projectId": "nonexistent",
+	})
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("foreign project status = %d, want 404", res.StatusCode)
 	}
 }

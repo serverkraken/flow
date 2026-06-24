@@ -50,6 +50,9 @@ type Server struct {
 	BuildExport    usecase.BuildExport
 	SetProjectRate usecase.SetProjectRate
 
+	// slice 1 bulk ops
+	BulkAssignProject usecase.BulkAssignProject
+
 	// project bindings (resolution V0)
 	BindProject         usecase.BindProject
 	UnbindProject       usecase.UnbindProject
@@ -83,6 +86,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/events", s.authAny(http.HandlerFunc(s.handleEvents)))
 
 	mux.Handle("POST /api/v1/sessions", s.auth(http.HandlerFunc(s.handleStartSession)))
+	mux.Handle("POST /api/v1/sessions/reassign", s.authAny(http.HandlerFunc(s.handleReassignSessions)))
 	mux.Handle("POST /api/v1/sessions/{id}/stop", s.auth(http.HandlerFunc(s.handleStopSession)))
 	mux.Handle("GET /api/v1/sessions", s.auth(http.HandlerFunc(s.handleListSessions)))
 	mux.Handle("PATCH /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleEditSession)))
