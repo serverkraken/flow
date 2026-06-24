@@ -39,7 +39,7 @@ templ HistorieCalendarFragment(vm HistorieVM) {
 		@historieAgenda(vm)
 	}
 	@HistorieSelectionBarC(vm.Projects, "cal")
-	@historieEditDialog()
+	@historieEditDialog(vm.Projects)
 }
 
 // historieHeading is the page eyebrow + H1.
@@ -179,6 +179,10 @@ templ historieBlock(dayKey, dateKey string, b components.SessionBlockVM) {
 		data-date={ dateKey }
 		data-edit-id={ b.ID }
 		data-edit-from={ historieClockStart(b.TimeRange) }
+		data-edit-to={ b.EditTo }
+		data-edit-tag={ b.EditTag }
+		data-edit-note={ b.EditNote }
+		data-edit-project={ b.EditProjectID }
 		data-unassigned={ historieUnFlag(b.Unassigned) }>
 		@components.SessionBlock(b)
 	</div>
@@ -327,7 +331,7 @@ templ HistorieListFragment(vm HistorieListVM) {
 		}
 	</div>
 	@HistorieSelectionBarC(vm.Projects, "list")
-	@historieEditDialog()
+	@historieEditDialog(vm.Projects)
 }
 
 templ historieListHeading() {
@@ -352,11 +356,11 @@ templ HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) {
 // historieEditDialog reuses /ui/worktime/edit but with hx-swap="none": the
 // Historie #content already subscribes to sse:session.updated, so the fragment
 // reloads itself — we must NOT inject the Heute fragment here.
-templ historieEditDialog() {
-	@components.Dialog("editSession", "sessions.edit", historieEditForm())
+templ historieEditDialog(projects []components.FuzzyProjectVM) {
+	@components.Dialog("editSession", "sessions.edit", historieEditForm(projects))
 }
 
-templ historieEditForm() {
+templ historieEditForm(projects []components.FuzzyProjectVM) {
 	<form hx-post="/ui/worktime/edit" hx-swap="none" data-edit-form class="space-y-4">
 		<input type="hidden" name="sessionId" data-edit-field-id value=""/>
 		<input type="hidden" name="date" data-edit-field-date value=""/>
@@ -365,6 +369,9 @@ templ historieEditForm() {
 			<select name="projectId" data-edit-field-project
 				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
 				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
+				for _, p := range projects {
+					<option value={ p.ID }>{ p.Name }</option>
+				}
 			</select>
 		</label>
 		<input name="newProject" placeholder={ components.T(ctx, "picker.new") }

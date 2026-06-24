@@ -12,6 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -160,6 +161,8 @@ func historieBulkErr(err error) string {
 	switch {
 	case errors.Is(err, usecase.ErrNoSessions):
 		return "keine Sitzungen ausgewählt"
+	case errors.Is(err, ports.ErrProjectNotFound):
+		return "Projekt nicht gefunden"
 	default:
 		return "Aktion fehlgeschlagen: " + err.Error()
 	}
@@ -446,18 +449,30 @@ func historieSessionVMs(sess domain.WorkSession, projects []domain.Project, now 
 	glyph := projectGlyph(projects, sess.ProjectID)
 	unassigned := sess.ProjectID == nil
 
+	editTo := ""
+	if sess.Stop != nil {
+		editTo = sess.Stop.In(loc).Format("15:04")
+	}
+	editPID := ""
+	if sess.ProjectID != nil {
+		editPID = *sess.ProjectID
+	}
 	blk := components.SessionBlockVM{
-		ID:         sess.ID,
-		TopPx:      topPx,
-		HeightPx:   heightPx,
-		Hue:        hue,
-		Glyph:      glyph,
-		Title:      name,
-		TimeRange:  fmtClockRange(sess) + " · " + webui.FmtCompact(dur),
-		Tag:        sess.Tag,
-		Unassigned: unassigned,
-		Running:    sess.Running(),
-		Size:       historieBlockSize(heightPx),
+		ID:            sess.ID,
+		TopPx:         topPx,
+		HeightPx:      heightPx,
+		Hue:           hue,
+		Glyph:         glyph,
+		Title:         name,
+		TimeRange:     fmtClockRange(sess) + " · " + webui.FmtCompact(dur),
+		Tag:           sess.Tag,
+		Unassigned:    unassigned,
+		Running:       sess.Running(),
+		Size:          historieBlockSize(heightPx),
+		EditTo:        editTo,
+		EditTag:       sess.Tag,
+		EditNote:      sess.Note,
+		EditProjectID: editPID,
 	}
 	row := sessionRowVM(sess, projects, now)
 	row.Selectable = true

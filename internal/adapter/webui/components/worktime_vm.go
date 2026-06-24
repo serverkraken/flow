@@ -33,6 +33,14 @@ type SessionBlockVM struct {
 	Unassigned bool
 	Running    bool
 	Size       string // "" | "sm" | "md" (drives detail reveal; see mockup .block-sm/.block-md)
+	// EditTo / EditTag / EditNote / EditProjectID carry the session's current
+	// values into the block wrapper data-attrs so the single-edit dialog can
+	// prefill all fields from the clicked block (no extra server round-trip).
+	// EditTo is "HH:MM" in local time; empty for a running session.
+	EditTo        string
+	EditTag       string
+	EditNote      string
+	EditProjectID string
 }
 
 // KennzahlenVM drives the week summary metrics panel.

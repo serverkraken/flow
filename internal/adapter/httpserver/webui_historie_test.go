@@ -195,7 +195,7 @@ func TestHistorieReassign_NoProjectErrors(t *testing.T) {
 }
 
 // TestHistorieBulkDelete_RemovesSessions: POST bulk-delete removes the sessions
-// and returns the refreshed fragment.
+// and returns the refreshed fragment (the #content innerHTML swap target).
 func TestHistorieBulkDelete_RemovesSessions(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
@@ -210,8 +210,94 @@ func TestHistorieBulkDelete_RemovesSessions(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
+	// Handler returns the inner fragment (no AppShell <html> wrapper), matching
+	// what htmx swaps into #content via innerHTML.
+	body := rr.Body.String()
+	if strings.Contains(body, "<html") {
+		t.Errorf("bulk-delete should return the fragment (not the full page), got html tag")
+	}
+	if !strings.Contains(body, "Seitennavigation") && !strings.Contains(body, "data-session-id") && !strings.Contains(body, "keine Sitzungen") {
+		// At least one of: list fragment with pagination or empty state is expected.
+		// After delete both sessions are gone, so the empty state banner should appear.
+		if !strings.Contains(body, "Keine Sitzungen") && !strings.Contains(body, "historie") {
+			t.Errorf("bulk-delete response doesn't look like the list fragment, got:\n%s", body[:min(500, len(body))])
+		}
+	}
 	after := histSessionIDs(t, srv, "2026-06-15", "2026-06-22")
 	if len(after) != 0 {
 		t.Errorf("expected 0 sessions after bulk-delete, got %d", len(after))
 	}
+}
+
+// TestHistorieCalFragment_EditFormHasProjects: GET /ui/historie/calendar renders
+// the edit dialog with project options populated in the select.
+func TestHistorieCalFragment_EditFormHasProjects(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	seedHistProject(t, srv, "flow-rebuild")
+	srv.seedSession(t, "2026-06-16", "09:00", "10:30")
+
+	rr := histGet(t, srv, "/ui/historie/calendar")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, `value="id-1"`) {
+		t.Errorf("edit form missing project option with project id, got:\n%s", body[:min(2000, len(body))])
+	}
+	if !strings.Contains(body, "flow-rebuild") {
+		t.Errorf("edit form missing project name 'flow-rebuild'")
+	}
+}
+
+// TestHistorieCalFragment_BlockWrapCarriesEditTo: the calendar fragment's block
+// wrappers carry data-edit-to so the JS can prefill the stop field.
+func TestHistorieCalFragment_BlockWrapCarriesEditTo(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-16", "09:00", "10:30")
+
+	rr := histGet(t, srv, "/ui/historie/calendar")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "data-edit-to=") {
+		t.Errorf("block wrapper missing data-edit-to attribute")
+	}
+	// The stop time "10:30" should appear as data-edit-to value.
+	if !strings.Contains(body, `data-edit-to="10:30"`) {
+		t.Errorf("block wrapper data-edit-to missing expected stop time '10:30', body excerpt:\n%s", body[:min(3000, len(body))])
+	}
+}
+
+// TestHistorieBulkErr_ProjectNotFound: historieBulkErr maps ErrProjectNotFound
+// to a clean message (not the raw Go error).
+func TestHistorieBulkErr_ProjectNotFound(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
+	ids := histSessionIDs(t, srv, "2026-06-15", "2026-06-22")
+
+	// POST a non-existent project id → backend returns ErrProjectNotFound.
+	form := url.Values{
+		"ids":       {strings.Join(ids, ",")},
+		"projectId": {"does-not-exist"},
+		"view":      {"cal"},
+	}
+	rr := srv.postForm(t, "/ui/historie/reassign", form)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if strings.Contains(body, "project not found") || strings.Contains(body, "does-not-exist") {
+		t.Errorf("raw error leaked to UI: %q", body[:min(500, len(body))])
+	}
+	if !strings.Contains(body, "Projekt nicht gefunden") {
+		t.Errorf("expected 'Projekt nicht gefunden' banner, got:\n%s", body[:min(1000, len(body))])
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

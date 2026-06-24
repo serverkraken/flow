@@ -82,6 +82,16 @@
     if (t.closest("[data-select-toggle]")) { e.preventDefault(); setMode(!selectMode); return; }
     if (t.closest("[data-bulk-cancel]")) { e.preventDefault(); setMode(false); return; }
 
+    // Bulk-delete confirmed: submit via htmx (ConfirmDialog sets type=button).
+    var delConfirm = t.closest("[data-bulk-delete-confirm]");
+    if (delConfirm) {
+      e.preventDefault();
+      var delUrl = delConfirm.getAttribute("data-delete-url");
+      var delFormId = delConfirm.getAttribute("data-form-id");
+      submitDelete(delUrl, delFormId);
+      return;
+    }
+
     if (t.closest("[data-select-unassigned]")) {
       e.preventDefault();
       if (!selectMode) { setMode(true); }
@@ -183,6 +193,20 @@
     setMode(false);
   }
 
+  // Submit the bulk-delete via htmx (mirrors submitForm but uses the delete URL).
+  function submitDelete(url, formId) {
+    var form = document.getElementById(formId);
+    if (!form || !url) { return; }
+    updateCount();
+    if (window.htmx) {
+      window.htmx.ajax("POST", url, { source: form, target: "#content", swap: "innerHTML" });
+    } else {
+      form.setAttribute("action", url);
+      form.submit();
+    }
+    setMode(false);
+  }
+
   // Checkbox change (agenda / list rows).
   document.addEventListener("change", function (e) {
     var c = e.target;
@@ -215,6 +239,14 @@
     set("[data-edit-field-id]", wrap.getAttribute("data-edit-id"));
     set("[data-edit-field-date]", wrap.getAttribute("data-date"));
     set("[data-edit-field-from]", wrap.getAttribute("data-edit-from"));
+    set("[data-edit-field-to]", wrap.getAttribute("data-edit-to"));
+    set("[data-edit-field-tag]", wrap.getAttribute("data-edit-tag"));
+    // Textarea needs value set differently.
+    var noteEl = $("[data-edit-field-note]", dlg);
+    if (noteEl) { noteEl.value = wrap.getAttribute("data-edit-note") || ""; }
+    // Select the matching project option.
+    var projSel = $("[data-edit-field-project]", dlg);
+    if (projSel) { projSel.value = wrap.getAttribute("data-edit-project") || ""; }
     if (typeof dlg.showModal === "function") { dlg.showModal(); } else { dlg.setAttribute("open", ""); }
   }
 

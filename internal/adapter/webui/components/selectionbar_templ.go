@@ -129,7 +129,12 @@ func SelectionActionBar(vm SelectionBarVM) templ.Component {
 			ID:              "bulkDeleteConfirm",
 			BodyKey:         "historie.confirmDelete",
 			ConfirmLabelKey: "historie.delete",
-			ConfirmAttrs:    templ.Attributes{"type": "submit", "form": vm.Picker.FormID, "formaction": vm.DeleteURL, "data-bulk-delete-confirm": true},
+			ConfirmAttrs: templ.Attributes{
+				"type":                     "button",
+				"data-bulk-delete-confirm": true,
+				"data-delete-url":          vm.DeleteURL,
+				"data-form-id":             vm.Picker.FormID,
+			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
