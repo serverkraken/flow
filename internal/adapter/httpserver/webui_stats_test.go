@@ -95,7 +95,7 @@ func TestWebStatsFragment(t *testing.T) {
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
 
-	req, _ := http.NewRequest("GET", ts.URL+"/ui/stats/fragment?range=month", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/ui/stats/fragment", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -108,6 +108,7 @@ func TestWebStatsFragment(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("GET /ui/stats/fragment status=%d body=%.200s", res.StatusCode, body)
 	}
+	// Monat tile is always present in the stats fragment.
 	if !strings.Contains(body, "Monat") {
 		t.Fatalf("expected 'Monat' in body, got: %.200s", body)
 	}
@@ -150,13 +151,13 @@ func TestWebStatsHome_WithOvertime(t *testing.T) {
 	}
 }
 
-func TestWebStatsHome_MonthRange(t *testing.T) {
+func TestWebStatsHome_RendersMonatTile(t *testing.T) {
 	srv, codec, _ := newWebStatsServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
 
-	req, _ := http.NewRequest("GET", ts.URL+"/stats?range=month", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/stats", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -167,11 +168,11 @@ func TestWebStatsHome_MonthRange(t *testing.T) {
 	body := string(b)
 
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("GET /stats?range=month status=%d body=%.200s", res.StatusCode, body)
+		t.Fatalf("GET /stats status=%d body=%.200s", res.StatusCode, body)
 	}
-	// Month range should render "Monat" label in the fragment.
+	// Monat tile is always present in the stats page.
 	if !strings.Contains(body, "Monat") {
-		t.Fatalf("expected 'Monat' label for month range, got: %.200s", body)
+		t.Fatalf("expected 'Monat' in body, got: %.200s", body)
 	}
 }
 

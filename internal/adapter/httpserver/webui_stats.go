@@ -86,7 +86,7 @@ func (s *Server) statsData(ctx context.Context, u domain.User) (webui.StatsVM, e
 		WeekPos:       weekSaldo >= 0,
 		WeekSub:       webui.FmtVerbose(weekLogged) + " / " + webui.FmtVerbose(weekTarget),
 		MonthSaldo:    webui.FmtSaldoVerbose(burndown.Saldo),
-		MonthPos:      burndown.OnTrack,
+		MonthPos:      burndown.Saldo >= 0,
 		MonthSub:      webui.FmtVerbose(burndown.Total) + " / " + webui.FmtVerbose(burndown.Target),
 		Burndown:      burndownBannerVM(burndown),
 		DefaultTarget: strconv.Itoa(set.DefaultTargetMin),
