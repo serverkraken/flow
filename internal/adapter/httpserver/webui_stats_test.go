@@ -200,21 +200,18 @@ func TestWebStatsFragment_WeekRange(t *testing.T) {
 	}
 }
 
-func TestWebSetTargetWithWeekdayOverrides(t *testing.T) {
+func TestWebSetTarget_EmptyWeekdayClearsOverride(t *testing.T) {
 	srv, codec, settingsStore := newWebStatsServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
 
-	// Seed a Friday override - should be preserved after POST.
+	// Seed a Friday override, then POST WITHOUT any weekday field → the form is
+	// authoritative, so the override is cleared (empty = inherit default).
 	ctx := context.Background()
 	_ = settingsStore.SetTargetConfig(ctx, "u1", 480, map[time.Weekday]int{time.Friday: 240})
 
-	// POST with a range param so branch for range preservation is exercised.
-	form := url.Values{
-		"defaultTargetMin": {"420"},
-		"range":            {"month"},
-	}.Encode()
+	form := url.Values{"defaultTargetMin": {"420"}}.Encode()
 	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -222,28 +219,36 @@ func TestWebSetTargetWithWeekdayOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	body := string(b)
-
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("POST /ui/stats/target (with range=month) status=%d body=%.200s", res.StatusCode, body)
+		t.Fatalf("status=%d", res.StatusCode)
 	}
-	// Fragment with range=month should render "Monat".
-	if !strings.Contains(body, "Monat") {
-		t.Fatalf("expected 'Monat' in fragment (range=month), got: %.200s", body)
-	}
-	// Assert the default target was updated.
-	stored, err := settingsStore.Get(ctx, "u1")
-	if err != nil {
-		t.Fatalf("reading stored settings: %v", err)
-	}
+	stored, _ := settingsStore.Get(ctx, "u1")
 	if stored.DefaultTargetMin != 420 {
-		t.Errorf("want DefaultTargetMin=420, got %d", stored.DefaultTargetMin)
+		t.Errorf("want default 420, got %d", stored.DefaultTargetMin)
 	}
-	// Friday override preserved.
-	if v, ok := stored.WeekdayTargetMin[time.Friday]; !ok || v != 240 {
-		t.Errorf("Friday override should be 240, got map=%v", stored.WeekdayTargetMin)
+	if _, ok := stored.WeekdayTargetMin[time.Friday]; ok {
+		t.Errorf("Friday override should be cleared, got map=%v", stored.WeekdayTargetMin)
+	}
+}
+
+func TestWebSetTarget_InvalidWeekday(t *testing.T) {
+	srv, codec, _ := newWebStatsServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	form := url.Values{"defaultTargetMin": {"480"}, "mon": {"-5"}}.Encode()
+	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400 for negative weekday, got %d", res.StatusCode)
 	}
 }
 
@@ -272,12 +277,13 @@ func TestWebSetTarget(t *testing.T) {
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	cookieVal, _ := codec.Issue("u1")
-
-	// Pre-seed a Friday override to verify it is preserved after saving (I1 fix).
 	ctx := context.Background()
-	_ = settingsStore.SetTargetConfig(ctx, "u1", 480, map[time.Weekday]int{time.Friday: 300})
 
-	form := url.Values{"defaultTargetMin": {"360"}}.Encode()
+	// POST default + a Friday override → both persist exactly as posted.
+	form := url.Values{
+		"defaultTargetMin": {"360"},
+		"fri":              {"300"},
+	}.Encode()
 	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target", strings.NewReader(form))
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -292,20 +298,16 @@ func TestWebSetTarget(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("POST /ui/stats/target status=%d body=%.200s", res.StatusCode, body)
 	}
-	// Response should be the fragment re-render, containing "Heute" from StatsFragment.
-	if !strings.Contains(body, "Heute") {
+	if !strings.Contains(body, "Heute") { // fragment marker (saldo tile label)
 		t.Fatalf("expected 'Heute' (fragment marker) in body, got: %.200s", body)
 	}
-
-	// Assert the persisted default target is exactly what we POSTed (I3 fix).
 	stored, err := settingsStore.Get(ctx, "u1")
 	if err != nil {
 		t.Fatalf("reading stored settings: %v", err)
 	}
 	if stored.DefaultTargetMin != 360 {
-		t.Errorf("expected DefaultTargetMin=360, got %d", stored.DefaultTargetMin)
+		t.Errorf("want DefaultTargetMin=360, got %d", stored.DefaultTargetMin)
 	}
-	// Assert the Friday override was preserved and NOT wiped (I1 fix validation).
 	if v, ok := stored.WeekdayTargetMin[time.Friday]; !ok || v != 300 {
 		t.Errorf("Friday override should be 300, got map=%v", stored.WeekdayTargetMin)
 	}

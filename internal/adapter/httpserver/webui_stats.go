@@ -2,8 +2,11 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
@@ -120,6 +123,35 @@ func (s *Server) handleWebStatsFragment(w http.ResponseWriter, r *http.Request) 
 	s.renderStatsFragment(w, r, u)
 }
 
+// parseWeekdayTargets reads the five optional Mon–Fri target inputs. An empty
+// input omits that weekday (inherit the default); a non-numeric or negative
+// value is rejected with domain.ErrInvalidTarget.
+func parseWeekdayTargets(form url.Values) (map[time.Weekday]int, error) {
+	fields := []struct {
+		name string
+		wd   time.Weekday
+	}{
+		{"mon", time.Monday},
+		{"tue", time.Tuesday},
+		{"wed", time.Wednesday},
+		{"thu", time.Thursday},
+		{"fri", time.Friday},
+	}
+	out := make(map[time.Weekday]int, len(fields))
+	for _, f := range fields {
+		v := strings.TrimSpace(form.Get(f.name))
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return nil, domain.ErrInvalidTarget
+		}
+		out[f.wd] = n
+	}
+	return out, nil
+}
+
 func (s *Server) handleWebSetTarget(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
@@ -128,14 +160,15 @@ func (s *Server) handleWebSetTarget(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid defaultTargetMin", http.StatusBadRequest)
 		return
 	}
-	// Load existing settings to preserve per-weekday overrides (I1: data-loss fix).
-	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
+	weekday, err := parseWeekdayTargets(r.Form)
 	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
+		http.Error(w, "invalid weekday target", http.StatusBadRequest)
 		return
 	}
-	if err := s.SetTarget.Execute(r.Context(), u.ID, defaultMin, set.WeekdayTargetMin); err != nil {
-		if err == domain.ErrInvalidTarget {
+	// The form is now the authoritative source of BOTH the default and the
+	// per-weekday overrides (empty inputs omit a weekday → inherit the default).
+	if err := s.SetTarget.Execute(r.Context(), u.ID, defaultMin, weekday); err != nil {
+		if errors.Is(err, domain.ErrInvalidTarget) {
 			http.Error(w, "invalid target", http.StatusBadRequest)
 			return
 		}
