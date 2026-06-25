@@ -14,7 +14,7 @@ import (
 type paceDotKind int
 
 const (
-	paceDotMissed  paceDotKind = iota
+	paceDotMissed paceDotKind = iota
 	paceDotHit
 	paceDotRunning
 	paceDotDayOff

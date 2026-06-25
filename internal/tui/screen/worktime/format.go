@@ -43,4 +43,3 @@ var deWeekday = [...]string{"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"}
 func fmtDateDe(t time.Time) string {
 	return fmt.Sprintf("%s · %02d.%02d.%04d", deWeekday[int(t.Weekday())], t.Day(), int(t.Month()), t.Year())
 }
-

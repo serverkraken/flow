@@ -17,9 +17,9 @@ import (
 )
 
 type fakeAPI struct {
-	lastRng string
-	stats   apiclient.Stats
-	bd      apiclient.Burndown
+	lastRng  string
+	stats    apiclient.Stats
+	bd       apiclient.Burndown
 	statsErr error
 }
 
@@ -43,11 +43,11 @@ func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 // stubTitle is a minimal Route used as a nav target in tests.
 type stubTitle string
 
-func (s stubTitle) Title() string                          { return string(s) }
-func (s stubTitle) Init() tea.Cmd                          { return nil }
+func (s stubTitle) Title() string                         { return string(s) }
+func (s stubTitle) Init() tea.Cmd                         { return nil }
 func (s stubTitle) Update(tea.Msg) (shell.Route, tea.Cmd) { return s, nil }
-func (s stubTitle) View(shell.Frame) string                { return string(s) }
-func (s stubTitle) KeyHints() []keyhint.Hint               { return nil }
+func (s stubTitle) View(shell.Frame) string               { return string(s) }
+func (s stubTitle) KeyHints() []keyhint.Hint              { return nil }
 
 func TestStatsRoute_rendersTotalsAndDefaultsToWeek(t *testing.T) {
 	api := &fakeAPI{stats: apiclient.Stats{TotalMin: 600, AvgMin: 120, Workdays: 5, Streak: 3}}
@@ -225,11 +225,11 @@ func TestStatsRoute_sseNonSessionEvent(t *testing.T) {
 // wocheStub is a minimal Route stub for lateral nav tests in statsrange.
 type wocheStub struct{}
 
-func (wocheStub) Title() string                          { return "Woche" }
-func (wocheStub) Init() tea.Cmd                          { return nil }
+func (wocheStub) Title() string                         { return "Woche" }
+func (wocheStub) Init() tea.Cmd                         { return nil }
 func (wocheStub) Update(tea.Msg) (shell.Route, tea.Cmd) { return wocheStub{}, nil }
-func (wocheStub) View(shell.Frame) string                { return "Woche" }
-func (wocheStub) KeyHints() []keyhint.Hint               { return nil }
+func (wocheStub) View(shell.Frame) string               { return "Woche" }
+func (wocheStub) KeyHints() []keyhint.Hint              { return nil }
 
 func TestStats_StripAndLateralAndHideCrumb(t *testing.T) {
 	reg := wtnav.Registry{"w": func() shell.Route { return wocheStub{} }}

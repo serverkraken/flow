@@ -16,21 +16,25 @@ import (
 )
 
 func keyPress(s string) tea.KeyPressMsg { return tea.KeyPressMsg{Text: s} }
-func keyEnterMsg() tea.KeyPressMsg       { return tea.KeyPressMsg{Code: tea.KeyEnter} }
-func confirmResult(ok bool) tea.Msg      { return confirm.ResultMsg{Confirmed: ok} }
+func keyEnterMsg() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyEnter} }
+func confirmResult(ok bool) tea.Msg     { return confirm.ResultMsg{Confirmed: ok} }
 
 type fakeAPI struct {
-	today    apiclient.Today
-	sessions []domain.WorkSession
-	projects []domain.Project
-	started  bool
-	stopped  [2]string
-	edited   string
-	deleted  string
+	today     apiclient.Today
+	sessions  []domain.WorkSession
+	projects  []domain.Project
+	started   bool
+	stopped   [2]string
+	edited    string
+	editStart time.Time
+	editStop  *time.Time
+	deleted   string
 }
 
-func (f *fakeAPI) GetToday(context.Context) (apiclient.Today, error)          { return f.today, nil }
+func (f *fakeAPI) GetToday(context.Context) (apiclient.Today, error) { return f.today, nil }
+
 func (f *fakeAPI) ListSessions(context.Context) ([]domain.WorkSession, error) { return f.sessions, nil }
+
 func (f *fakeAPI) ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error) {
 	return f.sessions, nil
 }
@@ -39,12 +43,16 @@ func (f *fakeAPI) StartSession(context.Context, *string, string, string) (domain
 	f.started = true
 	return domain.WorkSession{ID: "new"}, nil
 }
+
 func (f *fakeAPI) StopSession(_ context.Context, id, pid string) (domain.WorkSession, error) {
 	f.stopped = [2]string{id, pid}
 	return domain.WorkSession{ID: id}, nil
 }
-func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ string, _ time.Time, _ *time.Time) (domain.WorkSession, error) {
+
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	f.edited = id
+	f.editStart = start
+	f.editStop = stop
 	return domain.WorkSession{ID: id}, nil
 }
 func (f *fakeAPI) DeleteSession(_ context.Context, id string) error { f.deleted = id; return nil }

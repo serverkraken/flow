@@ -39,7 +39,7 @@ type loadedMsg struct {
 // Route renders the current week. It reloads on session.* SSE events.
 type Route struct {
 	api    API
-	ddapi  daydetail.API  // nil when api does not satisfy daydetail.API (e.g. test stubs)
+	ddapi  daydetail.API // nil when api does not satisfy daydetail.API (e.g. test stubs)
 	pal    theme.Palette
 	reg    wtnav.Registry
 	days   []apiclient.WeekDay

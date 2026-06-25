@@ -534,7 +534,7 @@ func TestDayDetail_OverlapErrorShowsToast(t *testing.T) {
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
 
 	r = press(t, r, keyRune('n'))
-	r = press(t, r, keyEnter())  // select project
+	r = press(t, r, keyEnter()) // select project
 	r = typeInto(t, r, "09:00") // Von
 	r = press(t, r, keyTab())   // → Bis
 	r = typeInto(t, r, "10:00") // Bis

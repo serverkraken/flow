@@ -100,12 +100,14 @@ func renderSessionsList(st todayState, cursor, inner int, now time.Time, pal the
 	if st.Running && st.Active != nil {
 		elapsed := now.Sub(*st.Active)
 		rows = append(rows, theme.Active(
-			fmt.Sprintf("  %s %s → …   %s", glyphs.Active, st.Active.Format("15:04"), formatDurLive(elapsed)), pal))
+			fmt.Sprintf("  %s %s → …   %s", glyphs.Active, st.Active.Format("15:04"), formatDurLive(elapsed)), pal,
+		))
 	}
 	for i, s := range st.Completed {
 		if s.GapBefore > 0 {
 			rows = append(rows, theme.Dim(
-				fmt.Sprintf("%s%s Pause %s", theme.Gap(theme.PadMD*2+theme.PadXS), glyphs.BulletDot, formatDur(s.GapBefore)), pal))
+				fmt.Sprintf("%s%s Pause %s", theme.Gap(theme.PadMD*2+theme.PadXS), glyphs.BulletDot, formatDur(s.GapBefore)), pal,
+			))
 		}
 		dur := durationWidth8Style.Render(formatDur(s.Elapsed))
 		label := fmt.Sprintf("%s → %s   %s", s.Start.Format("15:04"), s.Stop.Format("15:04"), dur)

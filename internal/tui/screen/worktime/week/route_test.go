@@ -47,9 +47,11 @@ func (f fakeAPI) ListSessionsRange(_ context.Context, _, _ time.Time) ([]domain.
 func (f fakeAPI) AddSession(_ context.Context, _ *string, _, _ time.Time, _, _ string) (domain.WorkSession, error) {
 	return domain.WorkSession{}, nil
 }
+
 func (f fakeAPI) ListProjects(_ context.Context) ([]domain.Project, error) {
 	return nil, nil
 }
+
 func (f fakeAPI) CreateProject(_ context.Context, _ string) (domain.Project, error) {
 	return domain.Project{}, nil
 }
@@ -75,11 +77,11 @@ func drain(r shell.Route, cmd tea.Cmd) shell.Route {
 // stubTitle is a minimal Route used as a nav target in tests.
 type stubTitle string
 
-func (s stubTitle) Title() string                          { return string(s) }
-func (s stubTitle) Init() tea.Cmd                          { return nil }
+func (s stubTitle) Title() string                         { return string(s) }
+func (s stubTitle) Init() tea.Cmd                         { return nil }
 func (s stubTitle) Update(tea.Msg) (shell.Route, tea.Cmd) { return s, nil }
-func (s stubTitle) View(shell.Frame) string                { return string(s) }
-func (s stubTitle) KeyHints() []keyhint.Hint               { return nil }
+func (s stubTitle) View(shell.Frame) string               { return string(s) }
+func (s stubTitle) KeyHints() []keyhint.Hint              { return nil }
 
 func TestWeek_KeyHintsAdvertiseExport(t *testing.T) {
 	r := week.NewRoute(nil, theme.Default, nil)
@@ -312,7 +314,7 @@ func lastRefIsOneWeekBack(t *testing.T, ref string) bool {
 	return refYear == expectedYear && refWeek == expectedWeek
 }
 
-func testPalette() theme.Palette { return theme.Default }
+func testPalette() theme.Palette   { return theme.Default }
 func testRegistry() wtnav.Registry { return wtnav.Registry{} }
 
 func TestWeekRoute_PrevNextWeekRefAndForwardClamp(t *testing.T) {

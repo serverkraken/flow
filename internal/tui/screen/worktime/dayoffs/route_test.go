@@ -30,22 +30,27 @@ type fakeAPI struct {
 func (f *fakeAPI) ListDayOffs(_ context.Context, _, _ string) ([]apiclient.DayOff, error) {
 	return f.list, f.listErr
 }
+
 func (f *fakeAPI) GetSettings(_ context.Context) (apiclient.Settings, error) {
 	return f.settings, nil
 }
+
 func (f *fakeAPI) SetTargetConfig(_ context.Context, def int, _ map[string]int) error {
 	f.settings.DefaultTargetMin = def
 	return nil
 }
+
 func (f *fakeAPI) AddDayOffs(_ context.Context, from, _, kind, _ string, _ int, _ bool) error {
 	f.addedFrom = from
 	f.addedKind = kind
 	return nil
 }
+
 func (f *fakeAPI) DeleteDayOff(_ context.Context, day string) error {
 	f.deleted = day
 	return nil
 }
+
 func (f *fakeAPI) SetBundesland(_ context.Context, land string) error {
 	f.bundesland = land
 	return nil
@@ -640,7 +645,7 @@ func TestDayOffsRoute_addRejectsBisBeforeVon(t *testing.T) {
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	r, _ = r.Update(tea.KeyPressMsg{Text: "1"})
-	r, _ = r.Update(tea.KeyPressMsg{Text: "0"}) // Bis day = 10 (< Von 20)
+	r, _ = r.Update(tea.KeyPressMsg{Text: "0"})        // Bis day = 10 (< Von 20)
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Kategorie
 	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab}) // -> Label
 	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -656,10 +661,10 @@ func TestDayOffsRoute_addSubmitsDefaultKind(t *testing.T) {
 	api := &fakeAPI{}
 	r := drain(newRoute(api), nil)
 	r = drain(r, r.Init())
-	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})          // open add; Von focused (today=2026-06-18)
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Bis
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Kategorie
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Label
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})              // open add; Von focused (today=2026-06-18)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // -> Kategorie
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // -> Label
 	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // submit
 	_ = drain(r2, cmd)
 	if api.addedKind != "vacation" {
@@ -674,11 +679,11 @@ func TestDayOffsRoute_addSubmitsDefaultKind(t *testing.T) {
 // statsStub is a minimal shell.Route used by wtnav.Registry in nav tests.
 type statsStub struct{}
 
-func (statsStub) Init() tea.Cmd                          { return nil }
+func (statsStub) Init() tea.Cmd                         { return nil }
 func (statsStub) Update(tea.Msg) (shell.Route, tea.Cmd) { return statsStub{}, nil }
-func (statsStub) View(shell.Frame) string                { return "" }
-func (statsStub) Title() string                          { return "Stats" }
-func (statsStub) KeyHints() []keyhint.Hint               { return nil }
+func (statsStub) View(shell.Frame) string               { return "" }
+func (statsStub) Title() string                         { return "Stats" }
+func (statsStub) KeyHints() []keyhint.Hint              { return nil }
 
 // TestDayoffs_StripAndLeftPopsAndHideCrumb verifies the sub-tab strip is rendered,
 // HideBreadcrumb returns true, and ← emits a navigation command.
@@ -712,13 +717,13 @@ func TestDayOffsRoute_kindPickerSelectsKind(t *testing.T) {
 	api := &fakeAPI{}
 	r := drain(newRoute(api), nil)
 	r = drain(r, r.Init())
-	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})          // open add; Von focused
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Bis
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // -> Kategorie
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // open kind picker
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})  // vacation(0) -> sick(1)
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // confirm -> back to add form
-	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})   // Kategorie -> Label
+	r, _ = r.Update(tea.KeyPressMsg{Text: "a"})              // open add; Von focused
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // -> Bis
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // -> Kategorie
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})     // open kind picker
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyDown})      // vacation(0) -> sick(1)
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})     // confirm -> back to add form
+	r, _ = r.Update(tea.KeyPressMsg{Code: tea.KeyTab})       // Kategorie -> Label
 	r2, cmd := r.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // submit
 	_ = drain(r2, cmd)
 	if api.addedKind != "sick" {

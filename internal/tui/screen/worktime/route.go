@@ -36,6 +36,7 @@ const (
 	dialogBooking
 	dialogEdit
 	dialogDelete
+	dialogEditStart
 )
 
 type loadedMsg struct {
@@ -44,8 +45,10 @@ type loadedMsg struct {
 	projects []domain.Project
 	err      error
 }
-type projectsMsg struct{ projects []domain.Project }
-type liveTickMsg struct{}
+type (
+	projectsMsg struct{ projects []domain.Project }
+	liveTickMsg struct{}
+)
 
 type TodayRoute struct {
 	api todayAPI
@@ -63,6 +66,7 @@ type TodayRoute struct {
 	dialog  dialogKind
 	booking bookingState
 	edit    editState
+	adjust  adjustState
 	confirm confirmState
 }
 

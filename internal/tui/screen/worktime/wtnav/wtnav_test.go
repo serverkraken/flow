@@ -15,11 +15,11 @@ import (
 // stubRoute is a minimal shell.Route for registry factories.
 type stubRoute struct{ title string }
 
-func (s stubRoute) Title() string                          { return s.title }
-func (s stubRoute) Init() tea.Cmd                          { return nil }
+func (s stubRoute) Title() string                         { return s.title }
+func (s stubRoute) Init() tea.Cmd                         { return nil }
 func (s stubRoute) Update(tea.Msg) (shell.Route, tea.Cmd) { return s, nil }
-func (s stubRoute) View(shell.Frame) string                { return "" }
-func (s stubRoute) KeyHints() []keyhint.Hint               { return nil }
+func (s stubRoute) View(shell.Frame) string               { return "" }
+func (s stubRoute) KeyHints() []keyhint.Hint              { return nil }
 
 func key(c rune) tea.KeyPressMsg { return tea.KeyPressMsg{Code: c} }
 func run(cmd tea.Cmd) tea.Msg {

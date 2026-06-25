@@ -89,7 +89,7 @@ func TestReconstruct_ResolvesProjectName(t *testing.T) {
 	pid := "p1"
 	gone := "p-deleted"
 	sessions := []domain.WorkSession{
-		{ID: "a", Start: s, Stop: &e, ProjectID: &pid},   // resolvable
+		{ID: "a", Start: s, Stop: &e, ProjectID: &pid},    // resolvable
 		{ID: "b", Start: s2, Stop: &e2, ProjectID: &gone}, // unknown id -> empty
 	}
 	projects := []domain.Project{{ID: "p1", Name: "Flow"}}

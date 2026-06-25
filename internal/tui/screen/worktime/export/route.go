@@ -22,8 +22,10 @@ type API interface {
 	Export(ctx context.Context, from, to, format, projectID string) ([]byte, error)
 }
 
-type doneMsg struct{ path string }
-type errMsg struct{ err error }
+type (
+	doneMsg struct{ path string }
+	errMsg  struct{ err error }
+)
 
 // Route is the export form. now is injected for deterministic tests.
 type Route struct {

@@ -64,6 +64,8 @@ func (r *TodayRoute) handleDialogKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 		return r.handleBookingKey(k)
 	case dialogEdit:
 		return r.handleEditKey(k)
+	case dialogEditStart:
+		return r.handleAdjustStartKey(k)
 	case dialogDelete:
 		m, cmd := r.confirm.model.Update(k)
 		r.confirm.model = m
@@ -204,6 +206,74 @@ func (r *TodayRoute) submitEdit() tea.Cmd {
 	}
 }
 
+type adjustState struct {
+	id    string
+	date  time.Time
+	input textinput.Model
+}
+
+// openAdjustStart opens the start-edit dialog for the *running* session,
+// prefilled with its current start time. Reached via the ":" palette entry.
+func (r *TodayRoute) openAdjustStart() (shell.Route, tea.Cmd) {
+	if !r.st.Running || r.st.Active == nil {
+		return r, nil
+	}
+	in := form.NewTextInput("HH:MM", r.pal)
+	in.SetValue(r.st.Active.Format("15:04"))
+	cmd := in.Focus()
+	r.adjust = adjustState{id: r.st.ActiveID, date: *r.st.Active, input: in}
+	r.dialog = dialogEditStart
+	return r, cmd
+}
+
+func (r *TodayRoute) handleAdjustStartKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
+	switch k.Code {
+	case tea.KeyEsc:
+		r.dialog = dialogNone
+		return r, nil
+	case tea.KeyEnter:
+		return r, r.submitAdjustStart()
+	}
+	var cmd tea.Cmd
+	r.adjust.input, cmd = r.adjust.input.Update(k)
+	return r, cmd
+}
+
+// submitAdjustStart validates the HH:MM field and, on success, edits the
+// running session's start time with stop=nil so it keeps running.
+func (r *TodayRoute) submitAdjustStart() tea.Cmd {
+	startD, err := wtfmt.ParseHM(strings.TrimSpace(r.adjust.input.Value()))
+	if err != nil {
+		r.toast = toast.NewDanger("Start ungültig (HH:MM)", r.pal)
+		return r.toast.Init()
+	}
+	d := r.adjust.date
+	base := time.Date(d.Year(), d.Month(), d.Day(), 0, 0, 0, 0, d.Location())
+	startTime := base.Add(startD)
+	if startTime.After(r.now()) {
+		r.toast = toast.NewDanger("Start liegt in der Zukunft", r.pal)
+		return r.toast.Init()
+	}
+	id := r.adjust.id
+	api := r.api
+	r.dialog = dialogNone
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := api.EditSession(ctx, id, nil, "", "", startTime, nil); err != nil {
+			return loadedMsg{err: err}
+		}
+		return reloadMsg{}
+	}
+}
+
+func (r *TodayRoute) renderAdjustStart(f shell.Frame) string {
+	var b strings.Builder
+	b.WriteString("\n  Startzeit anpassen (enter speichert · esc bricht ab)\n\n")
+	fmt.Fprintf(&b, "  %-6s %s\n", "Start", r.adjust.input.View())
+	return b.String()
+}
+
 type confirmState struct{ model confirm.Model }
 
 func (r *TodayRoute) openDelete() (shell.Route, tea.Cmd) {
@@ -213,7 +283,8 @@ func (r *TodayRoute) openDelete() (shell.Route, tea.Cmd) {
 	s := r.st.Completed[r.cursor]
 	r.confirm = confirmState{model: confirm.NewDanger(
 		"Session löschen?",
-		fmt.Sprintf("%s → %s", s.Start.Format("15:04"), s.Stop.Format("15:04")), r.pal)}
+		fmt.Sprintf("%s → %s", s.Start.Format("15:04"), s.Stop.Format("15:04")), r.pal,
+	)}
 	r.dialog = dialogDelete
 	return r, nil
 }
@@ -224,6 +295,8 @@ func (r *TodayRoute) renderDialog(f shell.Frame) string {
 		return r.renderBooking(f)
 	case dialogEdit:
 		return r.renderEdit(f)
+	case dialogEditStart:
+		return r.renderAdjustStart(f)
 	case dialogDelete:
 		return r.confirm.model.View()
 	}
@@ -255,6 +328,8 @@ func (r *TodayRoute) dialogHints() []keyhint.Hint {
 		return []keyhint.Hint{{Key: "↑/↓", Desc: "wählen"}, {Key: "enter", Desc: "buchen"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogEdit:
 		return []keyhint.Hint{{Key: "tab", Desc: "Feld"}, {Key: "enter", Desc: "speichern"}, {Key: "esc", Desc: "abbrechen"}}
+	case dialogEditStart:
+		return []keyhint.Hint{{Key: "enter", Desc: "speichern"}, {Key: "esc", Desc: "abbrechen"}}
 	case dialogDelete:
 		return []keyhint.Hint{{Key: "y", Desc: "löschen"}, {Key: "n", Desc: "abbrechen"}}
 	}
