@@ -18,7 +18,7 @@ var navLinks = []navLink{
 	{"dayoffs", "/dayoffs", "dayoffs"},
 	{"stats", "/stats", "stats"},
 	{"export", "/export", "export"},
-	{"docs", "/docs", "docs"},
+	{"docs", "/wissen", "wissen"},
 	{"projekte", "/projects", "projekte"},
 }
 

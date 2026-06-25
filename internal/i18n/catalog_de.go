@@ -8,6 +8,7 @@ func init() {
 			"app.tagline": "Zeit & Wissen",
 			// top-level navigation
 			"nav.today":     "Heute",
+			"nav.wissen":    "Wissen",
 			"nav.week":      "Woche",
 			"nav.history":   "Historie",
 			"nav.knowledge": "Wissen",

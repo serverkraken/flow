@@ -44,6 +44,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		ListTags:          usecase.ListTags{Docs: docs},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: docs},
+		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs},
 	}
 	return srv, codec, docs, projects
 }
@@ -88,6 +89,22 @@ func TestWebWissenSearch(t *testing.T) {
 	}
 	if !strings.Contains(body, "Search Hit") || !strings.Contains(body, "<mark>alpha</mark>") {
 		t.Fatalf("expected search result and highlighted snippet, got %.800s", body)
+	}
+}
+
+func TestWissenRoutesCutover(t *testing.T) {
+	srv, codec, _, _ := newWebWissenServer(t)
+	h := srv.Routes()
+
+	for _, path := range []string{"/wissen", "/wissen/neu"} {
+		body, status := getWissen(t, h, path, codec)
+		if status != http.StatusOK {
+			t.Fatalf("GET %s status=%d body=%.300s", path, status, body)
+		}
+	}
+	_, status := getWissen(t, h, "/docs", codec)
+	if status != http.StatusNotFound {
+		t.Fatalf("GET /docs status=%d, want 404", status)
 	}
 }
 

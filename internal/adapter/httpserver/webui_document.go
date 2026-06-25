@@ -87,3 +87,30 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.DocumentPage(vm).Render(r.Context(), w)
 }
+
+func (s *Server) handleWebDocReembed(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if err := s.RetryEmbedding.Execute(r.Context(), u.ID, id); err != nil {
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if r.Header.Get("HX-Request") == "" {
+		http.Redirect(w, r, "/wissen/"+id, http.StatusSeeOther)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.DocumentEmbedBadge(id, webui.EmbedView{State: "pending"}).Render(r.Context(), w)
+}
+
+func truncateError(s string) string {
+	const max = 80
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	return s
+}

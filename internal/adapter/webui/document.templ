@@ -73,7 +73,7 @@ templ DocumentFragment(vm DocumentVM) {
 				</div>
 			</div>
 			if vm.Embed != nil {
-				@documentEmbedBadge(vm.ID, *vm.Embed)
+				@DocumentEmbedBadge(vm.ID, *vm.Embed)
 			}
 			@components.ConfirmDialog(components.ConfirmSpec{
 				ID: "del-" + vm.ID,
@@ -99,7 +99,7 @@ templ DocumentFragment(vm DocumentVM) {
 	</article>
 }
 
-templ documentEmbedBadge(docID string, e EmbedView) {
+templ DocumentEmbedBadge(docID string, e EmbedView) {
 	<div class="mb-4 flex flex-wrap items-center gap-2 text-[.8rem]">
 		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
 			{ components.T(ctx, embedLabelKey(e.State)) }

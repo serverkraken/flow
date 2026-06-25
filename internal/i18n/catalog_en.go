@@ -6,6 +6,7 @@ func init() {
 			"app.name":               "flow",
 			"app.tagline":            "Time & Knowledge",
 			"nav.today":              "Today",
+			"nav.wissen":             "Knowledge",
 			"nav.week":               "Week",
 			"nav.history":            "History",
 			"nav.knowledge":          "Knowledge",

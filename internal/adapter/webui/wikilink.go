@@ -25,7 +25,7 @@ type WikilinkResolver func(target string) (href, title string, ok bool)
 // docPolicy is the bluemonday policy used by RenderDocument. It
 // extends UGCPolicy to preserve the `class` attribute (for
 // wikilink/wikilink-broken markers) and relative hrefs (e.g.
-// /docs/d-arch).
+// /wissen/d-arch).
 var (
 	docPolicyOnce sync.Once
 	docPolicy     *bluemonday.Policy

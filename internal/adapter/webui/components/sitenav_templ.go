@@ -18,7 +18,7 @@ type NavItem struct {
 func PrimaryNav() []NavItem {
 	return []NavItem{
 		{"today", "/", "nav.today", "▶"},
-		{"wissen", "/docs", "nav.knowledge", "◆"},
+		{"docs", "/wissen", "nav.wissen", "◆"},
 		{"projekte", "/projects", "nav.projects", "●"},
 		{"stats", "/stats", "nav.stats", "▲"},
 	}

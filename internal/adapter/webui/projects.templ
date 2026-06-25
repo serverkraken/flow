@@ -184,7 +184,7 @@ templ projectCockpitBody(d ProjectCockpit) {
 			<ul class="divide-y divide-slate-100">
 				for _, doc := range d.Docs {
 					<li class="py-1 text-sm">
-						<a href={ templ.SafeURL("/docs/" + doc.ID) } class="hover:text-slate-700">{ doc.Title }</a>
+						<a href={ templ.SafeURL("/wissen/" + doc.ID) } class="hover:text-slate-700">{ doc.Title }</a>
 					</li>
 				}
 			</ul>
