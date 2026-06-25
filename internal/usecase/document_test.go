@@ -309,6 +309,9 @@ func (s errDocStore) Get(_ context.Context, ownerID, id string) (domain.Document
 func (s errDocStore) List(_ context.Context, ownerID string, _ *string, _ ...string) ([]domain.Document, error) {
 	return nil, s.err
 }
+func (s errDocStore) ListPage(_ context.Context, ownerID string, _ *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
+	panic("unexpected ListPage")
+}
 func (s errDocStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {
 	panic("unexpected Update")
 }

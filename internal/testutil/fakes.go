@@ -531,6 +531,28 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *s
 	return out, nil
 }
 
+func (s *FakeDocumentStore) ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
+	all, err := s.List(ctx, ownerID, projectID, tags...)
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(all)
+	if limit <= 0 {
+		limit = total
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 func matchesProject(docPID, filter *string) bool {
 	if filter == nil {
 		return true

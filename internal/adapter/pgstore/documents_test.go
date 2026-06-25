@@ -151,6 +151,61 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ListPage(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-page", "sub-page", "pageuser", "page@x.de", "Page User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	other, _ := domain.NewUser("other", "sub-page-other", "otheruser", "other@x.de", "Other User")
+	if _, err := users.UpsertBySub(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewDocumentStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+	mk := func(id string, updated time.Time) {
+		_, err := st.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u-page", Type: domain.DocFree, Path: id, Tags: []string{"go"},
+			CreatedAt: now, UpdatedAt: updated,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("page-old", now)
+	mk("page-mid", now.Add(time.Minute))
+	mk("page-new", now.Add(2*time.Minute))
+	_, err = st.Create(ctx, domain.Document{
+		ID: "page-foreign", OwnerID: "other", Type: domain.DocFree, Path: "foreign",
+		CreatedAt: now, UpdatedAt: now.Add(3 * time.Minute),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, total, err := st.ListPage(ctx, "u-page", nil, 2, 1, "go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 3 {
+		t.Fatalf("total=%d want 3", total)
+	}
+	if len(got) != 2 || got[0].ID != "page-mid" || got[1].ID != "page-old" {
+		t.Fatalf("page = %#v, want [page-mid page-old]", got)
+	}
+}
+
 func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

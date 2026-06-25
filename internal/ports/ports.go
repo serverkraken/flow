@@ -154,6 +154,9 @@ type DocumentStore interface {
 	// documents containing ALL of them are returned (AND semantics).
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
 	List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error)
+	// ListPage returns one page of documents newest-first plus the total count
+	// matching the owner/project/tag filter, for server-side pagination.
+	ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
 	// ReplaceLinks rewrites the outbound wikilink targets of one document

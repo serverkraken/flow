@@ -80,15 +80,36 @@ func (s *DocumentStore) List(ctx context.Context, ownerID string, projectID *str
 		return nil, fmt.Errorf("pgstore: list documents: %w", err)
 	}
 	defer rows.Close()
-	var out []domain.Document
-	for rows.Next() {
-		d, err := scanDocument(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, d)
+	return scanDocuments(rows)
+}
+
+func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
+	where := ` WHERE owner_id=$1`
+	args := []any{ownerID}
+	where = appendProjectFilter(where, "project_id", &args, projectID)
+	if len(tags) > 0 {
+		args = append(args, tags)
+		where += fmt.Sprintf(` AND tags @> $%d`, len(args))
 	}
-	return out, rows.Err()
+
+	var total int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM documents`+where, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("pgstore: count documents page: %w", err)
+	}
+
+	args = append(args, limit, offset)
+	q := `SELECT ` + docCols + ` FROM documents` + where +
+		fmt.Sprintf(` ORDER BY updated_at DESC LIMIT $%d OFFSET $%d`, len(args)-1, len(args))
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("pgstore: list documents page: %w", err)
+	}
+	defer rows.Close()
+	docs, err := scanDocuments(rows)
+	if err != nil {
+		return nil, 0, err
+	}
+	return docs, total, nil
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {
@@ -371,4 +392,16 @@ func scanDocument(r rowScanner) (domain.Document, error) {
 		}
 	}
 	return d, nil
+}
+
+func scanDocuments(rows pgx.Rows) ([]domain.Document, error) {
+	var out []domain.Document
+	for rows.Next() {
+		d, err := scanDocument(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
