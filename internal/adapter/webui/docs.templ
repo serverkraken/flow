@@ -42,11 +42,13 @@ type TagLink struct {
 
 // DocRow is one document in the list.
 type DocRow struct {
-	ID    string
-	Type  string
-	Path  string
-	Title string
-	Tags  []string
+	ID           string
+	Type         string
+	Path         string
+	Title        string
+	Tags         []string
+	ProjectID    string
+	ProjectColor string
 }
 
 // DocDetail is the full document view model.

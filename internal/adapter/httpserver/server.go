@@ -66,6 +66,7 @@ type Server struct {
 	ImportDocument    usecase.ImportDocument
 	GetDocument       usecase.GetDocument
 	ListDocuments     usecase.ListDocuments
+	ListDocumentsPage *usecase.ListDocumentsPage
 	UpdateDocument    usecase.UpdateDocument
 	DeleteDocument    usecase.DeleteDocument
 	BacklinksDocument usecase.Backlinks
