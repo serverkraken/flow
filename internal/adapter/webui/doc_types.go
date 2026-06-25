@@ -26,6 +26,7 @@ type DocRow struct {
 	Type         string
 	Path         string
 	Title        string
+	Preview      string
 	Tags         []string
 	ProjectID    string
 	ProjectColor string
