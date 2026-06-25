@@ -162,6 +162,8 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 			}
 		}
 		return r, nil
+	case adjustStartMsg:
+		return r.openAdjustStart()
 	case tea.KeyPressMsg:
 		return r.handleKey(m)
 	}
