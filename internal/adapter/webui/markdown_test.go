@@ -65,3 +65,13 @@ func TestRenderDocument_XSSStripped(t *testing.T) {
 		t.Fatalf("XSS not stripped: %s", out)
 	}
 }
+
+func TestRenderDocument_CodeHighlightUsesClasses(t *testing.T) {
+	out := string(RenderDocument("```go\nfunc main() {}\n```\n", resolveNone))
+	if !strings.Contains(out, `class="chroma"`) {
+		t.Fatalf("expected chroma container, got: %s", out)
+	}
+	if strings.Contains(out, "style=") {
+		t.Fatalf("highlighting must be class-based, found inline style: %s", out)
+	}
+}

@@ -49,6 +49,7 @@ func getDocPolicy() *bluemonday.Policy {
 		p.AllowElements("div")
 		p.AllowAttrs("class").OnElements("div", "p")
 		p.AllowAttrs("aria-hidden").OnElements("span")
+		p.AllowAttrs("class").OnElements("pre", "code", "span")
 		docPolicy = p
 	})
 	return docPolicy
@@ -67,6 +68,7 @@ func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
 		goldmark.WithExtensions(
 			extension.GFM,
 			extension.Footnote,
+			highlightingExtension(),
 		),
 		goldmark.WithParserOptions(
 			parser.WithInlineParsers(
