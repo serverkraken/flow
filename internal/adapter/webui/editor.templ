@@ -1,0 +1,107 @@
+package webui
+
+import (
+	"html/template"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+templ MarkdownPreview(html template.HTML) {
+	@components.MarkdownProse(html)
+}
+
+templ EditorPage(vm EditorVM) {
+	@components.Base("wissen", editorBody(vm))
+}
+
+templ editorBody(vm EditorVM) {
+	@components.AppShell("docs", editorBreadcrumb(vm), nil, editorOuter(vm))
+}
+
+templ editorBreadcrumb(vm EditorVM) {
+	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
+		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
+		<span class="mx-1.5 text-faint">/</span>
+		<span class="text-body">{ components.T(ctx, vm.HeadingKey()) }</span>
+	</nav>
+}
+
+templ editorOuter(vm EditorVM) {
+	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+		<div>
+			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.knowledge") }</p>
+			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, vm.HeadingKey()) }</h1>
+		</div>
+		if vm.Editing() {
+			<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
+				{ components.T(ctx, "common.cancel") }
+			</a>
+		} else {
+			<a href="/wissen" class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
+				{ components.T(ctx, "common.cancel") }
+			</a>
+		}
+	</header>
+	if vm.Err != "" {
+		<p class="mb-5 rounded-2xl bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
+	}
+	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
+		<form action={ templ.SafeURL(vm.Action()) } method="post" class="rounded-2xl border border-line bg-surface p-5 shadow-soft">
+			<div class="grid gap-4 sm:grid-cols-2">
+				<label class="block">
+					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
+					if vm.Editing() {
+						<input type="text" value={ vm.Type } disabled class="w-full rounded-xl border border-line bg-sunken px-3 py-2 text-[.9rem] text-muted"/>
+					} else {
+						<select name="type" class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none">
+							for _, option := range vm.TypeOptions {
+								<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
+							}
+						</select>
+					}
+				</label>
+				if !vm.Editing() {
+					<label class="block">
+						<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
+						<select name="projectId" class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none">
+							<option value="">{ components.T(ctx, "wissen.project.none") }</option>
+							for _, option := range vm.ProjectOptions {
+								<option value={ option.Value } selected?={ option.Value == vm.ProjectID }>{ option.Label }</option>
+							}
+						</select>
+					</label>
+				}
+			</div>
+			<label class="mt-4 block">
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
+				if vm.Editing() {
+					<input type="text" value={ vm.Path } disabled class="w-full rounded-xl border border-line bg-sunken px-3 py-2 font-mono text-[.9rem] text-muted"/>
+				} else {
+					<input type="text" name="path" value={ vm.Path } class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+				}
+			</label>
+			<label class="mt-4 block">
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
+				<input type="text" name="title" value={ vm.Title } class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+			</label>
+			<label class="mt-4 block">
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
+				<textarea name="body"
+					class="h-[60vh] min-h-96 w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.86rem] leading-relaxed focus:border-blue/40 focus:outline-none"
+					hx-post="/wissen/preview"
+					hx-trigger="keyup changed delay:400ms, load"
+					hx-target="#preview"
+					hx-swap="innerHTML">{ vm.Body }</textarea>
+			</label>
+			<div class="mt-5 flex justify-end">
+				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
+			</div>
+		</form>
+		<section class="rounded-2xl border border-line bg-surface p-5 shadow-soft">
+			<h2 class="mb-4 font-display text-lg font-semibold text-ink">{ components.T(ctx, "wissen.preview") }</h2>
+			<div id="preview">
+				@MarkdownPreview(vm.PreviewHTML)
+			</div>
+		</section>
+	</div>
+}
