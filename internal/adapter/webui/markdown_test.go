@@ -28,3 +28,40 @@ func TestRenderMarkdown_SkipsFrontmatter(t *testing.T) {
 		t.Fatalf("body heading missing: %q", html)
 	}
 }
+
+func resolveNone(target string) (string, string, bool) { return "", "", false }
+
+func TestRenderDocument_GFMTable(t *testing.T) {
+	out := string(RenderDocument("| A | B |\n|---|---|\n| 1 | 2 |\n", resolveNone))
+	if !strings.Contains(out, "<table") || !strings.Contains(out, "<td") {
+		t.Fatalf("expected GFM table, got: %s", out)
+	}
+}
+
+func TestRenderDocument_Tasklist(t *testing.T) {
+	out := string(RenderDocument("- [x] done\n- [ ] todo\n", resolveNone))
+	if !strings.Contains(out, `type="checkbox"`) {
+		t.Fatalf("expected task checkboxes, got: %s", out)
+	}
+}
+
+func TestRenderDocument_Strikethrough(t *testing.T) {
+	out := string(RenderDocument("~~gone~~\n", resolveNone))
+	if !strings.Contains(out, "<del>") {
+		t.Fatalf("expected <del>, got: %s", out)
+	}
+}
+
+func TestRenderDocument_Footnote(t *testing.T) {
+	out := string(RenderDocument("Text[^1]\n\n[^1]: note\n", resolveNone))
+	if !strings.Contains(out, `class="footnotes"`) && !strings.Contains(out, "footnote-ref") {
+		t.Fatalf("expected footnote markup, got: %s", out)
+	}
+}
+
+func TestRenderDocument_XSSStripped(t *testing.T) {
+	out := string(RenderDocument("<script>alert(1)</script>\n\n[ok](javascript:alert(1))\n", resolveNone))
+	if strings.Contains(out, "<script") || strings.Contains(out, "javascript:") {
+		t.Fatalf("XSS not stripped: %s", out)
+	}
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/text"
@@ -37,6 +38,14 @@ func getDocPolicy() *bluemonday.Policy {
 		p.AllowAttrs("href").OnElements("a")
 		p.AllowRelativeURLs(true)
 		p.RequireParseableURLs(true)
+		p.AllowAttrs("align").OnElements("td", "th")
+		p.AllowElements("table", "thead", "tbody", "tr", "th", "td")
+		p.AllowAttrs("type", "checked", "disabled").OnElements("input")
+		p.AllowAttrs("class").OnElements("li", "ul")
+		p.AllowElements("sup", "section")
+		p.AllowAttrs("id").OnElements("li", "sup", "a", "section")
+		p.AllowAttrs("class").OnElements("section", "ol", "li", "sup")
+		p.AllowAttrs("role", "aria-label").OnElements("a", "section")
 		docPolicy = p
 	})
 	return docPolicy
@@ -52,6 +61,10 @@ func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
 		src = src[start:]
 	}
 	gm := goldmark.New(
+		goldmark.WithExtensions(
+			extension.GFM,
+			extension.Footnote,
+		),
 		goldmark.WithParserOptions(
 			parser.WithInlineParsers(
 				util.Prioritized(&wikiLinkParser{}, 100),
