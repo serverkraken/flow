@@ -3,10 +3,31 @@
 Conventions for any coding agent (Claude Code / Gemini CLI / Codex) working in this repo.
 
 ## Current work
-Active plan: `docs/superpowers/plans/2026-06-25-flow-webui-wissen-markdown.md`
-(design spec: `docs/superpowers/specs/2026-06-25-flow-webui-wissen-markdown-design.md`).
-Execute it task-by-task starting at **Task 1** (Task 0 = this file, done). Each
-task is self-contained: write the failing test, run it, implement, run it, commit.
+Active plan: `docs/superpowers/plans/2026-06-25-worktime-edit-running-start.md`
+(design spec: `docs/superpowers/specs/2026-06-25-worktime-edit-running-start-design.md`).
+Execute it task-by-task starting at **Task 1**. Each task is self-contained:
+write the failing test, run it (see it fail), implement minimal code, run it
+(see it pass), commit. Run `make ci` green before declaring the work done.
+
+This is a **TUI** task (`internal/tui/...`), not WebUI — no templ/Tailwind/SSE
+changes. `make verify-generate`/`verify-css` stay green untouched; the relevant
+gates are `go test`, `gofumpt -l` (no output) and `staticcheck` via `make lint`.
+
+### TUI conventions for this task
+- The shell (`internal/tui/shell`) is a bubbletea/v2 root model holding tabs as
+  nav-stacks. Routes implement `shell.Route`; cross-cutting behaviour is added
+  via **optional interfaces** (`InputCapturer`, `FullScreener`, `BreadcrumbHider`
+  …) — Task 1 adds `PaletteProvider` the same way. Follow that exact pattern.
+- `TodayRoute` (`internal/tui/screen/worktime`) is a pointer receiver; its `st`
+  field is the reconstructed `todayState` (`st.Running`, `st.Active *time.Time`,
+  `st.ActiveID`). Dialogs follow the `editState`/`openEdit`/`submitEdit` shape in
+  `dialogs.go` — mirror it for the new start-edit dialog.
+- UI strings are **German**. Time input is `HH:MM` parsed via
+  `wtfmt.ParseHM`. Errors surface as `toast.NewDanger(...)`, never popups.
+- The backend already supports this: `apiclient.EditSession(..., stop *time.Time)`
+  with `stop == nil` keeps a session running. Do **not** add server fields.
+- Tests use the in-package `fakeAPI` (`route_test.go`) and `fixedNow`; the shell
+  tests use the external `shell_test` package with the `stubRoute` helper.
 
 ## Build / test / lint
 - `make ci` = `lint verify-generate verify-css verify-no-popups cover build`. Must be green before any task is "done".
