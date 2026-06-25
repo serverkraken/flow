@@ -46,6 +46,9 @@ func getDocPolicy() *bluemonday.Policy {
 		p.AllowAttrs("id").OnElements("li", "sup", "a", "section")
 		p.AllowAttrs("class").OnElements("section", "ol", "li", "sup")
 		p.AllowAttrs("role", "aria-label").OnElements("a", "section")
+		p.AllowElements("div")
+		p.AllowAttrs("class").OnElements("div", "p")
+		p.AllowAttrs("aria-hidden").OnElements("span")
 		docPolicy = p
 	})
 	return docPolicy
@@ -69,11 +72,15 @@ func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
 			parser.WithInlineParsers(
 				util.Prioritized(&wikiLinkParser{}, 100),
 			),
+			parser.WithASTTransformers(
+				util.Prioritized(calloutTransformer{}, 0),
+			),
 		),
 	)
 	gm.Renderer().AddOptions(
 		renderer.WithNodeRenderers(
 			util.Prioritized(&wikiLinkHTMLRenderer{resolve: resolve}, 100),
+			util.Prioritized(&calloutHTMLRenderer{}, 100),
 		),
 	)
 	var buf bytes.Buffer
