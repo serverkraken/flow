@@ -21,10 +21,20 @@ func TestChromaCSSUpToDate(t *testing.T) {
 
 func TestGenerateChromaCSSScopesThemes(t *testing.T) {
 	got := GenerateChromaCSS()
-	if !strings.Contains(got, "/* Background */ :root .bg {") {
+	if !strings.Contains(got, `/* Background */ :root:not([data-theme="dark"]) .bg {`) {
 		t.Fatalf("light theme selector is not scoped: %s", got[:200])
 	}
 	if !strings.Contains(got, `/* Background */ :root[data-theme="dark"] .bg {`) {
 		t.Fatalf("dark theme selector is not scoped")
+	}
+}
+
+func TestGenerateChromaCSSLightRulesDoNotApplyInDarkTheme(t *testing.T) {
+	got := GenerateChromaCSS()
+	if !strings.Contains(got, `:root:not([data-theme="dark"]) .chroma .na {`) {
+		t.Fatalf("light token selectors must be excluded from dark theme")
+	}
+	if strings.Contains(got, `:root .chroma .na {`) {
+		t.Fatalf("unqualified light token selector leaks dark Terraform attribute colors")
 	}
 }

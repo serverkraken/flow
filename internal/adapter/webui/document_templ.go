@@ -452,7 +452,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</header><div class=\"grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start\"><section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</header><div class=\"grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start\"><section class=\"min-w-0 max-w-full\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -460,7 +460,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</section><div class=\"space-y-4 lg:sticky lg:top-6\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</section><div class=\"min-w-0 space-y-4 lg:sticky lg:top-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

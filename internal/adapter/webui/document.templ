@@ -88,10 +88,10 @@ templ DocumentFragment(vm DocumentVM) {
 			})
 		</header>
 		<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start">
-			<section>
+			<section class="min-w-0 max-w-full">
 				@components.MarkdownProse(vm.HTML)
 			</section>
-			<div class="space-y-4 lg:sticky lg:top-6">
+			<div class="min-w-0 space-y-4 lg:sticky lg:top-6">
 				@components.Toc()
 				@components.Backlinks(vm.Backlinks)
 			</div>
