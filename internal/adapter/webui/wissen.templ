@@ -19,6 +19,23 @@ templ wissenOuter(vm WissenOverviewVM) {
 	</div>
 }
 
+templ WissenCategoryPage(vm WissenCategoryVM) {
+	@components.Base("wissen", wissenCategoryBody(vm))
+}
+
+templ wissenCategoryBody(vm WissenCategoryVM) {
+	@components.AppShell("docs", nil, nil, wissenCategoryOuter(vm))
+}
+
+templ wissenCategoryOuter(vm WissenCategoryVM) {
+	<div id="content"
+		hx-get={ "/ui/wissen/list/" + vm.Category.Slug + vm.Query }
+		hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted"
+		hx-swap="innerHTML">
+		@WissenCategoryFragment(vm)
+	</div>
+}
+
 templ WissenFragment(vm WissenOverviewVM) {
 	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 		<div>
@@ -74,8 +91,85 @@ templ wissenOverviewCards(vm WissenOverviewVM) {
 	</div>
 }
 
+templ WissenCategoryFragment(vm WissenCategoryVM) {
+	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+		<div>
+			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.knowledge") }</p>
+			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, vm.Category.LabelKey) }</h1>
+			<p class="mt-1 text-[.9rem] text-muted">{ components.T(ctx, vm.Category.DescriptionKey) }</p>
+		</div>
+		<a href="/wissen/neu"
+			class="inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]">
+			<span aria-hidden="true">✚</span>
+			{ components.T(ctx, "common.new") }
+		</a>
+	</header>
+	@wissenCategoryNav(vm.Category.Slug)
+	@wissenSearchBar(vm.WissenVM)
+	@wissenTagChips(vm.WissenVM)
+	if vm.SearchQ != "" {
+		@wissenResults(vm.WissenVM)
+	} else if vm.Total == 0 {
+		@components.EmptyState("○", "wissen.empty", "wissen.emptyHint")
+	} else {
+		@wissenCategoryContent(vm)
+		@components.Pagination(vm.Page)
+	}
+}
+
+templ wissenCategoryNav(active string) {
+	<nav class="mb-5 flex gap-2 overflow-x-auto" aria-label={ components.T(ctx, "wissen.categories") }>
+		<a href="/wissen" class="inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[.84rem] font-medium text-muted transition hover:border-blue/40 hover:text-blue">
+			{ components.T(ctx, "wissen.overview") }
+		</a>
+		for _, cat := range WissenCategories() {
+			<a href={ templ.SafeURL(cat.Href) } class={ wissenCategoryNavClass(active, cat.Slug) }>
+				{ components.T(ctx, cat.LabelKey) }
+			</a>
+		}
+	</nav>
+}
+
+templ wissenCategoryContent(vm WissenCategoryVM) {
+	if vm.Category.ID == "projekte" {
+		@wissenCategoryProjectGroups(vm)
+	} else {
+		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+			for _, row := range vm.Rows {
+				@wissenDocRow(row)
+			}
+		</ul>
+	}
+}
+
+templ wissenCategoryProjectGroups(vm WissenCategoryVM) {
+	<div class="space-y-4">
+		for _, group := range vm.Groups {
+			<article class="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft" style={ swatchStyle(group.Color) }>
+				<header class="flex items-center gap-3 border-b border-line2 px-4 py-3">
+					<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
+					<div class="min-w-0">
+						<h2 class="truncate font-medium text-ink">{ group.Name }</h2>
+						if group.ProjectID != "" {
+							<p class="font-mono text-[.75rem] text-muted">{ group.ProjectID }</p>
+						}
+					</div>
+					if group.Color != "" {
+						<span class="ml-auto h-3 w-3 rounded-full border border-line" style="background-color: var(--swatch)" aria-hidden="true"></span>
+					}
+				</header>
+				<ul class="divide-y divide-line2">
+					for _, row := range group.Docs {
+						@wissenDocRow(row)
+					}
+				</ul>
+			</article>
+		}
+	</div>
+}
+
 templ wissenSearchBar(vm WissenVM) {
-	<form method="get" action="/wissen" class="mb-3 flex flex-col gap-2 sm:flex-row">
+	<form method="get" action={ templ.SafeURL(wissenSearchAction(vm)) } class="mb-3 flex flex-col gap-2 sm:flex-row">
 		for _, t := range vm.ActiveTags {
 			<input type="hidden" name="tag" value={ t }/>
 		}
@@ -107,7 +201,7 @@ templ wissenTagChips(vm WissenVM) {
 				}
 			}
 			if len(vm.ActiveTags) > 0 || vm.SearchQ != "" {
-				<a href="/wissen" class="ml-1 text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+				<a href={ templ.SafeURL(wissenResetHref(vm)) } class="ml-1 text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
 					{ components.T(ctx, "wissen.resetFilters") }
 				</a>
 			}
@@ -220,6 +314,9 @@ templ wissenDocRow(row DocRow) {
 							<span class="rounded-full bg-sunken px-2 py-0.5 text-[.74rem] text-muted">{ "#" + tag }</span>
 						}
 					</span>
+				}
+				if row.Preview != "" {
+					<span class="preview-clamp mt-2 whitespace-pre-line text-[.84rem] leading-relaxed text-muted">{ row.Preview }</span>
 				}
 			</span>
 			<span class="mt-1 shrink-0 font-mono text-[.72rem] uppercase text-faint">{ row.Type }</span>

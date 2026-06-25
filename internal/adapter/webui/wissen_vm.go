@@ -53,11 +53,13 @@ type ProjectGroup struct {
 
 // WissenVM is the view model for the AppShell Wissen list page.
 type WissenVM struct {
-	User       string
-	AllTags    []TagChip
-	ActiveTags []string
-	SearchQ    string
-	Query      string // encoded query preserved for the SSE fragment hx-get
+	User         string
+	AllTags      []TagChip
+	ActiveTags   []string
+	SearchQ      string
+	Query        string // encoded query preserved for the SSE fragment hx-get
+	SearchAction string
+	ResetHref    string
 
 	// Category sections; empty when the page is in search mode.
 	Daily  []DocRow
@@ -167,6 +169,15 @@ func BuildWissenCategory(c WissenCategory, docs []domain.Document, projectNames,
 		}
 	}
 	grouped := GroupDocsByCategory(filtered, projectNames, projectColors)
+	previews := map[string]string{}
+	for _, d := range filtered {
+		previews[d.ID] = DocPreviewText(d.Body, 5)
+	}
+	for gi := range grouped.Notes {
+		for ri := range grouped.Notes[gi].Docs {
+			grouped.Notes[gi].Docs[ri].Preview = previews[grouped.Notes[gi].Docs[ri].ID]
+		}
+	}
 	vm := WissenCategoryVM{
 		WissenVM: grouped,
 		Category: c,
@@ -325,6 +336,28 @@ func WissenEmpty(vm WissenVM) bool {
 
 func WissenSingleTagHref(tag string) string {
 	return "/wissen?tag=" + url.QueryEscape(tag)
+}
+
+func wissenSearchAction(vm WissenVM) string {
+	if vm.SearchAction != "" {
+		return vm.SearchAction
+	}
+	return "/wissen"
+}
+
+func wissenResetHref(vm WissenVM) string {
+	if vm.ResetHref != "" {
+		return vm.ResetHref
+	}
+	return "/wissen"
+}
+
+func wissenCategoryNavClass(active, slug string) string {
+	base := "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[.84rem] font-medium transition"
+	if active == slug {
+		return base + " border-blue/40 bg-blue/10 text-blue"
+	}
+	return base + " border-line bg-surface text-muted hover:border-blue/40 hover:text-blue"
 }
 
 func projectDocCount(groups []ProjectGroup) int {

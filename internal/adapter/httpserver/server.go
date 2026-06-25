@@ -176,6 +176,11 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
+	mux.Handle("GET /wissen/daily", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
+	mux.Handle("GET /wissen/projekte", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
+	mux.Handle("GET /wissen/frei", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
+	mux.Handle("GET /wissen/system", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
+	mux.Handle("GET /ui/wissen/list/{category}", s.webAuth(http.HandlerFunc(s.handleWebWissenCategoryList)))
 	mux.Handle("GET /wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebEditorNew)))
 	mux.Handle("POST /wissen/preview", s.webAuth(http.HandlerFunc(s.handleWebEditorPreview)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))

@@ -117,6 +117,45 @@ func TestWebWissenSearch(t *testing.T) {
 	}
 }
 
+func TestWebWissenCategoryRoutesFilterDocuments(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25", Title: "Daily One", Body: "daily preview\nline two", Date: &now, CreatedAt: now, UpdatedAt: now},
+		{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/idea", Title: "Free One", Body: "free preview", CreatedAt: now, UpdatedAt: now},
+		{ID: "mem-1", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/x", Title: "Memory One", Body: "memory preview", CreatedAt: now, UpdatedAt: now},
+	} {
+		_, _ = docs.Create(ctx, doc)
+	}
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/daily", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/daily status=%d body=%.300s", status, body)
+	}
+	if !strings.Contains(body, "Daily One") || !strings.Contains(body, "daily preview") {
+		t.Fatalf("daily page missing daily doc/preview: %.1000s", body)
+	}
+	for _, notWant := range []string{"Free One", "Memory One"} {
+		if strings.Contains(body, notWant) {
+			t.Fatalf("daily page leaked %q in %.1000s", notWant, body)
+		}
+	}
+}
+
+func TestWebWissenCategorySearchIsCategoryScoped(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25", Title: "Daily Alpha", Body: "alpha", Date: &now, CreatedAt: now, UpdatedAt: now})
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/alpha", Title: "Free Alpha", Body: "alpha", CreatedAt: now, UpdatedAt: now})
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/frei?q=alpha", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/frei?q=alpha status=%d body=%.300s", status, body)
+	}
+	if !strings.Contains(body, "Free Alpha") || strings.Contains(body, "Daily Alpha") {
+		t.Fatalf("free search not category scoped: %.1000s", body)
+	}
+}
+
 func TestWissenRoutesCutover(t *testing.T) {
 	srv, codec, _, _ := newWebWissenServer(t)
 	h := srv.Routes()
@@ -137,6 +176,10 @@ func wissenTestMux(s *Server) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
+	for _, slug := range []string{"daily", "projekte", "frei", "system"} {
+		mux.Handle("GET /wissen/"+slug, s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
+		mux.Handle("GET /ui/wissen/list/"+slug, s.webAuth(http.HandlerFunc(s.handleWebWissenCategoryList)))
+	}
 	return mux
 }
 

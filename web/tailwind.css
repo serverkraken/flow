@@ -347,6 +347,13 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .prose .wikilink { @apply text-accent; }
   .prose .wikilink-broken { @apply text-danger line-through; }
 
+  .preview-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+    overflow: hidden;
+  }
+
   .callout { @apply my-4 rounded-lg border-l-4 pl-4 pr-3 py-2; }
   .callout-title { @apply font-semibold mb-1 flex items-center gap-2; }
   .callout-note { @apply border-accent bg-accent/5; }

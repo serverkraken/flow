@@ -100,7 +100,7 @@ func TestToggleTagHref(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := wissenToggleTagHref(tc.active, tc.tag)
+			got := wissenToggleTagHref("/wissen", tc.active, tc.tag)
 			if got != tc.want {
 				t.Errorf("wissenToggleTagHref(%v, %q) = %q, want %q", tc.active, tc.tag, got, tc.want)
 			}
