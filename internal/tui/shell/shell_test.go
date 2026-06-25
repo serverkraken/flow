@@ -260,8 +260,8 @@ func TestShell_withActiveTabStartsThere(t *testing.T) {
 // title ("Docs") in the rendered output.
 type fullScreenRoute struct{ stubRoute }
 
-func (r fullScreenRoute) FullScreen() bool                           { return true }
-func (r fullScreenRoute) View(_ shell.Frame) string                  { return "BODY" }
+func (r fullScreenRoute) FullScreen() bool                          { return true }
+func (r fullScreenRoute) View(_ shell.Frame) string                 { return "BODY" }
 func (r fullScreenRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) { return r, nil }
 
 func TestShell_fullScreenSuppressesChrome(t *testing.T) {
@@ -635,4 +635,69 @@ func TestShell_helpOverlay(t *testing.T) {
 	next3, _ := s.Update(tea.KeyPressMsg{Text: "?"})
 	s = next3.(shell.Shell)
 	_ = s.View() // should not panic with helpOpen=false
+}
+
+type paletteStub struct {
+	stubRoute
+	actions []shell.PaletteEntry
+}
+
+func (p paletteStub) PaletteEntries() []shell.PaletteEntry { return p.actions }
+
+func TestShell_paletteMergesProviderEntriesFirst(t *testing.T) {
+	action := shell.PaletteEntry{Label: "Startzeit anpassen", Action: func() tea.Msg { return nil }}
+	provider := paletteStub{stubRoute{title: "Worktime"}, []shell.PaletteEntry{action}}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{provider, stubRoute{title: "Docs"}})
+
+	next, _ := s.Update(tea.KeyPressMsg{Text: ":"})
+	f := next.(shell.Shell).Palette().Filtered()
+	if len(f) != 3 {
+		t.Fatalf("want 3 entries (1 action + 2 tabs), got %d: %v", len(f), f)
+	}
+	if f[0].Label != "Startzeit anpassen" {
+		t.Fatalf("action should be first, got %q", f[0].Label)
+	}
+}
+
+func TestShell_paletteWithoutProvider(t *testing.T) {
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{
+		stubRoute{title: "Home"}, stubRoute{title: "Docs"},
+	})
+	next, _ := s.Update(tea.KeyPressMsg{Text: ":"})
+	if f := next.(shell.Shell).Palette().Filtered(); len(f) != 2 {
+		t.Fatalf("want 2 nav entries, got %d", len(f))
+	}
+}
+
+type dynPaletteStub struct {
+	stubRoute
+	mk func() []shell.PaletteEntry
+}
+
+func (d dynPaletteStub) PaletteEntries() []shell.PaletteEntry { return d.mk() }
+
+func TestShell_paletteRebuiltOnEachOpen(t *testing.T) {
+	on := false
+	pp := dynPaletteStub{stubRoute{title: "Worktime"}, func() []shell.PaletteEntry {
+		if !on {
+			return nil
+		}
+		return []shell.PaletteEntry{{Label: "Aktion", Action: func() tea.Msg { return nil }}}
+	}}
+	s := shell.New(nil, "alice", theme.Default).WithTabs([]shell.Route{pp})
+
+	// First open while idle: only the single nav entry.
+	n1, _ := s.Update(tea.KeyPressMsg{Text: ":"})
+	if got := len(n1.(shell.Shell).Palette().Filtered()); got != 1 {
+		t.Fatalf("idle: want 1 nav entry, got %d", got)
+	}
+	// Dismiss, flip the flag, reopen: the action now appears -> 2 entries.
+	sh := n1.(shell.Shell)
+	_, cmd := sh.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	closed, _ := sh.Update(cmd())
+	on = true
+	n2, _ := closed.(shell.Shell).Update(tea.KeyPressMsg{Text: ":"})
+	if got := len(n2.(shell.Shell).Palette().Filtered()); got != 2 {
+		t.Fatalf("after toggle: want 2 entries, got %d", got)
+	}
 }

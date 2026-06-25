@@ -82,3 +82,10 @@ type Backer interface{ Back() (Route, tea.Cmd, bool) }
 // it renders its own location indicator (e.g. the Worktime sub-tab strip), so
 // the position is not shown twice.
 type BreadcrumbHider interface{ HideBreadcrumb() bool }
+
+// PaletteProvider lets the active tab's top route contribute contextual action
+// entries to the :-palette, gathered fresh each time the palette opens so they
+// reflect current route state (e.g. "Startzeit anpassen" only while a timer
+// runs). Optional — routes that don't implement it expose only the static
+// tab-navigation entries.
+type PaletteProvider interface{ PaletteEntries() []PaletteEntry }

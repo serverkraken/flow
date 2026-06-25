@@ -14,12 +14,12 @@ type textStubRoute struct {
 	text bool
 }
 
-func (r textStubRoute) Title() string                           { return "stub" }
-func (r textStubRoute) Init() tea.Cmd                          { return nil }
-func (r textStubRoute) Update(tea.Msg) (shell.Route, tea.Cmd)  { return r, nil }
-func (r textStubRoute) View(shell.Frame) string                { return "" }
-func (r textStubRoute) KeyHints() []keyhint.Hint               { return nil }
-func (r textStubRoute) CapturesText() bool                     { return r.text }
+func (r textStubRoute) Title() string                         { return "stub" }
+func (r textStubRoute) Init() tea.Cmd                         { return nil }
+func (r textStubRoute) Update(tea.Msg) (shell.Route, tea.Cmd) { return r, nil }
+func (r textStubRoute) View(shell.Frame) string               { return "" }
+func (r textStubRoute) KeyHints() []keyhint.Hint              { return nil }
+func (r textStubRoute) CapturesText() bool                    { return r.text }
 
 // isQuit runs cmd and returns true if it produces a tea.QuitMsg.
 func isQuit(cmd tea.Cmd) bool {

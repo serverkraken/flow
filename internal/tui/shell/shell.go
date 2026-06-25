@@ -23,6 +23,7 @@ type Shell struct {
 	activeTab int
 
 	palette     Palette
+	navEntries  []PaletteEntry
 	paletteOpen bool
 	helpOpen    bool
 
@@ -39,8 +40,10 @@ type shellEventsReadyMsg struct{ ch <-chan apiclient.ClientEvent }
 // EventMsg carries one server SSE event, broadcast by the Shell to every
 // tab's top route so routes can refresh. Exported so route packages outside
 // `shell` can type-switch on it.
-type EventMsg struct{ Ev apiclient.ClientEvent }
-type shellErrMsg struct{ err error }
+type (
+	EventMsg    struct{ Ev apiclient.ClientEvent }
+	shellErrMsg struct{ err error }
+)
 
 // tabSwitchMsg requests a tab change (emitted by palette entries).
 type tabSwitchMsg int
@@ -62,7 +65,7 @@ func (s Shell) WithTabs(routes []Route) Shell {
 		idx := i
 		entries[i] = PaletteEntry{Label: r.Title(), Action: func() tea.Msg { return tabSwitchMsg(idx) }}
 	}
-	s.palette = NewPalette(entries)
+	s.navEntries = entries
 	if s.activeTab >= len(s.tabs) {
 		s.activeTab = 0
 	}
@@ -85,6 +88,22 @@ func (s Shell) Height() int       { return s.height }
 func (s Shell) ActiveTab() int    { return s.activeTab }
 func (s Shell) PaletteOpen() bool { return s.paletteOpen }
 func (s Shell) ActiveDepth() int  { return s.tabs[s.activeTab].Len() }
+
+// Palette returns the current palette model (used by tests to inspect merged
+// entries after the palette is opened).
+func (s Shell) Palette() Palette { return s.palette }
+
+// buildPalette gathers the active route's contextual actions (if it implements
+// PaletteProvider) ahead of the static tab-navigation entries, fresh on each
+// open so the action set reflects current route state.
+func (s Shell) buildPalette() Palette {
+	var entries []PaletteEntry
+	if pp, ok := s.tabs[s.activeTab].Top().(PaletteProvider); ok {
+		entries = append(entries, pp.PaletteEntries()...)
+	}
+	entries = append(entries, s.navEntries...)
+	return NewPalette(entries)
+}
 
 // Init loads the initial (active) tab's route and subscribes to SSE if a
 // client is present. Without initing the active tab route, a root tab never
@@ -235,7 +254,7 @@ func (s Shell) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return s, nil
 	case k.Text == ":":
 		s.paletteOpen = true
-		s.palette = s.palette.Reset()
+		s.palette = s.buildPalette()
 		return s, nil
 	case k.Text == "?":
 		s.helpOpen = !s.helpOpen

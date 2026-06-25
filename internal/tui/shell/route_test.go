@@ -15,8 +15,8 @@ type stubRoute struct {
 	push  shell.Route // if set, Update on Enter pushes this route
 }
 
-func (s stubRoute) Title() string  { return s.title }
-func (s stubRoute) Init() tea.Cmd  { return nil }
+func (s stubRoute) Title() string { return s.title }
+func (s stubRoute) Init() tea.Cmd { return nil }
 func (s stubRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	if k, ok := msg.(tea.KeyPressMsg); ok && k.Code == tea.KeyEnter && s.push != nil {
 		next := s.push
@@ -24,8 +24,8 @@ func (s stubRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 	}
 	return s, nil
 }
-func (s stubRoute) View(f shell.Frame) string     { return s.title }
-func (s stubRoute) KeyHints() []keyhint.Hint       { return s.hints }
+func (s stubRoute) View(f shell.Frame) string { return s.title }
+func (s stubRoute) KeyHints() []keyhint.Hint  { return s.hints }
 
 func TestRoute_satisfiedByStub(t *testing.T) {
 	var r shell.Route = stubRoute{title: "Home"}

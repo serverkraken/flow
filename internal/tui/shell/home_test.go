@@ -18,12 +18,15 @@ type fakeDash struct{}
 func (fakeDash) GetToday(context.Context) (apiclient.Today, error) {
 	return apiclient.Today{Date: "2026-06-18", LoggedMin: 300, TargetMin: 480, Running: true}, nil
 }
+
 func (fakeDash) GetWeek(context.Context, string) ([]apiclient.WeekDay, error) {
 	return []apiclient.WeekDay{{Date: "2026-06-18", LoggedMin: 300, TargetMin: 480, IsToday: true, Workday: true}}, nil
 }
+
 func (fakeDash) ListDocuments(context.Context, ...string) ([]domain.Document, error) {
 	return []domain.Document{{ID: "d1", Path: "notes/x", Title: "Mein Dokument", UpdatedAt: time.Now()}}, nil
 }
+
 func (fakeDash) ListProjects(context.Context) ([]domain.Project, error) {
 	return []domain.Project{{ID: "p1", Name: "ProjektA"}}, nil
 }

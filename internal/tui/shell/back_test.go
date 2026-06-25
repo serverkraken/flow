@@ -14,13 +14,13 @@ type stubRoute struct {
 	backOK bool
 }
 
-func (s stubRoute) Title() string                    { return "stub" }
-func (s stubRoute) Init() tea.Cmd                    { return nil }
-func (s stubRoute) Update(tea.Msg) (Route, tea.Cmd)  { return s, nil }
-func (s stubRoute) View(Frame) string                { return "" }
-func (s stubRoute) KeyHints() []keyhint.Hint         { return nil }
-func (s stubRoute) CapturesText() bool               { return s.text }
-func (s stubRoute) Back() (Route, tea.Cmd, bool)     { return s, nil, s.backOK }
+func (s stubRoute) Title() string                   { return "stub" }
+func (s stubRoute) Init() tea.Cmd                   { return nil }
+func (s stubRoute) Update(tea.Msg) (Route, tea.Cmd) { return s, nil }
+func (s stubRoute) View(Frame) string               { return "" }
+func (s stubRoute) KeyHints() []keyhint.Hint        { return nil }
+func (s stubRoute) CapturesText() bool              { return s.text }
+func (s stubRoute) Back() (Route, tea.Cmd, bool)    { return s, nil, s.backOK }
 
 func TestResolveBack(t *testing.T) {
 	cases := []struct {
