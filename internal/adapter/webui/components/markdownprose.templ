@@ -1,0 +1,10 @@
+package components
+
+import "html/template"
+
+// MarkdownProse wraps sanitized markdown HTML in the shared prose container.
+templ MarkdownProse(html template.HTML) {
+	<div class="prose max-w-[70ch]">
+		@templ.Raw(string(html))
+	</div>
+}
