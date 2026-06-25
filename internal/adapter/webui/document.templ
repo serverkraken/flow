@@ -14,6 +14,8 @@ templ documentBreadcrumb(vm DocumentVM) {
 	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
 		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
 		<span class="mx-1.5 text-faint">/</span>
+		<a href={ templ.SafeURL(vm.CategoryHref) } class="hover:text-blue">{ components.T(ctx, vm.CategoryLabelKey) }</a>
+		<span class="mx-1.5 text-faint">/</span>
 		<span class="text-body">{ vm.Title }</span>
 	</nav>
 }
@@ -31,6 +33,12 @@ templ documentOuter(vm DocumentVM) {
 
 templ DocumentFragment(vm DocumentVM) {
 	<article id="document-fragment">
+		<div class="mb-4">
+			<a href={ templ.SafeURL(vm.CategoryHref) } class="inline-flex items-center gap-1.5 text-[.86rem] text-muted hover:text-blue">
+				<span aria-hidden="true">&larr;</span>
+				{ components.T(ctx, "page.prev") }
+			</a>
+		</div>
 		<header class="mb-6 border-b border-line pb-5">
 			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div class="min-w-0">
@@ -87,13 +95,20 @@ templ DocumentFragment(vm DocumentVM) {
 				},
 			})
 		</header>
+		<div data-mobile-toc class="mb-6 lg:hidden">
+			@components.Toc("toc-mobile")
+		</div>
 		<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start">
-			<section class="min-w-0 max-w-full">
+			<section data-document-prose class="min-w-0 max-w-full">
 				@components.MarkdownProse(vm.HTML)
 			</section>
 			<div class="min-w-0 space-y-4 lg:sticky lg:top-6">
-				@components.Toc()
-				@components.Backlinks(vm.Backlinks)
+				<div data-desktop-toc class="hidden lg:block">
+					@components.Toc("toc-desktop")
+				</div>
+				<div data-document-backlinks>
+					@components.Backlinks(vm.Backlinks)
+				</div>
 			</div>
 		</div>
 	</article>

@@ -47,16 +47,25 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	categoryHref := "/wissen"
+	categoryLabelKey := "wissen.title"
+	if cat, ok := webui.WissenCategoryForType(doc.Type); ok {
+		categoryHref = cat.Href
+		categoryLabelKey = cat.LabelKey
+	}
+
 	kind := webui.DocKindStyle(doc.Type)
 	vm := webui.DocumentVM{
-		User:      u.Username,
-		ID:        doc.ID,
-		Type:      string(doc.Type),
-		KindLabel: kind.Label,
-		KindGlyph: kind.Glyph,
-		KindTone:  kind.Tone,
-		Title:     doc.Title,
-		HTML:      rendered,
+		User:             u.Username,
+		ID:               doc.ID,
+		Type:             string(doc.Type),
+		KindLabel:        kind.Label,
+		KindGlyph:        kind.Glyph,
+		KindTone:         kind.Tone,
+		Title:            doc.Title,
+		HTML:             rendered,
+		CategoryHref:     categoryHref,
+		CategoryLabelKey: categoryLabelKey,
 	}
 	if doc.ProjectID != nil {
 		vm.ProjectID = *doc.ProjectID

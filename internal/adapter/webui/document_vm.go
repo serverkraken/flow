@@ -23,6 +23,8 @@ type DocumentVM struct {
 	HTML         template.HTML
 	Backlinks    []components.Backlink
 	Embed        *EmbedView
+	CategoryHref     string
+	CategoryLabelKey string
 }
 
 func embedLabelKey(state string) string {
