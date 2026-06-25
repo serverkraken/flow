@@ -1,0 +1,118 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+templ DocumentPage(vm DocumentVM) {
+	@components.Base("wissen", documentBody(vm))
+}
+
+templ documentBody(vm DocumentVM) {
+	@components.AppShell("docs", documentBreadcrumb(vm), nil, documentOuter(vm))
+}
+
+templ documentBreadcrumb(vm DocumentVM) {
+	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
+		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
+		<span class="mx-1.5 text-faint">/</span>
+		<span class="text-body">{ vm.Title }</span>
+	</nav>
+}
+
+templ documentOuter(vm DocumentVM) {
+	<div id="content"
+		hx-get={ "/wissen/" + vm.ID }
+		hx-trigger="sse:document.updated"
+		hx-select="#document-fragment"
+		hx-target="#document-fragment"
+		hx-swap="outerHTML">
+		@DocumentFragment(vm)
+	</div>
+}
+
+templ DocumentFragment(vm DocumentVM) {
+	<article id="document-fragment">
+		<header class="mb-6 border-b border-line pb-5">
+			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+				<div class="min-w-0">
+					<div class="mb-3 flex flex-wrap items-center gap-2">
+						<span class={ "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[.78rem] font-medium", kindToneClass(vm.KindTone) }>
+							<span aria-hidden="true">{ vm.KindGlyph }</span>
+							{ vm.KindLabel }
+						</span>
+						if vm.ProjectName != "" {
+							<a href={ templ.SafeURL("/projects/" + vm.ProjectID) } class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
+								if vm.ProjectColor != "" {
+									<span class="h-2.5 w-2.5 rounded-full" style={ projectSwatchStyle(vm.ProjectColor) } aria-hidden="true"></span>
+								}
+								{ vm.ProjectName }
+							</a>
+						}
+						if vm.DateStr != "" {
+							<span class="rounded-full bg-sunken px-2.5 py-1 font-mono text-[.76rem] text-muted">{ vm.DateStr }</span>
+						}
+					</div>
+					<h1 class="font-display text-[2rem] font-semibold leading-tight sm:text-[2.6rem]">{ vm.Title }</h1>
+					if len(vm.Tags) > 0 {
+						<div class="mt-4 flex flex-wrap gap-2">
+							for _, tag := range vm.Tags {
+								<a href={ templ.SafeURL(tag.Href) } class="rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue">{ "#" + tag.Tag }</a>
+							}
+						</div>
+					}
+				</div>
+				<div class="flex shrink-0 items-center gap-2">
+					<a href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") }
+						class="inline-flex items-center justify-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue">
+						{ components.T(ctx, "wissen.edit") }
+					</a>
+					<button type="button" data-dialog-open={ "del-" + vm.ID }
+						class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted hover:border-danger/40 hover:text-danger"
+						aria-label={ components.T(ctx, "common.delete") }>
+						<span aria-hidden="true">x</span>
+					</button>
+				</div>
+			</div>
+			if vm.Embed != nil {
+				@documentEmbedBadge(vm.ID, *vm.Embed)
+			}
+			@components.ConfirmDialog(components.ConfirmSpec{
+				ID: "del-" + vm.ID,
+				TitleKey: "wissen.delete.title",
+				BodyKey: "wissen.delete.body",
+				ConfirmLabelKey: "common.delete",
+				ConfirmAttrs: templ.Attributes{
+					"hx-post": "/wissen/" + vm.ID + "/delete",
+					"hx-target": "body",
+					"type": "button",
+				},
+			})
+		</header>
+		<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start">
+			<section>
+				@components.MarkdownProse(vm.HTML)
+			</section>
+			<div class="space-y-4 lg:sticky lg:top-6">
+				@components.Toc()
+				@components.Backlinks(vm.Backlinks)
+			</div>
+		</div>
+	</article>
+}
+
+templ documentEmbedBadge(docID string, e EmbedView) {
+	<div class="mb-4 flex flex-wrap items-center gap-2 text-[.8rem]">
+		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
+			{ components.T(ctx, embedLabelKey(e.State)) }
+		</span>
+		if e.LastError != "" {
+			<span class="font-mono text-faint">{ e.LastError }</span>
+		}
+		if e.ShowRetry {
+			<form hx-post={ "/wissen/" + docID + "/reembed" } hx-target="closest div" hx-swap="outerHTML" class="inline">
+				<button type="submit" class="rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue">
+					{ components.T(ctx, "embed.retry") }
+				</button>
+			</form>
+		}
+	</div>
+}

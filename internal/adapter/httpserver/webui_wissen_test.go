@@ -36,8 +36,11 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		ListDocumentsPage: usecase.NewListDocumentsPage(docs),
 		ListProjects:      usecase.ListProjects{Projects: projects},
+		GetDocument:       usecase.GetDocument{Docs: docs},
+		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
+		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: docs},
 	}
 	return srv, codec, docs, projects
 }
