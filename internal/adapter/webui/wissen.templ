@@ -2,15 +2,15 @@ package webui
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-templ WissenPage(vm WissenVM) {
+templ WissenPage(vm WissenOverviewVM) {
 	@components.Base("wissen", wissenBody(vm))
 }
 
-templ wissenBody(vm WissenVM) {
+templ wissenBody(vm WissenOverviewVM) {
 	@components.AppShell("docs", nil, nil, wissenOuter(vm))
 }
 
-templ wissenOuter(vm WissenVM) {
+templ wissenOuter(vm WissenOverviewVM) {
 	<div id="content"
 		hx-get={ "/ui/wissen/list" + vm.Query }
 		hx-trigger="sse:document.created, sse:document.updated, sse:document.deleted"
@@ -19,7 +19,7 @@ templ wissenOuter(vm WissenVM) {
 	</div>
 }
 
-templ WissenFragment(vm WissenVM) {
+templ WissenFragment(vm WissenOverviewVM) {
 	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
 		<div>
 			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.knowledge") }</p>
@@ -31,24 +31,47 @@ templ WissenFragment(vm WissenVM) {
 			{ components.T(ctx, "common.new") }
 		</a>
 	</header>
-	@wissenSearchBar(vm)
-	@wissenTagChips(vm)
+	@wissenSearchBar(vm.WissenVM)
+	@wissenTagChips(vm.WissenVM)
 	if vm.SearchQ != "" {
-		@wissenResults(vm)
+		@wissenResults(vm.WissenVM)
 	} else {
-		@components.CategoryStrip(ctx, WissenTabs(vm))
-		if WissenEmpty(vm) {
-			@components.EmptyState("○", "wissen.empty", "wissen.emptyHint")
-		} else {
-			<div class="space-y-8">
-				@wissenDailySection(vm)
-				@wissenNotesSection(vm)
-				@wissenFreeSection(vm)
-				@wissenSystemSection(vm)
-			</div>
-			@components.Pagination(vm.Page)
-		}
+		@wissenOverviewCards(vm)
 	}
+}
+
+templ wissenOverviewCards(vm WissenOverviewVM) {
+	<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+		for _, card := range vm.Categories {
+			<a href={ templ.SafeURL(card.Href) }
+				class="group flex min-h-52 flex-col rounded-2xl border border-line bg-surface p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-lift">
+				<div class="mb-4 flex items-start justify-between gap-3">
+					<div>
+						<h2 class="font-display text-xl font-semibold text-ink group-hover:text-blue">{ components.T(ctx, card.LabelKey) }</h2>
+						<p class="mt-1 text-[.86rem] leading-relaxed text-muted">{ components.T(ctx, card.DescriptionKey) }</p>
+					</div>
+					<span class="rounded-full bg-sunken px-2.5 py-1 font-mono text-[.76rem] text-muted">{ itoa(card.Count) }</span>
+				</div>
+				if len(card.Latest) > 0 {
+					<div class="mt-auto">
+						<p class="mb-2 text-[.72rem] font-semibold uppercase text-faint">{ components.T(ctx, "wissen.latest") }</p>
+						<ul class="space-y-2">
+							for _, row := range card.Latest {
+								<li class="min-w-0">
+									<span class="block truncate text-[.88rem] font-medium text-body group-hover:text-ink">{ row.Title }</span>
+									if row.Path != "" {
+										<span class="mt-0.5 block truncate font-mono text-[.72rem] text-faint">{ row.Path }</span>
+									}
+								</li>
+							}
+						</ul>
+					</div>
+				} else {
+					<div class="mt-auto text-[.84rem] text-faint">{ components.T(ctx, "wissen.empty") }</div>
+				}
+			</a>
+		}
+	</div>
 }
 
 templ wissenSearchBar(vm WissenVM) {

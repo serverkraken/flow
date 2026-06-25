@@ -68,9 +68,34 @@ func TestWebWissenHomeSections(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
 	}
-	for _, want := range []string{"daily-sec", "notes-sec", "free-sec", "system-sec", "Daily Note", "Project Note", "Free Note", "System Memory"} {
+	for _, want := range []string{`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`, "Daily Note", "Project Note", "Free Note", "System Memory"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("GET /wissen missing %q in %.800s", want, body)
+		}
+	}
+}
+
+func TestWebWissenHomeOverviewCards(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25", Title: "Daily One", Body: "daily body", Date: &now, CreatedAt: now, UpdatedAt: now},
+		{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/idea", Title: "Free One", Body: "free body", CreatedAt: now, UpdatedAt: now},
+	} {
+		_, _ = docs.Create(context.Background(), doc)
+	}
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
+	}
+	for _, want := range []string{`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`, "Daily One", "Free One"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("overview missing %q in %.1200s", want, body)
+		}
+	}
+	for _, notWant := range []string{"daily-sec", "notes-sec", "free-sec", "system-sec"} {
+		if strings.Contains(body, notWant) {
+			t.Fatalf("overview should not render old long section %q", notWant)
 		}
 	}
 }
