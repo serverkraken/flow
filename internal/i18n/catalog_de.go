@@ -71,6 +71,7 @@ func init() {
 			"wissen.noresultsHint":      "Passe Suche oder Filter an.",
 			"wissen.resetFilters":       "Filter zurücksetzen",
 			"wissen.results":            "Suchtreffer",
+			"wissen.backToCategory":     "Zurück zu",
 			"wissen.edit":               "Bearbeiten",
 			"wissen.new":                "Neues Dokument",
 			"wissen.edit.title":         "Dokument bearbeiten",

@@ -110,7 +110,7 @@ func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 	deleteReq.SetPathValue("id", "doc-1")
 	deleteRec := httptest.NewRecorder()
 	srv.handleWebEditorDelete(deleteRec, deleteReq)
-	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen" {
+	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen/frei" {
 		t.Fatalf("delete code=%d location=%q", deleteRec.Code, deleteRec.Header().Get("Location"))
 	}
 }

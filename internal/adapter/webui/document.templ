@@ -36,7 +36,7 @@ templ DocumentFragment(vm DocumentVM) {
 		<div class="mb-4">
 			<a href={ templ.SafeURL(vm.CategoryHref) } class="inline-flex items-center gap-1.5 text-[.86rem] text-muted hover:text-blue">
 				<span aria-hidden="true">&larr;</span>
-				{ components.T(ctx, "page.prev") }
+				<span>{ components.T(ctx, "wissen.backToCategory") } { components.T(ctx, vm.CategoryLabelKey) }</span>
 			</a>
 		</div>
 		<header class="mb-6 border-b border-line pb-5">

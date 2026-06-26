@@ -121,7 +121,18 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWebEditorDelete(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	err := s.DeleteDocument.Execute(r.Context(), u.ID, id)
+	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	categoryHref, _ := wissenCategoryHrefAndLabel(doc)
+
+	err = s.DeleteDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -131,7 +142,7 @@ func (s *Server) handleWebEditorDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
-	http.Redirect(w, r, "/wissen", http.StatusSeeOther)
+	http.Redirect(w, r, categoryHref, http.StatusSeeOther)
 }
 
 func (s *Server) renderEditorError(w http.ResponseWriter, r *http.Request, u domain.User, vm webui.EditorVM, status int, msg string) {

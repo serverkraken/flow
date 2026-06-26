@@ -47,12 +47,7 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	categoryHref := "/wissen"
-	categoryLabelKey := "wissen.title"
-	if cat, ok := webui.WissenCategoryForType(doc.Type); ok {
-		categoryHref = cat.Href
-		categoryLabelKey = cat.LabelKey
-	}
+	categoryHref, categoryLabelKey := wissenCategoryHrefAndLabel(doc)
 
 	kind := webui.DocKindStyle(doc.Type)
 	vm := webui.DocumentVM{
@@ -95,6 +90,13 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.DocumentPage(vm).Render(r.Context(), w)
+}
+
+func wissenCategoryHrefAndLabel(doc domain.Document) (string, string) {
+	if cat, ok := webui.WissenCategoryForType(doc.Type); ok {
+		return cat.Href, cat.LabelKey
+	}
+	return "/wissen", "wissen.title"
 }
 
 func (s *Server) handleWebDocReembed(w http.ResponseWriter, r *http.Request) {

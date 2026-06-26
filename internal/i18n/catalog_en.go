@@ -62,6 +62,7 @@ func init() {
 			"wissen.noresultsHint":      "Adjust search or filters.",
 			"wissen.resetFilters":       "Reset filters",
 			"wissen.results":            "Search results",
+			"wissen.backToCategory":     "Back to",
 			"wissen.edit":               "Edit",
 			"wissen.new":                "New document",
 			"wissen.edit.title":         "Edit document",
