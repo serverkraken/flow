@@ -158,7 +158,7 @@ func TestProjectBindings_BindInvalidBody(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// First create a project so we know the {id} is valid.
-	res := do("POST", "/api/v1/nodes", `{"name":"X"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"X","kind":"engagement"}`)
 	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()

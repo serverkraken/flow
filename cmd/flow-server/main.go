@@ -141,6 +141,7 @@ func run() error {
 		UnbindNode:        usecase.UnbindNode{Bindings: bindingStore},
 		ResolveNode:       usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore},
 		ResolveEngagement: usecase.ResolveEngagement{Resolve: usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore}, Nodes: nodeStore},
+		NodeAncestors:     usecase.NodeAncestors{Nodes: nodeStore},
 		MoveNode:          usecase.MoveNode{Nodes: nodeStore},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bindingStore},
 		CreateDocument:      usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},

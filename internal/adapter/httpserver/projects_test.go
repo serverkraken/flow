@@ -61,7 +61,7 @@ func TestDeleteProject_204AndGone(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
 	// Create a project first.
-	res := do("POST", "/api/v1/nodes", `{"name":"Testprojekt"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Testprojekt","kind":"engagement"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create project status %d, want 201", res.StatusCode)
 	}
@@ -116,7 +116,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	_, do, bs := newProjectsSrv(t)
 
 	// create with an upstream → auto-synced remote binding
-	res := do("POST", "/api/v1/nodes", `{"name":"Flow","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow","kind":"engagement","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create status %d, want 201", res.StatusCode)
 	}
@@ -179,7 +179,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 func TestListProjectsStatusFilter(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
-	res := do("POST", "/api/v1/nodes", `{"name":"Aaa"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Aaa","kind":"engagement"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create Aaa status %d, want 201", res.StatusCode)
 	}
@@ -189,7 +189,7 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 	_ = res.Body.Close()
 
-	res = do("POST", "/api/v1/nodes", `{"name":"Bbb"}`)
+	res = do("POST", "/api/v1/nodes", `{"name":"Bbb","kind":"engagement"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create Bbb status %d, want 201", res.StatusCode)

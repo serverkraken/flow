@@ -170,20 +170,26 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-type createProjReq struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Color       string `json:"color"`
-	Glyph       string `json:"glyph"`
-	Description string `json:"description"`
-	UpstreamGit string `json:"upstreamGit"`
+type createNodeReq struct {
+	Name        string  `json:"name"`
+	Slug        string  `json:"slug"`
+	Kind        string  `json:"kind"`
+	ParentID    *string `json:"parentId"`
+	Color       string  `json:"color"`
+	Glyph       string  `json:"glyph"`
+	Description string  `json:"description"`
+	UpstreamGit string  `json:"upstreamGit"`
 }
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	var req createProjReq
+	var req createNodeReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
 		http.Error(w, "name required", http.StatusBadRequest)
+		return
+	}
+	if req.Kind == "" {
+		http.Error(w, "kind required", http.StatusBadRequest)
 		return
 	}
 	// Reject a bad upstream up front so we never create a half-configured project.
@@ -195,9 +201,16 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
-		Kind: domain.KindEngagement, // TODO(Slice C): read kind/parentId from request
+		Kind: domain.NodeKind(req.Kind), ParentID: req.ParentID,
 	})
-	if err != nil {
+	switch {
+	case errors.Is(err, domain.ErrInvalidNode):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	case errors.Is(err, ports.ErrNodeNotFound): // parent referenced but absent
+		http.Error(w, "parent not found", http.StatusBadRequest)
+		return
+	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

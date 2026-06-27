@@ -95,7 +95,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		return res
 	}
 
-	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow","kind":"engagement"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create project status %d", res.StatusCode)
 	}
@@ -164,7 +164,7 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	}
 
 	// start then stop (with a project) to get a completed session
-	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow","kind":"engagement"}`)
 	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()

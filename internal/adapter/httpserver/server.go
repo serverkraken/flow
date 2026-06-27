@@ -60,6 +60,7 @@ type Server struct {
 	UnbindNode        usecase.UnbindNode
 	ResolveNode       usecase.ResolveNode
 	ResolveEngagement usecase.ResolveEngagement
+	NodeAncestors     usecase.NodeAncestors
 	MoveNode          usecase.MoveNode
 	ListNodeBindings  usecase.ListNodeBindings
 
@@ -126,8 +127,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/nodes/resolve", s.auth(http.HandlerFunc(s.handleResolveNode)))
 	mux.Handle("GET /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleListAllNodeBindings)))
 	mux.Handle("DELETE /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleUnbindNode)))
+	mux.Handle("GET /api/v1/nodes/resolve-engagement", s.auth(http.HandlerFunc(s.handleResolveEngagement)))
 	mux.Handle("PUT /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindNode)))
 	mux.Handle("GET /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleListNodeBindingsByNode)))
+	mux.Handle("GET /api/v1/nodes/{id}/ancestors", s.auth(http.HandlerFunc(s.handleNodeAncestors)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
