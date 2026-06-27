@@ -52,7 +52,7 @@ func (f fakeAPI) ListNodes(_ context.Context) ([]domain.Node, error) {
 	return nil, nil
 }
 
-func (f fakeAPI) CreateNode(_ context.Context, _ string) (domain.Node, error) {
+func (f fakeAPI) CreateNode(_ context.Context, _ apiclient.CreateNodeFields) (domain.Node, error) {
 	return domain.Node{}, nil
 }
 

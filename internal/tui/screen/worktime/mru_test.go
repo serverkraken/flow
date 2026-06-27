@@ -7,9 +7,13 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func TestMruProjects_RecentFirstUnusedTrail(t *testing.T) {
+func TestMruEngagements_RecentFirstUnusedTrail(t *testing.T) {
 	t.Parallel()
-	projects := []domain.Node{{ID: "a"}, {ID: "b"}, {ID: "c"}}
+	nodes := []domain.Node{
+		{ID: "a", Kind: domain.KindEngagement},
+		{ID: "b", Kind: domain.KindEngagement},
+		{ID: "c", Kind: domain.KindEngagement},
+	}
 	t1 := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	t2 := time.Date(2026, 6, 10, 9, 0, 0, 0, time.UTC)
 	pa, pc := "a", "c"
@@ -18,7 +22,7 @@ func TestMruProjects_RecentFirstUnusedTrail(t *testing.T) {
 		{NodeID: &pa, Start: t1, Stop: ptr(t1.Add(time.Hour))}, // a used at ~t1
 		{NodeID: &pc, Start: t2, Stop: &stop2},                 // c used at ~t2 (more recent)
 	}
-	got := mruProjects(projects, sessions)
+	got := mruEngagements(nodes, sessions)
 	ids := []string{got[0].ID, got[1].ID, got[2].ID}
 	// c (most recent) > a (older) > b (unused, original order)
 	if ids[0] != "c" || ids[1] != "a" || ids[2] != "b" {
@@ -26,14 +30,30 @@ func TestMruProjects_RecentFirstUnusedTrail(t *testing.T) {
 	}
 }
 
-func TestMruProjects_RunningSessionUsesStart(t *testing.T) {
+func TestMruEngagements_RunningSessionUsesStart(t *testing.T) {
 	t.Parallel()
-	projects := []domain.Node{{ID: "a"}, {ID: "b"}}
+	nodes := []domain.Node{
+		{ID: "a", Kind: domain.KindEngagement},
+		{ID: "b", Kind: domain.KindEngagement},
+	}
 	pb := "b"
 	recent := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	sessions := []domain.WorkSession{{NodeID: &pb, Start: recent}} // running, no Stop
-	got := mruProjects(projects, sessions)
+	got := mruEngagements(nodes, sessions)
 	if got[0].ID != "b" {
 		t.Errorf("running session should rank b first, got %v", got[0].ID)
+	}
+}
+
+func TestMruEngagements_FiltersOutNonEngagements(t *testing.T) {
+	t.Parallel()
+	nodes := []domain.Node{
+		{ID: "e1", Kind: domain.KindEngagement, Name: "RTL Extern"},
+		{ID: "r1", Kind: domain.KindRepo, Name: "flow"},
+		{ID: "v1", Kind: domain.KindVorhaben, Name: "sprint"},
+	}
+	got := mruEngagements(nodes, nil)
+	if len(got) != 1 || got[0].ID != "e1" {
+		t.Fatalf("mruEngagements must only include engagements, got %+v", got)
 	}
 }

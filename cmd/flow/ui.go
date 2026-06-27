@@ -60,7 +60,7 @@ func runUI(cmd *cobra.Command, args []string) error {
 	m := shell.New(client, user, pal).
 		WithTabs([]shell.Route{
 			shell.NewHomeRoute(client, pal, user),
-			worktime.NewTodayRoute(adapted, time.Now, pal, worktime.BuildRegistry(client, pal)),
+			worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
 			docsscreen.NewRoute(client, editor.New(), opener.New(), pal, user),
 			projectscreen.MountWithAPI(client, client, adapted, pal, user),
 		}).

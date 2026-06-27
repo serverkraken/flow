@@ -8,6 +8,7 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/screen/worktime/wtfmt"
 	"github.com/serverkraken/flow/internal/tui/shell"
@@ -42,18 +43,21 @@ type nachbuchenState struct {
 	focus    nachbuchenFocus
 }
 
-// projectItems converts a domain project slice to fuzzylist items.
-func projectItems(ps []domain.Node) []fuzzylist.Item {
-	out := make([]fuzzylist.Item, 0, len(ps))
-	for _, p := range ps {
-		out = append(out, fuzzylist.Item{ID: p.ID, Label: p.Name})
+// engagementItems filters a node slice to engagements and converts them to
+// fuzzylist items. Non-engagement nodes (repos, vorhaben, branches) are omitted.
+func engagementItems(nodes []domain.Node) []fuzzylist.Item {
+	out := make([]fuzzylist.Item, 0, len(nodes))
+	for _, n := range nodes {
+		if n.Kind == domain.KindEngagement {
+			out = append(out, fuzzylist.Item{ID: n.ID, Label: n.Name})
+		}
 	}
 	return out
 }
 
 // openNachbuchen constructs the initial dialog state with the given project list.
 func openNachbuchen(pal theme.Palette, projects []domain.Node) *nachbuchenState {
-	proj := fuzzylist.New(projectItems(projects), pal).WithCreateHint("neu: %s")
+	proj := fuzzylist.New(engagementItems(projects), pal).WithCreateHint("neu: %s")
 	von := form.NewTextInput("HH:MM", pal)
 	bis := form.NewTextInput("HH:MM oder +1h30m", pal)
 	tag := form.NewTextInput("z.B. deep, meeting", pal)
@@ -115,11 +119,11 @@ func (r *Route) handleNachbuchenKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 				return r, func() tea.Msg {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					defer cancel()
-					p, err := api.CreateNode(ctx, name)
+					n, err := api.CreateNode(ctx, apiclient.CreateNodeFields{Name: name, Kind: string(domain.KindEngagement)})
 					if err != nil {
 						return nachbuchenProjectMsg{err: err}
 					}
-					return nachbuchenProjectMsg{id: p.ID, name: p.Name}
+					return nachbuchenProjectMsg{id: n.ID, name: n.Name}
 				}
 			}
 			// Existing project selected — advance to Von.
@@ -265,7 +269,7 @@ func (r *Route) renderNachbuchen(f shell.Frame) string {
 	b.WriteString("\n\n")
 
 	if nb.focus == focusProj {
-		b.WriteString("  Projekt wählen (tippen → filtern  ·  ↑/↓ → wählen  ·  enter → weiter):\n\n")
+		b.WriteString("  Engagement wählen (tippen → filtern  ·  ↑/↓ → wählen  ·  enter → weiter):\n\n")
 		b.WriteString(nb.proj.View(f.Width - 4))
 		return b.String()
 	}

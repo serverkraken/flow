@@ -26,7 +26,7 @@ type todayAPI interface {
 	StopSession(ctx context.Context, id, nodeID string) (domain.WorkSession, error)
 	EditSession(ctx context.Context, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	DeleteSession(ctx context.Context, id string) error
-	CreateNode(ctx context.Context, name string) (domain.Node, error)
+	CreateNode(ctx context.Context, in apiclient.CreateNodeFields) (domain.Node, error)
 }
 
 type dialogKind int
@@ -134,7 +134,7 @@ func (r *TodayRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		r.ticking = false
 		return r, nil
 	case projectsMsg:
-		r.booking.list = r.booking.list.SetItems(projectItems(m.projects))
+		r.booking.list = r.booking.list.SetItems(engagementItems(m.projects))
 		return r, nil
 	case toast.DismissedMsg:
 		r.toast, _ = r.toast.Update(m)

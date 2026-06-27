@@ -48,8 +48,8 @@ func (f *fakeAPI) ListNodes(_ context.Context) ([]domain.Node, error) {
 	return f.projects, nil
 }
 
-func (f *fakeAPI) CreateNode(_ context.Context, name string) (domain.Node, error) {
-	p := domain.Node{ID: "created-" + name, Name: name}
+func (f *fakeAPI) CreateNode(_ context.Context, in apiclient.CreateNodeFields) (domain.Node, error) {
+	p := domain.Node{ID: "created-" + in.Name, Name: in.Name, Kind: domain.NodeKind(in.Kind)}
 	f.projects = append(f.projects, p)
 	return p, nil
 }
@@ -290,7 +290,7 @@ func TestDayDetail_RangeBoundsNormalisedToMidnight(t *testing.T) {
 func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	f := &fakeAPI{
-		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme", Kind: domain.KindEngagement}},
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 
@@ -391,7 +391,7 @@ func TestDayDetail_LateProjectLoadDoesNotClobberDialog(t *testing.T) {
 	e := day.Add(11 * time.Hour)
 	f := &fakeAPI{
 		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}},
-		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme", Kind: domain.KindEngagement}},
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
@@ -527,7 +527,7 @@ func TestDayDetail_DeleteCancelDoesNotDelete(t *testing.T) {
 func TestDayDetail_OverlapErrorShowsToast(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	f := &fakeAPI{
-		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme", Kind: domain.KindEngagement}},
 		addErr:   apiErr(409),
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)

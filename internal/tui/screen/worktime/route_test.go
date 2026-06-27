@@ -20,15 +20,16 @@ func keyEnterMsg() tea.KeyPressMsg      { return tea.KeyPressMsg{Code: tea.KeyEn
 func confirmResult(ok bool) tea.Msg     { return confirm.ResultMsg{Confirmed: ok} }
 
 type fakeAPI struct {
-	today     apiclient.Today
-	sessions  []domain.WorkSession
-	projects  []domain.Node
-	started   bool
-	stopped   [2]string
-	edited    string
-	editStart time.Time
-	editStop  *time.Time
-	deleted   string
+	today      apiclient.Today
+	sessions   []domain.WorkSession
+	projects   []domain.Node
+	started    bool
+	stopped    [2]string
+	edited     string
+	editStart  time.Time
+	editStop   *time.Time
+	deleted    string
+	createKind string // last Kind passed to CreateNode
 }
 
 func (f *fakeAPI) GetToday(context.Context) (apiclient.Today, error) { return f.today, nil }
@@ -56,8 +57,9 @@ func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ stri
 	return domain.WorkSession{ID: id}, nil
 }
 func (f *fakeAPI) DeleteSession(_ context.Context, id string) error { f.deleted = id; return nil }
-func (f *fakeAPI) CreateNode(_ context.Context, name string) (domain.Node, error) {
-	return domain.Node{ID: "p-" + name, Name: name}, nil
+func (f *fakeAPI) CreateNode(_ context.Context, in apiclient.CreateNodeFields) (domain.Node, error) {
+	f.createKind = in.Kind
+	return domain.Node{ID: "p-" + in.Name, Name: in.Name, Kind: domain.NodeKind(in.Kind)}, nil
 }
 
 func fixedNow() time.Time { return time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC) }
@@ -179,8 +181,8 @@ func TestActions_StopOpensBookingThenBooks(t *testing.T) {
 	if r.dialog != dialogBooking {
 		t.Fatalf("dialog = %v, want booking", r.dialog)
 	}
-	// feed the project list into the fuzzylist via projectsMsg
-	r.booking.list = r.booking.list.SetItems(projectItems(f.projects))
+	// feed the engagement list into the fuzzylist via projectsMsg
+	r.booking.list = r.booking.list.SetItems(engagementItems(f.projects))
 	_, cmd := r.handleKey(keyEnterMsg())
 	if cmd != nil {
 		cmd()

@@ -7,11 +7,19 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// mruProjects orders projects by most-recently-used. A project's recency is the
-// latest session referencing it (Stop if set, else Start). Projects with no
-// session keep their original relative order and trail the used ones. Pure.
-func mruProjects(projects []domain.Node, sessions []domain.WorkSession) []domain.Node {
-	last := make(map[string]time.Time, len(projects))
+// mruEngagements filters nodes to engagements only, then orders them by
+// most-recently-used. A node's recency is the latest session referencing it
+// (Stop if set, else Start). Unused engagements keep their original relative
+// order and trail the used ones. Pure.
+func mruEngagements(nodes []domain.Node, sessions []domain.WorkSession) []domain.Node {
+	// Filter to engagements only.
+	var engs []domain.Node
+	for _, n := range nodes {
+		if n.Kind == domain.KindEngagement {
+			engs = append(engs, n)
+		}
+	}
+	last := make(map[string]time.Time, len(engs))
 	for _, s := range sessions {
 		if s.NodeID == nil {
 			continue
@@ -24,16 +32,16 @@ func mruProjects(projects []domain.Node, sessions []domain.WorkSession) []domain
 			last[*s.NodeID] = t
 		}
 	}
-	idxOf := make(map[string]int, len(projects))
-	for i, p := range projects {
-		idxOf[p.ID] = i
+	idxOf := make(map[string]int, len(engs))
+	for i, n := range engs {
+		idxOf[n.ID] = i
 	}
-	out := append([]domain.Node(nil), projects...)
+	out := append([]domain.Node(nil), engs...)
 	sort.SliceStable(out, func(a, b int) bool {
 		ta, oka := last[out[a].ID]
 		tb, okb := last[out[b].ID]
 		if oka != okb {
-			return oka // used projects come first
+			return oka // used engagements come first
 		}
 		if oka && okb && !ta.Equal(tb) {
 			return ta.After(tb) // more recent first
