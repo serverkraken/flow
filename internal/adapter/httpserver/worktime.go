@@ -96,6 +96,9 @@ func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, domain.ErrProjectRequired):
 		http.Error(w, "a project is required", http.StatusBadRequest)
 		return
+	case errors.Is(err, domain.ErrInvalidNode):
+		http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+		return
 	case errors.Is(err, ports.ErrNodeNotFound) || errors.Is(err, ports.ErrSessionNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return

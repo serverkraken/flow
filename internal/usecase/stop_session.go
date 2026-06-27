@@ -2,17 +2,18 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// StopSession ends a running session and books it to a project. Booking is
-// mandatory; the project must already exist (clients inline-create via
+// StopSession ends a running session and books it to an engagement. Booking is
+// mandatory; the engagement must already exist (clients inline-create via
 // CreateNode first, then pass the new id here). A timer that has run across
 // one or more local midnights is split into one session per calendar day, all
-// booked to the same project, so each day's totals stay accurate.
+// booked to the same engagement, so each day's totals stay accurate.
 type StopSession struct {
 	Sessions ports.SessionStore
 	Nodes	ports.NodeStore
@@ -32,8 +33,12 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 	if nodeID == nil || *nodeID == "" {
 		return domain.WorkSession{}, domain.ErrProjectRequired
 	}
-	if _, err := uc.Nodes.Get(ctx, ownerID, *nodeID); err != nil {
+	n, err := uc.Nodes.Get(ctx, ownerID, *nodeID)
+	if err != nil {
 		return domain.WorkSession{}, err // ErrNodeNotFound bubbles to a 404
+	}
+	if n.Kind != domain.KindEngagement {
+		return domain.WorkSession{}, fmt.Errorf("%w: worktime books to an engagement, got %s", domain.ErrInvalidNode, n.Kind)
 	}
 	cur, err := uc.Sessions.Get(ctx, ownerID, sessionID)
 	if err != nil {

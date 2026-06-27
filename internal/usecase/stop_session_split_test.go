@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 	ids := &testutil.FakeIDGen{}
 	now := time.Date(2026, 6, 24, 14, 0, 0, 0, loc)
 	clk := testutil.FakeClock{T: now}
-	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Kind: domain.KindEngagement, Name: "flow", Status: domain.NodeActive}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 	// running since yesterday 18:51
@@ -69,7 +70,7 @@ func TestStopSession_SameDayNoSplit(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	ids := &testutil.FakeIDGen{}
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 24, 12, 0, 0, 0, loc)}
-	_, _ = ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"})
+	_, _ = ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Kind: domain.KindEngagement, Name: "flow", Status: domain.NodeActive})
 	_, _ = ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: time.Date(2026, 6, 24, 9, 0, 0, 0, loc)})
 	uc := usecase.StopSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: loc}
 	pid := "p1"
@@ -79,5 +80,21 @@ func TestStopSession_SameDayNoSplit(t *testing.T) {
 	all, _, _ := ss.ListPage(ctx, "u1", 100, 0)
 	if len(all) != 1 {
 		t.Fatalf("same-day stop should not split, got %d sessions", len(all))
+	}
+}
+
+// TestStopSession_RepoRejected ensures that booking a session to a non-engagement
+// node (a KindRepo here) returns domain.ErrInvalidNode.
+func TestStopSession_RepoRejected(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	loc := time.UTC
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
+	seedRepo(t, ns, "u1", "repo1")
+	_, _ = ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: time.Date(2026, 6, 24, 9, 0, 0, 0, loc)})
+	uc := usecase.StopSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 24, 12, 0, 0, 0, loc)}, Loc: loc}
+	repo := "repo1"
+	if _, err := uc.Execute(ctx, "u1", "run", &repo); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("want ErrInvalidNode booking a repo, got %v", err)
 	}
 }
