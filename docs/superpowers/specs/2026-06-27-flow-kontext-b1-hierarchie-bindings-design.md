@@ -35,6 +35,7 @@ TUI + WebUI + CLI. B1 ist die Grundlage für B3 (Kontext-Store walkt die Ahnenke
 - Kontext-Inspektor, Lifecycle/„veraltet"-Status, Tag-Chips an Docs, globale Cross-Scope-Suche, Aufräum-Ansicht → **Querschnitt A/B** (nach B2/B3).
 - DocumentType-Redesign (agent → spec/plan/instruction/memory/activeContext sauber trennen) → **B3**. B1 lässt `DocumentType` unverändert, setzt nur `node_id`.
 - Voller MCP-Redesign (`flow_get_context`) → **B3**. B1 hält die MCP-Tool-*Namen*, macht sie node-aware.
+- Branch-/Feature-**Mechanik** (Branch-Resolution, auto-create, branch-scoped activeContext) → **B3**; Lifecycle „gemerged→veraltet" → **Querschnitt A**. B1 **reserviert nur** den kind `branch` im Schema (siehe §13), ohne Verhaltensänderung.
 - Monorepo-Sub-Projekte (ein Origin, mehrere Repos via Subpfad) — wie schon in V0 out.
 
 ## Entscheidungen (B1-spezifisch, erweitern D1–D11 der Übersicht)
@@ -46,6 +47,8 @@ TUI + WebUI + CLI. B1 ist die Grundlage für B3 (Kontext-Store walkt die Ahnenke
 - **B1-5** `type` ⊥ `node` ⊥ `tags` — drei unabhängige Achsen. Keine Kategorie fällt weg. Default-Scope je Kategorie (siehe §4).
 - **B1-6** Migration: „Privat" (Default) + „RTL Extern" anlegen; Repos per Regel (`slug ~ 'gitlab'` → RTL Extern, sonst Privat); `daily` → RTL-Engagement, `free` → NULL; Rates fallenlassen (Audit in `extra.legacy_rate`), danach manuell am Engagement.
 - **B1-7** `daily` ist **pro Engagement** (Strom je Engagement); `free` Default **global (NULL)**.
+- **B1-8** Feature-Kontext-Einheit = **Branch**, nicht Worktree (Branch ist cross-device-stabil, git-ablesbar, deckt Worktree *und* Feature-Branch-im-Haupt-Checkout). B1 reserviert kind `branch` unter `repo`; Default-Branch → Repo-Kontext, Feature-Branch → Branch-Node (Mechanik B3). Amendiert D4 der Übersicht (activeContext wird branch-scoped, nicht repo-scoped).
+- **B1-9** Nicht-Code-Projekte (kein git-Repo) = **Blatt-`vorhaben`** (kein eigenes kind, §14); Docs/activeContext hängen direkt am Vorhaben. **path-Bindung → `repo` oder Blatt-`vorhaben`**; **remote-Bindung → nur `repo`** (origin ist git-spezifisch).
 
 ---
 
@@ -60,7 +63,7 @@ CREATE TABLE nodes (
     id            TEXT PRIMARY KEY,
     owner_id      TEXT NOT NULL REFERENCES users(id),
     parent_id     TEXT     REFERENCES nodes(id) ON DELETE RESTRICT,   -- NULL = Wurzel
-    kind          TEXT NOT NULL CHECK (kind IN ('engagement','vorhaben','repo')),
+    kind          TEXT NOT NULL CHECK (kind IN ('engagement','vorhaben','repo','branch')),
     name          TEXT NOT NULL,
     slug          TEXT NOT NULL,
     color         TEXT NOT NULL DEFAULT '',
@@ -89,7 +92,8 @@ CREATE INDEX nodes_parent ON nodes (parent_id);
 
 **Cross-Row-Invarianten (Usecase, da nicht statisch in SQL):**
 - `vorhaben`/`repo` brauchen `parent_id`; deren Parent-`kind` ∈ {engagement, vorhaben}.
-- `repo` ist **Blatt**: Create/Move lehnt ab, wenn der Parent `kind='repo'` ist (ein Repo bekommt nie Kinder).
+- `branch` (in B1 reserviert, §13): `parent_id` Pflicht, Parent-`kind` = `repo`.
+- Blatt-Regeln: `repo`-Kinder dürfen **nur** `kind='branch'` sein; `branch` ist immer Blatt (keine Kinder). Create/Move lehnt Verstöße ab.
 - `move`/reparent ist **zyklenfrei**: Ziel-Parent darf nicht der Knoten selbst oder einer seiner Nachfahren sein (Ahnenkette des Ziels prüfen).
 - Folge-Invariante (automatisch erfüllt): jeder Repo hat eine engagement-Wurzel als Vorfahr (D2 „nichts hängt frei").
 
@@ -105,6 +109,7 @@ const (
     KindEngagement NodeKind = "engagement"
     KindVorhaben   NodeKind = "vorhaben"
     KindRepo       NodeKind = "repo"
+    KindBranch     NodeKind = "branch"   // in B1 nur reserviert (§13); Mechanik B3
 )
 
 type Node struct {
@@ -143,7 +148,7 @@ Pure Validierungs-Helfer (Domain-Tests, kein DB-Zugriff):
 | `project_bindings` | `project_id → projects(id) ON DELETE CASCADE` (`0011:5`) | `node_id → nodes(id) ON DELETE CASCADE` | CASCADE bleibt |
 
 - `documents` Unique-Index `documents_owner_project_path` (`0006:16–18`, `coalesce(project_id,'')`) → **`documents_owner_node_path`** auf `(owner_id, coalesce(node_id,''), path)`. **`path`-Werte unverändert** (lean-name = B3).
-- `project_bindings`-Indizes (`0011`) referenzieren keine projects-Spalte direkt; nur die FK-Spalte wird umbenannt. Binding-Resolution unverändert, aber das aufgelöste Ziel ist jetzt ein **Repo**-Node (Usecase erzwingt beim Bind `kind='repo'`).
+- `project_bindings`-Indizes (`0011`) referenzieren keine projects-Spalte direkt; nur die FK-Spalte wird umbenannt. Binding-Target je `BindingKind`: **remote-Bindung → nur `repo`** (git-origin), **path-Bindung → `repo` oder Blatt-`vorhaben`** (Nicht-Code-Projekte, §14). Usecase erzwingt das beim Bind.
 - `domain.Document.ProjectID *string` (`document.go:61`) → `NodeID *string`; `"none"`-Sentinel-Konvention (Query = nur unzugeordnete) bleibt 1:1, jetzt „nur globale" (`node_id NULL`).
 - `domain.WorkSession.ProjectID *string` (`worksession.go:13`) → `NodeID *string`; zeigt auf ein **Engagement**.
 
@@ -169,7 +174,7 @@ genügt: Create-Pfade setzen `node_id` aus dem aufgelösten Kontext (cwd→Repo,
 ## 5 · Resolution + Ahnenkette
 
 - `usecase.ResolveProject` (`resolve_project.go:17`) → `ResolveNode`; Signatur unverändert
-  (`Execute(ctx, ownerID, remoteSlug, machineID, cwd) (Node, bool, error)`), liefert jetzt einen **Repo**-Node.
+  (`Execute(ctx, ownerID, remoteSlug, machineID, cwd) (Node, bool, error)`), liefert jetzt einen **Repo**-Node (oder ein Blatt-`vorhaben`, wenn eine path-Bindung auf ein Nicht-Code-Projekt zeigt, §14).
   `internal/projectresolve/resolve.go:34` zieht nach (`projectresolve` → `noderesolve`, oder Paketname behalten, Rückgabetyp `domain.Node`).
 - **Neu** `NodeStore.Ancestors(ctx, ownerID, nodeID string) ([]Node, error)` — ein `WITH RECURSIVE`-CTE
   parent_id-Walk, geordnet **Blatt → Wurzel**. Das ist das Primitiv, das B3 (Bootstrap-Compose) konsumiert.
@@ -208,7 +213,7 @@ flow node list   [--tree] [--kind …] [--status active|paused|archived|all]
 flow node show   [<slug>]            # default: cwd-resolved repo + Ahnenkette
 flow node move   <slug> --parent <slug>     # reparent, zyklenfrei
 flow node rate   <engagement-slug> <amount> <currency>
-flow node bind|unbind|bindings       # wie bisher, Ziel = Repo-Blatt
+flow node bind|unbind|bindings       # remote→repo; path→repo oder Blatt-vorhaben (§14)
 flow node pause|resume|archive <slug>
 flow node rm     <slug>              # RESTRICT: nur wenn kinderlos
 ```
@@ -282,3 +287,40 @@ TDD durchgängig ([[feedback_plan_main_wiring_task]] — finaler Wiring-Task mit
 B1 ist Voraussetzung für **B3** (Ahnenkette). B2 (Tags) ist unabhängig/parallel. Innerhalb B1 empfiehlt
 sich der Schnitt: **(a) Datenmodell+Migration+Resolution (Backend) → (b) Rate/Worktime/Export auf Engagement
 → (c) API/SSE/CLI → (d) UI (WebUI+TUI) → (e) Wiring-/Done-Gate** — der Implementation-Plan schneidet das in Tasks.
+
+## 13 · Branch-Ebene (in B1 nur reserviert)
+
+**Feature-Kontext-Einheit = Branch, nicht Worktree** (B1-8). Ein Worktree ist nur „ein Branch, ausgecheckt
+an einem Pfad"; Branch-Keying deckt Worktree *und* Feature-Branch-im-Haupt-Checkout, ist cross-device-stabil
+(gleicher Branch-Name in jedem Clone) und git-ablesbar — keine per-PC-Pfad-Bindung, keine Präzedenz-Umkehr.
+
+**Was B1 tut (Modell zukunftssicher, billig):**
+- kind `branch` im Enum + Invarianten (§1): `branch.parent = repo`; `repo`-Kinder nur `branch`; `branch` ist Blatt.
+- Ahnenkette ist tiefen-agnostisch → `branch → repo → [vorhaben] → engagement → global` funktioniert ohne Zusatzcode.
+- **Kein Verhaltenswechsel:** B1 legt keine Branch-Nodes an; Resolution bleibt origin→Repo. `node_id` auf Docs/Sessions zeigt in B1 nie auf einen Branch.
+
+**Was später kommt (Mechanik):**
+- **B3:** zweidimensionale Resolution — `origin-slug → Repo` **und** `git branch --show-current → Branch-Node` (neuer Reader `gitremote.CurrentBranch`, analog `OriginSlug`). Default-Branch (`main`) → Repo-Kontext (kein eigener Node); Feature-Branch → Branch-Node (auto-create beim ersten Kontext-Write, z.B. activeContext via Stop-Hook). **activeContext wird branch-scoped** statt repo-scoped — amendiert D4 der Übersicht.
+- **Querschnitt A:** Lifecycle „Branch gemerged/gelöscht → Branch-Node + Feature-Kontext auf `veraltet`" (soft, reversibel), nicht hart löschen.
+
+## 14 · Nicht-Code-Projekte (kein git-Repo)
+
+Das Modell trägt Kontext für Arbeit **ohne** Sourcecode, weil `node_id` (Docs/Sessions) auf *jeden* Knoten
+zeigt — nicht nur auf Repos. Ein Nicht-Code-Projekt ist ein **Blatt-`vorhaben`** (B1-9): ein `vorhaben`
+ohne Repo-Kinder, an dem Docs/activeContext direkt hängen. Kein eigenes kind nötig („Vorhaben" = Projekt/Unterfangen).
+
+```
+Privat (engagement)
+  ├─ flow (repo)                  ← Code
+  └─ Buch schreiben (vorhaben)    ← Nicht-Code-Projekt: Docs/activeContext direkt am Vorhaben
+RTL Extern (engagement)
+  └─ Steuerkram 2026 (vorhaben)   ← Nicht-Code-Projekt
+```
+
+**Drei Zugangswege (Resolution):**
+1. **Mit Arbeitsverzeichnis (kein git):** **path-Bindung → Blatt-`vorhaben`** (das path-Tier matcht jedes Verzeichnis per longest-prefix, nicht nur git-Repos). Dafür wird die Binding-Target-Regel geöffnet (§3): remote→repo, path→repo|Blatt-vorhaben.
+2. **Ohne Verzeichnis (rein konzeptionell):** keine Bindung; **explizite Auswahl** via Picker / CLI (`flow node show <slug>`) / `FLOW_PROJECT`-Override. Kontext lebt am Knoten, wird durch Auswahl gezogen.
+3. **activeContext** eines Nicht-Code-Projekts ist **vorhaben-scoped** (das Blatt) — analog repo-/branch-scoped beim Code (Mechanik in B3).
+
+**B1-Umfang hier:** nur die Binding-Target-Lockerung (§3) + die Bestätigung, dass Docs an Blatt-vorhaben hängen
+dürfen (gilt durch das `node_id`-FK-Modell ohnehin). Auto-create + vorhaben-scoped activeContext = B3.
