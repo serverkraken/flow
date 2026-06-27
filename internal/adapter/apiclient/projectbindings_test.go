@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -58,7 +59,7 @@ func TestResolveProject_404(t *testing.T) {
 	if ok {
 		t.Fatal("expected ok=false on 404")
 	}
-	if p.ID != "" {
+	if !reflect.DeepEqual(p, domain.Node{}) {
 		t.Fatalf("expected zero Project, got %+v", p)
 	}
 }
