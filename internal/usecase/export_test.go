@@ -6,74 +6,30 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// fakeNodeStore is a minimal in-memory NodeStore for export tests.
-type fakeNodeStore struct {
-	list    []domain.Node
-	setRate *domain.Money // last rate set via SetRate (for assertion, not used here)
-}
-
-func (f fakeNodeStore) Create(_ context.Context, p domain.Node) (domain.Node, error) {
-	return p, nil
-}
-func (f fakeNodeStore) List(_ context.Context, _ string) ([]domain.Node, error) {
-	return f.list, nil
-}
-func (f fakeNodeStore) Get(_ context.Context, _, id string) (domain.Node, error) {
-	for _, p := range f.list {
-		if p.ID == id {
-			return p, nil
-		}
-	}
-	return domain.Node{}, nil
-}
-func (f *fakeNodeStore) Update(_ context.Context, _ string, p domain.Node) (domain.Node, error) {
-	return p, nil
-}
-func (f *fakeNodeStore) SetRate(_ context.Context, _, _ string, rate *domain.Money) error {
-	f.setRate = rate
-	return nil
-}
-func (f *fakeNodeStore) Delete(_ context.Context, _, _ string) error { return nil }
-func (f *fakeNodeStore) Children(_ context.Context, _ string, _ *string) ([]domain.Node, error) {
-	return nil, nil
-}
-func (f *fakeNodeStore) Ancestors(_ context.Context, _, _ string) ([]domain.Node, error) {
-	return nil, nil
-}
-func (f *fakeNodeStore) Reparent(_ context.Context, _, _ string, _ *string) (domain.Node, error) {
-	return domain.Node{}, nil
-}
-
-func TestBuildExport_AggregatesByProject(t *testing.T) {
+func TestBuildExport_AggregatesByEngagement(t *testing.T) {
+	t.Parallel()
 	loc := time.UTC
-	pid := "p1"
+	ns := testutil.NewFakeNodeStore()
 	rate := domain.Money{Amount: 8000, Currency: "EUR"}
+	if _, err := ns.Create(context.Background(), domain.Node{
+		ID: "eng1", OwnerID: "u1", Kind: domain.KindEngagement,
+		Name: "RTL Extern", Slug: "rtl-extern", Status: domain.NodeActive, Rate: &rate,
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	eng := "eng1"
 	sessions := []domain.WorkSession{
-		{
-			ID:        "a",
-			NodeID: &pid,
-			Start:     time.Date(2026, 6, 15, 9, 0, 0, 0, loc),
-			Stop:      ptr(time.Date(2026, 6, 15, 11, 0, 0, 0, loc)), // 2h
-		},
-		{
-			ID:        "b",
-			NodeID: &pid,
-			Start:     time.Date(2026, 6, 15, 12, 0, 0, 0, loc),
-			Stop:      ptr(time.Date(2026, 6, 15, 12, 30, 0, 0, loc)), // 30m
-		},
-		{
-			ID:        "run",
-			NodeID: &pid,
-			Start:     time.Date(2026, 6, 15, 13, 0, 0, 0, loc),
-			Stop:      nil, // running — must be excluded
-		},
+		{ID: "a", NodeID: &eng, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 15, 11, 0, 0, 0, loc))},   // 2h
+		{ID: "b", NodeID: &eng, Start: time.Date(2026, 6, 15, 12, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 15, 12, 30, 0, 0, loc))}, // 30m
+		{ID: "run", NodeID: &eng, Start: time.Date(2026, 6, 15, 13, 0, 0, 0, loc), Stop: nil},                                          // running → excluded
 	}
 	uc := usecase.BuildExport{
 		Sessions: fakeSessionStore{list: sessions},
-		Nodes: &fakeNodeStore{list: []domain.Node{{ID: pid, Name: "Acme", Rate: &rate}}},
+		Nodes:    ns,
 		Clock:    fixedClock{t: time.Date(2026, 6, 16, 0, 0, 0, 0, loc)},
 		Loc:      loc,
 	}
@@ -90,37 +46,32 @@ func TestBuildExport_AggregatesByProject(t *testing.T) {
 	if len(data.ByEngagement) != 1 || data.ByEngagement[0].Total != 150*time.Minute {
 		t.Fatalf("aggregate: got %+v", data.ByEngagement)
 	}
+	if data.ByEngagement[0].NodeName != "RTL Extern" {
+		t.Errorf("name: got %q", data.ByEngagement[0].NodeName)
+	}
 	if data.ByEngagement[0].Amount == nil || data.ByEngagement[0].Amount.Amount != 20000 {
 		t.Errorf("amount: got %+v want 20000 (2.5h*8000)", data.ByEngagement[0].Amount)
 	}
 }
 
 func TestBuildExport_ExcludesOutOfRange(t *testing.T) {
+	t.Parallel()
 	loc := time.UTC
-	pid := "p1"
+	ns := testutil.NewFakeNodeStore()
+	_, _ = ns.Create(context.Background(), domain.Node{
+		ID: "eng1", OwnerID: "u1", Kind: domain.KindEngagement,
+		Name: "X", Slug: "x", Status: domain.NodeActive,
+	})
+	eng := "eng1"
 	sessions := []domain.WorkSession{
-		{
-			ID:        "before",
-			NodeID: &pid,
-			Start:     time.Date(2026, 5, 31, 9, 0, 0, 0, loc),
-			Stop:      ptr(time.Date(2026, 5, 31, 10, 0, 0, 0, loc)),
-		},
-		{
-			ID:        "in",
-			NodeID: &pid,
-			Start:     time.Date(2026, 6, 15, 9, 0, 0, 0, loc),
-			Stop:      ptr(time.Date(2026, 6, 15, 10, 0, 0, 0, loc)),
-		},
-		{
-			ID:        "after",
-			NodeID: &pid,
-			Start:     time.Date(2026, 7, 1, 9, 0, 0, 0, loc),
-			Stop:      ptr(time.Date(2026, 7, 1, 10, 0, 0, 0, loc)),
-		},
+		{ID: "before", NodeID: &eng, Start: time.Date(2026, 5, 31, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 5, 31, 10, 0, 0, 0, loc))},
+		{ID: "in", NodeID: &eng, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 15, 10, 0, 0, 0, loc))},
+		{ID: "after", NodeID: &eng, Start: time.Date(2026, 7, 1, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 7, 1, 10, 0, 0, 0, loc))},
+		{ID: "unbooked", NodeID: nil, Start: time.Date(2026, 6, 16, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 16, 10, 0, 0, 0, loc))},
 	}
 	uc := usecase.BuildExport{
 		Sessions: fakeSessionStore{list: sessions},
-		Nodes: &fakeNodeStore{list: []domain.Node{{ID: pid, Name: "X"}}},
+		Nodes:    ns,
 		Clock:    fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, loc)},
 		Loc:      loc,
 	}
@@ -132,24 +83,52 @@ func TestBuildExport_ExcludesOutOfRange(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(data.Sessions) != 1 {
-		t.Fatalf("want 1 in-range session, got %d", len(data.Sessions))
+		t.Fatalf("want 1 in-range booked session, got %d", len(data.Sessions))
 	}
 }
 
-// TestBuildExport_WithExplicitLoc covers the loc() != nil branch (BuildExport.Loc set).
-// The existing tests already pass Loc (non-nil), but this one makes the nil path
-// explicit via Loc=nil to ensure both branches are exercised across test runs.
+func TestBuildExport_FilterByEngagement(t *testing.T) {
+	t.Parallel()
+	loc := time.UTC
+	ns := testutil.NewFakeNodeStore()
+	_, _ = ns.Create(context.Background(), domain.Node{ID: "e1", OwnerID: "u1", Kind: domain.KindEngagement, Name: "A", Slug: "a", Status: domain.NodeActive})
+	_, _ = ns.Create(context.Background(), domain.Node{ID: "e2", OwnerID: "u1", Kind: domain.KindEngagement, Name: "B", Slug: "b", Status: domain.NodeActive})
+	e1, e2 := "e1", "e2"
+	sessions := []domain.WorkSession{
+		{ID: "a", NodeID: &e1, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 15, 10, 0, 0, 0, loc))},
+		{ID: "b", NodeID: &e2, Start: time.Date(2026, 6, 15, 11, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 15, 12, 0, 0, 0, loc))},
+	}
+	uc := usecase.BuildExport{
+		Sessions: fakeSessionStore{list: sessions},
+		Nodes:    ns,
+		Clock:    fixedClock{t: time.Date(2026, 6, 16, 0, 0, 0, 0, loc)},
+		Loc:      loc,
+	}
+	data, err := uc.Execute(context.Background(), "u1",
+		time.Date(2026, 6, 1, 0, 0, 0, 0, loc),
+		time.Date(2026, 6, 30, 0, 0, 0, 0, loc),
+		"e1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.ByEngagement) != 1 || data.ByEngagement[0].NodeID != "e1" {
+		t.Fatalf("filter: got %+v", data.ByEngagement)
+	}
+}
+
+// TestBuildExport_NilLoc covers the loc() nil-fallback branch (BuildExport.Loc unset).
 func TestBuildExport_NilLoc(t *testing.T) {
+	t.Parallel()
 	uc := usecase.BuildExport{
 		Sessions: fakeSessionStore{}, // no sessions → empty export
-		Nodes: &fakeNodeStore{},
+		Nodes:    testutil.NewFakeNodeStore(),
 		Clock:    fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
 		Loc:      nil, // nil → uses time.Local; covers the else branch
 	}
-	from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
-	_, err := uc.Execute(context.Background(), "u1", from, to, "")
-	if err != nil {
+	if _, err := uc.Execute(context.Background(), "u1",
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC),
+		""); err != nil {
 		t.Fatalf("Execute with nil loc: %v", err)
 	}
 }

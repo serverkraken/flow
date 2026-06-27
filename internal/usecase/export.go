@@ -10,8 +10,8 @@ import (
 )
 
 // BuildExport aggregates a user's booked (stopped) sessions in [from,to] by
-// project into a domain.ExportData, resolving project names + rates. The
-// running session is excluded. nodeID "" means all projects.
+// engagement into a domain.ExportData, resolving engagement names + rates. The
+// running session is excluded. engagementID "" means all engagements.
 type BuildExport struct {
 	Sessions ports.SessionStore
 	Nodes	ports.NodeStore
@@ -27,8 +27,10 @@ func (uc BuildExport) loc() *time.Location {
 }
 
 // Execute aggregates stopped sessions between from and to (inclusive day
-// boundaries). nodeID filters to a single project when non-empty.
-func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time.Time, nodeID string) (domain.ExportData, error) {
+// boundaries). engagementID filters to a single engagement when non-empty.
+// Sessions store an engagement node_id post-migration, so grouping by NodeID
+// already groups per engagement; the name/rate are resolved via NodeStore.
+func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time.Time, engagementID string) (domain.ExportData, error) {
 	loc := uc.loc()
 	// Inclusive day range: [from 00:00, to+1d 00:00)
 	lo := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, loc)
@@ -60,7 +62,7 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 		if start.Before(lo) || !start.Before(hi) {
 			continue
 		}
-		if nodeID != "" && *s.NodeID != nodeID {
+		if engagementID != "" && *s.NodeID != engagementID {
 			continue
 		}
 		p := byID[*s.NodeID]
