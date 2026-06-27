@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"html/template"
 	"sort"
+	"strings"
 
 	"github.com/a-h/templ"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -186,3 +188,76 @@ func nodeFormAction(editing *domain.Node) templ.SafeURL {
 
 // nodeParentLabel returns the display label for a parent candidate.
 func nodeParentLabel(p domain.Node) string { return p.Name }
+
+// ---------------------------------------------------------------------------
+// Helpers shared by nodes.templ templates (moved from projects.templ)
+// ---------------------------------------------------------------------------
+
+// gitDisplay normalises a git remote URL to a human-friendly "host/path" form.
+// SSH  git@github.com:org/repo.git  → github.com/org/repo
+// HTTPS https://github.com/org/repo.git → github.com/org/repo
+// Anything else is returned unchanged.
+func gitDisplay(raw string) string {
+	if after, ok := strings.CutPrefix(raw, "git@"); ok {
+		colonIdx := strings.Index(after, ":")
+		if colonIdx > 0 {
+			host := after[:colonIdx]
+			path := strings.TrimSuffix(after[colonIdx+1:], ".git")
+			return host + "/" + path
+		}
+	}
+	for _, scheme := range []string{"https://", "http://"} {
+		if after, ok := strings.CutPrefix(raw, scheme); ok {
+			return strings.TrimSuffix(after, ".git")
+		}
+	}
+	return raw
+}
+
+// orDefault returns v if non-empty, otherwise def.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}
+
+// fmtHours formats a float64 hour count as "HH:MM".
+func fmtHours(h float64) string {
+	total := int(h * 60)
+	if total < 0 {
+		total = 0
+	}
+	return fmt.Sprintf("%02d:%02d", total/60, total%60)
+}
+
+// fmtCount formats an int as a decimal string.
+func fmtCount(n int) string { return fmt.Sprintf("%d", n) }
+
+// bindingTarget returns the display target for a binding: slug for remote, path for local.
+func bindingTarget(b domain.ProjectBinding) string {
+	if b.RemoteSlug != "" {
+		return b.RemoteSlug
+	}
+	return b.Path
+}
+
+// nodeCrumbs builds breadcrumb segments root→leaf from the leaf→root Ancestors
+// chain returned by NodeStore.Ancestors. The current node (last in output) has
+// no Href so it renders as "current page".
+func nodeCrumbs(d NodeCockpit) []components.Crumb {
+	var crumbs []components.Crumb
+	for i := len(d.Ancestors) - 1; i >= 0; i-- {
+		a := d.Ancestors[i]
+		if a.ID == d.N.ID {
+			crumbs = append(crumbs, components.Crumb{Label: a.Name})
+		} else {
+			crumbs = append(crumbs, components.Crumb{Href: "/nodes/" + a.ID, Label: a.Name})
+		}
+	}
+	if len(crumbs) == 0 {
+		// Ancestors empty (leaf node with no parent, or defensive fallback).
+		crumbs = append(crumbs, components.Crumb{Label: d.N.Name})
+	}
+	return crumbs
+}

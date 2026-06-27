@@ -365,13 +365,13 @@ func TestHistorieMonth_UnassignedBanner(t *testing.T) {
 	}
 }
 
-// TestWebProjectUpdate_RedirectsOnSuccess exercises handleWebProjectUpdate via
-// the newWebProjectsServer harness (which wires GetNode, UpdateNode).
+// TestWebProjectUpdate_RedirectsOnSuccess exercises handleWebNodeUpdate via
+// the newWebNodesServer harness (which wires GetNode, UpdateNode).
 func TestWebProjectUpdate_RedirectsOnSuccess(t *testing.T) {
-	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "upd-1", "Old Name", domain.NodeActive)
+	ts, c, ns := newWebNodesServer(t)
+	seedEngNode(t, ns, "upd-1", "Old Name", domain.NodeActive)
 
-	res := postWebForm(t, ts, cookie, "/nodes/upd-1", url.Values{
+	res := postN(t, ts, c, "/nodes/upd-1", url.Values{
 		"name": {"New Name"}, "slug": {"new-name"}, "color": {domain.NodeColors[0]},
 		"glyph": {domain.NodeGlyphs[0]}, "status": {"active"},
 	})
@@ -386,14 +386,14 @@ func TestWebProjectUpdate_RedirectsOnSuccess(t *testing.T) {
 }
 
 // TestWebProjectUpdate_EmptyNameErrors exercises the reRender branch in
-// handleWebProjectUpdate (name empty → 400 with error form).
+// handleWebNodeUpdate (name empty → 400 with error form).
 // Note: name validation happens in UpdateNode, not here, so empty name
 // triggers the ErrInvalidNode path.
 func TestWebProjectUpdate_InvalidName(t *testing.T) {
-	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "upd-2", "Valid Name", domain.NodeActive)
+	ts, c, ns := newWebNodesServer(t)
+	seedEngNode(t, ns, "upd-2", "Valid Name", domain.NodeActive)
 
-	res := postWebForm(t, ts, cookie, "/nodes/upd-2", url.Values{
+	res := postN(t, ts, c, "/nodes/upd-2", url.Values{
 		"name": {""}, "slug": {"valid-name"}, "color": {domain.NodeColors[0]},
 		"glyph": {domain.NodeGlyphs[0]}, "status": {"active"},
 	})
@@ -481,13 +481,12 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 	}
 }
 
-// TestWebProjectsListWithSessions seeds a project with recent sessions to exercise
-// the projectWorktime function branches (week/month bins with actual data).
+// TestWebProjectsListWithSessions seeds a project to exercise the list handler.
 func TestWebProjectsListWithSessions(t *testing.T) {
-	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "sess-proj-1", "Active Billed", domain.NodeActive)
+	ts, c, ns := newWebNodesServer(t)
+	seedEngNode(t, ns, "sess-proj-1", "Active Billed", domain.NodeActive)
 
-	code, body := getWeb(t, ts, cookie, "/nodes")
+	code, body := getN(t, ts, c, "/nodes")
 	if code != http.StatusOK {
 		t.Fatalf("GET /nodes status=%d", code)
 	}
@@ -569,15 +568,15 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 	}
 }
 
-// TestWebProjectsList_MultipleStatusFilters exercises projectsList templ branches
+// TestWebProjectsList_MultipleStatusFilters exercises nodesList templ branches
 // by rendering the projects list with projects in multiple status states.
 func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
-	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "p-active-1", "Alpha", domain.NodeActive)
-	seedProjectForWeb(t, ps, "p-archived-1", "Beta", domain.NodeArchived)
+	ts, c, ns := newWebNodesServer(t)
+	seedEngNode(t, ns, "p-active-1", "Alpha", domain.NodeActive)
+	seedEngNode(t, ns, "p-archived-1", "Beta", domain.NodeArchived)
 
 	// Default list (all projects).
-	code, body := getWeb(t, ts, cookie, "/nodes")
+	code, body := getN(t, ts, c, "/nodes")
 	if code != http.StatusOK {
 		t.Fatalf("GET /nodes status=%d", code)
 	}
@@ -586,7 +585,7 @@ func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
 	}
 
 	// Archived filter.
-	code2, body2 := getWeb(t, ts, cookie, "/nodes?status=archived")
+	code2, body2 := getN(t, ts, c, "/nodes?status=archived")
 	if code2 != http.StatusOK {
 		t.Fatalf("GET /nodes?status=archived status=%d", code2)
 	}
@@ -595,17 +594,17 @@ func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
 	}
 }
 
-// TestWebProjectCockpit_WithGitUpstream exercises projectCockpitBody branches
+// TestWebProjectCockpit_WithGitUpstream exercises nodeCockpitBody branches
 // including the gitDisplay path (when UpstreamGit is set).
 func TestWebProjectCockpit_WithGitUpstream(t *testing.T) {
-	ts, cookie, ps := newWebProjectsServer(t)
+	ts, c, ns := newWebNodesServer(t)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
 	p, _ := domain.NewNode("git-proj-1", "u1", "GitProject", "gitproject", now)
 	p.UpstreamGit = "git@github.com:serverkraken/gitproject.git"
 	p.Status = domain.NodeActive
-	_, _ = ps.Create(context.Background(), p)
+	_, _ = ns.Create(context.Background(), p)
 
-	code, body := getWeb(t, ts, cookie, "/nodes/git-proj-1")
+	code, body := getN(t, ts, c, "/nodes/git-proj-1")
 	if code != http.StatusOK {
 		t.Fatalf("GET /nodes/git-proj-1 status=%d body=%.200s", code, body)
 	}
@@ -720,15 +719,16 @@ func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:        usecase.ListNodes{Nodes: ps},
-		GetNode:          usecase.GetNode{Nodes: ps},
-		UpdateNode:       usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
-		DeleteNode:       usecase.DeleteNode{Nodes: ps},
-		SetNodeRate:      usecase.SetNodeRate{Nodes: ps},
-		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
-		ListDocuments:       usecase.ListDocuments{Docs: docs},
+		CreateNode:        usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:         usecase.ListNodes{Nodes: ps},
+		GetNode:           usecase.GetNode{Nodes: ps},
+		UpdateNode:        usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
+		DeleteNode:        usecase.DeleteNode{Nodes: ps},
+		SetNodeRate:       usecase.SetNodeRate{Nodes: ps},
+		NodeAncestors:     usecase.NodeAncestors{Nodes: ps},
+		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
+		ListDocuments:     usecase.ListDocuments{Docs: docs},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()

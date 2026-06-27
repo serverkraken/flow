@@ -50,6 +50,7 @@ func newWebNodesServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.
 		DeleteNode:        usecase.DeleteNode{Nodes: ns},
 		SetNodeRate:       usecase.SetNodeRate{Nodes: ns},
 		MoveNode:          usecase.MoveNode{Nodes: ns},
+		NodeAncestors:     usecase.NodeAncestors{Nodes: ns},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
@@ -145,6 +146,49 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 	}
 	if !strings.Contains(frag, "padding-left:1rem") {
 		t.Errorf("fragment missing child indentation style padding-left:1rem; body=%.500s", frag)
+	}
+}
+
+// seedEngNode seeds an engagement with the given status (extends seedTreeNode).
+func seedEngNode(t *testing.T, ns *testutil.FakeNodeStore, id, name string, status domain.NodeStatus) domain.Node {
+	t.Helper()
+	n := seedTreeNode(t, ns, id, name, domain.KindEngagement, nil)
+	if status != domain.NodeActive {
+		n.Status = status
+		_, _ = ns.Update(context.Background(), "u1", n)
+	}
+	return n
+}
+
+// TestWebNodeCockpit verifies the node cockpit at GET /nodes/{id}: ancestor
+// breadcrumb (engagement parent shown), git display, rendered markdown,
+// kind badge, move form, and 404 on unknown ID.
+func TestWebNodeCockpit(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+	eng := seedTreeNode(t, ns, "eng1", "RTL Extern", domain.KindEngagement, nil)
+	repo := seedTreeNode(t, ns, "r1", "flow", domain.KindRepo, &eng.ID)
+	repo.Description = "# Notiz\nhallo"
+	repo.UpstreamGit = "git@github.com:serverkraken/flow.git"
+	_, _ = ns.Update(context.Background(), "u1", repo)
+
+	code, body := getN(t, ts, c, "/nodes/r1")
+	if code != 200 {
+		t.Fatalf("cockpit = %d; body=%.700s", code, body)
+	}
+	for _, want := range []string{
+		"flow",                          // node name
+		"RTL Extern",                    // ancestor breadcrumb (engagement parent)
+		"github.com/serverkraken/flow",  // git display (SSH → host/path)
+		"Notiz",                         // rendered markdown heading
+		"Repo",                          // kind badge label
+		"Verschieben",                   // move form present
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("cockpit missing %q; body=%.700s", want, body)
+		}
+	}
+	if code, _ := getN(t, ts, c, "/nodes/nope"); code != http.StatusNotFound {
+		t.Errorf("unknown id = %d, want 404", code)
 	}
 }
 

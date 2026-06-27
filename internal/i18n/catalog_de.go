@@ -74,6 +74,16 @@ func init() {
 			"node.err.move":          "Verschieben fehlgeschlagen",
 			"node.err.cycle":         "Ziel liegt im eigenen Teilbaum",
 			"node.err.children":      "Knoten hat untergeordnete Elemente und kann nicht gelöscht werden",
+			// node cockpit
+			"node.section.worktime": "Worktime",
+			"node.section.docs":     "Dokumente",
+			"node.section.bindings": "Bindings",
+			"node.section.git":      "Git",
+			"node.ancestors":        "Hierarchie",
+			"node.worktime.total":   "Σ",
+			"node.worktime.week":    "Woche",
+			"node.worktime.month":   "Monat",
+			"node.none":             "—",
 			// node move form
 			"node.move":       "Verschieben",
 			"node.moveTitle":  "Knoten verschieben",

@@ -67,6 +67,16 @@ func init() {
 			"node.err.move":          "Move failed",
 			"node.err.cycle":         "Target is inside its own subtree",
 			"node.err.children":      "Node has children and cannot be deleted",
+			// node cockpit
+			"node.section.worktime": "Worktime",
+			"node.section.docs":     "Documents",
+			"node.section.bindings": "Bindings",
+			"node.section.git":      "Git",
+			"node.ancestors":        "Hierarchy",
+			"node.worktime.total":   "Σ",
+			"node.worktime.week":    "Week",
+			"node.worktime.month":   "Month",
+			"node.none":             "—",
 			// node move form
 			"node.move":       "Move",
 			"node.moveTitle":  "Move node",

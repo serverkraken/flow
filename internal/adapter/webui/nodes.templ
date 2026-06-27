@@ -271,6 +271,100 @@ templ nodeGlyphRadio(g, current string) {
 	</label>
 }
 
+// ---------------------------------------------------------------------------
+// Node cockpit (GET /nodes/{id}) — read-only detail page
+// ---------------------------------------------------------------------------
+
+// NodeView renders the full cockpit page for a single node.
+templ NodeView(d NodeCockpit) {
+	@components.Base("projekte", nodeViewBody(d))
+}
+
+templ nodeViewBody(d NodeCockpit) {
+	@components.AppShell("projekte", nodeBreadcrumb(d), nil, nodeViewOuter(d))
+}
+
+// nodeViewOuter wraps the cockpit body in an SSE-reactive outer div.
+templ nodeViewOuter(d NodeCockpit) {
+	<div
+		id="content"
+		hx-get={ "/nodes/" + d.N.ID }
+		hx-trigger="sse:node.updated, sse:node.moved"
+		hx-swap="outerHTML"
+	>
+		@nodeCockpitBody(d)
+	</div>
+}
+
+// nodeBreadcrumb renders the ancestor chain root→leaf.
+// d.Ancestors is leaf→root (NodeStore.Ancestors order), so nodeCrumbs reverses it.
+templ nodeBreadcrumb(d NodeCockpit) {
+	{{ crumbs := nodeCrumbs(d) }}
+	@components.Breadcrumb(crumbs)
+}
+
+templ nodeCockpitBody(d NodeCockpit) {
+	<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+		<h1 class="flex items-center gap-3 font-display text-2xl font-semibold">
+			@nodeKindBadge(d.N.Kind)
+			@nodeGlyphSwatch(d.N)
+			{ d.N.Name }
+			@nodeStatusBadge(d.N.Status)
+		</h1>
+		<div class="flex gap-2 text-sm">
+			<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } class="rounded-2xl bg-ink px-4 py-2 text-canvas hover:bg-ink/90">{ components.T(ctx, "common.edit") }</a>
+		</div>
+	</div>
+	if d.DescriptionHTML != "" {
+		<div class="prose prose-invert mb-6 max-w-none text-sm">@templ.Raw(string(d.DescriptionHTML))</div>
+	}
+	if d.N.UpstreamGit != "" {
+		<section class="mb-6">
+			<h2 class="mb-1 text-sm font-medium text-body">{ components.T(ctx, "node.section.git") }</h2>
+			<code class="rounded-lg bg-sunken px-2 py-1 text-xs">{ gitDisplay(d.N.UpstreamGit) }</code>
+		</section>
+	}
+	<section class="mb-6">
+		<h2 class="mb-1 text-sm font-medium text-body">{ components.T(ctx, "node.section.worktime") }</h2>
+		<div class="flex flex-wrap gap-6 text-sm text-muted">
+			<span>{ components.T(ctx, "node.worktime.total") } { fmtHours(d.TotalHours) }</span>
+			<span>{ components.T(ctx, "node.worktime.week") } { fmtHours(d.WeekHours) }</span>
+			<span>{ components.T(ctx, "node.worktime.month") } { fmtHours(d.MonthHours) }</span>
+			if d.Earnings != "" {
+				<span class="font-medium text-ink">{ d.Earnings }</span>
+			}
+		</div>
+	</section>
+	<section class="mb-6">
+		<h2 class="mb-1 text-sm font-medium text-body">{ components.T(ctx, "node.section.docs") } ({ fmtCount(len(d.Docs)) })</h2>
+		if len(d.Docs) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
+		} else {
+			<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
+				for _, doc := range d.Docs {
+					<li class="px-3 py-2 text-sm"><a href={ templ.SafeURL("/wissen/" + doc.ID) } class="hover:text-blue">{ doc.Title }</a></li>
+				}
+			</ul>
+		}
+	</section>
+	<section class="mb-6">
+		<h2 class="mb-1 text-sm font-medium text-body">{ components.T(ctx, "node.section.bindings") }</h2>
+		if len(d.Bindings) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
+		} else {
+			<ul class="text-xs text-muted">
+				for _, b := range d.Bindings {
+					<li class="font-mono">{ string(b.Kind) }: { bindingTarget(b) }</li>
+				}
+			</ul>
+		}
+	</section>
+	<section>
+		<h2 class="mb-1 text-sm font-medium text-body">{ components.T(ctx, "node.moveTitle") }</h2>
+		@nodeMoveForm(d)
+	</section>
+}
+
 // nodeMoveForm renders the inline reparent form for the node cockpit (D5).
 // It is shown when there are valid move targets OR the node has a current parent
 // (so moving to root is always possible for non-engagements).
