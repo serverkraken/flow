@@ -18,7 +18,7 @@ func TestGroupDocsByCategory(t *testing.T) {
 	names := map[string]string{"p1": "Alpha"}
 	colors := map[string]string{"p1": "blue"}
 
-	vm := groupDocsByCategory(docs, names, colors)
+	vm := groupDocsByCategory(docs, names, colors, nil)
 
 	if len(vm.Daily) != 1 || len(vm.Free) != 1 || len(vm.System) != 1 {
 		t.Fatalf("category split wrong: %+v", vm)
@@ -72,7 +72,7 @@ func TestBuildWissenOverviewCountsAndLatest(t *testing.T) {
 		{ID: "p1", Type: domain.DocProject, Title: "Project", UpdatedAt: now},
 		{ID: "m1", Type: domain.DocMemory, Title: "Memory", UpdatedAt: now},
 	}
-	vm := BuildWissenOverview(docs, nil, nil)
+	vm := BuildWissenOverview(docs, nil, nil, nil)
 	daily := vm.Categories[0]
 	if daily.Count != 2 || len(daily.Latest) != 2 || daily.Latest[0].Title != "New daily" {
 		t.Fatalf("daily overview = %+v", daily)

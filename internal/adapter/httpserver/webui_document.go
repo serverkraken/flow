@@ -42,7 +42,7 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	projectNames, projectColors, err := s.projectNameColorMaps(r.Context(), u.ID)
+	projectNames, projectColors, _, err := s.nodeMaps(r.Context(), u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

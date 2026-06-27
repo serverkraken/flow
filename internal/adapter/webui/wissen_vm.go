@@ -45,10 +45,11 @@ type WissenCategoryVM struct {
 // ProjectGroup groups project notes under one project header.
 type ProjectGroup struct {
 	NodeID string
-	Name      string
-	Color     string
-	Glyph     string
-	Docs      []DocRow
+	Name   string
+	Color  string
+	Glyph  string
+	Kind   domain.NodeKind // kind of the linked node (used by nodeKindBadge)
+	Docs   []DocRow
 }
 
 // WissenVM is the view model for the AppShell Wissen list page.
@@ -153,7 +154,7 @@ func WissenCategoryForType(t domain.DocumentType) (WissenCategory, bool) {
 	return WissenCategory{}, false
 }
 
-func BuildWissenOverview(docs []domain.Document, projectNames, projectColors map[string]string) WissenOverviewVM {
+func BuildWissenOverview(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenOverviewVM {
 	sorted := sortedDocuments(docs)
 	vm := WissenOverviewVM{}
 	for _, c := range WissenCategories() {
@@ -172,14 +173,14 @@ func BuildWissenOverview(docs []domain.Document, projectNames, projectColors map
 	return vm
 }
 
-func BuildWissenCategory(c WissenCategory, docs []domain.Document, projectNames, projectColors map[string]string) WissenCategoryVM {
+func BuildWissenCategory(c WissenCategory, docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenCategoryVM {
 	filtered := make([]domain.Document, 0, len(docs))
 	for _, d := range sortedDocuments(docs) {
 		if DocumentInWissenCategory(d, c) {
 			filtered = append(filtered, d)
 		}
 	}
-	grouped := GroupDocsByCategory(filtered, projectNames, projectColors)
+	grouped := GroupDocsByCategory(filtered, projectNames, projectColors, nodeKinds)
 	previews := map[string]string{}
 	for _, d := range filtered {
 		previews[d.ID] = DocPreviewText(d.Body, 5)
@@ -260,7 +261,9 @@ func sortedDocuments(docs []domain.Document) []domain.Document {
 }
 
 // GroupDocsByCategory splits docs into the four Wissen list sections.
-func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string) WissenVM {
+// nodeKinds maps node id → NodeKind and is used to populate ProjectGroup.Kind
+// for the node-kind badge rendered in group headers.
+func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenVM {
 	var vm WissenVM
 	groups := map[string]*ProjectGroup{}
 
@@ -275,12 +278,17 @@ func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map
 			pid := projectIDString(d.NodeID)
 			g := groups[pid]
 			if g == nil {
-				kind := DocKindStyle(domain.DocProject)
+				docKind := DocKindStyle(domain.DocProject)
+				var nk domain.NodeKind
+				if nodeKinds != nil {
+					nk = nodeKinds[pid]
+				}
 				g = &ProjectGroup{
 					NodeID: pid,
-					Name:      projectDisplayName(pid, projectNames),
-					Color:     ColorHex(projectColors[pid]),
-					Glyph:     kind.Glyph,
+					Name:   projectDisplayName(pid, projectNames),
+					Color:  ColorHex(projectColors[pid]),
+					Glyph:  docKind.Glyph,
+					Kind:   nk,
 				}
 				groups[pid] = g
 			}
@@ -305,8 +313,8 @@ func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map
 	return vm
 }
 
-func groupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string) WissenVM {
-	return GroupDocsByCategory(docs, projectNames, projectColors)
+func groupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenVM {
+	return GroupDocsByCategory(docs, projectNames, projectColors, nodeKinds)
 }
 
 func docRowFromDocument(d domain.Document, projectColors map[string]string) DocRow {

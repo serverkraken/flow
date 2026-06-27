@@ -242,3 +242,48 @@ func getWissen(t *testing.T, h http.Handler, url string, codec *websession.Codec
 	h.ServeHTTP(rec, req)
 	return rec.Body.String(), rec.Code
 }
+
+// TestWissenProjectGroup_KindBadge verifies that a project-type document grouped
+// under a repo node shows the node's kind badge in the group header.
+// D7: doc-group headers must render @nodeKindBadge(group.Kind).
+func TestWissenProjectGroup_KindBadge(t *testing.T) {
+	srv, codec, docs, projects := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
+
+	// Seed an engagement root, then a repo child.
+	// Node names deliberately do NOT contain the badge label text ("Repo")
+	// so we can test the badge independently.
+	eng, _ := projects.Create(ctx, domain.Node{
+		ID: "eng1", OwnerID: "u1", Name: "MainEngagement", Slug: "main-eng",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+	})
+	codebase, _ := projects.Create(ctx, domain.Node{
+		ID: "cb1", OwnerID: "u1", Name: "Codebase", Slug: "codebase",
+		Kind: domain.KindRepo, ParentID: &eng.ID, Status: domain.NodeActive,
+	})
+
+	// Seed a project-type doc linked to the repo node.
+	pid := codebase.ID
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "proj-doc-1", OwnerID: "u1", Type: domain.DocProject,
+		NodeID: &pid, Path: "codebase/design", Title: "Design Doc",
+		Body: "content", CreatedAt: now, UpdatedAt: now,
+	})
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/projekte", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/projekte status=%d body=%.300s", status, body)
+	}
+
+	// Group header must show the node name.
+	if !strings.Contains(body, "Codebase") {
+		t.Errorf("projekte group header missing repo node name; body=%.800s", body)
+	}
+	// Kind badge for repo must be present as a standalone badge element.
+	// nodeKindBadge renders: <span class="inline-flex ... rounded-md border px-2 py-0.5 text-[.72rem] ...">
+	// This CSS combination is unique to nodeKindBadge (doc-row glyphs use rounded-lg + h-7/h-8, not px-2 py-0.5).
+	if !strings.Contains(body, "px-2 py-0.5") {
+		t.Errorf("projekte group header missing node kind badge (px-2 py-0.5 marker); body=%.800s", body)
+	}
+}

@@ -130,7 +130,7 @@ func (s *Server) handleHistorieReassign(w http.ResponseWriter, r *http.Request) 
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
 	ids := splitIDs(r.FormValue("ids"))
-	pid := s.resolveWebProject(r, u)
+	pid := s.resolveWebNode(r, u)
 	if pid == nil {
 		s.renderHistorieFragment(w, r, u, "kein Projekt gewählt")
 		return
@@ -462,8 +462,8 @@ func historieSessionVMs(sess domain.WorkSession, projects []domain.Node, now tim
 	}
 	dur := sess.Elapsed(now)
 
-	name, hue := projectIdentity(projects, sess.NodeID)
-	glyph := projectGlyph(projects, sess.NodeID)
+	name, hue := nodeIdentity(projects, sess.NodeID)
+	glyph := nodeGlyph(projects, sess.NodeID)
 	unassigned := sess.NodeID == nil
 
 	editTo := ""

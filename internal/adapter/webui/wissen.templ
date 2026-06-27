@@ -148,8 +148,11 @@ templ wissenCategoryProjectGroups(vm WissenCategoryVM) {
 			<article class="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft" style={ swatchStyle(group.Color) }>
 				<header class="flex items-center gap-3 border-b border-line2 px-4 py-3">
 					<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
-					<div class="min-w-0">
-						<h2 class="truncate font-medium text-ink">{ group.Name }</h2>
+					<div class="min-w-0 flex-1">
+						<div class="flex items-center gap-2">
+							<h2 class="truncate font-medium text-ink">{ group.Name }</h2>
+							@nodeKindBadge(group.Kind)
+						</div>
 						if group.NodeID != "" {
 							<p class="font-mono text-[.75rem] text-muted">{ group.NodeID }</p>
 						}
@@ -276,8 +279,11 @@ templ wissenNotesSection(vm WissenVM) {
 					<article class="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft" style={ swatchStyle(group.Color) }>
 						<header class="flex items-center gap-3 border-b border-line2 px-4 py-3">
 							<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
-							<div class="min-w-0">
-								<h3 class="truncate font-medium text-ink">{ group.Name }</h3>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2">
+									<h3 class="truncate font-medium text-ink">{ group.Name }</h3>
+									@nodeKindBadge(group.Kind)
+								</div>
 								if group.NodeID != "" {
 									<p class="font-mono text-[.75rem] text-muted">{ group.NodeID }</p>
 								}

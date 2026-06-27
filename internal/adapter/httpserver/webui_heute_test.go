@@ -185,3 +185,50 @@ func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
 		t.Errorf("after stop, idle Heute (start card) should render")
 	}
 }
+
+// TestHeuteStopSelector_EngagementsOnly verifies that the booking picker in the
+// stop form lists ONLY engagements — not repos, vorhaben, or other node kinds.
+// D7: Slice-B ensures only engagement nodes are bookable worktime targets.
+func TestHeuteStopSelector_EngagementsOnly(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+
+	// Seed one engagement and one repo node.
+	eng, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyEngagement", Kind: domain.KindEngagement},
+	)
+	if err != nil {
+		t.Fatalf("seed engagement: %v", err)
+	}
+	_, err = (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyRepo", Kind: domain.KindRepo, ParentID: &eng.ID},
+	)
+	if err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
+
+	// Start a running session.
+	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run2", OwnerID: "u1", Start: start}); err != nil {
+		t.Fatalf("seed running session: %v", err)
+	}
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	// Engagement must appear in the booking selector.
+	if !strings.Contains(body, "MyEngagement") {
+		t.Errorf("booking selector missing engagement %q", "MyEngagement")
+	}
+	// Repo must NOT appear in the booking selector.
+	if strings.Contains(body, "MyRepo") {
+		t.Errorf("booking selector must NOT list repo node %q", "MyRepo")
+	}
+}

@@ -83,13 +83,15 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		Date:     day,
 		Running:  running,
 		DayParam: day.Format(dayLayout),
-		HasProj:  len(projects) > 0,
 		Err:      errMsg,
 	}
 
-	// Project pickers.
+	// Engagement picker — only KindEngagement nodes are bookable (Slice B).
 	vm.Nodes = make([]components.FuzzyProjectVM, 0, len(projects))
 	for _, p := range projects {
+		if p.Kind != domain.KindEngagement {
+			continue
+		}
 		vm.Nodes = append(vm.Nodes, components.FuzzyProjectVM{
 			ID:    p.ID,
 			Name:  p.Name,
@@ -98,6 +100,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 			Rate:  rateLabel(p.Rate),
 		})
 	}
+	vm.HasProj = len(vm.Nodes) > 0
 
 	// Today's session rows (newest stay in chronological order from the store).
 	vm.Rows = make([]components.SessionRowVM, 0, len(sessions))
@@ -109,7 +112,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		vm.RunningBase = heuteRunningBase(*running, now)
 		vm.StartedAt = running.Start.Local().Format("15:04")
 		vm.RunningTag = running.Tag
-		name, hue := projectIdentity(projects, running.NodeID)
+		name, hue := nodeIdentity(projects, running.NodeID)
 		vm.RunningName = name
 		vm.RunningHue = hue
 	}
@@ -139,8 +142,8 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 
 // sessionRowVM maps a stored session to its list-row view model.
 func sessionRowVM(sess domain.WorkSession, projects []domain.Node, now time.Time) components.SessionRowVM {
-	name, hue := projectIdentity(projects, sess.NodeID)
-	glyph := projectGlyph(projects, sess.NodeID)
+	name, hue := nodeIdentity(projects, sess.NodeID)
+	glyph := nodeGlyph(projects, sess.NodeID)
 	return components.SessionRowVM{
 		ID:         sess.ID,
 		Title:      name,
@@ -163,28 +166,30 @@ func fmtClockRange(s domain.WorkSession) string {
 	return start + "–" + s.Stop.Local().Format("15:04")
 }
 
-// projectIdentity resolves a session's project id to (display name, hue).
-func projectIdentity(projects []domain.Node, id *string) (string, string) {
+// nodeIdentity resolves a session's node id to (display name, hue).
+// Returns "ohne Engagement" when the session is unassigned (Slice B: sessions
+// carry an engagement id).
+func nodeIdentity(nodes []domain.Node, id *string) (string, string) {
 	if id == nil {
-		return "ohne Projekt", ""
+		return "ohne Engagement", ""
 	}
-	for _, p := range projects {
-		if p.ID == *id {
-			return p.Name, p.Color
+	for _, n := range nodes {
+		if n.ID == *id {
+			return n.Name, n.Color
 		}
 	}
-	return "ohne Projekt", ""
+	return "ohne Engagement", ""
 }
 
-// projectGlyph resolves a session's project glyph, defaulting to the unassigned
+// nodeGlyph resolves a session's node glyph, defaulting to the unassigned
 // hollow circle.
-func projectGlyph(projects []domain.Node, id *string) string {
+func nodeGlyph(nodes []domain.Node, id *string) string {
 	if id == nil {
 		return "○"
 	}
-	for _, p := range projects {
-		if p.ID == *id {
-			return glyphOr(p.Glyph)
+	for _, n := range nodes {
+		if n.ID == *id {
+			return glyphOr(n.Glyph)
 		}
 	}
 	return "○"

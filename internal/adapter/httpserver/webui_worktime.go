@@ -43,9 +43,9 @@ func (s *Server) renderDay(w http.ResponseWriter, r *http.Request, u domain.User
 	s.renderHeuteFragment(w, r, u, errMsg)
 }
 
-// resolveWebProject returns the chosen project id from the form, creating a
-// new project when "newProject" is filled. Returns nil when neither is set.
-func (s *Server) resolveWebProject(r *http.Request, u domain.User) *string {
+// resolveWebNode returns the chosen engagement node id from the form, creating a
+// new KindEngagement node when "newProject" is filled. Returns nil when neither is set.
+func (s *Server) resolveWebNode(r *http.Request, u domain.User) *string {
 	nodeID := r.FormValue("projectId")
 	if name := r.FormValue("newProject"); name != "" {
 		if p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{Name: name, Kind: domain.KindEngagement}); err == nil {
@@ -73,7 +73,7 @@ func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "to must be after from")
 		return
 	}
-	nodeID := s.resolveWebProject(r, u)
+	nodeID := s.resolveWebNode(r, u)
 	if _, err := s.AddSession.Execute(r.Context(), u.ID, nodeID, start, stop,
 		r.FormValue("tag"), r.FormValue("note")); err != nil {
 		s.renderDay(w, r, u, day, "could not add: "+err.Error()) // err includes "overlap"
@@ -105,7 +105,7 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "invalid time range")
 		return
 	}
-	nodeID := s.resolveWebProject(r, u)
+	nodeID := s.resolveWebNode(r, u)
 	if _, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
 		usecase.EditSessionInput{
 			NodeID: nodeID,

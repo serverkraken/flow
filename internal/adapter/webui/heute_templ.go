@@ -445,9 +445,9 @@ func heuteHero(vm HeuteVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.bookProject"))
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.bookEngagement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 93, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 93, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -535,9 +535,9 @@ func heuteHero(vm HeuteVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.orNewProject"))
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.orNewEngagement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 104, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 104, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -1383,9 +1383,9 @@ func heuteAddForm(vm HeuteVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var79 string
-		templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.project"))
+		templ_7745c5c3_Var79, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.engagement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 251, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 251, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var79))
 		if templ_7745c5c3_Err != nil {
@@ -1445,9 +1445,9 @@ func heuteAddForm(vm HeuteVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var83 string
-		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "picker.new"))
+		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "heute.orNewEngagement"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 260, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/heute.templ`, Line: 260, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 		if templ_7745c5c3_Err != nil {

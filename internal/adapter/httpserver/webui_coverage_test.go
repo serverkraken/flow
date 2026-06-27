@@ -624,7 +624,8 @@ func TestHeuteHome_ProjectWithEURRate(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
 
-	// Seed a project with a EUR rate (9500 cents = 95 €/h).
+	// Seed an engagement with a EUR rate (9500 cents = 95 €/h).
+	// D7: only KindEngagement nodes appear in the booking selector.
 	p, err := domain.NewNode("rate-proj-1", "u1", "BilledProject", "billedproject",
 		time.Date(2026, 6, 20, 8, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -632,6 +633,7 @@ func TestHeuteHome_ProjectWithEURRate(t *testing.T) {
 	}
 	eurRate := domain.Money{Amount: 9500, Currency: "EUR"}
 	p.Rate = &eurRate
+	p.Kind = domain.KindEngagement
 	p.Status = domain.NodeActive
 	if _, err := srv.ps.Create(ctx, p); err != nil {
 		t.Fatalf("ps.Create: %v", err)

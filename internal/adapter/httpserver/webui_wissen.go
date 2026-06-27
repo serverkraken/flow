@@ -40,11 +40,11 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-	names, colors, err := s.projectNameColorMaps(r.Context(), u.ID)
+	names, colors, kinds, err := s.nodeMaps(r.Context(), u.ID)
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-	vm := webui.BuildWissenOverview(docs, names, colors)
+	vm := webui.BuildWissenOverview(docs, names, colors, kinds)
 	vm.WissenVM = base
 	return vm, nil
 }
@@ -84,11 +84,11 @@ func (s *Server) wissenCategoryData(r *http.Request, u domain.User, c webui.Wiss
 	offset := (page - 1) * wissenPageSize
 	pageDocs := paginateDocuments(filtered, wissenPageSize, offset)
 
-	names, colors, err := s.projectNameColorMaps(r.Context(), u.ID)
+	names, colors, kinds, err := s.nodeMaps(r.Context(), u.ID)
 	if err != nil {
 		return webui.WissenCategoryVM{}, err
 	}
-	vm := webui.BuildWissenCategory(c, pageDocs, names, colors)
+	vm := webui.BuildWissenCategory(c, pageDocs, names, colors, kinds)
 	vm.WissenVM = base
 	vm.Category = c
 	vm.Total = len(filtered)
@@ -225,21 +225,25 @@ func paginateDocuments(docs []domain.Document, limit, offset int) []domain.Docum
 	return docs[offset:end]
 }
 
-func (s *Server) projectNameColorMaps(ctx context.Context, ownerID string) (map[string]string, map[string]string, error) {
+// nodeMaps builds id→name, id→color, id→kind maps from ListNodes for use by
+// wissen view models and document views.
+func (s *Server) nodeMaps(ctx context.Context, ownerID string) (map[string]string, map[string]string, map[string]domain.NodeKind, error) {
 	names := map[string]string{}
 	colors := map[string]string{}
+	kinds := map[string]domain.NodeKind{}
 	if s.ListNodes.Nodes == nil {
-		return names, colors, nil
+		return names, colors, kinds, nil
 	}
-	projects, err := s.ListNodes.Execute(ctx, ownerID)
+	nodes, err := s.ListNodes.Execute(ctx, ownerID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	for _, p := range projects {
-		names[p.ID] = p.Name
-		colors[p.ID] = p.Color
+	for _, n := range nodes {
+		names[n.ID] = n.Name
+		colors[n.ID] = n.Color
+		kinds[n.ID] = n.Kind
 	}
-	return names, colors, nil
+	return names, colors, kinds, nil
 }
 
 func atoiDefault(s string, def int) int {

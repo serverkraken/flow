@@ -90,7 +90,7 @@ templ heuteHero(vm HeuteVM) {
 					<div class="flex flex-col sm:flex-row gap-2">
 						<select name="projectId"
 							class="min-w-[11rem] rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors">
-							<option value="">{ components.T(ctx, "heute.bookProject") }</option>
+							<option value="">{ components.T(ctx, "heute.bookEngagement") }</option>
 							for _, p := range vm.Nodes {
 								if vm.Running.NodeID != nil && *vm.Running.NodeID == p.ID {
 									<option value={ p.ID } selected>{ p.Name }</option>
@@ -101,7 +101,7 @@ templ heuteHero(vm HeuteVM) {
 						</select>
 						@components.Button(components.BtnDanger, components.T(ctx, "heute.stop"), "■", templ.Attributes{})
 					</div>
-					<input name="newProject" placeholder={ components.T(ctx, "heute.orNewProject") }
+					<input name="newProject" placeholder={ components.T(ctx, "heute.orNewEngagement") }
 						class="rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] focus:border-blue/40 transition-colors"/>
 				</form>
 				<dl class="grid grid-cols-3 gap-5 sm:gap-7 flex-1">
@@ -248,7 +248,7 @@ templ heuteAddForm(vm HeuteVM) {
 			</label>
 		</div>
 		<label class="block">
-			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "sessions.project") }</span>
+			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "sessions.engagement") }</span>
 			<select name="projectId"
 				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
 				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
@@ -257,7 +257,7 @@ templ heuteAddForm(vm HeuteVM) {
 				}
 			</select>
 		</label>
-		<input name="newProject" placeholder={ components.T(ctx, "picker.new") }
+		<input name="newProject" placeholder={ components.T(ctx, "heute.orNewEngagement") }
 			class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
 		<div class="flex items-center gap-3">
 			<input name="tag" placeholder={ components.T(ctx, "sessions.tag") }
