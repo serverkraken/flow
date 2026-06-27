@@ -4,7 +4,7 @@ project: github.com/serverkraken/flow
 ---
 # flow Kontext-Redesign · Baustein 1 — Hierarchie + Bindings — Detail-Spec
 
-**Datum:** 2026-06-27 · **Branch:** `rebuild` (unmerged) · **Status:** approved (Brainstorm abgeschlossen), bereit für Implementation-Plan
+**Datum:** 2026-06-27 · **Branch:** `b1-hierarchie-bindings` (von `rebuild`, unmerged) · **Status:** implementiert (Slices A–F, 39 Commits, `make ci` grün 76.0%); Opus Final-Review READY-WITH-FOLLOWUPS (keine Blocker); Live-Dogfood (F2/F3/F4) + 2 Follow-ups (C4 bind-create Engagement-Parent, A6 Slug-Pre-Check) ausstehend
 **Übersichts-Spec:** `docs/superpowers/specs/2026-06-27-flow-kontext-redesign-design.md` (Achsen, Mechanik, D1–D11)
 **Vorgänger (Bindings):** `docs/superpowers/specs/2026-06-21-flow-project-resolution-design.md` · **Projects (M4):** `docs/superpowers/specs/2026-06-23-flow-project-management-design.md`
 
