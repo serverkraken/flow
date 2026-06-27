@@ -144,6 +144,22 @@ type NodeMoveData struct {
 	Targets []domain.Node // valid new parents (descendant IDs excluded)
 }
 
+// moveTargetsFor returns valid new parents for n: parents allowed by kind,
+// excluding n and its subtree (keeps reparenting acyclic).
+func moveTargetsFor(all []domain.Node, n domain.Node) []domain.Node {
+	sub := descendantIDs(all, n.ID)
+	var out []domain.Node
+	for _, p := range ValidParentsFor(n.Kind, all) {
+		if !sub[p.ID] {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// MoveTargetsFor is the exported entry point for the httpserver adapter.
+func MoveTargetsFor(all []domain.Node, n domain.Node) []domain.Node { return moveTargetsFor(all, n) }
+
 // BuildTree is the exported entry point used by the httpserver adapter.
 func BuildTree(nodes []domain.Node) []TreeRow { return buildNodeTree(nodes) }
 

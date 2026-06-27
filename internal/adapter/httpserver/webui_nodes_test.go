@@ -328,3 +328,49 @@ func TestWebNodeForm(t *testing.T) {
 		t.Errorf("node should be deleted")
 	}
 }
+
+// TestWebNodeMove exercises POST /nodes/{id}/move: successful reparent and
+// cycle-rejection (handler redirects back, tree unchanged).
+func TestWebNodeMove(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+	e1 := seedTreeNode(t, ns, "e1", "Privat", domain.KindEngagement, nil)
+	e2 := seedTreeNode(t, ns, "e2", "RTL", domain.KindEngagement, nil)
+	repo := seedTreeNode(t, ns, "r1", "flow", domain.KindRepo, &e1.ID)
+
+	// move repo from e1 to e2.
+	res := postN(t, ts, c, "/nodes/"+repo.ID+"/move", url.Values{"parentId": {e2.ID}})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("move = %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	got, _ := ns.Get(context.Background(), "u1", repo.ID)
+	if got.ParentID == nil || *got.ParentID != e2.ID {
+		t.Fatalf("reparent failed: %+v", got.ParentID)
+	}
+
+	// cycle: move e1 under repo (its descendant) → handler redirects back, no change.
+	res = postN(t, ts, c, "/nodes/"+e1.ID+"/move", url.Values{"parentId": {repo.ID}})
+	_ = res.Body.Close()
+	e1got, _ := ns.Get(context.Background(), "u1", e1.ID)
+	if e1got.ParentID != nil {
+		t.Errorf("cycle move must be rejected, parent=%v", e1got.ParentID)
+	}
+
+	// invalid: move a repo to root (parentId="") → ErrInvalidNode, redirect with err=move.
+	res = postN(t, ts, c, "/nodes/"+repo.ID+"/move", url.Values{"parentId": {""}})
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("invalid-kind move = %d, want 303", res.StatusCode)
+	}
+	if !strings.Contains(loc, "err=move") {
+		t.Errorf("invalid-kind redirect = %q, want ?err=move", loc)
+	}
+
+	// generic error: move a nonexistent node → 500 (ErrNodeNotFound is not cycle/invalid).
+	res = postN(t, ts, c, "/nodes/ghost/move", url.Values{"parentId": {e2.ID}})
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Errorf("move nonexistent = %d, want 500", res.StatusCode)
+	}
+}

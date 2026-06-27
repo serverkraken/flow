@@ -64,6 +64,13 @@ func init() {
 			"node.err.nameRequired":  "Name required",
 			"node.err.badUpstream":   "Invalid upstream Git URL",
 			"node.err.create":        "Could not create node",
+			"node.err.move":          "Move failed",
+			"node.err.cycle":         "Target is inside its own subtree",
+			"node.err.children":      "Node has children and cannot be deleted",
+			// node move form
+			"node.move":       "Move",
+			"node.moveTitle":  "Move node",
+			"node.moveTarget": "New parent",
 			"node.status.active":     "active",
 			"node.status.paused":     "paused",
 			"node.status.archived":   "archived",

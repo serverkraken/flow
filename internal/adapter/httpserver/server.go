@@ -205,6 +205,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeUpdate)))
 	mux.Handle("POST /nodes/{id}/status", s.webAuth(http.HandlerFunc(s.handleWebNodeStatus)))
 	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
+	mux.Handle("POST /nodes/{id}/move", s.webAuth(http.HandlerFunc(s.handleWebNodeMove)))
 
 	// WebUI design-system showcase (Slice 0 deliverable; handler in webui_styleguide.go).
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))

@@ -71,6 +71,13 @@ func init() {
 			"node.err.nameRequired":  "Name erforderlich",
 			"node.err.badUpstream":   "Ungültige Upstream-Git-URL",
 			"node.err.create":        "Konnte Knoten nicht anlegen",
+			"node.err.move":          "Verschieben fehlgeschlagen",
+			"node.err.cycle":         "Ziel liegt im eigenen Teilbaum",
+			"node.err.children":      "Knoten hat untergeordnete Elemente und kann nicht gelöscht werden",
+			// node move form
+			"node.move":       "Verschieben",
+			"node.moveTitle":  "Knoten verschieben",
+			"node.moveTarget": "Neues übergeordnetes Element",
 			"node.status.active":     "aktiv",
 			"node.status.paused":     "pausiert",
 			"node.status.archived":   "archiviert",

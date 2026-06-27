@@ -270,3 +270,27 @@ templ nodeGlyphRadio(g, current string) {
 		</span>
 	</label>
 }
+
+// nodeMoveForm renders the inline reparent form for the node cockpit (D5).
+// It is shown when there are valid move targets OR the node has a current parent
+// (so moving to root is always possible for non-engagements).
+templ nodeMoveForm(d NodeCockpit) {
+	if len(d.MoveTargets) > 0 || d.N.ParentID != nil {
+		<form method="post" action={ templ.SafeURL("/nodes/" + d.N.ID + "/move") } hx-boost="false" class="flex flex-wrap items-end gap-2">
+			<div>
+				<label class="block text-[.75rem] text-muted">{ components.T(ctx, "node.moveTarget") }</label>
+				<select name="parentId" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+					<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+					for _, t := range d.MoveTargets {
+						if d.N.ParentID != nil && *d.N.ParentID == t.ID {
+							<option value={ t.ID } selected>{ t.Name }</option>
+						} else {
+							<option value={ t.ID }>{ t.Name }</option>
+						}
+					}
+				</select>
+			</div>
+			@components.Button(components.BtnSecondary, components.T(ctx, "node.move"), "→", templ.Attributes{"type": "submit"})
+		</form>
+	}
+}

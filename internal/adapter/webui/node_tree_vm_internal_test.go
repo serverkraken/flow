@@ -82,3 +82,43 @@ func TestDescendantIDs(t *testing.T) {
 		t.Errorf("eng2 must not be in eng1 subtree")
 	}
 }
+
+func TestMoveTargetsFor(t *testing.T) {
+	t.Parallel()
+	all := nodesFixture()
+
+	// repoB is under eng1; valid move targets are engagements + vorhaben, minus
+	// repoB's own subtree (just itself, it has no children).
+	repoBNode := domain.Node{ID: "repoB", Kind: domain.KindRepo, Name: "beta", ParentID: ptr("eng1")}
+	targets := moveTargetsFor(all, repoBNode)
+	ids := map[string]bool{}
+	for _, n := range targets {
+		ids[n.ID] = true
+	}
+	if !ids["eng1"] || !ids["eng2"] || !ids["vor1"] {
+		t.Errorf("expected eng1/eng2/vor1 as move targets; got %v", ids)
+	}
+	if ids["repoA"] || ids["repoB"] {
+		t.Errorf("repos must not be move targets for a repo; got %v", ids)
+	}
+
+	// vor1 descendants include repoA — those must be excluded from targets.
+	vor1Node := domain.Node{ID: "vor1", Kind: domain.KindVorhaben, Name: "Buch", ParentID: ptr("eng1")}
+	vTargets := moveTargetsFor(all, vor1Node)
+	vids := map[string]bool{}
+	for _, n := range vTargets {
+		vids[n.ID] = true
+	}
+	if !vids["eng1"] || !vids["eng2"] {
+		t.Errorf("vorhaben targets must include engagements; got %v", vids)
+	}
+	if vids["repoA"] || vids["vor1"] {
+		t.Errorf("vorhaben and its descendants must be excluded; got %v", vids)
+	}
+
+	// Engagement has no valid parents → always empty.
+	engNode := domain.Node{ID: "eng1", Kind: domain.KindEngagement}
+	if got := moveTargetsFor(all, engNode); len(got) != 0 {
+		t.Errorf("engagement move targets must be empty, got %v", got)
+	}
+}
