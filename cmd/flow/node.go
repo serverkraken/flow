@@ -22,6 +22,9 @@ func nodeCmd() *cobra.Command {
 	cmd.AddCommand(nodeListCmd())
 	cmd.AddCommand(nodeShowCmd())
 	cmd.AddCommand(nodeMoveCmd())
+	cmd.AddCommand(nodePauseCmd())
+	cmd.AddCommand(nodeResumeCmd())
+	cmd.AddCommand(nodeArchiveCmd())
 	return cmd
 }
 
@@ -32,7 +35,13 @@ func runNodeRm(ctx context.Context, c *apiclient.Client, slug string) error {
 	if err != nil {
 		return err
 	}
-	return c.DeleteNode(ctx, id)
+	if err := c.DeleteNode(ctx, id); err != nil {
+		if apiclient.IsConflict(err) {
+			return fmt.Errorf("cannot delete %s: it has children; move or remove them first", slug)
+		}
+		return err
+	}
+	return nil
 }
 
 func nodeRmCmd() *cobra.Command {

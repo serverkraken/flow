@@ -243,6 +243,17 @@ func TestProjectBindings_DeleteUnbind(t *testing.T) {
 	}
 }
 
+// TestBindNode_InvalidTargetKind400 verifies that binding onto a non-repo/leaf node returns 400.
+func TestBindNode_InvalidTargetKind400(t *testing.T) {
+	do, ns, owner := newNodesSrv(t)
+	seedNode(t, ns, owner, "eng1", domain.KindEngagement, nil) // remote bind onto an engagement → invalid (must be repo)
+	res := do("PUT", "/api/v1/nodes/eng1/bindings", `{"kind":"remote","remoteSlug":"github.com/x/y"}`)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid bind target status %d, want 400", res.StatusCode)
+	}
+}
+
 // TestProjectBindings_RouteNotShadowed verifies GET /nodes/resolve hits the
 // resolve handler and not a {id} wildcard handler.
 func TestProjectBindings_RouteNotShadowed(t *testing.T) {
