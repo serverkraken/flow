@@ -45,6 +45,12 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			errors.Is(err, domain.ErrInvalidSession):
 			http.Error(w, "invalid session times", http.StatusBadRequest)
 			return
+		case errors.Is(err, domain.ErrInvalidNode):
+			http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+			return
+		case errors.Is(err, ports.ErrNodeNotFound):
+			http.Error(w, "not found", http.StatusNotFound)
+			return
 		case errors.Is(err, domain.ErrOverlap):
 			http.Error(w, "session overlaps an existing session", http.StatusConflict)
 			return
@@ -57,13 +63,19 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Live start (unchanged).
+	// Live start.
 	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.NodeID, req.Tag, req.Note)
-	if errors.Is(err, domain.ErrAlreadyRunning) {
+	switch {
+	case errors.Is(err, domain.ErrInvalidNode):
+		http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+		return
+	case errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	case errors.Is(err, domain.ErrAlreadyRunning):
 		http.Error(w, "a session is already running", http.StatusConflict)
 		return
-	}
-	if err != nil {
+	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

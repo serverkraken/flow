@@ -12,13 +12,19 @@ import (
 // AddSession creates a complete (already-stopped) session for a past interval —
 // "Nachbuchen". Unlike StartSession it takes explicit start/stop times. It
 // enforces stop>start, no-future, same-day, and the no-overlap invariant.
+// When nodeID is set it must name an engagement (worktime books to engagements,
+// D3).
 type AddSession struct {
 	Sessions ports.SessionStore
+	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
 }
 
 func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+	if err := requireEngagement(ctx, uc.Nodes, ownerID, nodeID); err != nil {
+		return domain.WorkSession{}, err
+	}
 	if !stop.After(start) {
 		return domain.WorkSession{}, domain.ErrStopBeforeStart
 	}

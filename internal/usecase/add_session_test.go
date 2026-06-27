@@ -11,15 +11,17 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-func newAddSession(ss *testutil.FakeSessionStore, now time.Time) usecase.AddSession {
-	return usecase.AddSession{Sessions: ss, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}}
+func newAddSession(ss *testutil.FakeSessionStore, ns *testutil.FakeNodeStore, now time.Time) usecase.AddSession {
+	return usecase.AddSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}}
 }
 
 func TestAddSession_HappyPath(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ss := testutil.NewFakeSessionStore()
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
+	seedEngagement(t, ns, "u1", "p1")
 	now := time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)
-	uc := newAddSession(ss, now)
+	uc := newAddSession(ss, ns, now)
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	pid := "p1"
@@ -35,9 +37,24 @@ func TestAddSession_HappyPath(t *testing.T) {
 	}
 }
 
-func TestAddSession_StopBeforeStart(t *testing.T) {
+func TestAddSession_RepoRejected(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	uc := newAddSession(testutil.NewFakeSessionStore(), time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC))
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
+	seedRepo(t, ns, "u1", "repo1")
+	uc := newAddSession(ss, ns, time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC))
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	repo := "repo1"
+	if _, err := uc.Execute(ctx, "u1", &repo, start, stop, "", ""); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("want ErrInvalidNode for repo node, got %v", err)
+	}
+}
+
+func TestAddSession_StopBeforeStart(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC))
 	start := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrStopBeforeStart) {
@@ -46,10 +63,11 @@ func TestAddSession_StopBeforeStart(t *testing.T) {
 }
 
 func TestAddSession_Future(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
-	uc := newAddSession(testutil.NewFakeSessionStore(), now)
-	start := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC) // after now
+	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), now)
+	start := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrFutureSession) {
 		t.Fatalf("want ErrFutureSession, got %v", err)
@@ -57,19 +75,21 @@ func TestAddSession_Future(t *testing.T) {
 }
 
 func TestAddSession_CrossMidnight(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
-	uc := newAddSession(testutil.NewFakeSessionStore(), now)
+	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), now)
 	start := time.Date(2026, 6, 15, 23, 0, 0, 0, time.UTC)
-	stop := time.Date(2026, 6, 16, 1, 0, 0, 0, time.UTC) // next day
+	stop := time.Date(2026, 6, 16, 1, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrInvalidSession) {
 		t.Fatalf("want ErrInvalidSession (cross-midnight), got %v", err)
 	}
 }
 
 func TestAddSession_Overlap(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	ss := testutil.NewFakeSessionStore()
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
 	now := time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)
 	existingStop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	if _, err := ss.Create(ctx, domain.WorkSession{
@@ -78,8 +98,8 @@ func TestAddSession_Overlap(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	uc := newAddSession(ss, now)
-	start := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC) // overlaps 09:00–11:00
+	uc := newAddSession(ss, ns, now)
+	start := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrOverlap) {
 		t.Fatalf("want ErrOverlap, got %v", err)
@@ -87,12 +107,9 @@ func TestAddSession_Overlap(t *testing.T) {
 }
 
 func TestAddSession_OverlapWithRunningOutsideWindow(t *testing.T) {
-	// Regression: a running session (Stop==nil) that started more than 24h before
-	// the candidate day is not returned by ListRange (start_at filter), so without
-	// the explicit Running() check HasOverlap would miss it.
+	t.Parallel()
 	ctx := context.Background()
-	ss := testutil.NewFakeSessionStore()
-	// Running session started on 2026-06-12 08:00 — more than 24h before candidate day.
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
 	if _, err := ss.Create(ctx, domain.WorkSession{
 		ID: "running", OwnerID: "u1",
 		Start: time.Date(2026, 6, 12, 8, 0, 0, 0, time.UTC), Stop: nil,
@@ -100,7 +117,7 @@ func TestAddSession_OverlapWithRunningOutsideWindow(t *testing.T) {
 		t.Fatalf("seed running session: %v", err)
 	}
 	now := time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)
-	uc := newAddSession(ss, now)
+	uc := newAddSession(ss, ns, now)
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrOverlap) {
