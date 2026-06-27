@@ -65,6 +65,7 @@ func seedExportData(t *testing.T, sessions *testutil.FakeSessionStore, projects 
 		Name:    "TestProject",
 		Slug:    "testproject",
 		Status:  domain.NodeActive,
+		Kind:    domain.KindEngagement,
 	}
 	if _, err := projects.Create(context.Background(), proj); err != nil {
 		t.Fatalf("seed project: %v", err)

@@ -71,6 +71,8 @@ func (s *Server) handleSetNodeRate(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidRate):
 		http.Error(w, "invalid rate", http.StatusBadRequest)
+	case errors.Is(err, domain.ErrInvalidNode):
+		http.Error(w, "only an engagement may carry a rate", http.StatusBadRequest)
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 	case err != nil:

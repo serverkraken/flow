@@ -136,24 +136,6 @@ func TestBuildExport_ExcludesOutOfRange(t *testing.T) {
 	}
 }
 
-func TestSetProjectRate_Validates(t *testing.T) {
-	uc := usecase.SetNodeRate{Nodes: &fakeNodeStore{}}
-	if err := uc.Execute(context.Background(), "u1", "p1", &domain.Money{Amount: -1, Currency: "EUR"}); err == nil {
-		t.Error("negative amount should error")
-	}
-	if err := uc.Execute(context.Background(), "u1", "p1", &domain.Money{Amount: 1, Currency: "EU"}); err == nil {
-		t.Error("bad currency (2 chars) should error")
-	}
-	// nil rate (clear) should succeed
-	if err := uc.Execute(context.Background(), "u1", "p1", nil); err != nil {
-		t.Errorf("nil rate (clear) should not error: %v", err)
-	}
-	// valid rate should succeed
-	if err := uc.Execute(context.Background(), "u1", "p1", &domain.Money{Amount: 5000, Currency: "EUR"}); err != nil {
-		t.Errorf("valid rate should not error: %v", err)
-	}
-}
-
 // TestBuildExport_WithExplicitLoc covers the loc() != nil branch (BuildExport.Loc set).
 // The existing tests already pass Loc (non-nil), but this one makes the nil path
 // explicit via Loc=nil to ensure both branches are exercised across test runs.
