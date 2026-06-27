@@ -135,21 +135,34 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 					@nodeKindOption("engagement", "node.kind.engagement", d.Vals.Kind)
 					@nodeKindOption("vorhaben", "node.kind.vorhaben", d.Vals.Kind)
 					@nodeKindOption("repo", "node.kind.repo", d.Vals.Kind)
-					@nodeKindOption("branch", "node.kind.branch", d.Vals.Kind)
 				</select>
 			</div>
 			<div>
 				<label class="block text-muted">{ components.T(ctx, "node.parent") }</label>
-				<select name="parentId" id="node-parent" class="w-full rounded-lg border border-line bg-surface px-3 py-2">
-					<option value="">{ components.T(ctx, "node.parentRoot") }</option>
-					for _, p := range d.Parents {
-						if d.Vals.ParentID == p.ID {
-							<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
-						} else {
-							<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+				if editing != nil {
+					<select name="parentId" id="node-parent" class="w-full rounded-lg border border-line bg-surface px-3 py-2 opacity-50 cursor-not-allowed" disabled>
+						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+						for _, p := range d.Parents {
+							if d.Vals.ParentID == p.ID {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+							} else {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+							}
 						}
-					}
-				</select>
+					</select>
+					<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
+				} else {
+					<select name="parentId" id="node-parent" class="w-full rounded-lg border border-line bg-surface px-3 py-2">
+						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+						for _, p := range d.Parents {
+							if d.Vals.ParentID == p.ID {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) } selected>{ nodeParentLabel(p) }</option>
+							} else {
+								<option value={ p.ID } data-parent-kind={ string(p.Kind) }>{ nodeParentLabel(p) }</option>
+							}
+						}
+					</select>
+				}
 			</div>
 		</div>
 		<div>

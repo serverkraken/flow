@@ -281,6 +281,25 @@ func TestWebNodeForm(t *testing.T) {
 		t.Errorf("engagement rate not set: %+v", e2.Rate)
 	}
 
+	// ── POST /nodes: repo with rateAmount must NOT store a rate (non-engagement) ──
+	res = postN(t, ts, c, "/nodes", url.Values{
+		"name":         {"flow-ratetest"},
+		"kind":         {"repo"},
+		"parentId":     {eng.ID},
+		"rateAmount":   {"120.00"},
+		"rateCurrency": {"EUR"},
+		"status":       {"active"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create repo-with-rate = %d, want 303", res.StatusCode)
+	}
+	rateTestID := strings.TrimPrefix(res.Header.Get("Location"), "/nodes/")
+	_ = res.Body.Close()
+	rtNode, _ := ns.Get(context.Background(), "u1", rateTestID)
+	if rtNode.Rate != nil {
+		t.Errorf("repo must not store a rate, got %+v", rtNode.Rate)
+	}
+
 	// ── POST /nodes (missing name) → 400 re-render ──
 	res = postN(t, ts, c, "/nodes", url.Values{"kind": {"repo"}, "parentId": {eng.ID}})
 	if res.StatusCode != http.StatusBadRequest {

@@ -52,6 +52,7 @@ func init() {
 			"node.kind":              "Kind",
 			"node.parent":            "Parent",
 			"node.parentRoot":        "— (root / engagement)",
+			"node.parentEditHint":    "Change parent via Move",
 			"node.description":       "Description (Markdown)",
 			"node.upstream":          "Upstream Git",
 			"node.status":            "Status",

@@ -59,6 +59,7 @@ func init() {
 			"node.kind":              "Art",
 			"node.parent":            "Übergeordnet",
 			"node.parentRoot":        "— (Wurzel / Engagement)",
+			"node.parentEditHint":    "Übergeordnetes über »Verschieben« ändern",
 			"node.description":       "Beschreibung (Markdown)",
 			"node.upstream":          "Upstream Git",
 			"node.status":            "Status",
