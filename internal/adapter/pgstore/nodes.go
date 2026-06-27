@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -110,12 +111,77 @@ func (s *NodeStore) Delete(ctx context.Context, ownerID, id string) error {
 	const q = `DELETE FROM nodes WHERE owner_id=$1 AND id=$2`
 	tag, err := s.pool.Exec(ctx, q, ownerID, id)
 	if err != nil {
-		return fmt.Errorf("pgstore: delete project: %w", err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return ports.ErrNodeHasChildren
+		}
+		return fmt.Errorf("pgstore: delete node: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ports.ErrNodeNotFound
 	}
 	return nil
+}
+
+func (s *NodeStore) Children(ctx context.Context, ownerID string, parentID *string) ([]domain.Node, error) {
+	var rows pgx.Rows
+	var err error
+	if parentID == nil {
+		rows, err = s.pool.Query(ctx, `SELECT `+nodeCols+` FROM nodes WHERE owner_id=$1 AND parent_id IS NULL ORDER BY name`, ownerID)
+	} else {
+		rows, err = s.pool.Query(ctx, `SELECT `+nodeCols+` FROM nodes WHERE owner_id=$1 AND parent_id=$2 ORDER BY name`, ownerID, *parentID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: children: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Node
+	for rows.Next() {
+		n, err := scanNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// Ancestors returns the node and its ancestors ordered leaf→root.
+func (s *NodeStore) Ancestors(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
+	const q = `
+WITH RECURSIVE chain AS (
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, 0 AS depth
+  FROM nodes WHERE owner_id=$1 AND id=$2
+  UNION ALL
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, c.depth+1
+  FROM nodes n JOIN chain c ON n.id = c.parent_id
+  WHERE n.owner_id=$1
+)
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at
+FROM chain ORDER BY depth`
+	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: ancestors: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Node
+	for rows.Next() {
+		n, err := scanNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+func (s *NodeStore) Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error) {
+	const q = `UPDATE nodes SET parent_id=$1, updated_at=now() WHERE owner_id=$2 AND id=$3 RETURNING ` + nodeCols
+	n, err := scanNode(s.pool.QueryRow(ctx, q, parentID, ownerID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Node{}, ports.ErrNodeNotFound
+	}
+	return n, err
 }
 
 // rateCols maps an optional Money to the two nullable columns (both-or-neither).

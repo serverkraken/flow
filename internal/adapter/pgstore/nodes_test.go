@@ -310,3 +310,75 @@ func TestProjectStore_RateRoundTrip(t *testing.T) {
 		t.Errorf("unknown id: want ErrNodeNotFound, got %v", err)
 	}
 }
+
+func TestNodeStore_TreeWalk(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-t", "sub-t", "tuser", "t@x.de", "T")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)
+
+	mk := func(id, name, slug string, kind domain.NodeKind, parent *string) {
+		n, _ := domain.NewNode(id, "u-t", name, slug, now)
+		n.Kind = kind
+		n.ParentID = parent
+		if _, err := st.Create(ctx, n); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+	mk("eng", "Privat", "privat", domain.KindEngagement, nil)
+	mk("vor", "Sub", "sub", domain.KindVorhaben, strptr("eng"))
+	mk("repo", "flow", "flow", domain.KindRepo, strptr("vor"))
+
+	// Children of root (nil) = the engagement.
+	roots, err := st.Children(ctx, "u-t", nil)
+	if err != nil || len(roots) != 1 || roots[0].ID != "eng" {
+		t.Fatalf("children(nil)=%v err=%v", roots, err)
+	}
+	// Children of eng = vor.
+	kids, _ := st.Children(ctx, "u-t", strptr("eng"))
+	if len(kids) != 1 || kids[0].ID != "vor" {
+		t.Fatalf("children(eng)=%v", kids)
+	}
+	// Ancestors of repo, leaf→root: repo, vor, eng.
+	chain, err := st.Ancestors(ctx, "u-t", "repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chain) != 3 || chain[0].ID != "repo" || chain[1].ID != "vor" || chain[2].ID != "eng" {
+		t.Fatalf("ancestors=%v", chain)
+	}
+	eng, ok := domain.ResolveEngagement(chain)
+	if !ok || eng.ID != "eng" {
+		t.Fatalf("resolveEngagement=%v ok=%v", eng, ok)
+	}
+	// Reparent repo onto eng directly.
+	if _, err := st.Reparent(ctx, "u-t", "repo", strptr("eng")); err != nil {
+		t.Fatalf("reparent: %v", err)
+	}
+	chain2, _ := st.Ancestors(ctx, "u-t", "repo")
+	if len(chain2) != 2 || chain2[1].ID != "eng" {
+		t.Fatalf("after reparent ancestors=%v", chain2)
+	}
+	// Delete with children → ErrNodeHasChildren; leaf delete → ok.
+	if err := st.Delete(ctx, "u-t", "eng"); !errors.Is(err, ports.ErrNodeHasChildren) {
+		t.Fatalf("delete eng with children: want ErrNodeHasChildren, got %v", err)
+	}
+	if err := st.Delete(ctx, "u-t", "repo"); err != nil {
+		t.Fatalf("delete leaf repo: %v", err)
+	}
+	if err := st.Delete(ctx, "u-t", "missing"); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("delete missing: want ErrNodeNotFound, got %v", err)
+	}
+}

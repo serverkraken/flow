@@ -56,7 +56,9 @@ type EventBus interface {
 }
 
 var (
-	ErrNodeNotFound   = errors.New("project not found")
+	ErrNodeNotFound    = errors.New("project not found")
+	ErrNodeHasChildren = errors.New("node has children")
+
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
 	ErrDocumentNotFound  = errors.New("document not found")
@@ -82,8 +84,19 @@ type NodeStore interface {
 	Update(ctx context.Context, ownerID string, p domain.Node) (domain.Node, error)
 	// SetRate sets (rate != nil) or clears (rate == nil) the project's rate.
 	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
-	// Delete removes a project. Owner-scoped; returns ErrNodeNotFound if absent or foreign.
+	// Delete removes a project. Owner-scoped; returns ErrNodeNotFound if absent
+	// or foreign. Returns ErrNodeHasChildren if the node still has children
+	// (FK RESTRICT on parent_id).
 	Delete(ctx context.Context, ownerID, id string) error
+	// Children returns the direct children of parentID (nil = roots) for the
+	// given owner, ordered by name.
+	Children(ctx context.Context, ownerID string, parentID *string) ([]domain.Node, error)
+	// Ancestors returns the node itself and all its ancestors, ordered
+	// leaf→root (the node first, then its parent, then the grandparent, …).
+	Ancestors(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error)
+	// Reparent moves a node to a new parent (nil = make it a root). Owner-scoped;
+	// returns ErrNodeNotFound for a missing or foreign node.
+	Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error)
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running

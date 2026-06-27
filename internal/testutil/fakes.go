@@ -163,12 +163,68 @@ func (s *FakeNodeStore) SetRate(_ context.Context, ownerID, id string, rate *dom
 func (s *FakeNodeStore) Delete(_ context.Context, ownerID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, ok := s.m[id]
-	if !ok || p.OwnerID != ownerID {
+	n, ok := s.m[id]
+	if !ok || n.OwnerID != ownerID {
 		return ports.ErrNodeNotFound
+	}
+	for _, other := range s.m {
+		if other.ParentID != nil && *other.ParentID == id {
+			return ports.ErrNodeHasChildren
+		}
 	}
 	delete(s.m, id)
 	return nil
+}
+
+func (s *FakeNodeStore) Children(_ context.Context, ownerID string, parentID *string) ([]domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Node
+	for _, n := range s.m {
+		if n.OwnerID != ownerID {
+			continue
+		}
+		if parentID == nil {
+			if n.ParentID == nil {
+				out = append(out, n)
+			}
+		} else if n.ParentID != nil && *n.ParentID == *parentID {
+			out = append(out, n)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (s *FakeNodeStore) Ancestors(_ context.Context, ownerID, nodeID string) ([]domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Node
+	cur := nodeID
+	for {
+		n, ok := s.m[cur]
+		if !ok || n.OwnerID != ownerID {
+			break
+		}
+		out = append(out, n)
+		if n.ParentID == nil {
+			break
+		}
+		cur = *n.ParentID
+	}
+	return out, nil
+}
+
+func (s *FakeNodeStore) Reparent(_ context.Context, ownerID, id string, parentID *string) (domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n, ok := s.m[id]
+	if !ok || n.OwnerID != ownerID {
+		return domain.Node{}, ports.ErrNodeNotFound
+	}
+	n.ParentID = parentID
+	s.m[id] = n
+	return n, nil
 }
 
 // FakeSessionStore is an in-memory ports.SessionStore enforcing one running

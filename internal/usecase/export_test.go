@@ -37,6 +37,15 @@ func (f *fakeNodeStore) SetRate(_ context.Context, _, _ string, rate *domain.Mon
 	return nil
 }
 func (f *fakeNodeStore) Delete(_ context.Context, _, _ string) error { return nil }
+func (f *fakeNodeStore) Children(_ context.Context, _ string, _ *string) ([]domain.Node, error) {
+	return nil, nil
+}
+func (f *fakeNodeStore) Ancestors(_ context.Context, _, _ string) ([]domain.Node, error) {
+	return nil, nil
+}
+func (f *fakeNodeStore) Reparent(_ context.Context, _, _ string, _ *string) (domain.Node, error) {
+	return domain.Node{}, nil
+}
 
 func TestBuildExport_AggregatesByProject(t *testing.T) {
 	loc := time.UTC
