@@ -102,12 +102,12 @@ func TestProjectRoute_Title(t *testing.T) {
 }
 
 // TestMount_ConstructorSmoke covers projects.Mount (0% coverage).
-// Mount takes a *apiclient.Client; we construct a client that points at a
-// non-existent server (no requests are made by the test). The route returned
+// Mount takes a *apiclient.Client plus a FormAPI; we pass a fake FormAPI so the
+// test does not need a real server (no requests are made). The route returned
 // must be non-nil.
 func TestMount_ConstructorSmoke(t *testing.T) {
 	client := apiclient.New("http://127.0.0.1:0", "test-token")
-	route := projects.Mount(client, theme.Default, "msoent")
+	route := projects.Mount(client, &fakeFormAPI{}, theme.Default, "msoent")
 	if route == nil {
 		t.Fatal("Mount should return a non-nil shell.Route")
 	}

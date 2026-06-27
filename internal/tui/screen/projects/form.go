@@ -7,7 +7,6 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/tui/shell"
 	"github.com/serverkraken/flow/internal/tui/theme"
@@ -15,15 +14,12 @@ import (
 )
 
 // FormAPI is the narrow write surface the form route needs. A fake implements
-// it in tests; *apiclient.Client satisfies it in production (enforced by the
-// compile assert below).
+// it in tests; engagementCreateClient (cmd/flow) satisfies it in production.
 type FormAPI interface {
 	CreateNode(ctx context.Context, name string) (domain.Node, error)
 	UpdateNode(ctx context.Context, id string, in UpdateFields) (domain.Node, error)
 	SetNodeRate(ctx context.Context, nodeID string, amount *int64, currency string) error
 }
-
-var _ FormAPI = (*apiclient.Client)(nil)
 
 // The form is a literal text-entry surface — guard that it keeps satisfying
 // shell.TextCapturer so q/Esc stay field input instead of popping the route.

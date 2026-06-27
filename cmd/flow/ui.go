@@ -56,12 +56,13 @@ func runUI(cmd *cobra.Command, args []string) error {
 	}
 	pal := theme.Load()
 	user := os.Getenv("USER")
+	adapted := engagementCreateClient{client}
 	m := shell.New(client, user, pal).
 		WithTabs([]shell.Route{
 			shell.NewHomeRoute(client, pal, user),
-			worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
+			worktime.NewTodayRoute(adapted, time.Now, pal, worktime.BuildRegistry(client, pal)),
 			docsscreen.NewRoute(client, editor.New(), opener.New(), pal, user),
-			projectscreen.Mount(client, pal, user),
+			projectscreen.MountWithAPI(client, client, adapted, pal, user),
 		}).
 		WithActiveTab(tabIndexForArg(args))
 	_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()

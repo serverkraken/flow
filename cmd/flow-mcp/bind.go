@@ -57,7 +57,7 @@ func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, in bin
 	}
 	var proj domain.Node
 	if name := strings.TrimSpace(in.CreateName); name != "" {
-		proj, err = c.CreateNode(ctx, name)
+		proj, err = c.CreateNode(ctx, apiclient.CreateNodeFields{Name: name, Kind: string(domain.KindRepo)})
 	} else {
 		proj, err = h.lookupNode(ctx, strings.TrimSpace(in.Project))
 	}

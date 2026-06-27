@@ -29,9 +29,10 @@ func worktimeCmd() *cobra.Command {
 				os.Stderr = logf
 			}
 			pal := theme.Load()
+			adapted := engagementCreateClient{client}
 			m := shell.New(client, os.Getenv("USER"), pal).
 				WithTabs([]shell.Route{
-					worktime.NewTodayRoute(client, time.Now, pal, worktime.BuildRegistry(client, pal)),
+					worktime.NewTodayRoute(adapted, time.Now, pal, worktime.BuildRegistry(client, pal)),
 				})
 			_, err = tea.NewProgram(m, tea.WithContext(cmd.Context())).Run()
 			return err

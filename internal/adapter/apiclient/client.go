@@ -196,12 +196,6 @@ func (c *Client) ListSessionsRange(ctx context.Context, since, until time.Time) 
 	return out, err
 }
 
-func (c *Client) CreateNode(ctx context.Context, name string) (domain.Node, error) {
-	var p domain.Node
-	err := c.do(ctx, http.MethodPost, "/api/v1/nodes", map[string]any{"name": name}, &p)
-	return p, err
-}
-
 func (c *Client) ListNodes(ctx context.Context) ([]domain.Node, error) {
 	var out []domain.Node
 	err := c.do(ctx, http.MethodGet, "/api/v1/nodes", nil, &out)

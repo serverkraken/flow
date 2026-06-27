@@ -28,6 +28,24 @@ func (c *Client) ResolveNode(ctx context.Context, remoteSlug, machineID, cwd str
 	return p, true, nil
 }
 
+// ResolveEngagement calls GET /api/v1/nodes/resolve-engagement and returns the
+// engagement for the resolved repo. 404 → ok=false, err=nil.
+func (c *Client) ResolveEngagement(ctx context.Context, remoteSlug, machineID, cwd string) (domain.Node, bool, error) {
+	path := "/api/v1/nodes/resolve-engagement?slug=" + url.QueryEscape(remoteSlug) +
+		"&machine=" + url.QueryEscape(machineID) +
+		"&path=" + url.QueryEscape(cwd)
+	var n domain.Node
+	err := c.do(ctx, http.MethodGet, path, nil, &n)
+	if err != nil {
+		var ae *APIError
+		if errors.As(err, &ae) && ae.StatusCode == http.StatusNotFound {
+			return domain.Node{}, false, nil
+		}
+		return domain.Node{}, false, err
+	}
+	return n, true, nil
+}
+
 // BindRemote calls PUT /api/v1/nodes/{nodeID}/bindings with kind=remote.
 func (c *Client) BindRemote(ctx context.Context, nodeID, remoteSlug string) (domain.ProjectBinding, error) {
 	var b domain.ProjectBinding

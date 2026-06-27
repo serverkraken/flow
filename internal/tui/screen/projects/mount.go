@@ -13,10 +13,11 @@ import (
 var _ DetailAPI = (*apiclient.Client)(nil)
 
 // Mount builds the "Projekte" tab root with list↔detail↔form navigation wired.
-// The production composition root (cmd/flow/ui.go) calls this with the shared
-// *apiclient.Client, which satisfies all three narrow API interfaces.
-func Mount(client *apiclient.Client, pal theme.Palette, user string) shell.Route {
-	return MountWithAPI(client, client, client, pal, user)
+// formAPI is a separate parameter because *apiclient.Client no longer satisfies
+// FormAPI after the rich CreateNode change (C4); use engagementCreateClient from
+// cmd/flow as the form API in production.
+func Mount(client *apiclient.Client, formAPI FormAPI, pal theme.Palette, user string) shell.Route {
+	return MountWithAPI(client, client, formAPI, pal, user)
 }
 
 // MountWithAPI is the DI seam: tests inject fakes, production passes the same

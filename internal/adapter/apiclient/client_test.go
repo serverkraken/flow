@@ -103,7 +103,7 @@ func TestCreateProject(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(p)
 	})
 	c := apiclient.New(base, "tok")
-	p, err := c.CreateNode(t.Context(), "Flow")
+	p, err := c.CreateNode(t.Context(), apiclient.CreateNodeFields{Name: "Flow", Kind: "engagement"})
 	if err != nil {
 		t.Fatal(err)
 	}

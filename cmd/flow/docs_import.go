@@ -169,7 +169,7 @@ func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*st
 		pr.cache[projectPath] = id
 		return &id, nil
 	}
-	p, err := pr.client.CreateNode(ctx, projectPath)
+	p, err := pr.client.CreateNode(ctx, apiclient.CreateNodeFields{Name: projectPath, Kind: string(domain.KindEngagement)})
 	if err != nil {
 		return nil, err
 	}

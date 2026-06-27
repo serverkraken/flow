@@ -47,7 +47,7 @@ func runBindRemote(ctx context.Context, c *apiclient.Client, originSlug, nodeID,
 func bindSelection(ctx context.Context, c *apiclient.Client, originSlug string, picked fuzzylist.Item, isCreate bool) (string, error) {
 	var nodeID, projectName string
 	if isCreate {
-		p, err := c.CreateNode(ctx, picked.Label)
+		p, err := c.CreateNode(ctx, apiclient.CreateNodeFields{Name: picked.Label, Kind: string(domain.KindRepo)})
 		if err != nil {
 			return "", fmt.Errorf("create project: %w", err)
 		}
@@ -106,7 +106,7 @@ func runBindPathInteractive(ctx context.Context, c *apiclient.Client, machine cl
 
 	var nodeID, projectName string
 	if isCreate {
-		p, err := c.CreateNode(ctx, picked.Label)
+		p, err := c.CreateNode(ctx, apiclient.CreateNodeFields{Name: picked.Label, Kind: string(domain.KindRepo)})
 		if err != nil {
 			return "", fmt.Errorf("create project: %w", err)
 		}
