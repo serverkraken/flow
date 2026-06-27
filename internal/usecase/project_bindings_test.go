@@ -11,7 +11,7 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-func TestBindProject_RemoteHappyAndUnknownProject(t *testing.T) {
+func TestBindNode_RemoteHappyAndUnknownNode(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Unix(0, 0)}
@@ -38,7 +38,7 @@ func TestBindProject_RemoteHappyAndUnknownProject(t *testing.T) {
 	}
 }
 
-func TestBindProject_PropagatesErrProjectNotFound(t *testing.T) {
+func TestBindNode_PropagatesErrNodeNotFound(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Now()}
@@ -55,7 +55,7 @@ func TestBindProject_PropagatesErrProjectNotFound(t *testing.T) {
 	}
 }
 
-func TestBindProject_UpsertCalledAndReturnsBinding(t *testing.T) {
+func TestBindNode_UpsertCalledAndReturnsBinding(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Unix(100, 0)}
@@ -92,7 +92,7 @@ func TestBindProject_UpsertCalledAndReturnsBinding(t *testing.T) {
 	}
 }
 
-func TestResolveProject_MatchingRemoteReturnsProject(t *testing.T) {
+func TestResolveNode_MatchingRemoteReturnsNode(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Now()}
@@ -121,7 +121,7 @@ func TestResolveProject_MatchingRemoteReturnsProject(t *testing.T) {
 	}
 }
 
-func TestResolveProject_NoMatchReturnsFalse(t *testing.T) {
+func TestResolveNode_NoMatchReturnsFalse(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 
@@ -135,7 +135,7 @@ func TestResolveProject_NoMatchReturnsFalse(t *testing.T) {
 	}
 }
 
-func TestUnbindProject_Remote(t *testing.T) {
+func TestUnbindNode_Remote(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Now()}
@@ -167,7 +167,7 @@ func TestUnbindProject_Remote(t *testing.T) {
 	}
 }
 
-func TestListProjectBindings_Empty(t *testing.T) {
+func TestListNodeBindings_Empty(t *testing.T) {
 	bs := testutil.NewFakeProjectBindingStore()
 	uc := usecase.ListNodeBindings{Bindings: bs}
 	bindings, err := uc.Execute(context.Background(), "nobody")
@@ -180,7 +180,7 @@ func TestListProjectBindings_Empty(t *testing.T) {
 }
 
 // TestUnbindProject_Path covers the BindingPath branch of UnbindNode.Execute.
-func TestUnbindProject_Path(t *testing.T) {
+func TestUnbindNode_Path(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	clk := testutil.FakeClock{T: time.Now()}
