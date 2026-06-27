@@ -32,7 +32,9 @@ func TestProjectBindingStore(t *testing.T) {
 	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)
 	p1, _ := domain.NewNode("p-bind-1", "u-bind", "Project 1", "project-1", now)
+	p1.Kind = domain.KindEngagement
 	p2, _ := domain.NewNode("p-bind-2", "u-bind", "Project 2", "project-2", now)
+	p2.Kind = domain.KindEngagement
 	if _, err := projects.Create(ctx, p1); err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +109,7 @@ func TestProjectBindingStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		p3, _ := domain.NewNode("p-other-1", "u-other", "Other P", "other-p", now)
+		p3.Kind = domain.KindEngagement
 		if _, err := projects.Create(ctx, p3); err != nil {
 			t.Fatal(err)
 		}
@@ -203,6 +206,7 @@ func TestProjectBindingStore(t *testing.T) {
 
 	// Re-create p-bind-2 (was cascade-deleted above) so path sub-tests can use both projects.
 	p2recreated, _ := domain.NewNode("p-bind-2", "u-bind", "Project 2", "project-2", now)
+	p2recreated.Kind = domain.KindEngagement
 	if _, err := projects.Create(ctx, p2recreated); err != nil {
 		t.Fatal(err)
 	}
@@ -378,6 +382,7 @@ func TestProjectBindingStore(t *testing.T) {
 	t.Run("path: remote and path bindings for same owner+project coexist", func(t *testing.T) {
 		// Re-create p-bind-1 (just cascade-deleted above) for this coexistence test.
 		p1recreated, _ := domain.NewNode("p-bind-coex", "u-bind", "Coex Project", "coex-project", now)
+		p1recreated.Kind = domain.KindEngagement
 		if _, err := projects.Create(ctx, p1recreated); err != nil {
 			t.Fatal(err)
 		}

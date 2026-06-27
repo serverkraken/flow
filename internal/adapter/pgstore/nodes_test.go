@@ -32,6 +32,7 @@ func TestProjectStore_Delete(t *testing.T) {
 	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)
 	proj, _ := domain.NewNode("p-del", "u-del", "ToDelete", "to-delete", now)
+	proj.Kind = domain.KindEngagement
 	if _, err := projects.Create(ctx, proj); err != nil {
 		t.Fatal(err)
 	}
@@ -140,6 +141,7 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	st := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
 	proj, _ := domain.NewNode("p-upd", "u-upd", "Acme", "acme", now)
+	proj.Kind = domain.KindEngagement
 	if _, err := st.Create(ctx, proj); err != nil {
 		t.Fatal(err)
 	}
@@ -276,6 +278,7 @@ func TestProjectStore_RateRoundTrip(t *testing.T) {
 	st := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	proj, _ := domain.NewNode("p1", "u-rate", "Acme", "acme", now)
+	proj.Kind = domain.KindEngagement
 	p, err := st.Create(ctx, proj)
 	if err != nil {
 		t.Fatal(err)

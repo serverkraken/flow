@@ -42,6 +42,7 @@ func seedProjectScope(t *testing.T) (st *pgstore.DocumentStore, owner, pA, pB st
 	if err != nil {
 		t.Fatalf("new project a: %v", err)
 	}
+	a.Kind = domain.KindEngagement
 	if _, err := ps.Create(ctx, a); err != nil {
 		t.Fatalf("create a: %v", err)
 	}
@@ -49,6 +50,7 @@ func seedProjectScope(t *testing.T) (st *pgstore.DocumentStore, owner, pA, pB st
 	if err != nil {
 		t.Fatalf("new project b: %v", err)
 	}
+	b.Kind = domain.KindEngagement
 	if _, err := ps.Create(ctx, b); err != nil {
 		t.Fatalf("create b: %v", err)
 	}

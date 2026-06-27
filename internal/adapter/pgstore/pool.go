@@ -39,3 +39,18 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	return nil
 }
+
+// MigrateUpTo applies up migrations through the given version (inclusive). Used
+// by data-migration tests to stage rows before later migrations (e.g. CHECKs).
+func MigrateUpTo(ctx context.Context, pool *pgxpool.Pool, version int64) error {
+	db := stdlib.OpenDBFromPool(pool)
+	defer func() { _ = db.Close() }()
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("postgres"); err != nil {
+		return fmt.Errorf("pgstore: dialect: %w", err)
+	}
+	if err := goose.UpToContext(ctx, db, "migrations", version); err != nil {
+		return fmt.Errorf("pgstore: migrate up to %d: %w", version, err)
+	}
+	return nil
+}

@@ -31,6 +31,7 @@ func TestSessionStoreLifecycle(t *testing.T) {
 	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	p, _ := domain.NewNode("p1", "u1", "Flow", "flow", now)
+	p.Kind = domain.KindEngagement
 	if _, err := projects.Create(ctx, p); err != nil {
 		t.Fatalf("project create: %v", err)
 	}
@@ -203,7 +204,9 @@ func TestProjectStoreListOwnerScoped(t *testing.T) {
 	ps := pgstore.NewNodeStore(pool)
 	now := time.Now()
 	pa, _ := domain.NewNode("pa", "ua", "A proj", "a-proj", now)
+	pa.Kind = domain.KindEngagement
 	pb, _ := domain.NewNode("pb", "ub", "B proj", "b-proj", now)
+	pb.Kind = domain.KindEngagement
 	_, _ = ps.Create(ctx, pa)
 	_, _ = ps.Create(ctx, pb)
 	list, err := ps.List(ctx, "ua")
