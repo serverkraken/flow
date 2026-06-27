@@ -256,6 +256,9 @@ func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	switch err := s.DeleteNode.Execute(r.Context(), u.ID, id); {
+	case errors.Is(err, ports.ErrNodeHasChildren):
+		http.Error(w, "node has children; move or remove them first", http.StatusConflict)
+		return
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return

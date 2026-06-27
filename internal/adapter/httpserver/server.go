@@ -120,6 +120,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
 	mux.Handle("POST /api/v1/nodes/{id}/rate", s.auth(http.HandlerFunc(s.handleSetNodeRate)))
+	mux.Handle("POST /api/v1/nodes/{id}/move", s.auth(http.HandlerFunc(s.handleMoveNode)))
 
 	// project bindings — static paths before {id} wildcard
 	mux.Handle("GET /api/v1/nodes/resolve", s.auth(http.HandlerFunc(s.handleResolveNode)))
