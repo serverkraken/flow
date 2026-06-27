@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// NodeStatus is the lifecycle state of a Project.
+// NodeStatus is the lifecycle state of a Node.
 type NodeStatus string
 
 const (
@@ -14,7 +14,17 @@ const (
 	NodeArchived NodeStatus = "archived"
 )
 
-// Project is the First-Class hub work sessions book against. M1a uses a
+// NodeKind is the level of a node in the engagement→vorhaben→repo→branch tree.
+type NodeKind string
+
+const (
+	KindEngagement NodeKind = "engagement"
+	KindVorhaben   NodeKind = "vorhaben"
+	KindRepo       NodeKind = "repo"
+	KindBranch     NodeKind = "branch" // B1: reserved only; no behavior
+)
+
+// Node is the First-Class hub work sessions book against. M1a uses a
 // minimal field set; the heavier foundation fields (repos/paths/links/…)
 // arrive in later migrations.
 type Node struct {
@@ -30,6 +40,10 @@ type Node struct {
 	Status    NodeStatus `json:"status"`
 	CreatedAt time.Time     `json:"createdAt"`
 	UpdatedAt time.Time     `json:"updatedAt"`
+	ParentID    *string        `json:"parentId,omitempty"`
+	Kind        NodeKind       `json:"kind"`
+	OriginSlug  string         `json:"originSlug,omitempty"`
+	Extra       map[string]any `json:"extra,omitempty"`
 }
 
 // NewNode builds a validated, active Node stamped at now.
@@ -50,7 +64,7 @@ func NewNode(id, ownerID, name, slug string, now time.Time) (Node, error) {
 	}, nil
 }
 
-// Validate checks the invariants enforced on every mutation: a project needs a
+// Validate checks the invariants enforced on every mutation: a node needs a
 // name and slug, and its status must be one of the three known states.
 func (p Node) Validate() error {
 	switch {
@@ -69,4 +83,34 @@ func (p Node) Validate() error {
 	default:
 		return fmt.Errorf("%w: invalid status %q", ErrInvalidNode, p.Status)
 	}
+}
+
+// ValidParentKind reports whether a node of childKind may hang under parentKind.
+// Root placement (nil parent) is handled by the caller (root must be engagement).
+func ValidParentKind(child, parent NodeKind) bool {
+	switch child {
+	case KindVorhaben, KindRepo:
+		return parent == KindEngagement || parent == KindVorhaben
+	case KindBranch:
+		return parent == KindRepo
+	default: // engagement (or unknown) may never have a parent
+		return false
+	}
+}
+
+// AllowedChildKind reports whether parentKind may have a child of childKind.
+func AllowedChildKind(parent, child NodeKind) bool { return ValidParentKind(child, parent) }
+
+// ResolveEngagement returns the engagement from an ancestor chain ordered
+// leaf→root (as NodeStore.Ancestors returns). The engagement is the last
+// element (root); ok=false if the chain is empty or its root is not an engagement.
+func ResolveEngagement(chain []Node) (Node, bool) {
+	if len(chain) == 0 {
+		return Node{}, false
+	}
+	root := chain[len(chain)-1]
+	if root.Kind != KindEngagement {
+		return Node{}, false
+	}
+	return root, true
 }

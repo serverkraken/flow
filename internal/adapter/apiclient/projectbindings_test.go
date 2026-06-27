@@ -58,7 +58,7 @@ func TestResolveProject_404(t *testing.T) {
 	if ok {
 		t.Fatal("expected ok=false on 404")
 	}
-	if p != (domain.Node{}) {
+	if p.ID != "" {
 		t.Fatalf("expected zero Project, got %+v", p)
 	}
 }
