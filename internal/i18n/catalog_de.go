@@ -46,6 +46,11 @@ func init() {
 			// confirm dialog defaults
 			"confirm.title":      "Bist du sicher?",
 			"confirm.deleteBody": "Diese Aktion kann nicht rückgängig gemacht werden.",
+			// node kinds (badges)
+			"node.kind.engagement": "Engagement",
+			"node.kind.vorhaben":   "Vorhaben",
+			"node.kind.repo":       "Repo",
+			"node.kind.branch":     "Branch",
 			// doc kinds (badges)
 			"dockind.daily":   "Daily",
 			"dockind.project": "Projekt",

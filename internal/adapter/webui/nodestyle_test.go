@@ -8,7 +8,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// Drift guard: every domain palette color MUST have a WebUI hex, else a project
+// Drift guard: every domain palette color MUST have a WebUI hex, else a node
 // could carry a color the WebUI renders as blank.
 func TestColorHexCoversWholePalette(t *testing.T) {
 	for _, name := range domain.NodeColors {

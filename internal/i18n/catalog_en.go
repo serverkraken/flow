@@ -39,6 +39,11 @@ func init() {
 			"empty.default":             "Nothing here",
 			"confirm.title":             "Are you sure?",
 			"confirm.deleteBody":        "This action cannot be undone.",
+			// node kinds (badges)
+			"node.kind.engagement": "Engagement",
+			"node.kind.vorhaben":   "Initiative",
+			"node.kind.repo":       "Repo",
+			"node.kind.branch":     "Branch",
 			"dockind.daily":             "Daily",
 			"dockind.project":           "Project",
 			"dockind.free":              "Free",
