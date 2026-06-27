@@ -43,7 +43,7 @@ type nachbuchenState struct {
 }
 
 // projectItems converts a domain project slice to fuzzylist items.
-func projectItems(ps []domain.Project) []fuzzylist.Item {
+func projectItems(ps []domain.Node) []fuzzylist.Item {
 	out := make([]fuzzylist.Item, 0, len(ps))
 	for _, p := range ps {
 		out = append(out, fuzzylist.Item{ID: p.ID, Label: p.Name})
@@ -52,7 +52,7 @@ func projectItems(ps []domain.Project) []fuzzylist.Item {
 }
 
 // openNachbuchen constructs the initial dialog state with the given project list.
-func openNachbuchen(pal theme.Palette, projects []domain.Project) *nachbuchenState {
+func openNachbuchen(pal theme.Palette, projects []domain.Node) *nachbuchenState {
 	proj := fuzzylist.New(projectItems(projects), pal).WithCreateHint("neu: %s")
 	von := form.NewTextInput("HH:MM", pal)
 	bis := form.NewTextInput("HH:MM oder +1h30m", pal)
@@ -82,7 +82,7 @@ type nachbuchenDoneMsg struct {
 
 // nachbuchenLoadProjectsMsg carries the project list for opening the dialog.
 type nachbuchenLoadProjectsMsg struct {
-	projects []domain.Project
+	projects []domain.Node
 	err      error
 }
 
@@ -115,7 +115,7 @@ func (r *Route) handleNachbuchenKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 				return r, func() tea.Msg {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					defer cancel()
-					p, err := api.CreateProject(ctx, name)
+					p, err := api.CreateNode(ctx, name)
 					if err != nil {
 						return nachbuchenProjectMsg{err: err}
 					}

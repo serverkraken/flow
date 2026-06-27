@@ -10,7 +10,7 @@ import (
 type WorkSession struct {
 	ID        string     `json:"id"`
 	OwnerID   string     `json:"-"`
-	ProjectID *string    `json:"projectId,omitempty"`
+	NodeID *string    `json:"projectId,omitempty"`
 	Tag       string     `json:"tag,omitempty"`
 	Note      string     `json:"note,omitempty"`
 	Start     time.Time  `json:"start"`
@@ -30,14 +30,14 @@ func (s WorkSession) Elapsed(now time.Time) time.Duration {
 	return now.Sub(s.Start)
 }
 
-// NewWorkSession builds a validated, running session (Stop nil). projectID
+// NewWorkSession builds a validated, running session (Stop nil). nodeID
 // is optional at start and mandatory at stop (enforced in StopSession).
-func NewWorkSession(id, ownerID string, projectID *string, start time.Time) (WorkSession, error) {
+func NewWorkSession(id, ownerID string, nodeID *string, start time.Time) (WorkSession, error) {
 	switch {
 	case id == "":
 		return WorkSession{}, fmt.Errorf("%w: id required", ErrInvalidSession)
 	case ownerID == "":
 		return WorkSession{}, fmt.Errorf("%w: owner required", ErrInvalidSession)
 	}
-	return WorkSession{ID: id, OwnerID: ownerID, ProjectID: projectID, Start: start, CreatedAt: start}, nil
+	return WorkSession{ID: id, OwnerID: ownerID, NodeID: nodeID, Start: start, CreatedAt: start}, nil
 }

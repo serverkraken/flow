@@ -25,11 +25,11 @@ func Mount(client *apiclient.Client, pal theme.Palette, user string) shell.Route
 // push real routes.
 func MountWithAPI(list ProjectsAPI, detail DetailAPI, form FormAPI, pal theme.Palette, user string) shell.Route {
 	root := NewRoute(list, pal, user)
-	formFactory := func(editing *domain.Project) shell.Route {
+	formFactory := func(editing *domain.Node) shell.Route {
 		return NewFormRoute(form, pal, editing)
 	}
 	root.SetFormFactory(formFactory)
-	root.SetDetailFactory(func(p domain.Project) shell.Route {
+	root.SetDetailFactory(func(p domain.Node) shell.Route {
 		d := NewDetailRoute(detail, pal, p)
 		d.SetFormFactory(formFactory)
 		return d

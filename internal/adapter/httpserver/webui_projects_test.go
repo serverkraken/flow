@@ -27,11 +27,11 @@ func getWeb(t *testing.T, ts *httptest.Server, c *http.Cookie, path string) (int
 // newWebProjectsServer builds a webui-capable server with the project usecases
 // wired and a seeded user; returns the test server, a session cookie, and the
 // fake project store for seeding.
-func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeProjectStore) {
+func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
@@ -50,14 +50,14 @@ func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testut
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		GetProject:          usecase.GetProject{Projects: ps},
-		UpdateProject:       usecase.UpdateProject{Projects: ps, Bindings: bs, IDs: ids, Clock: clk},
-		DeleteProject:       usecase.DeleteProject{Projects: ps},
-		SetProjectRate:      usecase.SetProjectRate{Projects: ps},
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		GetNode:          usecase.GetNode{Nodes: ps},
+		UpdateNode:       usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
+		DeleteNode:       usecase.DeleteNode{Nodes: ps},
+		SetNodeRate:      usecase.SetNodeRate{Nodes: ps},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDocuments:       usecase.ListDocuments{Docs: docs},
 	}
 	ts := httptest.NewServer(srv.Routes())
@@ -67,12 +67,12 @@ func newWebProjectsServer(t *testing.T) (*httptest.Server, *http.Cookie, *testut
 	return ts, cookie, ps
 }
 
-func seedProjectForWeb(t *testing.T, ps *testutil.FakeProjectStore, id, name string, status domain.ProjectStatus) {
+func seedProjectForWeb(t *testing.T, ps *testutil.FakeNodeStore, id, name string, status domain.NodeStatus) {
 	t.Helper()
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
-	p, err := domain.NewProject(id, "u1", name, name, now)
+	p, err := domain.NewNode(id, "u1", name, name, now)
 	if err != nil {
-		t.Fatalf("NewProject: %v", err)
+		t.Fatalf("NewNode: %v", err)
 	}
 	p.Status = status
 	_, _ = ps.Create(context.Background(), p)
@@ -116,10 +116,10 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	ts, c, ps := newWebProjectsServer(t)
 
 	// CREATE with upstream + color + rate
-	res := postWebForm(t, ts, c, "/projects", url.Values{
+	res := postWebForm(t, ts, c, "/nodes", url.Values{
 		"name": {"PM Web"}, "slug": {"pm-web"}, "description": {"# Hi"},
 		"upstreamGit": {"git@github.com:serverkraken/pmweb.git"}, "status": {"active"},
-		"color": {domain.ProjectColors[0]}, "glyph": {domain.ProjectGlyphs[0]},
+		"color": {domain.NodeColors[0]}, "glyph": {domain.NodeGlyphs[0]},
 		"rateAmount": {"90.00"}, "rateCurrency": {"EUR"},
 	})
 	if res.StatusCode != http.StatusSeeOther {
@@ -127,29 +127,29 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	}
 	loc := res.Header.Get("Location")
 	_ = res.Body.Close()
-	if !strings.HasPrefix(loc, "/projects/") {
+	if !strings.HasPrefix(loc, "/nodes/") {
 		t.Fatalf("create redirect = %q", loc)
 	}
-	id := strings.TrimPrefix(loc, "/projects/")
+	id := strings.TrimPrefix(loc, "/nodes/")
 
 	// the cockpit reflects the saved fields + rate earnings
-	_, body := getWeb(t, ts, c, "/projects/"+id)
+	_, body := getWeb(t, ts, c, "/nodes/"+id)
 	if !strings.Contains(body, "PM Web") || !strings.Contains(body, "github.com/serverkraken/pmweb") {
 		t.Errorf("created project not reflected: %s", body)
 	}
 
 	// EDIT → pause + change description
-	res = postWebForm(t, ts, c, "/projects/"+id, url.Values{
+	res = postWebForm(t, ts, c, "/nodes/"+id, url.Values{
 		"name": {"PM Web"}, "slug": {"pm-web"}, "description": {"changed"},
 		"upstreamGit": {"git@github.com:serverkraken/pmweb.git"}, "status": {"paused"},
-		"color": {domain.ProjectColors[0]}, "glyph": {""}, "rateAmount": {""}, "rateCurrency": {"EUR"},
+		"color": {domain.NodeColors[0]}, "glyph": {""}, "rateAmount": {""}, "rateCurrency": {"EUR"},
 	})
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("edit status %d, want 303", res.StatusCode)
 	}
 	_ = res.Body.Close()
 	p, _ := ps.Get(context.Background(), "u1", id)
-	if p.Status != domain.ProjectPaused {
+	if p.Status != domain.NodePaused {
 		t.Errorf("edit did not pause: %s", p.Status)
 	}
 	if p.Rate != nil {
@@ -160,9 +160,9 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	// <form>. HTML5 reparents a nested form's button to the outer form, which would
 	// silently turn "Löschen" into an UPDATE submit. Assert a </form> closes the
 	// outer edit form BEFORE the delete-form action appears.
-	_, edit := getWeb(t, ts, c, "/projects/"+id+"/edit")
-	outerIdx := strings.Index(edit, `action="/projects/`+id+`"`)
-	delIdx := strings.Index(edit, `action="/projects/`+id+`/delete"`)
+	_, edit := getWeb(t, ts, c, "/nodes/"+id+"/edit")
+	outerIdx := strings.Index(edit, `action="/nodes/`+id+`"`)
+	delIdx := strings.Index(edit, `action="/nodes/`+id+`/delete"`)
 	if outerIdx < 0 || delIdx < 0 {
 		t.Fatalf("edit form missing outer (%d) or delete (%d) action; body=%.600s", outerIdx, delIdx, edit)
 	}
@@ -174,24 +174,24 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	}
 
 	// STATUS action → archive
-	res = postWebForm(t, ts, c, "/projects/"+id+"/status", url.Values{"status": {"archived"}})
+	res = postWebForm(t, ts, c, "/nodes/"+id+"/status", url.Values{"status": {"archived"}})
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("status action %d, want 303", res.StatusCode)
 	}
 	_ = res.Body.Close()
 	p, _ = ps.Get(context.Background(), "u1", id)
-	if p.Status != domain.ProjectArchived {
+	if p.Status != domain.NodeArchived {
 		t.Errorf("status action did not archive: %s", p.Status)
 	}
 
 	// CREATE with bad upstream → 400 + re-rendered form
 	before, _ := ps.List(context.Background(), "u1")
-	res = postWebForm(t, ts, c, "/projects", url.Values{"name": {"Bad"}, "upstreamGit": {"garbage"}, "status": {"active"}})
+	res = postWebForm(t, ts, c, "/nodes", url.Values{"name": {"Bad"}, "upstreamGit": {"garbage"}, "status": {"active"}})
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad upstream status %d, want 400", res.StatusCode)
 	}
 	_ = res.Body.Close()
-	// Up-front upstream validation must reject BEFORE CreateProject, so no orphan
+	// Up-front upstream validation must reject BEFORE CreateNode, so no orphan
 	// name-only project is left behind.
 	after, _ := ps.List(context.Background(), "u1")
 	if len(after) != len(before) {
@@ -204,7 +204,7 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 	}
 
 	// DELETE
-	res = postWebForm(t, ts, c, "/projects/"+id+"/delete", url.Values{})
+	res = postWebForm(t, ts, c, "/nodes/"+id+"/delete", url.Values{})
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("delete status %d, want 303", res.StatusCode)
 	}
@@ -217,14 +217,14 @@ func TestWebProjectCreateEditStatusDelete(t *testing.T) {
 func TestWebProjectCockpit(t *testing.T) {
 	ts, c, ps := newWebProjectsServer(t)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
-	p, _ := domain.NewProject("p1", "u1", "Flow", "flow", now)
+	p, _ := domain.NewNode("p1", "u1", "Flow", "flow", now)
 	p.Description = "# Notiz\nhallo"
 	p.UpstreamGit = "git@github.com:serverkraken/flow.git"
-	p.Status = domain.ProjectPaused
-	p.Color = domain.ProjectColors[0]
+	p.Status = domain.NodePaused
+	p.Color = domain.NodeColors[0]
 	_, _ = ps.Create(context.Background(), p)
 
-	code, body := getWeb(t, ts, c, "/projects/p1")
+	code, body := getWeb(t, ts, c, "/nodes/p1")
 	if code != 200 {
 		t.Fatalf("status %d", code)
 	}
@@ -238,7 +238,7 @@ func TestWebProjectCockpit(t *testing.T) {
 		t.Errorf("description should render")
 	}
 	// unknown id → 404
-	code404, _ := getWeb(t, ts, c, "/projects/nope")
+	code404, _ := getWeb(t, ts, c, "/nodes/nope")
 	if code404 != http.StatusNotFound {
 		t.Errorf("unknown id status %d, want 404", code404)
 	}
@@ -246,14 +246,14 @@ func TestWebProjectCockpit(t *testing.T) {
 
 func TestWebProjectsListAndFilter(t *testing.T) {
 	ts, c, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "p1", "Aaa", domain.ProjectActive)
-	seedProjectForWeb(t, ps, "p2", "Bbb", domain.ProjectPaused)
-	seedProjectForWeb(t, ps, "p3", "Ccc", domain.ProjectArchived)
+	seedProjectForWeb(t, ps, "p1", "Aaa", domain.NodeActive)
+	seedProjectForWeb(t, ps, "p2", "Bbb", domain.NodePaused)
+	seedProjectForWeb(t, ps, "p3", "Ccc", domain.NodeArchived)
 
 	// default: active+paused → Aaa, Bbb shown, Ccc (archived) hidden
-	code, body := getWebProjects(t, ts, c, "/projects")
+	code, body := getWebProjects(t, ts, c, "/nodes")
 	if code != 200 {
-		t.Fatalf("GET /projects status %d body=%.300s", code, body)
+		t.Fatalf("GET /nodes status %d body=%.300s", code, body)
 	}
 	if !strings.Contains(body, "Aaa") || !strings.Contains(body, "Bbb") {
 		t.Errorf("default should list active+paused; body=%.400s", body)
@@ -262,7 +262,7 @@ func TestWebProjectsListAndFilter(t *testing.T) {
 		t.Errorf("default must hide archived; body=%.400s", body)
 	}
 	// archived filter reveals Ccc
-	_, arch := getWebProjects(t, ts, c, "/projects?status=archived")
+	_, arch := getWebProjects(t, ts, c, "/nodes?status=archived")
 	if !strings.Contains(arch, "Ccc") {
 		t.Errorf("archived filter should show Ccc; body=%.400s", arch)
 	}
@@ -271,8 +271,8 @@ func TestWebProjectsListAndFilter(t *testing.T) {
 		t.Errorf("paused badge label expected; body=%.400s", body)
 	}
 	// SSE fragment route works
-	codeF, _ := getWebProjects(t, ts, c, "/ui/projects/list")
+	codeF, _ := getWebProjects(t, ts, c, "/ui/nodes/list")
 	if codeF != 200 {
-		t.Errorf("GET /ui/projects/list status %d", codeF)
+		t.Errorf("GET /ui/nodes/list status %d", codeF)
 	}
 }

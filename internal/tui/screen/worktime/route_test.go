@@ -22,7 +22,7 @@ func confirmResult(ok bool) tea.Msg     { return confirm.ResultMsg{Confirmed: ok
 type fakeAPI struct {
 	today     apiclient.Today
 	sessions  []domain.WorkSession
-	projects  []domain.Project
+	projects  []domain.Node
 	started   bool
 	stopped   [2]string
 	edited    string
@@ -38,7 +38,7 @@ func (f *fakeAPI) ListSessions(context.Context) ([]domain.WorkSession, error) { 
 func (f *fakeAPI) ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error) {
 	return f.sessions, nil
 }
-func (f *fakeAPI) ListProjects(context.Context) ([]domain.Project, error) { return f.projects, nil }
+func (f *fakeAPI) ListNodes(context.Context) ([]domain.Node, error) { return f.projects, nil }
 func (f *fakeAPI) StartSession(context.Context, *string, string, string) (domain.WorkSession, error) {
 	f.started = true
 	return domain.WorkSession{ID: "new"}, nil
@@ -56,8 +56,8 @@ func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _, _ stri
 	return domain.WorkSession{ID: id}, nil
 }
 func (f *fakeAPI) DeleteSession(_ context.Context, id string) error { f.deleted = id; return nil }
-func (f *fakeAPI) CreateProject(_ context.Context, name string) (domain.Project, error) {
-	return domain.Project{ID: "p-" + name, Name: name}, nil
+func (f *fakeAPI) CreateNode(_ context.Context, name string) (domain.Node, error) {
+	return domain.Node{ID: "p-" + name, Name: name}, nil
 }
 
 func fixedNow() time.Time { return time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC) }
@@ -171,7 +171,7 @@ func TestActions_StartWhenIdle(t *testing.T) {
 }
 
 func TestActions_StopOpensBookingThenBooks(t *testing.T) {
-	f := &fakeAPI{projects: []domain.Project{{ID: "p1", Name: "Flow"}}}
+	f := &fakeAPI{projects: []domain.Node{{ID: "p1", Name: "Flow"}}}
 	r := newTestRoute(f)
 	r.loaded = true
 	r.st = todayState{Running: true, ActiveID: "run"}
@@ -224,7 +224,7 @@ func TestBooking_FuzzylistClampsOnShorterProjectList(t *testing.T) {
 		r.booking.list = r.booking.list.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	}
 	// a refresh with a shorter list must clamp cursor (no panic on subsequent enter)
-	r.Update(projectsMsg{projects: []domain.Project{{ID: "p1", Name: "Alpha"}}})
+	r.Update(projectsMsg{projects: []domain.Node{{ID: "p1", Name: "Alpha"}}})
 	// enter now books p1 without panicking
 	_, cmd := r.handleKey(keyEnterMsg())
 	if cmd != nil {

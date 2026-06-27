@@ -31,7 +31,7 @@ func renderDetailView(r *DetailRoute, f shell.Frame) string {
 	if glyph == "" {
 		glyph = "◆"
 	}
-	glyphColor := kindcolor.ProjectColor(r.p.Color, pal)
+	glyphColor := kindcolor.NodeColor(r.p.Color, pal)
 	glyphStr := lipgloss.NewStyle().Foreground(glyphColor).Render(glyph)
 	nameStr := lipgloss.NewStyle().Foreground(pal.Fg).Bold(true).Render(r.p.Name)
 	statusStr := lipgloss.NewStyle().
@@ -183,14 +183,14 @@ func bindingTarget(b domain.ProjectBinding) string {
 }
 
 // statusSemColor returns a semantic color for the project status badge.
-func statusSemColor(s domain.ProjectStatus, pal theme.Palette) theme.Color {
+func statusSemColor(s domain.NodeStatus, pal theme.Palette) theme.Color {
 	sem := pal.Sem()
 	switch s {
-	case domain.ProjectActive:
+	case domain.NodeActive:
 		return sem.Success
-	case domain.ProjectPaused:
+	case domain.NodePaused:
 		return sem.Warning
-	case domain.ProjectArchived:
+	case domain.NodeArchived:
 		return pal.FgMuted
 	default:
 		return pal.FgMuted

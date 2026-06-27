@@ -15,13 +15,13 @@ func sampleExport() domain.ExportData {
 	return domain.ExportData{
 		From: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		To:   time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC),
-		ByProject: []domain.ProjectTotal{
-			{ProjectID: "p1", ProjectName: "Acme", Total: 2 * time.Hour, SessionCount: 1, Rate: &rate, Amount: &amt},
-			{ProjectID: "p2", ProjectName: "Beta", Total: 30 * time.Minute, SessionCount: 1},
+		ByEngagement: []domain.NodeTotal{
+			{NodeID: "p1", NodeName: "Acme", Total: 2 * time.Hour, SessionCount: 1, Rate: &rate, Amount: &amt},
+			{NodeID: "p2", NodeName: "Beta", Total: 30 * time.Minute, SessionCount: 1},
 		},
 		Sessions: []domain.ExportRow{
-			{Date: d(9, 0), Start: d(9, 0), Stop: d(11, 0), Elapsed: 2 * time.Hour, ProjectName: "Acme", Tag: "deep", Note: "x"},
-			{Date: d(13, 0), Start: d(13, 0), Stop: d(13, 30), Elapsed: 30 * time.Minute, ProjectName: "Beta"},
+			{Date: d(9, 0), Start: d(9, 0), Stop: d(11, 0), Elapsed: 2 * time.Hour, NodeName: "Acme", Tag: "deep", Note: "x"},
+			{Date: d(13, 0), Start: d(13, 0), Stop: d(13, 30), Elapsed: 30 * time.Minute, NodeName: "Beta"},
 		},
 	}
 }
@@ -95,10 +95,10 @@ func TestWriteMarkdown_EscapesPipes(t *testing.T) {
 	d := domain.ExportData{
 		From:      time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		To:        time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC),
-		ByProject: []domain.ProjectTotal{{ProjectID: "p", ProjectName: "A|B", Total: time.Hour, SessionCount: 1}},
+		ByEngagement: []domain.NodeTotal{{NodeID: "p", NodeName: "A|B", Total: time.Hour, SessionCount: 1}},
 		Sessions: []domain.ExportRow{{
 			Date: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC),
-			Stop: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC), Elapsed: time.Hour, ProjectName: "A|B", Note: "x|y",
+			Stop: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC), Elapsed: time.Hour, NodeName: "A|B", Note: "x|y",
 		}},
 	}
 	if err := domain.WriteMarkdown(&b, d); err != nil {

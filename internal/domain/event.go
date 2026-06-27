@@ -8,9 +8,9 @@ const (
 	EventSessionStopped  EventType = "session.stopped"
 	EventSessionUpdated  EventType = "session.updated"
 	EventSessionDeleted  EventType = "session.deleted"
-	EventProjectCreated  EventType = "project.created"
-	EventProjectDeleted  EventType = "project.deleted"
-	EventProjectUpdated  EventType = "project.updated"
+	EventNodeCreated  EventType = "node.created"
+	EventNodeDeleted  EventType = "node.deleted"
+	EventNodeUpdated  EventType = "node.updated"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
 

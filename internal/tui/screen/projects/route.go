@@ -38,7 +38,7 @@ func (f statusFilter) label() string {
 
 // loadedMsg is the internal message delivered when the API call completes.
 type loadedMsg struct {
-	ps  []domain.Project
+	ps  []domain.Node
 	err error
 }
 
@@ -47,8 +47,8 @@ type Route struct {
 	api    ProjectsAPI
 	pal    theme.Palette
 	user   string
-	all    []domain.Project // unfiltered, as loaded from the server
-	shown  []domain.Project // view-filtered subset
+	all    []domain.Node // unfiltered, as loaded from the server
+	shown  []domain.Node // view-filtered subset
 	cur    listnav.Cursor
 	filter statusFilter
 	loaded bool
@@ -56,8 +56,8 @@ type Route struct {
 
 	// detailFor and formFor are injected by Task 8's wiring. Until then they
 	// are nil and enter/n are silent no-ops.
-	detailFor func(domain.Project) shell.Route
-	formFor   func(*domain.Project) shell.Route // nil ptr → create; non-nil ptr → edit
+	detailFor func(domain.Node) shell.Route
+	formFor   func(*domain.Node) shell.Route // nil ptr → create; non-nil ptr → edit
 }
 
 // NewRoute returns an unloaded projects list route. Call Init() to trigger
@@ -67,10 +67,10 @@ func NewRoute(api ProjectsAPI, pal theme.Palette, user string) *Route {
 }
 
 // SetDetailFactory wires in the detail-route constructor (called by Task 8).
-func (r *Route) SetDetailFactory(f func(domain.Project) shell.Route) { r.detailFor = f }
+func (r *Route) SetDetailFactory(f func(domain.Node) shell.Route) { r.detailFor = f }
 
 // SetFormFactory wires in the form-route constructor (called by Task 8).
-func (r *Route) SetFormFactory(f func(*domain.Project) shell.Route) { r.formFor = f }
+func (r *Route) SetFormFactory(f func(*domain.Node) shell.Route) { r.formFor = f }
 
 // Title implements shell.Route.
 func (r *Route) Title() string { return "Projekte" }
@@ -81,7 +81,7 @@ func (r *Route) Init() tea.Cmd { return r.loadCmd() }
 func (r *Route) loadCmd() tea.Cmd {
 	api := r.api
 	return func() tea.Msg {
-		ps, err := api.ListProjects(context.Background())
+		ps, err := api.ListNodes(context.Background())
 		return loadedMsg{ps: ps, err: err}
 	}
 }
@@ -162,11 +162,11 @@ func (r *Route) applyFilter() {
 		case filterAll:
 			r.shown = append(r.shown, p)
 		case filterArchived:
-			if p.Status == domain.ProjectArchived {
+			if p.Status == domain.NodeArchived {
 				r.shown = append(r.shown, p)
 			}
 		default: // filterActivePaused
-			if p.Status == domain.ProjectActive || p.Status == domain.ProjectPaused {
+			if p.Status == domain.NodeActive || p.Status == domain.NodePaused {
 				r.shown = append(r.shown, p)
 			}
 		}
@@ -176,7 +176,7 @@ func (r *Route) applyFilter() {
 
 // isProjectEvent reports whether the SSE event type should trigger a reload.
 func isProjectEvent(t string) bool {
-	return t == string(domain.EventProjectCreated) ||
-		t == string(domain.EventProjectUpdated) ||
-		t == string(domain.EventProjectDeleted)
+	return t == string(domain.EventNodeCreated) ||
+		t == string(domain.EventNodeUpdated) ||
+		t == string(domain.EventNodeDeleted)
 }

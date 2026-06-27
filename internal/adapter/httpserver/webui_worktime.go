@@ -46,17 +46,17 @@ func (s *Server) renderDay(w http.ResponseWriter, r *http.Request, u domain.User
 // resolveWebProject returns the chosen project id from the form, creating a
 // new project when "newProject" is filled. Returns nil when neither is set.
 func (s *Server) resolveWebProject(r *http.Request, u domain.User) *string {
-	projectID := r.FormValue("projectId")
+	nodeID := r.FormValue("projectId")
 	if name := r.FormValue("newProject"); name != "" {
-		if p, err := s.CreateProject.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
-			projectID = p.ID
-			s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID})
+		if p, err := s.CreateNode.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
+			nodeID = p.ID
+			s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID})
 		}
 	}
-	if projectID == "" {
+	if nodeID == "" {
 		return nil
 	}
-	return &projectID
+	return &nodeID
 }
 
 func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
@@ -73,8 +73,8 @@ func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "to must be after from")
 		return
 	}
-	projectID := s.resolveWebProject(r, u)
-	if _, err := s.AddSession.Execute(r.Context(), u.ID, projectID, start, stop,
+	nodeID := s.resolveWebProject(r, u)
+	if _, err := s.AddSession.Execute(r.Context(), u.ID, nodeID, start, stop,
 		r.FormValue("tag"), r.FormValue("note")); err != nil {
 		s.renderDay(w, r, u, day, "could not add: "+err.Error()) // err includes "overlap"
 		return
@@ -105,10 +105,10 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "invalid time range")
 		return
 	}
-	projectID := s.resolveWebProject(r, u)
+	nodeID := s.resolveWebProject(r, u)
 	if _, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
 		usecase.EditSessionInput{
-			ProjectID: projectID,
+			NodeID: nodeID,
 			Tag:       r.FormValue("tag"),
 			Note:      r.FormValue("note"),
 			Start:     start,

@@ -135,7 +135,7 @@ func (s *Server) handleHistorieReassign(w http.ResponseWriter, r *http.Request) 
 		s.renderHistorieFragment(w, r, u, "kein Projekt gewählt")
 		return
 	}
-	if _, err := s.BulkAssignProject.Execute(r.Context(), u.ID, ids, *pid); err != nil {
+	if _, err := s.BulkAssignNode.Execute(r.Context(), u.ID, ids, *pid); err != nil {
 		s.renderHistorieFragment(w, r, u, historieBulkErr(err))
 		return
 	}
@@ -161,7 +161,7 @@ func historieBulkErr(err error) string {
 	switch {
 	case errors.Is(err, usecase.ErrNoSessions):
 		return "keine Sitzungen ausgewählt"
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		return "Projekt nicht gefunden"
 	default:
 		return "Aktion fehlgeschlagen: " + err.Error()
@@ -178,7 +178,7 @@ func (s *Server) historieCalData(ctx context.Context, u domain.User, r *http.Req
 		calView = "week"
 	}
 
-	projects, err := s.ListProjects.Execute(ctx, u.ID)
+	projects, err := s.ListNodes.Execute(ctx, u.ID)
 	if err != nil {
 		return webui.HistorieVM{}, err
 	}
@@ -188,7 +188,7 @@ func (s *Server) historieCalData(ctx context.Context, u domain.User, r *http.Req
 		View:     "cal",
 		CalView:  calView,
 		HourPx:   historieHourPx,
-		Projects: historieProjectPickers(projects),
+		Nodes: historieProjectPickers(projects),
 		Err:      errMsg,
 	}
 
@@ -220,7 +220,7 @@ func (s *Server) historieCalData(ctx context.Context, u domain.User, r *http.Req
 
 // historieBuildWeek fills the week grid: 7 day columns with positioned blocks +
 // mobile agenda rows, the hybrid time window, and the now-line for today.
-func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui.HistorieVM, weekStart, curMonday, now time.Time, projects []domain.Project) error {
+func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui.HistorieVM, weekStart, curMonday, now time.Time, projects []domain.Node) error {
 	loc := now.Location()
 	weekEnd := weekStart.AddDate(0, 0, 7)
 	sessions, err := s.ListSessionsRange.Execute(ctx, u.ID, weekStart, weekEnd)
@@ -322,7 +322,7 @@ func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui
 
 // historieBuildMonth fills the month grid: leading/trailing padding cells to
 // align Mon-first weeks, each in-month cell carrying hours + an unassigned flag.
-func (s *Server) historieBuildMonth(ctx context.Context, u domain.User, vm *webui.HistorieVM, ref, now time.Time, projects []domain.Project) error {
+func (s *Server) historieBuildMonth(ctx context.Context, u domain.User, vm *webui.HistorieVM, ref, now time.Time, projects []domain.Node) error {
 	loc := now.Location()
 	first := time.Date(ref.Year(), ref.Month(), 1, 0, 0, 0, 0, loc)
 	next := first.AddDate(0, 0, 32)
@@ -350,10 +350,10 @@ func (s *Server) historieBuildMonth(ctx context.Context, u domain.User, vm *webu
 		dur := sess.Elapsed(now)
 		a.dur += dur
 		monthTotal += dur
-		if sess.ProjectID == nil {
+		if sess.NodeID == nil {
 			a.unassigned = true
 			monthUnassigned++
-		} else if hue := projectHue(projects, sess.ProjectID); hue != "" {
+		} else if hue := projectHue(projects, sess.NodeID); hue != "" {
 			a.hues = append(a.hues, hue)
 		}
 	}
@@ -415,14 +415,14 @@ func (s *Server) historieListData(ctx context.Context, u domain.User, r *http.Re
 	if err != nil {
 		return webui.HistorieListVM{}, err
 	}
-	projects, err := s.ListProjects.Execute(ctx, u.ID)
+	projects, err := s.ListNodes.Execute(ctx, u.ID)
 	if err != nil {
 		return webui.HistorieListVM{}, err
 	}
 
 	vm := webui.HistorieListVM{
 		User:     u.Username,
-		Projects: historieProjectPickers(projects),
+		Nodes: historieProjectPickers(projects),
 		Empty:    total == 0,
 		Err:      errMsg,
 		Page: components.PageNav{
@@ -445,7 +445,7 @@ func (s *Server) historieListData(ctx context.Context, u domain.User, r *http.Re
 
 // historieSessionVMs maps a stored session to its block VM (grid) + row VM
 // (agenda). Returns the session duration and whether it was unassigned.
-func historieSessionVMs(sess domain.WorkSession, projects []domain.Project, now time.Time, loc *time.Location, floor int) (components.SessionBlockVM, components.SessionRowVM, time.Duration, bool) {
+func historieSessionVMs(sess domain.WorkSession, projects []domain.Node, now time.Time, loc *time.Location, floor int) (components.SessionBlockVM, components.SessionRowVM, time.Duration, bool) {
 	startMin := minuteOfDay(sess.Start, loc)
 	stopT := now
 	if sess.Stop != nil {
@@ -462,17 +462,17 @@ func historieSessionVMs(sess domain.WorkSession, projects []domain.Project, now 
 	}
 	dur := sess.Elapsed(now)
 
-	name, hue := projectIdentity(projects, sess.ProjectID)
-	glyph := projectGlyph(projects, sess.ProjectID)
-	unassigned := sess.ProjectID == nil
+	name, hue := projectIdentity(projects, sess.NodeID)
+	glyph := projectGlyph(projects, sess.NodeID)
+	unassigned := sess.NodeID == nil
 
 	editTo := ""
 	if sess.Stop != nil {
 		editTo = sess.Stop.In(loc).Format("15:04")
 	}
 	editPID := ""
-	if sess.ProjectID != nil {
-		editPID = *sess.ProjectID
+	if sess.NodeID != nil {
+		editPID = *sess.NodeID
 	}
 	blk := components.SessionBlockVM{
 		ID:            sess.ID,
@@ -489,7 +489,7 @@ func historieSessionVMs(sess domain.WorkSession, projects []domain.Project, now 
 		EditTo:        editTo,
 		EditTag:       sess.Tag,
 		EditNote:      sess.Note,
-		EditProjectID: editPID,
+		EditNodeID: editPID,
 	}
 	row := sessionRowVM(sess, projects, now)
 	row.Selectable = true
@@ -544,7 +544,7 @@ func historieMonthBars(hues []string, unassigned bool) []webui.HistorieMonthBar 
 }
 
 // historieProjectPickers maps domain projects to picker VMs (name/hue/glyph/rate).
-func historieProjectPickers(projects []domain.Project) []components.FuzzyProjectVM {
+func historieProjectPickers(projects []domain.Node) []components.FuzzyProjectVM {
 	out := make([]components.FuzzyProjectVM, 0, len(projects))
 	for _, p := range projects {
 		out = append(out, components.FuzzyProjectVM{
@@ -559,7 +559,7 @@ func historieProjectPickers(projects []domain.Project) []components.FuzzyProject
 }
 
 // projectHue resolves a session's project hue ("" if unknown/unassigned).
-func projectHue(projects []domain.Project, id *string) string {
+func projectHue(projects []domain.Node, id *string) string {
 	if id == nil {
 		return ""
 	}

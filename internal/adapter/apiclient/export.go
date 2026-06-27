@@ -8,13 +8,13 @@ import (
 	"net/url"
 )
 
-// Export fetches a worktime export. format is "csv"|"json"|"md"; projectID ""
+// Export fetches a worktime export. format is "csv"|"json"|"md"; nodeID ""
 // means all projects. Returns the raw bytes of the chosen format.
 // Auth is injected automatically by the client's RoundTripper transport.
-func (c *Client) Export(ctx context.Context, from, to, format, projectID string) ([]byte, error) {
+func (c *Client) Export(ctx context.Context, from, to, format, nodeID string) ([]byte, error) {
 	q := url.Values{"from": {from}, "to": {to}, "format": {format}}
-	if projectID != "" {
-		q.Set("project", projectID)
+	if nodeID != "" {
+		q.Set("project", nodeID)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/v1/export?"+q.Encode(), nil)
 	if err != nil {
@@ -31,9 +31,9 @@ func (c *Client) Export(ctx context.Context, from, to, format, projectID string)
 	return io.ReadAll(res.Body)
 }
 
-// SetProjectRate sets (amount != nil) or clears (amount == nil) a project's
+// SetNodeRate sets (amount != nil) or clears (amount == nil) a project's
 // per-hour rate in minor units.
-func (c *Client) SetProjectRate(ctx context.Context, projectID string, amount *int64, currency string) error {
-	return c.do(ctx, http.MethodPost, "/api/v1/projects/"+projectID+"/rate",
+func (c *Client) SetNodeRate(ctx context.Context, nodeID string, amount *int64, currency string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/nodes/"+nodeID+"/rate",
 		map[string]any{"amount": amount, "currency": currency}, nil)
 }

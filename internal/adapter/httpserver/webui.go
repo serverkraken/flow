@@ -23,14 +23,14 @@ func (s *Server) handleWebStop(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
 	sessionID := r.FormValue("sessionId")
-	projectID := r.FormValue("projectId")
+	nodeID := r.FormValue("projectId")
 	if name := r.FormValue("newProject"); name != "" {
-		if p, err := s.CreateProject.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
-			projectID = p.ID
-			s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID})
+		if p, err := s.CreateNode.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
+			nodeID = p.ID
+			s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID})
 		}
 	}
-	if _, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &projectID); err != nil {
+	if _, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &nodeID); err != nil {
 		// Booking is mandatory: surface the reason instead of silently leaving the
 		// timer running (otherwise Stop appears to "do nothing").
 		msg := "Sitzung konnte nicht gestoppt werden."

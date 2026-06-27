@@ -19,7 +19,7 @@ func authedWriteServerWithResources(t *testing.T) (*mcp.ClientSession, *handlers
 	be := fakeWriteBackend(t)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
-	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 	mgr, h := managerFor(t, client, proj)
 	if err := h.registerResources(context.Background(), client); err != nil {
 		t.Fatalf("registerResources: %v", err)
@@ -89,7 +89,7 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 	var mu sync.Mutex
 	p1 := "p1"
 	docs := map[string]domain.Document{
-		"d-human": {ID: "d-human", OwnerID: "u1", ProjectID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "human note"},
+		"d-human": {ID: "d-human", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "human note"},
 	}
 	seq := 0
 	mux := http.NewServeMux()
@@ -97,8 +97,8 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
 	})
-	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode([]domain.Project{{ID: "p1", Name: "Alpha", Slug: "alpha"}})
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "p1", Name: "Alpha", Slug: "alpha"}})
 	})
 	mux.HandleFunc("POST /api/v1/documents", func(w http.ResponseWriter, r *http.Request) {
 		var in apiclient.CreateDocumentInput
@@ -107,7 +107,7 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		defer mu.Unlock()
 		seq++
 		id := "new" + string(rune('0'+seq))
-		d := domain.Document{ID: id, OwnerID: "u1", ProjectID: in.ProjectID, Type: domain.DocumentType(in.Type), Path: in.Path, Title: in.Title, Body: in.Body}
+		d := domain.Document{ID: id, OwnerID: "u1", NodeID: in.NodeID, Type: domain.DocumentType(in.Type), Path: in.Path, Title: in.Title, Body: in.Body}
 		docs[id] = d
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(d)
@@ -149,7 +149,7 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		var out []domain.Document
 		pid, has := r.URL.Query().Get("projectId"), r.URL.Query().Has("projectId")
 		for _, d := range docs {
-			if !has || (d.ProjectID != nil && *d.ProjectID == pid) {
+			if !has || (d.NodeID != nil && *d.NodeID == pid) {
 				out = append(out, d)
 			}
 		}
@@ -163,7 +163,7 @@ func authedWriteServer(t *testing.T) *mcp.ClientSession {
 	be := fakeWriteBackend(t)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
-	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 	mgr, h := managerFor(t, client, proj)
 	_ = mgr
 	return connect(t, h.srv)
@@ -265,10 +265,10 @@ func TestLoopback_CreateNoneScope(t *testing.T) {
 	if !strings.Contains(out, "new1") {
 		t.Fatalf("expected id new1 in create result, got %q", out)
 	}
-	// Round-trip via flow_get_doc: formatDoc renders "project: —" when ProjectID is nil.
+	// Round-trip via flow_get_doc: formatDoc renders "project: —" when NodeID is nil.
 	_, got := callText(t, sess, "flow_get_doc", map[string]any{"id": "new1"})
 	if !strings.Contains(got, "project: —") {
-		t.Fatalf("get after create-with-none = %q; want 'project: —' (nil ProjectID)", got)
+		t.Fatalf("get after create-with-none = %q; want 'project: —' (nil NodeID)", got)
 	}
 }
 
@@ -283,7 +283,7 @@ func TestLoopback_Resources_OutOfScopeCreateNotRegistered(t *testing.T) {
 	}
 	beforeCount := len(rs.Resources)
 
-	// create in "global" scope → ProjectID nil → not in scope of p1
+	// create in "global" scope → NodeID nil → not in scope of p1
 	res, out := callText(t, sess, "flow_create_doc", map[string]any{
 		"type": "memory", "path": "notes/oob", "title": "OutOfBand", "body": "nowhere", "project": "global",
 	})
@@ -341,7 +341,7 @@ func TestLoopback_Reauth_TransparentRetryOn401(t *testing.T) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		_ = json.NewEncoder(w).Encode([]domain.Document{{ID: "d1", OwnerID: "u1", ProjectID: &p1, Type: domain.DocMemory, Path: "p", Title: "t"}})
+		_ = json.NewEncoder(w).Encode([]domain.Document{{ID: "d1", OwnerID: "u1", NodeID: &p1, Type: domain.DocMemory, Path: "p", Title: "t"}})
 	})
 	be := httptest.NewServer(mux)
 	t.Cleanup(be.Close)
@@ -354,7 +354,7 @@ func TestLoopback_Reauth_TransparentRetryOn401(t *testing.T) {
 	srv, h := newServerH(mgr)
 	mgr.onAuth = nil // seed resolution directly; fixture lacks V0 endpoints
 	h.projMu.Lock()
-	h.proj, h.matched = domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}, true
+	h.proj, h.matched = domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}, true
 	h.projMu.Unlock()
 	sess := connect(t, srv)
 

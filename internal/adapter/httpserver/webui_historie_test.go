@@ -27,7 +27,7 @@ func histGet(t *testing.T, srv *worktimeTestServer, path string) *httptest.Respo
 // seedHistProject creates a project for "u1" and returns its id.
 func seedHistProject(t *testing.T, srv *worktimeTestServer, name string) string {
 	t.Helper()
-	p, err := (usecase.CreateProject{Projects: srv.ps, IDs: srv.ids, Clock: srv.clk}).
+	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).
 		Execute(context.Background(), "u1", name, "", "blue", "◆")
 	if err != nil {
 		t.Fatalf("seedHistProject: %v", err)
@@ -132,8 +132,8 @@ func TestHistorieReassign_AssignsAndRendersFragment(t *testing.T) {
 		time.Date(2026, 6, 22, 0, 0, 0, 0, time.Local),
 	)
 	for _, s := range sessions {
-		if s.ProjectID == nil || *s.ProjectID != pid {
-			t.Errorf("session %s not assigned to %s (got %v)", s.ID, pid, s.ProjectID)
+		if s.NodeID == nil || *s.NodeID != pid {
+			t.Errorf("session %s not assigned to %s (got %v)", s.ID, pid, s.NodeID)
 		}
 	}
 }
@@ -158,7 +158,7 @@ func TestHistorieReassign_InlineCreate(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	// The inline-created project exists and the session points at it.
-	projects, _ := (usecase.ListProjects{Projects: srv.ps}).Execute(context.Background(), "u1")
+	projects, _ := (usecase.ListNodes{Nodes: srv.ps}).Execute(context.Background(), "u1")
 	if len(projects) != 1 || projects[0].Name != "flux-migration" {
 		t.Fatalf("inline-create: expected project flux-migration, got %#v", projects)
 	}
@@ -167,7 +167,7 @@ func TestHistorieReassign_InlineCreate(t *testing.T) {
 		time.Date(2026, 6, 15, 0, 0, 0, 0, time.Local),
 		time.Date(2026, 6, 22, 0, 0, 0, 0, time.Local),
 	)
-	if len(sessions) != 1 || sessions[0].ProjectID == nil || *sessions[0].ProjectID != projects[0].ID {
+	if len(sessions) != 1 || sessions[0].NodeID == nil || *sessions[0].NodeID != projects[0].ID {
 		t.Errorf("session not assigned to inline-created project, got %#v", sessions)
 	}
 }
@@ -190,8 +190,8 @@ func TestHistorieReassign_NoProjectErrors(t *testing.T) {
 		time.Date(2026, 6, 15, 0, 0, 0, 0, time.Local),
 		time.Date(2026, 6, 22, 0, 0, 0, 0, time.Local),
 	)
-	if sessions[0].ProjectID != nil {
-		t.Errorf("expected session to remain unassigned, got %v", sessions[0].ProjectID)
+	if sessions[0].NodeID != nil {
+		t.Errorf("expected session to remain unassigned, got %v", sessions[0].NodeID)
 	}
 }
 
@@ -270,14 +270,14 @@ func TestHistorieCalFragment_BlockWrapCarriesEditTo(t *testing.T) {
 	}
 }
 
-// TestHistorieBulkErr_ProjectNotFound: historieBulkErr maps ErrProjectNotFound
+// TestHistorieBulkErr_ProjectNotFound: historieBulkErr maps ErrNodeNotFound
 // to a clean message (not the raw Go error).
 func TestHistorieBulkErr_ProjectNotFound(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
 	ids := histSessionIDs(t, srv, "2026-06-15", "2026-06-22")
 
-	// POST a non-existent project id → backend returns ErrProjectNotFound.
+	// POST a non-existent project id → backend returns ErrNodeNotFound.
 	form := url.Values{
 		"ids":       {strings.Join(ids, ",")},
 		"projectId": {"does-not-exist"},

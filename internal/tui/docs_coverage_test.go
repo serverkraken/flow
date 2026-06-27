@@ -155,8 +155,8 @@ func TestDocsProjectFilterMode_RenderProjectFilter(t *testing.T) {
 	m = next.(DocsModel)
 
 	// Inject a projectsLoadedMsg so m.projects is populated.
-	proj := domain.Project{ID: "p1", Name: "FlowProject", Color: "blue"}
-	next2, _ := m.Update(projectsLoadedMsg{projects: []domain.Project{proj}})
+	proj := domain.Node{ID: "p1", Name: "FlowProject", Color: "blue"}
+	next2, _ := m.Update(projectsLoadedMsg{projects: []domain.Node{proj}})
 	m = next2.(DocsModel)
 
 	// Press "p" to enter project filter mode.

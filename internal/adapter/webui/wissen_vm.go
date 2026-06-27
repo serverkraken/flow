@@ -44,7 +44,7 @@ type WissenCategoryVM struct {
 
 // ProjectGroup groups project notes under one project header.
 type ProjectGroup struct {
-	ProjectID string
+	NodeID string
 	Name      string
 	Color     string
 	Glyph     string
@@ -272,12 +272,12 @@ func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map
 		case domain.DocFree:
 			vm.Free = append(vm.Free, row)
 		case domain.DocProject:
-			pid := projectIDString(d.ProjectID)
+			pid := projectIDString(d.NodeID)
 			g := groups[pid]
 			if g == nil {
 				kind := DocKindStyle(domain.DocProject)
 				g = &ProjectGroup{
-					ProjectID: pid,
+					NodeID: pid,
 					Name:      projectDisplayName(pid, projectNames),
 					Color:     ColorHex(projectColors[pid]),
 					Glyph:     kind.Glyph,
@@ -295,7 +295,7 @@ func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map
 		if d.Type != domain.DocProject {
 			continue
 		}
-		pid := projectIDString(d.ProjectID)
+		pid := projectIDString(d.NodeID)
 		if seen[pid] {
 			continue
 		}
@@ -311,25 +311,25 @@ func groupDocsByCategory(docs []domain.Document, projectNames, projectColors map
 
 func docRowFromDocument(d domain.Document, projectColors map[string]string) DocRow {
 	row := DocRow{ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title, Tags: d.Tags}
-	if d.ProjectID != nil {
-		row.ProjectID = *d.ProjectID
-		row.ProjectColor = ColorHex(projectColors[*d.ProjectID])
+	if d.NodeID != nil {
+		row.NodeID = *d.NodeID
+		row.ProjectColor = ColorHex(projectColors[*d.NodeID])
 	}
 	return row
 }
 
-func projectIDString(projectID *string) string {
-	if projectID == nil {
+func projectIDString(nodeID *string) string {
+	if nodeID == nil {
 		return ""
 	}
-	return *projectID
+	return *nodeID
 }
 
-func projectDisplayName(projectID string, projectNames map[string]string) string {
-	if name := projectNames[projectID]; name != "" {
+func projectDisplayName(nodeID string, projectNames map[string]string) string {
+	if name := projectNames[nodeID]; name != "" {
 		return name
 	}
-	return projectID
+	return nodeID
 }
 
 func WissenTabs(vm WissenVM) []components.CatTab {

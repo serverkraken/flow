@@ -28,7 +28,7 @@ type DocRow struct {
 	Title        string
 	Preview      string
 	Tags         []string
-	ProjectID    string
+	NodeID    string
 	ProjectColor string
 }
 

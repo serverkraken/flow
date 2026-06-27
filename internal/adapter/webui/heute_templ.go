@@ -457,8 +457,8 @@ func heuteHero(vm HeuteVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, p := range vm.Projects {
-			if vm.Running.ProjectID != nil && *vm.Running.ProjectID == p.ID {
+		for _, p := range vm.Nodes {
+			if vm.Running.NodeID != nil && *vm.Running.NodeID == p.ID {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<option value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1408,7 +1408,7 @@ func heuteAddForm(vm HeuteVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, p := range vm.Projects {
+		for _, p := range vm.Nodes {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<option value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

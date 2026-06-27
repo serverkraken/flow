@@ -85,13 +85,13 @@ func TestProjectResolver_MatchesThenCreates(t *testing.T) {
 	var created []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{{ID: "p-existing", Name: "gitlab.com/a/existing"}})
-		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "p-existing", Name: "gitlab.com/a/existing"}})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/nodes":
 			var in map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&in)
 			created = append(created, in["name"])
-			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-new", Name: in["name"]})
+			_ = json.NewEncoder(w).Encode(domain.Node{ID: "p-new", Name: in["name"]})
 		}
 	}))
 	defer srv.Close()
@@ -126,13 +126,13 @@ func TestProjectResolver_DryRunCreatesNoApi(t *testing.T) {
 	var postCount int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
-		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/nodes":
 			postCount++
 			var in map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&in)
-			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-new", Name: in["name"]})
+			_ = json.NewEncoder(w).Encode(domain.Node{ID: "p-new", Name: in["name"]})
 		}
 	}))
 	defer srv.Close()
@@ -177,8 +177,8 @@ func TestRunImport_ImportsSkipsAndDryRun(t *testing.T) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/documents":
 			_ = json.NewEncoder(w).Encode(existing)
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
 		case r.URL.Path == "/api/v1/documents/import":
 			posts++
 			w.WriteHeader(http.StatusCreated)
@@ -222,8 +222,8 @@ func TestRunImport_DailyTitleIsDate(t *testing.T) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/documents":
 			_ = json.NewEncoder(w).Encode([]domain.Document{})
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/documents/import":
 			var in apiclient.ImportDocumentInput
 			_ = json.NewDecoder(r.Body).Decode(&in)

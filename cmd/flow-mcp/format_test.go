@@ -75,7 +75,7 @@ func TestFormatBacklinks(t *testing.T) {
 }
 
 func TestFormatProjects(t *testing.T) {
-	ps := []domain.Project{
+	ps := []domain.Node{
 		{ID: "p1", Name: "Alpha", Slug: "alpha"},
 		{ID: "p2", Name: "Beta Project", Slug: "beta"},
 	}
@@ -91,8 +91,8 @@ func TestFormatProjects(t *testing.T) {
 }
 
 func TestFormatProjectsIncludesStatus(t *testing.T) {
-	out := formatProjects([]domain.Project{
-		{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.ProjectPaused, UpstreamGit: "git@github.com:serverkraken/flow.git"},
+	out := formatProjects([]domain.Node{
+		{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.NodePaused, UpstreamGit: "git@github.com:serverkraken/flow.git"},
 	})
 	if !strings.Contains(out, "paused") {
 		t.Errorf("formatProjects must include status, got %q", out)

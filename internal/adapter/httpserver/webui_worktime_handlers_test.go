@@ -24,7 +24,7 @@ type worktimeTestServer struct {
 	ts    *httptest.Server
 	srv   *httpserver.Server
 	ss    *testutil.FakeSessionStore
-	ps    *testutil.FakeProjectStore
+	ps    *testutil.FakeNodeStore
 	dos   *testutil.FakeDayOffStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
@@ -36,7 +36,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 21, 12, 0, 0, 0, time.Local)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
@@ -54,19 +54,19 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 		Users:               users,
 		Session:             codec,
 		StartSession:        usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:         usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:         usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
 		GetRunningSession:   usecase.GetRunningSession{Sessions: ss},
 		ListSessionsPage:    usecase.ListSessionsPage{Sessions: ss},
-		BulkAssignProject:   usecase.BulkAssignProject{Sessions: ss, Projects: ps},
+		BulkAssignNode:   usecase.BulkAssignNode{Sessions: ss, Nodes: ps},
 		BulkDeleteSessions:  usecase.BulkDeleteSessions{Sessions: ss},
 		AddSession:          usecase.AddSession{Sessions: ss, IDs: ids, Clock: clk},
 		EditSession:         usecase.EditSession{Sessions: ss},
 		DeleteSession:       usecase.DeleteSession{Sessions: ss},
-		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDayOffs:         listDayOffs,
 		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
 		Stats: usecase.StatsComputer{

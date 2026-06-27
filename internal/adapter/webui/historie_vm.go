@@ -55,7 +55,7 @@ type HistorieVM struct {
 	MonthTotal      string // "118h 42m"
 	MonthUnassigned int
 
-	Projects        []components.FuzzyProjectVM
+	Nodes    []components.FuzzyProjectVM
 	UnassignedCount int
 	Empty           bool
 	Err             string
@@ -108,7 +108,7 @@ type HistorieMonthBar struct {
 type HistorieListVM struct {
 	User     string
 	Rows     []components.SessionRowVM
-	Projects []components.FuzzyProjectVM
+	Nodes    []components.FuzzyProjectVM
 	Page     components.PageNav
 	Empty    bool
 	Err      string

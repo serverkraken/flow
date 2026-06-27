@@ -17,7 +17,7 @@ import (
 func TestDialogs_CapturesInputAndHints_WhileNachbuchenOpen(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	f := &fakeAPI{
-		projects: []domain.Project{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 
@@ -122,7 +122,7 @@ func TestDialogs_CapturesInputAndHints_WhileDeleteOpen(t *testing.T) {
 func TestNachbuchen_TriggersLoadProjectsCmd(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	// fakeAPI with NO projects in the initial cache: loadProjectsCmd will be called.
-	f := &fakeAPI{projects: []domain.Project{}}
+	f := &fakeAPI{projects: []domain.Node{}}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 	// Drive Init but DON'T seed projects yet — Init returns loadCmd which loads
 	// sessions but also fills r.projects if the API returns some.  Since
@@ -130,7 +130,7 @@ func TestNachbuchen_TriggersLoadProjectsCmd(t *testing.T) {
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
 
 	// Now inject a project so the async fetch can return it.
-	f.projects = []domain.Project{{ID: "p2", Name: "Beta"}}
+	f.projects = []domain.Node{{ID: "p2", Name: "Beta"}}
 
 	// Press 'n': because r.projects is still empty the branch at line 254 fires
 	// r.loadProjectsCmd(), which fetches projects and sends nachbuchenLoadProjectsMsg.

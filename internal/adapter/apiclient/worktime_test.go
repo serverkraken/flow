@@ -23,7 +23,7 @@ func TestStartSessionAndListProjects(t *testing.T) {
 		case "/api/v1/sessions":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"id":"s1","start":"2026-06-14T09:00:00Z"}`))
-		case "/api/v1/projects":
+		case "/api/v1/nodes":
 			_, _ = w.Write([]byte(`[{"id":"p1","name":"Flow","slug":"flow","status":"active"}]`))
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)
@@ -36,9 +36,9 @@ func TestStartSessionAndListProjects(t *testing.T) {
 	if err != nil || s.ID != "s1" {
 		t.Fatalf("StartSession = %+v err=%v", s, err)
 	}
-	ps, err := c.ListProjects(context.Background())
+	ps, err := c.ListNodes(context.Background())
 	if err != nil || len(ps) != 1 || ps[0].Name != "Flow" {
-		t.Fatalf("ListProjects = %+v err=%v", ps, err)
+		t.Fatalf("ListNodes = %+v err=%v", ps, err)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestClient_ListSessionsSince(t *testing.T) {
 func TestClient_DeleteProject(t *testing.T) {
 	var sawDelete bool
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete && r.URL.Path == "/api/v1/projects/p1" {
+		if r.Method == http.MethodDelete && r.URL.Path == "/api/v1/nodes/p1" {
 			sawDelete = true
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -130,11 +130,11 @@ func TestClient_DeleteProject(t *testing.T) {
 	}))
 	defer ts.Close()
 	c := apiclient.New(ts.URL, "tok")
-	if err := c.DeleteProject(context.Background(), "p1"); err != nil {
-		t.Fatalf("DeleteProject: %v", err)
+	if err := c.DeleteNode(context.Background(), "p1"); err != nil {
+		t.Fatalf("DeleteNode: %v", err)
 	}
 	if !sawDelete {
-		t.Fatal("server DELETE /api/v1/projects/p1 was not called")
+		t.Fatal("server DELETE /api/v1/nodes/p1 was not called")
 	}
 }
 

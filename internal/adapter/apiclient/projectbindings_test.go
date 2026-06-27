@@ -14,7 +14,7 @@ import (
 func TestResolveProject_200(t *testing.T) {
 	var gotQuery string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/projects/resolve" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/nodes/resolve" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		gotQuery = r.URL.RawQuery
@@ -24,9 +24,9 @@ func TestResolveProject_200(t *testing.T) {
 	defer ts.Close()
 
 	c := apiclient.New(ts.URL, "tok")
-	p, ok, err := c.ResolveProject(context.Background(), "flow-repo", "mac1", "/home/user/flow")
+	p, ok, err := c.ResolveNode(context.Background(), "flow-repo", "mac1", "/home/user/flow")
 	if err != nil {
-		t.Fatalf("ResolveProject: %v", err)
+		t.Fatalf("ResolveNode: %v", err)
 	}
 	if !ok {
 		t.Fatal("expected ok=true")
@@ -43,7 +43,7 @@ func TestResolveProject_200(t *testing.T) {
 
 func TestResolveProject_404(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/projects/resolve" {
+		if r.URL.Path != "/api/v1/nodes/resolve" {
 			t.Errorf("unexpected path %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -51,14 +51,14 @@ func TestResolveProject_404(t *testing.T) {
 	defer ts.Close()
 
 	c := apiclient.New(ts.URL, "tok")
-	p, ok, err := c.ResolveProject(context.Background(), "no-such", "mac1", "/tmp")
+	p, ok, err := c.ResolveNode(context.Background(), "no-such", "mac1", "/tmp")
 	if err != nil {
-		t.Fatalf("ResolveProject 404 should not error, got: %v", err)
+		t.Fatalf("ResolveNode 404 should not error, got: %v", err)
 	}
 	if ok {
 		t.Fatal("expected ok=false on 404")
 	}
-	if p != (domain.Project{}) {
+	if p != (domain.Node{}) {
 		t.Fatalf("expected zero Project, got %+v", p)
 	}
 }
@@ -66,7 +66,7 @@ func TestResolveProject_404(t *testing.T) {
 func TestBindRemote(t *testing.T) {
 	var gotBody map[string]any
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/projects/p1/bindings" {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/nodes/p1/bindings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
@@ -91,7 +91,7 @@ func TestBindRemote(t *testing.T) {
 func TestUnbindRemote(t *testing.T) {
 	var gotQuery string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/projects/bindings" {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/nodes/bindings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		gotQuery = r.URL.RawQuery
@@ -112,7 +112,7 @@ func TestUnbindRemote(t *testing.T) {
 
 func TestListBindings(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/projects/bindings" {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/nodes/bindings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -133,7 +133,7 @@ func TestListBindings(t *testing.T) {
 func TestBindPath(t *testing.T) {
 	var gotBody map[string]any
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/projects/p1/bindings" {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/nodes/p1/bindings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		_ = json.NewDecoder(r.Body).Decode(&gotBody)
@@ -159,7 +159,7 @@ func TestBindPath(t *testing.T) {
 func TestUnbindPath(t *testing.T) {
 	var gotQuery string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/projects/bindings" {
+		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/nodes/bindings" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		gotQuery = r.URL.RawQuery

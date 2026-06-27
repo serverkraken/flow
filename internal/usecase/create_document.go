@@ -19,7 +19,7 @@ type CreateDocument struct {
 // CreateDocumentInput is the caller-supplied shape (the use case fills the rest).
 type CreateDocumentInput struct {
 	Type      domain.DocumentType
-	ProjectID *string
+	NodeID *string
 	Path      string
 	Title     string
 	Body      string
@@ -28,7 +28,7 @@ type CreateDocumentInput struct {
 func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateDocumentInput) (domain.Document, error) {
 	now := uc.Clock.Now()
 	d := domain.Document{
-		ID: uc.IDs.NewID(), OwnerID: ownerID, ProjectID: in.ProjectID, Type: in.Type,
+		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
 		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
 		CreatedAt: now, UpdatedAt: now,
 	}

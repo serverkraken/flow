@@ -63,7 +63,7 @@ func TestBuildRows_ProjectIDPropagated(t *testing.T) {
 	e := day.Add(10 * time.Hour)
 	pid := "proj-1"
 	sessions := []domain.WorkSession{
-		{ID: "s1", Start: s, Stop: &e, ProjectID: &pid},
+		{ID: "s1", Start: s, Stop: &e, NodeID: &pid},
 	}
 	rows := buildRows(sessions, day)
 	if len(rows) != 1 || rows[0].Project != "proj-1" {

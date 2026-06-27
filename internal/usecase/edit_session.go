@@ -10,7 +10,7 @@ import (
 
 // EditSessionInput carries the editable fields of an existing session.
 type EditSessionInput struct {
-	ProjectID *string
+	NodeID *string
 	Tag       string
 	Note      string
 	Start     time.Time
@@ -49,5 +49,5 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if domain.HasOverlap(existing, in.Start, in.Stop, id) {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}
-	return uc.Sessions.Update(ctx, ownerID, id, in.ProjectID, in.Tag, in.Note, in.Start, in.Stop)
+	return uc.Sessions.Update(ctx, ownerID, id, in.NodeID, in.Tag, in.Note, in.Start, in.Stop)
 }

@@ -19,7 +19,7 @@ var navLinks = []navLink{
 	{"stats", "/stats", "stats"},
 	{"export", "/export", "export"},
 	{"docs", "/wissen", "wissen"},
-	{"projekte", "/projects", "projekte"},
+	{"projekte", "/nodes", "projekte"},
 }
 
 func Nav(active, user string) templ.Component {

@@ -56,7 +56,7 @@ type setRateReq struct {
 	Currency string `json:"currency"`
 }
 
-func (s *Server) handleSetProjectRate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleSetNodeRate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req setRateReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -67,11 +67,11 @@ func (s *Server) handleSetProjectRate(w http.ResponseWriter, r *http.Request) {
 	if req.Amount != nil {
 		rate = &domain.Money{Amount: *req.Amount, Currency: req.Currency}
 	}
-	err := s.SetProjectRate.Execute(r.Context(), u.ID, r.PathValue("id"), rate)
+	err := s.SetNodeRate.Execute(r.Context(), u.ID, r.PathValue("id"), rate)
 	switch {
 	case errors.Is(err, domain.ErrInvalidRate):
 		http.Error(w, "invalid rate", http.StatusBadRequest)
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)

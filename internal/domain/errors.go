@@ -6,7 +6,7 @@ import "errors"
 
 var (
 	ErrInvalidUser     = errors.New("invalid user")
-	ErrInvalidProject  = errors.New("invalid project")
+	ErrInvalidNode     = errors.New("invalid project")
 	ErrInvalidSession  = errors.New("invalid session")
 	ErrAlreadyRunning  = errors.New("a session is already running")
 	ErrNoActiveSession = errors.New("no active session")

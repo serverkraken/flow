@@ -16,7 +16,7 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.FakeDocumentStore, *testutil.FakeProjectStore) {
+func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.FakeDocumentStore, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	users := testutil.NewFakeUserStore()
@@ -24,7 +24,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	docs := testutil.NewFakeDocumentStore()
-	projects := testutil.NewFakeProjectStore()
+	projects := testutil.NewFakeNodeStore()
 
 	srv := &Server{
 		Ensure:  usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
@@ -35,7 +35,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		ListDocumentsPage: usecase.NewListDocumentsPage(docs),
-		ListProjects:      usecase.ListProjects{Projects: projects},
+		ListNodes:      usecase.ListNodes{Nodes: projects},
 		CreateDocument:    usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
@@ -54,10 +54,10 @@ func TestWebWissenHomeSections(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	pid := "p1"
-	_, _ = projects.Create(ctx, domain.Project{ID: pid, OwnerID: "u1", Name: "Alpha", Slug: "alpha", Color: "blue", Status: domain.ProjectActive})
+	_, _ = projects.Create(ctx, domain.Node{ID: pid, OwnerID: "u1", Name: "Alpha", Slug: "alpha", Color: "blue", Status: domain.NodeActive})
 	for _, doc := range []domain.Document{
 		{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-15", Title: "Daily Note", Body: "morning", Tags: []string{"log"}, CreatedAt: now, UpdatedAt: now},
-		{ID: "project-1", OwnerID: "u1", Type: domain.DocProject, ProjectID: &pid, Path: "alpha/note", Title: "Project Note", Body: "alpha needle", Tags: []string{"alpha"}, CreatedAt: now, UpdatedAt: now.Add(-time.Minute)},
+		{ID: "project-1", OwnerID: "u1", Type: domain.DocProject, NodeID: &pid, Path: "alpha/note", Title: "Project Note", Body: "alpha needle", Tags: []string{"alpha"}, CreatedAt: now, UpdatedAt: now.Add(-time.Minute)},
 		{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/idea", Title: "Free Note", Body: "loose", Tags: []string{"idea"}, CreatedAt: now, UpdatedAt: now.Add(-2 * time.Minute)},
 		{ID: "memory-1", OwnerID: "u1", Type: domain.DocMemory, Path: "memory/system", Title: "System Memory", Body: "system", Tags: []string{"ops"}, CreatedAt: now, UpdatedAt: now.Add(-3 * time.Minute)},
 	} {

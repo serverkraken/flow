@@ -89,10 +89,10 @@ func TestReconstruct_ResolvesProjectName(t *testing.T) {
 	pid := "p1"
 	gone := "p-deleted"
 	sessions := []domain.WorkSession{
-		{ID: "a", Start: s, Stop: &e, ProjectID: &pid},    // resolvable
-		{ID: "b", Start: s2, Stop: &e2, ProjectID: &gone}, // unknown id -> empty
+		{ID: "a", Start: s, Stop: &e, NodeID: &pid},    // resolvable
+		{ID: "b", Start: s2, Stop: &e2, NodeID: &gone}, // unknown id -> empty
 	}
-	projects := []domain.Project{{ID: "p1", Name: "Flow"}}
+	projects := []domain.Node{{ID: "p1", Name: "Flow"}}
 
 	st := reconstruct(apiclient.Today{}, sessions, projects, now)
 	if len(st.Completed) != 2 {

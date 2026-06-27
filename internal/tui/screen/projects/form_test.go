@@ -12,21 +12,21 @@ import (
 )
 
 type fakeFormAPI struct {
-	created   domain.Project
+	created   domain.Node
 	updated   projects.UpdateFields
 	rateCents *int64
 	rateSet   bool
 }
 
-func (f *fakeFormAPI) CreateProject(_ context.Context, name string) (domain.Project, error) {
-	f.created = domain.Project{ID: "new1", Name: name, Slug: name}
+func (f *fakeFormAPI) CreateNode(_ context.Context, name string) (domain.Node, error) {
+	f.created = domain.Node{ID: "new1", Name: name, Slug: name}
 	return f.created, nil
 }
-func (f *fakeFormAPI) UpdateProject(_ context.Context, id string, in projects.UpdateFields) (domain.Project, error) {
+func (f *fakeFormAPI) UpdateNode(_ context.Context, id string, in projects.UpdateFields) (domain.Node, error) {
 	f.updated = in
-	return domain.Project{ID: id, Name: in.Name, Slug: in.Slug, Status: domain.ProjectStatus(in.Status)}, nil
+	return domain.Node{ID: id, Name: in.Name, Slug: in.Slug, Status: domain.NodeStatus(in.Status)}, nil
 }
-func (f *fakeFormAPI) SetProjectRate(_ context.Context, _ string, amount *int64, _ string) error {
+func (f *fakeFormAPI) SetNodeRate(_ context.Context, _ string, amount *int64, _ string) error {
 	f.rateSet, f.rateCents = true, amount
 	return nil
 }
@@ -51,10 +51,10 @@ func TestFormCreateComposes(t *testing.T) {
 	msg := cmd()
 	// API side-effects must be present after the cmd runs.
 	if api.created.Name != "PM TUI" {
-		t.Fatalf("CreateProject not called with name: %+v", api.created)
+		t.Fatalf("CreateNode not called with name: %+v", api.created)
 	}
 	if api.updated.Status != "active" || api.updated.Color != "blue" {
-		t.Errorf("UpdateProject compose wrong: %+v", api.updated)
+		t.Errorf("UpdateNode compose wrong: %+v", api.updated)
 	}
 	if !api.rateSet || api.rateCents == nil || *api.rateCents != 9000 {
 		t.Errorf("rate should be 9000 cents, got set=%v cents=%v", api.rateSet, api.rateCents)
@@ -67,7 +67,7 @@ func TestFormCreateComposes(t *testing.T) {
 
 func TestFormEditClearsRateOnBlank(t *testing.T) {
 	api := &fakeFormAPI{}
-	editing := &domain.Project{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.ProjectActive}
+	editing := &domain.Node{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.NodeActive}
 	r := projects.NewFormRoute(api, theme.Default, editing)
 	r.FillForTest(projects.FormValues{
 		Name:         "Flow",

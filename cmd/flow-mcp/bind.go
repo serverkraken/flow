@@ -13,7 +13,7 @@ import (
 )
 
 // validateBindRef enforces exactly one of project / create_name.
-func validateBindRef(in bindProjectIn) error {
+func validateBindRef(in bindNodeIn) error {
 	hasRef := strings.TrimSpace(in.Project) != ""
 	hasCreate := strings.TrimSpace(in.CreateName) != ""
 	if hasRef == hasCreate {
@@ -43,38 +43,38 @@ func decideBindKind(kindOverride string, originOK bool) (string, error) {
 	}
 }
 
-// bindProjectCore validates the request, resolves or creates the target
+// bindNodeCore validates the request, resolves or creates the target
 // project, then binds the cwd to it (remote-slug or per-device path). It is a
 // method so it can reuse the cached project-ref lookup; all IO that needs the
 // environment (git origin, machine id, cwd) is passed in for testability.
-func (h *handlers) bindProjectCore(ctx context.Context, c *apiclient.Client, in bindProjectIn, originSlug string, originOK bool, machine clientmachine.Machine, cwd string) (domain.Project, string, error) {
+func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, in bindNodeIn, originSlug string, originOK bool, machine clientmachine.Machine, cwd string) (domain.Node, string, error) {
 	if err := validateBindRef(in); err != nil {
-		return domain.Project{}, "", err
+		return domain.Node{}, "", err
 	}
 	kind, err := decideBindKind(in.Kind, originOK)
 	if err != nil {
-		return domain.Project{}, "", err
+		return domain.Node{}, "", err
 	}
-	var proj domain.Project
+	var proj domain.Node
 	if name := strings.TrimSpace(in.CreateName); name != "" {
-		proj, err = c.CreateProject(ctx, name)
+		proj, err = c.CreateNode(ctx, name)
 	} else {
-		proj, err = h.lookupProject(ctx, strings.TrimSpace(in.Project))
+		proj, err = h.lookupNode(ctx, strings.TrimSpace(in.Project))
 	}
 	if err != nil {
-		return domain.Project{}, "", err
+		return domain.Node{}, "", err
 	}
 	switch kind {
 	case "remote":
 		if _, err := c.BindRemote(ctx, proj.ID, originSlug); err != nil {
-			return domain.Project{}, "", err
+			return domain.Node{}, "", err
 		}
 	case "path":
 		if machine.ID == "" {
-			return domain.Project{}, "", errGuard{errors.New("cannot determine this device's machine id for a path binding")}
+			return domain.Node{}, "", errGuard{errors.New("cannot determine this device's machine id for a path binding")}
 		}
 		if _, err := c.BindPath(ctx, proj.ID, machine.ID, machine.Label, filepath.Clean(cwd)); err != nil {
-			return domain.Project{}, "", err
+			return domain.Node{}, "", err
 		}
 	}
 	return proj, kind, nil

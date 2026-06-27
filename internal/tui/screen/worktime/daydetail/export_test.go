@@ -19,6 +19,6 @@ func (r *Route) NachbuchenOpenForTest() bool { return r.nachb != nil }
 // LateProjectsMsgForTest builds the (unexported) project-load message the async
 // loadProjectsCmd produces, so the external _test package can deliver a "late"
 // project load and assert it is ignored while another dialog is open.
-func LateProjectsMsgForTest(ps []domain.Project) tea.Msg {
+func LateProjectsMsgForTest(ps []domain.Node) tea.Msg {
 	return nachbuchenLoadProjectsMsg{projects: ps}
 }

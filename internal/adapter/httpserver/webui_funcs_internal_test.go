@@ -11,7 +11,7 @@ import (
 // TestProjectHue covers projectHue's three branches:
 // nil id → "", id found → color, id not found → "".
 func TestProjectHue(t *testing.T) {
-	projects := []domain.Project{
+	projects := []domain.Node{
 		{ID: "p1", Color: "blue"},
 		{ID: "p2", Color: "green"},
 	}

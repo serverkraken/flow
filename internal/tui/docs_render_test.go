@@ -16,10 +16,10 @@ func strptr(s string) *string { return &s }
 func TestApplyProjectFilter_Inclusive(t *testing.T) {
 	t.Parallel()
 	docs := []domain.Document{
-		{Type: domain.DocDaily},                                  // nil ProjectID
-		{Type: domain.DocProject, ProjectID: strptr("p1")},
-		{Type: domain.DocProject, ProjectID: strptr("p2")},
-		{Type: domain.DocFree},                                   // nil ProjectID
+		{Type: domain.DocDaily},                                  // nil NodeID
+		{Type: domain.DocProject, NodeID: strptr("p1")},
+		{Type: domain.DocProject, NodeID: strptr("p2")},
+		{Type: domain.DocFree},                                   // nil NodeID
 	}
 	got := applyProjectFilter(docs, "p1")
 	if len(got) != 3 { // daily + p1 + free
@@ -45,8 +45,8 @@ func TestDateCell_DailyUsesDate_ElseUpdatedAt(t *testing.T) {
 
 func TestProjRowLabel(t *testing.T) {
 	t.Parallel()
-	byID := map[string]domain.Project{"p1": {ID: "p1", Slug: "serverkraken/flow"}}
-	proj := domain.Document{Type: domain.DocProject, ProjectID: strptr("p1"), Title: "demo", Path: "x/demo"}
+	byID := map[string]domain.Node{"p1": {ID: "p1", Slug: "serverkraken/flow"}}
+	proj := domain.Document{Type: domain.DocProject, NodeID: strptr("p1"), Title: "demo", Path: "x/demo"}
 	if got := projRowLabel(proj, byID); got != "serverkraken/flow · demo" {
 		t.Errorf("projRowLabel = %q, want 'serverkraken/flow · demo'", got)
 	}
@@ -76,7 +76,7 @@ func TestDocExcerpt_WrapAndCap(t *testing.T) {
 func TestUpdate_ProjectsLoaded_BuildsIndex(t *testing.T) {
 	t.Parallel()
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
-	nm, _ := m.Update(projectsLoadedMsg{projects: []domain.Project{
+	nm, _ := m.Update(projectsLoadedMsg{projects: []domain.Node{
 		{ID: "p1", Slug: "serverkraken/flow"},
 		{ID: "p2", Slug: "other/repo"},
 	}})
@@ -115,7 +115,7 @@ func TestFilteredCursorDesync(t *testing.T) {
 	// docs[0] belongs to p2 (hidden when filter = "p1")
 	// docs[1] and docs[2] are free (visible for any project filter)
 	docs := []domain.Document{
-		{ID: "hidden", Type: domain.DocProject, ProjectID: strptr("p2"), Path: "x/hidden"},
+		{ID: "hidden", Type: domain.DocProject, NodeID: strptr("p2"), Path: "x/hidden"},
 		{ID: "free-a", Type: domain.DocFree, Path: "free-a"},
 		{ID: "free-c", Type: domain.DocFree, Path: "free-c"},
 	}
@@ -157,7 +157,7 @@ func TestFilteredCursorDesync(t *testing.T) {
 func TestProjectFilter_FuzzySelectAndClear(t *testing.T) {
 	t.Parallel()
 	m := NewDocs(nil, nil, nil, theme.Default, "tester")
-	m.projects = []domain.Project{{ID: "p1", Slug: "serverkraken/flow"}, {ID: "p2", Slug: "other/repo"}}
+	m.projects = []domain.Node{{ID: "p1", Slug: "serverkraken/flow"}, {ID: "p2", Slug: "other/repo"}}
 	// open the filter
 	nm, _ := m.Update(tea.KeyPressMsg{Text: "p"})
 	m = nm.(DocsModel)

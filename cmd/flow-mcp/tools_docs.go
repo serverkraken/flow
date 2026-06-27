@@ -34,7 +34,7 @@ func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in se
 		if err != nil {
 			return err
 		}
-		hits, err := c.SearchScoped(ctx, in.Query, sc.projectID, in.Tags...)
+		hits, err := c.SearchScoped(ctx, in.Query, sc.nodeID, in.Tags...)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func (h *handlers) listDocs(ctx context.Context, _ *mcp.CallToolRequest, in list
 		if err != nil {
 			return err
 		}
-		docs, err := c.ListDocumentsScoped(ctx, sc.projectID, in.Tags...)
+		docs, err := c.ListDocumentsScoped(ctx, sc.nodeID, in.Tags...)
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ func (h *handlers) getDoc(ctx context.Context, _ *mcp.CallToolRequest, in getDoc
 		if err != nil {
 			return err
 		}
-		out = formatDoc(d, h.projectName(ctx, d.ProjectID))
+		out = formatDoc(d, h.projectName(ctx, d.NodeID))
 		return nil
 	})
 	if err != nil {
@@ -128,11 +128,11 @@ func (h *handlers) listTags(ctx context.Context, _ *mcp.CallToolRequest, in list
 			return err
 		}
 		var tags []domain.TagCount
-		if sc.projectID == nil { // global → the efficient owner-wide tag-count endpoint
+		if sc.nodeID == nil { // global → the efficient owner-wide tag-count endpoint
 			tags, err = c.Tags(ctx)
 		} else { // scoped (a project, or "none") → aggregate over the scoped documents
 			var docs []domain.Document
-			docs, err = c.ListDocumentsScoped(ctx, sc.projectID)
+			docs, err = c.ListDocumentsScoped(ctx, sc.nodeID)
 			if err == nil {
 				tags = domain.CollectTags(docs)
 			}
@@ -192,7 +192,7 @@ func (h *handlers) resolveDocRef(ctx context.Context, c *apiclient.Client, id, p
 	case path == "":
 		return "", fmt.Errorf("pass either id or path")
 	}
-	docs, err := c.ListDocumentsScoped(ctx, sc.projectID)
+	docs, err := c.ListDocumentsScoped(ctx, sc.nodeID)
 	if err != nil {
 		return "", fmt.Errorf("flow server error: %v", err)
 	}

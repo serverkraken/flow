@@ -21,12 +21,12 @@ type todayAPI interface {
 	GetToday(context.Context) (apiclient.Today, error)
 	ListSessions(context.Context) ([]domain.WorkSession, error)
 	ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error)
-	ListProjects(context.Context) ([]domain.Project, error)
+	ListNodes(context.Context) ([]domain.Node, error)
 	StartSession(context.Context, *string, string, string) (domain.WorkSession, error)
-	StopSession(ctx context.Context, id, projectID string) (domain.WorkSession, error)
-	EditSession(ctx context.Context, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	StopSession(ctx context.Context, id, nodeID string) (domain.WorkSession, error)
+	EditSession(ctx context.Context, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	DeleteSession(ctx context.Context, id string) error
-	CreateProject(ctx context.Context, name string) (domain.Project, error)
+	CreateNode(ctx context.Context, name string) (domain.Node, error)
 }
 
 type dialogKind int
@@ -42,11 +42,11 @@ const (
 type loadedMsg struct {
 	today    apiclient.Today
 	sessions []domain.WorkSession
-	projects []domain.Project
+	projects []domain.Node
 	err      error
 }
 type (
-	projectsMsg struct{ projects []domain.Project }
+	projectsMsg struct{ projects []domain.Node }
 	liveTickMsg struct{}
 )
 
@@ -100,9 +100,9 @@ func (r *TodayRoute) loadCmd() tea.Cmd {
 		if err != nil {
 			return loadedMsg{err: err}
 		}
-		// Projects resolve each session's ProjectID to a display name; a
+		// Projects resolve each session's NodeID to a display name; a
 		// failure here only drops the names, not the session list.
-		projects, _ := api.ListProjects(ctx)
+		projects, _ := api.ListNodes(ctx)
 		return loadedMsg{today: today, sessions: sessions, projects: projects}
 	}
 }

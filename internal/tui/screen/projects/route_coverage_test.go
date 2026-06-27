@@ -18,7 +18,7 @@ func TestProjectRoute_EventMsg_ProjectEvent(t *testing.T) {
 	drainInit(r)
 
 	// Inject a project.created event (a project event) → should trigger reload cmd.
-	_, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventProjectCreated)}})
+	_, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventNodeCreated)}})
 	if cmd == nil {
 		t.Error("project event should trigger a reload cmd")
 	}

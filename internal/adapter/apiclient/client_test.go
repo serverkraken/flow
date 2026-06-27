@@ -97,13 +97,13 @@ func TestListSessions(t *testing.T) {
 
 func TestCreateProject(t *testing.T) {
 	mux, base := newMux(t)
-	mux.HandleFunc("POST /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
-		p, _ := domain.NewProject("p1", "u1", "Flow", "flow", time.Now())
+	mux.HandleFunc("POST /api/v1/nodes", func(w http.ResponseWriter, r *http.Request) {
+		p, _ := domain.NewNode("p1", "u1", "Flow", "flow", time.Now())
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(p)
 	})
 	c := apiclient.New(base, "tok")
-	p, err := c.CreateProject(t.Context(), "Flow")
+	p, err := c.CreateNode(t.Context(), "Flow")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,29 +155,29 @@ func TestClientUpdateAndGetProject(t *testing.T) {
 		gotMethod, gotPath = r.Method, r.URL.Path
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
-		_ = json.NewEncoder(w).Encode(domain.Project{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.ProjectPaused, UpstreamGit: "git@github.com:serverkraken/flow.git"})
+		_ = json.NewEncoder(w).Encode(domain.Node{ID: "p1", Name: "Flow", Slug: "flow", Status: domain.NodePaused, UpstreamGit: "git@github.com:serverkraken/flow.git"})
 	}))
 	defer ts.Close()
 	c := apiclient.New(ts.URL, "tok")
 
-	got, err := c.UpdateProject(context.Background(), "p1", apiclient.UpdateProjectFields{
+	got, err := c.UpdateNode(context.Background(), "p1", apiclient.UpdateNodeFields{
 		Name: "Flow", Slug: "flow", Status: "paused", UpstreamGit: "git@github.com:serverkraken/flow.git",
 	})
-	if err != nil || got.Status != domain.ProjectPaused {
-		t.Fatalf("UpdateProject: %+v err=%v", got, err)
+	if err != nil || got.Status != domain.NodePaused {
+		t.Fatalf("UpdateNode: %+v err=%v", got, err)
 	}
-	if gotMethod != "PATCH" || gotPath != "/api/v1/projects/p1" {
+	if gotMethod != "PATCH" || gotPath != "/api/v1/nodes/p1" {
 		t.Errorf("method/path = %s %s", gotMethod, gotPath)
 	}
 	if !strings.Contains(gotBody, `"status":"paused"`) {
 		t.Errorf("body missing status: %s", gotBody)
 	}
 
-	one, err := c.GetProject(context.Background(), "p1")
+	one, err := c.GetNode(context.Background(), "p1")
 	if err != nil || one.Slug != "flow" {
-		t.Fatalf("GetProject: %+v err=%v", one, err)
+		t.Fatalf("GetNode: %+v err=%v", one, err)
 	}
-	if gotMethod != "GET" || gotPath != "/api/v1/projects/p1" {
+	if gotMethod != "GET" || gotPath != "/api/v1/nodes/p1" {
 		t.Errorf("GET method/path = %s %s", gotMethod, gotPath)
 	}
 }

@@ -50,12 +50,12 @@ func TestCreateDocument_FreeAndDaily(t *testing.T) {
 		t.Error("daily Date must be set")
 	}
 
-	// project doc without projectID — must fail Validate
+	// project doc without nodeID — must fail Validate
 	_, err = uc.Execute(ctx, "u1", usecase.CreateDocumentInput{
 		Type: domain.DocProject, Path: "docs/proj",
 	})
 	if !errors.Is(err, domain.ErrInvalidDocument) {
-		t.Errorf("project without projectID: want ErrInvalidDocument, got %v", err)
+		t.Errorf("project without nodeID: want ErrInvalidDocument, got %v", err)
 	}
 }
 

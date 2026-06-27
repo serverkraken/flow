@@ -90,7 +90,7 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
@@ -107,12 +107,12 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 		Users:               users,
 		Session:             codec,
 		StartSession:        usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:         usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:         usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDayOffs:         listDayOffs,
 		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
 		Stats: usecase.StatsComputer{

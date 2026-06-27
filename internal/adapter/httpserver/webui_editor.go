@@ -54,12 +54,12 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	projectID := ""
-	if doc.ProjectID != nil {
-		projectID = *doc.ProjectID
+	nodeID := ""
+	if doc.NodeID != nil {
+		nodeID = *doc.NodeID
 	}
 	vm, err := s.editorVM(r, u, webui.EditorVM{
-		User: u.Username, ID: doc.ID, Type: string(doc.Type), ProjectID: projectID,
+		User: u.Username, ID: doc.ID, Type: string(doc.Type), NodeID: nodeID,
 		Path: doc.Path, Title: doc.Title, Body: doc.Body,
 	})
 	if err != nil {
@@ -74,15 +74,15 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
 	submitted := webui.EditorVM{
-		User: u.Username, Type: r.FormValue("type"), ProjectID: r.FormValue("projectId"),
+		User: u.Username, Type: r.FormValue("type"), NodeID: r.FormValue("projectId"),
 		Path: r.FormValue("path"), Title: r.FormValue("title"), Body: r.FormValue("body"),
 	}
-	var projectID *string
-	if submitted.ProjectID != "" {
-		projectID = &submitted.ProjectID
+	var nodeID *string
+	if submitted.NodeID != "" {
+		nodeID = &submitted.NodeID
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
-		Type: domain.DocumentType(submitted.Type), ProjectID: projectID,
+		Type: domain.DocumentType(submitted.Type), NodeID: nodeID,
 		Path: submitted.Path, Title: submitted.Title, Body: submitted.Body,
 	})
 	switch {
@@ -163,8 +163,8 @@ func (s *Server) editorVM(r *http.Request, u domain.User, vm webui.EditorVM) (we
 		vm.Type = "free"
 	}
 	vm.TypeOptions = webui.DocumentTypeOptions(vm.Type)
-	if s.ListProjects.Projects != nil {
-		projects, err := s.ListProjects.Execute(r.Context(), u.ID)
+	if s.ListNodes.Nodes != nil {
+		projects, err := s.ListNodes.Execute(r.Context(), u.ID)
 		if err != nil {
 			return webui.EditorVM{}, err
 		}

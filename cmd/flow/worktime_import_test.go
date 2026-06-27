@@ -20,10 +20,10 @@ func acceptAllServer(t *testing.T, sessionConflict bool) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
-		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-import", Name: "Import"})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode(domain.Node{ID: "p-import", Name: "Import"})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/sessions":
 			if sessionConflict {
 				w.WriteHeader(http.StatusConflict)
@@ -42,10 +42,10 @@ func TestRunWorktimeImport_Sessions(t *testing.T) {
 	conflictOnSecond := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
-		case r.Method == "POST" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode(domain.Project{ID: "p-import", Name: "Import"})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode(domain.Node{ID: "p-import", Name: "Import"})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/sessions":
 			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)
@@ -90,8 +90,8 @@ func TestRunWorktimeImport_SessionsDryRun(t *testing.T) {
 	var posts int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
 		case r.Method == "POST":
 			posts++
 			w.WriteHeader(http.StatusOK)
@@ -170,8 +170,8 @@ func TestRunWorktimeImport_DayOffs(t *testing.T) {
 	var added []map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/dayoffs":
 			var in map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&in)

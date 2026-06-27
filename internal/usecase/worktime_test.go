@@ -16,11 +16,11 @@ func TestStartStopBookingFlow(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	sessions := testutil.NewFakeSessionStore()
-	projects := testutil.NewFakeProjectStore()
+	projects := testutil.NewFakeNodeStore()
 
 	start := usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk}
-	stop := usecase.StopSession{Sessions: sessions, Projects: projects, Clock: clk}
-	createProj := usecase.CreateProject{Projects: projects, IDs: ids, Clock: clk}
+	stop := usecase.StopSession{Sessions: sessions, Nodes: projects, Clock: clk}
+	createProj := usecase.CreateNode{Nodes: projects, IDs: ids, Clock: clk}
 
 	s, err := start.Execute(ctx, "u1", nil, "", "")
 	if err != nil {
@@ -48,7 +48,7 @@ func TestStartStopBookingFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stop: %v", err)
 	}
-	if stopped.Stop == nil || stopped.ProjectID == nil || *stopped.ProjectID != p.ID {
+	if stopped.Stop == nil || stopped.NodeID == nil || *stopped.NodeID != p.ID {
 		t.Fatalf("stop result wrong: %+v", stopped)
 	}
 	s2, _ := start.Execute(ctx, "u1", nil, "", "")

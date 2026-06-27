@@ -13,12 +13,12 @@ type worktimeAgg struct {
 
 // aggregate sums settled sessions for project id. Mirrors the WebUI cockpit:
 // running sessions are excluded (settled-time summary); earnings = rate × total.
-func aggregate(p domain.Project, sessions []domain.WorkSession, now time.Time) worktimeAgg {
+func aggregate(p domain.Node, sessions []domain.WorkSession, now time.Time) worktimeAgg {
 	weekStart := startOfWeek(now)
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
 	var a worktimeAgg
 	for _, s := range sessions {
-		if s.ProjectID == nil || *s.ProjectID != p.ID || s.Running() {
+		if s.NodeID == nil || *s.NodeID != p.ID || s.Running() {
 			continue
 		}
 		d := s.Elapsed(now)

@@ -68,7 +68,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
@@ -76,10 +76,10 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		Bus:           sse.NewBus(),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -95,11 +95,11 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		return res
 	}
 
-	res := do("POST", "/api/v1/projects", `{"name":"Flow"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create project status %d", res.StatusCode)
 	}
-	var proj domain.Project
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 
@@ -134,7 +134,7 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
@@ -142,10 +142,10 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 		Bus:           sse.NewBus(),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
 		EditSession:   usecase.EditSession{Sessions: ss},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}
@@ -164,8 +164,8 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	}
 
 	// start then stop (with a project) to get a completed session
-	res := do("POST", "/api/v1/projects", `{"name":"Flow"}`)
-	var proj domain.Project
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 	res = do("POST", "/api/v1/sessions", `{}`)
@@ -218,7 +218,7 @@ func TestListSessionsAndProjects(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
@@ -226,10 +226,10 @@ func TestListSessionsAndProjects(t *testing.T) {
 		Bus:           sse.NewBus(),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -251,7 +251,7 @@ func TestListSessionsAndProjects(t *testing.T) {
 	}
 	_ = res.Body.Close()
 
-	res = do("GET", "/api/v1/projects", "")
+	res = do("GET", "/api/v1/nodes", "")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("list projects: %d", res.StatusCode)
 	}
@@ -273,7 +273,7 @@ func newWebSrv(t *testing.T) (*httptest.Server, *websession.Codec, string) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 10, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 
@@ -289,12 +289,12 @@ func newWebSrv(t *testing.T) (*httptest.Server, *websession.Codec, string) {
 		Session:             codec,
 		OIDCAuth:            fakeAuth{url: "https://id/authorize?state="},
 		StartSession:        usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:         usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:         usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)

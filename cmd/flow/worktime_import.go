@@ -251,7 +251,7 @@ func importSessions(ctx context.Context, c *apiclient.Client, dir, projectName s
 		return fmt.Errorf("read worktime.log: %w", err)
 	}
 	pr := newProjectResolver(c, dryRun)
-	projectID, err := pr.resolve(ctx, projectName)
+	nodeID, err := pr.resolve(ctx, projectName)
 	if err != nil {
 		return fmt.Errorf("resolve project %q: %w", projectName, err)
 	}
@@ -276,7 +276,7 @@ func importSessions(ctx context.Context, c *apiclient.Client, dir, projectName s
 			st.Sessions++
 			continue
 		}
-		if _, aerr := c.AddSession(ctx, projectID, e.Start, e.Stop, "", ""); aerr != nil {
+		if _, aerr := c.AddSession(ctx, nodeID, e.Start, e.Stop, "", ""); aerr != nil {
 			if apiclient.IsConflict(aerr) {
 				st.Skipped++
 				continue

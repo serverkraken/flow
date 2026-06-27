@@ -16,7 +16,7 @@ func seedScopeFake(t *testing.T) *testutil.FakeDocumentStore {
 	fake := testutil.NewFakeDocumentStore()
 	mk := func(id string, proj *string, body string) {
 		if _, err := fake.Create(context.Background(), domain.Document{
-			ID: id, OwnerID: "u1", ProjectID: proj, Type: domain.DocFree,
+			ID: id, OwnerID: "u1", NodeID: proj, Type: domain.DocFree,
 			Path: id, Title: id, Body: body,
 		}); err != nil {
 			t.Fatalf("seed %s: %v", id, err)
@@ -54,7 +54,7 @@ func TestSearchDocuments_ProjectScopeReachesSemanticArm(t *testing.T) {
 	}
 	mk := func(id string, proj *string) {
 		if _, err := fake.Create(ctx, domain.Document{
-			ID: id, OwnerID: "u1", ProjectID: proj, Type: domain.DocFree,
+			ID: id, OwnerID: "u1", NodeID: proj, Type: domain.DocFree,
 			Path: id, Title: id, Body: "haystack " + id, // deliberately lacks "needle"
 		}); err != nil {
 			t.Fatalf("seed %s: %v", id, err)
@@ -82,8 +82,8 @@ func TestSearchDocuments_ProjectScopeReachesSemanticArm(t *testing.T) {
 		case "d-b":
 			sawB = true
 		}
-		if h.ProjectID == nil || *h.ProjectID != "proj-a" {
-			t.Fatalf("hit %s escaped project scope (projectID=%v)", h.ID, h.ProjectID)
+		if h.NodeID == nil || *h.NodeID != "proj-a" {
+			t.Fatalf("hit %s escaped project scope (nodeID=%v)", h.ID, h.NodeID)
 		}
 	}
 	if !sawA {

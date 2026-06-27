@@ -15,8 +15,8 @@ type DocumentVM struct {
 	KindGlyph    string
 	KindTone     string
 	Title        string
-	ProjectID    string
-	ProjectName  string
+	NodeID    string
+	NodeName  string
 	ProjectColor string
 	DateStr      string
 	Tags         []TagLink

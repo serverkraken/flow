@@ -90,7 +90,7 @@ func TestFakeSessionStore_UpdateAndDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if got.Tag != "deep" || got.Note != "note" || got.ProjectID == nil || *got.ProjectID != "p1" {
+	if got.Tag != "deep" || got.Note != "note" || got.NodeID == nil || *got.NodeID != "p1" {
 		t.Fatalf("update did not persist fields: %+v", got)
 	}
 

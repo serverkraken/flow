@@ -55,11 +55,11 @@ func TestFormView_CreateMode(t *testing.T) {
 // TestFormView_EditMode exercises FormRoute.View and Title in edit mode
 // (r.editing != nil), covering the Title edit-mode branch.
 func TestFormView_EditMode(t *testing.T) {
-	editing := &domain.Project{
+	editing := &domain.Node{
 		ID:     "p-edit",
 		Name:   "ExistingProj",
 		Slug:   "existingproj",
-		Status: domain.ProjectActive,
+		Status: domain.NodeActive,
 	}
 	r := projects.NewFormRoute(&fakeFormAPI{}, theme.Default, editing)
 

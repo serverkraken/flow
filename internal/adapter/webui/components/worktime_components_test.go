@@ -96,7 +96,7 @@ func TestWeekTotalBanner(t *testing.T) {
 func TestProjectFuzzyPicker_InlineCreate(t *testing.T) {
 	out := render(t, components.ProjectFuzzyPicker(components.FuzzyPickerVM{
 		ID: "pick", FormID: "bulkForm",
-		Projects: []components.FuzzyProjectVM{{ID: "p1", Name: "flow", Hue: "blue", Glyph: "◆", Rate: "95 €/h"}},
+		Nodes: []components.FuzzyProjectVM{{ID: "p1", Name: "flow", Hue: "blue", Glyph: "◆", Rate: "95 €/h"}},
 	}))
 	for _, w := range []string{"role=\"listbox\"", "flow", "data-new-project", "✚"} {
 		if !strings.Contains(out, w) {

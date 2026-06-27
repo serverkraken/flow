@@ -11,7 +11,7 @@ type EditorVM struct {
 	User           string
 	ID             string
 	Type           string
-	ProjectID      string
+	NodeID      string
 	Path           string
 	Title          string
 	Body           string

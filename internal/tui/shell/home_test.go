@@ -27,8 +27,8 @@ func (fakeDash) ListDocuments(context.Context, ...string) ([]domain.Document, er
 	return []domain.Document{{ID: "d1", Path: "notes/x", Title: "Mein Dokument", UpdatedAt: time.Now()}}, nil
 }
 
-func (fakeDash) ListProjects(context.Context) ([]domain.Project, error) {
-	return []domain.Project{{ID: "p1", Name: "ProjektA"}}, nil
+func (fakeDash) ListNodes(context.Context) ([]domain.Node, error) {
+	return []domain.Node{{ID: "p1", Name: "ProjektA"}}, nil
 }
 
 func drainHome(r shell.Route, cmd tea.Cmd) shell.Route {
@@ -78,7 +78,7 @@ func TestHomeRoute_reloadsOnSessionEvent(t *testing.T) {
 
 func TestHomeRoute_reloadsOnProjectEvent(t *testing.T) {
 	r := shell.NewHomeRoute(fakeDash{}, theme.Default, "alice")
-	_, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventProjectCreated)}})
+	_, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventNodeCreated)}})
 	if cmd == nil {
 		t.Fatal("a project.created event should trigger a reload cmd")
 	}

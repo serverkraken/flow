@@ -24,8 +24,8 @@ type SearchDocuments struct {
 	Log               *slog.Logger   // optional
 }
 
-func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
-	keyword, err := uc.Docs.Search(ctx, ownerID, q, projectID, tags)
+func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
+	keyword, err := uc.Docs.Search(ctx, ownerID, q, nodeID, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (uc SearchDocuments) Execute(ctx context.Context, ownerID, q string, projec
 	if limit <= 0 {
 		limit = 50
 	}
-	semantic, err := uc.Docs.SemanticSearch(ctx, ownerID, vecs[0], projectID, tags, limit)
+	semantic, err := uc.Docs.SemanticSearch(ctx, ownerID, vecs[0], nodeID, tags, limit)
 	if err != nil {
 		uc.warn("semantic search failed; keyword-only", err)
 		return keyword, nil

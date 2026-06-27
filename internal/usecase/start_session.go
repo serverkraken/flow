@@ -7,7 +7,7 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// StartSession begins the user's single running timer. projectID is optional
+// StartSession begins the user's single running timer. nodeID is optional
 // at start; tag/note are optional annotations.
 type StartSession struct {
 	Sessions ports.SessionStore
@@ -15,13 +15,13 @@ type StartSession struct {
 	Clock    ports.Clock
 }
 
-func (uc StartSession) Execute(ctx context.Context, ownerID string, projectID *string, tag, note string) (domain.WorkSession, error) {
+func (uc StartSession) Execute(ctx context.Context, ownerID string, nodeID *string, tag, note string) (domain.WorkSession, error) {
 	if _, running, err := uc.Sessions.Running(ctx, ownerID); err != nil {
 		return domain.WorkSession{}, err
 	} else if running {
 		return domain.WorkSession{}, domain.ErrAlreadyRunning
 	}
-	s, err := domain.NewWorkSession(uc.IDs.NewID(), ownerID, projectID, uc.Clock.Now())
+	s, err := domain.NewWorkSession(uc.IDs.NewID(), ownerID, nodeID, uc.Clock.Now())
 	if err != nil {
 		return domain.WorkSession{}, err
 	}

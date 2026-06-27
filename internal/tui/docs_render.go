@@ -33,7 +33,7 @@ func applyProjectFilter(docs []domain.Document, projID string) []domain.Document
 	}
 	out := make([]domain.Document, 0, len(docs))
 	for _, d := range docs {
-		if d.ProjectID == nil || *d.ProjectID == projID {
+		if d.NodeID == nil || *d.NodeID == projID {
 			out = append(out, d)
 		}
 	}
@@ -42,9 +42,9 @@ func applyProjectFilter(docs []domain.Document, projID string) []domain.Document
 
 // projRowLabel is the row's primary label: "slug · title" for project docs,
 // else the document path.
-func projRowLabel(d domain.Document, projByID map[string]domain.Project) string {
-	if d.Type == domain.DocProject && d.ProjectID != nil {
-		if p, ok := projByID[*d.ProjectID]; ok {
+func projRowLabel(d domain.Document, projByID map[string]domain.Node) string {
+	if d.Type == domain.DocProject && d.NodeID != nil {
+		if p, ok := projByID[*d.NodeID]; ok {
 			return p.Slug + " · " + d.Title
 		}
 	}

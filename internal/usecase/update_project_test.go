@@ -12,27 +12,27 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-func newUpdateUC() (usecase.UpdateProject, *testutil.FakeProjectStore, *testutil.FakeProjectBindingStore) {
-	ps := testutil.NewFakeProjectStore()
+func newUpdateUC() (usecase.UpdateNode, *testutil.FakeNodeStore, *testutil.FakeProjectBindingStore) {
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
-	uc := usecase.UpdateProject{
-		Projects: ps, Bindings: bs,
+	uc := usecase.UpdateNode{
+		Nodes: ps, Bindings: bs,
 		IDs:   &testutil.FakeIDGen{},
 		Clock: testutil.FakeClock{T: time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC)},
 	}
 	return uc, ps, bs
 }
 
-func seedProj(t *testing.T, ps *testutil.FakeProjectStore, id, upstream string) {
+func seedProj(t *testing.T, ps *testutil.FakeNodeStore, id, upstream string) {
 	t.Helper()
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
-	p, _ := domain.NewProject(id, "u1", "Flow", "flow", now)
+	p, _ := domain.NewNode(id, "u1", "Flow", "flow", now)
 	p.UpstreamGit = upstream
 	_, _ = ps.Create(context.Background(), p)
 }
 
-func baseInput() usecase.UpdateProjectInput {
-	return usecase.UpdateProjectInput{Name: "Flow", Slug: "flow", Status: domain.ProjectActive}
+func baseInput() usecase.UpdateNodeInput {
+	return usecase.UpdateNodeInput{Name: "Flow", Slug: "flow", Status: domain.NodeActive}
 }
 
 func remoteSlugs(bs *testutil.FakeProjectBindingStore) []string {
@@ -68,7 +68,7 @@ func TestUpdateProject_ClearUpstreamRemovesBinding(t *testing.T) {
 	seedProj(t, ps, "p1", "git@github.com:serverkraken/flow.git")
 	// pre-create the matching binding
 	_, _ = bs.Upsert(context.Background(), domain.ProjectBinding{
-		ID: "b1", OwnerID: "u1", ProjectID: "p1",
+		ID: "b1", OwnerID: "u1", NodeID: "p1",
 		Kind: domain.BindingRemote, RemoteSlug: "github.com/serverkraken/flow",
 	})
 	in := baseInput() // UpstreamGit == ""
@@ -84,7 +84,7 @@ func TestUpdateProject_ReassignUpstreamRepointsBinding(t *testing.T) {
 	uc, ps, bs := newUpdateUC()
 	seedProj(t, ps, "p1", "git@github.com:serverkraken/old.git")
 	_, _ = bs.Upsert(context.Background(), domain.ProjectBinding{
-		ID: "b1", OwnerID: "u1", ProjectID: "p1",
+		ID: "b1", OwnerID: "u1", NodeID: "p1",
 		Kind: domain.BindingRemote, RemoteSlug: "github.com/serverkraken/old",
 	})
 	in := baseInput()
@@ -121,8 +121,8 @@ func TestUpdateProject_BadStatusRejected(t *testing.T) {
 	seedProj(t, ps, "p1", "")
 	in := baseInput()
 	in.Status = "weird"
-	if _, err := uc.Execute(context.Background(), "u1", "p1", in); !errors.Is(err, domain.ErrInvalidProject) {
-		t.Fatalf("want ErrInvalidProject, got %v", err)
+	if _, err := uc.Execute(context.Background(), "u1", "p1", in); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("want ErrInvalidNode, got %v", err)
 	}
 	// nothing persisted
 	got, _ := ps.Get(context.Background(), "u1", "p1")
@@ -133,8 +133,8 @@ func TestUpdateProject_BadStatusRejected(t *testing.T) {
 
 func TestUpdateProject_NotFound(t *testing.T) {
 	uc, _, _ := newUpdateUC()
-	if _, err := uc.Execute(context.Background(), "u1", "missing", baseInput()); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Fatalf("want ErrProjectNotFound, got %v", err)
+	if _, err := uc.Execute(context.Background(), "u1", "missing", baseInput()); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ErrNodeNotFound, got %v", err)
 	}
 }
 

@@ -310,7 +310,7 @@ func TestImportDocument_PostsBodyAndPath(t *testing.T) {
 	d0 := time.Date(2026, 4, 28, 0, 0, 0, 0, time.UTC)
 	pid := "p1"
 	_, err := c.ImportDocument(context.Background(), apiclient.ImportDocumentInput{
-		Type: "project", Path: "projects/foo/readme", Title: "Foo", Body: "B", Date: &d0, ProjectID: &pid,
+		Type: "project", Path: "projects/foo/readme", Title: "Foo", Body: "B", Date: &d0, NodeID: &pid,
 	})
 	if err != nil {
 		t.Fatal(err)

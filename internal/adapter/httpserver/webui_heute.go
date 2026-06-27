@@ -54,7 +54,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	if err != nil {
 		return webui.HeuteVM{}, err
 	}
-	projects, err := s.ListProjects.Execute(ctx, u.ID)
+	projects, err := s.ListNodes.Execute(ctx, u.ID)
 	if err != nil {
 		return webui.HeuteVM{}, err
 	}
@@ -88,9 +88,9 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 
 	// Project pickers.
-	vm.Projects = make([]components.FuzzyProjectVM, 0, len(projects))
+	vm.Nodes = make([]components.FuzzyProjectVM, 0, len(projects))
 	for _, p := range projects {
-		vm.Projects = append(vm.Projects, components.FuzzyProjectVM{
+		vm.Nodes = append(vm.Nodes, components.FuzzyProjectVM{
 			ID:    p.ID,
 			Name:  p.Name,
 			Hue:   p.Color,
@@ -109,7 +109,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		vm.RunningBase = heuteRunningBase(*running, now)
 		vm.StartedAt = running.Start.Local().Format("15:04")
 		vm.RunningTag = running.Tag
-		name, hue := projectIdentity(projects, running.ProjectID)
+		name, hue := projectIdentity(projects, running.NodeID)
 		vm.RunningName = name
 		vm.RunningHue = hue
 	}
@@ -138,9 +138,9 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 }
 
 // sessionRowVM maps a stored session to its list-row view model.
-func sessionRowVM(sess domain.WorkSession, projects []domain.Project, now time.Time) components.SessionRowVM {
-	name, hue := projectIdentity(projects, sess.ProjectID)
-	glyph := projectGlyph(projects, sess.ProjectID)
+func sessionRowVM(sess domain.WorkSession, projects []domain.Node, now time.Time) components.SessionRowVM {
+	name, hue := projectIdentity(projects, sess.NodeID)
+	glyph := projectGlyph(projects, sess.NodeID)
 	return components.SessionRowVM{
 		ID:         sess.ID,
 		Title:      name,
@@ -149,7 +149,7 @@ func sessionRowVM(sess domain.WorkSession, projects []domain.Project, now time.T
 		Tag:        sess.Tag,
 		TimeRange:  fmtClockRange(sess),
 		Duration:   webui.FmtVerbose(sess.Elapsed(now)),
-		Unassigned: sess.ProjectID == nil,
+		Unassigned: sess.NodeID == nil,
 		Running:    sess.Running(),
 	}
 }
@@ -164,7 +164,7 @@ func fmtClockRange(s domain.WorkSession) string {
 }
 
 // projectIdentity resolves a session's project id to (display name, hue).
-func projectIdentity(projects []domain.Project, id *string) (string, string) {
+func projectIdentity(projects []domain.Node, id *string) (string, string) {
 	if id == nil {
 		return "ohne Projekt", ""
 	}
@@ -178,7 +178,7 @@ func projectIdentity(projects []domain.Project, id *string) (string, string) {
 
 // projectGlyph resolves a session's project glyph, defaulting to the unassigned
 // hollow circle.
-func projectGlyph(projects []domain.Project, id *string) string {
+func projectGlyph(projects []domain.Node, id *string) string {
 	if id == nil {
 		return "○"
 	}

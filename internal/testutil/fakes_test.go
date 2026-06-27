@@ -60,10 +60,10 @@ func TestFakeIDGenMonotonic(t *testing.T) {
 func TestFakeProjectBindingStore_UpsertReassignDelete(t *testing.T) {
 	s := NewFakeProjectBindingStore()
 	ctx := context.Background()
-	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b1", OwnerID: "u", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "r"})
-	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b2", OwnerID: "u", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "r"}) // reassign
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b1", OwnerID: "u", NodeID: "p1", Kind: domain.BindingRemote, RemoteSlug: "r"})
+	_, _ = s.Upsert(ctx, domain.ProjectBinding{ID: "b2", OwnerID: "u", NodeID: "p2", Kind: domain.BindingRemote, RemoteSlug: "r"}) // reassign
 	got, _ := s.List(ctx, "u")
-	if len(got) != 1 || got[0].ProjectID != "p2" {
+	if len(got) != 1 || got[0].NodeID != "p2" {
 		t.Fatalf("reassign: %+v", got)
 	}
 	if err := s.DeleteRemote(ctx, "u", "r"); err != nil {
@@ -116,7 +116,7 @@ func TestFakeDocumentStore_Links(t *testing.T) {
 func mustCreate(t *testing.T, s *FakeDocumentStore, id, owner, path string, proj *string) {
 	t.Helper()
 	_, err := s.Create(context.Background(), domain.Document{
-		ID: id, OwnerID: owner, ProjectID: proj, Type: domain.DocFree,
+		ID: id, OwnerID: owner, NodeID: proj, Type: domain.DocFree,
 		Path: path, Title: id, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
 	if err != nil {
@@ -253,7 +253,7 @@ func TestFakeProjectBindingStore_DeletePath(t *testing.T) {
 	b := domain.ProjectBinding{
 		ID:        "b1",
 		OwnerID:   "u1",
-		ProjectID: "p1",
+		NodeID: "p1",
 		Kind:      domain.BindingPath,
 		MachineID: "mac-1",
 		Path:      "/home/user/proj",

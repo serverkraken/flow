@@ -26,11 +26,11 @@ func (s *partialErrDocStore) Backlinks(ctx context.Context, ownerID, targetPath 
 	return s.FakeDocumentStore.Backlinks(ctx, ownerID, targetPath)
 }
 
-func (s *partialErrDocStore) List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
+func (s *partialErrDocStore) List(ctx context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return s.FakeDocumentStore.List(ctx, ownerID, projectID, tags...)
+	return s.FakeDocumentStore.List(ctx, ownerID, nodeID, tags...)
 }
 
 func TestBacklinks_FiltersByScope(t *testing.T) {
@@ -41,7 +41,7 @@ func TestBacklinks_FiltersByScope(t *testing.T) {
 
 	mk := func(id, path string, proj *string) {
 		if _, err := store.Create(ctx, domain.Document{
-			ID: id, OwnerID: "o", ProjectID: proj, Type: domain.DocFree,
+			ID: id, OwnerID: "o", NodeID: proj, Type: domain.DocFree,
 			Path: path, Title: id, CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatal(err)
@@ -77,7 +77,7 @@ func TestBacklinks_DropsForeignProjectFalsePositive(t *testing.T) {
 	pA, pB := "proj-a", "proj-b"
 	mk := func(id, path string, proj *string) {
 		_, _ = store.Create(ctx, domain.Document{
-			ID: id, OwnerID: "o", ProjectID: proj, Type: domain.DocFree,
+			ID: id, OwnerID: "o", NodeID: proj, Type: domain.DocFree,
 			Path: path, Title: id, CreatedAt: now, UpdatedAt: now,
 		})
 	}

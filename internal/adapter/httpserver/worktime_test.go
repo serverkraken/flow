@@ -247,14 +247,14 @@ func TestEditSession_OverlapConflict(t *testing.T) {
 	}
 }
 
-// newReassignServer builds a server with BulkAssignProject wired in addition to
+// newReassignServer builds a server with BulkAssignNode wired in addition to
 // the standard worktime usecases. Returns the server, the session store, and the
 // project store so the test can seed data.
-func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeProjectStore) {
+func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
 	sessions := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	ids := &testutil.FakeIDGen{}
 	srv := &httpserver.Server{
 		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
@@ -268,7 +268,7 @@ func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
 		EditSession:       usecase.EditSession{Sessions: sessions},
 		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
-		BulkAssignProject: usecase.BulkAssignProject{Sessions: sessions, Projects: ps},
+		BulkAssignNode: usecase.BulkAssignNode{Sessions: sessions, Nodes: ps},
 	}
 	return srv, sessions, ps
 }
@@ -295,7 +295,7 @@ func TestHandleReassignSessions(t *testing.T) {
 
 	// Seed a project owned by the same user (ownerID is deterministic from FakeIDGen).
 	ctx := context.Background()
-	if _, err := ps.Create(ctx, domain.Project{ID: "p1", OwnerID: ownerID, Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: ownerID, Name: "flow"}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 
@@ -319,7 +319,7 @@ func TestHandleReassignSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("store Get: %v", err)
 	}
-	if got.ProjectID == nil || *got.ProjectID != "p1" {
+	if got.NodeID == nil || *got.NodeID != "p1" {
 		t.Fatalf("session not reassigned: %+v", got)
 	}
 }

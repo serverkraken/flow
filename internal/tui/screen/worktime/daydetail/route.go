@@ -25,7 +25,7 @@ import (
 // loadedMsg carries the result of a ListSessionsRange fetch.
 type loadedMsg struct {
 	rows     []dayRow
-	projects []domain.Project // fetched alongside sessions to resolve row project names
+	projects []domain.Node // fetched alongside sessions to resolve row project names
 	err      error
 }
 
@@ -46,7 +46,7 @@ type Route struct {
 	edit *editState
 	// del is non-nil while the delete confirm is open.
 	del      *delState
-	projects []domain.Project  // cached project list for the dialog
+	projects []domain.Node  // cached project list for the dialog
 	projName map[string]string // id→name for resolving project names in rows
 }
 
@@ -94,7 +94,7 @@ func (r *Route) loadCmd() tea.Cmd {
 		}
 		// Fetch projects too so rows can render the project NAME, not the ID.
 		// A project-list failure must not hide the sessions, so ignore its error.
-		ps, _ := api.ListProjects(ctx)
+		ps, _ := api.ListNodes(ctx)
 		return loadedMsg{rows: buildRows(sessions, day), projects: ps}
 	}
 }
@@ -117,7 +117,7 @@ func (r *Route) loadProjectsCmd() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		ps, err := api.ListProjects(ctx)
+		ps, err := api.ListNodes(ctx)
 		return nachbuchenLoadProjectsMsg{projects: ps, err: err}
 	}
 }
@@ -326,7 +326,7 @@ func (r *Route) View(f shell.Frame) string {
 }
 
 // renderRowLabel formats the primary "Von–Bis · Projekt · Dauer" display of a
-// session row. projName resolves a row's ProjectID to its display name; when the
+// session row. projName resolves a row's NodeID to its display name; when the
 // id is unknown (map miss) the raw id is shown, and an unset project is omitted.
 func renderRowLabel(row dayRow, projName map[string]string) string {
 	start := row.Start.Format("15:04")
@@ -345,7 +345,7 @@ func renderRowLabel(row dayRow, projName map[string]string) string {
 	return fmt.Sprintf("%s → %s   %s", start, stop, wtfmt.FormatMin(durMin))
 }
 
-// resolveProjectName maps a row's ProjectID to its display name. An empty id
+// resolveProjectName maps a row's NodeID to its display name. An empty id
 // (no project) yields "". A miss in the map falls back to the raw id so a stale
 // cache never hides which project a row belongs to.
 func resolveProjectName(id string, projName map[string]string) string {

@@ -56,10 +56,10 @@ func TestResolveWikilink(t *testing.T) {
 	pA := strptr("proj-a")
 	pB := strptr("proj-b")
 	all := []Document{
-		{ID: "free1", Path: "shared", ProjectID: nil, Title: "Shared Free"},
-		{ID: "a1", Path: "notes", ProjectID: pA, Title: "A Notes"},
-		{ID: "b1", Path: "notes", ProjectID: pB, Title: "B Notes"},
-		{ID: "bonly", Path: "bsecret", ProjectID: pB, Title: "B Secret"},
+		{ID: "free1", Path: "shared", NodeID: nil, Title: "Shared Free"},
+		{ID: "a1", Path: "notes", NodeID: pA, Title: "A Notes"},
+		{ID: "b1", Path: "notes", NodeID: pB, Title: "B Notes"},
+		{ID: "bonly", Path: "bsecret", NodeID: pB, Title: "B Secret"},
 	}
 
 	tests := []struct {
@@ -68,13 +68,13 @@ func TestResolveWikilink(t *testing.T) {
 		target string
 		wantID string // "" => not found
 	}{
-		{"same project wins", Document{ProjectID: pA}, "notes", "a1"},
-		{"other project same slug", Document{ProjectID: pB}, "notes", "b1"},
-		{"free from project falls back to free", Document{ProjectID: pA}, "shared", "free1"},
-		{"free doc links free", Document{ProjectID: nil}, "shared", "free1"},
-		{"free doc cannot reach project", Document{ProjectID: nil}, "notes", ""},
-		{"project doc cannot reach foreign project", Document{ProjectID: pA}, "bsecret", ""},
-		{"missing", Document{ProjectID: pA}, "nope", ""},
+		{"same project wins", Document{NodeID: pA}, "notes", "a1"},
+		{"other project same slug", Document{NodeID: pB}, "notes", "b1"},
+		{"free from project falls back to free", Document{NodeID: pA}, "shared", "free1"},
+		{"free doc links free", Document{NodeID: nil}, "shared", "free1"},
+		{"free doc cannot reach project", Document{NodeID: nil}, "notes", ""},
+		{"project doc cannot reach foreign project", Document{NodeID: pA}, "bsecret", ""},
+		{"missing", Document{NodeID: pA}, "nope", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

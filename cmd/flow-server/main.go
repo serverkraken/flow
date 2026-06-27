@@ -63,7 +63,7 @@ func run() error {
 	}
 
 	userStore := pgstore.NewUserStore(pool)
-	projectStore := pgstore.NewProjectStore(pool)
+	nodeStore := pgstore.NewNodeStore(pool)
 	bindingStore := pgstore.NewProjectBindingStore(pool)
 	sessionStore := pgstore.NewSessionStore(pool)
 	dayOffStore := pgstore.NewDayOffStore(pool)
@@ -100,19 +100,19 @@ func run() error {
 		Clock:              clock,
 		Dev:                cfg.Dev,
 		StartSession:       usecase.StartSession{Sessions: sessionStore, IDs: ids, Clock: clock},
-		StopSession:        usecase.StopSession{Sessions: sessionStore, Projects: projectStore, IDs: ids, Clock: clock, Loc: time.Local},
+		StopSession:        usecase.StopSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessions:       usecase.ListSessions{Sessions: sessionStore, Clock: clock},
-		CreateProject:      usecase.CreateProject{Projects: projectStore, IDs: ids, Clock: clock},
-		ListProjects:       usecase.ListProjects{Projects: projectStore},
-		UpdateProject:      usecase.UpdateProject{Projects: projectStore, Bindings: bindingStore, IDs: ids, Clock: clock},
-		GetProject:         usecase.GetProject{Projects: projectStore},
+		CreateNode:      usecase.CreateNode{Nodes: nodeStore, IDs: ids, Clock: clock},
+		ListNodes:       usecase.ListNodes{Nodes: nodeStore},
+		UpdateNode:      usecase.UpdateNode{Nodes: nodeStore, Bindings: bindingStore, IDs: ids, Clock: clock},
+		GetNode:         usecase.GetNode{Nodes: nodeStore},
 		EditSession:        usecase.EditSession{Sessions: sessionStore},
 		DeleteSession:      usecase.DeleteSession{Sessions: sessionStore},
 		AddSession:         usecase.AddSession{Sessions: sessionStore, IDs: ids, Clock: clock},
 		ListSessionsRange:  usecase.ListSessionsRange{Sessions: sessionStore},
 		GetRunningSession:  usecase.GetRunningSession{Sessions: sessionStore},
 		ListSessionsPage:   usecase.ListSessionsPage{Sessions: sessionStore},
-		BulkAssignProject:  usecase.BulkAssignProject{Sessions: sessionStore, Projects: projectStore},
+		BulkAssignNode:  usecase.BulkAssignNode{Sessions: sessionStore, Nodes: nodeStore},
 		BulkDeleteSessions: usecase.BulkDeleteSessions{Sessions: sessionStore},
 		AddDayOffs:         usecase.AddDayOffs{Store: dayOffStore, Bus: bus},
 		DeleteDayOff:       usecase.DeleteDayOff{Store: dayOffStore, Bus: bus},
@@ -131,16 +131,16 @@ func run() error {
 		SetTarget: usecase.SetTargetConfig{Settings: settingsStore},
 		BuildExport: usecase.BuildExport{
 			Sessions: sessionStore,
-			Projects: projectStore,
+			Nodes: nodeStore,
 			Clock:    clock,
 			Loc:      time.Local,
 		},
-		SetProjectRate:      usecase.SetProjectRate{Projects: projectStore},
-		DeleteProject:       usecase.DeleteProject{Projects: projectStore},
-		BindProject:         usecase.BindProject{Bindings: bindingStore, Projects: projectStore, IDs: ids, Clock: clock},
-		UnbindProject:       usecase.UnbindProject{Bindings: bindingStore},
-		ResolveProject:      usecase.ResolveProject{Bindings: bindingStore, Projects: projectStore},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bindingStore},
+		SetNodeRate:      usecase.SetNodeRate{Nodes: nodeStore},
+		DeleteNode:       usecase.DeleteNode{Nodes: nodeStore},
+		BindNode:         usecase.BindNode{Bindings: bindingStore, Nodes: nodeStore, IDs: ids, Clock: clock},
+		UnbindNode:       usecase.UnbindNode{Bindings: bindingStore},
+		ResolveNode:      usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bindingStore},
 		CreateDocument:      usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		ImportDocument:      usecase.ImportDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
 		GetDocument:         usecase.GetDocument{Docs: documentStore},

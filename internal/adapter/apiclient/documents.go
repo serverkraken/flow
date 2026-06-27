@@ -12,7 +12,7 @@ import (
 // CreateDocumentInput mirrors the server's create payload.
 type CreateDocumentInput struct {
 	Type      string  `json:"type"`
-	ProjectID *string `json:"projectId,omitempty"`
+	NodeID *string `json:"projectId,omitempty"`
 	Path      string  `json:"path"`
 	Title     string  `json:"title"`
 	Body      string  `json:"body"`
@@ -29,11 +29,11 @@ func (c *Client) ListDocuments(ctx context.Context, tags ...string) ([]domain.Do
 }
 
 // ListDocumentsScoped lists documents, optionally scoped to a project.
-// projectID: nil → all; "none" → unassigned; else a project ID.
-func (c *Client) ListDocumentsScoped(ctx context.Context, projectID *string, tags ...string) ([]domain.Document, error) {
+// nodeID: nil → all; "none" → unassigned; else a project ID.
+func (c *Client) ListDocumentsScoped(ctx context.Context, nodeID *string, tags ...string) ([]domain.Document, error) {
 	q := url.Values{}
-	if projectID != nil {
-		q.Set("projectId", *projectID)
+	if nodeID != nil {
+		q.Set("projectId", *nodeID)
 	}
 	for _, t := range tags {
 		q.Add("tag", t)
@@ -81,11 +81,11 @@ func (c *Client) Search(ctx context.Context, q string, tags ...string) ([]domain
 }
 
 // SearchScoped is Search, optionally scoped to a project (see ListDocumentsScoped).
-func (c *Client) SearchScoped(ctx context.Context, q string, projectID *string, tags ...string) ([]domain.SearchHit, error) {
+func (c *Client) SearchScoped(ctx context.Context, q string, nodeID *string, tags ...string) ([]domain.SearchHit, error) {
 	v := url.Values{}
 	v.Set("q", q)
-	if projectID != nil {
-		v.Set("projectId", *projectID)
+	if nodeID != nil {
+		v.Set("projectId", *nodeID)
 	}
 	for _, t := range tags {
 		v.Add("tag", t)
@@ -108,7 +108,7 @@ type ImportDocumentInput struct {
 	Title     string     `json:"title"`
 	Body      string     `json:"body"`
 	Date      *time.Time `json:"date,omitempty"`
-	ProjectID *string    `json:"projectId,omitempty"`
+	NodeID *string    `json:"projectId,omitempty"`
 }
 
 func (c *Client) ImportDocument(ctx context.Context, in ImportDocumentInput) (domain.Document, error) {

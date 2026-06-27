@@ -37,7 +37,7 @@ func TestBooking_InlineCreate(t *testing.T) {
 	t.Parallel()
 	api := &fakeAPI{}
 	r := bookingRoute(api)
-	// type a new name, move onto the create row, Enter → CreateProject + Stop
+	// type a new name, move onto the create row, Enter → CreateNode + Stop
 	r.booking.list = r.booking.list.Update(tea.KeyPressMsg{Text: "z"})
 	for i := 0; i < 5; i++ {
 		r.booking.list = r.booking.list.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -47,7 +47,7 @@ func TestBooking_InlineCreate(t *testing.T) {
 		t.Fatal("expected a create+stop command")
 	}
 	cmd()
-	// fakeAPI.CreateProject returns domain.Project{ID: "p-z", Name: "z"}
+	// fakeAPI.CreateNode returns domain.Node{ID: "p-z", Name: "z"}
 	if api.stopped[1] != "p-z" {
 		t.Errorf("stopProjectID = %q, want p-z", api.stopped[1])
 	}

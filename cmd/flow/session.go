@@ -119,7 +119,7 @@ func runSessionList(ctx context.Context, c *apiclient.Client, dateStr, from, to 
 	if err != nil {
 		return "", err
 	}
-	projects, err := c.ListProjects(ctx)
+	projects, err := c.ListNodes(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -144,7 +144,7 @@ func runSessionList(ctx context.Context, c *apiclient.Client, dateStr, from, to 
 			dur = fmt.Sprintf("%02d:%02d", int(d.Hours()), int(d.Minutes())%60)
 		}
 		fmt.Fprintf(&b, "%s  %s–%s  %s  %-16s %s\n",
-			s.ID, fmtHM(s.Start), stop, dur, name(s.ProjectID), s.Tag)
+			s.ID, fmtHM(s.Start), stop, dur, name(s.NodeID), s.Tag)
 	}
 	return b.String(), nil
 }
@@ -221,9 +221,9 @@ func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sess
 	if !stop.After(start) {
 		return "", fmt.Errorf("--to must be after --from (start)")
 	}
-	projectID := cur.ProjectID
+	nodeID := cur.NodeID
 	if in.Project != nil {
-		if projectID, err = newProjectResolver(c, false).resolve(ctx, *in.Project); err != nil {
+		if nodeID, err = newProjectResolver(c, false).resolve(ctx, *in.Project); err != nil {
 			return "", err
 		}
 	}
@@ -235,7 +235,7 @@ func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sess
 	if in.Note != nil {
 		note = *in.Note
 	}
-	if _, err := c.EditSession(ctx, id, projectID, tag, note, start, stop); err != nil {
+	if _, err := c.EditSession(ctx, id, nodeID, tag, note, start, stop); err != nil {
 		return "", fmt.Errorf("edit session: %w", err)
 	}
 	return fmt.Sprintf("edited %s", id), nil

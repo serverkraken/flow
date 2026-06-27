@@ -66,7 +66,7 @@ type BacklinkRef struct {
 }
 
 // sameScope reports whether two documents share a wikilink resolution scope:
-// the same project, or both free/owner-level (nil ProjectID).
+// the same project, or both free/owner-level (nil NodeID).
 func sameScope(a, b *string) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
@@ -76,7 +76,7 @@ func sameScope(a, b *string) bool {
 
 // ResolveWikilink resolves target against the owner's document set all, from the
 // perspective of src. Scope-isolated: a same-scope match wins; else a free
-// (ProjectID == nil) match; else broken. A foreign-project match never
+// (NodeID == nil) match; else broken. A foreign-project match never
 // resolves, even when owner-wide unique.
 func ResolveWikilink(src Document, target string, all []Document) (Document, bool) {
 	var free *Document
@@ -85,10 +85,10 @@ func ResolveWikilink(src Document, target string, all []Document) (Document, boo
 		if d.Path != target {
 			continue
 		}
-		if sameScope(src.ProjectID, d.ProjectID) {
+		if sameScope(src.NodeID, d.NodeID) {
 			return d, true
 		}
-		if d.ProjectID == nil && free == nil {
+		if d.NodeID == nil && free == nil {
 			free = &all[i]
 		}
 	}

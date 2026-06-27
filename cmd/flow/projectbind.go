@@ -33,35 +33,35 @@ func runBind(ctx context.Context, c *apiclient.Client, originSlug, slug string) 
 
 // runBindRemote binds originSlug to a project identified by id and name
 // (the name is used only for the confirmation message).
-func runBindRemote(ctx context.Context, c *apiclient.Client, originSlug, projectID, projectName string) (string, error) {
-	if _, err := c.BindRemote(ctx, projectID, originSlug); err != nil {
+func runBindRemote(ctx context.Context, c *apiclient.Client, originSlug, nodeID, projectName string) (string, error) {
+	if _, err := c.BindRemote(ctx, nodeID, originSlug); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("bound repo %s → %s", originSlug, projectName), nil
 }
 
 // bindSelection acts on the picker's resolved selection:
-// if isCreate is true it calls CreateProject(picked.Label) then BindRemote with the new ID;
+// if isCreate is true it calls CreateNode(picked.Label) then BindRemote with the new ID;
 // otherwise it calls BindRemote with picked.ID directly.
 // This is extracted so the post-selection logic can be unit-tested without launching the TUI.
 func bindSelection(ctx context.Context, c *apiclient.Client, originSlug string, picked fuzzylist.Item, isCreate bool) (string, error) {
-	var projectID, projectName string
+	var nodeID, projectName string
 	if isCreate {
-		p, err := c.CreateProject(ctx, picked.Label)
+		p, err := c.CreateNode(ctx, picked.Label)
 		if err != nil {
 			return "", fmt.Errorf("create project: %w", err)
 		}
-		projectID, projectName = p.ID, p.Name
+		nodeID, projectName = p.ID, p.Name
 	} else {
-		projectID, projectName = picked.ID, picked.Label
+		nodeID, projectName = picked.ID, picked.Label
 	}
-	return runBindRemote(ctx, c, originSlug, projectID, projectName)
+	return runBindRemote(ctx, c, originSlug, nodeID, projectName)
 }
 
 // runBindInteractive launches the fuzzylist picker, picks or creates a project,
 // then binds originSlug to it. Returns the confirmation message.
 func runBindInteractive(ctx context.Context, c *apiclient.Client, originSlug, defaultName string, pal theme.Palette) (string, error) {
-	projects, err := c.ListProjects(ctx)
+	projects, err := c.ListNodes(ctx)
 	if err != nil {
 		return "", fmt.Errorf("list projects: %w", err)
 	}
@@ -86,7 +86,7 @@ func runBindInteractive(ctx context.Context, c *apiclient.Client, originSlug, de
 // runBindPathInteractive launches the fuzzylist picker, picks or creates a project,
 // then binds the local cwd path on this machine to it.
 func runBindPathInteractive(ctx context.Context, c *apiclient.Client, machine clientmachine.Machine, cwd, defaultName string, pal theme.Palette) (string, error) {
-	projects, err := c.ListProjects(ctx)
+	projects, err := c.ListNodes(ctx)
 	if err != nil {
 		return "", fmt.Errorf("list projects: %w", err)
 	}
@@ -104,17 +104,17 @@ func runBindPathInteractive(ctx context.Context, c *apiclient.Client, machine cl
 		return "", nil
 	}
 
-	var projectID, projectName string
+	var nodeID, projectName string
 	if isCreate {
-		p, err := c.CreateProject(ctx, picked.Label)
+		p, err := c.CreateNode(ctx, picked.Label)
 		if err != nil {
 			return "", fmt.Errorf("create project: %w", err)
 		}
-		projectID, projectName = p.ID, p.Name
+		nodeID, projectName = p.ID, p.Name
 	} else {
-		projectID, projectName = picked.ID, picked.Label
+		nodeID, projectName = picked.ID, picked.Label
 	}
-	return runBindPath(ctx, c, machine, cwd, projectID, projectName)
+	return runBindPath(ctx, c, machine, cwd, nodeID, projectName)
 }
 
 // runUnbind removes the binding for originSlug.
@@ -127,8 +127,8 @@ func runUnbind(ctx context.Context, c *apiclient.Client, originSlug string) (str
 
 // runBindPath binds a local directory path on this machine to a project.
 // cwd must already be cleaned (filepath.Clean) by the caller.
-func runBindPath(ctx context.Context, c *apiclient.Client, machine clientmachine.Machine, cwd, projectID, projectName string) (string, error) {
-	if _, err := c.BindPath(ctx, projectID, machine.ID, machine.Label, cwd); err != nil {
+func runBindPath(ctx context.Context, c *apiclient.Client, machine clientmachine.Machine, cwd, nodeID, projectName string) (string, error) {
+	if _, err := c.BindPath(ctx, nodeID, machine.ID, machine.Label, cwd); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("bound path %s on %s → %s", cwd, machine.Label, projectName), nil
@@ -143,7 +143,7 @@ func runUnbindPath(ctx context.Context, c *apiclient.Client, machine clientmachi
 	return fmt.Sprintf("unbound path %s on %s", cwd, machine.Label), nil
 }
 
-// runBindings lists all bindings; the binding whose ProjectID matches the
+// runBindings lists all bindings; the binding whose NodeID matches the
 // project resolved via the resolution chain (FLOW_PROJECT env override →
 // git-remote) is marked with *.
 // getenv and cwd are injected so the function is testable without a real env/git repo.
@@ -162,14 +162,14 @@ func runBindings(ctx context.Context, c *apiclient.Client, getenv func(string) s
 	out := ""
 	for _, b := range bs {
 		marker := "  "
-		if ok && b.ProjectID == resolved.ID {
+		if ok && b.NodeID == resolved.ID {
 			marker = "* "
 		}
 		switch b.Kind {
 		case domain.BindingRemote:
-			out += fmt.Sprintf("%sremote  %s  (project %s)\n", marker, b.RemoteSlug, b.ProjectID)
+			out += fmt.Sprintf("%sremote  %s  (project %s)\n", marker, b.RemoteSlug, b.NodeID)
 		default:
-			out += fmt.Sprintf("%s%s  %s\n", marker, b.Kind, b.ProjectID)
+			out += fmt.Sprintf("%s%s  %s\n", marker, b.Kind, b.NodeID)
 		}
 	}
 	return out, nil
@@ -177,7 +177,7 @@ func runBindings(ctx context.Context, c *apiclient.Client, getenv func(string) s
 
 // --- cobra wrappers ---
 
-func projectBindCmd() *cobra.Command {
+func nodeBindCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "bind [<slug>]",
 		Short: "bind the current directory to a project (git origin → remote binding; else → path binding)",
@@ -221,11 +221,11 @@ func projectBindCmd() *cobra.Command {
 				defaultName := filepath.Base(cwd)
 				if len(args) == 1 {
 					// Non-interactive: resolve project by slug then bind path.
-					projectID, rerr := resolveSlug(cmd.Context(), c, args[0])
+					nodeID, rerr := resolveSlug(cmd.Context(), c, args[0])
 					if rerr != nil {
 						return rerr
 					}
-					out, err = runBindPath(cmd.Context(), c, m, cwd, projectID, args[0])
+					out, err = runBindPath(cmd.Context(), c, m, cwd, nodeID, args[0])
 				} else {
 					// Interactive picker with path-bind action.
 					logf, lerr := os.OpenFile(filepath.Join(os.TempDir(), "flow-tui.log"),
@@ -248,7 +248,7 @@ func projectBindCmd() *cobra.Command {
 	}
 }
 
-func projectUnbindCmd() *cobra.Command {
+func nodeUnbindCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unbind",
 		Short: "remove the binding for the current directory (remote or path binding)",
@@ -287,7 +287,7 @@ func projectUnbindCmd() *cobra.Command {
 	}
 }
 
-func projectBindingsCmd() *cobra.Command {
+func nodeBindingsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "bindings",
 		Short: "list all project bindings (current repo marked with *)",

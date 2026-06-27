@@ -26,7 +26,7 @@ templ ProjectFuzzyPicker(vm FuzzyPickerVM) {
 			</label>
 		</div>
 		<ul class="max-h-[230px] overflow-auto scroll-thin">
-			for _, p := range vm.Projects {
+			for _, p := range vm.Nodes {
 				<li class="pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken"
 					role="option" aria-selected="false" data-project-id={ p.ID } data-project-name={ p.Name }>
 					<span class="flex items-center gap-2.5 text-[.9rem] font-medium">

@@ -40,20 +40,20 @@ func TestImportDocument_DailyKeepsHistoricalDateAndPath(t *testing.T) {
 	}
 }
 
-// A project import persists the provided ProjectID and parses frontmatter tags.
+// A project import persists the provided NodeID and parses frontmatter tags.
 func TestImportDocument_ProjectAndTags(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	uc := newImport(docs)
 	pid := "proj-1"
 	got, err := uc.Execute(context.Background(), "owner-1", usecase.ImportDocumentInput{
 		Type: domain.DocProject, Path: "projects/foo/readme", Title: "Foo",
-		Body: "---\ntags: [infra, gcp]\n---\n# Foo\n", ProjectID: &pid,
+		Body: "---\ntags: [infra, gcp]\n---\n# Foo\n", NodeID: &pid,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.ProjectID == nil || *got.ProjectID != "proj-1" {
-		t.Fatalf("projectID not persisted: %v", got.ProjectID)
+	if got.NodeID == nil || *got.NodeID != "proj-1" {
+		t.Fatalf("nodeID not persisted: %v", got.NodeID)
 	}
 	if len(got.Tags) != 2 || got.Tags[0] != "infra" {
 		t.Fatalf("tags not parsed from frontmatter: %v", got.Tags)

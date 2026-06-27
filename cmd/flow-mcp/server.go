@@ -24,15 +24,15 @@ type handlers struct {
 	srv *mcp.Server
 
 	// resolved-project state, written once by onAuth under projMu.
-	proj    domain.Project
+	proj    domain.Node
 	matched bool
 
 	// project-ref cache (2b), guarded by projMu. listProjects fetches via the
 	// manager's current client so a rebuild is always reflected.
 	projMu       sync.Mutex
-	projects     []domain.Project
+	projects     []domain.Node
 	projFetched  bool
-	listProjects func(ctx context.Context) ([]domain.Project, error)
+	listProjects func(ctx context.Context) ([]domain.Node, error)
 }
 
 // newServerH builds the server + handlers and returns both. It also sets
@@ -40,12 +40,12 @@ type handlers struct {
 // and wires the project-ref fetch seam through the manager.
 func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	h := &handlers{mgr: mgr}
-	h.listProjects = func(ctx context.Context) ([]domain.Project, error) {
+	h.listProjects = func(ctx context.Context) ([]domain.Node, error) {
 		c, err := mgr.client(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return c.ListProjects(ctx)
+		return c.ListNodes(ctx)
 	}
 	mgr.onAuth = h.postAuthInit
 	s := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
@@ -99,7 +99,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 
 // resolved returns the project + matched flag under the projMu lock, safe for
 // concurrent access since onAuth may write these during a live session.
-func (h *handlers) resolved() (domain.Project, bool) {
+func (h *handlers) resolved() (domain.Node, bool) {
 	h.projMu.Lock()
 	defer h.projMu.Unlock()
 	return h.proj, h.matched

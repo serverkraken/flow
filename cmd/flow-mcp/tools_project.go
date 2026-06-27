@@ -54,10 +54,10 @@ type listProjectsIn struct{}
 // listProjectsTool lists all projects (id/name/slug) so the model can pick an
 // existing one before binding instead of duplicate-creating.
 func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest, _ listProjectsIn) (*mcp.CallToolResult, any, error) {
-	var ps []domain.Project
+	var ps []domain.Node
 	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
-		// Deliberately fetches fresh (not via the projectList cache) so a just-created project is always visible before binding.
-		got, e := c.ListProjects(ctx)
+		// Deliberately fetches fresh (not via the nodeList cache) so a just-created project is always visible before binding.
+		got, e := c.ListNodes(ctx)
 		if e != nil {
 			return e
 		}
@@ -70,8 +70,8 @@ func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest,
 	return textResult(formatProjects(ps)), nil, nil
 }
 
-// bindProjectIn binds the current working directory to a project.
-type bindProjectIn struct {
+// bindNodeIn binds the current working directory to a project.
+type bindNodeIn struct {
 	Project    string `json:"project,omitempty" jsonschema:"an existing project to bind: id, slug, or name"`
 	CreateName string `json:"create_name,omitempty" jsonschema:"create a new project with this name, then bind to it"`
 	Kind       string `json:"kind,omitempty" jsonschema:"binding kind override: 'remote' (git origin) or 'path' (this directory); omit to auto-detect"`
@@ -80,17 +80,17 @@ type bindProjectIn struct {
 // bindProject binds this directory to a project (remote-slug if a git origin is
 // present, else a per-device path binding), creating the project first when
 // create_name is given, then re-resolves so subsequent tools are scoped here.
-func (h *handlers) bindProject(ctx context.Context, _ *mcp.CallToolRequest, in bindProjectIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) bindProject(ctx context.Context, _ *mcp.CallToolRequest, in bindNodeIn) (*mcp.CallToolResult, any, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errorResult("cannot determine the working directory: " + err.Error()), nil, nil
 	}
 	originSlug, originOK, _ := gitremote.OriginSlug(cwd)
 	machine, _ := clientmachine.Load() // best-effort; the path branch validates machine.ID
-	var bound domain.Project
+	var bound domain.Node
 	var kind string
 	derr := h.mgr.Do(ctx, func(c *apiclient.Client) error {
-		p, k, e := h.bindProjectCore(ctx, c, in, originSlug, originOK, machine, cwd)
+		p, k, e := h.bindNodeCore(ctx, c, in, originSlug, originOK, machine, cwd)
 		if e != nil {
 			return e
 		}

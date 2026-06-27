@@ -34,8 +34,8 @@ func TestRunSessionAdd_PostsBackfill(t *testing.T) {
 	var posted map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{{ID: "p1", Name: "Acme"}})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "p1", Name: "Acme"}})
 		case r.Method == "POST" && r.URL.Path == "/api/v1/sessions":
 			_ = json.NewDecoder(r.Body).Decode(&posted)
 			_ = json.NewEncoder(w).Encode(domain.WorkSession{ID: "s1"})
@@ -71,13 +71,13 @@ func TestRunSessionList_RendersDay(t *testing.T) {
 	pid := "p1"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/v1/projects":
-			_ = json.NewEncoder(w).Encode([]domain.Project{{ID: "p1", Name: "Acme"}})
+		case "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "p1", Name: "Acme"}})
 		case "/api/v1/sessions":
 			start := time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local)
 			stop := time.Date(2026, 6, 18, 11, 0, 0, 0, time.Local)
 			_ = json.NewEncoder(w).Encode([]domain.WorkSession{
-				{ID: "s1", ProjectID: &pid, Start: start, Stop: &stop},
+				{ID: "s1", NodeID: &pid, Start: start, Stop: &stop},
 			})
 		}
 	}))
@@ -142,7 +142,7 @@ func TestRunSessionEdit_MergesOnlyChangedFields(t *testing.T) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/sessions":
 			_ = json.NewEncoder(w).Encode([]domain.WorkSession{{
-				ID: "s1", ProjectID: &pid, Tag: "old", Note: "keep",
+				ID: "s1", NodeID: &pid, Tag: "old", Note: "keep",
 				Start: existingStart, Stop: &existingStop,
 			}})
 		case r.Method == "PATCH" && r.URL.Path == "/api/v1/sessions/s1":

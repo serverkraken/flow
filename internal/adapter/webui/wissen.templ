@@ -150,8 +150,8 @@ templ wissenCategoryProjectGroups(vm WissenCategoryVM) {
 					<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
 					<div class="min-w-0">
 						<h2 class="truncate font-medium text-ink">{ group.Name }</h2>
-						if group.ProjectID != "" {
-							<p class="font-mono text-[.75rem] text-muted">{ group.ProjectID }</p>
+						if group.NodeID != "" {
+							<p class="font-mono text-[.75rem] text-muted">{ group.NodeID }</p>
 						}
 					</div>
 					if group.Color != "" {
@@ -278,8 +278,8 @@ templ wissenNotesSection(vm WissenVM) {
 							<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
 							<div class="min-w-0">
 								<h3 class="truncate font-medium text-ink">{ group.Name }</h3>
-								if group.ProjectID != "" {
-									<p class="font-mono text-[.75rem] text-muted">{ group.ProjectID }</p>
+								if group.NodeID != "" {
+									<p class="font-mono text-[.75rem] text-muted">{ group.NodeID }</p>
 								}
 							</div>
 							if group.Color != "" {

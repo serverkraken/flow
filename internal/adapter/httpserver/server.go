@@ -22,11 +22,11 @@ type Server struct {
 	StartSession      usecase.StartSession
 	StopSession       usecase.StopSession
 	ListSessions      usecase.ListSessions
-	CreateProject     usecase.CreateProject
-	ListProjects      usecase.ListProjects
-	DeleteProject     usecase.DeleteProject
-	UpdateProject     usecase.UpdateProject
-	GetProject        usecase.GetProject
+	CreateNode     usecase.CreateNode
+	ListNodes      usecase.ListNodes
+	DeleteNode     usecase.DeleteNode
+	UpdateNode     usecase.UpdateNode
+	GetNode        usecase.GetNode
 	EditSession       usecase.EditSession
 	DeleteSession     usecase.DeleteSession
 	AddSession        usecase.AddSession
@@ -49,17 +49,17 @@ type Server struct {
 
 	// m1e export
 	BuildExport    usecase.BuildExport
-	SetProjectRate usecase.SetProjectRate
+	SetNodeRate usecase.SetNodeRate
 
 	// slice 1 bulk ops
-	BulkAssignProject  usecase.BulkAssignProject
+	BulkAssignNode  usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
 
 	// project bindings (resolution V0)
-	BindProject         usecase.BindProject
-	UnbindProject       usecase.UnbindProject
-	ResolveProject      usecase.ResolveProject
-	ListProjectBindings usecase.ListProjectBindings
+	BindNode         usecase.BindNode
+	UnbindNode       usecase.UnbindNode
+	ResolveNode      usecase.ResolveNode
+	ListNodeBindings usecase.ListNodeBindings
 
 	// m2a documents
 	CreateDocument    usecase.CreateDocument
@@ -95,11 +95,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/sessions", s.auth(http.HandlerFunc(s.handleListSessions)))
 	mux.Handle("PATCH /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleEditSession)))
 	mux.Handle("DELETE /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleDeleteSession)))
-	mux.Handle("POST /api/v1/projects", s.auth(http.HandlerFunc(s.handleCreateProject)))
-	mux.Handle("GET /api/v1/projects", s.auth(http.HandlerFunc(s.handleListProjects)))
-	mux.Handle("DELETE /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleDeleteProject)))
-	mux.Handle("GET /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleGetProject)))
-	mux.Handle("PATCH /api/v1/projects/{id}", s.auth(http.HandlerFunc(s.handleUpdateProject)))
+	mux.Handle("POST /api/v1/nodes", s.auth(http.HandlerFunc(s.handleCreateNode)))
+	mux.Handle("GET /api/v1/nodes", s.auth(http.HandlerFunc(s.handleListNodes)))
+	mux.Handle("DELETE /api/v1/nodes/{id}", s.auth(http.HandlerFunc(s.handleDeleteNode)))
+	mux.Handle("GET /api/v1/nodes/{id}", s.auth(http.HandlerFunc(s.handleGetNode)))
+	mux.Handle("PATCH /api/v1/nodes/{id}", s.auth(http.HandlerFunc(s.handleUpdateNode)))
 
 	mux.Handle("GET /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleListDayOffs)))
 	mux.Handle("POST /api/v1/dayoffs", s.auth(http.HandlerFunc(s.handleAddDayOffs)))
@@ -117,14 +117,14 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/burndown", s.auth(http.HandlerFunc(s.handleBurndown)))
 
 	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
-	mux.Handle("POST /api/v1/projects/{id}/rate", s.auth(http.HandlerFunc(s.handleSetProjectRate)))
+	mux.Handle("POST /api/v1/nodes/{id}/rate", s.auth(http.HandlerFunc(s.handleSetNodeRate)))
 
 	// project bindings — static paths before {id} wildcard
-	mux.Handle("GET /api/v1/projects/resolve", s.auth(http.HandlerFunc(s.handleResolveProject)))
-	mux.Handle("GET /api/v1/projects/bindings", s.auth(http.HandlerFunc(s.handleListAllProjectBindings)))
-	mux.Handle("DELETE /api/v1/projects/bindings", s.auth(http.HandlerFunc(s.handleUnbindProject)))
-	mux.Handle("PUT /api/v1/projects/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindProject)))
-	mux.Handle("GET /api/v1/projects/{id}/bindings", s.auth(http.HandlerFunc(s.handleListProjectBindingsByProject)))
+	mux.Handle("GET /api/v1/nodes/resolve", s.auth(http.HandlerFunc(s.handleResolveNode)))
+	mux.Handle("GET /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleListAllNodeBindings)))
+	mux.Handle("DELETE /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleUnbindNode)))
+	mux.Handle("PUT /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindNode)))
+	mux.Handle("GET /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleListNodeBindingsByNode)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
@@ -190,15 +190,15 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 
-	mux.Handle("GET /projects", s.webAuth(http.HandlerFunc(s.handleWebProjectsHome)))
-	mux.Handle("GET /ui/projects/list", s.webAuth(http.HandlerFunc(s.handleWebProjectsList)))
-	mux.Handle("GET /projects/new", s.webAuth(http.HandlerFunc(s.handleWebProjectNew)))
-	mux.Handle("POST /projects", s.webAuth(http.HandlerFunc(s.handleWebProjectCreate)))
-	mux.Handle("GET /projects/{id}", s.webAuth(http.HandlerFunc(s.handleWebProjectView)))
-	mux.Handle("GET /projects/{id}/edit", s.webAuth(http.HandlerFunc(s.handleWebProjectEdit)))
-	mux.Handle("POST /projects/{id}", s.webAuth(http.HandlerFunc(s.handleWebProjectUpdate)))
-	mux.Handle("POST /projects/{id}/status", s.webAuth(http.HandlerFunc(s.handleWebProjectStatus)))
-	mux.Handle("POST /projects/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebProjectDelete)))
+	mux.Handle("GET /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodesHome)))
+	mux.Handle("GET /ui/nodes/list", s.webAuth(http.HandlerFunc(s.handleWebNodesList)))
+	mux.Handle("GET /nodes/new", s.webAuth(http.HandlerFunc(s.handleWebNodeNew)))
+	mux.Handle("POST /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodeCreate)))
+	mux.Handle("GET /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeView)))
+	mux.Handle("GET /nodes/{id}/edit", s.webAuth(http.HandlerFunc(s.handleWebNodeEdit)))
+	mux.Handle("POST /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeUpdate)))
+	mux.Handle("POST /nodes/{id}/status", s.webAuth(http.HandlerFunc(s.handleWebNodeStatus)))
+	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
 
 	// WebUI design-system showcase (Slice 0 deliverable; handler in webui_styleguide.go).
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))

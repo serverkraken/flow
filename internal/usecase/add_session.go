@@ -18,7 +18,7 @@ type AddSession struct {
 	Clock    ports.Clock
 }
 
-func (uc AddSession) Execute(ctx context.Context, ownerID string, projectID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
 	if !stop.After(start) {
 		return domain.WorkSession{}, domain.ErrStopBeforeStart
 	}
@@ -47,7 +47,7 @@ func (uc AddSession) Execute(ctx context.Context, ownerID string, projectID *str
 	if domain.HasOverlap(existing, start, &stop, "") {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}
-	s, err := domain.NewWorkSession(uc.IDs.NewID(), ownerID, projectID, start)
+	s, err := domain.NewWorkSession(uc.IDs.NewID(), ownerID, nodeID, start)
 	if err != nil {
 		return domain.WorkSession{}, err
 	}

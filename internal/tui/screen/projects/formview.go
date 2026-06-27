@@ -60,7 +60,7 @@ func (r *FormRoute) View(f shell.Frame) string {
 	b.WriteString("\n")
 
 	// Status selector.
-	statusVal := statusLabel(domain.ProjectStatus(statusChoices[r.statusIx]))
+	statusVal := statusLabel(domain.NodeStatus(statusChoices[r.statusIx]))
 	b.WriteString(focusBar(focusStatus) + label("Status") + selStr(statusVal) + "\n")
 
 	// Farbe selector: show swatch color via kindcolor.
@@ -69,7 +69,7 @@ func (r *FormRoute) View(f shell.Frame) string {
 	if colorName == "" {
 		colorDisplay = "(keine)"
 	} else {
-		swatchColor := kindcolor.ProjectColor(colorName, pal)
+		swatchColor := kindcolor.NodeColor(colorName, pal)
 		colorDisplay = lipgloss.NewStyle().Foreground(swatchColor).Render("■") + " " + colorName
 	}
 	b.WriteString(focusBar(focusColor) + label("Farbe") + selStr(colorDisplay) + "\n")

@@ -7,16 +7,16 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// SetProjectRate validates and stores (or clears) a project's per-hour rate.
-type SetProjectRate struct {
-	Projects ports.ProjectStore
+// SetNodeRate validates and stores (or clears) a project's per-hour rate.
+type SetNodeRate struct {
+	Nodes	ports.NodeStore
 }
 
 // Execute validates rate (when non-nil) and delegates to the store.
 // A nil rate clears any existing rate. Validation rules:
 //   - Amount must be >= 0.
 //   - Currency must be exactly 3 characters (ISO-4217).
-func (uc SetProjectRate) Execute(ctx context.Context, ownerID, projectID string, rate *domain.Money) error {
+func (uc SetNodeRate) Execute(ctx context.Context, ownerID, nodeID string, rate *domain.Money) error {
 	if rate != nil {
 		if rate.Amount < 0 {
 			return domain.ErrInvalidRate
@@ -25,5 +25,5 @@ func (uc SetProjectRate) Execute(ctx context.Context, ownerID, projectID string,
 			return domain.ErrInvalidRate
 		}
 	}
-	return uc.Projects.SetRate(ctx, ownerID, projectID, rate)
+	return uc.Nodes.SetRate(ctx, ownerID, nodeID, rate)
 }

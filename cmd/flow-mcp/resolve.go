@@ -13,16 +13,16 @@ import (
 // resolveProject answers "which flow project is this directory?" via the V0
 // resolution chain (FLOW_PROJECT override → git remote → per-device path).
 // Any failure degrades to "no project" (matched=false) rather than erroring.
-func resolveProject(ctx context.Context, client *apiclient.Client, log *slog.Logger) (domain.Project, bool) {
+func resolveProject(ctx context.Context, client *apiclient.Client, log *slog.Logger) (domain.Node, bool) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Warn("cannot determine working directory; no project scope", "err", err)
-		return domain.Project{}, false
+		return domain.Node{}, false
 	}
 	proj, matched, err := projectresolve.Resolve(ctx, client, os.Getenv, cwd)
 	if err != nil {
 		log.Warn("project resolution failed; no project scope", "err", err)
-		return domain.Project{}, false
+		return domain.Node{}, false
 	}
 	return proj, matched
 }

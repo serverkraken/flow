@@ -17,12 +17,12 @@ import (
 // fakeDetailAPIFull extends fakeDetailAPI to return documents and bindings
 // for coverage of renderDocsSection, renderBindingsSection, and bindingTarget.
 type fakeDetailAPIFull struct {
-	p        domain.Project
+	p        domain.Node
 	docs     []domain.Document
 	bindings []domain.ProjectBinding
 }
 
-func (f *fakeDetailAPIFull) GetProject(_ context.Context, _ string) (domain.Project, error) {
+func (f *fakeDetailAPIFull) GetNode(_ context.Context, _ string) (domain.Node, error) {
 	return f.p, nil
 }
 func (f *fakeDetailAPIFull) ListSessionsRange(_ context.Context, _, _ time.Time) ([]domain.WorkSession, error) {
@@ -34,8 +34,8 @@ func (f *fakeDetailAPIFull) ListDocumentsScoped(_ context.Context, _ *string, _ 
 func (f *fakeDetailAPIFull) ListBindings(_ context.Context) ([]domain.ProjectBinding, error) {
 	return f.bindings, nil
 }
-func (f *fakeDetailAPIFull) UpdateProject(_ context.Context, _ string, in projects.UpdateFields) (domain.Project, error) {
-	f.p.Status = domain.ProjectStatus(in.Status)
+func (f *fakeDetailAPIFull) UpdateNode(_ context.Context, _ string, in projects.UpdateFields) (domain.Node, error) {
+	f.p.Status = domain.NodeStatus(in.Status)
 	return f.p, nil
 }
 
@@ -43,11 +43,11 @@ func (f *fakeDetailAPIFull) UpdateProject(_ context.Context, _ string, in projec
 // renderBindingsSection, and bindingTarget by seeding the fake API with
 // documents and project bindings (path + remote kinds).
 func TestDetailView_WithDocsAndBindings(t *testing.T) {
-	p := domain.Project{
+	p := domain.Node{
 		ID:     "p-full",
 		Slug:   "fullproj",
 		Name:   "FullProject",
-		Status: domain.ProjectActive,
+		Status: domain.NodeActive,
 		Color:  "blue",
 	}
 	docs := []domain.Document{
@@ -55,10 +55,10 @@ func TestDetailView_WithDocsAndBindings(t *testing.T) {
 		{ID: "d2", Type: domain.DocFree, Path: "docs/no-title", Title: ""},
 	}
 	bindings := []domain.ProjectBinding{
-		{ID: "b1", ProjectID: "p-full", Kind: domain.BindingPath, Path: "/home/user/fullproj"},
-		{ID: "b2", ProjectID: "p-full", Kind: domain.BindingRemote, RemoteSlug: "github/fullproj"},
+		{ID: "b1", NodeID: "p-full", Kind: domain.BindingPath, Path: "/home/user/fullproj"},
+		{ID: "b2", NodeID: "p-full", Kind: domain.BindingRemote, RemoteSlug: "github/fullproj"},
 		// binding for different project to test filtering.
-		{ID: "b3", ProjectID: "other-proj", Kind: domain.BindingPath, Path: "/tmp/other"},
+		{ID: "b3", NodeID: "other-proj", Kind: domain.BindingPath, Path: "/tmp/other"},
 	}
 
 	api := &fakeDetailAPIFull{p: p, docs: docs, bindings: bindings}
@@ -95,7 +95,7 @@ func TestDetailView_WithDocsAndBindings(t *testing.T) {
 // TestDetailRoute_TitleAndKeyHints exercises Title() and KeyHints()
 // which are at 0% coverage.
 func TestDetailRoute_TitleAndKeyHints(t *testing.T) {
-	p := domain.Project{ID: "p1", Name: "MyProject", Status: domain.ProjectActive}
+	p := domain.Node{ID: "p1", Name: "MyProject", Status: domain.NodeActive}
 	api := &fakeDetailAPIFull{p: p}
 	r := projects.NewDetailRoute(api, theme.Default, p)
 
@@ -111,15 +111,15 @@ func TestDetailRoute_TitleAndKeyHints(t *testing.T) {
 // TestDetailRoute_UpdateEventMsg covers the shell.EventMsg branch of Update:
 // a project-updated event triggers a reload cmd; any other event is ignored.
 func TestDetailRoute_UpdateEventMsg(t *testing.T) {
-	p := domain.Project{ID: "p1", Name: "P1", Status: domain.ProjectActive}
+	p := domain.Node{ID: "p1", Name: "P1", Status: domain.NodeActive}
 	api := &fakeDetailAPIFull{p: p}
 	r := projects.NewDetailRoute(api, theme.Default, p)
 
-	// EventMsg with EventProjectUpdated: should return a non-nil cmd.
-	nr, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventProjectUpdated)}})
+	// EventMsg with EventNodeUpdated: should return a non-nil cmd.
+	nr, cmd := r.Update(shell.EventMsg{Ev: apiclient.ClientEvent{Type: string(domain.EventNodeUpdated)}})
 	r = nr.(*projects.DetailRoute)
 	if cmd == nil {
-		t.Error("EventProjectUpdated should return a reload cmd")
+		t.Error("EventNodeUpdated should return a reload cmd")
 	}
 
 	// EventMsg with an unrelated event: cmd should be nil.
@@ -133,7 +133,7 @@ func TestDetailRoute_UpdateEventMsg(t *testing.T) {
 // TestDetailRoute_UpdatePauseResume covers the 'p' (pause) and 'r' (resume)
 // key branches of Update which were uncovered.
 func TestDetailRoute_UpdatePauseResume(t *testing.T) {
-	p := domain.Project{ID: "p2", Name: "P2", Status: domain.ProjectActive}
+	p := domain.Node{ID: "p2", Name: "P2", Status: domain.NodeActive}
 	api := &fakeDetailAPIFull{p: p}
 	r := projects.NewDetailRoute(api, theme.Default, p)
 
@@ -160,7 +160,7 @@ func TestDetailRoute_UpdatePauseResume(t *testing.T) {
 // TestDetailRoute_UpdateEditWithNoFactory covers the grammar.Edit branch when
 // r.formFor is nil (the no-op path).
 func TestDetailRoute_UpdateEditWithNoFactory(t *testing.T) {
-	p := domain.Project{ID: "p3", Name: "P3", Status: domain.ProjectActive}
+	p := domain.Node{ID: "p3", Name: "P3", Status: domain.NodeActive}
 	api := &fakeDetailAPIFull{p: p}
 	r := projects.NewDetailRoute(api, theme.Default, p)
 	// formFor is nil by default; pressing 'e' should be a no-op (no cmd).

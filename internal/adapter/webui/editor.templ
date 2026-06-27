@@ -66,7 +66,7 @@ templ editorOuter(vm EditorVM) {
 						<select name="projectId" class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none">
 							<option value="">{ components.T(ctx, "wissen.project.none") }</option>
 							for _, option := range vm.ProjectOptions {
-								<option value={ option.Value } selected?={ option.Value == vm.ProjectID }>{ option.Label }</option>
+								<option value={ option.Value } selected?={ option.Value == vm.NodeID }>{ option.Label }</option>
 							}
 						</select>
 					</label>

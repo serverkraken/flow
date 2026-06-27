@@ -25,13 +25,13 @@ func TestDocument_Validate(t *testing.T) {
 	d = base()
 	d.Type = domain.DocProject
 	if err := d.Validate(); err == nil {
-		t.Error("project doc without projectID should fail")
+		t.Error("project doc without nodeID should fail")
 	}
 	// project doc with project id
 	pid := "proj-1"
 	d = base()
 	d.Type = domain.DocProject
-	d.ProjectID = &pid
+	d.NodeID = &pid
 	if err := d.Validate(); err != nil {
 		t.Errorf("valid project doc: %v", err)
 	}

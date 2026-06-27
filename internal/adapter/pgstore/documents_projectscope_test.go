@@ -36,16 +36,16 @@ func seedProjectScope(t *testing.T) (st *pgstore.DocumentStore, owner, pA, pB st
 		t.Fatalf("seed user: %v", err)
 	}
 	owner = "u-scope"
-	ps := pgstore.NewProjectStore(pool)
+	ps := pgstore.NewNodeStore(pool)
 	now := time.Now()
-	a, err := domain.NewProject("proj-a", owner, "Alpha", "alpha", now)
+	a, err := domain.NewNode("proj-a", owner, "Alpha", "alpha", now)
 	if err != nil {
 		t.Fatalf("new project a: %v", err)
 	}
 	if _, err := ps.Create(ctx, a); err != nil {
 		t.Fatalf("create a: %v", err)
 	}
-	b, err := domain.NewProject("proj-b", owner, "Beta", "beta", now)
+	b, err := domain.NewNode("proj-b", owner, "Beta", "beta", now)
 	if err != nil {
 		t.Fatalf("new project b: %v", err)
 	}
@@ -55,7 +55,7 @@ func seedProjectScope(t *testing.T) (st *pgstore.DocumentStore, owner, pA, pB st
 	st = pgstore.NewDocumentStore(pool)
 	mk := func(id, path string, proj *string, ty domain.DocumentType, body string) {
 		_, err := st.Create(ctx, domain.Document{
-			ID: id, OwnerID: owner, ProjectID: proj, Type: ty,
+			ID: id, OwnerID: owner, NodeID: proj, Type: ty,
 			Path: path, Title: id, Body: body, CreatedAt: now, UpdatedAt: now,
 		})
 		if err != nil {

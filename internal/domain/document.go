@@ -58,7 +58,7 @@ func (t DocumentType) valid() bool {
 type Document struct {
 	ID        string         `json:"id"`
 	OwnerID   string         `json:"-"`
-	ProjectID *string        `json:"projectId,omitempty"`
+	NodeID *string        `json:"projectId,omitempty"`
 	Type      DocumentType   `json:"type"`
 	Path      string         `json:"path"`
 	Title     string         `json:"title"`
@@ -91,7 +91,7 @@ func (d Document) Validate() error {
 	if !d.Type.valid() {
 		return fmt.Errorf("%w: bad type %q", ErrInvalidDocument, d.Type)
 	}
-	if d.Type == DocProject && (d.ProjectID == nil || *d.ProjectID == "") {
+	if d.Type == DocProject && (d.NodeID == nil || *d.NodeID == "") {
 		return fmt.Errorf("%w: project document needs a projectId", ErrInvalidDocument)
 	}
 	if d.Type == DocDaily && d.Date == nil {

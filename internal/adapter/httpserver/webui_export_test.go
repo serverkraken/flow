@@ -21,7 +21,7 @@ import (
 // newWebExportServer wires the export web handlers behind cookie auth, with a
 // pre-seeded user "u1" whose session cookie the test forges via the codec.
 // Returns the server, codec, session store and project store for seeding.
-func newWebExportServer(t *testing.T) (*httpserver.Server, *websession.Codec, *testutil.FakeSessionStore, *testutil.FakeProjectStore) {
+func newWebExportServer(t *testing.T) (*httpserver.Server, *websession.Codec, *testutil.FakeSessionStore, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	users := testutil.NewFakeUserStore()
@@ -30,7 +30,7 @@ func newWebExportServer(t *testing.T) (*httpserver.Server, *websession.Codec, *t
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	bus := sse.NewBus()
 	sessions := testutil.NewFakeSessionStore()
-	projects := testutil.NewFakeProjectStore()
+	projects := testutil.NewFakeNodeStore()
 	settings := testutil.NewFakeUserSettingsStore()
 	tokens := testutil.NewFakeFeedTokenStore()
 
@@ -43,7 +43,7 @@ func newWebExportServer(t *testing.T) (*httpserver.Server, *websession.Codec, *t
 		GetSettings: usecase.GetSettings{Settings: settings, Tokens: tokens},
 		BuildExport: usecase.BuildExport{
 			Sessions: sessions,
-			Projects: projects,
+			Nodes: projects,
 			Clock:    clk,
 			Loc:      time.UTC,
 		},
@@ -86,9 +86,9 @@ func TestWebExportPreview(t *testing.T) {
 
 	// Seed one project and one stopped session so the summary has a row.
 	projID := "proj-webexport-1"
-	proj := domain.Project{
+	proj := domain.Node{
 		ID: projID, OwnerID: "u1", Name: "WebTestProject",
-		Slug: "webtestproject", Status: domain.ProjectActive,
+		Slug: "webtestproject", Status: domain.NodeActive,
 	}
 	if _, err := projects.Create(context.Background(), proj); err != nil {
 		t.Fatalf("seed project: %v", err)
@@ -97,7 +97,7 @@ func TestWebExportPreview(t *testing.T) {
 	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	ws := domain.WorkSession{
 		ID: "sess-webexport-1", OwnerID: "u1",
-		Start: start, Stop: &stop, ProjectID: &projID,
+		Start: start, Stop: &stop, NodeID: &projID,
 	}
 	if _, err := sessions.Create(context.Background(), ws); err != nil {
 		t.Fatalf("seed session: %v", err)

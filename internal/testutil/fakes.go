@@ -87,27 +87,27 @@ func (v FakeVerifier) Verify(context.Context, string) (ports.Identity, error) {
 	return v.ID, v.Err
 }
 
-// FakeProjectStore is an in-memory ports.ProjectStore.
-type FakeProjectStore struct {
+// FakeNodeStore is an in-memory ports.NodeStore.
+type FakeNodeStore struct {
 	mu sync.Mutex
-	m  map[string]domain.Project // keyed by id
+	m  map[string]domain.Node // keyed by id
 }
 
-func NewFakeProjectStore() *FakeProjectStore {
-	return &FakeProjectStore{m: map[string]domain.Project{}}
+func NewFakeNodeStore() *FakeNodeStore {
+	return &FakeNodeStore{m: map[string]domain.Node{}}
 }
 
-func (s *FakeProjectStore) Create(_ context.Context, p domain.Project) (domain.Project, error) {
+func (s *FakeNodeStore) Create(_ context.Context, p domain.Node) (domain.Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.m[p.ID] = p
 	return p, nil
 }
 
-func (s *FakeProjectStore) List(_ context.Context, ownerID string) ([]domain.Project, error) {
+func (s *FakeNodeStore) List(_ context.Context, ownerID string) ([]domain.Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []domain.Project
+	var out []domain.Node
 	for _, p := range s.m {
 		if p.OwnerID == ownerID {
 			out = append(out, p)
@@ -116,22 +116,22 @@ func (s *FakeProjectStore) List(_ context.Context, ownerID string) ([]domain.Pro
 	return out, nil
 }
 
-func (s *FakeProjectStore) Get(_ context.Context, ownerID, id string) (domain.Project, error) {
+func (s *FakeNodeStore) Get(_ context.Context, ownerID, id string) (domain.Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.m[id]
 	if !ok || p.OwnerID != ownerID {
-		return domain.Project{}, ports.ErrProjectNotFound
+		return domain.Node{}, ports.ErrNodeNotFound
 	}
 	return p, nil
 }
 
-func (s *FakeProjectStore) Update(_ context.Context, ownerID string, p domain.Project) (domain.Project, error) {
+func (s *FakeNodeStore) Update(_ context.Context, ownerID string, p domain.Node) (domain.Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing, ok := s.m[p.ID]
 	if !ok || existing.OwnerID != ownerID {
-		return domain.Project{}, ports.ErrProjectNotFound
+		return domain.Node{}, ports.ErrNodeNotFound
 	}
 	// mirror pgstore: rate is not mutated here
 	existing.Name = p.Name
@@ -146,24 +146,24 @@ func (s *FakeProjectStore) Update(_ context.Context, ownerID string, p domain.Pr
 	return existing, nil
 }
 
-func (s *FakeProjectStore) SetRate(_ context.Context, ownerID, id string, rate *domain.Money) error {
+func (s *FakeNodeStore) SetRate(_ context.Context, ownerID, id string, rate *domain.Money) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.m[id]
 	if !ok || p.OwnerID != ownerID {
-		return ports.ErrProjectNotFound
+		return ports.ErrNodeNotFound
 	}
 	p.Rate = rate
 	s.m[id] = p
 	return nil
 }
 
-func (s *FakeProjectStore) Delete(_ context.Context, ownerID, id string) error {
+func (s *FakeNodeStore) Delete(_ context.Context, ownerID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.m[id]
 	if !ok || p.OwnerID != ownerID {
-		return ports.ErrProjectNotFound
+		return ports.ErrNodeNotFound
 	}
 	delete(s.m, id)
 	return nil
@@ -215,7 +215,7 @@ func (s *FakeSessionStore) Get(_ context.Context, ownerID, id string) (domain.Wo
 	return e, nil
 }
 
-func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error) {
+func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.m[id]
@@ -223,19 +223,19 @@ func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, projectID
 		return domain.WorkSession{}, ports.ErrSessionNotFound
 	}
 	e.Stop = &stop
-	e.ProjectID = projectID
+	e.NodeID = nodeID
 	s.m[id] = e
 	return e, nil
 }
 
-func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.m[id]
 	if !ok || e.OwnerID != ownerID {
 		return domain.WorkSession{}, ports.ErrSessionNotFound
 	}
-	e.ProjectID = projectID
+	e.NodeID = nodeID
 	e.Tag = tag
 	e.Note = note
 	e.Start = start
@@ -443,7 +443,7 @@ func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) err
 }
 
 // FakeDocumentStore is an in-memory ports.DocumentStore.
-// Create returns ErrDocumentExists on an (owner, coalesce(projectID,""), path) collision.
+// Create returns ErrDocumentExists on an (owner, coalesce(nodeID,""), path) collision.
 type FakeDocumentStore struct {
 	mu         sync.Mutex
 	m          map[string]domain.Document // keyed by id
@@ -480,10 +480,10 @@ func fakeDocHash(d domain.Document) string {
 	return string(sum[:])
 }
 
-func docCollisionKey(ownerID string, projectID *string, path string) string {
+func docCollisionKey(ownerID string, nodeID *string, path string) string {
 	proj := ""
-	if projectID != nil {
-		proj = *projectID
+	if nodeID != nil {
+		proj = *nodeID
 	}
 	return ownerID + "\x00" + proj + "\x00" + path
 }
@@ -491,9 +491,9 @@ func docCollisionKey(ownerID string, projectID *string, path string) string {
 func (s *FakeDocumentStore) Create(_ context.Context, d domain.Document) (domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	want := docCollisionKey(d.OwnerID, d.ProjectID, d.Path)
+	want := docCollisionKey(d.OwnerID, d.NodeID, d.Path)
 	for _, existing := range s.m {
-		if docCollisionKey(existing.OwnerID, existing.ProjectID, existing.Path) == want {
+		if docCollisionKey(existing.OwnerID, existing.NodeID, existing.Path) == want {
 			return domain.Document{}, ports.ErrDocumentExists
 		}
 	}
@@ -511,12 +511,12 @@ func (s *FakeDocumentStore) Get(_ context.Context, ownerID, id string) (domain.D
 	return d, nil
 }
 
-func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
+func (s *FakeDocumentStore) List(_ context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []domain.Document
 	for _, d := range s.m {
-		if d.OwnerID == ownerID && matchesProject(d.ProjectID, projectID) && hasAllTags(d.Tags, tags) {
+		if d.OwnerID == ownerID && matchesNode(d.NodeID, nodeID) && hasAllTags(d.Tags, tags) {
 			out = append(out, d)
 		}
 	}
@@ -531,8 +531,8 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string, projectID *s
 	return out, nil
 }
 
-func (s *FakeDocumentStore) ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
-	all, err := s.List(ctx, ownerID, projectID, tags...)
+func (s *FakeDocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
+	all, err := s.List(ctx, ownerID, nodeID, tags...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -553,7 +553,7 @@ func (s *FakeDocumentStore) ListPage(ctx context.Context, ownerID string, projec
 	return all[offset:end], total, nil
 }
 
-func matchesProject(docPID, filter *string) bool {
+func matchesNode(docPID, filter *string) bool {
 	if filter == nil {
 		return true
 	}
@@ -640,13 +640,13 @@ func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath str
 	return out, nil
 }
 
-func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
+func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ql := strings.ToLower(q)
 	var out []domain.SearchHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !matchesProject(d.ProjectID, projectID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		hay := strings.ToLower(d.Title + " " + d.Body)
@@ -759,12 +759,12 @@ func (s *FakeDocumentStore) EmbedStatus(_ context.Context, ownerID, docID string
 	return domain.EmbedStatus{State: domain.EmbedOK}, nil
 }
 
-func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
+func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var hits []domain.SemanticHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !matchesProject(d.ProjectID, projectID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		best := -1.0
@@ -886,12 +886,12 @@ func (s *FakeProjectBindingStore) All() []domain.ProjectBinding {
 	return out
 }
 
-func (s *FakeProjectBindingStore) ListByProject(_ context.Context, ownerID, projectID string) ([]domain.ProjectBinding, error) {
+func (s *FakeProjectBindingStore) ListByProject(_ context.Context, ownerID, nodeID string) ([]domain.ProjectBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []domain.ProjectBinding
 	for _, b := range s.items {
-		if b.OwnerID == ownerID && b.ProjectID == projectID {
+		if b.OwnerID == ownerID && b.NodeID == nodeID {
 			cp := b
 			out = append(out, cp)
 		}

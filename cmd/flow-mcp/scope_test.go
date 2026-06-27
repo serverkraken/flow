@@ -9,21 +9,21 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func fakeProjects() []domain.Project {
-	return []domain.Project{
+func fakeProjects() []domain.Node {
+	return []domain.Node{
 		{ID: "p1", Name: "Alpha", Slug: "alpha"},
 		{ID: "p2", Name: "Beta", Slug: "beta"},
 	}
 }
 
 func TestResolveScope_DefaultUsesMatchedProject(t *testing.T) {
-	h := &handlers{matched: true, proj: domain.Project{ID: "p1", Name: "Alpha"}}
+	h := &handlers{matched: true, proj: domain.Node{ID: "p1", Name: "Alpha"}}
 	sc, err := h.resolveScope(context.Background(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sc.projectID == nil || *sc.projectID != "p1" {
-		t.Fatalf("projectID = %v, want &\"p1\"", sc.projectID)
+	if sc.nodeID == nil || *sc.nodeID != "p1" {
+		t.Fatalf("nodeID = %v, want &\"p1\"", sc.nodeID)
 	}
 	if !strings.Contains(sc.label, "Alpha") {
 		t.Fatalf("label = %q, want it to mention Alpha", sc.label)
@@ -36,32 +36,32 @@ func TestResolveScope_DefaultUnmatchedIsGlobal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sc.projectID != nil {
-		t.Fatalf("projectID = %v, want nil (global)", sc.projectID)
+	if sc.nodeID != nil {
+		t.Fatalf("nodeID = %v, want nil (global)", sc.nodeID)
 	}
 }
 
 func TestResolveScope_GlobalAndNoneSentinels(t *testing.T) {
-	h := &handlers{matched: true, proj: domain.Project{ID: "p1"}}
+	h := &handlers{matched: true, proj: domain.Node{ID: "p1"}}
 	g, err := h.resolveScope(context.Background(), "global")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if g.projectID != nil {
-		t.Fatalf("global projectID = %v, want nil", g.projectID)
+	if g.nodeID != nil {
+		t.Fatalf("global nodeID = %v, want nil", g.nodeID)
 	}
 	n, err := h.resolveScope(context.Background(), "none")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.projectID == nil || *n.projectID != "none" {
-		t.Fatalf("none projectID = %v, want &\"none\"", n.projectID)
+	if n.nodeID == nil || *n.nodeID != "none" {
+		t.Fatalf("none nodeID = %v, want &\"none\"", n.nodeID)
 	}
 }
 
 func TestResolveScope_ExplicitBySlugAndName(t *testing.T) {
 	calls := 0
-	h := &handlers{listProjects: func(context.Context) ([]domain.Project, error) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
 		calls++
 		return fakeProjects(), nil
 	}}
@@ -69,15 +69,15 @@ func TestResolveScope_ExplicitBySlugAndName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bySlug.projectID == nil || *bySlug.projectID != "p2" {
-		t.Fatalf("by slug = %v, want &\"p2\"", bySlug.projectID)
+	if bySlug.nodeID == nil || *bySlug.nodeID != "p2" {
+		t.Fatalf("by slug = %v, want &\"p2\"", bySlug.nodeID)
 	}
 	byName, err := h.resolveScope(context.Background(), "Alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if byName.projectID == nil || *byName.projectID != "p1" {
-		t.Fatalf("by name = %v, want &\"p1\"", byName.projectID)
+	if byName.nodeID == nil || *byName.nodeID != "p1" {
+		t.Fatalf("by name = %v, want &\"p1\"", byName.nodeID)
 	}
 	if calls != 1 {
 		t.Fatalf("listProjects called %d times, want 1 (cached after first fetch)", calls)
@@ -86,7 +86,7 @@ func TestResolveScope_ExplicitBySlugAndName(t *testing.T) {
 
 func TestResolveScope_UnknownRefreshesOnceThenErrors(t *testing.T) {
 	calls := 0
-	h := &handlers{listProjects: func(context.Context) ([]domain.Project, error) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
 		calls++
 		return fakeProjects(), nil // never contains "gamma"
 	}}
@@ -104,24 +104,24 @@ func TestResolveScope_UnknownRefreshesOnceThenErrors(t *testing.T) {
 
 func TestResolveScope_NewlyCreatedFoundAfterRefresh(t *testing.T) {
 	calls := 0
-	h := &handlers{listProjects: func(context.Context) ([]domain.Project, error) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
 		calls++
 		if calls == 1 {
 			return fakeProjects(), nil // gamma not yet visible
 		}
-		return append(fakeProjects(), domain.Project{ID: "p3", Name: "Gamma", Slug: "gamma"}), nil
+		return append(fakeProjects(), domain.Node{ID: "p3", Name: "Gamma", Slug: "gamma"}), nil
 	}}
 	sc, err := h.resolveScope(context.Background(), "gamma")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sc.projectID == nil || *sc.projectID != "p3" {
-		t.Fatalf("projectID = %v, want &\"p3\" after refresh", sc.projectID)
+	if sc.nodeID == nil || *sc.nodeID != "p3" {
+		t.Fatalf("nodeID = %v, want &\"p3\" after refresh", sc.nodeID)
 	}
 }
 
 func TestResolveScope_ListProjectsError(t *testing.T) {
-	h := &handlers{listProjects: func(context.Context) ([]domain.Project, error) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
 		return nil, errors.New("boom")
 	}}
 	_, err := h.resolveScope(context.Background(), "beta")
@@ -131,7 +131,7 @@ func TestResolveScope_ListProjectsError(t *testing.T) {
 }
 
 func TestProjectName(t *testing.T) {
-	h := &handlers{listProjects: func(context.Context) ([]domain.Project, error) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
 		return fakeProjects(), nil
 	}}
 	p1 := "p1"

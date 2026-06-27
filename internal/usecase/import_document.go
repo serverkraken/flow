@@ -27,13 +27,13 @@ type ImportDocumentInput struct {
 	Title     string
 	Body      string
 	Date      *time.Time
-	ProjectID *string
+	NodeID *string
 }
 
 func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportDocumentInput) (domain.Document, error) {
 	now := uc.Clock.Now()
 	d := domain.Document{
-		ID: uc.IDs.NewID(), OwnerID: ownerID, ProjectID: in.ProjectID, Type: in.Type,
+		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
 		Path:      in.Path,
 		Title:     domain.StripHighlightSentinels(in.Title),
 		Body:      domain.StripHighlightSentinels(in.Body),

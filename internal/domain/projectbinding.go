@@ -18,7 +18,7 @@ const (
 )
 
 type ProjectBinding struct {
-	ID, OwnerID, ProjectID string
+	ID, OwnerID, NodeID string
 	Kind                   BindingKind
 	RemoteSlug             string // kind=remote
 	MachineID, MachineLabel, Path string // kind=path (Slice 2)

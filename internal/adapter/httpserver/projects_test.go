@@ -25,7 +25,7 @@ func newProjectsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 
@@ -34,11 +34,11 @@ func newProjectsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:           sse.NewBus(),
 		Clock:         clk,
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
-		DeleteProject: usecase.DeleteProject{Projects: ps},
-		GetProject:    usecase.GetProject{Projects: ps},
-		UpdateProject: usecase.UpdateProject{Projects: ps, Bindings: bs, IDs: ids, Clock: clk},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
+		DeleteNode: usecase.DeleteNode{Nodes: ps},
+		GetNode:    usecase.GetNode{Nodes: ps},
+		UpdateNode: usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
 	}
 
 	ts := httptest.NewServer(srv.Routes())
@@ -61,26 +61,26 @@ func TestDeleteProject_204AndGone(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
 	// Create a project first.
-	res := do("POST", "/api/v1/projects", `{"name":"Testprojekt"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Testprojekt"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create project status %d, want 201", res.StatusCode)
 	}
-	var p domain.Project
+	var p domain.Node
 	if err := decodeJSON(res.Body, &p); err != nil {
 		t.Fatalf("decode project: %v", err)
 	}
 	_ = res.Body.Close()
 
 	// DELETE the project → 204.
-	res = do("DELETE", "/api/v1/projects/"+p.ID, "")
+	res = do("DELETE", "/api/v1/nodes/"+p.ID, "")
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {
 		t.Fatalf("delete status %d, want 204", res.StatusCode)
 	}
 
 	// GET the list → project must be gone.
-	res = do("GET", "/api/v1/projects", "")
-	var list []domain.Project
+	res = do("GET", "/api/v1/nodes", "")
+	var list []domain.Node
 	if err := decodeJSON(res.Body, &list); err != nil {
 		t.Fatalf("decode list: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestDeleteProject_204AndGone(t *testing.T) {
 
 func TestDeleteProject_UnknownID404(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
-	res := do("DELETE", "/api/v1/projects/does-not-exist", "")
+	res := do("DELETE", "/api/v1/nodes/does-not-exist", "")
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown id status %d, want 404", res.StatusCode)
@@ -116,7 +116,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	_, do, bs := newProjectsSrv(t)
 
 	// create with an upstream → auto-synced remote binding
-	res := do("POST", "/api/v1/projects", `{"name":"Flow","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create status %d, want 201", res.StatusCode)
 	}
@@ -131,7 +131,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 
 	// GET one
-	res = do("GET", "/api/v1/projects/"+id, "")
+	res = do("GET", "/api/v1/nodes/"+id, "")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("GET status %d, want 200", res.StatusCode)
 	}
@@ -145,7 +145,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 
 	// PATCH → pause + change description
-	res = do("PATCH", "/api/v1/projects/"+id,
+	res = do("PATCH", "/api/v1/nodes/"+id,
 		`{"name":"Flow","slug":"flow","description":"hi","upstreamGit":"git@github.com:serverkraken/flow.git","status":"paused"}`)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("PATCH status %d, want 200", res.StatusCode)
@@ -160,7 +160,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 
 	// PATCH bad upstream → 400
-	res = do("PATCH", "/api/v1/projects/"+id,
+	res = do("PATCH", "/api/v1/nodes/"+id,
 		`{"name":"Flow","slug":"flow","status":"active","upstreamGit":"garbage"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusBadRequest {
@@ -168,7 +168,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 
 	// PATCH unknown id → 404
-	res = do("PATCH", "/api/v1/projects/missing",
+	res = do("PATCH", "/api/v1/nodes/missing",
 		`{"name":"X","slug":"x","status":"active"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
@@ -179,7 +179,7 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 func TestListProjectsStatusFilter(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
-	res := do("POST", "/api/v1/projects", `{"name":"Aaa"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Aaa"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create Aaa status %d, want 201", res.StatusCode)
 	}
@@ -189,14 +189,14 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 	_ = res.Body.Close()
 
-	res = do("POST", "/api/v1/projects", `{"name":"Bbb"}`)
+	res = do("POST", "/api/v1/nodes", `{"name":"Bbb"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create Bbb status %d, want 201", res.StatusCode)
 	}
 
 	// archive Aaa
-	res = do("PATCH", "/api/v1/projects/"+a["id"].(string),
+	res = do("PATCH", "/api/v1/nodes/"+a["id"].(string),
 		`{"name":"Aaa","slug":"aaa","status":"archived"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -204,7 +204,7 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 
 	// no filter → all
-	res = do("GET", "/api/v1/projects", "")
+	res = do("GET", "/api/v1/nodes", "")
 	var all []map[string]any
 	if err := decodeJSON(res.Body, &all); err != nil {
 		t.Fatalf("decode all: %v", err)
@@ -215,7 +215,7 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 
 	// status=archived → 1
-	res = do("GET", "/api/v1/projects?status=archived", "")
+	res = do("GET", "/api/v1/nodes?status=archived", "")
 	var arch []map[string]any
 	if err := decodeJSON(res.Body, &arch); err != nil {
 		t.Fatalf("decode arch: %v", err)
@@ -226,7 +226,7 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 
 	// status=active,paused → 1 (Bbb is active)
-	res = do("GET", "/api/v1/projects?status=active,paused", "")
+	res = do("GET", "/api/v1/nodes?status=active,paused", "")
 	var act []map[string]any
 	if err := decodeJSON(res.Body, &act); err != nil {
 		t.Fatalf("decode act: %v", err)
@@ -237,12 +237,12 @@ func TestListProjectsStatusFilter(t *testing.T) {
 	}
 }
 
-// TestGetProject_NotFound covers the ErrProjectNotFound branch of handleGetProject.
+// TestGetProject_NotFound covers the ErrNodeNotFound branch of handleGetNode.
 func TestGetProject_NotFound(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 	// GET a non-existent project ID → 404.
-	res := do("GET", "/api/v1/projects/does-not-exist", "")
+	res := do("GET", "/api/v1/nodes/does-not-exist", "")
 	if res.StatusCode != http.StatusNotFound {
-		t.Fatalf("GET /api/v1/projects/does-not-exist: status=%d, want 404", res.StatusCode)
+		t.Fatalf("GET /api/v1/nodes/does-not-exist: status=%d, want 404", res.StatusCode)
 	}
 }

@@ -20,7 +20,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 type startReq struct {
-	ProjectID *string    `json:"projectId"`
+	NodeID *string    `json:"projectId"`
 	Tag       string     `json:"tag"`
 	Note      string     `json:"note"`
 	Start     *time.Time `json:"start"`
@@ -38,7 +38,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "start and stop are required together", http.StatusBadRequest)
 			return
 		}
-		sess, err := s.AddSession.Execute(r.Context(), u.ID, req.ProjectID, *req.Start, *req.Stop, req.Tag, req.Note)
+		sess, err := s.AddSession.Execute(r.Context(), u.ID, req.NodeID, *req.Start, *req.Stop, req.Tag, req.Note)
 		switch {
 		case errors.Is(err, domain.ErrStopBeforeStart),
 			errors.Is(err, domain.ErrFutureSession),
@@ -58,7 +58,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Live start (unchanged).
-	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.ProjectID, req.Tag, req.Note)
+	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.NodeID, req.Tag, req.Note)
 	if errors.Is(err, domain.ErrAlreadyRunning) {
 		http.Error(w, "a session is already running", http.StatusConflict)
 		return
@@ -72,19 +72,19 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 }
 
 type stopReq struct {
-	ProjectID *string `json:"projectId"`
+	NodeID *string `json:"projectId"`
 }
 
 func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req stopReq
 	_ = json.NewDecoder(r.Body).Decode(&req)
-	sess, err := s.StopSession.Execute(r.Context(), u.ID, r.PathValue("id"), req.ProjectID)
+	sess, err := s.StopSession.Execute(r.Context(), u.ID, r.PathValue("id"), req.NodeID)
 	switch {
 	case errors.Is(err, domain.ErrProjectRequired):
 		http.Error(w, "a project is required", http.StatusBadRequest)
 		return
-	case errors.Is(err, ports.ErrProjectNotFound) || errors.Is(err, ports.ErrSessionNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound) || errors.Is(err, ports.ErrSessionNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	case err != nil:
@@ -164,7 +164,7 @@ type createProjReq struct {
 	UpstreamGit string `json:"upstreamGit"`
 }
 
-func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req createProjReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
@@ -178,14 +178,14 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	p, err := s.CreateProject.Execute(r.Context(), u.ID, req.Name, req.Slug, req.Color, req.Glyph)
+	p, err := s.CreateNode.Execute(r.Context(), u.ID, req.Name, req.Slug, req.Color, req.Glyph)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	// Apply optional description/upstream (auto-syncs the remote binding).
 	if req.Description != "" || req.UpstreamGit != "" {
-		p, err = s.UpdateProject.Execute(r.Context(), u.ID, p.ID, usecase.UpdateProjectInput{
+		p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
 			Name: p.Name, Slug: p.Slug, Color: p.Color, Glyph: p.Glyph,
 			Description: req.Description, UpstreamGit: req.UpstreamGit, Status: p.Status,
 		})
@@ -194,27 +194,27 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
 	writeJSON(w, http.StatusCreated, p)
 }
 
-func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleListNodes(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	list, err := s.ListProjects.Execute(r.Context(), u.ID)
+	list, err := s.ListNodes.Execute(r.Context(), u.ID)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	list = filterProjectsByStatus(list, r.URL.Query().Get("status"))
 	if list == nil {
-		list = []domain.Project{}
+		list = []domain.Node{}
 	}
 	writeJSON(w, http.StatusOK, list)
 }
 
 // filterProjectsByStatus keeps projects whose status is in the comma-separated
 // `status` query (e.g. "active,paused"). Empty query → all (backward compatible).
-func filterProjectsByStatus(in []domain.Project, status string) []domain.Project {
+func filterProjectsByStatus(in []domain.Node, status string) []domain.Node {
 	status = strings.TrimSpace(status)
 	if status == "" {
 		return in
@@ -225,7 +225,7 @@ func filterProjectsByStatus(in []domain.Project, status string) []domain.Project
 			want[s] = true
 		}
 	}
-	out := []domain.Project{}
+	out := []domain.Node{}
 	for _, p := range in {
 		if want[string(p.Status)] {
 			out = append(out, p)
@@ -234,26 +234,26 @@ func filterProjectsByStatus(in []domain.Project, status string) []domain.Project
 	return out
 }
 
-func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	switch err := s.DeleteProject.Execute(r.Context(), u.ID, id); {
-	case errors.Is(err, ports.ErrProjectNotFound):
+	switch err := s.DeleteNode.Execute(r.Context(), u.ID, id); {
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleGetNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	p, err := s.GetProject.Execute(r.Context(), u.ID, r.PathValue("id"))
+	p, err := s.GetNode.Execute(r.Context(), u.ID, r.PathValue("id"))
 	switch {
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	case err != nil:
@@ -273,35 +273,35 @@ type updateProjReq struct {
 	Status      string `json:"status"`
 }
 
-func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req updateProjReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	p, err := s.UpdateProject.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateProjectInput{
+	p, err := s.UpdateNode.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateNodeInput{
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
 		Description: req.Description, UpstreamGit: req.UpstreamGit,
-		Status: domain.ProjectStatus(req.Status),
+		Status: domain.NodeStatus(req.Status),
 	})
 	switch {
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
-	case errors.Is(err, domain.ErrInvalidProject) || errors.Is(err, domain.ErrInvalidUpstream):
+	case errors.Is(err, domain.ErrInvalidNode) || errors.Is(err, domain.ErrInvalidUpstream):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
 	writeJSON(w, http.StatusOK, p)
 }
 
 type editSessionReq struct {
-	ProjectID *string    `json:"projectId"`
+	NodeID *string    `json:"projectId"`
 	Tag       string     `json:"tag"`
 	Note      string     `json:"note"`
 	Start     time.Time  `json:"start"`
@@ -320,7 +320,7 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := s.EditSession.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.EditSessionInput{
-		ProjectID: req.ProjectID, Tag: req.Tag, Note: req.Note, Start: req.Start, Stop: req.Stop,
+		NodeID: req.NodeID, Tag: req.Tag, Note: req.Note, Start: req.Start, Stop: req.Stop,
 	})
 	switch {
 	case errors.Is(err, domain.ErrStopBeforeStart):
@@ -357,7 +357,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 
 type reassignReq struct {
 	IDs       []string `json:"ids"`
-	ProjectID string   `json:"projectId"`
+	NodeID string   `json:"projectId"`
 }
 
 func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) {
@@ -367,12 +367,12 @@ func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	n, err := s.BulkAssignProject.Execute(r.Context(), u.ID, req.IDs, req.ProjectID)
+	n, err := s.BulkAssignNode.Execute(r.Context(), u.ID, req.IDs, req.NodeID)
 	switch {
 	case errors.Is(err, usecase.ErrNoSessions):
 		http.Error(w, "no sessions selected", http.StatusBadRequest)
 		return
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "project not found", http.StatusNotFound)
 		return
 	case err != nil:

@@ -140,24 +140,24 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &ae) && ae.StatusCode == http.StatusUnauthorized
 }
 
-func (c *Client) StartSession(ctx context.Context, projectID *string, tag, note string) (domain.WorkSession, error) {
+func (c *Client) StartSession(ctx context.Context, nodeID *string, tag, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
-		map[string]any{"projectId": projectID, "tag": tag, "note": note}, &s)
+		map[string]any{"projectId": nodeID, "tag": tag, "note": note}, &s)
 	return s, err
 }
 
-func (c *Client) StopSession(ctx context.Context, id, projectID string) (domain.WorkSession, error) {
+func (c *Client) StopSession(ctx context.Context, id, nodeID string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions/"+id+"/stop",
-		map[string]any{"projectId": projectID}, &s)
+		map[string]any{"projectId": nodeID}, &s)
 	return s, err
 }
 
-func (c *Client) EditSession(ctx context.Context, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPatch, "/api/v1/sessions/"+id,
-		map[string]any{"projectId": projectID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+		map[string]any{"projectId": nodeID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
 	return s, err
 }
 
@@ -180,10 +180,10 @@ func (c *Client) ListSessionsSince(ctx context.Context, since time.Time) ([]doma
 }
 
 // AddSession backfills a complete past session with explicit start/stop.
-func (c *Client) AddSession(ctx context.Context, projectID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+func (c *Client) AddSession(ctx context.Context, nodeID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
-		map[string]any{"projectId": projectID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+		map[string]any{"projectId": nodeID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
 	return s, err
 }
 
@@ -196,31 +196,31 @@ func (c *Client) ListSessionsRange(ctx context.Context, since, until time.Time) 
 	return out, err
 }
 
-func (c *Client) CreateProject(ctx context.Context, name string) (domain.Project, error) {
-	var p domain.Project
-	err := c.do(ctx, http.MethodPost, "/api/v1/projects", map[string]any{"name": name}, &p)
+func (c *Client) CreateNode(ctx context.Context, name string) (domain.Node, error) {
+	var p domain.Node
+	err := c.do(ctx, http.MethodPost, "/api/v1/nodes", map[string]any{"name": name}, &p)
 	return p, err
 }
 
-func (c *Client) ListProjects(ctx context.Context) ([]domain.Project, error) {
-	var out []domain.Project
-	err := c.do(ctx, http.MethodGet, "/api/v1/projects", nil, &out)
+func (c *Client) ListNodes(ctx context.Context) ([]domain.Node, error) {
+	var out []domain.Node
+	err := c.do(ctx, http.MethodGet, "/api/v1/nodes", nil, &out)
 	return out, err
 }
 
-func (c *Client) DeleteProject(ctx context.Context, id string) error {
-	return c.do(ctx, http.MethodDelete, "/api/v1/projects/"+id, nil, nil)
+func (c *Client) DeleteNode(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/nodes/"+id, nil, nil)
 }
 
-func (c *Client) GetProject(ctx context.Context, id string) (domain.Project, error) {
-	var p domain.Project
-	err := c.do(ctx, http.MethodGet, "/api/v1/projects/"+id, nil, &p)
+func (c *Client) GetNode(ctx context.Context, id string) (domain.Node, error) {
+	var p domain.Node
+	err := c.do(ctx, http.MethodGet, "/api/v1/nodes/"+id, nil, &p)
 	return p, err
 }
 
-// UpdateProjectFields are the mutable project fields (full replace; rate has its
+// UpdateNodeFields are the mutable project fields (full replace; rate has its
 // own endpoint). JSON tags match the server's updateProjReq.
-type UpdateProjectFields struct {
+type UpdateNodeFields struct {
 	Name        string `json:"name"`
 	Slug        string `json:"slug"`
 	Color       string `json:"color"`
@@ -230,19 +230,19 @@ type UpdateProjectFields struct {
 	Status      string `json:"status"`
 }
 
-func (c *Client) UpdateProject(ctx context.Context, id string, in UpdateProjectFields) (domain.Project, error) {
-	var p domain.Project
-	err := c.do(ctx, http.MethodPatch, "/api/v1/projects/"+id, in, &p)
+func (c *Client) UpdateNode(ctx context.Context, id string, in UpdateNodeFields) (domain.Node, error) {
+	var p domain.Node
+	err := c.do(ctx, http.MethodPatch, "/api/v1/nodes/"+id, in, &p)
 	return p, err
 }
 
 // ReassignSessions assigns one project to many sessions; returns the count changed.
-func (c *Client) ReassignSessions(ctx context.Context, projectID string, ids []string) (int, error) {
+func (c *Client) ReassignSessions(ctx context.Context, nodeID string, ids []string) (int, error) {
 	var out struct {
 		Updated int `json:"updated"`
 	}
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions/reassign",
-		map[string]any{"ids": ids, "projectId": projectID}, &out)
+		map[string]any{"ids": ids, "projectId": nodeID}, &out)
 	return out.Updated, err
 }
 

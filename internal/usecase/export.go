@@ -11,10 +11,10 @@ import (
 
 // BuildExport aggregates a user's booked (stopped) sessions in [from,to] by
 // project into a domain.ExportData, resolving project names + rates. The
-// running session is excluded. projectID "" means all projects.
+// running session is excluded. nodeID "" means all projects.
 type BuildExport struct {
 	Sessions ports.SessionStore
-	Projects ports.ProjectStore
+	Nodes	ports.NodeStore
 	Clock    ports.Clock
 	Loc      *time.Location
 }
@@ -27,8 +27,8 @@ func (uc BuildExport) loc() *time.Location {
 }
 
 // Execute aggregates stopped sessions between from and to (inclusive day
-// boundaries). projectID filters to a single project when non-empty.
-func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time.Time, projectID string) (domain.ExportData, error) {
+// boundaries). nodeID filters to a single project when non-empty.
+func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time.Time, nodeID string) (domain.ExportData, error) {
 	loc := uc.loc()
 	// Inclusive day range: [from 00:00, to+1d 00:00)
 	lo := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, loc)
@@ -39,31 +39,31 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 	if err != nil {
 		return domain.ExportData{}, err
 	}
-	projects, err := uc.Projects.List(ctx, ownerID)
+	projects, err := uc.Nodes.List(ctx, ownerID)
 	if err != nil {
 		return domain.ExportData{}, err
 	}
-	byID := make(map[string]domain.Project, len(projects))
+	byID := make(map[string]domain.Node, len(projects))
 	for _, p := range projects {
 		byID[p.ID] = p
 	}
 
 	data := domain.ExportData{From: lo, To: toNorm}
-	totals := map[string]*domain.ProjectTotal{}
+	totals := map[string]*domain.NodeTotal{}
 
 	for _, s := range sessions {
 		// Exclude running sessions and sessions without a project booking.
-		if s.Running() || s.ProjectID == nil {
+		if s.Running() || s.NodeID == nil {
 			continue
 		}
 		start := s.Start.In(loc)
 		if start.Before(lo) || !start.Before(hi) {
 			continue
 		}
-		if projectID != "" && *s.ProjectID != projectID {
+		if nodeID != "" && *s.NodeID != nodeID {
 			continue
 		}
-		p := byID[*s.ProjectID]
+		p := byID[*s.NodeID]
 		name := p.Name
 		if name == "" {
 			name = "(unbekannt)"
@@ -75,18 +75,18 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 			Start:       start,
 			Stop:        stop,
 			Elapsed:     el,
-			ProjectName: name,
+			NodeName: name,
 			Tag:         s.Tag,
 			Note:        s.Note,
 		})
-		t, ok := totals[*s.ProjectID]
+		t, ok := totals[*s.NodeID]
 		if !ok {
-			t = &domain.ProjectTotal{
-				ProjectID:   *s.ProjectID,
-				ProjectName: name,
+			t = &domain.NodeTotal{
+				NodeID:   *s.NodeID,
+				NodeName: name,
 				Rate:        p.Rate,
 			}
-			totals[*s.ProjectID] = t
+			totals[*s.NodeID] = t
 		}
 		t.Total += el
 		t.SessionCount++
@@ -97,11 +97,11 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 			a := t.Rate.Mul(t.Total)
 			t.Amount = &a
 		}
-		data.ByProject = append(data.ByProject, *t)
+		data.ByEngagement = append(data.ByEngagement, *t)
 	}
 
-	sort.Slice(data.ByProject, func(i, j int) bool {
-		return data.ByProject[i].ProjectName < data.ByProject[j].ProjectName
+	sort.Slice(data.ByEngagement, func(i, j int) bool {
+		return data.ByEngagement[i].NodeName < data.ByEngagement[j].NodeName
 	})
 	sort.Slice(data.Sessions, func(i, j int) bool {
 		return data.Sessions[i].Start.Before(data.Sessions[j].Start)

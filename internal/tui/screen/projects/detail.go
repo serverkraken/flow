@@ -15,25 +15,25 @@ import (
 	"github.com/serverkraken/flow/internal/tui/ui/keyhint"
 )
 
-// UpdateFields is a type alias for apiclient.UpdateProjectFields so that
+// UpdateFields is a type alias for apiclient.UpdateNodeFields so that
 // tests and this package can reference it without importing apiclient directly.
 // The alias ensures var _ DetailAPI = (*apiclient.Client)(nil) compiles.
-type UpdateFields = apiclient.UpdateProjectFields
+type UpdateFields = apiclient.UpdateNodeFields
 
 // DetailAPI is the narrow API surface the detail route needs. A fake
 // implements it in tests; *apiclient.Client satisfies it in production
 // (enforced by the compile assert in api.go, wired in Task 8).
 type DetailAPI interface {
-	GetProject(ctx context.Context, id string) (domain.Project, error)
+	GetNode(ctx context.Context, id string) (domain.Node, error)
 	ListSessionsRange(ctx context.Context, since, until time.Time) ([]domain.WorkSession, error)
-	ListDocumentsScoped(ctx context.Context, projectID *string, tags ...string) ([]domain.Document, error)
+	ListDocumentsScoped(ctx context.Context, nodeID *string, tags ...string) ([]domain.Document, error)
 	ListBindings(ctx context.Context) ([]domain.ProjectBinding, error)
-	UpdateProject(ctx context.Context, id string, in UpdateFields) (domain.Project, error)
+	UpdateNode(ctx context.Context, id string, in UpdateFields) (domain.Node, error)
 }
 
 // detailLoadedMsg is the internal message returned by loadCmd.
 type detailLoadedMsg struct {
-	p     domain.Project
+	p     domain.Node
 	agg   worktimeAgg
 	docs  []domain.Document
 	binds []domain.ProjectBinding
@@ -49,22 +49,22 @@ type detailReloadMsg struct{}
 type DetailRoute struct {
 	api  DetailAPI
 	pal  theme.Palette
-	p    domain.Project
+	p    domain.Node
 	data detailLoadedMsg
 	now  func() time.Time
 
 	// formFor is injected by Task 8 wiring; nil until then.
-	formFor func(*domain.Project) shell.Route
+	formFor func(*domain.Node) shell.Route
 }
 
 // NewDetailRoute builds an unloaded detail route. Call Init() to trigger the
 // first data load.
-func NewDetailRoute(api DetailAPI, pal theme.Palette, p domain.Project) *DetailRoute {
+func NewDetailRoute(api DetailAPI, pal theme.Palette, p domain.Node) *DetailRoute {
 	return &DetailRoute{api: api, pal: pal, p: p, now: time.Now}
 }
 
 // SetFormFactory wires in the edit-form constructor (called by Task 8).
-func (r *DetailRoute) SetFormFactory(f func(*domain.Project) shell.Route) { r.formFor = f }
+func (r *DetailRoute) SetFormFactory(f func(*domain.Node) shell.Route) { r.formFor = f }
 
 // Title implements shell.Route.
 func (r *DetailRoute) Title() string { return r.p.Name }
@@ -77,7 +77,7 @@ func (r *DetailRoute) loadCmd() tea.Cmd {
 	api, p, now := r.api, r.p, r.now()
 	return func() tea.Msg {
 		// Refresh the project itself first.
-		fresh, err := api.GetProject(context.Background(), p.ID)
+		fresh, err := api.GetNode(context.Background(), p.ID)
 		if err == nil {
 			p = fresh
 		}
@@ -92,7 +92,7 @@ func (r *DetailRoute) loadCmd() tea.Cmd {
 		allBinds, _ := api.ListBindings(context.Background())
 		var binds []domain.ProjectBinding
 		for _, b := range allBinds {
-			if b.ProjectID == p.ID {
+			if b.NodeID == p.ID {
 				binds = append(binds, b)
 			}
 		}
@@ -109,12 +109,12 @@ func (r *DetailRoute) loadCmd() tea.Cmd {
 	}
 }
 
-// setStatusCmd applies a single status transition (full-replace UpdateProject,
+// setStatusCmd applies a single status transition (full-replace UpdateNode,
 // mirroring the WebUI handleWebProjectStatus) then triggers a reload.
 func (r *DetailRoute) setStatusCmd(status string) tea.Cmd {
 	api, p := r.api, r.p
 	return func() tea.Msg {
-		_, _ = api.UpdateProject(context.Background(), p.ID, UpdateFields{
+		_, _ = api.UpdateNode(context.Background(), p.ID, UpdateFields{
 			Name:        p.Name,
 			Slug:        p.Slug,
 			Color:       p.Color,
@@ -138,7 +138,7 @@ func (r *DetailRoute) Update(msg tea.Msg) (shell.Route, tea.Cmd) {
 		return r, r.loadCmd()
 
 	case shell.EventMsg:
-		if m.Ev.Type == string(domain.EventProjectUpdated) {
+		if m.Ev.Type == string(domain.EventNodeUpdated) {
 			return r, r.loadCmd()
 		}
 		return r, nil

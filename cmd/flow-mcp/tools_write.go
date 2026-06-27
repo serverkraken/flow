@@ -37,12 +37,12 @@ func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in cre
 		if err != nil {
 			return err
 		}
-		pid := sc.projectID
+		pid := sc.nodeID
 		if pid != nil && *pid == "none" { // "none"/"global" both mean unassigned for create
 			pid = nil
 		}
 		d, err := c.CreateDocument(ctx, apiclient.CreateDocumentInput{
-			Type: string(typ), ProjectID: pid, Path: in.Path, Title: in.Title, Body: in.Body,
+			Type: string(typ), NodeID: pid, Path: in.Path, Title: in.Title, Body: in.Body,
 		})
 		if err != nil {
 			return err

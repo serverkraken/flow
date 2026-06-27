@@ -112,7 +112,7 @@ func ProjectFuzzyPicker(vm FuzzyPickerVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, p := range vm.Projects {
+		for _, p := range vm.Nodes {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<li class=\"pick-row flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 cursor-pointer hover:bg-sunken\" role=\"option\" aria-selected=\"false\" data-project-id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

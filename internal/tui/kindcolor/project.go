@@ -4,11 +4,11 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
-// ProjectColor maps a whitelisted project color NAME (domain.ProjectColors) to
+// NodeColor maps a whitelisted project color NAME (domain.NodeColors) to
 // the active palette's hue. Unset or unknown names fall back to FgMuted (the
 // caller renders a neutral swatch rather than guessing). Single source so the
 // TUI cannot drift from the domain whitelist (enforced by a drift-guard test).
-func ProjectColor(name string, p theme.Palette) theme.Color {
+func NodeColor(name string, p theme.Palette) theme.Color {
 	switch name {
 	case "blue":
 		return p.Blue

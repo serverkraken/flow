@@ -29,10 +29,10 @@ func TestProjectBindingStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	projects := pgstore.NewProjectStore(pool)
+	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)
-	p1, _ := domain.NewProject("p-bind-1", "u-bind", "Project 1", "project-1", now)
-	p2, _ := domain.NewProject("p-bind-2", "u-bind", "Project 2", "project-2", now)
+	p1, _ := domain.NewNode("p-bind-1", "u-bind", "Project 1", "project-1", now)
+	p2, _ := domain.NewNode("p-bind-2", "u-bind", "Project 2", "project-2", now)
 	if _, err := projects.Create(ctx, p1); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b := domain.ProjectBinding{
 			ID:         "bind-1",
 			OwnerID:    "u-bind",
-			ProjectID:  "p-bind-1",
+			NodeID:  "p-bind-1",
 			Kind:       domain.BindingRemote,
 			RemoteSlug: "github.com/org/repo",
 			CreatedAt:  now,
@@ -59,8 +59,8 @@ func TestProjectBindingStore(t *testing.T) {
 		if got.ID != "bind-1" {
 			t.Errorf("want id bind-1, got %q", got.ID)
 		}
-		if got.ProjectID != "p-bind-1" {
-			t.Errorf("want project p-bind-1, got %q", got.ProjectID)
+		if got.NodeID != "p-bind-1" {
+			t.Errorf("want project p-bind-1, got %q", got.NodeID)
 		}
 		if got.RemoteSlug != "github.com/org/repo" {
 			t.Errorf("want slug github.com/org/repo, got %q", got.RemoteSlug)
@@ -72,7 +72,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b2 := domain.ProjectBinding{
 			ID:         "bind-2", // different id — conflict target must win
 			OwnerID:    "u-bind",
-			ProjectID:  "p-bind-2",
+			NodeID:  "p-bind-2",
 			Kind:       domain.BindingRemote,
 			RemoteSlug: "github.com/org/repo",
 			CreatedAt:  now,
@@ -83,8 +83,8 @@ func TestProjectBindingStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		// id should be the original row's id (ON CONFLICT returns the existing row)
-		if got.ProjectID != "p-bind-2" {
-			t.Errorf("want project reassigned to p-bind-2, got %q", got.ProjectID)
+		if got.NodeID != "p-bind-2" {
+			t.Errorf("want project reassigned to p-bind-2, got %q", got.NodeID)
 		}
 
 		// verify exactly one row in the DB
@@ -95,8 +95,8 @@ func TestProjectBindingStore(t *testing.T) {
 		if len(all) != 1 {
 			t.Fatalf("want 1 binding after re-upsert, got %d", len(all))
 		}
-		if all[0].ProjectID != "p-bind-2" {
-			t.Errorf("stored binding still has old project %q", all[0].ProjectID)
+		if all[0].NodeID != "p-bind-2" {
+			t.Errorf("stored binding still has old project %q", all[0].NodeID)
 		}
 	})
 
@@ -106,14 +106,14 @@ func TestProjectBindingStore(t *testing.T) {
 		if _, err := users.UpsertBySub(ctx, u2); err != nil {
 			t.Fatal(err)
 		}
-		p3, _ := domain.NewProject("p-other-1", "u-other", "Other P", "other-p", now)
+		p3, _ := domain.NewNode("p-other-1", "u-other", "Other P", "other-p", now)
 		if _, err := projects.Create(ctx, p3); err != nil {
 			t.Fatal(err)
 		}
 		bOther := domain.ProjectBinding{
 			ID:         "bind-other",
 			OwnerID:    "u-other",
-			ProjectID:  "p-other-1",
+			NodeID:  "p-other-1",
 			Kind:       domain.BindingRemote,
 			RemoteSlug: "github.com/org/repo", // same slug, different owner → no conflict
 			CreatedAt:  now,
@@ -139,7 +139,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b3 := domain.ProjectBinding{
 			ID:         "bind-3",
 			OwnerID:    "u-bind",
-			ProjectID:  "p-bind-1",
+			NodeID:  "p-bind-1",
 			Kind:       domain.BindingRemote,
 			RemoteSlug: "github.com/org/other-repo",
 			CreatedAt:  now,
@@ -186,7 +186,7 @@ func TestProjectBindingStore(t *testing.T) {
 	t.Run("cascade on project delete", func(t *testing.T) {
 		// the current binding in u-bind points to p-bind-2; deleting that project
 		// should cascade-delete the binding
-		const delQ = `DELETE FROM projects WHERE id=$1`
+		const delQ = `DELETE FROM nodes WHERE id=$1`
 		if _, err := pool.Exec(ctx, delQ, "p-bind-2"); err != nil {
 			t.Fatal(err)
 		}
@@ -195,14 +195,14 @@ func TestProjectBindingStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, b := range all {
-			if b.ProjectID == "p-bind-2" {
+			if b.NodeID == "p-bind-2" {
 				t.Error("binding not cascade-deleted with project")
 			}
 		}
 	})
 
 	// Re-create p-bind-2 (was cascade-deleted above) so path sub-tests can use both projects.
-	p2recreated, _ := domain.NewProject("p-bind-2", "u-bind", "Project 2", "project-2", now)
+	p2recreated, _ := domain.NewNode("p-bind-2", "u-bind", "Project 2", "project-2", now)
 	if _, err := projects.Create(ctx, p2recreated); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b := domain.ProjectBinding{
 			ID:           "path-bind-1",
 			OwnerID:      "u-bind",
-			ProjectID:    "p-bind-1",
+			NodeID:    "p-bind-1",
 			Kind:         domain.BindingPath,
 			MachineID:    "machine-a",
 			MachineLabel: "laptop",
@@ -226,8 +226,8 @@ func TestProjectBindingStore(t *testing.T) {
 		if got.Kind != domain.BindingPath {
 			t.Errorf("want kind path, got %q", got.Kind)
 		}
-		if got.ProjectID != "p-bind-1" {
-			t.Errorf("want project p-bind-1, got %q", got.ProjectID)
+		if got.NodeID != "p-bind-1" {
+			t.Errorf("want project p-bind-1, got %q", got.NodeID)
 		}
 		if got.MachineID != "machine-a" {
 			t.Errorf("want machine-a, got %q", got.MachineID)
@@ -241,7 +241,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b2 := domain.ProjectBinding{
 			ID:           "path-bind-1b", // different id — conflict target must win
 			OwnerID:      "u-bind",
-			ProjectID:    "p-bind-2",
+			NodeID:    "p-bind-2",
 			Kind:         domain.BindingPath,
 			MachineID:    "machine-a",
 			MachineLabel: "laptop-renamed",
@@ -253,8 +253,8 @@ func TestProjectBindingStore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.ProjectID != "p-bind-2" {
-			t.Errorf("want project reassigned to p-bind-2, got %q", got.ProjectID)
+		if got.NodeID != "p-bind-2" {
+			t.Errorf("want project reassigned to p-bind-2, got %q", got.NodeID)
 		}
 		if got.MachineLabel != "laptop-renamed" {
 			t.Errorf("want machine_label updated to laptop-renamed, got %q", got.MachineLabel)
@@ -274,8 +274,8 @@ func TestProjectBindingStore(t *testing.T) {
 		if len(pathRows) != 1 {
 			t.Fatalf("want exactly 1 path row for (machine-a, /a/b), got %d", len(pathRows))
 		}
-		if pathRows[0].ProjectID != "p-bind-2" {
-			t.Errorf("stored path binding still has old project %q", pathRows[0].ProjectID)
+		if pathRows[0].NodeID != "p-bind-2" {
+			t.Errorf("stored path binding still has old project %q", pathRows[0].NodeID)
 		}
 	})
 
@@ -283,7 +283,7 @@ func TestProjectBindingStore(t *testing.T) {
 		b := domain.ProjectBinding{
 			ID:           "path-bind-2",
 			OwnerID:      "u-bind",
-			ProjectID:    "p-bind-1",
+			NodeID:    "p-bind-1",
 			Kind:         domain.BindingPath,
 			MachineID:    "machine-a",
 			MachineLabel: "laptop",
@@ -360,7 +360,7 @@ func TestProjectBindingStore(t *testing.T) {
 
 	t.Run("path: cascade on project delete removes path binding", func(t *testing.T) {
 		// /a/c points to p-bind-1; deleting p-bind-1 must cascade
-		const delQ = `DELETE FROM projects WHERE id=$1`
+		const delQ = `DELETE FROM nodes WHERE id=$1`
 		if _, err := pool.Exec(ctx, delQ, "p-bind-1"); err != nil {
 			t.Fatal(err)
 		}
@@ -369,7 +369,7 @@ func TestProjectBindingStore(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, b := range all {
-			if b.ProjectID == "p-bind-1" {
+			if b.NodeID == "p-bind-1" {
 				t.Error("path binding not cascade-deleted with project")
 			}
 		}
@@ -377,7 +377,7 @@ func TestProjectBindingStore(t *testing.T) {
 
 	t.Run("path: remote and path bindings for same owner+project coexist", func(t *testing.T) {
 		// Re-create p-bind-1 (just cascade-deleted above) for this coexistence test.
-		p1recreated, _ := domain.NewProject("p-bind-coex", "u-bind", "Coex Project", "coex-project", now)
+		p1recreated, _ := domain.NewNode("p-bind-coex", "u-bind", "Coex Project", "coex-project", now)
 		if _, err := projects.Create(ctx, p1recreated); err != nil {
 			t.Fatal(err)
 		}
@@ -385,7 +385,7 @@ func TestProjectBindingStore(t *testing.T) {
 		remote := domain.ProjectBinding{
 			ID:         "coex-remote",
 			OwnerID:    "u-bind",
-			ProjectID:  "p-bind-coex",
+			NodeID:  "p-bind-coex",
 			Kind:       domain.BindingRemote,
 			RemoteSlug: "github.com/org/coex-repo",
 			CreatedAt:  now,
@@ -394,7 +394,7 @@ func TestProjectBindingStore(t *testing.T) {
 		path := domain.ProjectBinding{
 			ID:           "coex-path",
 			OwnerID:      "u-bind",
-			ProjectID:    "p-bind-coex",
+			NodeID:    "p-bind-coex",
 			Kind:         domain.BindingPath,
 			MachineID:    "machine-b",
 			MachineLabel: "desktop",

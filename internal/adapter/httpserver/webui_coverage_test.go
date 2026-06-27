@@ -29,15 +29,15 @@ func TestHistorieMonth_RendersGrid(t *testing.T) {
 	pid := seedHistProject(t, srv, "myproject")
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
 
-	// Assign the session to the project via BulkAssignProject (exercises projectHue).
+	// Assign the session to the project via BulkAssignNode (exercises projectHue).
 	ids := histSessionIDs(t, srv, "2026-06-15", "2026-06-16")
 	if len(ids) != 1 {
 		t.Fatalf("expected 1 session, got %d", len(ids))
 	}
-	_, err := usecase.BulkAssignProject{Sessions: srv.ss, Projects: srv.ps}.
+	_, err := usecase.BulkAssignNode{Sessions: srv.ss, Nodes: srv.ps}.
 		Execute(ctx, "u1", ids, pid)
 	if err != nil {
-		t.Fatalf("BulkAssignProject: %v", err)
+		t.Fatalf("BulkAssignNode: %v", err)
 	}
 
 	// Seed an unassigned session on 2026-06-16 (triggers the unassigned bar path).
@@ -220,10 +220,10 @@ func TestWocheTotalVariant_PastWeekUnder(t *testing.T) {
 }
 
 // TestWebProjectNew_RendersForm exercises handleWebProjectNew (0% prior) at
-// GET /projects/new — renders the empty project creation form.
+// GET /nodes/new — renders the empty project creation form.
 func TestWebProjectNew_RendersForm(t *testing.T) {
 	srv := newWorktimeTestServer(t)
-	rr := histGet(t, srv, "/projects/new")
+	rr := histGet(t, srv, "/nodes/new")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
@@ -366,36 +366,36 @@ func TestHistorieMonth_UnassignedBanner(t *testing.T) {
 }
 
 // TestWebProjectUpdate_RedirectsOnSuccess exercises handleWebProjectUpdate via
-// the newWebProjectsServer harness (which wires GetProject, UpdateProject).
+// the newWebProjectsServer harness (which wires GetNode, UpdateNode).
 func TestWebProjectUpdate_RedirectsOnSuccess(t *testing.T) {
 	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "upd-1", "Old Name", domain.ProjectActive)
+	seedProjectForWeb(t, ps, "upd-1", "Old Name", domain.NodeActive)
 
-	res := postWebForm(t, ts, cookie, "/projects/upd-1", url.Values{
-		"name": {"New Name"}, "slug": {"new-name"}, "color": {domain.ProjectColors[0]},
-		"glyph": {domain.ProjectGlyphs[0]}, "status": {"active"},
+	res := postWebForm(t, ts, cookie, "/nodes/upd-1", url.Values{
+		"name": {"New Name"}, "slug": {"new-name"}, "color": {domain.NodeColors[0]},
+		"glyph": {domain.NodeGlyphs[0]}, "status": {"active"},
 	})
 	defer func() { _ = res.Body.Close() }()
 	// Successful update redirects to the project page.
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("update: want 303 got %d", res.StatusCode)
 	}
-	if loc := res.Header.Get("Location"); !strings.Contains(loc, "/projects/") {
-		t.Errorf("update redirect missing /projects/ prefix, got %q", loc)
+	if loc := res.Header.Get("Location"); !strings.Contains(loc, "/nodes/") {
+		t.Errorf("update redirect missing /nodes/ prefix, got %q", loc)
 	}
 }
 
 // TestWebProjectUpdate_EmptyNameErrors exercises the reRender branch in
 // handleWebProjectUpdate (name empty → 400 with error form).
-// Note: name validation happens in UpdateProject, not here, so empty name
-// triggers the ErrInvalidProject path.
+// Note: name validation happens in UpdateNode, not here, so empty name
+// triggers the ErrInvalidNode path.
 func TestWebProjectUpdate_InvalidName(t *testing.T) {
 	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "upd-2", "Valid Name", domain.ProjectActive)
+	seedProjectForWeb(t, ps, "upd-2", "Valid Name", domain.NodeActive)
 
-	res := postWebForm(t, ts, cookie, "/projects/upd-2", url.Values{
-		"name": {""}, "slug": {"valid-name"}, "color": {domain.ProjectColors[0]},
-		"glyph": {domain.ProjectGlyphs[0]}, "status": {"active"},
+	res := postWebForm(t, ts, cookie, "/nodes/upd-2", url.Values{
+		"name": {""}, "slug": {"valid-name"}, "color": {domain.NodeColors[0]},
+		"glyph": {domain.NodeGlyphs[0]}, "status": {"active"},
 	})
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusBadRequest && res.StatusCode != http.StatusSeeOther {
@@ -434,12 +434,12 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 	// Seed a project with a rate (100 EUR/h = 10000 cents).
 	projID := "proj-rate-1"
 	rate := &domain.Money{Amount: 10000, Currency: "EUR"}
-	proj := domain.Project{
+	proj := domain.Node{
 		ID:      projID,
 		OwnerID: "u1",
 		Name:    "Rated Project",
 		Slug:    "rated-project",
-		Status:  domain.ProjectActive,
+		Status:  domain.NodeActive,
 		Rate:    rate,
 	}
 	if _, err := projects.Create(context.Background(), proj); err != nil {
@@ -453,7 +453,7 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 		OwnerID:   "u1",
 		Start:     start,
 		Stop:      &stop,
-		ProjectID: &projID,
+		NodeID: &projID,
 	}
 	if _, err := sessions.Create(context.Background(), ws); err != nil {
 		t.Fatalf("seed session: %v", err)
@@ -485,11 +485,11 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 // the projectWorktime function branches (week/month bins with actual data).
 func TestWebProjectsListWithSessions(t *testing.T) {
 	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "sess-proj-1", "Active Billed", domain.ProjectActive)
+	seedProjectForWeb(t, ps, "sess-proj-1", "Active Billed", domain.NodeActive)
 
-	code, body := getWeb(t, ts, cookie, "/projects")
+	code, body := getWeb(t, ts, cookie, "/nodes")
 	if code != http.StatusOK {
-		t.Fatalf("GET /projects status=%d", code)
+		t.Fatalf("GET /nodes status=%d", code)
 	}
 	if !strings.Contains(body, "Active Billed") {
 		t.Errorf("projects list missing project name, got:\n%s", body[:limitLen(500, len(body))])
@@ -573,22 +573,22 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 // by rendering the projects list with projects in multiple status states.
 func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
 	ts, cookie, ps := newWebProjectsServer(t)
-	seedProjectForWeb(t, ps, "p-active-1", "Alpha", domain.ProjectActive)
-	seedProjectForWeb(t, ps, "p-archived-1", "Beta", domain.ProjectArchived)
+	seedProjectForWeb(t, ps, "p-active-1", "Alpha", domain.NodeActive)
+	seedProjectForWeb(t, ps, "p-archived-1", "Beta", domain.NodeArchived)
 
 	// Default list (all projects).
-	code, body := getWeb(t, ts, cookie, "/projects")
+	code, body := getWeb(t, ts, cookie, "/nodes")
 	if code != http.StatusOK {
-		t.Fatalf("GET /projects status=%d", code)
+		t.Fatalf("GET /nodes status=%d", code)
 	}
 	if !strings.Contains(body, "Alpha") {
 		t.Errorf("projects list missing 'Alpha'")
 	}
 
 	// Archived filter.
-	code2, body2 := getWeb(t, ts, cookie, "/projects?status=archived")
+	code2, body2 := getWeb(t, ts, cookie, "/nodes?status=archived")
 	if code2 != http.StatusOK {
-		t.Fatalf("GET /projects?status=archived status=%d", code2)
+		t.Fatalf("GET /nodes?status=archived status=%d", code2)
 	}
 	if !strings.Contains(body2, "Beta") {
 		t.Errorf("archived projects list missing 'Beta'")
@@ -600,14 +600,14 @@ func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
 func TestWebProjectCockpit_WithGitUpstream(t *testing.T) {
 	ts, cookie, ps := newWebProjectsServer(t)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
-	p, _ := domain.NewProject("git-proj-1", "u1", "GitProject", "gitproject", now)
+	p, _ := domain.NewNode("git-proj-1", "u1", "GitProject", "gitproject", now)
 	p.UpstreamGit = "git@github.com:serverkraken/gitproject.git"
-	p.Status = domain.ProjectActive
+	p.Status = domain.NodeActive
 	_, _ = ps.Create(context.Background(), p)
 
-	code, body := getWeb(t, ts, cookie, "/projects/git-proj-1")
+	code, body := getWeb(t, ts, cookie, "/nodes/git-proj-1")
 	if code != http.StatusOK {
-		t.Fatalf("GET /projects/git-proj-1 status=%d body=%.200s", code, body)
+		t.Fatalf("GET /nodes/git-proj-1 status=%d body=%.200s", code, body)
 	}
 	if !strings.Contains(body, "GitProject") {
 		t.Errorf("cockpit missing project name")
@@ -626,14 +626,14 @@ func TestHeuteHome_ProjectWithEURRate(t *testing.T) {
 	ctx := context.Background()
 
 	// Seed a project with a EUR rate (9500 cents = 95 €/h).
-	p, err := domain.NewProject("rate-proj-1", "u1", "BilledProject", "billedproject",
+	p, err := domain.NewNode("rate-proj-1", "u1", "BilledProject", "billedproject",
 		time.Date(2026, 6, 20, 8, 0, 0, 0, time.UTC))
 	if err != nil {
-		t.Fatalf("NewProject: %v", err)
+		t.Fatalf("NewNode: %v", err)
 	}
 	eurRate := domain.Money{Amount: 9500, Currency: "EUR"}
 	p.Rate = &eurRate
-	p.Status = domain.ProjectActive
+	p.Status = domain.NodeActive
 	if _, err := srv.ps.Create(ctx, p); err != nil {
 		t.Fatalf("ps.Create: %v", err)
 	}
@@ -659,7 +659,7 @@ func newWocheWithDayOffServer(t *testing.T) (*httpserver.Server, *testutil.FakeD
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 21, 12, 0, 0, 0, time.Local)}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
@@ -679,8 +679,8 @@ func newWocheWithDayOffServer(t *testing.T) (*httpserver.Server, *testutil.FakeD
 		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
 		ListSessionsPage:    usecase.ListSessionsPage{Sessions: ss},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDayOffs:         listDayOffs,
 		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
 		Stats: usecase.StatsComputer{
@@ -700,7 +700,7 @@ func newWocheWithDayOffServer(t *testing.T) (*httpserver.Server, *testutil.FakeD
 func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	ss := testutil.NewFakeSessionStore()
 	users := testutil.NewFakeUserStore()
@@ -720,14 +720,14 @@ func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateProject:       usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:        usecase.ListProjects{Projects: ps},
-		GetProject:          usecase.GetProject{Projects: ps},
-		UpdateProject:       usecase.UpdateProject{Projects: ps, Bindings: bs, IDs: ids, Clock: clk},
-		DeleteProject:       usecase.DeleteProject{Projects: ps},
-		SetProjectRate:      usecase.SetProjectRate{Projects: ps},
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		GetNode:          usecase.GetNode{Nodes: ps},
+		UpdateNode:       usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
+		DeleteNode:       usecase.DeleteNode{Nodes: ps},
+		SetNodeRate:      usecase.SetNodeRate{Nodes: ps},
 		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDocuments:       usecase.ListDocuments{Docs: docs},
 	}
 	ts := httptest.NewServer(srv.Routes())
@@ -737,10 +737,10 @@ func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Date(2026, 6, 22, 8, 0, 0, 0, time.UTC)
-	p, _ := domain.NewProject("rate-sess-proj", "u1", "BilledWork", "billedwork", now)
+	p, _ := domain.NewNode("rate-sess-proj", "u1", "BilledWork", "billedwork", now)
 	eurRate := domain.Money{Amount: 9500, Currency: "EUR"}
 	p.Rate = &eurRate
-	p.Status = domain.ProjectActive
+	p.Status = domain.NodeActive
 	_, _ = ps.Create(ctx, p)
 
 	// Seed a completed 8h session assigned to the project.
@@ -752,11 +752,11 @@ func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 		OwnerID:   "u1",
 		Start:     start,
 		Stop:      &stop,
-		ProjectID: &pid,
+		NodeID: &pid,
 	}
 	_, _ = ss.Create(ctx, sess)
 
-	req, _ := http.NewRequest("GET", ts.URL+"/projects/rate-sess-proj", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/nodes/rate-sess-proj", nil)
 	req.AddCookie(cookie)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -766,7 +766,7 @@ func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
 	_ = res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("GET /projects/rate-sess-proj status=%d body=%.200s", res.StatusCode, string(b))
+		t.Fatalf("GET /nodes/rate-sess-proj status=%d body=%.200s", res.StatusCode, string(b))
 	}
 	body := string(b)
 	if !strings.Contains(body, "BilledWork") {
@@ -881,7 +881,7 @@ func TestHistorieCalFragment_WithProjectSession(t *testing.T) {
 	pid := seedHistProject(t, srv, "testproj")
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
 	ids := histSessionIDs(t, srv, "2026-06-15", "2026-06-16")
-	_, _ = usecase.BulkAssignProject{Sessions: srv.ss, Projects: srv.ps}.
+	_, _ = usecase.BulkAssignNode{Sessions: srv.ss, Nodes: srv.ps}.
 		Execute(ctx, "u1", ids, pid)
 
 	rr := histGet(t, srv, "/ui/historie/calendar")

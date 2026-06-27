@@ -18,9 +18,9 @@ import (
 // it in tests; *apiclient.Client satisfies it in production (enforced by the
 // compile assert below).
 type FormAPI interface {
-	CreateProject(ctx context.Context, name string) (domain.Project, error)
-	UpdateProject(ctx context.Context, id string, in UpdateFields) (domain.Project, error)
-	SetProjectRate(ctx context.Context, projectID string, amount *int64, currency string) error
+	CreateNode(ctx context.Context, name string) (domain.Node, error)
+	UpdateNode(ctx context.Context, id string, in UpdateFields) (domain.Node, error)
+	SetNodeRate(ctx context.Context, nodeID string, amount *int64, currency string) error
 }
 
 var _ FormAPI = (*apiclient.Client)(nil)
@@ -70,8 +70,8 @@ var textInputIdx = map[int]int{
 // colorChoices, glyphChoices, statusChoices are the selector whitelists.
 // "" prepended to color/glyph signals "none".
 var (
-	colorChoices  = append([]string{""}, domain.ProjectColors...)
-	glyphChoices  = append([]string{""}, domain.ProjectGlyphs...)
+	colorChoices  = append([]string{""}, domain.NodeColors...)
+	glyphChoices  = append([]string{""}, domain.NodeGlyphs...)
 	statusChoices = []string{"active", "paused", "archived"}
 )
 
@@ -80,7 +80,7 @@ var (
 type FormRoute struct {
 	api     FormAPI
 	pal     theme.Palette
-	editing *domain.Project // nil = create mode
+	editing *domain.Node // nil = create mode
 
 	// inputs holds the 6 text input widgets in focus order:
 	// Name, Slug, Description, UpstreamGit, RateAmount, RateCurrency.
@@ -94,7 +94,7 @@ type FormRoute struct {
 
 // NewFormRoute creates an empty form (create mode when editing==nil)
 // or a pre-filled form (edit mode when editing!=nil).
-func NewFormRoute(api FormAPI, pal theme.Palette, editing *domain.Project) *FormRoute {
+func NewFormRoute(api FormAPI, pal theme.Palette, editing *domain.Node) *FormRoute {
 	r := &FormRoute{api: api, pal: pal, editing: editing}
 
 	// Build 6 themed text inputs.
@@ -203,13 +203,13 @@ func (r *FormRoute) Submit() (shell.Route, tea.Cmd) {
 		if editing != nil {
 			id = editing.ID
 		} else {
-			p, err := api.CreateProject(ctx, v.Name)
+			p, err := api.CreateNode(ctx, v.Name)
 			if err != nil {
 				return formErrMsg{fmt.Sprintf("Projekt anlegen: %v", err)}
 			}
 			id = p.ID
 		}
-		if _, err := api.UpdateProject(ctx, id, UpdateFields{
+		if _, err := api.UpdateNode(ctx, id, UpdateFields{
 			Name:        v.Name,
 			Slug:        v.Slug,
 			Color:       v.Color,
@@ -221,7 +221,7 @@ func (r *FormRoute) Submit() (shell.Route, tea.Cmd) {
 			return formErrMsg{fmt.Sprintf("Projekt speichern: %v", err)}
 		}
 		// nil clears the rate; a value sets it.
-		if err := api.SetProjectRate(ctx, id, rate, cur); err != nil {
+		if err := api.SetNodeRate(ctx, id, rate, cur); err != nil {
 			return formErrMsg{fmt.Sprintf("Satz setzen: %v", err)}
 		}
 		return shell.PopRouteMsg{}

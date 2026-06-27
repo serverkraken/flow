@@ -9,7 +9,7 @@ import (
 
 // resolveSlug returns the project ID for the given slug, or an error if none matches.
 func resolveSlug(ctx context.Context, c *apiclient.Client, slug string) (string, error) {
-	projects, err := c.ListProjects(ctx)
+	projects, err := c.ListNodes(ctx)
 	if err != nil {
 		return "", err
 	}

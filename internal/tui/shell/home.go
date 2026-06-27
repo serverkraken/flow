@@ -22,14 +22,14 @@ type DashboardAPI interface {
 	GetToday(ctx context.Context) (apiclient.Today, error)
 	GetWeek(ctx context.Context, ref string) ([]apiclient.WeekDay, error)
 	ListDocuments(ctx context.Context, tags ...string) ([]domain.Document, error)
-	ListProjects(ctx context.Context) ([]domain.Project, error)
+	ListNodes(ctx context.Context) ([]domain.Node, error)
 }
 
 type homeLoadedMsg struct {
 	today    apiclient.Today
 	week     []apiclient.WeekDay
 	docs     []domain.Document
-	projects []domain.Project
+	projects []domain.Node
 	err      error
 }
 
@@ -43,7 +43,7 @@ type HomeRoute struct {
 	today    apiclient.Today
 	week     []apiclient.WeekDay
 	docs     []domain.Document
-	projects []domain.Project
+	projects []domain.Node
 	loaded   bool
 	err      error
 }
@@ -68,7 +68,7 @@ func (h HomeRoute) loadCmd() tea.Cmd {
 		}
 		week, _ := api.GetWeek(ctx, "")
 		docs, _ := api.ListDocuments(ctx)
-		projects, _ := api.ListProjects(ctx)
+		projects, _ := api.ListNodes(ctx)
 		return homeLoadedMsg{today: today, week: week, docs: docs, projects: projects}
 	}
 }
@@ -193,7 +193,7 @@ func homeRelevantEvent(t string) bool {
 	case domain.EventSessionStarted, domain.EventSessionStopped,
 		domain.EventSessionUpdated, domain.EventSessionDeleted,
 		domain.EventDayOffChanged, domain.EventSettingsChanged,
-		domain.EventProjectCreated:
+		domain.EventNodeCreated:
 		return true
 	}
 	// Any document.* event also refreshes the knowledge column.

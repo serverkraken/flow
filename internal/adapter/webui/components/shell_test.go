@@ -10,7 +10,7 @@ import (
 
 func TestSiteNavMarksActive(t *testing.T) {
 	out := render(t, components.SiteNav("docs"))
-	// nav items link to their REAL routes (/wissen, /projects, /dayoffs), not the
+	// nav items link to their REAL routes (/wissen, /nodes, /dayoffs), not the
 	// German label-named paths — see fix for dead sidebar links.
 	for _, w := range []string{"Heute", "Wissen", "Projekte", "Stats", `href="/wissen"`, `aria-current="page"`} {
 		if !strings.Contains(out, w) {

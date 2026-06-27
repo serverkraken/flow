@@ -12,7 +12,7 @@ import (
 // week/month durations, and computing earnings when a rate is set.
 func TestAggregate(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday 2026-06-21
-	p := domain.Project{ID: "p1"}
+	p := domain.Node{ID: "p1"}
 
 	pid := "p1"
 	otherPid := "p2"
@@ -33,10 +33,10 @@ func TestAggregate(t *testing.T) {
 	start4 := time.Date(2026, 6, 21, 10, 0, 0, 0, time.UTC)
 
 	sessions := []domain.WorkSession{
-		{ID: "s1", ProjectID: &pid, Start: start1, Stop: &stop1},
-		{ID: "s2", ProjectID: &pid, Start: start2, Stop: &stop2},
-		{ID: "s3", ProjectID: &otherPid, Start: start3, Stop: &stop3}, // different project
-		{ID: "s4", ProjectID: &pid, Start: start4},                    // running (no Stop)
+		{ID: "s1", NodeID: &pid, Start: start1, Stop: &stop1},
+		{ID: "s2", NodeID: &pid, Start: start2, Stop: &stop2},
+		{ID: "s3", NodeID: &otherPid, Start: start3, Stop: &stop3}, // different project
+		{ID: "s4", NodeID: &pid, Start: start4},                    // running (no Stop)
 	}
 
 	agg := aggregate(p, sessions, now)

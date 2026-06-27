@@ -20,7 +20,7 @@ func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 
@@ -29,12 +29,12 @@ func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:           sse.NewBus(),
 		Clock:         clk,
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
-		BindProject:   usecase.BindProject{Bindings: bs, Projects: ps, IDs: ids, Clock: clk},
-		UnbindProject: usecase.UnbindProject{Bindings: bs},
-		ResolveProject: usecase.ResolveProject{Bindings: bs, Projects: ps},
-		ListProjectBindings: usecase.ListProjectBindings{Bindings: bs},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
+		BindNode:   usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
+		UnbindNode: usecase.UnbindNode{Bindings: bs},
+		ResolveNode: usecase.ResolveNode{Bindings: bs, Nodes: ps},
+		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 	}
 
 	ts := httptest.NewServer(srv.Routes())
@@ -59,17 +59,17 @@ func TestProjectBindings_BindAndResolveAndList(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// Create a project to bind to.
-	res := do("POST", "/api/v1/projects", `{"name":"Flow"}`)
+	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create project: %d", res.StatusCode)
 	}
-	var proj domain.Project
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 
 	// PUT a remote binding for the project.
 	bindBody := `{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`
-	res = do("PUT", "/api/v1/projects/"+proj.ID+"/bindings", bindBody)
+	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", bindBody)
 	if res.StatusCode != http.StatusOK {
 		body := make([]byte, 512)
 		n, _ := res.Body.Read(body)
@@ -81,24 +81,24 @@ func TestProjectBindings_BindAndResolveAndList(t *testing.T) {
 	if binding.RemoteSlug != "github.com/serverkraken/flow" {
 		t.Fatalf("binding RemoteSlug = %q", binding.RemoteSlug)
 	}
-	if binding.ProjectID != proj.ID {
-		t.Fatalf("binding ProjectID = %q, want %q", binding.ProjectID, proj.ID)
+	if binding.NodeID != proj.ID {
+		t.Fatalf("binding NodeID = %q, want %q", binding.NodeID, proj.ID)
 	}
 
 	// GET /resolve?slug=<remote> → 200 with the project.
-	res = do("GET", "/api/v1/projects/resolve?slug=github.com%2Fserverkraken%2Fflow", "")
+	res = do("GET", "/api/v1/nodes/resolve?slug=github.com%2Fserverkraken%2Fflow", "")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("resolve: status %d", res.StatusCode)
 	}
-	var resolved domain.Project
+	var resolved domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&resolved)
 	_ = res.Body.Close()
 	if resolved.ID != proj.ID {
 		t.Fatalf("resolved project ID = %q, want %q", resolved.ID, proj.ID)
 	}
 
-	// GET /api/v1/projects/bindings → 200, lists the binding.
-	res = do("GET", "/api/v1/projects/bindings", "")
+	// GET /api/v1/nodes/bindings → 200, lists the binding.
+	res = do("GET", "/api/v1/nodes/bindings", "")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("list bindings: status %d", res.StatusCode)
 	}
@@ -117,7 +117,7 @@ func TestProjectBindings_BindAndResolveAndList(t *testing.T) {
 func TestProjectBindings_ResolveUnknown(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
-	res := do("GET", "/api/v1/projects/resolve?slug=github.com%2Funknown%2Frepo", "")
+	res := do("GET", "/api/v1/nodes/resolve?slug=github.com%2Funknown%2Frepo", "")
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("resolve unknown: want 404, got %d", res.StatusCode)
 	}
@@ -128,7 +128,7 @@ func TestProjectBindings_ResolveUnknown(t *testing.T) {
 func TestProjectBindings_BindUnknownProject(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
-	res := do("PUT", "/api/v1/projects/no-such-id/bindings", `{"kind":"remote","remoteSlug":"github.com/x/y"}`)
+	res := do("PUT", "/api/v1/nodes/no-such-id/bindings", `{"kind":"remote","remoteSlug":"github.com/x/y"}`)
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("bind unknown project: want 404, got %d", res.StatusCode)
 	}
@@ -140,68 +140,68 @@ func TestProjectBindings_BindInvalidBody(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// First create a project so we know the {id} is valid.
-	res := do("POST", "/api/v1/projects", `{"name":"X"}`)
-	var proj domain.Project
+	res := do("POST", "/api/v1/nodes", `{"name":"X"}`)
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 
-	res = do("PUT", "/api/v1/projects/"+proj.ID+"/bindings", `not-json`)
+	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `not-json`)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad body: want 400, got %d", res.StatusCode)
 	}
 	_ = res.Body.Close()
 }
 
-// TestProjectBindings_ListByProject verifies GET /api/v1/projects/{id}/bindings.
+// TestProjectBindings_ListByProject verifies GET /api/v1/nodes/{id}/bindings.
 func TestProjectBindings_ListByProject(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// Create project + bind.
-	res := do("POST", "/api/v1/projects", `{"name":"Kompendium"}`)
-	var proj domain.Project
+	res := do("POST", "/api/v1/nodes", `{"name":"Kompendium"}`)
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 
-	res = do("PUT", "/api/v1/projects/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/sk/kompendium"}`)
+	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/sk/kompendium"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("bind: %d", res.StatusCode)
 	}
 
-	res = do("GET", "/api/v1/projects/"+proj.ID+"/bindings", "")
+	res = do("GET", "/api/v1/nodes/"+proj.ID+"/bindings", "")
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("list by project: %d", res.StatusCode)
 	}
 	var bs []domain.ProjectBinding
 	_ = json.NewDecoder(res.Body).Decode(&bs)
 	_ = res.Body.Close()
-	if len(bs) != 1 || bs[0].ProjectID != proj.ID {
+	if len(bs) != 1 || bs[0].NodeID != proj.ID {
 		t.Fatalf("list by project: got %+v", bs)
 	}
 }
 
-// TestProjectBindings_DeleteUnbind verifies DELETE /api/v1/projects/bindings.
+// TestProjectBindings_DeleteUnbind verifies DELETE /api/v1/nodes/bindings.
 func TestProjectBindings_DeleteUnbind(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// Create project + bind.
-	res := do("POST", "/api/v1/projects", `{"name":"Tool"}`)
-	var proj domain.Project
+	res := do("POST", "/api/v1/nodes", `{"name":"Tool"}`)
+	var proj domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&proj)
 	_ = res.Body.Close()
 
-	res = do("PUT", "/api/v1/projects/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/x/tool"}`)
+	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/x/tool"}`)
 	_ = res.Body.Close()
 
 	// Delete the binding.
-	res = do("DELETE", "/api/v1/projects/bindings?kind=remote&slug=github.com%2Fx%2Ftool", "")
+	res = do("DELETE", "/api/v1/nodes/bindings?kind=remote&slug=github.com%2Fx%2Ftool", "")
 	if res.StatusCode != http.StatusNoContent {
 		t.Fatalf("delete binding: want 204, got %d", res.StatusCode)
 	}
 	_ = res.Body.Close()
 
 	// Verify it's gone: list should be empty.
-	res = do("GET", "/api/v1/projects/bindings", "")
+	res = do("GET", "/api/v1/nodes/bindings", "")
 	var all []domain.ProjectBinding
 	_ = json.NewDecoder(res.Body).Decode(&all)
 	_ = res.Body.Close()
@@ -210,13 +210,13 @@ func TestProjectBindings_DeleteUnbind(t *testing.T) {
 	}
 }
 
-// TestProjectBindings_RouteNotShadowed verifies GET /projects/resolve hits the
+// TestProjectBindings_RouteNotShadowed verifies GET /nodes/resolve hits the
 // resolve handler and not a {id} wildcard handler.
 func TestProjectBindings_RouteNotShadowed(t *testing.T) {
 	_, do := newBindingsSrv(t)
 
 	// Without any bindings, resolve must return 404 (not 405 or 400 from a {id} route).
-	res := do("GET", "/api/v1/projects/resolve?slug=x", "")
+	res := do("GET", "/api/v1/nodes/resolve?slug=x", "")
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("route-shadow check: want 404, got %d", res.StatusCode)
 	}

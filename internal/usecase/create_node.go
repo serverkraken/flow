@@ -9,24 +9,24 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// CreateProject creates an owner-scoped project. When slug is empty it is
+// CreateNode creates an owner-scoped project. When slug is empty it is
 // derived from name.
-type CreateProject struct {
-	Projects ports.ProjectStore
+type CreateNode struct {
+	Nodes	ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
 }
 
-func (uc CreateProject) Execute(ctx context.Context, ownerID, name, slug, color, glyph string) (domain.Project, error) {
+func (uc CreateNode) Execute(ctx context.Context, ownerID, name, slug, color, glyph string) (domain.Node, error) {
 	if slug == "" {
 		slug = Slugify(name)
 	}
-	p, err := domain.NewProject(uc.IDs.NewID(), ownerID, name, slug, uc.Clock.Now())
+	p, err := domain.NewNode(uc.IDs.NewID(), ownerID, name, slug, uc.Clock.Now())
 	if err != nil {
-		return domain.Project{}, err
+		return domain.Node{}, err
 	}
 	p.Color, p.Glyph = color, glyph
-	return uc.Projects.Create(ctx, p)
+	return uc.Nodes.Create(ctx, p)
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)

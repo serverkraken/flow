@@ -18,7 +18,7 @@ func docURI(id string) string { return docURIPrefix + id }
 // documents are exposed as resources.
 func (h *handlers) inScope(d domain.Document) bool {
 	proj, matched := h.resolved()
-	return matched && d.ProjectID != nil && *d.ProjectID == proj.ID
+	return matched && d.NodeID != nil && *d.NodeID == proj.ID
 }
 
 // resourceFor builds the resource descriptor for a document.

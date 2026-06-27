@@ -11,27 +11,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func projectCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "project", Short: "manage projects"}
-	cmd.AddCommand(projectRateCmd())
-	cmd.AddCommand(projectBindCmd())
-	cmd.AddCommand(projectUnbindCmd())
-	cmd.AddCommand(projectBindingsCmd())
-	cmd.AddCommand(projectRmCmd())
+func nodeCmd() *cobra.Command {
+	cmd := &cobra.Command{Use: "node", Short: "manage projects"}
+	cmd.AddCommand(nodeRateCmd())
+	cmd.AddCommand(nodeBindCmd())
+	cmd.AddCommand(nodeUnbindCmd())
+	cmd.AddCommand(nodeBindingsCmd())
+	cmd.AddCommand(nodeRmCmd())
 	return cmd
 }
 
-// runProjectRm resolves slug to an ID and deletes the project.
+// runNodeRm resolves slug to an ID and deletes the project.
 // The confirmation prompt is kept in RunE so this helper remains unit-testable.
-func runProjectRm(ctx context.Context, c *apiclient.Client, slug string) error {
+func runNodeRm(ctx context.Context, c *apiclient.Client, slug string) error {
 	id, err := resolveSlug(ctx, c, slug)
 	if err != nil {
 		return err
 	}
-	return c.DeleteProject(ctx, id)
+	return c.DeleteNode(ctx, id)
 }
 
-func projectRmCmd() *cobra.Command {
+func nodeRmCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "rm <slug>",
@@ -54,7 +54,7 @@ func projectRmCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := runProjectRm(cmd.Context(), c, slug); err != nil {
+			if err := runNodeRm(cmd.Context(), c, slug); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "deleted project %s\n", slug)
@@ -65,7 +65,7 @@ func projectRmCmd() *cobra.Command {
 	return cmd
 }
 
-func projectRateCmd() *cobra.Command {
+func nodeRateCmd() *cobra.Command {
 	var clear bool
 	cmd := &cobra.Command{
 		Use:   "rate <slug> [<amount-minor> <currency>]",
@@ -89,7 +89,7 @@ func projectRateCmd() *cobra.Command {
 				return fmt.Errorf("--clear takes only the slug argument; remove the amount and currency")
 			}
 			if clear {
-				return c.SetProjectRate(cmd.Context(), id, nil, "")
+				return c.SetNodeRate(cmd.Context(), id, nil, "")
 			}
 			if len(args) != 3 {
 				return fmt.Errorf("usage: flow project rate <slug> <amount-minor> <currency>  (or --clear)")
@@ -98,7 +98,7 @@ func projectRateCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("amount must be an integer (minor units): %w", err)
 			}
-			return c.SetProjectRate(cmd.Context(), id, &amount, args[2])
+			return c.SetNodeRate(cmd.Context(), id, &amount, args[2])
 		},
 	}
 	cmd.Flags().BoolVar(&clear, "clear", false, "clear the rate instead of setting it")

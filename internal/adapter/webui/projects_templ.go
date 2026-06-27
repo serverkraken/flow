@@ -18,9 +18,9 @@ import (
 
 // ProjectsPageData is the list view model.
 type ProjectsPageData struct {
-	User     string
-	Status   string // active filter token: "" (=active+paused default), "archived", "all"
-	Projects []domain.Project
+	User   string
+	Status string // active filter token: "" (=active+paused default), "archived", "all"
+	Nodes  []domain.Node
 }
 
 func ProjectsPage(d ProjectsPageData) templ.Component {
@@ -94,7 +94,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/projects\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/nodes\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -116,7 +116,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<a href=\"/projects?status=archived\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<a href=\"/nodes?status=archived\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -138,7 +138,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<a href=\"/projects?status=all\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<a href=\"/nodes?status=all\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -151,7 +151,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">alle</a></div><a href=\"/projects/new\" class=\"rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700\">Neues Projekt</a></div><div id=\"pc\" hx-get=\"/ui/projects/list\" hx-trigger=\"sse:project.created, sse:project.updated, sse:project.deleted\" hx-swap=\"innerHTML\" hx-include=\"[name=&#39;status&#39;]\"><input type=\"hidden\" name=\"status\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">alle</a></div><a href=\"/nodes/new\" class=\"rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700\">Neues Projekt</a></div><div id=\"pc\" hx-get=\"/ui/nodes/list\" hx-trigger=\"sse:project.created, sse:project.updated, sse:project.deleted\" hx-swap=\"innerHTML\" hx-include=\"[name=&#39;status&#39;]\"><input type=\"hidden\" name=\"status\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -168,7 +168,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = projectsList(d.Projects).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = projectsList(d.Nodes).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -180,7 +180,7 @@ func ProjectsFragment(d ProjectsPageData) templ.Component {
 	})
 }
 
-func projectsList(ps []domain.Project) templ.Component {
+func projectsList(ps []domain.Node) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -216,7 +216,7 @@ func projectsList(ps []domain.Project) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var11 templ.SafeURL = templ.SafeURL("/projects/" + p.ID)
+				var templ_7745c5c3_Var11 templ.SafeURL = templ.SafeURL("/nodes/" + p.ID)
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var11)))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -284,7 +284,7 @@ func projectsList(ps []domain.Project) templ.Component {
 }
 
 // glyphSwatch renders the project's color dot + glyph (both optional).
-func glyphSwatch(p domain.Project) templ.Component {
+func glyphSwatch(p domain.Node) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -347,7 +347,7 @@ func glyphSwatch(p domain.Project) templ.Component {
 	})
 }
 
-func statusBadge(s domain.ProjectStatus) templ.Component {
+func statusBadge(s domain.NodeStatus) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -416,13 +416,13 @@ func filterChip(active bool) string {
 }
 
 // ---------------------------------------------------------------------------
-// Project cockpit (GET /projects/{id})
+// Project cockpit (GET /nodes/{id})
 // ---------------------------------------------------------------------------
 
 // ProjectCockpit is the view model for the read-only project detail page.
 type ProjectCockpit struct {
 	User            string
-	P               domain.Project
+	P               domain.Node
 	DescriptionHTML template.HTML
 	TotalHours      float64
 	WeekHours       float64
@@ -479,9 +479,9 @@ func ProjectView(d ProjectCockpit) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var23 string
-		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs("/projects/" + d.P.ID)
+		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.P.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/projects.templ`, Line: 137, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/projects.templ`, Line: 137, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -549,7 +549,7 @@ func projectCockpitBody(d ProjectCockpit) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var26 templ.SafeURL = templ.SafeURL("/projects/" + d.P.ID + "/edit")
+		var templ_7745c5c3_Var26 templ.SafeURL = templ.SafeURL("/nodes/" + d.P.ID + "/edit")
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var26)))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -786,7 +786,7 @@ func projectCockpitBody(d ProjectCockpit) templ.Component {
 }
 
 // statusActionButton offers the single most relevant lifecycle transition.
-func statusActionButton(p domain.Project) templ.Component {
+func statusActionButton(p domain.Node) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -808,12 +808,12 @@ func statusActionButton(p domain.Project) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		switch p.Status {
-		case domain.ProjectActive:
+		case domain.NodeActive:
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "<form action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var38 templ.SafeURL = templ.SafeURL("/projects/" + p.ID + "/status")
+			var templ_7745c5c3_Var38 templ.SafeURL = templ.SafeURL("/nodes/" + p.ID + "/status")
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var38)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -822,12 +822,12 @@ func statusActionButton(p domain.Project) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case domain.ProjectPaused:
+		case domain.NodePaused:
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 67, "<form action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var39 templ.SafeURL = templ.SafeURL("/projects/" + p.ID + "/status")
+			var templ_7745c5c3_Var39 templ.SafeURL = templ.SafeURL("/nodes/" + p.ID + "/status")
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var39)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -836,12 +836,12 @@ func statusActionButton(p domain.Project) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case domain.ProjectArchived:
+		case domain.NodeArchived:
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 69, "<form action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var40 templ.SafeURL = templ.SafeURL("/projects/" + p.ID + "/status")
+			var templ_7745c5c3_Var40 templ.SafeURL = templ.SafeURL("/nodes/" + p.ID + "/status")
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var40)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -851,12 +851,12 @@ func statusActionButton(p domain.Project) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		if p.Status != domain.ProjectArchived {
+		if p.Status != domain.NodeArchived {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, "<form action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var41 templ.SafeURL = templ.SafeURL("/projects/" + p.ID + "/status")
+			var templ_7745c5c3_Var41 templ.SafeURL = templ.SafeURL("/nodes/" + p.ID + "/status")
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var41)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -871,7 +871,7 @@ func statusActionButton(p domain.Project) templ.Component {
 }
 
 // ---------------------------------------------------------------------------
-// Project form (GET /projects/new and GET /projects/{id}/edit)
+// Project form (GET /nodes/new and GET /nodes/{id}/edit)
 // ---------------------------------------------------------------------------
 
 type ProjectFormData struct {
@@ -887,7 +887,7 @@ type ProjectFormValues struct {
 }
 
 // ProjectForm renders create (editing==nil) or edit (editing!=nil) of a project.
-func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
+func ProjectForm(d ProjectFormData, editing *domain.Node) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1039,7 +1039,7 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, name := range domain.ProjectColors {
+		for _, name := range domain.NodeColors {
 			templ_7745c5c3_Err = colorRadio(name, d.Vals.Color).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1053,7 +1053,7 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, g := range domain.ProjectGlyphs {
+		for _, g := range domain.NodeGlyphs {
 			templ_7745c5c3_Err = glyphRadio(g, d.Vals.Glyph).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1085,7 +1085,7 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" class=\"w-20 rounded border border-slate-300 px-2 py-1\"></div></div><div class=\"flex gap-2\"><button class=\"rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700\">Speichern</button> <a href=\"/projects\" class=\"rounded border border-slate-300 px-4 py-2 hover:bg-slate-100\">Abbrechen</a></div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 90, "\" class=\"w-20 rounded border border-slate-300 px-2 py-1\"></div></div><div class=\"flex gap-2\"><button class=\"rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700\">Speichern</button> <a href=\"/nodes\" class=\"rounded border border-slate-300 px-4 py-2 hover:bg-slate-100\">Abbrechen</a></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1094,7 +1094,7 @@ func ProjectForm(d ProjectFormData, editing *domain.Project) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var51 templ.SafeURL = templ.SafeURL("/projects/" + editing.ID + "/delete")
+			var templ_7745c5c3_Var51 templ.SafeURL = templ.SafeURL("/nodes/" + editing.ID + "/delete")
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(string(templ_7745c5c3_Var51)))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1384,11 +1384,11 @@ func glyphRadio(g, current string) templ.Component {
 	})
 }
 
-func formAction(editing *domain.Project) templ.SafeURL {
+func formAction(editing *domain.Node) templ.SafeURL {
 	if editing != nil {
-		return templ.SafeURL("/projects/" + editing.ID)
+		return templ.SafeURL("/nodes/" + editing.ID)
 	}
-	return templ.SafeURL("/projects")
+	return templ.SafeURL("/nodes")
 }
 
 func orDefault(v, def string) string {

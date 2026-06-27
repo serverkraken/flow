@@ -5,14 +5,14 @@ import "testing"
 func TestValidateBindRef(t *testing.T) {
 	cases := []struct {
 		name    string
-		in      bindProjectIn
+		in      bindNodeIn
 		wantErr bool
 	}{
-		{"project only", bindProjectIn{Project: "alpha"}, false},
-		{"create only", bindProjectIn{CreateName: "New"}, false},
-		{"both", bindProjectIn{Project: "alpha", CreateName: "New"}, true},
-		{"neither", bindProjectIn{}, true},
-		{"whitespace neither", bindProjectIn{Project: "  ", CreateName: " "}, true},
+		{"project only", bindNodeIn{Project: "alpha"}, false},
+		{"create only", bindNodeIn{CreateName: "New"}, false},
+		{"both", bindNodeIn{Project: "alpha", CreateName: "New"}, true},
+		{"neither", bindNodeIn{}, true},
+		{"whitespace neither", bindNodeIn{Project: "  ", CreateName: " "}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

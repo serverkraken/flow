@@ -14,12 +14,12 @@ func NewListDocumentsPage(store ports.DocumentStore) *ListDocumentsPage {
 	return &ListDocumentsPage{store: store}
 }
 
-func (uc *ListDocumentsPage) Execute(ctx context.Context, ownerID string, projectID *string, tags []string, limit, offset int) ([]domain.Document, int, error) {
+func (uc *ListDocumentsPage) Execute(ctx context.Context, ownerID string, nodeID *string, tags []string, limit, offset int) ([]domain.Document, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
-	return uc.store.ListPage(ctx, ownerID, projectID, limit, offset, tags...)
+	return uc.store.ListPage(ctx, ownerID, nodeID, limit, offset, tags...)
 }

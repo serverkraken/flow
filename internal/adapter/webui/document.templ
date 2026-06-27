@@ -47,12 +47,12 @@ templ DocumentFragment(vm DocumentVM) {
 							<span aria-hidden="true">{ vm.KindGlyph }</span>
 							{ vm.KindLabel }
 						</span>
-						if vm.ProjectName != "" {
-							<a href={ templ.SafeURL("/projects/" + vm.ProjectID) } class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
+						if vm.NodeName != "" {
+							<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
 								if vm.ProjectColor != "" {
 									<span class="h-2.5 w-2.5 rounded-full" style={ projectSwatchStyle(vm.ProjectColor) } aria-hidden="true"></span>
 								}
-								{ vm.ProjectName }
+								{ vm.NodeName }
 							</a>
 						}
 						if vm.DateStr != "" {

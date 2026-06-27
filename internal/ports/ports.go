@@ -56,7 +56,7 @@ type EventBus interface {
 }
 
 var (
-	ErrProjectNotFound   = errors.New("project not found")
+	ErrNodeNotFound   = errors.New("project not found")
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
 	ErrDocumentNotFound  = errors.New("document not found")
@@ -71,18 +71,18 @@ var (
 	ErrEmbedTransient = errors.New("embed backend transient failure")
 )
 
-// ProjectStore persists projects. All reads are owner-scoped.
-type ProjectStore interface {
-	Create(ctx context.Context, p domain.Project) (domain.Project, error)
-	List(ctx context.Context, ownerID string) ([]domain.Project, error)
-	Get(ctx context.Context, ownerID, id string) (domain.Project, error)
+// NodeStore persists projects. All reads are owner-scoped.
+type NodeStore interface {
+	Create(ctx context.Context, p domain.Node) (domain.Node, error)
+	List(ctx context.Context, ownerID string) ([]domain.Node, error)
+	Get(ctx context.Context, ownerID, id string) (domain.Node, error)
 	// Update overwrites a project's mutable metadata (name, slug, color, glyph,
 	// description, upstream_git, status). Rate is NOT touched (see SetRate).
-	// Owner-scoped; returns ErrProjectNotFound for a missing or foreign project.
-	Update(ctx context.Context, ownerID string, p domain.Project) (domain.Project, error)
+	// Owner-scoped; returns ErrNodeNotFound for a missing or foreign project.
+	Update(ctx context.Context, ownerID string, p domain.Node) (domain.Node, error)
 	// SetRate sets (rate != nil) or clears (rate == nil) the project's rate.
 	SetRate(ctx context.Context, ownerID, id string, rate *domain.Money) error
-	// Delete removes a project. Owner-scoped; returns ErrProjectNotFound if absent or foreign.
+	// Delete removes a project. Owner-scoped; returns ErrNodeNotFound if absent or foreign.
 	Delete(ctx context.Context, ownerID, id string) error
 }
 
@@ -94,14 +94,14 @@ type SessionStore interface {
 	// Get fetches a single session by id. Owner-scoped; returns
 	// ErrSessionNotFound for a missing or foreign session.
 	Get(ctx context.Context, ownerID, id string) (domain.WorkSession, error)
-	Stop(ctx context.Context, ownerID, id string, projectID *string, stop time.Time) (domain.WorkSession, error)
+	Stop(ctx context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error)
 	List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error)
 	// ListRange returns sessions with since <= Start < until, newest first.
 	// Owner-scoped. Used for past-day views and the overlap check.
 	ListRange(ctx context.Context, ownerID string, since, until time.Time) ([]domain.WorkSession, error)
 	// Update overwrites a session's project/tag/note/start/stop. Owner-scoped;
 	// returns ErrSessionNotFound for a missing or foreign session.
-	Update(ctx context.Context, ownerID, id string, projectID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	Update(ctx context.Context, ownerID, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	// Delete removes a session. Owner-scoped; ErrSessionNotFound if absent.
 	Delete(ctx context.Context, ownerID, id string) error
 	// ListPage returns the owner's sessions newest-first (start_at DESC),
@@ -153,10 +153,10 @@ type DocumentStore interface {
 	// List returns the owner's documents newest-first. When tags are given, only
 	// documents containing ALL of them are returned (AND semantics).
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
-	List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error)
+	List(ctx context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error)
 	// ListPage returns one page of documents newest-first plus the total count
 	// matching the owner/project/tag filter, for server-side pagination.
-	ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
+	ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
 	// ReplaceLinks rewrites the outbound wikilink targets of one document
@@ -170,7 +170,7 @@ type DocumentStore interface {
 	// documents carrying all of them. Empty q is not expected here (callers use
 	// List for the no-query path).
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
-	Search(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error)
+	Search(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error)
 
 	// StaleDocuments returns up to limit documents needing (re)embedding
 	// (chunks_hash out of date), excluding dead-lettered docs and those still
@@ -186,7 +186,7 @@ type DocumentStore interface {
 	// query vector (cosine), best chunk per document, optionally AND-filtered by
 	// tags, each with that chunk's text as Snippet. Ordered nearest-first.
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
-	SemanticSearch(ctx context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error)
+	SemanticSearch(ctx context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error)
 
 	// RecordEmbedFailure upserts the per-document embed-failure state used for
 	// backoff and dead-lettering.

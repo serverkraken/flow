@@ -42,18 +42,18 @@ func (f fakeAPI) ListSessionsRange(_ context.Context, _, _ time.Time) ([]domain.
 	return nil, nil
 }
 
-// AddSession, ListProjects, CreateProject are no-op stubs required by
+// AddSession, ListNodes, CreateNode are no-op stubs required by
 // the daydetail.API compile-time guard now that Task 6 extended the interface.
 func (f fakeAPI) AddSession(_ context.Context, _ *string, _, _ time.Time, _, _ string) (domain.WorkSession, error) {
 	return domain.WorkSession{}, nil
 }
 
-func (f fakeAPI) ListProjects(_ context.Context) ([]domain.Project, error) {
+func (f fakeAPI) ListNodes(_ context.Context) ([]domain.Node, error) {
 	return nil, nil
 }
 
-func (f fakeAPI) CreateProject(_ context.Context, _ string) (domain.Project, error) {
-	return domain.Project{}, nil
+func (f fakeAPI) CreateNode(_ context.Context, _ string) (domain.Node, error) {
+	return domain.Node{}, nil
 }
 
 // EditSession, DeleteSession are no-op stubs required by the daydetail.API

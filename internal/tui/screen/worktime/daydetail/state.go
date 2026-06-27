@@ -8,7 +8,7 @@ import (
 )
 
 // dayRow is one session rendered as a list entry. The Project field carries the
-// raw ProjectID (or "" when unset); the route resolves it to a display name at
+// raw NodeID (or "" when unset); the route resolves it to a display name at
 // render time via its id→name map (see renderRowLabel).
 type dayRow struct {
 	ID      string
@@ -16,7 +16,7 @@ type dayRow struct {
 	Stop    time.Time // zero when session is running
 	Dur     time.Duration
 	Running bool   // true when Stop was nil (session still active)
-	Project string // ProjectID; resolved to name at render time
+	Project string // NodeID; resolved to name at render time
 	Tag     string
 	Note    string
 }
@@ -34,8 +34,8 @@ func buildRows(sessions []domain.WorkSession, _ time.Time) []dayRow {
 			Tag:  s.Tag,
 			Note: s.Note,
 		}
-		if s.ProjectID != nil {
-			r.Project = *s.ProjectID
+		if s.NodeID != nil {
+			r.Project = *s.NodeID
 		}
 		r.Start = s.Start
 		if s.Stop != nil {

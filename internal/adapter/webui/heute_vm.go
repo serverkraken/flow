@@ -24,7 +24,7 @@ type HeuteVM struct {
 	StartedAt   string // running session start time "11:58"
 
 	Rows     []components.SessionRowVM
-	Projects []components.FuzzyProjectVM
+	Nodes    []components.FuzzyProjectVM
 	HasProj  bool   // true when at least one project exists (drives picker vs plain inputs)
 	DayParam string // yyyy-mm-dd for the action forms
 

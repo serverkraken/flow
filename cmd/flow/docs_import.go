@@ -111,7 +111,7 @@ func importDate(fm vaultFrontmatter, filename string) *time.Time {
 // projectResolver find-or-creates flow projects for vault `project:` paths,
 // caching results for the run. Existing projects are matched by Name or Slug
 // (the vault path, or its slugified form); unknown paths are created with the
-// full path as the project name (the only field apiclient.CreateProject sets,
+// full path as the project name (the only field apiclient.CreateNode sets,
 // and a stable idempotency key across re-runs).
 type projectResolver struct {
 	client   *apiclient.Client
@@ -130,7 +130,7 @@ func (pr *projectResolver) load(ctx context.Context) error {
 		return nil
 	}
 	pr.existing = map[string]string{}
-	list, err := pr.client.ListProjects(ctx)
+	list, err := pr.client.ListNodes(ctx)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (pr *projectResolver) resolve(ctx context.Context, projectPath string) (*st
 		pr.cache[projectPath] = id
 		return &id, nil
 	}
-	p, err := pr.client.CreateProject(ctx, projectPath)
+	p, err := pr.client.CreateNode(ctx, projectPath)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func runImport(ctx context.Context, c *apiclient.Client, dir string, dryRun, upd
 				title = date.Format("2006-01-02")
 			}
 		}
-		projectID, perr := pr.resolve(ctx, fm.Project)
+		nodeID, perr := pr.resolve(ctx, fm.Project)
 		if perr != nil {
 			st.failed++
 			st.failures = append(st.failures, rel+": project: "+perr.Error())
@@ -272,7 +272,7 @@ func runImport(ctx context.Context, c *apiclient.Client, dir string, dryRun, upd
 			return nil
 		}
 		if _, ierr := c.ImportDocument(ctx, apiclient.ImportDocumentInput{
-			Type: typ, Path: path, Title: title, Body: body, Date: date, ProjectID: projectID,
+			Type: typ, Path: path, Title: title, Body: body, Date: date, NodeID: nodeID,
 		}); ierr != nil {
 			if apiclient.IsConflict(ierr) { // race backstop
 				st.skipped++

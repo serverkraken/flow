@@ -35,7 +35,7 @@ func sameLocalDay(a, b time.Time) bool {
 	return ay == by && am == bm && ad == bd
 }
 
-func reconstruct(today apiclient.Today, sessions []domain.WorkSession, projects []domain.Project, now time.Time) todayState {
+func reconstruct(today apiclient.Today, sessions []domain.WorkSession, projects []domain.Node, now time.Time) todayState {
 	st := todayState{Target: time.Duration(today.TargetMin) * time.Minute, Running: today.Running}
 
 	nameByID := make(map[string]string, len(projects))
@@ -68,8 +68,8 @@ func reconstruct(today apiclient.Today, sessions []domain.WorkSession, projects 
 		}
 		el := s.Stop.Sub(s.Start)
 		project := ""
-		if s.ProjectID != nil {
-			project = nameByID[*s.ProjectID]
+		if s.NodeID != nil {
+			project = nameByID[*s.NodeID]
 		}
 		st.Completed = append(st.Completed, completedSession{
 			ID: s.ID, Start: s.Start, Stop: *s.Stop, Elapsed: el,

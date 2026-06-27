@@ -18,7 +18,7 @@ import (
 type fakeAPI struct {
 	since, until time.Time
 	sessions     []domain.WorkSession
-	projects     []domain.Project
+	projects     []domain.Node
 
 	// Nachbuchen tracking fields (Task 6).
 	addCalls      int
@@ -44,21 +44,21 @@ func (f *fakeAPI) ListSessionsRange(_ context.Context, since, until time.Time) (
 	return f.sessions, nil
 }
 
-func (f *fakeAPI) ListProjects(_ context.Context) ([]domain.Project, error) {
+func (f *fakeAPI) ListNodes(_ context.Context) ([]domain.Node, error) {
 	return f.projects, nil
 }
 
-func (f *fakeAPI) CreateProject(_ context.Context, name string) (domain.Project, error) {
-	p := domain.Project{ID: "created-" + name, Name: name}
+func (f *fakeAPI) CreateNode(_ context.Context, name string) (domain.Node, error) {
+	p := domain.Node{ID: "created-" + name, Name: name}
 	f.projects = append(f.projects, p)
 	return p, nil
 }
 
-func (f *fakeAPI) AddSession(_ context.Context, projectID *string, start, stop time.Time, _, _ string) (domain.WorkSession, error) {
+func (f *fakeAPI) AddSession(_ context.Context, nodeID *string, start, stop time.Time, _, _ string) (domain.WorkSession, error) {
 	f.addCalls++
 	f.lastStart = start
 	f.lastStop = stop
-	f.lastProjectID = projectID
+	f.lastProjectID = nodeID
 	if f.addErr != nil {
 		return domain.WorkSession{}, f.addErr
 	}
@@ -290,7 +290,7 @@ func TestDayDetail_RangeBoundsNormalisedToMidnight(t *testing.T) {
 func TestDayDetail_NachbuchenSubmitsAddSession(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	f := &fakeAPI{
-		projects: []domain.Project{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 
@@ -391,7 +391,7 @@ func TestDayDetail_LateProjectLoadDoesNotClobberDialog(t *testing.T) {
 	e := day.Add(11 * time.Hour)
 	f := &fakeAPI{
 		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e}},
-		projects: []domain.Project{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
@@ -406,7 +406,7 @@ func TestDayDetail_LateProjectLoadDoesNotClobberDialog(t *testing.T) {
 
 	// Now deliver a late nachbuchenLoadProjectsMsg (the async project load
 	// resolving). It must be ignored because a dialog is already open.
-	r2, _ := r.Update(daydetail.LateProjectsMsgForTest([]domain.Project{{ID: "p1", Name: "Acme"}}))
+	r2, _ := r.Update(daydetail.LateProjectsMsgForTest([]domain.Node{{ID: "p1", Name: "Acme"}}))
 	dr2 := r2.(*daydetail.Route)
 	if dr2.NachbuchenOpenForTest() {
 		t.Fatal("late project-load must not open Nachbuchen over an already-open dialog")
@@ -527,7 +527,7 @@ func TestDayDetail_DeleteCancelDoesNotDelete(t *testing.T) {
 func TestDayDetail_OverlapErrorShowsToast(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	f := &fakeAPI{
-		projects: []domain.Project{{ID: "p1", Name: "Acme"}},
+		projects: []domain.Node{{ID: "p1", Name: "Acme"}},
 		addErr:   apiErr(409),
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)

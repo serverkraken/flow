@@ -14,7 +14,7 @@ import (
 
 type createDocReq struct {
 	Type      string  `json:"type"`
-	ProjectID *string `json:"projectId"`
+	NodeID *string `json:"projectId"`
 	Path      string  `json:"path"`
 	Title     string  `json:"title"`
 	Body      string  `json:"body"`
@@ -29,7 +29,7 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
 		Type:      domain.DocumentType(req.Type),
-		ProjectID: req.ProjectID,
+		NodeID: req.NodeID,
 		Path:      req.Path,
 		Title:     req.Title,
 		Body:      req.Body,
@@ -50,12 +50,12 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	tags := r.URL.Query()["tag"]
-	var projectID *string
+	var nodeID *string
 	if v := strings.TrimSpace(r.URL.Query().Get("projectId")); v != "" {
-		projectID = &v
+		nodeID = &v
 	}
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
-		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, projectID, tags)
+		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nodeID, tags)
 		if err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
@@ -66,7 +66,7 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, hits)
 		return
 	}
-	list, err := s.ListDocuments.Execute(r.Context(), u.ID, projectID, tags)
+	list, err := s.ListDocuments.Execute(r.Context(), u.ID, nodeID, tags)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -167,7 +167,7 @@ type importDocReq struct {
 	Title     string     `json:"title"`
 	Body      string     `json:"body"`
 	Date      *time.Time `json:"date"`
-	ProjectID *string    `json:"projectId"`
+	NodeID *string    `json:"projectId"`
 }
 
 func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +179,7 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := s.ImportDocument.Execute(r.Context(), u.ID, usecase.ImportDocumentInput{
 		Type: domain.DocumentType(req.Type), Path: req.Path, Title: req.Title,
-		Body: req.Body, Date: req.Date, ProjectID: req.ProjectID,
+		Body: req.Body, Date: req.Date, NodeID: req.NodeID,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidDocument):

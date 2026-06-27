@@ -228,10 +228,10 @@ func paginateDocuments(docs []domain.Document, limit, offset int) []domain.Docum
 func (s *Server) projectNameColorMaps(ctx context.Context, ownerID string) (map[string]string, map[string]string, error) {
 	names := map[string]string{}
 	colors := map[string]string{}
-	if s.ListProjects.Projects == nil {
+	if s.ListNodes.Nodes == nil {
 		return names, colors, nil
 	}
-	projects, err := s.ListProjects.Execute(ctx, ownerID)
+	projects, err := s.ListNodes.Execute(ctx, ownerID)
 	if err != nil {
 		return nil, nil, err
 	}

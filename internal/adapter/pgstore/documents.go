@@ -21,22 +21,22 @@ type DocumentStore struct{ pool *pgxpool.Pool }
 // NewDocumentStore wraps a pool.
 func NewDocumentStore(pool *pgxpool.Pool) *DocumentStore { return &DocumentStore{pool: pool} }
 
-const docCols = `id, owner_id, project_id, type, path, title, body, tags, doc_date, role, extra, created_at, updated_at`
+const docCols = `id, owner_id, node_id, type, path, title, body, tags, doc_date, role, extra, created_at, updated_at`
 
-const prefixedDocCols = `d.id, d.owner_id, d.project_id, d.type, d.path, d.title, d.body, d.tags, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.tags, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
 
-// appendProjectFilter adds a project predicate to q, binding the next positional
-// parameter when needed. projectID == nil → no filter; *projectID == "none" →
+// appendNodeFilter adds a project predicate to q, binding the next positional
+// parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
 // IS NULL (unassigned); otherwise equality. col is the (possibly qualified)
-// column, e.g. "project_id" or "d.project_id".
-func appendProjectFilter(q, col string, args *[]any, projectID *string) string {
-	if projectID == nil {
+// column, e.g. "node_id" or "d.node_id".
+func appendNodeFilter(q, col string, args *[]any, nodeID *string) string {
+	if nodeID == nil {
 		return q
 	}
-	if *projectID == "none" {
+	if *nodeID == "none" {
 		return q + ` AND ` + col + ` IS NULL`
 	}
-	*args = append(*args, *projectID)
+	*args = append(*args, *nodeID)
 	return q + fmt.Sprintf(` AND %s = $%d`, col, len(*args))
 }
 
@@ -49,7 +49,7 @@ RETURNING ` + docCols
 		return domain.Document{}, fmt.Errorf("pgstore: marshal extra: %w", err)
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
-		d.ID, d.OwnerID, d.ProjectID, string(d.Type), d.Path, d.Title, d.Body,
+		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
 		orEmptyTags(d.Tags), d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
@@ -66,10 +66,10 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 	return d, err
 }
 
-func (s *DocumentStore) List(ctx context.Context, ownerID string, projectID *string, tags ...string) ([]domain.Document, error) {
+func (s *DocumentStore) List(ctx context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error) {
 	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
 	args := []any{ownerID}
-	q = appendProjectFilter(q, "project_id", &args, projectID)
+	q = appendNodeFilter(q, "node_id", &args, nodeID)
 	if len(tags) > 0 {
 		args = append(args, tags)
 		q += fmt.Sprintf(` AND tags @> $%d`, len(args))
@@ -83,10 +83,10 @@ func (s *DocumentStore) List(ctx context.Context, ownerID string, projectID *str
 	return scanDocuments(rows)
 }
 
-func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, projectID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
+func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
 	where := ` WHERE owner_id=$1`
 	args := []any{ownerID}
-	where = appendProjectFilter(where, "project_id", &args, projectID)
+	where = appendNodeFilter(where, "node_id", &args, nodeID)
 	if len(tags) > 0 {
 		args = append(args, tags)
 		where += fmt.Sprintf(` AND tags @> $%d`, len(args))
@@ -186,7 +186,7 @@ ORDER BY d.updated_at DESC`
 var headlineOpts = "StartSel=" + domain.HighlightStart + ",StopSel=" + domain.HighlightEnd +
 	",MaxFragments=1,MinWords=5,MaxWords=18,HighlightAll=false"
 
-func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, projectID *string, tags []string) ([]domain.SearchHit, error) {
+func (s *DocumentStore) Search(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error) {
 	sb := `SELECT ` + prefixedDocCols + `,
   ts_headline('simple', coalesce(d.title,'')||' '||coalesce(d.body,''), ftsq || pq.prefixq, $3) AS snippet
 FROM documents d,
@@ -198,7 +198,7 @@ FROM documents d,
         ''::tsquery)) AS pq(prefixq)
 WHERE d.owner_id = $1`
 	args := []any{ownerID, q, headlineOpts}
-	sb = appendProjectFilter(sb, "d.project_id", &args, projectID)
+	sb = appendNodeFilter(sb, "d.node_id", &args, nodeID)
 	if len(tags) > 0 {
 		args = append(args, tags)
 		sb += fmt.Sprintf(` AND d.tags @> $%d`, len(args))
@@ -233,7 +233,7 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var typ string
 	var extra []byte
 	var snippet string
-	if err := r.Scan(&d.ID, &d.OwnerID, &d.ProjectID, &typ, &d.Path, &d.Title, &d.Body,
+	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
@@ -289,7 +289,7 @@ func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string
 	return tx.Commit(ctx)
 }
 
-func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, projectID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
+func (s *DocumentStore) SemanticSearch(ctx context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error) {
 	q := `SELECT ` + prefixedDocCols + `, x.content, x.dist
 FROM (
   SELECT DISTINCT ON (c.document_id) c.document_id AS did, c.content AS content,
@@ -301,12 +301,12 @@ FROM (
 JOIN documents d ON d.id = x.did AND d.owner_id = $1`
 	args := []any{ownerID, vectorLiteral(query)}
 	var preds []string
-	if projectID != nil {
-		if *projectID == "none" {
-			preds = append(preds, "d.project_id IS NULL")
+	if nodeID != nil {
+		if *nodeID == "none" {
+			preds = append(preds, "d.node_id IS NULL")
 		} else {
-			args = append(args, *projectID)
-			preds = append(preds, fmt.Sprintf("d.project_id = $%d", len(args)))
+			args = append(args, *nodeID)
+			preds = append(preds, fmt.Sprintf("d.node_id = $%d", len(args)))
 		}
 	}
 	if len(tags) > 0 {
@@ -342,7 +342,7 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var extra []byte
 	var content string
 	var dist float32
-	if err := r.Scan(&d.ID, &d.OwnerID, &d.ProjectID, &typ, &d.Path, &d.Title, &d.Body,
+	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
@@ -378,7 +378,7 @@ func scanDocument(r rowScanner) (domain.Document, error) {
 	var d domain.Document
 	var typ string
 	var extra []byte
-	if err := r.Scan(&d.ID, &d.OwnerID, &d.ProjectID, &typ, &d.Path, &d.Title, &d.Body,
+	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err

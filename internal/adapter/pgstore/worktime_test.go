@@ -28,9 +28,9 @@ func TestSessionStoreLifecycle(t *testing.T) {
 	if _, err := users.UpsertBySub(ctx, u); err != nil {
 		t.Fatal(err)
 	}
-	projects := pgstore.NewProjectStore(pool)
+	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
-	p, _ := domain.NewProject("p1", "u1", "Flow", "flow", now)
+	p, _ := domain.NewNode("p1", "u1", "Flow", "flow", now)
 	if _, err := projects.Create(ctx, p); err != nil {
 		t.Fatalf("project create: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestSessionStoreLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stop: %v", err)
 	}
-	if stopped.Stop == nil || !stopped.Stop.Equal(stopAt) || stopped.ProjectID == nil || *stopped.ProjectID != "p1" {
+	if stopped.Stop == nil || !stopped.Stop.Equal(stopAt) || stopped.NodeID == nil || *stopped.NodeID != "p1" {
 		t.Fatalf("stop result wrong: %+v", stopped)
 	}
 	if _, ok, _ := sessions.Running(ctx, "u1"); ok {
@@ -200,17 +200,17 @@ func TestProjectStoreListOwnerScoped(t *testing.T) {
 	ub, _ := domain.NewUser("ub", "sb", "b", "b@x", "B")
 	_, _ = users.UpsertBySub(ctx, ua)
 	_, _ = users.UpsertBySub(ctx, ub)
-	ps := pgstore.NewProjectStore(pool)
+	ps := pgstore.NewNodeStore(pool)
 	now := time.Now()
-	pa, _ := domain.NewProject("pa", "ua", "A proj", "a-proj", now)
-	pb, _ := domain.NewProject("pb", "ub", "B proj", "b-proj", now)
+	pa, _ := domain.NewNode("pa", "ua", "A proj", "a-proj", now)
+	pb, _ := domain.NewNode("pb", "ub", "B proj", "b-proj", now)
 	_, _ = ps.Create(ctx, pa)
 	_, _ = ps.Create(ctx, pb)
 	list, err := ps.List(ctx, "ua")
 	if err != nil || len(list) != 1 || list[0].ID != "pa" {
 		t.Fatalf("owner-scoped list failed: %+v err=%v", list, err)
 	}
-	if _, err := ps.Get(ctx, "ua", "pb"); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Fatalf("cross-owner Get must be ErrProjectNotFound, got %v", err)
+	if _, err := ps.Get(ctx, "ua", "pb"); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("cross-owner Get must be ErrNodeNotFound, got %v", err)
 	}
 }

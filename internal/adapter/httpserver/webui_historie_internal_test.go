@@ -31,7 +31,7 @@ func TestGridWindow(t *testing.T) {
 }
 
 // TestHistorieBulkErr covers all three branches of historieBulkErr:
-// ErrNoSessions → German string, ErrProjectNotFound → German string,
+// ErrNoSessions → German string, ErrNodeNotFound → German string,
 // unknown error → fallback with error message.
 func TestHistorieBulkErr(t *testing.T) {
 	cases := []struct {
@@ -39,7 +39,7 @@ func TestHistorieBulkErr(t *testing.T) {
 		want string
 	}{
 		{usecase.ErrNoSessions, "keine Sitzungen ausgewählt"},
-		{ports.ErrProjectNotFound, "Projekt nicht gefunden"},
+		{ports.ErrNodeNotFound, "Projekt nicht gefunden"},
 		{errors.New("disk full"), "Aktion fehlgeschlagen: disk full"},
 	}
 	for _, tc := range cases {

@@ -18,30 +18,30 @@ import (
 // "" → active+paused (default view); "archived" → archived only; "all" → every status.
 func (s *Server) projectsListData(r *http.Request, u domain.User) webui.ProjectsPageData {
 	status := r.URL.Query().Get("status")
-	all, _ := s.ListProjects.Execute(r.Context(), u.ID)
-	var filtered []domain.Project
+	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
+	var filtered []domain.Node
 	for _, p := range all {
 		switch status {
 		case "all":
 			filtered = append(filtered, p)
 		case "archived":
-			if p.Status == domain.ProjectArchived {
+			if p.Status == domain.NodeArchived {
 				filtered = append(filtered, p)
 			}
 		default: // active + paused
-			if p.Status == domain.ProjectActive || p.Status == domain.ProjectPaused {
+			if p.Status == domain.NodeActive || p.Status == domain.NodePaused {
 				filtered = append(filtered, p)
 			}
 		}
 	}
-	return webui.ProjectsPageData{User: u.Username, Status: status, Projects: filtered}
+	return webui.ProjectsPageData{User: u.Username, Status: status, Nodes: filtered}
 }
 
 // projectWorktime aggregates the project's sessions into total/week/month hour
 // counts and computes the earnings string when p.Rate != nil.
 // Sessions are fetched for the full project lifetime (year 2000 to now+1d)
-// and filtered in-process by ProjectID to avoid a new backend usecase.
-func (s *Server) projectWorktime(r *http.Request, u domain.User, p domain.Project) (totalH, weekH, monthH float64, earnings string) {
+// and filtered in-process by NodeID to avoid a new backend usecase.
+func (s *Server) projectWorktime(r *http.Request, u domain.User, p domain.Node) (totalH, weekH, monthH float64, earnings string) {
 	ctx := r.Context()
 	now := s.Clock.Now()
 	// Fetch all sessions for the owner from a wide window and filter by project.
@@ -58,7 +58,7 @@ func (s *Server) projectWorktime(r *http.Request, u domain.User, p domain.Projec
 
 	var totalDur, weekDur, monthDur time.Duration
 	for _, sess := range sessions {
-		if sess.ProjectID == nil || *sess.ProjectID != p.ID {
+		if sess.NodeID == nil || *sess.NodeID != p.ID {
 			continue
 		}
 		if sess.Running() {
@@ -106,7 +106,7 @@ func startOfMonth(t time.Time) time.Time {
 // description, per-project worktime aggregate, scoped docs, and bindings.
 // Read-only; aggregation is done here without a new backend usecase.
 func (s *Server) projectCockpitData(r *http.Request, u domain.User, id string) (webui.ProjectCockpit, error) {
-	p, err := s.GetProject.Execute(r.Context(), u.ID, id)
+	p, err := s.GetNode.Execute(r.Context(), u.ID, id)
 	if err != nil {
 		return webui.ProjectCockpit{}, err
 	}
@@ -121,15 +121,15 @@ func (s *Server) projectCockpitData(r *http.Request, u domain.User, id string) (
 	pid := p.ID
 	d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &pid, nil)
 	// Bindings (read-only).
-	bindings, _ := s.ListProjectBindings.ExecuteByProject(r.Context(), u.ID, p.ID)
+	bindings, _ := s.ListNodeBindings.ExecuteByProject(r.Context(), u.ID, p.ID)
 	d.Bindings = bindings
 	return d, nil
 }
 
-func (s *Server) handleWebProjectView(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.projectCockpitData(r, u, r.PathValue("id"))
-	if errors.Is(err, ports.ErrProjectNotFound) {
+	if errors.Is(err, ports.ErrNodeNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
@@ -141,14 +141,14 @@ func (s *Server) handleWebProjectView(w http.ResponseWriter, r *http.Request) {
 	_ = webui.ProjectView(d).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebProjectsHome(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodesHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d := s.projectsListData(r, u)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.ProjectsPage(d).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebProjectsList(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodesList(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d := s.projectsListData(r, u)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -203,7 +203,7 @@ func orStatus(s string) string {
 // Project form handlers
 // ---------------------------------------------------------------------------
 
-func (s *Server) handleWebProjectNew(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeNew(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.ProjectForm(webui.ProjectFormData{
@@ -212,7 +212,7 @@ func (s *Server) handleWebProjectNew(w http.ResponseWriter, r *http.Request) {
 	}, nil).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebProjectCreate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vals := formValues(r)
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
@@ -230,8 +230,8 @@ func (s *Server) handleWebProjectCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// Reject a bad upstream up front so we never create a half-configured project
-	// (mirrors REST handleCreateProject). Bad git input is the common error path;
-	// without this guard CreateProject would succeed and the later UpdateProject
+	// (mirrors REST handleCreateNode). Bad git input is the common error path;
+	// without this guard CreateNode would succeed and the later UpdateNode
 	// failure would leave an orphan name-only project behind.
 	if vals.UpstreamGit != "" {
 		if _, ok := domain.NormalizeRemoteSlug(vals.UpstreamGit); !ok {
@@ -239,36 +239,36 @@ func (s *Server) handleWebProjectCreate(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
-	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateProject
-	p, err := s.CreateProject.Execute(r.Context(), u.ID, vals.Name, vals.Slug, vals.Color, vals.Glyph)
+	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateNode
+	p, err := s.CreateNode.Execute(r.Context(), u.ID, vals.Name, vals.Slug, vals.Color, vals.Glyph)
 	if err != nil {
 		reRender("Konnte Projekt nicht anlegen: " + err.Error())
 		return
 	}
 	// compose description/upstream/status (auto-syncs binding; validates upstream)
-	p, err = s.UpdateProject.Execute(r.Context(), u.ID, p.ID, usecase.UpdateProjectInput{
+	p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
 		Name:        p.Name,
 		Slug:        p.Slug,
 		Color:       p.Color,
 		Glyph:       p.Glyph,
 		Description: vals.Description,
 		UpstreamGit: vals.UpstreamGit,
-		Status:      domain.ProjectStatus(orStatus(vals.Status)),
+		Status:      domain.NodeStatus(orStatus(vals.Status)),
 	})
 	if err != nil {
 		reRender(err.Error())
 		return
 	}
 	if rate != nil {
-		_ = s.SetProjectRate.Execute(r.Context(), u.ID, p.ID, rate)
+		_ = s.SetNodeRate.Execute(r.Context(), u.ID, p.ID, rate)
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
-	http.Redirect(w, r, "/projects/"+p.ID, http.StatusSeeOther)
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	http.Redirect(w, r, "/nodes/"+p.ID, http.StatusSeeOther)
 }
 
-func (s *Server) handleWebProjectEdit(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	p, err := s.GetProject.Execute(r.Context(), u.ID, r.PathValue("id"))
+	p, err := s.GetNode.Execute(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -290,12 +290,12 @@ func (s *Server) handleWebProjectEdit(w http.ResponseWriter, r *http.Request) {
 	_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Vals: vals}, &p).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebProjectUpdate(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	vals := formValues(r)
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
-	cur, gerr := s.GetProject.Execute(r.Context(), u.ID, id)
+	cur, gerr := s.GetNode.Execute(r.Context(), u.ID, id)
 	if gerr != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -309,20 +309,20 @@ func (s *Server) handleWebProjectUpdate(w http.ResponseWriter, r *http.Request) 
 		reRender(rerr.Error())
 		return
 	}
-	p, err := s.UpdateProject.Execute(r.Context(), u.ID, id, usecase.UpdateProjectInput{
+	p, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        vals.Name,
 		Slug:        vals.Slug,
 		Color:       vals.Color,
 		Glyph:       vals.Glyph,
 		Description: vals.Description,
 		UpstreamGit: vals.UpstreamGit,
-		Status:      domain.ProjectStatus(orStatus(vals.Status)),
+		Status:      domain.NodeStatus(orStatus(vals.Status)),
 	})
 	switch {
-	case errors.Is(err, ports.ErrProjectNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 		return
-	case errors.Is(err, domain.ErrInvalidProject) || errors.Is(err, domain.ErrInvalidUpstream):
+	case errors.Is(err, domain.ErrInvalidNode) || errors.Is(err, domain.ErrInvalidUpstream):
 		reRender(err.Error())
 		return
 	case err != nil:
@@ -330,45 +330,45 @@ func (s *Server) handleWebProjectUpdate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// rate==nil clears any existing rate
-	_ = s.SetProjectRate.Execute(r.Context(), u.ID, id, rate)
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
-	http.Redirect(w, r, "/projects/"+id, http.StatusSeeOther)
+	_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
-// handleWebProjectStatus applies a single status transition (full-replace
-// UpdateProject preserving current fields).
-func (s *Server) handleWebProjectStatus(w http.ResponseWriter, r *http.Request) {
+// handleWebNodeStatus applies a single status transition (full-replace
+// UpdateNode preserving current fields).
+func (s *Server) handleWebNodeStatus(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	cur, err := s.GetProject.Execute(r.Context(), u.ID, id)
+	cur, err := s.GetNode.Execute(r.Context(), u.ID, id)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	_, err = s.UpdateProject.Execute(r.Context(), u.ID, id, usecase.UpdateProjectInput{
+	_, err = s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        cur.Name,
 		Slug:        cur.Slug,
 		Color:       cur.Color,
 		Glyph:       cur.Glyph,
 		Description: cur.Description,
 		UpstreamGit: cur.UpstreamGit,
-		Status:      domain.ProjectStatus(r.FormValue("status")),
+		Status:      domain.NodeStatus(r.FormValue("status")),
 	})
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
-	http.Redirect(w, r, "/projects/"+id, http.StatusSeeOther)
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
-func (s *Server) handleWebProjectDelete(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebNodeDelete(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	if err := s.DeleteProject.Execute(r.Context(), u.ID, id); err != nil {
+	if err := s.DeleteNode.Execute(r.Context(), u.ID, id); err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventProjectDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
-	http.Redirect(w, r, "/projects", http.StatusSeeOther)
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	http.Redirect(w, r, "/nodes", http.StatusSeeOther)
 }

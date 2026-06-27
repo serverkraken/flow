@@ -9,6 +9,6 @@ import (
 
 type ListDocuments struct{ Docs ports.DocumentStore }
 
-func (uc ListDocuments) Execute(ctx context.Context, ownerID string, projectID *string, tags []string) ([]domain.Document, error) {
-	return uc.Docs.List(ctx, ownerID, projectID, tags...)
+func (uc ListDocuments) Execute(ctx context.Context, ownerID string, nodeID *string, tags []string) ([]domain.Document, error) {
+	return uc.Docs.List(ctx, ownerID, nodeID, tags...)
 }

@@ -91,8 +91,8 @@ templ heuteHero(vm HeuteVM) {
 						<select name="projectId"
 							class="min-w-[11rem] rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors">
 							<option value="">{ components.T(ctx, "heute.bookProject") }</option>
-							for _, p := range vm.Projects {
-								if vm.Running.ProjectID != nil && *vm.Running.ProjectID == p.ID {
+							for _, p := range vm.Nodes {
+								if vm.Running.NodeID != nil && *vm.Running.NodeID == p.ID {
 									<option value={ p.ID } selected>{ p.Name }</option>
 								} else {
 									<option value={ p.ID }>{ p.Name }</option>
@@ -252,7 +252,7 @@ templ heuteAddForm(vm HeuteVM) {
 			<select name="projectId"
 				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
 				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
-				for _, p := range vm.Projects {
+				for _, p := range vm.Nodes {
 					<option value={ p.ID }>{ p.Name }</option>
 				}
 			</select>

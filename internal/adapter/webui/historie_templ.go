@@ -191,11 +191,11 @@ func HistorieCalendarFragment(vm HistorieVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = HistorieSelectionBarC(vm.Projects, "cal").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = HistorieSelectionBarC(vm.Nodes, "cal").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = historieEditDialog(vm.Projects).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = historieEditDialog(vm.Nodes).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1127,9 +1127,9 @@ func historieBlock(dayKey, dateKey string, b components.SessionBlockVM) templ.Co
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var62 string
-		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(b.EditProjectID)
+		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(b.EditNodeID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 190, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 190, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {
@@ -1284,9 +1284,9 @@ func historieAgendaRow(dayKey, dateKey string, b components.SessionBlockVM, row 
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var72 string
-		templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(b.EditProjectID)
+		templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(b.EditNodeID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 209, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 209, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 		if templ_7745c5c3_Err != nil {
@@ -2149,11 +2149,11 @@ func HistorieListFragment(vm HistorieListVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = HistorieSelectionBarC(vm.Projects, "list").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = HistorieSelectionBarC(vm.Nodes, "list").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = historieEditDialog(vm.Projects).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = historieEditDialog(vm.Nodes).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2242,9 +2242,9 @@ func HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) te
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = components.SelectionActionBar(HistorieSelectionBar(components.FuzzyPickerVM{
-			ID:       "historiePicker",
-			Projects: projects,
-			FormID:   "historieBulkForm",
+			ID:     "historiePicker",
+			Nodes:  projects,
+			FormID: "historieBulkForm",
 		}, view)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

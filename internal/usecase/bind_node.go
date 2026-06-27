@@ -15,24 +15,24 @@ type BindKey struct {
 	RemoteSlug, MachineID, MachineLabel, Path string
 }
 
-// BindProject creates or replaces the project binding described by key.
+// BindNode creates or replaces the project binding described by key.
 // It validates that the project exists first.
-type BindProject struct {
+type BindNode struct {
 	Bindings ports.ProjectBindingStore
-	Projects ports.ProjectStore
+	Nodes	ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
 }
 
-func (uc BindProject) Execute(ctx context.Context, ownerID, projectID string, k BindKey) (domain.ProjectBinding, error) {
-	if _, err := uc.Projects.Get(ctx, ownerID, projectID); err != nil {
+func (uc BindNode) Execute(ctx context.Context, ownerID, nodeID string, k BindKey) (domain.ProjectBinding, error) {
+	if _, err := uc.Nodes.Get(ctx, ownerID, nodeID); err != nil {
 		return domain.ProjectBinding{}, err
 	}
 	now := uc.Clock.Now()
 	b := domain.ProjectBinding{
 		ID:           uc.IDs.NewID(),
 		OwnerID:      ownerID,
-		ProjectID:    projectID,
+		NodeID:    nodeID,
 		Kind:         k.Kind,
 		RemoteSlug:   k.RemoteSlug,
 		MachineID:    k.MachineID,

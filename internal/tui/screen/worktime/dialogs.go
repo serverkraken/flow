@@ -23,7 +23,7 @@ type bookingState struct {
 	list fuzzylist.Model
 }
 
-func projectItems(ps []domain.Project) []fuzzylist.Item {
+func projectItems(ps []domain.Node) []fuzzylist.Item {
 	out := make([]fuzzylist.Item, 0, len(ps))
 	for _, p := range ps {
 		out = append(out, fuzzylist.Item{ID: p.ID, Label: p.Name})
@@ -52,7 +52,7 @@ func (r *TodayRoute) startOrStop() (shell.Route, tea.Cmd) {
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		ps, _ := api.ListProjects(ctx)
+		ps, _ := api.ListNodes(ctx)
 		ss, _ := api.ListSessionsSince(ctx, since)
 		return projectsMsg{projects: mruProjects(ps, ss)}
 	}
@@ -92,7 +92,7 @@ func (r *TodayRoute) handleBookingKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) 
 			return r, func() tea.Msg {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
-				p, err := api.CreateProject(ctx, name)
+				p, err := api.CreateNode(ctx, name)
 				if err != nil {
 					return loadedMsg{err: err}
 				}

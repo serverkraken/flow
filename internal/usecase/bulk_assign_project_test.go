@@ -24,14 +24,14 @@ func seedSess(t *testing.T, ss *testutil.FakeSessionStore, id, owner string) {
 func TestBulkAssignProject_AssignsOwnedSkipsForeign(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	seedSess(t, ss, "a", "u1")
 	seedSess(t, ss, "b", "u1")
 	seedSess(t, ss, "c", "u2") // foreign
-	if _, err := ps.Create(ctx, domain.Project{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
 		t.Fatalf("seed proj: %v", err)
 	}
-	uc := usecase.BulkAssignProject{Sessions: ss, Projects: ps}
+	uc := usecase.BulkAssignNode{Sessions: ss, Nodes: ps}
 	n, err := uc.Execute(ctx, "u1", []string{"a", "b", "c", "missing"}, "p1")
 	if err != nil {
 		t.Fatalf("execute: %v", err)
@@ -40,17 +40,17 @@ func TestBulkAssignProject_AssignsOwnedSkipsForeign(t *testing.T) {
 		t.Fatalf("updated = %d, want 2 (a,b; c foreign + missing skipped)", n)
 	}
 	got, _ := ss.Get(ctx, "u1", "a")
-	if got.ProjectID == nil || *got.ProjectID != "p1" {
+	if got.NodeID == nil || *got.NodeID != "p1" {
 		t.Fatalf("a not assigned: %+v", got)
 	}
 	// foreign session untouched
-	if c, _ := ss.Get(ctx, "u2", "c"); c.ProjectID != nil {
+	if c, _ := ss.Get(ctx, "u2", "c"); c.NodeID != nil {
 		t.Fatalf("foreign c was mutated: %+v", c)
 	}
 }
 
 func TestBulkAssignProject_EmptyIDs(t *testing.T) {
-	uc := usecase.BulkAssignProject{Sessions: testutil.NewFakeSessionStore(), Projects: testutil.NewFakeProjectStore()}
+	uc := usecase.BulkAssignNode{Sessions: testutil.NewFakeSessionStore(), Nodes: testutil.NewFakeNodeStore()}
 	if _, err := uc.Execute(context.Background(), "u1", nil, "p1"); !errors.Is(err, usecase.ErrNoSessions) {
 		t.Fatalf("err = %v, want ErrNoSessions", err)
 	}
@@ -59,13 +59,13 @@ func TestBulkAssignProject_EmptyIDs(t *testing.T) {
 func TestBulkAssignProject_ForeignProject(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	seedSess(t, ss, "a", "u1")
-	if _, err := ps.Create(ctx, domain.Project{ID: "p2", OwnerID: "other", Name: "x"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p2", OwnerID: "other", Name: "x"}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	uc := usecase.BulkAssignProject{Sessions: ss, Projects: ps}
-	if _, err := uc.Execute(ctx, "u1", []string{"a"}, "p2"); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Fatalf("err = %v, want ErrProjectNotFound", err)
+	uc := usecase.BulkAssignNode{Sessions: ss, Nodes: ps}
+	if _, err := uc.Execute(ctx, "u1", []string{"a"}, "p2"); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("err = %v, want ErrNodeNotFound", err)
 	}
 }

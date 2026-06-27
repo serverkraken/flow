@@ -13,11 +13,11 @@ import (
 )
 
 type fakeDetailAPI struct {
-	p        domain.Project
+	p        domain.Node
 	sessions []domain.WorkSession
 }
 
-func (f *fakeDetailAPI) GetProject(context.Context, string) (domain.Project, error) { return f.p, nil }
+func (f *fakeDetailAPI) GetNode(context.Context, string) (domain.Node, error) { return f.p, nil }
 func (f *fakeDetailAPI) ListSessionsRange(context.Context, time.Time, time.Time) ([]domain.WorkSession, error) {
 	return f.sessions, nil
 }
@@ -25,16 +25,16 @@ func (f *fakeDetailAPI) ListDocumentsScoped(context.Context, *string, ...string)
 	return nil, nil
 }
 func (f *fakeDetailAPI) ListBindings(context.Context) ([]domain.ProjectBinding, error) { return nil, nil }
-func (f *fakeDetailAPI) UpdateProject(_ context.Context, _ string, in projects.UpdateFields) (domain.Project, error) {
-	f.p.Status = domain.ProjectStatus(in.Status)
+func (f *fakeDetailAPI) UpdateNode(_ context.Context, _ string, in projects.UpdateFields) (domain.Node, error) {
+	f.p.Status = domain.NodeStatus(in.Status)
 	return f.p, nil
 }
 
 func detailView(r *projects.DetailRoute) string { return r.View(shell.Frame{Width: 80, Height: 30}) }
 
 func TestDetailRendersCockpit(t *testing.T) {
-	p := domain.Project{
-		ID: "p1", Slug: "flow", Name: "Flow", Status: domain.ProjectPaused,
+	p := domain.Node{
+		ID: "p1", Slug: "flow", Name: "Flow", Status: domain.NodePaused,
 		Description: "# Notiz\nhallo", UpstreamGit: "git@github.com:acme/flow.git", Color: "blue",
 	}
 	api := &fakeDetailAPI{p: p}
@@ -54,10 +54,10 @@ func TestDetailRendersCockpit(t *testing.T) {
 }
 
 func TestDetailStatusActionArchives(t *testing.T) {
-	p := domain.Project{ID: "p1", Slug: "flow", Name: "Flow", Status: domain.ProjectActive}
+	p := domain.Node{ID: "p1", Slug: "flow", Name: "Flow", Status: domain.NodeActive}
 	api := &fakeDetailAPI{p: p}
 	r := projects.NewDetailRoute(api, theme.Default, p)
-	// `a` archives via UpdateProject then reload
+	// `a` archives via UpdateNode then reload
 	nr, cmd := r.Update(keyPress('a'))
 	r = nr.(*projects.DetailRoute)
 	if cmd != nil {
@@ -65,7 +65,7 @@ func TestDetailStatusActionArchives(t *testing.T) {
 			_, _ = r.Update(msg)
 		}
 	}
-	if api.p.Status != domain.ProjectArchived {
+	if api.p.Status != domain.NodeArchived {
 		t.Errorf("status action did not archive: %s", api.p.Status)
 	}
 }

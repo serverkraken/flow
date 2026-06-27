@@ -17,15 +17,15 @@ func exportCmd() *cobra.Command {
 				return err
 			}
 			// --project takes a slug for UX; the API filters by project id.
-			projectID := ""
+			nodeID := ""
 			if project != "" {
 				var err error
-				projectID, err = resolveSlug(cmd.Context(), c, project)
+				nodeID, err = resolveSlug(cmd.Context(), c, project)
 				if err != nil {
 					return err
 				}
 			}
-			b, err := c.Export(cmd.Context(), from, to, format, projectID)
+			b, err := c.Export(cmd.Context(), from, to, format, nodeID)
 			if err != nil {
 				return err
 			}

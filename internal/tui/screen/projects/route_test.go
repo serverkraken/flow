@@ -12,15 +12,15 @@ import (
 	"github.com/serverkraken/flow/internal/tui/theme"
 )
 
-type fakeAPI struct{ ps []domain.Project }
+type fakeAPI struct{ ps []domain.Node }
 
-func (f *fakeAPI) ListProjects(context.Context) ([]domain.Project, error) { return f.ps, nil }
+func (f *fakeAPI) ListNodes(context.Context) ([]domain.Node, error) { return f.ps, nil }
 
-func seed() []domain.Project {
-	return []domain.Project{
-		{ID: "p1", Slug: "aaa", Name: "Aaa", Status: domain.ProjectActive, Color: "blue", Glyph: "◆"},
-		{ID: "p2", Slug: "bbb", Name: "Bbb", Status: domain.ProjectPaused},
-		{ID: "p3", Slug: "ccc", Name: "Ccc", Status: domain.ProjectArchived},
+func seed() []domain.Node {
+	return []domain.Node{
+		{ID: "p1", Slug: "aaa", Name: "Aaa", Status: domain.NodeActive, Color: "blue", Glyph: "◆"},
+		{ID: "p2", Slug: "bbb", Name: "Bbb", Status: domain.NodePaused},
+		{ID: "p3", Slug: "ccc", Name: "Ccc", Status: domain.NodeArchived},
 	}
 }
 
@@ -89,7 +89,7 @@ func TestStatusFilterCycleRevealsArchived(t *testing.T) {
 func TestEnterPushesDetailWhenWired(t *testing.T) {
 	r := projects.NewRoute(&fakeAPI{ps: seed()}, theme.Default, "msoent")
 	pushed := false
-	r.SetDetailFactory(func(p domain.Project) shell.Route { pushed = true; return nil })
+	r.SetDetailFactory(func(p domain.Node) shell.Route { pushed = true; return nil })
 	drainInit(r)
 	_, cmd := r.Update(keyEnter())
 	if cmd == nil {

@@ -11,7 +11,7 @@ import (
 func TestGroupDocsByCategory(t *testing.T) {
 	docs := []domain.Document{
 		{ID: "1", Type: domain.DocDaily, Title: "Mon"},
-		{ID: "2", Type: domain.DocProject, Title: "Note", ProjectID: strptr("p1")},
+		{ID: "2", Type: domain.DocProject, Title: "Note", NodeID: strptr("p1")},
 		{ID: "3", Type: domain.DocFree, Title: "Urlaub"},
 		{ID: "4", Type: domain.DocMemory, Title: "Mem"},
 	}

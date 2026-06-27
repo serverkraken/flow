@@ -22,22 +22,22 @@ func projectJSON(id, name, slug string) string {
 }
 
 // newTestServer builds an httptest server with:
-//   - GET /api/v1/projects → returns projects list
-//   - GET /api/v1/projects/resolve → returns resolveProject (404 if nil) and
+//   - GET /api/v1/nodes → returns projects list
+//   - GET /api/v1/nodes/resolve → returns resolveProject (404 if nil) and
 //     sets *resolveHit=true so tests can assert whether /resolve was called.
 func newTestServer(t *testing.T, projects []map[string]string, resolveSlug string, resolveHit *bool) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects" && r.URL.RawQuery == "":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes" && r.URL.RawQuery == "":
 			var list []map[string]string
 			if projects != nil {
 				list = projects
 			}
 			_ = json.NewEncoder(w).Encode(list)
 
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/resolve":
 			if resolveHit != nil {
 				*resolveHit = true
 			}
@@ -54,7 +54,7 @@ func newTestServer(t *testing.T, projects []map[string]string, resolveSlug strin
 	}))
 }
 
-// TestResolve_EnvOverride: FLOW_PROJECT=flow → ListProjects, returns slug match, /resolve NOT called.
+// TestResolve_EnvOverride: FLOW_PROJECT=flow → ListNodes, returns slug match, /resolve NOT called.
 func TestResolve_EnvOverride(t *testing.T) {
 	var resolveHit bool
 	projects := []map[string]string{
@@ -111,7 +111,7 @@ func TestResolve_GitRemote(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/resolve":
 			resolveHit = true
 			gotSlug = r.URL.Query().Get("slug")
 			_, _ = w.Write([]byte(projectJSON("p2", "FlowRebuild", gotSlug)))
@@ -176,11 +176,11 @@ func TestResolve_PathTier(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/api/v1/projects/resolve":
+		case "/api/v1/nodes/resolve":
 			gotMachine = r.URL.Query().Get("machine")
 			gotPath = r.URL.Query().Get("path")
 			if gotMachine != "" {
-				_ = json.NewEncoder(w).Encode(domain.Project{ID: "p1", Slug: "x"})
+				_ = json.NewEncoder(w).Encode(domain.Node{ID: "p1", Slug: "x"})
 				return
 			}
 			w.WriteHeader(http.StatusNotFound)
@@ -233,7 +233,7 @@ func TestResolve_recordsCheckoutForGitRepo(t *testing.T) {
 	// Server: resolve returns a project bound to the remote slug.
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve" {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/resolve" {
 			slug := r.URL.Query().Get("slug")
 			_, _ = w.Write([]byte(projectJSON("p1", "Flow", slug)))
 			return
@@ -291,7 +291,7 @@ func TestResolve_OutsideGitRepo(t *testing.T) {
 
 	var resolveHit bool
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve" {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/resolve" {
 			resolveHit = true
 			w.WriteHeader(http.StatusNotFound)
 			return

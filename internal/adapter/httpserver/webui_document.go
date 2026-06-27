@@ -62,10 +62,10 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		CategoryHref:     categoryHref,
 		CategoryLabelKey: categoryLabelKey,
 	}
-	if doc.ProjectID != nil {
-		vm.ProjectID = *doc.ProjectID
-		vm.ProjectName = projectNames[*doc.ProjectID]
-		vm.ProjectColor = webui.ColorHex(projectColors[*doc.ProjectID])
+	if doc.NodeID != nil {
+		vm.NodeID = *doc.NodeID
+		vm.NodeName = projectNames[*doc.NodeID]
+		vm.ProjectColor = webui.ColorHex(projectColors[*doc.NodeID])
 	}
 	if doc.Date != nil {
 		vm.DateStr = doc.Date.Format("02.01.2006")

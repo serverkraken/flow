@@ -18,7 +18,7 @@ func TestAllRoutesRegistered(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Now()}
 	ids := &testutil.FakeIDGen{}
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "s"}},
@@ -29,10 +29,10 @@ func TestAllRoutesRegistered(t *testing.T) {
 		Session:       websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour),
 		OIDCAuth:      fakeAuth{url: "https://id/authorize?state="},
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Projects: ps, Clock: clk},
+		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateProject: usecase.CreateProject{Projects: ps, IDs: ids, Clock: clk},
-		ListProjects:  usecase.ListProjects{Projects: ps},
+		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:  usecase.ListNodes{Nodes: ps},
 	}
 	h := srv.Routes()
 	cases := []struct{ method, path string }{
@@ -44,10 +44,10 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"PATCH", "/api/v1/sessions/x"},
 		{"DELETE", "/api/v1/sessions/x"},
 		{"GET", "/api/v1/sessions"},
-		{"POST", "/api/v1/projects"},
-		{"GET", "/api/v1/projects"},
+		{"POST", "/api/v1/nodes"},
+		{"GET", "/api/v1/nodes"},
 		{"GET", "/api/v1/export"},
-		{"POST", "/api/v1/projects/x/rate"},
+		{"POST", "/api/v1/nodes/x/rate"},
 		{"POST", "/api/v1/documents"},
 		{"GET", "/api/v1/documents"},
 		{"GET", "/api/v1/documents/x"},

@@ -17,11 +17,11 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 	ctx := context.Background()
 	loc := time.UTC
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	ids := &testutil.FakeIDGen{}
 	now := time.Date(2026, 6, 24, 14, 0, 0, 0, loc)
 	clk := testutil.FakeClock{T: now}
-	if _, err := ps.Create(ctx, domain.Project{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 	// running since yesterday 18:51
@@ -30,7 +30,7 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 		t.Fatalf("seed running: %v", err)
 	}
 
-	uc := usecase.StopSession{Sessions: ss, Projects: ps, IDs: ids, Clock: clk, Loc: loc}
+	uc := usecase.StopSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: loc}
 	pid := "p1"
 	if _, err := uc.Execute(ctx, "u1", "run", &pid); err != nil {
 		t.Fatalf("stop: %v", err)
@@ -48,8 +48,8 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 		if s.Stop == nil {
 			t.Errorf("session %s still running after stop", s.ID)
 		}
-		if s.ProjectID == nil || *s.ProjectID != "p1" {
-			t.Errorf("session %s not booked to p1: %+v", s.ID, s.ProjectID)
+		if s.NodeID == nil || *s.NodeID != "p1" {
+			t.Errorf("session %s not booked to p1: %+v", s.ID, s.NodeID)
 		}
 		if s.Tag != "deep" {
 			t.Errorf("session %s lost tag: %q", s.ID, s.Tag)
@@ -66,12 +66,12 @@ func TestStopSession_SameDayNoSplit(t *testing.T) {
 	ctx := context.Background()
 	loc := time.UTC
 	ss := testutil.NewFakeSessionStore()
-	ps := testutil.NewFakeProjectStore()
+	ps := testutil.NewFakeNodeStore()
 	ids := &testutil.FakeIDGen{}
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 24, 12, 0, 0, 0, loc)}
-	_, _ = ps.Create(ctx, domain.Project{ID: "p1", OwnerID: "u1", Name: "flow"})
+	_, _ = ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"})
 	_, _ = ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: time.Date(2026, 6, 24, 9, 0, 0, 0, loc)})
-	uc := usecase.StopSession{Sessions: ss, Projects: ps, IDs: ids, Clock: clk, Loc: loc}
+	uc := usecase.StopSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: loc}
 	pid := "p1"
 	if _, err := uc.Execute(ctx, "u1", "run", &pid); err != nil {
 		t.Fatalf("stop: %v", err)

@@ -19,18 +19,18 @@ func (s *Server) exportPageData(ctx context.Context, u domain.User, from, to tim
 		return webui.ExportPageData{}, err
 	}
 
-	rows := make([]webui.ExportSummaryRow, 0, len(data.ByProject))
+	rows := make([]webui.ExportSummaryRow, 0, len(data.ByEngagement))
 	var grandTotal time.Duration
 	amountByCcy := map[string]int64{}
 
-	for _, pt := range data.ByProject {
+	for _, pt := range data.ByEngagement {
 		amt := "–"
 		if pt.Amount != nil {
 			amt = pt.Amount.String()
 			amountByCcy[pt.Amount.Currency] += pt.Amount.Amount
 		}
 		rows = append(rows, webui.ExportSummaryRow{
-			Project: pt.ProjectName,
+			Project: pt.NodeName,
 			Time:    domain.FmtDur(pt.Total),
 			Amount:  amt,
 		})

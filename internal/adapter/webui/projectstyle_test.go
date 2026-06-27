@@ -11,7 +11,7 @@ import (
 // Drift guard: every domain palette color MUST have a WebUI hex, else a project
 // could carry a color the WebUI renders as blank.
 func TestColorHexCoversWholePalette(t *testing.T) {
-	for _, name := range domain.ProjectColors {
+	for _, name := range domain.NodeColors {
 		hex := webui.ColorHex(name)
 		if !strings.HasPrefix(hex, "#") || len(hex) != 7 {
 			t.Errorf("color %q → %q, want a #rrggbb hex", name, hex)
@@ -26,19 +26,19 @@ func TestColorHexCoversWholePalette(t *testing.T) {
 }
 
 func TestStatusBadge(t *testing.T) {
-	for _, st := range []domain.ProjectStatus{domain.ProjectActive, domain.ProjectPaused, domain.ProjectArchived} {
+	for _, st := range []domain.NodeStatus{domain.NodeActive, domain.NodePaused, domain.NodeArchived} {
 		label, classes := webui.StatusBadge(st)
 		if label == "" || classes == "" {
 			t.Errorf("status %q → empty label/classes", st)
 		}
 	}
-	if l, _ := webui.StatusBadge(domain.ProjectActive); l != "aktiv" {
+	if l, _ := webui.StatusBadge(domain.NodeActive); l != "aktiv" {
 		t.Errorf("active label = %q, want aktiv", l)
 	}
-	if l, _ := webui.StatusBadge(domain.ProjectPaused); l != "pausiert" {
+	if l, _ := webui.StatusBadge(domain.NodePaused); l != "pausiert" {
 		t.Errorf("paused label = %q, want pausiert", l)
 	}
-	if l, _ := webui.StatusBadge(domain.ProjectArchived); l != "archiviert" {
+	if l, _ := webui.StatusBadge(domain.NodeArchived); l != "archiviert" {
 		t.Errorf("archived label = %q, want archiviert", l)
 	}
 }

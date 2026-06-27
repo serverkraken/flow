@@ -10,9 +10,9 @@ import (
 
 // ProjectsPageData is the list view model.
 type ProjectsPageData struct {
-	User     string
-	Status   string // active filter token: "" (=active+paused default), "archived", "all"
-	Projects []domain.Project
+	User   string
+	Status string // active filter token: "" (=active+paused default), "archived", "all"
+	Nodes  []domain.Node
 }
 
 templ ProjectsPage(d ProjectsPageData) {
@@ -38,32 +38,32 @@ templ ProjectsFragment(d ProjectsPageData) {
 	@Nav("projekte", d.User)
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex gap-2 text-sm">
-			<a href="/projects" class={ filterChip(d.Status == "") }>aktiv + pausiert</a>
-			<a href="/projects?status=archived" class={ filterChip(d.Status == "archived") }>archiviert</a>
-			<a href="/projects?status=all" class={ filterChip(d.Status == "all") }>alle</a>
+			<a href="/nodes" class={ filterChip(d.Status == "") }>aktiv + pausiert</a>
+			<a href="/nodes?status=archived" class={ filterChip(d.Status == "archived") }>archiviert</a>
+			<a href="/nodes?status=all" class={ filterChip(d.Status == "all") }>alle</a>
 		</div>
-		<a href="/projects/new" class="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700">Neues Projekt</a>
+		<a href="/nodes/new" class="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700">Neues Projekt</a>
 	</div>
 	<div
 		id="pc"
-		hx-get="/ui/projects/list"
+		hx-get="/ui/nodes/list"
 		hx-trigger="sse:project.created, sse:project.updated, sse:project.deleted"
 		hx-swap="innerHTML"
 		hx-include="[name='status']"
 	>
 		<input type="hidden" name="status" value={ d.Status }/>
-		@projectsList(d.Projects)
+		@projectsList(d.Nodes)
 	</div>
 }
 
-templ projectsList(ps []domain.Project) {
+templ projectsList(ps []domain.Node) {
 	if len(ps) == 0 {
 		<p class="py-8 text-center text-sm text-slate-400">Keine Projekte.</p>
 	} else {
 		<ul class="divide-y divide-slate-100">
 			for _, p := range ps {
 				<li class="py-2">
-					<a href={ templ.SafeURL("/projects/" + p.ID) } class="block hover:bg-slate-50">
+					<a href={ templ.SafeURL("/nodes/" + p.ID) } class="block hover:bg-slate-50">
 						<div class="flex items-center justify-between text-sm">
 							<span class="flex items-center gap-2 font-medium text-slate-800">
 								@glyphSwatch(p)
@@ -82,7 +82,7 @@ templ projectsList(ps []domain.Project) {
 }
 
 // glyphSwatch renders the project's color dot + glyph (both optional).
-templ glyphSwatch(p domain.Project) {
+templ glyphSwatch(p domain.Node) {
 	if ColorHex(p.Color) != "" {
 		<span class="inline-block h-2.5 w-2.5 rounded-full" style={ "background-color:" + ColorHex(p.Color) }></span>
 	}
@@ -91,7 +91,7 @@ templ glyphSwatch(p domain.Project) {
 	}
 }
 
-templ statusBadge(s domain.ProjectStatus) {
+templ statusBadge(s domain.NodeStatus) {
 	{{ label, classes := StatusBadge(s) }}
 	<span class={ classes }>{ label }</span>
 }
@@ -104,13 +104,13 @@ func filterChip(active bool) string {
 }
 
 // ---------------------------------------------------------------------------
-// Project cockpit (GET /projects/{id})
+// Project cockpit (GET /nodes/{id})
 // ---------------------------------------------------------------------------
 
 // ProjectCockpit is the view model for the read-only project detail page.
 type ProjectCockpit struct {
 	User            string
-	P               domain.Project
+	P               domain.Node
 	DescriptionHTML template.HTML
 	TotalHours      float64
 	WeekHours       float64
@@ -134,7 +134,7 @@ templ ProjectView(d ProjectCockpit) {
 		<body class="bg-slate-50 text-slate-800" hx-ext="sse" sse-connect="/api/v1/events">
 			<main class="mx-auto max-w-3xl p-6">
 				@Nav("projekte", d.User)
-				<div id="pv" hx-get={ "/projects/" + d.P.ID } hx-trigger="sse:project.updated" hx-swap="outerHTML">
+				<div id="pv" hx-get={ "/nodes/" + d.P.ID } hx-trigger="sse:project.updated" hx-swap="outerHTML">
 					@projectCockpitBody(d)
 				</div>
 			</main>
@@ -150,7 +150,7 @@ templ projectCockpitBody(d ProjectCockpit) {
 			@statusBadge(d.P.Status)
 		</h2>
 		<div class="flex gap-2 text-sm">
-			<a href={ templ.SafeURL("/projects/" + d.P.ID + "/edit") } class="rounded bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-700">Bearbeiten</a>
+			<a href={ templ.SafeURL("/nodes/" + d.P.ID + "/edit") } class="rounded bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-700">Bearbeiten</a>
 			@statusActionButton(d.P)
 		</div>
 	</div>
@@ -205,26 +205,26 @@ templ projectCockpitBody(d ProjectCockpit) {
 }
 
 // statusActionButton offers the single most relevant lifecycle transition.
-templ statusActionButton(p domain.Project) {
+templ statusActionButton(p domain.Node) {
 	switch p.Status {
-		case domain.ProjectActive:
-			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+		case domain.NodeActive:
+			<form action={ templ.SafeURL("/nodes/" + p.ID + "/status") } method="post" hx-boost="false">
 				<input type="hidden" name="status" value="paused"/>
 				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Pausieren</button>
 			</form>
-		case domain.ProjectPaused:
-			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+		case domain.NodePaused:
+			<form action={ templ.SafeURL("/nodes/" + p.ID + "/status") } method="post" hx-boost="false">
 				<input type="hidden" name="status" value="active"/>
 				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Fortsetzen</button>
 			</form>
-		case domain.ProjectArchived:
-			<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+		case domain.NodeArchived:
+			<form action={ templ.SafeURL("/nodes/" + p.ID + "/status") } method="post" hx-boost="false">
 				<input type="hidden" name="status" value="active"/>
 				<button class="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100">Reaktivieren</button>
 			</form>
 	}
-	if p.Status != domain.ProjectArchived {
-		<form action={ templ.SafeURL("/projects/" + p.ID + "/status") } method="post" hx-boost="false">
+	if p.Status != domain.NodeArchived {
+		<form action={ templ.SafeURL("/nodes/" + p.ID + "/status") } method="post" hx-boost="false">
 			<input type="hidden" name="status" value="archived"/>
 			<button class="rounded border border-slate-300 px-3 py-1.5 text-slate-500 hover:bg-slate-100">Archivieren</button>
 		</form>
@@ -232,7 +232,7 @@ templ statusActionButton(p domain.Project) {
 }
 
 // ---------------------------------------------------------------------------
-// Project form (GET /projects/new and GET /projects/{id}/edit)
+// Project form (GET /nodes/new and GET /nodes/{id}/edit)
 // ---------------------------------------------------------------------------
 
 type ProjectFormData struct {
@@ -248,7 +248,7 @@ type ProjectFormValues struct {
 }
 
 // ProjectForm renders create (editing==nil) or edit (editing!=nil) of a project.
-templ ProjectForm(d ProjectFormData, editing *domain.Project) {
+templ ProjectForm(d ProjectFormData, editing *domain.Node) {
 	<!DOCTYPE html>
 	<html lang="de">
 		<head>
@@ -299,7 +299,7 @@ templ ProjectForm(d ProjectFormData, editing *domain.Project) {
 					<label class="block text-slate-600">Farbe</label>
 					<div class="flex flex-wrap gap-2">
 						@colorRadio("", d.Vals.Color)
-						for _, name := range domain.ProjectColors {
+						for _, name := range domain.NodeColors {
 							@colorRadio(name, d.Vals.Color)
 						}
 					</div>
@@ -308,7 +308,7 @@ templ ProjectForm(d ProjectFormData, editing *domain.Project) {
 					<label class="block text-slate-600">Glyph</label>
 					<div class="flex flex-wrap gap-2">
 						@glyphRadio("", d.Vals.Glyph)
-						for _, g := range domain.ProjectGlyphs {
+						for _, g := range domain.NodeGlyphs {
 							@glyphRadio(g, d.Vals.Glyph)
 						}
 					</div>
@@ -325,11 +325,11 @@ templ ProjectForm(d ProjectFormData, editing *domain.Project) {
 				</div>
 				<div class="flex gap-2">
 					<button class="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700">Speichern</button>
-					<a href="/projects" class="rounded border border-slate-300 px-4 py-2 hover:bg-slate-100">Abbrechen</a>
+					<a href="/nodes" class="rounded border border-slate-300 px-4 py-2 hover:bg-slate-100">Abbrechen</a>
 				</div>
 			</form>
 			if editing != nil {
-				<form method="post" action={ templ.SafeURL("/projects/" + editing.ID + "/delete") } hx-boost="false" class="mt-2 flex">
+				<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/delete") } hx-boost="false" class="mt-2 flex">
 					<button class="ml-auto rounded border border-rose-300 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50">Löschen</button>
 				</form>
 			}
@@ -377,11 +377,11 @@ templ glyphRadio(g, current string) {
 	</label>
 }
 
-func formAction(editing *domain.Project) templ.SafeURL {
+func formAction(editing *domain.Node) templ.SafeURL {
 	if editing != nil {
-		return templ.SafeURL("/projects/" + editing.ID)
+		return templ.SafeURL("/nodes/" + editing.ID)
 	}
-	return templ.SafeURL("/projects")
+	return templ.SafeURL("/nodes")
 }
 
 func orDefault(v, def string) string {

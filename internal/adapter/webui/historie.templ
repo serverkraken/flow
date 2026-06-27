@@ -38,8 +38,8 @@ templ HistorieCalendarFragment(vm HistorieVM) {
 		@historieWeek(vm)
 		@historieAgenda(vm)
 	}
-	@HistorieSelectionBarC(vm.Projects, "cal")
-	@historieEditDialog(vm.Projects)
+	@HistorieSelectionBarC(vm.Nodes, "cal")
+	@historieEditDialog(vm.Nodes)
 }
 
 // historieHeading is the page eyebrow + H1.
@@ -187,7 +187,7 @@ templ historieBlock(dayKey, dateKey string, b components.SessionBlockVM) {
 		data-edit-to={ b.EditTo }
 		data-edit-tag={ b.EditTag }
 		data-edit-note={ b.EditNote }
-		data-edit-project={ b.EditProjectID }
+		data-edit-project={ b.EditNodeID }
 		data-unassigned={ historieUnFlag(b.Unassigned) }>
 		@components.SessionBlock(b)
 	</div>
@@ -206,7 +206,7 @@ templ historieAgendaRow(dayKey, dateKey string, b components.SessionBlockVM, row
 		data-edit-to={ b.EditTo }
 		data-edit-tag={ b.EditTag }
 		data-edit-note={ b.EditNote }
-		data-edit-project={ b.EditProjectID }
+		data-edit-project={ b.EditNodeID }
 		data-unassigned={ historieUnFlag(b.Unassigned) }>
 		@components.SessionRow(row)
 	</div>
@@ -358,8 +358,8 @@ templ HistorieListFragment(vm HistorieListVM) {
 			@components.Pagination(vm.Page)
 		}
 	</div>
-	@HistorieSelectionBarC(vm.Projects, "list")
-	@historieEditDialog(vm.Projects)
+	@HistorieSelectionBarC(vm.Nodes, "list")
+	@historieEditDialog(vm.Nodes)
 }
 
 templ historieListHeading() {
@@ -376,7 +376,7 @@ templ historieListHeading() {
 templ HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) {
 	@components.SelectionActionBar(HistorieSelectionBar(components.FuzzyPickerVM{
 		ID:       "historiePicker",
-		Projects: projects,
+		Nodes: projects,
 		FormID:   "historieBulkForm",
 	}, view))
 }

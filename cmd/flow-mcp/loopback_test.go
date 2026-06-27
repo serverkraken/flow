@@ -54,7 +54,7 @@ func connect(t *testing.T, srv *mcp.Server) *mcp.ClientSession {
 // the resolved project seeded directly (fixtures lack the V0 resolution
 // endpoints, so onAuth is disabled here). Returns the manager and the handlers
 // whose h.srv the caller connects to.
-func managerFor(t *testing.T, client *apiclient.Client, proj domain.Project) (*authManager, *handlers) {
+func managerFor(t *testing.T, client *apiclient.Client, proj domain.Node) (*authManager, *handlers) {
 	t.Helper()
 	mgr := newAuthManager(func(context.Context) (*apiclient.Client, error) { return client, nil }, nil)
 	_, h := newServerH(mgr) // newServerH sets mgr.onAuth = h.postAuthInit …
@@ -78,7 +78,7 @@ func TestLoopback_ProjectContext_Authed(t *testing.T) {
 	be := fakeBackend(t, 2)
 	defer be.Close()
 	client := apiclient.New(be.URL, "tok")
-	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 
 	mgr, h := managerFor(t, client, proj)
 	_ = mgr
@@ -148,9 +148,9 @@ func text(res *mcp.CallToolResult) string {
 func readFixture() []domain.Document {
 	p1, p2 := "p1", "p2"
 	return []domain.Document{
-		{ID: "d1", OwnerID: "u1", ProjectID: &p1, Type: domain.DocMemory, Path: "notes/arch", Title: "Arch", Body: "the needle lives here", Tags: []string{"go", "design"}},
-		{ID: "d2", OwnerID: "u1", ProjectID: &p1, Type: domain.DocFree, Path: "notes/todo", Title: "Todo", Body: "links [[notes/arch]]", Tags: []string{"go"}},
-		{ID: "d3", OwnerID: "u1", ProjectID: &p2, Type: domain.DocMemory, Path: "notes/arch", Title: "Beta Arch", Body: "beta body", Tags: []string{"beta"}},
+		{ID: "d1", OwnerID: "u1", NodeID: &p1, Type: domain.DocMemory, Path: "notes/arch", Title: "Arch", Body: "the needle lives here", Tags: []string{"go", "design"}},
+		{ID: "d2", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/todo", Title: "Todo", Body: "links [[notes/arch]]", Tags: []string{"go"}},
+		{ID: "d3", OwnerID: "u1", NodeID: &p2, Type: domain.DocMemory, Path: "notes/arch", Title: "Beta Arch", Body: "beta body", Tags: []string{"beta"}},
 		{ID: "d4", OwnerID: "u1", Type: domain.DocFree, Path: "global-note", Title: "Global", Body: "no project", Tags: nil},
 	}
 }
@@ -163,9 +163,9 @@ func scopedMatch(d domain.Document, projectId string, hasProjectId bool) bool {
 	}
 	switch projectId {
 	case "none":
-		return d.ProjectID == nil
+		return d.NodeID == nil
 	default:
-		return d.ProjectID != nil && *d.ProjectID == projectId
+		return d.NodeID != nil && *d.NodeID == projectId
 	}
 }
 
@@ -178,8 +178,8 @@ func fakeReadBackend(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
 	})
-	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode([]domain.Project{
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Node{
 			{ID: "p1", Name: "Alpha", Slug: "alpha"},
 			{ID: "p2", Name: "Beta", Slug: "beta"},
 		})
@@ -231,7 +231,7 @@ func fakeReadBackend(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// fakeBindBackend extends fakeReadBackend with POST /projects and PUT /projects/{id}/bindings.
+// fakeBindBackend extends fakeReadBackend with POST /projects and PUT /nodes/{id}/bindings.
 // bindCalled is written (true) on the first PUT bindings call, to assert bind happened.
 func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
 	t.Helper()
@@ -241,13 +241,13 @@ func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/me", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(domain.User{ID: "u1", DisplayName: "Dev", Email: "dev@x"})
 	})
-	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode([]domain.Project{
+	mux.HandleFunc("GET /api/v1/nodes", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode([]domain.Node{
 			{ID: "p1", Name: "Alpha", Slug: "alpha"},
 			{ID: "p2", Name: "Beta", Slug: "beta"},
 		})
 	})
-	mux.HandleFunc("POST /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/nodes", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
 		}
@@ -256,9 +256,9 @@ func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
 			return
 		}
 		slug := strings.ToLower(strings.ReplaceAll(body.Name, " ", "-"))
-		_ = json.NewEncoder(w).Encode(domain.Project{ID: "pX", Name: body.Name, Slug: slug})
+		_ = json.NewEncoder(w).Encode(domain.Node{ID: "pX", Name: body.Name, Slug: slug})
 	})
-	mux.HandleFunc("PUT /api/v1/projects/{id}/bindings", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("PUT /api/v1/nodes/{id}/bindings", func(w http.ResponseWriter, _ *http.Request) {
 		if bindCalled != nil {
 			*bindCalled = true
 		}
@@ -318,7 +318,7 @@ func TestLoopback_BindProject(t *testing.T) {
 	be := fakeBindBackend(t, &bindCalled)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
-	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 	mgr, h := managerFor(t, client, proj)
 	_ = mgr
 	sess := connect(t, h.srv)
@@ -358,7 +358,7 @@ func TestLoopback_BindProject(t *testing.T) {
 		t.Fatalf("bind result = %q, want it to name 'Scratch'", bindTxt)
 	}
 	if !bindCalled {
-		t.Fatalf("PUT /api/v1/projects/{id}/bindings was never called")
+		t.Fatalf("PUT /api/v1/nodes/{id}/bindings was never called")
 	}
 
 	// 4. error case: neither project nor create_name.
@@ -371,12 +371,12 @@ func TestLoopback_BindProject(t *testing.T) {
 	}
 
 	// 5. Re-resolve after bind: set FLOW_PROJECT=beta so refreshResolved (triggered
-	// inside bindProject) deterministically picks Beta from the fixture ListProjects.
+	// inside bindProject) deterministically picks Beta from the fixture ListNodes.
 	// Then assert flow_project_context reports Beta.
 	//
 	// Strategy: FLOW_PROJECT env approach — projectresolve.Resolve checks FLOW_PROJECT
-	// first and matches against ListProjects by slug; our fixture serves beta/p2.
-	// This avoids dependency on the GET /projects/resolve endpoint (not in fixture).
+	// first and matches against ListNodes by slug; our fixture serves beta/p2.
+	// This avoids dependency on the GET /nodes/resolve endpoint (not in fixture).
 	t.Setenv("FLOW_PROJECT", "beta")
 	bindCalled = false
 	resRe, reTxt := callText(t, sess, "flow_bind_project", map[string]any{
@@ -402,7 +402,7 @@ func authedReadServer(t *testing.T) *mcp.ClientSession {
 	be := fakeReadBackend(t)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
-	proj := domain.Project{ID: "p1", Name: "Alpha", Slug: "alpha"}
+	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 	mgr, h := managerFor(t, client, proj)
 	_ = mgr
 	return connect(t, h.srv)

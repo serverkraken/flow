@@ -20,13 +20,13 @@ import (
 // --- helpers shared across bind tests ---
 
 // newBindSrv creates an httptest server for binding tests.
-// resolveProject: if non-nil, /projects/resolve returns it as JSON (200); otherwise 404.
-func newBindSrv(t *testing.T, projects []domain.Project, bindings []domain.ProjectBinding) (srv *httptest.Server, putSlug *string, deletedPath *string) {
+// resolveProject: if non-nil, /nodes/resolve returns it as JSON (200); otherwise 404.
+func newBindSrv(t *testing.T, projects []domain.Node, bindings []domain.ProjectBinding) (srv *httptest.Server, putSlug *string, deletedPath *string) {
 	srv, putSlug, deletedPath, _ = newBindSrvWithResolve(t, projects, bindings, nil)
 	return srv, putSlug, deletedPath
 }
 
-func newBindSrvWithResolve(t *testing.T, projects []domain.Project, bindings []domain.ProjectBinding, resolveProject *domain.Project) (srv *httptest.Server, putSlug *string, deletedPath *string, resolveHit *bool) {
+func newBindSrvWithResolve(t *testing.T, projects []domain.Node, bindings []domain.ProjectBinding, resolveProject *domain.Node) (srv *httptest.Server, putSlug *string, deletedPath *string, resolveHit *bool) {
 	t.Helper()
 	var ps = projects
 	var bs = bindings
@@ -35,7 +35,7 @@ func newBindSrvWithResolve(t *testing.T, projects []domain.Project, bindings []d
 	var rHit bool
 	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes":
 			_ = json.NewEncoder(w).Encode(ps)
 		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/bindings"):
 			var body map[string]any
@@ -43,12 +43,12 @@ func newBindSrvWithResolve(t *testing.T, projects []domain.Project, bindings []d
 			putRemoteSlug, _ = body["remoteSlug"].(string)
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{RemoteSlug: putRemoteSlug})
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/projects/bindings":
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/nodes/bindings":
 			dpath = r.URL.RawQuery
 			w.WriteHeader(http.StatusNoContent)
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/bindings":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/bindings":
 			_ = json.NewEncoder(w).Encode(bs)
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/resolve":
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/resolve":
 			rHit = true
 			if resolveProject == nil {
 				w.WriteHeader(http.StatusNotFound)
@@ -67,7 +67,7 @@ func newBindSrvWithResolve(t *testing.T, projects []domain.Project, bindings []d
 // --- TestRunBind ---
 
 func TestRunBind_Success(t *testing.T) {
-	projects := []domain.Project{{ID: "p1", Name: "Acme", Slug: "acme"}}
+	projects := []domain.Node{{ID: "p1", Name: "Acme", Slug: "acme"}}
 	srv, putSlug, _ := newBindSrv(t, projects, nil)
 	c := apiclient.New(srv.URL, "tkn")
 
@@ -84,7 +84,7 @@ func TestRunBind_Success(t *testing.T) {
 }
 
 func TestRunBind_UnknownSlug(t *testing.T) {
-	projects := []domain.Project{{ID: "p1", Name: "Acme", Slug: "acme"}}
+	projects := []domain.Node{{ID: "p1", Name: "Acme", Slug: "acme"}}
 	srv, _, _ := newBindSrv(t, projects, nil)
 	c := apiclient.New(srv.URL, "tkn")
 
@@ -136,13 +136,13 @@ func makeGitRepo(t *testing.T, remoteURL string) string {
 }
 
 // TestRunBindings_MarksResolved: no FLOW_PROJECT override; cwd is a git repo whose
-// origin resolves (via /projects/resolve) to project p1 → that binding is starred.
+// origin resolves (via /nodes/resolve) to project p1 → that binding is starred.
 func TestRunBindings_MarksResolved(t *testing.T) {
-	resolvedProj := &domain.Project{ID: "p1", Name: "Acme", Slug: "acme"}
-	projects := []domain.Project{*resolvedProj}
+	resolvedProj := &domain.Node{ID: "p1", Name: "Acme", Slug: "acme"}
+	projects := []domain.Node{*resolvedProj}
 	bindings := []domain.ProjectBinding{
-		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
-		{ID: "b2", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/other"},
+		{ID: "b1", NodeID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
+		{ID: "b2", NodeID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/other"},
 	}
 	srv, _, _, _ := newBindSrvWithResolve(t, projects, bindings, resolvedProj)
 	c := apiclient.New(srv.URL, "tkn")
@@ -177,14 +177,14 @@ func TestRunBindings_MarksResolved(t *testing.T) {
 // the binding for that project is starred even if cwd's origin would resolve differently.
 func TestRunBindings_FlowProjectOverride(t *testing.T) {
 	// Two projects; p2 is the override target, p1 is the cwd-origin match (if resolution went by remote).
-	overrideProj := &domain.Project{ID: "p2", Name: "Override", Slug: "override-slug"}
-	projects := []domain.Project{
+	overrideProj := &domain.Node{ID: "p2", Name: "Override", Slug: "override-slug"}
+	projects := []domain.Node{
 		{ID: "p1", Name: "Acme", Slug: "acme"},
 		*overrideProj,
 	}
 	bindings := []domain.ProjectBinding{
-		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
-		{ID: "b2", ProjectID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/other/repo"},
+		{ID: "b1", NodeID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/acme/app"},
+		{ID: "b2", NodeID: "p2", Kind: domain.BindingRemote, RemoteSlug: "github.com/other/repo"},
 	}
 	// /resolve is not expected to be called (env override takes precedence before git-remote tier).
 	srv, _, _, resolveHit := newBindSrvWithResolve(t, projects, bindings, nil)
@@ -219,7 +219,7 @@ func TestRunBindings_FlowProjectOverride(t *testing.T) {
 		t.Errorf("cwd-origin binding should NOT be starred when override wins:\n%s", out)
 	}
 	if *resolveHit {
-		t.Error("/projects/resolve should NOT have been called when FLOW_PROJECT is set")
+		t.Error("/nodes/resolve should NOT have been called when FLOW_PROJECT is set")
 	}
 }
 
@@ -227,7 +227,7 @@ func TestRunBindings_FlowProjectOverride(t *testing.T) {
 // resolution yields ok=false → no star, bindings still listed.
 func TestRunBindings_NoOrigin_ListsAnyway(t *testing.T) {
 	bindings := []domain.ProjectBinding{
-		{ID: "b1", ProjectID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/x/y"},
+		{ID: "b1", NodeID: "p1", Kind: domain.BindingRemote, RemoteSlug: "github.com/x/y"},
 	}
 	// /resolve will be called (empty slug from non-git dir) but returns 404.
 	srv, _, _, _ := newBindSrvWithResolve(t, nil, bindings, nil)
@@ -345,7 +345,7 @@ func TestPickerProgram_CancelOnEsc(t *testing.T) {
 }
 
 // newBindSelectionSrv is an httptest server that handles BindRemote (PUT) and
-// optionally CreateProject (POST /api/v1/projects). It records what was called.
+// optionally CreateNode (POST /api/v1/nodes). It records what was called.
 type bindSelectionCapture struct {
 	putProjectID   string
 	putRemoteSlug  string
@@ -353,12 +353,12 @@ type bindSelectionCapture struct {
 	postCalled     bool
 }
 
-func newBindSelectionSrv(t *testing.T, createResponse domain.Project) (*httptest.Server, *bindSelectionCapture) {
+func newBindSelectionSrv(t *testing.T, createResponse domain.Node) (*httptest.Server, *bindSelectionCapture) {
 	t.Helper()
 	cap := &bindSelectionCapture{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/projects":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/nodes":
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			cap.postCreateName, _ = body["name"].(string)
@@ -369,9 +369,9 @@ func newBindSelectionSrv(t *testing.T, createResponse domain.Project) (*httptest
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			cap.putRemoteSlug, _ = body["remoteSlug"].(string)
-			// Extract project ID from path: /api/v1/projects/<id>/bindings
+			// Extract project ID from path: /api/v1/nodes/<id>/bindings
 			trimmed := strings.TrimSuffix(r.URL.Path, "/bindings")
-			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/projects/")
+			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/nodes/")
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{RemoteSlug: cap.putRemoteSlug})
 		default:
@@ -384,10 +384,10 @@ func newBindSelectionSrv(t *testing.T, createResponse domain.Project) (*httptest
 }
 
 // TestBindSelection_PickExisting: pick-existing path calls BindRemote with the
-// picked project ID and origin slug; CreateProject is NOT called.
+// picked project ID and origin slug; CreateNode is NOT called.
 func TestBindSelection_PickExisting(t *testing.T) {
 	t.Parallel()
-	srv, cap := newBindSelectionSrv(t, domain.Project{})
+	srv, cap := newBindSelectionSrv(t, domain.Node{})
 	c := apiclient.New(srv.URL, "tkn")
 
 	picked := fuzzylist.Item{ID: "p1", Label: "Alpha"}
@@ -396,7 +396,7 @@ func TestBindSelection_PickExisting(t *testing.T) {
 		t.Fatalf("bindSelection: %v", err)
 	}
 	if cap.postCalled {
-		t.Error("CreateProject should NOT have been called for pick-existing")
+		t.Error("CreateNode should NOT have been called for pick-existing")
 	}
 	if cap.putProjectID != "p1" {
 		t.Errorf("PUT project ID = %q, want %q", cap.putProjectID, "p1")
@@ -409,11 +409,11 @@ func TestBindSelection_PickExisting(t *testing.T) {
 	}
 }
 
-// TestBindSelection_CreateNew: create-new path calls CreateProject(name) first,
+// TestBindSelection_CreateNew: create-new path calls CreateNode(name) first,
 // then BindRemote with the server-assigned ID (not the empty item ID).
 func TestBindSelection_CreateNew(t *testing.T) {
 	t.Parallel()
-	newProject := domain.Project{ID: "p-new", Name: "Brandnew"}
+	newProject := domain.Node{ID: "p-new", Name: "Brandnew"}
 	srv, cap := newBindSelectionSrv(t, newProject)
 	c := apiclient.New(srv.URL, "tkn")
 
@@ -424,10 +424,10 @@ func TestBindSelection_CreateNew(t *testing.T) {
 		t.Fatalf("bindSelection: %v", err)
 	}
 	if !cap.postCalled {
-		t.Error("CreateProject should have been called for create-new")
+		t.Error("CreateNode should have been called for create-new")
 	}
 	if cap.postCreateName != "Brandnew" {
-		t.Errorf("CreateProject name = %q, want %q", cap.postCreateName, "Brandnew")
+		t.Errorf("CreateNode name = %q, want %q", cap.postCreateName, "Brandnew")
 	}
 	// BindRemote must use the server-assigned ID, not the empty item ID.
 	if cap.putProjectID != "p-new" {
@@ -463,13 +463,13 @@ func newPathBindSrv(t *testing.T) (*httptest.Server, *pathBindCapture) {
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			cap.putKind, _ = body["kind"].(string)
 			cap.putMachineID, _ = body["machineId"].(string)
-			// extract project ID from /api/v1/projects/<id>/bindings
+			// extract project ID from /api/v1/nodes/<id>/bindings
 			trimmed := strings.TrimSuffix(r.URL.Path, "/bindings")
-			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/projects/")
+			cap.putProjectID = strings.TrimPrefix(trimmed, "/api/v1/nodes/")
 			cap.putPath, _ = body["path"].(string)
 			w.WriteHeader(http.StatusOK)
 			_ = json.NewEncoder(w).Encode(domain.ProjectBinding{Kind: domain.BindingPath})
-		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/projects/bindings":
+		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/nodes/bindings":
 			cap.deleteQuery = r.URL.RawQuery
 			w.WriteHeader(http.StatusNoContent)
 		default:
@@ -488,7 +488,7 @@ func TestRunBindPath_Success(t *testing.T) {
 	srv, cap := newPathBindSrv(t)
 	c := apiclient.New(srv.URL, "tkn")
 	m := clientmachine.Machine{ID: "m-123", Label: "myhost"}
-	cwd := "/home/user/projects/myapp"
+	cwd := "/home/user/nodes/myapp"
 
 	out, err := runBindPath(context.Background(), c, m, cwd, "proj-1", "MyApp")
 	if err != nil {
@@ -498,7 +498,7 @@ func TestRunBindPath_Success(t *testing.T) {
 		t.Errorf("PUT kind = %q, want %q", cap.putKind, "path")
 	}
 	if cap.putProjectID != "proj-1" {
-		t.Errorf("PUT projectID = %q, want %q", cap.putProjectID, "proj-1")
+		t.Errorf("PUT nodeID = %q, want %q", cap.putProjectID, "proj-1")
 	}
 	if cap.putMachineID != "m-123" {
 		t.Errorf("PUT machineID = %q, want %q", cap.putMachineID, "m-123")
@@ -524,7 +524,7 @@ func TestRunUnbindPath_Success(t *testing.T) {
 	srv, cap := newPathBindSrv(t)
 	c := apiclient.New(srv.URL, "tkn")
 	m := clientmachine.Machine{ID: "m-123", Label: "myhost"}
-	cwd := "/home/user/projects/myapp"
+	cwd := "/home/user/nodes/myapp"
 
 	out, err := runUnbindPath(context.Background(), c, m, cwd)
 	if err != nil {

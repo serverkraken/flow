@@ -8,11 +8,11 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// scope is a tool call's resolved project filter: the apiclient projectID pointer
+// scope is a tool call's resolved project filter: the apiclient nodeID pointer
 // (nil → all projects, "none" → unassigned, &id → one project) plus a human label
 // for result text.
 type scope struct {
-	projectID *string
+	nodeID *string
 	label     string
 }
 
@@ -27,48 +27,48 @@ func (h *handlers) resolveScope(ctx context.Context, project string) (scope, err
 	case "":
 		if proj, matched := h.resolved(); matched {
 			id := proj.ID
-			return scope{projectID: &id, label: "in project " + proj.Name}, nil
+			return scope{nodeID: &id, label: "in project " + proj.Name}, nil
 		}
-		return scope{projectID: nil, label: "across all projects (no project is bound to this directory — use flow_bind_project)"}, nil
+		return scope{nodeID: nil, label: "across all projects (no project is bound to this directory — use flow_bind_project)"}, nil
 	case "global":
-		return scope{projectID: nil, label: "across all projects"}, nil
+		return scope{nodeID: nil, label: "across all projects"}, nil
 	case "none":
 		none := "none"
-		return scope{projectID: &none, label: "among unassigned documents"}, nil
+		return scope{nodeID: &none, label: "among unassigned documents"}, nil
 	default:
-		proj, err := h.lookupProject(ctx, p)
+		proj, err := h.lookupNode(ctx, p)
 		if err != nil {
 			return scope{}, err
 		}
 		id := proj.ID
-		return scope{projectID: &id, label: "in project " + proj.Name}, nil
+		return scope{nodeID: &id, label: "in project " + proj.Name}, nil
 	}
 }
 
-// lookupProject finds a project by id, slug, or name (case-insensitive for slug
+// lookupNode finds a project by id, slug, or name (case-insensitive for slug
 // and name). On a miss it refreshes the cache once — to catch a just-created
 // project — then returns an actionable error listing the known slugs.
-func (h *handlers) lookupProject(ctx context.Context, ref string) (domain.Project, error) {
-	ps, err := h.projectList(ctx, false)
+func (h *handlers) lookupNode(ctx context.Context, ref string) (domain.Node, error) {
+	ps, err := h.nodeList(ctx, false)
 	if err != nil {
-		return domain.Project{}, fmt.Errorf("flow server error listing projects: %w", err)
+		return domain.Node{}, fmt.Errorf("flow server error listing projects: %w", err)
 	}
-	if p, ok := matchProject(ps, ref); ok {
+	if p, ok := matchNode(ps, ref); ok {
 		return p, nil
 	}
-	ps, err = h.projectList(ctx, true) // refresh once, then retry
+	ps, err = h.nodeList(ctx, true) // refresh once, then retry
 	if err != nil {
-		return domain.Project{}, fmt.Errorf("flow server error listing projects: %w", err)
+		return domain.Node{}, fmt.Errorf("flow server error listing projects: %w", err)
 	}
-	if p, ok := matchProject(ps, ref); ok {
+	if p, ok := matchNode(ps, ref); ok {
 		return p, nil
 	}
-	return domain.Project{}, errGuard{fmt.Errorf("unknown project %q. Use 'global' (all projects), 'none' (unassigned), or a known slug: %s", ref, slugList(ps))}
+	return domain.Node{}, errGuard{fmt.Errorf("unknown project %q. Use 'global' (all projects), 'none' (unassigned), or a known slug: %s", ref, slugList(ps))}
 }
 
-// projectList returns the cached project list, fetching it once via the seam.
+// nodeList returns the cached project list, fetching it once via the seam.
 // refresh=true forces a re-fetch.
-func (h *handlers) projectList(ctx context.Context, refresh bool) ([]domain.Project, error) {
+func (h *handlers) nodeList(ctx context.Context, refresh bool) ([]domain.Node, error) {
 	h.projMu.Lock()
 	defer h.projMu.Unlock()
 	if h.projFetched && !refresh {
@@ -89,7 +89,7 @@ func (h *handlers) projectName(ctx context.Context, id *string) string {
 	if id == nil {
 		return ""
 	}
-	ps, err := h.projectList(ctx, false)
+	ps, err := h.nodeList(ctx, false)
 	if err != nil {
 		return ""
 	}
@@ -101,16 +101,16 @@ func (h *handlers) projectName(ctx context.Context, id *string) string {
 	return ""
 }
 
-func matchProject(ps []domain.Project, ref string) (domain.Project, bool) {
+func matchNode(ps []domain.Node, ref string) (domain.Node, bool) {
 	for _, p := range ps {
 		if p.ID == ref || strings.EqualFold(p.Slug, ref) || strings.EqualFold(p.Name, ref) {
 			return p, true
 		}
 	}
-	return domain.Project{}, false
+	return domain.Node{}, false
 }
 
-func slugList(ps []domain.Project) string {
+func slugList(ps []domain.Node) string {
 	if len(ps) == 0 {
 		return "(none)"
 	}

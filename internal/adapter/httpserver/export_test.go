@@ -16,15 +16,15 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// newExportServer builds a Server wired with BuildExport + SetProjectRate using
+// newExportServer builds a Server wired with BuildExport + SetNodeRate using
 // in-memory fakes. Returns the server, the session store and project store so
 // tests can pre-seed data.
-func newExportServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeProjectStore) {
+func newExportServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	bus := sse.NewBus()
 	sessions := testutil.NewFakeSessionStore()
-	projects := testutil.NewFakeProjectStore()
+	projects := testutil.NewFakeNodeStore()
 	settings := testutil.NewFakeUserSettingsStore()
 	dayOffs := testutil.NewFakeDayOffStore()
 	listDayOffs := usecase.ListDayOffs{Store: dayOffs, Settings: settings, Loc: time.UTC}
@@ -45,26 +45,26 @@ func newExportServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionSto
 		SetTarget: usecase.SetTargetConfig{Settings: settings},
 		BuildExport: usecase.BuildExport{
 			Sessions: sessions,
-			Projects: projects,
+			Nodes: projects,
 			Clock:    clk,
 			Loc:      time.UTC,
 		},
-		SetProjectRate: usecase.SetProjectRate{Projects: projects},
+		SetNodeRate: usecase.SetNodeRate{Nodes: projects},
 	}
 	return srv, sessions, projects
 }
 
 // seedExportData pre-seeds one project and one booked (stopped) session under
 // ownerID so export endpoints return non-empty results. Returns the project ID.
-func seedExportData(t *testing.T, sessions *testutil.FakeSessionStore, projects *testutil.FakeProjectStore, ownerID string) string {
+func seedExportData(t *testing.T, sessions *testutil.FakeSessionStore, projects *testutil.FakeNodeStore, ownerID string) string {
 	t.Helper()
 	projID := "proj-export-1"
-	proj := domain.Project{
+	proj := domain.Node{
 		ID:      projID,
 		OwnerID: ownerID,
 		Name:    "TestProject",
 		Slug:    "testproject",
-		Status:  domain.ProjectActive,
+		Status:  domain.NodeActive,
 	}
 	if _, err := projects.Create(context.Background(), proj); err != nil {
 		t.Fatalf("seed project: %v", err)
@@ -76,7 +76,7 @@ func seedExportData(t *testing.T, sessions *testutil.FakeSessionStore, projects 
 		OwnerID:   ownerID,
 		Start:     start,
 		Stop:      &stop,
-		ProjectID: &projID,
+		NodeID: &projID,
 	}
 	if _, err := sessions.Create(context.Background(), ws); err != nil {
 		t.Fatalf("seed session: %v", err)
@@ -250,7 +250,7 @@ func TestHandleSetProjectRate(t *testing.T) {
 
 	// Happy path: set a valid rate.
 	body := `{"amount":8000,"currency":"EUR"}`
-	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/projects/"+projID+"/rate", strings.NewReader(body))
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/nodes/"+projID+"/rate", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer x")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := http.DefaultClient.Do(req)
@@ -264,7 +264,7 @@ func TestHandleSetProjectRate(t *testing.T) {
 
 	// Invalid rate: negative amount.
 	body2 := `{"amount":-1,"currency":"EUR"}`
-	req2, _ := http.NewRequest("POST", ts.URL+"/api/v1/projects/"+projID+"/rate", strings.NewReader(body2))
+	req2, _ := http.NewRequest("POST", ts.URL+"/api/v1/nodes/"+projID+"/rate", strings.NewReader(body2))
 	req2.Header.Set("Authorization", "Bearer x")
 	req2.Header.Set("Content-Type", "application/json")
 	res2, err := http.DefaultClient.Do(req2)
@@ -278,7 +278,7 @@ func TestHandleSetProjectRate(t *testing.T) {
 
 	// Unknown project: expect 404.
 	body3 := `{"amount":5000,"currency":"EUR"}`
-	req3, _ := http.NewRequest("POST", ts.URL+"/api/v1/projects/no-such-project/rate", strings.NewReader(body3))
+	req3, _ := http.NewRequest("POST", ts.URL+"/api/v1/nodes/no-such-project/rate", strings.NewReader(body3))
 	req3.Header.Set("Authorization", "Bearer x")
 	req3.Header.Set("Content-Type", "application/json")
 	res3, err := http.DefaultClient.Do(req3)
@@ -292,7 +292,7 @@ func TestHandleSetProjectRate(t *testing.T) {
 
 	// Clear rate: amount=null clears the stored rate (→ 204, rate becomes nil).
 	body4 := `{"amount":null,"currency":""}`
-	req4, _ := http.NewRequest("POST", ts.URL+"/api/v1/projects/"+projID+"/rate", strings.NewReader(body4))
+	req4, _ := http.NewRequest("POST", ts.URL+"/api/v1/nodes/"+projID+"/rate", strings.NewReader(body4))
 	req4.Header.Set("Authorization", "Bearer x")
 	req4.Header.Set("Content-Type", "application/json")
 	res4, err := http.DefaultClient.Do(req4)

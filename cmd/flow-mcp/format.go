@@ -83,11 +83,11 @@ func formatTags(tags []domain.TagCount, sc scope) string {
 
 // formatProjects renders the project list as concise lines the model can read
 // to pick an existing project before binding.
-func formatProjects(ps []domain.Project) string {
+func formatProjects(ps []domain.Node) string {
 	if len(ps) == 0 {
 		return "No projects yet. Use flow_bind_project with create_name to make one."
 	}
-	sorted := make([]domain.Project, len(ps))
+	sorted := make([]domain.Node, len(ps))
 	copy(sorted, ps)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 	var b strings.Builder

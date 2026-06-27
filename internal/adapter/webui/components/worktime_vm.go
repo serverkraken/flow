@@ -33,14 +33,14 @@ type SessionBlockVM struct {
 	Unassigned bool
 	Running    bool
 	Size       string // "" | "sm" | "md" (drives detail reveal; see .wtblock-sm/.wtblock-md)
-	// EditTo / EditTag / EditNote / EditProjectID carry the session's current
+	// EditTo / EditTag / EditNote / EditNodeID carry the session's current
 	// values into the block wrapper data-attrs so the single-edit dialog can
 	// prefill all fields from the clicked block (no extra server round-trip).
 	// EditTo is "HH:MM" in local time; empty for a running session.
 	EditTo        string
 	EditTag       string
 	EditNote      string
-	EditProjectID string
+	EditNodeID string
 }
 
 // KennzahlenVM drives the week summary metrics panel.
@@ -65,7 +65,7 @@ type WeekTotalVM struct {
 // FuzzyPickerVM drives the project fuzzy picker dropdown.
 type FuzzyPickerVM struct {
 	ID       string // dom id for the picker container
-	Projects []FuzzyProjectVM
+	Nodes []FuzzyProjectVM
 	FormID   string // the form whose hidden projectId/newProject fields this writes
 }
 

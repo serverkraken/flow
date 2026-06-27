@@ -79,7 +79,7 @@ func renderView(r *Route, f shell.Frame) string {
 		if glyph == "" {
 			glyph = glyphs.Filled
 		}
-		glyphColor := kindcolor.ProjectColor(p.Color, pal)
+		glyphColor := kindcolor.NodeColor(p.Color, pal)
 		glyphStr := lipgloss.NewStyle().Foreground(glyphColor).Render(glyph)
 
 		// Project name.
@@ -103,13 +103,13 @@ func renderView(r *Route, f shell.Frame) string {
 }
 
 // statusLabel returns the German display label for a project status.
-func statusLabel(s domain.ProjectStatus) string {
+func statusLabel(s domain.NodeStatus) string {
 	switch s {
-	case domain.ProjectActive:
+	case domain.NodeActive:
 		return "aktiv"
-	case domain.ProjectPaused:
+	case domain.NodePaused:
 		return "pausiert"
-	case domain.ProjectArchived:
+	case domain.NodeArchived:
 		return "archiviert"
 	default:
 		return string(s)

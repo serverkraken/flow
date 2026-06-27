@@ -110,8 +110,8 @@ type DocsModel struct {
 	searchSel   int
 
 	pal        theme.Palette
-	projects   []domain.Project
-	projByID   map[string]domain.Project
+	projects   []domain.Node
+	projByID   map[string]domain.Node
 	projFilter string        // selected project ID; "" = all projects
 	projList   fuzzylist.Model // project-filter picker (fuzzy)
 }
@@ -171,8 +171,8 @@ func (m DocsModel) buildRenderFunc(doc domain.Document, vs *viewerState) markdow
 		Title: doc.Title,
 		Tags:  doc.Tags,
 	}
-	if doc.ProjectID != nil {
-		fm.Project = *doc.ProjectID
+	if doc.NodeID != nil {
+		fm.Project = *doc.NodeID
 	}
 	if doc.Date != nil {
 		fm.Date = doc.Date.Format("2006-01-02")
@@ -290,7 +290,7 @@ func (m DocsModel) loadTags() tea.Cmd {
 	}
 }
 
-type projectsLoadedMsg struct{ projects []domain.Project }
+type projectsLoadedMsg struct{ projects []domain.Node }
 
 func (m DocsModel) loadProjects() tea.Cmd {
 	if m.client == nil {
@@ -299,7 +299,7 @@ func (m DocsModel) loadProjects() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		ps, err := m.client.ListProjects(ctx)
+		ps, err := m.client.ListNodes(ctx)
 		if err != nil {
 			return errMsg{err}
 		}
@@ -443,7 +443,7 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case projectsLoadedMsg:
 		m.projects = msg.projects
-		m.projByID = make(map[string]domain.Project, len(msg.projects))
+		m.projByID = make(map[string]domain.Node, len(msg.projects))
 		for _, p := range msg.projects {
 			m.projByID[p.ID] = p
 		}
@@ -897,7 +897,7 @@ func (m DocsModel) handleProjectFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd
 // projectFilterItems builds the fuzzylist items for the project-filter picker.
 // The first entry is always "Alle Projekte" (ID ""), followed by one item per
 // project using its Slug as the label.
-func projectFilterItems(ps []domain.Project) []fuzzylist.Item {
+func projectFilterItems(ps []domain.Node) []fuzzylist.Item {
 	out := make([]fuzzylist.Item, 0, len(ps)+1)
 	out = append(out, fuzzylist.Item{ID: "", Label: "Alle Projekte"})
 	for _, p := range ps {

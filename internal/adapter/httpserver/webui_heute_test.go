@@ -160,13 +160,13 @@ func TestWebStop_NoProjectSurfacesError(t *testing.T) {
 func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
-	p, err := (usecase.CreateProject{Projects: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", "flow", "", "blue", "◆")
+	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", "flow", "", "blue", "◆")
 	if err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
 	pid := p.ID
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", ProjectID: &pid, Start: start}); err != nil {
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", NodeID: &pid, Start: start}); err != nil {
 		t.Fatalf("seed running: %v", err)
 	}
 	cookieVal, _ := srv.codec.Issue("u1")

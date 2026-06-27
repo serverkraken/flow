@@ -16,15 +16,15 @@ import (
 // use case; serialised by the writers below.
 type ExportData struct {
 	From, To  time.Time
-	ByProject []ProjectTotal
+	ByEngagement []NodeTotal
 	Sessions  []ExportRow
 }
 
-// ProjectTotal is one project's aggregate. Amount = Rate.Mul(Total) when a
+// NodeTotal is one project's aggregate. Amount = Rate.Mul(Total) when a
 // rate is set, else nil.
-type ProjectTotal struct {
-	ProjectID    string
-	ProjectName  string
+type NodeTotal struct {
+	NodeID    string
+	NodeName  string
 	Total        time.Duration
 	SessionCount int
 	Rate         *Money
@@ -37,7 +37,7 @@ type ExportRow struct {
 	Start       time.Time
 	Stop        time.Time
 	Elapsed     time.Duration
-	ProjectName string
+	NodeName string
 	Tag         string
 	Note        string
 }
@@ -70,7 +70,7 @@ func WriteCSV(w io.Writer, d ExportData) error {
 			r.Start.Format("15:04"),
 			r.Stop.Format("15:04"),
 			strconv.FormatInt(int64(r.Elapsed/time.Second), 10),
-			r.ProjectName, r.Tag, r.Note,
+			r.NodeName, r.Tag, r.Note,
 		})
 	}
 	cw.Flush()
@@ -100,13 +100,13 @@ func WriteJSON(w io.Writer, d ExportData) error {
 	out := struct {
 		From      string    `json:"from"`
 		To        string    `json:"to"`
-		ByProject []projOut `json:"byProject"`
+		ByEngagement []projOut `json:"byProject"`
 		Sessions  []rowOut  `json:"sessions"`
 	}{From: d.From.Format("2006-01-02"), To: d.To.Format("2006-01-02")}
-	out.ByProject = make([]projOut, 0, len(d.ByProject))
+	out.ByEngagement = make([]projOut, 0, len(d.ByEngagement))
 	out.Sessions = make([]rowOut, 0, len(d.Sessions))
-	for _, p := range d.ByProject {
-		po := projOut{Project: p.ProjectName, TotalSeconds: int64(p.Total / time.Second), SessionCount: p.SessionCount}
+	for _, p := range d.ByEngagement {
+		po := projOut{Project: p.NodeName, TotalSeconds: int64(p.Total / time.Second), SessionCount: p.SessionCount}
 		if p.Rate != nil {
 			ra := p.Rate.Amount
 			po.RateAmount = &ra
@@ -116,12 +116,12 @@ func WriteJSON(w io.Writer, d ExportData) error {
 			am := p.Amount.Amount
 			po.AmountMinor = &am
 		}
-		out.ByProject = append(out.ByProject, po)
+		out.ByEngagement = append(out.ByEngagement, po)
 	}
 	for _, r := range d.Sessions {
 		out.Sessions = append(out.Sessions, rowOut{
 			Date: r.Date.Format("2006-01-02"), Start: r.Start.Format("15:04"), Stop: r.Stop.Format("15:04"),
-			DurationSeconds: int64(r.Elapsed / time.Second), Project: r.ProjectName, Tag: r.Tag, Note: r.Note,
+			DurationSeconds: int64(r.Elapsed / time.Second), Project: r.NodeName, Tag: r.Tag, Note: r.Note,
 		})
 	}
 	enc := json.NewEncoder(w)
@@ -138,13 +138,13 @@ func WriteMarkdown(w io.Writer, d ExportData) error {
 	bw.printf("## Projekte\n\n| Projekt | Zeit | Betrag |\n|---|---|---|\n")
 	var grandTotal time.Duration
 	amountByCcy := map[string]int64{}
-	for _, p := range d.ByProject {
+	for _, p := range d.ByEngagement {
 		amt := "–"
 		if p.Amount != nil {
 			amt = p.Amount.String()
 			amountByCcy[p.Amount.Currency] += p.Amount.Amount
 		}
-		bw.printf("| %s | %s | %s |\n", mdCell(p.ProjectName), FmtDur(p.Total), amt)
+		bw.printf("| %s | %s | %s |\n", mdCell(p.NodeName), FmtDur(p.Total), amt)
 		grandTotal += p.Total
 	}
 	bw.printf("\n**Summe:** %s", FmtDur(grandTotal))
@@ -160,7 +160,7 @@ func WriteMarkdown(w io.Writer, d ExportData) error {
 	for _, r := range d.Sessions {
 		bw.printf("| %s | %s | %s | %s | %s | %s | %s |\n",
 			r.Date.Format("2006-01-02"), r.Start.Format("15:04"), r.Stop.Format("15:04"),
-			FmtDur(r.Elapsed), mdCell(r.ProjectName), mdCell(r.Tag), mdCell(r.Note))
+			FmtDur(r.Elapsed), mdCell(r.NodeName), mdCell(r.Tag), mdCell(r.Note))
 	}
 	return bw.err
 }

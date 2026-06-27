@@ -29,9 +29,9 @@ func TestProjectStore_Delete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	projects := pgstore.NewProjectStore(pool)
+	projects := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)
-	proj, _ := domain.NewProject("p-del", "u-del", "ToDelete", "to-delete", now)
+	proj, _ := domain.NewNode("p-del", "u-del", "ToDelete", "to-delete", now)
 	if _, err := projects.Create(ctx, proj); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestProjectStore_Delete(t *testing.T) {
 		ID:        "doc-del",
 		OwnerID:   "u-del",
 		Type:      domain.DocFree,
-		ProjectID: &docPID,
+		NodeID: &docPID,
 		Path:      "del/arch",
 		Title:     "Del",
 		Body:      "# Del",
@@ -68,7 +68,7 @@ func TestProjectStore_Delete(t *testing.T) {
 
 	// Insert a project_bindings row (kind=remote) — must cascade-delete.
 	const bindQ = `
-INSERT INTO project_bindings (id, owner_id, project_id, kind, remote_slug, created_at, updated_at)
+INSERT INTO project_bindings (id, owner_id, node_id, kind, remote_slug, created_at, updated_at)
 VALUES ($1, $2, $3, 'remote', $4, $5, $6)`
 	if _, err := pool.Exec(ctx, bindQ, "bind-del", "u-del", "p-del", "github.com/del/repo", now, now); err != nil {
 		t.Fatal(err)
@@ -80,28 +80,28 @@ VALUES ($1, $2, $3, 'remote', $4, $5, $6)`
 	}
 
 	// Project must be gone.
-	if _, err := projects.Get(ctx, "u-del", "p-del"); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Fatalf("after Delete, Get must return ErrProjectNotFound, got %v", err)
+	if _, err := projects.Get(ctx, "u-del", "p-del"); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("after Delete, Get must return ErrNodeNotFound, got %v", err)
 	}
 
-	// work_sessions row must STILL EXIST with project_id IS NULL (SET NULL).
+	// work_sessions row must STILL EXIST with node_id IS NULL (SET NULL).
 	var wsProjectID *string
-	if err := pool.QueryRow(ctx, `SELECT project_id FROM work_sessions WHERE id=$1`, "ws-del").
+	if err := pool.QueryRow(ctx, `SELECT node_id FROM work_sessions WHERE id=$1`, "ws-del").
 		Scan(&wsProjectID); err != nil {
 		t.Fatalf("work_sessions row missing after project delete: %v", err)
 	}
 	if wsProjectID != nil {
-		t.Errorf("work_sessions.project_id should be NULL after project delete, got %q", *wsProjectID)
+		t.Errorf("work_sessions.node_id should be NULL after project delete, got %q", *wsProjectID)
 	}
 
-	// documents row must STILL EXIST with project_id IS NULL (SET NULL).
+	// documents row must STILL EXIST with node_id IS NULL (SET NULL).
 	var docProjectID *string
-	if err := pool.QueryRow(ctx, `SELECT project_id FROM documents WHERE id=$1`, "doc-del").
+	if err := pool.QueryRow(ctx, `SELECT node_id FROM documents WHERE id=$1`, "doc-del").
 		Scan(&docProjectID); err != nil {
 		t.Fatalf("documents row missing after project delete: %v", err)
 	}
 	if docProjectID != nil {
-		t.Errorf("documents.project_id should be NULL after project delete, got %q", *docProjectID)
+		t.Errorf("documents.node_id should be NULL after project delete, got %q", *docProjectID)
 	}
 
 	// project_bindings row must be GONE (cascade).
@@ -114,9 +114,9 @@ VALUES ($1, $2, $3, 'remote', $4, $5, $6)`
 		t.Errorf("project_bindings should be cascade-deleted, but %d row(s) remain", bindCount)
 	}
 
-	// Delete of a missing id → ErrProjectNotFound.
-	if err := projects.Delete(ctx, "u-del", "p-del"); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Errorf("double Delete: want ErrProjectNotFound, got %v", err)
+	// Delete of a missing id → ErrNodeNotFound.
+	if err := projects.Delete(ctx, "u-del", "p-del"); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("double Delete: want ErrNodeNotFound, got %v", err)
 	}
 }
 
@@ -137,9 +137,9 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st := pgstore.NewProjectStore(pool)
+	st := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
-	proj, _ := domain.NewProject("p-upd", "u-upd", "Acme", "acme", now)
+	proj, _ := domain.NewNode("p-upd", "u-upd", "Acme", "acme", now)
 	if _, err := st.Create(ctx, proj); err != nil {
 		t.Fatal(err)
 	}
@@ -153,14 +153,14 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	upd.Name = "Acme Reloaded"
 	upd.Description = "# Notes\nhello"
 	upd.UpstreamGit = "git@github.com:acme/reloaded.git"
-	upd.Status = domain.ProjectPaused
+	upd.Status = domain.NodePaused
 	upd.UpdatedAt = now.Add(time.Hour)
 	got, err := st.Update(ctx, "u-upd", upd)
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	if got.Name != "Acme Reloaded" || got.Description != "# Notes\nhello" ||
-		got.UpstreamGit != "git@github.com:acme/reloaded.git" || got.Status != domain.ProjectPaused {
+		got.UpstreamGit != "git@github.com:acme/reloaded.git" || got.Status != domain.NodePaused {
 		t.Errorf("Update returned %+v", got)
 	}
 	if got.Rate == nil || got.Rate.Amount != 9000 {
@@ -172,20 +172,20 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after Update: %v", err)
 	}
-	if re.Status != domain.ProjectPaused || re.Description != "# Notes\nhello" {
+	if re.Status != domain.NodePaused || re.Description != "# Notes\nhello" {
 		t.Errorf("Get after Update: %+v", re)
 	}
 
-	// Unknown id → ErrProjectNotFound.
+	// Unknown id → ErrNodeNotFound.
 	miss := upd
 	miss.ID = "nope"
-	if _, err := st.Update(ctx, "u-upd", miss); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Errorf("unknown id: want ErrProjectNotFound, got %v", err)
+	if _, err := st.Update(ctx, "u-upd", miss); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("unknown id: want ErrNodeNotFound, got %v", err)
 	}
 
-	// Foreign owner (real id, wrong owner) → ErrProjectNotFound.
-	if _, err := st.Update(ctx, "someone-else", upd); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Errorf("foreign owner: want ErrProjectNotFound, got %v", err)
+	// Foreign owner (real id, wrong owner) → ErrNodeNotFound.
+	if _, err := st.Update(ctx, "someone-else", upd); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("foreign owner: want ErrNodeNotFound, got %v", err)
 	}
 }
 
@@ -207,9 +207,9 @@ func TestProjectStore_RateRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st := pgstore.NewProjectStore(pool)
+	st := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
-	proj, _ := domain.NewProject("p1", "u-rate", "Acme", "acme", now)
+	proj, _ := domain.NewNode("p1", "u-rate", "Acme", "acme", now)
 	p, err := st.Create(ctx, proj)
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +240,7 @@ func TestProjectStore_RateRoundTrip(t *testing.T) {
 		t.Errorf("rate after clear should be nil, got %+v", got.Rate)
 	}
 
-	if err := st.SetRate(ctx, "u-rate", "nope", &domain.Money{Amount: 1, Currency: "EUR"}); !errors.Is(err, ports.ErrProjectNotFound) {
-		t.Errorf("unknown id: want ErrProjectNotFound, got %v", err)
+	if err := st.SetRate(ctx, "u-rate", "nope", &domain.Money{Amount: 1, Currency: "EUR"}); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Errorf("unknown id: want ErrNodeNotFound, got %v", err)
 	}
 }

@@ -10,9 +10,9 @@ import (
 )
 
 func TestDeleteProject(t *testing.T) {
-	ps := testutil.NewFakeProjectStore()
-	p, _ := ps.Create(context.Background(), domain.Project{ID: "p1", OwnerID: "u", Slug: "x"})
-	uc := usecase.DeleteProject{Projects: ps}
+	ps := testutil.NewFakeNodeStore()
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "p1", OwnerID: "u", Slug: "x"})
+	uc := usecase.DeleteNode{Nodes: ps}
 	if err := uc.Execute(context.Background(), "u", p.ID); err != nil {
 		t.Fatal(err)
 	}

@@ -103,15 +103,15 @@ func TestSetProjectRate_PostsBody(t *testing.T) {
 	defer srv.Close()
 
 	c := apiclient.New(srv.URL, "tok")
-	err := c.SetProjectRate(context.Background(), "p1", ptrInt64(8000), "EUR")
+	err := c.SetNodeRate(context.Background(), "p1", ptrInt64(8000), "EUR")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotMethod != http.MethodPost {
 		t.Errorf("method: got %s, want POST", gotMethod)
 	}
-	if gotPath != "/api/v1/projects/p1/rate" {
-		t.Errorf("path: got %s, want /api/v1/projects/p1/rate", gotPath)
+	if gotPath != "/api/v1/nodes/p1/rate" {
+		t.Errorf("path: got %s, want /api/v1/nodes/p1/rate", gotPath)
 	}
 	if gotBody.Amount == nil || *gotBody.Amount != 8000 {
 		t.Errorf("amount: got %v, want 8000", gotBody.Amount)
@@ -136,7 +136,7 @@ func TestSetProjectRate_ClearsRate(t *testing.T) {
 	defer srv.Close()
 
 	c := apiclient.New(srv.URL, "tok")
-	err := c.SetProjectRate(context.Background(), "p1", nil, "")
+	err := c.SetNodeRate(context.Background(), "p1", nil, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -10,7 +10,7 @@ import (
 // ProjectsAPI is the narrow read surface used by the list route. A fake
 // implements it in tests; *apiclient.Client satisfies it in production.
 type ProjectsAPI interface {
-	ListProjects(ctx context.Context) ([]domain.Project, error)
+	ListNodes(ctx context.Context) ([]domain.Node, error)
 }
 
 var _ ProjectsAPI = (*apiclient.Client)(nil)
