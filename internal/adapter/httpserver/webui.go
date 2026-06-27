@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func (s *Server) renderFragment(w http.ResponseWriter, r *http.Request, u domain.User) {
@@ -25,7 +26,7 @@ func (s *Server) handleWebStop(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.FormValue("sessionId")
 	nodeID := r.FormValue("projectId")
 	if name := r.FormValue("newProject"); name != "" {
-		if p, err := s.CreateNode.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
+		if p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{Name: name, Kind: domain.KindEngagement}); err == nil {
 			nodeID = p.ID
 			s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID})
 		}

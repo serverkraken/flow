@@ -160,7 +160,7 @@ func TestWebStop_NoProjectSurfacesError(t *testing.T) {
 func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
-	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", "flow", "", "blue", "◆")
+	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", usecase.CreateNodeInput{Name: "flow", Color: "blue", Glyph: "◆", Kind: domain.KindEngagement})
 	if err != nil {
 		t.Fatalf("seed project: %v", err)
 	}

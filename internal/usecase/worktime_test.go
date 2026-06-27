@@ -35,7 +35,7 @@ func TestStartStopBookingFlow(t *testing.T) {
 	if _, err := stop.Execute(ctx, "u1", s.ID, nil); !errors.Is(err, domain.ErrProjectRequired) {
 		t.Fatalf("want ErrProjectRequired, got %v", err)
 	}
-	p, err := createProj.Execute(ctx, "u1", "Flow", "", "", "")
+	p, err := createProj.Execute(ctx, "u1", usecase.CreateNodeInput{Name: "Flow", Kind: domain.KindEngagement})
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}

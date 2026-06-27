@@ -48,7 +48,7 @@ func (s *Server) renderDay(w http.ResponseWriter, r *http.Request, u domain.User
 func (s *Server) resolveWebProject(r *http.Request, u domain.User) *string {
 	nodeID := r.FormValue("projectId")
 	if name := r.FormValue("newProject"); name != "" {
-		if p, err := s.CreateNode.Execute(r.Context(), u.ID, name, "", "", ""); err == nil {
+		if p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{Name: name, Kind: domain.KindEngagement}); err == nil {
 			nodeID = p.ID
 			s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID})
 		}

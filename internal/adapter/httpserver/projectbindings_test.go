@@ -16,7 +16,21 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+type bindingsSrv struct {
+	ts  *httptest.Server
+	ps  *testutil.FakeNodeStore
+	ids *testutil.FakeIDGen
+	clk testutil.FakeClock
+	do  func(method, path, body string) *http.Response
+}
+
 func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body string) *http.Response) {
+	t.Helper()
+	s := newBindingsSrvFull(t)
+	return s.ts, s.do
+}
+
+func newBindingsSrvFull(t *testing.T) *bindingsSrv {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 21, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
@@ -25,15 +39,15 @@ func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 	users := testutil.NewFakeUserStore()
 
 	srv := &httpserver.Server{
-		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
-		Clock:         clk,
-		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:  usecase.ListNodes{Nodes: ps},
-		BindNode:   usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
-		UnbindNode: usecase.UnbindNode{Bindings: bs},
-		ResolveNode: usecase.ResolveNode{Bindings: bs, Nodes: ps},
+		Verifier:         testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:           usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:              sse.NewBus(),
+		Clock:            clk,
+		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:        usecase.ListNodes{Nodes: ps},
+		BindNode:         usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
+		UnbindNode:       usecase.UnbindNode{Bindings: bs},
+		ResolveNode:      usecase.ResolveNode{Bindings: bs, Nodes: ps},
 		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 	}
 
@@ -50,26 +64,30 @@ func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 		}
 		return res
 	}
-	return ts, do
+	return &bindingsSrv{ts: ts, ps: ps, ids: ids, clk: clk, do: do}
 }
 
 // TestProjectBindings_BindAndResolveAndList is the primary TDD scenario:
 // PUT a remote binding → resolve by slug → list all bindings.
 func TestProjectBindings_BindAndResolveAndList(t *testing.T) {
-	_, do := newBindingsSrv(t)
+	srv := newBindingsSrvFull(t)
+	do := srv.do
 
-	// Create a project to bind to.
-	res := do("POST", "/api/v1/nodes", `{"name":"Flow"}`)
-	if res.StatusCode != http.StatusCreated {
-		t.Fatalf("create project: %d", res.StatusCode)
-	}
-	var proj domain.Node
-	_ = json.NewDecoder(res.Body).Decode(&proj)
-	_ = res.Body.Close()
+	// Trigger first request to create the user ("sub-1" → user.ID = "id-1" via FakeIDGen).
+	// Then create a KindRepo node owned by that user (remote binding requires KindRepo).
+	ctx := t.Context()
+	_ = do("GET", "/api/v1/nodes", "") // seeds the user; user.ID = first ids.NewID()
+	ownerID := "id-1"
+	engID := srv.ids.NewID()
+	repoID := srv.ids.NewID()
+	engParent := (*string)(nil)
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: engID, OwnerID: ownerID, Name: "Privat", Slug: "privat", Kind: domain.KindEngagement, ParentID: engParent, Status: domain.NodeActive})
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: repoID, OwnerID: ownerID, Name: "Flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engID, Status: domain.NodeActive})
+	proj := domain.Node{ID: repoID}
 
 	// PUT a remote binding for the project.
 	bindBody := `{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}`
-	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", bindBody)
+	res := do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", bindBody)
 	if res.StatusCode != http.StatusOK {
 		body := make([]byte, 512)
 		n, _ := res.Body.Read(body)
@@ -154,15 +172,20 @@ func TestProjectBindings_BindInvalidBody(t *testing.T) {
 
 // TestProjectBindings_ListByProject verifies GET /api/v1/nodes/{id}/bindings.
 func TestProjectBindings_ListByProject(t *testing.T) {
-	_, do := newBindingsSrv(t)
+	srv := newBindingsSrvFull(t)
+	do := srv.do
 
-	// Create project + bind.
-	res := do("POST", "/api/v1/nodes", `{"name":"Kompendium"}`)
-	var proj domain.Node
-	_ = json.NewDecoder(res.Body).Decode(&proj)
-	_ = res.Body.Close()
+	// Trigger first request to create the user then seed a KindRepo node for binding.
+	ctx := t.Context()
+	_ = do("GET", "/api/v1/nodes", "")
+	ownerID := "id-1"
+	engID := srv.ids.NewID()
+	repoID := srv.ids.NewID()
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: engID, OwnerID: ownerID, Name: "Privat", Slug: "privat", Kind: domain.KindEngagement, Status: domain.NodeActive})
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: repoID, OwnerID: ownerID, Name: "Kompendium", Slug: "kompendium", Kind: domain.KindRepo, ParentID: &engID, Status: domain.NodeActive})
+	proj := domain.Node{ID: repoID}
 
-	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/sk/kompendium"}`)
+	res := do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/sk/kompendium"}`)
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("bind: %d", res.StatusCode)

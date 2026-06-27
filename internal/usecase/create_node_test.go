@@ -1,0 +1,42 @@
+package usecase_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
+	"github.com/serverkraken/flow/internal/usecase"
+)
+
+func TestCreateNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	uc := usecase.CreateNode{Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Now()}}
+
+	// root must be engagement
+	eng, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "Privat", Kind: domain.KindEngagement})
+	if err != nil || eng.Kind != domain.KindEngagement || eng.Slug != "privat" {
+		t.Fatalf("engagement: %+v err=%v", eng, err)
+	}
+	if _, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "X", Kind: domain.KindRepo}); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("rootless repo: want ErrInvalidNode, got %v", err)
+	}
+	// repo under engagement ok
+	repo, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "flow", Kind: domain.KindRepo, ParentID: &eng.ID})
+	if err != nil || repo.ParentID == nil || *repo.ParentID != eng.ID {
+		t.Fatalf("repo: %+v err=%v", repo, err)
+	}
+	// repo under repo rejected
+	if _, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "b", Kind: domain.KindRepo, ParentID: &repo.ID}); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("repo under repo: want ErrInvalidNode, got %v", err)
+	}
+	// unknown parent → ErrNodeNotFound
+	bad := "nope"
+	if _, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "x", Kind: domain.KindRepo, ParentID: &bad}); err == nil {
+		t.Fatal("unknown parent must error")
+	}
+}

@@ -28,7 +28,7 @@ func histGet(t *testing.T, srv *worktimeTestServer, path string) *httptest.Respo
 func seedHistProject(t *testing.T, srv *worktimeTestServer, name string) string {
 	t.Helper()
 	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).
-		Execute(context.Background(), "u1", name, "", "blue", "◆")
+		Execute(context.Background(), "u1", usecase.CreateNodeInput{Name: name, Color: "blue", Glyph: "◆", Kind: domain.KindEngagement})
 	if err != nil {
 		t.Fatalf("seedHistProject: %v", err)
 	}

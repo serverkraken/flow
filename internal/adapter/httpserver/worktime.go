@@ -178,7 +178,10 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	p, err := s.CreateNode.Execute(r.Context(), u.ID, req.Name, req.Slug, req.Color, req.Glyph)
+	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
+		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
+		Kind: domain.KindEngagement, // TODO(Slice C): read kind/parentId from request
+	})
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

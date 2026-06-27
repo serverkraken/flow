@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -9,24 +10,52 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// CreateNode creates an owner-scoped project. When slug is empty it is
-// derived from name.
-type CreateNode struct {
-	Nodes	ports.NodeStore
-	IDs      ports.IDGen
-	Clock    ports.Clock
+// CreateNodeInput is the field set for creating a node. Kind+ParentID drive the
+// hierarchy validation; a nil ParentID means a root, which must be an engagement.
+type CreateNodeInput struct {
+	Name, Slug                             string
+	Kind                                   domain.NodeKind
+	ParentID                               *string
+	Color, Glyph, Description, UpstreamGit string
 }
 
-func (uc CreateNode) Execute(ctx context.Context, ownerID, name, slug, color, glyph string) (domain.Node, error) {
+// CreateNode creates an owner-scoped node, validating kind+parent placement.
+type CreateNode struct {
+	Nodes ports.NodeStore
+	IDs   ports.IDGen
+	Clock ports.Clock
+}
+
+func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeInput) (domain.Node, error) {
+	slug := in.Slug
 	if slug == "" {
-		slug = Slugify(name)
+		slug = Slugify(in.Name)
 	}
-	p, err := domain.NewNode(uc.IDs.NewID(), ownerID, name, slug, uc.Clock.Now())
+	if in.ParentID == nil {
+		if in.Kind != domain.KindEngagement {
+			return domain.Node{}, fmt.Errorf("%w: root node must be an engagement", domain.ErrInvalidNode)
+		}
+	} else {
+		parent, err := uc.Nodes.Get(ctx, ownerID, *in.ParentID)
+		if err != nil {
+			return domain.Node{}, err
+		}
+		if !domain.AllowedChildKind(parent.Kind, in.Kind) {
+			return domain.Node{}, fmt.Errorf("%w: %s cannot be a child of %s", domain.ErrInvalidNode, in.Kind, parent.Kind)
+		}
+	}
+	n, err := domain.NewNode(uc.IDs.NewID(), ownerID, in.Name, slug, uc.Clock.Now())
 	if err != nil {
 		return domain.Node{}, err
 	}
-	p.Color, p.Glyph = color, glyph
-	return uc.Nodes.Create(ctx, p)
+	n.Kind = in.Kind
+	n.ParentID = in.ParentID
+	n.Color, n.Glyph = in.Color, in.Glyph
+	n.Description, n.UpstreamGit = in.Description, in.UpstreamGit
+	if err := n.Validate(); err != nil {
+		return domain.Node{}, err
+	}
+	return uc.Nodes.Create(ctx, n)
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)

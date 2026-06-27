@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestBindNode_RemoteHappyAndUnknownNode(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Unix(0, 0)}
 	ids := &testutil.FakeIDGen{}
 
-	p, _ := ps.Create(context.Background(), domain.Node{ID: "p1", OwnerID: "u", Slug: "flow"})
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "p1", OwnerID: "u", Slug: "flow", Kind: domain.KindRepo})
 
 	uc := usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk}
 
@@ -61,7 +62,7 @@ func TestBindNode_UpsertCalledAndReturnsBinding(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Unix(100, 0)}
 	ids := &testutil.FakeIDGen{}
 
-	p, _ := ps.Create(context.Background(), domain.Node{ID: "proj1", OwnerID: "alice", Slug: "myapp"})
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "proj1", OwnerID: "alice", Slug: "myapp", Kind: domain.KindRepo})
 
 	uc := usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk}
 	b, err := uc.Execute(context.Background(), "alice", p.ID, usecase.BindKey{
@@ -98,7 +99,7 @@ func TestResolveNode_MatchingRemoteReturnsNode(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Now()}
 	ids := &testutil.FakeIDGen{}
 
-	p, _ := ps.Create(context.Background(), domain.Node{ID: "p2", OwnerID: "bob", Slug: "svc"})
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "p2", OwnerID: "bob", Slug: "svc", Kind: domain.KindRepo})
 
 	binder := usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk}
 	if _, err := binder.Execute(context.Background(), "bob", p.ID, usecase.BindKey{
@@ -141,7 +142,7 @@ func TestUnbindNode_Remote(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Now()}
 	ids := &testutil.FakeIDGen{}
 
-	p, _ := ps.Create(context.Background(), domain.Node{ID: "p3", OwnerID: "dave", Slug: "tool"})
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "p3", OwnerID: "dave", Slug: "tool", Kind: domain.KindRepo})
 
 	binder := usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk}
 	if _, err := binder.Execute(context.Background(), "dave", p.ID, usecase.BindKey{
@@ -179,6 +180,45 @@ func TestListNodeBindings_Empty(t *testing.T) {
 	}
 }
 
+func TestBindNode_TargetKind(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	binds := testutil.NewFakeProjectBindingStore()
+	now := time.Now()
+	mk := func(id string, kind domain.NodeKind, parent *string) {
+		n, _ := domain.NewNode(id, "o", id, id, now)
+		n.Kind = kind
+		n.ParentID = parent
+		_, _ = nodes.Create(ctx, n)
+	}
+	mk("eng", domain.KindEngagement, nil)
+	mk("repo", domain.KindRepo, sp("eng"))
+	mk("leafvor", domain.KindVorhaben, sp("eng"))
+	mk("parentvor", domain.KindVorhaben, sp("eng"))
+	mk("child", domain.KindRepo, sp("parentvor"))
+
+	uc := usecase.BindNode{Bindings: binds, Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}}
+	remote := usecase.BindKey{Kind: domain.BindingRemote, RemoteSlug: "github.com/o/r"}
+	path := usecase.BindKey{Kind: domain.BindingPath, MachineID: "m", Path: "/p"}
+
+	if _, err := uc.Execute(ctx, "o", "repo", remote); err != nil {
+		t.Fatalf("remote→repo ok: %v", err)
+	}
+	if _, err := uc.Execute(ctx, "o", "eng", remote); !errors.Is(err, usecase.ErrInvalidBindTarget) {
+		t.Fatalf("remote→engagement: want ErrInvalidBindTarget, got %v", err)
+	}
+	if _, err := uc.Execute(ctx, "o", "repo", path); err != nil {
+		t.Fatalf("path→repo ok: %v", err)
+	}
+	if _, err := uc.Execute(ctx, "o", "leafvor", path); err != nil {
+		t.Fatalf("path→leaf vorhaben ok: %v", err)
+	}
+	if _, err := uc.Execute(ctx, "o", "parentvor", path); !errors.Is(err, usecase.ErrInvalidBindTarget) {
+		t.Fatalf("path→non-leaf vorhaben: want ErrInvalidBindTarget, got %v", err)
+	}
+}
+
 // TestUnbindProject_Path covers the BindingPath branch of UnbindNode.Execute.
 func TestUnbindNode_Path(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
@@ -186,7 +226,7 @@ func TestUnbindNode_Path(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Now()}
 	ids := &testutil.FakeIDGen{}
 
-	p, _ := ps.Create(context.Background(), domain.Node{ID: "p4", OwnerID: "eve", Slug: "myapp"})
+	p, _ := ps.Create(context.Background(), domain.Node{ID: "p4", OwnerID: "eve", Slug: "myapp", Kind: domain.KindRepo})
 
 	binder := usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk}
 	if _, err := binder.Execute(context.Background(), "eve", p.ID, usecase.BindKey{

@@ -56,10 +56,12 @@ type Server struct {
 	BulkDeleteSessions usecase.BulkDeleteSessions
 
 	// project bindings (resolution V0)
-	BindNode         usecase.BindNode
-	UnbindNode       usecase.UnbindNode
-	ResolveNode      usecase.ResolveNode
-	ListNodeBindings usecase.ListNodeBindings
+	BindNode          usecase.BindNode
+	UnbindNode        usecase.UnbindNode
+	ResolveNode       usecase.ResolveNode
+	ResolveEngagement usecase.ResolveEngagement
+	MoveNode          usecase.MoveNode
+	ListNodeBindings  usecase.ListNodeBindings
 
 	// m2a documents
 	CreateDocument    usecase.CreateDocument

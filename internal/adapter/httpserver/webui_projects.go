@@ -240,7 +240,10 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateNode
-	p, err := s.CreateNode.Execute(r.Context(), u.ID, vals.Name, vals.Slug, vals.Color, vals.Glyph)
+	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
+		Name: vals.Name, Slug: vals.Slug, Color: vals.Color, Glyph: vals.Glyph,
+		Kind: domain.KindEngagement, // TODO(Slice C): read kind/parentId from form
+	})
 	if err != nil {
 		reRender("Konnte Projekt nicht anlegen: " + err.Error())
 		return
