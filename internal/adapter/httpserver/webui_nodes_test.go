@@ -329,15 +329,15 @@ func TestWebNodeForm(t *testing.T) {
 	}
 }
 
-// TestWebNodeMove exercises POST /nodes/{id}/move: successful reparent and
-// cycle-rejection (handler redirects back, tree unchanged).
+// TestWebNodeMove exercises POST /nodes/{id}/move: successful reparent,
+// cycle-rejection, invalid-kind rejection, and not-found (all redirect 303).
 func TestWebNodeMove(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	e1 := seedTreeNode(t, ns, "e1", "Privat", domain.KindEngagement, nil)
 	e2 := seedTreeNode(t, ns, "e2", "RTL", domain.KindEngagement, nil)
 	repo := seedTreeNode(t, ns, "r1", "flow", domain.KindRepo, &e1.ID)
 
-	// move repo from e1 to e2.
+	// valid reparent: move repo from e1 to e2.
 	res := postN(t, ts, c, "/nodes/"+repo.ID+"/move", url.Values{"parentId": {e2.ID}})
 	if res.StatusCode != http.StatusSeeOther {
 		t.Fatalf("move = %d, want 303", res.StatusCode)
@@ -348,12 +348,19 @@ func TestWebNodeMove(t *testing.T) {
 		t.Fatalf("reparent failed: %+v", got.ParentID)
 	}
 
-	// cycle: move e1 under repo (its descendant) → handler redirects back, no change.
-	res = postN(t, ts, c, "/nodes/"+e1.ID+"/move", url.Values{"parentId": {repo.ID}})
+	// true cycle: seed vor1 under e1, repoCycle under vor1, then try to move
+	// vor1 under repoCycle (its own descendant) → ErrNodeCycle, redirect 303,
+	// vor1's parent remains e1.
+	vor1 := seedTreeNode(t, ns, "vor1", "Arbeit", domain.KindVorhaben, &e1.ID)
+	repoCycle := seedTreeNode(t, ns, "rcycle", "sub", domain.KindRepo, &vor1.ID)
+	res = postN(t, ts, c, "/nodes/"+vor1.ID+"/move", url.Values{"parentId": {repoCycle.ID}})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Errorf("cycle move = %d, want 303", res.StatusCode)
+	}
 	_ = res.Body.Close()
-	e1got, _ := ns.Get(context.Background(), "u1", e1.ID)
-	if e1got.ParentID != nil {
-		t.Errorf("cycle move must be rejected, parent=%v", e1got.ParentID)
+	vor1got, _ := ns.Get(context.Background(), "u1", vor1.ID)
+	if vor1got.ParentID == nil || *vor1got.ParentID != e1.ID {
+		t.Errorf("cycle move must be rejected, parent=%v", vor1got.ParentID)
 	}
 
 	// invalid: move a repo to root (parentId="") → ErrInvalidNode, redirect with err=move.
@@ -367,10 +374,10 @@ func TestWebNodeMove(t *testing.T) {
 		t.Errorf("invalid-kind redirect = %q, want ?err=move", loc)
 	}
 
-	// generic error: move a nonexistent node → 500 (ErrNodeNotFound is not cycle/invalid).
+	// not-found: move a nonexistent node → ErrNodeNotFound → redirect 303.
 	res = postN(t, ts, c, "/nodes/ghost/move", url.Values{"parentId": {e2.ID}})
 	_ = res.Body.Close()
-	if res.StatusCode != http.StatusInternalServerError {
-		t.Errorf("move nonexistent = %d, want 500", res.StatusCode)
+	if res.StatusCode != http.StatusSeeOther {
+		t.Errorf("move nonexistent = %d, want 303", res.StatusCode)
 	}
 }

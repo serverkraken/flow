@@ -6,6 +6,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -66,6 +67,9 @@ func (s *Server) handleWebNodeMove(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/nodes/"+id+"?err=cycle", http.StatusSeeOther)
 		return
 	case errors.Is(err, domain.ErrInvalidNode):
+		http.Redirect(w, r, "/nodes/"+id+"?err=move", http.StatusSeeOther)
+		return
+	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Redirect(w, r, "/nodes/"+id+"?err=move", http.StatusSeeOther)
 		return
 	case err != nil:
