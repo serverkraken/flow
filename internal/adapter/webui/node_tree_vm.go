@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"fmt"
 	"html/template"
 	"sort"
 
@@ -141,3 +142,19 @@ type NodeMoveData struct {
 	N       domain.Node
 	Targets []domain.Node // valid new parents (descendant IDs excluded)
 }
+
+// BuildTree is the exported entry point used by the httpserver adapter.
+func BuildTree(nodes []domain.Node) []TreeRow { return buildNodeTree(nodes) }
+
+// nodeFilterChip returns Tailwind chip classes for the filter bar; active = ink
+// background, inactive = muted text with hover accent.
+func nodeFilterChip(active bool) string {
+	if active {
+		return "rounded-full bg-ink px-3 py-1 text-xs font-medium text-canvas"
+	}
+	return "rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted hover:border-blue/40 hover:text-blue"
+}
+
+// nodeIndentStyle returns an inline CSS padding-left for depth-based indentation
+// in the tree (1 rem per level).
+func nodeIndentStyle(level int) string { return fmt.Sprintf("padding-left:%drem", level) }

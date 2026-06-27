@@ -14,29 +14,6 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// projectsListData loads the owner's projects and applies the status filter.
-// "" → active+paused (default view); "archived" → archived only; "all" → every status.
-func (s *Server) projectsListData(r *http.Request, u domain.User) webui.ProjectsPageData {
-	status := r.URL.Query().Get("status")
-	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
-	var filtered []domain.Node
-	for _, p := range all {
-		switch status {
-		case "all":
-			filtered = append(filtered, p)
-		case "archived":
-			if p.Status == domain.NodeArchived {
-				filtered = append(filtered, p)
-			}
-		default: // active + paused
-			if p.Status == domain.NodeActive || p.Status == domain.NodePaused {
-				filtered = append(filtered, p)
-			}
-		}
-	}
-	return webui.ProjectsPageData{User: u.Username, Status: status, Nodes: filtered}
-}
-
 // projectWorktime aggregates the project's sessions into total/week/month hour
 // counts and computes the earnings string when p.Rate != nil.
 // Sessions are fetched for the full project lifetime (year 2000 to now+1d)
@@ -143,16 +120,14 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWebNodesHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	d := s.projectsListData(r, u)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.ProjectsPage(d).Render(r.Context(), w)
+	_ = webui.NodesPage(s.nodesListData(r, u)).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebNodesList(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	d := s.projectsListData(r, u)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.ProjectsFragment(d).Render(r.Context(), w)
+	_ = webui.NodesFragment(s.nodesListData(r, u)).Render(r.Context(), w)
 }
 
 // ---------------------------------------------------------------------------

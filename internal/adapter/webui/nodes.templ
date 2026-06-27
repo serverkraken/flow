@@ -1,0 +1,100 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// NodesPage is the full-page tree view for GET /nodes.
+templ NodesPage(d NodesPageData) {
+	@components.Base("projekte", nodesBody(d))
+}
+
+templ nodesBody(d NodesPageData) {
+	@components.AppShell("projekte", nil, nil, nodesOuter(d))
+}
+
+// nodesOuter wraps the fragment in an SSE-reactive container so node.* events
+// auto-refresh the tree without a full page reload.
+templ nodesOuter(d NodesPageData) {
+	<div
+		id="content"
+		hx-get={ "/ui/nodes/list?status=" + d.Status }
+		hx-trigger="sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
+		hx-swap="innerHTML"
+	>
+		@NodesFragment(d)
+	</div>
+}
+
+// NodesFragment is the SSE-swappable inner tree — served at both
+// GET /ui/nodes/list and GET /ui/nodes/tree.
+templ NodesFragment(d NodesPageData) {
+	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+		<div>
+			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.projects") }</p>
+			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, "nodes.title") }</h1>
+			<p class="mt-1 text-[.9rem] text-muted">{ components.T(ctx, "nodes.subtitle") }</p>
+		</div>
+		<a
+			href="/nodes/new"
+			class="inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]"
+		>
+			<span aria-hidden="true">✚</span> { components.T(ctx, "nodes.new") }
+		</a>
+	</header>
+	<div class="mb-4 flex flex-wrap gap-2 text-sm">
+		<a href="/nodes" class={ nodeFilterChip(d.Status == "") }>{ components.T(ctx, "nodes.filterActive") }</a>
+		<a href="/nodes?status=archived" class={ nodeFilterChip(d.Status == "archived") }>{ components.T(ctx, "nodes.filterArchived") }</a>
+		<a href="/nodes?status=all" class={ nodeFilterChip(d.Status == "all") }>{ components.T(ctx, "nodes.filterAll") }</a>
+	</div>
+	if len(d.Rows) == 0 {
+		@components.EmptyState("◆", "nodes.empty", "nodes.emptyHint")
+	} else {
+		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+			for _, row := range d.Rows {
+				@nodeTreeRow(row)
+			}
+		</ul>
+	}
+}
+
+// nodeTreeRow renders one indented row: kind badge + color swatch + name + git +
+// status badge.  The row links to the node cockpit at /nodes/{id}.
+templ nodeTreeRow(row TreeRow) {
+	<li class="p-3 transition-colors hover:bg-sunken/40">
+		<a href={ templ.SafeURL("/nodes/" + row.Node.ID) } class="group flex items-center gap-3" style={ nodeIndentStyle(row.Level) }>
+			@nodeKindBadge(row.Node.Kind)
+			@nodeGlyphSwatch(row.Node)
+			<span class="min-w-0 flex-1 truncate font-medium text-ink group-hover:text-blue">{ row.Node.Name }</span>
+			if row.Node.UpstreamGit != "" {
+				<span class="hidden sm:block truncate font-mono text-[.75rem] text-faint">{ gitDisplay(row.Node.UpstreamGit) }</span>
+			}
+			@nodeStatusBadge(row.Node.Status)
+		</a>
+	</li>
+}
+
+// nodeKindBadge renders the kind pill (glyph + i18n label, kind-toned).
+templ nodeKindBadge(kind domain.NodeKind) {
+	{{ k := NodeKindStyle(kind) }}
+	<span class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
+		<span aria-hidden="true">{ k.Glyph }</span> { components.T(ctx, k.LabelKey) }
+	</span>
+}
+
+// nodeGlyphSwatch renders the node's color dot + glyph (both optional).
+templ nodeGlyphSwatch(n domain.Node) {
+	if ColorHex(n.Color) != "" {
+		<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={ "background-color:" + ColorHex(n.Color) }></span>
+	}
+	if n.Glyph != "" {
+		<span class="shrink-0 font-mono text-faint">{ n.Glyph }</span>
+	}
+}
+
+// nodeStatusBadge renders the status chip (aktiv / pausiert / archiviert).
+templ nodeStatusBadge(s domain.NodeStatus) {
+	{{ label, classes := StatusBadge(s) }}
+	<span class={ "shrink-0", classes }>{ label }</span>
+}

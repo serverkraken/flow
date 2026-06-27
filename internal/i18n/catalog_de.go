@@ -51,6 +51,15 @@ func init() {
 			"node.kind.vorhaben":   "Vorhaben",
 			"node.kind.repo":       "Repo",
 			"node.kind.branch":     "Branch",
+			// nodes tree page
+			"nodes.title":          "Projekte",
+			"nodes.subtitle":       "Engagements, Vorhaben und Repos",
+			"nodes.new":            "Neuer Knoten",
+			"nodes.empty":          "Keine Knoten.",
+			"nodes.emptyHint":      "Lege ein Engagement an, um zu starten.",
+			"nodes.filterActive":   "aktiv + pausiert",
+			"nodes.filterArchived": "archiviert",
+			"nodes.filterAll":      "alle",
 			// doc kinds (badges)
 			"dockind.daily":   "Daily",
 			"dockind.project": "Projekt",
