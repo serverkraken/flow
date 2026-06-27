@@ -34,12 +34,3 @@ func (s *Server) nodesListData(r *http.Request, u domain.User) webui.NodesPageDa
 	}
 }
 
-// handleWebNodeTree renders the node tree fragment at GET /ui/nodes/tree.
-// It is the SSE-swap target referenced by the <div hx-get="/ui/nodes/list">
-// outer wrapper; an identical fragment is also served at /ui/nodes/list via
-// handleWebNodesList.
-func (s *Server) handleWebNodeTree(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodesFragment(s.nodesListData(r, u)).Render(r.Context(), w)
-}

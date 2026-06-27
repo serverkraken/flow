@@ -134,12 +134,13 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 		t.Errorf("archived filter must show Alt; body=%.500s", arr)
 	}
 
-	// SSE fragment routes must both return 200.
-	if code, _ := getN(t, ts, c, "/ui/nodes/tree"); code != 200 {
-		t.Errorf("GET /ui/nodes/tree = %d, want 200", code)
-	}
-	if code, _ := getN(t, ts, c, "/ui/nodes/list"); code != 200 {
+	// SSE fragment route must return 200 and render indented child node.
+	code, frag := getN(t, ts, c, "/ui/nodes/list")
+	if code != 200 {
 		t.Errorf("GET /ui/nodes/list = %d, want 200", code)
+	}
+	if !strings.Contains(frag, "padding-left:1rem") {
+		t.Errorf("fragment missing child indentation style padding-left:1rem; body=%.500s", frag)
 	}
 }
 
