@@ -62,6 +62,8 @@ func (s *Server) handleBindNode(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
+	case errors.Is(err, usecase.ErrInvalidBindTarget):
+		http.Error(w, "invalid bind target", http.StatusUnprocessableEntity)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:

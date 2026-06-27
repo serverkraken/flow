@@ -205,15 +205,25 @@ func TestProjectBindings_ListByProject(t *testing.T) {
 
 // TestProjectBindings_DeleteUnbind verifies DELETE /api/v1/nodes/bindings.
 func TestProjectBindings_DeleteUnbind(t *testing.T) {
-	_, do := newBindingsSrv(t)
+	srv := newBindingsSrvFull(t)
+	do := srv.do
 
-	// Create project + bind.
-	res := do("POST", "/api/v1/nodes", `{"name":"Tool"}`)
-	var proj domain.Node
-	_ = json.NewDecoder(res.Body).Decode(&proj)
-	_ = res.Body.Close()
+	// Trigger first request to create the user then seed a KindRepo node for binding.
+	ctx := t.Context()
+	_ = do("GET", "/api/v1/nodes", "") // seeds the user; user.ID = first ids.NewID() = "id-1"
+	ownerID := "id-1"
+	engID := srv.ids.NewID()
+	repoID := srv.ids.NewID()
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: engID, OwnerID: ownerID, Name: "Privat", Slug: "privat", Kind: domain.KindEngagement, Status: domain.NodeActive})
+	_, _ = srv.ps.Create(ctx, domain.Node{ID: repoID, OwnerID: ownerID, Name: "Tool", Slug: "tool", Kind: domain.KindRepo, ParentID: &engID, Status: domain.NodeActive})
 
-	res = do("PUT", "/api/v1/nodes/"+proj.ID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/x/tool"}`)
+	// PUT a remote binding — must succeed now that the node is KindRepo.
+	res := do("PUT", "/api/v1/nodes/"+repoID+"/bindings", `{"kind":"remote","remoteSlug":"github.com/x/tool"}`)
+	if res.StatusCode != http.StatusOK {
+		body := make([]byte, 512)
+		n, _ := res.Body.Read(body)
+		t.Fatalf("bind: want 200, got %d body=%s", res.StatusCode, body[:n])
+	}
 	_ = res.Body.Close()
 
 	// Delete the binding.
