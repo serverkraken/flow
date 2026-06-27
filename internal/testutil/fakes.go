@@ -133,14 +133,16 @@ func (s *FakeNodeStore) Update(_ context.Context, ownerID string, p domain.Node)
 	if !ok || existing.OwnerID != ownerID {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
-	// mirror pgstore: rate is not mutated here
+	// mirror pgstore: rate and parent_id are not mutated here
 	existing.Name = p.Name
 	existing.Slug = p.Slug
 	existing.Color = p.Color
 	existing.Glyph = p.Glyph
 	existing.Description = p.Description
 	existing.UpstreamGit = p.UpstreamGit
+	existing.OriginSlug = p.OriginSlug
 	existing.Status = p.Status
+	existing.Extra = p.Extra
 	existing.UpdatedAt = p.UpdatedAt
 	s.m[p.ID] = existing
 	return existing, nil

@@ -189,6 +189,72 @@ func TestProjectStore_UpdateRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNodeStore_HierarchyRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-h", "sub-h", "huser", "h@x.de", "H User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)
+
+	eng, _ := domain.NewNode("eng", "u-h", "Privat", "privat", now)
+	eng.Kind = domain.KindEngagement
+	eng.Extra = map[string]any{"legacy_rate": map[string]any{"amount": float64(9000), "currency": "EUR"}}
+	if _, err := st.Create(ctx, eng); err != nil {
+		t.Fatalf("create engagement: %v", err)
+	}
+
+	repo, _ := domain.NewNode("repo", "u-h", "flow", "flow", now)
+	repo.Kind = domain.KindRepo
+	repo.ParentID = strptr("eng")
+	repo.OriginSlug = "github.com/serverkraken/flow"
+	got, err := st.Create(ctx, repo)
+	if err != nil {
+		t.Fatalf("create repo: %v", err)
+	}
+	if got.Kind != domain.KindRepo || got.ParentID == nil || *got.ParentID != "eng" || got.OriginSlug != "github.com/serverkraken/flow" {
+		t.Fatalf("create returned %+v", got)
+	}
+
+	re, err := st.Get(ctx, "u-h", "repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if re.Kind != domain.KindRepo || re.ParentID == nil || *re.ParentID != "eng" {
+		t.Errorf("get repo: %+v", re)
+	}
+	reEng, _ := st.Get(ctx, "u-h", "eng")
+	if reEng.Extra["legacy_rate"] == nil {
+		t.Errorf("engagement extra lost: %+v", reEng.Extra)
+	}
+
+	// Update persists origin_slug + extra, leaves parent_id + rate untouched.
+	upd := re
+	upd.OriginSlug = "github.com/serverkraken/flow2"
+	upd.Extra = map[string]any{"note": "x"}
+	upd.UpdatedAt = now.Add(time.Hour)
+	if _, err := st.Update(ctx, "u-h", upd); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	re2, _ := st.Get(ctx, "u-h", "repo")
+	if re2.OriginSlug != "github.com/serverkraken/flow2" || re2.Extra["note"] != "x" {
+		t.Errorf("update did not persist origin/extra: %+v", re2)
+	}
+	if re2.ParentID == nil || *re2.ParentID != "eng" {
+		t.Errorf("update must not touch parent_id: %+v", re2.ParentID)
+	}
+}
+
 func TestProjectStore_RateRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
