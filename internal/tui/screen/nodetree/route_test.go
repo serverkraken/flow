@@ -14,13 +14,17 @@ import (
 
 // fakeTreeAPI is a test-only implementation of TreeAPI.
 type fakeTreeAPI struct {
-	nodes   []domain.Node
-	deleted []string
-	moved   []struct{ id, parent string }
-	delErr  error
+	nodes     []domain.Node
+	deleted   []string
+	moved     []struct{ id, parent string }
+	delErr    error
+	listCalls int // counts ListNodes invocations
 }
 
-func (f *fakeTreeAPI) ListNodes(context.Context) ([]domain.Node, error) { return f.nodes, nil }
+func (f *fakeTreeAPI) ListNodes(context.Context) ([]domain.Node, error) {
+	f.listCalls++
+	return f.nodes, nil
+}
 func (f *fakeTreeAPI) DeleteNode(_ context.Context, id string) error {
 	f.deleted = append(f.deleted, id)
 	return f.delErr
@@ -171,9 +175,60 @@ func TestRoute_EnterPushesDetail(t *testing.T) {
 
 func TestRoute_SSEReload(t *testing.T) {
 	t.Parallel()
-	r := NewRoute(&fakeTreeAPI{}, theme.Default, "u")
+	f := &fakeTreeAPI{}
+	r := NewRoute(f, theme.Default, "u")
+	// Seed the route with initial data (counts as 1 ListNodes call via Init / loadCmd).
+	loaded(r) // does NOT call ListNodes — it injects the msg directly
+
 	_, cmd := r.Update(shell.EventMsg{Ev: clientEvent("node.moved")})
 	if cmd == nil {
 		t.Fatal("node.moved must trigger reload")
+	}
+	// Execute the cmd — it must call ListNodes and return a loadedMsg.
+	msg := cmd()
+	if _, ok := msg.(loadedMsg); !ok {
+		t.Fatalf("reload cmd produced %T, want loadedMsg", msg)
+	}
+	if f.listCalls != 1 {
+		t.Fatalf("ListNodes called %d times after SSE, want 1", f.listCalls)
+	}
+}
+
+func TestRoute_CapturesText(t *testing.T) {
+	t.Parallel()
+	r := NewRoute(&fakeTreeAPI{}, theme.Default, "u")
+	loaded(r)
+
+	// Default state: no filter, no dialog — must not capture text.
+	if r.CapturesText() {
+		t.Fatal("default state: CapturesText() must be false")
+	}
+
+	// Filtering active (press /).
+	r.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	if !r.CapturesText() {
+		t.Fatal("while filtering: CapturesText() must be true")
+	}
+	// Clear filter.
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	// Delete dialog open (press D).
+	r.Update(tea.KeyPressMsg{Code: 'D', Text: "D"})
+	if r.dialog != dialogDelete {
+		t.Fatal("D must open delete dialog")
+	}
+	if !r.CapturesText() {
+		t.Fatal("delete dialog open: CapturesText() must be true")
+	}
+	// Close delete dialog.
+	r.Update(confirm.ResultMsg{Confirmed: false})
+
+	// Move dialog open (press m).
+	r.Update(key('m'))
+	if r.dialog != dialogMove {
+		t.Fatal("m must open move dialog")
+	}
+	if !r.CapturesText() {
+		t.Fatal("move dialog open: CapturesText() must be true")
 	}
 }

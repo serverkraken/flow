@@ -265,6 +265,12 @@ func (r *Route) handleFilterKey(k tea.KeyPressMsg) (shell.Route, tea.Cmd) {
 // dialog is open or while typing a fuzzy filter.
 func (r *Route) CapturesInput() bool { return r.dialog != dialogNone || r.filtering }
 
+// CapturesText implements shell.TextCapturer — keeps Esc/q inside the route
+// when filtering (to clear the filter) or when a dialog is open (to cancel it);
+// without it those keys would bubble past InputCapturer through shell.ResolveBack
+// and pop/quit the route instead. (Same pattern as daydetail/route.go.)
+func (r *Route) CapturesText() bool { return r.filtering || r.dialog != dialogNone }
+
 // View implements shell.Route.
 func (r *Route) View(f shell.Frame) string { return renderView(r, f) }
 

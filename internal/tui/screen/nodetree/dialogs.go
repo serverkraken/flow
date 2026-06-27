@@ -29,6 +29,8 @@ func (r *Route) openDelete() (shell.Route, tea.Cmd) {
 }
 
 // deleteErrText surfaces ports.ErrNodeHasChildren (RESTRICT) as a clear hint.
+// Called only when err != nil (deleteErrMsg is only produced on error), so the
+// final fallback is defensive only.
 func deleteErrText(err error) string {
 	if err != nil && strings.Contains(err.Error(), "children") {
 		return "Knoten hat Unterknoten — erst leeren oder umhängen"
@@ -36,7 +38,7 @@ func deleteErrText(err error) string {
 	if err != nil {
 		return "Löschen fehlgeschlagen: " + err.Error()
 	}
-	return "Löschen fehlgeschlagen"
+	return "Löschen fehlgeschlagen" // defensive: err is always non-nil at call site
 }
 
 // ---- move (reparent) --------------------------------------------------------
