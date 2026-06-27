@@ -10,6 +10,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/i18n"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -152,20 +153,6 @@ func parseRate(amount, currency string) (*domain.Money, error) {
 	return &domain.Money{Amount: int64(f*100 + 0.5), Currency: cur}, nil
 }
 
-func formValues(r *http.Request) webui.ProjectFormValues {
-	return webui.ProjectFormValues{
-		Name:         r.FormValue("name"),
-		Slug:         r.FormValue("slug"),
-		Description:  r.FormValue("description"),
-		UpstreamGit:  r.FormValue("upstreamGit"),
-		Status:       r.FormValue("status"),
-		Color:        r.FormValue("color"),
-		Glyph:        r.FormValue("glyph"),
-		RateAmount:   r.FormValue("rateAmount"),
-		RateCurrency: r.FormValue("rateCurrency"),
-	}
-}
-
 // orStatus defaults an empty status form value to "active".
 func orStatus(s string) string {
 	if s == "" {
@@ -174,6 +161,29 @@ func orStatus(s string) string {
 	return s
 }
 
+// parentPtr converts an empty-or-ID string to *string.
+func parentPtr(id string) *string {
+	if id == "" {
+		return nil
+	}
+	return &id
+}
+
+// nodeParents returns candidate parents (engagements + vorhaben) for the form.
+func (s *Server) nodeParents(r *http.Request, u domain.User) []domain.Node {
+	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
+	var out []domain.Node
+	for _, n := range all {
+		if n.Kind == domain.KindEngagement || n.Kind == domain.KindVorhaben {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// i18nT resolves an i18n key in the request's language for handler-side messages.
+func i18nT(r *http.Request, key string) string { return i18n.T(r.Context(), key) }
+
 // ---------------------------------------------------------------------------
 // Project form handlers
 // ---------------------------------------------------------------------------
@@ -181,97 +191,93 @@ func orStatus(s string) string {
 func (s *Server) handleWebNodeNew(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.ProjectForm(webui.ProjectFormData{
-		User: u.Username,
-		Vals: webui.ProjectFormValues{Status: "active"},
+	_ = webui.NodeForm(webui.NodeFormData{
+		User:    u.Username,
+		Vals:    webui.NodeFormValues{Kind: "engagement", Status: "active"},
+		Parents: s.nodeParents(r, u),
 	}, nil).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	vals := formValues(r)
+	vals := nodeFormValues(r)
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
 	reRender := func(msg string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Error: msg, Vals: vals}, nil).Render(r.Context(), w)
+		_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Error: msg, Vals: vals, Parents: s.nodeParents(r, u)}, nil).Render(r.Context(), w)
 	}
 	if vals.Name == "" {
-		reRender("Name erforderlich")
+		reRender(i18nT(r, "node.err.nameRequired"))
 		return
 	}
 	if rerr != nil {
 		reRender(rerr.Error())
 		return
 	}
-	// Reject a bad upstream up front so we never create a half-configured project
-	// (mirrors REST handleCreateNode). Bad git input is the common error path;
-	// without this guard CreateNode would succeed and the later UpdateNode
-	// failure would leave an orphan name-only project behind.
+	// Reject a bad upstream up front so we never create a half-configured project.
 	if vals.UpstreamGit != "" {
 		if _, ok := domain.NormalizeRemoteSlug(vals.UpstreamGit); !ok {
-			reRender("Ungültige Upstream-Git-URL")
+			reRender(i18nT(r, "node.err.badUpstream"))
 			return
 		}
 	}
-	// create (name/slug/color/glyph) — same compose sequence as REST handleCreateNode
-	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
-		Name: vals.Name, Slug: vals.Slug, Color: vals.Color, Glyph: vals.Glyph,
-		Kind: domain.KindEngagement, // TODO(Slice C): read kind/parentId from form
+	kind := domain.NodeKind(vals.Kind)
+	if kind == "" {
+		kind = domain.KindEngagement
+	}
+	parent := parentPtr(vals.ParentID)
+	if kind == domain.KindEngagement {
+		parent = nil // engagements are always roots
+	}
+	n, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
+		Name: vals.Name, Slug: vals.Slug, Kind: kind, ParentID: parent,
+		Color: vals.Color, Glyph: vals.Glyph,
+		Description: vals.Description, UpstreamGit: vals.UpstreamGit,
 	})
 	if err != nil {
-		reRender("Konnte Projekt nicht anlegen: " + err.Error())
+		reRender(i18nT(r, "node.err.create") + ": " + err.Error())
 		return
 	}
-	// compose description/upstream/status (auto-syncs binding; validates upstream)
-	p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
-		Name:        p.Name,
-		Slug:        p.Slug,
-		Color:       p.Color,
-		Glyph:       p.Glyph,
-		Description: vals.Description,
-		UpstreamGit: vals.UpstreamGit,
-		Status:      domain.NodeStatus(orStatus(vals.Status)),
-	})
-	if err != nil {
-		reRender(err.Error())
-		return
+	if kind == domain.KindEngagement && rate != nil {
+		_ = s.SetNodeRate.Execute(r.Context(), u.ID, n.ID, rate)
 	}
-	if rate != nil {
-		_ = s.SetNodeRate.Execute(r.Context(), u.ID, p.ID, rate)
-	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
-	http.Redirect(w, r, "/nodes/"+p.ID, http.StatusSeeOther)
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
+	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
 }
 
 func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	p, err := s.GetNode.Execute(r.Context(), u.ID, r.PathValue("id"))
+	n, err := s.GetNode.Execute(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	vals := webui.ProjectFormValues{
-		Name:        p.Name,
-		Slug:        p.Slug,
-		Description: p.Description,
-		UpstreamGit: p.UpstreamGit,
-		Status:      string(p.Status),
-		Color:       p.Color,
-		Glyph:       p.Glyph,
+	vals := webui.NodeFormValues{
+		Name:        n.Name,
+		Slug:        n.Slug,
+		Kind:        string(n.Kind),
+		Description: n.Description,
+		UpstreamGit: n.UpstreamGit,
+		Status:      string(n.Status),
+		Color:       n.Color,
+		Glyph:       n.Glyph,
 	}
-	if p.Rate != nil {
-		vals.RateAmount = fmt.Sprintf("%d.%02d", p.Rate.Amount/100, p.Rate.Amount%100)
-		vals.RateCurrency = p.Rate.Currency
+	if n.ParentID != nil {
+		vals.ParentID = *n.ParentID
+	}
+	if n.Rate != nil {
+		vals.RateAmount = fmt.Sprintf("%d.%02d", n.Rate.Amount/100, n.Rate.Amount%100)
+		vals.RateCurrency = n.Rate.Currency
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Vals: vals}, &p).Render(r.Context(), w)
+	_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Vals: vals, Parents: s.nodeParents(r, u)}, &n).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	vals := formValues(r)
+	vals := nodeFormValues(r)
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
 	cur, gerr := s.GetNode.Execute(r.Context(), u.ID, id)
 	if gerr != nil {
@@ -281,13 +287,13 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	reRender := func(msg string) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusBadRequest)
-		_ = webui.ProjectForm(webui.ProjectFormData{User: u.Username, Error: msg, Vals: vals}, &cur).Render(r.Context(), w)
+		_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Error: msg, Vals: vals, Parents: s.nodeParents(r, u)}, &cur).Render(r.Context(), w)
 	}
 	if rerr != nil {
 		reRender(rerr.Error())
 		return
 	}
-	p, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
+	n, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        vals.Name,
 		Slug:        vals.Slug,
 		Color:       vals.Color,
@@ -307,9 +313,11 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	// rate==nil clears any existing rate
-	_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	// Rate applies only to engagements; nil clears any existing rate.
+	if n.Kind == domain.KindEngagement {
+		_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
@@ -344,6 +352,10 @@ func (s *Server) handleWebNodeDelete(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	if err := s.DeleteNode.Execute(r.Context(), u.ID, id); err != nil {
+		if errors.Is(err, ports.ErrNodeHasChildren) {
+			http.Redirect(w, r, "/nodes/"+id+"?err=children", http.StatusSeeOther)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

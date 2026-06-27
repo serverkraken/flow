@@ -105,9 +105,13 @@ func postN(t *testing.T, ts *httptest.Server, c *http.Cookie, path string, form 
 func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
-	// Seed: an engagement with a child repo, and an archived engagement.
+	// Seed: an engagement with a child repo (has color+glyph+upstreamGit), and an archived engagement.
 	eng := seedTreeNode(t, ns, "eng1", "Privat", domain.KindEngagement, nil)
-	seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+	repo := seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+	repo.Color = domain.NodeColors[0]
+	repo.Glyph = domain.NodeGlyphs[0]
+	repo.UpstreamGit = "git@github.com:serverkraken/flow.git"
+	_, _ = ns.Update(context.Background(), "u1", repo)
 	arch := seedTreeNode(t, ns, "eng2", "Alt", domain.KindEngagement, nil)
 	arch.Status = domain.NodeArchived
 	_, _ = ns.Update(context.Background(), "u1", arch)
@@ -146,3 +150,162 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 
 // Ensure postN compiles (coverage guard).
 var _ = postN
+
+// TestWebNodeFormErrorPaths covers handler error branches: 404s and ErrNodeHasChildren.
+func TestWebNodeFormErrorPaths(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	// Seed: engagement with a child repo.
+	eng := seedTreeNode(t, ns, "eng1", "Privat", domain.KindEngagement, nil)
+	seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+
+	// GET /nodes/{missing}/edit → 404
+	code, _ := getN(t, ts, c, "/nodes/missing/edit")
+	if code != http.StatusNotFound {
+		t.Errorf("edit 404 = %d, want 404", code)
+	}
+
+	// POST /nodes/{missing} (update) → 404
+	res := postN(t, ts, c, "/nodes/missing", url.Values{"name": {"x"}, "status": {"active"}})
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("update 404 = %d, want 404", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// POST /nodes/{missing}/status → 404
+	res = postN(t, ts, c, "/nodes/missing/status", url.Values{"status": {"archived"}})
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("status 404 = %d, want 404", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// POST /nodes/{id}/delete with children → redirect with err=children
+	res = postN(t, ts, c, "/nodes/"+eng.ID+"/delete", url.Values{})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("delete-with-children = %d, want 303", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	if !strings.Contains(loc, "err=children") {
+		t.Errorf("delete-with-children redirect = %q, want ?err=children", loc)
+	}
+	// Engagement still exists (not deleted).
+	if _, err := ns.Get(context.Background(), "u1", eng.ID); err != nil {
+		t.Errorf("engagement should still exist after failed delete: %v", err)
+	}
+}
+
+// TestWebNodeForm exercises the NodeForm-based create / edit / status / delete
+// handlers (D4): kind select, constrained parent, engagement-only rate.
+func TestWebNodeForm(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	// Seed an engagement to appear as a parent candidate.
+	eng := seedTreeNode(t, ns, "eng1", "RTL Extern", domain.KindEngagement, nil)
+
+	// ── GET /nodes/new: form must contain the kind select and the parent option ──
+	code, form := getN(t, ts, c, "/nodes/new")
+	if code != 200 {
+		t.Fatalf("GET /nodes/new = %d; body=%.500s", code, form)
+	}
+	if !strings.Contains(form, `select name="kind"`) {
+		t.Errorf("new-form must contain kind select; body=%.500s", form)
+	}
+	if !strings.Contains(form, "RTL Extern") {
+		t.Errorf("new-form must list parent engagement; body=%.500s", form)
+	}
+
+	// ── POST /nodes: create a repo under the engagement ──
+	res := postN(t, ts, c, "/nodes", url.Values{
+		"name":     {"flow"},
+		"slug":     {"flow"},
+		"kind":     {"repo"},
+		"parentId": {eng.ID},
+		"color":    {domain.NodeColors[0]},
+		"glyph":    {domain.NodeGlyphs[0]},
+		"status":   {"active"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create repo = %d, want 303", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	if !strings.HasPrefix(loc, "/nodes/") {
+		t.Fatalf("create redirect = %q, want /nodes/...", loc)
+	}
+	repoID := strings.TrimPrefix(loc, "/nodes/")
+
+	got, err := ns.Get(context.Background(), "u1", repoID)
+	if err != nil {
+		t.Fatalf("created node not found: %v", err)
+	}
+	if got.Kind != domain.KindRepo {
+		t.Errorf("created node kind = %q, want repo", got.Kind)
+	}
+	if got.ParentID == nil || *got.ParentID != eng.ID {
+		t.Errorf("created node parentID = %v, want %q", got.ParentID, eng.ID)
+	}
+
+	// ── GET /nodes/{id}/edit: form pre-fills kind and name ──
+	_, editBody := getN(t, ts, c, "/nodes/"+repoID+"/edit")
+	if !strings.Contains(editBody, "flow") {
+		t.Errorf("edit form must pre-fill node name; body=%.500s", editBody)
+	}
+	if !strings.Contains(editBody, `value="repo"`) {
+		t.Errorf("edit form must pre-fill kind=repo; body=%.500s", editBody)
+	}
+
+	// ── GET /nodes: tree renders color/glyph swatch for node with those fields ──
+	_, treePage := getN(t, ts, c, "/nodes")
+	if !strings.Contains(treePage, "flow") {
+		t.Errorf("tree should show created repo; body=%.300s", treePage)
+	}
+
+	// ── POST /nodes: create engagement with rate ──
+	res = postN(t, ts, c, "/nodes", url.Values{
+		"name":         {"Beratung"},
+		"kind":         {"engagement"},
+		"rateAmount":   {"95.00"},
+		"rateCurrency": {"EUR"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create engagement = %d, want 303", res.StatusCode)
+	}
+	eid := strings.TrimPrefix(res.Header.Get("Location"), "/nodes/")
+	_ = res.Body.Close()
+	e2, err2 := ns.Get(context.Background(), "u1", eid)
+	if err2 != nil {
+		t.Fatalf("created engagement not found: %v", err2)
+	}
+	if e2.Rate == nil || e2.Rate.Amount != 9500 {
+		t.Errorf("engagement rate not set: %+v", e2.Rate)
+	}
+
+	// ── POST /nodes (missing name) → 400 re-render ──
+	res = postN(t, ts, c, "/nodes", url.Values{"kind": {"repo"}, "parentId": {eng.ID}})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("missing name = %d, want 400", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	// ── POST /nodes/{id}/status → archive repo ──
+	res = postN(t, ts, c, "/nodes/"+repoID+"/status", url.Values{"status": {"archived"}})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	got, _ = ns.Get(context.Background(), "u1", repoID)
+	if got.Status != domain.NodeArchived {
+		t.Errorf("not archived: %s", got.Status)
+	}
+
+	// ── POST /nodes/{id}/delete (leaf) → deleted ──
+	res = postN(t, ts, c, "/nodes/"+repoID+"/delete", url.Values{})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("delete = %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	if _, err := ns.Get(context.Background(), "u1", repoID); err == nil {
+		t.Errorf("node should be deleted")
+	}
+}

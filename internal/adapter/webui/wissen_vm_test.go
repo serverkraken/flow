@@ -84,3 +84,50 @@ func TestBuildWissenOverviewCountsAndLatest(t *testing.T) {
 }
 
 func strptr(s string) *string { return &s }
+
+func TestWissenTabsAndEmpty(t *testing.T) {
+	empty := WissenVM{}
+	if !WissenEmpty(empty) {
+		t.Error("WissenEmpty on zero vm should be true")
+	}
+	tabs := WissenTabs(empty)
+	if len(tabs) != 4 {
+		t.Fatalf("expected 4 tabs, got %d", len(tabs))
+	}
+
+	nonEmpty := WissenVM{Daily: []DocRow{{ID: "d1"}}}
+	if WissenEmpty(nonEmpty) {
+		t.Error("WissenEmpty on non-zero vm should be false")
+	}
+	tabs2 := WissenTabs(nonEmpty)
+	if tabs2[0].Count != 1 {
+		t.Errorf("daily tab count = %d, want 1", tabs2[0].Count)
+	}
+}
+
+func TestWissenResetHref(t *testing.T) {
+	if wissenResetHref(WissenVM{}) != "/wissen" {
+		t.Error("default reset href should be /wissen")
+	}
+	if wissenResetHref(WissenVM{ResetHref: "/wissen?tag=x"}) != "/wissen?tag=x" {
+		t.Error("custom reset href not returned")
+	}
+}
+
+func TestProjectDocCountAndSwatchStyle(t *testing.T) {
+	groups := []ProjectGroup{
+		{Name: "A", Docs: []DocRow{{ID: "1"}, {ID: "2"}}},
+		{Name: "B", Docs: []DocRow{{ID: "3"}}},
+	}
+	if n := projectDocCount(groups); n != 3 {
+		t.Errorf("projectDocCount = %d, want 3", n)
+	}
+
+	if s := swatchStyle(""); s != "" {
+		t.Errorf("swatchStyle('') = %q, want ''", s)
+	}
+	got := swatchStyle("#aabbcc")
+	if got != "--swatch: #aabbcc" {
+		t.Errorf("swatchStyle('#aabbcc') = %q, want '--swatch: #aabbcc'", got)
+	}
+}

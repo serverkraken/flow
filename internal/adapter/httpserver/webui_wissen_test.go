@@ -172,6 +172,50 @@ func TestWissenRoutesCutover(t *testing.T) {
 	}
 }
 
+func TestWebWissenListFragments(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-15",
+		Title: "Daily Frag", Body: "body", Date: &now, CreatedAt: now, UpdatedAt: now,
+	})
+
+	// handleWebWissenList — overview fragment at /ui/wissen/list
+	body, status := getWissen(t, wissenTestMux(srv), "/ui/wissen/list", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /ui/wissen/list status=%d body=%.300s", status, body)
+	}
+	if !strings.Contains(body, "Daily Frag") {
+		t.Fatalf("wissen list fragment missing doc; body=%.500s", body)
+	}
+
+	// handleWebWissenCategoryList — daily fragment
+	body2, status2 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/daily", codec)
+	if status2 != http.StatusOK {
+		t.Fatalf("GET /ui/wissen/list/daily status=%d body=%.300s", status2, body2)
+	}
+	if !strings.Contains(body2, "Daily Frag") {
+		t.Fatalf("wissen daily fragment missing doc; body=%.500s", body2)
+	}
+
+	// projekte fragment — exercises wissenCategoryProjectGroups (has color swatch branch)
+	pid := "p1"
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "proj-1", OwnerID: "u1", Type: domain.DocProject, NodeID: &pid,
+		Path: "alpha/note", Title: "Proj Note", Body: "notes body", CreatedAt: now, UpdatedAt: now,
+	})
+	body3, status3 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/projekte", codec)
+	if status3 != http.StatusOK {
+		t.Fatalf("GET /ui/wissen/list/projekte status=%d body=%.300s", status3, body3)
+	}
+
+	// invalid category → 404 from mux (route not registered)
+	_, status4 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/bogus", codec)
+	if status4 != http.StatusNotFound {
+		t.Fatalf("GET /ui/wissen/list/bogus status=%d, want 404", status4)
+	}
+}
+
 func wissenTestMux(s *Server) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))

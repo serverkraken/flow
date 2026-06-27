@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"sort"
 
+	"github.com/a-h/templ"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -158,3 +159,14 @@ func nodeFilterChip(active bool) string {
 // nodeIndentStyle returns an inline CSS padding-left for depth-based indentation
 // in the tree (1 rem per level).
 func nodeIndentStyle(level int) string { return fmt.Sprintf("padding-left:%drem", level) }
+
+// nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).
+func nodeFormAction(editing *domain.Node) templ.SafeURL {
+	if editing != nil {
+		return templ.SafeURL("/nodes/" + editing.ID)
+	}
+	return templ.SafeURL("/nodes")
+}
+
+// nodeParentLabel returns the display label for a parent candidate.
+func nodeParentLabel(p domain.Node) string { return p.Name }
