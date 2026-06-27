@@ -11,6 +11,7 @@ const (
 	EventNodeCreated  EventType = "node.created"
 	EventNodeDeleted  EventType = "node.deleted"
 	EventNodeUpdated  EventType = "node.updated"
+	EventNodeMoved    EventType = "node.moved"
 	EventDayOffChanged   EventType = "dayoff.changed"
 	EventSettingsChanged EventType = "settings.changed"
 
