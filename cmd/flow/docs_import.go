@@ -37,10 +37,11 @@ func slugify(p string) string {
 
 // vaultFrontmatter is the subset of a note's YAML frontmatter the importer reads.
 type vaultFrontmatter struct {
-	ID      string `yaml:"id"`
-	Type    string `yaml:"type"`
-	Date    string `yaml:"date"`
-	Project string `yaml:"project"`
+	ID      string   `yaml:"id"`
+	Type    string   `yaml:"type"`
+	Date    string   `yaml:"date"`
+	Project string   `yaml:"project"`
+	Tags    []string `yaml:"tags"`
 }
 
 // parseVaultFrontmatter extracts the leading "---\n … \n---" YAML block.
@@ -271,8 +272,10 @@ func runImport(ctx context.Context, c *apiclient.Client, dir string, dryRun, upd
 			existingID[path] = "(dry-run)"
 			return nil
 		}
+		_, bodyStart := domain.ParseFrontmatter(body)
+		cleanBody := strings.TrimLeft(body[bodyStart:], "\n")
 		if _, ierr := c.ImportDocument(ctx, apiclient.ImportDocumentInput{
-			Type: typ, Path: path, Title: title, Body: body, Date: date, NodeID: nodeID,
+			Type: typ, Path: path, Title: title, Body: cleanBody, Date: date, NodeID: nodeID, Tags: fm.Tags,
 		}); ierr != nil {
 			if apiclient.IsConflict(ierr) { // race backstop
 				st.skipped++

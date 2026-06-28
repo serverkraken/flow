@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,14 +46,14 @@ func TestParseVaultFrontmatter(t *testing.T) {
 	// No frontmatter: body does not start with "---\n"
 	bodyNoFM := "# Onboarding\nbody"
 	fm2 := parseVaultFrontmatter(bodyNoFM)
-	if fm2 != (vaultFrontmatter{}) {
+	if !reflect.DeepEqual(fm2, vaultFrontmatter{}) {
 		t.Fatalf("body with no frontmatter should return zero value, got %+v", fm2)
 	}
 
 	// Opening fence but no closing fence: should return zero value
 	bodyNoClosed := "---\nid: notes/Onboarding\ntype: free\n# Body without close"
 	fm3 := parseVaultFrontmatter(bodyNoClosed)
-	if fm3 != (vaultFrontmatter{}) {
+	if !reflect.DeepEqual(fm3, vaultFrontmatter{}) {
 		t.Fatalf("body with opening fence but no closing fence should return zero value, got %+v", fm3)
 	}
 }
@@ -213,6 +215,55 @@ func TestRunImport_ImportsSkipsAndDryRun(t *testing.T) {
 	}
 	if posts != 2 || st.imported != 2 || st.skipped != 1 {
 		t.Fatalf("run posts=%d stats=%+v (want 2 imported, 1 skipped)", posts, st)
+	}
+}
+
+func TestRunImport_ParsesFrontmatterTagsAndStripsBody(t *testing.T) {
+	t.Parallel()
+	var importedDocs []apiclient.ImportDocumentInput
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == "GET" && r.URL.Path == "/api/v1/documents":
+			_ = json.NewEncoder(w).Encode([]domain.Document{})
+		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
+		case r.Method == "POST" && r.URL.Path == "/api/v1/documents/import":
+			var in apiclient.ImportDocumentInput
+			_ = json.NewDecoder(r.Body).Decode(&in)
+			importedDocs = append(importedDocs, in)
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(domain.Document{ID: "new"})
+		}
+	}))
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+
+	dir := t.TempDir()
+	writeFile(t, dir, "notes/tagged.md", "---\ntags: [go, tui]\n---\n# Title\nbody text")
+
+	st, err := runImport(context.Background(), c, dir, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.imported != 1 {
+		t.Fatalf("expected 1 imported, got %d", st.imported)
+	}
+	if len(importedDocs) != 1 {
+		t.Fatalf("expected 1 imported document, got %d", len(importedDocs))
+	}
+	doc := importedDocs[0]
+
+	// tags extracted from frontmatter
+	if !reflect.DeepEqual(doc.Tags, []string{"go", "tui"}) {
+		t.Errorf("Tags = %v, want [go tui]", doc.Tags)
+	}
+
+	// body must not carry the frontmatter block
+	if strings.HasPrefix(doc.Body, "---") {
+		t.Errorf("Body still contains frontmatter fence: %q", doc.Body)
+	}
+	if !strings.HasPrefix(doc.Body, "# Title") {
+		t.Errorf("Body does not start with '# Title': %q", doc.Body)
 	}
 }
 
