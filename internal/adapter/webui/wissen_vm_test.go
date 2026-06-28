@@ -72,7 +72,7 @@ func TestBuildWissenOverviewCountsAndLatest(t *testing.T) {
 		{ID: "p1", Type: domain.DocProject, Title: "Project", UpdatedAt: now},
 		{ID: "m1", Type: domain.DocMemory, Title: "Memory", UpdatedAt: now},
 	}
-	vm := BuildWissenOverview(docs, nil, nil, nil)
+	vm := BuildWissenOverview(docs, nil)
 	daily := vm.Categories[0]
 	if daily.Count != 2 || len(daily.Latest) != 2 || daily.Latest[0].Title != "New daily" {
 		t.Fatalf("daily overview = %+v", daily)

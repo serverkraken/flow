@@ -190,7 +190,7 @@ func nodeFormAction(editing *domain.Node) templ.SafeURL {
 func nodeParentLabel(p domain.Node) string { return p.Name }
 
 // ---------------------------------------------------------------------------
-// Helpers shared by nodes.templ templates (moved from projects.templ)
+// Helpers shared by nodes.templ templates.
 // ---------------------------------------------------------------------------
 
 // gitDisplay normalises a git remote URL to a human-friendly "host/path" form.

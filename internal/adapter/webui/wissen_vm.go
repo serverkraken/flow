@@ -154,7 +154,7 @@ func WissenCategoryForType(t domain.DocumentType) (WissenCategory, bool) {
 	return WissenCategory{}, false
 }
 
-func BuildWissenOverview(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenOverviewVM {
+func BuildWissenOverview(docs []domain.Document, projectColors map[string]string) WissenOverviewVM {
 	sorted := sortedDocuments(docs)
 	vm := WissenOverviewVM{}
 	for _, c := range WissenCategories() {

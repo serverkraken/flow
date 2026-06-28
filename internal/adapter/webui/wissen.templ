@@ -267,43 +267,6 @@ templ wissenFlatSection(id, titleKey string, rows []DocRow, extraClass string) {
 	</section>
 }
 
-templ wissenNotesSection(vm WissenVM) {
-	<section id="notes-sec" class="scroll-mt-24">
-		<div class="mb-3 flex items-center justify-between gap-3">
-			<h2 class="font-display text-xl font-semibold text-ink">{ components.T(ctx, "wissen.notes") }</h2>
-			<span class="rounded-full bg-sunken px-2.5 py-1 text-[.76rem] text-muted">{ itoa(projectDocCount(vm.Notes)) }</span>
-		</div>
-		if len(vm.Notes) > 0 {
-			<div class="space-y-4">
-				for _, group := range vm.Notes {
-					<article class="overflow-hidden rounded-2xl border border-line bg-surface shadow-soft" style={ swatchStyle(group.Color) }>
-						<header class="flex items-center gap-3 border-b border-line2 px-4 py-3">
-							<span class="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-[.9rem] text-success" aria-hidden="true">{ group.Glyph }</span>
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-2">
-									<h3 class="truncate font-medium text-ink">{ group.Name }</h3>
-									@nodeKindBadge(group.Kind)
-								</div>
-								if group.NodeID != "" {
-									<p class="font-mono text-[.75rem] text-muted">{ group.NodeID }</p>
-								}
-							</div>
-							if group.Color != "" {
-								<span class="ml-auto h-3 w-3 rounded-full border border-line" style="background-color: var(--swatch)" aria-hidden="true"></span>
-							}
-						</header>
-						<ul class="divide-y divide-line2">
-							for _, row := range group.Docs {
-								@wissenDocRow(row)
-							}
-						</ul>
-					</article>
-				}
-			</div>
-		}
-	</section>
-}
-
 templ wissenDocRow(row DocRow) {
 	{{ kind := rowKind(row) }}
 	<li class="p-4 transition-colors hover:bg-sunken/40">

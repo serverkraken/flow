@@ -219,9 +219,9 @@ func TestWocheTotalVariant_PastWeekUnder(t *testing.T) {
 	}
 }
 
-// TestWebProjectNew_RendersForm exercises handleWebProjectNew (0% prior) at
+// TestWebNodeNew_RendersForm exercises handleWebProjectNew (0% prior) at
 // GET /nodes/new — renders the empty project creation form.
-func TestWebProjectNew_RendersForm(t *testing.T) {
+func TestWebNodeNew_RendersForm(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	rr := histGet(t, srv, "/nodes/new")
 	if rr.Code != http.StatusOK {
@@ -365,9 +365,9 @@ func TestHistorieMonth_UnassignedBanner(t *testing.T) {
 	}
 }
 
-// TestWebProjectUpdate_RedirectsOnSuccess exercises handleWebNodeUpdate via
+// TestWebNodeUpdate_RedirectsOnSuccess exercises handleWebNodeUpdate via
 // the newWebNodesServer harness (which wires GetNode, UpdateNode).
-func TestWebProjectUpdate_RedirectsOnSuccess(t *testing.T) {
+func TestWebNodeUpdate_RedirectsOnSuccess(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	seedEngNode(t, ns, "upd-1", "Old Name", domain.NodeActive)
 
@@ -385,11 +385,11 @@ func TestWebProjectUpdate_RedirectsOnSuccess(t *testing.T) {
 	}
 }
 
-// TestWebProjectUpdate_EmptyNameErrors exercises the reRender branch in
+// TestWebNodeUpdate_InvalidName exercises the reRender branch in
 // handleWebNodeUpdate (name empty → 400 with error form).
 // Note: name validation happens in UpdateNode, not here, so empty name
 // triggers the ErrInvalidNode path.
-func TestWebProjectUpdate_InvalidName(t *testing.T) {
+func TestWebNodeUpdate_InvalidName(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	seedEngNode(t, ns, "upd-2", "Valid Name", domain.NodeActive)
 
@@ -481,8 +481,8 @@ func TestWebExportPreview_WithRate(t *testing.T) {
 	}
 }
 
-// TestWebProjectsListWithSessions seeds a project to exercise the list handler.
-func TestWebProjectsListWithSessions(t *testing.T) {
+// TestWebNodesListWithSessions seeds a project to exercise the list handler.
+func TestWebNodesListWithSessions(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	seedEngNode(t, ns, "sess-proj-1", "Active Billed", domain.NodeActive)
 
@@ -568,9 +568,9 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 	}
 }
 
-// TestWebProjectsList_MultipleStatusFilters exercises nodesList templ branches
+// TestWebNodesList_MultipleStatusFilters exercises nodesList templ branches
 // by rendering the projects list with projects in multiple status states.
-func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
+func TestWebNodesList_MultipleStatusFilters(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	seedEngNode(t, ns, "p-active-1", "Alpha", domain.NodeActive)
 	seedEngNode(t, ns, "p-archived-1", "Beta", domain.NodeArchived)
@@ -594,9 +594,9 @@ func TestWebProjectsList_MultipleStatusFilters(t *testing.T) {
 	}
 }
 
-// TestWebProjectCockpit_WithGitUpstream exercises nodeCockpitBody branches
+// TestWebNodeCockpit_WithGitUpstream exercises nodeCockpitBody branches
 // including the gitDisplay path (when UpstreamGit is set).
-func TestWebProjectCockpit_WithGitUpstream(t *testing.T) {
+func TestWebNodeCockpit_WithGitUpstream(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
 	p, _ := domain.NewNode("git-proj-1", "u1", "GitProject", "gitproject", now)
@@ -617,10 +617,10 @@ func TestWebProjectCockpit_WithGitUpstream(t *testing.T) {
 	}
 }
 
-// TestHeuteHome_ProjectWithEURRate exercises rateLabel() EUR branch by seeding
+// TestHeuteHome_NodeWithEURRate exercises rateLabel() EUR branch by seeding
 // a project with a EUR per-hour rate into the project store, then rendering
 // the Heute home page which lists projects with their rates.
-func TestHeuteHome_ProjectWithEURRate(t *testing.T) {
+func TestHeuteHome_NodeWithEURRate(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
 
@@ -695,10 +695,10 @@ func newWocheWithDayOffServer(t *testing.T) (*httpserver.Server, *testutil.FakeD
 	return srv, dos, codec
 }
 
-// TestProjectCockpit_WithRateAndSessions exercises projectWorktime's earnings
+// TestNodeCockpit_WithRateAndSessions exercises projectWorktime's earnings
 // branch (p.Rate != nil) by seeding a project with a EUR rate AND completed
 // sessions assigned to that project, then GETting the cockpit.
-func TestProjectCockpit_WithRateAndSessions(t *testing.T) {
+func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ps := testutil.NewFakeNodeStore()
@@ -875,9 +875,9 @@ func TestWocheFragment_WeekendRow(t *testing.T) {
 	}
 }
 
-// TestHistorieCalFragment_WithProjectSession exercises the sessionBlock coloring
+// TestHistorieCalFragment_WithNodeSession exercises the sessionBlock coloring
 // branches in historieBlock when a session has a project (non-nil hue path).
-func TestHistorieCalFragment_WithProjectSession(t *testing.T) {
+func TestHistorieCalFragment_WithNodeSession(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
 	pid := seedHistProject(t, srv, "testproj")

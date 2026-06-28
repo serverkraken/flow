@@ -40,11 +40,11 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-	names, colors, kinds, err := s.nodeMaps(r.Context(), u.ID)
+	_, colors, _, err := s.nodeMaps(r.Context(), u.ID)
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-	vm := webui.BuildWissenOverview(docs, names, colors, kinds)
+	vm := webui.BuildWissenOverview(docs, colors)
 	vm.WissenVM = base
 	return vm, nil
 }
