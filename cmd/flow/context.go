@@ -32,8 +32,9 @@ func contextCmd() *cobra.Command {
 	cmd.Flags().StringVar(&repo, "repo", "", "explicit node slug override")
 	cmd.Flags().IntVar(&capN, "cap", 0, "token budget override")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit the raw compose JSON")
-	// NOTE: installHooksCmd() and flushCheckCmd() (C2/C3) are not yet implemented;
-	// they will register themselves when Task C2 and C3 are complete.
+	cmd.AddCommand(installHooksCmd())
+	// NOTE: flushCheckCmd() (C3) is not yet implemented;
+	// it will register itself when Task C3 is complete.
 	return cmd
 }
 
