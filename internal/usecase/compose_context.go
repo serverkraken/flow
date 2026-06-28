@@ -1,9 +1,11 @@
 package usecase
 
 import (
+	"context"
 	"sort"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // ActiveContextPath is the fixed path of the per-leaf activeContext memory doc.
@@ -157,4 +159,108 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		}
 	}
 	return out
+}
+
+// ContextResolveInput carries the resolution hints from the client.
+type ContextResolveInput struct {
+	RemoteSlug   string
+	MachineID    string
+	Cwd          string
+	NodeOverride string // explicit node slug; bypasses binding resolution
+}
+
+// ComposeContext orchestrates resolution, doc gathering, tag-gating, and Compose.
+type ComposeContext struct {
+	Resolve ResolveNode
+	Nodes   ports.NodeStore
+	Docs    ports.DocumentStore
+	Tags    ports.TagStore
+}
+
+var bootstrapTypes = []domain.DocumentType{domain.DocInstruction, domain.DocMemory}
+
+// Execute resolves the leaf node, walks its ancestor chain, gathers docs, applies
+// the D7 tag-gate for global memories, and calls the pure Compose function.
+func (uc ComposeContext) Execute(ctx context.Context, ownerID string, in ContextResolveInput, cap int) (ComposedContext, error) {
+	leaf, ok, err := uc.resolveLeaf(ctx, ownerID, in)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+	if !ok {
+		// Unresolved: serve global docs only; no active-node tags so no global memories cross.
+		docs, err := uc.Docs.ListForContext(ctx, ownerID, nil, true, bootstrapTypes)
+		if err != nil {
+			return ComposedContext{}, err
+		}
+		return Compose(nil, docs, map[string]bool{}, cap), nil
+	}
+
+	chain, err := uc.Nodes.Ancestors(ctx, ownerID, leaf.ID)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+	chainIDs := make([]string, len(chain))
+	for i, n := range chain {
+		chainIDs[i] = n.ID
+	}
+	docs, err := uc.Docs.ListForContext(ctx, ownerID, chainIDs, true, bootstrapTypes)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+
+	// D7 tag-gate: global memories cross only if they carry one of the chain's node tags.
+	allowed, err := uc.globalAllowed(ctx, ownerID, chainIDs)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+	return Compose(chain, docs, allowed, cap), nil
+}
+
+// resolveLeaf returns the leaf node using either an explicit slug override or the
+// binding registry (remote slug → machine ID → cwd longest-prefix).
+func (uc ComposeContext) resolveLeaf(ctx context.Context, ownerID string, in ContextResolveInput) (domain.Node, bool, error) {
+	if in.NodeOverride != "" {
+		all, err := uc.Nodes.List(ctx, ownerID)
+		if err != nil {
+			return domain.Node{}, false, err
+		}
+		for _, n := range all {
+			if n.Slug == in.NodeOverride {
+				return n, true, nil
+			}
+		}
+		return domain.Node{}, false, nil
+	}
+	return uc.Resolve.Execute(ctx, ownerID, in.RemoteSlug, in.MachineID, in.Cwd)
+}
+
+// globalAllowed computes the set of global-document IDs permitted to cross into
+// the composed context based on the union of the chain's node tags (D7 gate).
+func (uc ComposeContext) globalAllowed(ctx context.Context, ownerID string, chainIDs []string) (map[string]bool, error) {
+	tagsByNode, err := uc.Tags.TagsForMany(ctx, ownerID, domain.TaggableNode, chainIDs)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var slugs []string
+	for _, ts := range tagsByNode {
+		for _, t := range ts {
+			if !seen[t.Slug] {
+				seen[t.Slug] = true
+				slugs = append(slugs, t.Slug)
+			}
+		}
+	}
+	allowed := map[string]bool{}
+	if len(slugs) == 0 {
+		return allowed, nil
+	}
+	ids, err := uc.Tags.FilterIDs(ctx, ownerID, domain.TaggableDocument, slugs, domain.TagMatchAny)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		allowed[id] = true
+	}
+	return allowed, nil
 }
