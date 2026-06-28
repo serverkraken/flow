@@ -59,23 +59,7 @@ func ParseFrontmatter(body string) (tags []string, bodyStart int) {
 	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
 		return nil, 0
 	}
-	return normalizeTags(fm.Tags), len(open) + after
-}
-
-// normalizeTags trims, lowercases, drops empties, and de-duplicates while
-// preserving first-seen order. Returns nil for an empty result.
-func normalizeTags(in []string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, t := range in {
-		t = strings.ToLower(strings.TrimSpace(t))
-		if t == "" || seen[t] {
-			continue
-		}
-		seen[t] = true
-		out = append(out, t)
-	}
-	return out
+	return NormalizeTags(fm.Tags), len(open) + after
 }
 
 // CollectTags aggregates tag counts across a document set, sorted by count
