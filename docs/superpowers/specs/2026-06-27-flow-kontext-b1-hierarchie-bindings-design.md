@@ -4,7 +4,7 @@ project: github.com/serverkraken/flow
 ---
 # flow Kontext-Redesign · Baustein 1 — Hierarchie + Bindings — Detail-Spec
 
-**Datum:** 2026-06-27 · **Branch:** `b1-hierarchie-bindings` (von `rebuild`, unmerged) · **Status:** implementiert (Slices A–F, 39 Commits, `make ci` grün 76.0%); Opus Final-Review READY-WITH-FOLLOWUPS (keine Blocker); Live-Dogfood (F2/F3/F4) + 2 Follow-ups (C4 bind-create Engagement-Parent, A6 Slug-Pre-Check) ausstehend
+**Datum:** 2026-06-27 · **Branch:** `b1-hierarchie-bindings` → auf `rebuild` integriert (unmerged) · **Status:** implementiert (Slices A–F) + **Follow-ups erledigt 2026-06-28** (`make ci` grün 76.0%): Slug-Modell auf **geschwister-eindeutig** umgebaut (Migration `0018`: `UNIQUE(owner,slug)` → zwei partielle Indizes, Repo darf wie sein Vorhaben heißen; `23505`→`ErrNodeSlugTaken`→REST-409; CLI-`resolveSlug` mit Ambiguitäts-Erkennung + `a/b/c`-Pfad-Adressierung; `Slugify` transliteriert Umlaute `ß→ss`); **C4** bind-create nistet Repo unter gewähltem Engagement (CLI-Parent-Picker + MCP `create_parent`); **A6** Deploy-Pre-Check dokumentiert (§9) + gegen Dev-DB verifiziert (0 Kollisionen); **E6** daydetail-Label „Engagement:"; apiclient surfacet Server-Fehlertext; Cleanup-Teilmenge. Opus Final-Review war READY-WITH-FOLLOWUPS (keine Blocker)
 **Übersichts-Spec:** `docs/superpowers/specs/2026-06-27-flow-kontext-redesign-design.md` (Achsen, Mechanik, D1–D11)
 **Vorgänger (Bindings):** `docs/superpowers/specs/2026-06-21-flow-project-resolution-design.md` · **Projects (M4):** `docs/superpowers/specs/2026-06-23-flow-project-management-design.md`
 
@@ -257,6 +257,12 @@ flow node rm     <slug>              # RESTRICT: nur wenn kinderlos
 6. Danach CHECK-Constraints aus §1 hinzufügen (`ADD CONSTRAINT … CHECK …`).
 
 > Die Migration trägt nur die **Regel** (`%gitlab%` → RTL, sonst Privat), keine gepflegte Slug-Liste. Unsichere Zuordnungen landen sicher unter „Privat" und werden danach per `flow node move` / Baum-UI umgehängt. Engagement-Rates setzt Soenne manuell (`flow node rate "rtl-extern" 95 EUR`).
+
+**Deploy-Pre-Check (A6, erledigt als Doku-Gate):** `0017` legt die Engagements `privat`/`rtl-extern` als Wurzeln an. Trägt ein **Alt-Repo** zufällig genau den Slug `privat` oder `rtl-extern`, überspringt Schritt 1 das Engagement (Unique-Verstoß) und Schritt 6 (`nodes_root_is_engagement`) bricht die Migration **atomar** ab (kein `-- +goose NO TRANSACTION` → vollständiger Rollback, nie Teil-Korruption — also ein stecken­gebliebener Deploy, kein Datenschaden). Vor dem **ersten** Anwenden auf eine **Bestands-DB** (Homelab-Prod) deshalb prüfen:
+> ```sql
+> SELECT slug FROM nodes WHERE slug IN ('privat','rtl-extern') AND kind = 'repo';
+> ```
+> Liefert das Zeilen → das kollidierende Alt-Projekt vorher umbenennen (`UPDATE nodes SET slug = slug || '-repo' WHERE slug IN ('privat','rtl-extern') AND kind='repo';`), dann migrieren. Bei Soennes Daten (Slugs wie `flow-rebuild`, `homelab-study`) liefert die Abfrage leer → unkritisch (im Done-Gate gegen die Dev-DB verifiziert). Ab `0018` sind Slugs ohnehin nur noch **geschwister-eindeutig**, ein Repo darf künftig wie sein Engagement heißen.
 
 ## 10 · Datei-Änderungs-Karte (für den Plan)
 
