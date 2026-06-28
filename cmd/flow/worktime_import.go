@@ -276,7 +276,7 @@ func importSessions(ctx context.Context, c *apiclient.Client, dir, projectName s
 			st.Sessions++
 			continue
 		}
-		if _, aerr := c.AddSession(ctx, nodeID, e.Start, e.Stop, "", ""); aerr != nil {
+		if _, aerr := c.AddSession(ctx, nodeID, e.Start, e.Stop, nil, ""); aerr != nil {
 			if apiclient.IsConflict(aerr) {
 				st.Skipped++
 				continue

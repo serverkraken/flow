@@ -40,7 +40,7 @@ func (r *TodayRoute) startOrStop() (shell.Route, tea.Cmd) {
 		return r, func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			if _, err := api.StartSession(ctx, nil, "", ""); err != nil {
+			if _, err := api.StartSession(ctx, nil, nil, ""); err != nil {
 				return loadedMsg{err: err}
 			}
 			return reloadMsg{}
@@ -134,8 +134,8 @@ func (r *TodayRoute) openEdit() (shell.Route, tea.Cmd) {
 	start.SetValue(s.Start.Format("15:04"))
 	stop := form.NewTextInput("HH:MM oder +1h30m", r.pal)
 	stop.SetValue(s.Stop.Format("15:04"))
-	tag := form.NewTextInput("z.B. deep, meeting", r.pal)
-	tag.SetValue(s.Tag)
+	tag := form.NewTextInput("z.B. deep meeting (Leerzeichen trennt)", r.pal)
+	tag.SetValue(strings.Join(s.Tags, " "))
 	note := form.NewTextInput("kurzer Text", r.pal)
 	note.SetValue(s.Note)
 	cmd := start.Focus()
@@ -180,7 +180,7 @@ func (r *TodayRoute) editFocus(d int) {
 func (r *TodayRoute) submitEdit() tea.Cmd {
 	startStr := strings.TrimSpace(r.edit.form[0].Value())
 	stopStr := strings.TrimSpace(r.edit.form[1].Value())
-	tag := strings.TrimSpace(r.edit.form[2].Value())
+	tags := strings.Fields(r.edit.form[2].Value())
 	note := strings.TrimSpace(r.edit.form[3].Value())
 	startD, err := wtfmt.ParseHM(startStr)
 	if err != nil {
@@ -200,7 +200,7 @@ func (r *TodayRoute) submitEdit() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if _, err := api.EditSession(ctx, id, nil, tag, note, startTime, &stopTime); err != nil {
+		if _, err := api.EditSession(ctx, id, nil, tags, note, startTime, &stopTime); err != nil {
 			return loadedMsg{err: err}
 		}
 		return reloadMsg{}
@@ -261,7 +261,7 @@ func (r *TodayRoute) submitAdjustStart() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if _, err := api.EditSession(ctx, id, nil, "", "", startTime, nil); err != nil {
+		if _, err := api.EditSession(ctx, id, nil, nil, "", startTime, nil); err != nil {
 			return loadedMsg{err: err}
 		}
 		return reloadMsg{}

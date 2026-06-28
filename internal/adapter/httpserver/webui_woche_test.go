@@ -26,7 +26,7 @@ func TestWocheHome_RendersDayBarsAndTotal(t *testing.T) {
 			return time.Date(day.Year(), day.Month(), day.Day(), c.Hour(), c.Minute(), 0, 0, time.Local)
 		}
 		if _, err := (usecase.AddSession{Sessions: srv.ss, IDs: srv.ids, Clock: srv.clk}).Execute(
-			ctx, "u1", nil, hm(from), hm(to), "", "",
+			ctx, "u1", nil, hm(from), hm(to), nil, "",
 		); err != nil {
 			t.Fatalf("seed %s: %v", dateStr, err)
 		}

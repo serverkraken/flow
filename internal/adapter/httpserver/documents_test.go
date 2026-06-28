@@ -56,6 +56,11 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Tags: tags},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
+		// Session usecases wired with the shared FakeTagStore so session
+		// multi-tags round-trip through the taggings junction (B2 D1).
+		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
+		AddSession:   usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
+		EditSession:  usecase.EditSession{Sessions: sessions, Tags: tags},
 	}
 	return srv, bus
 }

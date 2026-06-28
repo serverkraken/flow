@@ -21,7 +21,7 @@ func TestRenderBody_HeadlineBarSummarySessions(t *testing.T) {
 	c1Stop := time.Date(2026, 6, 14, 10, 0, 0, 0, loc)
 	active := time.Date(2026, 6, 14, 11, 0, 0, 0, loc)
 	st := todayState{
-		Completed: []completedSession{{ID: "a", Start: c1Start, Stop: c1Stop, Elapsed: time.Hour, Tag: "deep"}},
+		Completed: []completedSession{{ID: "a", Start: c1Start, Stop: c1Stop, Elapsed: time.Hour, Tags: []string{"deep"}}},
 		Running:   true, Active: &active, ActiveID: "run", Logged: time.Hour, Target: 8 * time.Hour,
 	}
 	body := plain(renderBody(st, 0, 80, 24, now, nil, pal))
@@ -55,7 +55,7 @@ func TestRenderBody_ShowsProjectBeforeTag(t *testing.T) {
 	c1Stop := time.Date(2026, 6, 14, 10, 0, 0, 0, loc)
 	st := todayState{
 		Completed: []completedSession{
-			{ID: "a", Start: c1Start, Stop: c1Stop, Elapsed: time.Hour, Tag: "deep", Project: "Flow"},
+			{ID: "a", Start: c1Start, Stop: c1Stop, Elapsed: time.Hour, Tags: []string{"deep"}, Project: "Flow"},
 			{ID: "b", Start: c1Start.Add(2 * time.Hour), Stop: c1Stop.Add(2 * time.Hour), Elapsed: time.Hour},
 		},
 		Target: 8 * time.Hour,

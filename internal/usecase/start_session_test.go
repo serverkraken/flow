@@ -42,7 +42,7 @@ func TestStartSession_NilNodeStartsUnbooked(t *testing.T) {
 	t.Parallel()
 	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
 	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
-	got, err := uc.Execute(context.Background(), "u1", nil, "deep", "n")
+	got, err := uc.Execute(context.Background(), "u1", nil, []string{"deep"}, "n")
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestStartSession_EngagementAccepted(t *testing.T) {
 	seedEngagement(t, ns, "u1", "eng1")
 	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
 	eng := "eng1"
-	got, err := uc.Execute(context.Background(), "u1", &eng, "", "")
+	got, err := uc.Execute(context.Background(), "u1", &eng, nil, "")
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestStartSession_RepoRejected(t *testing.T) {
 	seedRepo(t, ns, "u1", "repo1")
 	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
 	repo := "repo1"
-	if _, err := uc.Execute(context.Background(), "u1", &repo, "", ""); !errors.Is(err, domain.ErrInvalidNode) {
+	if _, err := uc.Execute(context.Background(), "u1", &repo, nil, ""); !errors.Is(err, domain.ErrInvalidNode) {
 		t.Fatalf("want ErrInvalidNode for repo node, got %v", err)
 	}
 }
@@ -82,7 +82,7 @@ func TestStartSession_MissingNodeRejected(t *testing.T) {
 	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
 	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
 	ghost := "ghost"
-	if _, err := uc.Execute(context.Background(), "u1", &ghost, "", ""); !errors.Is(err, ports.ErrNodeNotFound) {
+	if _, err := uc.Execute(context.Background(), "u1", &ghost, nil, ""); !errors.Is(err, ports.ErrNodeNotFound) {
 		t.Fatalf("want ErrNodeNotFound, got %v", err)
 	}
 }

@@ -107,7 +107,7 @@ func (w *worktimeTestServer) seedSession(t *testing.T, dateStr, fromHHMM, toHHMM
 		return time.Date(day.Year(), day.Month(), day.Day(), clk.Hour(), clk.Minute(), 0, 0, time.Local)
 	}
 	_, err = usecase.AddSession{Sessions: w.ss, IDs: w.ids, Clock: w.clk}.Execute(
-		context.Background(), "u1", nil, parseHM(fromHHMM), parseHM(toHHMM), "", "",
+		context.Background(), "u1", nil, parseHM(fromHHMM), parseHM(toHHMM), nil, "",
 	)
 	if err != nil {
 		t.Fatalf("seedSession: %v", err)

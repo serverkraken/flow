@@ -2,12 +2,12 @@ package domain
 
 import "time"
 
-// RecordSession is the per-session view stats aggregation needs: the tag
+// RecordSession is the per-session view stats aggregation needs: the tags
 // (for the by-tag tally) and the already-computed elapsed. Built from a
 // WorkSession at the use-case boundary so the pure aggregators stay I/O-free
 // and independent of the live/stopped distinction.
 type RecordSession struct {
-	Tag     string
+	Tags    []string
 	Elapsed time.Duration
 }
 

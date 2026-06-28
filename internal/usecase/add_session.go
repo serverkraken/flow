@@ -19,9 +19,12 @@ type AddSession struct {
 	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
+	// Tags persists the session's tags into the taggings junction after the
+	// session row is created. Nil-safe: when unwired, tags are dropped.
+	Tags ports.TagStore
 }
 
-func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string, start, stop time.Time, tags []string, note string) (domain.WorkSession, error) {
 	if err := requireEngagement(ctx, uc.Nodes, ownerID, nodeID); err != nil {
 		return domain.WorkSession{}, err
 	}
@@ -58,8 +61,19 @@ func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string
 		return domain.WorkSession{}, err
 	}
 	s.Stop = &stop
-	s.Tag, s.Note = tag, note
-	return uc.Sessions.Create(ctx, s)
+	s.Note = note
+	created, err := uc.Sessions.Create(ctx, s)
+	if err != nil {
+		return domain.WorkSession{}, err
+	}
+	if uc.Tags != nil {
+		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, created.ID, tags)
+		if terr != nil {
+			return created, terr
+		}
+		created.Tags = slugsOf(t)
+	}
+	return created, nil
 }
 
 // sameLocalDay reports whether a and b fall on the same calendar day in their

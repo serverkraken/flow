@@ -27,7 +27,7 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 	}
 	// running since yesterday 18:51
 	start := time.Date(2026, 6, 23, 18, 51, 0, 0, loc)
-	if _, err := ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: start, Tag: "deep"}); err != nil {
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: start, Tags: []string{"deep"}}); err != nil {
 		t.Fatalf("seed running: %v", err)
 	}
 
@@ -52,8 +52,8 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 		if s.NodeID == nil || *s.NodeID != "p1" {
 			t.Errorf("session %s not booked to p1: %+v", s.ID, s.NodeID)
 		}
-		if s.Tag != "deep" {
-			t.Errorf("session %s lost tag: %q", s.ID, s.Tag)
+		if len(s.Tags) != 1 || s.Tags[0] != "deep" {
+			t.Errorf("session %s lost tags: %q", s.ID, s.Tags)
 		}
 		// each chunk stays within one calendar day
 		if s.Start.Before(mid) && s.Stop.After(mid) {

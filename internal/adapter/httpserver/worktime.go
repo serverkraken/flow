@@ -21,7 +21,7 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 type startReq struct {
 	NodeID *string    `json:"projectId"`
-	Tag       string     `json:"tag"`
+	Tags      []string   `json:"tags"`
 	Note      string     `json:"note"`
 	Start     *time.Time `json:"start"`
 	Stop      *time.Time `json:"stop"`
@@ -38,7 +38,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "start and stop are required together", http.StatusBadRequest)
 			return
 		}
-		sess, err := s.AddSession.Execute(r.Context(), u.ID, req.NodeID, *req.Start, *req.Stop, req.Tag, req.Note)
+		sess, err := s.AddSession.Execute(r.Context(), u.ID, req.NodeID, *req.Start, *req.Stop, req.Tags, req.Note)
 		switch {
 		case errors.Is(err, domain.ErrStopBeforeStart),
 			errors.Is(err, domain.ErrFutureSession),
@@ -64,7 +64,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Live start.
-	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.NodeID, req.Tag, req.Note)
+	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.NodeID, req.Tags, req.Note)
 	switch {
 	case errors.Is(err, domain.ErrInvalidNode):
 		http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
@@ -339,7 +339,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 
 type editSessionReq struct {
 	NodeID *string    `json:"projectId"`
-	Tag       string     `json:"tag"`
+	Tags      []string   `json:"tags"`
 	Note      string     `json:"note"`
 	Start     time.Time  `json:"start"`
 	Stop      *time.Time `json:"stop"`
@@ -357,7 +357,7 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := s.EditSession.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.EditSessionInput{
-		NodeID: req.NodeID, Tag: req.Tag, Note: req.Note, Start: req.Start, Stop: req.Stop,
+		NodeID: req.NodeID, Tags: req.Tags, Note: req.Note, Start: req.Start, Stop: req.Stop,
 	})
 	switch {
 	case errors.Is(err, domain.ErrStopBeforeStart):

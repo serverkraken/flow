@@ -16,9 +16,9 @@ func TestBuildDayRecords_GroupsAndSumsPerDay(t *testing.T) {
 	target := func(time.Time) time.Duration { return 8 * time.Hour }
 
 	sessions := []domain.WorkSession{
-		{ID: "a", Start: time.Date(2026, 6, 14, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 14, 10, 0, 0, 0, loc)), Tag: "deep"},
-		{ID: "b", Start: time.Date(2026, 6, 14, 11, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 14, 11, 30, 0, 0, loc)), Tag: ""},
-		{ID: "c", Start: time.Date(2026, 6, 15, 13, 0, 0, 0, loc), Stop: nil, Tag: "meeting"},
+		{ID: "a", Start: time.Date(2026, 6, 14, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 14, 10, 0, 0, 0, loc)), Tags: []string{"deep"}},
+		{ID: "b", Start: time.Date(2026, 6, 14, 11, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 14, 11, 30, 0, 0, loc))},
+		{ID: "c", Start: time.Date(2026, 6, 15, 13, 0, 0, 0, loc), Stop: nil, Tags: []string{"meeting"}},
 	}
 
 	recs := domain.BuildDayRecords(sessions, now, target)
@@ -65,7 +65,7 @@ func TestBuildDayRecords_GroupsInNowLocation(t *testing.T) {
 	sessions := []domain.WorkSession{
 		{ID: "a",
 			Start: time.Date(2026, 6, 14, 23, 30, 0, 0, time.UTC),
-			Stop:  ptr(time.Date(2026, 6, 15, 0, 30, 0, 0, time.UTC)), Tag: "late"},
+			Stop:  ptr(time.Date(2026, 6, 15, 0, 30, 0, 0, time.UTC)), Tags: []string{"late"}},
 	}
 	recs := domain.BuildDayRecords(sessions, now, target)
 	if len(recs) != 1 {

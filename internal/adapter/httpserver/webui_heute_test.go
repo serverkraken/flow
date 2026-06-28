@@ -107,7 +107,7 @@ func TestHeuteFragment_ListsSessions(t *testing.T) {
 	from := day.Add(9 * time.Hour)
 	to := day.Add(11 * time.Hour)
 	if _, err := (usecase.AddSession{Sessions: srv.ss, IDs: srv.ids, Clock: srv.clk}).Execute(
-		ctx, "u1", nil, from, to, "", "",
+		ctx, "u1", nil, from, to, nil, "",
 	); err != nil {
 		t.Fatalf("seed completed: %v", err)
 	}

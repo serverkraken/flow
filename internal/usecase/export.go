@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -78,7 +79,7 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 			Stop:        stop,
 			Elapsed:     el,
 			NodeName: name,
-			Tag:         s.Tag,
+			Tag:         strings.Join(s.Tags, ","),
 			Note:        s.Note,
 		})
 		t, ok := totals[*s.NodeID]

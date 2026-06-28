@@ -37,8 +37,8 @@ templ SessionRow(vm SessionRowVM) {
 		<div class="min-w-0 flex-1">
 			<p class={ "text-[.9rem] font-semibold truncate", templ.KV("text-muted", vm.Unassigned) }>
 				{ vm.Title }
-				if vm.Tag != "" {
-					<span class="ml-1">@Tag(vm.Tag)</span>
+				for _, t := range vm.Tags {
+					<span class="ml-1">@Tag(t)</span>
 				}
 			</p>
 			<p class="text-[.78rem] text-muted font-mono tnum">{ vm.TimeRange }</p>

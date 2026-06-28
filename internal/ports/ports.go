@@ -116,9 +116,10 @@ type SessionStore interface {
 	// ListRange returns sessions with since <= Start < until, newest first.
 	// Owner-scoped. Used for past-day views and the overlap check.
 	ListRange(ctx context.Context, ownerID string, since, until time.Time) ([]domain.WorkSession, error)
-	// Update overwrites a session's project/tag/note/start/stop. Owner-scoped;
+	// Update overwrites a session's project/note/start/stop. Tags are persisted
+	// separately via TagStore (the taggings junction), not here. Owner-scoped;
 	// returns ErrSessionNotFound for a missing or foreign session.
-	Update(ctx context.Context, ownerID, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	Update(ctx context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	// Delete removes a session. Owner-scoped; ErrSessionNotFound if absent.
 	Delete(ctx context.Context, ownerID, id string) error
 	// ListPage returns the owner's sessions newest-first (start_at DESC),

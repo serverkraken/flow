@@ -8,6 +8,7 @@ package httpserver
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -75,7 +76,7 @@ func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	nodeID := s.resolveWebNode(r, u)
 	if _, err := s.AddSession.Execute(r.Context(), u.ID, nodeID, start, stop,
-		r.FormValue("tag"), r.FormValue("note")); err != nil {
+		strings.Fields(r.FormValue("tag")), r.FormValue("note")); err != nil {
 		s.renderDay(w, r, u, day, "could not add: "+err.Error()) // err includes "overlap"
 		return
 	}
@@ -109,7 +110,7 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
 		usecase.EditSessionInput{
 			NodeID: nodeID,
-			Tag:       r.FormValue("tag"),
+			Tags:      strings.Fields(r.FormValue("tag")),
 			Note:      r.FormValue("note"),
 			Start:     start,
 			Stop:      &stop,

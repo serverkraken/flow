@@ -17,7 +17,7 @@ type dayRow struct {
 	Dur     time.Duration
 	Running bool   // true when Stop was nil (session still active)
 	Project string // NodeID; resolved to name at render time
-	Tag     string
+	Tags    []string
 	Note    string
 }
 
@@ -31,7 +31,7 @@ func buildRows(sessions []domain.WorkSession, _ time.Time) []dayRow {
 	for _, s := range sessions {
 		r := dayRow{
 			ID:   s.ID,
-			Tag:  s.Tag,
+			Tags: s.Tags,
 			Note: s.Note,
 		}
 		if s.NodeID != nil {

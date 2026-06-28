@@ -11,7 +11,7 @@ type WorkSession struct {
 	ID        string     `json:"id"`
 	OwnerID   string     `json:"-"`
 	NodeID *string    `json:"projectId,omitempty"`
-	Tag       string     `json:"tag,omitempty"`
+	Tags      []string   `json:"tags,omitempty"`
 	Note      string     `json:"note,omitempty"`
 	Start     time.Time  `json:"start"`
 	Stop      *time.Time `json:"stop,omitempty"`

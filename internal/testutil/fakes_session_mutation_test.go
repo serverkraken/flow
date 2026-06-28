@@ -80,26 +80,28 @@ func TestFakeSessionStore_UpdateAndDelete(t *testing.T) {
 	ss := testutil.NewFakeSessionStore()
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	stop := start.Add(time.Hour)
-	seed := domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}
+	// Seed with a tag so we can assert Update preserves it (Update no longer
+	// takes a tag param — tags persist via the taggings junction / FakeTagStore).
+	seed := domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop, Tags: []string{"deep"}}
 	if _, err := ss.Create(ctx, seed); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 
 	pid := "p1"
-	got, err := ss.Update(ctx, "u1", "s1", &pid, "deep", "note", start, &stop)
+	got, err := ss.Update(ctx, "u1", "s1", &pid, "note", start, &stop)
 	if err != nil {
 		t.Fatalf("update: %v", err)
 	}
-	if got.Tag != "deep" || got.Note != "note" || got.NodeID == nil || *got.NodeID != "p1" {
-		t.Fatalf("update did not persist fields: %+v", got)
+	if len(got.Tags) != 1 || got.Tags[0] != "deep" || got.Note != "note" || got.NodeID == nil || *got.NodeID != "p1" {
+		t.Fatalf("update did not persist fields / preserve tags: %+v", got)
 	}
 
 	// non-existent id -> not found
-	if _, err := ss.Update(ctx, "u1", "no-such-id", nil, "", "", start, &stop); !errors.Is(err, ports.ErrSessionNotFound) {
+	if _, err := ss.Update(ctx, "u1", "no-such-id", nil, "", start, &stop); !errors.Is(err, ports.ErrSessionNotFound) {
 		t.Fatalf("missing id update: want ErrSessionNotFound, got %v", err)
 	}
 	// foreign owner -> not found
-	if _, err := ss.Update(ctx, "other", "s1", nil, "", "", start, &stop); !errors.Is(err, ports.ErrSessionNotFound) {
+	if _, err := ss.Update(ctx, "other", "s1", nil, "", start, &stop); !errors.Is(err, ports.ErrSessionNotFound) {
 		t.Fatalf("foreign update: want ErrSessionNotFound, got %v", err)
 	}
 	// delete foreign -> not found

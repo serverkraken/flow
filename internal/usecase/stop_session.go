@@ -66,7 +66,7 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 		}
 		stop := r.Stop
 		chunk.Stop = &stop
-		chunk.Tag, chunk.Note = cur.Tag, cur.Note
+		chunk.Tags, chunk.Note = cur.Tags, cur.Note
 		if _, cerr := uc.Sessions.Create(ctx, chunk); cerr != nil {
 			return first, cerr
 		}

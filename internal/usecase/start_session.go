@@ -15,9 +15,12 @@ type StartSession struct {
 	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
+	// Tags persists the session's tags into the taggings junction after the
+	// session row is created. Nil-safe: when unwired, tags are dropped.
+	Tags ports.TagStore
 }
 
-func (uc StartSession) Execute(ctx context.Context, ownerID string, nodeID *string, tag, note string) (domain.WorkSession, error) {
+func (uc StartSession) Execute(ctx context.Context, ownerID string, nodeID *string, tags []string, note string) (domain.WorkSession, error) {
 	if err := requireEngagement(ctx, uc.Nodes, ownerID, nodeID); err != nil {
 		return domain.WorkSession{}, err
 	}
@@ -30,6 +33,17 @@ func (uc StartSession) Execute(ctx context.Context, ownerID string, nodeID *stri
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
-	s.Tag, s.Note = tag, note
-	return uc.Sessions.Create(ctx, s)
+	s.Note = note
+	created, err := uc.Sessions.Create(ctx, s)
+	if err != nil {
+		return domain.WorkSession{}, err
+	}
+	if uc.Tags != nil {
+		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, created.ID, tags)
+		if terr != nil {
+			return created, terr
+		}
+		created.Tags = slugsOf(t)
+	}
+	return created, nil
 }

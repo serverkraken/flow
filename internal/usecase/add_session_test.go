@@ -12,7 +12,7 @@ import (
 )
 
 func newAddSession(ss *testutil.FakeSessionStore, ns *testutil.FakeNodeStore, now time.Time) usecase.AddSession {
-	return usecase.AddSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}}
+	return usecase.AddSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}, Tags: testutil.NewFakeTagStore()}
 }
 
 func TestAddSession_HappyPath(t *testing.T) {
@@ -25,11 +25,11 @@ func TestAddSession_HappyPath(t *testing.T) {
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	pid := "p1"
-	got, err := uc.Execute(ctx, "u1", &pid, start, stop, "deep", "n")
+	got, err := uc.Execute(ctx, "u1", &pid, start, stop, []string{"deep"}, "n")
 	if err != nil {
 		t.Fatalf("AddSession: %v", err)
 	}
-	if got.ID == "" || got.Stop == nil || !got.Stop.Equal(stop) || got.Tag != "deep" {
+	if got.ID == "" || got.Stop == nil || !got.Stop.Equal(stop) || len(got.Tags) != 1 || got.Tags[0] != "deep" {
 		t.Fatalf("AddSession result wrong: %+v", got)
 	}
 	if got.CreatedAt != start {
@@ -46,7 +46,7 @@ func TestAddSession_RepoRejected(t *testing.T) {
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	repo := "repo1"
-	if _, err := uc.Execute(ctx, "u1", &repo, start, stop, "", ""); !errors.Is(err, domain.ErrInvalidNode) {
+	if _, err := uc.Execute(ctx, "u1", &repo, start, stop, nil, ""); !errors.Is(err, domain.ErrInvalidNode) {
 		t.Fatalf("want ErrInvalidNode for repo node, got %v", err)
 	}
 }
@@ -57,7 +57,7 @@ func TestAddSession_StopBeforeStart(t *testing.T) {
 	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC))
 	start := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
-	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrStopBeforeStart) {
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrStopBeforeStart) {
 		t.Fatalf("want ErrStopBeforeStart, got %v", err)
 	}
 }
@@ -69,7 +69,7 @@ func TestAddSession_Future(t *testing.T) {
 	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), now)
 	start := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
-	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrFutureSession) {
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrFutureSession) {
 		t.Fatalf("want ErrFutureSession, got %v", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestAddSession_CrossMidnight(t *testing.T) {
 	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), now)
 	start := time.Date(2026, 6, 15, 23, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 16, 1, 0, 0, 0, time.UTC)
-	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrInvalidSession) {
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrInvalidSession) {
 		t.Fatalf("want ErrInvalidSession (cross-midnight), got %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestAddSession_Overlap(t *testing.T) {
 	uc := newAddSession(ss, ns, now)
 	start := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
-	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrOverlap) {
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrOverlap) {
 		t.Fatalf("want ErrOverlap, got %v", err)
 	}
 }
@@ -120,7 +120,7 @@ func TestAddSession_OverlapWithRunningOutsideWindow(t *testing.T) {
 	uc := newAddSession(ss, ns, now)
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
-	if _, err := uc.Execute(ctx, "u1", nil, start, stop, "", ""); !errors.Is(err, domain.ErrOverlap) {
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrOverlap) {
 		t.Fatalf("want ErrOverlap (running session spans candidate), got %v", err)
 	}
 }

@@ -32,7 +32,7 @@ func TestStartSessionAndListProjects(t *testing.T) {
 	defer ts.Close()
 	c := apiclient.New(ts.URL, "tok")
 
-	s, err := c.StartSession(context.Background(), nil, "", "")
+	s, err := c.StartSession(context.Background(), nil, nil, "")
 	if err != nil || s.ID != "s1" {
 		t.Fatalf("StartSession = %+v err=%v", s, err)
 	}
@@ -70,7 +70,7 @@ func TestEditAndDeleteSession(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPatch && r.URL.Path == "/api/v1/sessions/s1":
 			sawPatch = true
-			_, _ = w.Write([]byte(`{"id":"s1","tag":"deep","start":"2026-06-14T09:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"id":"s1","tags":["deep"],"start":"2026-06-14T09:00:00Z"}`))
 		case r.Method == http.MethodDelete && r.URL.Path == "/api/v1/sessions/s1":
 			sawDelete = true
 			w.WriteHeader(http.StatusNoContent)
@@ -83,8 +83,8 @@ func TestEditAndDeleteSession(t *testing.T) {
 
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	stop := start.Add(2 * time.Hour)
-	s, err := c.EditSession(context.Background(), "s1", nil, "deep", "", start, &stop)
-	if err != nil || s.Tag != "deep" {
+	s, err := c.EditSession(context.Background(), "s1", nil, []string{"deep"}, "", start, &stop)
+	if err != nil || len(s.Tags) != 1 || s.Tags[0] != "deep" {
 		t.Fatalf("EditSession = %+v err=%v", s, err)
 	}
 	if err := c.DeleteSession(context.Background(), "s1"); err != nil {
@@ -160,11 +160,12 @@ func TestAddSessionAndListRange(t *testing.T) {
 
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
-	s, err := c.AddSession(context.Background(), nil, start, stop, "deep", "n")
+	s, err := c.AddSession(context.Background(), nil, start, stop, []string{"deep"}, "n")
 	if err != nil || s.ID != "s9" {
 		t.Fatalf("AddSession = %+v err=%v", s, err)
 	}
-	if gotBody["start"] == nil || gotBody["stop"] == nil || gotBody["tag"] != "deep" {
+	gotTags, ok := gotBody["tags"].([]any)
+	if gotBody["start"] == nil || gotBody["stop"] == nil || !ok || len(gotTags) != 1 || gotTags[0] != "deep" {
 		t.Fatalf("AddSession body missing fields: %+v", gotBody)
 	}
 

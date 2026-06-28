@@ -17,7 +17,10 @@ func rec(d time.Time, total, target time.Duration, sessions ...domain.RecordSess
 }
 
 func sess(tag string, elapsed time.Duration) domain.RecordSession {
-	return domain.RecordSession{Tag: tag, Elapsed: elapsed}
+	if tag == "" {
+		return domain.RecordSession{Elapsed: elapsed}
+	}
+	return domain.RecordSession{Tags: []string{tag}, Elapsed: elapsed}
 }
 
 // allWorkdays treats every input date as a workday. Lets tests focus on the

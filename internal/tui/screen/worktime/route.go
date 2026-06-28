@@ -22,9 +22,9 @@ type todayAPI interface {
 	ListSessions(context.Context) ([]domain.WorkSession, error)
 	ListSessionsSince(context.Context, time.Time) ([]domain.WorkSession, error)
 	ListNodes(context.Context) ([]domain.Node, error)
-	StartSession(context.Context, *string, string, string) (domain.WorkSession, error)
+	StartSession(context.Context, *string, []string, string) (domain.WorkSession, error)
 	StopSession(ctx context.Context, id, nodeID string) (domain.WorkSession, error)
-	EditSession(ctx context.Context, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	EditSession(ctx context.Context, id string, nodeID *string, tags []string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
 	DeleteSession(ctx context.Context, id string) error
 	CreateNode(ctx context.Context, in apiclient.CreateNodeFields) (domain.Node, error)
 }

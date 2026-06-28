@@ -72,8 +72,7 @@ func Aggregate(
 			st.Overtime += r.Total - r.Target
 		}
 		for _, s := range r.Sessions {
-			st.ByTag[s.Tag] += s.Elapsed
-			st.CountByTag[s.Tag]++
+			tallySessionTags(&st, s)
 		}
 	}
 	if st.DaysWithSessions > 0 {
@@ -210,9 +209,25 @@ func tallyRecordsInto(st *Stats, inRange []DayRecord) {
 			}
 		}
 		for _, s := range r.Sessions {
-			st.ByTag[s.Tag] += s.Elapsed
-			st.CountByTag[s.Tag]++
+			tallySessionTags(st, s)
 		}
+	}
+}
+
+// tallySessionTags adds a session's elapsed time to each of its tags' buckets.
+// A multi-tag session adds its full elapsed to EACH tag (per-tag totals can
+// overlap — that's the correct "time touching tag X" semantics). A session with
+// no tags contributes to the "" (untagged) bucket so Stats.Untagged stays
+// meaningful (mirrors the pre-cutover `ByTag[s.Tag]` where s.Tag was "").
+func tallySessionTags(st *Stats, s RecordSession) {
+	if len(s.Tags) == 0 {
+		st.ByTag[""] += s.Elapsed
+		st.CountByTag[""]++
+		return
+	}
+	for _, t := range s.Tags {
+		st.ByTag[t] += s.Elapsed
+		st.CountByTag[t]++
 	}
 }
 

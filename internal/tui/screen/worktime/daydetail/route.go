@@ -358,12 +358,13 @@ func resolveProjectName(id string, projName map[string]string) string {
 	return id
 }
 
-// renderRowHint returns the trailing dim hint for a row (the tag, if any).
+// renderRowHint returns the trailing dim hint for a row (the tags, if any).
 func renderRowHint(row dayRow) string {
-	if row.Tag != "" {
-		return "[" + row.Tag + "]"
+	var b strings.Builder
+	for _, t := range row.Tags {
+		b.WriteString("[" + t + "]")
 	}
-	return ""
+	return b.String()
 }
 
 // KeyHints returns the advertised key bindings for the footer strip.

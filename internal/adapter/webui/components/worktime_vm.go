@@ -12,7 +12,7 @@ type SessionRowVM struct {
 	Title      string // project name or i18n "ohne Projekt"
 	Hue        string // project hue; "" → unassigned styling
 	Glyph      string // project glyph; "○" for unassigned
-	Tag        string // without leading '#'; "" hides chip
+	Tags       []string // tag slugs without leading '#'; empty hides chips
 	TimeRange  string // "08:30–10:00"
 	Duration   string // "1h 30m"
 	Unassigned bool
@@ -29,7 +29,7 @@ type SessionBlockVM struct {
 	Glyph      string
 	Title      string
 	TimeRange  string
-	Tag        string
+	Tags       []string
 	Unassigned bool
 	Running    bool
 	Size       string // "" | "sm" | "md" (drives detail reveal; see .wtblock-sm/.wtblock-md)

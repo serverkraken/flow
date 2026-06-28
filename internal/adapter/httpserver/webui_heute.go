@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
@@ -111,7 +112,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	if running != nil {
 		vm.RunningBase = heuteRunningBase(*running, now)
 		vm.StartedAt = running.Start.Local().Format("15:04")
-		vm.RunningTag = running.Tag
+		vm.RunningTag = strings.Join(running.Tags, " ")
 		name, hue := nodeIdentity(projects, running.NodeID)
 		vm.RunningName = name
 		vm.RunningHue = hue
@@ -149,7 +150,7 @@ func sessionRowVM(sess domain.WorkSession, projects []domain.Node, now time.Time
 		Title:      name,
 		Hue:        hue,
 		Glyph:      glyph,
-		Tag:        sess.Tag,
+		Tags:       sess.Tags,
 		TimeRange:  fmtClockRange(sess),
 		Duration:   webui.FmtVerbose(sess.Elapsed(now)),
 		Unassigned: sess.NodeID == nil,

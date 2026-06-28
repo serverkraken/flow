@@ -14,7 +14,7 @@ func (s *Server) renderFragment(w http.ResponseWriter, r *http.Request, u domain
 
 func (s *Server) handleWebStart(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	if _, err := s.StartSession.Execute(r.Context(), u.ID, nil, "", ""); err == nil {
+	if _, err := s.StartSession.Execute(r.Context(), u.ID, nil, nil, ""); err == nil {
 		s.Bus.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: u.ID})
 	}
 	s.renderFragment(w, r, u)

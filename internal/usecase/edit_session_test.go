@@ -20,14 +20,14 @@ func TestEditSession(t *testing.T) {
 	if _, err := ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	uc := usecase.EditSession{Sessions: ss}
+	uc := usecase.EditSession{Sessions: ss, Tags: testutil.NewFakeTagStore()}
 
 	newStop := start.Add(3 * time.Hour)
-	got, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Tag: "deep", Note: "n", Start: start, Stop: &newStop})
+	got, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Tags: []string{"deep"}, Note: "n", Start: start, Stop: &newStop})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
-	if got.Tag != "deep" || got.Stop == nil || !got.Stop.Equal(newStop) {
+	if len(got.Tags) != 1 || got.Tags[0] != "deep" || got.Stop == nil || !got.Stop.Equal(newStop) {
 		t.Fatalf("edit not applied: %+v", got)
 	}
 

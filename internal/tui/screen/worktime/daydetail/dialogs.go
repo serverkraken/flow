@@ -226,7 +226,7 @@ func (r *Route) submitNachbuchen() (shell.Route, tea.Cmd) {
 	nb := r.nachb
 	vonStr := strings.TrimSpace(nb.von.Value())
 	bisStr := strings.TrimSpace(nb.bis.Value())
-	tag := strings.TrimSpace(nb.tag.Value())
+	tags := strings.Fields(nb.tag.Value())
 	note := strings.TrimSpace(nb.note.Value())
 
 	vonD, err := wtfmt.ParseHM(vonStr)
@@ -249,7 +249,7 @@ func (r *Route) submitNachbuchen() (shell.Route, tea.Cmd) {
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, addErr := api.AddSession(ctx, projID, startTime, stopTime, tag, note)
+		_, addErr := api.AddSession(ctx, projID, startTime, stopTime, tags, note)
 		if addErr != nil {
 			return nachbuchenDoneMsg{err: addErr}
 		}
@@ -338,8 +338,8 @@ func (r *Route) openEdit(row dayRow) tea.Cmd {
 	if !row.Running {
 		bis.SetValue(row.Stop.Format("15:04"))
 	}
-	tag := form.NewTextInput("z.B. deep, meeting", r.pal)
-	tag.SetValue(row.Tag)
+	tag := form.NewTextInput("z.B. deep meeting (Leerzeichen trennt)", r.pal)
+	tag.SetValue(strings.Join(row.Tags, " "))
 	note := form.NewTextInput("kurzer Text", r.pal)
 	note.SetValue(row.Note)
 
@@ -449,7 +449,7 @@ func (r *Route) submitEdit() (shell.Route, tea.Cmd) {
 	ed := r.edit
 	vonStr := strings.TrimSpace(ed.von.Value())
 	bisStr := strings.TrimSpace(ed.bis.Value())
-	tag := strings.TrimSpace(ed.tag.Value())
+	tags := strings.Fields(ed.tag.Value())
 	note := strings.TrimSpace(ed.note.Value())
 
 	vonD, err := wtfmt.ParseHM(vonStr)
@@ -469,7 +469,7 @@ func (r *Route) submitEdit() (shell.Route, tea.Cmd) {
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, editErr := api.EditSession(ctx, id, nil, tag, note, startTime, &stopTime)
+		_, editErr := api.EditSession(ctx, id, nil, tags, note, startTime, &stopTime)
 		if editErr != nil {
 			return editDoneMsg{err: editErr}
 		}

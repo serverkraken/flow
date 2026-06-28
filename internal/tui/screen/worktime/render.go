@@ -116,8 +116,8 @@ func renderSessionsList(st todayState, cursor, inner int, now time.Time, pal the
 		if s.Project != "" {
 			hintParts = append(hintParts, s.Project)
 		}
-		if s.Tag != "" {
-			hintParts = append(hintParts, "["+s.Tag+"]")
+		for _, t := range s.Tags {
+			hintParts = append(hintParts, "["+t+"]")
 		}
 		hint := strings.Join(hintParts, " ")
 		if i == cursor {

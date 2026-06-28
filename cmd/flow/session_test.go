@@ -117,7 +117,7 @@ func TestRunSessionEdit_RunningSessionGivesClearError(t *testing.T) {
 		if r.Method == "GET" && r.URL.Path == "/api/v1/sessions" {
 			// A running session: Stop omitted (nil).
 			_ = json.NewEncoder(w).Encode([]domain.WorkSession{{
-				ID: "s1", Tag: "old", Start: time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local),
+				ID: "s1", Tags: []string{"old"}, Start: time.Date(2026, 6, 18, 9, 0, 0, 0, time.Local),
 			}})
 			return
 		}
@@ -126,8 +126,8 @@ func TestRunSessionEdit_RunningSessionGivesClearError(t *testing.T) {
 	defer srv.Close()
 	c := apiclient.New(srv.URL, "tkn")
 
-	newTag := "new"
-	_, err := runSessionEdit(context.Background(), c, "s1", sessionEditInput{Tag: &newTag})
+	newTags := []string{"new"}
+	_, err := runSessionEdit(context.Background(), c, "s1", sessionEditInput{Tags: &newTags})
 	if err == nil || !strings.Contains(err.Error(), "still running") {
 		t.Fatalf("want a 'still running' error, got %v", err)
 	}
@@ -142,7 +142,7 @@ func TestRunSessionEdit_MergesOnlyChangedFields(t *testing.T) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/sessions":
 			_ = json.NewEncoder(w).Encode([]domain.WorkSession{{
-				ID: "s1", NodeID: &pid, Tag: "old", Note: "keep",
+				ID: "s1", NodeID: &pid, Tags: []string{"old"}, Note: "keep",
 				Start: existingStart, Stop: &existingStop,
 			}})
 		case r.Method == "PATCH" && r.URL.Path == "/api/v1/sessions/s1":

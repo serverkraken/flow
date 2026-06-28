@@ -30,7 +30,7 @@ func BuildDayRecords(sessions []WorkSession, now time.Time, targetFor func(time.
 			byDay[key] = rec
 		}
 		rec.Total += el
-		rec.Sessions = append(rec.Sessions, RecordSession{Tag: s.Tag, Elapsed: el})
+		rec.Sessions = append(rec.Sessions, RecordSession{Tags: s.Tags, Elapsed: el})
 	}
 	out := make([]DayRecord, 0, len(byDay))
 	for _, r := range byDay {

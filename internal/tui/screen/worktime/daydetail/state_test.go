@@ -12,7 +12,7 @@ func TestBuildRows(t *testing.T) {
 	mk := func(id string, sh, sm, eh, em int) domain.WorkSession {
 		s := day.Add(time.Duration(sh)*time.Hour + time.Duration(sm)*time.Minute)
 		e := day.Add(time.Duration(eh)*time.Hour + time.Duration(em)*time.Minute)
-		return domain.WorkSession{ID: id, Start: s, Stop: &e, Tag: "t-" + id}
+		return domain.WorkSession{ID: id, Start: s, Stop: &e, Tags: []string{"t-" + id}}
 	}
 	rows := buildRows([]domain.WorkSession{mk("b", 13, 0, 14, 0), mk("a", 9, 0, 11, 0)}, day)
 	if len(rows) != 2 {
@@ -30,7 +30,7 @@ func TestBuildRows_RunningSession(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.UTC)
 	start := day.Add(9 * time.Hour)
 	sessions := []domain.WorkSession{
-		{ID: "running", Start: start, Stop: nil, Tag: "work"},
+		{ID: "running", Start: start, Stop: nil, Tags: []string{"work"}},
 	}
 	rows := buildRows(sessions, day)
 	if len(rows) != 1 {
@@ -49,11 +49,11 @@ func TestBuildRows_TagPropagated(t *testing.T) {
 	s := day.Add(9 * time.Hour)
 	e := day.Add(10 * time.Hour)
 	sessions := []domain.WorkSession{
-		{ID: "s1", Start: s, Stop: &e, Tag: "deep"},
+		{ID: "s1", Start: s, Stop: &e, Tags: []string{"deep"}},
 	}
 	rows := buildRows(sessions, day)
-	if len(rows) != 1 || rows[0].Tag != "deep" {
-		t.Fatalf("tag not propagated: %+v", rows)
+	if len(rows) != 1 || len(rows[0].Tags) != 1 || rows[0].Tags[0] != "deep" {
+		t.Fatalf("tags not propagated: %+v", rows)
 	}
 }
 

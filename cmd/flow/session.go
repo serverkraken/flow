@@ -31,7 +31,8 @@ func parseClock(dateStr, hhmm string) (time.Time, error) {
 }
 
 type sessionAddInput struct {
-	Date, From, To, Project, Tag, Note string
+	Date, From, To, Project, Note string
+	Tags                          []string
 }
 
 func runSessionAdd(ctx context.Context, c *apiclient.Client, in sessionAddInput) (string, error) {
@@ -50,7 +51,7 @@ func runSessionAdd(ctx context.Context, c *apiclient.Client, in sessionAddInput)
 	if err != nil {
 		return "", err
 	}
-	s, err := c.AddSession(ctx, pid, start, stop, in.Tag, in.Note)
+	s, err := c.AddSession(ctx, pid, start, stop, in.Tags, in.Note)
 	if err != nil {
 		return "", fmt.Errorf("add session: %w", err)
 	}
@@ -79,7 +80,7 @@ func sessionAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&in.From, "from", "", "start time HH:MM (required)")
 	cmd.Flags().StringVar(&in.To, "to", "", "stop time HH:MM (required)")
 	cmd.Flags().StringVar(&in.Project, "project", "", "project name (created if new)")
-	cmd.Flags().StringVar(&in.Tag, "tag", "", "optional tag")
+	cmd.Flags().StringArrayVar(&in.Tags, "tags", nil, "tag (repeatable: --tags=foo --tags=bar)")
 	cmd.Flags().StringVar(&in.Note, "note", "", "optional note")
 	_ = cmd.MarkFlagRequired("date")
 	_ = cmd.MarkFlagRequired("from")
@@ -144,7 +145,7 @@ func runSessionList(ctx context.Context, c *apiclient.Client, dateStr, from, to 
 			dur = fmt.Sprintf("%02d:%02d", int(d.Hours()), int(d.Minutes())%60)
 		}
 		fmt.Fprintf(&b, "%s  %s–%s  %s  %-16s %s\n",
-			s.ID, fmtHM(s.Start), stop, dur, name(s.NodeID), s.Tag)
+			s.ID, fmtHM(s.Start), stop, dur, name(s.NodeID), strings.Join(s.Tags, ","))
 	}
 	return b.String(), nil
 }
@@ -192,7 +193,8 @@ func findSession(ctx context.Context, c *apiclient.Client, id string) (domain.Wo
 }
 
 type sessionEditInput struct {
-	From, To, Project, Tag, Note *string
+	From, To, Project, Note *string
+	Tags                    *[]string
 }
 
 func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sessionEditInput) (string, error) {
@@ -227,15 +229,15 @@ func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sess
 			return "", err
 		}
 	}
-	tag := cur.Tag
-	if in.Tag != nil {
-		tag = *in.Tag
+	tags := cur.Tags
+	if in.Tags != nil {
+		tags = *in.Tags
 	}
 	note := cur.Note
 	if in.Note != nil {
 		note = *in.Note
 	}
-	if _, err := c.EditSession(ctx, id, nodeID, tag, note, start, stop); err != nil {
+	if _, err := c.EditSession(ctx, id, nodeID, tags, note, start, stop); err != nil {
 		return "", fmt.Errorf("edit session: %w", err)
 	}
 	return fmt.Sprintf("edited %s", id), nil
@@ -257,7 +259,8 @@ func sessionDeleteCmd() *cobra.Command {
 }
 
 func sessionEditCmd() *cobra.Command {
-	var from, to, project, tag, note string
+	var from, to, project, note string
+	var tags []string
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
 		Short: "edit a session (only provided flags change)",
@@ -278,8 +281,8 @@ func sessionEditCmd() *cobra.Command {
 			if f.Changed("project") {
 				in.Project = &project
 			}
-			if f.Changed("tag") {
-				in.Tag = &tag
+			if f.Changed("tags") {
+				in.Tags = &tags
 			}
 			if f.Changed("note") {
 				in.Note = &note
@@ -295,7 +298,7 @@ func sessionEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&from, "from", "", "new start HH:MM")
 	cmd.Flags().StringVar(&to, "to", "", "new stop HH:MM")
 	cmd.Flags().StringVar(&project, "project", "", "new project name")
-	cmd.Flags().StringVar(&tag, "tag", "", "new tag")
+	cmd.Flags().StringArrayVar(&tags, "tags", nil, "new tags (repeatable; replaces all)")
 	cmd.Flags().StringVar(&note, "note", "", "new note")
 	return cmd
 }

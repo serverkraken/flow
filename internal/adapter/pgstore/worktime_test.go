@@ -10,6 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestSessionStoreLifecycle(t *testing.T) {
@@ -72,16 +73,27 @@ func TestSessionStoreLifecycle(t *testing.T) {
 		t.Fatalf("want ErrSessionNotFound, got %v", err)
 	}
 
-	// Update: overwrite tag/note (and project/times) — owner-scoped
-	updated, err := sessions.Update(ctx, "u1", "s1", &pid, "focus", "revised", now, &stopAt)
+	// Update: overwrite note (and project/times) — owner-scoped. Tags are no
+	// longer a column; they read-hydrate from the taggings junction.
+	updated, err := sessions.Update(ctx, "u1", "s1", &pid, "revised", now, &stopAt)
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if updated.Tag != "focus" || updated.Note != "revised" {
+	if updated.Note != "revised" {
 		t.Fatalf("Update did not persist: %+v", updated)
 	}
+	// Tag the session via the TagStore and assert Get read-hydrates Tags from
+	// the taggings junction (taggable_type='work_session').
+	tagStore := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
+	if _, err := tagStore.SetTags(ctx, "u1", domain.TaggableWorkSession, "s1", []string{"focus"}); err != nil {
+		t.Fatalf("SetTags: %v", err)
+	}
+	hyd, err := sessions.Get(ctx, "u1", "s1")
+	if err != nil || len(hyd.Tags) != 1 || hyd.Tags[0] != "focus" {
+		t.Fatalf("Get did not hydrate session tags: %+v err=%v", hyd, err)
+	}
 	// foreign-owner Update -> not found
-	if _, err := sessions.Update(ctx, "nobody", "s1", nil, "", "", now, &stopAt); !errors.Is(err, ports.ErrSessionNotFound) {
+	if _, err := sessions.Update(ctx, "nobody", "s1", nil, "", now, &stopAt); !errors.Is(err, ports.ErrSessionNotFound) {
 		t.Fatalf("foreign Update: want ErrSessionNotFound, got %v", err)
 	}
 	// Delete -> ok, then double-delete -> not found

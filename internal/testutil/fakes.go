@@ -306,7 +306,10 @@ func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, nodeID *s
 	return e, nil
 }
 
-func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+// Update mirrors pgstore: it overwrites project/note/start/stop but NOT Tags
+// (tags persist via FakeTagStore / the taggings junction). The record's existing
+// Tags are preserved so stats/round-trip tests that seed Tags keep them.
+func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.m[id]
@@ -314,7 +317,6 @@ func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, nodeID 
 		return domain.WorkSession{}, ports.ErrSessionNotFound
 	}
 	e.NodeID = nodeID
-	e.Tag = tag
 	e.Note = note
 	e.Start = start
 	if stop != nil {

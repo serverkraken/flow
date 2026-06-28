@@ -13,7 +13,7 @@ type completedSession struct {
 	Start     time.Time
 	Stop      time.Time
 	Elapsed   time.Duration
-	Tag       string
+	Tags      []string
 	Note      string
 	Project   string // resolved project name ("" if none or unknown)
 	GapBefore time.Duration
@@ -73,7 +73,7 @@ func reconstruct(today apiclient.Today, sessions []domain.WorkSession, projects 
 		}
 		st.Completed = append(st.Completed, completedSession{
 			ID: s.ID, Start: s.Start, Stop: *s.Stop, Elapsed: el,
-			Tag: s.Tag, Note: s.Note, Project: project, GapBefore: gap,
+			Tags: s.Tags, Note: s.Note, Project: project, GapBefore: gap,
 		})
 		st.Logged += el
 		prevStop = *s.Stop

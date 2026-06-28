@@ -233,12 +233,12 @@ func SessionBlock(vm SessionBlockVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if vm.Tag != "" {
+		for _, t := range vm.Tags {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<span class=\"b-extra mt-1.5\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = Tag(vm.Tag).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Tag(t).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

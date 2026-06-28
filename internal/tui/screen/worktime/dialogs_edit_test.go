@@ -20,7 +20,7 @@ func makeEditableRoute(t *testing.T) *TodayRoute {
 		ID:    "s1",
 		Start: start,
 		Stop:  stop,
-		Tag:   "deep",
+		Tags:  []string{"deep"},
 	}
 
 	r := NewTodayRoute(&fakeAPI{}, time.Now, theme.Default, nil)

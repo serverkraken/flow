@@ -146,10 +146,10 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &ae) && ae.StatusCode == http.StatusUnauthorized
 }
 
-func (c *Client) StartSession(ctx context.Context, nodeID *string, tag, note string) (domain.WorkSession, error) {
+func (c *Client) StartSession(ctx context.Context, nodeID *string, tags []string, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
-		map[string]any{"projectId": nodeID, "tag": tag, "note": note}, &s)
+		map[string]any{"projectId": nodeID, "tags": tags, "note": note}, &s)
 	return s, err
 }
 
@@ -160,10 +160,10 @@ func (c *Client) StopSession(ctx context.Context, id, nodeID string) (domain.Wor
 	return s, err
 }
 
-func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tag, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tags []string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPatch, "/api/v1/sessions/"+id,
-		map[string]any{"projectId": nodeID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+		map[string]any{"projectId": nodeID, "tags": tags, "note": note, "start": start, "stop": stop}, &s)
 	return s, err
 }
 
@@ -186,10 +186,10 @@ func (c *Client) ListSessionsSince(ctx context.Context, since time.Time) ([]doma
 }
 
 // AddSession backfills a complete past session with explicit start/stop.
-func (c *Client) AddSession(ctx context.Context, nodeID *string, start, stop time.Time, tag, note string) (domain.WorkSession, error) {
+func (c *Client) AddSession(ctx context.Context, nodeID *string, start, stop time.Time, tags []string, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",
-		map[string]any{"projectId": nodeID, "tag": tag, "note": note, "start": start, "stop": stop}, &s)
+		map[string]any{"projectId": nodeID, "tags": tags, "note": note, "start": start, "stop": stop}, &s)
 	return s, err
 }
 

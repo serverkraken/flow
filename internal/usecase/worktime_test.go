@@ -22,14 +22,14 @@ func TestStartStopBookingFlow(t *testing.T) {
 	stop := usecase.StopSession{Sessions: sessions, Nodes: projects, Clock: clk}
 	createProj := usecase.CreateNode{Nodes: projects, IDs: ids, Clock: clk}
 
-	s, err := start.Execute(ctx, "u1", nil, "", "")
+	s, err := start.Execute(ctx, "u1", nil, nil, "")
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
 	if !s.Running() {
 		t.Fatal("started session must be running")
 	}
-	if _, err := start.Execute(ctx, "u1", nil, "", ""); !errors.Is(err, domain.ErrAlreadyRunning) {
+	if _, err := start.Execute(ctx, "u1", nil, nil, ""); !errors.Is(err, domain.ErrAlreadyRunning) {
 		t.Fatalf("want ErrAlreadyRunning, got %v", err)
 	}
 	if _, err := stop.Execute(ctx, "u1", s.ID, nil); !errors.Is(err, domain.ErrProjectRequired) {
@@ -51,7 +51,7 @@ func TestStartStopBookingFlow(t *testing.T) {
 	if stopped.Stop == nil || stopped.NodeID == nil || *stopped.NodeID != p.ID {
 		t.Fatalf("stop result wrong: %+v", stopped)
 	}
-	s2, _ := start.Execute(ctx, "u1", nil, "", "")
+	s2, _ := start.Execute(ctx, "u1", nil, nil, "")
 	bad := "ghost"
 	if _, err := stop.Execute(ctx, "u1", s2.ID, &bad); err == nil {
 		t.Fatal("stop with unknown project must error")

@@ -11,16 +11,19 @@ import (
 // EditSessionInput carries the editable fields of an existing session.
 type EditSessionInput struct {
 	NodeID *string
-	Tag       string
+	Tags      []string
 	Note      string
 	Start     time.Time
 	Stop      *time.Time
 }
 
-// EditSession overwrites a session's project/tag/note/times. Owner-scoped via
+// EditSession overwrites a session's project/tags/note/times. Owner-scoped via
 // the store. A set Stop must be strictly after Start.
 type EditSession struct {
 	Sessions ports.SessionStore
+	// Tags re-sets the session's tags in the taggings junction after the row is
+	// updated. Nil-safe: when unwired, tags are left untouched.
+	Tags ports.TagStore
 }
 
 func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSessionInput) (domain.WorkSession, error) {
@@ -49,5 +52,16 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if domain.HasOverlap(existing, in.Start, in.Stop, id) {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}
-	return uc.Sessions.Update(ctx, ownerID, id, in.NodeID, in.Tag, in.Note, in.Start, in.Stop)
+	updated, err := uc.Sessions.Update(ctx, ownerID, id, in.NodeID, in.Note, in.Start, in.Stop)
+	if err != nil {
+		return domain.WorkSession{}, err
+	}
+	if uc.Tags != nil {
+		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, id, in.Tags)
+		if terr != nil {
+			return updated, terr
+		}
+		updated.Tags = slugsOf(t)
+	}
+	return updated, nil
 }

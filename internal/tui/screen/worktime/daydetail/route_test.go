@@ -30,7 +30,7 @@ type fakeAPI struct {
 	// Edit/Delete tracking fields (Task 7).
 	editCalls    int
 	lastEditID   string
-	lastEditTag  string
+	lastEditTags []string
 	lastEditNote string
 	lastEditStop *time.Time
 	editErr      error
@@ -54,7 +54,7 @@ func (f *fakeAPI) CreateNode(_ context.Context, in apiclient.CreateNodeFields) (
 	return p, nil
 }
 
-func (f *fakeAPI) AddSession(_ context.Context, nodeID *string, start, stop time.Time, _, _ string) (domain.WorkSession, error) {
+func (f *fakeAPI) AddSession(_ context.Context, nodeID *string, start, stop time.Time, _ []string, _ string) (domain.WorkSession, error) {
 	f.addCalls++
 	f.lastStart = start
 	f.lastStop = stop
@@ -65,10 +65,10 @@ func (f *fakeAPI) AddSession(_ context.Context, nodeID *string, start, stop time
 	return domain.WorkSession{ID: "new", Start: start, Stop: &stop}, nil
 }
 
-func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, tag, note string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, tags []string, note string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
 	f.editCalls++
 	f.lastEditID = id
-	f.lastEditTag = tag
+	f.lastEditTags = tags
 	f.lastEditNote = note
 	f.lastEditStop = stop
 	if f.editErr != nil {
@@ -157,7 +157,7 @@ func TestDayDetail_LoadsRangedSessions(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	s := day.Add(9 * time.Hour)
 	e := day.Add(11 * time.Hour)
-	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tag: "deep"}}}
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tags: []string{"deep"}}}}
 	r := daydetail.NewRoute(f, theme.Default, day)
 	cmd := r.Init()
 	msg := cmd() // execute loadCmd → loadedMsg
@@ -429,7 +429,7 @@ func TestDayDetail_EditSubmitsEditSession(t *testing.T) {
 	day := time.Date(2026, 6, 18, 0, 0, 0, 0, time.Local)
 	s := day.Add(9 * time.Hour)
 	e := day.Add(11 * time.Hour)
-	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tag: "old"}}}
+	f := &fakeAPI{sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tags: []string{"old"}}}}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())
 
@@ -463,7 +463,7 @@ func TestDayDetail_EditErrorKeepsDialogOpen(t *testing.T) {
 	s := day.Add(9 * time.Hour)
 	e := day.Add(11 * time.Hour)
 	f := &fakeAPI{
-		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tag: "old"}},
+		sessions: []domain.WorkSession{{ID: "a", Start: s, Stop: &e, Tags: []string{"old"}}},
 		editErr:  apiErr(409),
 	}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
@@ -585,7 +585,7 @@ func TestDayDetail_EditPreservesNote(t *testing.T) {
 	s := day.Add(9 * time.Hour)
 	e := day.Add(11 * time.Hour)
 	f := &fakeAPI{sessions: []domain.WorkSession{
-		{ID: "a", Start: s, Stop: &e, Tag: "deep", Note: "original note"},
+		{ID: "a", Start: s, Stop: &e, Tags: []string{"deep"}, Note: "original note"},
 	}}
 	var r shell.Route = daydetail.NewRoute(f, theme.Default, day)
 	r = drive(t, r, r.(interface{ Init() tea.Cmd }).Init())

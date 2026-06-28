@@ -136,17 +136,18 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	ss := testutil.NewFakeSessionStore()
 	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
+	tags := testutil.NewFakeTagStore()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:           sse.NewBus(),
 		Clock:         clk,
-		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk, Tags: tags},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
-		EditSession:   usecase.EditSession{Sessions: ss},
+		EditSession:   usecase.EditSession{Sessions: ss, Tags: tags},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}
 	ts := httptest.NewServer(srv.Routes())
@@ -176,15 +177,15 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	_ = res.Body.Close()
 
 	// PATCH edit: set a tag
-	res = do("PATCH", "/api/v1/sessions/"+s.ID, `{"projectId":"`+proj.ID+`","tag":"deep","note":"","start":"2026-06-14T09:00:00Z","stop":"2026-06-14T11:00:00Z"}`)
+	res = do("PATCH", "/api/v1/sessions/"+s.ID, `{"projectId":"`+proj.ID+`","tags":["deep"],"note":"","start":"2026-06-14T09:00:00Z","stop":"2026-06-14T11:00:00Z"}`)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("edit status %d, want 200", res.StatusCode)
 	}
 	var edited domain.WorkSession
 	_ = json.NewDecoder(res.Body).Decode(&edited)
 	_ = res.Body.Close()
-	if edited.Tag != "deep" {
-		t.Fatalf("edit did not persist tag: %+v", edited)
+	if len(edited.Tags) != 1 || edited.Tags[0] != "deep" {
+		t.Fatalf("edit did not persist tags: %+v", edited)
 	}
 
 	// PATCH invalid times -> 400

@@ -37,7 +37,9 @@ func (uc BulkAssignNode) Execute(ctx context.Context, ownerID string, sessionIDs
 		if err != nil {
 			return updated, err
 		}
-		if _, err := uc.Sessions.Update(ctx, ownerID, id, &pid, cur.Tag, cur.Note, cur.Start, cur.Stop); err != nil {
+		// Tags live in the taggings junction keyed by session id, untouched by a
+		// project reassignment, so this node-only Update preserves them implicitly.
+		if _, err := uc.Sessions.Update(ctx, ownerID, id, &pid, cur.Note, cur.Start, cur.Stop); err != nil {
 			return updated, err
 		}
 		updated++

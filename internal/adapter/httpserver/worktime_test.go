@@ -22,6 +22,7 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
 	sessions := testutil.NewFakeSessionStore()
+	tags := testutil.NewFakeTagStore()
 	ids := &testutil.FakeIDGen{}
 	return &httpserver.Server{
 		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
@@ -29,11 +30,11 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		Bus:               sse.NewBus(),
 		Clock:             clk,
 		Dev:               true,
-		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
+		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
 		ListSessions:      usecase.ListSessions{Sessions: sessions, Clock: clk},
-		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
+		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
-		EditSession:       usecase.EditSession{Sessions: sessions},
+		EditSession:       usecase.EditSession{Sessions: sessions, Tags: tags},
 		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
 	}, sessions
 }
@@ -57,7 +58,7 @@ func TestBackfillSession_HappyAndList(t *testing.T) {
 
 	// Nachbuchen 09:00–12:00 on 2026-06-15 (clock is 18:00 same day).
 	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
-		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T12:00:00Z", "tag": "deep",
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T12:00:00Z", "tags": []string{"deep"},
 	})
 	if res.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(res.Body)
@@ -66,7 +67,7 @@ func TestBackfillSession_HappyAndList(t *testing.T) {
 	var created domain.WorkSession
 	_ = json.NewDecoder(res.Body).Decode(&created)
 	_ = res.Body.Close()
-	if created.Stop == nil || created.Tag != "deep" {
+	if created.Stop == nil || len(created.Tags) != 1 || created.Tags[0] != "deep" {
 		t.Fatalf("backfill result wrong: %+v", created)
 	}
 
@@ -134,7 +135,7 @@ func TestLiveStart_StillWorks(t *testing.T) {
 	srv, _ := newWorktimeServer(t)
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
-	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"tag": "live"})
+	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"tags": []string{"live"}})
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("live start status = %d, want 201", res.StatusCode)
 	}
@@ -283,7 +284,7 @@ func TestHandleReassignSessions(t *testing.T) {
 	// OwnerID is json:"-" so we cannot read it from the response; use "id-1".
 	const ownerID = "id-1"
 	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
-		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tag": "work",
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tags": []string{"work"},
 	})
 	if res.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(res.Body)
@@ -379,7 +380,7 @@ func TestHandleBulkDeleteSessions(t *testing.T) {
 	// Seed a session via the HTTP API. FakeIDGen: EnsureUser→"id-1", session→"id-2".
 	const ownerID = "id-1"
 	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{
-		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tag": "work",
+		"start": "2026-06-15T09:00:00Z", "stop": "2026-06-15T10:00:00Z", "tags": []string{"work"},
 	})
 	if res.StatusCode != http.StatusCreated {
 		b, _ := io.ReadAll(res.Body)
