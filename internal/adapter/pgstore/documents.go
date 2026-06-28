@@ -21,9 +21,9 @@ type DocumentStore struct{ pool *pgxpool.Pool }
 // NewDocumentStore wraps a pool.
 func NewDocumentStore(pool *pgxpool.Pool) *DocumentStore { return &DocumentStore{pool: pool} }
 
-const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at`
+const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned`
 
-const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned`
 
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
@@ -84,7 +84,7 @@ func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []
 
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
@@ -92,7 +92,7 @@ RETURNING ` + docCols
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
 		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
-		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt))
+		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt, d.Pinned))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
 	}
@@ -185,6 +185,17 @@ func (s *DocumentStore) Delete(ctx context.Context, ownerID, id string) error {
 		return fmt.Errorf("pgstore: delete document: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
+		return ports.ErrDocumentNotFound
+	}
+	return nil
+}
+
+func (s *DocumentStore) SetPinned(ctx context.Context, ownerID, id string, pinned bool) error {
+	ct, err := s.pool.Exec(ctx, `UPDATE documents SET pinned=$1, updated_at=now() WHERE owner_id=$2 AND id=$3`, pinned, ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: set pinned: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
 		return ports.ErrDocumentNotFound
 	}
 	return nil
@@ -297,7 +308,7 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var extra []byte
 	var snippet string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &snippet); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -408,7 +419,7 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var content string
 	var dist float32
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &content, &dist); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -437,7 +448,7 @@ func scanDocument(r rowScanner) (domain.Document, error) {
 	var typ string
 	var extra []byte
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err
 		}

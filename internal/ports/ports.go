@@ -194,6 +194,10 @@ type DocumentStore interface {
 	// projectID: nil = no filter; ptr to "none" = unassigned; else a project ID.
 	Search(ctx context.Context, ownerID, q string, nodeID *string, tags []string) ([]domain.SearchHit, error)
 
+	// SetPinned sets (pinned=true) or clears (pinned=false) the pinned flag on
+	// one document. Owner-scoped; returns ErrDocumentNotFound if absent or foreign.
+	SetPinned(ctx context.Context, ownerID, id string, pinned bool) error
+
 	// StaleDocuments returns up to limit documents needing (re)embedding
 	// (chunks_hash out of date), excluding dead-lettered docs and those still
 	// within a backoff window, each with its prior consecutive failure count.

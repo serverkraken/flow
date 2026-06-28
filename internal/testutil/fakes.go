@@ -908,6 +908,18 @@ func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, qu
 	return hits, nil
 }
 
+func (s *FakeDocumentStore) SetPinned(_ context.Context, ownerID, id string, pinned bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	d.Pinned = pinned
+	s.m[id] = d
+	return nil
+}
+
 func cosine(a, b []float32) float64 {
 	if len(a) != len(b) || len(a) == 0 {
 		return -1

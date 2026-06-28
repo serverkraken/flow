@@ -500,3 +500,41 @@ func TestDocumentStore_NoTagsHydratesEmpty(t *testing.T) {
 		t.Fatalf("want no tags, got %+v", d.Tags)
 	}
 }
+
+func newDocStore(t *testing.T) (*pgstore.DocumentStore, *pgstore.UserStore, func()) {
+	t.Helper()
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	return pgstore.NewDocumentStore(pool), pgstore.NewUserStore(pool), func() { pool.Close() }
+}
+
+func TestDocumentStore_SetPinned(t *testing.T) {
+	t.Parallel()
+	ds, us, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	d, err := ds.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u1", Type: domain.DocMemory, Path: "p1", Title: "t", Body: "b",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Pinned {
+		t.Fatalf("new doc should default pinned=false")
+	}
+	if err := ds.SetPinned(ctx, "u1", "d1", true); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := ds.Get(ctx, "u1", "d1")
+	if !got.Pinned {
+		t.Fatalf("SetPinned(true) not reflected: %+v", got)
+	}
+}
