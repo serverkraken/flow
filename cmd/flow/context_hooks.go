@@ -46,7 +46,7 @@ func installHooksCmd() *cobra.Command {
 				return err
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "installed SessionStart+Stop hooks into %s\n", p)
-			fmt.Fprintln(cmd.OutOrStdout(), "tip: turn OFF native auto-memory and write memory only via flow (flow_create_doc/update_doc).")
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "tip: turn OFF native auto-memory and write memory only via flow (flow_create_doc/update_doc).")
 			return nil
 		},
 	}
