@@ -2,6 +2,7 @@ package apiclient_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -31,9 +32,15 @@ func TestClient_ComposeContext(t *testing.T) {
 func TestClient_SetActiveContext(t *testing.T) {
 	t.Parallel()
 	var gotMethod, gotPath string
+	var gotBody struct {
+		Body string   `json:"body"`
+		Tags []string `json:"tags"`
+		Node string   `json:"node"`
+	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		_, _ = w.Write([]byte(`{"id":"doc-1","updatedAt":"2026-06-29T00:00:00Z"}`))
 	}))
 	defer ts.Close()
@@ -54,14 +61,21 @@ func TestClient_SetActiveContext(t *testing.T) {
 	if res.ID != "doc-1" {
 		t.Errorf("id: got %s, want doc-1", res.ID)
 	}
+	if gotBody.Body != "hello" {
+		t.Errorf("body.body: got %q, want %q", gotBody.Body, "hello")
+	}
 }
 
 func TestClient_SetPinned(t *testing.T) {
 	t.Parallel()
 	var gotMethod, gotPath string
+	var gotBody struct {
+		Pinned bool `json:"pinned"`
+	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer ts.Close()
@@ -74,5 +88,8 @@ func TestClient_SetPinned(t *testing.T) {
 	}
 	if gotPath != "/api/v1/documents/doc-42/pin" {
 		t.Errorf("path: got %s, want /api/v1/documents/doc-42/pin", gotPath)
+	}
+	if !gotBody.Pinned {
+		t.Errorf("body.pinned: got %v, want true", gotBody.Pinned)
 	}
 }
