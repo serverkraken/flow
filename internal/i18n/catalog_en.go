@@ -72,7 +72,6 @@ func init() {
 			"node.section.docs":     "Documents",
 			"node.section.bindings": "Bindings",
 			"node.section.git":      "Git",
-			"node.ancestors":        "Hierarchy",
 			"node.worktime.total":   "Σ",
 			"node.worktime.week":    "Week",
 			"node.worktime.month":   "Month",

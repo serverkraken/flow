@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
@@ -131,20 +132,9 @@ func runNodeShow(ctx context.Context, c *apiclient.Client, w io.Writer, getenv f
 		_, _ = fmt.Fprintf(w, "upstream: %s\n", node.UpstreamGit)
 	}
 	if len(crumbs) > 0 {
-		_, _ = fmt.Fprintf(w, "path: %s\n", join(crumbs, " / "))
+		_, _ = fmt.Fprintf(w, "path: %s\n", strings.Join(crumbs, " / "))
 	}
 	return nil
-}
-
-func join(ss []string, sep string) string {
-	out := ""
-	for i, s := range ss {
-		if i > 0 {
-			out += sep
-		}
-		out += s
-	}
-	return out
 }
 
 // --- cobra wrappers ---
