@@ -7,6 +7,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestEmbedFailures_RecordExcludeClearStatus(t *testing.T) {
@@ -24,7 +25,7 @@ func TestEmbedFailures_RecordExcludeClearStatus(t *testing.T) {
 	if _, err := users.UpsertBySub(ctx, u); err != nil {
 		t.Fatal(err)
 	}
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id string) domain.Document {
 		return domain.Document{ID: id, OwnerID: "u-emb", Type: domain.DocFree, Path: id, Title: id, Body: "b", CreatedAt: now, UpdatedAt: now}

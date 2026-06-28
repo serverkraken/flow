@@ -32,7 +32,7 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 	}
 	uid := "u-doc"
 
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 
 	d := domain.Document{
@@ -129,7 +129,7 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	}
 	owner := "u-tagf"
 
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id, path string, tags ...string) {
@@ -183,7 +183,7 @@ func TestDocumentStore_ListPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id string, updated time.Time) {
@@ -239,7 +239,7 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	}
 	owner := "u-srch"
 
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id, path, title, body string, tags ...string) {
@@ -312,7 +312,7 @@ func TestDocumentStore_Links(t *testing.T) {
 	if _, err := users.UpsertBySub(ctx, u); err != nil {
 		t.Fatal(err)
 	}
-	st := pgstore.NewDocumentStore(pool)
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id, path string) {
 		if _, err := st.Create(ctx, domain.Document{
@@ -374,7 +374,7 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	}
 	owner := "sem-owner"
 
-	s := pgstore.NewDocumentStore(pool)
+	s := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 
@@ -449,7 +449,7 @@ func TestDocumentStore_HydratesTagsFromJunction(t *testing.T) {
 	}
 	us := pgstore.NewUserStore(pool)
 	seedUser(t, us, "u1")
-	docs := pgstore.NewDocumentStore(pool)
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	tags := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 
 	d, err := docs.Create(ctx, domain.Document{ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p", Title: "T", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now()})
@@ -491,7 +491,7 @@ func TestDocumentStore_NoTagsHydratesEmpty(t *testing.T) {
 	}
 	us := pgstore.NewUserStore(pool)
 	seedUser(t, us, "u1")
-	docs := pgstore.NewDocumentStore(pool)
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	d, err := docs.Create(ctx, domain.Document{ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p", Title: "T", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now()})
 	if err != nil {
 		t.Fatal(err)
@@ -501,7 +501,7 @@ func TestDocumentStore_NoTagsHydratesEmpty(t *testing.T) {
 	}
 }
 
-func newDocStore(t *testing.T) (*pgstore.DocumentStore, *pgstore.UserStore, func()) {
+func newDocStore(t *testing.T) (*pgstore.DocumentStore, *pgstore.UserStore, *pgstore.NodeStore, func()) {
 	t.Helper()
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -511,12 +511,24 @@ func newDocStore(t *testing.T) (*pgstore.DocumentStore, *pgstore.UserStore, func
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	return pgstore.NewDocumentStore(pool), pgstore.NewUserStore(pool), func() { pool.Close() }
+	return pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{}), pgstore.NewUserStore(pool), pgstore.NewNodeStore(pool), func() { pool.Close() }
+}
+
+func seedNode(t *testing.T, ns *pgstore.NodeStore, ownerID, nodeID string) {
+	t.Helper()
+	n, err := domain.NewNode(nodeID, ownerID, "Node "+nodeID, nodeID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.Kind = domain.KindEngagement // root nodes must be engagement
+	if _, err := ns.Create(context.Background(), n); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestDocumentStore_SetPinned(t *testing.T) {
 	t.Parallel()
-	ds, us, done := newDocStore(t)
+	ds, us, _, done := newDocStore(t)
 	defer done()
 	ctx := context.Background()
 	seedUser(t, us, "u1")
@@ -536,5 +548,64 @@ func TestDocumentStore_SetPinned(t *testing.T) {
 	got, _ := ds.Get(ctx, "u1", "d1")
 	if !got.Pinned {
 		t.Fatalf("SetPinned(true) not reflected: %+v", got)
+	}
+}
+
+func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
+	t.Parallel()
+	ds, us, ns, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	nid := "n1"
+	seedNode(t, ns, "u1", nid)
+
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2 body", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 {
+		t.Fatalf("upsert must reuse the same row: %q vs %q", id1, id2)
+	}
+	got, _ := ds.Get(ctx, "u1", id1)
+	if got.Body != "v2 body" {
+		t.Fatalf("body not updated: %q", got.Body)
+	}
+}
+
+func TestDocumentStore_UpsertByPath_GlobalNodeNull(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	id1, _, err := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, _, _ := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g2", false)
+	if id1 != id2 {
+		t.Fatalf("global (node_id NULL) upsert must hit the coalesce('') index, got %q vs %q", id1, id2)
+	}
+}
+
+func TestDocumentStore_UpsertByPath_PreservesPin(t *testing.T) {
+	t.Parallel()
+	ds, us, ns, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	nid := "n1"
+	seedNode(t, ns, "u1", nid)
+	id, _, _ := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1", true)
+	_, _, _ = ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2", false) // flush, pinned arg false
+	got, _ := ds.Get(ctx, "u1", id)
+	if !got.Pinned {
+		t.Fatalf("upsert-on-conflict must PRESERVE the existing pin")
 	}
 }

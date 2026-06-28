@@ -7,6 +7,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func strptr(s string) *string { return &s }
@@ -54,7 +55,7 @@ func seedProjectScope(t *testing.T) (st *pgstore.DocumentStore, owner, pA, pB st
 	if _, err := ps.Create(ctx, b); err != nil {
 		t.Fatalf("create b: %v", err)
 	}
-	st = pgstore.NewDocumentStore(pool)
+	st = pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	mk := func(id, path string, proj *string, ty domain.DocumentType, body string) {
 		_, err := st.Create(ctx, domain.Document{
 			ID: id, OwnerID: owner, NodeID: proj, Type: ty,

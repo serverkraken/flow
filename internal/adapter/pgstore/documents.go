@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -16,10 +17,15 @@ import (
 )
 
 // DocumentStore is the Postgres-backed ports.DocumentStore.
-type DocumentStore struct{ pool *pgxpool.Pool }
+type DocumentStore struct {
+	pool *pgxpool.Pool
+	ids  ports.IDGen
+}
 
-// NewDocumentStore wraps a pool.
-func NewDocumentStore(pool *pgxpool.Pool) *DocumentStore { return &DocumentStore{pool: pool} }
+// NewDocumentStore wraps a pool and an ID generator.
+func NewDocumentStore(pool *pgxpool.Pool, ids ports.IDGen) *DocumentStore {
+	return &DocumentStore{pool: pool, ids: ids}
+}
 
 const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned`
 
@@ -199,6 +205,23 @@ func (s *DocumentStore) SetPinned(ctx context.Context, ownerID, id string, pinne
 		return ports.ErrDocumentNotFound
 	}
 	return nil
+}
+
+func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
+	id := s.ids.NewID()
+	const q = `
+INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, created_at, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,now(),now())
+ON CONFLICT (owner_id, coalesce(node_id, ''), path)
+DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, updated_at = now()
+RETURNING id, updated_at`
+	var gotID string
+	var updated time.Time
+	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned).Scan(&gotID, &updated)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("pgstore: upsert by path: %w", err)
+	}
+	return gotID, updated, nil
 }
 
 func (s *DocumentStore) ReplaceLinks(ctx context.Context, srcDocID, ownerID string, targets []string) error {

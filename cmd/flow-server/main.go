@@ -69,9 +69,9 @@ func run() error {
 	dayOffStore := pgstore.NewDayOffStore(pool)
 	settingsStore := pgstore.NewUserSettingsStore(pool)
 	feedTokenStore := pgstore.NewFeedTokenStore(pool)
-	documentStore := pgstore.NewDocumentStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
+	documentStore := pgstore.NewDocumentStore(pool, ids)
 	tagStore := pgstore.NewTagStore(pool, ids)
 	bus := sse.NewBus()
 	logger := slog.Default()

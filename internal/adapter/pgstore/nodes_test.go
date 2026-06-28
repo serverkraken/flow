@@ -9,6 +9,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestProjectStore_Delete(t *testing.T) {
@@ -50,7 +51,7 @@ func TestProjectStore_Delete(t *testing.T) {
 	}
 
 	// Insert a documents row referencing the project.
-	docs := pgstore.NewDocumentStore(pool)
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
 	docPID := "p-del"
 	doc := domain.Document{
 		ID:        "doc-del",

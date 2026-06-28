@@ -567,6 +567,7 @@ func (s *FakeFeedTokenStore) Revoke(_ context.Context, userID, token string) err
 type FakeDocumentStore struct {
 	mu         sync.Mutex
 	m          map[string]domain.Document // keyed by id
+	seq        int                        // counter for UpsertByPath-generated ids
 	links      map[string][]string        // srcDocID -> target paths
 	chunks     map[string][]fakeChunk     // docID -> chunks
 	chunksHash map[string]string          // docID -> stamped hash
@@ -918,6 +919,30 @@ func (s *FakeDocumentStore) SetPinned(_ context.Context, ownerID, id string, pin
 	d.Pinned = pinned
 	s.m[id] = d
 	return nil
+}
+
+func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nv := ""
+	if nodeID != nil {
+		nv = *nodeID
+	}
+	for _, d := range s.m { // find existing by (owner, coalesce(node,''), path)
+		dn := ""
+		if d.NodeID != nil {
+			dn = *d.NodeID
+		}
+		if d.OwnerID == ownerID && dn == nv && d.Path == path {
+			d.Title, d.Body = title, body // preserve pinned, type, id
+			s.m[d.ID] = d
+			return d.ID, time.Time{}, nil
+		}
+	}
+	s.seq++
+	id := "fdoc-" + itoa(s.seq)
+	s.m[id] = domain.Document{ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body, Pinned: pinned}
+	return id, time.Time{}, nil
 }
 
 func cosine(a, b []float32) float64 {
