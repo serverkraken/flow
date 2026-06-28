@@ -203,3 +203,24 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusCreated, doc)
 	}
 }
+
+type pinReq struct {
+	Pinned bool `json:"pinned"`
+}
+
+func (s *Server) handlePinDocument(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req pinReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	switch err := s.SetPinned.Execute(r.Context(), u.ID, r.PathValue("id"), req.Pinned); {
+	case errors.Is(err, ports.ErrDocumentNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}

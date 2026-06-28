@@ -59,6 +59,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Tags: tags},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
+		SetPinned:         usecase.SetPinned{Docs: docs},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
 		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
@@ -729,5 +730,49 @@ func TestHandleCreateDocument_TagsParam(t *testing.T) {
 	_ = json.NewDecoder(res.Body).Decode(&doc)
 	if len(doc.Tags) != 2 {
 		t.Fatalf("want 2 tags, got %+v", doc.Tags)
+	}
+}
+
+func TestHandlePinDocument_HappyPath(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"free","path":"pin-test","title":"PinMe","body":""}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/pin", `{"pinned":true}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("want 204, got %d", res.StatusCode)
+	}
+
+	// Verify the document is pinned.
+	getRes := doDoc(t, ts, "GET", "/api/v1/documents/"+created.ID, "")
+	defer func() { _ = getRes.Body.Close() }()
+	var doc domain.Document
+	_ = json.NewDecoder(getRes.Body).Decode(&doc)
+	if !doc.Pinned {
+		t.Errorf("want pinned=true, got %v", doc.Pinned)
+	}
+}
+
+func TestHandlePinDocument_NotFound(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/no-such-id/pin", `{"pinned":true}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", res.StatusCode)
 	}
 }

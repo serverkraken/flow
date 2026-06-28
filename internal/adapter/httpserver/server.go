@@ -84,6 +84,7 @@ type Server struct {
 	SearchDocuments   usecase.SearchDocuments
 	RetryEmbedding    usecase.RetryEmbedding
 	GetEmbedStatus    usecase.GetEmbedStatus
+	SetPinned         usecase.SetPinned
 
 	// maintenance (F1)
 	StripFrontmatter usecase.StripFrontmatter
@@ -158,6 +159,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleUpdateDocument)))
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
+	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)
