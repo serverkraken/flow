@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -19,7 +20,9 @@ func (uc DeleteNode) Execute(ctx context.Context, ownerID, id string) error {
 	}
 	// Best-effort: clear taggings after a successful node delete.
 	if uc.Tags != nil {
-		_ = uc.Tags.ClearTaggable(ctx, ownerID, domain.TaggableNode, id)
+		if err := uc.Tags.ClearTaggable(ctx, ownerID, domain.TaggableNode, id); err != nil {
+			slog.WarnContext(ctx, "delete_node: clear taggings failed", "id", id, "err", err)
+		}
 	}
 	return nil
 }

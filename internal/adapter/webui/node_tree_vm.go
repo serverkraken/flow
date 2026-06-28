@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"sort"
@@ -165,6 +166,23 @@ func MoveTargetsFor(all []domain.Node, n domain.Node) []domain.Node { return mov
 
 // BuildTree is the exported entry point used by the httpserver adapter.
 func BuildTree(nodes []domain.Node) []TreeRow { return buildNodeTree(nodes) }
+
+// NodeSelectOptions builds hierarchy-ordered <select> options for a node picker:
+// each option is depth-indented (engagement → vorhaben → repo) and carries the
+// node's kind glyph + localized kind label, so a flat dropdown no longer hides
+// the type and parent/child structure. Used by the document editor's "Projekt"
+// picker (and reusable by any node <select>).
+func NodeSelectOptions(ctx context.Context, nodes []domain.Node) []EditorOption {
+	rows := buildNodeTree(nodes)
+	out := make([]EditorOption, 0, len(rows))
+	for _, row := range rows {
+		b := NodeKindStyle(row.Node.Kind)
+		indent := strings.Repeat("  ", row.Level) // non-breaking spaces survive in <option>
+		label := indent + b.Glyph + " " + row.Node.Name + " · " + components.T(ctx, b.LabelKey)
+		out = append(out, EditorOption{Value: row.Node.ID, Label: label})
+	}
+	return out
+}
 
 // nodeFilterChip returns Tailwind chip classes for the filter bar; active = ink
 // background, inactive = muted text with hover accent.

@@ -42,6 +42,7 @@ func appendNodeFilter(q, col string, args *[]any, nodeID *string) string {
 
 // appendTagFilter adds an AND-containment junction subquery for the given tag slugs.
 func appendTagFilter(q string, args *[]any, ownerID string, tags []string) string {
+	tags = domain.NormalizeTags(tags)
 	if len(tags) == 0 {
 		return q
 	}

@@ -3,7 +3,9 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -11,6 +13,7 @@ import (
 // missing/foreign ids are skipped. Returns the count actually deleted.
 type BulkDeleteSessions struct {
 	Sessions ports.SessionStore
+	Tags     ports.TagStore // optional; if non-nil, taggings are cleared on delete
 }
 
 func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []string) (int, error) {
@@ -27,6 +30,11 @@ func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []
 			return deleted, err
 		}
 		deleted++
+		if uc.Tags != nil {
+			if err := uc.Tags.ClearTaggable(ctx, ownerID, domain.TaggableWorkSession, id); err != nil {
+				slog.WarnContext(ctx, "bulk_delete_sessions: clear taggings failed", "id", id, "err", err)
+			}
+		}
 	}
 	return deleted, nil
 }

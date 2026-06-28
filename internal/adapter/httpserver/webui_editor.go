@@ -173,9 +173,7 @@ func (s *Server) editorVM(r *http.Request, u domain.User, vm webui.EditorVM) (we
 		if err != nil {
 			return webui.EditorVM{}, err
 		}
-		for _, p := range projects {
-			vm.ProjectOptions = append(vm.ProjectOptions, webui.EditorOption{Value: p.ID, Label: p.Name})
-		}
+		vm.ProjectOptions = webui.NodeSelectOptions(r.Context(), projects)
 	}
 	vm.PreviewHTML = s.renderEditorPreview(r, u, vm.Body)
 	return vm, nil
