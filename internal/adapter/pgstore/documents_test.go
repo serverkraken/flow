@@ -477,3 +477,26 @@ func TestDocumentStore_HydratesTagsFromJunction(t *testing.T) {
 		t.Fatalf("junction AND filter want [d1], got %+v", list)
 	}
 }
+
+func TestDocumentStore_NoTagsHydratesEmpty(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if err := pgstore.Migrate(ctx, pool); err != nil { // applies through 0020
+		t.Fatal(err)
+	}
+	us := pgstore.NewUserStore(pool)
+	seedUser(t, us, "u1")
+	docs := pgstore.NewDocumentStore(pool)
+	d, err := docs.Create(ctx, domain.Document{ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p", Title: "T", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Tags) != 0 {
+		t.Fatalf("want no tags, got %+v", d.Tags)
+	}
+}
