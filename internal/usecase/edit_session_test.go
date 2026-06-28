@@ -126,3 +126,58 @@ func TestEditSession_NoSelfOverlap(t *testing.T) {
 		t.Fatalf("self-edit should succeed, got %v", err)
 	}
 }
+
+// TestEditSession_NilTagsPreserve is a regression test for the tri-state Tags
+// field: nil must leave a session's taggings untouched so that the TUI
+// adjust-start path (which passes Tags: nil) does not wipe existing tags.
+func TestEditSession_NilTagsPreserve(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	ts := testutil.NewFakeTagStore()
+	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	stop := start.Add(2 * time.Hour)
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	uc := usecase.EditSession{Sessions: ss, Tags: ts}
+	newStop := start.Add(3 * time.Hour)
+
+	// Seed tags onto s1 via a first edit.
+	deepTags := []string{"deep"}
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{
+		Tags: &deepTags, Note: "n", Start: start, Stop: &newStop,
+	}); err != nil {
+		t.Fatalf("first edit: %v", err)
+	}
+
+	// Second edit with Tags: nil — must NOT wipe the existing "deep" tag.
+	got, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{
+		Tags: nil, Note: "updated", Start: start, Stop: &newStop,
+	})
+	if err != nil {
+		t.Fatalf("nil-tags edit: %v", err)
+	}
+	stored, err := ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, "s1")
+	if err != nil {
+		t.Fatalf("TagsFor: %v", err)
+	}
+	if len(stored) != 1 || stored[0].Slug != "deep" {
+		t.Fatalf("nil Tags wiped taggings: stored=%v result=%v", stored, got.Tags)
+	}
+
+	// Explicit &[]string{} must clear the tags.
+	empty := []string{}
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{
+		Tags: &empty, Note: "updated", Start: start, Stop: &newStop,
+	}); err != nil {
+		t.Fatalf("clear edit: %v", err)
+	}
+	stored, err = ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, "s1")
+	if err != nil {
+		t.Fatalf("TagsFor after clear: %v", err)
+	}
+	if len(stored) != 0 {
+		t.Fatalf("explicit empty Tags did not wipe: stored=%v", stored)
+	}
+}

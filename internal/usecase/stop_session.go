@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -74,7 +75,9 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 			return first, cerr
 		}
 		if uc.Tags != nil {
-			_, _ = uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, chunk.ID, cur.Tags)
+			if _, serr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, chunk.ID, cur.Tags); serr != nil {
+				slog.WarnContext(ctx, "stop_session: failed to copy tags onto split chunk", "chunk", chunk.ID, "err", serr)
+			}
 		}
 	}
 	return first, nil
