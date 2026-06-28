@@ -903,14 +903,20 @@ func (s *FakeTagStore) SetTags(_ context.Context, ownerID string, typ domain.Tag
 	defer s.mu.Unlock()
 	set := map[string]bool{}
 	var out []domain.Tag
-	for _, r := range domain.NormalizeTags(raw) {
-		set[r] = true
-		dk := ownerID + "|" + r
-		if _, ok := s.display[dk]; !ok {
-			s.display[dk] = r
+	seen := map[string]bool{}
+	for _, rawStr := range raw {
+		slug, ok := domain.NormalizeTag(rawStr)
+		if !ok || seen[slug] {
+			continue
+		}
+		seen[slug] = true
+		set[slug] = true
+		dk := ownerID + "|" + slug
+		if _, exists := s.display[dk]; !exists {
+			s.display[dk] = rawStr // first-seen RAW casing
 		}
 		s.idgen++
-		out = append(out, domain.Tag{ID: "ft", OwnerID: ownerID, Slug: r, Display: s.display[dk]})
+		out = append(out, domain.Tag{ID: "ft", OwnerID: ownerID, Slug: slug, Display: s.display[dk]})
 	}
 	s.links[s.key(ownerID, typ, id)] = set
 	return out, nil

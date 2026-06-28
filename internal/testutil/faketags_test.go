@@ -41,3 +41,15 @@ func TestFakeTagStore_SetReplacesAndHydrates(t *testing.T) {
 		t.Fatalf("want 2 tags after replace, got %d: %+v", len(got), got)
 	}
 }
+
+func TestFakeTagStore_DisplayFirstWriteWins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := testutil.NewFakeTagStore()
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableDocument, "d1", []string{"Go"})
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableDocument, "d2", []string{"go"}) // later, lowercased
+	got, _ := ts.TagsFor(ctx, "u1", domain.TaggableDocument, "d2")
+	if len(got) != 1 || got[0].Display != "Go" {
+		t.Fatalf("display should be first-seen raw 'Go', got %+v", got)
+	}
+}
