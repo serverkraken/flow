@@ -41,19 +41,13 @@ func runBindRemote(ctx context.Context, c *apiclient.Client, originSlug, nodeID,
 }
 
 // bindSelection acts on the picker's resolved selection:
-// if isCreate is true it calls CreateNode(picked.Label) then BindRemote with the new ID;
-// otherwise it calls BindRemote with picked.ID directly.
+// if isCreate is true it creates a repo named picked.Label under parentID, then
+// BindRemote with the new ID; otherwise it BindRemotes picked.ID directly.
 // This is extracted so the post-selection logic can be unit-tested without launching the TUI.
-func bindSelection(ctx context.Context, c *apiclient.Client, originSlug string, picked fuzzylist.Item, isCreate bool) (string, error) {
-	var nodeID, projectName string
-	if isCreate {
-		p, err := c.CreateNode(ctx, apiclient.CreateNodeFields{Name: picked.Label, Kind: string(domain.KindRepo)})
-		if err != nil {
-			return "", fmt.Errorf("create project: %w", err)
-		}
-		nodeID, projectName = p.ID, p.Name
-	} else {
-		nodeID, projectName = picked.ID, picked.Label
+func bindSelection(ctx context.Context, c *apiclient.Client, originSlug string, picked fuzzylist.Item, isCreate bool, parentID *string) (string, error) {
+	nodeID, projectName, err := resolveOrCreateBindTarget(ctx, c, picked, isCreate, parentID)
+	if err != nil {
+		return "", err
 	}
 	return runBindRemote(ctx, c, originSlug, nodeID, projectName)
 }
@@ -80,7 +74,19 @@ func runBindInteractive(ctx context.Context, c *apiclient.Client, originSlug, de
 		return "", nil
 	}
 
-	return bindSelection(ctx, c, originSlug, picked, isCreate)
+	// A new repo needs an engagement/vorhaben parent: pick one (a repo can't be a root).
+	var parentID *string
+	if isCreate {
+		pid, ok, err := pickRepoParent(ctx, projects, pal)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", nil // parent pick cancelled
+		}
+		parentID = &pid
+	}
+	return bindSelection(ctx, c, originSlug, picked, isCreate, parentID)
 }
 
 // runBindPathInteractive launches the fuzzylist picker, picks or creates a project,
@@ -104,15 +110,21 @@ func runBindPathInteractive(ctx context.Context, c *apiclient.Client, machine cl
 		return "", nil
 	}
 
-	var nodeID, projectName string
+	// A new repo needs an engagement/vorhaben parent (a repo can't be a root).
+	var parentID *string
 	if isCreate {
-		p, err := c.CreateNode(ctx, apiclient.CreateNodeFields{Name: picked.Label, Kind: string(domain.KindRepo)})
+		pid, ok, err := pickRepoParent(ctx, projects, pal)
 		if err != nil {
-			return "", fmt.Errorf("create project: %w", err)
+			return "", err
 		}
-		nodeID, projectName = p.ID, p.Name
-	} else {
-		nodeID, projectName = picked.ID, picked.Label
+		if !ok {
+			return "", nil // parent pick cancelled
+		}
+		parentID = &pid
+	}
+	nodeID, projectName, err := resolveOrCreateBindTarget(ctx, c, picked, isCreate, parentID)
+	if err != nil {
+		return "", err
 	}
 	return runBindPath(ctx, c, machine, cwd, nodeID, projectName)
 }

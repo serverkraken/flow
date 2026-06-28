@@ -348,8 +348,9 @@ func TestLoopback_BindProject(t *testing.T) {
 	// runs inside the flow-rebuild git checkout which has a git origin).
 	bindCalled = false
 	res, bindTxt := callText(t, sess, "flow_bind_project", map[string]any{
-		"create_name": "Scratch",
-		"kind":        "remote",
+		"create_name":   "Scratch",
+		"create_parent": "alpha", // nest the new repo under an existing node (repo can't be a root)
+		"kind":          "remote",
 	})
 	if res.IsError {
 		t.Fatalf("create-then-bind IsError: %s", bindTxt)

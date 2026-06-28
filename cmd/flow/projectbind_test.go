@@ -350,6 +350,7 @@ type bindSelectionCapture struct {
 	putProjectID   string
 	putRemoteSlug  string
 	postCreateName string
+	postParentID   string
 	postCalled     bool
 }
 
@@ -362,6 +363,7 @@ func newBindSelectionSrv(t *testing.T, createResponse domain.Node) (*httptest.Se
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			cap.postCreateName, _ = body["name"].(string)
+			cap.postParentID, _ = body["parentId"].(string)
 			cap.postCalled = true
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(createResponse)
@@ -391,7 +393,7 @@ func TestBindSelection_PickExisting(t *testing.T) {
 	c := apiclient.New(srv.URL, "tkn")
 
 	picked := fuzzylist.Item{ID: "p1", Label: "Alpha"}
-	out, err := bindSelection(context.Background(), c, "github.com/acme/alpha", picked, false)
+	out, err := bindSelection(context.Background(), c, "github.com/acme/alpha", picked, false, nil)
 	if err != nil {
 		t.Fatalf("bindSelection: %v", err)
 	}
@@ -417,9 +419,11 @@ func TestBindSelection_CreateNew(t *testing.T) {
 	srv, cap := newBindSelectionSrv(t, newProject)
 	c := apiclient.New(srv.URL, "tkn")
 
-	// isCreate=true: the item has no ID yet (server assigns it on create)
+	// isCreate=true: the item has no ID yet (server assigns it on create); the repo
+	// is created under the chosen engagement parent "eng1".
 	picked := fuzzylist.Item{ID: "", Label: "Brandnew"}
-	out, err := bindSelection(context.Background(), c, "github.com/acme/repo", picked, true)
+	parent := "eng1"
+	out, err := bindSelection(context.Background(), c, "github.com/acme/repo", picked, true, &parent)
 	if err != nil {
 		t.Fatalf("bindSelection: %v", err)
 	}
@@ -428,6 +432,9 @@ func TestBindSelection_CreateNew(t *testing.T) {
 	}
 	if cap.postCreateName != "Brandnew" {
 		t.Errorf("CreateNode name = %q, want %q", cap.postCreateName, "Brandnew")
+	}
+	if cap.postParentID != "eng1" {
+		t.Errorf("CreateNode parentId = %q, want eng1 (repo created under engagement)", cap.postParentID)
 	}
 	// BindRemote must use the server-assigned ID, not the empty item ID.
 	if cap.putProjectID != "p-new" {

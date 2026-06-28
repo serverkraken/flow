@@ -72,9 +72,10 @@ func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest,
 
 // bindNodeIn binds the current working directory to a project.
 type bindNodeIn struct {
-	Project    string `json:"project,omitempty" jsonschema:"an existing project to bind: id, slug, or name"`
-	CreateName string `json:"create_name,omitempty" jsonschema:"create a new project with this name, then bind to it"`
-	Kind       string `json:"kind,omitempty" jsonschema:"binding kind override: 'remote' (git origin) or 'path' (this directory); omit to auto-detect"`
+	Project      string `json:"project,omitempty" jsonschema:"an existing project to bind: id, slug, or name"`
+	CreateName   string `json:"create_name,omitempty" jsonschema:"create a new repo with this name, then bind to it (requires create_parent)"`
+	CreateParent string `json:"create_parent,omitempty" jsonschema:"the engagement or vorhaben (id, slug, or name) to nest the new repo under; required with create_name"`
+	Kind         string `json:"kind,omitempty" jsonschema:"binding kind override: 'remote' (git origin) or 'path' (this directory); omit to auto-detect"`
 }
 
 // bindProject binds this directory to a project (remote-slug if a git origin is

@@ -9,7 +9,8 @@ func TestValidateBindRef(t *testing.T) {
 		wantErr bool
 	}{
 		{"project only", bindNodeIn{Project: "alpha"}, false},
-		{"create only", bindNodeIn{CreateName: "New"}, false},
+		{"create with parent", bindNodeIn{CreateName: "New", CreateParent: "privat"}, false},
+		{"create without parent", bindNodeIn{CreateName: "New"}, true}, // repo needs an engagement/vorhaben parent
 		{"both", bindNodeIn{Project: "alpha", CreateName: "New"}, true},
 		{"neither", bindNodeIn{}, true},
 		{"whitespace neither", bindNodeIn{Project: "  ", CreateName: " "}, true},

@@ -12,12 +12,17 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// validateBindRef enforces exactly one of project / create_name.
+// validateBindRef enforces exactly one of project / create_name, and that a new
+// repo (create_name) is given a parent to nest under (create_parent) — a repo can
+// never be a root node.
 func validateBindRef(in bindNodeIn) error {
 	hasRef := strings.TrimSpace(in.Project) != ""
 	hasCreate := strings.TrimSpace(in.CreateName) != ""
 	if hasRef == hasCreate {
 		return errGuard{errors.New(`give either "project" (an existing project id/slug/name) or "create_name" (to create one), not both or neither`)}
+	}
+	if hasCreate && strings.TrimSpace(in.CreateParent) == "" {
+		return errGuard{errors.New(`"create_name" needs "create_parent" — the engagement or vorhaben (id/slug/name) to nest the new repo under`)}
 	}
 	return nil
 }
@@ -57,7 +62,13 @@ func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, in bin
 	}
 	var proj domain.Node
 	if name := strings.TrimSpace(in.CreateName); name != "" {
-		proj, err = c.CreateNode(ctx, apiclient.CreateNodeFields{Name: name, Kind: string(domain.KindRepo)})
+		parent, perr := h.lookupNode(ctx, strings.TrimSpace(in.CreateParent))
+		if perr != nil {
+			return domain.Node{}, "", fmt.Errorf("create_parent: %w", perr)
+		}
+		proj, err = c.CreateNode(ctx, apiclient.CreateNodeFields{
+			Name: name, Kind: string(domain.KindRepo), ParentID: &parent.ID,
+		})
 	} else {
 		proj, err = h.lookupNode(ctx, strings.TrimSpace(in.Project))
 	}

@@ -29,6 +29,7 @@ type pickerResult struct {
 // Enter resolves the selection and quits; Esc/Ctrl-C cancels.
 type pickProjectProgram struct {
 	list   fuzzylist.Model
+	title  string
 	result pickerResult
 }
 
@@ -42,7 +43,16 @@ func newPickProjectProgram(items []fuzzylist.Item, defaultName string, pal theme
 			list = list.Update(tea.KeyPressMsg{Text: string(ch)})
 		}
 	}
-	return &pickProjectProgram{list: list}
+	return &pickProjectProgram{list: list, title: "Projekt wählen oder neu anlegen"}
+}
+
+// newPickParentProgram is the pick-only variant (no inline-create row) used to
+// choose the engagement/vorhaben a freshly-created repo hangs under.
+func newPickParentProgram(items []fuzzylist.Item, pal theme.Palette) *pickProjectProgram {
+	return &pickProjectProgram{
+		list:  fuzzylist.New(items, pal), // no create hint → pick-only
+		title: "Engagement/Vorhaben als Eltern wählen",
+	}
 }
 
 // Init satisfies tea.Model. No I/O commands needed at startup.
@@ -88,7 +98,7 @@ func (m *pickProjectProgram) Selection() (item fuzzylist.Item, isCreate, ok bool
 
 // View satisfies tea.Model.
 func (m *pickProjectProgram) View() tea.View {
-	return tea.NewView("\n  Projekt wählen oder neu anlegen\n" +
+	return tea.NewView("\n  " + m.title + "\n" +
 		"  (tippen → filtern · ↑/↓ · enter · esc)\n\n" +
 		m.list.View(60))
 }
