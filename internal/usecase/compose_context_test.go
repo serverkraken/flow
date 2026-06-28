@@ -58,9 +58,11 @@ func TestCompose_BudgetDropsRelevanceByRank(t *testing.T) {
 	body := func(n int) string { return string(make([]byte, n)) } // n bytes → EstTokens = ceil(n/4)
 	docs := []domain.Document{
 		// three engagement memories; each EstTokens=100 (400 bytes). cap=250 → only 2 fit.
-		doc("pinnedOld", &eng, domain.DocMemory, "a", true, old, body(400)),
+		// Inserted intentionally NOT pre-sorted (pinnedOld LAST) so the sort is load-bearing:
+		// without the sort the result would be [freshUnpinned, olderUnpinned] and the assertion fails.
 		doc("freshUnpinned", &eng, domain.DocMemory, "b", false, mid, body(400)),
 		doc("olderUnpinned", &eng, domain.DocMemory, "c", false, old, body(400)),
+		doc("pinnedOld", &eng, domain.DocMemory, "a", true, old, body(400)),
 	}
 	got := usecase.Compose(chain, docs, map[string]bool{}, 250)
 	kept := got.Memories["engagement"]
@@ -99,5 +101,23 @@ func TestCompose_UnresolvedNotHandledHere(t *testing.T) {
 	got := usecase.Compose(nil, docs, map[string]bool{"g": true}, 100000)
 	if len(got.Memories["global"]) != 1 {
 		t.Fatalf("empty chain should still surface gated global memories")
+	}
+	if !got.Resolution.Unresolved {
+		t.Errorf("empty chain should set Resolution.Unresolved")
+	}
+}
+
+func TestCompose_SingleEngagementChainLeafTier(t *testing.T) {
+	t.Parallel()
+	e := "E"
+	chain := []domain.Node{node(e, "Privat", domain.KindEngagement)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{doc("m", &e, domain.DocMemory, "m", false, t0, "x")}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if len(got.Memories["leaf"]) != 1 || got.Memories["leaf"][0].ID != "m" {
+		t.Fatalf("single-engagement-chain memory should be leaf/always-tier, got %+v", got.Memories)
+	}
+	if len(got.Memories["engagement"]) != 0 {
+		t.Errorf("no engagement-tier when leaf==root: %+v", got.Memories["engagement"])
 	}
 }
