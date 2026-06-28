@@ -54,6 +54,9 @@ func (f fakeSessionStore) Get(context.Context, string, string) (domain.WorkSessi
 func (f fakeSessionStore) ListPage(_ context.Context, _ string, _, _ int) ([]domain.WorkSession, int, error) {
 	return nil, 0, nil
 }
+func (f fakeSessionStore) TagTimes(_ context.Context, _ string, _, _ time.Time) ([]domain.TagTime, error) {
+	return nil, nil
+}
 
 // fakeStatsSettings is a settings fake that carries full Settings (including
 // DefaultTargetMin). Named differently from dayoffs_test.go's fakeSettings

@@ -339,10 +339,10 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 
 type editSessionReq struct {
 	NodeID *string    `json:"projectId"`
-	Tags      []string   `json:"tags"`
-	Note      string     `json:"note"`
-	Start     time.Time  `json:"start"`
-	Stop      *time.Time `json:"stop"`
+	Tags   *[]string  `json:"tags"`
+	Note   string     `json:"note"`
+	Start  time.Time  `json:"start"`
+	Stop   *time.Time `json:"stop"`
 }
 
 func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
@@ -442,6 +442,37 @@ func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
 	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
+}
+
+
+func (s *Server) handleTagTimes(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var from, to time.Time
+	if q := r.URL.Query().Get("from"); q != "" {
+		t, err := time.Parse(time.RFC3339, q)
+		if err != nil {
+			http.Error(w, "bad from (want RFC3339)", http.StatusBadRequest)
+			return
+		}
+		from = t
+	}
+	if q := r.URL.Query().Get("to"); q != "" {
+		t, err := time.Parse(time.RFC3339, q)
+		if err != nil {
+			http.Error(w, "bad to (want RFC3339)", http.StatusBadRequest)
+			return
+		}
+		to = t
+	}
+	tt, err := s.TagTimeReport.Execute(r.Context(), u.ID, from, to)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if tt == nil {
+		tt = []domain.TagTime{}
+	}
+	writeJSON(w, http.StatusOK, tt)
 }
 
 // startOfDay truncates t to local midnight.

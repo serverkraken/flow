@@ -160,7 +160,7 @@ func (c *Client) StopSession(ctx context.Context, id, nodeID string) (domain.Wor
 	return s, err
 }
 
-func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tags []string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tags *[]string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPatch, "/api/v1/sessions/"+id,
 		map[string]any{"projectId": nodeID, "tags": tags, "note": note, "start": start, "stop": stop}, &s)
@@ -169,6 +169,23 @@ func (c *Client) EditSession(ctx context.Context, id string, nodeID *string, tag
 
 func (c *Client) DeleteSession(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/sessions/"+id, nil, nil)
+}
+
+// TagTimes returns the total tracked minutes per tag for the owner, optionally
+// filtered to sessions with start_at in [from, to). Zero time means unbounded.
+func (c *Client) TagTimes(ctx context.Context, from, to time.Time) ([]domain.TagTime, error) {
+	path := "/api/v1/sessions/tag-times"
+	sep := "?"
+	if !from.IsZero() {
+		path += sep + "from=" + url.QueryEscape(from.Format(time.RFC3339))
+		sep = "&"
+	}
+	if !to.IsZero() {
+		path += sep + "to=" + url.QueryEscape(to.Format(time.RFC3339))
+	}
+	var out []domain.TagTime
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
 }
 
 func (c *Client) ListSessions(ctx context.Context) ([]domain.WorkSession, error) {

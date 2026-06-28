@@ -13,7 +13,7 @@ import (
 
 func sessionCmd() *cobra.Command {
 	cmd := &cobra.Command{Use: "session", Short: "manage past worktime sessions (Nachbuchen)"}
-	cmd.AddCommand(sessionAddCmd(), sessionListCmd(), sessionEditCmd(), sessionDeleteCmd())
+	cmd.AddCommand(sessionAddCmd(), sessionListCmd(), sessionEditCmd(), sessionDeleteCmd(), sessionStatsCmd())
 	return cmd
 }
 
@@ -229,15 +229,12 @@ func runSessionEdit(ctx context.Context, c *apiclient.Client, id string, in sess
 			return "", err
 		}
 	}
-	tags := cur.Tags
-	if in.Tags != nil {
-		tags = *in.Tags
-	}
 	note := cur.Note
 	if in.Note != nil {
 		note = *in.Note
 	}
-	if _, err := c.EditSession(ctx, id, nodeID, tags, note, start, stop); err != nil {
+	// in.Tags is *[]string: nil = don't touch, &[] = clear, &[v...] = replace.
+	if _, err := c.EditSession(ctx, id, nodeID, in.Tags, note, start, stop); err != nil {
 		return "", fmt.Errorf("edit session: %w", err)
 	}
 	return fmt.Sprintf("edited %s", id), nil
@@ -300,5 +297,58 @@ func sessionEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "new project name")
 	cmd.Flags().StringArrayVar(&tags, "tags", nil, "new tags (repeatable; replaces all)")
 	cmd.Flags().StringVar(&note, "note", "", "new note")
+	return cmd
+}
+
+func runSessionStats(ctx context.Context, c *apiclient.Client, from, to time.Time, byTag bool) (string, error) {
+	if !byTag {
+		return "", fmt.Errorf("specify --by-tag to view time per tag")
+	}
+	tt, err := c.TagTimes(ctx, from, to)
+	if err != nil {
+		return "", fmt.Errorf("tag times: %w", err)
+	}
+	var b strings.Builder
+	for _, t := range tt {
+		h := t.Minutes / 60
+		m := t.Minutes % 60
+		fmt.Fprintf(&b, "#%-20s  %dh%02dm\n", t.Tag, h, m)
+	}
+	return b.String(), nil
+}
+
+func sessionStatsCmd() *cobra.Command {
+	var from, to string
+	var byTag bool
+	cmd := &cobra.Command{
+		Use:   "stats",
+		Short: "session statistics (e.g. --by-tag prints Σh per tag)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			var fromT, toT time.Time
+			if from != "" {
+				if fromT, err = time.Parse(time.RFC3339, from); err != nil {
+					return fmt.Errorf("bad --from (want RFC3339): %w", err)
+				}
+			}
+			if to != "" {
+				if toT, err = time.Parse(time.RFC3339, to); err != nil {
+					return fmt.Errorf("bad --to (want RFC3339): %w", err)
+				}
+			}
+			out, err := runSessionStats(cmd.Context(), c, fromT, toT, byTag)
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), out)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&byTag, "by-tag", false, "sum tracked time per tag")
+	cmd.Flags().StringVar(&from, "from", "", "range start (RFC3339)")
+	cmd.Flags().StringVar(&to, "to", "", "range end exclusive (RFC3339)")
 	return cmd
 }

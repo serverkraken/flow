@@ -107,13 +107,14 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodeID := s.resolveWebNode(r, u)
+	webTags := strings.Fields(r.FormValue("tag"))
 	if _, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
 		usecase.EditSessionInput{
 			NodeID: nodeID,
-			Tags:      strings.Fields(r.FormValue("tag")),
-			Note:      r.FormValue("note"),
-			Start:     start,
-			Stop:      &stop,
+			Tags:   &webTags,
+			Note:   r.FormValue("note"),
+			Start:  start,
+			Stop:   &stop,
 		}); err != nil {
 		s.renderDay(w, r, u, day, "could not edit: "+err.Error())
 		return

@@ -126,6 +126,10 @@ type SessionStore interface {
 	// limited to `limit` rows starting at `offset`, plus the total owner count
 	// (ignoring limit/offset) for pagination math. Owner-scoped.
 	ListPage(ctx context.Context, ownerID string, limit, offset int) (items []domain.WorkSession, total int, err error)
+	// TagTimes returns the total tracked minutes per tag for the owner, optionally
+	// filtered to sessions whose start_at falls in [from, to). Zero value means
+	// unbounded on that side. Results are ordered by minutes DESC, tag ASC.
+	TagTimes(ctx context.Context, ownerID string, from, to time.Time) ([]domain.TagTime, error)
 }
 
 // DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,

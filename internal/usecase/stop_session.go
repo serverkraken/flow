@@ -20,6 +20,9 @@ type StopSession struct {
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Loc      *time.Location
+	// Tags copies the original session's tags onto each split chunk via the
+	// taggings junction after Create. Nil-safe: when unwired tags are silently dropped.
+	Tags ports.TagStore
 }
 
 func (uc StopSession) loc() *time.Location {
@@ -69,6 +72,9 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 		chunk.Tags, chunk.Note = cur.Tags, cur.Note
 		if _, cerr := uc.Sessions.Create(ctx, chunk); cerr != nil {
 			return first, cerr
+		}
+		if uc.Tags != nil {
+			_, _ = uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, chunk.ID, cur.Tags)
 		}
 	}
 	return first, nil

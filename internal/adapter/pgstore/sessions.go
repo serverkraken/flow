@@ -186,6 +186,41 @@ func (s *SessionStore) hydrateTags(ctx context.Context, ownerID string, ws []dom
 	return ws, rows.Err()
 }
 
+// TagTimes returns the total tracked minutes per tag for the owner, optionally
+// filtered to sessions whose start_at falls in [from, to). Zero value means
+// unbounded on that side.
+func (s *SessionStore) TagTimes(ctx context.Context, ownerID string, from, to time.Time) ([]domain.TagTime, error) {
+	const q = `SELECT t.slug,
+  COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ws.stop_at, now()) - ws.start_at)))/60, 0)::int AS minutes
+FROM work_sessions ws
+JOIN taggings tg ON tg.taggable_type='work_session' AND tg.taggable_id = ws.id
+JOIN tags t ON t.id = tg.tag_id
+WHERE ws.owner_id=$1 AND ($2::timestamptz IS NULL OR ws.start_at >= $2)
+  AND ($3::timestamptz IS NULL OR ws.start_at < $3)
+GROUP BY t.slug ORDER BY minutes DESC, t.slug`
+	var fromArg, toArg any
+	if !from.IsZero() {
+		fromArg = from
+	}
+	if !to.IsZero() {
+		toArg = to
+	}
+	rows, err := s.pool.Query(ctx, q, ownerID, fromArg, toArg)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: tag times: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.TagTime
+	for rows.Next() {
+		var tt domain.TagTime
+		if err := rows.Scan(&tt.Tag, &tt.Minutes); err != nil {
+			return nil, err
+		}
+		out = append(out, tt)
+	}
+	return out, rows.Err()
+}
+
 func scanSessions(rows pgx.Rows) ([]domain.WorkSession, error) {
 	defer rows.Close()
 	var out []domain.WorkSession

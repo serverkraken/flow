@@ -55,6 +55,9 @@ type Server struct {
 	BulkAssignNode  usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
 
+	// tag-time report (D2)
+	TagTimeReport usecase.TagTimeReport
+
 	// project bindings (resolution V0)
 	BindNode          usecase.BindNode
 	UnbindNode        usecase.UnbindNode
@@ -99,6 +102,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/v1/sessions/reassign", s.authAny(http.HandlerFunc(s.handleReassignSessions)))
 	mux.Handle("POST /api/v1/sessions/bulk-delete", s.authAny(http.HandlerFunc(s.handleBulkDeleteSessions)))
 	mux.Handle("POST /api/v1/sessions/{id}/stop", s.auth(http.HandlerFunc(s.handleStopSession)))
+	mux.Handle("GET /api/v1/sessions/tag-times", s.auth(http.HandlerFunc(s.handleTagTimes)))
 	mux.Handle("GET /api/v1/sessions", s.auth(http.HandlerFunc(s.handleListSessions)))
 	mux.Handle("PATCH /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleEditSession)))
 	mux.Handle("DELETE /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleDeleteSession)))

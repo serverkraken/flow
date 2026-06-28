@@ -83,7 +83,8 @@ func TestEditAndDeleteSession(t *testing.T) {
 
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	stop := start.Add(2 * time.Hour)
-	s, err := c.EditSession(context.Background(), "s1", nil, []string{"deep"}, "", start, &stop)
+	deepTags := []string{"deep"}
+	s, err := c.EditSession(context.Background(), "s1", nil, &deepTags, "", start, &stop)
 	if err != nil || len(s.Tags) != 1 || s.Tags[0] != "deep" {
 		t.Fatalf("EditSession = %+v err=%v", s, err)
 	}

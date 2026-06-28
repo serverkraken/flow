@@ -23,7 +23,8 @@ func TestEditSession(t *testing.T) {
 	uc := usecase.EditSession{Sessions: ss, Tags: testutil.NewFakeTagStore()}
 
 	newStop := start.Add(3 * time.Hour)
-	got, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Tags: []string{"deep"}, Note: "n", Start: start, Stop: &newStop})
+	deepTags := []string{"deep"}
+	got, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Tags: &deepTags, Note: "n", Start: start, Stop: &newStop})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}

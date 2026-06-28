@@ -200,7 +200,7 @@ func (r *TodayRoute) submitEdit() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if _, err := api.EditSession(ctx, id, nil, tags, note, startTime, &stopTime); err != nil {
+		if _, err := api.EditSession(ctx, id, nil, &tags, note, startTime, &stopTime); err != nil {
 			return loadedMsg{err: err}
 		}
 		return reloadMsg{}

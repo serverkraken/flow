@@ -469,7 +469,7 @@ func (r *Route) submitEdit() (shell.Route, tea.Cmd) {
 	return r, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_, editErr := api.EditSession(ctx, id, nil, tags, note, startTime, &stopTime)
+		_, editErr := api.EditSession(ctx, id, nil, &tags, note, startTime, &stopTime)
 		if editErr != nil {
 			return editDoneMsg{err: editErr}
 		}

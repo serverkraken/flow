@@ -50,7 +50,7 @@ func (f *fakeAPI) StopSession(_ context.Context, id, pid string) (domain.WorkSes
 	return domain.WorkSession{ID: id}, nil
 }
 
-func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _ []string, _ string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, _ *[]string, _ string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	f.edited = id
 	f.editStart = start
 	f.editStop = stop

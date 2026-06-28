@@ -385,6 +385,46 @@ func (s *FakeSessionStore) ListPage(_ context.Context, ownerID string, limit, of
 	return all[offset:end], total, nil
 }
 
+
+func (s *FakeSessionStore) TagTimes(_ context.Context, ownerID string, from, to time.Time) ([]domain.TagTime, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	totals := map[string]int{}
+	for _, ws := range s.m {
+		if ws.OwnerID != ownerID {
+			continue
+		}
+		if !from.IsZero() && ws.Start.Before(from) {
+			continue
+		}
+		if !to.IsZero() && !ws.Start.Before(to) {
+			continue
+		}
+		stop := time.Now()
+		if ws.Stop != nil {
+			stop = *ws.Stop
+		}
+		mins := int(stop.Sub(ws.Start).Minutes())
+		if mins < 0 {
+			mins = 0
+		}
+		for _, tag := range ws.Tags {
+			totals[tag] += mins
+		}
+	}
+	out := make([]domain.TagTime, 0, len(totals))
+	for tag, mins := range totals {
+		out = append(out, domain.TagTime{Tag: tag, Minutes: mins})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Minutes != out[j].Minutes {
+			return out[i].Minutes > out[j].Minutes
+		}
+		return out[i].Tag < out[j].Tag
+	})
+	return out, nil
+}
+
 // FakeDayOffStore is an in-memory ports.DayOffStore keyed by (owner, yyyy-mm-dd).
 type FakeDayOffStore struct {
 	mu sync.Mutex

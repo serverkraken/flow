@@ -30,7 +30,7 @@ type fakeAPI struct {
 	// Edit/Delete tracking fields (Task 7).
 	editCalls    int
 	lastEditID   string
-	lastEditTags []string
+	lastEditTags *[]string
 	lastEditNote string
 	lastEditStop *time.Time
 	editErr      error
@@ -65,7 +65,7 @@ func (f *fakeAPI) AddSession(_ context.Context, nodeID *string, start, stop time
 	return domain.WorkSession{ID: "new", Start: start, Stop: &stop}, nil
 }
 
-func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, tags []string, note string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
+func (f *fakeAPI) EditSession(_ context.Context, id string, _ *string, tags *[]string, note string, _ time.Time, stop *time.Time) (domain.WorkSession, error) {
 	f.editCalls++
 	f.lastEditID = id
 	f.lastEditTags = tags

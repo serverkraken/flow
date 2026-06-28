@@ -13,12 +13,15 @@ import (
 
 // TestStopSession_SplitsAcrossMidnight is the #9 behaviour: stopping a timer
 // that started yesterday produces one booked session per calendar day, all on
-// the same project.
+// the same project. The tag-loss fix (B2 D2) is verified by asserting via
+// FakeTagStore.TagsFor — not via s.Tags on the session struct, which is a
+// false-green in fakes (Create stores Tags but real pgstore does not).
 func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 	ctx := context.Background()
 	loc := time.UTC
 	ss := testutil.NewFakeSessionStore()
 	ps := testutil.NewFakeNodeStore()
+	ts := testutil.NewFakeTagStore()
 	ids := &testutil.FakeIDGen{}
 	now := time.Date(2026, 6, 24, 14, 0, 0, 0, loc)
 	clk := testutil.FakeClock{T: now}
@@ -30,8 +33,14 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 	if _, err := ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: start, Tags: []string{"deep"}}); err != nil {
 		t.Fatalf("seed running: %v", err)
 	}
+	// Seed the original session's tags in the tag store (mirrors what pgstore does
+	// after SetTags on creation). StopSession reads cur.Tags from the session struct
+	// returned by Sessions.Get (FakeSessionStore copies the Tags field directly).
+	if _, err := ts.SetTags(ctx, "u1", domain.TaggableWorkSession, "run", []string{"deep"}); err != nil {
+		t.Fatalf("seed tags: %v", err)
+	}
 
-	uc := usecase.StopSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: loc}
+	uc := usecase.StopSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: loc, Tags: ts}
 	pid := "p1"
 	if _, err := uc.Execute(ctx, "u1", "run", &pid); err != nil {
 		t.Fatalf("stop: %v", err)
@@ -52,11 +61,16 @@ func TestStopSession_SplitsAcrossMidnight(t *testing.T) {
 		if s.NodeID == nil || *s.NodeID != "p1" {
 			t.Errorf("session %s not booked to p1: %+v", s.ID, s.NodeID)
 		}
-		if len(s.Tags) != 1 || s.Tags[0] != "deep" {
-			t.Errorf("session %s lost tags: %q", s.ID, s.Tags)
+		// Assert via FakeTagStore that EACH chunk carries the tag (real pgstore path).
+		sessionTags, terr := ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, s.ID)
+		if terr != nil {
+			t.Fatalf("TagsFor(%s): %v", s.ID, terr)
+		}
+		if len(sessionTags) != 1 || sessionTags[0].Slug != "deep" {
+			t.Errorf("session %s lost tags: got %v", s.ID, sessionTags)
 		}
 		// each chunk stays within one calendar day
-		if s.Start.Before(mid) && s.Stop.After(mid) {
+		if s.Stop != nil && s.Start.Before(mid) && s.Stop.After(mid) {
 			t.Errorf("session %s spans midnight: %v..%v", s.ID, s.Start, *s.Stop)
 		}
 	}

@@ -58,7 +58,7 @@ func (f fakeAPI) CreateNode(_ context.Context, _ apiclient.CreateNodeFields) (do
 
 // EditSession, DeleteSession are no-op stubs required by the daydetail.API
 // compile-time guard now that Task 7 extended the interface.
-func (f fakeAPI) EditSession(_ context.Context, _ string, _ *string, _ []string, _ string, _ time.Time, _ *time.Time) (domain.WorkSession, error) {
+func (f fakeAPI) EditSession(_ context.Context, _ string, _ *string, _ *[]string, _ string, _ time.Time, _ *time.Time) (domain.WorkSession, error) {
 	return domain.WorkSession{}, nil
 }
 func (f fakeAPI) DeleteSession(_ context.Context, _ string) error { return nil }

@@ -9,9 +9,10 @@ import (
 )
 
 // EditSessionInput carries the editable fields of an existing session.
+// Tags is tri-state: nil = leave taggings untouched; &[] = clear; &[v...] = replace.
 type EditSessionInput struct {
 	NodeID *string
-	Tags      []string
+	Tags      *[]string
 	Note      string
 	Start     time.Time
 	Stop      *time.Time
@@ -56,8 +57,8 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
-	if uc.Tags != nil {
-		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, id, in.Tags)
+	if uc.Tags != nil && in.Tags != nil {
+		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, id, *in.Tags)
 		if terr != nil {
 			return updated, terr
 		}
