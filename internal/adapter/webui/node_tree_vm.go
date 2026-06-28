@@ -110,10 +110,11 @@ type NodesPageData struct {
 
 // NodeFormValues holds raw create/edit form fields (re-rendered on error).
 type NodeFormValues struct {
-	Name, Slug, Kind, ParentID      string
+	Name, Slug, Kind, ParentID       string
 	Description, UpstreamGit, Status string
-	Color, Glyph                    string
-	RateAmount, RateCurrency        string
+	Color, Glyph                     string
+	RateAmount, RateCurrency         string
+	TagsCSV                          string // space-separated tag slugs for the tags input
 }
 
 // NodeFormData drives the create (editing==nil) / edit form.

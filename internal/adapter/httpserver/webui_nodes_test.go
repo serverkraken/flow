@@ -19,14 +19,15 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// newWebNodesServer builds a test server with the node usecases wired and a
-// seeded user. Returns the server, a session cookie, and the fake node store.
-func newWebNodesServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore) {
+// newWebNodesServerFull builds a test server with node + tag usecases wired.
+// Returns the server, session cookie, fake node store, and fake tag store.
+func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore, *testutil.FakeTagStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ns := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
+	tags := testutil.NewFakeTagStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -54,11 +55,21 @@ func newWebNodesServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
+		SetTags:           usecase.SetTags{Tags: tags},
+		GetTags:           usecase.GetTags{Tags: tags},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
 	cv, _ := codec.Issue("u1")
-	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns
+	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns, tags
+}
+
+// newWebNodesServer builds a test server with the node usecases wired and a
+// seeded user. Returns the server, a session cookie, and the fake node store.
+func newWebNodesServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore) {
+	t.Helper()
+	ts, c, ns, _ := newWebNodesServerFull(t)
+	return ts, c, ns
 }
 
 // seedTreeNode seeds a node with the given kind, name, and optional parent.
@@ -423,5 +434,79 @@ func TestWebNodeMove(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusSeeOther {
 		t.Errorf("move nonexistent = %d, want 303", res.StatusCode)
+	}
+}
+
+// TestWebNodeFormTags verifies that posting tags=infra terraform to the node
+// create form results in the node carrying those 2 tags (E2).
+func TestWebNodeFormTags(t *testing.T) {
+	t.Parallel()
+	ts, c, ns, tags := newWebNodesServerFull(t)
+
+	// POST /nodes: create an engagement with two tags.
+	res := postN(t, ts, c, "/nodes", url.Values{
+		"name": {"Infra Eng"},
+		"kind": {"engagement"},
+		"tags": {"infra terraform"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create with tags = %d, want 303", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	nodeID := strings.TrimPrefix(loc, "/nodes/")
+	if nodeID == "" {
+		t.Fatalf("redirect missing node id: %q", loc)
+	}
+
+	// Verify the two tags were stored via the fake tag store.
+	stored, err := tags.TagsFor(context.Background(), "u1", domain.TaggableNode, nodeID)
+	if err != nil {
+		t.Fatalf("TagsFor: %v", err)
+	}
+	if len(stored) != 2 {
+		t.Fatalf("want 2 tags, got %d: %+v", len(stored), stored)
+	}
+	tagSlugs := map[string]bool{}
+	for _, tg := range stored {
+		tagSlugs[tg.Slug] = true
+	}
+	for _, want := range []string{"infra", "terraform"} {
+		if !tagSlugs[want] {
+			t.Errorf("tag %q missing; got %+v", want, stored)
+		}
+	}
+
+	// GET /nodes/{id}/edit: form must prefill the tags field.
+	_, editBody := getN(t, ts, c, "/nodes/"+nodeID+"/edit")
+	if !strings.Contains(editBody, "infra") {
+		t.Errorf("edit form must prefill tags; body=%.500s", editBody)
+	}
+
+	// Fetch the current node slug so the update form passes a valid slug.
+	node, nerr := ns.Get(context.Background(), "u1", nodeID)
+	if nerr != nil {
+		t.Fatalf("ns.Get: %v", nerr)
+	}
+
+	// POST /nodes/{id}: update with a different single tag.
+	res = postN(t, ts, c, "/nodes/"+nodeID, url.Values{
+		"name":   {"Infra Eng"},
+		"slug":   {node.Slug},
+		"kind":   {"engagement"},
+		"status": {"active"},
+		"tags":   {"kubernetes"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("update with tags = %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	stored, err = tags.TagsFor(context.Background(), "u1", domain.TaggableNode, nodeID)
+	if err != nil {
+		t.Fatalf("TagsFor after update: %v", err)
+	}
+	if len(stored) != 1 || stored[0].Slug != "kubernetes" {
+		t.Fatalf("want [kubernetes] after update, got %+v", stored)
 	}
 }

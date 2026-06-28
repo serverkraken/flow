@@ -29,6 +29,7 @@ func nodeFormValues(r *http.Request) webui.NodeFormValues {
 		Glyph:        r.FormValue("glyph"),
 		RateAmount:   r.FormValue("rateAmount"),
 		RateCurrency: r.FormValue("rateCurrency"),
+		TagsCSV:      r.FormValue("tags"),
 	}
 }
 
@@ -182,6 +183,9 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	if kind == domain.KindEngagement && rate != nil {
 		_ = s.SetNodeRate.Execute(r.Context(), u.ID, n.ID, rate)
 	}
+	if s.SetTags.Tags != nil {
+		_, _ = s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(r.FormValue("tags")))
+	}
 	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
 	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
 }
@@ -209,6 +213,15 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 	if n.Rate != nil {
 		vals.RateAmount = fmt.Sprintf("%d.%02d", n.Rate.Amount/100, n.Rate.Amount%100)
 		vals.RateCurrency = n.Rate.Currency
+	}
+	if s.GetTags.Tags != nil {
+		if tags, terr := s.GetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID); terr == nil {
+			slugs := make([]string, len(tags))
+			for i, tg := range tags {
+				slugs[i] = tg.Slug
+			}
+			vals.TagsCSV = strings.Join(slugs, " ")
+		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Vals: vals, Parents: s.nodeParents(r, u)}, &n).Render(r.Context(), w)
@@ -256,6 +269,9 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	// Rate applies only to engagements; nil clears any existing rate.
 	if n.Kind == domain.KindEngagement {
 		_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
+	}
+	if s.SetTags.Tags != nil {
+		_, _ = s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(r.FormValue("tags")))
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
