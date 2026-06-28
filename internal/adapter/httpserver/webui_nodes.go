@@ -3,6 +3,7 @@ package httpserver
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -184,7 +185,9 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		_ = s.SetNodeRate.Execute(r.Context(), u.ID, n.ID, rate)
 	}
 	if s.SetTags.Tags != nil {
-		_, _ = s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(r.FormValue("tags")))
+		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {
+			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
+		}
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
 	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
@@ -271,7 +274,9 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
 	}
 	if s.SetTags.Tags != nil {
-		_, _ = s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(r.FormValue("tags")))
+		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {
+			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
+		}
 	}
 	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
