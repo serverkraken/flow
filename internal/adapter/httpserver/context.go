@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -36,6 +37,7 @@ func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) 
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
+		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 	}
 }

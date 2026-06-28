@@ -215,12 +215,14 @@ func (s *Server) handlePinDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	switch err := s.SetPinned.Execute(r.Context(), u.ID, r.PathValue("id"), req.Pinned); {
+	id := r.PathValue("id")
+	switch err := s.SetPinned.Execute(r.Context(), u.ID, id, req.Pinned); {
 	case errors.Is(err, ports.ErrDocumentNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
+		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -62,7 +63,9 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 	}
 	if tags != nil {
 		// Tag write after the entity write; a tag failure must not orphan the upsert.
-		_, _ = uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, id, tags)
+		if _, err := uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, id, tags); err != nil {
+			slog.WarnContext(ctx, "set active-context tags", "id", id, "err", err)
+		}
 	}
 	return id, updated, nil
 }

@@ -776,3 +776,51 @@ func TestHandlePinDocument_NotFound(t *testing.T) {
 		t.Fatalf("want 404, got %d", res.StatusCode)
 	}
 }
+
+func TestHandlePinDocument_PublishesSSE(t *testing.T) {
+	srv, bus := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// Create a document to pin.
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"free","path":"pin-sse-test","title":"SSEPin","body":""}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	// Subscribe to bus events for user "id-1" (FakeIDGen produces "id-1").
+	ch, cancel := bus.Subscribe("id-1")
+	defer cancel()
+
+	// Drain any events from the create above.
+	for {
+		select {
+		case <-ch:
+		default:
+			goto drained
+		}
+	}
+drained:
+
+	// Issue the pin request.
+	res := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/pin", `{"pinned":true}`)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("want 204, got %d", res.StatusCode)
+	}
+
+	// Assert document.updated event was published.
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventDocumentUpdated {
+			t.Errorf("want event type %q, got %q", domain.EventDocumentUpdated, ev.Type)
+		}
+		if id, _ := ev.Data["id"].(string); id != created.ID {
+			t.Errorf("want event id %q, got %q", created.ID, id)
+		}
+	default:
+		t.Error("want document.updated SSE event after pin, got none")
+	}
+}
