@@ -108,7 +108,8 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode >= 300 {
-		return &APIError{Method: method, Path: path, StatusCode: res.StatusCode}
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 1<<12))
+		return &APIError{Method: method, Path: path, StatusCode: res.StatusCode, Message: string(bytes.TrimSpace(body))}
 	}
 	if out != nil {
 		return json.NewDecoder(res.Body).Decode(out)
@@ -117,14 +118,19 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 }
 
 // APIError is returned by do for any non-2xx response so callers can branch on
-// the status (e.g. skip a 409 conflict). The message is unchanged, so existing
-// `err != nil` callers are unaffected.
+// the status (e.g. skip a 409 conflict). Message carries the (trimmed, capped)
+// response body so surfaces can show why a call failed; it is appended to Error()
+// only when present, so bare-status callers are unaffected.
 type APIError struct {
 	Method, Path string
 	StatusCode   int
+	Message      string
 }
 
 func (e *APIError) Error() string {
+	if e.Message != "" {
+		return fmt.Sprintf("apiclient: %s %s: status %d: %s", e.Method, e.Path, e.StatusCode, e.Message)
+	}
 	return fmt.Sprintf("apiclient: %s %s: status %d", e.Method, e.Path, e.StatusCode)
 }
 
