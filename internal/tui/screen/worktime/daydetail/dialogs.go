@@ -276,11 +276,11 @@ func (r *Route) renderNachbuchen(f shell.Frame) string {
 
 	// Text-field phase.
 	if nb.projName != "" {
-		fmt.Fprintf(&b, "  Projekt: %s\n\n", nb.projName)
+		fmt.Fprintf(&b, "  Engagement: %s\n\n", nb.projName)
 	} else if nb.projID != nil {
-		fmt.Fprintf(&b, "  Projekt: %s\n\n", *nb.projID)
+		fmt.Fprintf(&b, "  Engagement: %s\n\n", *nb.projID)
 	} else {
-		b.WriteString("  Projekt: (kein)\n\n")
+		b.WriteString("  Engagement: (kein)\n\n")
 	}
 	labels := []string{"Von  ", "Bis  ", "Tag  ", "Notiz"}
 	fields := []textinput.Model{nb.von, nb.bis, nb.tag, nb.note}
