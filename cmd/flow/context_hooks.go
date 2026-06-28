@@ -32,11 +32,11 @@ func installHooksCmd() *cobra.Command {
 			merged, changed := mergeHooks(settings)
 			b, _ := json.MarshalIndent(merged, "", "  ")
 			if printOnly {
-				fmt.Fprintln(cmd.OutOrStdout(), string(b))
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
 				return nil
 			}
 			if !changed {
-				fmt.Fprintln(cmd.OutOrStdout(), "hooks already installed")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "hooks already installed")
 				return nil
 			}
 			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -45,7 +45,7 @@ func installHooksCmd() *cobra.Command {
 			if err := os.WriteFile(p, append(b, '\n'), 0o644); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "installed SessionStart+Stop hooks into %s\n", p)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "installed SessionStart+Stop hooks into %s\n", p)
 			fmt.Fprintln(cmd.OutOrStdout(), "tip: turn OFF native auto-memory and write memory only via flow (flow_create_doc/update_doc).")
 			return nil
 		},

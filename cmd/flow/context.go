@@ -60,7 +60,7 @@ func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }
 		_ = emit(out, cc, true, stamp, asJSON) // swallow stdout error: the hook must not break
 		return nil
 	}
-	fmt.Fprintf(out, "# flow context\n\n_(offline — no cached context for this repo; %v)_\n", err)
+	_, _ = fmt.Fprintf(out, "# flow context\n\n_(offline — no cached context for this repo; %v)_\n", err)
 	return nil // exit 0: do not break the hook
 }
 

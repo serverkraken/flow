@@ -56,7 +56,7 @@ func flushCheckCmd() *cobra.Command {
 				"additionalContext": flushReminder,
 			}}
 			b, _ := json.Marshal(out)
-			fmt.Fprintln(cmd.OutOrStdout(), string(b))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			return nil
 		},
 	}
