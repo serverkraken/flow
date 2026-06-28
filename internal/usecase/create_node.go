@@ -60,8 +60,15 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
-// Slugify lowercases name and collapses non-alphanumerics to single hyphens.
+// deUmlauts transliterates German special letters to their ASCII equivalents so
+// "straßenfuchs" slugs to "strassenfuchs" rather than "stra-enfuchs". Applied to
+// the already-lowercased name, so only lowercase forms need mapping.
+var deUmlauts = strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
+
+// Slugify lowercases name, transliterates German umlauts, then collapses
+// non-alphanumerics to single hyphens.
 func Slugify(name string) string {
-	s := nonSlug.ReplaceAllString(strings.ToLower(name), "-")
+	s := deUmlauts.Replace(strings.ToLower(name))
+	s = nonSlug.ReplaceAllString(s, "-")
 	return strings.Trim(s, "-")
 }
