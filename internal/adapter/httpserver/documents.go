@@ -13,11 +13,12 @@ import (
 )
 
 type createDocReq struct {
-	Type      string  `json:"type"`
-	NodeID *string `json:"projectId"`
-	Path      string  `json:"path"`
-	Title     string  `json:"title"`
-	Body      string  `json:"body"`
+	Type   string   `json:"type"`
+	NodeID *string  `json:"projectId"`
+	Path   string   `json:"path"`
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Tags   []string `json:"tags"`
 }
 
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
@@ -28,11 +29,12 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
-		Type:      domain.DocumentType(req.Type),
+		Type:   domain.DocumentType(req.Type),
 		NodeID: req.NodeID,
-		Path:      req.Path,
-		Title:     req.Title,
-		Body:      req.Body,
+		Path:   req.Path,
+		Title:  req.Title,
+		Body:   req.Body,
+		Tags:   req.Tags,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidDocument):
@@ -91,8 +93,9 @@ func (s *Server) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateDocReq struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
+	Title string    `json:"title"`
+	Body  string    `json:"body"`
+	Tags  *[]string `json:"tags"`
 }
 
 func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +108,7 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	doc, err := s.UpdateDocument.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateDocumentInput{
 		Title: req.Title,
 		Body:  req.Body,
+		Tags:  req.Tags,
 	})
 	switch {
 	case errors.Is(err, ports.ErrDocumentNotFound):
@@ -162,12 +166,13 @@ func (s *Server) handleDocumentBacklinks(w http.ResponseWriter, r *http.Request)
 }
 
 type importDocReq struct {
-	Type      string     `json:"type"`
-	Path      string     `json:"path"`
-	Title     string     `json:"title"`
-	Body      string     `json:"body"`
-	Date      *time.Time `json:"date"`
+	Type   string     `json:"type"`
+	Path   string     `json:"path"`
+	Title  string     `json:"title"`
+	Body   string     `json:"body"`
+	Date   *time.Time `json:"date"`
 	NodeID *string    `json:"projectId"`
+	Tags   []string   `json:"tags"`
 }
 
 func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +184,7 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := s.ImportDocument.Execute(r.Context(), u.ID, usecase.ImportDocumentInput{
 		Type: domain.DocumentType(req.Type), Path: req.Path, Title: req.Title,
-		Body: req.Body, Date: req.Date, NodeID: req.NodeID,
+		Body: req.Body, Date: req.Date, NodeID: req.NodeID, Tags: req.Tags,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidDocument):

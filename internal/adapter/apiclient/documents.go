@@ -11,11 +11,12 @@ import (
 
 // CreateDocumentInput mirrors the server's create payload.
 type CreateDocumentInput struct {
-	Type      string  `json:"type"`
-	NodeID *string `json:"projectId,omitempty"`
-	Path      string  `json:"path"`
-	Title     string  `json:"title"`
-	Body      string  `json:"body"`
+	Type   string   `json:"type"`
+	NodeID *string  `json:"projectId,omitempty"`
+	Path   string   `json:"path"`
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Tags   []string `json:"tags,omitempty"`
 }
 
 func (c *Client) CreateDocument(ctx context.Context, in CreateDocumentInput) (domain.Document, error) {
@@ -61,8 +62,9 @@ func (c *Client) GetDocument(ctx context.Context, id string) (domain.Document, e
 
 // UpdateDocumentInput mirrors the server's update payload.
 type UpdateDocumentInput struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
+	Title string    `json:"title"`
+	Body  string    `json:"body"`
+	Tags  *[]string `json:"tags,omitempty"`
 }
 
 func (c *Client) UpdateDocument(ctx context.Context, id string, in UpdateDocumentInput) (domain.Document, error) {
@@ -103,12 +105,13 @@ func (c *Client) Backlinks(ctx context.Context, id string) ([]domain.BacklinkRef
 
 // ImportDocumentInput mirrors the server's import payload (verbatim persist).
 type ImportDocumentInput struct {
-	Type      string     `json:"type"`
-	Path      string     `json:"path"`
-	Title     string     `json:"title"`
-	Body      string     `json:"body"`
-	Date      *time.Time `json:"date,omitempty"`
+	Type   string     `json:"type"`
+	Path   string     `json:"path"`
+	Title  string     `json:"title"`
+	Body   string     `json:"body"`
+	Date   *time.Time `json:"date,omitempty"`
 	NodeID *string    `json:"projectId,omitempty"`
+	Tags   []string   `json:"tags,omitempty"`
 }
 
 func (c *Client) ImportDocument(ctx context.Context, in ImportDocumentInput) (domain.Document, error) {

@@ -15,6 +15,7 @@ import (
 // tags from frontmatter, validates, and extracts wikilinks.
 type ImportDocument struct {
 	Docs     ports.DocumentStore
+	Tags     ports.TagStore          // optional until B3 wires the composition root
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Notifier ports.DocChangeNotifier // optional; nil → no notification
@@ -22,12 +23,13 @@ type ImportDocument struct {
 
 // ImportDocumentInput is the caller-supplied shape for a verbatim import.
 type ImportDocumentInput struct {
-	Type      domain.DocumentType
-	Path      string
-	Title     string
-	Body      string
-	Date      *time.Time
+	Type   domain.DocumentType
+	Path   string
+	Title  string
+	Body   string
+	Date   *time.Time
 	NodeID *string
+	Tags   []string // explicit tag set; nil → derive from YAML frontmatter (B1 fallback)
 }
 
 func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportDocumentInput) (domain.Document, error) {
@@ -39,8 +41,12 @@ func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportD
 		Body:      domain.StripHighlightSentinels(in.Body),
 		Date:      in.Date, CreatedAt: now, UpdatedAt: now,
 	}
-	tags, bodyStart := domain.ParseFrontmatter(d.Body)
-	d.Tags = tags
+	_, bodyStart := domain.ParseFrontmatter(d.Body)
+	effImport := in.Tags
+	if effImport == nil { // B1 fallback: legacy frontmatter still wins when no explicit tags given
+		effImport, _ = domain.ParseFrontmatter(d.Body)
+	}
+	d.Tags = domain.NormalizeTags(effImport) // legacy column double-write (removed in B2)
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}
@@ -50,6 +56,13 @@ func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportD
 	}
 	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
+	}
+	if uc.Tags != nil {
+		tags, err := uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, created.ID, effImport)
+		if err != nil {
+			return created, err
+		}
+		created.Tags = slugsOf(tags)
 	}
 	if uc.Notifier != nil {
 		uc.Notifier.DocumentChanged()

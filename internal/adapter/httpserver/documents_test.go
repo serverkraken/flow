@@ -27,6 +27,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	ids := &testutil.FakeIDGen{}
 	bus := sse.NewBus()
 	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
 
 	sessions := testutil.NewFakeSessionStore()
 	settings := testutil.NewFakeUserSettingsStore()
@@ -46,11 +47,11 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		Bus:               bus,
 		Clock:             clk,
 		Stats:             stats,
-		CreateDocument:    usecase.CreateDocument{Docs: docs, IDs: ids, Clock: clk},
-		ImportDocument:    usecase.ImportDocument{Docs: docs, IDs: ids, Clock: clk},
+		CreateDocument:    usecase.CreateDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
+		ImportDocument:    usecase.ImportDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
-		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
+		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
@@ -689,5 +690,25 @@ func TestBacklinksEndpoint(t *testing.T) {
 	_ = res404.Body.Close()
 	if res404.StatusCode != 404 {
 		t.Fatalf("missing doc status = %d, want 404", res404.StatusCode)
+	}
+}
+
+func TestHandleCreateDocument_TagsParam(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents",
+		`{"type":"free","path":"tp","title":"T","body":"pure","tags":["go","tui"]}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("want 201, got %d", res.StatusCode)
+	}
+	var doc domain.Document
+	_ = json.NewDecoder(res.Body).Decode(&doc)
+	if len(doc.Tags) != 2 {
+		t.Fatalf("want 2 tags, got %+v", doc.Tags)
 	}
 }

@@ -11,6 +11,7 @@ import (
 // validates, and persists an owner-scoped document.
 type CreateDocument struct {
 	Docs     ports.DocumentStore
+	Tags     ports.TagStore          // optional until B3 wires the composition root
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Notifier ports.DocChangeNotifier // optional; nil → no notification
@@ -18,11 +19,12 @@ type CreateDocument struct {
 
 // CreateDocumentInput is the caller-supplied shape (the use case fills the rest).
 type CreateDocumentInput struct {
-	Type      domain.DocumentType
+	Type   domain.DocumentType
 	NodeID *string
-	Path      string
-	Title     string
-	Body      string
+	Path   string
+	Title  string
+	Body   string
+	Tags   []string // explicit tag set; nil → derive from YAML frontmatter (B1 fallback)
 }
 
 func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateDocumentInput) (domain.Document, error) {
@@ -36,8 +38,12 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 		d.Date = &now
 		d.Path = domain.DailyPath(now)
 	}
-	tags, bodyStart := domain.ParseFrontmatter(d.Body)
-	d.Tags = tags
+	_, bodyStart := domain.ParseFrontmatter(d.Body)
+	eff := in.Tags
+	if eff == nil { // B1 fallback: legacy frontmatter still wins when no explicit tags given
+		eff, _ = domain.ParseFrontmatter(d.Body)
+	}
+	d.Tags = domain.NormalizeTags(eff) // legacy column double-write (removed in B2)
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}
@@ -50,6 +56,13 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	// the create succeeded; a subsequent save heals the link index.
 	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body[bodyStart:])); err != nil {
 		return domain.Document{}, err
+	}
+	if uc.Tags != nil {
+		tags, err := uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, created.ID, eff)
+		if err != nil {
+			return created, err
+		}
+		created.Tags = slugsOf(tags)
 	}
 	if uc.Notifier != nil {
 		uc.Notifier.DocumentChanged()

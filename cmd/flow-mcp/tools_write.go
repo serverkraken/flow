@@ -16,11 +16,12 @@ type errGuard struct{ err error }
 func (e errGuard) Error() string { return e.err.Error() }
 
 type createDocIn struct {
-	Path    string `json:"path" jsonschema:"the document path (hierarchical slug, e.g. notes/architecture)"`
-	Title   string `json:"title" jsonschema:"the document title"`
-	Body    string `json:"body" jsonschema:"the markdown body; tags are set via YAML frontmatter in the body"`
-	Type    string `json:"type" jsonschema:"the document type: daily, project, free, agent, memory, instruction, skill, or plan"`
-	Project string `json:"project,omitempty" jsonschema:"project slug, name, or id to create in; 'global'/'none' for an unassigned document; omit to use the current directory's project"`
+	Path    string   `json:"path" jsonschema:"the document path (hierarchical slug, e.g. notes/architecture)"`
+	Title   string   `json:"title" jsonschema:"the document title"`
+	Body    string   `json:"body" jsonschema:"the markdown body"`
+	Type    string   `json:"type" jsonschema:"the document type: daily, project, free, agent, memory, instruction, skill, or plan"`
+	Project string   `json:"project,omitempty" jsonschema:"project slug, name, or id to create in; 'global'/'none' for an unassigned document; omit to use the current directory's project"`
+	Tags    []string `json:"tags,omitempty" jsonschema:"tags as a flat list; replaces the whole set. Body is pure content — do NOT put tags in YAML frontmatter."`
 }
 
 func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in createDocIn) (*mcp.CallToolResult, any, error) {
@@ -42,7 +43,7 @@ func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in cre
 			pid = nil
 		}
 		d, err := c.CreateDocument(ctx, apiclient.CreateDocumentInput{
-			Type: string(typ), NodeID: pid, Path: in.Path, Title: in.Title, Body: in.Body,
+			Type: string(typ), NodeID: pid, Path: in.Path, Title: in.Title, Body: in.Body, Tags: in.Tags,
 		})
 		if err != nil {
 			return err
@@ -58,10 +59,11 @@ func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in cre
 }
 
 type updateDocIn struct {
-	ID      string  `json:"id" jsonschema:"the document id to update"`
-	Title   *string `json:"title,omitempty" jsonschema:"new title; omit to keep the current title"`
-	Body    *string `json:"body,omitempty" jsonschema:"new markdown body; omit to keep the current body"`
-	Confirm bool    `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
+	ID      string    `json:"id" jsonschema:"the document id to update"`
+	Title   *string   `json:"title,omitempty" jsonschema:"new title; omit to keep the current title"`
+	Body    *string   `json:"body,omitempty" jsonschema:"new markdown body; omit to keep the current body"`
+	Tags    *[]string `json:"tags,omitempty" jsonschema:"replace the whole tag set; omit to leave unchanged; [] to clear"`
+	Confirm bool      `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
 }
 
 func (h *handlers) updateDoc(ctx context.Context, _ *mcp.CallToolRequest, in updateDocIn) (*mcp.CallToolResult, any, error) {
@@ -81,6 +83,7 @@ func (h *handlers) updateDoc(ctx context.Context, _ *mcp.CallToolRequest, in upd
 		if err != nil {
 			return errGuard{err}
 		}
+		payload.Tags = in.Tags
 		d, err := c.UpdateDocument(ctx, in.ID, payload)
 		if err != nil {
 			return err
