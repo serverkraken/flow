@@ -58,6 +58,10 @@ type EventBus interface {
 var (
 	ErrNodeNotFound    = errors.New("project not found")
 	ErrNodeHasChildren = errors.New("node has children")
+	// ErrNodeSlugTaken marks a slug collision: another node under the same parent
+	// (or another root, for engagements) already uses this slug. Slugs are unique
+	// per sibling set, not globally — the same name may repeat across the tree.
+	ErrNodeSlugTaken = errors.New("node slug already taken under this parent")
 
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")

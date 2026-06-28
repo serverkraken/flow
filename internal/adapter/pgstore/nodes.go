@@ -29,9 +29,23 @@ RETURNING ` + nodeCols
 	if ex == nil {
 		ex = map[string]any{}
 	}
-	return scanNode(s.pool.QueryRow(ctx, q,
+	got, err := scanNode(s.pool.QueryRow(ctx, q,
 		n.ID, n.OwnerID, n.ParentID, string(n.Kind), n.Name, n.Slug, n.Color, n.Glyph,
 		n.Description, n.UpstreamGit, os, string(n.Status), ra, rc, ex, n.CreatedAt, n.UpdatedAt))
+	if err != nil {
+		return domain.Node{}, mapSlugConflict(err)
+	}
+	return got, nil
+}
+
+// mapSlugConflict turns a Postgres unique-violation (23505) on a node slug index
+// into the friendly ports.ErrNodeSlugTaken; other errors pass through unchanged.
+func mapSlugConflict(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ports.ErrNodeSlugTaken
+	}
+	return err
 }
 
 func (s *NodeStore) List(ctx context.Context, ownerID string) ([]domain.Node, error) {
@@ -181,7 +195,10 @@ func (s *NodeStore) Reparent(ctx context.Context, ownerID, id string, parentID *
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
-	return n, err
+	if err != nil {
+		return domain.Node{}, mapSlugConflict(err)
+	}
+	return n, nil
 }
 
 // rateCols maps an optional Money to the two nullable columns (both-or-neither).
