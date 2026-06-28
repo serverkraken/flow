@@ -115,6 +115,37 @@ func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 	}
 }
 
+func TestWebEditorCreate_ParsesTags(t *testing.T) {
+	t.Parallel()
+	srv, _, docs, _ := newWebWissenServer(t)
+
+	form := url.Values{
+		"type":  {"free"},
+		"path":  {"e1"},
+		"title": {"T"},
+		"body":  {"b"},
+		"tags":  {"go tui"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/wissen", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+	rec := httptest.NewRecorder()
+
+	srv.handleWebEditorCreate(rec, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 SeeOther, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	doc, err := docs.Get(context.Background(), "u1", "id-1")
+	if err != nil {
+		t.Fatalf("Get doc: %v", err)
+	}
+	if len(doc.Tags) != 2 || doc.Tags[0] != "go" || doc.Tags[1] != "tui" {
+		t.Fatalf("expected tags [go tui], got %v", doc.Tags)
+	}
+}
+
 func authedEditorRequest(method, target string, body *strings.Reader) *http.Request {
 	var req *http.Request
 	if body == nil {

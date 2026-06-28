@@ -85,6 +85,12 @@ templ editorOuter(vm EditorVM) {
 				<input type="text" name="title" value={ vm.Title } class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none"/>
 			</label>
 			<label class="mt-4 block">
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.tags") }</span>
+				<input type="text" name="tags" value={ vm.TagsCSV }
+					placeholder="go tui postgres"
+					class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+			</label>
+			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
 				<textarea name="body"
 					class="h-[60vh] min-h-96 w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.86rem] leading-relaxed focus:border-blue/40 focus:outline-none"

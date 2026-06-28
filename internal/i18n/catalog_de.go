@@ -135,6 +135,7 @@ func init() {
 			"wissen.project":            "Projekt",
 			"wissen.project.none":       "Ohne Projekt",
 			"wissen.path":               "Pfad",
+			"wissen.tags":               "Tags",
 			"wissen.backlinks":          "Referenziert von",
 			"wissen.backlinks.empty":    "Keine Referenzen",
 			"wissen.toc":                "Inhalt",

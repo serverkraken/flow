@@ -11,9 +11,10 @@ type EditorVM struct {
 	User           string
 	ID             string
 	Type           string
-	NodeID      string
+	NodeID         string
 	Path           string
 	Title          string
+	TagsCSV        string
 	Body           string
 	Err            string
 	PreviewHTML    template.HTML

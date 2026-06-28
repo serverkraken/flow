@@ -4,6 +4,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -60,7 +61,7 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	vm, err := s.editorVM(r, u, webui.EditorVM{
 		User: u.Username, ID: doc.ID, Type: string(doc.Type), NodeID: nodeID,
-		Path: doc.Path, Title: doc.Title, Body: doc.Body,
+		Path: doc.Path, Title: doc.Title, TagsCSV: strings.Join(doc.Tags, " "), Body: doc.Body,
 	})
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -73,9 +74,11 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
+	tags := strings.Fields(r.FormValue("tags"))
 	submitted := webui.EditorVM{
 		User: u.Username, Type: r.FormValue("type"), NodeID: r.FormValue("projectId"),
-		Path: r.FormValue("path"), Title: r.FormValue("title"), Body: r.FormValue("body"),
+		Path: r.FormValue("path"), Title: r.FormValue("title"), TagsCSV: r.FormValue("tags"),
+		Body: r.FormValue("body"),
 	}
 	var nodeID *string
 	if submitted.NodeID != "" {
@@ -83,7 +86,7 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
 		Type: domain.DocumentType(submitted.Type), NodeID: nodeID,
-		Path: submitted.Path, Title: submitted.Title, Body: submitted.Body,
+		Path: submitted.Path, Title: submitted.Title, Tags: tags, Body: submitted.Body,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidDocument):
@@ -102,9 +105,11 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	_ = r.ParseForm()
+	tags := strings.Fields(r.FormValue("tags"))
 	_, err := s.UpdateDocument.Execute(r.Context(), u.ID, id, usecase.UpdateDocumentInput{
 		Title: r.FormValue("title"),
 		Body:  r.FormValue("body"),
+		Tags:  &tags,
 	})
 	if errors.Is(err, ports.ErrDocumentNotFound) {
 		http.Error(w, "not found", http.StatusNotFound)
