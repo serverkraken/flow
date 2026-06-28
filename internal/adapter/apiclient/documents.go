@@ -54,6 +54,18 @@ func (c *Client) Tags(ctx context.Context) ([]domain.TagCount, error) {
 	return out, err
 }
 
+// TagsScoped returns tag counts scoped to a specific taggable type (e.g. "document").
+// It calls GET /api/v1/documents/tags?type=<typ>.
+func (c *Client) TagsScoped(ctx context.Context, typ string) ([]domain.TagCount, error) {
+	var out []domain.TagCount
+	path := "/api/v1/documents/tags"
+	if typ != "" {
+		path += "?type=" + url.QueryEscape(typ)
+	}
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
+}
+
 func (c *Client) GetDocument(ctx context.Context, id string) (domain.Document, error) {
 	var out domain.Document
 	err := c.do(ctx, http.MethodGet, "/api/v1/documents/"+id, nil, &out)

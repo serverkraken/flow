@@ -51,6 +51,7 @@ const (
 	modeFiltering                    // tag-filter overlay
 	modeSearch                       // / search input + results
 	modeProjectFilter                // project-filter picker
+	modeDocTags                      // tag editor for the currently viewed document
 )
 
 // create-form fields, navigated with tab/enter.
@@ -100,9 +101,11 @@ type DocsModel struct {
 	height int
 
 	filterTags   []string          // applied filter (AND)
-	filterWork   []string          // working set while in modeFiltering
+	filterWork   []string          // working set while in modeFiltering / modeDocTags
 	filterOpts   []domain.TagCount // available tags for the overlay
 	filterCursor int
+	tagsTarget   docMode // distinguishes which mode tagsLoadedMsg should open (0=modeFiltering)
+	tagNewBuf    string  // inline new-tag input buffer in modeDocTags
 
 	searchQuery string             // current query buffer (input phase)
 	searching   bool               // true once a query has been run (results phase)
@@ -258,6 +261,7 @@ func (m DocsModel) reload() tea.Cmd {
 
 type tagsLoadedMsg struct{ tags []domain.TagCount }
 type searchDoneMsg struct{ hits []domain.SearchHit }
+type docTagsSavedMsg struct{ docID string }
 
 func (m DocsModel) runSearch(q string) tea.Cmd {
 	if m.client == nil {
@@ -282,7 +286,7 @@ func (m DocsModel) loadTags() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		tags, err := m.client.Tags(ctx)
+		tags, err := m.client.TagsScoped(ctx, "document")
 		if err != nil {
 			return errMsg{err}
 		}
@@ -507,10 +511,25 @@ func (m DocsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tagsLoadedMsg:
 		m.filterOpts = msg.tags
-		m.filterWork = append([]string(nil), m.filterTags...)
 		m.filterCursor = 0
-		m.mode = modeFiltering
+		target := m.tagsTarget
+		m.tagsTarget = 0 // always reset so subsequent f-key opens modeFiltering
+		if target == modeDocTags {
+			if m.viewing != nil {
+				m.filterWork = append([]string(nil), m.viewing.Tags...)
+			} else {
+				m.filterWork = nil
+			}
+			m.tagNewBuf = ""
+			m.mode = modeDocTags
+		} else {
+			m.filterWork = append([]string(nil), m.filterTags...)
+			m.mode = modeFiltering
+		}
 		return m, nil
+	case docTagsSavedMsg:
+		m.status = "✓ tags gespeichert"
+		return m, tea.Batch(m.reload(), m.loadDocNoPush(msg.docID))
 	case searchDoneMsg:
 		m.searchHits = msg.hits
 		m.searching = true
@@ -569,7 +588,7 @@ func (m DocsModel) CapturesInput() bool { return m.mode != modeList }
 // the in-document search field is active.
 func (m DocsModel) CapturesText() bool {
 	switch m.mode {
-	case modeCreating, modeFiltering, modeSearch, modeProjectFilter:
+	case modeCreating, modeFiltering, modeSearch, modeProjectFilter, modeDocTags:
 		return true
 	case modeView:
 		return m.overlayReady && m.overlay.CapturesInput()
@@ -620,6 +639,8 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleSearchKey(k)
 	case modeProjectFilter:
 		return m.handleProjectFilterKey(k)
+	case modeDocTags:
+		return m.handleDocTagsKey(k)
 	case modeView:
 		// While the overlay's in-document search input is active it owns every
 		// key (typing the query, Enter/Esc inside search) — forward verbatim.
@@ -648,6 +669,12 @@ func (m DocsModel) handleKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.buildEditorCmd(m.viewing.ID)
+		case k.Text == "t":
+			if m.viewing == nil {
+				return m, nil
+			}
+			m.tagsTarget = modeDocTags
+			return m, m.loadTags()
 		default:
 			// Scroll / search-launch / code-copy belong to the overlay.
 			var cmd tea.Cmd
@@ -872,6 +899,72 @@ func (m DocsModel) handleFilterKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.mode = modeList
 		m.sel = 0
 		return m, m.reload()
+	}
+	return m, nil
+}
+
+// handleDocTagsKey handles keyboard input in modeDocTags (the per-document tag
+// editor). ↑/↓ navigate the tag list; space toggles the tag under the cursor;
+// typing chars appends to the inline new-tag buffer; Enter with a non-empty
+// buffer adds the typed tag to the working set; Enter with an empty buffer
+// commits the working set via UpdateDocument and returns to modeView; Esc
+// discards all changes.
+func (m DocsModel) handleDocTagsKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if cur, ok := listnav.New().Set(m.filterCursor, len(m.filterOpts)).Handle(k, len(m.filterOpts), m.docsPerPage()); ok {
+		m.filterCursor = cur.Index()
+		return m, nil
+	}
+	switch {
+	case k.Code == tea.KeyEsc:
+		m.mode = modeView
+		m.tagNewBuf = ""
+		return m, nil
+	case k.Code == tea.KeyBackspace:
+		m.tagNewBuf = dropLast(m.tagNewBuf)
+		return m, nil
+	case k.Code == tea.KeyEnter:
+		if m.tagNewBuf != "" {
+			// Commit the typed new tag into the working set, then clear the buffer.
+			tag := strings.ToLower(strings.TrimSpace(m.tagNewBuf))
+			if tag != "" && !containsStr(m.filterWork, tag) {
+				m.filterWork = append(m.filterWork, tag)
+			}
+			m.tagNewBuf = ""
+			return m, nil
+		}
+		// Empty buffer → persist the working set to the document.
+		if m.viewing == nil || m.client == nil {
+			m.mode = modeView
+			return m, nil
+		}
+		id := m.viewing.ID
+		title := m.viewing.Title
+		body := m.viewing.Body
+		tags := append([]string(nil), m.filterWork...)
+		m.mode = modeView
+		m.tagNewBuf = ""
+		return m, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if _, err := m.client.UpdateDocument(ctx, id, apiclient.UpdateDocumentInput{
+				Title: title,
+				Body:  body,
+				Tags:  &tags,
+			}); err != nil {
+				return errMsg{err}
+			}
+			return docTagsSavedMsg{docID: id}
+		}
+	case k.Text == " ":
+		// Space toggles the tag under the cursor when the new-tag buffer is empty.
+		// When the buffer is non-empty, space is silently ignored (tag slugs have no spaces).
+		if m.tagNewBuf == "" && m.filterCursor < len(m.filterOpts) {
+			m.filterWork = toggleStr(m.filterWork, m.filterOpts[m.filterCursor].Tag)
+		}
+		return m, nil
+	case k.Text != "":
+		m.tagNewBuf += k.Text
+		return m, nil
 	}
 	return m, nil
 }
@@ -1127,6 +1220,8 @@ func (m DocsModel) View() tea.View {
 		b.WriteString("\n" + theme.Danger("  delete this document? y / n", pal) + "\n")
 	case modeFiltering:
 		m.renderFilter(&b)
+	case modeDocTags:
+		m.renderDocTags(&b)
 	case modeSearch:
 		m.renderSearch(&b)
 	case modeProjectFilter:
@@ -1183,7 +1278,9 @@ func (m DocsModel) SetViewport(w, h int) DocsModel {
 func (m DocsModel) footer() string {
 	switch m.mode {
 	case modeView:
-		return "tab/⇧tab link · enter folgen/öffnen · e edit · esc zurück · q quit"
+		return "tab/⇧tab link · enter folgen/öffnen · e edit · t tags · esc zurück · q quit"
+	case modeDocTags:
+		return "↑/↓ bewegen · space umschalten · tippen neuer tag · enter hinzufügen/speichern · esc abbrechen"
 	case modeCreating:
 		return "tab next · space type · enter next/open editor · esc cancel"
 	case modeDeleting:
@@ -1440,6 +1537,38 @@ func (m DocsModel) renderFilter(b *strings.Builder) {
 			line = lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Accent).Render("▸ " + strings.TrimLeft(line, " "))
 		}
 		b.WriteString(line + "\n")
+	}
+}
+
+// renderDocTags renders the per-document tag editor overlay (modeDocTags).
+// It mirrors the [x]/[ ] toggle-list style of renderFilter and adds an inline
+// new-tag input row at the bottom.
+func (m DocsModel) renderDocTags(b *strings.Builder) {
+	pal := m.pal
+	title := "(no document)"
+	if m.viewing != nil {
+		title = m.viewing.Title
+	}
+	b.WriteString(theme.Heading("Tags — "+title, pal) + "\n")
+	for i, tc := range m.filterOpts {
+		mark := "  [ ] "
+		if containsStr(m.filterWork, tc.Tag) {
+			mark = "  [x] "
+		}
+		line := fmt.Sprintf("%s#%s (%d)", mark, tc.Tag, tc.Count)
+		if i == m.filterCursor {
+			line = lipgloss.NewStyle().Foreground(pal.Bg).Background(pal.Sem().Accent).Render("▸ " + strings.TrimLeft(line, " "))
+		}
+		b.WriteString(line + "\n")
+	}
+	if len(m.filterOpts) == 0 {
+		b.WriteString(theme.Dim("  no existing tags", pal) + "\n")
+	}
+	// Inline new-tag input row.
+	b.WriteString("\n" + theme.Dim("  + neuer tag: ", pal) + m.tagNewBuf + "▏" + "\n")
+	// Show the current working set so the user can track their edits.
+	if len(m.filterWork) > 0 {
+		b.WriteString(theme.Dim("  gesetzt: "+tagSuffix(m.filterWork), pal) + "\n")
 	}
 }
 
