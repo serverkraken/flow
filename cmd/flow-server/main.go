@@ -72,6 +72,7 @@ func run() error {
 	documentStore := pgstore.NewDocumentStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
+	tagStore := pgstore.NewTagStore(pool, ids)
 	bus := sse.NewBus()
 	logger := slog.Default()
 
@@ -144,13 +145,13 @@ func run() error {
 		NodeAncestors:     usecase.NodeAncestors{Nodes: nodeStore},
 		MoveNode:          usecase.MoveNode{Nodes: nodeStore},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bindingStore},
-		CreateDocument:      usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
-		ImportDocument:      usecase.ImportDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker},
+		CreateDocument:      usecase.CreateDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker, Tags: tagStore},
+		ImportDocument:      usecase.ImportDocument{Docs: documentStore, IDs: ids, Clock: clock, Notifier: embedWorker, Tags: tagStore},
 		GetDocument:         usecase.GetDocument{Docs: documentStore},
 		ListDocuments:       usecase.ListDocuments{Docs: documentStore},
 		ListDocumentsPage:   usecase.NewListDocumentsPage(documentStore),
-		UpdateDocument:      usecase.UpdateDocument{Docs: documentStore, Clock: clock, Notifier: embedWorker},
-		DeleteDocument:      usecase.DeleteDocument{Docs: documentStore},
+		UpdateDocument:      usecase.UpdateDocument{Docs: documentStore, Clock: clock, Notifier: embedWorker, Tags: tagStore},
+		DeleteDocument:      usecase.DeleteDocument{Docs: documentStore, Tags: tagStore},
 		BacklinksDocument:   usecase.Backlinks{Docs: documentStore},
 		ListTags:            usecase.ListTags{Docs: documentStore},
 		SearchDocuments:     usecase.SearchDocuments{Docs: documentStore, Embedder: embedder, Log: logger},
