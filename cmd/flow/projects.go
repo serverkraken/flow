@@ -2,21 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 )
 
-// resolveSlug returns the project ID for the given slug, or an error if none matches.
+// resolveSlug returns the node ID for the given slug or slash-path. A bare slug
+// resolves when unambiguous; if several nodes share it, the error lists the
+// fully-qualified paths to re-issue (slugs are unique only per sibling set).
 func resolveSlug(ctx context.Context, c *apiclient.Client, slug string) (string, error) {
-	projects, err := c.ListNodes(ctx)
+	nodes, err := c.ListNodes(ctx)
 	if err != nil {
 		return "", err
 	}
-	for _, p := range projects {
-		if p.Slug == slug {
-			return p.ID, nil
-		}
-	}
-	return "", fmt.Errorf("no project with slug %q", slug)
+	return resolveNodeRef(nodes, slug)
 }

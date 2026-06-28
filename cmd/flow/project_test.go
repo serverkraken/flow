@@ -42,7 +42,7 @@ func TestRunProjectRm_UnknownSlug(t *testing.T) {
 	defer srv.Close()
 	c := apiclient.New(srv.URL, "tkn")
 	err := runNodeRm(context.Background(), c, "nonexistent")
-	if err == nil || !strings.Contains(err.Error(), "no project with slug") {
-		t.Fatalf("want 'no project with slug' error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "no node with slug") {
+		t.Fatalf("want 'no node with slug' error, got %v", err)
 	}
 }
