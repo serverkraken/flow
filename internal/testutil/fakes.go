@@ -882,6 +882,138 @@ func cosine(a, b []float32) float64 {
 	return dot / (math.Sqrt(na) * math.Sqrt(nb))
 }
 
+// FakeTagStore is an in-memory ports.TagStore.
+type FakeTagStore struct {
+	mu      sync.Mutex
+	display map[string]string              // owner|slug -> display
+	links   map[string]map[string]bool     // owner|type|id -> set of slugs
+	idgen   int
+}
+
+func NewFakeTagStore() *FakeTagStore {
+	return &FakeTagStore{display: map[string]string{}, links: map[string]map[string]bool{}}
+}
+
+func (s *FakeTagStore) key(owner string, typ domain.TaggableType, id string) string {
+	return owner + "|" + string(typ) + "|" + id
+}
+
+func (s *FakeTagStore) SetTags(_ context.Context, ownerID string, typ domain.TaggableType, id string, raw []string) ([]domain.Tag, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	set := map[string]bool{}
+	var out []domain.Tag
+	for _, r := range domain.NormalizeTags(raw) {
+		set[r] = true
+		dk := ownerID + "|" + r
+		if _, ok := s.display[dk]; !ok {
+			s.display[dk] = r
+		}
+		s.idgen++
+		out = append(out, domain.Tag{ID: "ft", OwnerID: ownerID, Slug: r, Display: s.display[dk]})
+	}
+	s.links[s.key(ownerID, typ, id)] = set
+	return out, nil
+}
+
+func (s *FakeTagStore) TagsFor(_ context.Context, ownerID string, typ domain.TaggableType, id string) ([]domain.Tag, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Tag
+	for slug := range s.links[s.key(ownerID, typ, id)] {
+		out = append(out, domain.Tag{OwnerID: ownerID, Slug: slug, Display: s.display[ownerID+"|"+slug]})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
+	return out, nil
+}
+
+func (s *FakeTagStore) TagsForMany(ctx context.Context, ownerID string, typ domain.TaggableType, ids []string) (map[string][]domain.Tag, error) {
+	out := map[string][]domain.Tag{}
+	for _, id := range ids {
+		t, _ := s.TagsFor(ctx, ownerID, typ, id)
+		if len(t) > 0 {
+			out[id] = t
+		}
+	}
+	return out, nil
+}
+
+func (s *FakeTagStore) FilterIDs(_ context.Context, ownerID string, typ domain.TaggableType, slugs []string, mode domain.TagMatch) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	want := domain.NormalizeTags(slugs)
+	var out []string
+	prefix := ownerID + "|" + string(typ) + "|"
+	for k, set := range s.links {
+		if !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		n := 0
+		for _, w := range want {
+			if set[w] {
+				n++
+			}
+		}
+		ok := (mode == domain.TagMatchAll && n == len(want)) || (mode == domain.TagMatchAny && n > 0)
+		if ok {
+			out = append(out, strings.TrimPrefix(k, prefix))
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (s *FakeTagStore) ListTags(_ context.Context, ownerID string, scope domain.TagScope) ([]domain.TagCount, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	counts := map[string]int{}
+	for k, set := range s.links {
+		parts := strings.SplitN(k, "|", 3)
+		if parts[0] != ownerID {
+			continue
+		}
+		if scope.Type != nil && parts[1] != string(*scope.Type) {
+			continue
+		}
+		for slug := range set {
+			counts[slug]++
+		}
+	}
+	var out []domain.TagCount
+	for slug, n := range counts {
+		out = append(out, domain.TagCount{Tag: slug, Count: n})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].Tag < out[j].Tag
+	})
+	return out, nil
+}
+
+func (s *FakeTagStore) ClearTaggable(_ context.Context, ownerID string, typ domain.TaggableType, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.links, s.key(ownerID, typ, id))
+	return nil
+}
+
+func (s *FakeTagStore) MergeTags(_ context.Context, ownerID, fromSlug, intoSlug string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	from, _ := domain.NormalizeTag(fromSlug)
+	into, _ := domain.NormalizeTag(intoSlug)
+	prefix := ownerID + "|"
+	for k, set := range s.links {
+		if strings.HasPrefix(k, prefix) && set[from] {
+			delete(set, from)
+			set[into] = true
+		}
+	}
+	return nil
+}
+
 // FakeProjectBindingStore is an in-memory ports.ProjectBindingStore.
 // Upsert replaces an existing row by kind-key: (owner, remote_slug) for
 // BindingRemote, or (owner, machine_id, path) for BindingPath.
@@ -1023,3 +1155,5 @@ func pseudoVec(s string, dim int) []float32 {
 	}
 	return v
 }
+
+var _ ports.TagStore = (*FakeTagStore)(nil)

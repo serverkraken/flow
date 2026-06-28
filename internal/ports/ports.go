@@ -215,6 +215,17 @@ type DocumentStore interface {
 	EmbedStatus(ctx context.Context, ownerID, docID string) (domain.EmbedStatus, error)
 }
 
+// TagStore is the polymorphic tag registry + junction (B2).
+type TagStore interface {
+	SetTags(ctx context.Context, ownerID string, typ domain.TaggableType, taggableID string, raw []string) ([]domain.Tag, error)
+	TagsFor(ctx context.Context, ownerID string, typ domain.TaggableType, taggableID string) ([]domain.Tag, error)
+	TagsForMany(ctx context.Context, ownerID string, typ domain.TaggableType, ids []string) (map[string][]domain.Tag, error)
+	FilterIDs(ctx context.Context, ownerID string, typ domain.TaggableType, slugs []string, mode domain.TagMatch) ([]string, error)
+	ListTags(ctx context.Context, ownerID string, scope domain.TagScope) ([]domain.TagCount, error)
+	ClearTaggable(ctx context.Context, ownerID string, typ domain.TaggableType, taggableID string) error
+	MergeTags(ctx context.Context, ownerID, fromSlug, intoSlug string) error
+}
+
 // ProjectBindingStore persists project bindings (remote-slug and path-prefix
 // rules). All reads are owner-scoped. Upsert replaces an existing row with
 // the same kind-key: (owner, remote_slug) for BindingRemote, or
