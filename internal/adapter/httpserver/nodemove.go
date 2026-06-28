@@ -27,6 +27,8 @@ func (s *Server) handleMoveNode(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, usecase.ErrNodeCycle):
 		http.Error(w, "move would create a cycle", http.StatusConflict)
+	case errors.Is(err, ports.ErrNodeSlugTaken):
+		http.Error(w, "the target parent already has a node with this slug", http.StatusConflict)
 	case errors.Is(err, domain.ErrInvalidNode):
 		http.Error(w, "invalid parent for this node kind", http.StatusBadRequest)
 	case errors.Is(err, ports.ErrNodeNotFound):

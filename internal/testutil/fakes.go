@@ -100,8 +100,25 @@ func NewFakeNodeStore() *FakeNodeStore {
 func (s *FakeNodeStore) Create(_ context.Context, p domain.Node) (domain.Node, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.slugTaken(p.OwnerID, p.ParentID, p.Slug, p.ID) {
+		return domain.Node{}, ports.ErrNodeSlugTaken
+	}
 	s.m[p.ID] = p
 	return p, nil
+}
+
+// slugTaken mirrors pgstore's per-sibling uniqueness: a slug clashes only with
+// another node of the same owner and the same parent (NULL parents form one set).
+func (s *FakeNodeStore) slugTaken(owner string, parentID *string, slug, exceptID string) bool {
+	for _, n := range s.m {
+		if n.OwnerID != owner || n.ID == exceptID || n.Slug != slug {
+			continue
+		}
+		if (n.ParentID == nil) == (parentID == nil) && (parentID == nil || *n.ParentID == *parentID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *FakeNodeStore) List(_ context.Context, ownerID string) ([]domain.Node, error) {
@@ -221,6 +238,9 @@ func (s *FakeNodeStore) Reparent(_ context.Context, ownerID, id string, parentID
 	n, ok := s.m[id]
 	if !ok || n.OwnerID != ownerID {
 		return domain.Node{}, ports.ErrNodeNotFound
+	}
+	if s.slugTaken(ownerID, parentID, n.Slug, id) {
+		return domain.Node{}, ports.ErrNodeSlugTaken
 	}
 	n.ParentID = parentID
 	s.m[id] = n

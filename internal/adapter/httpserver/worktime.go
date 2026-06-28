@@ -207,6 +207,9 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, domain.ErrInvalidNode):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	case errors.Is(err, ports.ErrNodeSlugTaken):
+		http.Error(w, "a sibling node already uses this slug", http.StatusConflict)
+		return
 	case errors.Is(err, ports.ErrNodeNotFound): // parent referenced but absent
 		http.Error(w, "parent not found", http.StatusBadRequest)
 		return
