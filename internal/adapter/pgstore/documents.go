@@ -224,6 +224,38 @@ RETURNING id, updated_at`
 	return gotID, updated, nil
 }
 
+func (s *DocumentStore) ListForContext(ctx context.Context, ownerID string, nodeIDs []string, includeGlobal bool, types []domain.DocumentType) ([]domain.Document, error) {
+	ts := make([]string, len(types))
+	for i, t := range types {
+		ts[i] = string(t)
+	}
+	args := []any{ownerID, ts}
+	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1 AND type = ANY($2)`
+	switch {
+	case len(nodeIDs) > 0 && includeGlobal:
+		args = append(args, nodeIDs)
+		q += ` AND (node_id = ANY($3) OR node_id IS NULL)`
+	case len(nodeIDs) > 0:
+		args = append(args, nodeIDs)
+		q += ` AND node_id = ANY($3)`
+	case includeGlobal:
+		q += ` AND node_id IS NULL`
+	default:
+		return nil, nil
+	}
+	q += ` ORDER BY updated_at DESC`
+	rows, err := s.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: list for context: %w", err)
+	}
+	defer rows.Close()
+	docs, err := scanDocuments(rows)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateTags(ctx, ownerID, docs)
+}
+
 func (s *DocumentStore) ReplaceLinks(ctx context.Context, srcDocID, ownerID string, targets []string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

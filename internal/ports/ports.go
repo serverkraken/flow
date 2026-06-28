@@ -204,6 +204,13 @@ type DocumentStore interface {
 	// updated_at regardless of whether the row was inserted or updated.
 	UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (id string, updatedAt time.Time, err error)
 
+	// ListForContext returns the owner's documents matching any of the given
+	// nodeIDs or — when includeGlobal is true — those with node_id IS NULL,
+	// filtered to the given document types. Tags are hydrated. Used by the
+	// compose usecase (A5) to gather instruction+memory docs along the
+	// ancestor chain plus optional global docs in a single query.
+	ListForContext(ctx context.Context, ownerID string, nodeIDs []string, includeGlobal bool, types []domain.DocumentType) ([]domain.Document, error)
+
 	// StaleDocuments returns up to limit documents needing (re)embedding
 	// (chunks_hash out of date), excluding dead-lettered docs and those still
 	// within a backoff window, each with its prior consecutive failure count.

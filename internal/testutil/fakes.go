@@ -945,6 +945,34 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 	return id, time.Time{}, nil
 }
 
+func (s *FakeDocumentStore) ListForContext(_ context.Context, ownerID string, nodeIDs []string, includeGlobal bool, types []domain.DocumentType) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	inNodes := map[string]bool{}
+	for _, n := range nodeIDs {
+		inNodes[n] = true
+	}
+	inTypes := map[domain.DocumentType]bool{}
+	for _, t := range types {
+		inTypes[t] = true
+	}
+	var out []domain.Document
+	for _, d := range s.m {
+		if d.OwnerID != ownerID || !inTypes[d.Type] {
+			continue
+		}
+		switch {
+		case d.NodeID == nil:
+			if includeGlobal {
+				out = append(out, d)
+			}
+		case inNodes[*d.NodeID]:
+			out = append(out, d)
+		}
+	}
+	return out, nil
+}
+
 func cosine(a, b []float32) float64 {
 	if len(a) != len(b) || len(a) == 0 {
 		return -1

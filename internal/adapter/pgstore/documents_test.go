@@ -609,3 +609,43 @@ func TestDocumentStore_UpsertByPath_PreservesPin(t *testing.T) {
 		t.Fatalf("upsert-on-conflict must PRESERVE the existing pin")
 	}
 }
+
+func TestDocumentStore_ListForContext(t *testing.T) {
+	t.Parallel()
+	ds, us, ns, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	leaf, eng := "leafN", "engN"
+	seedNode(t, ns, "u1", leaf)
+	seedNode(t, ns, "u1", eng)
+
+	mk := func(id, typ string, node *string) {
+		if _, err := ds.Create(ctx, domain.Document{ID: id, OwnerID: "u1", NodeID: node, Type: domain.DocumentType(typ), Path: id, Title: id, Body: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("i-leaf", "instruction", &leaf)
+	mk("m-leaf", "memory", &leaf)
+	mk("m-eng", "memory", &eng)
+	mk("i-glob", "instruction", nil)
+	mk("daily-leaf", "daily", &leaf) // must be excluded by type filter
+
+	got, err := ds.ListForContext(ctx, "u1", []string{leaf, eng}, true,
+		[]domain.DocumentType{domain.DocInstruction, domain.DocMemory})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, d := range got {
+		ids[d.ID] = true
+	}
+	for _, want := range []string{"i-leaf", "m-leaf", "m-eng", "i-glob"} {
+		if !ids[want] {
+			t.Errorf("ListForContext missing %s; got %v", want, ids)
+		}
+	}
+	if ids["daily-leaf"] {
+		t.Errorf("type filter leaked a daily doc")
+	}
+}
