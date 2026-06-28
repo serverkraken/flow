@@ -32,7 +32,8 @@ und fügt **eine** Schema-Änderung hinzu (`documents.pinned`).
 - **Einschritt-Write:** native Auto-Memory aus + Konvention „Memory nur nach flow"; generelle Memories laufen weiter über `flow_create_doc/update_doc`.
 
 **Out (bewusst — je eigener Baustein):**
-- **Branch-Mechanik** (2-dim Resolution origin→Repo + `git branch`→Branch-Node, `gitremote.CurrentBranch`, auto-create, branch-scoped activeContext, Nicht-Code-`vorhaben`-Scope) → **B3c**. B3-Kern ist repo-scoped = Default-Branch-Fall, **forward-compatible** (B1-8: `node_id` zeigt später auf den Branch-Node statt Repo).
+- **Branch-Mechanik** (2-dim Resolution origin→Repo + `git branch`→Branch-Node, `gitremote.CurrentBranch`, branch-scoped activeContext) → **B3c**. B3-Kern ist repo-scoped = Default-Branch-Fall, **forward-compatible** (B1-8: `node_id` zeigt später auf den Branch-Node statt Repo).
+- **Auto-create** von Knoten+Binding für *ungebundene* Verzeichnisse (Code ohne Upstream **oder** Nicht-Code) → **B3c** (einmal sauber mit der Branch-Node-Auto-create-Mechanik entworfen). B3-Kern verlangt eine **bestehende** Bindung; ungebunden → global-Tier + „bind mich"-Hinweis (siehe B3-11).
 - **DocType-Redesign** (`agent`→`spec`/`plan`, `activeContext` als eigener Type) + **Werte-Umschreiben aller doc-`path`** → **B3d**. B3-Kern operationalisiert D5 über **bestehende** Types (`instruction`/`memory`).
 - **Ist-Migration** (~40 lokale Memories + globale CLAUDE.md + `CLAUDE-*.md` → flow, klassifiziert) → **B3d**.
 - **Lifecycle** (Provenance, Verfall, `veraltet`-Status, Verdichtung) → **Querschnitt A**. `pinned` ist der einzige vorgezogene, vorwärtskompatible Anker.
@@ -51,6 +52,7 @@ und fügt **eine** Schema-Änderung hinzu (`documents.pinned`).
 - **B3-8** Concurrency = **last-write-wins** (Einzelnutzer, sequenziell über Geräte); `updated_at` wird mitgegeben; If-Match deferred.
 - **B3-9** **Offline-Cache** (`~/.flow/context-cache/<key>.json`): bei flow-unerreichbar stale-mit-Marker servieren — **`SessionStart` bricht nie hart ab**. Der **HARD-RULES-Seed** (D6, lokales `~/.claude/CLAUDE.md`) bleibt **handgepflegt**; der Installer rührt CLAUDE.md **nie** an, nur `settings.json`.
 - **B3-10** Die `global≠none`-Falle lebt **vollständig im Compose-Usecase** (global = `node_id IS NULL`); Caller/CLI/Hook/MCP sehen sie nie.
+- **B3-11** **Kein Git-Upstream = gelöst über B1s `path`-Binding** (per-PC, machine-id + cwd-Präfix): `ResolveNode` liefert dann einen `repo` (ohne `origin_slug`) **oder** ein Blatt-`vorhaben` (Nicht-Code, B1 §14). Compose (`Ancestors`-Walk) + activeContext-Upsert sind **kind-agnostisch** — kein Sonderfall-Code. Eine path-Bindung ist **per-PC** (ohne origin kein cross-device-Schlüssel) → einmal pro Rechner `flow node bind`; der *Kontext* (activeContext/Memories) liegt trotzdem server-seitig und synct. *Ungebundenes* solches Verzeichnis → nur global-Tier + Hinweis „nicht gebunden — `flow node bind`", nie Fehler. **Auto-create** = B3c. *(entschieden 2026-06-28)*
 
 ---
 
@@ -103,7 +105,7 @@ func Compose(always alwaysTier, relevance relevanceTier, cap int) ComposedContex
 ```
 
 **Usecase `ComposeContext.Execute(ctx, owner, in ResolveInput, cap int)`** (`ResolveInput{RemoteSlug, MachineID, Cwd, NodeOverride string}` — dieselben Eingaben wie B1 `ResolveNode`, vom CLI/MCP **client-seitig** gefüllt, da nur der Client git-origin + machine-id seines Repos kennt):
-1. **Resolve** via B1 `ResolveNode(owner, RemoteSlug, MachineID, Cwd)` (oder `NodeOverride`-Slug) → Repo-Node. Unauflösbar → `Unresolved=true`, nur global-Tier (kein Fehler).
+1. **Resolve** via B1 `ResolveNode(owner, RemoteSlug, MachineID, Cwd)` (oder `NodeOverride`-Slug) → **Blatt-Knoten** (`repo` *oder* — bei path-Bindung ohne Git-Upstream — Blatt-`vorhaben`; alles Weitere **kind-agnostisch**, B3-11). Unauflösbar/ungebunden → `Unresolved=true`, nur global-Tier (kein Fehler); der Render-Hinweis schlägt `flow node bind` vor.
 2. **Ancestors** `NodeStore.Ancestors(owner, repoID)` → Kette `[repo,(vorhaben),engagement]`.
 3. **Gather** (Store-Queries, §4): instructions(Kette ∪ NULL) · activeContext(memory@repo@`active-context`) · memory(node ∈ {repo,vorhaben}) · memory@engagement · global-memory tag-gegatet.
 4. **Tag-Gate global (D7):** `AktiveTags` = ∪ Tags der Kettenknoten (B2 node-`TagsForMany`); `FilterIDs('document', AktiveTags, TagOr)` ∩ {global memories}. Leere AktiveTags ⇒ kein global-memory-Cross.
