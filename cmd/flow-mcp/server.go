@@ -94,6 +94,14 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Name:        "flow_bind_project",
 		Description: "Bind the current working directory to a flow project so other tools auto-scope here. Pass project (existing id/slug/name) or create_name (to create one). Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind.",
 	}, h.bindProject)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_get_context",
+		Description: "Compose the cross-device start-context (instructions + activeContext + memories) for the current repo, token-budgeted.",
+	}, h.getContext)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_set_active_context",
+		Description: "Upsert this repo's activeContext memory (where I was / what's open / next step).",
+	}, h.setActiveContext)
 	return s, h
 }
 
