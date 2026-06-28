@@ -4,7 +4,7 @@ project: github.com/serverkraken/flow
 ---
 # flow Kontext-Redesign · Baustein 2 — Tag-System — Detail-Spec
 
-**Datum:** 2026-06-28 · **Branch:** `rebuild` (Slice-Branch beim Start des Plans) · **Status:** Design bestätigt (Speichermodell + Worktime-Migration + Body-Strip am 2026-06-28 entschieden); bereit für Implementation-Plan
+**Datum:** 2026-06-28 · **Branch:** `b2-tag-system` (off `rebuild`, unmerged) · **Status:** **implementiert** (17 Tasks subagent-driven, `make ci` grün 76.1%, `2bc6…7194200` Range; live curl-smoke vs Postgres+Dex grün — alle Endpoints + Migration 0019/0020 + Backfill + EditSession-tri-state verifiziert; Browser/TUI-Interaktiv-Dogfood offen für Soenne)
 **Übersichts-Spec:** `docs/superpowers/specs/2026-06-27-flow-kontext-redesign-design.md` (Achsen, Mechanik, D1–D11)
 **Vorgänger (Hierarchie):** `docs/superpowers/specs/2026-06-27-flow-kontext-b1-hierarchie-bindings-design.md` (B1 gelandet — `nodes`-Hierarchie, Migr. 0015–0018)
 **Tag-Ursprung (M2c):** `docs/superpowers/specs/2026-06-15-flow-rebuild-m2c-tags-filter-design.md` (Frontmatter-Tags, die B2 ablöst)
