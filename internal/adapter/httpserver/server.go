@@ -88,6 +88,10 @@ type Server struct {
 	// maintenance (F1)
 	StripFrontmatter usecase.StripFrontmatter
 
+	// B3 context store (B1)
+	ComposeContext usecase.ComposeContext
+	ContextBudget  int // default cap when ?cap= absent; 0 → fall back to 6000
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -210,6 +214,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 
 	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
+
+	mux.Handle("GET /api/v1/context", s.auth(http.HandlerFunc(s.handleGetContext)))
 
 	mux.Handle("GET /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodesHome)))
 	mux.Handle("GET /ui/nodes/list", s.webAuth(http.HandlerFunc(s.handleWebNodesList)))

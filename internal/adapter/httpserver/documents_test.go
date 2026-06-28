@@ -29,6 +29,9 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
 
+	nodes := testutil.NewFakeNodeStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
 	sessions := testutil.NewFakeSessionStore()
 	settings := testutil.NewFakeUserSettingsStore()
 	dayOffs := testutil.NewFakeDayOffStore()
@@ -61,6 +64,11 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
 		AddSession:   usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
 		EditSession:  usecase.EditSession{Sessions: sessions, Tags: tags},
+		ComposeContext: usecase.ComposeContext{
+			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+			Nodes:   nodes, Docs: docs, Tags: tags,
+		},
+		ContextBudget: 6000,
 	}
 	return srv, bus
 }
