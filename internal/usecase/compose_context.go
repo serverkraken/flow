@@ -2,11 +2,70 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
+
+// ErrContextUnresolved means the cwd/remote did not resolve to a bound node, so there
+// is nowhere to write the activeContext (the human must `flow node bind` first).
+var ErrContextUnresolved = errors.New("usecase: context not resolved (bind the repo first)")
+
+// SetActiveContext writes (or upserts) an active-context memory doc at the
+// resolved leaf node. It mirrors how ComposeContext resolves a leaf, then calls
+// Docs.UpsertByPath at the fixed ActiveContextPath.
+type SetActiveContext struct {
+	Resolve ResolveNode
+	Nodes   ports.NodeStore
+	Docs    ports.DocumentStore
+	Tags    ports.TagStore
+}
+
+// Execute resolves the leaf (NodeOverride slug lookup OR Resolve.Execute),
+// returns ErrContextUnresolved when no bound node is found, then upserts the
+// active-context memory doc. Tag writes happen after the upsert; a tag error
+// is swallowed to avoid orphaning the successful upsert.
+func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in ContextResolveInput, title, body string, tags []string) (string, time.Time, error) {
+	var leaf domain.Node
+	var ok bool
+	var err error
+	if in.NodeOverride != "" {
+		all, e := uc.Nodes.List(ctx, ownerID)
+		if e != nil {
+			return "", time.Time{}, e
+		}
+		for _, n := range all {
+			if n.Slug == in.NodeOverride {
+				leaf, ok = n, true
+				break
+			}
+		}
+	} else {
+		leaf, ok, err = uc.Resolve.Execute(ctx, ownerID, in.RemoteSlug, in.MachineID, in.Cwd)
+	}
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if !ok {
+		return "", time.Time{}, ErrContextUnresolved
+	}
+	if strings.TrimSpace(title) == "" {
+		title = "Active Context"
+	}
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocMemory, ActiveContextPath, title, body, false)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if tags != nil {
+		// Tag write after the entity write; a tag failure must not orphan the upsert.
+		_, _ = uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, id, tags)
+	}
+	return id, updated, nil
+}
 
 // ActiveContextPath is the fixed path of the per-leaf activeContext memory doc.
 const ActiveContextPath = "active-context"

@@ -68,6 +68,10 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
 			Nodes:   nodes, Docs: docs, Tags: tags,
 		},
+		SetActiveContext: usecase.SetActiveContext{
+			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+			Nodes:   nodes, Docs: docs, Tags: tags,
+		},
 		ContextBudget: 6000,
 	}
 	return srv, bus

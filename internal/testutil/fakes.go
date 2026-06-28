@@ -1137,6 +1137,15 @@ type FakeProjectBindingStore struct {
 
 func NewFakeProjectBindingStore() *FakeProjectBindingStore { return &FakeProjectBindingStore{} }
 
+// BindRemote is a test-only convenience that upserts a remote-slug→node binding.
+func (s *FakeProjectBindingStore) BindRemote(ctx context.Context, ownerID, remoteSlug, nodeID string) error {
+	_, err := s.Upsert(ctx, domain.ProjectBinding{
+		OwnerID: ownerID, NodeID: nodeID,
+		Kind: domain.BindingRemote, RemoteSlug: remoteSlug,
+	})
+	return err
+}
+
 // bindingKey returns the natural key for upsert/delete matching.
 func bindingKey(b domain.ProjectBinding) string {
 	if b.Kind == domain.BindingRemote {
