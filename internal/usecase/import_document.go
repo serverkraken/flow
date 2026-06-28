@@ -40,7 +40,7 @@ func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportD
 		Path:      in.Path,
 		Title:     domain.StripHighlightSentinels(in.Title),
 		Body:      domain.StripHighlightSentinels(in.Body),
-		Tags:      domain.NormalizeTags(eff),
+		Tags:      domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
 		Date:      in.Date, CreatedAt: now, UpdatedAt: now,
 	}
 	_, bodyStart := domain.ParseFrontmatter(d.Body)

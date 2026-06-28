@@ -323,23 +323,36 @@ func TestUpdateDocument_ExplicitTagsParam(t *testing.T) {
 }
 
 // TestUpdateDocument_NilTagsLeavesExistingUnchanged verifies that when in.Tags
-// is nil, existing tags are not modified.
+// is nil, the persisted taggings in the tag store are not modified.
+// NOTE: asserting against FakeTagStore (source of truth), not the returned doc —
+// the real pgstore.Update returns Tags=nil (column dropped; Update doesn't
+// hydrate), so checking the return value would pass for the wrong reason.
 func TestUpdateDocument_NilTagsLeavesExistingUnchanged(t *testing.T) {
+	t.Parallel()
 	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
 	ctx := context.Background()
 	seed, _ := docs.Create(ctx, domain.Document{
-		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "unchanged", Tags: []string{"kept"},
+		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "unchanged",
 	})
-	uc := usecase.UpdateDocument{Docs: docs, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
-	got, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
-		Title: "N", Body: "---\ntags: [ignored]\n---\nbody",
-		// Tags: nil — should leave existing tags unchanged
-	})
-	if err != nil {
-		t.Fatal(err)
+	// Seed an existing tag set via the tag store (the source of truth).
+	if _, err := tags.SetTags(ctx, "u", domain.TaggableDocument, seed.ID, []string{"kept"}); err != nil {
+		t.Fatalf("seed tags: %v", err)
 	}
-	if want := []string{"kept"}; !reflect.DeepEqual(got.Tags, want) {
-		t.Fatalf("tags = %#v, want %#v (nil input should not change tags)", got.Tags, want)
+	uc := usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	if _, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
+		Title: "N", Body: "---\ntags: [ignored]\n---\nbody",
+		// Tags: nil — must NOT touch taggings
+	}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	// Assert against the tag store — not the returned doc.
+	got, err := tags.TagsFor(ctx, "u", domain.TaggableDocument, seed.ID)
+	if err != nil {
+		t.Fatalf("TagsFor: %v", err)
+	}
+	if len(got) != 1 || got[0].Slug != "kept" {
+		t.Fatalf("taggings = %v, want [{slug:kept}] (nil-tags update must not touch taggings)", got)
 	}
 }
 

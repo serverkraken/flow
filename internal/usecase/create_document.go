@@ -33,7 +33,7 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
 		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
-		Tags:      domain.NormalizeTags(eff),
+		Tags:      domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
 		CreatedAt: now, UpdatedAt: now,
 	}
 	if in.Type == domain.DocDaily {
