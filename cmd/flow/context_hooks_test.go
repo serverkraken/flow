@@ -42,3 +42,18 @@ func TestMergeHooks_PreservesForeignHooks(t *testing.T) {
 		t.Fatalf("foreign=%v ours=%v", foreign, ours)
 	}
 }
+
+func TestMergeHooks_DoesNotMutateInput(t *testing.T) {
+	in := map[string]any{"hooks": map[string]any{
+		"SessionStart": []any{map[string]any{"hooks": []any{
+			map[string]any{"type": "command", "command": "some-other-tool"},
+		}}},
+	}}
+	before, _ := in["hooks"].(map[string]any)["SessionStart"].([]any)
+	wantLen := len(before)
+	mergeHooks(in)
+	after, _ := in["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(after) != wantLen {
+		t.Fatalf("input mutated: SessionStart len before=%d after=%d", wantLen, len(after))
+	}
+}
