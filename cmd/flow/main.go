@@ -19,6 +19,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(exportCmd())
 	root.AddCommand(nodeCmd())
 	root.AddCommand(docsCmd())
+	root.AddCommand(contextCmd())
 	root.AddCommand(uiCmd())
 	return root
 }

@@ -161,6 +161,16 @@ func run() error {
 		RetryEmbedding:      usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker},
 		GetEmbedStatus:      usecase.GetEmbedStatus{Docs: documentStore},
 		StripFrontmatter:    usecase.StripFrontmatter{Docs: documentStore, Clock: clock},
+		ComposeContext: usecase.ComposeContext{
+			Resolve: usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore},
+			Nodes:   nodeStore, Docs: documentStore, Tags: tagStore,
+		},
+		SetActiveContext: usecase.SetActiveContext{
+			Resolve: usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore},
+			Nodes:   nodeStore, Docs: documentStore, Tags: tagStore,
+		},
+		SetPinned:     usecase.SetPinned{Docs: documentStore},
+		ContextBudget: contextBudget(os.Getenv),
 		Users:               userStore,
 		OIDCAuth:            authn,
 		Session:             websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
@@ -227,4 +237,13 @@ func getenvInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+func contextBudget(getenv func(string) string) int {
+	if v := getenv("FLOW_CONTEXT_BUDGET"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 6000
 }
