@@ -64,6 +64,10 @@ type Server struct {
 	MoveNode          usecase.MoveNode
 	ListNodeBindings  usecase.ListNodeBindings
 
+	// node tagging (C2)
+	SetTags usecase.SetTags
+	GetTags usecase.GetTags
+
 	// m2a documents
 	CreateDocument    usecase.CreateDocument
 	ImportDocument    usecase.ImportDocument
@@ -131,6 +135,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindNode)))
 	mux.Handle("GET /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleListNodeBindingsByNode)))
 	mux.Handle("GET /api/v1/nodes/{id}/ancestors", s.auth(http.HandlerFunc(s.handleNodeAncestors)))
+	mux.Handle("GET /api/v1/nodes/{id}/tags", s.auth(http.HandlerFunc(s.handleGetNodeTags)))
+	mux.Handle("PUT /api/v1/nodes/{id}/tags", s.auth(http.HandlerFunc(s.handleSetNodeTags)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))

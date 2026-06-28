@@ -7,6 +7,20 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+// NodeTags returns the tags assigned to a node.
+func (c *Client) NodeTags(ctx context.Context, id string) ([]domain.Tag, error) {
+	var out []domain.Tag
+	err := c.do(ctx, http.MethodGet, "/api/v1/nodes/"+id+"/tags", nil, &out)
+	return out, err
+}
+
+// SetNodeTags replaces the tags on a node and returns the resulting set.
+func (c *Client) SetNodeTags(ctx context.Context, id string, tags []string) ([]domain.Tag, error) {
+	var out []domain.Tag
+	err := c.do(ctx, http.MethodPut, "/api/v1/nodes/"+id+"/tags", map[string]any{"tags": tags}, &out)
+	return out, err
+}
+
 // CreateNodeFields are the inputs for creating a node. JSON tags match the
 // server's createNodeReq.
 type CreateNodeFields struct {
