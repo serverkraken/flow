@@ -260,12 +260,16 @@ func TestListTags(t *testing.T) {
 	}
 }
 
-func TestCreateDocument_TagsFromFrontmatter(t *testing.T) {
+// TestCreateDocument_ExplicitTagsOverrideFrontmatter verifies that explicit tags
+// in the input are used; body frontmatter is preserved verbatim but no longer
+// used as a tag source after B2.
+func TestCreateDocument_ExplicitTagsOverrideFrontmatter(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	uc := usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
 	got, err := uc.Execute(context.Background(), "u", usecase.CreateDocumentInput{
 		Type: domain.DocFree, Path: "note", Title: "Note",
-		Body: "---\ntags: [Go, go, tui]\n---\nhello",
+		Body: "---\ntags: [ignored]\n---\nhello",
+		Tags: []string{"go", "tui"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -278,21 +282,64 @@ func TestCreateDocument_TagsFromFrontmatter(t *testing.T) {
 	}
 }
 
-func TestUpdateDocument_TagsFromFrontmatter(t *testing.T) {
+// TestCreateDocument_NoTagsWhenNilInput verifies that nil Tags input results in
+// no tags being set (frontmatter fallback removed in B2).
+func TestCreateDocument_NoTagsWhenNilInput(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
+	uc := usecase.CreateDocument{Docs: docs, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(context.Background(), "u", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "note2", Title: "Note2",
+		Body: "---\ntags: [ignored]\n---\nhello",
+		// Tags: nil — no explicit tags
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Tags) != 0 {
+		t.Fatalf("want no tags when input is nil, got %v", got.Tags)
+	}
+}
+
+// TestUpdateDocument_ExplicitTagsParam verifies that in.Tags != nil updates tags;
+// nil in.Tags leaves existing tags unchanged (frontmatter fallback removed in B2).
+func TestUpdateDocument_ExplicitTagsParam(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
 	ctx := context.Background()
 	seed, _ := docs.Create(ctx, domain.Document{
 		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "n", Tags: []string{"old"},
 	})
-	uc := usecase.UpdateDocument{Docs: docs, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	uc := usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	newTags := []string{"new"}
 	got, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
-		Title: "N", Body: "---\ntags: [new]\n---\nbody",
+		Title: "N", Body: "body", Tags: &newTags,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"new"}; !reflect.DeepEqual(got.Tags, want) {
 		t.Fatalf("tags = %#v, want %#v", got.Tags, want)
+	}
+}
+
+// TestUpdateDocument_NilTagsLeavesExistingUnchanged verifies that when in.Tags
+// is nil, existing tags are not modified.
+func TestUpdateDocument_NilTagsLeavesExistingUnchanged(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	ctx := context.Background()
+	seed, _ := docs.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u", Type: domain.DocFree, Path: "unchanged", Tags: []string{"kept"},
+	})
+	uc := usecase.UpdateDocument{Docs: docs, Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}}
+	got, err := uc.Execute(ctx, "u", seed.ID, usecase.UpdateDocumentInput{
+		Title: "N", Body: "---\ntags: [ignored]\n---\nbody",
+		// Tags: nil — should leave existing tags unchanged
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"kept"}; !reflect.DeepEqual(got.Tags, want) {
+		t.Fatalf("tags = %#v, want %#v (nil input should not change tags)", got.Tags, want)
 	}
 }
 

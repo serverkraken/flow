@@ -52,7 +52,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
-		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
+		DeleteDocument:    usecase.DeleteDocument{Docs: docs, Tags: tags},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Docs: docs},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
@@ -307,19 +307,6 @@ func TestHandleDeleteDocument_NotFound(t *testing.T) {
 	}
 }
 
-func mustDocJSON(t *testing.T, docType, path, title, body string) string {
-	t.Helper()
-	b, err := json.Marshal(map[string]string{
-		"type":  docType,
-		"path":  path,
-		"title": title,
-		"body":  body,
-	})
-	if err != nil {
-		t.Fatalf("marshal doc: %v", err)
-	}
-	return string(b)
-}
 
 func TestHandleListDocuments_TagFilter(t *testing.T) {
 	srv, _ := newDocServer(t)
@@ -328,17 +315,17 @@ func TestHandleListDocuments_TagFilter(t *testing.T) {
 
 	primeUser(t, ts.URL)
 
-	// doc "a": tags [go, tui] via frontmatter
+	// doc "a": tags [go, tui] via explicit tags param
 	resA := doDoc(t, ts, "POST", "/api/v1/documents",
-		mustDocJSON(t, "free", "tag-filter-a", "A", "---\ntags: [go, tui]\n---\nsome content"))
+		`{"type":"free","path":"tag-filter-a","title":"A","body":"some content","tags":["go","tui"]}`)
 	_ = resA.Body.Close()
 	if resA.StatusCode != http.StatusCreated {
 		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
 	}
 
-	// doc "b": tags [go] only via frontmatter
+	// doc "b": tags [go] only via explicit tags param
 	resB := doDoc(t, ts, "POST", "/api/v1/documents",
-		mustDocJSON(t, "free", "tag-filter-b", "B", "---\ntags: [go]\n---\nother content"))
+		`{"type":"free","path":"tag-filter-b","title":"B","body":"other content","tags":["go"]}`)
 	_ = resB.Body.Close()
 	if resB.StatusCode != http.StatusCreated {
 		t.Fatalf("create B: want 201, got %d", resB.StatusCode)
@@ -370,17 +357,17 @@ func TestHandleListTags(t *testing.T) {
 
 	primeUser(t, ts.URL)
 
-	// doc "a": tags [go, tui]
+	// doc "a": tags [go, tui] via explicit tags param
 	resA := doDoc(t, ts, "POST", "/api/v1/documents",
-		mustDocJSON(t, "free", "tags-list-a", "A", "---\ntags: [go, tui]\n---\nsome content"))
+		`{"type":"free","path":"tags-list-a","title":"A","body":"some content","tags":["go","tui"]}`)
 	_ = resA.Body.Close()
 	if resA.StatusCode != http.StatusCreated {
 		t.Fatalf("create A: want 201, got %d", resA.StatusCode)
 	}
 
-	// doc "b": tags [go]
+	// doc "b": tags [go] via explicit tags param
 	resB := doDoc(t, ts, "POST", "/api/v1/documents",
-		mustDocJSON(t, "free", "tags-list-b", "B", "---\ntags: [go]\n---\nother content"))
+		`{"type":"free","path":"tags-list-b","title":"B","body":"other content","tags":["go"]}`)
 	_ = resB.Body.Close()
 	if resB.StatusCode != http.StatusCreated {
 		t.Fatalf("create B: want 201, got %d", resB.StatusCode)

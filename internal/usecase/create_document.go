@@ -24,14 +24,16 @@ type CreateDocumentInput struct {
 	Path   string
 	Title  string
 	Body   string
-	Tags   []string // explicit tag set; nil → derive from YAML frontmatter (B1 fallback)
+	Tags   []string // explicit tag set; nil → no tags
 }
 
 func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateDocumentInput) (domain.Document, error) {
 	now := uc.Clock.Now()
+	eff := in.Tags
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
 		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
+		Tags:      domain.NormalizeTags(eff),
 		CreatedAt: now, UpdatedAt: now,
 	}
 	if in.Type == domain.DocDaily {
@@ -39,11 +41,6 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 		d.Path = domain.DailyPath(now)
 	}
 	_, bodyStart := domain.ParseFrontmatter(d.Body)
-	eff := in.Tags
-	if eff == nil { // B1 fallback: legacy frontmatter still wins when no explicit tags given
-		eff, _ = domain.ParseFrontmatter(d.Body)
-	}
-	d.Tags = domain.NormalizeTags(eff) // legacy column double-write (removed in B2)
 	if err := d.Validate(); err != nil {
 		return domain.Document{}, err
 	}

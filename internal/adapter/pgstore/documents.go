@@ -21,9 +21,9 @@ type DocumentStore struct{ pool *pgxpool.Pool }
 // NewDocumentStore wraps a pool.
 func NewDocumentStore(pool *pgxpool.Pool) *DocumentStore { return &DocumentStore{pool: pool} }
 
-const docCols = `id, owner_id, node_id, type, path, title, body, tags, doc_date, role, extra, created_at, updated_at`
+const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at`
 
-const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.tags, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at`
 
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
@@ -40,9 +40,50 @@ func appendNodeFilter(q, col string, args *[]any, nodeID *string) string {
 	return q + fmt.Sprintf(` AND %s = $%d`, col, len(*args))
 }
 
+// appendTagFilter adds an AND-containment junction subquery for the given tag slugs.
+func appendTagFilter(q string, args *[]any, ownerID string, tags []string) string {
+	if len(tags) == 0 {
+		return q
+	}
+	*args = append(*args, ownerID, tags)
+	ownPos, tagPos := len(*args)-1, len(*args)
+	return q + fmt.Sprintf(` AND id IN (SELECT tg.taggable_id FROM taggings tg JOIN tags t ON t.id = tg.tag_id `+
+		`WHERE t.owner_id=$%d AND tg.taggable_type='document' AND t.slug = ANY($%d) `+
+		`GROUP BY tg.taggable_id HAVING count(DISTINCT t.slug) = cardinality($%d))`, ownPos, tagPos, tagPos)
+}
+
+func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []domain.Document) ([]domain.Document, error) {
+	if len(docs) == 0 {
+		return docs, nil
+	}
+	ids := make([]string, len(docs))
+	for i, d := range docs {
+		ids[i] = d.ID
+	}
+	const q = `SELECT tg.taggable_id, t.slug FROM taggings tg JOIN tags t ON t.id = tg.tag_id ` +
+		`WHERE t.owner_id=$1 AND tg.taggable_type='document' AND tg.taggable_id = ANY($2) ORDER BY t.slug`
+	rows, err := s.pool.Query(ctx, q, ownerID, ids)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: hydrate doc tags: %w", err)
+	}
+	defer rows.Close()
+	byID := map[string][]string{}
+	for rows.Next() {
+		var id, slug string
+		if err := rows.Scan(&id, &slug); err != nil {
+			return nil, err
+		}
+		byID[id] = append(byID[id], slug)
+	}
+	for i := range docs {
+		docs[i].Tags = byID[docs[i].ID]
+	}
+	return docs, rows.Err()
+}
+
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
@@ -50,7 +91,7 @@ RETURNING ` + docCols
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
 		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
-		orEmptyTags(d.Tags), d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt))
+		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
 	}
@@ -63,34 +104,39 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
-	return d, err
+	if err != nil {
+		return domain.Document{}, err
+	}
+	hyd, err := s.hydrateTags(ctx, ownerID, []domain.Document{d})
+	if err != nil {
+		return domain.Document{}, err
+	}
+	return hyd[0], nil
 }
 
 func (s *DocumentStore) List(ctx context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error) {
 	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
 	args := []any{ownerID}
 	q = appendNodeFilter(q, "node_id", &args, nodeID)
-	if len(tags) > 0 {
-		args = append(args, tags)
-		q += fmt.Sprintf(` AND tags @> $%d`, len(args))
-	}
+	q = appendTagFilter(q, &args, ownerID, tags)
 	q += ` ORDER BY updated_at DESC`
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("pgstore: list documents: %w", err)
 	}
 	defer rows.Close()
-	return scanDocuments(rows)
+	docs, err := scanDocuments(rows)
+	if err != nil {
+		return nil, err
+	}
+	return s.hydrateTags(ctx, ownerID, docs)
 }
 
 func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
 	where := ` WHERE owner_id=$1`
 	args := []any{ownerID}
 	where = appendNodeFilter(where, "node_id", &args, nodeID)
-	if len(tags) > 0 {
-		args = append(args, tags)
-		where += fmt.Sprintf(` AND tags @> $%d`, len(args))
-	}
+	where = appendTagFilter(where, &args, ownerID, tags)
 
 	var total int
 	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM documents`+where, args...).Scan(&total); err != nil {
@@ -109,19 +155,23 @@ func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *st
 	if err != nil {
 		return nil, 0, err
 	}
+	docs, err = s.hydrateTags(ctx, ownerID, docs)
+	if err != nil {
+		return nil, 0, err
+	}
 	return docs, total, nil
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {
-	const q = `UPDATE documents SET title=$1, body=$2, tags=$3, extra=$4, updated_at=$5
-WHERE owner_id=$6 AND id=$7
+	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4
+WHERE owner_id=$5 AND id=$6
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
 		return domain.Document{}, fmt.Errorf("pgstore: marshal extra: %w", err)
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
-		d.Title, d.Body, orEmptyTags(d.Tags), extra, d.UpdatedAt, d.OwnerID, d.ID))
+		d.Title, d.Body, extra, d.UpdatedAt, d.OwnerID, d.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
@@ -199,10 +249,7 @@ FROM documents d,
 WHERE d.owner_id = $1`
 	args := []any{ownerID, q, headlineOpts}
 	sb = appendNodeFilter(sb, "d.node_id", &args, nodeID)
-	if len(tags) > 0 {
-		args = append(args, tags)
-		sb += fmt.Sprintf(` AND d.tags @> $%d`, len(args))
-	}
+	sb = appendTagFilter(sb, &args, ownerID, tags)
 	sb += `
   AND (d.search @@ ftsq OR $2 <% (coalesce(d.title,'')||' '||coalesce(d.body,'')))
 ORDER BY (d.search @@ ftsq) DESC,
@@ -224,7 +271,22 @@ LIMIT 100`
 		}
 		out = append(out, h)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Hydrate tags from taggings for each hit.
+	hitDocs := make([]domain.Document, len(out))
+	for i, h := range out {
+		hitDocs[i] = h.Document
+	}
+	hitDocs, err = s.hydrateTags(ctx, ownerID, hitDocs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Document = hitDocs[i]
+	}
+	return out, nil
 }
 
 // scanSearchHit scans prefixedDocCols + a trailing snippet column.
@@ -234,7 +296,7 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var extra []byte
 	var snippet string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &snippet); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -298,24 +360,11 @@ FROM (
   WHERE c.owner_id = $1
   ORDER BY c.document_id, dist
 ) x
-JOIN documents d ON d.id = x.did AND d.owner_id = $1`
+JOIN documents d ON d.id = x.did AND d.owner_id = $1
+WHERE 1=1`
 	args := []any{ownerID, vectorLiteral(query)}
-	var preds []string
-	if nodeID != nil {
-		if *nodeID == "none" {
-			preds = append(preds, "d.node_id IS NULL")
-		} else {
-			args = append(args, *nodeID)
-			preds = append(preds, fmt.Sprintf("d.node_id = $%d", len(args)))
-		}
-	}
-	if len(tags) > 0 {
-		args = append(args, tags)
-		preds = append(preds, fmt.Sprintf("d.tags @> $%d", len(args)))
-	}
-	if len(preds) > 0 {
-		q += "\nWHERE " + strings.Join(preds, " AND ")
-	}
+	q = appendNodeFilter(q, "d.node_id", &args, nodeID)
+	q = appendTagFilter(q, &args, ownerID, tags)
 	args = append(args, limit)
 	q += fmt.Sprintf("\nORDER BY x.dist\nLIMIT $%d", len(args))
 	rows, err := s.pool.Query(ctx, q, args...)
@@ -331,7 +380,22 @@ JOIN documents d ON d.id = x.did AND d.owner_id = $1`
 		}
 		out = append(out, h)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Hydrate tags from taggings for each hit.
+	hitDocs := make([]domain.Document, len(out))
+	for i, h := range out {
+		hitDocs[i] = h.Document
+	}
+	hitDocs, err = s.hydrateTags(ctx, ownerID, hitDocs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range out {
+		out[i].Document = hitDocs[i]
+	}
+	return out, nil
 }
 
 // scanSemanticHit scans prefixedDocCols (same order as scanDocument) + a
@@ -343,7 +407,7 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var content string
 	var dist float32
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &content, &dist); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -367,19 +431,12 @@ func orEmpty(m map[string]any) map[string]any {
 	return m
 }
 
-func orEmptyTags(t []string) []string {
-	if t == nil {
-		return []string{}
-	}
-	return t
-}
-
 func scanDocument(r rowScanner) (domain.Document, error) {
 	var d domain.Document
 	var typ string
 	var extra []byte
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Tags, &d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err
 		}

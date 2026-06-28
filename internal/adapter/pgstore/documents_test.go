@@ -10,6 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/pgstore"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
@@ -129,14 +130,20 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	owner := "u-tagf"
 
 	st := pgstore.NewDocumentStore(pool)
+	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id, path string, tags ...string) {
 		_, err := st.Create(ctx, domain.Document{
-			ID: id, OwnerID: owner, Type: domain.DocFree, Path: path, Tags: tags,
+			ID: id, OwnerID: owner, Type: domain.DocFree, Path: path,
 			CreatedAt: now, UpdatedAt: now,
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if len(tags) > 0 {
+			if _, err := ts.SetTags(ctx, owner, domain.TaggableDocument, id, tags); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	mk("tf-a", "a", "go", "tui")
@@ -148,6 +155,10 @@ func TestDocumentStore_ListTagFilter(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].Path != "a" {
 		t.Fatalf("List(go,tui) = %#v, want [a]", got)
+	}
+	// Tags must be hydrated from taggings (not the legacy column).
+	if len(got[0].Tags) != 2 {
+		t.Fatalf("List: hydrated tags want 2, got %v", got[0].Tags)
 	}
 }
 
@@ -173,13 +184,17 @@ func TestDocumentStore_ListPage(t *testing.T) {
 	}
 
 	st := pgstore.NewDocumentStore(pool)
+	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id string, updated time.Time) {
 		_, err := st.Create(ctx, domain.Document{
-			ID: id, OwnerID: "u-page", Type: domain.DocFree, Path: id, Tags: []string{"go"},
+			ID: id, OwnerID: "u-page", Type: domain.DocFree, Path: id,
 			CreatedAt: now, UpdatedAt: updated,
 		})
 		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ts.SetTags(ctx, "u-page", domain.TaggableDocument, id, []string{"go"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -225,14 +240,20 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	owner := "u-srch"
 
 	st := pgstore.NewDocumentStore(pool)
+	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 	mk := func(id, path, title, body string, tags ...string) {
 		_, err := st.Create(ctx, domain.Document{
 			ID: id, OwnerID: owner, Type: domain.DocFree, Path: path,
-			Title: title, Body: body, Tags: tags, CreatedAt: now, UpdatedAt: now,
+			Title: title, Body: body, CreatedAt: now, UpdatedAt: now,
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if len(tags) > 0 {
+			if _, err := ts.SetTags(ctx, owner, domain.TaggableDocument, id, tags); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	mk("srch-a", "a", "Kompendium", "notes about the compendium", "go")
@@ -354,6 +375,7 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	owner := "sem-owner"
 
 	s := pgstore.NewDocumentStore(pool)
+	ts := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
 	now := time.Now().UTC().Truncate(time.Second)
 
 	vec := func(v float32) []float32 {
@@ -365,8 +387,13 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	}
 
 	mkDoc := func(id, title, body string, tags ...string) {
-		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: owner, Type: domain.DocFree, Path: id, Title: title, Body: body, Tags: tags, CreatedAt: now, UpdatedAt: now}); err != nil {
+		if _, err := s.Create(ctx, domain.Document{ID: id, OwnerID: owner, Type: domain.DocFree, Path: id, Title: title, Body: body, CreatedAt: now, UpdatedAt: now}); err != nil {
 			t.Fatal(err)
+		}
+		if len(tags) > 0 {
+			if _, err := ts.SetTags(ctx, owner, domain.TaggableDocument, id, tags); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	mkDoc("near", "Near", "near doc", "go")
@@ -406,5 +433,47 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	}
 	if !foundFresh {
 		t.Fatal("fresh doc should be stale")
+	}
+}
+
+func TestDocumentStore_HydratesTagsFromJunction(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	us := pgstore.NewUserStore(pool)
+	seedUser(t, us, "u1")
+	docs := pgstore.NewDocumentStore(pool)
+	tags := pgstore.NewTagStore(pool, &testutil.FakeIDGen{})
+
+	d, err := docs.Create(ctx, domain.Document{ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p", Title: "T", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tags.SetTags(ctx, "u1", domain.TaggableDocument, d.ID, []string{"go", "tui"}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := docs.Get(ctx, "u1", "d1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Tags) != 2 {
+		t.Fatalf("Get hydrate want 2 tags, got %+v", got.Tags)
+	}
+
+	// AND filter via junction.
+	list, err := docs.List(ctx, "u1", nil, "go", "tui")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].ID != "d1" {
+		t.Fatalf("junction AND filter want [d1], got %+v", list)
 	}
 }
