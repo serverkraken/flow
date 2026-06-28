@@ -4,7 +4,7 @@ project: github.com/serverkraken/flow
 ---
 # flow Kontext-Redesign · Baustein 2 — Tag-System — Detail-Spec
 
-**Datum:** 2026-06-28 · **Branch:** `b2-tag-system` (off `rebuild`, unmerged) · **Status:** **implementiert** (17 Tasks subagent-driven, `make ci` grün 76.1%, `2bc6…7194200` Range; live curl-smoke vs Postgres+Dex grün — alle Endpoints + Migration 0019/0020 + Backfill + EditSession-tri-state verifiziert; Browser/TUI-Interaktiv-Dogfood offen für Soenne)
+**Datum:** 2026-06-28 · **Branch:** `b2-tag-system` → **auf `rebuild` fast-forward-integriert** (`5e159aa..bd9dbd3`, Branch gelöscht) · **Status:** **DONE + integriert** (17 Tasks subagent-driven + per-Task-Reviews + Opus-Whole-Branch-Review (ready-with-fixes → gefixt: session-delete-taggings B2-9 + appendTagFilter-normalize); `make ci` grün 76.1%; live curl-smoke vs Postgres+Dex grün — alle Endpoints + Migration 0019/0020 + Backfill + EditSession-tri-state; Browser-Dogfood abgenommen 2026-06-28 (+ doc-editor Projekt-Dropdown hierarchie/kind-Fix))
 **Übersichts-Spec:** `docs/superpowers/specs/2026-06-27-flow-kontext-redesign-design.md` (Achsen, Mechanik, D1–D11)
 **Vorgänger (Hierarchie):** `docs/superpowers/specs/2026-06-27-flow-kontext-b1-hierarchie-bindings-design.md` (B1 gelandet — `nodes`-Hierarchie, Migr. 0015–0018)
 **Tag-Ursprung (M2c):** `docs/superpowers/specs/2026-06-15-flow-rebuild-m2c-tags-filter-design.md` (Frontmatter-Tags, die B2 ablöst)
