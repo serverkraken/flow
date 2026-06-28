@@ -131,3 +131,16 @@ func (c *Client) ImportDocument(ctx context.Context, in ImportDocumentInput) (do
 	err := c.do(ctx, http.MethodPost, "/api/v1/documents/import", in, &out)
 	return out, err
 }
+
+// StripFrontmatter triggers the server-side maintenance op that removes leading
+// YAML frontmatter blocks from document bodies, preserving them in
+// documents.extra.frontmatter. Pass dryRun=true to audit without mutating.
+func (c *Client) StripFrontmatter(ctx context.Context, dryRun bool) (domain.StripReport, error) {
+	path := "/api/v1/maintenance/strip-frontmatter"
+	if dryRun {
+		path += "?dry_run=true"
+	}
+	var out domain.StripReport
+	err := c.do(ctx, http.MethodPost, path, nil, &out)
+	return out, err
+}

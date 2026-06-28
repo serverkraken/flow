@@ -13,16 +13,14 @@ type TagCount struct {
 	Count int    `json:"count"`
 }
 
-// ParseFrontmatter extracts tags from a leading YAML frontmatter block and
-// reports the byte offset where the real body begins (for renderers to skip the
-// block). A body that does not start with a "---\n" fence, has no closing
-// "---"/"..." fence, or whose block is unparseable YAML yields (nil, 0) — the
-// whole body is then treated as content. Tags are normalized: trimmed,
-// lowercased, empties dropped, de-duplicated, first-seen order preserved.
-func ParseFrontmatter(body string) (tags []string, bodyStart int) {
+// fencedBlock scans body for a leading YAML frontmatter fence (---\n … \n---
+// or …\n). Returns the YAML content between the fences, the byte offset of the
+// first character after the closing fence, and true. Returns ("", 0, false)
+// when body doesn't start with "---\n" or the closing fence is absent.
+func fencedBlock(body string) (yamlContent string, bodyStart int, ok bool) {
 	const open = "---\n"
 	if !strings.HasPrefix(body, open) {
-		return nil, 0
+		return "", 0, false
 	}
 	rest := body[len(open):]
 
@@ -50,16 +48,45 @@ func ParseFrontmatter(body string) (tags []string, bodyStart int) {
 		off += nl + 1
 	}
 	if end < 0 {
+		return "", 0, false
+	}
+	return rest[:end], len(open) + after, true
+}
+
+// ParseFrontmatter extracts tags from a leading YAML frontmatter block and
+// reports the byte offset where the real body begins (for renderers to skip the
+// block). A body that does not start with a "---\n" fence, has no closing
+// "---"/"..." fence, or whose block is unparseable YAML yields (nil, 0) — the
+// whole body is then treated as content. Tags are normalized: trimmed,
+// lowercased, empties dropped, de-duplicated, first-seen order preserved.
+func ParseFrontmatter(body string) (tags []string, bodyStart int) {
+	yamlContent, bs, ok := fencedBlock(body)
+	if !ok {
 		return nil, 0
 	}
-
 	var fm struct {
 		Tags []string `yaml:"tags"`
 	}
-	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
+	if err := yaml.Unmarshal([]byte(yamlContent), &fm); err != nil {
 		return nil, 0
 	}
-	return NormalizeTags(fm.Tags), len(open) + after
+	return NormalizeTags(fm.Tags), bs
+}
+
+// ParseFrontmatterMap returns the full parsed YAML frontmatter map and the byte
+// offset of the first character after the closing fence. Returns (nil, 0) when
+// there is no parseable leading block. Unlike ParseFrontmatter, the full YAML
+// map is preserved — not just the tags field.
+func ParseFrontmatterMap(body string) (map[string]any, int) {
+	yamlContent, bs, ok := fencedBlock(body)
+	if !ok {
+		return nil, 0
+	}
+	var fm map[string]any
+	if err := yaml.Unmarshal([]byte(yamlContent), &fm); err != nil {
+		return nil, 0
+	}
+	return fm, bs
 }
 
 // CollectTags aggregates tag counts across a document set, sorted by count

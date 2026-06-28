@@ -85,6 +85,9 @@ type Server struct {
 	RetryEmbedding    usecase.RetryEmbedding
 	GetEmbedStatus    usecase.GetEmbedStatus
 
+	// maintenance (F1)
+	StripFrontmatter usecase.StripFrontmatter
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -205,6 +208,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebEditorUpdate)))
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
+
+	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
 
 	mux.Handle("GET /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodesHome)))
 	mux.Handle("GET /ui/nodes/list", s.webAuth(http.HandlerFunc(s.handleWebNodesList)))

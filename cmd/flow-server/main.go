@@ -160,6 +160,7 @@ func run() error {
 		SearchDocuments:     usecase.SearchDocuments{Docs: documentStore, Embedder: embedder, Log: logger},
 		RetryEmbedding:      usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker},
 		GetEmbedStatus:      usecase.GetEmbedStatus{Docs: documentStore},
+		StripFrontmatter:    usecase.StripFrontmatter{Docs: documentStore, Clock: clock},
 		Users:               userStore,
 		OIDCAuth:            authn,
 		Session:             websession.NewCodec(cfg.SessionSecret, 7*24*time.Hour),
