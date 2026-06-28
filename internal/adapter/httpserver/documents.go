@@ -138,7 +138,12 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListTags(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	tags, err := s.ListTags.Execute(r.Context(), u.ID)
+	var scope domain.TagScope
+	if t := strings.TrimSpace(r.URL.Query().Get("type")); t != "" {
+		tt := domain.TaggableType(t)
+		scope.Type = &tt
+	}
+	tags, err := s.ListTags.Execute(r.Context(), u.ID, scope)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

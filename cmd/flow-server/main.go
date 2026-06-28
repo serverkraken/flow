@@ -153,7 +153,7 @@ func run() error {
 		UpdateDocument:      usecase.UpdateDocument{Docs: documentStore, Clock: clock, Notifier: embedWorker, Tags: tagStore},
 		DeleteDocument:      usecase.DeleteDocument{Docs: documentStore, Tags: tagStore},
 		BacklinksDocument:   usecase.Backlinks{Docs: documentStore},
-		ListTags:            usecase.ListTags{Docs: documentStore},
+		ListTags:            usecase.ListTags{Tags: tagStore},
 		SearchDocuments:     usecase.SearchDocuments{Docs: documentStore, Embedder: embedder, Log: logger},
 		RetryEmbedding:      usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker},
 		GetEmbedStatus:      usecase.GetEmbedStatus{Docs: documentStore},

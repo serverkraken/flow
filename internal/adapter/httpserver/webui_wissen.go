@@ -105,7 +105,8 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath string) (
 	active := r.URL.Query()["tag"]
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
-	allTags, err := s.ListTags.Execute(r.Context(), u.ID)
+	docType := domain.TaggableDocument
+	allTags, err := s.ListTags.Execute(r.Context(), u.ID, domain.TagScope{Type: &docType})
 	if err != nil {
 		return webui.WissenVM{}, nil, "", err
 	}

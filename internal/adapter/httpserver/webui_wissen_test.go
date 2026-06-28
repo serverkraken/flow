@@ -24,6 +24,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
 	projects := testutil.NewFakeNodeStore()
 
 	srv := &Server{
@@ -41,7 +42,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
-		ListTags:          usecase.ListTags{Docs: docs},
+		ListTags:          usecase.ListTags{Tags: tags},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: docs},
 		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs},

@@ -238,25 +238,22 @@ func TestListDocuments_OwnerScoped(t *testing.T) {
 	}
 }
 
-func TestListTags(t *testing.T) {
-	docs := testutil.NewFakeDocumentStore()
+func TestListTags_RegistryScoped(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
-	for _, d := range []domain.Document{
-		{ID: "a", OwnerID: "u", Type: domain.DocFree, Path: "a", Tags: []string{"go", "tui"}},
-		{ID: "b", OwnerID: "u", Type: domain.DocFree, Path: "b", Tags: []string{"go"}},
-	} {
-		if _, err := docs.Create(ctx, d); err != nil {
-			t.Fatal(err)
-		}
-	}
-	uc := usecase.ListTags{Docs: docs}
-	got, err := uc.Execute(ctx, "u")
+	ts := testutil.NewFakeTagStore()
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableDocument, "d1", []string{"go", "tui"})
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableDocument, "d2", []string{"go"})
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableWorkSession, "s1", []string{"deep"})
+
+	uc := usecase.ListTags{Tags: ts}
+	docType := domain.TaggableDocument
+	got, err := uc.Execute(ctx, "u1", domain.TagScope{Type: &docType})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []domain.TagCount{{Tag: "go", Count: 2}, {Tag: "tui", Count: 1}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("got %#v, want %#v", got, want)
+	if len(got) != 2 || got[0].Tag != "go" || got[0].Count != 2 {
+		t.Fatalf("doc-scoped ListTags want go(2),tui(1), got %+v", got)
 	}
 }
 
@@ -354,54 +351,6 @@ func TestUpdateDocument_NilTagsLeavesExistingUnchanged(t *testing.T) {
 	if len(got) != 1 || got[0].Slug != "kept" {
 		t.Fatalf("taggings = %v, want [{slug:kept}] (nil-tags update must not touch taggings)", got)
 	}
-}
-
-// errDocStore is a minimal ports.DocumentStore stub that returns errListFail
-// from List and panics on all other methods (they must not be called).
-type errDocStore struct{ err error }
-
-func (s errDocStore) Create(_ context.Context, d domain.Document) (domain.Document, error) {
-	panic("unexpected Create")
-}
-func (s errDocStore) Get(_ context.Context, ownerID, id string) (domain.Document, error) {
-	panic("unexpected Get")
-}
-func (s errDocStore) List(_ context.Context, ownerID string, _ *string, _ ...string) ([]domain.Document, error) {
-	return nil, s.err
-}
-func (s errDocStore) ListPage(_ context.Context, ownerID string, _ *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
-	panic("unexpected ListPage")
-}
-func (s errDocStore) Update(_ context.Context, d domain.Document) (domain.Document, error) {
-	panic("unexpected Update")
-}
-func (s errDocStore) Delete(_ context.Context, ownerID, id string) error { panic("unexpected Delete") }
-func (s errDocStore) ReplaceLinks(_ context.Context, srcDocID, ownerID string, targets []string) error {
-	panic("unexpected ReplaceLinks")
-}
-func (s errDocStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
-	panic("unexpected Backlinks")
-}
-func (s errDocStore) Search(_ context.Context, ownerID, q string, _ *string, tags []string) ([]domain.SearchHit, error) {
-	panic("unexpected Search")
-}
-func (s errDocStore) StaleDocuments(_ context.Context, limit int) ([]ports.StaleDoc, error) {
-	panic("unexpected StaleDocuments")
-}
-func (s errDocStore) ReplaceChunks(_ context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
-	panic("unexpected ReplaceChunks")
-}
-func (s errDocStore) SemanticSearch(_ context.Context, ownerID string, query []float32, _ *string, tags []string, limit int) ([]domain.SemanticHit, error) {
-	panic("unexpected SemanticSearch")
-}
-func (s errDocStore) RecordEmbedFailure(_ context.Context, docID, ownerID string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
-	panic("unexpected RecordEmbedFailure")
-}
-func (s errDocStore) ClearEmbedFailure(_ context.Context, docID, ownerID string) error {
-	panic("unexpected ClearEmbedFailure")
-}
-func (s errDocStore) EmbedStatus(_ context.Context, ownerID, docID string) (domain.EmbedStatus, error) {
-	panic("unexpected EmbedStatus")
 }
 
 func TestCreateDocument_FrontmatterWikilinkNotExtracted(t *testing.T) {
@@ -512,15 +461,6 @@ func TestUpdateDocument_StripsHighlightSentinels(t *testing.T) {
 	}
 	if got.Body != "UpdatedBody" {
 		t.Errorf("Body = %q, want UpdatedBody", got.Body)
-	}
-}
-
-func TestListTags_StoreError(t *testing.T) {
-	sentinel := errors.New("store failure")
-	uc := usecase.ListTags{Docs: errDocStore{err: sentinel}}
-	_, err := uc.Execute(context.Background(), "u")
-	if !errors.Is(err, sentinel) {
-		t.Fatalf("want sentinel error, got %v", err)
 	}
 }
 

@@ -54,7 +54,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs, Tags: tags},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
-		ListTags:          usecase.ListTags{Docs: docs},
+		ListTags:          usecase.ListTags{Tags: tags},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 	}
 	return srv, bus
@@ -437,6 +437,16 @@ func (s *failingDocStore) Backlinks(_ context.Context, ownerID, targetPath strin
 	return s.FakeDocumentStore.Backlinks(context.Background(), ownerID, targetPath)
 }
 
+// errTagStore embeds FakeTagStore and overrides ListTags to always fail.
+type errTagStore struct {
+	*testutil.FakeTagStore
+	err error
+}
+
+func (s *errTagStore) ListTags(_ context.Context, _ string, _ domain.TagScope) ([]domain.TagCount, error) {
+	return nil, s.err
+}
+
 func newFailingDocServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
@@ -470,7 +480,7 @@ func newFailingDocServer(t *testing.T) *httptest.Server {
 		UpdateDocument:    usecase.UpdateDocument{Docs: failing, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: failing},
 		BacklinksDocument: usecase.Backlinks{Docs: failing},
-		ListTags:          usecase.ListTags{Docs: failing},
+		ListTags:          usecase.ListTags{Tags: testutil.NewFakeTagStore()},
 		SearchDocuments:   usecase.SearchDocuments{Docs: failing},
 	}
 	return httptest.NewServer(srv.Routes())
@@ -525,7 +535,12 @@ func TestHandleDocumentBacklinks_StoreError(t *testing.T) {
 }
 
 func TestHandleListTags_StoreError(t *testing.T) {
-	ts := newFailingDocServer(t)
+	srv, _ := newDocServer(t)
+	srv.ListTags = usecase.ListTags{Tags: &errTagStore{
+		FakeTagStore: testutil.NewFakeTagStore(),
+		err:          errors.New("tag store down"),
+	}}
+	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
 	primeUser(t, ts.URL)
 	res := doDoc(t, ts, "GET", "/api/v1/documents/tags", "")
