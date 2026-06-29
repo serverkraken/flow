@@ -934,6 +934,25 @@ func (s *FakeDocumentStore) SetPinned(_ context.Context, ownerID, id string, pin
 	return nil
 }
 
+func (s *FakeDocumentStore) SetArchived(_ context.Context, ownerID, id string, archived bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	d.Archived = archived
+	if archived {
+		now := time.Now()
+		d.ArchivedAt = &now
+		d.Pinned = false
+	} else {
+		d.ArchivedAt = nil
+	}
+	s.m[id] = d
+	return nil
+}
+
 func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

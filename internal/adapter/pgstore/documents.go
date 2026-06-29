@@ -208,6 +208,17 @@ func (s *DocumentStore) SetPinned(ctx context.Context, ownerID, id string, pinne
 	return nil
 }
 
+func (s *DocumentStore) SetArchived(ctx context.Context, ownerID, id string, archived bool) error {
+	ct, err := s.pool.Exec(ctx, `UPDATE documents SET archived=$1, archived_at = CASE WHEN $1 THEN now() ELSE NULL END, pinned = CASE WHEN $1 THEN false ELSE pinned END, updated_at=now() WHERE owner_id=$2 AND id=$3`, archived, ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: set archived: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ports.ErrDocumentNotFound
+	}
+	return nil
+}
+
 func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
 	id := s.ids.NewID()
 	const q = `

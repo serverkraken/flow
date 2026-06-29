@@ -198,6 +198,11 @@ type DocumentStore interface {
 	// one document. Owner-scoped; returns ErrDocumentNotFound if absent or foreign.
 	SetPinned(ctx context.Context, ownerID, id string, pinned bool) error
 
+	// SetArchived sets (archived=true) or clears (archived=false) the archived
+	// flag. Archiving also clears pinned (archived dominates) and stamps
+	// archived_at; un-archiving nulls archived_at and leaves pinned untouched.
+	SetArchived(ctx context.Context, ownerID, id string, archived bool) error
+
 	// UpsertByPath inserts a new document or — if a row already exists for
 	// (owner_id, coalesce(node_id,''), path) — updates title/body/updated_at
 	// while preserving the existing pinned flag. Returns the row's id and

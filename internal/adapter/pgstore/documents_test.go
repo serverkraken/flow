@@ -596,6 +596,38 @@ func TestDocumentStore_ArchivedRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_SetArchived(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	if _, err := ds.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u1", Type: domain.DocMemory, Path: "m1", Title: "M1",
+		Pinned: true, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ds.SetArchived(ctx, "u1", "d1", true); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := ds.Get(ctx, "u1", "d1")
+	if !got.Archived || got.ArchivedAt == nil {
+		t.Fatalf("archived/archived_at not set: %+v", got)
+	}
+	if got.Pinned {
+		t.Fatalf("archiving must clear pinned: %+v", got)
+	}
+	if err := ds.SetArchived(ctx, "u1", "d1", false); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = ds.Get(ctx, "u1", "d1")
+	if got.Archived || got.ArchivedAt != nil {
+		t.Fatalf("un-archive must clear: %+v", got)
+	}
+}
+
 func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
 	t.Parallel()
 	ds, us, ns, done := newDocStore(t)
