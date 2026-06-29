@@ -16,7 +16,7 @@ type searchDocsIn struct {
 	Query   string   `json:"query" jsonschema:"the search query (hybrid keyword + semantic)"`
 	Project string   `json:"project,omitempty" jsonschema:"project slug, name, or id to scope to; 'global' for all projects, 'none' for unassigned; omit to use the current directory's project"`
 	Tags    []string `json:"tags,omitempty" jsonschema:"only documents carrying ALL of these tags"`
-	Type    string   `json:"type,omitempty" jsonschema:"only this document type: daily, project, free, agent, memory, instruction, skill, or plan"`
+	Type    string   `json:"type,omitempty" jsonschema:"only this document type: daily, project, free, memory, instruction, skill, plan, spec, or activecontext (agent: deprecated)"`
 	Limit   int      `json:"limit,omitempty" jsonschema:"maximum number of results (default 20)"`
 }
 
@@ -60,7 +60,7 @@ func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in se
 type listDocsIn struct {
 	Project string   `json:"project,omitempty" jsonschema:"project slug, name, or id to scope to; 'global' for all projects, 'none' for unassigned; omit to use the current directory's project"`
 	Tags    []string `json:"tags,omitempty" jsonschema:"only documents carrying ALL of these tags"`
-	Type    string   `json:"type,omitempty" jsonschema:"only this document type: daily, project, free, agent, memory, instruction, skill, or plan"`
+	Type    string   `json:"type,omitempty" jsonschema:"only this document type: daily, project, free, memory, instruction, skill, plan, spec, or activecontext (agent: deprecated)"`
 }
 
 func (h *handlers) listDocs(ctx context.Context, _ *mcp.CallToolRequest, in listDocsIn) (*mcp.CallToolResult, any, error) {
