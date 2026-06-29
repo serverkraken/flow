@@ -132,3 +132,44 @@ func TestBuildExport_NilLoc(t *testing.T) {
 		t.Fatalf("Execute with nil loc: %v", err)
 	}
 }
+
+func TestBuildExport_RateInheritedFromAncestor(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
+	rate := domain.Money{Amount: 9500, Currency: "EUR"}
+	if _, err := ns.Create(ctx, domain.Node{
+		ID: "eng", OwnerID: "u1", Kind: domain.KindEngagement,
+		Name: "Kunde A", Slug: "kunde-a", Status: domain.NodeActive, Rate: &rate,
+	}); err != nil {
+		t.Fatalf("seed eng: %v", err)
+	}
+	parent := "eng"
+	if _, err := ns.Create(ctx, domain.Node{
+		ID: "repo", OwnerID: "u1", ParentID: &parent, Kind: domain.KindRepo,
+		Name: "repo-y", Slug: "repo-y", Status: domain.NodeActive,
+	}); err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC) // 2h on the repo
+	repo := "repo"
+	if _, err := ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", NodeID: &repo, Start: start, Stop: &stop}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	uc := usecase.BuildExport{Sessions: ss, Nodes: ns, Clock: testutil.FakeClock{T: time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)}, Loc: time.UTC}
+	data, err := uc.Execute(ctx, "u1", start, stop, "")
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(data.ByEngagement) != 1 {
+		t.Fatalf("want 1 node total, got %d", len(data.ByEngagement))
+	}
+	nt := data.ByEngagement[0]
+	if nt.Rate == nil || nt.Rate.Amount != 9500 {
+		t.Fatalf("want inherited rate 9500, got %+v", nt.Rate)
+	}
+	if nt.Amount == nil || nt.Amount.Amount != 19000 { // 9500/h * 2h
+		t.Fatalf("want amount 19000, got %+v", nt.Amount)
+	}
+}

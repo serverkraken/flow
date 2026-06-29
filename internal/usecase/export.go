@@ -84,10 +84,14 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 		})
 		t, ok := totals[*s.NodeID]
 		if !ok {
+			chain, aerr := uc.Nodes.Ancestors(ctx, ownerID, *s.NodeID)
+			if aerr != nil {
+				return domain.ExportData{}, aerr
+			}
 			t = &domain.NodeTotal{
 				NodeID:   *s.NodeID,
 				NodeName: name,
-				Rate:        p.Rate,
+				Rate:     domain.ResolveRate(chain),
 			}
 			totals[*s.NodeID] = t
 		}
