@@ -23,7 +23,7 @@ func TestCompose_TiersAndActiveContext(t *testing.T) {
 	docs := []domain.Document{
 		doc("i1", &leaf, domain.DocInstruction, "claude", false, t0, "rules"),
 		doc("i0", nil, domain.DocInstruction, "claude", false, t0, "global rules"),
-		doc("ac", &leaf, domain.DocMemory, usecase.ActiveContextPath, false, t0, "where I was"),
+		doc("ac", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, "where I was"),
 		doc("ml", &leaf, domain.DocMemory, "m-leaf", false, t0, "leaf mem"),
 		doc("me", &eng, domain.DocMemory, "m-eng", false, t0, "eng mem"),
 	}
@@ -104,6 +104,23 @@ func TestCompose_UnresolvedNotHandledHere(t *testing.T) {
 	}
 	if !got.Resolution.Unresolved {
 		t.Errorf("empty chain should set Resolution.Unresolved")
+	}
+}
+
+func TestCompose_ActiveContextByType(t *testing.T) {
+	t.Parallel()
+	leaf := domain.Node{ID: "n1", Kind: domain.KindRepo, Name: "flow"}
+	chain := []domain.Node{leaf}
+	docs := []domain.Document{
+		{ID: "ac", NodeID: &leaf.ID, Type: domain.DocActiveContext, Path: "active-context", Body: "where I was"},
+		{ID: "m1", NodeID: &leaf.ID, Type: domain.DocMemory, Path: "some-note", Body: "a memory"},
+	}
+	out := usecase.Compose(chain, docs, map[string]bool{}, 6000)
+	if out.ActiveContext == nil || out.ActiveContext.ID != "ac" {
+		t.Fatalf("activeContext not picked up by type: %+v", out.ActiveContext)
+	}
+	if len(out.Memories["leaf"]) != 1 || out.Memories["leaf"][0].ID != "m1" {
+		t.Fatalf("leaf memory misrouted: %+v", out.Memories["leaf"])
 	}
 }
 

@@ -27,8 +27,8 @@ func TestSetActiveContext_UpsertsAtLeaf(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := docs.Get(ctx, "u1", id)
-	if got.Path != usecase.ActiveContextPath || got.NodeID == nil || *got.NodeID != "L" || got.Type != domain.DocMemory {
-		t.Fatalf("activeContext not written at leaf as memory: %+v", got)
+	if got.Path != usecase.ActiveContextPath || got.NodeID == nil || *got.NodeID != "L" || got.Type != domain.DocActiveContext {
+		t.Fatalf("activeContext not written at leaf as activecontext: %+v", got)
 	}
 	// idempotent: a second flush reuses the same row.
 	id2, _, _ := uc.Execute(ctx, "u1", usecase.ContextResolveInput{RemoteSlug: "flow"}, "", "v2", nil)
