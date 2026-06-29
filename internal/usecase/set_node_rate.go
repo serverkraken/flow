@@ -8,15 +8,16 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// SetNodeRate validates and stores (or clears) an engagement's per-hour rate.
-// Only engagement nodes may carry a rate (D3); the store does not re-check kind,
-// so the guard lives here.
+// SetNodeRate validates and stores (or clears) a bookable node's per-hour rate.
+// Only bookable nodes (engagement/vorhaben/repo) may carry a rate (D3); the store
+// does not re-check kind, so the guard lives here.
 type SetNodeRate struct {
 	Nodes ports.NodeStore
 }
 
-// Execute validates rate (when non-nil), then verifies the target is an
-// engagement before delegating to the store. A nil rate clears any existing rate.
+// Execute validates rate (when non-nil), then verifies the target is a
+// bookable node (engagement/vorhaben/repo) before delegating to the store.
+// A nil rate clears any existing rate.
 func (uc SetNodeRate) Execute(ctx context.Context, ownerID, nodeID string, rate *domain.Money) error {
 	if rate != nil {
 		if rate.Amount < 0 || len(rate.Currency) != 3 {
@@ -27,8 +28,8 @@ func (uc SetNodeRate) Execute(ctx context.Context, ownerID, nodeID string, rate 
 	if err != nil {
 		return err // ErrNodeNotFound bubbles to a 404
 	}
-	if n.Kind != domain.KindEngagement {
-		return fmt.Errorf("%w: only an engagement may carry a rate, got %s", domain.ErrInvalidNode, n.Kind)
+	if !domain.IsBookable(n.Kind) {
+		return fmt.Errorf("%w: only a bookable node may carry a rate, got %s", domain.ErrInvalidNode, n.Kind)
 	}
 	return uc.Nodes.SetRate(ctx, ownerID, nodeID, rate)
 }

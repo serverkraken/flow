@@ -29,13 +29,25 @@ func TestSetNodeRate_ValidatesRate(t *testing.T) {
 	}
 }
 
-func TestSetNodeRate_RepoRejected(t *testing.T) {
+func TestSetNodeRate_RepoAccepted(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 	ns := testutil.NewFakeNodeStore()
-	seedRepo(t, ns, "u1", "repo1")
+	parent := "eng"
+	if _, err := ns.Create(ctx, domain.Node{
+		ID: "repo1", OwnerID: "u1", ParentID: &parent, Kind: domain.KindRepo,
+		Name: "repo1", Slug: "repo1", Status: domain.NodeActive,
+	}); err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
 	uc := usecase.SetNodeRate{Nodes: ns}
-	if err := uc.Execute(context.Background(), "u1", "repo1", &domain.Money{Amount: 5000, Currency: "EUR"}); !errors.Is(err, domain.ErrInvalidNode) {
-		t.Fatalf("want ErrInvalidNode setting rate on a repo, got %v", err)
+	rate := domain.Money{Amount: 12000, Currency: "EUR"}
+	if err := uc.Execute(ctx, "u1", "repo1", &rate); err != nil {
+		t.Fatalf("set rate on repo: %v", err)
+	}
+	got, _ := ns.Get(ctx, "u1", "repo1")
+	if got.Rate == nil || got.Rate.Amount != 12000 {
+		t.Errorf("want rate 12000 on repo, got %+v", got.Rate)
 	}
 }
 
