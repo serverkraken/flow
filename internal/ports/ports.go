@@ -203,6 +203,9 @@ type DocumentStore interface {
 	// archived_at; un-archiving nulls archived_at and leaves pinned untouched.
 	SetArchived(ctx context.Context, ownerID, id string, archived bool) error
 
+	// ListArchived returns the owner's archived documents, newest archived_at first.
+	ListArchived(ctx context.Context, ownerID string) ([]domain.Document, error)
+
 	// UpsertByPath inserts a new document or — if a row already exists for
 	// (owner_id, coalesce(node_id,''), path) — updates title/body/updated_at
 	// while preserving the existing pinned flag. Returns the row's id and

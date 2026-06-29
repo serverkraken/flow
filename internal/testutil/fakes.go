@@ -953,6 +953,28 @@ func (s *FakeDocumentStore) SetArchived(_ context.Context, ownerID, id string, a
 	return nil
 }
 
+func (s *FakeDocumentStore) ListArchived(_ context.Context, ownerID string) ([]domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Document
+	for _, d := range s.m {
+		if d.OwnerID == ownerID && d.Archived {
+			out = append(out, d)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		var ai, aj time.Time
+		if out[i].ArchivedAt != nil {
+			ai = *out[i].ArchivedAt
+		}
+		if out[j].ArchivedAt != nil {
+			aj = *out[j].ArchivedAt
+		}
+		return ai.After(aj)
+	})
+	return out, nil
+}
+
 func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

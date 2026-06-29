@@ -794,6 +794,24 @@ func TestDocumentStore_ArchivedExcludedFromReads(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ListArchived(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	_, _ = ds.Create(ctx, domain.Document{ID: "live", OwnerID: "u1", Type: domain.DocMemory, Path: "live", Title: "L", CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	_, _ = ds.Create(ctx, domain.Document{ID: "arch", OwnerID: "u1", Type: domain.DocMemory, Path: "arch", Title: "A", CreatedAt: time.Now(), UpdatedAt: time.Now()})
+	_ = ds.SetArchived(ctx, "u1", "arch", true)
+	got, err := ds.ListArchived(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID != "arch" {
+		t.Fatalf("want [arch], got %v", ids(got))
+	}
+}
+
 func containsID(docs []domain.Document, id string) bool {
 	for _, d := range docs {
 		if d.ID == id {

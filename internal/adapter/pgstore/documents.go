@@ -219,6 +219,15 @@ func (s *DocumentStore) SetArchived(ctx context.Context, ownerID, id string, arc
 	return nil
 }
 
+func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]domain.Document, error) {
+	rows, err := s.pool.Query(ctx, `SELECT `+docCols+` FROM documents WHERE owner_id=$1 AND archived ORDER BY archived_at DESC NULLS LAST`, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: list archived: %w", err)
+	}
+	defer rows.Close()
+	return scanDocuments(rows)
+}
+
 func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
 	id := s.ids.NewID()
 	const q = `
