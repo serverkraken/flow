@@ -173,6 +173,7 @@ func run() error {
 		},
 		SetPinned:     usecase.SetPinned{Docs: documentStore},
 		SetArchived:   usecase.SetArchived{Docs: documentStore},
+		ListArchived:  usecase.ListArchived{Docs: documentStore},
 		ContextBudget: contextBudget(os.Getenv),
 		Users:         userStore,
 		OIDCAuth:      authn,

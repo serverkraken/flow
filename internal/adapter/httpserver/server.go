@@ -86,6 +86,7 @@ type Server struct {
 	GetEmbedStatus    usecase.GetEmbedStatus
 	SetPinned         usecase.SetPinned
 	SetArchived       usecase.SetArchived
+	ListArchived      usecase.ListArchived
 
 	// idempotent upsert by path (B3d Task 7)
 	UpsertDocumentByPath usecase.UpsertDocumentByPath
@@ -161,6 +162,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PUT /api/v1/documents/by-path", s.authAny(http.HandlerFunc(s.handleUpsertByPath)))
 	mux.Handle("GET /api/v1/documents", s.auth(http.HandlerFunc(s.handleListDocuments)))
 	mux.Handle("GET /api/v1/documents/tags", s.auth(http.HandlerFunc(s.handleListTags)))
+	// archived path registered before the {id} wildcard so the static path wins
+	mux.Handle("GET /api/v1/documents/archived", s.auth(http.HandlerFunc(s.handleListArchived)))
 	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))
 	mux.Handle("PUT /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleUpdateDocument)))
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))

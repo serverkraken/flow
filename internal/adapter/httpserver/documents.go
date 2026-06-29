@@ -265,6 +265,19 @@ type pinReq struct {
 	Pinned bool `json:"pinned"`
 }
 
+func (s *Server) handleListArchived(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	list, err := s.ListArchived.Execute(r.Context(), u.ID)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if list == nil {
+		list = []domain.Document{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
 func (s *Server) handlePinDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req pinReq

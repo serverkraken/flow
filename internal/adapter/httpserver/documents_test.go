@@ -45,22 +45,23 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	}
 
 	srv := &httpserver.Server{
-		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:               bus,
-		Clock:             clk,
-		Stats:             stats,
-		CreateDocument:    usecase.CreateDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
-		ImportDocument:    usecase.ImportDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
-		GetDocument:       usecase.GetDocument{Docs: docs},
-		ListDocuments:     usecase.ListDocuments{Docs: docs},
-		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
-		DeleteDocument:    usecase.DeleteDocument{Docs: docs, Tags: tags},
-		BacklinksDocument: usecase.Backlinks{Docs: docs},
-		ListTags:          usecase.ListTags{Tags: tags},
-		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
+		Verifier:             testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:               usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:                  bus,
+		Clock:                clk,
+		Stats:                stats,
+		CreateDocument:       usecase.CreateDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
+		ImportDocument:       usecase.ImportDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
+		GetDocument:          usecase.GetDocument{Docs: docs},
+		ListDocuments:        usecase.ListDocuments{Docs: docs},
+		UpdateDocument:       usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
+		DeleteDocument:       usecase.DeleteDocument{Docs: docs, Tags: tags},
+		BacklinksDocument:    usecase.Backlinks{Docs: docs},
+		ListTags:             usecase.ListTags{Tags: tags},
+		SearchDocuments:      usecase.SearchDocuments{Docs: docs},
 		SetPinned:            usecase.SetPinned{Docs: docs},
 		SetArchived:          usecase.SetArchived{Docs: docs},
+		ListArchived:         usecase.ListArchived{Docs: docs},
 		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Tags: tags},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
@@ -204,6 +205,58 @@ func TestHandleListDocuments(t *testing.T) {
 	}
 }
 
+func TestHandleListArchived(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// Create a document, then archive it.
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"free","path":"arch-test","title":"Archived","body":"B"}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	archRes := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/archive", `{"archived":true}`)
+	defer func() { _ = archRes.Body.Close() }()
+	if archRes.StatusCode != http.StatusNoContent {
+		t.Fatalf("archive want 204, got %d", archRes.StatusCode)
+	}
+
+	// Archived doc must NOT appear in the default list.
+	listRes := doDoc(t, ts, "GET", "/api/v1/documents", "")
+	defer func() { _ = listRes.Body.Close() }()
+	var defaultList []domain.Document
+	_ = json.NewDecoder(listRes.Body).Decode(&defaultList)
+	for _, d := range defaultList {
+		if d.ID == created.ID {
+			t.Fatalf("archived doc must not appear in default list")
+		}
+	}
+
+	// ...but must appear in the dedicated /documents/archived view.
+	// (Also verifies the literal route wins over the GET /documents/{id} wildcard.)
+	res := doDoc(t, ts, "GET", "/api/v1/documents/archived", "")
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var archived []domain.Document
+	if err := json.NewDecoder(res.Body).Decode(&archived); err != nil {
+		t.Fatalf("decode archived: %v", err)
+	}
+	found := false
+	for _, d := range archived {
+		if d.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("archived doc not returned by /documents/archived; got %d docs", len(archived))
+	}
+}
+
 func TestHandleGetDocument_HappyPath(t *testing.T) {
 	srv, _ := newDocServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -326,7 +379,6 @@ func TestHandleDeleteDocument_NotFound(t *testing.T) {
 		t.Fatalf("want 404, got %d", res.StatusCode)
 	}
 }
-
 
 func TestHandleListDocuments_TagFilter(t *testing.T) {
 	srv, _ := newDocServer(t)

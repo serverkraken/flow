@@ -109,6 +109,13 @@ func (c *Client) SearchScoped(ctx context.Context, q string, nodeID *string, tag
 	return out, err
 }
 
+// ListArchived returns the caller's archived documents via GET /api/v1/documents/archived.
+func (c *Client) ListArchived(ctx context.Context) ([]domain.Document, error) {
+	var out []domain.Document
+	err := c.do(ctx, http.MethodGet, "/api/v1/documents/archived", nil, &out)
+	return out, err
+}
+
 func (c *Client) Backlinks(ctx context.Context, id string) ([]domain.BacklinkRef, error) {
 	var out []domain.BacklinkRef
 	err := c.do(ctx, http.MethodGet, "/api/v1/documents/"+id+"/backlinks", nil, &out)
