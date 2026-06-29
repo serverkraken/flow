@@ -4,8 +4,8 @@ import "testing"
 
 func TestDocumentTypesAllValid(t *testing.T) {
 	ts := DocumentTypes()
-	if len(ts) != 8 {
-		t.Fatalf("DocumentTypes() returned %d types, want 8", len(ts))
+	if len(ts) != 10 {
+		t.Fatalf("DocumentTypes() returned %d types, want 10", len(ts))
 	}
 	for _, dt := range ts {
 		if !dt.valid() {
