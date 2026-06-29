@@ -41,8 +41,8 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 	if err != nil {
 		return domain.WorkSession{}, err // ErrNodeNotFound bubbles to a 404
 	}
-	if n.Kind != domain.KindEngagement {
-		return domain.WorkSession{}, fmt.Errorf("%w: worktime books to an engagement, got %s", domain.ErrInvalidNode, n.Kind)
+	if !domain.IsBookable(n.Kind) {
+		return domain.WorkSession{}, fmt.Errorf("%w: worktime books to a bookable node, got %s", domain.ErrInvalidNode, n.Kind)
 	}
 	cur, err := uc.Sessions.Get(ctx, ownerID, sessionID)
 	if err != nil {

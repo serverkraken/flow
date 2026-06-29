@@ -2,7 +2,6 @@ package usecase_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -94,21 +93,5 @@ func TestStopSession_SameDayNoSplit(t *testing.T) {
 	all, _, _ := ss.ListPage(ctx, "u1", 100, 0)
 	if len(all) != 1 {
 		t.Fatalf("same-day stop should not split, got %d sessions", len(all))
-	}
-}
-
-// TestStopSession_RepoRejected ensures that booking a session to a non-engagement
-// node (a KindRepo here) returns domain.ErrInvalidNode.
-func TestStopSession_RepoRejected(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	loc := time.UTC
-	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
-	seedRepo(t, ns, "u1", "repo1")
-	_, _ = ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: time.Date(2026, 6, 24, 9, 0, 0, 0, loc)})
-	uc := usecase.StopSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Date(2026, 6, 24, 12, 0, 0, 0, loc)}, Loc: loc}
-	repo := "repo1"
-	if _, err := uc.Execute(ctx, "u1", "run", &repo); !errors.Is(err, domain.ErrInvalidNode) {
-		t.Fatalf("want ErrInvalidNode booking a repo, got %v", err)
 	}
 }
