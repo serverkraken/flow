@@ -77,3 +77,23 @@ func TestResolveEngagement(t *testing.T) {
 		t.Error("chain whose root is not an engagement must be ok=false")
 	}
 }
+
+func TestResolveRate(t *testing.T) {
+	t.Parallel()
+	eur := func(a int64) *domain.Money { m := domain.Money{Amount: a, Currency: "EUR"}; return &m }
+	p := "eng"
+	chain := []domain.Node{
+		{ID: "repo", Kind: domain.KindRepo, ParentID: &p},
+		{ID: "eng", Kind: domain.KindEngagement, Rate: eur(9500)},
+	}
+	if got := domain.ResolveRate(chain); got == nil || got.Amount != 9500 {
+		t.Fatalf("want inherited 9500, got %+v", got)
+	}
+	chain[0].Rate = eur(12000) // nearer wins
+	if got := domain.ResolveRate(chain); got == nil || got.Amount != 12000 {
+		t.Fatalf("want nearer 12000, got %+v", got)
+	}
+	if got := domain.ResolveRate([]domain.Node{{ID: "repo", Kind: domain.KindRepo}}); got != nil {
+		t.Fatalf("want nil (no rate in chain), got %+v", got)
+	}
+}

@@ -120,3 +120,15 @@ func ResolveEngagement(chain []Node) (Node, bool) {
 	}
 	return root, true
 }
+
+// ResolveRate returns the effective rate for a node by walking its ancestor
+// chain (leaf→root, as returned by NodeStore.Ancestors): the nearest node that
+// carries a rate wins. Returns nil when no node in the chain has a rate.
+func ResolveRate(chain []Node) *Money {
+	for _, n := range chain {
+		if n.Rate != nil {
+			return n.Rate
+		}
+	}
+	return nil
+}
