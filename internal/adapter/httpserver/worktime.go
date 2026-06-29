@@ -46,7 +46,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid session times", http.StatusBadRequest)
 			return
 		case errors.Is(err, domain.ErrInvalidNode):
-			http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+			http.Error(w, "worktime can only be booked to a bookable node (engagement, vorhaben or repo)", http.StatusBadRequest)
 			return
 		case errors.Is(err, ports.ErrNodeNotFound):
 			http.Error(w, "not found", http.StatusNotFound)
@@ -67,7 +67,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.StartSession.Execute(r.Context(), u.ID, req.NodeID, req.Tags, req.Note)
 	switch {
 	case errors.Is(err, domain.ErrInvalidNode):
-		http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+		http.Error(w, "worktime can only be booked to a bookable node (engagement, vorhaben or repo)", http.StatusBadRequest)
 		return
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
@@ -97,7 +97,7 @@ func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "a project is required", http.StatusBadRequest)
 		return
 	case errors.Is(err, domain.ErrInvalidNode):
-		http.Error(w, "worktime can only be booked to an engagement", http.StatusBadRequest)
+		http.Error(w, "worktime can only be booked to a bookable node (engagement, vorhaben or repo)", http.StatusBadRequest)
 		return
 	case errors.Is(err, ports.ErrNodeNotFound) || errors.Is(err, ports.ErrSessionNotFound):
 		http.Error(w, "not found", http.StatusNotFound)

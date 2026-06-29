@@ -37,7 +37,7 @@ func TestAddSession_HappyPath(t *testing.T) {
 	}
 }
 
-func TestAddSession_RepoRejected(t *testing.T) {
+func TestAddSession_RepoAccepted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
@@ -46,8 +46,12 @@ func TestAddSession_RepoRejected(t *testing.T) {
 	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
 	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	repo := "repo1"
-	if _, err := uc.Execute(ctx, "u1", &repo, start, stop, nil, ""); !errors.Is(err, domain.ErrInvalidNode) {
-		t.Fatalf("want ErrInvalidNode for repo node, got %v", err)
+	got, err := uc.Execute(ctx, "u1", &repo, start, stop, nil, "")
+	if err != nil {
+		t.Fatalf("add on repo: %v", err)
+	}
+	if got.NodeID == nil || *got.NodeID != "repo1" {
+		t.Errorf("want NodeID repo1, got %v", got.NodeID)
 	}
 }
 

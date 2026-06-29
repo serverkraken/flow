@@ -66,14 +66,35 @@ func TestStartSession_EngagementAccepted(t *testing.T) {
 	}
 }
 
-func TestStartSession_RepoRejected(t *testing.T) {
+func TestStartSession_RepoAccepted(t *testing.T) {
 	t.Parallel()
 	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
 	seedRepo(t, ns, "u1", "repo1")
 	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
 	repo := "repo1"
-	if _, err := uc.Execute(context.Background(), "u1", &repo, nil, ""); !errors.Is(err, domain.ErrInvalidNode) {
-		t.Fatalf("want ErrInvalidNode for repo node, got %v", err)
+	got, err := uc.Execute(context.Background(), "u1", &repo, nil, "")
+	if err != nil {
+		t.Fatalf("start on repo: %v", err)
+	}
+	if got.NodeID == nil || *got.NodeID != "repo1" {
+		t.Errorf("want NodeID repo1, got %v", got.NodeID)
+	}
+}
+
+func TestStartSession_BranchRejected(t *testing.T) {
+	t.Parallel()
+	ss, ns := testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore()
+	repoParent := "repo1"
+	if _, err := ns.Create(context.Background(), domain.Node{
+		ID: "br1", OwnerID: "u1", ParentID: &repoParent, Kind: domain.KindBranch,
+		Name: "br1", Slug: "br1", Status: domain.NodeActive,
+	}); err != nil {
+		t.Fatalf("seed branch: %v", err)
+	}
+	uc := newStartSession(ss, ns, time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC))
+	br := "br1"
+	if _, err := uc.Execute(context.Background(), "u1", &br, nil, ""); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("want ErrInvalidNode for branch node, got %v", err)
 	}
 }
 

@@ -21,7 +21,7 @@ type StartSession struct {
 }
 
 func (uc StartSession) Execute(ctx context.Context, ownerID string, nodeID *string, tags []string, note string) (domain.WorkSession, error) {
-	if err := requireEngagement(ctx, uc.Nodes, ownerID, nodeID); err != nil {
+	if err := requireBookable(ctx, uc.Nodes, ownerID, nodeID); err != nil {
 		return domain.WorkSession{}, err
 	}
 	if _, running, err := uc.Sessions.Running(ctx, ownerID); err != nil {

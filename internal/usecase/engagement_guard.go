@@ -8,12 +8,9 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// requireEngagement verifies that nodeID (when non-nil and non-empty) names an
-// existing node of kind engagement owned by ownerID. Worktime is booked at the
-// engagement level (D3); a nil/empty nodeID is allowed (unbooked). A missing or
-// foreign node surfaces the store's ErrNodeNotFound; a non-engagement kind
-// yields ErrInvalidNode.
-func requireEngagement(ctx context.Context, nodes ports.NodeStore, ownerID string, nodeID *string) error {
+// requireBookable verifies that nodeID (when set) names a bookable node
+// (engagement, vorhaben or repo). A nil/empty nodeID is allowed (unbooked start).
+func requireBookable(ctx context.Context, nodes ports.NodeStore, ownerID string, nodeID *string) error {
 	if nodeID == nil || *nodeID == "" {
 		return nil
 	}
@@ -21,8 +18,8 @@ func requireEngagement(ctx context.Context, nodes ports.NodeStore, ownerID strin
 	if err != nil {
 		return err
 	}
-	if n.Kind != domain.KindEngagement {
-		return fmt.Errorf("%w: worktime books to an engagement, got %s", domain.ErrInvalidNode, n.Kind)
+	if !domain.IsBookable(n.Kind) {
+		return fmt.Errorf("%w: worktime books to a bookable node, got %s", domain.ErrInvalidNode, n.Kind)
 	}
 	return nil
 }
