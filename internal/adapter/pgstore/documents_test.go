@@ -784,7 +784,7 @@ func TestDocumentStore_ArchivedExcludedFromReads(t *testing.T) {
 	}
 	hits, _ := ds.Search(ctx, "u1", "needle", nil, nil)
 	for _, h := range hits {
-		if h.Document.ID == "arch" {
+		if h.ID == "arch" {
 			t.Fatalf("Search must exclude archived")
 		}
 	}

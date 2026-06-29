@@ -323,19 +323,22 @@ func TestLoopback_BindProject(t *testing.T) {
 	_ = mgr
 	sess := connect(t, h.srv)
 
-	// 1. Tool surface = 11: both flow_list_projects and flow_bind_project present.
+	// 1. Tool surface = 14: flow_list_projects, flow_bind_project, flow_archive_doc present.
 	tools, err := sess.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(tools.Tools) != 13 {
-		t.Fatalf("tool count = %d, want 13; got %v", len(tools.Tools), toolNames(tools.Tools))
+	if len(tools.Tools) != 14 {
+		t.Fatalf("tool count = %d, want 14; got %v", len(tools.Tools), toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_list_projects") {
 		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_bind_project") {
 		t.Fatalf("flow_bind_project not advertised; got %v", toolNames(tools.Tools))
+	}
+	if !hasTool(tools.Tools, "flow_archive_doc") {
+		t.Fatalf("flow_archive_doc not advertised; got %v", toolNames(tools.Tools))
 	}
 
 	// 2. flow_list_projects returns fixture projects.
