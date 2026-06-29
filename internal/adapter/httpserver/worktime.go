@@ -412,6 +412,9 @@ func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) 
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "project not found", http.StatusNotFound)
 		return
+	case errors.Is(err, domain.ErrInvalidNode):
+		http.Error(w, "invalid project", http.StatusBadRequest)
+		return
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

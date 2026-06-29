@@ -28,7 +28,7 @@ func TestBulkAssignProject_AssignsOwnedSkipsForeign(t *testing.T) {
 	seedSess(t, ss, "a", "u1")
 	seedSess(t, ss, "b", "u1")
 	seedSess(t, ss, "c", "u2") // foreign
-	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: "u1", Name: "flow", Kind: domain.KindEngagement}); err != nil {
 		t.Fatalf("seed proj: %v", err)
 	}
 	uc := usecase.BulkAssignNode{Sessions: ss, Nodes: ps}
@@ -67,5 +67,24 @@ func TestBulkAssignProject_ForeignProject(t *testing.T) {
 	uc := usecase.BulkAssignNode{Sessions: ss, Nodes: ps}
 	if _, err := uc.Execute(ctx, "u1", []string{"a"}, "p2"); !errors.Is(err, ports.ErrNodeNotFound) {
 		t.Fatalf("err = %v, want ErrNodeNotFound", err)
+	}
+}
+
+func TestBulkAssignProject_BranchRejected(t *testing.T) {
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	ps := testutil.NewFakeNodeStore()
+	seedSess(t, ss, "a", "u1")
+	repoID := "repo1"
+	if _, err := ps.Create(ctx, domain.Node{ID: repoID, OwnerID: "u1", Name: "myrepo", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
+	branchID := "branch1"
+	if _, err := ps.Create(ctx, domain.Node{ID: branchID, OwnerID: "u1", Name: "feature", ParentID: &repoID, Kind: domain.KindBranch}); err != nil {
+		t.Fatalf("seed branch: %v", err)
+	}
+	uc := usecase.BulkAssignNode{Sessions: ss, Nodes: ps}
+	if _, err := uc.Execute(ctx, "u1", []string{"a"}, branchID); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("err = %v, want domain.ErrInvalidNode", err)
 	}
 }

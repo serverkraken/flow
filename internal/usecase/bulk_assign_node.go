@@ -3,7 +3,9 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
@@ -24,8 +26,12 @@ func (uc BulkAssignNode) Execute(ctx context.Context, ownerID string, sessionIDs
 		return 0, ErrNoSessions
 	}
 	// Validate the target project up front (owner-scoped).
-	if _, err := uc.Nodes.Get(ctx, ownerID, nodeID); err != nil {
+	n, err := uc.Nodes.Get(ctx, ownerID, nodeID)
+	if err != nil {
 		return 0, err // ports.ErrNodeNotFound for missing/foreign
+	}
+	if !domain.IsBookable(n.Kind) {
+		return 0, fmt.Errorf("%w: worktime books to a bookable node, got %s", domain.ErrInvalidNode, n.Kind)
 	}
 	pid := nodeID
 	updated := 0

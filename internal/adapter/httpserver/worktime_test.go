@@ -296,7 +296,7 @@ func TestHandleReassignSessions(t *testing.T) {
 
 	// Seed a project owned by the same user (ownerID is deterministic from FakeIDGen).
 	ctx := context.Background()
-	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: ownerID, Name: "flow"}); err != nil {
+	if _, err := ps.Create(ctx, domain.Node{ID: "p1", OwnerID: ownerID, Name: "flow", Kind: domain.KindEngagement}); err != nil {
 		t.Fatalf("seed project: %v", err)
 	}
 
@@ -346,6 +346,30 @@ func TestHandleReassignSessions_ForeignProject(t *testing.T) {
 	})
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("foreign project status = %d, want 404", res.StatusCode)
+	}
+}
+
+func TestHandleReassignSessions_BranchRejected(t *testing.T) {
+	srv, _, ps := newReassignServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	ctx := context.Background()
+	// EnsureUser consumes "id-1"; create branch directly in the store under that owner.
+	const ownerID = "id-1"
+	repoID := "repo1"
+	if _, err := ps.Create(ctx, domain.Node{ID: repoID, OwnerID: ownerID, Name: "myrepo", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
+	branchID := "branch1"
+	if _, err := ps.Create(ctx, domain.Node{ID: branchID, OwnerID: ownerID, Name: "feature", ParentID: &repoID, Kind: domain.KindBranch}); err != nil {
+		t.Fatalf("seed branch: %v", err)
+	}
+	res := authPost(t, ts.URL+"/api/v1/sessions/reassign", map[string]any{
+		"ids": []string{"a"}, "projectId": branchID,
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		b, _ := io.ReadAll(res.Body)
+		t.Fatalf("branch reassign status = %d (%s), want 400", res.StatusCode, b)
 	}
 }
 
