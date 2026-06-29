@@ -227,7 +227,7 @@ func TestFakeDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	ctx := context.Background()
 
 	// Insert with DocMemory
-	id1, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocMemory, "active-context", "AC", "v1", false)
+	id1, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocMemory, "active-context", "AC", "v1", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestFakeDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	}
 
 	// Re-upsert at same (owner, nil node, path) with DocActiveContext — must converge
-	id2, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocActiveContext, "active-context", "AC", "v2", false)
+	id2, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocActiveContext, "active-context", "AC", "v2", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}

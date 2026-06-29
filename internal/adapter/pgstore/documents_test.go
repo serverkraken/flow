@@ -637,11 +637,11 @@ func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
 	nid := "n1"
 	seedNode(t, ns, "u1", nid)
 
-	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2 body", false)
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2 body", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -664,7 +664,7 @@ func TestDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	seedNode(t, ns, "u1", nid)
 
 	// Insert as memory type
-	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,7 +674,7 @@ func TestDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	}
 
 	// Re-upsert at same path with activecontext type — must converge
-	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocActiveContext, "active-context", "AC", "v2 body", false)
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocActiveContext, "active-context", "AC", "v2 body", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -694,11 +694,11 @@ func TestDocumentStore_UpsertByPath_GlobalNodeNull(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, us, "u1")
 
-	id1, _, err := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g1", false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g1", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	id2, _, _ := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g2", false)
+	id2, _, _ := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g2", false, false)
 	if id1 != id2 {
 		t.Fatalf("global (node_id NULL) upsert must hit the coalesce('') index, got %q vs %q", id1, id2)
 	}
@@ -712,8 +712,8 @@ func TestDocumentStore_UpsertByPath_PreservesPin(t *testing.T) {
 	seedUser(t, us, "u1")
 	nid := "n1"
 	seedNode(t, ns, "u1", nid)
-	id, _, _ := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1", true)
-	_, _, _ = ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2", false) // flush, pinned arg false
+	id, _, _ := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1", true, false)
+	_, _, _ = ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2", false, false) // flush, pinned arg false
 	got, _ := ds.Get(ctx, "u1", id)
 	if !got.Pinned {
 		t.Fatalf("upsert-on-conflict must PRESERVE the existing pin")

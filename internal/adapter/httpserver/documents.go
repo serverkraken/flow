@@ -210,8 +210,9 @@ type upsertByPathReq struct {
 	Path   string   `json:"path"`
 	Title  string   `json:"title"`
 	Body   string   `json:"body"`
-	Tags   []string `json:"tags,omitempty"`
-	Pinned bool     `json:"pinned"`
+	Tags     []string `json:"tags,omitempty"`
+	Pinned   bool     `json:"pinned"`
+	Archived bool     `json:"archived"`
 }
 
 func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +224,7 @@ func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 	}
 	id, updated, err := s.UpsertDocumentByPath.Execute(r.Context(), u.ID, usecase.UpsertByPathInput{
 		Type: domain.DocumentType(req.Type), NodeID: req.NodeID, Path: req.Path,
-		Title: req.Title, Body: req.Body, Tags: req.Tags, Pinned: req.Pinned,
+		Title: req.Title, Body: req.Body, Tags: req.Tags, Pinned: req.Pinned, Archived: req.Archived,
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidDocument) {

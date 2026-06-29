@@ -48,6 +48,32 @@ func TestUpsertDocumentByPath_Idempotent(t *testing.T) {
 	}
 }
 
+func TestUpsertDocumentByPath_Archived(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	uc := usecase.UpsertDocumentByPath{Docs: docs, Tags: tags}
+	id, _, err := uc.Execute(context.Background(), "u1", usecase.UpsertByPathInput{
+		Type: domain.DocMemory, Path: "m1", Title: "M1", Body: "b", Archived: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := docs.Get(context.Background(), "u1", id)
+	if !got.Archived {
+		t.Fatalf("upsert did not set archived: %+v", got)
+	}
+	// re-run un-archived → reclassifies
+	if _, _, err := uc.Execute(context.Background(), "u1", usecase.UpsertByPathInput{
+		Type: domain.DocMemory, Path: "m1", Title: "M1", Body: "b", Archived: false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = docs.Get(context.Background(), "u1", id)
+	if got.Archived {
+		t.Fatalf("re-run did not reclassify: %+v", got)
+	}
+}
+
 func TestUpsertDocumentByPath_RejectsBadType(t *testing.T) {
 	uc := usecase.UpsertDocumentByPath{Docs: testutil.NewFakeDocumentStore(), Tags: testutil.NewFakeTagStore()}
 	_, _, err := uc.Execute(context.Background(), "owner",

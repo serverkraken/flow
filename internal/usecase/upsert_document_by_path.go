@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -11,13 +12,14 @@ import (
 // UpsertByPathInput is the caller-supplied shape for an idempotent upsert keyed
 // by (owner, node, path). Used by the memory-migration importer.
 type UpsertByPathInput struct {
-	Type   domain.DocumentType
-	NodeID *string
-	Path   string
-	Title  string
-	Body   string
-	Tags   []string // explicit tag set; nil -> leave tags untouched
-	Pinned bool
+	Type     domain.DocumentType
+	NodeID   *string
+	Path     string
+	Title    string
+	Body     string
+	Tags     []string // explicit tag set; nil -> leave tags untouched
+	Pinned   bool
+	Archived bool
 }
 
 // UpsertDocumentByPath inserts or updates a document at (owner, node, path),
@@ -35,7 +37,7 @@ func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in U
 	if err := (domain.Document{Type: in.Type, NodeID: in.NodeID, Path: in.Path, Title: in.Title, Body: in.Body}).Validate(); err != nil {
 		return "", time.Time{}, err
 	}
-	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned)
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned, in.Archived)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -50,6 +52,10 @@ func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in U
 	// UpsertByPath's ON CONFLICT path does not touch pinned; enforce it explicitly.
 	if err := uc.Docs.SetPinned(ctx, ownerID, id, in.Pinned); err != nil {
 		return id, updated, err
+	}
+	// ON CONFLICT also does not touch archived; enforce it explicitly for idempotent reclassify.
+	if err := uc.Docs.SetArchived(ctx, ownerID, id, in.Archived); err != nil {
+		return "", time.Time{}, fmt.Errorf("upsert by path: set archived: %w", err)
 	}
 	if uc.Notifier != nil {
 		uc.Notifier.DocumentChanged()

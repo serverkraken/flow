@@ -228,17 +228,17 @@ func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]dom
 	return scanDocuments(rows)
 }
 
-func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
+func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool) (string, time.Time, error) {
 	id := s.ids.NewID()
 	const q = `
-INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, created_at, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,now(),now())
+INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, archived, created_at, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,$9,now(),now())
 ON CONFLICT (owner_id, coalesce(node_id, ''), path)
 DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type, updated_at = now()
 RETURNING id, updated_at`
 	var gotID string
 	var updated time.Time
-	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned).Scan(&gotID, &updated)
+	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned, archived).Scan(&gotID, &updated)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("pgstore: upsert by path: %w", err)
 	}

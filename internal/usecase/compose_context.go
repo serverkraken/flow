@@ -57,7 +57,7 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 	if strings.TrimSpace(title) == "" {
 		title = "Active Context"
 	}
-	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false)
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false, false)
 	if err != nil {
 		return "", time.Time{}, err
 	}

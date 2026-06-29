@@ -975,7 +975,7 @@ func (s *FakeDocumentStore) ListArchived(_ context.Context, ownerID string) ([]d
 	return out, nil
 }
 
-func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (string, time.Time, error) {
+func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool) (string, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	nv := ""
@@ -988,14 +988,14 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 			dn = *d.NodeID
 		}
 		if d.OwnerID == ownerID && dn == nv && d.Path == path {
-			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, id; mirror pgstore type convergence
+			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, archived, id; mirror pgstore ON CONFLICT
 			s.m[d.ID] = d
 			return d.ID, time.Time{}, nil
 		}
 	}
 	s.seq++
 	id := "fdoc-" + itoa(s.seq)
-	s.m[id] = domain.Document{ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body, Pinned: pinned}
+	s.m[id] = domain.Document{ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body, Pinned: pinned, Archived: archived}
 	return id, time.Time{}, nil
 }
 

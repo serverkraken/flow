@@ -210,7 +210,7 @@ type DocumentStore interface {
 	// (owner_id, coalesce(node_id,''), path) — updates title/body/updated_at
 	// while preserving the existing pinned flag. Returns the row's id and
 	// updated_at regardless of whether the row was inserted or updated.
-	UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned bool) (id string, updatedAt time.Time, err error)
+	UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool) (id string, updatedAt time.Time, err error)
 
 	// ListForContext returns the owner's documents matching any of the given
 	// nodeIDs or — when includeGlobal is true — those with node_id IS NULL,
