@@ -39,6 +39,25 @@ func TestValidParentKind(t *testing.T) {
 	}
 }
 
+func TestIsBookable(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		kind domain.NodeKind
+		want bool
+	}{
+		{domain.KindEngagement, true},
+		{domain.KindVorhaben, true},
+		{domain.KindRepo, true},
+		{domain.KindBranch, false},
+		{domain.NodeKind("unknown"), false},
+	}
+	for _, c := range cases {
+		if got := domain.IsBookable(c.kind); got != c.want {
+			t.Errorf("IsBookable(%s)=%v want %v", c.kind, got, c.want)
+		}
+	}
+}
+
 func TestResolveEngagement(t *testing.T) {
 	t.Parallel()
 	p := "p"

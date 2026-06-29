@@ -101,6 +101,12 @@ func ValidParentKind(child, parent NodeKind) bool {
 // AllowedChildKind reports whether parentKind may have a child of childKind.
 func AllowedChildKind(parent, child NodeKind) bool { return ValidParentKind(child, parent) }
 
+// IsBookable reports whether worktime may be booked to a node of this kind.
+// Engagement, Vorhaben and Repo are bookable; Branch is reserved (B1) and not.
+func IsBookable(k NodeKind) bool {
+	return k == KindEngagement || k == KindVorhaben || k == KindRepo
+}
+
 // ResolveEngagement returns the engagement from an ancestor chain ordered
 // leaf→root (as NodeStore.Ancestors returns). The engagement is the last
 // element (root); ok=false if the chain is empty or its root is not an engagement.
