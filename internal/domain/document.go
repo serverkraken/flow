@@ -70,7 +70,9 @@ type Document struct {
 	Date      *time.Time     `json:"date,omitempty"`
 	Role      *string        `json:"role,omitempty"`
 	Extra     map[string]any `json:"extra,omitempty"`
-	Pinned    bool           `json:"pinned"`
+	Pinned     bool       `json:"pinned"`
+	Archived   bool       `json:"archived"`
+	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 }

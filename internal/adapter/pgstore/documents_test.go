@@ -551,6 +551,30 @@ func TestDocumentStore_SetPinned(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ArchivedRoundTrip(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	d := domain.Document{
+		ID: "d1", OwnerID: "u1", Type: domain.DocMemory, Path: "m1",
+		Title: "M1", Body: "b", Archived: true,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if _, err := ds.Create(ctx, d); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	got, err := ds.Get(ctx, "u1", "d1")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if !got.Archived {
+		t.Fatalf("archived not persisted: %+v", got)
+	}
+}
+
 func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
 	t.Parallel()
 	ds, us, ns, done := newDocStore(t)
