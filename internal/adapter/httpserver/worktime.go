@@ -21,10 +21,10 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 type startReq struct {
 	NodeID *string    `json:"projectId"`
-	Tags      []string   `json:"tags"`
-	Note      string     `json:"note"`
-	Start     *time.Time `json:"start"`
-	Stop      *time.Time `json:"stop"`
+	Tags   []string   `json:"tags"`
+	Note   string     `json:"note"`
+	Start  *time.Time `json:"start"`
+	Stop   *time.Time `json:"stop"`
 }
 
 func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
@@ -393,7 +393,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 }
 
 type reassignReq struct {
-	IDs       []string `json:"ids"`
+	IDs    []string `json:"ids"`
 	NodeID string   `json:"projectId"`
 }
 
@@ -443,7 +443,6 @@ func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request
 	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
 	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
 }
-
 
 func (s *Server) handleTagTimes(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())

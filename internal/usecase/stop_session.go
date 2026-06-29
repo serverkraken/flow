@@ -17,7 +17,7 @@ import (
 // booked to the same engagement, so each day's totals stay accurate.
 type StopSession struct {
 	Sessions ports.SessionStore
-	Nodes	ports.NodeStore
+	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Loc      *time.Location

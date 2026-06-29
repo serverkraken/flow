@@ -28,18 +28,18 @@ const (
 // minimal field set; the heavier foundation fields (repos/paths/links/…)
 // arrive in later migrations.
 type Node struct {
-	ID        string        `json:"id"`
-	OwnerID   string        `json:"-"`
-	Name      string        `json:"name"`
-	Slug      string        `json:"slug"`
-	Color     string        `json:"color"`
-	Glyph     string        `json:"glyph"`
-	Description string      `json:"description"`
-	UpstreamGit string      `json:"upstreamGit"`
-	Rate      *Money        `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
-	Status    NodeStatus `json:"status"`
-	CreatedAt time.Time     `json:"createdAt"`
-	UpdatedAt time.Time     `json:"updatedAt"`
+	ID          string         `json:"id"`
+	OwnerID     string         `json:"-"`
+	Name        string         `json:"name"`
+	Slug        string         `json:"slug"`
+	Color       string         `json:"color"`
+	Glyph       string         `json:"glyph"`
+	Description string         `json:"description"`
+	UpstreamGit string         `json:"upstreamGit"`
+	Rate        *Money         `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
+	Status      NodeStatus     `json:"status"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
 	ParentID    *string        `json:"parentId,omitempty"`
 	Kind        NodeKind       `json:"kind"`
 	OriginSlug  string         `json:"originSlug,omitempty"`

@@ -15,7 +15,7 @@ import (
 // running session is excluded. engagementID "" means all engagements.
 type BuildExport struct {
 	Sessions ports.SessionStore
-	Nodes	ports.NodeStore
+	Nodes    ports.NodeStore
 	Clock    ports.Clock
 	Loc      *time.Location
 }
@@ -74,13 +74,13 @@ func (uc BuildExport) Execute(ctx context.Context, ownerID string, from, to time
 		stop := s.Stop.In(loc)
 		el := stop.Sub(start)
 		data.Sessions = append(data.Sessions, domain.ExportRow{
-			Date:        start,
-			Start:       start,
-			Stop:        stop,
-			Elapsed:     el,
+			Date:     start,
+			Start:    start,
+			Stop:     stop,
+			Elapsed:  el,
 			NodeName: name,
-			Tag:         strings.Join(s.Tags, ","),
-			Note:        s.Note,
+			Tag:      strings.Join(s.Tags, ","),
+			Note:     s.Note,
 		})
 		t, ok := totals[*s.NodeID]
 		if !ok {
