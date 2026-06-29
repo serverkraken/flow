@@ -707,9 +707,12 @@ func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain
 	if !ok || existing.OwnerID != d.OwnerID {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
-	// mirror pgstore: only title/body/tags/extra/updated_at are mutable
+	// mirror pgstore: title/body/type/path/tags/extra/updated_at are mutable.
+	// type and path are included so maintenance ops (RedesignDocTypes) can reclassify docs.
 	existing.Title = d.Title
 	existing.Body = d.Body
+	existing.Type = d.Type
+	existing.Path = d.Path
 	existing.Tags = d.Tags
 	existing.Extra = d.Extra
 	existing.UpdatedAt = d.UpdatedAt
