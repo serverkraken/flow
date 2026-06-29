@@ -202,7 +202,7 @@ func runMigrateMemories(ctx context.Context, out io.Writer, dir, manifest string
 		}
 
 		if dryRun {
-			fmt.Fprintf(out, "UPSERT %-45s -> %-30s tags=%v pin=%v\n", doc.Path, row.Scope, doc.Tags, doc.Pinned)
+			_, _ = fmt.Fprintf(out, "UPSERT %-45s -> %-30s tags=%v pin=%v\n", doc.Path, row.Scope, doc.Tags, doc.Pinned)
 			imported++
 			continue
 		}
@@ -218,6 +218,6 @@ func runMigrateMemories(ctx context.Context, out io.Writer, dir, manifest string
 	if dryRun {
 		mode = " (dry-run)"
 	}
-	fmt.Fprintf(out, "\nimported %d, skipped %d%s\n", imported, skipped, mode)
+	_, _ = fmt.Fprintf(out, "\nimported %d, skipped %d%s\n", imported, skipped, mode)
 	return nil
 }

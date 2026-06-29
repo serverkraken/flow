@@ -44,7 +44,7 @@ func TestParseManifest(t *testing.T) {
 	if rows[0].Scope != "global" || rows[0].Pin != true || !rows[0].Keep {
 		t.Errorf("row0 = %+v", rows[0])
 	}
-	if rows[1].Tags != nil && len(rows[1].Tags) != 0 {
+	if len(rows[1].Tags) != 0 {
 		t.Errorf("row1 tags = %v want empty", rows[1].Tags)
 	}
 	if rows[2].Keep {
@@ -157,6 +157,9 @@ func TestRunMigrateMemories_UpsertAndDryRun(t *testing.T) {
 	}
 	if got.Type != string(domain.DocMemory) {
 		t.Errorf("type = %q, want %q", got.Type, domain.DocMemory)
+	}
+	if got.Title != "avoid colored emoji" {
+		t.Errorf("title = %q, want %q", got.Title, "avoid colored emoji")
 	}
 }
 
