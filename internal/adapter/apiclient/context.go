@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -67,4 +68,16 @@ func (c *Client) SetActiveContext(ctx context.Context, in SetActiveContextInput)
 // SetPinned calls POST /api/v1/documents/{id}/pin to pin or unpin a document.
 func (c *Client) SetPinned(ctx context.Context, id string, pinned bool) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/pin", map[string]bool{"pinned": pinned}, nil)
+}
+
+// RedesignDocTypes triggers the server-side maintenance op that rewrites legacy
+// `agent` docs to spec/plan with slim paths. dryRun audits without mutating.
+func (c *Client) RedesignDocTypes(ctx context.Context, dryRun bool) (domain.RedesignReport, error) {
+	path := "/api/v1/maintenance/redesign-doctypes"
+	if dryRun {
+		path += "?dry_run=true"
+	}
+	var out domain.RedesignReport
+	err := c.do(ctx, http.MethodPost, path, nil, &out)
+	return out, err
 }

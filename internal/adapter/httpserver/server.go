@@ -88,6 +88,7 @@ type Server struct {
 
 	// maintenance (F1)
 	StripFrontmatter usecase.StripFrontmatter
+	RedesignDocTypes usecase.RedesignDocTypes
 
 	// B3 context store (B1, B2)
 	ComposeContext   usecase.ComposeContext
@@ -217,6 +218,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 
 	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
+	mux.Handle("POST /api/v1/maintenance/redesign-doctypes", s.authAny(http.HandlerFunc(s.handleRedesignDocTypes)))
 
 	mux.Handle("GET /api/v1/context", s.auth(http.HandlerFunc(s.handleGetContext)))
 	mux.Handle("PUT /api/v1/context/active", s.auth(http.HandlerFunc(s.handlePutContextActive)))
