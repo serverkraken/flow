@@ -51,19 +51,21 @@ func migrateDocTypesCmd() *cobra.Command {
 }
 
 type manifestRow struct {
-	File  string
-	Scope string // node slug or "global"
-	Tags  []string
-	Pin   bool
-	Keep  bool
+	File     string
+	Scope    string // node slug or "global"
+	Tags     []string
+	Pin      bool
+	Keep     bool
+	Archived bool
 }
 
 type memoryDoc struct {
-	Path   string
-	Title  string
-	Body   string
-	Tags   []string
-	Pinned bool
+	Path     string
+	Title    string
+	Body     string
+	Tags     []string
+	Pinned   bool
+	Archived bool
 }
 
 // parseManifest reads a TSV manifest: file<TAB>scope<TAB>tags<TAB>pin<TAB>keep.
@@ -90,13 +92,17 @@ func parseManifest(r io.Reader) ([]manifestRow, error) {
 				tags = append(tags, t)
 			}
 		}
-		rows = append(rows, manifestRow{
+		row := manifestRow{
 			File:  strings.TrimSpace(f[0]),
 			Scope: strings.TrimSpace(f[1]),
 			Tags:  tags,
 			Pin:   strings.TrimSpace(f[3]) == "y",
 			Keep:  strings.TrimSpace(f[4]) != "skip",
-		})
+		}
+		if len(f) >= 6 {
+			row.Archived = strings.TrimSpace(f[5]) == "y"
+		}
+		rows = append(rows, row)
 	}
 	return rows, sc.Err()
 }
@@ -126,7 +132,8 @@ func deriveMemoryDoc(body string, row manifestRow) memoryDoc {
 			}
 		}
 	}
-	return memoryDoc{Path: stem, Title: title, Body: content, Tags: tags, Pinned: row.Pin}
+	pin := row.Pin && !row.Archived
+	return memoryDoc{Path: stem, Title: title, Body: content, Tags: tags, Pinned: pin, Archived: row.Archived}
 }
 
 func appendUnique(ss []string, s string) []string {
@@ -202,13 +209,14 @@ func runMigrateMemories(ctx context.Context, out io.Writer, dir, manifest string
 		}
 
 		if dryRun {
-			_, _ = fmt.Fprintf(out, "UPSERT %-45s -> %-30s tags=%v pin=%v\n", doc.Path, row.Scope, doc.Tags, doc.Pinned)
+			_, _ = fmt.Fprintf(out, "UPSERT %-45s -> %-30s tags=%v pin=%v archived=%v\n", doc.Path, row.Scope, doc.Tags, doc.Pinned, doc.Archived)
 			imported++
 			continue
 		}
 		if _, err := c.UpsertDocumentByPath(ctx, apiclient.UpsertByPathInput{
 			Type: string(domain.DocMemory), NodeID: nodeID, Path: doc.Path,
 			Title: doc.Title, Body: doc.Body, Tags: doc.Tags, Pinned: doc.Pinned,
+			Archived: doc.Archived,
 		}); err != nil {
 			return fmt.Errorf("upsert %s: %w", doc.Path, err)
 		}

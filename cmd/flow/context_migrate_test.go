@@ -163,6 +163,20 @@ func TestRunMigrateMemories_UpsertAndDryRun(t *testing.T) {
 	}
 }
 
+func TestParseManifest_ArchivedColumn(t *testing.T) {
+	in := "file\tscope\ttags\tpin\tkeep\tarchived\n" +
+		"a_done.md\tglobal\t\t-\ty\ty\n" +
+		"b.md\tglobal\t\t-\ty\t-\n" +
+		"c.md\tglobal\t\t-\ty\n" // 5-col legacy row → archived defaults false
+	rows, err := parseManifest(strings.NewReader(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows[0].Archived || rows[1].Archived || rows[2].Archived {
+		t.Fatalf("archived parse: %+v", rows)
+	}
+}
+
 func TestRunMigrateMemories_SkipsMemoryMdAndSkipRows(t *testing.T) {
 	var puts int
 
