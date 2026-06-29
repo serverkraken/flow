@@ -138,3 +138,111 @@ func TestCompose_SingleEngagementChainLeafTier(t *testing.T) {
 		t.Errorf("no engagement-tier when leaf==root: %+v", got.Memories["engagement"])
 	}
 }
+
+func TestCompose_PinnedGlobalBypassesGate(t *testing.T) {
+	t.Parallel()
+	leaf, eng := "L", "E"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo), node(eng, "Privat", domain.KindEngagement)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		doc("gPinned", nil, domain.DocMemory, "g1", true, t0, "always"),  // pinned, NOT in globalAllowed
+		doc("gPlain", nil, domain.DocMemory, "g2", false, t0, "topical"), // unpinned, NOT in globalAllowed
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000) // empty globalAllowed
+	if len(got.Memories["global"]) != 1 || got.Memories["global"][0].ID != "gPinned" {
+		t.Fatalf("pinned global must bypass D7; unpinned stays gated: %+v", got.Memories["global"])
+	}
+}
+
+func TestCompose_TierRankFillOrder(t *testing.T) {
+	t.Parallel()
+	leaf, vor, eng := "L", "V", "E"
+	chain := []domain.Node{
+		node(leaf, "flow", domain.KindRepo),
+		node(vor, "Vorhaben", domain.KindVorhaben),
+		node(eng, "Privat", domain.KindEngagement),
+	}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) } // EstTokens = ceil(n/4)
+	docs := []domain.Document{
+		doc("le", &leaf, domain.DocMemory, "l", false, t0, body(400)),
+		doc("vo", &vor, domain.DocMemory, "v", false, t0, body(400)),
+		doc("en", &eng, domain.DocMemory, "e", false, t0, body(400)),
+		doc("gl", nil, domain.DocMemory, "g", false, t0, body(400)),
+	}
+	// 4×100-tok items, cap=250 → two highest tiers (global, engagement) fit; vorhaben+leaf drop.
+	got := usecase.Compose(chain, docs, map[string]bool{"gl": true}, 250)
+	if len(got.Memories["global"]) != 1 || len(got.Memories["engagement"]) != 1 {
+		t.Fatalf("global+engagement should survive tight cap: %+v", got.Memories)
+	}
+	if len(got.Memories["vorhaben"]) != 0 || len(got.Memories["leaf"]) != 0 {
+		t.Fatalf("vorhaben+leaf should drop: %+v", got.Memories)
+	}
+	if got.Budget.Dropped.Vorhaben != 1 || got.Budget.Dropped.Leaf != 1 {
+		t.Errorf("want vorhaben=1 leaf=1 dropped, got %+v", got.Budget.Dropped)
+	}
+}
+
+func TestCompose_PinnedBeatsTier(t *testing.T) {
+	t.Parallel()
+	leaf, eng := "L", "E"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo), node(eng, "Privat", domain.KindEngagement)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) }
+	docs := []domain.Document{
+		doc("leafPinned", &leaf, domain.DocMemory, "l", true, t0, body(400)), // pinned leaf (rank 3)
+		doc("globalPlain", nil, domain.DocMemory, "g", false, t0, body(400)), // unpinned global (rank 0)
+	}
+	// cap=100 → exactly one 100-tok item fits; pinned beats tier → leafPinned wins.
+	got := usecase.Compose(chain, docs, map[string]bool{"globalPlain": true}, 100)
+	if len(got.Memories["leaf"]) != 1 || got.Memories["leaf"][0].ID != "leafPinned" {
+		t.Fatalf("pinned leaf must win over unpinned higher-tier global: %+v", got.Memories)
+	}
+	if got.Budget.Dropped.Global != 1 {
+		t.Errorf("unpinned global should drop, got %+v", got.Budget.Dropped)
+	}
+}
+
+func TestCompose_DroppedPinnedSignaled(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) }
+	docs := []domain.Document{
+		doc("p1", &leaf, domain.DocMemory, "a", true, t0, body(400)), // pinned 100 tok
+		doc("p2", &leaf, domain.DocMemory, "b", true, t0, body(400)), // pinned 100 tok
+	}
+	// cap=100 → one pinned fits, one drops → Dropped.Pinned=1 AND Dropped.Leaf=1.
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100)
+	if got.Budget.Dropped.Pinned != 1 {
+		t.Errorf("a dropped pin must set Dropped.Pinned, got %+v", got.Budget.Dropped)
+	}
+	if got.Budget.Dropped.Leaf != 1 {
+		t.Errorf("the dropped pin is a leaf → Dropped.Leaf must also count it, got %+v", got.Budget.Dropped)
+	}
+}
+
+func TestCompose_FloorExceedsCapKeepsAlways(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) }
+	docs := []domain.Document{
+		doc("instr", &leaf, domain.DocInstruction, "claude", false, t0, body(800)),                 // 200 tok
+		doc("ac", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, body(400)), // 100 tok
+		doc("m", &leaf, domain.DocMemory, "m", false, t0, body(400)),                               // 100 tok
+	}
+	// cap=50 < instructions(200)+activeContext(100): both always-tier kept, Used>cap, memory dropped.
+	got := usecase.Compose(chain, docs, map[string]bool{}, 50)
+	if len(got.Instructions) != 1 || got.ActiveContext == nil {
+		t.Fatalf("instructions+activeContext must always load over cap: %+v / %+v", got.Instructions, got.ActiveContext)
+	}
+	if got.Budget.Used != 300 {
+		t.Errorf("Used should be the always-tier sum 300, got %d", got.Budget.Used)
+	}
+	if len(got.Memories["leaf"]) != 0 || got.Budget.Dropped.Leaf != 1 {
+		t.Errorf("the leaf memory must drop, got mem=%+v dropped=%+v", got.Memories["leaf"], got.Budget.Dropped)
+	}
+}

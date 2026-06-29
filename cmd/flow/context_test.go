@@ -16,11 +16,18 @@ func TestRenderContext_BodiesAndFooter(t *testing.T) {
 		},
 	}
 	cc.Budget.Used = 1200
-	cc.Budget.Cap = 6000
+	cc.Budget.Cap = 12000
+	cc.Budget.Dropped.Leaf = 65
+	cc.Budget.Dropped.Vorhaben = 1
 	cc.Budget.Dropped.Engagement = 2
 	cc.Budget.Dropped.Global = 3
+	cc.Budget.Dropped.Pinned = 1
 	out := renderContext(cc, false, "")
-	for _, want := range []string{"RULE A", "where I was", "leaf mem", "1200/6000", "+2 engagement", "global not shown"} {
+	for _, want := range []string{
+		"RULE A", "where I was", "leaf mem", "1200/12000",
+		"+65 leaf not shown", "+1 vorhaben not shown", "+2 engagement not shown", "+3 global not shown",
+		"!! 1 pinned not shown",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q\n---\n%s", want, out)
 		}

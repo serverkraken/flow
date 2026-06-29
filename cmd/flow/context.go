@@ -112,11 +112,21 @@ func renderContext(cc usecase.ComposedContext, offline bool, stamp string) strin
 	}
 	b.WriteString("\n---\n")
 	fmt.Fprintf(&b, "%d/%d tokens", cc.Budget.Used, cc.Budget.Cap)
-	if cc.Budget.Dropped.Engagement > 0 {
-		fmt.Fprintf(&b, " · +%d engagement not shown", cc.Budget.Dropped.Engagement)
+	for _, d := range []struct {
+		n     int
+		label string
+	}{
+		{cc.Budget.Dropped.Leaf, "leaf"},
+		{cc.Budget.Dropped.Vorhaben, "vorhaben"},
+		{cc.Budget.Dropped.Engagement, "engagement"},
+		{cc.Budget.Dropped.Global, "global"},
+	} {
+		if d.n > 0 {
+			fmt.Fprintf(&b, " · +%d %s not shown", d.n, d.label)
+		}
 	}
-	if cc.Budget.Dropped.Global > 0 {
-		fmt.Fprintf(&b, " · +%d global not shown", cc.Budget.Dropped.Global)
+	if cc.Budget.Dropped.Pinned > 0 {
+		fmt.Fprintf(&b, " · !! %d pinned not shown — raise --cap or unpin", cc.Budget.Dropped.Pinned)
 	}
 	if offline {
 		fmt.Fprintf(&b, " · offline — Stand %s", stamp)
