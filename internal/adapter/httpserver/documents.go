@@ -204,6 +204,39 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type upsertByPathReq struct {
+	Type   string   `json:"type"`
+	NodeID *string  `json:"projectId,omitempty"`
+	Path   string   `json:"path"`
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Tags   []string `json:"tags,omitempty"`
+	Pinned bool     `json:"pinned"`
+}
+
+func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req upsertByPathReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	id, updated, err := s.UpsertDocumentByPath.Execute(r.Context(), u.ID, usecase.UpsertByPathInput{
+		Type: domain.DocumentType(req.Type), NodeID: req.NodeID, Path: req.Path,
+		Title: req.Title, Body: req.Body, Tags: req.Tags, Pinned: req.Pinned,
+	})
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidDocument) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
+}
+
 type pinReq struct {
 	Pinned bool `json:"pinned"`
 }

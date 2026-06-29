@@ -59,7 +59,8 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Tags: tags},
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
-		SetPinned:         usecase.SetPinned{Docs: docs},
+		SetPinned:            usecase.SetPinned{Docs: docs},
+		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Tags: tags},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
 		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
@@ -774,6 +775,35 @@ func TestHandlePinDocument_NotFound(t *testing.T) {
 
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestUpsertByPath_InsertThenUpdate(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	body := `{"type":"memory","path":"feedback_no_icons","title":"No emoji","body":"x","tags":["feedback"],"pinned":true}`
+
+	res := doDoc(t, ts, "PUT", "/api/v1/documents/by-path", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != 200 {
+		t.Fatalf("insert status %d", res.StatusCode)
+	}
+
+	res2 := doDoc(t, ts, "PUT", "/api/v1/documents/by-path", body)
+	defer func() { _ = res2.Body.Close() }()
+	if res2.StatusCode != 200 {
+		t.Fatalf("update status %d", res2.StatusCode)
+	}
+
+	bad := `{"type":"bogus","path":"x","body":"y"}`
+	r := doDoc(t, ts, "PUT", "/api/v1/documents/by-path", bad)
+	defer func() { _ = r.Body.Close() }()
+	if r.StatusCode != 400 {
+		t.Fatalf("bad type status %d want 400", r.StatusCode)
 	}
 }
 

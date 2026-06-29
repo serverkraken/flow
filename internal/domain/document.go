@@ -10,14 +10,16 @@ import (
 type DocumentType string
 
 const (
-	DocDaily       DocumentType = "daily"
-	DocProject     DocumentType = "project"
-	DocFree        DocumentType = "free"
-	DocAgent       DocumentType = "agent"
-	DocMemory      DocumentType = "memory"      // agent-owned
-	DocInstruction DocumentType = "instruction" // agent-owned (CLAUDE.md)
-	DocSkill       DocumentType = "skill"       // agent-owned
-	DocPlan        DocumentType = "plan"        // agent-owned
+	DocDaily         DocumentType = "daily"
+	DocProject       DocumentType = "project"
+	DocFree          DocumentType = "free"
+	DocAgent         DocumentType = "agent"         // DEPRECATED (B3d): split into DocSpec/DocPlan; kept valid until prod 0-agent
+	DocMemory        DocumentType = "memory"        // agent-owned
+	DocInstruction   DocumentType = "instruction"   // agent-owned (CLAUDE.md)
+	DocSkill         DocumentType = "skill"         // agent-owned
+	DocPlan          DocumentType = "plan"          // agent-owned
+	DocSpec          DocumentType = "spec"          // agent-owned (B3d: was agent)
+	DocActiveContext DocumentType = "activecontext" // agent-owned (B3d: per-repo active context)
 )
 
 // DocumentTypes returns every valid document type in canonical order. It is the
@@ -27,6 +29,7 @@ func DocumentTypes() []DocumentType {
 	return []DocumentType{
 		DocDaily, DocProject, DocFree, DocAgent,
 		DocMemory, DocInstruction, DocSkill, DocPlan,
+		DocSpec, DocActiveContext,
 	}
 }
 
@@ -72,10 +75,10 @@ type Document struct {
 	UpdatedAt time.Time      `json:"updatedAt"`
 }
 
-var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)*$`)
+var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$`)
 
 // SlugOK reports whether s is a valid hierarchical slug: lowercase
-// alphanumeric segments joined by '/', words separated by single '-'. No
+// alphanumeric segments joined by '/', words separated by single '-' or '_'. No
 // leading/trailing/double slash, no spaces or uppercase.
 func SlugOK(s string) bool {
 	return s != "" && slugRe.MatchString(s)

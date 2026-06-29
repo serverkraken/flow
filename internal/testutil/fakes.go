@@ -707,9 +707,12 @@ func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain
 	if !ok || existing.OwnerID != d.OwnerID {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
-	// mirror pgstore: only title/body/tags/extra/updated_at are mutable
+	// mirror pgstore: title/body/type/path/tags/extra/updated_at are mutable.
+	// type and path are included so maintenance ops (RedesignDocTypes) can reclassify docs.
 	existing.Title = d.Title
 	existing.Body = d.Body
+	existing.Type = d.Type
+	existing.Path = d.Path
 	existing.Tags = d.Tags
 	existing.Extra = d.Extra
 	existing.UpdatedAt = d.UpdatedAt
@@ -740,6 +743,16 @@ func (s *FakeDocumentStore) ReplaceLinks(_ context.Context, srcDocID, _ string, 
 	copy(cp, targets)
 	s.links[srcDocID] = cp
 	return nil
+}
+
+// LinksFor returns the recorded wikilink target paths for a document id.
+// Test-only introspection accessor.
+func (s *FakeDocumentStore) LinksFor(docID string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.links[docID]))
+	copy(out, s.links[docID])
+	return out
 }
 
 func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
@@ -934,7 +947,7 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 			dn = *d.NodeID
 		}
 		if d.OwnerID == ownerID && dn == nv && d.Path == path {
-			d.Title, d.Body = title, body // preserve pinned, type, id
+			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, id; mirror pgstore type convergence
 			s.m[d.ID] = d
 			return d.ID, time.Time{}, nil
 		}

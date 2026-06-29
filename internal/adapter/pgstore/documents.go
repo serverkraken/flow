@@ -170,15 +170,16 @@ func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *st
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {
-	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4
-WHERE owner_id=$5 AND id=$6
+	// type and path are included so maintenance ops (RedesignDocTypes) can reclassify docs.
+	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4, type=$5, path=$6
+WHERE owner_id=$7 AND id=$8
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
 		return domain.Document{}, fmt.Errorf("pgstore: marshal extra: %w", err)
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
-		d.Title, d.Body, extra, d.UpdatedAt, d.OwnerID, d.ID))
+		d.Title, d.Body, extra, d.UpdatedAt, string(d.Type), d.Path, d.OwnerID, d.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
@@ -213,7 +214,7 @@ func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID
 INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, created_at, updated_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,now(),now())
 ON CONFLICT (owner_id, coalesce(node_id, ''), path)
-DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, updated_at = now()
+DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type, updated_at = now()
 RETURNING id, updated_at`
 	var gotID string
 	var updated time.Time

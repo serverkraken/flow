@@ -25,7 +25,7 @@ func TestComposeContext_Execute_ResolvesChainAndGates(t *testing.T) {
 	_, _ = binds.Upsert(ctx, domain.ProjectBinding{Kind: domain.BindingRemote, OwnerID: "u1", RemoteSlug: "flow", NodeID: leaf.ID})
 
 	t0 := time.Now()
-	_, _ = docs.Create(ctx, domain.Document{ID: "ac", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocMemory, Path: usecase.ActiveContextPath, Body: "where", UpdatedAt: t0})
+	_, _ = docs.Create(ctx, domain.Document{ID: "ac", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocActiveContext, Path: usecase.ActiveContextPath, Body: "where", UpdatedAt: t0})
 	_, _ = docs.Create(ctx, domain.Document{ID: "gmem", OwnerID: "u1", NodeID: nil, Type: domain.DocMemory, Path: "g", Body: "global", UpdatedAt: t0})
 	// tag both the leaf node and the global memory with "go" so the D7 gate lets gmem cross.
 	_, _ = tags.SetTags(ctx, "u1", domain.TaggableNode, leaf.ID, []string{"go"})

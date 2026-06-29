@@ -76,7 +76,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.backlinks)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_create_doc",
-		Description: "Create a Kompendium document in the current project by default. Tags are set via YAML frontmatter in the body. Type must be one of: daily, project, free, agent, memory, instruction, skill, plan.",
+		Description: "Create a Kompendium document in the current project by default. Tags are set via YAML frontmatter in the body. Type must be one of: daily, project, free, memory, instruction, skill, plan, spec, activecontext (agent: deprecated).",
 	}, h.createDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_doc",

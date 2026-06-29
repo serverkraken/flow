@@ -161,6 +161,8 @@ func run() error {
 		RetryEmbedding:      usecase.RetryEmbedding{Docs: documentStore, Notifier: embedWorker},
 		GetEmbedStatus:      usecase.GetEmbedStatus{Docs: documentStore},
 		StripFrontmatter:    usecase.StripFrontmatter{Docs: documentStore, Clock: clock},
+		RedesignDocTypes:    usecase.RedesignDocTypes{Docs: documentStore, Clock: clock},
+		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: documentStore, Tags: tagStore, Notifier: embedWorker},
 		ComposeContext: usecase.ComposeContext{
 			Resolve: usecase.ResolveNode{Bindings: bindingStore, Nodes: nodeStore},
 			Nodes:   nodeStore, Docs: documentStore, Tags: tagStore,

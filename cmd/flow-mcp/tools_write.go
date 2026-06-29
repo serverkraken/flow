@@ -19,7 +19,7 @@ type createDocIn struct {
 	Path    string   `json:"path" jsonschema:"the document path (hierarchical slug, e.g. notes/architecture)"`
 	Title   string   `json:"title" jsonschema:"the document title"`
 	Body    string   `json:"body" jsonschema:"the markdown body"`
-	Type    string   `json:"type" jsonschema:"the document type: daily, project, free, agent, memory, instruction, skill, or plan"`
+	Type    string   `json:"type" jsonschema:"the document type: daily, project, free, memory, instruction, skill, plan, spec, or activecontext (agent: deprecated)"`
 	Project string   `json:"project,omitempty" jsonschema:"project slug, name, or id to create in; 'global'/'none' for an unassigned document; omit to use the current directory's project"`
 	Tags    []string `json:"tags,omitempty" jsonschema:"tags as a flat list; replaces the whole set. Body is pure content — do NOT put tags in YAML frontmatter."`
 }

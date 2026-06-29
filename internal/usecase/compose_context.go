@@ -57,7 +57,7 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 	if strings.TrimSpace(title) == "" {
 		title = "Active Context"
 	}
-	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocMemory, ActiveContextPath, title, body, false)
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false)
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -164,6 +164,11 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 				lbl = label[*d.NodeID]
 			}
 			out.Instructions = append(out.Instructions, itemOf(d, lbl))
+		case domain.DocActiveContext:
+			if d.NodeID != nil && tier[*d.NodeID] == "leaf" {
+				it := itemOf(d, label[*d.NodeID])
+				out.ActiveContext = &it
+			}
 		case domain.DocMemory:
 			if d.NodeID == nil {
 				if globalAllowed[d.ID] {
@@ -175,12 +180,7 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 			nid := *d.NodeID
 			switch tier[nid] {
 			case "leaf":
-				if d.Path == ActiveContextPath {
-					it := itemOf(d, label[nid])
-					out.ActiveContext = &it
-				} else {
-					out.Memories["leaf"] = append(out.Memories["leaf"], itemOf(d, label[nid]))
-				}
+				out.Memories["leaf"] = append(out.Memories["leaf"], itemOf(d, label[nid]))
 			case "vorhaben":
 				out.Memories["vorhaben"] = append(out.Memories["vorhaben"], itemOf(d, label[nid]))
 			case "engagement":
@@ -239,7 +239,7 @@ type ComposeContext struct {
 	Tags    ports.TagStore
 }
 
-var bootstrapTypes = []domain.DocumentType{domain.DocInstruction, domain.DocMemory}
+var bootstrapTypes = []domain.DocumentType{domain.DocInstruction, domain.DocMemory, domain.DocActiveContext}
 
 // Execute resolves the leaf node, walks its ancestor chain, gathers docs, applies
 // the D7 tag-gate for global memories, and calls the pure Compose function.
