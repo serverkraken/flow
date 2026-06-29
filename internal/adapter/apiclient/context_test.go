@@ -3,8 +3,10 @@ package apiclient_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -91,5 +93,27 @@ func TestClient_SetPinned(t *testing.T) {
 	}
 	if !gotBody.Pinned {
 		t.Errorf("body.pinned: got %v, want true", gotBody.Pinned)
+	}
+}
+
+func TestClient_SetArchived(t *testing.T) {
+	t.Parallel()
+	var gotPath, gotBody string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+	if err := c.SetArchived(context.Background(), "doc-42", true); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/documents/doc-42/archive" {
+		t.Fatalf("path: %s", gotPath)
+	}
+	if !strings.Contains(gotBody, `"archived":true`) {
+		t.Fatalf("body: %s", gotBody)
 	}
 }

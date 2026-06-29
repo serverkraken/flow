@@ -71,6 +71,11 @@ func (c *Client) SetPinned(ctx context.Context, id string, pinned bool) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/pin", map[string]bool{"pinned": pinned}, nil)
 }
 
+// SetArchived calls POST /api/v1/documents/{id}/archive to archive or un-archive a document.
+func (c *Client) SetArchived(ctx context.Context, id string, archived bool) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/archive", map[string]bool{"archived": archived}, nil)
+}
+
 // RedesignDocTypes triggers the server-side maintenance op that rewrites legacy
 // `agent` docs to spec/plan with slim paths. dryRun audits without mutating.
 func (c *Client) RedesignDocTypes(ctx context.Context, dryRun bool) (domain.RedesignReport, error) {
@@ -90,8 +95,9 @@ type UpsertByPathInput struct {
 	Path   string   `json:"path"`
 	Title  string   `json:"title"`
 	Body   string   `json:"body"`
-	Tags   []string `json:"tags,omitempty"`
-	Pinned bool     `json:"pinned"`
+	Tags     []string `json:"tags,omitempty"`
+	Pinned   bool     `json:"pinned"`
+	Archived bool     `json:"archived"`
 }
 
 // UpsertByPathResult is the response body from PUT /api/v1/documents/by-path.
