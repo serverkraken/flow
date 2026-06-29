@@ -745,6 +745,16 @@ func (s *FakeDocumentStore) ReplaceLinks(_ context.Context, srcDocID, _ string, 
 	return nil
 }
 
+// LinksFor returns the recorded wikilink target paths for a document id.
+// Test-only introspection accessor.
+func (s *FakeDocumentStore) LinksFor(docID string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]string, len(s.links[docID]))
+	copy(out, s.links[docID])
+	return out
+}
+
 func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
