@@ -573,6 +573,27 @@ func TestDocumentStore_ArchivedRoundTrip(t *testing.T) {
 	if !got.Archived {
 		t.Fatalf("archived not persisted: %+v", got)
 	}
+
+	// non-nil ArchivedAt round-trip
+	someTime := time.Now().Truncate(time.Second)
+	d2 := domain.Document{
+		ID: "d2", OwnerID: "u1", Type: domain.DocMemory, Path: "m2",
+		Title: "M2", Body: "b2", Archived: true, ArchivedAt: &someTime,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}
+	if _, err := ds.Create(ctx, d2); err != nil {
+		t.Fatalf("create d2: %v", err)
+	}
+	got2, err := ds.Get(ctx, "u1", "d2")
+	if err != nil {
+		t.Fatalf("get d2: %v", err)
+	}
+	if got2.ArchivedAt == nil {
+		t.Fatalf("ArchivedAt not persisted: %+v", got2)
+	}
+	if !got2.ArchivedAt.Truncate(time.Second).Equal(someTime) {
+		t.Fatalf("ArchivedAt mismatch: want %v, got %v", someTime, got2.ArchivedAt)
+	}
 }
 
 func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
