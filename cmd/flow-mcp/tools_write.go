@@ -129,3 +129,40 @@ func (h *handlers) deleteDoc(ctx context.Context, _ *mcp.CallToolRequest, in del
 	}
 	return textResult(out), nil, nil
 }
+
+type archiveDocIn struct {
+	ID       string `json:"id" jsonschema:"the document id to archive or un-archive"`
+	Archived *bool  `json:"archived,omitempty" jsonschema:"true (default) to archive — out of bootstrap + default lists/search but still findable; false to un-archive"`
+}
+
+func (h *handlers) archiveDoc(ctx context.Context, _ *mcp.CallToolRequest, in archiveDocIn) (*mcp.CallToolResult, any, error) {
+	if strings.TrimSpace(in.ID) == "" {
+		return errorResult("id is required"), nil, nil
+	}
+	archived := true
+	if in.Archived != nil {
+		archived = *in.Archived
+	}
+	var out string
+	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		cur, err := c.GetDocument(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		if err := c.SetArchived(ctx, in.ID, archived); err != nil {
+			return err
+		}
+		if archived {
+			h.removeResource(cur.ID)
+			out = fmt.Sprintf("Archived [%s] %s.", cur.ID, cur.Title)
+		} else {
+			h.addResource(ctx, cur)
+			out = fmt.Sprintf("Un-archived [%s] %s.", cur.ID, cur.Title)
+		}
+		return nil
+	})
+	if err != nil {
+		return h.resultErr(err), nil, nil
+	}
+	return textResult(out), nil, nil
+}

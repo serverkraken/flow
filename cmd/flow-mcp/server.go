@@ -102,6 +102,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Name:        "flow_set_active_context",
 		Description: "Upsert this repo's activeContext memory (where I was / what's open / next step).",
 	}, h.setActiveContext)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_archive_doc",
+		Description: "Archive a context doc (out of bootstrap + default lists/search, but findable + reversible) or un-archive it. Safe, reversible — use this to retire done/historical memories instead of deleting them.",
+	}, h.archiveDoc)
 	return s, h
 }
 
