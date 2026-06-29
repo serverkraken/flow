@@ -122,7 +122,7 @@ func (s *DocumentStore) Get(ctx context.Context, ownerID, id string) (domain.Doc
 }
 
 func (s *DocumentStore) List(ctx context.Context, ownerID string, nodeID *string, tags ...string) ([]domain.Document, error) {
-	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1`
+	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1 AND NOT archived`
 	args := []any{ownerID}
 	q = appendNodeFilter(q, "node_id", &args, nodeID)
 	q = appendTagFilter(q, &args, ownerID, tags)
@@ -140,7 +140,7 @@ func (s *DocumentStore) List(ctx context.Context, ownerID string, nodeID *string
 }
 
 func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error) {
-	where := ` WHERE owner_id=$1`
+	where := ` WHERE owner_id=$1 AND NOT archived`
 	args := []any{ownerID}
 	where = appendNodeFilter(where, "node_id", &args, nodeID)
 	where = appendTagFilter(where, &args, ownerID, tags)
@@ -242,7 +242,7 @@ func (s *DocumentStore) ListForContext(ctx context.Context, ownerID string, node
 		ts[i] = string(t)
 	}
 	args := []any{ownerID, ts}
-	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1 AND type = ANY($2)`
+	q := `SELECT ` + docCols + ` FROM documents WHERE owner_id=$1 AND type = ANY($2) AND NOT archived`
 	switch {
 	case len(nodeIDs) > 0 && includeGlobal:
 		args = append(args, nodeIDs)
@@ -325,7 +325,7 @@ FROM documents d,
           (SELECT string_agg(w || ':*', ' | ')
            FROM unnest(tsvector_to_array(to_tsvector('simple', $2))) AS w)),
         ''::tsquery)) AS pq(prefixq)
-WHERE d.owner_id = $1`
+WHERE d.owner_id = $1 AND NOT d.archived`
 	args := []any{ownerID, q, headlineOpts}
 	sb = appendNodeFilter(sb, "d.node_id", &args, nodeID)
 	sb = appendTagFilter(sb, &args, ownerID, tags)
@@ -440,7 +440,7 @@ FROM (
   ORDER BY c.document_id, dist
 ) x
 JOIN documents d ON d.id = x.did AND d.owner_id = $1
-WHERE 1=1`
+WHERE NOT d.archived`
 	args := []any{ownerID, vectorLiteral(query)}
 	q = appendNodeFilter(q, "d.node_id", &args, nodeID)
 	q = appendTagFilter(q, &args, ownerID, tags)

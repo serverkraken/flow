@@ -637,7 +637,7 @@ func (s *FakeDocumentStore) List(_ context.Context, ownerID string, nodeID *stri
 	defer s.mu.Unlock()
 	var out []domain.Document
 	for _, d := range s.m {
-		if d.OwnerID == ownerID && matchesNode(d.NodeID, nodeID) && hasAllTags(d.Tags, tags) {
+		if d.OwnerID == ownerID && !d.Archived && matchesNode(d.NodeID, nodeID) && hasAllTags(d.Tags, tags) {
 			out = append(out, d)
 		}
 	}
@@ -780,7 +780,7 @@ func (s *FakeDocumentStore) Search(_ context.Context, ownerID, q string, nodeID 
 	ql := strings.ToLower(q)
 	var out []domain.SearchHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		hay := strings.ToLower(d.Title + " " + d.Body)
@@ -898,7 +898,7 @@ func (s *FakeDocumentStore) SemanticSearch(_ context.Context, ownerID string, qu
 	defer s.mu.Unlock()
 	var hits []domain.SemanticHit
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
+		if d.OwnerID != ownerID || d.Archived || !matchesNode(d.NodeID, nodeID) || !hasAllTags(d.Tags, tags) {
 			continue
 		}
 		best := -1.0
@@ -990,7 +990,7 @@ func (s *FakeDocumentStore) ListForContext(_ context.Context, ownerID string, no
 	}
 	var out []domain.Document
 	for _, d := range s.m {
-		if d.OwnerID != ownerID || !inTypes[d.Type] {
+		if d.OwnerID != ownerID || d.Archived || !inTypes[d.Type] {
 			continue
 		}
 		switch {

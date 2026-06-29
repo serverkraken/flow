@@ -71,3 +71,52 @@ func TestComposeContext_Execute_UnresolvedGivesGlobalOnly(t *testing.T) {
 		t.Errorf("global instruction should still load when unresolved: %+v", got.Instructions)
 	}
 }
+
+func TestComposeContext_ExcludesArchived(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
+	// hierarchy: engagement E ← repo L; bind remote slug "flow" → L.
+	eng, _ := nodes.Create(ctx, domain.Node{ID: "E", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Privat", Slug: "privat"})
+	leaf, _ := nodes.Create(ctx, domain.Node{ID: "L", OwnerID: "u1", Kind: domain.KindRepo, Name: "flow", Slug: "flow", ParentID: &eng.ID, OriginSlug: "flow"})
+	_, _ = binds.Upsert(ctx, domain.ProjectBinding{Kind: domain.BindingRemote, OwnerID: "u1", RemoteSlug: "flow", NodeID: leaf.ID})
+
+	t0 := time.Now()
+	// Non-archived memory in leaf node → must appear.
+	_, _ = docs.Create(ctx, domain.Document{ID: "live", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocMemory, Path: "live", Body: "Live", UpdatedAt: t0})
+	// Archived memory in leaf node → must NOT appear even though node is in chain.
+	_, _ = docs.Create(ctx, domain.Document{ID: "arch", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocMemory, Path: "old", Body: "Old", UpdatedAt: t0})
+	_ = docs.SetArchived(ctx, "u1", "arch", true)
+
+	uc := usecase.ComposeContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docs, Tags: tags,
+	}
+	got, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{RemoteSlug: "flow"}, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mems := range got.Memories {
+		for _, m := range mems {
+			if m.ID == "arch" {
+				t.Fatalf("archived memory must not appear in compose output")
+			}
+		}
+	}
+	// non-archived memory must be present.
+	found := false
+	for _, mems := range got.Memories {
+		for _, m := range mems {
+			if m.ID == "live" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("non-archived memory must appear in compose output, got %+v", got.Memories)
+	}
+}

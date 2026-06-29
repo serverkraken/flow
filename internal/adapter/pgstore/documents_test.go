@@ -759,3 +759,46 @@ func TestDocumentStore_ListForContext(t *testing.T) {
 		t.Errorf("type filter leaked a daily doc")
 	}
 }
+
+func TestDocumentStore_ArchivedExcludedFromReads(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	mk := func(id string, archived bool) {
+		if _, err := ds.Create(ctx, domain.Document{
+			ID: id, OwnerID: "u1", Type: domain.DocMemory, Path: id, Title: "needle " + id,
+			Body: "needle body", Archived: archived, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mk("live", false)
+	mk("arch", true)
+
+	list, _ := ds.List(ctx, "u1", nil)
+	if containsID(list, "arch") || !containsID(list, "live") {
+		t.Fatalf("List must exclude archived; got IDs: %v", ids(list))
+	}
+	hits, _ := ds.Search(ctx, "u1", "needle", nil, nil)
+	for _, h := range hits {
+		if h.Document.ID == "arch" {
+			t.Fatalf("Search must exclude archived")
+		}
+	}
+	ctxDocs, _ := ds.ListForContext(ctx, "u1", nil, true, []domain.DocumentType{domain.DocMemory})
+	if containsID(ctxDocs, "arch") {
+		t.Fatalf("ListForContext must exclude archived")
+	}
+}
+
+func containsID(docs []domain.Document, id string) bool {
+	for _, d := range docs {
+		if d.ID == id {
+			return true
+		}
+	}
+	return false
+}
