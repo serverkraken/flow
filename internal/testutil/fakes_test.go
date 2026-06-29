@@ -222,6 +222,34 @@ func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 	}
 }
 
+func TestFakeDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
+	s := NewFakeDocumentStore()
+	ctx := context.Background()
+
+	// Insert with DocMemory
+	id1, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocMemory, "active-context", "AC", "v1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got1, _ := s.Get(ctx, "u", id1)
+	if got1.Type != domain.DocMemory {
+		t.Fatalf("initial type: want memory, got %q", got1.Type)
+	}
+
+	// Re-upsert at same (owner, nil node, path) with DocActiveContext — must converge
+	id2, _, err := s.UpsertByPath(ctx, "u", nil, domain.DocActiveContext, "active-context", "AC", "v2", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 {
+		t.Fatalf("type-converge upsert must reuse same id: %q vs %q", id1, id2)
+	}
+	got2, _ := s.Get(ctx, "u", id2)
+	if got2.Type != domain.DocActiveContext {
+		t.Fatalf("type after converge: want activecontext, got %q", got2.Type)
+	}
+}
+
 // TestFakeFeedTokenStore_Revoke covers FakeFeedTokenStore.Revoke (at 0%).
 func TestFakeFeedTokenStore_Revoke(t *testing.T) {
 	s := NewFakeFeedTokenStore()

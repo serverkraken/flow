@@ -8,8 +8,9 @@ import (
 )
 
 // UpdateDocument edits the title and body of an owner's document. Tags may be
-// supplied explicitly; when omitted, they are unchanged. Path/type/project are
-// immutable in the spine.
+// supplied explicitly; when omitted, they are unchanged. This use case
+// deliberately preserves the loaded type/path (only title/body/tags change
+// here); Docs.Update itself can persist type/path for maintenance ops.
 type UpdateDocument struct {
 	Docs     ports.DocumentStore
 	Tags     ports.TagStore          // optional until B3 wires the composition root

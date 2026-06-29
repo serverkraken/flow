@@ -214,7 +214,7 @@ func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID
 INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, created_at, updated_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,now(),now())
 ON CONFLICT (owner_id, coalesce(node_id, ''), path)
-DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, updated_at = now()
+DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type, updated_at = now()
 RETURNING id, updated_at`
 	var gotID string
 	var updated time.Time

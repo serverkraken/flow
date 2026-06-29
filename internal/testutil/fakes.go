@@ -947,7 +947,7 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 			dn = *d.NodeID
 		}
 		if d.OwnerID == ownerID && dn == nv && d.Path == path {
-			d.Title, d.Body = title, body // preserve pinned, type, id
+			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, id; mirror pgstore type convergence
 			s.m[d.ID] = d
 			return d.ID, time.Time{}, nil
 		}

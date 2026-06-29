@@ -577,6 +577,39 @@ func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
+	t.Parallel()
+	ds, us, ns, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	nid := "n1"
+	seedNode(t, ns, "u1", nid)
+
+	// Insert as memory type
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got1, _ := ds.Get(ctx, "u1", id1)
+	if got1.Type != domain.DocMemory {
+		t.Fatalf("initial type: want memory, got %q", got1.Type)
+	}
+
+	// Re-upsert at same path with activecontext type — must converge
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocActiveContext, "active-context", "AC", "v2 body", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 {
+		t.Fatalf("type-converge upsert must reuse same row: %q vs %q", id1, id2)
+	}
+	got2, _ := ds.Get(ctx, "u1", id2)
+	if got2.Type != domain.DocActiveContext {
+		t.Fatalf("type after converge: want activecontext, got %q", got2.Type)
+	}
+}
+
 func TestDocumentStore_UpsertByPath_GlobalNodeNull(t *testing.T) {
 	t.Parallel()
 	ds, us, _, done := newDocStore(t)

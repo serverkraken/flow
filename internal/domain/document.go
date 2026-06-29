@@ -78,7 +78,7 @@ type Document struct {
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$`)
 
 // SlugOK reports whether s is a valid hierarchical slug: lowercase
-// alphanumeric segments joined by '/', words separated by single '-'. No
+// alphanumeric segments joined by '/', words separated by single '-' or '_'. No
 // leading/trailing/double slash, no spaces or uppercase.
 func SlugOK(s string) bool {
 	return s != "" && slugRe.MatchString(s)

@@ -233,6 +233,7 @@ func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 }
 
