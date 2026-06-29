@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -79,5 +80,29 @@ func (c *Client) RedesignDocTypes(ctx context.Context, dryRun bool) (domain.Rede
 	}
 	var out domain.RedesignReport
 	err := c.do(ctx, http.MethodPost, path, nil, &out)
+	return out, err
+}
+
+// UpsertByPathInput mirrors the by-path upsert payload.
+type UpsertByPathInput struct {
+	Type   string   `json:"type"`
+	NodeID *string  `json:"projectId,omitempty"`
+	Path   string   `json:"path"`
+	Title  string   `json:"title"`
+	Body   string   `json:"body"`
+	Tags   []string `json:"tags,omitempty"`
+	Pinned bool     `json:"pinned"`
+}
+
+// UpsertByPathResult is the response body from PUT /api/v1/documents/by-path.
+type UpsertByPathResult struct {
+	ID        string    `json:"id"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// UpsertDocumentByPath inserts or updates a document at (node, path) idempotently.
+func (c *Client) UpsertDocumentByPath(ctx context.Context, in UpsertByPathInput) (UpsertByPathResult, error) {
+	var out UpsertByPathResult
+	err := c.do(ctx, http.MethodPut, "/api/v1/documents/by-path", in, &out)
 	return out, err
 }

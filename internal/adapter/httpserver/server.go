@@ -86,6 +86,9 @@ type Server struct {
 	GetEmbedStatus    usecase.GetEmbedStatus
 	SetPinned         usecase.SetPinned
 
+	// idempotent upsert by path (B3d Task 7)
+	UpsertDocumentByPath usecase.UpsertDocumentByPath
+
 	// maintenance (F1)
 	StripFrontmatter usecase.StripFrontmatter
 	RedesignDocTypes usecase.RedesignDocTypes
@@ -154,6 +157,7 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
+	mux.Handle("PUT /api/v1/documents/by-path", s.authAny(http.HandlerFunc(s.handleUpsertByPath)))
 	mux.Handle("GET /api/v1/documents", s.auth(http.HandlerFunc(s.handleListDocuments)))
 	mux.Handle("GET /api/v1/documents/tags", s.auth(http.HandlerFunc(s.handleListTags)))
 	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))
