@@ -86,8 +86,11 @@ type ContextItem struct {
 }
 
 type DroppedCount struct {
+	Leaf       int `json:"leaf"`
+	Vorhaben   int `json:"vorhaben"`
 	Engagement int `json:"engagement"`
 	Global     int `json:"global"`
+	Pinned     int `json:"pinned"`
 }
 
 type ContextResolution struct {
@@ -120,8 +123,10 @@ func itemOf(d domain.Document, label string) ContextItem {
 	}
 }
 
-// Compose classifies docs into tiers, ranks the relevance tier (pinned → newest),
-// and fills until the token cap, counting dropped relevance items. Pure: no I/O.
+// Compose classifies docs, ranks all memories into one pool
+// (pinned desc, tierRank asc, updatedAt desc), and fills until the token cap.
+// instructions + activeContext are always-tier (counted, never dropped). A pinned
+// global memory bypasses the D7 tag-gate. Pure: no I/O.
 func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[string]bool, cap int) ComposedContext {
 	out := ComposedContext{Memories: map[string][]ContextItem{}}
 	out.Budget.Cap = cap
@@ -148,13 +153,17 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		}
 	}
 
+	// tierRank: lower fills first among equally-pinned items.
+	rankOf := map[string]int{"global": 0, "engagement": 1, "vorhaben": 2, "leaf": 3}
+
 	type ranked struct {
 		item   ContextItem
 		group  string
 		pinned bool
+		rank   int
 		upd    string
 	}
-	var relevance []ranked
+	var pool []ranked
 
 	for _, d := range docs {
 		switch d.Type {
@@ -171,53 +180,57 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 			}
 		case domain.DocMemory:
 			if d.NodeID == nil {
-				if globalAllowed[d.ID] {
+				if globalAllowed[d.ID] || d.Pinned { // pinned bypasses the D7 tag-gate
 					it := itemOf(d, "global")
-					relevance = append(relevance, ranked{it, "global", d.Pinned, it.UpdatedAt})
+					pool = append(pool, ranked{it, "global", d.Pinned, rankOf["global"], it.UpdatedAt})
 				}
 				continue
 			}
-			nid := *d.NodeID
-			switch tier[nid] {
-			case "leaf":
-				out.Memories["leaf"] = append(out.Memories["leaf"], itemOf(d, label[nid]))
-			case "vorhaben":
-				out.Memories["vorhaben"] = append(out.Memories["vorhaben"], itemOf(d, label[nid]))
-			case "engagement":
-				it := itemOf(d, label[nid])
-				relevance = append(relevance, ranked{it, "engagement", d.Pinned, it.UpdatedAt})
+			g := tier[*d.NodeID]
+			if g == "" {
+				continue // node not in chain (defensive)
 			}
+			it := itemOf(d, label[*d.NodeID])
+			pool = append(pool, ranked{it, g, d.Pinned, rankOf[g], it.UpdatedAt})
 		}
 	}
 
-	// Always-tier into Used.
+	// Always-tier (uncapped): instructions + activeContext into Used.
 	for _, it := range out.Instructions {
 		out.Budget.Used += it.EstTokens
 	}
 	if out.ActiveContext != nil {
 		out.Budget.Used += out.ActiveContext.EstTokens
 	}
-	for _, g := range []string{"leaf", "vorhaben"} {
-		for _, it := range out.Memories[g] {
-			out.Budget.Used += it.EstTokens
-		}
-	}
 
-	// Rank relevance: pinned first, then newest (UpdatedAt RFC3339 sorts lexicographically).
-	sort.SliceStable(relevance, func(i, j int) bool {
-		if relevance[i].pinned != relevance[j].pinned {
-			return relevance[i].pinned
+	// Rank: pinned first, then tierRank (global→engagement→vorhaben→leaf), then newest.
+	sort.SliceStable(pool, func(i, j int) bool {
+		if pool[i].pinned != pool[j].pinned {
+			return pool[i].pinned
 		}
-		return relevance[i].upd > relevance[j].upd
+		if pool[i].rank != pool[j].rank {
+			return pool[i].rank < pool[j].rank
+		}
+		return pool[i].upd > pool[j].upd
 	})
-	for _, r := range relevance {
+	for _, r := range pool {
 		if out.Budget.Used+r.item.EstTokens <= cap {
 			out.Budget.Used += r.item.EstTokens
 			out.Memories[r.group] = append(out.Memories[r.group], r.item)
-		} else if r.group == "engagement" {
+			continue
+		}
+		switch r.group {
+		case "leaf":
+			out.Budget.Dropped.Leaf++
+		case "vorhaben":
+			out.Budget.Dropped.Vorhaben++
+		case "engagement":
 			out.Budget.Dropped.Engagement++
-		} else {
+		case "global":
 			out.Budget.Dropped.Global++
+		}
+		if r.pinned {
+			out.Budget.Dropped.Pinned++
 		}
 	}
 	return out
