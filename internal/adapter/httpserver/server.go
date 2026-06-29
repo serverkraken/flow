@@ -22,11 +22,11 @@ type Server struct {
 	StartSession      usecase.StartSession
 	StopSession       usecase.StopSession
 	ListSessions      usecase.ListSessions
-	CreateNode     usecase.CreateNode
-	ListNodes      usecase.ListNodes
-	DeleteNode     usecase.DeleteNode
-	UpdateNode     usecase.UpdateNode
-	GetNode        usecase.GetNode
+	CreateNode        usecase.CreateNode
+	ListNodes         usecase.ListNodes
+	DeleteNode        usecase.DeleteNode
+	UpdateNode        usecase.UpdateNode
+	GetNode           usecase.GetNode
 	EditSession       usecase.EditSession
 	DeleteSession     usecase.DeleteSession
 	AddSession        usecase.AddSession
@@ -48,11 +48,11 @@ type Server struct {
 	SetTarget usecase.SetTargetConfig
 
 	// m1e export
-	BuildExport    usecase.BuildExport
+	BuildExport usecase.BuildExport
 	SetNodeRate usecase.SetNodeRate
 
 	// slice 1 bulk ops
-	BulkAssignNode  usecase.BulkAssignNode
+	BulkAssignNode     usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
 
 	// tag-time report (D2)
@@ -96,7 +96,7 @@ type Server struct {
 	// B3 context store (B1, B2)
 	ComposeContext   usecase.ComposeContext
 	SetActiveContext usecase.SetActiveContext
-	ContextBudget    int // default cap when ?cap= absent; 0 → fall back to 6000
+	ContextBudget    int // default cap when ?cap= absent; 0 → fall back to 12000
 
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator

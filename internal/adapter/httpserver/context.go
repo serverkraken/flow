@@ -53,7 +53,7 @@ func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
 	}
 	budget := s.ContextBudget
 	if budget <= 0 {
-		budget = 6000
+		budget = 12000
 	}
 	if v := strings.TrimSpace(q.Get("cap")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
