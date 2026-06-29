@@ -85,6 +85,7 @@ type Server struct {
 	RetryEmbedding    usecase.RetryEmbedding
 	GetEmbedStatus    usecase.GetEmbedStatus
 	SetPinned         usecase.SetPinned
+	SetArchived       usecase.SetArchived
 
 	// idempotent upsert by path (B3d Task 7)
 	UpsertDocumentByPath usecase.UpsertDocumentByPath
@@ -165,6 +166,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
 	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))
+	mux.Handle("POST /api/v1/documents/{id}/archive", s.auth(http.HandlerFunc(s.handleArchiveDocument)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)

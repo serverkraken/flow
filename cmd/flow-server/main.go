@@ -172,6 +172,7 @@ func run() error {
 			Nodes:   nodeStore, Docs: documentStore, Tags: tagStore,
 		},
 		SetPinned:     usecase.SetPinned{Docs: documentStore},
+		SetArchived:   usecase.SetArchived{Docs: documentStore},
 		ContextBudget: contextBudget(os.Getenv),
 		Users:         userStore,
 		OIDCAuth:      authn,

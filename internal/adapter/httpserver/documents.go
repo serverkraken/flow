@@ -238,6 +238,29 @@ func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 }
 
+type archiveReq struct {
+	Archived bool `json:"archived"`
+}
+
+func (s *Server) handleArchiveDocument(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req archiveReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	id := r.PathValue("id")
+	switch err := s.SetArchived.Execute(r.Context(), u.ID, id, req.Archived); {
+	case errors.Is(err, ports.ErrDocumentNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 type pinReq struct {
 	Pinned bool `json:"pinned"`
 }
