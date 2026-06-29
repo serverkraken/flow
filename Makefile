@@ -3,12 +3,25 @@ PKG             := ./cmd/flow-server
 COVER_OUT       := coverage.out
 COVER_THRESHOLD := 75
 COVER_PKG       := ./internal/...
+PREFIX          ?= $(HOME)/.local
+BINDIR          ?= $(PREFIX)/bin
 
-.PHONY: build test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login
+.PHONY: build install test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login
 build:
 	@mkdir -p bin
 	go build -o bin/flow-server ./cmd/flow-server
 	go build -o bin/flow ./cmd/flow
+	go build -o bin/flow-mcp ./cmd/flow-mcp
+# install copies the freshly-built binaries to $(BINDIR) (default ~/.local/bin) via install(1),
+# which writes a temp file then renames it into place — a FRESH inode. That avoids the macOS
+# "Killed: 9" (SIGKILL) you get when `cp` overwrites a signed binary in place and the kernel's
+# cached code-signature (cdhash) for that inode goes stale. Override dest: make install PREFIX=/usr/local
+install: build
+	@install -d "$(BINDIR)"
+	install -m 0755 bin/flow-server "$(BINDIR)/flow-server"
+	install -m 0755 bin/flow "$(BINDIR)/flow"
+	install -m 0755 bin/flow-mcp "$(BINDIR)/flow-mcp"
+	@echo "installed flow, flow-server, flow-mcp -> $(BINDIR)"
 test:
 	go test -race ./...
 cover:
