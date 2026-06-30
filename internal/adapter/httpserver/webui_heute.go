@@ -88,12 +88,12 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 
 	// Engagement picker — only KindEngagement nodes are bookable (Slice B).
-	vm.Nodes = make([]components.FuzzyProjectVM, 0, len(projects))
+	vm.Nodes = make([]components.NodePickerItem, 0, len(projects))
 	for _, p := range projects {
 		if p.Kind != domain.KindEngagement {
 			continue
 		}
-		vm.Nodes = append(vm.Nodes, components.FuzzyProjectVM{
+		vm.Nodes = append(vm.Nodes, components.NodePickerItem{
 			ID:    p.ID,
 			Name:  p.Name,
 			Hue:   p.Color,

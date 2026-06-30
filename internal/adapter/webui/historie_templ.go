@@ -2220,7 +2220,7 @@ func historieListHeading() templ.Component {
 
 // HistorieSelectionBarC wires the bulk action bar with the reassign/delete URLs
 // for the active view; the selection JS fills its hidden ids field.
-func HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) templ.Component {
+func HistorieSelectionBarC(projects []components.NodePickerItem, view string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -2241,7 +2241,7 @@ func HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) te
 			templ_7745c5c3_Var120 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.SelectionActionBar(HistorieSelectionBar(components.FuzzyPickerVM{
+		templ_7745c5c3_Err = components.SelectionActionBar(HistorieSelectionBar(components.NodePickerVM{
 			ID:     "historiePicker",
 			Nodes:  projects,
 			FormID: "historieBulkForm",
@@ -2256,7 +2256,7 @@ func HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) te
 // historieEditDialog reuses /ui/worktime/edit but with hx-swap="none": the
 // Historie #content already subscribes to sse:session.updated, so the fragment
 // reloads itself — we must NOT inject the Heute fragment here.
-func historieEditDialog(projects []components.FuzzyProjectVM) templ.Component {
+func historieEditDialog(projects []components.NodePickerItem) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -2299,7 +2299,7 @@ func historieEditDialog(projects []components.FuzzyProjectVM) templ.Component {
 	})
 }
 
-func historieEditForm(projects []components.FuzzyProjectVM) templ.Component {
+func historieEditForm(projects []components.NodePickerItem) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

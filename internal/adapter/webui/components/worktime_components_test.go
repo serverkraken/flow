@@ -94,9 +94,9 @@ func TestWeekTotalBanner(t *testing.T) {
 }
 
 func TestProjectFuzzyPicker_InlineCreate(t *testing.T) {
-	out := render(t, components.ProjectFuzzyPicker(components.FuzzyPickerVM{
+	out := render(t, components.ProjectFuzzyPicker(components.NodePickerVM{
 		ID: "pick", FormID: "bulkForm",
-		Nodes: []components.FuzzyProjectVM{{ID: "p1", Name: "flow", Hue: "blue", Glyph: "◆", Rate: "95 €/h"}},
+		Nodes: []components.NodePickerItem{{ID: "p1", Name: "flow", Hue: "blue", Glyph: "◆", Rate: "95 €/h"}},
 	}))
 	for _, w := range []string{"role=\"listbox\"", "flow", "data-new-project", "✚"} {
 		if !strings.Contains(out, w) {
@@ -108,7 +108,7 @@ func TestProjectFuzzyPicker_InlineCreate(t *testing.T) {
 func TestSelectionActionBar(t *testing.T) {
 	out := render(t, components.SelectionActionBar(components.SelectionBarVM{
 		AssignURL: "/ui/historie/reassign", DeleteURL: "/ui/historie/bulk-delete",
-		Picker: components.FuzzyPickerVM{ID: "pick", FormID: "bulkForm"},
+		Picker: components.NodePickerVM{ID: "pick", FormID: "bulkForm"},
 	}))
 	for _, w := range []string{"data-sel-count", "/ui/historie/reassign", "/ui/historie/bulk-delete"} {
 		if !strings.Contains(out, w) {

@@ -22,7 +22,7 @@ func pickGlyphClass(hue string) string {
 // studio-worktime-calendar.html:1012-1039): a filter input, a listbox of
 // project options, and a final inline-create option. The selection JS reads the
 // data-* attributes and writes the chosen id into the form named by FormID.
-func ProjectFuzzyPicker(vm FuzzyPickerVM) templ.Component {
+func ProjectFuzzyPicker(vm NodePickerVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

@@ -544,10 +544,10 @@ func historieMonthBars(hues []string, unassigned bool) []webui.HistorieMonthBar 
 }
 
 // historieProjectPickers maps domain projects to picker VMs (name/hue/glyph/rate).
-func historieProjectPickers(projects []domain.Node) []components.FuzzyProjectVM {
-	out := make([]components.FuzzyProjectVM, 0, len(projects))
+func historieProjectPickers(projects []domain.Node) []components.NodePickerItem {
+	out := make([]components.NodePickerItem, 0, len(projects))
 	for _, p := range projects {
-		out = append(out, components.FuzzyProjectVM{
+		out = append(out, components.NodePickerItem{
 			ID:    p.ID,
 			Name:  p.Name,
 			Hue:   p.Color,

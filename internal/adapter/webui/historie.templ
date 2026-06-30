@@ -373,8 +373,8 @@ templ historieListHeading() {
 
 // HistorieSelectionBarC wires the bulk action bar with the reassign/delete URLs
 // for the active view; the selection JS fills its hidden ids field.
-templ HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) {
-	@components.SelectionActionBar(HistorieSelectionBar(components.FuzzyPickerVM{
+templ HistorieSelectionBarC(projects []components.NodePickerItem, view string) {
+	@components.SelectionActionBar(HistorieSelectionBar(components.NodePickerVM{
 		ID:       "historiePicker",
 		Nodes: projects,
 		FormID:   "historieBulkForm",
@@ -384,7 +384,7 @@ templ HistorieSelectionBarC(projects []components.FuzzyProjectVM, view string) {
 // historieEditDialog reuses /ui/worktime/edit but with hx-swap="none": the
 // Historie #content already subscribes to sse:session.updated, so the fragment
 // reloads itself — we must NOT inject the Heute fragment here.
-templ historieEditDialog(projects []components.FuzzyProjectVM) {
+templ historieEditDialog(projects []components.NodePickerItem) {
 	@components.Dialog("editSession", "sessions.edit", historieEditForm(projects))
 	// Single-session delete: the confirm posts /ui/worktime/delete, pulling the
 	// sessionId/date from the edit form via hx-include; hx-swap="none" so the
@@ -402,7 +402,7 @@ templ historieEditDialog(projects []components.FuzzyProjectVM) {
 	})
 }
 
-templ historieEditForm(projects []components.FuzzyProjectVM) {
+templ historieEditForm(projects []components.NodePickerItem) {
 	<form hx-post="/ui/worktime/edit" hx-swap="none" data-edit-form class="space-y-4">
 		<input type="hidden" name="sessionId" data-edit-field-id value=""/>
 		<input type="hidden" name="date" data-edit-field-date value=""/>

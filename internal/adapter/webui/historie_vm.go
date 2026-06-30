@@ -55,7 +55,7 @@ type HistorieVM struct {
 	MonthTotal      string // "118h 42m"
 	MonthUnassigned int
 
-	Nodes    []components.FuzzyProjectVM
+	Nodes    []components.NodePickerItem
 	UnassignedCount int
 	Empty           bool
 	Err             string
@@ -108,7 +108,7 @@ type HistorieMonthBar struct {
 type HistorieListVM struct {
 	User     string
 	Rows     []components.SessionRowVM
-	Nodes    []components.FuzzyProjectVM
+	Nodes    []components.NodePickerItem
 	Page     components.PageNav
 	Empty    bool
 	Err      string
@@ -264,7 +264,7 @@ func historieDayOffBadgeClass(hue string) string {
 }
 
 // HistorieSelectionBar builds the bulk-action bar VM shared by calendar+list.
-func HistorieSelectionBar(picker components.FuzzyPickerVM, view string) components.SelectionBarVM {
+func HistorieSelectionBar(picker components.NodePickerVM, view string) components.SelectionBarVM {
 	return components.SelectionBarVM{
 		Picker:    picker,
 		AssignURL: "/ui/historie/reassign?view=" + view,

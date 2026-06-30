@@ -62,15 +62,15 @@ type WeekTotalVM struct {
 	Variant string // hit|over|under|running (for the bar)
 }
 
-// FuzzyPickerVM drives the project fuzzy picker dropdown.
-type FuzzyPickerVM struct {
+// NodePickerVM drives the node fuzzy picker dropdown.
+type NodePickerVM struct {
 	ID       string // dom id for the picker container
-	Nodes []FuzzyProjectVM
-	FormID   string // the form whose hidden projectId/newProject fields this writes
+	Nodes []NodePickerItem
+	FormID   string // the form whose hidden node-id `n`/new-node fields this writes
 }
 
-// FuzzyProjectVM is one selectable project row in the picker.
-type FuzzyProjectVM struct {
+// NodePickerItem is one selectable node row in the picker.
+type NodePickerItem struct {
 	ID    string
 	Name  string
 	Hue   string
@@ -80,7 +80,7 @@ type FuzzyProjectVM struct {
 
 // SelectionBarVM drives the sticky bulk-selection action bar.
 type SelectionBarVM struct {
-	Picker    FuzzyPickerVM
+	Picker    NodePickerVM
 	AssignURL string // POST target for reassign
 	DeleteURL string // POST target for bulk-delete
 }

@@ -648,7 +648,7 @@ func TestHeuteHome_NodeWithEURRate(t *testing.T) {
 	if !strings.Contains(body, "BilledProject") {
 		t.Errorf("heute missing 'BilledProject' in project select; body:\n%s", body[:limitLen(500, len(body))])
 	}
-	// rateLabel(EUR) = "95 €/h" is computed for FuzzyProjectVM.Rate, even though
+	// rateLabel(EUR) = "95 €/h" is computed for NodePickerItem.Rate, even though
 	// heute uses a plain <select> and the rate string isn't shown in the HTML.
 	// Coverage of the EUR branch is confirmed by the function being called at all.
 }

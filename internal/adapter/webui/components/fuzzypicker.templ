@@ -14,7 +14,7 @@ func pickGlyphClass(hue string) string {
 // studio-worktime-calendar.html:1012-1039): a filter input, a listbox of
 // project options, and a final inline-create option. The selection JS reads the
 // data-* attributes and writes the chosen id into the form named by FormID.
-templ ProjectFuzzyPicker(vm FuzzyPickerVM) {
+templ ProjectFuzzyPicker(vm NodePickerVM) {
 	<div id={ vm.ID } data-fuzzy-picker data-form-id={ vm.FormID }
 		class="w-[min(86vw,300px)] rounded-2xl bg-surface border border-line shadow-lift p-2"
 		role="listbox" aria-label={ T(ctx, "historie.assignProject") }>
