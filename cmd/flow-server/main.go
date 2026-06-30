@@ -128,6 +128,7 @@ func run() error {
 			DayOffs:  usecase.ListDayOffs{Store: dayOffStore, Settings: settingsStore, Loc: time.Local},
 			Clock:    clock,
 			Loc:      time.Local,
+			Nodes:    nodeStore,
 		},
 		SetTarget: usecase.SetTargetConfig{Settings: settingsStore},
 		BuildExport: usecase.BuildExport{
