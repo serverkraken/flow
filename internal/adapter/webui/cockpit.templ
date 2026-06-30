@@ -39,7 +39,7 @@ templ NodeHead(d NodeCockpit) {
 	<section class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift">
 		<span class={ "absolute inset-y-0 left-0 w-1", cockpitAccent(d.N.Color) } aria-hidden="true"></span>
 		<div class="relative p-6 sm:p-8">
-			<div class="flex items-start justify-between gap-5 flex-wrap">
+			<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div class="flex items-center gap-4 min-w-0">
 					@cockpitHex(d.N)
 					<div class="min-w-0">
@@ -53,9 +53,14 @@ templ NodeHead(d NodeCockpit) {
 						</div>
 					</div>
 				</div>
-				@cockpitTimer(d)
+				<div class="w-full sm:w-auto">
+					@cockpitTimer(d)
+				</div>
 			</div>
 			@cockpitRollup(d)
+			if d.DescriptionHTML != "" {
+				<div class="prose max-w-none mt-6 text-sm">@templ.Raw(string(d.DescriptionHTML))</div>
+			}
 		</div>
 	</section>
 }
@@ -89,7 +94,7 @@ templ cockpitTimer(d NodeCockpit) {
 }
 
 templ cockpitRollup(d NodeCockpit) {
-	<div class="mt-6 flex gap-3 flex-wrap">
+	<div class="mt-6 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
 		@cockpitTile("cockpit.rollup.total", fmtDurHM(d.Rollup.Total), components.T(ctx, "cockpit.rollup.inclChildren"), false)
 		@cockpitTile("cockpit.rollup.week", fmtDurHM(d.Rollup.Week), "", false)
 		@cockpitTile("cockpit.rollup.month", fmtDurHM(d.Rollup.Month), "", false)
@@ -118,7 +123,7 @@ templ cockpitHex(n domain.Node) {
 // Panels are stubbed here and filled by Tasks 5–8; Task 4 wires the real tab
 // navigation + SSE.
 templ CockpitTabsAndPanel(d NodeCockpit) {
-	<nav class="flex gap-1 border-b border-line2">
+	<nav class="flex gap-1 border-b border-line2 overflow-x-auto whitespace-nowrap">
 		for _, t := range CockpitTabs {
 			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.ActiveTab == t.Key)
 		}
@@ -213,7 +218,7 @@ templ cockpitPanel(d NodeCockpit) {
 			} else {
 				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface mb-6">
 					for _, ch := range d.Children {
-						<li class="px-4 py-2.5 text-sm flex items-center justify-between">
+						<li class="px-4 py-2.5 text-sm flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
 							<a href={ templ.SafeURL("/nodes/" + ch.N.ID) } class="flex items-center gap-2 hover:text-cyan">
 								@nodeKindBadge(ch.N.Kind)
 								{ ch.N.Name }
@@ -276,17 +281,20 @@ func bindingTarget(b domain.ProjectBinding) string {
 }
 
 // cockpitSessionRow renders one session row in the worktime panel.
+// On mobile it collapses to a two-line card; on sm+ it reverts to a single row.
 templ cockpitSessionRow(row CockpitSessionRow) {
-	<li class="flex items-center gap-3 px-4 py-2.5 text-sm">
-		<span class="w-24 shrink-0 text-muted">{ row.Date }</span>
-		<span class="w-28 shrink-0 font-mono tnum text-body">{ row.Span }</span>
-		if row.Tag != "" {
-			<span class="rounded-lg bg-cyan/[.08] px-2 py-0.5 text-[.78rem] text-cyan">{ row.Tag }</span>
-		}
+	<li class="flex flex-col items-start gap-1 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+		<div class="flex items-center gap-3">
+			<span class="shrink-0 text-muted">{ row.Date }</span>
+			<span class="shrink-0 font-mono tnum text-body">{ row.Span }</span>
+			if row.Tag != "" {
+				<span class="rounded-lg bg-cyan/[.08] px-2 py-0.5 text-[.78rem] text-cyan">{ row.Tag }</span>
+			}
+		</div>
 		if row.Running {
-			<span class="ml-auto text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
+			<span class="text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
 		} else {
-			<span class="ml-auto font-mono tnum text-muted">{ row.Dur }</span>
+			<span class="font-mono tnum text-muted">{ row.Dur }</span>
 		}
 	</li>
 }

@@ -416,3 +416,33 @@ func TestNodeHead_WithRateLabel(t *testing.T) {
 		t.Errorf("NodeHead with Rate missing node name: %.500s", body)
 	}
 }
+
+// TestNodeHead_WithDescription verifies that a non-empty DescriptionHTML is
+// rendered inside the cockpit head (below the rollup tiles).
+func TestNodeHead_WithDescription(t *testing.T) {
+	ctx := context.Background()
+	d := seededCockpit()
+	d.DescriptionHTML = "<p>A detailed description of the node.</p>"
+	body := renderToBuf(t, ctx, NodeHead(d))
+
+	if !strings.Contains(body, "A detailed description of the node.") {
+		t.Errorf("NodeHead with DescriptionHTML missing description content: %.600s", body)
+	}
+	// The prose wrapper must be present.
+	if !strings.Contains(body, `class="prose`) {
+		t.Errorf("NodeHead with DescriptionHTML missing prose wrapper class: %.600s", body)
+	}
+}
+
+// TestNodeHead_WithoutDescription verifies that when DescriptionHTML is empty
+// no empty prose block is emitted (no orphan wrapper div).
+func TestNodeHead_WithoutDescription(t *testing.T) {
+	ctx := context.Background()
+	d := seededCockpit() // DescriptionHTML is zero value = ""
+	body := renderToBuf(t, ctx, NodeHead(d))
+
+	// No prose wrapper should appear when description is empty.
+	if strings.Contains(body, `class="prose`) {
+		t.Errorf("NodeHead without DescriptionHTML must NOT render a prose block: %.600s", body)
+	}
+}
