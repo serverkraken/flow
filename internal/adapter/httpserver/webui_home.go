@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -200,8 +201,14 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 	// Newest knowledge articles for the "Zuletzt im Wissen" section.
 	// Guard: skip gracefully when ListDocuments is not wired (minimal test server).
 	if s.ListDocuments.Docs != nil {
-		docs, _ := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
-		_, colors, _, _ := s.nodeMaps(ctx, u.ID)
+		docs, err := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+		if err != nil {
+			slog.WarnContext(ctx, "home: list documents failed", "err", err)
+		}
+		_, colors, _, err := s.nodeMaps(ctx, u.ID)
+		if err != nil {
+			slog.WarnContext(ctx, "home: nodeMaps failed", "err", err)
+		}
 		vm.NewestDocs = webui.BuildHomeNewest(docs, colors, 5)
 	}
 
