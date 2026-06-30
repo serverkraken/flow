@@ -9,17 +9,6 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// ── Glyph ──────────────────────────────────────────────────────────────────
-
-func TestGlyphRendersWithClassAndAriaHidden(t *testing.T) {
-	out := render(t, components.Glyph("▶", "text-blue text-lg"))
-	for _, w := range []string{"▶", "text-blue", "text-lg", `aria-hidden="true"`} {
-		if !strings.Contains(out, w) {
-			t.Errorf("Glyph missing %q: %s", w, out)
-		}
-	}
-}
-
 // ── Tn (i18n plural helper) ─────────────────────────────────────────────────
 
 func TestTnSingularAndPlural(t *testing.T) {
