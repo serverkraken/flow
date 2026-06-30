@@ -96,7 +96,7 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
 		http.Redirect(w, r, "/wissen/"+doc.ID, http.StatusSeeOther)
 	}
 }
@@ -119,7 +119,7 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": r.FormValue("title")}})
 	http.Redirect(w, r, "/wissen/"+id, http.StatusSeeOther)
 }
 
@@ -146,7 +146,7 @@ func (s *Server) handleWebEditorDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id, "title": doc.Title}})
 	http.Redirect(w, r, categoryHref, http.StatusSeeOther)
 }
 

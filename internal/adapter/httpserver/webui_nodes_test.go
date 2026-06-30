@@ -34,10 +34,12 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	codec := websession.NewCodec("test-secret-test-secret-test-12", time.Hour)
 	ss := testutil.NewFakeSessionStore()
 	docs := testutil.NewFakeDocumentStore()
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Users:   users,
 		Session: codec,
-		Bus:     sse.NewBus(),
+		Bus:     bus,
+		Emitter: sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:   clk,
 		Ensure: usecase.EnsureUser{
 			Users: users,

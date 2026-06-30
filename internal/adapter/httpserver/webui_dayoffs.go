@@ -168,6 +168,6 @@ func (s *Server) handleWebSetBundesland(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	// Holidays are derived from the Bundesland → notify other tabs to reload.
-	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
 	s.renderDayOffFragment(w, r, u)
 }

@@ -139,7 +139,7 @@ func (s *Server) handleHistorieReassign(w http.ResponseWriter, r *http.Request) 
 		s.renderHistorieFragment(w, r, u, historieBulkErr(err))
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
 	s.renderHistorieFragment(w, r, u, "")
 }
 
@@ -152,7 +152,7 @@ func (s *Server) handleHistorieBulkDelete(w http.ResponseWriter, r *http.Request
 		s.renderHistorieFragment(w, r, u, historieBulkErr(err))
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
 	s.renderHistorieFragment(w, r, u, "")
 }
 

@@ -14,10 +14,10 @@ import (
 var ErrHolidayNotManual = errors.New("holiday kind is computed, not stored")
 
 // AddDayOffs expands [from,to] into per-day rows (skipping weekends when
-// asked), upserts each, and publishes a single dayoff.changed event.
+// asked), upserts each, and emits a single dayoff.changed event.
 type AddDayOffs struct {
-	Store ports.DayOffStore
-	Bus   ports.EventBus
+	Store   ports.DayOffStore
+	Emitter ports.Emitter
 }
 
 func (uc AddDayOffs) Execute(ctx context.Context, ownerID string, from, to time.Time, kind domain.Kind, label string, targetPerDay time.Duration, skipWeekends bool) error {
@@ -36,6 +36,6 @@ func (uc AddDayOffs) Execute(ctx context.Context, ownerID string, from, to time.
 			return err
 		}
 	}
-	uc.Bus.Publish(domain.Event{Type: domain.EventDayOffChanged, UserID: ownerID})
+	uc.Emitter.Emit(ctx, domain.Event{Type: domain.EventDayOffChanged, UserID: ownerID})
 	return nil
 }

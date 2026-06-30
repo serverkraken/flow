@@ -43,15 +43,14 @@ func (f fakeSettings) SetTargetConfig(context.Context, string, int, map[time.Wee
 	return nil
 }
 
-type recBus struct{ events []domain.Event }
+type recEmitter struct{ events []domain.Event }
 
-func (b *recBus) Publish(ev domain.Event)                        { b.events = append(b.events, ev) }
-func (b *recBus) Subscribe(string) (<-chan domain.Event, func()) { return nil, func() {} }
+func (e *recEmitter) Emit(_ context.Context, ev domain.Event) { e.events = append(e.events, ev) }
 
 func TestAddDayOffs_ExpandsAndPublishesOnce(t *testing.T) {
 	store := newFakeDayOffs()
-	bus := &recBus{}
-	uc := usecase.AddDayOffs{Store: store, Bus: bus}
+	emitter := &recEmitter{}
+	uc := usecase.AddDayOffs{Store: store, Emitter: emitter}
 	from := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC) // Mon
 	to := time.Date(2026, 6, 19, 0, 0, 0, 0, time.UTC)   // Fri
 	if err := uc.Execute(context.Background(), "u1", from, to, domain.KindVacation, "Sommer", 0, true); err != nil {
@@ -60,13 +59,13 @@ func TestAddDayOffs_ExpandsAndPublishesOnce(t *testing.T) {
 	if len(store.m) != 5 {
 		t.Fatalf("want 5 stored days, got %d", len(store.m))
 	}
-	if len(bus.events) != 1 || bus.events[0].Type != domain.EventDayOffChanged {
-		t.Fatalf("want exactly one dayoff.changed, got %+v", bus.events)
+	if len(emitter.events) != 1 || emitter.events[0].Type != domain.EventDayOffChanged {
+		t.Fatalf("want exactly one dayoff.changed, got %+v", emitter.events)
 	}
 }
 
 func TestAddDayOffs_RejectsHolidayKind(t *testing.T) {
-	uc := usecase.AddDayOffs{Store: newFakeDayOffs(), Bus: &recBus{}}
+	uc := usecase.AddDayOffs{Store: newFakeDayOffs(), Emitter: &recEmitter{}}
 	d := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	if err := uc.Execute(context.Background(), "u1", d, d, domain.KindHoliday, "", 0, false); err == nil {
 		t.Fatal("holiday kind must be rejected (holidays are computed)")
@@ -100,7 +99,7 @@ func TestListDayOffs_MergesComputedHolidays(t *testing.T) {
 }
 
 func TestAddDayOffs_RejectsInvalidKind(t *testing.T) {
-	uc := usecase.AddDayOffs{Store: newFakeDayOffs(), Bus: &recBus{}}
+	uc := usecase.AddDayOffs{Store: newFakeDayOffs(), Emitter: &recEmitter{}}
 	d := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	if err := uc.Execute(context.Background(), "u1", d, d, domain.Kind("bogus"), "", 0, false); err == nil {
 		t.Fatal("bogus kind must be rejected")
@@ -109,30 +108,30 @@ func TestAddDayOffs_RejectsInvalidKind(t *testing.T) {
 
 func TestAddDayOffs_RejectsEmptyExpansion(t *testing.T) {
 	store := newFakeDayOffs()
-	bus := &recBus{}
-	uc := usecase.AddDayOffs{Store: store, Bus: bus}
+	emitter := &recEmitter{}
+	uc := usecase.AddDayOffs{Store: store, Emitter: emitter}
 	sat := time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC) // Saturday
 	if err := uc.Execute(context.Background(), "u1", sat, sat, domain.KindVacation, "", 0, true); err == nil {
 		t.Fatal("empty expansion (single weekend day, skipWeekends) must be rejected")
 	}
-	if len(store.m) != 0 || len(bus.events) != 0 {
-		t.Fatalf("nothing should be stored/published on empty expansion: stored=%d events=%d", len(store.m), len(bus.events))
+	if len(store.m) != 0 || len(emitter.events) != 0 {
+		t.Fatalf("nothing should be stored/emitted on empty expansion: stored=%d events=%d", len(store.m), len(emitter.events))
 	}
 }
 
-func TestDeleteDayOff_RemovesAndPublishes(t *testing.T) {
+func TestDeleteDayOff_RemovesAndEmits(t *testing.T) {
 	store := newFakeDayOffs()
-	bus := &recBus{}
+	emitter := &recEmitter{}
 	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	_ = store.Add(context.Background(), "u1", domain.DayOff{Date: day, Kind: domain.KindVacation})
-	uc := usecase.DeleteDayOff{Store: store, Bus: bus}
+	uc := usecase.DeleteDayOff{Store: store, Emitter: emitter}
 	if err := uc.Execute(context.Background(), "u1", day); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if len(store.m) != 0 {
 		t.Fatalf("want entry removed, got %d", len(store.m))
 	}
-	if len(bus.events) != 1 || bus.events[0].Type != domain.EventDayOffChanged {
-		t.Fatalf("want exactly one dayoff.changed, got %+v", bus.events)
+	if len(emitter.events) != 1 || emitter.events[0].Type != domain.EventDayOffChanged {
+		t.Fatalf("want exactly one dayoff.changed, got %+v", emitter.events)
 	}
 }

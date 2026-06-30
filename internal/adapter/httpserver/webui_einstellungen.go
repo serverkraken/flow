@@ -78,7 +78,7 @@ func (s *Server) handleWebSetTargetEinst(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSettingsChanged, UserID: u.ID})
 	// Re-read settings to render the fragment with persisted data.
 	set, _, err := s.GetSettings.Execute(r.Context(), u.ID)
 	if err != nil {

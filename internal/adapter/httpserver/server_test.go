@@ -288,9 +288,11 @@ func newWebSrv(t *testing.T) (*httptest.Server, *websession.Codec, string) {
 	_, _ = users.UpsertBySub(context.Background(), u)
 
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
+	webBus := sse.NewBus()
 	srv := &httpserver.Server{
 		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:                 sse.NewBus(),
+		Bus:                 webBus,
+		Emitter:             sse.NewEmitter(webBus, &fakeActivityStore{}, ids, clk),
 		Clock:               clk,
 		Users:               users,
 		Session:             codec,

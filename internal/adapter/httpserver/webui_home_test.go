@@ -29,9 +29,11 @@ func TestHomeHome_ShowsNewestDocs(t *testing.T) {
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
+		Bus:           bus,
+		Emitter:       sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:         clk,
 		Users:         users,
 		Session:       codec,
@@ -93,10 +95,12 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 	_, _ = users.UpsertBySub(context.Background(), u)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 
+	bus2 := sse.NewBus()
 	srv := &httpserver.Server{
 		Users:   users,
 		Session: codec,
-		Bus:     sse.NewBus(),
+		Bus:     bus2,
+		Emitter: sse.NewEmitter(bus2, &fakeActivityStore{}, ids, clk),
 		Clock:   clk,
 		Ensure:  usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 	}

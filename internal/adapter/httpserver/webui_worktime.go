@@ -51,7 +51,7 @@ func (s *Server) resolveWebNode(r *http.Request, u domain.User) *string {
 	if name := r.FormValue("newProject"); name != "" {
 		if p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{Name: name, Kind: domain.KindEngagement}); err == nil {
 			nodeID = p.ID
-			s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID})
+			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
 		}
 	}
 	if nodeID == "" {
@@ -80,7 +80,7 @@ func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "could not add: "+err.Error()) // err includes "overlap"
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
 	s.renderDay(w, r, u, day, "")
 }
 
@@ -92,7 +92,7 @@ func (s *Server) handleWebDelete(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "could not delete: "+err.Error())
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
 	s.renderDay(w, r, u, day, "")
 }
 
@@ -119,6 +119,6 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "could not edit: "+err.Error())
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
 	s.renderDay(w, r, u, day, "")
 }

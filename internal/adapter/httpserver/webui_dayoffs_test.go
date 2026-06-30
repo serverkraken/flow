@@ -32,14 +32,17 @@ func newWebDayOffServer(t *testing.T) (*httpserver.Server, *websession.Codec) {
 	dos := testutil.NewFakeDayOffStore()
 	settings := testutil.NewFakeUserSettingsStore()
 	tokens := testutil.NewFakeFeedTokenStore()
+	ids := &testutil.FakeIDGen{}
+	emitter := sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk)
 	srv := &httpserver.Server{
-		Ensure:        usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:           bus,
+		Emitter:       emitter,
 		Clock:         clk,
 		Users:         users,
 		Session:       codec,
-		AddDayOffs:    usecase.AddDayOffs{Store: dos, Bus: bus},
-		DeleteDayOff:  usecase.DeleteDayOff{Store: dos, Bus: bus},
+		AddDayOffs:    usecase.AddDayOffs{Store: dos, Emitter: emitter},
+		DeleteDayOff:  usecase.DeleteDayOff{Store: dos, Emitter: emitter},
 		ListDayOffs:   usecase.ListDayOffs{Store: dos, Settings: settings, Loc: time.UTC},
 		GetSettings:   usecase.GetSettings{Settings: settings, Tokens: tokens},
 		SetBundesland: usecase.SetBundesland{Settings: settings},

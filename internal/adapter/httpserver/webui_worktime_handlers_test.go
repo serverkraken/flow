@@ -50,6 +50,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 	srv := &httpserver.Server{
 		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:                 bus,
+		Emitter:             sse.NewEmitter(bus, &fakeActivityStore{}, &testutil.FakeIDGen{}, clk),
 		Clock:               clk,
 		Users:               users,
 		Session:             codec,

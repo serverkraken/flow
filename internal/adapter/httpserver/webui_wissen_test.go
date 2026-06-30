@@ -16,6 +16,14 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// noopActivityStore satisfies ports.ActivityStore for tests that don't assert on activity.
+type noopActivityStore struct{}
+
+func (noopActivityStore) Append(_ context.Context, _ domain.ActivityEntry) error { return nil }
+func (noopActivityStore) ListPage(_ context.Context, _ string, _ []string, _ *string, _, _ int) ([]domain.ActivityEntry, int, error) {
+	return nil, 0, nil
+}
+
 func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.FakeDocumentStore, *testutil.FakeNodeStore) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
@@ -26,13 +34,15 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
 	projects := testutil.NewFakeNodeStore()
+	bus := sse.NewBus()
 
 	srv := &Server{
-		Ensure:  usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
-		Bus:     sse.NewBus(),
-		Clock:   clk,
-		Users:   users,
-		Session: codec,
+		Ensure:   usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Bus:      bus,
+		Emitter:  sse.NewEmitter(bus, noopActivityStore{}, &testutil.FakeIDGen{}, clk),
+		Clock:    clk,
+		Users:    users,
+		Session:  codec,
 
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		ListDocumentsPage: usecase.NewListDocumentsPage(docs),

@@ -33,9 +33,11 @@ func newWebEinstellungenServer(t *testing.T) (*httpserver.Server, *websession.Co
 	bus := sse.NewBus()
 	settings := testutil.NewFakeUserSettingsStore()
 	tokens := testutil.NewFakeFeedTokenStore()
+	ids := &testutil.FakeIDGen{}
 	srv := &httpserver.Server{
-		Ensure:      usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Ensure:      usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:         bus,
+		Emitter:     sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:       clk,
 		Users:       users,
 		Session:     codec,

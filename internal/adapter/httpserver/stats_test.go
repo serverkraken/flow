@@ -38,10 +38,12 @@ func newStatsServerFull() (*httpserver.Server, *sse.Bus, *testutil.FakeSessionSt
 		Clock:    clk,
 		Loc:      time.UTC,
 	}
+	ids := &testutil.FakeIDGen{}
 	srv := &httpserver.Server{
 		Verifier:  testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:    usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Ensure:    usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:       bus,
+		Emitter:   sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:     clk,
 		Stats:     statsUC,
 		SetTarget: usecase.SetTargetConfig{Settings: settings},

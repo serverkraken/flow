@@ -189,7 +189,7 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
 		}
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
 	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
 }
 
@@ -278,7 +278,7 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
 		}
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
@@ -305,7 +305,7 @@ func (s *Server) handleWebNodeStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id, "name": cur.Name}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
@@ -320,7 +320,7 @@ func (s *Server) handleWebNodeDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	http.Redirect(w, r, "/nodes", http.StatusSeeOther)
 }
 
@@ -346,7 +346,7 @@ func (s *Server) handleWebNodeMove(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeMoved, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeMoved, UserID: u.ID, Data: map[string]any{"id": id}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 

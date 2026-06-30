@@ -17,16 +17,19 @@ import (
 
 func newDayOffServer() *httpserver.Server {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
 	bus := sse.NewBus()
+	emitter := sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk)
 	dos := testutil.NewFakeDayOffStore()
 	settings := testutil.NewFakeUserSettingsStore()
 	return &httpserver.Server{
 		Verifier:     testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:       usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Ensure:       usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:          bus,
+		Emitter:      emitter,
 		Clock:        clk,
-		AddDayOffs:   usecase.AddDayOffs{Store: dos, Bus: bus},
-		DeleteDayOff: usecase.DeleteDayOff{Store: dos, Bus: bus},
+		AddDayOffs:   usecase.AddDayOffs{Store: dos, Emitter: emitter},
+		DeleteDayOff: usecase.DeleteDayOff{Store: dos, Emitter: emitter},
 		ListDayOffs:  usecase.ListDayOffs{Store: dos, Settings: settings, Loc: time.UTC},
 	}
 }
