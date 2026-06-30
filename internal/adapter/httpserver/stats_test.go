@@ -169,12 +169,13 @@ type nodeRollupDTO struct {
 
 // burndownDTO mirrors the wire shape in stats.go.
 type burndownDTO struct {
-	TotalMin    int  `json:"totalMin"`
-	TargetMin   int  `json:"targetMin"`
-	SaldoMin    int  `json:"saldoMin"`
-	OnTrack     bool `json:"onTrack"`
-	WorkdaysAll int  `json:"workdaysAll"`
-	WorkdaysDue int  `json:"workdaysDue"`
+	TotalMin       int  `json:"totalMin"`
+	TargetMin      int  `json:"targetMin"`
+	SaldoMin       int  `json:"saldoMin"`
+	OnTrack        bool `json:"onTrack"`
+	WorkdaysAll    int  `json:"workdaysAll"`
+	WorkdaysDue    int  `json:"workdaysDue"`
+	TargetTotalMin int  `json:"targetTotalMin"`
 }
 
 // statsDTO mirrors the wire shape in stats.go.
@@ -190,6 +191,7 @@ type statsDTO struct {
 	Streak           int `json:"streak"`
 	BestStreak       int `json:"bestStreak"`
 	OvertimeMin      int `json:"overtimeMin"`
+	TargetTotalMin   int `json:"targetTotalMin"`
 }
 
 // seedSession adds a stopped session on 2026-06-15 (same as the fake clock date)
@@ -324,6 +326,9 @@ func TestHandleStats_WeekRange(t *testing.T) {
 	if st.Days <= 0 {
 		t.Errorf("stats.days should be positive, got %d", st.Days)
 	}
+	if st.TargetTotalMin <= 0 {
+		t.Errorf("stats.targetTotalMin should be positive (week has workdays), got %d", st.TargetTotalMin)
+	}
 }
 
 func TestHandleStats_MonthRange(t *testing.T) {
@@ -386,6 +391,9 @@ func TestHandleBurndown_HappyPath(t *testing.T) {
 	}
 	if bd.WorkdaysAll <= 0 {
 		t.Errorf("burndown.workdaysAll should be positive, got %d", bd.WorkdaysAll)
+	}
+	if bd.TargetTotalMin <= 0 {
+		t.Errorf("burndown.targetTotalMin should be positive (month has workdays), got %d", bd.TargetTotalMin)
 	}
 }
 

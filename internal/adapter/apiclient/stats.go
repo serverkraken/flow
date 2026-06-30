@@ -37,16 +37,18 @@ type Stats struct {
 	Streak           int `json:"streak"`
 	BestStreak       int `json:"bestStreak"`
 	OvertimeMin      int `json:"overtimeMin"`
+	TargetTotalMin   int `json:"targetTotalMin"`
 }
 
 // Burndown mirrors the server's burndownDTO wire shape.
 type Burndown struct {
-	TotalMin    int  `json:"totalMin"`
-	TargetMin   int  `json:"targetMin"`
-	SaldoMin    int  `json:"saldoMin"`
-	OnTrack     bool `json:"onTrack"`
-	WorkdaysAll int  `json:"workdaysAll"`
-	WorkdaysDue int  `json:"workdaysDue"`
+	TotalMin       int  `json:"totalMin"`
+	TargetMin      int  `json:"targetMin"`
+	SaldoMin       int  `json:"saldoMin"`
+	OnTrack        bool `json:"onTrack"`
+	WorkdaysAll    int  `json:"workdaysAll"`
+	WorkdaysDue    int  `json:"workdaysDue"`
+	TargetTotalMin int  `json:"targetTotalMin"`
 }
 
 func (c *Client) GetToday(ctx context.Context) (Today, error) {

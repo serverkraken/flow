@@ -43,16 +43,18 @@ type statsDTO struct {
 	Streak           int `json:"streak"`
 	BestStreak       int `json:"bestStreak"`
 	OvertimeMin      int `json:"overtimeMin"`
+	TargetTotalMin   int `json:"targetTotalMin"`
 }
 
 // burndownDTO is the wire shape for the monthly burndown.
 type burndownDTO struct {
-	TotalMin    int  `json:"totalMin"`
-	TargetMin   int  `json:"targetMin"`
-	SaldoMin    int  `json:"saldoMin"`
-	OnTrack     bool `json:"onTrack"`
-	WorkdaysAll int  `json:"workdaysAll"`
-	WorkdaysDue int  `json:"workdaysDue"`
+	TotalMin       int  `json:"totalMin"`
+	TargetMin      int  `json:"targetMin"`
+	SaldoMin       int  `json:"saldoMin"`
+	OnTrack        bool `json:"onTrack"`
+	WorkdaysAll    int  `json:"workdaysAll"`
+	WorkdaysDue    int  `json:"workdaysDue"`
+	TargetTotalMin int  `json:"targetTotalMin"`
 }
 
 func (s *Server) handleToday(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +125,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		Streak:           st.Streak,
 		BestStreak:       st.BestStreak,
 		OvertimeMin:      minutes(st.Overtime),
+		TargetTotalMin:   minutes(st.TargetTotal),
 	})
 }
 
@@ -159,11 +162,12 @@ func (s *Server) handleBurndown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, burndownDTO{
-		TotalMin:    minutes(rep.Total),
-		TargetMin:   minutes(rep.Target),
-		SaldoMin:    minutes(rep.Saldo),
-		OnTrack:     rep.OnTrack,
-		WorkdaysAll: rep.WorkdaysAll,
-		WorkdaysDue: rep.WorkdaysDue,
+		TotalMin:       minutes(rep.Total),
+		TargetMin:      minutes(rep.Target),
+		SaldoMin:       minutes(rep.Saldo),
+		OnTrack:        rep.OnTrack,
+		WorkdaysAll:    rep.WorkdaysAll,
+		WorkdaysDue:    rep.WorkdaysDue,
+		TargetTotalMin: minutes(rep.TargetTotal),
 	})
 }
