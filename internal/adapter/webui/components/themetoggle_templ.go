@@ -8,7 +8,7 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// ThemeToggle is the ☀/☾ light/dark switch. It flips data-theme via the
+// ThemeToggle is the sun/moon light/dark switch. It flips data-theme via the
 // inline toggleTheme() defined in Base's theme-sync script and persists to
 // localStorage('flow-theme'). aria-pressed is kept in sync by that script.
 func ThemeToggle() templ.Component {
@@ -58,7 +58,7 @@ func ThemeToggle() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"><span class=\"toggle-sun text-[.95rem]\" aria-hidden=\"true\">☀</span> <span class=\"toggle-moon text-[.95rem]\" aria-hidden=\"true\">☾</span></button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"><span class=\"toggle-sun text-[.95rem]\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" class=\"h-[1.05rem] w-[1.05rem]\"><circle cx=\"12\" cy=\"12\" r=\"4\"></circle><path d=\"M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"></path></svg></span> <span class=\"toggle-moon text-[.95rem]\" aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"h-[1.05rem] w-[1.05rem]\"><path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"></path></svg></span></button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

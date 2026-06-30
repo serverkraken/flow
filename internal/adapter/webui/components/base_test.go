@@ -52,7 +52,7 @@ func TestBaseHullIsOfflineAndThemed(t *testing.T) {
 
 func TestThemeTogglePressableAndLabeled(t *testing.T) {
 	out := render(t, components.ThemeToggle())
-	for _, w := range []string{`data-theme-toggle`, `aria-pressed="false"`, `onclick="toggleTheme()"`, `☀`, `☾`} {
+	for _, w := range []string{`data-theme-toggle`, `aria-pressed="false"`, `onclick="toggleTheme()"`, `toggle-sun`, `toggle-moon`, `<svg`, `viewBox="0 0 24 24"`} {
 		if !strings.Contains(out, w) {
 			t.Errorf("ThemeToggle missing %q", w)
 		}
