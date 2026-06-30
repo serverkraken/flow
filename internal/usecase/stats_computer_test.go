@@ -290,6 +290,21 @@ func TestStatsComputer_isoMondayLocal_Sunday(t *testing.T) {
 
 // TestStatsComputer_NilLocFallsBackToLocal covers the loc() fallback to
 // time.Local (the StatsComputer.Loc == nil branch, currently at 0%).
+func TestToday_NoSessions_SaldoIsNegativeTarget(t *testing.T) {
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+	c := newComputer(nil, set) // no sessions today
+	sum, err := c.Today(context.Background(), "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Logged != 0 {
+		t.Errorf("logged: got %v want 0", sum.Logged)
+	}
+	if sum.Saldo != -8*time.Hour {
+		t.Errorf("saldo: got %v want -8h", sum.Saldo)
+	}
+}
+
 func TestStatsComputer_NilLocFallsBackToLocal(t *testing.T) {
 	set := domain.Settings{
 		Bundesland:       "NW",

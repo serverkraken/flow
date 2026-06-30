@@ -83,12 +83,14 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 	}
 	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
 	sum := TodaySummary{Date: from, Target: res.For(from)}
+	var targetLogged time.Duration
 	for _, r := range recs {
 		if r.Date.Equal(from) {
-			sum.Logged = r.Total                   // raw logged time for display
-			sum.Saldo = r.TargetTotal - sum.Target // saldo keys off TargetTotal (excludes non-counting time)
+			sum.Logged = r.Total       // raw logged time for display
+			targetLogged = r.TargetTotal // excludes non-counting time; used for saldo
 		}
 	}
+	sum.Saldo = targetLogged - sum.Target // computed after loop: 0-target on session-less days
 	for _, s := range sessions {
 		if s.Running() {
 			sum.Running = true
