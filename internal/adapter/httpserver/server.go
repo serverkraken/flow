@@ -177,8 +177,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /auth/callback", s.handleCallback)
 	mux.HandleFunc("POST /auth/logout", s.handleLogout)
 
-	// Home landing (Task 7)
+	// Home landing + timer-hero fragment + start/stop (Slice 4, Task 1)
 	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))
+	mux.Handle("GET /ui/home", s.webAuth(http.HandlerFunc(s.handleHomeFragment)))
+	mux.Handle("POST /ui/home/start", s.webAuth(http.HandlerFunc(s.handleHomeStart)))
+	mux.Handle("POST /ui/home/stop", s.webAuth(http.HandlerFunc(s.handleHomeStop)))
 
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
