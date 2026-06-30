@@ -10,8 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-// worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche · Historie ·
-// Frei). Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
+// worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche · Historie).
+// Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
 func worktimeSubnav(active string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

@@ -114,7 +114,7 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 		t.Fatalf("unauth GET / = %d, want 302", res.StatusCode)
 	}
 
-	// Authenticated → 200 with Home heading + three section links.
+	// Authenticated → 200 with Home heading + Home-specific content (start card + saldo tiles).
 	cookieVal, _ := codec.Issue("u1")
 	req, _ := http.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
@@ -126,10 +126,9 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 	}
 	body := rr.Body.String()
 	for _, want := range []string{
-		"Home",           // heading — nav.home key renders "Home"
-		`href="/zeit"`,   // Zeit section link
-		`href="/wissen"`, // Wissen section link
-		`href="/nodes"`,  // Projekte section link
+		"Home",                    // heading — nav.home key renders "Home"
+		`hx-post="/ui/home/start"`, // idle state start-card form (Home-specific content)
+		"sm:grid-cols-3",          // saldo tiles grid (Home-specific content)
 		"/static/app.css",
 	} {
 		if !strings.Contains(body, want) {

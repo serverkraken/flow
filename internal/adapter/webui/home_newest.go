@@ -3,6 +3,7 @@ package webui
 import "github.com/serverkraken/flow/internal/domain"
 
 // BuildHomeNewest returns up to n DocRows sorted newest-first by UpdatedAt.
+// If n <= 0, returns all rows uncapped.
 // It mirrors the defensive sort used by sortedDocuments (wissen_vm.go) and
 // maps each document via docRowFromDocument so the project color swatch is
 // populated from the colors map (nodeID → hex).
