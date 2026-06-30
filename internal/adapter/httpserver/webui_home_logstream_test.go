@@ -242,6 +242,45 @@ func TestLogstream_SectionOnHomePage(t *testing.T) {
 	}
 }
 
+// TestLogstream_ActorDropdownShowsAllActors verifies that even when ?actor= is
+// set, the rendered <select> dropdown contains ALL actors from the owner's full
+// activity log — not only the currently-selected one.  This is the regression
+// test for the bug where vm.LogActors was derived from the already-filtered
+// entries, collapsing the dropdown to a single option once an actor was chosen.
+func TestLogstream_ActorDropdownShowsAllActors(t *testing.T) {
+	at := time.Date(2026, 6, 30, 11, 30, 0, 0, time.UTC)
+	store := &fakeActivityStore{
+		items: []domain.ActivityEntry{
+			{
+				ID: "a1", OwnerID: "u1",
+				ActorKind: "human", ActorRef: "msoent",
+				Kind: "document.created", At: at,
+			},
+			{
+				ID: "a2", OwnerID: "u1",
+				ActorKind: "agent", ActorRef: "claude-code",
+				Kind: "session.started", At: at,
+			},
+		},
+	}
+	srv, codec := newLogstreamServer(t, store)
+
+	// Filter by just one actor — the dropdown must still list both.
+	rr := authGet(t, srv, codec, "/ui/home/logstream?actor=claude-code")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET /ui/home/logstream?actor=claude-code status=%d body=%.500s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+
+	// Both actor refs must appear as <option> values in the select.
+	if !strings.Contains(body, "msoent") {
+		t.Errorf("actor dropdown must list msoent even when actor=claude-code is active; body=%.800s", body)
+	}
+	if !strings.Contains(body, "claude-code") {
+		t.Errorf("actor dropdown must list claude-code; body=%.800s", body)
+	}
+}
+
 // TestLogstream_ActorSelectPreservesClass verifies that when a class filter is
 // active, the rendered actor <select> hx-get carries the current class so that
 // switching actor does not silently reset the class filter.

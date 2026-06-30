@@ -43,19 +43,6 @@ func BuildActivityRows(entries []domain.ActivityEntry, now time.Time) []Activity
 	return rows
 }
 
-// DistinctActors returns deduplicated actor refs from entries, preserving first-seen order.
-func DistinctActors(entries []domain.ActivityEntry) []string {
-	seen := make(map[string]struct{}, len(entries))
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if _, ok := seen[e.ActorRef]; !ok {
-			seen[e.ActorRef] = struct{}{}
-			out = append(out, e.ActorRef)
-		}
-	}
-	return out
-}
-
 // fmtRelTime formats a timestamp relative to now in German.
 // < 60 min  → "vor N Min"
 // < 24 h    → "vor N Std"

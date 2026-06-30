@@ -39,6 +39,20 @@ func (f *fakeActivityStore) ListPage(_ context.Context, ownerID string, classes 
 	return f.items, len(f.items), nil
 }
 
+// DistinctActors returns de-duplicated actor_refs from the seeded items,
+// mirroring the real store's behaviour for httpserver unit tests.
+func (f *fakeActivityStore) DistinctActors(_ context.Context, _ string) ([]string, error) {
+	seen := make(map[string]struct{})
+	var out []string
+	for _, e := range f.items {
+		if _, ok := seen[e.ActorRef]; !ok {
+			seen[e.ActorRef] = struct{}{}
+			out = append(out, e.ActorRef)
+		}
+	}
+	return out, nil
+}
+
 // newActivityServer builds a minimal Server wired with the ListActivity usecase
 // backed by the given fakeActivityStore. Bearer "x" authenticates.
 func newActivityServer(t *testing.T, store *fakeActivityStore) (*httptest.Server, *fakeActivityStore) {

@@ -216,7 +216,8 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 	if s.ListActivity.Activities != nil {
 		entries, _, _ := s.ListActivity.Execute(ctx, u.ID, nil, nil, 15, 0)
 		vm.LogEntries = webui.BuildActivityRows(entries, now)
-		vm.LogActors = webui.DistinctActors(entries)
+		actors, _ := s.ListActivity.Actors(ctx, u.ID)
+		vm.LogActors = actors
 	}
 
 	return vm, nil
@@ -256,13 +257,15 @@ func (s *Server) handleHomeLogstream(w http.ResponseWriter, r *http.Request) {
 	classes := classToPrefix(class)
 
 	var entries []domain.ActivityEntry
+	var logActors []string
 	if s.ListActivity.Activities != nil {
 		entries, _, _ = s.ListActivity.Execute(r.Context(), u.ID, classes, actorPtr, 15, 0)
+		logActors, _ = s.ListActivity.Actors(r.Context(), u.ID)
 	}
 
 	vm := webui.HomeVM{
 		LogEntries: webui.BuildActivityRows(entries, now),
-		LogActors:  webui.DistinctActors(entries),
+		LogActors:  logActors,
 		LogClass:   class,
 		LogActor:   actor,
 	}

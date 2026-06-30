@@ -33,6 +33,10 @@ func (r *recordingActivityStore) ListPage(_ context.Context, _ string, _ []strin
 	return nil, 0, nil
 }
 
+func (r *recordingActivityStore) DistinctActors(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
+
 func (r *recordingActivityStore) snapshot() []domain.ActivityEntry {
 	r.mu.Lock()
 	defer r.mu.Unlock()

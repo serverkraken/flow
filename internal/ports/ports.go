@@ -277,6 +277,9 @@ type ActivityStore interface {
 	// owner/class/actor filter. `classes` matches kind prefixes (e.g. "session",
 	// "document"); empty = all. `actorRef` nil = any actor.
 	ListPage(ctx context.Context, ownerID string, classes []string, actorRef *string, limit, offset int) (items []domain.ActivityEntry, total int, err error)
+	// DistinctActors returns all distinct actor_refs for the owner, sorted
+	// alphabetically. Independent of any class/actor filter — always the full set.
+	DistinctActors(ctx context.Context, ownerID string) ([]string, error)
 }
 
 // Emitter publishes a live event and, for loggable mutations, persists an

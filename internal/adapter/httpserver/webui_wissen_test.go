@@ -23,6 +23,9 @@ func (noopActivityStore) Append(_ context.Context, _ domain.ActivityEntry) error
 func (noopActivityStore) ListPage(_ context.Context, _ string, _ []string, _ *string, _, _ int) ([]domain.ActivityEntry, int, error) {
 	return nil, 0, nil
 }
+func (noopActivityStore) DistinctActors(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
 
 func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.FakeDocumentStore, *testutil.FakeNodeStore) {
 	t.Helper()

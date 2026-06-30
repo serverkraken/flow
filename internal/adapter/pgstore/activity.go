@@ -77,6 +77,27 @@ func (s *ActivityStore) ListPage(ctx context.Context, ownerID string, classes []
 	return out, total, err
 }
 
+// DistinctActors returns all distinct actor_refs for the given owner, sorted
+// alphabetically. It always queries the full owner scope regardless of any
+// class or actor filter, so dropdown options never shrink after filtering.
+func (s *ActivityStore) DistinctActors(ctx context.Context, ownerID string) ([]string, error) {
+	const q = `SELECT DISTINCT actor_ref FROM activity WHERE owner_id=$1 ORDER BY actor_ref`
+	rows, err := s.pool.Query(ctx, q, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: distinct actors: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var ref string
+		if err := rows.Scan(&ref); err != nil {
+			return nil, fmt.Errorf("pgstore: scan actor_ref: %w", err)
+		}
+		out = append(out, ref)
+	}
+	return out, rows.Err()
+}
+
 func scanActivities(rows pgx.Rows) ([]domain.ActivityEntry, error) {
 	var out []domain.ActivityEntry
 	for rows.Next() {

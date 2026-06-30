@@ -25,6 +25,10 @@ func (f *fakeStore) ListPage(_ context.Context, _ string, _ []string, _ *string,
 	return nil, 0, nil
 }
 
+func (f *fakeStore) DistinctActors(_ context.Context, _ string) ([]string, error) {
+	return nil, nil
+}
+
 var _ ports.ActivityStore = (*fakeStore)(nil)
 
 // fakeClock returns a fixed instant.

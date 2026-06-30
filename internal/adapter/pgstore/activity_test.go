@@ -187,4 +187,36 @@ func TestActivityStore(t *testing.T) {
 			t.Fatalf("len = %d, want 2", len(items))
 		}
 	})
+
+	t.Run("DistinctActors: owner A gets exactly its 2 sorted refs, owner B never leaks", func(t *testing.T) {
+		// ownerA has entries with actor_refs "claude-code" and "msoent" (with duplicates).
+		// ownerB has "other". DistinctActors must return only ownerA's refs sorted.
+		actors, err := store.DistinctActors(ctx, ownerA)
+		if err != nil {
+			t.Fatalf("DistinctActors ownerA: %v", err)
+		}
+		if len(actors) != 2 {
+			t.Fatalf("want 2 distinct actors for ownerA, got %d: %v", len(actors), actors)
+		}
+		// ORDER BY actor_ref → "claude-code" before "msoent"
+		if actors[0] != "claude-code" || actors[1] != "msoent" {
+			t.Errorf("want [claude-code msoent] sorted, got %v", actors)
+		}
+
+		// ownerB must not appear in ownerA results
+		for _, a := range actors {
+			if a == "other" {
+				t.Errorf("ownerB actor_ref leaked into ownerA DistinctActors result")
+			}
+		}
+
+		// ownerB gets only its own single actor
+		actorsB, err := store.DistinctActors(ctx, ownerB)
+		if err != nil {
+			t.Fatalf("DistinctActors ownerB: %v", err)
+		}
+		if len(actorsB) != 1 || actorsB[0] != "other" {
+			t.Errorf("ownerB: want [other], got %v", actorsB)
+		}
+	})
 }
