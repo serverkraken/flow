@@ -60,19 +60,31 @@ templ NodeHead(d NodeCockpit) {
 	</section>
 }
 
-// cockpitTimer is replaced with full Start/Stop/Switch markup in Task 3.
-// For Task 2 it renders the state read-only (no buttons).
 templ cockpitTimer(d NodeCockpit) {
 	switch d.Timer.State {
 		case TimerHere:
-			<div class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3">
-				<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) }>{ fmtSecsClock(d.Timer.RunningBase) }</div>
-			</div>
+			<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-head" hx-swap="innerHTML" class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3 flex items-center gap-4">
+				<div>
+					<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtSecsClock(d.Timer.RunningBase) }</div>
+				</div>
+				@components.Button(components.BtnDanger, components.T(ctx, "cockpit.timer.stop"), "■", templ.Attributes{"type": "submit"})
+			</form>
+		case TimerIdle:
+			<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-head" hx-swap="innerHTML">
+				@components.Button(components.BtnPrimary, components.T(ctx, "cockpit.timer.start"), "▶", templ.Attributes{"type": "submit"})
+			</form>
 		case TimerOtherBound:
-			<a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.runningOn") } { d.Timer.OtherName } →</a>
+			<details class="rounded-2xl bg-sunken/40 border border-line px-4 py-3">
+				<summary class="cursor-pointer text-sm text-muted list-none">{ components.T(ctx, "cockpit.timer.runningOn") } <a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="text-body hover:text-ink underline">{ d.Timer.OtherName }</a> →</summary>
+				<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-head" hx-swap="innerHTML" class="mt-2 flex items-center gap-2">
+					<span class="text-[.8rem] text-muted">{ components.T(ctx, "cockpit.timer.switchHint") }</span>
+					@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.timer.switch"), "⇄", templ.Attributes{"type": "submit"})
+				</form>
+			</details>
+		case TimerUnbound:
+			<a href="/" class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
 		case TimerNotBookable:
 			<span class="text-sm text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
-		default:
 	}
 }
 

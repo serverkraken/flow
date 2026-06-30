@@ -96,3 +96,72 @@ func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NodeHead(d).Render(r.Context(), w)
 }
+
+// handleWebNodeStart starts a timer pre-booked to {id}. Mirrors handleHomeStart
+// but passes the node id at start (StartSession validates IsBookable -> 400).
+func (s *Server) handleWebNodeStart(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if _, err := s.StartSession.Execute(r.Context(), u.ID, &id, nil, ""); err != nil {
+		if errors.Is(err, domain.ErrInvalidNode) {
+			http.Error(w, "node not bookable", http.StatusBadRequest)
+			return
+		}
+		// already running, etc. — fall through and re-render current state.
+	} else {
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID})
+	}
+	s.renderNodeHead(w, r, u, id)
+}
+
+// handleWebNodeStop stops the running session and books it to {id}.
+func (s *Server) handleWebNodeStop(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if rs, ok, gerr := s.GetRunningSession.Execute(r.Context(), u.ID); gerr == nil && ok {
+		nid := id
+		if _, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, &nid); err == nil {
+			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID})
+		}
+	}
+	s.renderNodeHead(w, r, u, id)
+}
+
+// handleWebNodeSwitch stops whatever is running, then starts a timer on {id}.
+func (s *Server) handleWebNodeSwitch(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	if rs, ok, gerr := s.GetRunningSession.Execute(r.Context(), u.ID); gerr == nil && ok {
+		// Book the stopped session to its own node when bound; else to {id}.
+		stopNode := id
+		if rs.NodeID != nil {
+			stopNode = *rs.NodeID
+		}
+		if _, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, &stopNode); err != nil {
+			http.Error(w, "could not switch", http.StatusBadRequest)
+			return
+		}
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID})
+	}
+	nid := id
+	if _, err := s.StartSession.Execute(r.Context(), u.ID, &nid, nil, ""); err != nil {
+		if errors.Is(err, domain.ErrInvalidNode) {
+			http.Error(w, "node not bookable", http.StatusBadRequest)
+			return
+		}
+	} else {
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID})
+	}
+	s.renderNodeHead(w, r, u, id)
+}
+
+// renderNodeHead re-renders the head fragment after a timer mutation.
+func (s *Server) renderNodeHead(w http.ResponseWriter, r *http.Request, u domain.User, id string) {
+	d, err := s.nodeCockpitData(r, u, id, "")
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.NodeHead(d).Render(r.Context(), w)
+}

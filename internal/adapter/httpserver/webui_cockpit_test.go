@@ -194,3 +194,63 @@ func TestCockpitView_RollupAndIdentity(t *testing.T) {
 		t.Errorf("unknown id status=%d want 404", rec2.Code)
 	}
 }
+
+func TestCockpitStart_BooksNode(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "POST", "/nodes/n1/start", map[string]string{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("start status %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	// running session now exists, booked to n1
+	rs, ok, _ := (usecase.GetRunningSession{Sessions: c.ss}).Execute(context.Background(), "u1")
+	if !ok || rs.NodeID == nil || *rs.NodeID != "n1" {
+		t.Fatalf("expected running session booked to n1, got ok=%v rs=%+v", ok, rs)
+	}
+	// head shows the live timer (data-timer) + stop button target
+	if !strings.Contains(rec.Body.String(), "data-timer") || !strings.Contains(rec.Body.String(), "/nodes/n1/stop") {
+		t.Errorf("head after start missing live timer / stop form")
+	}
+}
+
+func TestCockpitStart_RejectsBranch(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "b1", OwnerID: "u1", Name: "feature/x", Kind: domain.KindBranch})
+	rec := c.do(t, "POST", "/nodes/b1/start", map[string]string{})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("start on branch status=%d want 400", rec.Code)
+	}
+}
+
+func TestCockpitStop_EndsSession(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nid := "n1"
+	_, _ = (usecase.StartSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(context.Background(), "u1", &nid, nil, "")
+
+	rec := c.do(t, "POST", "/nodes/n1/stop", map[string]string{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("stop status %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	if _, ok, _ := (usecase.GetRunningSession{Sessions: c.ss}).Execute(context.Background(), "u1"); ok {
+		t.Errorf("session still running after stop")
+	}
+}
+
+func TestCockpitSwitch_StopsOtherStartsHere(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo})
+	c.seedNode(t, domain.Node{ID: "n2", OwnerID: "u1", Name: "homelab", Slug: "homelab", Kind: domain.KindRepo})
+	other := "n2"
+	_, _ = (usecase.StartSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(context.Background(), "u1", &other, nil, "")
+
+	rec := c.do(t, "POST", "/nodes/n1/switch", map[string]string{})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("switch status %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	rs, ok, _ := (usecase.GetRunningSession{Sessions: c.ss}).Execute(context.Background(), "u1")
+	if !ok || rs.NodeID == nil || *rs.NodeID != "n1" {
+		t.Fatalf("after switch expected running on n1, got ok=%v rs=%+v", ok, rs)
+	}
+}
