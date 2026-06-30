@@ -7,6 +7,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -321,5 +322,75 @@ func TestStatsComputer_NilLocFallsBackToLocal(t *testing.T) {
 	_, err := uc.Today(context.Background(), "u1")
 	if err != nil {
 		t.Fatalf("Today with nil Loc: %v", err)
+	}
+}
+
+// TestStatsComputer_Week_PrivEngagementExcludedFromSaldo verifies that sessions
+// booked to a node with CountsTowardTarget=false are excluded from TargetTotal
+// and Overtime (saldo) but still contribute to Stats.Total.
+//
+// Setup (clock = Monday 2026-06-15 14:00 UTC):
+//   - node "job"  CountsTowardTarget=true  → 2 h session 09:00–11:00
+//   - node "priv" CountsTowardTarget=false → 2 h session 11:00–13:00
+//
+// Expected week stats (Mon 6/15 – Sun 6/21, NW, no public holidays):
+//   - Total       = 4 h  (both sessions)
+//   - TargetTotal = 2 h  (job only)
+//   - Overtime    = 2 h − (5 workdays × 8 h) = −38 h
+func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
+	ctx := context.Background()
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+
+	ns := testutil.NewFakeNodeStore()
+	_, err := ns.Create(ctx, domain.Node{
+		ID: "job", OwnerID: "u1", Name: "Job", Slug: "job",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+		CountsTowardTarget: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ns.Create(ctx, domain.Node{
+		ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+		CountsTowardTarget: false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	jobID, privID := "job", "priv"
+	stop1 := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	stop2 := time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC)
+	sessions := []domain.WorkSession{
+		{ID: "s1", OwnerID: "u1", NodeID: &jobID, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop1},
+		{ID: "s2", OwnerID: "u1", NodeID: &privID, Start: time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC), Stop: &stop2},
+	}
+
+	c := usecase.StatsComputer{
+		Sessions: fakeSessionStore{list: sessions},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)}, // Monday
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+
+	st, err := c.RangeStats(ctx, "u1", "week")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Both sessions appear in Total (raw logged time).
+	if st.Total != 4*time.Hour {
+		t.Errorf("Total: want 4h, got %v", st.Total)
+	}
+	// Only the job session (CountsTowardTarget=true) contributes to TargetTotal.
+	if st.TargetTotal != 2*time.Hour {
+		t.Errorf("TargetTotal: want 2h (job only), got %v", st.TargetTotal)
+	}
+	// Week saldo: 2h (job TargetTotal on Mon) − 5×8h (Mon–Fri workday targets) = −38h.
+	if st.Overtime != -38*time.Hour {
+		t.Errorf("Overtime: want −38h, got %v", st.Overtime)
 	}
 }

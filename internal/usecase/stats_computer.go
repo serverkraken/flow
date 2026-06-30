@@ -68,6 +68,34 @@ func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
+// countsTowardFn loads nodes once and returns a closure that reports whether a
+// session booked to the given node id counts toward the Soll. A nil Nodes store
+// (e.g. in older tests) falls back to "count all". nil node id or unknown id →
+// counts (legacy-safe).
+func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func(*string) bool, error) {
+	if c.Nodes == nil {
+		return func(*string) bool { return true }, nil
+	}
+	nodes, err := c.Nodes.List(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	flag := make(map[string]bool, len(nodes))
+	for _, n := range nodes {
+		flag[n.ID] = n.CountsTowardTarget
+	}
+	return func(id *string) bool {
+		if id == nil {
+			return true // unbooked time still counts toward the Soll
+		}
+		v, ok := flag[*id]
+		if !ok {
+			return true // unknown node → count (legacy-safe)
+		}
+		return v
+	}, nil
+}
+
 // Today returns the summary for the calendar day containing now.
 func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary, error) {
 	now := c.Clock.Now().In(c.loc())
@@ -77,11 +105,15 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 	if err != nil {
 		return TodaySummary{}, err
 	}
+	countsToward, err := c.countsTowardFn(ctx, ownerID)
+	if err != nil {
+		return TodaySummary{}, err
+	}
 	sessions, err := c.Sessions.List(ctx, ownerID, from)
 	if err != nil {
 		return TodaySummary{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
+	recs := domain.BuildDayRecords(sessions, now, res.For, countsToward)
 	sum := TodaySummary{Date: from, Target: res.For(from)}
 	var targetLogged time.Duration
 	for _, r := range recs {
@@ -112,11 +144,15 @@ func (c StatsComputer) Week(ctx context.Context, ownerID string, ref time.Time) 
 	if err != nil {
 		return nil, err
 	}
+	countsToward, err := c.countsTowardFn(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
 	sessions, err := c.Sessions.List(ctx, ownerID, mon)
 	if err != nil {
 		return nil, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
+	recs := domain.BuildDayRecords(sessions, now, res.For, countsToward)
 	byDay := map[string]domain.DayRecord{}
 	for _, r := range recs {
 		byDay[r.Date.Format("2006-01-02")] = r
@@ -154,11 +190,15 @@ func (c StatsComputer) RangeStats(ctx context.Context, ownerID, rng string) (dom
 	if err != nil {
 		return domain.Stats{}, err
 	}
+	countsToward, err := c.countsTowardFn(ctx, ownerID)
+	if err != nil {
+		return domain.Stats{}, err
+	}
 	sessions, err := c.Sessions.List(ctx, ownerID, from)
 	if err != nil {
 		return domain.Stats{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
+	recs := domain.BuildDayRecords(sessions, now, res.For, countsToward)
 	listOffs := func(f, t time.Time) []domain.DayOff {
 		var in []domain.DayOff
 		for _, o := range offs {
@@ -182,11 +222,15 @@ func (c StatsComputer) Burndown(ctx context.Context, ownerID string) (domain.Mon
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}
+	countsToward, err := c.countsTowardFn(ctx, ownerID)
+	if err != nil {
+		return domain.MonthBurndownReport{}, err
+	}
 	sessions, err := c.Sessions.List(ctx, ownerID, from)
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
+	recs := domain.BuildDayRecords(sessions, now, res.For, countsToward)
 	return domain.MonthBurndownCompute(now, recs, nil, res.IsWorkday, res.For), nil
 }
 
