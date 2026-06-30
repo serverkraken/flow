@@ -160,6 +160,13 @@ type weekDayDTO struct {
 	Workday   bool   `json:"workday"`
 }
 
+// nodeRollupDTO mirrors the wire shape for GET /api/v1/nodes/{id}/stats.
+type nodeRollupDTO struct {
+	TotalMin int `json:"totalMin"`
+	WeekMin  int `json:"weekMin"`
+	MonthMin int `json:"monthMin"`
+}
+
 // burndownDTO mirrors the wire shape in stats.go.
 type burndownDTO struct {
 	TotalMin    int  `json:"totalMin"`
@@ -379,5 +386,90 @@ func TestHandleBurndown_HappyPath(t *testing.T) {
 	}
 	if bd.WorkdaysAll <= 0 {
 		t.Errorf("burndown.workdaysAll should be positive, got %d", bd.WorkdaysAll)
+	}
+}
+
+// newNodeStatsServerFull returns a server wired with Nodes so that
+// GET /api/v1/nodes/{id}/stats can be exercised end-to-end.
+func newNodeStatsServerFull() (*httpserver.Server, *testutil.FakeSessionStore, *testutil.FakeNodeStore) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
+	settings := testutil.NewFakeUserSettingsStore()
+	sessions := testutil.NewFakeSessionStore()
+	nodes := testutil.NewFakeNodeStore()
+	dayOffs := testutil.NewFakeDayOffStore()
+	listDayOffs := usecase.ListDayOffs{Store: dayOffs, Settings: settings, Loc: time.UTC}
+	statsUC := usecase.StatsComputer{
+		Sessions: sessions,
+		Settings: settings,
+		DayOffs:  listDayOffs,
+		Clock:    clk,
+		Loc:      time.UTC,
+		Nodes:    nodes,
+	}
+	srv := &httpserver.Server{
+		Verifier:  testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:    usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Bus:       sse.NewBus(),
+		Clock:     clk,
+		Stats:     statsUC,
+		SetTarget: usecase.SetTargetConfig{Settings: settings},
+	}
+	return srv, sessions, nodes
+}
+
+func TestHandleNodeStats_HappyPath(t *testing.T) {
+	srv, sessions, nodes := newNodeStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	// Prime user creation so "id-1" exists.
+	primeUser(t, ts.URL)
+
+	// Seed a node owned by "id-1".
+	ctx := context.Background()
+	eng := domain.Node{ID: "eng", OwnerID: "id-1", Name: "Engineering", Slug: "eng"}
+	if _, err := nodes.Create(ctx, eng); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+
+	// Seed a 2-hour session assigned to that node.
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	nodeID := "eng"
+	ws := domain.WorkSession{
+		ID:      "sess-node-1",
+		OwnerID: "id-1",
+		NodeID:  &nodeID,
+		Start:   start,
+		Stop:    &stop,
+	}
+	if _, err := sessions.Create(ctx, ws); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/nodes/eng/stats", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	var dto nodeRollupDTO
+	if err := json.NewDecoder(res.Body).Decode(&dto); err != nil {
+		t.Fatalf("decode node stats: %v", err)
+	}
+	// 2-hour session → 120 min for all three buckets (Total/Week/Month)
+	// Clock 2026-06-15 (Monday), weekStart = 2026-06-15, monthStart = 2026-06-01.
+	if dto.TotalMin != 120 {
+		t.Errorf("totalMin: want 120, got %d", dto.TotalMin)
+	}
+	if dto.WeekMin != 120 {
+		t.Errorf("weekMin: want 120, got %d", dto.WeekMin)
+	}
+	if dto.MonthMin != 120 {
+		t.Errorf("monthMin: want 120, got %d", dto.MonthMin)
 	}
 }

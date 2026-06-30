@@ -125,6 +125,28 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// nodeRollupDTO is the wire shape for the subtree worktime rollup.
+type nodeRollupDTO struct {
+	TotalMin int `json:"totalMin"`
+	WeekMin  int `json:"weekMin"`
+	MonthMin int `json:"monthMin"`
+}
+
+func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	roll, err := s.Stats.NodeStats(r.Context(), u.ID, id)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, nodeRollupDTO{
+		TotalMin: minutes(roll.Total),
+		WeekMin:  minutes(roll.Week),
+		MonthMin: minutes(roll.Month),
+	})
+}
+
 func (s *Server) handleBurndown(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	rep, err := s.Stats.Burndown(r.Context(), u.ID)
