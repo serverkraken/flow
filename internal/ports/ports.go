@@ -279,6 +279,12 @@ type ActivityStore interface {
 	ListPage(ctx context.Context, ownerID string, classes []string, actorRef *string, limit, offset int) (items []domain.ActivityEntry, total int, err error)
 }
 
+// Emitter publishes a live event and, for loggable mutations, persists an
+// activity entry. It replaces direct EventBus.Publish at mutation sites.
+type Emitter interface {
+	Emit(ctx context.Context, ev domain.Event)
+}
+
 // Editor opens an interactive editor on initial content and returns the
 // edited bytes. Used by the TUI for document bodies.
 type Editor interface {

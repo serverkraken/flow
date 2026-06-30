@@ -74,6 +74,8 @@ func run() error {
 	documentStore := pgstore.NewDocumentStore(pool, ids)
 	tagStore := pgstore.NewTagStore(pool, ids)
 	bus := sse.NewBus()
+	activityStore := pgstore.NewActivityStore(pool)
+	emitter := sse.NewEmitter(bus, activityStore, ids, clock)
 	logger := slog.Default()
 
 	// Semantic-search embedder + background embedding worker. Without Ollama
@@ -92,6 +94,7 @@ func run() error {
 	srv := &httpserver.Server{
 		Ready:    func(ctx context.Context) error { return pool.Ping(ctx) },
 		Verifier: verifier,
+		Emitter:  emitter,
 		Ensure: usecase.EnsureUser{
 			Users: userStore,
 			IDs:   ids,

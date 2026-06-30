@@ -14,6 +14,7 @@ type Server struct {
 	Verifier ports.TokenVerifier
 	Ensure   usecase.EnsureUser
 	Bus      ports.EventBus
+	Emitter  ports.Emitter
 	Clock    ports.Clock
 	Dev      bool
 	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready

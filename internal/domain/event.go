@@ -18,6 +18,8 @@ const (
 	EventDocumentCreated EventType = "document.created"
 	EventDocumentUpdated EventType = "document.updated"
 	EventDocumentDeleted EventType = "document.deleted"
+
+	EventActivityLogged EventType = "activity.logged"
 )
 
 // Event is a server-originated change notification. UserID is the routing
