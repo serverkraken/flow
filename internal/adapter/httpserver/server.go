@@ -177,6 +177,9 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /auth/callback", s.handleCallback)
 	mux.HandleFunc("POST /auth/logout", s.handleLogout)
 
+	// Home landing (Task 7)
+	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))
+
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
 	mux.Handle("GET /ui/worktime", s.webAuth(http.HandlerFunc(s.handleHeuteFragment)))

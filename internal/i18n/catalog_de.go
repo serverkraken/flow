@@ -6,6 +6,11 @@ func init() {
 			// brand / shell
 			"app.name":    "flow",
 			"app.tagline": "Zeit & Wissen",
+			// home landing
+			"home.greeting":              "Dein Flow-Überblick.",
+			"home.section.zeit.desc":     "Arbeitszeiterfassung und Tagesüberblick.",
+			"home.section.wissen.desc":   "Dokumente, Notizen und Wissensbasis.",
+			"home.section.projekte.desc": "Engagements, Vorhaben und Repositories.",
 			// top-level navigation
 			"nav.today":     "Heute",
 			"nav.wissen":    "Wissen",

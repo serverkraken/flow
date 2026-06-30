@@ -5,6 +5,11 @@ func init() {
 		strings: map[string]string{
 			"app.name":                  "flow",
 			"app.tagline":               "Time & Knowledge",
+			// home landing
+			"home.greeting":              "Your flow overview.",
+			"home.section.zeit.desc":     "Time tracking and daily overview.",
+			"home.section.wissen.desc":   "Documents, notes and knowledge base.",
+			"home.section.projekte.desc": "Engagements, initiatives and repositories.",
 			"nav.today":                 "Today",
 			"nav.wissen":                "Knowledge",
 			"nav.week":                  "Week",

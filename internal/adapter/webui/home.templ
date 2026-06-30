@@ -1,0 +1,37 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// HomePage is the full Home landing page on the AppShell.
+// Slice 4 enriches this page: timer-hero, saldo tiles, logstream, neueste Wissensartikel.
+templ HomePage(vm HomeVM) {
+	@components.Base("home", homeBody(vm))
+}
+
+templ homeBody(vm HomeVM) {
+	@components.AppShell("home", nil, nil, homeContent(vm))
+}
+
+templ homeContent(vm HomeVM) {
+	<!-- Slice 4: timer-hero, saldo tiles, logstream, neueste Wissensartikel -->
+	<div>
+		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "nav.home") }</h1>
+		<p class="mt-2 text-[.92rem] text-muted">{ components.T(ctx, "home.greeting") }</p>
+	</div>
+	<div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
+		@homeSectionLink("/zeit", "nav.zeit", "home.section.zeit.desc")
+		@homeSectionLink("/wissen", "nav.wissen", "home.section.wissen.desc")
+		@homeSectionLink("/nodes", "nav.projects", "home.section.projekte.desc")
+	</div>
+}
+
+templ homeSectionLink(href, labelKey, descKey string) {
+	<a href={ templ.SafeURL(href) } class="block">
+		@components.Card("", homeSectionBody(labelKey, descKey))
+	</a>
+}
+
+templ homeSectionBody(labelKey, descKey string) {
+	<h2 class="font-display text-lg font-semibold">{ components.T(ctx, labelKey) }</h2>
+	<p class="mt-1 text-[.88rem] text-muted">{ components.T(ctx, descKey) }</p>
+}
