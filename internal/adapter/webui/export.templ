@@ -1,8 +1,9 @@
 package webui
 
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
 // ExportPageData is the view model for the export screen.
 type ExportPageData struct {
-	User        string
 	From        string // yyyy-mm-dd
 	To          string // yyyy-mm-dd
 	Rows        []ExportSummaryRow
@@ -18,74 +19,73 @@ type ExportSummaryRow struct {
 }
 
 templ ExportPage(d ExportPageData) {
-	<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>flow · export</title>
-			<link rel="stylesheet" href="/static/app.css"/>
-			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-			<script src="https://unpkg.com/htmx-ext-sse@2.2.3"></script>
-		</head>
-		<body class="bg-slate-50 text-slate-800">
-			<main class="mx-auto max-w-md p-4">
-				<div id="ep">
-					@ExportFragment(d)
-				</div>
-			</main>
-		</body>
-	</html>
+	@components.Base("export", exportBody(d))
+}
+
+templ exportBody(d ExportPageData) {
+	@components.AppShell("export", nil, nil, exportContent(d))
+}
+
+templ exportContent(d ExportPageData) {
+	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6">
+		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "nav.export") }</h1>
+	</div>
+	<div id="ep">
+		@ExportFragment(d)
+	</div>
 }
 
 templ ExportFragment(d ExportPageData) {
-	@Nav("export", d.User)
+	@components.Card("", exportCardBody(d))
+}
+
+templ exportCardBody(d ExportPageData) {
 	<!-- date range form -->
 	<section class="mb-4">
-		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Zeitraum</h2>
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Zeitraum</h2>
 		<form
 			hx-get="/ui/export/preview"
 			hx-target="#ep"
 			hx-swap="innerHTML"
 			class="flex flex-wrap items-center gap-2"
 		>
-			<label class="text-sm text-slate-500">Von</label>
+			<label class="text-sm text-muted">Von</label>
 			<input
 				type="date"
 				name="from"
 				value={ d.From }
-				class="rounded border px-2 py-1 text-sm"
+				class="rounded border border-line bg-sunken/60 px-2 py-1 text-sm text-ink"
 			/>
-			<label class="text-sm text-slate-500">Bis</label>
+			<label class="text-sm text-muted">Bis</label>
 			<input
 				type="date"
 				name="to"
 				value={ d.To }
-				class="rounded border px-2 py-1 text-sm"
+				class="rounded border border-line bg-sunken/60 px-2 py-1 text-sm text-ink"
 			/>
-			<button class="rounded bg-slate-900 px-3 py-1 text-sm text-white">anzeigen</button>
+			<button class="rounded bg-ink px-3 py-1 text-sm text-canvas hover:bg-ink/90">anzeigen</button>
 		</form>
 	</section>
 	<!-- download links: plain anchors, hx-boost=false so browser does real file download -->
 	<section class="mb-4">
-		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Download</h2>
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Download</h2>
 		<div class="flex gap-3 text-sm">
 			<a
 				hx-boost="false"
 				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=csv") }
-				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				class="rounded bg-ink px-3 py-1 text-canvas hover:bg-ink/90"
 				download
 			>CSV</a>
 			<a
 				hx-boost="false"
 				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=json") }
-				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				class="rounded bg-ink px-3 py-1 text-canvas hover:bg-ink/90"
 				download
 			>JSON</a>
 			<a
 				hx-boost="false"
 				href={ templ.SafeURL("/api/v1/export?from=" + d.From + "&to=" + d.To + "&format=md") }
-				class="rounded bg-slate-900 px-3 py-1 text-white hover:bg-slate-700"
+				class="rounded bg-ink px-3 py-1 text-canvas hover:bg-ink/90"
 				download
 			>MD</a>
 		</div>
@@ -95,33 +95,33 @@ templ ExportFragment(d ExportPageData) {
 }
 
 templ exportSummaryTable(d ExportPageData) {
-	<section class="rounded bg-slate-100 p-3 text-sm">
-		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Ubersicht</h2>
+	<section class="rounded bg-sunken p-3 text-sm">
+		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Ubersicht</h2>
 		if len(d.Rows) == 0 {
-			<p class="text-slate-400">Keine Daten im Zeitraum.</p>
+			<p class="text-faint">Keine Daten im Zeitraum.</p>
 		} else {
 			<table class="w-full text-left">
 				<thead>
-					<tr class="text-xs uppercase text-slate-500">
+					<tr class="text-xs uppercase text-muted">
 						<th class="pb-1 pr-4">Projekt</th>
 						<th class="pb-1 pr-4">Zeit</th>
 						<th class="pb-1">Betrag</th>
 					</tr>
 				</thead>
-				<tbody class="divide-y divide-slate-200">
+				<tbody class="divide-y divide-line2">
 					for _, row := range d.Rows {
 						<tr>
-							<td class="py-1 pr-4 text-slate-700">{ row.Project }</td>
-							<td class="py-1 pr-4 font-mono text-slate-800">{ row.Time }</td>
-							<td class="py-1 font-mono text-slate-800">{ row.Amount }</td>
+							<td class="py-1 pr-4 text-body">{ row.Project }</td>
+							<td class="py-1 pr-4 font-mono text-ink">{ row.Time }</td>
+							<td class="py-1 font-mono text-ink">{ row.Amount }</td>
 						</tr>
 					}
 				</tbody>
-				<tfoot class="border-t-2 border-slate-300">
+				<tfoot class="border-t-2 border-line">
 					<tr class="font-semibold">
-						<td class="pt-2 pr-4 text-slate-700">Summe</td>
-						<td class="pt-2 pr-4 font-mono text-slate-900">{ d.TotalTime }</td>
-						<td class="pt-2 font-mono text-slate-900">{ d.TotalAmount }</td>
+						<td class="pt-2 pr-4 text-body">Summe</td>
+						<td class="pt-2 pr-4 font-mono text-ink">{ d.TotalTime }</td>
+						<td class="pt-2 font-mono text-ink">{ d.TotalAmount }</td>
 					</tr>
 				</tfoot>
 			</table>

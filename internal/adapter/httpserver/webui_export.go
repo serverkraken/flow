@@ -55,7 +55,6 @@ func (s *Server) exportPageData(ctx context.Context, u domain.User, from, to tim
 	}
 
 	return webui.ExportPageData{
-		User:        u.Username,
 		From:        from.Format(dayFmt),
 		To:          to.Format(dayFmt),
 		Rows:        rows,
