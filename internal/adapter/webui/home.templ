@@ -49,6 +49,7 @@ templ HomeFragment(vm HomeVM) {
 	<section class="mt-5 md:mt-6">
 		@components.BurndownBanner(vm.Burndown)
 	</section>
+	@HomeLogstream(vm)
 	if len(vm.NewestDocs) > 0 {
 		<section class="mt-6">
 			<h2 class="mb-3 text-[.78rem] font-semibold uppercase tracking-wide text-faint">{ components.T(ctx, "wissen.latest") }</h2>
@@ -146,6 +147,88 @@ templ homeStartCard(vm HomeVM) {
 			</button>
 		</form>
 	</article>
+}
+
+// HomeLogstream is the outermost logstream section — also used as the htmx
+// fragment target so the section can refresh itself without reloading the page.
+templ HomeLogstream(vm HomeVM) {
+	<section id="logstream"
+		hx-get={ "/ui/home/logstream" + vm.logQuery() }
+		hx-trigger="sse:activity.logged"
+		hx-swap="outerHTML"
+		class="mt-6">
+		@homeLogstreamInner(vm)
+	</section>
+}
+
+// homeLogstreamInner renders the chip filters, actor selector, rows, and empty state.
+templ homeLogstreamInner(vm HomeVM) {
+	<h2 class="mb-3 text-[.78rem] font-semibold uppercase tracking-wide text-faint">{ components.T(ctx, "home.activity") }</h2>
+	<div class="mb-3 flex flex-wrap items-center gap-2">
+		{{ chips := []struct{ key, label, cls string }{
+			{"", "activity.filter.all", ""},
+			{"zeit", "activity.filter.zeit", "zeit"},
+			{"wissen", "activity.filter.wissen", "wissen"},
+			{"struktur", "activity.filter.struktur", "struktur"},
+			{"frei", "activity.filter.frei", "frei"},
+		} }}
+		for _, chip := range chips {
+			if vm.LogClass == chip.cls {
+				<a href="#"
+					hx-get={ "/ui/home/logstream?class=" + chip.cls + "&actor=" + vm.LogActor }
+					hx-target="#logstream"
+					hx-swap="outerHTML"
+					class="inline-flex items-center rounded-full bg-ink px-3 py-1 text-[.8rem] font-medium text-canvas">
+					{ components.T(ctx, chip.label) }
+				</a>
+			} else {
+				<a href="#"
+					hx-get={ "/ui/home/logstream?class=" + chip.cls + "&actor=" + vm.LogActor }
+					hx-target="#logstream"
+					hx-swap="outerHTML"
+					class="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
+					{ components.T(ctx, chip.label) }
+				</a>
+			}
+		}
+		if len(vm.LogActors) > 0 {
+			<select
+				hx-get="/ui/home/logstream"
+				hx-include="this"
+				hx-target="#logstream"
+				hx-swap="outerHTML"
+				name="actor"
+				class="ml-2 rounded-lg border border-line bg-surface px-2 py-1 text-[.8rem] text-muted focus:border-blue/40 transition-colors">
+				<option value="">{ components.T(ctx, "activity.actor.all") }</option>
+				for _, actor := range vm.LogActors {
+					if vm.LogActor == actor {
+						<option value={ actor } selected>{ actor }</option>
+					} else {
+						<option value={ actor }>{ actor }</option>
+					}
+				}
+			</select>
+		}
+	</div>
+	if len(vm.LogEntries) == 0 {
+		<p class="text-[.88rem] text-muted">{ components.T(ctx, "activity.empty") }</p>
+	} else {
+		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+			for _, row := range vm.LogEntries {
+				<li class="flex items-center gap-2 px-4 py-3 text-[.88rem]">
+					<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
+					<span class="font-medium text-body">{ row.ActorRef }</span>
+					<span class="text-muted">{ components.T(ctx, row.VerbKey) }</span>
+					if row.Href != "" {
+						<a href={ templ.SafeURL(row.Href) } class="font-medium text-blue hover:underline truncate">{ row.Label }</a>
+					} else if row.Label != "" {
+						<span class="truncate text-body">{ row.Label }</span>
+					}
+					<span class="ml-auto shrink-0 text-[.75rem] text-faint tnum">{ row.RelTime }</span>
+				</li>
+			}
+		</ul>
+	}
 }
 
 // homeNewestDocRow renders one recent-knowledge card in the "Zuletzt im Wissen"

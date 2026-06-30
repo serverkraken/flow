@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"net/url"
+
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -46,5 +48,27 @@ type HomeVM struct {
 	// "Zuletzt im Wissen" section (capped at 5, sorted newest-first).
 	NewestDocs []DocRow
 
+	// Logstream — activity feed (Slice 5, Task 9).
+	LogEntries []ActivityRowVM // activity rows (capped at 15)
+	LogClass   string          // active class filter: "" | "zeit" | "wissen" | "struktur" | "frei"
+	LogActor   string          // active actor filter: "" = all
+	LogActors  []string        // distinct actor refs from the current result set
+
 	Err string // inline error message (surfaced when stop fails validation)
+}
+
+// logQuery returns the current class/actor filter as a URL query string
+// (prefixed with "?") so the logstream section can include it in hx-get.
+func (vm HomeVM) logQuery() string {
+	q := url.Values{}
+	if vm.LogClass != "" {
+		q.Set("class", vm.LogClass)
+	}
+	if vm.LogActor != "" {
+		q.Set("actor", vm.LogActor)
+	}
+	if len(q) == 0 {
+		return ""
+	}
+	return "?" + q.Encode()
 }

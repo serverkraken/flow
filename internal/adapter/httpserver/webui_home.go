@@ -212,5 +212,61 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		vm.NewestDocs = webui.BuildHomeNewest(docs, colors, 5)
 	}
 
+	// Activity logstream — guard: skip when ListActivity is not wired.
+	if s.ListActivity.Activities != nil {
+		entries, _, _ := s.ListActivity.Execute(ctx, u.ID, nil, nil, 15, 0)
+		vm.LogEntries = webui.BuildActivityRows(entries, now)
+		vm.LogActors = webui.DistinctActors(entries)
+	}
+
 	return vm, nil
+}
+
+// classToPrefix maps the WebUI chip class name to the kind-prefix used by ListActivity.
+// Empty / unknown → nil (no filter).
+func classToPrefix(class string) []string {
+	switch class {
+	case "zeit":
+		return []string{"session"}
+	case "wissen":
+		return []string{"document"}
+	case "struktur":
+		return []string{"node"}
+	case "frei":
+		return []string{"dayoff"}
+	default:
+		return nil
+	}
+}
+
+// handleHomeLogstream renders the logstream section fragment at
+// GET /ui/home/logstream with optional class and actor filters.
+func (s *Server) handleHomeLogstream(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	now := s.Clock.Now()
+
+	class := r.URL.Query().Get("class")
+	actor := r.URL.Query().Get("actor")
+
+	var actorPtr *string
+	if actor != "" {
+		actorPtr = &actor
+	}
+
+	classes := classToPrefix(class)
+
+	var entries []domain.ActivityEntry
+	if s.ListActivity.Activities != nil {
+		entries, _, _ = s.ListActivity.Execute(r.Context(), u.ID, classes, actorPtr, 15, 0)
+	}
+
+	vm := webui.HomeVM{
+		LogEntries: webui.BuildActivityRows(entries, now),
+		LogActors:  webui.DistinctActors(entries),
+		LogClass:   class,
+		LogActor:   actor,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.HomeLogstream(vm).Render(r.Context(), w)
 }

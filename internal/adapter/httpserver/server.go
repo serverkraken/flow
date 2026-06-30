@@ -188,6 +188,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui/home", s.webAuth(http.HandlerFunc(s.handleHomeFragment)))
 	mux.Handle("POST /ui/home/start", s.webAuth(http.HandlerFunc(s.handleHomeStart)))
 	mux.Handle("POST /ui/home/stop", s.webAuth(http.HandlerFunc(s.handleHomeStop)))
+	// Logstream fragment (Slice 5, Task 9)
+	mux.Handle("GET /ui/home/logstream", s.webAuth(http.HandlerFunc(s.handleHomeLogstream)))
 
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
