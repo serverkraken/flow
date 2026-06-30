@@ -189,6 +189,35 @@ FROM chain ORDER BY depth`
 	return out, rows.Err()
 }
 
+// Subtree returns the node itself and all its descendants (root→leaf order).
+func (s *NodeStore) Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
+	const q = `
+WITH RECURSIVE sub AS (
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, 0 AS depth
+  FROM nodes WHERE owner_id=$1 AND id=$2
+  UNION ALL
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, s.depth+1
+  FROM nodes n JOIN sub s ON n.parent_id = s.id
+  WHERE n.owner_id=$1
+)
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at
+FROM sub ORDER BY depth`
+	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: subtree: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.Node
+	for rows.Next() {
+		n, err := scanNode(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
 func (s *NodeStore) Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error) {
 	const q = `UPDATE nodes SET parent_id=$1, updated_at=now() WHERE owner_id=$2 AND id=$3 RETURNING ` + nodeCols
 	n, err := scanNode(s.pool.QueryRow(ctx, q, parentID, ownerID, id))

@@ -247,6 +247,34 @@ func (s *FakeNodeStore) Reparent(_ context.Context, ownerID, id string, parentID
 	return n, nil
 }
 
+// Subtree returns nodeID and all transitive descendants (BFS, children sorted by name).
+func (s *FakeNodeStore) Subtree(_ context.Context, ownerID, nodeID string) ([]domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, ok := s.m[nodeID]
+	if !ok || root.OwnerID != ownerID {
+		return nil, nil
+	}
+	out := []domain.Node{root}
+	frontier := []string{nodeID}
+	for len(frontier) > 0 {
+		cur := frontier[0]
+		frontier = frontier[1:]
+		var kids []domain.Node
+		for _, n := range s.m {
+			if n.OwnerID == ownerID && n.ParentID != nil && *n.ParentID == cur {
+				kids = append(kids, n)
+			}
+		}
+		sort.Slice(kids, func(i, j int) bool { return kids[i].Name < kids[j].Name })
+		for _, k := range kids {
+			out = append(out, k)
+			frontier = append(frontier, k.ID)
+		}
+	}
+	return out, nil
+}
+
 // FakeSessionStore is an in-memory ports.SessionStore enforcing one running
 // session per owner, like the Postgres partial index.
 type FakeSessionStore struct {
@@ -384,7 +412,6 @@ func (s *FakeSessionStore) ListPage(_ context.Context, ownerID string, limit, of
 	}
 	return all[offset:end], total, nil
 }
-
 
 func (s *FakeSessionStore) TagTimes(_ context.Context, ownerID string, from, to time.Time) ([]domain.TagTime, error) {
 	s.mu.Lock()
@@ -1046,8 +1073,8 @@ func cosine(a, b []float32) float64 {
 // FakeTagStore is an in-memory ports.TagStore.
 type FakeTagStore struct {
 	mu      sync.Mutex
-	display map[string]string              // owner|slug -> display
-	links   map[string]map[string]bool     // owner|type|id -> set of slugs
+	display map[string]string          // owner|slug -> display
+	links   map[string]map[string]bool // owner|type|id -> set of slugs
 	idgen   int
 }
 

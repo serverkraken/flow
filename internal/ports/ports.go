@@ -101,6 +101,8 @@ type NodeStore interface {
 	// Reparent moves a node to a new parent (nil = make it a root). Owner-scoped;
 	// returns ErrNodeNotFound for a missing or foreign node.
 	Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error)
+	// Subtree returns the node itself and all its descendants (root→leaf order).
+	Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error)
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running

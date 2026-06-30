@@ -57,7 +57,7 @@ func TestProjectStore_Delete(t *testing.T) {
 		ID:        "doc-del",
 		OwnerID:   "u-del",
 		Type:      domain.DocFree,
-		NodeID: &docPID,
+		NodeID:    &docPID,
 		Path:      "del/arch",
 		Title:     "Del",
 		Body:      "# Del",
@@ -384,5 +384,63 @@ func TestNodeStore_TreeWalk(t *testing.T) {
 	}
 	if err := st.Delete(ctx, "u-t", "missing"); !errors.Is(err, ports.ErrNodeNotFound) {
 		t.Fatalf("delete missing: want ErrNodeNotFound, got %v", err)
+	}
+}
+
+func TestNodeStore_Subtree(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-sub", "sub-sub", "subuser", "sub@x.de", "Sub")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)
+
+	mk := func(id, name, slug string, kind domain.NodeKind, parent *string) {
+		n, _ := domain.NewNode(id, "u-sub", name, slug, now)
+		n.Kind = kind
+		n.ParentID = parent
+		if _, err := st.Create(ctx, n); err != nil {
+			t.Fatalf("create %s: %v", id, err)
+		}
+	}
+	mk("eng", "Privat", "privat", domain.KindEngagement, nil)
+	mk("vor", "Sub", "sub", domain.KindVorhaben, strptr("eng"))
+	mk("repo", "flow", "flow", domain.KindRepo, strptr("vor"))
+	mk("other", "Other", "other", domain.KindEngagement, nil)
+
+	// Subtree(eng) should return eng + vor + repo (3 nodes, root→leaf).
+	sub, err := st.Subtree(ctx, "u-sub", "eng")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, n := range sub {
+		ids[n.ID] = true
+	}
+	if len(ids) != 3 || !ids["eng"] || !ids["vor"] || !ids["repo"] || ids["other"] {
+		t.Fatalf("Subtree(eng): want {eng,vor,repo}, got %v", ids)
+	}
+	// First node must be the root (depth 0).
+	if sub[0].ID != "eng" {
+		t.Fatalf("Subtree(eng): first node must be eng (depth 0), got %q", sub[0].ID)
+	}
+
+	// Subtree(repo) = just the leaf.
+	leaf, err := st.Subtree(ctx, "u-sub", "repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaf) != 1 || leaf[0].ID != "repo" {
+		t.Fatalf("Subtree(repo): want [repo], got %v", leaf)
 	}
 }
