@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -17,6 +18,14 @@ const userKey ctxKey = 0
 func userFrom(ctx context.Context) (domain.User, bool) {
 	u, ok := ctx.Value(userKey).(domain.User)
 	return u, ok
+}
+
+// ctxWithUser stores the authenticated user AND the derived actor in ctx.
+// The actor comes from the X-Flow-Actor header (set by the MCP client) or
+// defaults to the human user.
+func ctxWithUser(r *http.Request, u domain.User) context.Context {
+	ctx := context.WithValue(r.Context(), userKey, u)
+	return actor.WithContext(ctx, actor.FromHeader(r.Header.Get("X-Flow-Actor"), u.DisplayName))
 }
 
 // resolveBearer verifies a bearer token and ensures the user. Returns
@@ -59,6 +68,6 @@ func (s *Server) auth(next http.Handler) http.Handler {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
+		next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
 	})
 }

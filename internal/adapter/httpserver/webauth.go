@@ -108,7 +108,7 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 			http.Redirect(w, r, "/auth/login", http.StatusFound)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
+		next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
 	})
 }
 
@@ -118,11 +118,11 @@ func (s *Server) webAuth(next http.Handler) http.Handler {
 func (s *Server) authAny(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if u, ok := s.resolveBearer(r); ok {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
+			next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
 			return
 		}
 		if u, ok := s.resolveCookie(r); ok {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
+			next.ServeHTTP(w, r.WithContext(ctxWithUser(r, u)))
 			return
 		}
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
