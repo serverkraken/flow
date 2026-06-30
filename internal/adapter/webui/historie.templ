@@ -3,14 +3,14 @@ package webui
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
 // HistoriePage is the full Historie calendar page on the Slice-0 AppShell.
-// Worktime lives under the "Heute" top-tab, so the AppShell active key stays
-// "today" and the worktime sub-tab strip marks "history".
+// Worktime lives under the "Zeit" top-tab, so the AppShell active key is
+// "zeit" and the worktime sub-tab strip marks "history".
 templ HistoriePage(vm HistorieVM) {
 	@components.Base("historie", historieCalBody(vm))
 }
 
 templ historieCalBody(vm HistorieVM) {
-	@components.AppShell("today", nil, worktimeSubnav("history"), historieCalOuter(vm))
+	@components.AppShell("zeit", nil, worktimeSubnav("history"), historieCalOuter(vm))
 }
 
 // historieCalOuter is the SSE-swap container: it reloads the calendar fragment
@@ -315,7 +315,7 @@ templ HistorieListPage(vm HistorieListVM) {
 }
 
 templ historieListBody(vm HistorieListVM) {
-	@components.AppShell("today", nil, worktimeSubnav("history"), historieListOuter(vm))
+	@components.AppShell("zeit", nil, worktimeSubnav("history"), historieListOuter(vm))
 }
 
 templ historieListOuter(vm HistorieListVM) {

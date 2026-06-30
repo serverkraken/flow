@@ -10,9 +10,9 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-// FreiPage is the full Frei page on the Slice-0 AppShell. Worktime sub-tabs
-// share the "Heute" top-tab, so AppShell active stays "today" and the worktime
-// sub-tab strip marks "frei".
+// FreiPage is the full Frei page on the Slice-0 AppShell. Frei has its own
+// top-tab, so the AppShell active key is "frei" and the worktime sub-tab
+// strip marks "frei".
 func FreiPage(vm FreiVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -63,7 +63,7 @@ func freiBody(vm FreiVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.AppShell("today", nil, worktimeSubnav("frei"), freiOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.AppShell("frei", nil, worktimeSubnav("frei"), freiOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

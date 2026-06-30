@@ -2,15 +2,15 @@ package webui
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-// FreiPage is the full Frei page on the Slice-0 AppShell. Worktime sub-tabs
-// share the "Heute" top-tab, so AppShell active stays "today" and the worktime
-// sub-tab strip marks "frei".
+// FreiPage is the full Frei page on the Slice-0 AppShell. Frei has its own
+// top-tab, so the AppShell active key is "frei" and the worktime sub-tab
+// strip marks "frei".
 templ FreiPage(vm FreiVM) {
 	@components.Base("frei", freiBody(vm))
 }
 
 templ freiBody(vm FreiVM) {
-	@components.AppShell("today", nil, worktimeSubnav("frei"), freiOuter(vm))
+	@components.AppShell("frei", nil, worktimeSubnav("frei"), freiOuter(vm))
 }
 
 // freiOuter is the SSE-swap container: it reloads FreiFragment on any day-off

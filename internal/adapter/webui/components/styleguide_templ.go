@@ -61,7 +61,7 @@ func styleguideBody() templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = AppShell("today", nil, styleguideSubnav(), styleguideContent()).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = AppShell("home", nil, styleguideSubnav(), styleguideContent()).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

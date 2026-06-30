@@ -11,8 +11,8 @@ import templruntime "github.com/a-h/templ/runtime"
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
 // HistoriePage is the full Historie calendar page on the Slice-0 AppShell.
-// Worktime lives under the "Heute" top-tab, so the AppShell active key stays
-// "today" and the worktime sub-tab strip marks "history".
+// Worktime lives under the "Zeit" top-tab, so the AppShell active key is
+// "zeit" and the worktime sub-tab strip marks "history".
 func HistoriePage(vm HistorieVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -63,7 +63,7 @@ func historieCalBody(vm HistorieVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.AppShell("today", nil, worktimeSubnav("history"), historieCalOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.AppShell("zeit", nil, worktimeSubnav("history"), historieCalOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1976,7 +1976,7 @@ func historieListBody(vm HistorieListVM) templ.Component {
 			templ_7745c5c3_Var110 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.AppShell("today", nil, worktimeSubnav("history"), historieListOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.AppShell("zeit", nil, worktimeSubnav("history"), historieListOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

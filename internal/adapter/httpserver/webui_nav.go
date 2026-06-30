@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
@@ -12,7 +13,11 @@ import (
 // depth-indented tree, and renders NavTree as an HTML fragment.
 func (s *Server) handleNavTreeFragment(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
+	all, err := s.ListNodes.Execute(r.Context(), u.ID)
+	if err != nil {
+		slog.WarnContext(r.Context(), "nav tree: list nodes failed", "err", err)
+		all = nil
+	}
 	var visible []domain.Node
 	for _, n := range all {
 		if n.Status == domain.NodeActive || n.Status == domain.NodePaused {

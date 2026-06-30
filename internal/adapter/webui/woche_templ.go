@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
 // WochePage is the full Woche (week) page on the Slice-0 AppShell. Worktime
-// lives under the "Heute" top-tab, so the AppShell active key stays "today" and
+// lives under the "Zeit" top-tab, so the AppShell active key is "zeit" and
 // the worktime sub-tab strip marks "week".
 func WochePage(vm WocheVM) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -63,7 +63,7 @@ func wocheBody(vm WocheVM) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.AppShell("today", nil, worktimeSubnav("week"), wocheOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.AppShell("zeit", nil, worktimeSubnav("week"), wocheOuter(vm)).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
