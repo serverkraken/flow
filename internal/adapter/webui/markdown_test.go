@@ -75,3 +75,30 @@ func TestRenderDocument_CodeHighlightUsesClasses(t *testing.T) {
 		t.Fatalf("highlighting must be class-based, found inline style: %s", out)
 	}
 }
+
+func TestRenderDocument_BrokenWikilink(t *testing.T) {
+	// resolveNone always returns false, so wikilinks render as broken spans.
+	out := string(RenderDocument("See [[NonExistentPage]] for details.\n", resolveNone))
+	if !strings.Contains(out, "wikilink-broken") {
+		t.Fatalf("expected wikilink-broken span, got: %s", out)
+	}
+	if !strings.Contains(out, "NonExistentPage") {
+		t.Fatalf("expected wikilink text in output, got: %s", out)
+	}
+}
+
+func TestRenderDocument_ResolvedWikilink(t *testing.T) {
+	resolve := func(target string) (href, title string, ok bool) {
+		if target == "ExistingPage" {
+			return "/wissen/doc-1", "Existing Page", true
+		}
+		return "", "", false
+	}
+	out := string(RenderDocument("See [[ExistingPage]] for details.\n", resolve))
+	if !strings.Contains(out, `href="/wissen/doc-1"`) {
+		t.Fatalf("expected resolved wikilink href, got: %s", out)
+	}
+	if strings.Contains(out, "wikilink-broken") {
+		t.Fatalf("resolved wikilink should not be broken, got: %s", out)
+	}
+}

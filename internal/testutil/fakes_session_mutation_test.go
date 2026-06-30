@@ -116,3 +116,49 @@ func TestFakeSessionStore_UpdateAndDelete(t *testing.T) {
 		t.Fatalf("double delete: want ErrSessionNotFound, got %v", err)
 	}
 }
+
+func TestFakeSessionStore_TagTimes_AccumulatesMinutes(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+
+	start := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	stop := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC) // 2h = 120min
+	_, err := ss.Create(ctx, domain.WorkSession{
+		ID: "s1", OwnerID: "u1", Start: start, Stop: &stop,
+		Tags: []string{"dev", "go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)
+	results, err := ss.TagTimes(ctx, "u1", from, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	totals := make(map[string]int)
+	for _, r := range results {
+		totals[r.Tag] = r.Minutes
+	}
+	if totals["dev"] != 120 {
+		t.Errorf("dev: want 120 min, got %d", totals["dev"])
+	}
+	if totals["go"] != 120 {
+		t.Errorf("go: want 120 min, got %d", totals["go"])
+	}
+}
+
+func TestFakeSessionStore_TagTimes_EmptyRange(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	results, err := ss.TagTimes(ctx, "u1", time.Time{}, time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Errorf("want empty, got %v", results)
+	}
+}

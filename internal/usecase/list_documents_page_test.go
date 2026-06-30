@@ -35,3 +35,32 @@ func TestListDocumentsPage(t *testing.T) {
 		t.Fatalf("len=%d want 2", len(docs))
 	}
 }
+
+func TestListDocumentsPage_DefaultLimitAndOffset(t *testing.T) {
+	ctx := context.Background()
+	store := testutil.NewFakeDocumentStore()
+	for i, id := range []string{"x1", "x2", "x3"} {
+		_ = i
+		_, _ = store.Create(ctx, domain.Document{
+			ID: id, OwnerID: "owner2",
+			Type: domain.DocFree, Path: id, Title: id,
+		})
+	}
+	uc := usecase.NewListDocumentsPage(store)
+	// limit=0 → should default to 50
+	docs, _, err := uc.Execute(ctx, "owner2", nil, nil, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 3 {
+		t.Fatalf("default limit: got %d docs, want 3", len(docs))
+	}
+	// negative offset → should clamp to 0
+	docs2, _, err := uc.Execute(ctx, "owner2", nil, nil, 10, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs2) != 3 {
+		t.Fatalf("negative offset: got %d docs, want 3", len(docs2))
+	}
+}

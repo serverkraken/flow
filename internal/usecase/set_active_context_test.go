@@ -47,3 +47,43 @@ func TestSetActiveContext_UnresolvedErrors(t *testing.T) {
 		t.Fatalf("want ErrContextUnresolved, got %v", err)
 	}
 }
+
+// TestSetActiveContext_NodeOverrideNotFound exercises the path where NodeOverride
+// resolves by slug scan but the slug doesn't exist, returning ErrContextUnresolved.
+func TestSetActiveContext_NodeOverrideNotFound(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	// No nodes created; NodeOverride slug will not match.
+	uc := usecase.SetActiveContext{
+		Resolve: usecase.ResolveNode{Bindings: testutil.NewFakeProjectBindingStore(), Nodes: nodes},
+		Nodes:   nodes, Docs: testutil.NewFakeDocumentStore(), Tags: testutil.NewFakeTagStore(),
+	}
+	_, _, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{NodeOverride: "nonexistent"}, "", "body", nil)
+	if !errors.Is(err, usecase.ErrContextUnresolved) {
+		t.Fatalf("want ErrContextUnresolved, got %v", err)
+	}
+}
+
+// TestSetActiveContext_NodeOverride exercises the path where NodeOverride
+// finds a node by slug scan and upserts the active context there.
+func TestSetActiveContext_NodeOverride(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	_, _ = nodes.Create(ctx, domain.Node{ID: "N1", OwnerID: "u1", Kind: domain.KindRepo, Name: "alpha", Slug: "alpha"})
+	uc := usecase.SetActiveContext{
+		Resolve: usecase.ResolveNode{Bindings: testutil.NewFakeProjectBindingStore(), Nodes: nodes},
+		Nodes:   nodes, Docs: docs, Tags: tags,
+	}
+	id, _, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{NodeOverride: "alpha"}, "", "body", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := docs.Get(ctx, "u1", id)
+	if got.NodeID == nil || *got.NodeID != "N1" {
+		t.Fatalf("expected doc at node N1, got %+v", got)
+	}
+}

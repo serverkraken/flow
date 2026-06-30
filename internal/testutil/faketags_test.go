@@ -53,3 +53,25 @@ func TestFakeTagStore_DisplayFirstWriteWins(t *testing.T) {
 		t.Fatalf("display should be first-seen raw 'Go', got %+v", got)
 	}
 }
+
+func TestFakeTagStore_MergeTags(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ts := testutil.NewFakeTagStore()
+	_, _ = ts.SetTags(ctx, "u1", domain.TaggableWorkSession, "s1", []string{"dev", "meeting"})
+	// Merge "dev" into "work": all "dev" links become "work"
+	if err := ts.MergeTags(ctx, "u1", "dev", "work"); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, "s1")
+	slugs := make(map[string]bool)
+	for _, tg := range got {
+		slugs[tg.Slug] = true
+	}
+	if slugs["dev"] {
+		t.Error("'dev' should have been merged away")
+	}
+	if !slugs["work"] {
+		t.Error("'work' should now be set")
+	}
+}
