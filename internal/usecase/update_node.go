@@ -25,7 +25,7 @@ type UpdateNodeInput struct {
 // UpdateNode overwrites a project's metadata and keeps the auto-managed
 // remote binding in sync with its upstream git (set/clear/repoint).
 type UpdateNode struct {
-	Nodes	ports.NodeStore
+	Nodes    ports.NodeStore
 	Bindings ports.ProjectBindingStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
@@ -83,7 +83,7 @@ func (uc UpdateNode) syncRemoteBinding(ctx context.Context, ownerID, nodeID, old
 	_, err := uc.Bindings.Upsert(ctx, domain.ProjectBinding{
 		ID:         uc.IDs.NewID(),
 		OwnerID:    ownerID,
-		NodeID:  nodeID,
+		NodeID:     nodeID,
 		Kind:       domain.BindingRemote,
 		RemoteSlug: newSlug,
 		CreatedAt:  now,

@@ -118,7 +118,7 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 	var targetLogged time.Duration
 	for _, r := range recs {
 		if r.Date.Equal(from) {
-			sum.Logged = r.Total       // raw logged time for display
+			sum.Logged = r.Total         // raw logged time for display
 			targetLogged = r.TargetTotal // excludes non-counting time; used for saldo
 		}
 	}
