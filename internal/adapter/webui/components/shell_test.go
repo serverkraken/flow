@@ -112,6 +112,37 @@ func TestAppShellNilSlotsAreSafe(t *testing.T) {
 	}
 }
 
+func TestSiteNavSecondaryActive(t *testing.T) {
+	out := render(t, components.SiteNav("zeit"))
+	// Active SecondaryNav item must carry aria-current and active-highlight class.
+	if !strings.Contains(out, `aria-current="page"`) {
+		t.Errorf("SiteNav(zeit) must emit aria-current=page: %s", out)
+	}
+	if !strings.Contains(out, "bg-blue") {
+		t.Errorf("SiteNav(zeit) must apply bg-blue active class to Zeit item: %s", out)
+	}
+	// Exactly one aria-current: only the Zeit item.
+	if n := strings.Count(out, `aria-current="page"`); n != 1 {
+		t.Errorf("SiteNav(zeit) must have exactly 1 aria-current=page, got %d: %s", n, out)
+	}
+}
+
+func TestAppShellDrawerSecondaryActive(t *testing.T) {
+	out := render(t, components.AppShell("zeit", nil, nil, templ.Raw(`<p id="c">x</p>`)))
+	// Drawer's Zeit link must carry aria-current=page.
+	if !strings.Contains(out, `aria-current="page"`) {
+		t.Errorf("AppShell(zeit) must emit aria-current=page for drawer Zeit link: %s", out)
+	}
+	// "More" tab cell must be highlighted when active is a SecondaryNav key.
+	if !strings.Contains(out, `data-dialog-open="more-menu"`) {
+		t.Errorf("AppShell(zeit) More button must still be present: %s", out)
+	}
+	// "More" cell should carry text-blue (not text-muted) when secondary key active.
+	if !strings.Contains(out, "py-2.5 text-blue") {
+		t.Errorf("AppShell(zeit) More tab cell must use text-blue active style: %s", out)
+	}
+}
+
 func TestTabStripActive(t *testing.T) {
 	tabs := []components.Tab{
 		{Key: "today", Href: "/", LabelKey: "nav.today"},

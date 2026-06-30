@@ -25,6 +25,17 @@ func SecondaryNav() []NavItem {
 	}
 }
 
+// IsSecondaryNavKey reports whether k matches one of the SecondaryNav items.
+// Used by AppShell to highlight the mobile "More" tab cell.
+func IsSecondaryNavKey(k string) bool {
+	for _, l := range SecondaryNav() {
+		if l.Key == k {
+			return true
+		}
+	}
+	return false
+}
+
 // SiteNav renders the desktop sidebar nav list; the item matching active is
 // marked aria-current and visually highlighted. Under the "projekte" item the
 // sidebar injects an htmx-lazy-loaded project-tree spine.
@@ -56,10 +67,17 @@ templ SiteNav(active string) {
 		}
 		<div class="my-2 border-t border-line2"></div>
 		for _, l := range SecondaryNav() {
-			<a href={ templ.SafeURL(l.Href) }
-				class="flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.9rem] font-medium text-muted hover:bg-sunken hover:text-ink transition-colors">
-				<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
-			</a>
+			if l.Key == active {
+				<a href={ templ.SafeURL(l.Href) } aria-current="page"
+					class="flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.9rem] font-medium bg-blue/[.08] text-blue">
+					<span class="w-5 text-center" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
+				</a>
+			} else {
+				<a href={ templ.SafeURL(l.Href) }
+					class="flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.9rem] font-medium text-muted hover:bg-sunken hover:text-ink transition-colors">
+					<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
+				</a>
+			}
 		}
 	</nav>
 }

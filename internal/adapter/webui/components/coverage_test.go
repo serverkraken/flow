@@ -146,14 +146,18 @@ func TestAppShellBreadcrumbNilSubnavSet(t *testing.T) {
 // ── SiteNav: non-primary active key and empty active ───────────────────────
 
 func TestSiteNavNonPrimaryActiveKey(t *testing.T) {
-	// "frei" is a secondary nav item — no primary item matches, no aria-current in primary list
+	// "frei" is a secondary nav item — no primary item matches; Frei must get aria-current.
 	out := render(t, components.SiteNav("frei"))
 	if !strings.Contains(out, "Home") {
 		t.Errorf("SiteNav should still render primary items: %s", out)
 	}
-	// secondary items rendered without aria-current (none of PrimaryNav matches "frei")
-	if strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("SiteNav with non-primary key must not mark any primary item as current: %s", out)
+	// Secondary active item must carry aria-current (the wayfinding fix).
+	if !strings.Contains(out, `aria-current="page"`) {
+		t.Errorf("SiteNav with secondary key 'frei' must mark Frei as aria-current: %s", out)
+	}
+	// Exactly one aria-current: the Frei item only.
+	if n := strings.Count(out, `aria-current="page"`); n != 1 {
+		t.Errorf("SiteNav(frei) must have exactly 1 aria-current=page, got %d: %s", n, out)
 	}
 }
 
