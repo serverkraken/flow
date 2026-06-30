@@ -443,4 +443,40 @@ func TestNodeStore_Subtree(t *testing.T) {
 	if len(leaf) != 1 || leaf[0].ID != "repo" {
 		t.Fatalf("Subtree(repo): want [repo], got %v", leaf)
 	}
+
+	// Cross-owner isolation: a node owned by u-sub2 but parented to u-sub's "eng"
+	// must be invisible from u-sub's subtree.
+	u2, _ := domain.NewUser("u-sub2", "sub-sub2", "subuser2", "sub2@x.de", "Sub2")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u2); err != nil {
+		t.Fatal(err)
+	}
+	intruder, _ := domain.NewNode("intruder", "u-sub2", "Intruder", "intruder", now)
+	intruder.Kind = domain.KindRepo
+	intruder.ParentID = strptr("eng")
+	if _, err := st.Create(ctx, intruder); err != nil {
+		t.Fatalf("create intruder: %v", err)
+	}
+
+	// u-sub's subtree must still be exactly {eng, vor, repo}.
+	sub2, err := st.Subtree(ctx, "u-sub", "eng")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range sub2 {
+		if n.ID == "intruder" {
+			t.Fatalf("Subtree(u-sub, eng) must not include intruder owned by u-sub2")
+		}
+	}
+	if len(sub2) != 3 {
+		t.Fatalf("Subtree(u-sub, eng) after intruder: want 3 nodes, got %d", len(sub2))
+	}
+
+	// u-sub2 does not own "eng" → Subtree must return empty.
+	sub3, err := st.Subtree(ctx, "u-sub2", "eng")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sub3) != 0 {
+		t.Fatalf("Subtree(u-sub2, eng): want empty (u-sub2 doesn't own eng), got %v", sub3)
+	}
 }
