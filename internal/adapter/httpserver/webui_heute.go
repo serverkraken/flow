@@ -16,8 +16,8 @@ import (
 // heuteDataFor builds the Heute (today) view model from the same data sources as
 // worktimeDataFor (sessions/projects) plus the stats target math, shaped for the
 // Slice-0 AppShell components.
-// handleHeuteHome renders the full Heute page on the AppShell at GET /.
-func (s *Server) handleHeuteHome(w http.ResponseWriter, r *http.Request) {
+// handleZeitHome renders the full Heute page on the AppShell at GET /zeit.
+func (s *Server) handleZeitHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	vm, err := s.heuteDataFor(r.Context(), u, "")
 	if err != nil {

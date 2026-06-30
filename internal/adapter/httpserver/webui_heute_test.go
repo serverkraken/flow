@@ -12,7 +12,7 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// TestHeuteHome_RendersLiveAndSessions verifies GET / renders the Heute page on
+// TestHeuteHome_RendersLiveAndSessions verifies GET /zeit renders the Heute page on
 // the AppShell with the live-timer hook, the offline app.css, the SSE content
 // container, and the running session's elapsed-seconds base attribute.
 func TestHeuteHome_RendersLiveAndSessions(t *testing.T) {
@@ -25,7 +25,7 @@ func TestHeuteHome_RendersLiveAndSessions(t *testing.T) {
 	}
 
 	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/zeit", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	rr := httptest.NewRecorder()
 	srv.srv.Routes().ServeHTTP(rr, req)
@@ -63,7 +63,7 @@ func TestHeuteHome_ShowsOvernightRunningSession(t *testing.T) {
 	}
 
 	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/zeit", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	rr := httptest.NewRecorder()
 	srv.srv.Routes().ServeHTTP(rr, req)
@@ -85,7 +85,7 @@ func TestHeuteHome_ShowsOvernightRunningSession(t *testing.T) {
 func TestHeuteHome_EmptyShowsStart(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/zeit", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	rr := httptest.NewRecorder()
 	srv.srv.Routes().ServeHTTP(rr, req)
@@ -214,7 +214,7 @@ func TestHeuteStopSelector_EngagementsOnly(t *testing.T) {
 	}
 
 	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
+	req, _ := http.NewRequest("GET", "/zeit", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	rr := httptest.NewRecorder()
 	srv.srv.Routes().ServeHTTP(rr, req)

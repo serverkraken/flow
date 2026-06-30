@@ -3,13 +3,12 @@ package webui
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
 // worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche · Historie ·
-// Stats · Frei). Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
+// Frei). Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
 templ worktimeSubnav(active string) {
 	@components.TabStrip([]components.Tab{
-		{Key: "today", Href: "/", LabelKey: "nav.today"},
+		{Key: "today", Href: "/zeit", LabelKey: "nav.today"},
 		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
 		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
-		{Key: "stats", Href: "/stats", LabelKey: "nav.stats"},
 		{Key: "frei", Href: "/dayoffs", LabelKey: "nav.dayoffs"},
 	}, active)
 }
@@ -20,7 +19,7 @@ templ HeutePage(vm HeuteVM) {
 }
 
 templ heuteBody(vm HeuteVM) {
-	@components.AppShell("today", nil, worktimeSubnav("today"), heuteOuter(vm))
+	@components.AppShell("zeit", nil, worktimeSubnav("today"), heuteOuter(vm))
 }
 
 // heuteOuter is the SSE-swap container: it reloads the inner HeuteFragment on

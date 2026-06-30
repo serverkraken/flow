@@ -57,7 +57,7 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"GET", "/auth/login"},
 		{"GET", "/auth/callback"},
 		{"POST", "/auth/logout"},
-		{"GET", "/"},
+		{"GET", "/zeit"},
 		{"GET", "/ui/worktime"},
 		{"POST", "/ui/worktime/start"},
 		{"POST", "/ui/worktime/stop"},

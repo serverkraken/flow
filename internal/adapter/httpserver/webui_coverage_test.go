@@ -557,7 +557,7 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 	// Default target = 480 min = 8h; seed exactly 8h on Monday.
 	srv.seedSession(t, "2026-06-15", "09:00", "17:00")
 
-	rr := histGet(t, srv, "/")
+	rr := histGet(t, srv, "/zeit")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
@@ -639,7 +639,7 @@ func TestHeuteHome_NodeWithEURRate(t *testing.T) {
 		t.Fatalf("ps.Create: %v", err)
 	}
 
-	rr := histGet(t, srv, "/")
+	rr := histGet(t, srv, "/zeit")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}

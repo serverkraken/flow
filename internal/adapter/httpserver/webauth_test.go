@@ -127,7 +127,7 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 	defer ts.Close()
 
 	cookieVal, _ := codec.Issue("u1")
-	req, _ := http.NewRequest("GET", ts.URL+"/", nil)
+	req, _ := http.NewRequest("GET", ts.URL+"/zeit", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
