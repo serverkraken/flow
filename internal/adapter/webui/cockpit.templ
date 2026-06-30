@@ -126,9 +126,12 @@ templ CockpitTabsAndPanel(d NodeCockpit) {
 	<div
 		id="cockpit-panel"
 		class="pt-6"
-		hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
-		hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
-		hx-swap="innerHTML"
+		if cockpitPanelSSE(d.ActiveTab) != "" {
+			hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+			hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
+			hx-target="#cockpit-main"
+			hx-swap="innerHTML"
+		}
 	>
 		@cockpitPanel(d)
 	</div>

@@ -257,6 +257,61 @@ func TestCockpitTab_SwapsPanel(t *testing.T) {
 	}
 }
 
+// TestCockpitTab_SSEReloadTargetsOuterContainer pins the fix for the DOM-nesting
+// bug: the panel's SSE reload must target #cockpit-main (the outer container
+// holding strip+panel), not itself. A self-targeting reload would inject a full
+// strip+panel inside #cockpit-panel, duplicating the id and nesting the nav.
+func TestCockpitTab_SSEReloadTargetsOuterContainer(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	// Tabs with SSE (worktime, wissen, struktur) must have hx-target="#cockpit-main".
+	for _, tab := range []string{"worktime", "wissen", "struktur"} {
+		rec := c.do(t, "GET", "/nodes/n1/tab/"+tab, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("tab %s: status %d", tab, rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, `id="cockpit-panel"`) {
+			t.Errorf("tab %s: missing panel container id", tab)
+		}
+		if !strings.Contains(body, `hx-target="#cockpit-main"`) {
+			t.Errorf("tab %s: panel SSE reload must target #cockpit-main, got body snippet: %.600s", tab, body)
+		}
+		// Must NOT self-target (no missing hx-target that would default to self).
+		// The old bug: hx-get present without hx-target → self-target → nesting.
+		// Verify hx-get is present (SSE reload wired) and hx-target is also present.
+		if !strings.Contains(body, `hx-get="/nodes/n1/tab/`+tab+`"`) {
+			t.Errorf("tab %s: panel SSE reload missing hx-get attribute", tab)
+		}
+	}
+}
+
+// TestCockpitTab_BindingsNoSSEReload pins that the bindings tab emits NO SSE
+// reload attributes on #cockpit-panel (bindings reloads only after its own
+// mutations, not via generic SSE events). The old code rendered hx-trigger=""
+// unconditionally; the fix omits all four reload attrs when SSE is empty.
+func TestCockpitTab_BindingsNoSSEReload(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/nodes/n1/tab/bindings", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bindings tab: status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="cockpit-panel"`) {
+		t.Errorf("bindings tab: missing panel container id")
+	}
+	// No SSE auto-reload on bindings — hx-trigger must be absent from the fragment.
+	// hx-trigger is ONLY emitted by the panel SSE reload block (tab links use
+	// hx-get/hx-target/hx-swap/hx-push-url but never hx-trigger), so its
+	// absence proves the reload block was omitted.
+	if strings.Contains(body, `hx-trigger=`) {
+		t.Errorf("bindings panel must NOT have hx-trigger (no SSE events for bindings), got body snippet: %.600s", body)
+	}
+}
+
 func TestCockpitSwitch_StopsOtherStartsHere(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo})
