@@ -155,3 +155,27 @@ func authedEditorRequest(method, target string, body *strings.Reader) *http.Requ
 	}
 	return req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
 }
+
+// TestEditorCreate_InvalidType verifies that renderEditorError is called
+// when CreateDocument returns ErrInvalidDocument (bad type field).
+func TestEditorCreate_InvalidType(t *testing.T) {
+	srv, _, _, _ := newWebWissenServer(t)
+
+	form := url.Values{
+		"type":  {"notavalidtype"},
+		"path":  {"notes/new"},
+		"title": {"T"},
+		"body":  {"b"},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/wissen", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+	rec := httptest.NewRecorder()
+
+	srv.handleWebEditorCreate(rec, req)
+
+	// renderEditorError sets the status before rendering the editor page.
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%.300s", rec.Code, rec.Body.String())
+	}
+}

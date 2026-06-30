@@ -34,7 +34,8 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleWebEditorNew(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	vm, err := s.editorVM(r, u, webui.EditorVM{User: u.Username, Type: "free"})
+	nodeID := r.URL.Query().Get("node")
+	vm, err := s.editorVM(r, u, webui.EditorVM{User: u.Username, Type: "free", NodeID: nodeID})
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

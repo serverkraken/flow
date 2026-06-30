@@ -56,9 +56,16 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ns},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		GetRunningSession: usecase.GetRunningSession{Sessions: ss},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		SetTags:           usecase.SetTags{Tags: tags},
 		GetTags:           usecase.GetTags{Tags: tags},
+		Stats: usecase.StatsComputer{
+			Sessions: ss,
+			Nodes:    ns,
+			Clock:    clk,
+			Loc:      time.UTC,
+		},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
@@ -174,8 +181,7 @@ func seedEngNode(t *testing.T, ns *testutil.FakeNodeStore, id, name string, stat
 }
 
 // TestWebNodeCockpit verifies the node cockpit at GET /nodes/{id}: ancestor
-// breadcrumb (engagement parent shown), git display, rendered markdown,
-// kind badge, move form, and 404 on unknown ID.
+// breadcrumb, kind badge, cockpit shell ids, and 404 on unknown ID.
 func TestWebNodeCockpit(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	eng := seedTreeNode(t, ns, "eng1", "RTL Extern", domain.KindEngagement, nil)
@@ -189,12 +195,11 @@ func TestWebNodeCockpit(t *testing.T) {
 		t.Fatalf("cockpit = %d; body=%.700s", code, body)
 	}
 	for _, want := range []string{
-		"flow",                          // node name
-		"RTL Extern",                    // ancestor breadcrumb (engagement parent)
-		"github.com/serverkraken/flow",  // git display (SSH → host/path)
-		"Notiz",                         // rendered markdown heading
-		"Repo",                          // kind badge label
-		"Verschieben",                   // move form present
+		"flow",              // node name
+		"RTL Extern",       // ancestor breadcrumb (engagement parent)
+		"Repo",             // kind badge label
+		`id="cockpit-head"`, // new cockpit shell id
+		`id="cockpit-main"`, // new cockpit shell id
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cockpit missing %q; body=%.700s", want, body)

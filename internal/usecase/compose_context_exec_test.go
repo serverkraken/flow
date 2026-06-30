@@ -120,3 +120,57 @@ func TestComposeContext_ExcludesArchived(t *testing.T) {
 		t.Fatalf("non-archived memory must appear in compose output, got %+v", got.Memories)
 	}
 }
+
+// TestComposeContext_Execute_NodeOverride exercises the resolveLeaf NodeOverride
+// branch which resolves the leaf node by slug directly without using the binding
+// registry.
+func TestComposeContext_Execute_NodeOverride(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
+	leaf, _ := nodes.Create(ctx, domain.Node{ID: "L2", OwnerID: "u1", Kind: domain.KindRepo, Name: "alpha", Slug: "alpha"})
+	_, _ = docs.Create(ctx, domain.Document{ID: "ac2", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocActiveContext, Path: usecase.ActiveContextPath, Body: "alpha ctx"})
+
+	uc := usecase.ComposeContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docs, Tags: tags,
+	}
+	// Use NodeOverride to resolve the leaf by slug.
+	got, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{NodeOverride: "alpha"}, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Resolution.Unresolved {
+		t.Fatalf("should resolve via NodeOverride")
+	}
+	if got.ActiveContext == nil || got.ActiveContext.ID != "ac2" {
+		t.Errorf("activeContext missing with NodeOverride: %+v", got.ActiveContext)
+	}
+}
+
+// TestComposeContext_Execute_NodeOverrideNotFound exercises the resolveLeaf path
+// when NodeOverride slug matches no node (should resolve as Unresolved).
+func TestComposeContext_Execute_NodeOverrideNotFound(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
+	uc := usecase.ComposeContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docs, Tags: tags,
+	}
+	got, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{NodeOverride: "nonexistent"}, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Resolution.Unresolved {
+		t.Fatalf("should be unresolved when NodeOverride slug not found")
+	}
+}

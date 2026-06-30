@@ -1,53 +1,11 @@
 package webui
 
 import (
-	"bytes"
-	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
-
-// TestNodeMoveFormRender exercises nodeMoveForm with both a hidden (no targets,
-// no parent) and a visible (targets present) cockpit — covers the template code
-// added in D5.
-func TestNodeMoveFormRender(t *testing.T) {
-	t.Parallel()
-
-	// Case 1: no targets, no parent → form must be empty (condition false).
-	d1 := NodeCockpit{
-		N:           domain.Node{ID: "eng1", Kind: domain.KindEngagement, Name: "Privat"},
-		MoveTargets: nil,
-	}
-	var buf1 bytes.Buffer
-	if err := nodeMoveForm(d1).Render(context.Background(), &buf1); err != nil {
-		t.Fatalf("render hidden form: %v", err)
-	}
-	if strings.Contains(buf1.String(), "<form") {
-		t.Errorf("form must be hidden when no targets and no parent, got: %s", buf1.String())
-	}
-
-	// Case 2: has move targets → form must render with a select.
-	eng2 := domain.Node{ID: "eng2", Kind: domain.KindEngagement, Name: "RTL"}
-	eng1ID := "eng1"
-	d2 := NodeCockpit{
-		N:           domain.Node{ID: "repo1", Kind: domain.KindRepo, Name: "flow", ParentID: &eng1ID},
-		MoveTargets: []domain.Node{eng2},
-	}
-	var buf2 bytes.Buffer
-	if err := nodeMoveForm(d2).Render(context.Background(), &buf2); err != nil {
-		t.Fatalf("render visible form: %v", err)
-	}
-	body := buf2.String()
-	if !strings.Contains(body, "<form") {
-		t.Errorf("form must render when targets are present, got: %s", body)
-	}
-	if !strings.Contains(body, "RTL") {
-		t.Errorf("form must include target name 'RTL', got: %s", body)
-	}
-}
 
 func TestFmtDur(t *testing.T) {
 	cases := []struct {

@@ -3,7 +3,6 @@ package webui
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"sort"
 	"strings"
 
@@ -126,21 +125,6 @@ type NodeFormData struct {
 	Parents []domain.Node // candidate parents (engagements + vorhaben)
 }
 
-// NodeCockpit is the read-only repo/vorhaben/engagement detail view model.
-type NodeCockpit struct {
-	User            string
-	N               domain.Node
-	Ancestors       []domain.Node // leaf→root (as NodeStore.Ancestors returns)
-	DescriptionHTML template.HTML
-	TotalHours      float64
-	WeekHours       float64
-	MonthHours      float64
-	Earnings        string
-	Docs            []domain.Document
-	Bindings        []domain.ProjectBinding // valid bindings for inline display
-	MoveTargets     []domain.Node           // valid new parents (for the inline move form)
-}
-
 // NodeMoveData drives the inline move form on the cockpit page.
 type NodeMoveData struct {
 	User    string
@@ -239,26 +223,6 @@ func orDefault(v, def string) string {
 		return def
 	}
 	return v
-}
-
-// fmtHours formats a float64 hour count as "HH:MM".
-func fmtHours(h float64) string {
-	total := int(h * 60)
-	if total < 0 {
-		total = 0
-	}
-	return fmt.Sprintf("%02d:%02d", total/60, total%60)
-}
-
-// fmtCount formats an int as a decimal string.
-func fmtCount(n int) string { return fmt.Sprintf("%d", n) }
-
-// bindingTarget returns the display target for a binding: slug for remote, path for local.
-func bindingTarget(b domain.ProjectBinding) string {
-	if b.RemoteSlug != "" {
-		return b.RemoteSlug
-	}
-	return b.Path
 }
 
 // nodeCrumbs builds breadcrumb segments root→leaf from the leaf→root Ancestors

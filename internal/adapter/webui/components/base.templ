@@ -80,8 +80,10 @@ templ Base(title string, body templ.Component) {
 					// [data-timer] node, and a stale reference would never tick (seconds
 					// only appeared after a full page refresh otherwise).
 					function bind() {
-						hero  = document.querySelector('[data-timer]');
-						minis = document.querySelectorAll('[data-mini-timer]');
+						var el = document.querySelector('[data-timer]');
+						minis = document.querySelectorAll('[data-mini-timer]');  // re-query each swap
+						if (el && el === hero) { tick(); return; }               // same node → keep ticking
+						hero  = el;
 						base  = hero ? parseInt(hero.getAttribute('data-base') || '0', 10) : 0;
 						start = Date.now();
 						tick();

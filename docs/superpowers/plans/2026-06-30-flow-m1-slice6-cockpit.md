@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Branch: `rebuild` (M1 work is merged here; continue on it). Spec: `docs/superpowers/specs/2026-06-30-flow-m1-slice6-cockpit-design.md`.
+- Branch: `m1-slice6-cockpit` (off `rebuild`; merged back to `rebuild` when the slice is reviewed-complete, like m1-webui). Spec: `docs/superpowers/specs/2026-06-30-flow-m1-slice6-cockpit-design.md`.
 - Events are published via **`s.Emitter.Emit(ctx, domain.Event{Type: ..., UserID: u.ID, Data: ...})`** — NOT `s.Bus.Publish`. Mirror `handleHomeStart`/`handleHomeStop` exactly.
 - The running session is resolved via **`s.GetRunningSession.Execute(ctx, ownerID) (domain.WorkSession, bool, error)`** (cross-day correct), with a fallback scan of a session range only where the harness lacks it.
 - Per-node rollup uses **`s.Stats.NodeStats(ctx, ownerID, nodeID) (domain.NodeRollup{Total,Week,Month}, error)`** (subtree). `StatsComputer` MUST be wired with `Nodes:` (the NodeStore) or `NodeStats` cannot walk the subtree.
@@ -18,7 +18,7 @@
 - After **every** `.templ` change: `make generate` (`go tool templ generate`) and commit the regenerated `*_templ.go`. `make ci` runs `verify-generate` and will fail otherwise.
 - After adding **any** new Tailwind utility class used in templ: `make web` (rebuild `internal/adapter/webui/static/app.css`) and commit it. `make ci` runs `verify-css` and will fail otherwise.
 - **No browser popups**: `make ci` runs `verify-no-popups` (greps for `window.alert/confirm/prompt`). The "Wechseln" confirm MUST be an inline DOM confirm (a two-step button / a revealed confirm row), never `window.confirm`.
-- `make ci` (gate: **75%** line coverage, `-coverpkg=./internal/...`) green per task. Commit frequently.
+- `make ci` (gate: **75%** line coverage, `-coverpkg=./internal/...`) green per task. Commit frequently. **Generated `*_templ.go` files are EXCLUDED from the gate** (`coverage-gate.sh` filters them) — so write REAL output-asserting handler/render tests (assert the produced HTML) to cover new code; NEVER add no-assertion render calls just to chase templ-generated lines (that padding was removed in Task 5).
 - i18n parity: every new `cockpit.*` key exists in BOTH `internal/i18n/catalog_de.go` and `internal/i18n/catalog_en.go`.
 - Copy stays terse/lowercase to match existing fragments. No emoji pictograms — monospace glyphs (▶ ■ ◆ ⬡ ›) only.
 
@@ -1132,13 +1132,18 @@ templ cockpitTabLink(id, key, labelKey string, active bool) {
 	<div
 		id="cockpit-panel"
 		class="pt-6"
-		hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
-		hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
-		hx-swap="innerHTML"
+		if cockpitPanelSSE(d.ActiveTab) != "" {
+			hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+			hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
+			hx-target="#cockpit-main"
+			hx-swap="innerHTML"
+		}
 	>
 		@cockpitPanel(d)
 	</div>
 ```
+
+> CRITICAL: the panel's SSE reload MUST `hx-target="#cockpit-main"` (the outer strip+panel container), NOT itself — `/tab/{name}` returns the full `CockpitTabsAndPanel`, so self-targeting nests a second tab strip + a duplicate `id="cockpit-panel"` on every SSE event. Omit the reload attrs entirely when `cockpitPanelSSE` returns `""` (bindings).
 
 Add to `cockpit_vm.go`:
 
@@ -1293,7 +1298,7 @@ func (s *Server) renderNodePanel(w http.ResponseWriter, r *http.Request, u domai
 				<p class="mb-3 rounded-xl bg-red/10 text-red px-3 py-2 text-[.82rem]" role="alert">{ d.PanelErr }</p>
 			}
 			<form id="nb-form" class="hidden mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-sunken/30 p-3"
-				hx-post={ "/nodes/" + d.N.ID + "/sessions" } hx-target="#cockpit-panel" hx-swap="innerHTML">
+				hx-post={ "/nodes/" + d.N.ID + "/sessions" } hx-target="#cockpit-main" hx-swap="innerHTML">
 				<input type="date" name="date" class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
 				<input name="from" placeholder="09:00" class="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
 				<input name="to" placeholder="11:00" class="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
@@ -1623,7 +1628,7 @@ func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
 					for _, b := range d.Bindings {
 						<li class="px-4 py-2.5 text-sm flex items-center justify-between gap-3">
 							<span class="font-mono text-[.8rem] text-body truncate">{ string(b.Kind) }: { bindingTarget(b) }</span>
-							<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-panel" hx-swap="innerHTML">
+							<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-main" hx-swap="innerHTML">
 								<input type="hidden" name="kind" value={ string(b.Kind) }/>
 								<input type="hidden" name="slug" value={ b.RemoteSlug }/>
 								<input type="hidden" name="machine" value={ b.MachineID }/>
@@ -1635,7 +1640,7 @@ func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
 				</ul>
 			}
 			if d.N.Kind == domain.KindRepo {
-				<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-panel" hx-swap="innerHTML" class="flex items-end gap-2">
+				<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-main" hx-swap="innerHTML" class="flex items-end gap-2">
 					<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-mono"/>
 					@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.bindings.addRemote"), "+", templ.Attributes{"type": "submit"})
 				</form>
