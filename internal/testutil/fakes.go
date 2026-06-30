@@ -160,6 +160,7 @@ func (s *FakeNodeStore) Update(_ context.Context, ownerID string, p domain.Node)
 	existing.OriginSlug = p.OriginSlug
 	existing.Status = p.Status
 	existing.Extra = p.Extra
+	existing.CountsTowardTarget = p.CountsTowardTarget
 	existing.UpdatedAt = p.UpdatedAt
 	s.m[p.ID] = existing
 	return existing, nil

@@ -42,8 +42,9 @@ type Node struct {
 	UpdatedAt   time.Time      `json:"updatedAt"`
 	ParentID    *string        `json:"parentId,omitempty"`
 	Kind        NodeKind       `json:"kind"`
-	OriginSlug  string         `json:"originSlug,omitempty"`
-	Extra       map[string]any `json:"extra,omitempty"`
+	OriginSlug         string         `json:"originSlug,omitempty"`
+	Extra              map[string]any `json:"extra,omitempty"`
+	CountsTowardTarget bool           `json:"countsTowardTarget"`
 }
 
 // NewNode builds a validated, active Node stamped at now.
@@ -61,6 +62,7 @@ func NewNode(id, ownerID, name, slug string, now time.Time) (Node, error) {
 	return Node{
 		ID: id, OwnerID: ownerID, Name: name, Slug: slug,
 		Status: NodeActive, CreatedAt: now, UpdatedAt: now,
+		CountsTowardTarget: true,
 	}, nil
 }
 

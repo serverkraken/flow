@@ -16,12 +16,12 @@ type NodeStore struct{ pool *pgxpool.Pool }
 
 func NewNodeStore(pool *pgxpool.Pool) *NodeStore { return &NodeStore{pool: pool} }
 
-const nodeCols = `id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at`
+const nodeCols = `id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target`
 
 func (s *NodeStore) Create(ctx context.Context, n domain.Node) (domain.Node, error) {
 	const q = `
 INSERT INTO nodes (` + nodeCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 RETURNING ` + nodeCols
 	ra, rc := rateCols(n.Rate)
 	os := nullStr(n.OriginSlug)
@@ -31,7 +31,7 @@ RETURNING ` + nodeCols
 	}
 	got, err := scanNode(s.pool.QueryRow(ctx, q,
 		n.ID, n.OwnerID, n.ParentID, string(n.Kind), n.Name, n.Slug, n.Color, n.Glyph,
-		n.Description, n.UpstreamGit, os, string(n.Status), ra, rc, ex, n.CreatedAt, n.UpdatedAt))
+		n.Description, n.UpstreamGit, os, string(n.Status), ra, rc, ex, n.CreatedAt, n.UpdatedAt, n.CountsTowardTarget))
 	if err != nil {
 		return domain.Node{}, mapSlugConflict(err)
 	}
@@ -80,8 +80,8 @@ func (s *NodeStore) Get(ctx context.Context, ownerID, id string) (domain.Node, e
 func (s *NodeStore) Update(ctx context.Context, ownerID string, n domain.Node) (domain.Node, error) {
 	const q = `
 UPDATE nodes SET name=$1, slug=$2, color=$3, glyph=$4, description=$5,
-                 upstream_git=$6, origin_slug=$7, status=$8, extra=$9, updated_at=$10
-WHERE owner_id=$11 AND id=$12
+                 upstream_git=$6, origin_slug=$7, status=$8, extra=$9, counts_toward_target=$10, updated_at=$11
+WHERE owner_id=$12 AND id=$13
 RETURNING ` + nodeCols
 	ex := n.Extra
 	if ex == nil {
@@ -89,7 +89,7 @@ RETURNING ` + nodeCols
 	}
 	got, err := scanNode(s.pool.QueryRow(ctx, q,
 		n.Name, n.Slug, n.Color, n.Glyph, n.Description, n.UpstreamGit, nullStr(n.OriginSlug),
-		string(n.Status), ex, n.UpdatedAt, ownerID, n.ID))
+		string(n.Status), ex, n.CountsTowardTarget, n.UpdatedAt, ownerID, n.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
@@ -164,14 +164,14 @@ func (s *NodeStore) Children(ctx context.Context, ownerID string, parentID *stri
 func (s *NodeStore) Ancestors(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE chain AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, 0 AS depth
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, 0 AS depth
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, c.depth+1
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, c.depth+1
   FROM nodes n JOIN chain c ON n.id = c.parent_id
   WHERE n.owner_id=$1
 )
-SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target
 FROM chain ORDER BY depth`
 	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
 	if err != nil {
@@ -193,14 +193,14 @@ FROM chain ORDER BY depth`
 func (s *NodeStore) Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE sub AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, 0 AS depth
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, 0 AS depth
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, s.depth+1
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, s.depth+1
   FROM nodes n JOIN sub s ON n.parent_id = s.id
   WHERE n.owner_id=$1
 )
-SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at
+SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target
 FROM sub ORDER BY depth`
 	rows, err := s.pool.Query(ctx, q, ownerID, nodeID)
 	if err != nil {
@@ -249,7 +249,7 @@ func scanNode(r rowScanner) (domain.Node, error) {
 	if err := r.Scan(
 		&n.ID, &n.OwnerID, &parentID, &kind, &n.Name, &n.Slug, &n.Color, &n.Glyph,
 		&n.Description, &n.UpstreamGit, &originSlug, &status, &ra, &rc, &extra,
-		&n.CreatedAt, &n.UpdatedAt,
+		&n.CreatedAt, &n.UpdatedAt, &n.CountsTowardTarget,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Node{}, err

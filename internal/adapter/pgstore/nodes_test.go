@@ -387,6 +387,80 @@ func TestNodeStore_TreeWalk(t *testing.T) {
 	}
 }
 
+func TestNodeStore_CountsTowardTarget(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-ctt", "sub-ctt", "cttuser", "ctt@x.de", "CTT User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewNodeStore(pool)
+	now := time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)
+
+	// Case 1: NewNode sets CountsTowardTarget:true; round-trip must return true.
+	n1, _ := domain.NewNode("ctt-1", "u-ctt", "Default", "ctt-default", now)
+	n1.Kind = domain.KindEngagement
+	// CountsTowardTarget is already true from NewNode — do not override.
+	created1, err := st.Create(ctx, n1)
+	if err != nil {
+		t.Fatalf("Create n1: %v", err)
+	}
+	if !created1.CountsTowardTarget {
+		t.Errorf("Create returned CountsTowardTarget=false, want true")
+	}
+	got1, err := st.Get(ctx, "u-ctt", "ctt-1")
+	if err != nil {
+		t.Fatalf("Get n1: %v", err)
+	}
+	if !got1.CountsTowardTarget {
+		t.Errorf("Get after Create: CountsTowardTarget=false, want true")
+	}
+
+	// Case 2: explicit CountsTowardTarget:false persists.
+	n2, _ := domain.NewNode("ctt-2", "u-ctt", "Exclude", "ctt-exclude", now)
+	n2.Kind = domain.KindEngagement
+	n2.CountsTowardTarget = false
+	created2, err := st.Create(ctx, n2)
+	if err != nil {
+		t.Fatalf("Create n2: %v", err)
+	}
+	if created2.CountsTowardTarget {
+		t.Errorf("Create returned CountsTowardTarget=true, want false")
+	}
+	got2, err := st.Get(ctx, "u-ctt", "ctt-2")
+	if err != nil {
+		t.Fatalf("Get n2: %v", err)
+	}
+	if got2.CountsTowardTarget {
+		t.Errorf("Get after Create: CountsTowardTarget=true, want false")
+	}
+
+	// Case 3: Update CountsTowardTarget false→true persists.
+	upd := got2
+	upd.CountsTowardTarget = true
+	upd.UpdatedAt = now.Add(time.Hour)
+	if _, err := st.Update(ctx, "u-ctt", upd); err != nil {
+		t.Fatalf("Update n2: %v", err)
+	}
+	got3, err := st.Get(ctx, "u-ctt", "ctt-2")
+	if err != nil {
+		t.Fatalf("Get after Update: %v", err)
+	}
+	if !got3.CountsTowardTarget {
+		t.Errorf("Get after Update: CountsTowardTarget=false, want true")
+	}
+}
+
 func TestNodeStore_Subtree(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
