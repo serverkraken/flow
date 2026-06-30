@@ -29,6 +29,27 @@ func TestNodeStats_UnknownNode(t *testing.T) {
 	}
 }
 
+func TestNodeStats_OwnedNodeNoSessions_ZeroRollup(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	_, _ = ns.Create(ctx, domain.Node{ID: "eng", OwnerID: "u1", Kind: domain.KindEngagement, Name: "eng", Slug: "eng", Status: domain.NodeActive})
+	ss := fakeSessionStore{} // no sessions at all
+	c := usecase.StatsComputer{
+		Sessions: ss,
+		Clock:    fixedClock{t: time.Now()},
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+	r, err := c.NodeStats(ctx, "u1", "eng")
+	if err != nil {
+		t.Fatalf("want nil error for owned node with no sessions, got %v", err)
+	}
+	if r != (domain.NodeRollup{}) {
+		t.Errorf("want zero NodeRollup, got %+v", r)
+	}
+}
+
 func TestNodeStats_RollsUpSubtree(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -417,6 +417,39 @@ func newNodeStatsServerFull() (*httpserver.Server, *testutil.FakeSessionStore, *
 	return srv, sessions, nodes
 }
 
+func TestHandleNodeStats_OwnedNodeNoSessions(t *testing.T) {
+	srv, _, nodes := newNodeStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// Seed a node owned by "id-1" with no sessions.
+	ctx := context.Background()
+	eng := domain.Node{ID: "empty-eng", OwnerID: "id-1", Name: "Empty", Slug: "empty-eng"}
+	if _, err := nodes.Create(ctx, eng); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/nodes/empty-eng/stats", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("owned node with no sessions: want 200, got %d", res.StatusCode)
+	}
+	var dto nodeRollupDTO
+	if err := json.NewDecoder(res.Body).Decode(&dto); err != nil {
+		t.Fatalf("decode node stats: %v", err)
+	}
+	if dto.TotalMin != 0 || dto.WeekMin != 0 || dto.MonthMin != 0 {
+		t.Errorf("want all-zero DTO, got %+v", dto)
+	}
+}
+
 func TestHandleNodeStats_UnknownNode(t *testing.T) {
 	srv, _, _ := newNodeStatsServerFull()
 	ts := httptest.NewServer(srv.Routes())
