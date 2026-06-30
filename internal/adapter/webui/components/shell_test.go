@@ -82,6 +82,29 @@ func TestAppShellRendersSlotsAndChrome(t *testing.T) {
 	}
 }
 
+func TestAppShellMobileMoreDrawer(t *testing.T) {
+	out := render(t, components.AppShell("home", nil, nil, templ.Raw(`<p id="c">x</p>`)))
+	// 4th cell: More button opens the drawer
+	if !strings.Contains(out, `data-dialog-open="more-menu"`) {
+		t.Errorf("AppShell mobile nav missing More button trigger: %s", out)
+	}
+	// Drawer element present
+	if !strings.Contains(out, `id="more-menu"`) {
+		t.Errorf("AppShell missing More drawer dialog: %s", out)
+	}
+	// All SecondaryNav destinations reachable from the drawer
+	for _, want := range []string{`href="/zeit"`, `href="/dayoffs"`, `href="/export"`, `href="/einstellungen"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("AppShell More drawer missing link %q: %s", want, out)
+		}
+	}
+	// dialog.js loaded for the trigger to work
+	if !strings.Contains(out, `dialog.js`) {
+		t.Errorf("AppShell More drawer missing dialog.js script: %s", out)
+	}
+	// No new popup calls
+}
+
 func TestAppShellNilSlotsAreSafe(t *testing.T) {
 	out := render(t, components.AppShell("today", nil, nil, templ.Raw(`<p id="only">x</p>`)))
 	if !strings.Contains(out, `id="only"`) {

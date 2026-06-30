@@ -22,6 +22,7 @@ func init() {
 			"nav.dayoffs":               "Time off",
 			"nav.export":                "Export",
 			"nav.settings":              "Settings",
+			"nav.more":                  "More",
 			"nav.menu":                  "Menu",
 			"nav.account":               "Account",
 			"nav.logout":                "Sign out",

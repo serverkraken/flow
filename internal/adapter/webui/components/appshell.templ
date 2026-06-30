@@ -78,6 +78,33 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 					}
 				</li>
 			}
+			// 4th cell: "More" — opens the utility drawer
+			<li>
+				<button type="button" data-dialog-open="more-menu"
+					class="w-full flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
+					<span class="text-[1.1rem] leading-none" aria-hidden="true">≡</span>
+					<span class="text-[.66rem] font-medium">{ T(ctx, "nav.more") }</span>
+				</button>
+			</li>
 		</ul>
 	</nav>
+	// ── Mobile "More" utility drawer (bottom-sheet, mobile-only) ──
+	<dialog id="more-menu" aria-modal="true" aria-label={ T(ctx, "nav.more") }
+		class="fixed inset-x-0 bottom-0 m-0 w-full rounded-t-3xl border-t border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
+		<div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-line2">
+			<span class="font-display text-base font-semibold">{ T(ctx, "nav.more") }</span>
+			<button type="button" data-dialog-close aria-label={ T(ctx, "common.close") }
+				class="flex items-center justify-center w-8 h-8 rounded-full text-muted hover:text-ink hover:bg-sunken transition-colors text-[.9rem]">✕</button>
+		</div>
+		<div class="py-2">
+			for _, l := range SecondaryNav() {
+				<a href={ templ.SafeURL(l.Href) } data-dialog-close
+					class="flex items-center gap-3 px-5 py-3 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
+					<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span>
+					{ T(ctx, l.LabelKey) }
+				</a>
+			}
+		</div>
+	</dialog>
+	<script src="/static/js/dialog.js" defer></script>
 }
