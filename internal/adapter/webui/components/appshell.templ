@@ -89,10 +89,10 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 		</ul>
 	</nav>
 	// ── Mobile "More" utility drawer (bottom-sheet, mobile-only) ──
-	<dialog id="more-menu" aria-modal="true" aria-label={ T(ctx, "nav.more") }
-		class="fixed inset-x-0 bottom-0 m-0 w-full rounded-t-3xl border-t border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
+	<dialog id="more-menu" aria-modal="true" aria-labelledby="more-menu-title"
+		class="md:hidden fixed inset-x-0 bottom-0 m-0 w-full rounded-t-3xl border-t border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
 		<div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-line2">
-			<span class="font-display text-base font-semibold">{ T(ctx, "nav.more") }</span>
+			<span id="more-menu-title" class="font-display text-base font-semibold">{ T(ctx, "nav.more") }</span>
 			<button type="button" data-dialog-close aria-label={ T(ctx, "common.close") }
 				class="flex items-center justify-center w-8 h-8 rounded-full text-muted hover:text-ink hover:bg-sunken transition-colors text-[.9rem]">✕</button>
 		</div>
