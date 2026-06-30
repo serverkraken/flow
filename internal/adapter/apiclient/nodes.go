@@ -55,3 +55,17 @@ func (c *Client) Ancestors(ctx context.Context, id string) ([]domain.Node, error
 	err := c.do(ctx, http.MethodGet, "/api/v1/nodes/"+id+"/ancestors", nil, &out)
 	return out, err
 }
+
+// NodeRollup mirrors the server's nodeRollupDTO wire shape.
+type NodeRollup struct {
+	TotalMin int `json:"totalMin"`
+	WeekMin  int `json:"weekMin"`
+	MonthMin int `json:"monthMin"`
+}
+
+// NodeStats fetches a node's worktime rolled up over its subtree.
+func (c *Client) NodeStats(ctx context.Context, id string) (NodeRollup, error) {
+	var out NodeRollup
+	err := c.do(ctx, http.MethodGet, "/api/v1/nodes/"+id+"/stats", nil, &out)
+	return out, err
+}

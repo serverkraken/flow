@@ -96,3 +96,29 @@ func TestCreateNode_PostsFields(t *testing.T) {
 	}
 	_ = strings.TrimSpace
 }
+
+func TestNodeStats_DecodesCorrectly(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/nodes/n1/stats" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"totalMin":600,"weekMin":300,"monthMin":1200}`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	stats, err := c.NodeStats(context.Background(), "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.TotalMin != 600 {
+		t.Errorf("TotalMin: got %d, want 600", stats.TotalMin)
+	}
+	if stats.WeekMin != 300 {
+		t.Errorf("WeekMin: got %d, want 300", stats.WeekMin)
+	}
+	if stats.MonthMin != 1200 {
+		t.Errorf("MonthMin: got %d, want 1200", stats.MonthMin)
+	}
+}
