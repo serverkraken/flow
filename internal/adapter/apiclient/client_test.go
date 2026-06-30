@@ -149,6 +149,44 @@ func TestNewTransportSetsAuth(t *testing.T) {
 	}
 }
 
+func TestWithActorSetsHeaderAndKeepsBearer(t *testing.T) {
+	var gotActor, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotActor = r.Header.Get("X-Flow-Actor")
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"id":"u1","username":"msoent","email":"m@x.de","displayName":"Martin"}`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok-abc").WithActor("claude-code")
+	if _, err := c.Whoami(t.Context()); err != nil {
+		t.Fatalf("Whoami: %v", err)
+	}
+	if gotActor != "claude-code" {
+		t.Fatalf("X-Flow-Actor: %q, want %q", gotActor, "claude-code")
+	}
+	if gotAuth != "Bearer tok-abc" {
+		t.Fatalf("Authorization: %q, want %q", gotAuth, "Bearer tok-abc")
+	}
+}
+
+func TestWithActorEmptyNameSetsEmptyHeader(t *testing.T) {
+	var gotActor string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotActor = r.Header.Get("X-Flow-Actor")
+		_, _ = w.Write([]byte(`{"id":"u1","username":"msoent"}`))
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok").WithActor("")
+	if _, err := c.Whoami(t.Context()); err != nil {
+		t.Fatalf("Whoami: %v", err)
+	}
+	if gotActor != "" {
+		t.Fatalf("X-Flow-Actor with empty name: %q, want empty", gotActor)
+	}
+}
+
 func TestClientUpdateAndGetProject(t *testing.T) {
 	var gotMethod, gotPath, gotBody string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -66,6 +66,25 @@ func (b staticBearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	return base.RoundTrip(r2)
 }
 
+// actorTransport injects X-Flow-Actor on every outgoing request, wrapping the
+// auth-bearing transport so both headers are present.
+type actorTransport struct {
+	name string
+	base http.RoundTripper
+}
+
+func (a actorTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r2 := r.Clone(r.Context())
+	r2.Header.Set("X-Flow-Actor", a.name)
+	return a.base.RoundTrip(r2)
+}
+
+// WithActor returns a shallow copy of c whose requests carry X-Flow-Actor: name.
+func (c *Client) WithActor(name string) *Client {
+	rt := actorTransport{name: name, base: c.rt}
+	return &Client{base: c.base, rt: rt, hc: &http.Client{Timeout: 15 * time.Second, Transport: rt}}
+}
+
 func (c *Client) Whoami(ctx context.Context) (domain.User, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/api/v1/me", nil)
 	if err != nil {

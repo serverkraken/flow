@@ -17,9 +17,9 @@ type getContextIn struct {
 // for the resolved (or caller-supplied) repo and returns the JSON payload.
 // Resolution: when repo is empty, the already-resolved project slug is passed as
 // q.Node (option B — reuses the cached resolved() state, avoids extra imports).
-func (h *handlers) getContext(ctx context.Context, _ *mcp.CallToolRequest, in getContextIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in getContextIn) (*mcp.CallToolResult, any, error) {
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		q := apiclient.ContextQuery{Cap: in.Cap}
 		if in.Repo != "" {
 			q.Node = in.Repo
@@ -49,8 +49,8 @@ type setActiveContextIn struct {
 // setActiveContext handles flow_set_active_context: upserts the activeContext
 // memory document for the resolved (or caller-supplied) repo.
 // Resolution: same option-B approach as getContext.
-func (h *handlers) setActiveContext(ctx context.Context, _ *mcp.CallToolRequest, in setActiveContextIn) (*mcp.CallToolResult, any, error) {
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+func (h *handlers) setActiveContext(ctx context.Context, req *mcp.CallToolRequest, in setActiveContextIn) (*mcp.CallToolResult, any, error) {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		input := apiclient.SetActiveContextInput{Body: in.Body, Tags: in.Tags}
 		if in.Repo != "" {
 			input.Node = in.Repo

@@ -155,6 +155,36 @@ var mcpLogger = slog.New(slog.NewTextHandler(os.Stderr, nil))
 
 func mcpLog() *slog.Logger { return mcpLogger }
 
+// clientName returns the actor name for attribution. The FLOW_ACTOR env var
+// takes precedence (useful for testing or explicit override). Otherwise the
+// MCP ClientInfo.Name reported by the connected client is used.
+func clientName(req *mcp.CallToolRequest) string {
+	if v := os.Getenv("FLOW_ACTOR"); v != "" {
+		return v
+	}
+	if req == nil || req.Session == nil {
+		return ""
+	}
+	ip := req.Session.InitializeParams()
+	if ip == nil || ip.ClientInfo == nil {
+		return ""
+	}
+	return ip.ClientInfo.Name
+}
+
+// do is a DRY wrapper around h.mgr.Do that applies WithActor from the calling
+// tool's MCP request so every REST call carries X-Flow-Actor when the client
+// is identifiable.
+func (h *handlers) do(ctx context.Context, req *mcp.CallToolRequest, fn func(*apiclient.Client) error) error {
+	name := clientName(req)
+	return h.mgr.Do(ctx, func(c *apiclient.Client) error {
+		if name != "" {
+			c = c.WithActor(name)
+		}
+		return fn(c)
+	})
+}
+
 // textResult wraps a plain-text success result.
 func textResult(s string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}

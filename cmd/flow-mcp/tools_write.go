@@ -24,7 +24,7 @@ type createDocIn struct {
 	Tags    []string `json:"tags,omitempty" jsonschema:"tags as a flat list; replaces the whole set. Body is pure content — do NOT put tags in YAML frontmatter."`
 }
 
-func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in createDocIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) createDoc(ctx context.Context, req *mcp.CallToolRequest, in createDocIn) (*mcp.CallToolResult, any, error) {
 	typ, err := requireType(in.Type)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
@@ -33,7 +33,7 @@ func (h *handlers) createDoc(ctx context.Context, _ *mcp.CallToolRequest, in cre
 		return errorResult("path and title are required"), nil, nil
 	}
 	var out string
-	err = h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err = h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, err := h.resolveScope(ctx, in.Project)
 		if err != nil {
 			return err
@@ -66,12 +66,12 @@ type updateDocIn struct {
 	Confirm bool      `json:"confirm,omitempty" jsonschema:"required (true) to modify a human-owned note (daily/project/free)"`
 }
 
-func (h *handlers) updateDoc(ctx context.Context, _ *mcp.CallToolRequest, in updateDocIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) updateDoc(ctx context.Context, req *mcp.CallToolRequest, in updateDocIn) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.ID) == "" {
 		return errorResult("id is required"), nil, nil
 	}
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		cur, err := c.GetDocument(ctx, in.ID)
 		if err != nil {
 			return err
@@ -104,12 +104,12 @@ type deleteDocIn struct {
 	Confirm bool   `json:"confirm,omitempty" jsonschema:"required (true) to delete a human-owned note (daily/project/free)"`
 }
 
-func (h *handlers) deleteDoc(ctx context.Context, _ *mcp.CallToolRequest, in deleteDocIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) deleteDoc(ctx context.Context, req *mcp.CallToolRequest, in deleteDocIn) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.ID) == "" {
 		return errorResult("id is required"), nil, nil
 	}
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		cur, err := c.GetDocument(ctx, in.ID)
 		if err != nil {
 			return err
@@ -135,7 +135,7 @@ type archiveDocIn struct {
 	Archived *bool  `json:"archived,omitempty" jsonschema:"true (default) to archive — out of bootstrap + default lists/search but still findable; false to un-archive"`
 }
 
-func (h *handlers) archiveDoc(ctx context.Context, _ *mcp.CallToolRequest, in archiveDocIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) archiveDoc(ctx context.Context, req *mcp.CallToolRequest, in archiveDocIn) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.ID) == "" {
 		return errorResult("id is required"), nil, nil
 	}
@@ -144,7 +144,7 @@ func (h *handlers) archiveDoc(ctx context.Context, _ *mcp.CallToolRequest, in ar
 		archived = *in.Archived
 	}
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		cur, err := c.GetDocument(ctx, in.ID)
 		if err != nil {
 			return err

@@ -18,7 +18,7 @@ type projectContextIn struct{}
 // projectContext reports the resolved project and its in-scope document count.
 // Out is `any` (no output schema) — the result is concise plain text per the
 // design spec.
-func (h *handlers) projectContext(ctx context.Context, _ *mcp.CallToolRequest, _ projectContextIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) projectContext(ctx context.Context, req *mcp.CallToolRequest, _ projectContextIn) (*mcp.CallToolResult, any, error) {
 	proj, matched := h.resolved()
 	if !matched {
 		// Either unauthed (no project resolved yet) or genuinely unbound. Probe
@@ -29,7 +29,7 @@ func (h *handlers) projectContext(ctx context.Context, _ *mcp.CallToolRequest, _
 		return textResult("No flow project is bound to this directory. Bind it with flow_bind_project, or set FLOW_PROJECT."), nil, nil
 	}
 	var count int
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		docs, err := c.ListDocumentsScoped(ctx, &proj.ID)
 		if err != nil {
 			return err
@@ -53,9 +53,9 @@ type listProjectsIn struct{}
 
 // listProjectsTool lists all projects (id/name/slug) so the model can pick an
 // existing one before binding instead of duplicate-creating.
-func (h *handlers) listProjectsTool(ctx context.Context, _ *mcp.CallToolRequest, _ listProjectsIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) listProjectsTool(ctx context.Context, req *mcp.CallToolRequest, _ listProjectsIn) (*mcp.CallToolResult, any, error) {
 	var ps []domain.Node
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		// Deliberately fetches fresh (not via the nodeList cache) so a just-created project is always visible before binding.
 		got, e := c.ListNodes(ctx)
 		if e != nil {
@@ -81,7 +81,7 @@ type bindNodeIn struct {
 // bindProject binds this directory to a project (remote-slug if a git origin is
 // present, else a per-device path binding), creating the project first when
 // create_name is given, then re-resolves so subsequent tools are scoped here.
-func (h *handlers) bindProject(ctx context.Context, _ *mcp.CallToolRequest, in bindNodeIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in bindNodeIn) (*mcp.CallToolResult, any, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errorResult("cannot determine the working directory: " + err.Error()), nil, nil
@@ -90,7 +90,7 @@ func (h *handlers) bindProject(ctx context.Context, _ *mcp.CallToolRequest, in b
 	machine, _ := clientmachine.Load() // best-effort; the path branch validates machine.ID
 	var bound domain.Node
 	var kind string
-	derr := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	derr := h.do(ctx, req, func(c *apiclient.Client) error {
 		p, k, e := h.bindNodeCore(ctx, c, in, originSlug, originOK, machine, cwd)
 		if e != nil {
 			return e

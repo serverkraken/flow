@@ -20,7 +20,7 @@ type searchDocsIn struct {
 	Limit   int      `json:"limit,omitempty" jsonschema:"maximum number of results (default 20)"`
 }
 
-func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in searchDocsIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) searchDocs(ctx context.Context, req *mcp.CallToolRequest, in searchDocsIn) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.Query) == "" {
 		return errorResult("query is required"), nil, nil
 	}
@@ -29,7 +29,7 @@ func (h *handlers) searchDocs(ctx context.Context, _ *mcp.CallToolRequest, in se
 		return errorResult(err.Error()), nil, nil
 	}
 	var out string
-	err = h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err = h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, err := h.resolveScope(ctx, in.Project)
 		if err != nil {
 			return err
@@ -63,13 +63,13 @@ type listDocsIn struct {
 	Type    string   `json:"type,omitempty" jsonschema:"only this document type: daily, project, free, memory, instruction, skill, plan, spec, or activecontext (agent: deprecated)"`
 }
 
-func (h *handlers) listDocs(ctx context.Context, _ *mcp.CallToolRequest, in listDocsIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) listDocs(ctx context.Context, req *mcp.CallToolRequest, in listDocsIn) (*mcp.CallToolResult, any, error) {
 	typ, err := checkType(in.Type)
 	if err != nil {
 		return errorResult(err.Error()), nil, nil
 	}
 	var out string
-	err = h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err = h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, err := h.resolveScope(ctx, in.Project)
 		if err != nil {
 			return err
@@ -95,9 +95,9 @@ type getDocIn struct {
 	Path string `json:"path,omitempty" jsonschema:"the document path within the current project (pass exactly one of id or path)"`
 }
 
-func (h *handlers) getDoc(ctx context.Context, _ *mcp.CallToolRequest, in getDocIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) getDoc(ctx context.Context, req *mcp.CallToolRequest, in getDocIn) (*mcp.CallToolResult, any, error) {
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, _ := h.resolveScope(ctx, "") // path lookups use the cwd-resolved default scope
 		id, err := h.resolveDocRef(ctx, c, in.ID, in.Path, sc)
 		if err != nil {
@@ -120,9 +120,9 @@ type listTagsIn struct {
 	Project string `json:"project,omitempty" jsonschema:"project slug, name, or id to scope to; 'global' for all projects, 'none' for unassigned; omit to use the current directory's project"`
 }
 
-func (h *handlers) listTags(ctx context.Context, _ *mcp.CallToolRequest, in listTagsIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) listTags(ctx context.Context, req *mcp.CallToolRequest, in listTagsIn) (*mcp.CallToolResult, any, error) {
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, err := h.resolveScope(ctx, in.Project)
 		if err != nil {
 			return err
@@ -154,13 +154,13 @@ type backlinksIn struct {
 	Path string `json:"path,omitempty" jsonschema:"the document path within the current project (pass exactly one of id or path)"`
 }
 
-func (h *handlers) backlinks(ctx context.Context, _ *mcp.CallToolRequest, in backlinksIn) (*mcp.CallToolResult, any, error) {
+func (h *handlers) backlinks(ctx context.Context, req *mcp.CallToolRequest, in backlinksIn) (*mcp.CallToolResult, any, error) {
 	ref := strings.TrimSpace(in.ID)
 	if ref == "" {
 		ref = strings.TrimSpace(in.Path)
 	}
 	var out string
-	err := h.mgr.Do(ctx, func(c *apiclient.Client) error {
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		sc, _ := h.resolveScope(ctx, "")
 		id, err := h.resolveDocRef(ctx, c, in.ID, in.Path, sc)
 		if err != nil {
