@@ -33,7 +33,7 @@ func TestIconButtonRequiresAriaLabel(t *testing.T) {
 
 func TestCardWrapsBody(t *testing.T) {
 	out := render(t, components.Card("lg:col-span-2", templ.Raw(`<p id="cb">x</p>`)))
-	if !strings.Contains(out, `id="cb"`) || !strings.Contains(out, "lg:col-span-2") || !strings.Contains(out, "bg-surface") {
+	if !strings.Contains(out, `id="cb"`) || !strings.Contains(out, "lg:col-span-2") || !strings.Contains(out, "glass") {
 		t.Errorf("Card missing class or body: %s", out)
 	}
 }
