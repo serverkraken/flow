@@ -10,6 +10,8 @@ func init() {
 			"nav.week":                  "Week",
 			"nav.history":               "History",
 			"nav.knowledge":             "Knowledge",
+			"nav.home":                  "Home",
+			"nav.zeit":                  "Time",
 			"nav.projects":              "Projects",
 			"nav.stats":                 "Stats",
 			"nav.dayoffs":               "Time off",
