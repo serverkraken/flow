@@ -22,16 +22,18 @@ func (c *Client) SetNodeTags(ctx context.Context, id string, tags []string) ([]d
 }
 
 // CreateNodeFields are the inputs for creating a node. JSON tags match the
-// server's createNodeReq.
+// server's createNodeReq. CountsTowardTarget is a pointer so omission (nil)
+// preserves the server-side default of true.
 type CreateNodeFields struct {
-	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
-	Kind        string  `json:"kind"`
-	ParentID    *string `json:"parentId"`
-	Color       string  `json:"color"`
-	Glyph       string  `json:"glyph"`
-	Description string  `json:"description"`
-	UpstreamGit string  `json:"upstreamGit"`
+	Name               string  `json:"name"`
+	Slug               string  `json:"slug"`
+	Kind               string  `json:"kind"`
+	ParentID           *string `json:"parentId"`
+	Color              string  `json:"color"`
+	Glyph              string  `json:"glyph"`
+	Description        string  `json:"description"`
+	UpstreamGit        string  `json:"upstreamGit"`
+	CountsTowardTarget *bool   `json:"countsTowardTarget"`
 }
 
 // CreateNode creates a node (engagement, vorhaben or repo).

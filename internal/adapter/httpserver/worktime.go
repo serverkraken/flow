@@ -171,14 +171,15 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 }
 
 type createNodeReq struct {
-	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
-	Kind        string  `json:"kind"`
-	ParentID    *string `json:"parentId"`
-	Color       string  `json:"color"`
-	Glyph       string  `json:"glyph"`
-	Description string  `json:"description"`
-	UpstreamGit string  `json:"upstreamGit"`
+	Name               string  `json:"name"`
+	Slug               string  `json:"slug"`
+	Kind               string  `json:"kind"`
+	ParentID           *string `json:"parentId"`
+	Color              string  `json:"color"`
+	Glyph              string  `json:"glyph"`
+	Description        string  `json:"description"`
+	UpstreamGit        string  `json:"upstreamGit"`
+	CountsTowardTarget *bool   `json:"countsTowardTarget"`
 }
 
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
@@ -202,6 +203,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
 		Kind: domain.NodeKind(req.Kind), ParentID: req.ParentID,
+		CountsTowardTarget: req.CountsTowardTarget,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidNode):
@@ -301,13 +303,14 @@ func (s *Server) handleGetNode(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProjReq struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Color       string `json:"color"`
-	Glyph       string `json:"glyph"`
-	Description string `json:"description"`
-	UpstreamGit string `json:"upstreamGit"`
-	Status      string `json:"status"`
+	Name               string `json:"name"`
+	Slug               string `json:"slug"`
+	Color              string `json:"color"`
+	Glyph              string `json:"glyph"`
+	Description        string `json:"description"`
+	UpstreamGit        string `json:"upstreamGit"`
+	Status             string `json:"status"`
+	CountsTowardTarget *bool  `json:"countsTowardTarget"`
 }
 
 func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
@@ -320,7 +323,8 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	p, err := s.UpdateNode.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateNodeInput{
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
 		Description: req.Description, UpstreamGit: req.UpstreamGit,
-		Status: domain.NodeStatus(req.Status),
+		Status:             domain.NodeStatus(req.Status),
+		CountsTowardTarget: req.CountsTowardTarget,
 	})
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):

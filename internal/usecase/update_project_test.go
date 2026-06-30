@@ -150,3 +150,29 @@ func TestUpdateProject_DescriptionOnlyNoBindingChurn(t *testing.T) {
 		t.Errorf("description-only edit must not create a binding")
 	}
 }
+
+func TestUpdateProject_CountsTowardTarget(t *testing.T) {
+	uc, ps, _ := newUpdateUC()
+	seedProj(t, ps, "p1", "")
+
+	// Explicit false → persists false (node was seeded with default true).
+	in := baseInput()
+	in.CountsTowardTarget = ptrBool(false)
+	got, err := uc.Execute(context.Background(), "u1", "p1", in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CountsTowardTarget {
+		t.Fatal("countsTowardTarget: want false, got true")
+	}
+
+	// Omit (nil) → existing false is preserved.
+	in2 := baseInput()
+	got2, err := uc.Execute(context.Background(), "u1", "p1", in2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got2.CountsTowardTarget {
+		t.Fatal("omit: want existing false preserved, got true")
+	}
+}

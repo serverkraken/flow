@@ -11,6 +11,8 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+func ptrBool(b bool) *bool { return &b }
+
 func TestCreateNode(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -38,5 +40,33 @@ func TestCreateNode(t *testing.T) {
 	bad := "nope"
 	if _, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "x", Kind: domain.KindRepo, ParentID: &bad}); err == nil {
 		t.Fatal("unknown parent must error")
+	}
+}
+
+func TestCreateNode_CountsTowardTarget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	uc := usecase.CreateNode{Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Now()}}
+
+	// Explicit false overrides the NewNode default of true.
+	eng, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{
+		Name: "Privat", Kind: domain.KindEngagement,
+		CountsTowardTarget: ptrBool(false),
+	})
+	if err != nil {
+		t.Fatalf("create with false: %v", err)
+	}
+	if eng.CountsTowardTarget {
+		t.Fatal("countsTowardTarget: want false, got true")
+	}
+
+	// Omitted (nil) → NewNode default true is preserved.
+	eng2, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "Work", Kind: domain.KindEngagement})
+	if err != nil {
+		t.Fatalf("create default: %v", err)
+	}
+	if !eng2.CountsTowardTarget {
+		t.Fatal("countsTowardTarget omitted: want true (default), got false")
 	}
 }
