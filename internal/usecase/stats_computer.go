@@ -26,6 +26,7 @@ type StatsComputer struct {
 	DayOffs  ListDayOffs // merged manual + holidays
 	Clock    ports.Clock
 	Loc      *time.Location
+	Nodes    ports.NodeStore
 }
 
 // resolver builds the per-request TargetResolver over [from,to] (inclusive
