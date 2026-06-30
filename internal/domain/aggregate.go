@@ -52,6 +52,7 @@ func Aggregate(
 
 	for _, r := range sorted {
 		st.Total += r.Total
+		st.TargetTotal += r.TargetTotal
 		if r.Total > st.Max {
 			st.Max = r.Total
 			st.MaxDate = r.Date
@@ -66,10 +67,10 @@ func Aggregate(
 		}
 		if isWorkday(r.Date) {
 			st.Workdays++
-			if isHit(r.Total, r.Target) {
+			if isHit(r.TargetTotal, r.Target) {
 				st.Hits++
 			}
-			st.Overtime += r.Total - r.Target
+			st.Overtime += r.TargetTotal - r.Target
 		}
 		for _, s := range r.Sessions {
 			tallySessionTags(&st, s)
@@ -98,7 +99,7 @@ func bestStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 		if !isWorkday(r.Date) {
 			continue
 		}
-		if r.Total >= r.Target {
+		if r.TargetTotal >= r.Target {
 			cur++
 			if cur > best {
 				best = cur
@@ -123,7 +124,7 @@ func currentStreak(sorted []DayRecord, isWorkday func(time.Time) bool) int {
 		if !isWorkday(r.Date) {
 			continue
 		}
-		if r.Total >= r.Target {
+		if r.TargetTotal >= r.Target {
 			streak++
 		} else {
 			break
@@ -196,6 +197,7 @@ func tallyRecordsInto(st *Stats, inRange []DayRecord) {
 	minSeen := false
 	for _, r := range inRange {
 		st.Total += r.Total
+		st.TargetTotal += r.TargetTotal
 		if r.Total > st.Max {
 			st.Max = r.Total
 			st.MaxDate = r.Date
@@ -250,10 +252,10 @@ func walkWorkdaysForSaldo(
 		}
 		st.Workdays++
 		if rec, ok := byDate[truncDay(d)]; ok {
-			if isHit(rec.Total, rec.Target) {
+			if isHit(rec.TargetTotal, rec.Target) {
 				st.Hits++
 			}
-			st.Overtime += rec.Total - rec.Target
+			st.Overtime += rec.TargetTotal - rec.Target
 			continue
 		}
 		st.Overtime -= targetFor(d)
@@ -333,6 +335,7 @@ func MonthBurndownCompute(
 	for _, r := range records {
 		if !r.Date.Before(from) && r.Date.Before(to) {
 			rep.Total += r.Total
+			rep.TargetTotal += r.TargetTotal
 		}
 	}
 
@@ -344,7 +347,7 @@ func MonthBurndownCompute(
 		rep.Total += now.Sub(start)
 	}
 
-	rep.Saldo = rep.Total - expected
+	rep.Saldo = rep.TargetTotal - expected
 	rep.OnTrack = rep.Saldo >= 0
 	return rep
 }

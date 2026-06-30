@@ -14,7 +14,7 @@ type TodaySummary struct {
 	Date    time.Time
 	Logged  time.Duration
 	Target  time.Duration
-	Saldo   time.Duration // Logged - Target
+	Saldo   time.Duration // TargetTotal - Target
 	Running bool
 }
 
@@ -85,7 +85,8 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 	sum := TodaySummary{Date: from, Target: res.For(from)}
 	for _, r := range recs {
 		if r.Date.Equal(from) {
-			sum.Logged = r.Total
+			sum.Logged = r.Total                   // raw logged time for display
+			sum.Saldo = r.TargetTotal - sum.Target // saldo keys off TargetTotal (excludes non-counting time)
 		}
 	}
 	for _, s := range sessions {
@@ -93,7 +94,6 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 			sum.Running = true
 		}
 	}
-	sum.Saldo = sum.Logged - sum.Target
 	return sum, nil
 }
 

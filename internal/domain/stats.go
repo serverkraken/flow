@@ -26,6 +26,7 @@ type Stats struct {
 	DaysWithSessions int
 	Workdays         int
 	Total            time.Duration
+	TargetTotal      time.Duration // sum of DayRecord.TargetTotal; excludes non-counting time
 	Avg              time.Duration // Total / DaysWithSessions; zero when DaysWithSessions == 0
 	Max              time.Duration
 	MaxDate          time.Time

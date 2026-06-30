@@ -11,8 +11,9 @@ import "time"
 // aggregate step).
 type MonthBurndownReport struct {
 	Total       time.Duration // logged so far this month (incl. today logged + active)
+	TargetTotal time.Duration // sum of DayRecord.TargetTotal; excludes non-counting time
 	Target      time.Duration // sum of targets over all workdays of the month
-	Saldo       time.Duration // Total - expected-by-now
+	Saldo       time.Duration // TargetTotal - expected-by-now
 	OnTrack     bool          // Saldo >= 0
 	WorkdaysAll int
 	WorkdaysDue int // workdays whose date <= today
