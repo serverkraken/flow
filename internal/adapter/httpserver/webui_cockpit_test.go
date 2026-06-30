@@ -105,6 +105,77 @@ func (c *cockpitTestServer) seedNode(t *testing.T, n domain.Node) {
 	}
 }
 
+// TestCockpitHead_SubtreeRollupAndInheritedRate seeds a parent (Vorhaben) node
+// with an hourly rate and a child (Repo) node without its own rate, then adds a
+// 2-hour completed session on the child. It verifies that GET /nodes/p1 renders
+// the subtree rollup (child's time) and the inherited rate + earnings in the
+// cockpit head — the core deliverable of Task 2's nodeCockpitData wiring.
+// Also checks GET /nodes/c1 to confirm the child inherits the parent's rate.
+func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
+	c := newCockpitTestServer(t)
+
+	// Seed parent (Vorhaben) with hourly rate 95 €/h (9500 minor units = cents).
+	parentRate := &domain.Money{Amount: 9500, Currency: "EUR"}
+	c.seedNode(t, domain.Node{
+		ID: "p1", OwnerID: "u1", Name: "ParentVorhaben", Slug: "parent-vorhaben",
+		Kind: domain.KindVorhaben, Color: "blue", Rate: parentRate,
+	})
+	// Seed child (Repo) with no own rate, parented under p1.
+	p1ID := "p1"
+	c.seedNode(t, domain.Node{
+		ID: "c1", OwnerID: "u1", Name: "ChildRepo", Slug: "child-repo",
+		Kind: domain.KindRepo, Color: "cyan", ParentID: &p1ID,
+	})
+
+	// Add a completed 2-hour session on the child (08:00–10:00 on 2026-06-30).
+	// Clock is 12:00 on 2026-06-30, so these times are in the past. ✓
+	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
+	start := day.Add(8 * time.Hour)
+	stop := day.Add(10 * time.Hour)
+	c1ID := "c1"
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &c1ID, start, stop, nil, "",
+	); err != nil {
+		t.Fatalf("AddSession on child: %v", err)
+	}
+
+	// GET parent cockpit: subtree rollup must include the child's 2 h.
+	rec := c.do(t, "GET", "/nodes/p1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/p1: status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	parentBody := rec.Body.String()
+
+	// fmtDurHM(2h) = "2:00 h"; appears in the Σ-Gesamt tile of the rollup.
+	if !strings.Contains(parentBody, "2:00 h") {
+		t.Errorf("parent cockpit: missing subtree rollup %q\nbody snippet: %.800s", "2:00 h", parentBody)
+	}
+	// rateLabel(&Money{9500,"EUR"}) = "95 €/h"
+	if !strings.Contains(parentBody, "95 €/h") {
+		t.Errorf("parent cockpit: missing inherited rate label %q", "95 €/h")
+	}
+	// Earnings = 9500 cents/h × 7200 s = 19000 minor units = "190.00 EUR"
+	if !strings.Contains(parentBody, "190.00 EUR") {
+		t.Errorf("parent cockpit: missing earnings %q", "190.00 EUR")
+	}
+
+	// GET child cockpit: own session (2 h) and rate inherited from parent.
+	rec2 := c.do(t, "GET", "/nodes/c1", nil)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/c1: status %d body=%.400s", rec2.Code, rec2.Body.String())
+	}
+	childBody := rec2.Body.String()
+
+	// Child's own 2-hour session appears in its rollup.
+	if !strings.Contains(childBody, "2:00 h") {
+		t.Errorf("child cockpit: missing own session rollup %q", "2:00 h")
+	}
+	// Child has no Rate of its own; ResolveRate walks ancestors and finds parent's rate.
+	if !strings.Contains(childBody, "95 €/h") {
+		t.Errorf("child cockpit: missing inherited rate label %q", "95 €/h")
+	}
+}
+
 func TestCockpitView_RollupAndIdentity(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})
