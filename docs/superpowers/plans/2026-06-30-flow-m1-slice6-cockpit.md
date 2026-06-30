@@ -1132,13 +1132,18 @@ templ cockpitTabLink(id, key, labelKey string, active bool) {
 	<div
 		id="cockpit-panel"
 		class="pt-6"
-		hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
-		hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
-		hx-swap="innerHTML"
+		if cockpitPanelSSE(d.ActiveTab) != "" {
+			hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+			hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
+			hx-target="#cockpit-main"
+			hx-swap="innerHTML"
+		}
 	>
 		@cockpitPanel(d)
 	</div>
 ```
+
+> CRITICAL: the panel's SSE reload MUST `hx-target="#cockpit-main"` (the outer strip+panel container), NOT itself — `/tab/{name}` returns the full `CockpitTabsAndPanel`, so self-targeting nests a second tab strip + a duplicate `id="cockpit-panel"` on every SSE event. Omit the reload attrs entirely when `cockpitPanelSSE` returns `""` (bindings).
 
 Add to `cockpit_vm.go`:
 
