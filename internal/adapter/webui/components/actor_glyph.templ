@@ -1,0 +1,16 @@
+package components
+
+// ActorGlyph renders a small inline SVG identifying the actor kind.
+// kind == "agent" → solid hexagon; anything else → filled circle.
+// Color is driven by currentColor so the surrounding text color applies.
+templ ActorGlyph(kind string) {
+	if kind == "agent" {
+		<svg viewBox="0 0 20 20" class="h-4 w-4" aria-hidden="true">
+			<polygon points="10,2 17,6 17,14 10,18 3,14 3,6" fill="currentColor"></polygon>
+		</svg>
+	} else {
+		<svg viewBox="0 0 20 20" class="h-4 w-4" aria-hidden="true">
+			<circle cx="10" cy="10" r="8" fill="currentColor"></circle>
+		</svg>
+	}
+}
