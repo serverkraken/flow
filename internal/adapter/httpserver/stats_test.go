@@ -445,7 +445,7 @@ func TestHandleNodeStats_OwnedNodeNoSessions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("owned node with no sessions: want 200, got %d", res.StatusCode)
 	}
@@ -540,7 +540,7 @@ func TestHandleNodeStats_HappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("want 200, got %d", res.StatusCode)
 	}
