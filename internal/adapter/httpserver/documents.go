@@ -3,6 +3,7 @@ package httpserver
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -129,8 +130,11 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	// Pre-fetch so the label snapshot survives deletion.
-	doc, _ := s.GetDocument.Execute(r.Context(), u.ID, id)
-	err := s.DeleteDocument.Execute(r.Context(), u.ID, id)
+	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
+	if err != nil {
+		slog.WarnContext(r.Context(), "delete document: pre-fetch for activity label failed", "id", id, "err", err)
+	}
+	err = s.DeleteDocument.Execute(r.Context(), u.ID, id)
 	switch {
 	case errors.Is(err, ports.ErrDocumentNotFound):
 		http.Error(w, "not found", http.StatusNotFound)

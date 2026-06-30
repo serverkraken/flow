@@ -72,11 +72,12 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	ss := testutil.NewFakeSessionStore()
 	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
-		Emitter:       sse.NewEmitter(sse.NewBus(), &fakeActivityStore{}, ids, clk),
+		Bus:           bus,
+		Emitter:       sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
