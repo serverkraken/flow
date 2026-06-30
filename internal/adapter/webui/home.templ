@@ -175,7 +175,7 @@ templ homeLogstreamInner(vm HomeVM) {
 		for _, chip := range chips {
 			if vm.LogClass == chip.cls {
 				<a href="#"
-					hx-get={ "/ui/home/logstream?class=" + chip.cls + "&actor=" + vm.LogActor }
+					hx-get={ logstreamHref(chip.cls, vm.LogActor) }
 					hx-target="#logstream"
 					hx-swap="outerHTML"
 					class="inline-flex items-center rounded-full bg-ink px-3 py-1 text-[.8rem] font-medium text-canvas">
@@ -183,7 +183,7 @@ templ homeLogstreamInner(vm HomeVM) {
 				</a>
 			} else {
 				<a href="#"
-					hx-get={ "/ui/home/logstream?class=" + chip.cls + "&actor=" + vm.LogActor }
+					hx-get={ logstreamHref(chip.cls, vm.LogActor) }
 					hx-target="#logstream"
 					hx-swap="outerHTML"
 					class="inline-flex items-center rounded-full border border-line bg-surface px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue">
@@ -193,7 +193,7 @@ templ homeLogstreamInner(vm HomeVM) {
 		}
 		if len(vm.LogActors) > 0 {
 			<select
-				hx-get="/ui/home/logstream"
+				hx-get={ logstreamHref(vm.LogClass, "") }
 				hx-include="this"
 				hx-target="#logstream"
 				hx-swap="outerHTML"

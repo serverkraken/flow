@@ -72,3 +72,19 @@ func (vm HomeVM) logQuery() string {
 	}
 	return "?" + q.Encode()
 }
+
+// logstreamHref builds the /ui/home/logstream URL with optional class and actor
+// query params, properly URL-encoded. Either param may be empty ("" = omit).
+func logstreamHref(class, actor string) string {
+	v := url.Values{}
+	if class != "" {
+		v.Set("class", class)
+	}
+	if actor != "" {
+		v.Set("actor", actor)
+	}
+	if len(v) == 0 {
+		return "/ui/home/logstream"
+	}
+	return "/ui/home/logstream?" + v.Encode()
+}

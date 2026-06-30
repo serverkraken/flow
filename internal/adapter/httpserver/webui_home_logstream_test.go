@@ -241,3 +241,36 @@ func TestLogstream_SectionOnHomePage(t *testing.T) {
 		t.Errorf("home page must contain logstream section when ListActivity is wired")
 	}
 }
+
+// TestLogstream_ActorSelectPreservesClass verifies that when a class filter is
+// active, the rendered actor <select> hx-get carries the current class so that
+// switching actor does not silently reset the class filter.
+func TestLogstream_ActorSelectPreservesClass(t *testing.T) {
+	actor := "msoent"
+	label := "My Doc"
+	at := time.Date(2026, 6, 30, 11, 30, 0, 0, time.UTC)
+	store := &fakeActivityStore{
+		items: []domain.ActivityEntry{
+			{
+				ID: "a1", OwnerID: "u1",
+				ActorKind: "human", ActorRef: actor,
+				Kind: "document.created", At: at,
+				Label: &label,
+			},
+		},
+	}
+	srv, codec := newLogstreamServer(t, store)
+
+	// Request logstream with class=wissen active.
+	rr := authGet(t, srv, codec, "/ui/home/logstream?class=wissen")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%.300s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+
+	// The actor select must carry class=wissen in its hx-get so changing actor
+	// does not drop the active class filter.
+	if !strings.Contains(body, `class=wissen`) {
+		t.Errorf("actor select hx-get must carry class=wissen when class filter is active; body=%.800s", body)
+	}
+}
