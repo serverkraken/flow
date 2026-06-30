@@ -227,9 +227,52 @@ templ cockpitPanel(d NodeCockpit) {
 			}
 			@cockpitMoveForm(d)
 			@cockpitStatusForm(d)
+		case "bindings":
+			<h2 class="text-sm font-semibold text-ink mb-4">{ components.T(ctx, "cockpit.bindings.title") }</h2>
+			if d.PanelErr != "" {
+				<p class="mb-3 rounded-xl bg-red/10 text-red px-3 py-2 text-[.82rem]" role="alert">{ d.PanelErr }</p>
+			}
+			if len(d.Bindings) == 0 {
+				<p class="text-sm text-faint mb-4">{ components.T(ctx, "cockpit.bindings.empty") }</p>
+			} else {
+				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface mb-4">
+					for _, b := range d.Bindings {
+						<li class="px-4 py-2.5 text-sm flex items-center justify-between gap-3">
+							<span class="font-mono text-[.8rem] text-body truncate">{ string(b.Kind) }: { bindingTarget(b) }</span>
+							<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-main" hx-swap="innerHTML">
+								<input type="hidden" name="kind" value={ string(b.Kind) }/>
+								<input type="hidden" name="slug" value={ b.RemoteSlug }/>
+								<input type="hidden" name="machine" value={ b.MachineID }/>
+								<input type="hidden" name="path" value={ b.Path }/>
+								<button class="text-[.72rem] text-faint hover:text-red">{ components.T(ctx, "cockpit.bindings.delete") }</button>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+			if d.N.Kind == domain.KindRepo {
+				<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-main" hx-swap="innerHTML" class="flex items-end gap-2">
+					<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-mono"/>
+					@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.bindings.addRemote"), "+", templ.Attributes{"type": "submit"})
+				</form>
+			}
+			<p class="mt-3 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.bindings.pathHint") }</p>
 		default:
 			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
 	}
+}
+
+// bindingTarget returns the display label for a binding:
+// remote → remoteSlug; path → machineLabel:path (or machineID:path as fallback).
+func bindingTarget(b domain.ProjectBinding) string {
+	if b.Kind == domain.BindingRemote {
+		return b.RemoteSlug
+	}
+	label := b.MachineLabel
+	if label == "" {
+		label = b.MachineID
+	}
+	return label + ":" + b.Path
 }
 
 // cockpitSessionRow renders one session row in the worktime panel.

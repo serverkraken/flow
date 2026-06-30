@@ -386,3 +386,57 @@ func TestNodeNew_PrefillsParent(t *testing.T) {
 		t.Errorf("new-node form did not prefill parent p1 (status %d)", rec.Code)
 	}
 }
+
+func TestCockpitBindings_AddRemote(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	rec := c.do(t, "POST", "/nodes/n1/bindings", map[string]string{"remoteSlug": "github.com/serverkraken/flow"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bind status %d body=%.300s", rec.Code, rec.Body.String())
+	}
+	bs, _ := (usecase.ListNodeBindings{Bindings: c.bs}).ExecuteByProject(context.Background(), "u1", "n1")
+	if len(bs) != 1 || bs[0].Kind != domain.BindingRemote {
+		t.Fatalf("expected 1 remote binding, got %+v", bs)
+	}
+	if !strings.Contains(rec.Body.String(), "github.com/serverkraken/flow") {
+		t.Errorf("bindings panel did not list the new remote")
+	}
+	// Pin: bindings panel forms must target #cockpit-main, never #cockpit-panel.
+	if strings.Contains(rec.Body.String(), `hx-target="#cockpit-panel"`) {
+		t.Errorf("bindings panel must NOT use hx-target=\"#cockpit-panel\" (nesting bug): %.600s", rec.Body.String())
+	}
+}
+
+func TestCockpitBindings_DeleteRemote(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	_, _ = (usecase.BindNode{Bindings: c.bs, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", "n1", usecase.BindKey{Kind: domain.BindingRemote, RemoteSlug: "github.com/x/y"})
+
+	rec := c.do(t, "POST", "/nodes/n1/bindings/delete", map[string]string{"kind": "remote", "slug": "github.com/x/y"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unbind status %d", rec.Code)
+	}
+	bs, _ := (usecase.ListNodeBindings{Bindings: c.bs}).ExecuteByProject(context.Background(), "u1", "n1")
+	if len(bs) != 0 {
+		t.Errorf("expected 0 bindings after delete, got %+v", bs)
+	}
+}
+
+// TestCockpitBindings_PanelNoCockpitPanelTarget pins that the bindings tab fragment
+// does not contain hx-target="#cockpit-panel" anywhere — that would cause DOM nesting.
+func TestCockpitBindings_PanelNoCockpitPanelTarget(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	// Seed a binding so the list + delete form renders.
+	_, _ = (usecase.BindNode{Bindings: c.bs, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", "n1", usecase.BindKey{Kind: domain.BindingRemote, RemoteSlug: "github.com/x/y"})
+
+	rec := c.do(t, "GET", "/nodes/n1/tab/bindings", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bindings tab status %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), `hx-target="#cockpit-panel"`) {
+		t.Errorf("bindings panel body must NOT contain hx-target=\"#cockpit-panel\": %.600s", rec.Body.String())
+	}
+}

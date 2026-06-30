@@ -10,6 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // nodeCockpitData assembles the cockpit head + the active tab's panel data.
@@ -131,7 +132,8 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 			}
 		}
 		d.MoveTargets = webui.MoveTargetsFor(all, d.N)
-	// case "bindings": Task 8
+	case "bindings":
+		d.Bindings, _ = s.ListNodeBindings.ExecuteByProject(r.Context(), u.ID, d.N.ID)
 	}
 }
 
@@ -257,4 +259,46 @@ func (s *Server) renderNodeHead(w http.ResponseWriter, r *http.Request, u domain
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NodeHead(d).Render(r.Context(), w)
+}
+
+// handleWebNodeBindRemote adds a remote binding (form field remoteSlug) to {id}.
+func (s *Server) handleWebNodeBindRemote(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	slug := strings.TrimSpace(r.FormValue("remoteSlug"))
+	if slug == "" {
+		s.renderNodePanel(w, r, u, id, "bindings", "")
+		return
+	}
+	key := usecase.BindKey{Kind: domain.BindingRemote, RemoteSlug: slug}
+	if _, err := s.BindNode.Execute(r.Context(), u.ID, id, key); err != nil {
+		msg := "konnte nicht binden"
+		if errors.Is(err, usecase.ErrInvalidBindTarget) {
+			msg = i18nT(r, "cockpit.bindings.remoteOnlyRepo")
+		}
+		s.renderNodePanel(w, r, u, id, "bindings", msg)
+		return
+	}
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.renderNodePanel(w, r, u, id, "bindings", "")
+}
+
+// handleWebNodeUnbind removes a binding (form: kind + slug | machine + path).
+func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	key := usecase.BindKey{
+		Kind:      domain.BindingKind(r.FormValue("kind")),
+		RemoteSlug: r.FormValue("slug"),
+		MachineID: r.FormValue("machine"),
+		Path:      r.FormValue("path"),
+	}
+	if err := s.UnbindNode.Execute(r.Context(), u.ID, key); err != nil {
+		s.renderNodePanel(w, r, u, id, "bindings", "konnte nicht lösen")
+		return
+	}
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.renderNodePanel(w, r, u, id, "bindings", "")
 }
