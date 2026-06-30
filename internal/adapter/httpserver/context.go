@@ -37,7 +37,7 @@ func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) 
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 	}
 }

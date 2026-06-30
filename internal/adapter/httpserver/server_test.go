@@ -22,10 +22,12 @@ import (
 
 func newServer() *httpserver.Server {
 	store := testutil.NewFakeUserStore()
+	bus := sse.NewBus()
 	return &httpserver.Server{
 		Verifier: testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
 		Ensure:   usecase.EnsureUser{Users: store, IDs: &testutil.FakeIDGen{}, Allow: func(id ports.Identity) bool { return id.Subject == "msoent" }},
-		Bus:      sse.NewBus(),
+		Bus:      bus,
+		Emitter:  sse.NewEmitter(bus, &fakeActivityStore{}, &testutil.FakeIDGen{}, testutil.FakeClock{}),
 		Dev:      true,
 	}
 }
@@ -74,6 +76,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:           sse.NewBus(),
+		Emitter:       sse.NewEmitter(sse.NewBus(), &fakeActivityStore{}, ids, clk),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
@@ -137,10 +140,12 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	tags := testutil.NewFakeTagStore()
+	bus146 := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
+		Bus:           bus146,
+		Emitter:       sse.NewEmitter(bus146, &fakeActivityStore{}, ids, clk),
 		Clock:         clk,
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk, Tags: tags},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},

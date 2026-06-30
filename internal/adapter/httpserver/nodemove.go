@@ -36,7 +36,7 @@ func (s *Server) handleMoveNode(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventNodeMoved, UserID: u.ID, Data: map[string]any{"id": n.ID, "parentId": n.ParentID}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeMoved, UserID: u.ID, Data: map[string]any{"id": n.ID, "parentId": n.ParentID, "name": n.Name, "node": n.ID}})
 		writeJSON(w, http.StatusOK, n)
 	}
 }

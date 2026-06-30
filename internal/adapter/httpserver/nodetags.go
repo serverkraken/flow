@@ -40,6 +40,6 @@ func (s *Server) handleSetNodeTags(w http.ResponseWriter, r *http.Request) {
 	if tags == nil {
 		tags = []domain.Tag{}
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 	writeJSON(w, http.StatusOK, tags)
 }

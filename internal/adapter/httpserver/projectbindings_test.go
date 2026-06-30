@@ -38,10 +38,12 @@ func newBindingsSrvFull(t *testing.T) *bindingsSrv {
 	bs := testutil.NewFakeProjectBindingStore()
 	users := testutil.NewFakeUserStore()
 
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:         testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:           usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:              sse.NewBus(),
+		Bus:              bus,
+		Emitter:          sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:            clk,
 		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:        usecase.ListNodes{Nodes: ps},

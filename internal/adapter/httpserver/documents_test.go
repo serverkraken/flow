@@ -26,6 +26,8 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	bus := sse.NewBus()
+	// Emitter shares the same bus so existing SSE event assertions in tests remain valid.
+	emitter := sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk)
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
 
@@ -48,6 +50,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		Verifier:             testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:               usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:                  bus,
+		Emitter:              emitter,
 		Clock:                clk,
 		Stats:                stats,
 		CreateDocument:       usecase.CreateDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},

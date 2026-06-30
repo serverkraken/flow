@@ -44,7 +44,11 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
+		data := map[string]any{"id": doc.ID, "title": doc.Title}
+		if doc.NodeID != nil {
+			data["node"] = *doc.NodeID
+		}
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: data})
 		writeJSON(w, http.StatusCreated, doc)
 	}
 }
@@ -116,7 +120,7 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
 		writeJSON(w, http.StatusOK, doc)
 	}
 }
@@ -124,6 +128,8 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
+	// Pre-fetch so the label snapshot survives deletion.
+	doc, _ := s.GetDocument.Execute(r.Context(), u.ID, id)
 	err := s.DeleteDocument.Execute(r.Context(), u.ID, id)
 	switch {
 	case errors.Is(err, ports.ErrDocumentNotFound):
@@ -131,7 +137,7 @@ func (s *Server) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentDeleted, UserID: u.ID, Data: map[string]any{"id": id, "title": doc.Title}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -199,7 +205,11 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: map[string]any{"id": doc.ID}})
+		data := map[string]any{"id": doc.ID, "title": doc.Title}
+		if doc.NodeID != nil {
+			data["node"] = *doc.NodeID
+		}
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentCreated, UserID: u.ID, Data: data})
 		writeJSON(w, http.StatusCreated, doc)
 	}
 }
@@ -234,7 +244,7 @@ func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 }
 
@@ -256,7 +266,7 @@ func (s *Server) handleArchiveDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -292,7 +302,7 @@ func (s *Server) handlePinDocument(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Bus.Publish(domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

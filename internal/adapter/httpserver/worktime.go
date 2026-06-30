@@ -58,7 +58,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		s.Bus.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
 		writeJSON(w, http.StatusCreated, sess)
 		return
 	}
@@ -79,7 +79,7 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
 	writeJSON(w, http.StatusCreated, sess)
 }
 
@@ -106,7 +106,7 @@ func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionStopped, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -230,7 +230,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -284,7 +284,7 @@ func (s *Server) handleDeleteNode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -337,7 +337,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -377,7 +377,7 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -392,7 +392,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -423,7 +423,7 @@ func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
 	writeJSON(w, http.StatusOK, map[string]int{"updated": n})
 }
 
@@ -447,7 +447,7 @@ func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Bus.Publish(domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
 	writeJSON(w, http.StatusOK, map[string]int{"deleted": n})
 }
 

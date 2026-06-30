@@ -24,10 +24,12 @@ func newWorktimeServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 	sessions := testutil.NewFakeSessionStore()
 	tags := testutil.NewFakeTagStore()
 	ids := &testutil.FakeIDGen{}
+	bus := sse.NewBus()
 	return &httpserver.Server{
 		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
 		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:               sse.NewBus(),
+		Bus:               bus,
+		Emitter:           sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:             clk,
 		Dev:               true,
 		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
@@ -257,10 +259,12 @@ func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 	sessions := testutil.NewFakeSessionStore()
 	ps := testutil.NewFakeNodeStore()
 	ids := &testutil.FakeIDGen{}
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:          testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
 		Ensure:            usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:               sse.NewBus(),
+		Bus:               bus,
+		Emitter:           sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:             clk,
 		Dev:               true,
 		StartSession:      usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
@@ -379,10 +383,12 @@ func newBulkDeleteServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessio
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 18, 0, 0, 0, time.UTC)}
 	sessions := testutil.NewFakeSessionStore()
 	ids := &testutil.FakeIDGen{}
+	bus := sse.NewBus()
 	srv := &httpserver.Server{
 		Verifier:           testutil.FakeVerifier{ID: ports.Identity{Subject: "msoent", Username: "msoent"}},
 		Ensure:             usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:                sse.NewBus(),
+		Bus:                bus,
+		Emitter:            sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Clock:              clk,
 		Dev:                true,
 		StartSession:       usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk},
