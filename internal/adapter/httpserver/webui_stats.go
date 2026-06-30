@@ -26,14 +26,15 @@ func clampPct(v int) int {
 }
 
 // burndownBannerVM maps a month burndown report onto the banner VM. The pace
-// marker sits at expected-by-now / Target; expected-by-now = Total − Saldo
-// (Saldo is defined as Total − expected). Pct is the logged fill. Both clamp
-// to [0,100]; a zero target leaves both at 0.
+// marker sits at expected-by-now / Target; expected-by-now = TargetTotal − Saldo
+// (Saldo is defined as TargetTotal − expected). Pct and pace are both job-scoped
+// (TargetTotal vs Target), so private non-counting time does not inflate progress.
+// Both clamp to [0,100]; a zero target leaves both at 0.
 func burndownBannerVM(rep domain.MonthBurndownReport) components.BurndownVM {
 	pct, pace := 0, 0
 	if rep.Target > 0 {
-		pct = clampPct(int(rep.Total * 100 / rep.Target))
-		expected := rep.Total - rep.Saldo
+		pct = clampPct(int(rep.TargetTotal * 100 / rep.Target))
+		expected := rep.TargetTotal - rep.Saldo
 		pace = clampPct(int(expected * 100 / rep.Target))
 	}
 	variant := "under"
