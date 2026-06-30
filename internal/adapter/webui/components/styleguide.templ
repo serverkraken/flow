@@ -39,6 +39,14 @@ templ styleguideContent() {
 	@Card("mb-6", sgDialogs())
 	// Pagination (middle page so both edges enabled)
 	@Card("mb-6", sgPagination())
+	// Kristall identity intro
+	@Card("mb-6", sgKristallIntro())
+	// Token swatches
+	@Card("mb-6", sgTokenSwatches())
+	// Glass project-cards (CardCorner)
+	@Card("mb-6", sgKristallCards())
+	// Brand mark at two sizes
+	@Card("mb-6", sgBrandMark())
 }
 
 templ sgButtons() {
@@ -96,4 +104,80 @@ templ sgDialogs() {
 templ sgPagination() {
 	<h2 class="font-display text-lg font-semibold mb-4">Pagination</h2>
 	@Pagination(PageNav{Page: 2, Total: 95, PageSize: 20, BaseHref: "/ui"})
+}
+
+// ── Kristall identity sections ──────────────────────────────────────────────
+
+templ sgKristallIntro() {
+	<p class="text-body">Kristall — Twilight-Backdrop, Glas-Karten, farbige Projekt-Ecke. Toggle oben rechts für Hell/Dunkel.</p>
+}
+
+templ sgTokenSwatches() {
+	<h2 class="font-display text-lg font-semibold mb-4">Token-Swatches</h2>
+	<div class="grid grid-cols-5 gap-3">
+		@sgSwatch("canvas")
+		@sgSwatch("surface")
+		@sgSwatch("sunken")
+		@sgSwatch("line")
+		@sgSwatch("ink")
+		@sgSwatch("body")
+		@sgSwatch("muted")
+		@sgSwatch("faint")
+		@sgSwatch("blue")
+		@sgSwatch("cyan")
+		@sgSwatch("green")
+		@sgSwatch("purple")
+		@sgSwatch("magenta")
+		@sgSwatch("yellow")
+		@sgSwatch("orange")
+		@sgSwatch("red")
+		@sgSwatch("teal")
+	</div>
+}
+
+templ sgSwatch(token string) {
+	<div>
+		<div class="h-8 rounded-lg" style={ "background-color: rgb(var(--" + token + "))" }></div>
+		<p class="text-xs text-center mt-1 text-muted">{ token }</p>
+	</div>
+}
+
+templ sgKristallCards() {
+	<h2 class="font-display text-lg font-semibold mb-4">Glas-Projektkarten</h2>
+	<div class="grid grid-cols-2 gap-4">
+		@CardCorner("blue", "") {
+			<h3 class="font-semibold text-ink">Kunde A</h3>
+			<p class="text-sm text-muted">Engagement</p>
+			<p class="text-sm text-body mt-2">Backend-Entwicklung für Q3-Lieferung.</p>
+		}
+		@CardCorner("green", "") {
+			<h3 class="font-semibold text-ink">Kunde B</h3>
+			<p class="text-sm text-muted">Engagement</p>
+			<p class="text-sm text-body mt-2">Infrastruktur-Modernisierung laufend.</p>
+		}
+		@CardCorner("purple", "") {
+			<h3 class="font-semibold text-ink">Projekt X</h3>
+			<p class="text-sm text-muted">Engagement</p>
+			<p class="text-sm text-body mt-2">Design-System-Aufbau abgeschlossen.</p>
+		}
+		@CardCorner("cyan", "") {
+			<h3 class="font-semibold text-ink">Projekt Y</h3>
+			<p class="text-sm text-muted">Engagement</p>
+			<p class="text-sm text-body mt-2">Migrations-Plan in Abstimmung.</p>
+		}
+	</div>
+}
+
+templ sgBrandMark() {
+	<h2 class="font-display text-lg font-semibold mb-4">Brand-Mark</h2>
+	<div class="flex items-center gap-4">
+		<div class="flex flex-col items-center gap-2">
+			@BrandMark("h-10 w-10", "sg1")
+			<p class="text-xs text-muted">h-10 w-10</p>
+		</div>
+		<div class="flex flex-col items-center gap-2">
+			@BrandMark("h-6 w-6", "sg2")
+			<p class="text-xs text-muted">h-6 w-6</p>
+		</div>
+	</div>
 }
