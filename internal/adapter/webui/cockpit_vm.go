@@ -3,6 +3,7 @@ package webui
 import (
 	"fmt"
 	"html/template"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -74,7 +75,8 @@ type NodeCockpit struct {
 	Children    []NodeChild             // struktur
 	MoveTargets []domain.Node           // struktur reparent
 	Bindings    []domain.ProjectBinding // bindings
-	BindErr     string                  // inline binding error
+	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
+	SessionRows []CockpitSessionRow      // worktime: precomputed display rows, newest first
 }
 
 // CockpitTabs is the fixed tab order/keys for the strip.
@@ -83,6 +85,39 @@ var CockpitTabs = []struct{ Key, LabelKey string }{
 	{"wissen", "cockpit.tab.wissen"},
 	{"struktur", "cockpit.tab.struktur"},
 	{"bindings", "cockpit.tab.bindings"},
+}
+
+
+// CockpitSessionRow is a precomputed display row for the worktime panel.
+// Fields are formatted strings to keep template logic-free.
+type CockpitSessionRow struct {
+	Date    string // e.g. "Sa 27.06."
+	Span    string // e.g. "14:00–16:00"
+	Tag     string // space-joined tags, "" if none
+	Dur     string // e.g. "2:00 h"
+	Running bool   // true if session has no Stop time
+}
+
+// BuildCockpitSessionRows converts a WorkSession slice (newest-first) to display rows.
+// now is used to compute elapsed for running sessions.
+func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []CockpitSessionRow {
+	rows := make([]CockpitSessionRow, 0, len(sessions))
+	for _, s := range sessions {
+		span := s.Start.Format("15:04") + "–"
+		if s.Stop != nil {
+			span += s.Stop.Format("15:04")
+		} else {
+			span += "…"
+		}
+		rows = append(rows, CockpitSessionRow{
+			Date:    s.Start.Format("Mon 02.01."),
+			Span:    span,
+			Tag:     strings.Join(s.Tags, " "),
+			Dur:     fmtDurHM(s.Elapsed(now)),
+			Running: s.Stop == nil,
+		})
+	}
+	return rows
 }
 
 // cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.

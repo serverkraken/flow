@@ -261,6 +261,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}/status", s.webAuth(http.HandlerFunc(s.handleWebNodeStatus)))
 	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
 	mux.Handle("POST /nodes/{id}/move", s.webAuth(http.HandlerFunc(s.handleWebNodeMove)))
+	mux.Handle("POST /nodes/{id}/sessions", s.webAuth(http.HandlerFunc(s.handleWebNodeAddSession)))
 
 	// Sidebar project-tree fragment (Task 8 — htmx lazy-load by SiteNav).
 	mux.Handle("GET /ui/nav/tree", s.webAuth(http.HandlerFunc(s.handleNavTreeFragment)))

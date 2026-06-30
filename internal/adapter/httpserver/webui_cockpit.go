@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -102,11 +104,61 @@ func (s *Server) handleWebNodeTab(w http.ResponseWriter, r *http.Request) {
 // fillPanelData loads the active tab's data into d.
 func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCockpit) {
 	switch d.ActiveTab {
-	// case "worktime": Task 5
+	case "worktime":
+		now := s.Clock.Now()
+		since := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		all, _ := s.ListSessionsRange.Execute(r.Context(), u.ID, since, now.AddDate(0, 0, 1))
+		out := make([]domain.WorkSession, 0, 25)
+		for i := len(all) - 1; i >= 0 && len(out) < 25; i-- { // newest first
+			if all[i].NodeID != nil && *all[i].NodeID == d.N.ID {
+				out = append(out, all[i])
+			}
+		}
+		d.Sessions = out
+		d.SessionRows = webui.BuildCockpitSessionRows(out, now)
 	// case "wissen":   Task 6
 	// case "struktur": Task 7
 	// case "bindings": Task 8
 	}
+}
+
+// renderNodePanel re-renders the tab strip + one panel fragment (with an optional
+// inline error). The handler returns CockpitTabsAndPanel targeting #cockpit-main
+// so HTMX replaces the outer container — not #cockpit-panel (nesting bug).
+func (s *Server) renderNodePanel(w http.ResponseWriter, r *http.Request, u domain.User, id, tab, errMsg string) {
+	d, err := s.nodeCockpitData(r, u, id, tab)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.fillPanelData(r, u, &d)
+	d.PanelErr = errMsg
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.CockpitTabsAndPanel(d).Render(r.Context(), w)
+}
+
+// handleWebNodeAddSession books a manual session on {id} (Nachbuchen).
+// On success it re-renders the worktime tab; on validation failure it returns
+// the panel with an inline error so the user can correct the form.
+func (s *Server) handleWebNodeAddSession(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	day := parseDayParam(s, r.FormValue("date"))
+	start, err1 := dayTime(day, r.FormValue("from"))
+	stop, err2 := dayTime(day, r.FormValue("to"))
+	if err1 != nil || err2 != nil || !stop.After(start) {
+		s.renderNodePanel(w, r, u, id, "worktime", "ungültige Zeit — HH:MM, bis > von")
+		return
+	}
+	nid := id
+	if _, err := s.AddSession.Execute(r.Context(), u.ID, &nid, start, stop,
+		strings.Fields(r.FormValue("tag")), r.FormValue("note")); err != nil {
+		s.renderNodePanel(w, r, u, id, "worktime", "konnte nicht buchen: "+err.Error())
+		return
+	}
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.renderNodePanel(w, r, u, id, "worktime", "")
 }
 
 // handleWebNodeHead serves GET /nodes/{id}/head : the head fragment (SSE reload).
