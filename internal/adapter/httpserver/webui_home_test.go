@@ -17,6 +17,71 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// TestHomeHome_ShowsNewestDocs verifies that GET / renders the "Zuletzt im Wissen"
+// section with seeded documents newest-first, each linking to /wissen/{id}.
+func TestHomeHome_ShowsNewestDocs(t *testing.T) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	docs := testutil.NewFakeDocumentStore()
+	projects := testutil.NewFakeNodeStore()
+	users := testutil.NewFakeUserStore()
+	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
+	_, _ = users.UpsertBySub(context.Background(), u)
+	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
+
+	srv := &httpserver.Server{
+		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:           sse.NewBus(),
+		Clock:         clk,
+		Users:         users,
+		Session:       codec,
+		ListDocuments: usecase.ListDocuments{Docs: docs},
+		ListNodes:     usecase.ListNodes{Nodes: projects},
+	}
+
+	ctx := context.Background()
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	// Seed two docs with different UpdatedAt; Alpha is newest.
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "doc-alpha", OwnerID: "u1", Type: domain.DocFree, Path: "alpha",
+		Title: "Alpha Article", UpdatedAt: now,
+	})
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "doc-beta", OwnerID: "u1", Type: domain.DocFree, Path: "beta",
+		Title: "Beta Article", UpdatedAt: now.Add(-time.Hour),
+	})
+
+	cookieVal, _ := codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET / status=%d body=%.500s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		"Zuletzt",                    // "Zuletzt im Wissen" heading
+		"Alpha Article",              // newest doc title
+		`href="/wissen/doc-alpha"`,   // link to newest doc
+		`href="/wissen/doc-beta"`,    // link to older doc (also within cap)
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("GET / newest-docs: missing %q", want)
+		}
+	}
+	// Alpha (newer) must appear before Beta (older).
+	alphaIdx := strings.Index(body, "Alpha Article")
+	betaIdx := strings.Index(body, "Beta Article")
+	if alphaIdx < 0 || betaIdx < 0 {
+		t.Fatalf("both articles must appear; alpha=%d beta=%d", alphaIdx, betaIdx)
+	}
+	if betaIdx < alphaIdx {
+		t.Errorf("Beta (older) rendered before Alpha (newer); want newest-first order")
+	}
+}
+
 // TestHomeHome_RendersLanding verifies that GET / returns 200 and renders
 // the Home heading plus section links for Zeit (/zeit), Wissen (/wissen),
 // and Projekte (/nodes).

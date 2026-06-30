@@ -42,5 +42,9 @@ type HomeVM struct {
 
 	Burndown components.BurndownVM
 
+	// NewestDocs holds the most-recently-updated documents shown in the
+	// "Zuletzt im Wissen" section (capped at 5, sorted newest-first).
+	NewestDocs []DocRow
+
 	Err string // inline error message (surfaced when stop fails validation)
 }

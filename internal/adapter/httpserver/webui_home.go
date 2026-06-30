@@ -197,5 +197,13 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		vm.Burndown = burndownBannerVM(burndown)
 	}
 
+	// Newest knowledge articles for the "Zuletzt im Wissen" section.
+	// Guard: skip gracefully when ListDocuments is not wired (minimal test server).
+	if s.ListDocuments.Docs != nil {
+		docs, _ := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+		_, colors, _, _ := s.nodeMaps(ctx, u.ID)
+		vm.NewestDocs = webui.BuildHomeNewest(docs, colors, 5)
+	}
+
 	return vm, nil
 }

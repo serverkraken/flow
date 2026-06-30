@@ -49,11 +49,16 @@ templ HomeFragment(vm HomeVM) {
 	<section class="mt-5 md:mt-6">
 		@components.BurndownBanner(vm.Burndown)
 	</section>
-	<div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
-		@homeSectionLink("/zeit", "nav.zeit", "home.section.zeit.desc")
-		@homeSectionLink("/wissen", "nav.wissen", "home.section.wissen.desc")
-		@homeSectionLink("/nodes", "nav.projects", "home.section.projekte.desc")
-	</div>
+	if len(vm.NewestDocs) > 0 {
+		<section class="mt-6">
+			<h2 class="mb-3 text-[.78rem] font-semibold uppercase tracking-wide text-faint">{ components.T(ctx, "wissen.latest") }</h2>
+			<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+				for _, row := range vm.NewestDocs {
+					@homeNewestDocRow(row)
+				}
+			</ul>
+		</section>
+	}
 }
 
 // homeHero is the running-session focal card with the live timer.
@@ -143,13 +148,23 @@ templ homeStartCard(vm HomeVM) {
 	</article>
 }
 
-templ homeSectionLink(href, labelKey, descKey string) {
-	<a href={ templ.SafeURL(href) } class="block">
-		@components.Card("", homeSectionBody(labelKey, descKey))
-	</a>
-}
-
-templ homeSectionBody(labelKey, descKey string) {
-	<h2 class="font-display text-lg font-semibold">{ components.T(ctx, labelKey) }</h2>
-	<p class="mt-1 text-[.88rem] text-muted">{ components.T(ctx, descKey) }</p>
+// homeNewestDocRow renders one recent-knowledge card in the "Zuletzt im Wissen"
+// home section. It mirrors the wissenDocRow style from wissen.templ and links
+// to /wissen/{id}. The project-color corner swatch follows document.templ:52-53.
+templ homeNewestDocRow(row DocRow) {
+	{{ kind := rowKind(row) }}
+	<li class="p-4 transition-colors hover:bg-sunken/40">
+		<a href={ templ.SafeURL("/wissen/" + row.ID) } class="group flex items-start gap-3">
+			<span class={ "mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-[.82rem]", kindToneClass(kind.Tone) } aria-hidden="true">{ kind.Glyph }</span>
+			<span class="min-w-0 flex-1">
+				<span class="block truncate font-medium text-ink group-hover:text-blue">{ row.Title }</span>
+				if row.Path != "" {
+					<span class="mt-0.5 block truncate font-mono text-[.78rem] text-muted">{ row.Path }</span>
+				}
+			</span>
+			if row.ProjectColor != "" {
+				<span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={ swatchStyle(row.ProjectColor) } aria-hidden="true"></span>
+			}
+		</a>
+	</li>
 }
