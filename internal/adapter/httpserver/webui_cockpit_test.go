@@ -238,6 +238,25 @@ func TestCockpitStop_EndsSession(t *testing.T) {
 	}
 }
 
+func TestCockpitTab_SwapsPanel(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/nodes/n1/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tab status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	// active tab marker present and panel content container present
+	if !strings.Contains(body, `id="cockpit-panel"`) {
+		t.Errorf("tab fragment missing panel container")
+	}
+	// unknown tab normalizes to worktime (no 404)
+	if rec2 := c.do(t, "GET", "/nodes/n1/tab/bogus", nil); rec2.Code != http.StatusOK {
+		t.Errorf("bogus tab status=%d want 200 (normalized)", rec2.Code)
+	}
+}
+
 func TestCockpitSwitch_StopsOtherStartsHere(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo})

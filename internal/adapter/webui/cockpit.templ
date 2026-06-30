@@ -30,7 +30,7 @@ templ cockpitBody(d NodeCockpit) {
 	</div>
 	// main = tabstrip + panel; tab clicks swap this whole block (keeps active state).
 	<div id="cockpit-main" class="mt-6">
-		@cockpitTabsAndPanel(d)
+		@CockpitTabsAndPanel(d)
 	</div>
 }
 
@@ -114,24 +114,38 @@ templ cockpitHex(n domain.Node) {
 	<span class={ "grid place-items-center h-11 w-11 rounded-xl text-lg shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">{ glyphOrDefault(n.Glyph) }</span>
 }
 
-// cockpitTabsAndPanel is the swappable tab area. Panels are stubbed here and
-// filled by Tasks 5–8; Task 4 wires the real tab navigation + SSE.
-templ cockpitTabsAndPanel(d NodeCockpit) {
+// CockpitTabsAndPanel is the swappable tab area served by the fragment handler.
+// Panels are stubbed here and filled by Tasks 5–8; Task 4 wires the real tab
+// navigation + SSE.
+templ CockpitTabsAndPanel(d NodeCockpit) {
 	<nav class="flex gap-1 border-b border-line2">
 		for _, t := range CockpitTabs {
 			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.ActiveTab == t.Key)
 		}
 	</nav>
-	<div id="cockpit-panel" class="pt-6">
+	<div
+		id="cockpit-panel"
+		class="pt-6"
+		hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+		hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
+		hx-swap="innerHTML"
+	>
 		@cockpitPanel(d)
 	</div>
 }
 
 templ cockpitTabLink(id, key, labelKey string, active bool) {
 	<a
-		class={ "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px",
+		hx-get={ "/nodes/" + id + "/tab/" + key }
+		hx-target="#cockpit-main"
+		hx-swap="innerHTML"
+		hx-push-url={ "/nodes/" + id + "?tab=" + key }
+		class={ "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px cursor-pointer",
 			templ.KV("text-cyan border-cyan", active),
 			templ.KV("text-muted border-transparent hover:text-body", !active) }
+		if active {
+			aria-current="page"
+		}
 	>{ components.T(ctx, labelKey) }</a>
 }
 

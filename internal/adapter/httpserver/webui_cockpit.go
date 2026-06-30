@@ -77,8 +77,36 @@ func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	s.fillPanelData(r, u, &d)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NodeView(d).Render(r.Context(), w)
+}
+
+// handleWebNodeTab serves GET /nodes/{id}/tab/{name}: the tabstrip+panel fragment.
+func (s *Server) handleWebNodeTab(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	d, err := s.nodeCockpitData(r, u, r.PathValue("id"), r.PathValue("name"))
+	if errors.Is(err, ports.ErrNodeNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.fillPanelData(r, u, &d) // Tasks 5–8 populate the active tab's slice
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.CockpitTabsAndPanel(d).Render(r.Context(), w)
+}
+
+// fillPanelData loads the active tab's data into d.
+func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCockpit) {
+	switch d.ActiveTab {
+	// case "worktime": Task 5
+	// case "wissen":   Task 6
+	// case "struktur": Task 7
+	// case "bindings": Task 8
+	}
 }
 
 // handleWebNodeHead serves GET /nodes/{id}/head : the head fragment (SSE reload).

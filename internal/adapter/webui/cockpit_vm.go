@@ -85,6 +85,20 @@ var CockpitTabs = []struct{ Key, LabelKey string }{
 	{"bindings", "cockpit.tab.bindings"},
 }
 
+// cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
+func cockpitPanelSSE(tab string) string {
+	switch tab {
+	case "worktime":
+		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+	case "wissen":
+		return "sse:document.created, sse:document.updated, sse:document.deleted"
+	case "struktur":
+		return "sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
+	default:
+		return "" // bindings: reload only after own mutation
+	}
+}
+
 // NormalizeTab returns a valid tab key, defaulting to "worktime".
 func NormalizeTab(tab string) string {
 	for _, t := range CockpitTabs {
