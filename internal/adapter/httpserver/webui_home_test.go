@@ -175,6 +175,36 @@ func TestHomeStart_StartsSession(t *testing.T) {
 	}
 }
 
+// TestHomeHome_ShowsSaldoTilesAndBurndown verifies GET / with seeded sessions
+// renders the 3 saldo tiles and the burndown banner with a non-zero saldo value.
+// The fake clock is 2026-06-21 12:00 (local); a 2h session logged against an 8h
+// default target produces a −6h TodaySaldo → "−" sign appears in the body.
+func TestHomeHome_ShowsSaldoTilesAndBurndown(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	// Seed a 2h completed session today so the Today saldo is non-zero.
+	srv.seedSession(t, "2026-06-21", "09:00", "11:00")
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("GET / status=%d body=%.500s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		"Monat gesamt",   // burndown banner eyebrow (stats.monthTotal → DE locale)
+		"−",              // non-zero negative saldo (U+2212 from FmtSaldoVerbose)
+		"sm:grid-cols-3", // saldo tile 3-column grid container
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("GET / saldo/burndown: missing %q", want)
+		}
+	}
+}
+
 // TestHomeStop_WithProjectStopsSession verifies POST /ui/home/stop with a valid
 // projectId stops the session and renders the idle start card.
 func TestHomeStop_WithProjectStopsSession(t *testing.T) {

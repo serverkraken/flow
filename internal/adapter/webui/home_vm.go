@@ -27,5 +27,20 @@ type HomeVM struct {
 	Nodes   []components.NodePickerItem // bookable engagement nodes for the stop picker
 	HasProj bool                        // true when at least one engagement node exists
 
+	// Saldo tiles (Heute / Woche / Monat) — fed by homeDataFor when Stats is wired.
+	TodaySaldo string
+	TodayPos   bool
+	TodaySub   string
+
+	WeekSaldo string
+	WeekPos   bool
+	WeekSub   string
+
+	MonthSaldo string
+	MonthPos   bool
+	MonthSub   string
+
+	Burndown components.BurndownVM
+
 	Err string // inline error message (surfaced when stop fails validation)
 }

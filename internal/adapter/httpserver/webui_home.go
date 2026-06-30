@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
@@ -155,18 +156,45 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		vm.RunningHue = hue
 	}
 
-	// Daily target + balance (degrade to zero when Stats is not wired).
+	// Daily target + balance + saldo tiles + burndown banner
+	// (degrade to zero when Stats is not wired, as with the minimal test server).
 	if s.Stats.Sessions != nil {
-		if today, terr := s.Stats.Today(ctx, u.ID); terr == nil {
-			vm.LoggedDur = webui.FmtVerbose(today.Logged)
-			vm.TargetDur = webui.FmtVerbose(today.Target)
-			if today.Target > 0 {
-				vm.TargetPct = webui.ClampPct(int(today.Logged * 100 / today.Target))
-			}
-			vm.TargetVar = heuteTargetVariant(today, running != nil)
-			vm.Balance = webui.FmtSaldoVerbose(today.Saldo)
-			vm.BalancePos = today.Saldo >= 0
+		today, _ := s.Stats.Today(ctx, u.ID)
+		vm.LoggedDur = webui.FmtVerbose(today.Logged)
+		vm.TargetDur = webui.FmtVerbose(today.Target)
+		if today.Target > 0 {
+			vm.TargetPct = webui.ClampPct(int(today.Logged * 100 / today.Target))
 		}
+		vm.TargetVar = heuteTargetVariant(today, running != nil)
+		vm.Balance = webui.FmtSaldoVerbose(today.Saldo)
+		vm.BalancePos = today.Saldo >= 0
+
+		// Saldo tile for Heute.
+		vm.TodaySaldo = webui.FmtSaldoVerbose(today.Saldo)
+		vm.TodayPos = today.Saldo >= 0
+		vm.TodaySub = webui.FmtVerbose(today.Logged) + " / " + webui.FmtVerbose(today.Target)
+
+		// Woche saldo: Mon–Fri only (exclude Sat/Sun per the recovered pattern).
+		burndown, _ := s.Stats.Burndown(ctx, u.ID)
+		weekDays, _ := s.Stats.Week(ctx, u.ID, time.Time{})
+		var weekLogged, weekTarget time.Duration
+		for _, wd := range weekDays {
+			if wd.Date.Weekday() == time.Saturday || wd.Date.Weekday() == time.Sunday {
+				continue
+			}
+			weekLogged += wd.Total(now)
+			weekTarget += wd.Target
+		}
+		weekSaldo := weekLogged - weekTarget
+		vm.WeekSaldo = webui.FmtSaldoVerbose(weekSaldo)
+		vm.WeekPos = weekSaldo >= 0
+		vm.WeekSub = webui.FmtVerbose(weekLogged) + " / " + webui.FmtVerbose(weekTarget)
+
+		// Monat saldo + burndown banner.
+		vm.MonthSaldo = webui.FmtSaldoVerbose(burndown.Saldo)
+		vm.MonthPos = burndown.Saldo >= 0
+		vm.MonthSub = webui.FmtVerbose(burndown.Total) + " / " + webui.FmtVerbose(burndown.Target)
+		vm.Burndown = burndownBannerVM(burndown)
 	}
 
 	return vm, nil

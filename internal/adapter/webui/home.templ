@@ -41,6 +41,14 @@ templ HomeFragment(vm HomeVM) {
 			@homeStartCard(vm)
 		}
 	</section>
+	<section class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
+		@statsSaldoTile("stats.tileToday", vm.TodaySaldo, vm.TodayPos, vm.TodaySub)
+		@statsSaldoTile("stats.tileWeek", vm.WeekSaldo, vm.WeekPos, vm.WeekSub)
+		@statsSaldoTile("stats.tileMonth", vm.MonthSaldo, vm.MonthPos, vm.MonthSub)
+	</section>
+	<section class="mt-5 md:mt-6">
+		@components.BurndownBanner(vm.Burndown)
+	</section>
 	<div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
 		@homeSectionLink("/zeit", "nav.zeit", "home.section.zeit.desc")
 		@homeSectionLink("/wissen", "nav.wissen", "home.section.wissen.desc")
