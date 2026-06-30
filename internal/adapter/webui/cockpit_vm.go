@@ -70,13 +70,12 @@ type NodeCockpit struct {
 	Timer    CockpitTimer
 	// active tab + its data (only the active tab's slice is populated)
 	ActiveTab   string                  // worktime|wissen|struktur|bindings
-	Sessions    []domain.WorkSession    // worktime: own sessions, newest first
+	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
 	Docs        []domain.Document       // wissen
 	Children    []NodeChild             // struktur
 	MoveTargets []domain.Node           // struktur reparent
 	Bindings    []domain.ProjectBinding // bindings
 	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
-	SessionRows []CockpitSessionRow      // worktime: precomputed display rows, newest first
 }
 
 // CockpitTabs is the fixed tab order/keys for the strip.

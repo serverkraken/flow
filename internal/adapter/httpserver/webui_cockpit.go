@@ -115,7 +115,6 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 				out = append(out, all[i])
 			}
 		}
-		d.Sessions = out
 		d.SessionRows = webui.BuildCockpitSessionRows(out, now)
 	case "wissen":
 		nid := d.N.ID
