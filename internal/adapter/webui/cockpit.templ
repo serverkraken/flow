@@ -189,6 +189,20 @@ templ cockpitPanel(d NodeCockpit) {
 				</ul>
 				<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
 			}
+		case "wissen":
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.wissen.title") }</h2>
+				<a href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false" class="text-[.8rem] font-semibold rounded-xl bg-cyan/[.12] text-cyan border border-cyan/25 px-3 py-1.5">+ { components.T(ctx, "cockpit.wissen.add") }</a>
+			</div>
+			if len(d.Docs) == 0 {
+				<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wissen.empty") }</p>
+			} else {
+				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
+					for _, doc := range d.Docs {
+						<li class="px-4 py-2.5 text-sm"><a href={ templ.SafeURL("/wissen/" + doc.ID) } class="hover:text-cyan">{ doc.Title }</a></li>
+					}
+				</ul>
+			}
 		default:
 			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
 	}

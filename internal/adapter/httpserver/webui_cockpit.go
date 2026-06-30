@@ -116,7 +116,9 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 		}
 		d.Sessions = out
 		d.SessionRows = webui.BuildCockpitSessionRows(out, now)
-	// case "wissen":   Task 6
+	case "wissen":
+		nid := d.N.ID
+		d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &nid, nil)
 	// case "struktur": Task 7
 	// case "bindings": Task 8
 	}

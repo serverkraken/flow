@@ -312,6 +312,39 @@ func TestCockpitTab_BindingsNoSSEReload(t *testing.T) {
 	}
 }
 
+func TestCockpitWissen_ListsNodeDocs(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nid := "n1"
+	doc := domain.Document{
+		ID:        "d1",
+		OwnerID:   "u1",
+		NodeID:    &nid,
+		Type:      domain.DocFree,
+		Path:      "architektur",
+		Title:     "Architektur",
+		Body:      "# A",
+		CreatedAt: c.clk.Now(),
+		UpdatedAt: c.clk.Now(),
+	}
+	_, _ = c.ds.Create(context.Background(), doc)
+
+	rec := c.do(t, "GET", "/nodes/n1/tab/wissen", nil)
+	body := rec.Body.String()
+	if !strings.Contains(body, "Architektur") || !strings.Contains(body, "/wissen/neu?node=n1") {
+		t.Errorf("wissen panel missing doc / scoped-new link: %.300s", body)
+	}
+}
+
+func TestEditorNew_PrescopesNode(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	rec := c.do(t, "GET", "/wissen/neu?node=n1", nil)
+	if rec.Code == http.StatusOK && !strings.Contains(rec.Body.String(), "n1") {
+		t.Errorf("new editor did not pre-scope node n1")
+	}
+}
+
 func TestCockpitSwitch_StopsOtherStartsHere(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo})
