@@ -137,7 +137,7 @@ templ sgTokenSwatches() {
 
 templ sgSwatch(token string) {
 	<div>
-		<div class="h-8 rounded-lg" style={ "background-color: rgb(var(--" + token + "))" }></div>
+		<div class="h-8 rounded-lg border border-line" style={ "background-color: rgb(var(--" + token + "))" } aria-hidden="true"></div>
 		<p class="text-xs text-center mt-1 text-muted">{ token }</p>
 	</div>
 }
