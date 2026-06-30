@@ -361,3 +361,28 @@ func TestCockpitSwitch_StopsOtherStartsHere(t *testing.T) {
 		t.Fatalf("after switch expected running on n1, got ok=%v rs=%+v", ok, rs)
 	}
 }
+
+func TestCockpitStruktur_ListsChildrenAndMove(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "p1", OwnerID: "u1", Name: "Plattform", Kind: domain.KindVorhaben})
+	pp := "p1"
+	c.seedNode(t, domain.Node{ID: "c1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &pp})
+
+	rec := c.do(t, "GET", "/nodes/p1/tab/struktur", nil)
+	body := rec.Body.String()
+	if !strings.Contains(body, "flow") || !strings.Contains(body, "/nodes/p1/move") {
+		t.Errorf("struktur panel missing child / move form: %.300s", body)
+	}
+	if !strings.Contains(body, "/nodes/new?parent=p1") {
+		t.Errorf("struktur panel missing add-child link")
+	}
+}
+
+func TestNodeNew_PrefillsParent(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "p1", OwnerID: "u1", Name: "Plattform", Kind: domain.KindVorhaben})
+	rec := c.do(t, "GET", "/nodes/new?parent=p1", nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "p1") {
+		t.Errorf("new-node form did not prefill parent p1 (status %d)", rec.Code)
+	}
+}

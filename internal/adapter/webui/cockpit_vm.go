@@ -144,6 +144,10 @@ func NormalizeTab(tab string) string {
 	return "worktime"
 }
 
+// FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
+// Exported so the httpserver adapter can format child worktime totals.
+func FmtDurHMExport(d time.Duration) string { return fmtDurHM(d) }
+
 // fmtDurHM renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
 func fmtDurHM(d time.Duration) string {
 	m := int(d.Minutes())

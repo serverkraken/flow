@@ -119,7 +119,18 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 	case "wissen":
 		nid := d.N.ID
 		d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &nid, nil)
-	// case "struktur": Task 7
+	case "struktur":
+		all, _ := s.ListNodes.Execute(r.Context(), u.ID)
+		for _, n := range all {
+			if n.ParentID != nil && *n.ParentID == d.N.ID {
+				label := ""
+				if roll, err := s.Stats.NodeStats(r.Context(), u.ID, n.ID); err == nil && roll.Total > 0 {
+					label = webui.FmtDurHMExport(roll.Total)
+				}
+				d.Children = append(d.Children, webui.NodeChild{N: n, Total: label})
+			}
+		}
+		d.MoveTargets = webui.MoveTargetsFor(all, d.N)
 	// case "bindings": Task 8
 	}
 }

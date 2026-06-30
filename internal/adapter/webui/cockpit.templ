@@ -203,6 +203,30 @@ templ cockpitPanel(d NodeCockpit) {
 					}
 				</ul>
 			}
+		case "struktur":
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.struktur.title") }</h2>
+				<a href={ templ.SafeURL("/nodes/new?parent=" + d.N.ID) } hx-boost="false" class="text-[.8rem] font-semibold rounded-xl bg-cyan/[.12] text-cyan border border-cyan/25 px-3 py-1.5">+ { components.T(ctx, "cockpit.struktur.add") }</a>
+			</div>
+			if len(d.Children) == 0 {
+				<p class="text-sm text-faint mb-6">{ components.T(ctx, "cockpit.struktur.empty") }</p>
+			} else {
+				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface mb-6">
+					for _, ch := range d.Children {
+						<li class="px-4 py-2.5 text-sm flex items-center justify-between">
+							<a href={ templ.SafeURL("/nodes/" + ch.N.ID) } class="flex items-center gap-2 hover:text-cyan">
+								@nodeKindBadge(ch.N.Kind)
+								{ ch.N.Name }
+							</a>
+							if ch.Total != "" {
+								<span class="text-[.72rem] text-muted tnum">{ ch.Total }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+			@cockpitMoveForm(d)
+			@cockpitStatusForm(d)
 		default:
 			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
 	}
@@ -222,4 +246,41 @@ templ cockpitSessionRow(row CockpitSessionRow) {
 			<span class="ml-auto font-mono tnum text-muted">{ row.Dur }</span>
 		}
 	</li>
+}
+
+// cockpitMoveForm renders the reparent form (ported from the deleted nodeMoveForm).
+// Posts to the existing POST /nodes/{id}/move handler (full-page redirect — no htmx swap).
+templ cockpitMoveForm(d NodeCockpit) {
+	<div class="mb-4">
+		<h3 class="text-sm font-semibold text-ink mb-2">{ components.T(ctx, "cockpit.struktur.move") }</h3>
+		<form method="post" action={ templ.SafeURL("/nodes/" + d.N.ID + "/move") } hx-boost="false" class="flex flex-wrap items-end gap-2">
+			<select name="parentId" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+				<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+				for _, p := range d.MoveTargets {
+					if d.N.ParentID != nil && *d.N.ParentID == p.ID {
+						<option value={ p.ID } selected>{ p.Name }</option>
+					} else {
+						<option value={ p.ID }>{ p.Name }</option>
+					}
+				}
+			</select>
+			@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.struktur.move"), "→", templ.Attributes{"type": "submit"})
+		</form>
+	</div>
+}
+
+// cockpitStatusForm renders the status toggle form.
+// Posts to the existing POST /nodes/{id}/status handler (full-page redirect — no htmx swap).
+templ cockpitStatusForm(d NodeCockpit) {
+	<div>
+		<h3 class="text-sm font-semibold text-ink mb-2">{ components.T(ctx, "cockpit.struktur.status") }</h3>
+		<form method="post" action={ templ.SafeURL("/nodes/" + d.N.ID + "/status") } hx-boost="false" class="flex flex-wrap items-end gap-2">
+			<select name="status" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+				@nodeStatusOption("active", "node.status.active", string(d.N.Status))
+				@nodeStatusOption("paused", "node.status.paused", string(d.N.Status))
+				@nodeStatusOption("archived", "node.status.archived", string(d.N.Status))
+			</select>
+			@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.struktur.status"), "✓", templ.Attributes{"type": "submit"})
+		</form>
+	</div>
 }

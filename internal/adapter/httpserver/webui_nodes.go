@@ -131,10 +131,18 @@ func i18nT(r *http.Request, key string) string { return i18n.T(r.Context(), key)
 
 func (s *Server) handleWebNodeNew(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
+	kind := r.URL.Query().Get("kind")
+	if kind == "" {
+		kind = "engagement"
+	}
+	vals := webui.NodeFormValues{Kind: kind, Status: "active"}
+	if parentID := r.URL.Query().Get("parent"); parentID != "" {
+		vals.ParentID = parentID
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NodeForm(webui.NodeFormData{
 		User:    u.Username,
-		Vals:    webui.NodeFormValues{Kind: "engagement", Status: "active"},
+		Vals:    vals,
 		Parents: s.nodeParents(r, u),
 	}, nil).Render(r.Context(), w)
 }
