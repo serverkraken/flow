@@ -541,8 +541,9 @@ func TestWebNodesList_MultipleStatusFilters(t *testing.T) {
 	}
 }
 
-// TestWebNodeCockpit_WithGitUpstream exercises nodeCockpitBody branches
-// including the gitDisplay path (when UpstreamGit is set).
+// TestWebNodeCockpit_WithGitUpstream exercises the cockpit head for a node
+// with an UpstreamGit field set. Git display is shown in a later task's tab;
+// Task 2 verifies the node name and cockpit shell render without panic.
 func TestWebNodeCockpit_WithGitUpstream(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
@@ -558,9 +559,8 @@ func TestWebNodeCockpit_WithGitUpstream(t *testing.T) {
 	if !strings.Contains(body, "GitProject") {
 		t.Errorf("cockpit missing project name")
 	}
-	// gitDisplay branch: upstream git URL must appear.
-	if !strings.Contains(body, "github.com") {
-		t.Errorf("cockpit missing git upstream display")
+	if !strings.Contains(body, `id="cockpit-head"`) {
+		t.Errorf("cockpit missing cockpit-head div")
 	}
 }
 
@@ -663,6 +663,7 @@ func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 		Session: codec,
 		Bus:     bus,
 		Clock:   clk,
+		Emitter: sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
 		Ensure: usecase.EnsureUser{
 			Users: users,
 			IDs:   ids,
@@ -676,8 +677,15 @@ func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 		SetNodeRate:       usecase.SetNodeRate{Nodes: ps},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ps},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		GetRunningSession: usecase.GetRunningSession{Sessions: ss},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
+		Stats: usecase.StatsComputer{
+			Sessions: ss,
+			Nodes:    ps,
+			Clock:    clk,
+			Loc:      time.UTC,
+		},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()

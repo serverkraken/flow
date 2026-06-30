@@ -1,0 +1,132 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// NodeView is the full cockpit page.
+templ NodeView(d NodeCockpit) {
+	@components.Base("projekte", nodeCockpitShell(d))
+}
+
+templ nodeCockpitShell(d NodeCockpit) {
+	@components.AppShell("projekte", nodeBreadcrumb(d), nil, cockpitBody(d))
+}
+
+templ nodeBreadcrumb(d NodeCockpit) {
+	@components.Breadcrumb(nodeCrumbs(d))
+}
+
+templ cockpitBody(d NodeCockpit) {
+	// head reloads on timer/struct events; never resets the active tab.
+	<div
+		id="cockpit-head"
+		hx-get={ "/nodes/" + d.N.ID + "/head" }
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:node.updated, sse:node.moved"
+		hx-swap="innerHTML"
+	>
+		@NodeHead(d)
+	</div>
+	// main = tabstrip + panel; tab clicks swap this whole block (keeps active state).
+	<div id="cockpit-main" class="mt-6">
+		@cockpitTabsAndPanel(d)
+	</div>
+}
+
+// NodeHead is the persistent glass head: identity, rate, rollup, timer.
+templ NodeHead(d NodeCockpit) {
+	<section class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift">
+		<span class={ "absolute inset-y-0 left-0 w-1", cockpitAccent(d.N.Color) } aria-hidden="true"></span>
+		<div class="relative p-6 sm:p-8">
+			<div class="flex items-start justify-between gap-5 flex-wrap">
+				<div class="flex items-center gap-4 min-w-0">
+					@cockpitHex(d.N)
+					<div class="min-w-0">
+						<h1 class="font-display text-2xl sm:text-3xl font-semibold leading-tight truncate">{ d.N.Name }</h1>
+						<div class="mt-2 flex items-center gap-2 flex-wrap text-sm">
+							@nodeKindBadge(d.N.Kind)
+							@nodeStatusBadge(d.N.Status)
+							if d.Rate != "" {
+								<span class="text-muted">· { d.Rate } <span class="text-faint">({ components.T(ctx, "cockpit.rollup.rateInherited") })</span></span>
+							}
+						</div>
+					</div>
+				</div>
+				@cockpitTimer(d)
+			</div>
+			@cockpitRollup(d)
+		</div>
+	</section>
+}
+
+// cockpitTimer is replaced with full Start/Stop/Switch markup in Task 3.
+// For Task 2 it renders the state read-only (no buttons).
+templ cockpitTimer(d NodeCockpit) {
+	switch d.Timer.State {
+		case TimerHere:
+			<div class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3">
+				<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) }>{ fmtSecsClock(d.Timer.RunningBase) }</div>
+			</div>
+		case TimerOtherBound:
+			<a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.runningOn") } { d.Timer.OtherName } →</a>
+		case TimerNotBookable:
+			<span class="text-sm text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
+		default:
+	}
+}
+
+templ cockpitRollup(d NodeCockpit) {
+	<div class="mt-6 flex gap-3 flex-wrap">
+		@cockpitTile("cockpit.rollup.total", fmtDurHM(d.Rollup.Total), components.T(ctx, "cockpit.rollup.inclChildren"), false)
+		@cockpitTile("cockpit.rollup.week", fmtDurHM(d.Rollup.Week), "", false)
+		@cockpitTile("cockpit.rollup.month", fmtDurHM(d.Rollup.Month), "", false)
+		if d.Earnings != "" {
+			@cockpitTile("cockpit.rollup.earnings", d.Earnings, "", true)
+		}
+	</div>
+}
+
+templ cockpitTile(labelKey, value, sub string, earn bool) {
+	<div class={ "flex-1 min-w-[8rem] rounded-2xl border px-4 py-3", templ.KV("bg-sunken/40 border-line", !earn), templ.KV("bg-green/[.10] border-green/25", earn) }>
+		<div class="eyebrow uppercase text-[.66rem] tracking-wide text-faint">{ components.T(ctx, labelKey) }</div>
+		<div class={ "mt-1 text-xl font-semibold tnum", templ.KV("text-ink", !earn), templ.KV("text-green", earn) }>{ value }</div>
+		if sub != "" {
+			<div class="mt-0.5 text-[.66rem] text-muted">{ sub }</div>
+		}
+	</div>
+}
+
+// cockpitHex renders the node's hex identity glyph tile.
+templ cockpitHex(n domain.Node) {
+	<span class={ "grid place-items-center h-11 w-11 rounded-xl text-lg shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">{ glyphOrDefault(n.Glyph) }</span>
+}
+
+// cockpitTabsAndPanel is the swappable tab area. Panels are stubbed here and
+// filled by Tasks 5–8; Task 4 wires the real tab navigation + SSE.
+templ cockpitTabsAndPanel(d NodeCockpit) {
+	<nav class="flex gap-1 border-b border-line2">
+		for _, t := range CockpitTabs {
+			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.ActiveTab == t.Key)
+		}
+	</nav>
+	<div id="cockpit-panel" class="pt-6">
+		@cockpitPanel(d)
+	</div>
+}
+
+templ cockpitTabLink(id, key, labelKey string, active bool) {
+	<a
+		class={ "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px",
+			templ.KV("text-cyan border-cyan", active),
+			templ.KV("text-muted border-transparent hover:text-body", !active) }
+	>{ components.T(ctx, labelKey) }</a>
+}
+
+// cockpitPanel switches on the active tab. Stubs until Tasks 5–8.
+templ cockpitPanel(d NodeCockpit) {
+	switch d.ActiveTab {
+		default:
+			<p class="text-sm text-faint">{ components.T(ctx, "node.none") }</p>
+	}
+}

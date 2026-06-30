@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -350,99 +349,3 @@ func (s *Server) handleWebNodeMove(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
-// ---------------------------------------------------------------------------
-// Node cockpit (GET /nodes/{id})
-// ---------------------------------------------------------------------------
-
-// startOfWeek returns the Monday 00:00:00 of the week containing t (local).
-func startOfWeek(t time.Time) time.Time {
-	wd := int(t.Weekday())
-	if wd == 0 {
-		wd = 7 // Sunday → 7
-	}
-	return time.Date(t.Year(), t.Month(), t.Day()-wd+1, 0, 0, 0, 0, t.Location())
-}
-
-// startOfMonth returns the first day of the month containing t (local).
-func startOfMonth(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
-}
-
-// nodeWorktime aggregates a node's sessions into total/week/month hour counts
-// and computes the earnings string when n.Rate != nil.
-// Sessions are fetched for the full lifetime (year 2000 to now+1d) and
-// filtered in-process by NodeID to avoid a new backend usecase.
-func (s *Server) nodeWorktime(r *http.Request, u domain.User, n domain.Node) (totalH, weekH, monthH float64, earnings string) {
-	ctx := r.Context()
-	now := s.Clock.Now()
-	since := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	sessions, err := s.ListSessionsRange.Execute(ctx, u.ID, since, now.AddDate(0, 0, 1))
-	if err != nil {
-		return
-	}
-	weekStart := startOfWeek(now.Local())
-	monthStart := startOfMonth(now.Local())
-	var totalDur, weekDur, monthDur time.Duration
-	for _, sess := range sessions {
-		if sess.NodeID == nil || *sess.NodeID != n.ID || sess.Running() {
-			continue
-		}
-		d := sess.Elapsed(now)
-		totalDur += d
-		if !sess.Start.Before(weekStart) {
-			weekDur += d
-		}
-		if !sess.Start.Before(monthStart) {
-			monthDur += d
-		}
-	}
-	totalH, weekH, monthH = totalDur.Hours(), weekDur.Hours(), monthDur.Hours()
-	if n.Rate != nil {
-		amt := n.Rate.Mul(totalDur)
-		earnings = amt.String()
-	}
-	return
-}
-
-// nodeCockpitData assembles the full cockpit view model: node, ancestors,
-// rendered description, per-node worktime aggregate, scoped docs, and bindings.
-func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (webui.NodeCockpit, error) {
-	n, err := s.GetNode.Execute(r.Context(), u.ID, id)
-	if err != nil {
-		return webui.NodeCockpit{}, err
-	}
-	d := webui.NodeCockpit{User: u.Username, N: n}
-	// Ancestor chain (leaf→root); used by nodeBreadcrumb in the template.
-	d.Ancestors, _ = s.NodeAncestors.Execute(r.Context(), u.ID, n.ID)
-	// Description: render markdown; wikilinks resolve to nothing for the cockpit.
-	if n.Description != "" {
-		d.DescriptionHTML = webui.RenderDocument(n.Description, func(string) (string, string, bool) { return "", "", false })
-	}
-	// Worktime aggregate.
-	d.TotalHours, d.WeekHours, d.MonthHours, d.Earnings = s.nodeWorktime(r, u, n)
-	// Node-scoped documents.
-	nid := n.ID
-	d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &nid, nil)
-	// Bindings (read-only).
-	d.Bindings, _ = s.ListNodeBindings.ExecuteByProject(r.Context(), u.ID, n.ID)
-	// Move targets for the inline reparent form.
-	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
-	d.MoveTargets = webui.MoveTargetsFor(all, n)
-	return d, nil
-}
-
-// handleWebNodeView serves GET /nodes/{id}: the read-only node cockpit.
-func (s *Server) handleWebNodeView(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
-	if errors.Is(err, ports.ErrNodeNotFound) {
-		http.Error(w, "not found", http.StatusNotFound)
-		return
-	}
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodeView(d).Render(r.Context(), w)
-}
