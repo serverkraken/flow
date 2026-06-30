@@ -1298,7 +1298,7 @@ func (s *Server) renderNodePanel(w http.ResponseWriter, r *http.Request, u domai
 				<p class="mb-3 rounded-xl bg-red/10 text-red px-3 py-2 text-[.82rem]" role="alert">{ d.PanelErr }</p>
 			}
 			<form id="nb-form" class="hidden mb-4 flex flex-wrap items-end gap-2 rounded-2xl border border-line bg-sunken/30 p-3"
-				hx-post={ "/nodes/" + d.N.ID + "/sessions" } hx-target="#cockpit-panel" hx-swap="innerHTML">
+				hx-post={ "/nodes/" + d.N.ID + "/sessions" } hx-target="#cockpit-main" hx-swap="innerHTML">
 				<input type="date" name="date" class="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
 				<input name="from" placeholder="09:00" class="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
 				<input name="to" placeholder="11:00" class="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"/>
@@ -1628,7 +1628,7 @@ func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
 					for _, b := range d.Bindings {
 						<li class="px-4 py-2.5 text-sm flex items-center justify-between gap-3">
 							<span class="font-mono text-[.8rem] text-body truncate">{ string(b.Kind) }: { bindingTarget(b) }</span>
-							<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-panel" hx-swap="innerHTML">
+							<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-main" hx-swap="innerHTML">
 								<input type="hidden" name="kind" value={ string(b.Kind) }/>
 								<input type="hidden" name="slug" value={ b.RemoteSlug }/>
 								<input type="hidden" name="machine" value={ b.MachineID }/>
@@ -1640,7 +1640,7 @@ func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
 				</ul>
 			}
 			if d.N.Kind == domain.KindRepo {
-				<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-panel" hx-swap="innerHTML" class="flex items-end gap-2">
+				<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-main" hx-swap="innerHTML" class="flex items-end gap-2">
 					<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-mono"/>
 					@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.bindings.addRemote"), "+", templ.Attributes{"type": "submit"})
 				</form>
