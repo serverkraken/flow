@@ -18,7 +18,7 @@
 - After **every** `.templ` change: `make generate` (`go tool templ generate`) and commit the regenerated `*_templ.go`. `make ci` runs `verify-generate` and will fail otherwise.
 - After adding **any** new Tailwind utility class used in templ: `make web` (rebuild `internal/adapter/webui/static/app.css`) and commit it. `make ci` runs `verify-css` and will fail otherwise.
 - **No browser popups**: `make ci` runs `verify-no-popups` (greps for `window.alert/confirm/prompt`). The "Wechseln" confirm MUST be an inline DOM confirm (a two-step button / a revealed confirm row), never `window.confirm`.
-- `make ci` (gate: **75%** line coverage, `-coverpkg=./internal/...`) green per task. Commit frequently.
+- `make ci` (gate: **75%** line coverage, `-coverpkg=./internal/...`) green per task. Commit frequently. **Generated `*_templ.go` files are EXCLUDED from the gate** (`coverage-gate.sh` filters them) — so write REAL output-asserting handler/render tests (assert the produced HTML) to cover new code; NEVER add no-assertion render calls just to chase templ-generated lines (that padding was removed in Task 5).
 - i18n parity: every new `cockpit.*` key exists in BOTH `internal/i18n/catalog_de.go` and `internal/i18n/catalog_en.go`.
 - Copy stays terse/lowercase to match existing fragments. No emoji pictograms — monospace glyphs (▶ ■ ◆ ⬡ ›) only.
 
