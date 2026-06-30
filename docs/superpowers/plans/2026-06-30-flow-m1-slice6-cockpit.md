@@ -438,7 +438,7 @@ templ cockpitTimer(d NodeCockpit) {
 	switch d.Timer.State {
 		case TimerHere:
 			<div class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3">
-				<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) }>{ webui_fmtSecs(d.Timer.RunningBase) }</div>
+				<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) }>{ fmtSecsClock(d.Timer.RunningBase) }</div>
 			</div>
 		case TimerOtherBound:
 			<a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.runningOn") } { d.Timer.OtherName } →</a>
@@ -512,9 +512,9 @@ func fmtDurHM(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
 }
 
-// webui_fmtSecs renders integer seconds as the initial clock text (overwritten
+// fmtSecsClock renders integer seconds as the initial clock text (overwritten
 // by the live-timer JS on bind). Format mirrors the [data-timer] hero output.
-func webui_fmtSecs(sec int) string {
+func fmtSecsClock(sec int) string {
 	return fmt.Sprintf("%dh %02dm %02ds", sec/3600, (sec%3600)/60, sec%60)
 }
 ```
@@ -611,7 +611,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id, activeTab s
 }
 
 // nodeNameLookup returns a closure mapping node id → name (for "running on Y").
-func (s *Server) nodeNameLookup(ctx contextContext, ownerID string) func(string) string {
+func (s *Server) nodeNameLookup(ctx context.Context, ownerID string) func(string) string {
 	all, _ := s.ListNodes.Execute(ctx, ownerID)
 	m := make(map[string]string, len(all))
 	for _, n := range all {
@@ -653,7 +653,7 @@ func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-> `contextContext` above is a placeholder typo guard — use `context.Context` and add `"context"` to imports. (Stated explicitly so the implementer wires the real type, not a literal.)
+> Add `"context"` to the import block for `nodeNameLookup`'s signature.
 > `rateLabel` exists (used in `homeDataFor`). `RenderDocument` exists (used by the old `nodeCockpitData`).
 
 - [ ] **Step 10: Register routes** — `internal/adapter/httpserver/server.go`, in the `/nodes/{id}` block (`:253`)
@@ -991,7 +991,7 @@ templ cockpitTimer(d NodeCockpit) {
 		case TimerHere:
 			<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-head" hx-swap="innerHTML" class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3 flex items-center gap-4">
 				<div>
-					<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) } role="timer">{ webui_fmtSecs(d.Timer.RunningBase) }</div>
+					<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtSecsClock(d.Timer.RunningBase) }</div>
 				</div>
 				@components.Button(components.BtnDanger, components.T(ctx, "cockpit.timer.stop"), "■", templ.Attributes{"type": "submit"})
 			</form>
@@ -1757,7 +1757,7 @@ git commit -m "fix(cockpit): done-gate + holistic-review follow-ups"
 - §12 i18n cockpit.* → Task 1. ✓
 - §13 testing & done-gate (TDD per handler, pure VM tests, make ci+web, live, opus review, wiring audit) → every task + Task 10. ✓
 
-**Placeholder scan:** Two intentional, explicitly-flagged reads remain (NOT silent placeholders): the bookable-guard sentinel name in Task 3 (test pins the 400 contract), and fake-store constructor/usecase-field names in Task 2's harness (the authoritative template `newWorktimeTestServer` is cited). The `contextContext` token in Task 2 Step 9 is called out in prose as a deliberate "use the real `context.Context`" marker. No "TBD"/"add error handling"/"similar to Task N" for code.
+**Placeholder scan:** Two intentional, explicitly-flagged reads remain (NOT silent placeholders): the bookable-guard sentinel name in Task 3 (test pins the 400 contract), and fake-store constructor/usecase-field names in Task 2's harness (the authoritative template `newWorktimeTestServer` is cited). No "TBD"/"add error handling"/"similar to Task N" for code. (Pre-flight fixes: non-idiomatic `webui_fmtSecs`→`fmtSecsClock`; `context.Context` typo corrected.)
 
 **Type consistency:** `NodeCockpit` fields, `CockpitTimer`/`CockpitTimerState`, `NodeTimer(...)`, `NormalizeTab`, `cockpitPanelSSE`, `fillPanelData`, `renderNodeHead`/`renderNodePanel`, `CockpitTabsAndPanel` (exported) used consistently across tasks. One rename is flagged in-place: the inline-error field `BindErr` → `PanelErr` (Task 5 introduces the generic name; Tasks 5 and 8 both use `d.PanelErr`). `fmtDurHM` is exported once (`FmtDurHMExport`) and reused by handler + templ.
 
