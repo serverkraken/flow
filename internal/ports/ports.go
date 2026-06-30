@@ -270,6 +270,15 @@ type ProjectBindingStore interface {
 	ListByProject(ctx context.Context, ownerID, projectID string) ([]domain.ProjectBinding, error)
 }
 
+// ActivityStore persists and queries the owner-scoped activity log.
+type ActivityStore interface {
+	Append(ctx context.Context, e domain.ActivityEntry) error
+	// ListPage returns one page newest-first plus the total matching the
+	// owner/class/actor filter. `classes` matches kind prefixes (e.g. "session",
+	// "document"); empty = all. `actorRef` nil = any actor.
+	ListPage(ctx context.Context, ownerID string, classes []string, actorRef *string, limit, offset int) (items []domain.ActivityEntry, total int, err error)
+}
+
 // Editor opens an interactive editor on initial content and returns the
 // edited bytes. Used by the TUI for document bodies.
 type Editor interface {
