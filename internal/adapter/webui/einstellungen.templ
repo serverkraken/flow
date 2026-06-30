@@ -1,0 +1,57 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+templ EinstellungenPage(vm EinstellungenVM) {
+	@components.Base("einstellungen", einstellungenBody(vm))
+}
+
+templ einstellungenBody(vm EinstellungenVM) {
+	@components.AppShell("einstellungen", nil, nil, einstellungenContent(vm))
+}
+
+templ einstellungenContent(vm EinstellungenVM) {
+	<div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 md:mb-6">
+		<div>
+			<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "nav.settings") }</h1>
+		</div>
+	</div>
+	<div id="einstellungen-target">
+		@EinstellungenTargetFragment(vm)
+	</div>
+}
+
+// EinstellungenTargetFragment is the Tagesziel editor card. It is re-rendered
+// after every POST /ui/einstellungen/target and swapped into #einstellungen-target.
+templ EinstellungenTargetFragment(vm EinstellungenVM) {
+	if vm.Err != "" {
+		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+	}
+	@components.Card("", einstellungenTargetBody(vm))
+}
+
+templ einstellungenTargetBody(vm EinstellungenVM) {
+	<h2 class="font-display text-lg font-semibold mb-4">{ components.T(ctx, "stats.targetConfig") }</h2>
+	<form hx-post="/ui/einstellungen/target" hx-target="#einstellungen-target" hx-swap="innerHTML" class="space-y-5">
+		<label class="block">
+			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "stats.defaultTarget") }</span>
+			<input type="number" name="defaultTargetMin" value={ vm.DefaultTarget } min="0" max="1440" inputmode="numeric"
+				class="mt-1 w-32 rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+		</label>
+		<div>
+			<p class="eyebrow uppercase text-[.68rem] font-semibold text-muted mb-2">{ components.T(ctx, "stats.weekdayOverrides") } <span class="text-faint normal-case font-normal">· { components.T(ctx, "stats.weekdayHint") }</span></p>
+			<div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+				for _, wd := range vm.Weekdays {
+					<label class="block">
+						<span class="text-[.74rem] font-semibold text-body">{ wd.Label }</span>
+						<input type="number" name={ wd.Name } value={ wd.Value } min="0" max="1440" inputmode="numeric"
+							class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+					</label>
+				}
+			</div>
+		</div>
+		<div class="flex justify-end">
+			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
+		</div>
+	</form>
+}
