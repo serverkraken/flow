@@ -89,6 +89,9 @@ type Server struct {
 	SetArchived       usecase.SetArchived
 	ListArchived      usecase.ListArchived
 
+	// activity feed (Task 5)
+	ListActivity usecase.ListActivity
+
 	// idempotent upsert by path (B3d Task 7)
 	UpsertDocumentByPath usecase.UpsertDocumentByPath
 
@@ -172,6 +175,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
 	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))
 	mux.Handle("POST /api/v1/documents/{id}/archive", s.auth(http.HandlerFunc(s.handleArchiveDocument)))
+
+	mux.Handle("GET /api/v1/activity", s.auth(http.HandlerFunc(s.handleListActivity)))
 
 	// WebUI auth routes (handlers in webauth.go, Task 5)
 	mux.HandleFunc("GET /auth/login", s.handleLogin)
