@@ -13,7 +13,7 @@ import (
 // would miss it. Elapsed per session is Stop-Start for finished sessions and
 // now-Start for the running one (its live tail thus lands in today's Total).
 // Target is filled per day via targetFor. Records are returned chronologically.
-func BuildDayRecords(sessions []WorkSession, now time.Time, targetFor func(time.Time) time.Duration) []DayRecord {
+func BuildDayRecords(sessions []WorkSession, now time.Time, targetFor func(time.Time) time.Duration, countsToward func(*string) bool) []DayRecord {
 	loc := now.Location()
 	byDay := map[string]*DayRecord{}
 	for _, s := range sessions {
@@ -30,6 +30,9 @@ func BuildDayRecords(sessions []WorkSession, now time.Time, targetFor func(time.
 			byDay[key] = rec
 		}
 		rec.Total += el
+		if countsToward(s.NodeID) {
+			rec.TargetTotal += el
+		}
 		rec.Sessions = append(rec.Sessions, RecordSession{Tags: s.Tags, Elapsed: el})
 	}
 	out := make([]DayRecord, 0, len(byDay))

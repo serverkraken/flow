@@ -21,7 +21,7 @@ func TestBuildDayRecords_GroupsAndSumsPerDay(t *testing.T) {
 		{ID: "c", Start: time.Date(2026, 6, 15, 13, 0, 0, 0, loc), Stop: nil, Tags: []string{"meeting"}},
 	}
 
-	recs := domain.BuildDayRecords(sessions, now, target)
+	recs := domain.BuildDayRecords(sessions, now, target, func(*string) bool { return true })
 	if len(recs) != 2 {
 		t.Fatalf("want 2 day records, got %d", len(recs))
 	}
@@ -46,8 +46,37 @@ func TestBuildDayRecords_GroupsAndSumsPerDay(t *testing.T) {
 }
 
 func TestBuildDayRecords_Empty(t *testing.T) {
-	if r := domain.BuildDayRecords(nil, time.Now(), func(time.Time) time.Duration { return 0 }); len(r) != 0 {
+	if r := domain.BuildDayRecords(nil, time.Now(), func(time.Time) time.Duration { return 0 }, func(*string) bool { return true }); len(r) != 0 {
 		t.Errorf("want empty, got %d", len(r))
+	}
+}
+
+func ptrStr(s string) *string { return &s }
+
+func TestBuildDayRecords_TargetTotal(t *testing.T) {
+	loc := time.UTC
+	now := time.Date(2026, 6, 20, 18, 0, 0, 0, loc)
+	target := func(time.Time) time.Duration { return 8 * time.Hour }
+
+	sessions := []domain.WorkSession{
+		{ID: "s1", NodeID: ptrStr("job"), Start: time.Date(2026, 6, 20, 9, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 20, 10, 0, 0, 0, loc))},
+		{ID: "s2", NodeID: ptrStr("priv"), Start: time.Date(2026, 6, 20, 11, 0, 0, 0, loc), Stop: ptr(time.Date(2026, 6, 20, 11, 30, 0, 0, loc))},
+	}
+
+	countsToward := func(id *string) bool { return id != nil && *id == "job" }
+	recs := domain.BuildDayRecords(sessions, now, target, countsToward)
+
+	if len(recs) != 1 {
+		t.Fatalf("want 1 day record, got %d", len(recs))
+	}
+	r := recs[0]
+	wantTotal := 90 * time.Minute
+	if r.Total != wantTotal {
+		t.Errorf("Total: got %v want %v", r.Total, wantTotal)
+	}
+	wantTarget := 60 * time.Minute
+	if r.TargetTotal != wantTarget {
+		t.Errorf("TargetTotal: got %v want %v (only job session)", r.TargetTotal, wantTarget)
 	}
 }
 
@@ -67,7 +96,7 @@ func TestBuildDayRecords_GroupsInNowLocation(t *testing.T) {
 			Start: time.Date(2026, 6, 14, 23, 30, 0, 0, time.UTC),
 			Stop:  ptr(time.Date(2026, 6, 15, 0, 30, 0, 0, time.UTC)), Tags: []string{"late"}},
 	}
-	recs := domain.BuildDayRecords(sessions, now, target)
+	recs := domain.BuildDayRecords(sessions, now, target, func(*string) bool { return true })
 	if len(recs) != 1 {
 		t.Fatalf("want 1 record, got %d", len(recs))
 	}

@@ -81,7 +81,7 @@ func (c StatsComputer) Today(ctx context.Context, ownerID string) (TodaySummary,
 	if err != nil {
 		return TodaySummary{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For)
+	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
 	sum := TodaySummary{Date: from, Target: res.For(from)}
 	for _, r := range recs {
 		if r.Date.Equal(from) {
@@ -114,7 +114,7 @@ func (c StatsComputer) Week(ctx context.Context, ownerID string, ref time.Time) 
 	if err != nil {
 		return nil, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For)
+	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
 	byDay := map[string]domain.DayRecord{}
 	for _, r := range recs {
 		byDay[r.Date.Format("2006-01-02")] = r
@@ -156,7 +156,7 @@ func (c StatsComputer) RangeStats(ctx context.Context, ownerID, rng string) (dom
 	if err != nil {
 		return domain.Stats{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For)
+	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
 	listOffs := func(f, t time.Time) []domain.DayOff {
 		var in []domain.DayOff
 		for _, o := range offs {
@@ -184,7 +184,7 @@ func (c StatsComputer) Burndown(ctx context.Context, ownerID string) (domain.Mon
 	if err != nil {
 		return domain.MonthBurndownReport{}, err
 	}
-	recs := domain.BuildDayRecords(sessions, now, res.For)
+	recs := domain.BuildDayRecords(sessions, now, res.For, func(*string) bool { return true })
 	return domain.MonthBurndownCompute(now, recs, nil, res.IsWorkday, res.For), nil
 }
 

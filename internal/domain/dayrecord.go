@@ -13,10 +13,11 @@ type RecordSession struct {
 
 // DayRecord is one calendar day's history entry used by stats/burndown.
 type DayRecord struct {
-	Date     time.Time
-	Sessions []RecordSession
-	Total    time.Duration
-	Target   time.Duration
+	Date        time.Time
+	Sessions    []RecordSession
+	Total       time.Duration
+	TargetTotal time.Duration
+	Target      time.Duration
 }
 
 // WeekDay is one day in the week view.
