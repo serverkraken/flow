@@ -94,8 +94,7 @@ func styleguideSubnav() templ.Component {
 			{Key: "today", Href: "/", LabelKey: "nav.today"},
 			{Key: "week", Href: "/woche", LabelKey: "nav.week"},
 			{Key: "history", Href: "/historie", LabelKey: "nav.history"},
-			{Key: "stats", Href: "/stats", LabelKey: "nav.stats"},
-			{Key: "frei", Href: "/frei", LabelKey: "nav.dayoffs"},
+			{Key: "frei", Href: "/dayoffs", LabelKey: "nav.dayoffs"},
 		}, "today").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -136,7 +135,7 @@ func styleguideContent() templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "styleguide.subtitle"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 27, Col: 105}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 26, Col: 105}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -149,7 +148,7 @@ func styleguideContent() templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "styleguide.title"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 28, Col: 126}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 27, Col: 126}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -643,7 +642,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: rgb(var(--" + token + "))")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 140, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 139, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -656,7 +655,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(token)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 141, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 140, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {

@@ -3,11 +3,43 @@ package httpserver
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 )
+
+// parseWeekdayTargets reads the five optional Mon–Fri target inputs. An empty
+// input omits that weekday (inherit the default); a non-numeric or negative
+// value is rejected with domain.ErrInvalidTarget.
+func parseWeekdayTargets(form url.Values) (map[time.Weekday]int, error) {
+	fields := []struct {
+		name string
+		wd   time.Weekday
+	}{
+		{"mon", time.Monday},
+		{"tue", time.Tuesday},
+		{"wed", time.Wednesday},
+		{"thu", time.Thursday},
+		{"fri", time.Friday},
+	}
+	out := make(map[time.Weekday]int, len(fields))
+	for _, f := range fields {
+		v := strings.TrimSpace(form.Get(f.name))
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			return nil, domain.ErrInvalidTarget
+		}
+		out[f.wd] = n
+	}
+	return out, nil
+}
 
 func (s *Server) handleWebEinstellungenHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
@@ -24,9 +56,7 @@ func (s *Server) handleWebEinstellungenHome(w http.ResponseWriter, r *http.Reque
 	_ = webui.EinstellungenPage(vm).Render(r.Context(), w)
 }
 
-// handleWebSetTargetEinst handles POST /ui/einstellungen/target. It is a port
-// of handleWebSetTarget from webui_stats.go (which remains on /ui/stats/target
-// until Task 6 removes the Stats page). Handler name differs to avoid collision.
+// handleWebSetTargetEinst handles POST /ui/einstellungen/target.
 func (s *Server) handleWebSetTargetEinst(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()

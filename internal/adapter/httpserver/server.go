@@ -204,10 +204,6 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /ui/dayoffs/regen-token", s.webAuth(http.HandlerFunc(s.handleWebRegenToken)))
 	mux.Handle("POST /ui/dayoffs/bundesland", s.webAuth(http.HandlerFunc(s.handleWebSetBundesland)))
 
-	mux.Handle("GET /stats", s.webAuth(http.HandlerFunc(s.handleWebStatsHome)))
-	mux.Handle("GET /ui/stats/fragment", s.webAuth(http.HandlerFunc(s.handleWebStatsFragment)))
-	mux.Handle("POST /ui/stats/target", s.webAuth(http.HandlerFunc(s.handleWebSetTarget)))
-
 	mux.Handle("GET /einstellungen", s.webAuth(http.HandlerFunc(s.handleWebEinstellungenHome)))
 	mux.Handle("POST /ui/einstellungen/target", s.webAuth(http.HandlerFunc(s.handleWebSetTargetEinst)))
 

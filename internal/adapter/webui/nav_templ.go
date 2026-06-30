@@ -16,7 +16,6 @@ type navLink struct {
 var navLinks = []navLink{
 	{"worktime", "/", "worktime"},
 	{"dayoffs", "/dayoffs", "dayoffs"},
-	{"stats", "/stats", "stats"},
 	{"export", "/export", "export"},
 	{"docs", "/wissen", "wissen"},
 	{"projekte", "/nodes", "projekte"},
@@ -65,7 +64,7 @@ func Nav(active, user string) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 23, Col: 103}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 22, Col: 103}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -92,7 +91,7 @@ func Nav(active, user string) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 25, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 24, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -111,7 +110,7 @@ func Nav(active, user string) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(user)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 29, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/nav.templ`, Line: 28, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {

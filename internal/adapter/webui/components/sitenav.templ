@@ -6,13 +6,12 @@ type NavItem struct {
 	Key, Href, LabelKey, Glyph string
 }
 
-// PrimaryNav is the locked top-level set (spec §16): Heute · Wissen · Projekte · Stats.
+// PrimaryNav is the locked top-level set (spec §16): Heute · Wissen · Projekte.
 func PrimaryNav() []NavItem {
 	return []NavItem{
 		{"today", "/", "nav.today", "▶"},
 		{"docs", "/wissen", "nav.wissen", "◆"},
 		{"projekte", "/nodes", "nav.projects", "●"},
-		{"stats", "/stats", "nav.stats", "▲"},
 	}
 }
 

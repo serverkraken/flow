@@ -495,59 +495,6 @@ func TestWebNodesListWithSessions(t *testing.T) {
 	}
 }
 
-// TestWebStatsSetTarget_HappyPath exercises handleWebSetTarget with a valid
-// defaultTargetMin, covering the happy-path branch that was at 63.2% prior.
-// Uses newWebStatsServer which wires SetTarget.
-func TestWebStatsSetTarget_HappyPath(t *testing.T) {
-	srv, codec, _ := newWebStatsServer(t)
-	ts := httptest.NewServer(srv.Routes())
-	defer ts.Close()
-	cookieVal, _ := codec.Issue("u1")
-
-	// POST a valid target (450 min = 7h 30m).
-	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target",
-		strings.NewReader("defaultTargetMin=450"))
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, _ := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("POST /ui/stats/target status=%d body=%.200s", res.StatusCode, string(b))
-	}
-	// The handler re-renders the stats fragment (not a full page redirect).
-	if strings.Contains(string(b), "<!DOCTYPE") {
-		t.Errorf("set-target response should be a fragment, not a full page")
-	}
-}
-
-// TestWebStatsSetTarget_InvalidInput exercises the 400 path in handleWebSetTarget
-// when defaultTargetMin is non-numeric.
-func TestWebStatsSetTarget_InvalidInput(t *testing.T) {
-	srv, codec, _ := newWebStatsServer(t)
-	ts := httptest.NewServer(srv.Routes())
-	defer ts.Close()
-	cookieVal, _ := codec.Issue("u1")
-
-	req, _ := http.NewRequest("POST", ts.URL+"/ui/stats/target",
-		strings.NewReader("defaultTargetMin=notanumber"))
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = res.Body.Close()
-
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("expected 400 for invalid target input, got %d", res.StatusCode)
-	}
-}
-
 // TestHeuteHome_HitWeekRow seeds exactly 8h on a weekday in the current week
 // to drive heuteBarFill("hit") and heuteDotClass("hit") branches in the
 // heute week-row card.

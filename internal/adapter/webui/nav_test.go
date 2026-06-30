@@ -15,7 +15,7 @@ func TestNavRendersAllLinksIncludingProjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := buf.String()
-	for _, want := range []string{`href="/"`, `href="/dayoffs"`, `href="/stats"`, `href="/export"`, `href="/wissen"`, `href="/nodes"`, "projekte", "msoent", "/auth/logout"} {
+	for _, want := range []string{`href="/"`, `href="/dayoffs"`, `href="/export"`, `href="/wissen"`, `href="/nodes"`, "projekte", "msoent", "/auth/logout"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("nav missing %q\n%s", want, out)
 		}
