@@ -6,26 +6,28 @@ type NavItem struct {
 	Key, Href, LabelKey, Glyph string
 }
 
-// PrimaryNav is the locked top-level set (spec §16): Heute · Wissen · Projekte.
+// PrimaryNav is the locked top-level set (spec §16): Home · Wissen · Projekte.
 func PrimaryNav() []NavItem {
 	return []NavItem{
-		{"today", "/", "nav.today", "▶"},
+		{"home", "/", "nav.home", "⌂"},
 		{"docs", "/wissen", "nav.wissen", "◆"},
 		{"projekte", "/nodes", "nav.projects", "●"},
 	}
 }
 
-// SecondaryNav is the overflow set: Frei · Export · Einstellungen.
+// SecondaryNav is the utility set: Zeit · Frei · Export · Einstellungen.
 func SecondaryNav() []NavItem {
 	return []NavItem{
-		{"frei", "/dayoffs", "nav.dayoffs", "★"},
+		{"zeit", "/zeit", "nav.zeit", "▶"},
+		{"frei", "/dayoffs", "nav.dayoffs", "○"},
 		{"export", "/export", "nav.export", "▰"},
 		{"einstellungen", "/einstellungen", "nav.settings", "·"},
 	}
 }
 
 // SiteNav renders the desktop sidebar nav list; the item matching active is
-// marked aria-current and visually highlighted.
+// marked aria-current and visually highlighted. Under the "projekte" item the
+// sidebar injects an htmx-lazy-loaded project-tree spine.
 templ SiteNav(active string) {
 	<nav class="flex-1 px-3 space-y-1" aria-label={ T(ctx, "nav.primary") }>
 		for _, l := range PrimaryNav() {
@@ -39,6 +41,17 @@ templ SiteNav(active string) {
 					class="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
 					<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span> { T(ctx, l.LabelKey) }
 				</a>
+			}
+			if l.Key == "projekte" {
+				// htmx lazy-loads the project-tree spine on every page load.
+				// The /ui/nav/tree endpoint is auth-protected; unauthenticated
+				// requests never reach SiteNav so the tree is always visible.
+				<div
+					hx-get="/ui/nav/tree"
+					hx-trigger="load"
+					hx-swap="innerHTML"
+					class="ml-5 mt-0.5 pb-1"
+				></div>
 			}
 		}
 		<div class="my-2 border-t border-line2"></div>

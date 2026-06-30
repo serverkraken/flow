@@ -1,0 +1,27 @@
+package webui
+
+// NavTree renders the sidebar project-tree spine as a depth-indented list of
+// links.  Each node links to /nodes/{id}.  Engagement roots are top-level;
+// descendants are indented 1 rem per level.  NO JS required.
+templ NavTree(rows []TreeRow) {
+	if len(rows) == 0 {
+		<p class="px-2 py-1 text-[.78rem] text-faint">—</p>
+	} else {
+		<ul class="space-y-0.5">
+			for _, row := range rows {
+				<li>
+					<a
+						href={ templ.SafeURL("/nodes/" + row.Node.ID) }
+						style={ nodeIndentStyle(row.Level) }
+						class="flex items-center gap-1.5 rounded px-2 py-0.5 text-[.78rem] text-muted hover:bg-sunken hover:text-ink transition-colors truncate"
+					>
+						if row.Node.Glyph != "" {
+							<span class="shrink-0 text-xs text-faint" aria-hidden="true">{ row.Node.Glyph }</span>
+						}
+						<span class="truncate">{ row.Node.Name }</span>
+					</a>
+				</li>
+			}
+		</ul>
+	}
+}

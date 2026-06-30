@@ -246,6 +246,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
 	mux.Handle("POST /nodes/{id}/move", s.webAuth(http.HandlerFunc(s.handleWebNodeMove)))
 
+	// Sidebar project-tree fragment (Task 8 — htmx lazy-load by SiteNav).
+	mux.Handle("GET /ui/nav/tree", s.webAuth(http.HandlerFunc(s.handleNavTreeFragment)))
+
 	// WebUI design-system showcase (Slice 0 deliverable; handler in webui_styleguide.go).
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))
 

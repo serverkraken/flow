@@ -148,7 +148,7 @@ func TestAppShellBreadcrumbNilSubnavSet(t *testing.T) {
 func TestSiteNavNonPrimaryActiveKey(t *testing.T) {
 	// "frei" is a secondary nav item — no primary item matches, no aria-current in primary list
 	out := render(t, components.SiteNav("frei"))
-	if !strings.Contains(out, "Heute") {
+	if !strings.Contains(out, "Home") {
 		t.Errorf("SiteNav should still render primary items: %s", out)
 	}
 	// secondary items rendered without aria-current (none of PrimaryNav matches "frei")
@@ -159,7 +159,7 @@ func TestSiteNavNonPrimaryActiveKey(t *testing.T) {
 
 func TestSiteNavEmptyActiveKey(t *testing.T) {
 	out := render(t, components.SiteNav(""))
-	if !strings.Contains(out, "Heute") || !strings.Contains(out, "Wissen") {
+	if !strings.Contains(out, "Home") || !strings.Contains(out, "Wissen") {
 		t.Errorf("SiteNav with empty active should render all items: %s", out)
 	}
 	if strings.Contains(out, `aria-current="page"`) {
