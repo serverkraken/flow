@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // todayDTO is the wire shape for the today summary.
@@ -136,15 +137,18 @@ func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	roll, err := s.Stats.NodeStats(r.Context(), u.ID, id)
-	if err != nil {
+	switch {
+	case errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
-		return
+	default:
+		writeJSON(w, http.StatusOK, nodeRollupDTO{
+			TotalMin: minutes(roll.Total),
+			WeekMin:  minutes(roll.Week),
+			MonthMin: minutes(roll.Month),
+		})
 	}
-	writeJSON(w, http.StatusOK, nodeRollupDTO{
-		TotalMin: minutes(roll.Total),
-		WeekMin:  minutes(roll.Week),
-		MonthMin: minutes(roll.Month),
-	})
 }
 
 func (s *Server) handleBurndown(w http.ResponseWriter, r *http.Request) {

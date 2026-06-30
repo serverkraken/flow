@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 // NodeStats rolls a node's worktime up over its subtree (own sessions + all
@@ -13,6 +14,9 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 	sub, err := c.Nodes.Subtree(ctx, ownerID, nodeID)
 	if err != nil {
 		return domain.NodeRollup{}, err
+	}
+	if len(sub) == 0 {
+		return domain.NodeRollup{}, ports.ErrNodeNotFound
 	}
 	ids := make(map[string]bool, len(sub))
 	for _, n := range sub {

@@ -417,6 +417,52 @@ func newNodeStatsServerFull() (*httpserver.Server, *testutil.FakeSessionStore, *
 	return srv, sessions, nodes
 }
 
+func TestHandleNodeStats_UnknownNode(t *testing.T) {
+	srv, _, _ := newNodeStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/nodes/ghost/stats", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown node: want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleNodeStats_ForeignNode(t *testing.T) {
+	srv, _, nodes := newNodeStatsServerFull()
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	// Create a node owned by a different user (not "id-1").
+	ctx := context.Background()
+	foreign := domain.Node{ID: "foreign-eng", OwnerID: "other-user", Name: "Foreign", Slug: "foreign-eng"}
+	if _, err := nodes.Create(ctx, foreign); err != nil {
+		t.Fatalf("seed foreign node: %v", err)
+	}
+
+	// Authenticated as sub-1 (owner "id-1") — foreign node belongs to "other-user".
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/nodes/foreign-eng/stats", nil)
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("foreign node: want 404, got %d", res.StatusCode)
+	}
+}
+
 func TestHandleNodeStats_HappyPath(t *testing.T) {
 	srv, sessions, nodes := newNodeStatsServerFull()
 	ts := httptest.NewServer(srv.Routes())

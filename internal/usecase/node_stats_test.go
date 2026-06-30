@@ -2,13 +2,32 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+func TestNodeStats_UnknownNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ss := fakeSessionStore{}
+	c := usecase.StatsComputer{
+		Sessions: ss,
+		Clock:    fixedClock{t: time.Now()},
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+	_, err := c.NodeStats(ctx, "u1", "ghost")
+	if !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ErrNodeNotFound, got %v", err)
+	}
+}
 
 func TestNodeStats_RollsUpSubtree(t *testing.T) {
 	t.Parallel()
