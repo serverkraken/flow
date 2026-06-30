@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Branch: `rebuild` (M1 work is merged here; continue on it). Spec: `docs/superpowers/specs/2026-06-30-flow-m1-slice6-cockpit-design.md`.
+- Branch: `m1-slice6-cockpit` (off `rebuild`; merged back to `rebuild` when the slice is reviewed-complete, like m1-webui). Spec: `docs/superpowers/specs/2026-06-30-flow-m1-slice6-cockpit-design.md`.
 - Events are published via **`s.Emitter.Emit(ctx, domain.Event{Type: ..., UserID: u.ID, Data: ...})`** — NOT `s.Bus.Publish`. Mirror `handleHomeStart`/`handleHomeStop` exactly.
 - The running session is resolved via **`s.GetRunningSession.Execute(ctx, ownerID) (domain.WorkSession, bool, error)`** (cross-day correct), with a fallback scan of a session range only where the harness lacks it.
 - Per-node rollup uses **`s.Stats.NodeStats(ctx, ownerID, nodeID) (domain.NodeRollup{Total,Week,Month}, error)`** (subtree). `StatsComputer` MUST be wired with `Nodes:` (the NodeStore) or `NodeStats` cannot walk the subtree.
