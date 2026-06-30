@@ -125,9 +125,10 @@ func TestCockpitWorktime_NachbuchenFormTargetsCockpitMain(t *testing.T) {
 	if !strings.Contains(body, `hx-post="/nodes/n1/sessions"`) {
 		t.Errorf("Nachbuchen form action missing: %.600s", body)
 	}
-	// The combination form-action + wrong target must NOT appear.
-	if strings.Contains(body, `hx-post="/nodes/n1/sessions" hx-target="#cockpit-panel"`) {
-		t.Errorf("Nachbuchen form MUST NOT target #cockpit-panel (nesting bug)")
+	// #cockpit-panel is never a valid hx-target in this cockpit — everything that
+	// re-renders the tab area targets #cockpit-main. Order-independent guard.
+	if strings.Contains(body, `hx-target="#cockpit-panel"`) {
+		t.Errorf("nothing may target #cockpit-panel (nesting bug): %.600s", body)
 	}
 }
 
