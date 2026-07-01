@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<!-- flow cockpit — DIRECTION B: left identity+timer rail, right living activity/rollup feed -->
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>flow · Cockpit — Repo flow (Direction B)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:rgb(28 24 56); --surface:rgb(40 33 64); --sunken:rgb(22 18 44);
+  --ink:rgb(236 233 245); --body:rgb(185 178 207); --muted:rgb(154 146 181); --faint:rgb(122 115 151);
+  --blue:#7aa2f7; --cyan:#67e8f9; --green:#6ee7b7; --purple:#c4b5fd; --magenta:#f76ea8; --yellow:#e0af68; --orange:#ff9e64;
+  --glass:rgba(255,255,255,.055); --border:rgba(255,255,255,.10); --border-soft:rgba(255,255,255,.06);
+  --shadow:0 22px 55px -22px rgba(0,0,0,.6), 0 8px 24px -14px rgba(0,0,0,.45);
+  --node:#7aa2f7;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color:var(--body); min-height:100vh; font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(900px 620px at 8% -8%, rgba(196,181,253,.16), transparent 60%),
+    radial-gradient(840px 640px at 104% 2%, rgba(103,232,249,.13), transparent 55%),
+    radial-gradient(760px 720px at 90% 112%, rgba(110,231,183,.08), transparent 60%),
+    linear-gradient(150deg,#1c1838,#2c1c42 55%,#102530);
+  background-attachment:fixed;
+}
+.tnum{font-variant-numeric:tabular-nums}
+.facets{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.8}
+::selection{background:rgba(103,232,249,.28)}
+
+.app{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:22px;
+  display:grid;grid-template-columns:250px 1fr;gap:20px;align-items:start}
+
+.eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.card{background:var(--glass);border:1px solid var(--border);border-radius:20px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:var(--shadow)}
+.card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-h .t{display:flex;align-items:center;gap:9px}
+.card-h .t b{color:var(--ink);font-size:13.5px;font-weight:700}
+.rule{height:1px;background:var(--border-soft);margin:16px 0}
+
+/* ---------- sidebar tree (shared with A) ---------- */
+.sidebar{position:sticky;top:22px;background:var(--glass);border:1px solid var(--border);border-radius:20px;
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:var(--shadow);
+  padding:15px 12px;display:flex;flex-direction:column;gap:13px;max-height:calc(100vh - 44px)}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 4px}
+.brand .mark{width:30px;height:30px}
+.brand .wm{font-weight:800;font-size:18px;color:var(--ink);letter-spacing:-.02em}
+.brand .ver{margin-left:auto;font-size:10px;font-weight:700;color:var(--cyan);background:rgba(103,232,249,.10);border:1px solid rgba(103,232,249,.22);padding:2px 7px;border-radius:999px}
+.search{display:flex;align-items:center;gap:8px;background:var(--sunken);border:1px solid var(--border-soft);border-radius:11px;padding:8px 10px;color:var(--faint);font-size:12.5px}
+.search .kbd{margin-left:auto;font-size:10px;border:1px solid var(--border-soft);border-radius:5px;padding:1px 5px}
+.tree{display:flex;flex-direction:column;gap:1px;overflow:auto;padding-right:2px}
+.tree::-webkit-scrollbar{width:8px}.tree::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:99px}
+.tgl{padding:11px 8px 5px;font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+.children{margin-left:14px;padding-left:11px;border-left:1px solid var(--border-soft);display:flex;flex-direction:column;gap:1px}
+.node{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:9px;cursor:pointer;position:relative;transition:background .12s}
+.node:hover{background:rgba(255,255,255,.05)}
+.node .dot{width:9px;height:9px;flex:0 0 auto;background:var(--nc,var(--blue));box-shadow:0 0 8px -1px var(--nc,var(--blue))}
+.dot.eng{border-radius:50%}.dot.vor{transform:rotate(45deg);border-radius:1.5px}
+.dot.repo{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.node .lb{flex:1;min-width:0;white-space:nowrap;overflow:hidden;font-size:13px;color:var(--body);-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent)}
+.node.eng>.lb{color:var(--ink);font-weight:600}
+.node .h{font-size:11px;color:var(--faint);flex:0 0 auto}
+.node.active{background:linear-gradient(90deg,rgba(122,162,247,.20),rgba(122,162,247,.03));box-shadow:inset 0 0 0 1px rgba(122,162,247,.4)}
+.node.active .lb{color:#fff;font-weight:700;-webkit-mask-image:none;mask-image:none}
+.node.active::before{content:"";position:absolute;left:-12px;top:6px;bottom:6px;width:2.5px;border-radius:99px;background:var(--blue);box-shadow:0 0 10px var(--blue)}
+.sb-foot{margin-top:2px;display:flex;align-items:center;gap:9px;padding:9px 8px;border-top:1px solid var(--border-soft)}
+.sb-foot .av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#7aa2f7,#c4b5fd);display:grid;place-items:center;color:#161326;font-weight:800;font-size:12px}
+.sb-foot .who{font-size:12.5px;color:var(--ink);font-weight:600;line-height:1.1}
+.sb-foot .who small{display:block;color:var(--faint);font-weight:500;font-size:10.5px}
+
+/* ---------- main = crumb + 2col grid + tabstrip ---------- */
+.main{display:flex;flex-direction:column;gap:16px;min-width:0}
+.crumb{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:0 2px}
+.crumb b{color:var(--ink)} .crumb .sep{color:var(--faint)}
+
+.tabs{display:flex;gap:4px;background:rgba(0,0,0,.2);border:1px solid var(--border-soft);border-radius:14px;padding:5px}
+.tab{display:flex;align-items:center;gap:8px;padding:9px 15px;border-radius:10px;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;transition:.13s;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab.active{background:var(--glass);color:#fff;box-shadow:inset 0 0 0 1px var(--border)}
+.tab .cnt{font-size:10.5px;color:var(--faint);background:rgba(255,255,255,.07);padding:1px 7px;border-radius:999px}
+.tab.active .cnt{color:var(--cyan)}
+
+.two{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+
+/* ===== LEFT RAIL: identity + timer + quick actions ===== */
+.rail{position:sticky;top:22px;display:flex;flex-direction:column;gap:14px}
+
+.id-card{position:relative;overflow:hidden;padding:22px 20px 20px;text-align:center}
+.id-card::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% -10%,rgba(122,162,247,.22),transparent 60%)}
+.hero-wrap{position:relative;width:110px;height:110px;margin:2px auto 14px}
+/* uploaded-image logo variant, hexagon-cropped */
+.hero-img{position:absolute;inset:0;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255,255,255,.5), transparent 40%),
+    conic-gradient(from 210deg at 55% 45%, #7aa2f7, #67e8f9, #6ee7b7, #c4b5fd, #f76ea8, #7aa2f7);
+  box-shadow:0 12px 30px -8px rgba(103,232,249,.45)}
+.hero-img .emblem{position:absolute;inset:0;display:grid;place-items:center}
+.hero-ring{position:absolute;inset:-4px;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
+  background:linear-gradient(135deg,rgba(196,181,253,.6),rgba(103,232,249,.5));z-index:-1}
+.hero-badge{position:absolute;right:-2px;bottom:2px;width:26px;height:26px;border-radius:50%;
+  background:var(--sunken);border:1px solid var(--border);display:grid;place-items:center;color:var(--blue)}
+
+.id-name{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.02em;margin:0}
+.id-badges{display:flex;gap:7px;justify-content:center;margin:9px 0 12px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px}
+.badge.kind{color:var(--blue);background:rgba(122,162,247,.13);border:1px solid rgba(122,162,247,.3)}
+.badge.status{color:var(--green);background:rgba(110,231,183,.11);border:1px solid rgba(110,231,183,.28)}
+.badge.status .ld{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green)}
+.id-desc{color:var(--body);font-size:12.5px;line-height:1.55;margin:0 0 14px}
+.id-desc b{color:var(--ink)}
+.id-desc code{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:rgba(255,255,255,.06);border:1px solid var(--border-soft);padding:1px 5px;border-radius:5px;color:var(--cyan)}
+.id-meta{display:flex;flex-direction:column;gap:8px;text-align:left;background:var(--sunken);border:1px solid var(--border-soft);border-radius:13px;padding:12px 13px}
+.id-meta .r{display:flex;align-items:center;justify-content:space-between;font-size:12px}
+.id-meta .r .k{color:var(--faint)}
+.id-meta .r .v{color:var(--ink);font-weight:700}
+.id-meta .r .v.rate{color:var(--yellow)}
+.logohint{font-size:10px;color:var(--faint);margin-top:10px;line-height:1.4}
+
+/* timer card — idle state + "running elsewhere" banner */
+.timer-card{padding:18px}
+.elsewhere{display:flex;align-items:center;gap:11px;background:linear-gradient(135deg,rgba(224,175,104,.14),rgba(255,158,100,.05));
+  border:1px solid rgba(224,175,104,.3);border-radius:13px;padding:11px 13px;margin-bottom:16px}
+.elsewhere .ic{width:9px;height:9px;border-radius:50%;background:var(--yellow);box-shadow:0 0 8px var(--yellow);flex:0 0 auto;animation:pulseY 2s infinite}
+@keyframes pulseY{0%{box-shadow:0 0 0 0 rgba(224,175,104,.5)}70%{box-shadow:0 0 0 8px rgba(224,175,104,0)}100%{box-shadow:0 0 0 0 rgba(224,175,104,0)}}
+.elsewhere .tx{flex:1;min-width:0;font-size:12px;color:var(--body)}
+.elsewhere .tx b{color:var(--ink)}
+.elsewhere .tx .clk{color:var(--yellow);font-weight:700}
+.elsewhere .sw{font-size:11.5px;font-weight:700;color:var(--yellow);white-space:nowrap;cursor:pointer;border:1px solid rgba(224,175,104,.4);border-radius:9px;padding:5px 10px}
+.idle-hero{text-align:center;padding:6px 0 4px}
+.idle-hero .lbl{font-size:11px;color:var(--muted);margin-bottom:10px}
+.big-start{width:100%;display:inline-flex;align-items:center;justify-content:center;gap:11px;font-family:inherit;
+  font-size:17px;font-weight:800;color:#151223;border:0;border-radius:15px;padding:16px;cursor:pointer;
+  background:linear-gradient(90deg,#6ee7b7,#67e8f9);box-shadow:0 12px 30px -10px rgba(103,232,249,.55);transition:.14s}
+.big-start:hover{transform:translateY(-1px);box-shadow:0 16px 36px -10px rgba(103,232,249,.65)}
+.idle-hero .sub{font-size:11px;color:var(--faint);margin-top:10px}
+.idle-hero .sub b{color:var(--body)}
+
+.qa-v{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:inherit;font-size:12.5px;font-weight:700;
+  padding:11px 12px;border-radius:12px;cursor:pointer;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--ink);transition:.14s}
+.btn:hover{background:rgba(255,255,255,.09);transform:translateY(-1px)}
+.btn .g{color:var(--muted)}
+.btn.wide{grid-column:1/-1}
+
+/* ===== RIGHT FEED ===== */
+.feed{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* rollup tiles row */
+.rollup-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.rtile{position:relative;overflow:hidden;padding:15px 16px 16px;border-radius:18px}
+.rtile .k{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.rtile .v{font-size:23px;font-weight:800;color:#fff;margin-top:7px;letter-spacing:-.01em}
+.rtile .c{font-size:10.5px;color:var(--muted);margin-top:3px}
+.rtile.big .v{background:linear-gradient(90deg,#c4b5fd,#67e8f9);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.rtile.earn .v{color:var(--yellow)}
+.rtile::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:linear-gradient(90deg,var(--ac,transparent),transparent)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+
+/* work/privat split */
+.wp{padding:18px}
+.split .lg{display:flex;align-items:center;justify-content:space-between;font-size:12px;margin-bottom:9px}
+.split .lg span{display:inline-flex;align-items:center;gap:7px;color:var(--body)}
+.split .lg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.split .lg b{color:var(--ink)}
+.bar{height:14px;border-radius:99px;overflow:hidden;display:flex;background:var(--sunken);border:1px solid var(--border-soft)}
+.bar .work{background:linear-gradient(90deg,#6ee7b7,#67e8f9)} .bar .priv{background:linear-gradient(90deg,#c4b5fd,#a78bfa)}
+.split .note{font-size:10.5px;color:var(--faint);margin-top:9px}
+.wp .totals{display:flex;gap:18px;margin-top:16px;padding-top:15px;border-top:1px solid var(--border-soft)}
+.wp .totals .col .k{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.wp .totals .col .v{font-size:17px;font-weight:800;color:var(--ink);margin-top:4px}
+.wp .totals .col .v.e{color:var(--yellow)}
+
+/* rollup chain */
+.chain-card{padding:18px}
+.chain{display:flex;flex-direction:column;gap:10px}
+.crow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.crow .lhs{display:flex;align-items:center;gap:9px;min-width:0}
+.crow .lhs .ic{width:8px;height:8px;flex:0 0 auto}
+.crow .lhs .ic.repo{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:var(--blue)}
+.crow .lhs .ic.vor{transform:rotate(45deg);border-radius:1px;background:var(--purple)}
+.crow .lhs .ic.eng{border-radius:50%;background:var(--magenta)}
+.crow .lhs .ic.sum{border-radius:2px;background:var(--cyan)}
+.crow .lhs .nm{font-size:12.5px;color:var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .lhs .nm b{color:var(--ink);font-weight:700} .crow .lhs .kd{font-size:10px;color:var(--faint)}
+.crow .val{font-size:13px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.cbar{grid-column:1/-1;height:6px;border-radius:99px;background:var(--sunken);overflow:hidden;margin-top:-3px}
+.cbar>i{display:block;height:100%;border-radius:99px}
+.crow.this{padding:8px 10px;margin:-4px -6px 2px;border-radius:11px;background:linear-gradient(90deg,rgba(122,162,247,.14),transparent);box-shadow:inset 0 0 0 1px rgba(122,162,247,.25)}
+.crow.this .nm b{color:#fff}
+
+/* activity feed */
+.act-card{padding:18px}
+.live{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;color:var(--green);letter-spacing:.04em}
+.live .p{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(110,231,183,.55);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(110,231,183,.5)}70%{box-shadow:0 0 0 9px rgba(110,231,183,0)}100%{box-shadow:0 0 0 0 rgba(110,231,183,0)}}
+.stream{display:flex;flex-direction:column}
+.act{display:flex;gap:12px;padding:11px 4px;position:relative}
+.act:not(:last-child)::before{content:"";position:absolute;left:15px;top:40px;bottom:-2px;width:1.5px;background:var(--border-soft)}
+.act .av{width:31px;height:31px;flex:0 0 auto;display:grid;place-items:center;font-size:11px;font-weight:800;color:#151223;z-index:1}
+.av-circle{border-radius:50%;background:linear-gradient(135deg,#7aa2f7,#67e8f9)}
+.av-hex{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:linear-gradient(135deg,#c4b5fd,#67e8f9)}
+.act .tx{min-width:0;flex:1;padding-top:1px}
+.act .tx p{margin:0;font-size:13px;color:var(--body)}
+.act .tx p b{color:var(--ink);font-weight:700}
+.tgt-pill{display:inline-flex;align-items:center;gap:5px;font-weight:700;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid var(--border-soft);padding:1px 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.tgt-pill .d{width:7px;height:7px}
+.tgt-pill .d.repo{clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:var(--blue)}
+.tgt-pill .d.vor{transform:rotate(45deg);border-radius:1px;background:var(--purple)}
+.tgt-pill .d.doc{background:var(--cyan)}
+.act .tx .sub{font-size:11px;color:var(--faint);margin-top:2px;display:flex;align-items:center;gap:8px}
+.agent{font-size:9.5px;font-weight:700;letter-spacing:.04em;color:var(--purple);border:1px solid rgba(196,181,253,.3);border-radius:5px;padding:0 5px}
+
+/* knowledge card */
+.know-card{padding:18px}
+.klist{display:flex;flex-direction:column;gap:2px}
+.kitem{display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:11px;cursor:pointer;transition:.12s}
+.kitem:hover{background:rgba(255,255,255,.045)}
+.kitem .di{width:26px;height:26px;flex:0 0 auto;display:grid;place-items:center;border-radius:8px;background:rgba(103,232,249,.1);border:1px solid rgba(103,232,249,.22);color:var(--cyan);font-size:12px}
+.kitem .mid{flex:1;min-width:0}
+.kitem .mid .nm{font-size:13px;color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kitem .mid .mt{font-size:11px;color:var(--faint)}
+.kitem .arw{color:var(--faint);flex:0 0 auto}
+.kbtn{font-size:11.5px;color:var(--cyan);font-weight:600;cursor:pointer}
+
+.foot-note{color:var(--faint);font-size:11px;text-align:center;padding:2px 0}
+</style>
+</head>
+<body>
+
+<svg class="facets" viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <defs><radialGradient id="gB" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#67e8f9" stop-opacity=".08"/><stop offset="100%" stop-color="#67e8f9" stop-opacity="0"/></radialGradient></defs>
+  <g fill="#ffffff" fill-opacity=".022" stroke="#ffffff" stroke-opacity=".04" stroke-width="1">
+    <polygon points="0,90 260,0 360,220 60,320"/>
+    <polygon points="360,220 260,0 600,80 500,270"/>
+    <polygon points="880,0 1180,60 1100,290 840,200"/>
+    <polygon points="1100,290 1180,60 1180,420 960,470"/>
+    <polygon points="90,560 350,510 430,780 120,820"/>
+    <polygon points="740,820 690,540 1020,590 1080,820"/>
+  </g>
+  <circle cx="220" cy="140" r="240" fill="url(#gB)"/>
+  <circle cx="1000" cy="700" r="260" fill="url(#gB)"/>
+</svg>
+
+<div class="app">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 100 100"><polygon points="25,4 75,4 97,50 75,96 25,96 3,50" fill="rgba(103,232,249,.16)" stroke="#67e8f9" stroke-width="4"/><polygon points="40,28 60,28 71,50 60,72 40,72 29,50" fill="none" stroke="#c4b5fd" stroke-width="4"/></svg>
+      <span class="wm">flow</span><span class="ver">rebuild</span>
+    </div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      Knoten suchen<span class="kbd">/</span>
+    </div>
+    <div class="tree">
+      <div class="tgl">Engagements</div>
+      <div class="node eng"><span class="dot eng" style="--nc:var(--magenta)"></span><span class="lb">Kundenarbeit</span><span class="h">268h</span></div>
+      <div class="children">
+        <div class="node vor"><span class="dot vor" style="--nc:var(--purple)"></span><span class="lb">Plattform-Umbau</span><span class="h">112h</span></div>
+        <div class="children">
+          <div class="node repo active"><span class="dot repo" style="--nc:var(--blue)"></span><span class="lb">flow</span><span class="h">41h</span></div>
+          <div class="node repo"><span class="dot repo" style="--nc:var(--green)"></span><span class="lb">kompendium-legacy-migration-service</span></div>
+          <div class="node repo"><span class="dot repo" style="--nc:var(--cyan)"></span><span class="lb">homelab-study</span></div>
+        </div>
+        <div class="node vor"><span class="dot vor" style="--nc:var(--purple)"></span><span class="lb">Reporting-Dashboard Q3-Auswertung</span><span class="h">33h</span></div>
+      </div>
+      <div class="node eng"><span class="dot eng" style="--nc:var(--orange)"></span><span class="lb">Interne Projekte</span><span class="h">96h</span></div>
+      <div class="children">
+        <div class="node repo"><span class="dot repo" style="--nc:var(--yellow)"></span><span class="lb">flow-design-system</span></div>
+        <div class="node repo"><span class="dot repo" style="--nc:var(--blue)"></span><span class="lb">Infrastruktur &amp; DevOps Betrieb 2026</span></div>
+      </div>
+      <div class="node eng"><span class="dot eng" style="--nc:var(--green)"></span><span class="lb">Privat</span><span class="h">48h</span></div>
+      <div class="children">
+        <div class="node repo"><span class="dot repo" style="--nc:var(--cyan)"></span><span class="lb">dotfiles</span></div>
+        <div class="node repo"><span class="dot repo" style="--nc:var(--magenta)"></span><span class="lb">server-kraken-mono-repo-experiments</span></div>
+      </div>
+    </div>
+    <div class="sb-foot"><div class="av">M</div><div class="who">Martin<small>msoent · online</small></div></div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="crumb"><span>Kundenarbeit</span><span class="sep">›</span><span>Plattform-Umbau</span><span class="sep">›</span><b>flow</b></div>
+
+    <nav class="tabs">
+      <div class="tab active"><span>⬡</span>Übersicht</div>
+      <div class="tab"><span>■</span>Worktime</div>
+      <div class="tab"><span>◆</span>Wissen<span class="cnt">12</span></div>
+      <div class="tab"><span>›</span>Struktur<span class="cnt">3</span></div>
+      <div class="tab"><span>⇄</span>Bindings<span class="cnt">2</span></div>
+    </nav>
+
+    <div class="two">
+
+      <!-- ===== LEFT RAIL ===== -->
+      <div class="rail">
+
+        <!-- IDENTITY (uploaded-image logo variant) -->
+        <section class="card id-card">
+          <div class="hero-wrap">
+            <div class="hero-ring"></div>
+            <div class="hero-img">
+              <div class="emblem">
+                <svg width="46" height="46" viewBox="0 0 100 100"><polygon points="40,26 60,26 72,50 60,74 40,74 28,50" fill="none" stroke="rgba(21,18,35,.85)" stroke-width="5"/><circle cx="50" cy="50" r="6" fill="rgba(21,18,35,.9)"/></svg>
+              </div>
+            </div>
+            <div class="hero-badge"><svg width="12" height="12" viewBox="0 0 100 100"><polygon points="25,4 75,4 97,50 75,96 25,96 3,50" fill="currentColor"/></svg></div>
+          </div>
+          <h1 class="id-name">flow</h1>
+          <div class="id-badges">
+            <span class="badge kind"><svg width="10" height="10" viewBox="0 0 100 100"><polygon points="25,4 75,4 97,50 75,96 25,96 3,50" fill="currentColor"/></svg>Repo</span>
+            <span class="badge status"><span class="ld"></span>aktiv</span>
+          </div>
+          <p class="id-desc">Self-hosted <b>Worktime + Wissen</b>. Server-authoritativer Rebuild — <code>TUI</code> · <code>WebUI</code> · <code>MCP</code>.</p>
+          <div class="id-meta">
+            <div class="r"><span class="k">Stundensatz</span><span class="v rate">95,00 €/h</span></div>
+            <div class="r"><span class="k">geerbt von</span><span class="v">Kundenarbeit</span></div>
+            <div class="r"><span class="k">Beiträge</span><span class="v">Martin · Claude</span></div>
+          </div>
+          <div class="logohint">Bild-Logo hochgeladen &amp; hexagonal beschnitten — alternativ ein getöntes Icon aus dem Set.</div>
+        </section>
+
+        <!-- TIMER: idle here + running elsewhere -->
+        <section class="card timer-card">
+          <div class="elsewhere">
+            <span class="ic"></span>
+            <div class="tx">Timer läuft auf <b>Vorhaben Plattform-Umbau</b><br><span class="clk tnum" id="clkElse">00:42:10</span></div>
+            <span class="sw">Wechseln ›</span>
+          </div>
+          <div class="idle-hero">
+            <div class="lbl">Kein Timer auf <b style="color:var(--ink)">Repo flow</b></div>
+            <button class="big-start"><span>▶</span>Timer starten</button>
+            <div class="sub">heute hier: <b class="tnum">3h 47m</b> · zählt als <b>Work</b></div>
+          </div>
+        </section>
+
+        <!-- QUICK ACTIONS -->
+        <section class="card" style="padding:14px">
+          <div class="qa-v">
+            <button class="btn"><span class="g">＋</span>Nachbuchen</button>
+            <button class="btn"><span class="g">◆</span>Neues Wissen</button>
+            <button class="btn wide"><span class="g">⬡</span>Struktur bearbeiten</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== RIGHT FEED ===== -->
+      <div class="feed">
+
+        <!-- ROLLUP TILES -->
+        <section class="rollup-tiles">
+          <div class="card rtile big" style="--ac:#c4b5fd"><div class="k">Subtree Σ</div><div class="v tnum">512h</div><div class="c">eigen + alle Unterknoten</div></div>
+          <div class="card rtile" style="--ac:#7aa2f7"><div class="k">Diese Woche</div><div class="v tnum">18h 20m</div><div class="c">+2h 05m ggü. Vorwoche</div></div>
+          <div class="card rtile" style="--ac:#67e8f9"><div class="k">Diesen Monat</div><div class="v tnum">41h 05m</div><div class="c">3 aktive Unterknoten</div></div>
+          <div class="card rtile earn" style="--ac:#e0af68"><div class="k">Verdienst</div><div class="v tnum">≈ 3.657 €</div><div class="c">Work × 95,00 €/h</div></div>
+        </section>
+
+        <div class="grid2">
+          <!-- WORK vs PRIVAT -->
+          <section class="card wp">
+            <div class="card-h"><div class="t"><span style="color:var(--green)">◈</span><b>Work vs. Privat</b></div><span class="eyebrow">Woche</span></div>
+            <div class="split">
+              <div class="lg">
+                <span><i style="background:linear-gradient(90deg,#6ee7b7,#67e8f9)"></i>Work <b class="tnum">16h 50m</b></span>
+                <span>Privat <b class="tnum">1h 30m</b><i style="background:linear-gradient(90deg,#c4b5fd,#a78bfa)"></i></span>
+              </div>
+              <div class="bar"><div class="work" style="width:92%"></div><div class="priv" style="width:8%"></div></div>
+              <div class="note">Work zählt aufs Tages-Soll · Privat wird nur getrackt</div>
+            </div>
+            <div class="totals">
+              <div class="col"><div class="k">Work Monat</div><div class="v tnum">38h 30m</div></div>
+              <div class="col"><div class="k">Verdienst</div><div class="v e tnum">≈ 3.657 €</div></div>
+            </div>
+          </section>
+
+          <!-- ROLLUP CHAIN -->
+          <section class="card chain-card">
+            <div class="card-h"><div class="t"><span style="color:var(--cyan)">Σ</span><b>Fließt nach oben</b></div><span class="eyebrow">Anteil</span></div>
+            <div class="chain">
+              <div class="crow this">
+                <div class="lhs"><span class="ic repo"></span><span class="nm"><b>flow</b> <span class="kd">· hier</span></span></div><div class="val">41h</div>
+                <div class="cbar"><i style="width:8%;background:linear-gradient(90deg,#7aa2f7,#67e8f9)"></i></div>
+              </div>
+              <div class="crow">
+                <div class="lhs"><span class="ic vor"></span><span class="nm">in <b>Plattform-Umbau</b></span></div><div class="val">112h</div>
+                <div class="cbar"><i style="width:22%;background:linear-gradient(90deg,#a78bfa,#c4b5fd)"></i></div>
+              </div>
+              <div class="crow">
+                <div class="lhs"><span class="ic eng"></span><span class="nm">in <b>Kundenarbeit</b></span></div><div class="val">268h</div>
+                <div class="cbar"><i style="width:52%;background:linear-gradient(90deg,#f76ea8,#c4b5fd)"></i></div>
+              </div>
+              <div class="crow">
+                <div class="lhs"><span class="ic sum"></span><span class="nm"><b>Gesamt</b></span></div><div class="val">512h</div>
+                <div class="cbar"><i style="width:100%;background:linear-gradient(90deg,#67e8f9,#6ee7b7)"></i></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ACTIVITY -->
+        <section class="card act-card">
+          <div class="card-h">
+            <div class="t"><span style="color:var(--green)">◉</span><b>Puls — was gerade los ist</b></div>
+            <span class="live"><span class="p"></span>LIVE</span>
+          </div>
+          <div class="stream">
+            <div class="act">
+              <span class="av av-circle">M</span>
+              <div class="tx"><p><b>Martin</b> startete einen Timer <span class="tgt-pill"><span class="d repo"></span>Repo flow</span></p><div class="sub">vor 1h 47m · 14:32</div></div>
+            </div>
+            <div class="act">
+              <span class="av av-hex">C</span>
+              <div class="tx"><p><b>Claude</b> schrieb <span class="tgt-pill"><span class="d doc"></span>◆ Kristall-Design-Tokens</span></p><div class="sub"><span class="agent">AI-AGENT</span> vor 14 min · auf Repo flow</div></div>
+            </div>
+            <div class="act">
+              <span class="av av-circle">M</span>
+              <div class="tx"><p><b>Martin</b> buchte <b>1h 20m</b> nach <span class="tgt-pill"><span class="d vor"></span>Vorhaben Plattform-Umbau</span></p><div class="sub">vor 2h · 13:10</div></div>
+            </div>
+            <div class="act">
+              <span class="av av-hex">C</span>
+              <div class="tx"><p><b>Claude</b> aktualisierte <span class="tgt-pill"><span class="d doc"></span>◆ M3c2-Plan Worktime-Routes</span></p><div class="sub"><span class="agent">AI-AGENT</span> vor 3h · auf Repo flow</div></div>
+            </div>
+            <div class="act">
+              <span class="av av-circle">M</span>
+              <div class="tx"><p><b>Martin</b> stoppte Timer <span class="tgt-pill"><span class="d repo"></span>Repo flow</span> <b class="tnum">3h 12m</b></p><div class="sub">gestern · 18:04</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- KNOWLEDGE -->
+        <section class="card know-card">
+          <div class="card-h"><div class="t"><span style="color:var(--cyan)">◆</span><b>Zuletzt geändertes Wissen</b></div><span class="kbtn">alle 12 ›</span></div>
+          <div class="klist">
+            <div class="kitem"><span class="di">◆</span><div class="mid"><div class="nm">Kristall-Design-Tokens</div><div class="mt">Claude · vor 14 min · 2,1k Wörter</div></div><span class="arw">›</span></div>
+            <div class="kitem"><span class="di">◆</span><div class="mid"><div class="nm">M3c2-Plan Worktime-Routes</div><div class="mt">Claude · vor 3h · 4 Backlinks</div></div><span class="arw">›</span></div>
+            <div class="kitem"><span class="di">◆</span><div class="mid"><div class="nm">Authentik OIDC multi-issuer Setup</div><div class="mt">Martin · gestern · #auth #oidc</div></div><span class="arw">›</span></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+    <div class="foot-note">Übersicht ist die aktive Landing · die Tabs oben führen tiefer in Worktime, Wissen, Struktur &amp; Bindings</div>
+  </main>
+</div>
+
+<script>
+(function(){
+  var el=document.getElementById('clkElse');
+  var s=42*60+10;
+  function two(n){return (n<10?'0':'')+n;}
+  function fmt(t){return two(Math.floor(t/3600))+':'+two(Math.floor(t%3600/60))+':'+two(t%60);}
+  el.textContent=fmt(s);
+  setInterval(function(){s++;el.textContent=fmt(s);},1000);
+})();
+</script>
+</body>
+</html>
