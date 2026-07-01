@@ -345,7 +345,7 @@ func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
 	_, err := ns.Create(ctx, domain.Node{
 		ID: "job", OwnerID: "u1", Name: "Job", Slug: "job",
 		Kind: domain.KindEngagement, Status: domain.NodeActive,
-		CountsTowardTarget: true,
+		CountsTowardTarget: ptrBool(true),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -353,7 +353,7 @@ func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
 	_, err = ns.Create(ctx, domain.Node{
 		ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
 		Kind: domain.KindEngagement, Status: domain.NodeActive,
-		CountsTowardTarget: false,
+		CountsTowardTarget: ptrBool(false),
 	})
 	if err != nil {
 		t.Fatal(err)

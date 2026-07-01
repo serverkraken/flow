@@ -82,7 +82,10 @@ func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func
 	}
 	flag := make(map[string]bool, len(nodes))
 	for _, n := range nodes {
-		flag[n.ID] = n.CountsTowardTarget
+		// nil = erbt; the ancestor-aware rollup lands in a later task, so an
+		// unresolved (nil) flag here falls back to the domain default (true,
+		// counts) rather than walking the parent chain per node.
+		flag[n.ID] = n.CountsTowardTarget == nil || *n.CountsTowardTarget
 	}
 	return func(id *string) bool {
 		if id == nil {

@@ -40,7 +40,7 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 	p.Name, p.Slug, p.Color, p.Glyph = in.Name, in.Slug, in.Color, in.Glyph
 	p.Description, p.UpstreamGit, p.Status = in.Description, in.UpstreamGit, in.Status
 	if in.CountsTowardTarget != nil {
-		p.CountsTowardTarget = *in.CountsTowardTarget
+		p.CountsTowardTarget = in.CountsTowardTarget
 	}
 	p.UpdatedAt = uc.Clock.Now()
 	if err := p.Validate(); err != nil {

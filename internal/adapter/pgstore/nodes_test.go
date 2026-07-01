@@ -407,47 +407,50 @@ func TestNodeStore_CountsTowardTarget(t *testing.T) {
 	st := pgstore.NewNodeStore(pool)
 	now := time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)
 
-	// Case 1: NewNode sets CountsTowardTarget:true; round-trip must return true.
+	// Case 1: NewNode leaves CountsTowardTarget nil (inherit); round-trip must
+	// return nil (persisted as SQL NULL).
 	n1, _ := domain.NewNode("ctt-1", "u-ctt", "Default", "ctt-default", now)
 	n1.Kind = domain.KindEngagement
-	// CountsTowardTarget is already true from NewNode — do not override.
+	// CountsTowardTarget is already nil from NewNode — do not override.
 	created1, err := st.Create(ctx, n1)
 	if err != nil {
 		t.Fatalf("Create n1: %v", err)
 	}
-	if !created1.CountsTowardTarget {
-		t.Errorf("Create returned CountsTowardTarget=false, want true")
+	if created1.CountsTowardTarget != nil {
+		t.Errorf("Create returned CountsTowardTarget=%v, want nil", *created1.CountsTowardTarget)
 	}
 	got1, err := st.Get(ctx, "u-ctt", "ctt-1")
 	if err != nil {
 		t.Fatalf("Get n1: %v", err)
 	}
-	if !got1.CountsTowardTarget {
-		t.Errorf("Get after Create: CountsTowardTarget=false, want true")
+	if got1.CountsTowardTarget != nil {
+		t.Errorf("Get after Create: CountsTowardTarget=%v, want nil", *got1.CountsTowardTarget)
 	}
 
 	// Case 2: explicit CountsTowardTarget:false persists.
 	n2, _ := domain.NewNode("ctt-2", "u-ctt", "Exclude", "ctt-exclude", now)
 	n2.Kind = domain.KindEngagement
-	n2.CountsTowardTarget = false
+	falseVal := false
+	n2.CountsTowardTarget = &falseVal
 	created2, err := st.Create(ctx, n2)
 	if err != nil {
 		t.Fatalf("Create n2: %v", err)
 	}
-	if created2.CountsTowardTarget {
-		t.Errorf("Create returned CountsTowardTarget=true, want false")
+	if created2.CountsTowardTarget == nil || *created2.CountsTowardTarget {
+		t.Errorf("Create returned CountsTowardTarget=%v, want *false", created2.CountsTowardTarget)
 	}
 	got2, err := st.Get(ctx, "u-ctt", "ctt-2")
 	if err != nil {
 		t.Fatalf("Get n2: %v", err)
 	}
-	if got2.CountsTowardTarget {
-		t.Errorf("Get after Create: CountsTowardTarget=true, want false")
+	if got2.CountsTowardTarget == nil || *got2.CountsTowardTarget {
+		t.Errorf("Get after Create: CountsTowardTarget=%v, want *false", got2.CountsTowardTarget)
 	}
 
 	// Case 3: Update CountsTowardTarget false→true persists.
 	upd := got2
-	upd.CountsTowardTarget = true
+	trueVal := true
+	upd.CountsTowardTarget = &trueVal
 	upd.UpdatedAt = now.Add(time.Hour)
 	if _, err := st.Update(ctx, "u-ctt", upd); err != nil {
 		t.Fatalf("Update n2: %v", err)
@@ -456,8 +459,52 @@ func TestNodeStore_CountsTowardTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after Update: %v", err)
 	}
-	if !got3.CountsTowardTarget {
-		t.Errorf("Get after Update: CountsTowardTarget=false, want true")
+	if got3.CountsTowardTarget == nil || !*got3.CountsTowardTarget {
+		t.Errorf("Get after Update: CountsTowardTarget=%v, want *true", got3.CountsTowardTarget)
+	}
+}
+
+// TestNodeStore_CountsTowardTargetNullable verifies the nullable-column
+// round-trip added by migration 0025: nil persists as SQL NULL and an
+// explicit true persists as *true.
+func TestNodeStore_CountsTowardTargetNullable(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-cttn", "sub-cttn", "cttnuser", "cttn@x.de", "CTTN User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewNodeStore(pool)
+	mk := func(id string, ctt *bool) domain.Node {
+		n, _ := domain.NewNode(id, "u-cttn", id, id, time.Now())
+		n.Kind = domain.KindEngagement
+		n.CountsTowardTarget = ctt
+		return n
+	}
+	tt := true
+	got, err := st.Create(ctx, mk("n-inherit", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CountsTowardTarget != nil {
+		t.Errorf("nil must persist as NULL, got %v", *got.CountsTowardTarget)
+	}
+	got2, err := st.Create(ctx, mk("n-work", &tt))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got2.CountsTowardTarget == nil || !*got2.CountsTowardTarget {
+		t.Errorf("explicit true lost")
 	}
 }
 
