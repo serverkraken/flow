@@ -359,6 +359,17 @@ func init() {
 			"sessions.tag":        "Tag",
 			"sessions.note":       "Notiz",
 			"sessions.save":       "Speichern",
+			// global shell timer widget (Kristall K1)
+			"timer.idle":       "Kein Timer läuft",
+			"timer.start":      "Timer starten",
+			"timer.stop":       "Stoppen",
+			"timer.switch":     "Wechseln",
+			"timer.runningOn":  "läuft auf",
+			"timer.unbound":    "ohne Projekt",
+			"timer.choose":     "Projekt wählen…",
+			"timer.newProject": "…oder neues Projekt",
+			"timer.needNode":   "Zum Stoppen Projekt wählen",
+			"timer.title":      "Timer",
 		},
 		plurals: map[string]Plural{
 			"list.entries": {One: "{{.N}} Eintrag", Other: "{{.N}} Einträge"},

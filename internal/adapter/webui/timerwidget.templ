@@ -1,0 +1,90 @@
+package webui
+
+import (
+	"strconv"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// TimerWidget is the desktop sidebar card: idle → start form with node picker
+// (+ quick-create); running → live clock + node pill + stop/switch; unbound →
+// stop demands a node. All actions post to /ui/timer/* and swap the mount.
+templ TimerWidget(vm TimerWidgetVM) {
+	<section class="rounded-2xl glass shadow-soft p-3 text-[.85rem]">
+		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint mb-2">{ components.T(ctx, "timer.title") }</div>
+		if vm.Err != "" {
+			<p class="mb-2 rounded-lg bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
+		}
+		if !vm.Running {
+			<form hx-post="/ui/timer/start" hx-target="#timer-widget" hx-swap="innerHTML" class="space-y-2">
+				@timerNodeSelect(vm.Bookable, "")
+				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-2.5 py-1.5 text-[.8rem]"/>
+				<div class="w-full">
+					@components.Button(components.BtnPrimary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
+				</div>
+			</form>
+		} else {
+			<div class="flex items-center gap-2 min-w-0">
+				if vm.NodeName != "" {
+					{{ k := NodeKindStyle(vm.NodeKind) }}
+					<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class={ "inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
+						<span aria-hidden="true">{ k.Glyph }</span>
+						<span class="fade-label">{ vm.NodeName }</span>
+					</a>
+				} else {
+					<span class="text-[.72rem] text-yellow">{ components.T(ctx, "timer.unbound") }</span>
+				}
+				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
+			</div>
+			<form hx-post="/ui/timer/stop" hx-target="#timer-widget" hx-swap="innerHTML" class="mt-2 space-y-2">
+				if vm.Unbound {
+					@timerNodeSelect(vm.Bookable, components.T(ctx, "timer.needNode"))
+				}
+				<div class="w-full">
+					@components.Button(components.BtnDanger, components.T(ctx, "timer.stop"), "■", templ.Attributes{"type": "submit"})
+				</div>
+			</form>
+			<details class="mt-1.5">
+				<summary class="cursor-pointer list-none text-[.72rem] text-muted hover:text-ink">{ components.T(ctx, "timer.switch") } ›</summary>
+				<form hx-post="/ui/timer/switch" hx-target="#timer-widget" hx-swap="innerHTML" class="mt-1.5 space-y-2">
+					@timerNodeSelect(vm.Bookable, "")
+					<div class="w-full">
+						@components.Button(components.BtnSecondary, components.T(ctx, "timer.switch"), "⇄", templ.Attributes{"type": "submit"})
+					</div>
+				</form>
+			</details>
+		}
+	</section>
+}
+
+// timerNodeSelect is the shared bookable-node picker. label may be "".
+templ timerNodeSelect(bookable []domain.Node, label string) {
+	if label != "" {
+		<label class="block text-[.72rem] text-yellow">{ label }</label>
+	}
+	<select name="projectId" class="w-full rounded-lg border border-line bg-sunken/60 px-2.5 py-1.5 text-[.8rem]">
+		<option value="">{ components.T(ctx, "timer.choose") }</option>
+		for _, n := range bookable {
+			<option value={ n.ID }>{ n.Name }</option>
+		}
+	</select>
+}
+
+// TimerChip is the mobile top-bar mount: a compact live chip that opens the
+// full widget in a Kristall dialog (no browser popups).
+templ TimerChip(vm TimerWidgetVM) {
+	<button type="button" data-dialog-open="timer-sheet" class="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[.78rem]">
+		if vm.Running {
+			<span class="h-2 w-2 rounded-full bg-green animate-breathe" aria-hidden="true"></span>
+			<span class="font-mono tnum" data-mini-timer>{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
+		} else {
+			<span class="text-muted">▶ { components.T(ctx, "timer.title") }</span>
+		}
+	</button>
+	@components.Dialog("timer-sheet", "timer.title", timerChipBody(vm))
+}
+
+templ timerChipBody(vm TimerWidgetVM) {
+	@TimerWidget(vm)
+}

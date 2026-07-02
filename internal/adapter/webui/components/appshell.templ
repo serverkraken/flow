@@ -29,6 +29,13 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 			</a>
 			@ThemeToggle()
 		</div>
+		<div
+			id="timer-widget"
+			class="px-3 pb-1"
+			hx-get="/ui/timer"
+			hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+			hx-swap="innerHTML"
+		></div>
 		@SiteNav(active)
 		<div class="px-3 pb-5">
 			<form action="/auth/logout" method="post" hx-boost="false">
@@ -45,6 +52,12 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 				@BrandMark("h-7 w-7", "m")
 				<span class="font-display text-xl font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
 			</a>
+			<div
+				id="timer-chip"
+				hx-get="/ui/timer/chip"
+				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+				hx-swap="innerHTML"
+			></div>
 			@ThemeToggle()
 		</div>
 	</header>
