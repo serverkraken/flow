@@ -19,7 +19,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 		if !vm.Running {
 			<form hx-post="/ui/timer/start" hx-target="closest section" hx-swap="outerHTML" class="space-y-2">
 				@timerNodeSelect(vm.Bookable, "")
-				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-2.5 py-1.5 text-[.8rem]"/>
+				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]"/>
 				<div class="grid">
 					@components.Button(components.BtnPrimary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
 				</div>
@@ -46,7 +46,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 				</div>
 			</form>
 			<details class="mt-1.5">
-				<summary class="cursor-pointer list-none text-[.72rem] text-muted hover:text-ink">{ components.T(ctx, "timer.switch") } ›</summary>
+				<summary class="cursor-pointer list-none py-1 text-sm md:py-0 md:text-[.72rem] text-muted hover:text-ink">{ components.T(ctx, "timer.switch") } ›</summary>
 				<form hx-post="/ui/timer/switch" hx-target="closest section" hx-swap="outerHTML" class="mt-1.5 space-y-2">
 					@timerNodeSelect(vm.Bookable, "")
 					<div class="grid">
@@ -61,9 +61,9 @@ templ TimerWidget(vm TimerWidgetVM) {
 // timerNodeSelect is the shared bookable-node picker. label may be "".
 templ timerNodeSelect(bookable []domain.Node, label string) {
 	if label != "" {
-		<label class="block text-[.72rem] text-yellow">{ label }</label>
+		<label class="block text-sm md:text-[.72rem] text-yellow">{ label }</label>
 	}
-	<select name="projectId" class="w-full rounded-lg border border-line bg-sunken/60 px-2.5 py-1.5 text-[.8rem]">
+	<select name="projectId" class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]">
 		<option value="">{ components.T(ctx, "timer.choose") }</option>
 		for _, n := range bookable {
 			<option value={ n.ID }>{ n.Name }</option>
