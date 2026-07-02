@@ -6,6 +6,11 @@
 @source "../internal/adapter/webui/**/*.templ";
 @source "../internal/adapter/webui/**/*.go";
 @source not "../internal/adapter/webui/static/**";
+/* v4 auto-detection additionally scans every non-gitignored file in the repo;
+   docs (plans/specs/mockups) and .claude carry class-looking strings that must
+   never feed the stylesheet — a committed plan otherwise breaks verify-css. */
+@source not "../docs/**";
+@source not "../.claude/**";
 
 /* ════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — one Studio identity, two themes (port of
