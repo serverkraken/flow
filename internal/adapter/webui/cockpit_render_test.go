@@ -489,8 +489,8 @@ func TestNodeGlyphSwatch_LogoIconGlyphPriority(t *testing.T) {
 	if !strings.Contains(icon, "<svg") || strings.Contains(icon, "◆") {
 		t.Errorf("icon wins over glyph in the tree row, got: %s", icon)
 	}
-	if !strings.Contains(icon, "#7dcfff") {
-		t.Errorf("icon must be tinted in the node color, got: %s", icon)
+	if !strings.Contains(icon, "rgb(var(--cyan))") {
+		t.Errorf("icon must be tinted in the node color (token-reactive), got: %s", icon)
 	}
 	glyph := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Glyph: "◆", Color: "cyan"}))
 	if !strings.Contains(glyph, "◆") {

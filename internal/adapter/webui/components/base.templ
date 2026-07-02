@@ -20,15 +20,16 @@ templ Base(title string, body templ.Component) {
 			<script src="/static/vendor/htmx-ext-sse.js" defer></script>
 			<script src="/static/scrollspy.js" defer></script>
 			<script src="/static/toc.js" defer></script>
-			// No-flash theme init: set data-theme BEFORE first paint.
+			// No-flash theme init: set data-theme BEFORE first paint. Kristall-Dark
+			// is the identity (spec §2.3) — saved preference still wins; no
+			// prefers-color-scheme fallback.
 			<script>
 				(function () {
 					try {
 						var saved = localStorage.getItem('flow-theme');
-						var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-						document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+						document.documentElement.setAttribute('data-theme', saved || 'dark');
 					} catch (e) {
-						document.documentElement.setAttribute('data-theme', 'light');
+						document.documentElement.setAttribute('data-theme', 'dark');
 					}
 				})();
 			</script>

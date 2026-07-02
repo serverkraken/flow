@@ -1,27 +1,28 @@
 package webui_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// Drift guard: every domain palette color MUST have a WebUI hex, else a node
-// could carry a color the WebUI renders as blank.
+// Drift guard: every domain palette color MUST map to a token-reactive CSS
+// color expression, else a node could carry a color the WebUI renders blank —
+// and inline hexes would not flip with the theme.
 func TestColorHexCoversWholePalette(t *testing.T) {
 	for _, name := range domain.NodeColors {
-		hex := webui.ColorHex(name)
-		if !strings.HasPrefix(hex, "#") || len(hex) != 7 {
-			t.Errorf("color %q → %q, want a #rrggbb hex", name, hex)
+		got := webui.ColorHex(name)
+		want := "rgb(var(--" + name + "))"
+		if got != want {
+			t.Errorf("color %q → %q, want %q", name, got, want)
 		}
 	}
 	if webui.ColorHex("") != "" {
-		t.Error("empty color → empty hex")
+		t.Error("empty color → empty expression")
 	}
 	if webui.ColorHex("chartreuse") != "" {
-		t.Error("unknown color → empty hex (not a guess)")
+		t.Error("unknown color → empty expression (not a guess)")
 	}
 }
 

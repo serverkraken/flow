@@ -22,8 +22,8 @@
    breaks the entire @theme block (zero utilities emitted).
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── LIGHT (default) — Kristall twilight-light ── */
-:root {
+/* ── LIGHT — abgeleitet ── */
+:root[data-theme="light"] {
   color-scheme: light;
   --canvas:  244 243 251;
   --surface: 255 255 255;
@@ -67,8 +67,8 @@
   --scrollthumb: 217 223 236;
 }
 
-/* ── DARK — Kristall twilight-dark (lifted from approved mockup) ── */
-:root[data-theme="dark"] {
+/* ── DARK (default) — Kristall twilight-dark (lifted from approved mockup) ── */
+:root {
   color-scheme: dark;
   --canvas:  28  24  56;
   --surface: 40  33  64;
@@ -218,9 +218,14 @@ aside, header, nav, article, input, .theme-fade {
 /* Theme-toggle knob slide + sun/moon swap (driven by data-theme). */
 .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
 :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+:root:not([data-theme="light"]) .toggle-knob { transform: translateX(20px); }
 .toggle-sun { display:inline; } .toggle-moon { display:none; }
 :root[data-theme="dark"] .toggle-sun { display:none; }
 :root[data-theme="dark"] .toggle-moon { display:inline; }
+/* data-theme is always set by the no-flash script; these keep no-JS/first-paint
+   consistent with the dark default. */
+:root:not([data-theme]) .toggle-sun { display:none; }
+:root:not([data-theme]) .toggle-moon { display:inline; }
 
 /* Styled native <dialog> backdrop (Task 8). */
 dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px); }
@@ -267,7 +272,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     outline: 2px solid transparent;
     outline-offset: 1px;
   }
-  :root[data-theme="dark"] .wtblock { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
+  :root:not([data-theme="light"]) .wtblock { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
   .wtblock::before {
     content:""; position:absolute; inset-block:0; left:0; width:3px; background: rgb(var(--c));
   }
@@ -296,7 +301,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
       rgb(var(--sunken));
     border: 1.5px dashed rgb(var(--faint));
   }
-  :root[data-theme="dark"] .wtblock-unassigned {
+  :root:not([data-theme="light"]) .wtblock-unassigned {
     background:
       linear-gradient(0deg, rgb(var(--orange) / .10), rgb(var(--orange) / .10)),
       rgb(var(--sunken));
@@ -314,7 +319,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 
   /* running block — live cyan, breathing rail */
   .wtblock-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
-  :root[data-theme="dark"] .wtblock-running { background: rgb(var(--cyan) / .2); }
+  :root:not([data-theme="light"]) .wtblock-running { background: rgb(var(--cyan) / .2); }
   .wtblock-running::before { background: rgb(var(--cyan)); }
 
   /* now-line across the grid (today) */
