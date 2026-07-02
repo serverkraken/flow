@@ -97,3 +97,57 @@ func TestNodeStats_RollsUpSubtree(t *testing.T) {
 		t.Errorf("Month = %v, want 3h", r.Month)
 	}
 }
+
+func TestNodeStats_WorkPrivatSplit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ss := testutil.NewFakeSessionStore()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 1, 12, 0, 0, 0, time.Local)}
+	b := func(v bool) *bool { return &v }
+	mk := func(id string, parent *string, ctt *bool) {
+		n, _ := domain.NewNode(id, "u1", id, id, clk.Now())
+		n.ParentID = parent
+		n.CountsTowardTarget = ctt
+		n.Kind = domain.KindRepo
+		_, _ = ns.Create(ctx, n)
+	}
+	eng := "eng"
+	mk(eng, nil, b(false)) // engagement explicitly Privat
+	rp := "repo"
+	mk(rp, &eng, nil) // repo inherits -> Privat
+	rp2 := "repo2"
+	mk(rp2, &eng, b(true)) // repo explicit Work (override)
+	// 2h on the inherited-privat repo, 1h on the work-override repo. Booked as
+	// sequential, non-overlapping windows ending at cursor (AddSession enforces
+	// a global no-overlap invariant across all of the owner's nodes, so both
+	// legs can't share the same [now-h, now) window), and sharing one IDGen so
+	// the two sessions get distinct IDs (the fake session store is ID-keyed).
+	ids := &testutil.FakeIDGen{}
+	cursor := clk.Now()
+	add := func(node string, h int) {
+		stop := cursor
+		st := stop.Add(time.Duration(-h) * time.Hour)
+		_, err := usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}.
+			Execute(ctx, "u1", &node, st, stop, nil, "")
+		if err != nil {
+			t.Fatalf("AddSession(%s, %dh): %v", node, h, err)
+		}
+		cursor = st
+	}
+	add(rp, 2)
+	add(rp2, 1)
+
+	sc := usecase.StatsComputer{Sessions: ss, Nodes: ns, Clock: clk, Loc: time.Local}
+	r, err := sc.NodeStats(ctx, "u1", eng)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 3*time.Hour {
+		t.Errorf("Total=%v want 3h", r.Total)
+	}
+	if r.WorkTotal != 1*time.Hour {
+		t.Errorf("WorkTotal=%v want 1h (only repo2 counts)", r.WorkTotal)
+	}
+	// Privat = Total - Work = 2h
+}

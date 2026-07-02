@@ -164,9 +164,12 @@ type weekDayDTO struct {
 
 // nodeRollupDTO mirrors the wire shape for GET /api/v1/nodes/{id}/stats.
 type nodeRollupDTO struct {
-	TotalMin int `json:"totalMin"`
-	WeekMin  int `json:"weekMin"`
-	MonthMin int `json:"monthMin"`
+	TotalMin     int `json:"totalMin"`
+	WeekMin      int `json:"weekMin"`
+	MonthMin     int `json:"monthMin"`
+	WorkTotalMin int `json:"workTotalMin"`
+	WorkWeekMin  int `json:"workWeekMin"`
+	WorkMonthMin int `json:"workMonthMin"`
 }
 
 // burndownDTO mirrors the wire shape in stats.go.
@@ -560,5 +563,16 @@ func TestHandleNodeStats_HappyPath(t *testing.T) {
 	}
 	if dto.MonthMin != 120 {
 		t.Errorf("monthMin: want 120, got %d", dto.MonthMin)
+	}
+	// eng has no CountsTowardTarget override and no ancestors -> effective
+	// flag defaults to Work, so the DTO's work buckets mirror the all buckets.
+	if dto.WorkTotalMin != 120 {
+		t.Errorf("workTotalMin: want 120, got %d", dto.WorkTotalMin)
+	}
+	if dto.WorkWeekMin != 120 {
+		t.Errorf("workWeekMin: want 120, got %d", dto.WorkWeekMin)
+	}
+	if dto.WorkMonthMin != 120 {
+		t.Errorf("workMonthMin: want 120, got %d", dto.WorkMonthMin)
 	}
 }
