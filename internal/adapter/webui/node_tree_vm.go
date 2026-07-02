@@ -115,6 +115,7 @@ type NodeFormValues struct {
 	Color, Glyph                     string
 	RateAmount, RateCurrency         string
 	TagsCSV                          string // space-separated tag slugs for the tags input
+	CountsMode                       string // Work/Privat tri-state: ""/"inherit" | "work" | "privat"
 }
 
 // NodeFormData drives the create (editing==nil) / edit form.

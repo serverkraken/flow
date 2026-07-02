@@ -137,6 +137,11 @@ func init() {
 			"node.status.active":   "aktiv",
 			"node.status.paused":   "pausiert",
 			"node.status.archived": "archiviert",
+			// Work/Privat tri-state (cockpit-story slice 1)
+			"node.counts.label":   "Zählt zum Soll",
+			"node.counts.inherit": "erbt (vom Eltern-Knoten)",
+			"node.counts.work":    "Work — zählt",
+			"node.counts.privat":  "Privat — nur tracken",
 			// nodes tree page
 			"nodes.title":          "Projekte",
 			"nodes.subtitle":       "Engagements, Vorhaben und Repos",

@@ -182,6 +182,14 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			</select>
 		</div>
 		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.counts.label") }</label>
+			<select name="countsMode" class="rounded-lg border border-line bg-surface px-3 py-2">
+				@nodeCountsOption("inherit", "node.counts.inherit", d.Vals.CountsMode)
+				@nodeCountsOption("work", "node.counts.work", d.Vals.CountsMode)
+				@nodeCountsOption("privat", "node.counts.privat", d.Vals.CountsMode)
+			</select>
+		</div>
+		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.color") }</label>
 			<div class="flex flex-wrap gap-2">
 				@nodeColorRadio("", d.Vals.Color)
@@ -238,6 +246,16 @@ templ nodeKindOption(val, labelKey, current string) {
 
 templ nodeStatusOption(val, labelKey, current string) {
 	if val == current || (current == "" && val == "active") {
+		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
+	} else {
+		<option value={ val }>{ components.T(ctx, labelKey) }</option>
+	}
+}
+
+// nodeCountsOption renders one Work/Privat tri-state option; an empty current
+// value defaults to "inherit" (nil override).
+templ nodeCountsOption(val, labelKey, current string) {
+	if val == current || (current == "" && val == "inherit") {
 		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
 	} else {
 		<option value={ val }>{ components.T(ctx, labelKey) }</option>

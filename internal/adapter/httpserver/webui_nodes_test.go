@@ -52,6 +52,7 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 		UpdateNode:        usecase.UpdateNode{Nodes: ns, Bindings: bs, IDs: ids, Clock: clk},
 		DeleteNode:        usecase.DeleteNode{Nodes: ns},
 		SetNodeRate:       usecase.SetNodeRate{Nodes: ns},
+		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: ns, Clock: clk},
 		MoveNode:          usecase.MoveNode{Nodes: ns},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ns},
 		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
@@ -515,5 +516,63 @@ func TestWebNodeFormTags(t *testing.T) {
 	}
 	if len(stored) != 1 || stored[0].Slug != "kubernetes" {
 		t.Fatalf("want [kubernetes] after update, got %+v", stored)
+	}
+}
+
+// TestWebNodeForm_CountsModeTriState pins the Work/Privat tri-state through the
+// WebUI form: create with privat → explicit false; edit back to inherit → nil
+// (SetCountsTowardTarget always-apply, which UpdateNodeInput alone can't express);
+// the edit form pre-selects the current mode.
+func TestWebNodeForm_CountsModeTriState(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	// Create with countsMode=privat → node persisted with explicit false.
+	res := postN(t, ts, c, "/nodes", url.Values{
+		"name": {"Privatkram"}, "kind": {"engagement"}, "status": {"active"},
+		"countsMode": {"privat"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create status=%d want 303", res.StatusCode)
+	}
+	nodes, _ := ns.List(context.Background(), "u1")
+	var created domain.Node
+	for _, n := range nodes {
+		if n.Name == "Privatkram" {
+			created = n
+		}
+	}
+	if created.ID == "" {
+		t.Fatal("created node not found")
+	}
+	if created.CountsTowardTarget == nil || *created.CountsTowardTarget != false {
+		t.Fatalf("create: want explicit false (privat), got %v", created.CountsTowardTarget)
+	}
+
+	// Edit form pre-selects the current mode.
+	code, body := getN(t, ts, c, "/nodes/"+created.ID+"/edit")
+	if code != http.StatusOK {
+		t.Fatalf("edit form status=%d", code)
+	}
+	if !strings.Contains(body, `name="countsMode"`) {
+		t.Errorf("edit form missing countsMode select")
+	}
+	if !strings.Contains(body, `value="privat" selected`) {
+		t.Errorf("edit form should pre-select privat: %.300s", body)
+	}
+
+	// Edit back to inherit → override cleared to nil (always-apply).
+	res = postN(t, ts, c, "/nodes/"+created.ID, url.Values{
+		"name": {"Privatkram"}, "slug": {created.Slug}, "kind": {"engagement"},
+		"status": {"active"}, "countsMode": {"inherit"},
+	})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("update status=%d want 303", res.StatusCode)
+	}
+	got, err := ns.Get(context.Background(), "u1", created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CountsTowardTarget != nil {
+		t.Fatalf("update to inherit: want nil, got %v", *got.CountsTowardTarget)
 	}
 }

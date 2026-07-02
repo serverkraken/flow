@@ -30,6 +30,34 @@ func nodeFormValues(r *http.Request) webui.NodeFormValues {
 		RateAmount:   r.FormValue("rateAmount"),
 		RateCurrency: r.FormValue("rateCurrency"),
 		TagsCSV:      r.FormValue("tags"),
+		CountsMode:   r.FormValue("countsMode"),
+	}
+}
+
+// countsModeToPtr maps the tri-state form value to the *bool override
+// (nil = inherit, *true = Work, *false = Privat).
+func countsModeToPtr(mode string) *bool {
+	switch mode {
+	case "work":
+		t := true
+		return &t
+	case "privat":
+		f := false
+		return &f
+	default: // "inherit" / ""
+		return nil
+	}
+}
+
+// countsModeOf is the inverse: renders a node's override as the form value.
+func countsModeOf(v *bool) string {
+	switch {
+	case v == nil:
+		return "inherit"
+	case *v:
+		return "work"
+	default:
+		return "privat"
 	}
 }
 
@@ -183,6 +211,7 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		Name: vals.Name, Slug: vals.Slug, Kind: kind, ParentID: parent,
 		Color: vals.Color, Glyph: vals.Glyph,
 		Description: vals.Description, UpstreamGit: vals.UpstreamGit,
+		CountsTowardTarget: countsModeToPtr(vals.CountsMode),
 	})
 	if err != nil {
 		reRender(i18nT(r, "node.err.create") + ": " + err.Error())
@@ -216,6 +245,7 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 		Status:      string(n.Status),
 		Color:       n.Color,
 		Glyph:       n.Glyph,
+		CountsMode:  countsModeOf(n.CountsTowardTarget),
 	}
 	if n.ParentID != nil {
 		vals.ParentID = *n.ParentID
@@ -279,6 +309,11 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	// Rate applies only to engagements; nil clears any existing rate.
 	if n.Kind == domain.KindEngagement {
 		_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
+	}
+	// Work/Privat tri-state: always-apply (UpdateNodeInput's nil means preserve,
+	// which cannot express "set back to inherit" — SetCountsTowardTarget can).
+	if _, err := s.SetCountsTowardTarget.Execute(r.Context(), u.ID, id, countsModeToPtr(vals.CountsMode)); err != nil {
+		slog.WarnContext(r.Context(), "webui: set counts-toward-target failed", "nodeID", id, "err", err)
 	}
 	if s.SetTags.Tags != nil {
 		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {

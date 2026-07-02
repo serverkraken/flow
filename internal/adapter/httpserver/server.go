@@ -52,6 +52,9 @@ type Server struct {
 	BuildExport usecase.BuildExport
 	SetNodeRate usecase.SetNodeRate
 
+	// cockpit-story slice 1 (Work/Privat)
+	SetCountsTowardTarget usecase.SetCountsTowardTarget
+
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
