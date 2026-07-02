@@ -222,7 +222,10 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 		entries, _, _ := s.ListActivity.Execute(ctx, u.ID, nil, nil, 15, 0)
 		// If nodeMaps wasn't already loaded for docs, load it now for activity
 		if names == nil {
-			names, _, kinds, _ = s.nodeMaps(ctx, u.ID)
+			var nerr error
+			if names, _, kinds, nerr = s.nodeMaps(ctx, u.ID); nerr != nil {
+				slog.WarnContext(ctx, "home: nodeMaps for activity failed", "err", nerr)
+			}
 		}
 		vm.LogEntries = webui.BuildActivityRows(entries, names, kinds, now)
 		actors, _ := s.ListActivity.Actors(ctx, u.ID)
