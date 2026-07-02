@@ -563,6 +563,59 @@ func TestNodeStore_IconLogoRefRoundTrip(t *testing.T) {
 	}
 }
 
+// TestNodeLogoStore_PutGetDeleteCascade verifies the node_logos blob store:
+// upsert-on-put, owner-scoped Get, and FK ON DELETE CASCADE when the owning
+// node is deleted.
+func TestNodeLogoStore_PutGetDeleteCascade(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-logo", "sub-logo", "logouser", "logo@x.de", "Logo User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewNodeStore(pool)
+	ls := pgstore.NewNodeLogoStore(pool)
+	n, _ := domain.NewNode("n-logo", "u-logo", "n-logo", "n-logo", time.Now())
+	n.Kind = domain.KindEngagement
+	created, err := st.Create(ctx, n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := domain.NodeLogo{NodeID: created.ID, OwnerID: "u-logo", Mime: "image/png",
+		Ref: "aaaabbbbcccc", Bytes: []byte{1, 2, 3}, UpdatedAt: time.Now()}
+	if err := ls.Put(ctx, l); err != nil {
+		t.Fatal(err)
+	}
+	l.Bytes = []byte{9, 9, 9} // replace-on-put
+	if err := ls.Put(ctx, l); err != nil {
+		t.Fatal(err)
+	}
+	got, err := ls.Get(ctx, "u-logo", created.ID)
+	if err != nil || len(got.Bytes) != 3 || got.Bytes[0] != 9 {
+		t.Fatalf("get after upsert: %v (bytes %v)", err, got.Bytes)
+	}
+	if _, err := ls.Get(ctx, "intruder", created.ID); !errors.Is(err, ports.ErrNodeLogoNotFound) {
+		t.Errorf("foreign owner must not see the logo: %v", err)
+	}
+	// Node delete cascades the blob (FK ON DELETE CASCADE).
+	if err := st.Delete(ctx, "u-logo", created.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ls.Get(ctx, "u-logo", created.ID); !errors.Is(err, ports.ErrNodeLogoNotFound) {
+		t.Errorf("logo survived node delete: %v", err)
+	}
+}
+
 func TestNodeStore_Subtree(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))

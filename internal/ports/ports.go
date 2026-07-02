@@ -62,6 +62,8 @@ var (
 	// (or another root, for engagements) already uses this slug. Slugs are unique
 	// per sibling set, not globally — the same name may repeat across the tree.
 	ErrNodeSlugTaken = errors.New("node slug already taken under this parent")
+	// ErrNodeLogoNotFound signals a node without an uploaded logo.
+	ErrNodeLogoNotFound = errors.New("node logo not found")
 
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
@@ -103,6 +105,16 @@ type NodeStore interface {
 	Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error)
 	// Subtree returns the node itself and all its descendants (root→leaf order).
 	Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error)
+}
+
+// NodeLogoStore persists at most one uploaded logo image per node.
+type NodeLogoStore interface {
+	// Put upserts the node's logo (replace-on-upload).
+	Put(ctx context.Context, l domain.NodeLogo) error
+	// Get returns the node's logo. Owner-scoped; ErrNodeLogoNotFound when absent.
+	Get(ctx context.Context, ownerID, nodeID string) (domain.NodeLogo, error)
+	// Delete removes the node's logo; absent is a no-op, not an error.
+	Delete(ctx context.Context, ownerID, nodeID string) error
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running
