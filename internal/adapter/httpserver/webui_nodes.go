@@ -177,6 +177,10 @@ func (s *Server) handleWebNodeNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
+	// Cap the whole multipart body: ParseMultipartForm would otherwise buffer
+	// an unbounded body (32 MiB RAM + unlimited temp files) before the logo
+	// LimitReader ever runs. Headroom covers the non-file form fields.
+	r.Body = http.MaxBytesReader(w, r.Body, usecase.MaxNodeLogoBytes+64*1024)
 	u, _ := userFrom(r.Context())
 	vals := nodeFormValues(r)
 	rate, rerr := parseRate(vals.RateAmount, vals.RateCurrency)
@@ -193,16 +197,10 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		reRender(rerr.Error())
 		return
 	}
-	logoData, lerr := readLogoUpload(r)
-	if lerr != nil {
-		reRender(i18nT(r, "node.err.logo"))
+	logoData, errMsg, ok := readValidatedLogo(r)
+	if !ok {
+		reRender(errMsg)
 		return
-	}
-	if len(logoData) > 0 {
-		if _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
-			reRender(logoErrMsg(r, verr))
-			return
-		}
 	}
 	// Reject a bad upstream up front so we never create a half-configured project.
 	if vals.UpstreamGit != "" {
@@ -286,6 +284,10 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
+	// Cap the whole multipart body: ParseMultipartForm would otherwise buffer
+	// an unbounded body (32 MiB RAM + unlimited temp files) before the logo
+	// LimitReader ever runs. Headroom covers the non-file form fields.
+	r.Body = http.MaxBytesReader(w, r.Body, usecase.MaxNodeLogoBytes+64*1024)
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
 	vals := nodeFormValues(r)
@@ -304,16 +306,10 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		reRender(rerr.Error())
 		return
 	}
-	logoData, lerr := readLogoUpload(r)
-	if lerr != nil {
-		reRender(i18nT(r, "node.err.logo"))
+	logoData, errMsg, ok := readValidatedLogo(r)
+	if !ok {
+		reRender(errMsg)
 		return
-	}
-	if len(logoData) > 0 {
-		if _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
-			reRender(logoErrMsg(r, verr))
-			return
-		}
 	}
 	n, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        vals.Name,

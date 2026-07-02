@@ -724,3 +724,99 @@ func TestWebNodeForm_EditShowsIconAndLogo(t *testing.T) {
 		t.Errorf("edit form with LogoRef set must offer logoRemove checkbox; body=%.500s", body)
 	}
 }
+
+// TestWebNodeForm_LogoSizeLimit pins fix 1 (whole-branch review): the whole
+// multipart body is bounded via http.MaxBytesReader in the handler, so an
+// oversized logo upload fails fast with 400 + the i18n node.err.logoSize
+// message instead of buffering an unbounded body — and no half-configured
+// node is created.
+//
+// name/kind ride the URL query string rather than the multipart body: Go's
+// mime/multipart.Reader.ReadForm discards ALL parsed fields (not just the
+// oversized file) the instant the underlying reader errors, so a name field
+// inside the (doomed) body would come back empty too and trip the unrelated
+// "name required" check first. Query values are parsed separately (before
+// the multipart body is even touched) and survive, isolating the assertion
+// to the logo-size path.
+func TestWebNodeForm_LogoSizeLimit(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, _ := mw.CreateFormFile("logo", "big.png")
+	_, _ = fw.Write(make([]byte, usecase.MaxNodeLogoBytes+128*1024)) // well past MaxBytesReader's cap
+	_ = mw.Close()
+
+	res := postNMultipart(t, ts, c, "/nodes?name=TooBig&kind=engagement", mw.FormDataContentType(), &buf)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("oversized upload → %d, want 400", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if !strings.Contains(string(body), "Logo zu groß") {
+		t.Errorf("re-rendered form must show the node.err.logoSize i18n message; body=%.500s", body)
+	}
+	nodes, _ := ns.List(context.Background(), "u1")
+	for _, n := range nodes {
+		if n.Name == "TooBig" {
+			t.Errorf("oversized upload must not create a half-configured node: %+v", n)
+		}
+	}
+}
+
+// TestWebNodeStatus_PreservesIcon pins that handleWebNodeStatus's full-replace
+// UpdateNode call round-trips the node's Icon field (not just Color/Glyph).
+func TestWebNodeStatus_PreservesIcon(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+	n := seedTreeNode(t, ns, "eng1", "Iconic", domain.KindEngagement, nil)
+	n.Icon = "rocket"
+	_, _ = ns.Update(context.Background(), "u1", n)
+
+	res := postN(t, ts, c, "/nodes/"+n.ID+"/status", url.Values{"status": {"paused"}})
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", res.StatusCode)
+	}
+	_ = res.Body.Close()
+
+	got, err := ns.Get(context.Background(), "u1", n.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != domain.NodePaused {
+		t.Errorf("status = %q, want paused", got.Status)
+	}
+	if got.Icon != "rocket" {
+		t.Errorf("icon = %q after status change, want rocket (preserved)", got.Icon)
+	}
+}
+
+// TestWebNodeForm_EmptyLogoFilePinsNoUpload pins that a "logo" multipart part
+// with an empty filename (browser-style "no file chosen" submission) is
+// treated as no upload, not an error: the node is created with LogoRef empty.
+func TestWebNodeForm_EmptyLogoFilePinsNoUpload(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("name", "NoLogo")
+	_ = mw.WriteField("kind", "engagement")
+	_, _ = mw.CreateFormFile("logo", "") // empty filename + zero bytes written
+	_ = mw.Close()
+
+	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
+	if res.StatusCode != http.StatusSeeOther {
+		body, _ := io.ReadAll(res.Body)
+		t.Fatalf("create with empty logo part → %d, want 303; body=%.500s", res.StatusCode, body)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	nodeID := strings.TrimPrefix(loc, "/nodes/")
+
+	n, err := ns.Get(context.Background(), "u1", nodeID)
+	if err != nil {
+		t.Fatalf("created node not found: %v", err)
+	}
+	if n.LogoRef != "" {
+		t.Errorf("LogoRef = %q, want empty (empty file part must not count as an upload)", n.LogoRef)
+	}
+}

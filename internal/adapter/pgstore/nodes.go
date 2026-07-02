@@ -76,7 +76,8 @@ func (s *NodeStore) Get(ctx context.Context, ownerID, id string) (domain.Node, e
 }
 
 // Update overwrites mutable metadata (name, slug, color, glyph, description,
-// upstream_git, origin_slug, status, extra). It does NOT touch rate or parent_id.
+// upstream_git, origin_slug, status, extra, counts_toward_target, icon,
+// logo_ref). It does NOT touch rate or parent_id.
 func (s *NodeStore) Update(ctx context.Context, ownerID string, n domain.Node) (domain.Node, error) {
 	const q = `
 UPDATE nodes SET name=$1, slug=$2, color=$3, glyph=$4, description=$5,
