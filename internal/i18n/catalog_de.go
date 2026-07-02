@@ -359,6 +359,16 @@ func init() {
 			"sessions.tag":        "Tag",
 			"sessions.note":       "Notiz",
 			"sessions.save":       "Speichern",
+			// session dialog (Kristall K2)
+			"session.dialog.addTitle": "Zeit nachbuchen",
+			"session.dialog.editTitle": "Sitzung bearbeiten",
+			"session.dialog.save":      "Speichern",
+			"session.dialog.date":      "Datum",
+			"session.dialog.from":      "Von",
+			"session.dialog.to":        "Bis",
+			"session.dialog.tags":      "Tags",
+			"session.dialog.note":      "Notiz",
+			"session.dialog.node":      "Projekt",
 			// global shell timer widget (Kristall K1)
 			"timer.start":      "Timer starten",
 			"timer.stop":       "Stoppen",

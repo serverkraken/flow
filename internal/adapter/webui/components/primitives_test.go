@@ -6,6 +6,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 func TestButtonVariantsAndAttrs(t *testing.T) {
@@ -98,5 +99,87 @@ func TestTabStrip_PillsAndCount(t *testing.T) {
 	}
 	if !strings.Contains(out, ">12<") {
 		t.Errorf("count chip missing: %s", out)
+	}
+}
+
+func TestSessionDialog_AddMode_NoNodes(t *testing.T) {
+	vm := components.SessionDialogVM{
+		DialogID: "session-dialog",
+		Mode:     "add",
+		Action:   "/api/v1/nodes/123/sessions",
+		Target:   "#cockpit-main",
+		Date:     "2026-07-02",
+		From:     "14:00",
+		To:       "15:00",
+		Tag:      "build",
+		Note:     "Feature work",
+		Nodes:    []domain.Node{},
+		NodeID:   "",
+	}
+	out := render(t, components.SessionDialog(vm))
+
+	wants := []string{
+		`<dialog id="session-dialog"`,
+		`aria-modal="true"`,
+		"Zeit nachbuchen",
+		`hx-post="/api/v1/nodes/123/sessions"`,
+		`hx-target="#cockpit-main"`,
+		`hx-swap="innerHTML"`,
+		`name="date"`,
+		`value="2026-07-02"`,
+		`name="from"`,
+		`value="14:00"`,
+		`name="to"`,
+		`value="15:00"`,
+		`name="tag"`,
+		`value="build"`,
+		`name="note"`,
+		"Feature work",
+	}
+	for _, want := range wants {
+		if !strings.Contains(out, want) {
+			t.Errorf("SessionDialog add-mode missing %q", want)
+		}
+	}
+
+	// Verify NO select when Nodes empty
+	if strings.Contains(out, `<select name="node"`) {
+		t.Errorf("SessionDialog should not render select when Nodes empty")
+	}
+}
+
+func TestSessionDialog_EditMode_WithNodes(t *testing.T) {
+	vm := components.SessionDialogVM{
+		DialogID: "edit-dialog",
+		Mode:     "edit",
+		Action:   "/api/v1/nodes/123/sessions/456/edit",
+		Target:   "#cockpit-main",
+		Date:     "2026-07-01",
+		From:     "09:00",
+		To:       "12:00",
+		Tag:      "review",
+		Note:     "Code review",
+		Nodes: []domain.Node{
+			{ID: "n1", Name: "Project A"},
+			{ID: "n2", Name: "Project B"},
+		},
+		NodeID: "n1",
+	}
+	out := render(t, components.SessionDialog(vm))
+
+	wants := []string{
+		`<dialog id="edit-dialog"`,
+		"Sitzung bearbeiten",
+		`hx-post="/api/v1/nodes/123/sessions/456/edit"`,
+		`<select name="node"`,
+		`value="n1" selected`,
+		">Project A<",
+		`value="n2"`,
+		">Project B<",
+	}
+	for _, want := range wants {
+		if !strings.Contains(out, want) {
+			t.Errorf("SessionDialog edit-mode missing %q: %s", want, out)
+		}
 	}
 }
