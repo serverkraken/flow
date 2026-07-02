@@ -451,3 +451,50 @@ func TestStatsComputer_Week_InheritedPrivatExcludedFromSaldo(t *testing.T) {
 		t.Errorf("TargetTotal: want 2h (job only; privrepo inherits Privat), got %v", st.TargetTotal)
 	}
 }
+
+// TestStatsComputer_Week_WorkOverrideUnderPrivatCountsTowardSaldo is the
+// inverse of the inherited-Privat test: an explicit Work override on a child
+// under a Privat parent DOES count toward the Soll (override beats inheritance).
+func TestStatsComputer_Week_WorkOverrideUnderPrivatCountsTowardSaldo(t *testing.T) {
+	ctx := context.Background()
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+
+	ns := testutil.NewFakeNodeStore()
+	privID := "priv"
+	for _, n := range []domain.Node{
+		{ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
+			Kind: domain.KindEngagement, Status: domain.NodeActive,
+			CountsTowardTarget: ptrBool(false)}, // explicitly Privat
+		{ID: "workrepo", OwnerID: "u1", Name: "WorkRepo", Slug: "workrepo",
+			Kind: domain.KindRepo, Status: domain.NodeActive, ParentID: &privID,
+			CountsTowardTarget: ptrBool(true)}, // explicit Work override
+	} {
+		if _, err := ns.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	workRepoID := "workrepo"
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	sessions := []domain.WorkSession{
+		{ID: "s1", OwnerID: "u1", NodeID: &workRepoID, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop},
+	}
+
+	c := usecase.StatsComputer{
+		Sessions: fakeSessionStore{list: sessions},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)}, // Monday
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+
+	st, err := c.RangeStats(ctx, "u1", "week")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The override beats the parent's Privat: the 2h count toward the Soll.
+	if st.TargetTotal != 2*time.Hour {
+		t.Errorf("TargetTotal: want 2h (work override counts), got %v", st.TargetTotal)
+	}
+}
