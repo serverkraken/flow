@@ -16,6 +16,7 @@ type UpdateNodeInput struct {
 	Slug               string
 	Color              string
 	Glyph              string
+	Icon               string
 	Description        string
 	UpstreamGit        string
 	Status             domain.NodeStatus
@@ -37,7 +38,7 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 		return domain.Node{}, err
 	}
 	p := cur
-	p.Name, p.Slug, p.Color, p.Glyph = in.Name, in.Slug, in.Color, in.Glyph
+	p.Name, p.Slug, p.Color, p.Glyph, p.Icon = in.Name, in.Slug, in.Color, in.Glyph, in.Icon
 	p.Description, p.UpstreamGit, p.Status = in.Description, in.UpstreamGit, in.Status
 	if in.CountsTowardTarget != nil {
 		p.CountsTowardTarget = in.CountsTowardTarget

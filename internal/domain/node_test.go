@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -116,5 +117,20 @@ func TestResolveCountsTowardTarget(t *testing.T) {
 		if got := domain.ResolveCountsTowardTarget(c.chain); got != c.want {
 			t.Errorf("%s: got %v want %v", c.name, got, c.want)
 		}
+	}
+}
+
+func TestNodeValidate_Icon(t *testing.T) {
+	n, err := domain.NewNode("n1", "u1", "flow", "flow", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.Icon = "rocket"
+	if err := n.Validate(); err != nil {
+		t.Errorf("whitelisted icon rejected: %v", err)
+	}
+	n.Icon = "skull"
+	if err := n.Validate(); err == nil {
+		t.Error("non-whitelisted icon accepted")
 	}
 }

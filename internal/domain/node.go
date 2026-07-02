@@ -34,6 +34,12 @@ type Node struct {
 	Slug               string         `json:"slug"`
 	Color              string         `json:"color"`
 	Glyph              string         `json:"glyph"`
+	// Icon is a whitelisted key into the curated Lucide identity-icon set
+	// ("" = none); rendered in the node's color. LogoRef is the content hash
+	// of the uploaded logo image ("" = none) — render priority is
+	// upload > icon > glyph.
+	Icon               string         `json:"icon"`
+	LogoRef            string         `json:"logoRef,omitempty"`
 	Description        string         `json:"description"`
 	UpstreamGit        string         `json:"upstreamGit"`
 	Rate               *Money         `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
@@ -79,6 +85,8 @@ func (p Node) Validate() error {
 		return fmt.Errorf("%w: invalid color %q", ErrInvalidNode, p.Color)
 	case !ValidNodeGlyph(p.Glyph):
 		return fmt.Errorf("%w: invalid glyph %q", ErrInvalidNode, p.Glyph)
+	case !ValidNodeIcon(p.Icon):
+		return fmt.Errorf("%w: invalid icon %q", ErrInvalidNode, p.Icon)
 	}
 	switch p.Status {
 	case NodeActive, NodePaused, NodeArchived:

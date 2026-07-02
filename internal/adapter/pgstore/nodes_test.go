@@ -508,6 +508,61 @@ func TestNodeStore_CountsTowardTargetNullable(t *testing.T) {
 	}
 }
 
+// TestNodeStore_IconLogoRefRoundTrip verifies the icon/logo_ref columns added
+// by migration 0026 survive Create, Update and the recursive CTE reads.
+func TestNodeStore_IconLogoRefRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-icon", "sub-icon", "iconuser", "icon@x.de", "Icon User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+
+	st := pgstore.NewNodeStore(pool)
+	n, _ := domain.NewNode("n-icon", "u-icon", "n-icon", "n-icon", time.Now())
+	n.Kind = domain.KindEngagement
+	n.Icon = "rocket"
+	got, err := st.Create(ctx, n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Icon != "rocket" || got.LogoRef != "" {
+		t.Errorf("create round-trip: icon=%q logoRef=%q", got.Icon, got.LogoRef)
+	}
+	got.Icon, got.LogoRef = "leaf", "abc123def456"
+	got2, err := st.Update(ctx, "u-icon", got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got2.Icon != "leaf" || got2.LogoRef != "abc123def456" {
+		t.Errorf("update round-trip: icon=%q logoRef=%q", got2.Icon, got2.LogoRef)
+	}
+	// Subtree/Ancestors CTEs must carry the new columns too.
+	sub, err := st.Subtree(ctx, "u-icon", got.ID)
+	if err != nil || len(sub) == 0 {
+		t.Fatalf("subtree: %v (len %d)", err, len(sub))
+	}
+	if sub[0].Icon != "leaf" {
+		t.Errorf("subtree lost icon: %q", sub[0].Icon)
+	}
+	anc, err := st.Ancestors(ctx, "u-icon", got.ID)
+	if err != nil || len(anc) == 0 {
+		t.Fatalf("ancestors: %v (len %d)", err, len(anc))
+	}
+	if anc[0].LogoRef != "abc123def456" {
+		t.Errorf("ancestors lost logoRef: %q", anc[0].LogoRef)
+	}
+}
+
 func TestNodeStore_Subtree(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
