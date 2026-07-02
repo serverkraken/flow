@@ -16,11 +16,19 @@ type ActivityRowVM struct {
 	Label     string // empty if nil in the entry
 	Href      string // "/wissen/{id}" for document.* events with a TargetRef, else ""
 	RelTime   string // German relative time, e.g. "vor 3 Min"
+	// Ziel-Pill (nur session.* mit NodeRef): live node name+kind, or the Label
+	// snapshot when the node no longer exists (then kind=="" and no href).
+	TargetName string
+	TargetKind domain.NodeKind
+	TargetHref string
 }
 
 // BuildActivityRows converts domain.ActivityEntry slices to ActivityRowVM slices.
+// names/kinds are the owner's current node lookups (s.nodeMaps): a session row
+// whose NodeRef still resolves renders the live target pill (linked); a deleted
+// node falls back to the persisted Label snapshot (unlinked pill, no kind).
 // `now` is used for RelTime formatting only.
-func BuildActivityRows(entries []domain.ActivityEntry, now time.Time) []ActivityRowVM {
+func BuildActivityRows(entries []domain.ActivityEntry, names map[string]string, kinds map[string]domain.NodeKind, now time.Time) []ActivityRowVM {
 	rows := make([]ActivityRowVM, 0, len(entries))
 	for _, e := range entries {
 		var label string
@@ -31,14 +39,26 @@ func BuildActivityRows(entries []domain.ActivityEntry, now time.Time) []Activity
 		if strings.HasPrefix(e.Kind, "document.") && e.TargetRef != nil {
 			href = "/wissen/" + *e.TargetRef
 		}
-		rows = append(rows, ActivityRowVM{
+		row := ActivityRowVM{
 			ActorKind: e.ActorKind,
 			ActorRef:  e.ActorRef,
 			VerbKey:   "activity.verb." + e.Kind,
 			Label:     label,
 			Href:      href,
 			RelTime:   fmtRelTime(e.At, now),
-		})
+		}
+		if strings.HasPrefix(e.Kind, "session.") && e.NodeRef != nil {
+			if name, ok := names[*e.NodeRef]; ok {
+				row.TargetName = name
+				row.TargetKind = kinds[*e.NodeRef]
+				row.TargetHref = "/nodes/" + *e.NodeRef
+			} else {
+				row.TargetName = label // snapshot of the deleted node's name
+			}
+			// the label for session rows IS the node name — the pill replaces it.
+			row.Label = ""
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }

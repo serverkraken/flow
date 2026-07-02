@@ -203,12 +203,14 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 
 	// Newest knowledge articles for the "Zuletzt im Wissen" section.
 	// Guard: skip gracefully when ListDocuments is not wired (minimal test server).
+	var names, colors map[string]string
+	var kinds map[string]domain.NodeKind
 	if s.ListDocuments.Docs != nil {
 		docs, err := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
 		if err != nil {
 			slog.WarnContext(ctx, "home: list documents failed", "err", err)
 		}
-		_, colors, _, err := s.nodeMaps(ctx, u.ID)
+		names, colors, kinds, err = s.nodeMaps(ctx, u.ID)
 		if err != nil {
 			slog.WarnContext(ctx, "home: nodeMaps failed", "err", err)
 		}
@@ -218,7 +220,11 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 	// Activity logstream — guard: skip when ListActivity is not wired.
 	if s.ListActivity.Activities != nil {
 		entries, _, _ := s.ListActivity.Execute(ctx, u.ID, nil, nil, 15, 0)
-		vm.LogEntries = webui.BuildActivityRows(entries, now)
+		// If nodeMaps wasn't already loaded for docs, load it now for activity
+		if names == nil {
+			names, _, kinds, _ = s.nodeMaps(ctx, u.ID)
+		}
+		vm.LogEntries = webui.BuildActivityRows(entries, names, kinds, now)
 		actors, _ := s.ListActivity.Actors(ctx, u.ID)
 		vm.LogActors = actors
 	}
@@ -266,8 +272,13 @@ func (s *Server) handleHomeLogstream(w http.ResponseWriter, r *http.Request) {
 		logActors, _ = s.ListActivity.Actors(r.Context(), u.ID)
 	}
 
+	names, _, kinds, nerr := s.nodeMaps(r.Context(), u.ID)
+	if nerr != nil {
+		slog.WarnContext(r.Context(), "home: nodeMaps for activity failed", "err", nerr)
+	}
+
 	vm := webui.HomeVM{
-		LogEntries: webui.BuildActivityRows(entries, now),
+		LogEntries: webui.BuildActivityRows(entries, names, kinds, now),
 		LogActors:  logActors,
 		LogClass:   class,
 		LogActor:   actor,
