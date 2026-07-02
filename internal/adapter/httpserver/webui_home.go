@@ -49,8 +49,9 @@ func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u do
 // Mirrors handleWebStart (webui.go) but targets the Home fragment.
 func (s *Server) handleHomeStart(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	if _, err := s.StartSession.Execute(r.Context(), u.ID, nil, nil, ""); err == nil {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID})
+	if sess, err := s.StartSession.Execute(r.Context(), u.ID, nil, nil, ""); err == nil {
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	}
 	s.renderHomeFragment(w, r, u, "")
 }
@@ -68,7 +69,8 @@ func (s *Server) handleHomeStop(w http.ResponseWriter, r *http.Request) {
 			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
 		}
 	}
-	if _, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &nodeID); err != nil {
+	sess, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &nodeID)
+	if err != nil {
 		// Booking is mandatory: surface the reason instead of silently leaving the
 		// timer running (otherwise Stop appears to "do nothing").
 		msg := "Sitzung konnte nicht gestoppt werden."
@@ -78,7 +80,8 @@ func (s *Server) handleHomeStop(w http.ResponseWriter, r *http.Request) {
 		s.renderHomeFragment(w, r, u, msg)
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	s.renderHomeFragment(w, r, u, "")
 }
 

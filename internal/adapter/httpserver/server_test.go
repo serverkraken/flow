@@ -84,6 +84,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
+		GetNode:    usecase.GetNode{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -153,6 +154,7 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
+		GetNode:    usecase.GetNode{Nodes: ps},
 		EditSession:   usecase.EditSession{Sessions: ss, Tags: tags},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}

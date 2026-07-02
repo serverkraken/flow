@@ -75,12 +75,14 @@ func (s *Server) handleWebAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodeID := s.resolveWebNode(r, u)
-	if _, err := s.AddSession.Execute(r.Context(), u.ID, nodeID, start, stop,
-		strings.Fields(r.FormValue("tag")), r.FormValue("note")); err != nil {
+	sess, err := s.AddSession.Execute(r.Context(), u.ID, nodeID, start, stop,
+		strings.Fields(r.FormValue("tag")), r.FormValue("note"))
+	if err != nil {
 		s.renderDay(w, r, u, day, "could not add: "+err.Error()) // err includes "overlap"
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	s.renderDay(w, r, u, day, "")
 }
 
@@ -92,7 +94,8 @@ func (s *Server) handleWebDelete(w http.ResponseWriter, r *http.Request) {
 		s.renderDay(w, r, u, day, "could not delete: "+err.Error())
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID,
+		Data: map[string]any{"id": r.FormValue("sessionId")}})
 	s.renderDay(w, r, u, day, "")
 }
 
@@ -108,17 +111,19 @@ func (s *Server) handleWebEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	nodeID := s.resolveWebNode(r, u)
 	webTags := strings.Fields(r.FormValue("tag"))
-	if _, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
+	sess, err := s.EditSession.Execute(r.Context(), u.ID, r.FormValue("sessionId"),
 		usecase.EditSessionInput{
 			NodeID: nodeID,
 			Tags:   &webTags,
 			Note:   r.FormValue("note"),
 			Start:  start,
 			Stop:   &stop,
-		}); err != nil {
+		})
+	if err != nil {
 		s.renderDay(w, r, u, day, "could not edit: "+err.Error())
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	s.renderDay(w, r, u, day, "")
 }

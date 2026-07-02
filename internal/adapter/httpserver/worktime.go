@@ -58,7 +58,8 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 		writeJSON(w, http.StatusCreated, sess)
 		return
 	}
@@ -79,7 +80,8 @@ func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	writeJSON(w, http.StatusCreated, sess)
 }
 
@@ -106,7 +108,8 @@ func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -379,7 +382,8 @@ func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID, Data: map[string]any{"id": sess.ID}})
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	writeJSON(w, http.StatusOK, sess)
 }
 
@@ -394,6 +398,7 @@ func (s *Server) handleDeleteSession(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	// deleted: the session is gone — id only, no target (documented non-goal).
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionDeleted, UserID: u.ID, Data: map[string]any{"id": id}})
 	w.WriteHeader(http.StatusNoContent)
 }

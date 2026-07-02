@@ -67,6 +67,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 		DeleteSession:       usecase.DeleteSession{Sessions: ss},
 		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:        usecase.ListNodes{Nodes: ps},
+		GetNode:          usecase.GetNode{Nodes: ps},
 		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
 		ListDayOffs:         listDayOffs,
 		GetSettings:         usecase.GetSettings{Settings: settings, Tokens: tokens},
