@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "flow": {
+      "command": "/Users/msoent/SourceCode/serverkraken/flow-rebuild/bin/flow-mcp",
+      "env": {
+        "FLOW_SERVER_URL": "https://flow.thebackend.org",
+        "FLOW_OIDC_ISSUER": "https://id.thebackend.org/application/o/flow-cli/"
+      }
+    }
+  }
+}

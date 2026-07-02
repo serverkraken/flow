@@ -8,6 +8,8 @@ type NodeRollup struct {
 	Total time.Duration
 	Week  time.Duration
 	Month time.Duration
+	// PrevWeek is the ISO week before weekStart; for the overview delta.
+	PrevWeek time.Duration
 	// Work* is the subset of Total/Week/Month that counts toward the Soll
 	// (effective CountsTowardTarget flag = Work). Privat is derived by
 	// callers as Total-WorkTotal / Week-WorkWeek / Month-WorkMonth.

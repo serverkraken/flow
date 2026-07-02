@@ -53,6 +53,7 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 	}
 	now := c.Clock.Now().In(loc)
 	weekStart := isoMondayLocal(now)
+	prevWeekStart := weekStart.AddDate(0, 0, -7)
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 	var r domain.NodeRollup
 	for _, s := range sessions {
@@ -66,10 +67,14 @@ func (c StatsComputer) NodeStats(ctx context.Context, ownerID, nodeID string) (d
 		work := eff[*s.NodeID]
 		st := s.Start.In(loc)
 		inWeek := !st.Before(weekStart)
+		inPrevWeek := !st.Before(prevWeekStart) && st.Before(weekStart)
 		inMonth := !st.Before(monthStart)
 		r.Total += el
 		if inWeek {
 			r.Week += el
+		}
+		if inPrevWeek {
+			r.PrevWeek += el
 		}
 		if inMonth {
 			r.Month += el
