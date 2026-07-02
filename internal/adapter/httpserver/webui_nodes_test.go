@@ -1,8 +1,10 @@
 package httpserver_test
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -28,6 +30,7 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	ns := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	tags := testutil.NewFakeTagStore()
+	ls := testutil.NewFakeNodeLogoStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -46,21 +49,24 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateNode:        usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
-		ListNodes:         usecase.ListNodes{Nodes: ns},
-		GetNode:           usecase.GetNode{Nodes: ns},
-		UpdateNode:        usecase.UpdateNode{Nodes: ns, Bindings: bs, IDs: ids, Clock: clk},
-		DeleteNode:        usecase.DeleteNode{Nodes: ns},
-		SetNodeRate:       usecase.SetNodeRate{Nodes: ns},
+		CreateNode:            usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
+		ListNodes:             usecase.ListNodes{Nodes: ns},
+		GetNode:               usecase.GetNode{Nodes: ns},
+		UpdateNode:            usecase.UpdateNode{Nodes: ns, Bindings: bs, IDs: ids, Clock: clk},
+		DeleteNode:            usecase.DeleteNode{Nodes: ns},
+		SetNodeRate:           usecase.SetNodeRate{Nodes: ns},
 		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: ns, Clock: clk},
-		MoveNode:          usecase.MoveNode{Nodes: ns},
-		NodeAncestors:     usecase.NodeAncestors{Nodes: ns},
-		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
-		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
-		GetRunningSession: usecase.GetRunningSession{Sessions: ss},
-		ListDocuments:     usecase.ListDocuments{Docs: docs},
-		SetTags:           usecase.SetTags{Tags: tags},
-		GetTags:           usecase.GetTags{Tags: tags},
+		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
+		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
+		GetNodeLogo:           usecase.GetNodeLogo{Logos: ls},
+		MoveNode:              usecase.MoveNode{Nodes: ns},
+		NodeAncestors:         usecase.NodeAncestors{Nodes: ns},
+		ListNodeBindings:      usecase.ListNodeBindings{Bindings: bs},
+		ListSessionsRange:     usecase.ListSessionsRange{Sessions: ss},
+		GetRunningSession:     usecase.GetRunningSession{Sessions: ss},
+		ListDocuments:         usecase.ListDocuments{Docs: docs},
+		SetTags:               usecase.SetTags{Tags: tags},
+		GetTags:               usecase.GetTags{Tags: tags},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
 			Nodes:    ns,
@@ -116,6 +122,22 @@ func postN(t *testing.T, ts *httptest.Server, c *http.Cookie, path string, form 
 	req, _ := http.NewRequest("POST", ts.URL+path, strings.NewReader(form.Encode()))
 	req.AddCookie(c)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	cl := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	res, err := cl.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res
+}
+
+// postNMultipart is postN's multipart counterpart: posts a raw body under the
+// given Content-Type (a multipart writer's boundary-bearing type) so tests
+// can exercise the node form's file (logo) upload field.
+func postNMultipart(t *testing.T, ts *httptest.Server, c *http.Cookie, path, contentType string, body *bytes.Buffer) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("POST", ts.URL+path, body)
+	req.AddCookie(c)
+	req.Header.Set("Content-Type", contentType)
 	cl := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	res, err := cl.Do(req)
 	if err != nil {
@@ -197,8 +219,8 @@ func TestWebNodeCockpit(t *testing.T) {
 	}
 	for _, want := range []string{
 		"flow",              // node name
-		"RTL Extern",       // ancestor breadcrumb (engagement parent)
-		"Repo",             // kind badge label
+		"RTL Extern",        // ancestor breadcrumb (engagement parent)
+		"Repo",              // kind badge label
 		`id="cockpit-head"`, // new cockpit shell id
 		`id="cockpit-main"`, // new cockpit shell id
 	} {
@@ -574,5 +596,131 @@ func TestWebNodeForm_CountsModeTriState(t *testing.T) {
 	}
 	if got.CountsTowardTarget != nil {
 		t.Fatalf("update to inherit: want nil, got %v", *got.CountsTowardTarget)
+	}
+}
+
+// TestWebNodeForm_IconAndLogo pins the multipart node form: icon round-trips
+// as a plain form field, an uploaded logo is stored on create (LogoRef =
+// 12-hex content hash), the logoRemove checkbox clears it on update, and a
+// disguised-as-image bad upload (here: SVG, sniffed via ValidateNodeLogo)
+// rejects the whole create with 400 — no half-created node.
+func TestWebNodeForm_IconAndLogo(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	// multipart create: name + icon + logo file
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("name", "Iconic")
+	_ = mw.WriteField("kind", "engagement")
+	_ = mw.WriteField("status", "active")
+	_ = mw.WriteField("icon", "rocket")
+	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	_, _ = fw.Write(pngPixel(t))
+	_ = mw.Close()
+	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create → %d", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	nodeID := strings.TrimPrefix(loc, "/nodes/")
+
+	n, err := ns.Get(context.Background(), "u1", nodeID)
+	if err != nil {
+		t.Fatalf("created node not found: %v", err)
+	}
+	if n.Icon != "rocket" {
+		t.Errorf("icon = %q, want rocket", n.Icon)
+	}
+	if len(n.LogoRef) != 12 {
+		t.Errorf("logoRef = %q, want 12-hex hash (logo stored on create)", n.LogoRef)
+	}
+
+	// multipart update: remove the logo via checkbox
+	var buf2 bytes.Buffer
+	mw2 := multipart.NewWriter(&buf2)
+	_ = mw2.WriteField("name", "Iconic")
+	_ = mw2.WriteField("slug", n.Slug)
+	_ = mw2.WriteField("kind", "engagement")
+	_ = mw2.WriteField("status", "active")
+	_ = mw2.WriteField("icon", "rocket")
+	_ = mw2.WriteField("logoRemove", "1")
+	_ = mw2.Close()
+	res2 := postNMultipart(t, ts, c, "/nodes/"+n.ID, mw2.FormDataContentType(), &buf2)
+	if res2.StatusCode != http.StatusSeeOther {
+		t.Fatalf("update → %d", res2.StatusCode)
+	}
+	_ = res2.Body.Close()
+	n2, err := ns.Get(context.Background(), "u1", n.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n2.LogoRef != "" {
+		t.Errorf("logoRef = %q after remove, want empty", n2.LogoRef)
+	}
+	if n2.Icon != "rocket" {
+		t.Errorf("icon after update = %q, want rocket (round-trips)", n2.Icon)
+	}
+
+	// bad logo type rejects the whole create (400 re-render, no node created)
+	var buf3 bytes.Buffer
+	mw3 := multipart.NewWriter(&buf3)
+	_ = mw3.WriteField("name", "BadLogo")
+	_ = mw3.WriteField("kind", "engagement")
+	fw3, _ := mw3.CreateFormFile("logo", "evil.svg")
+	_, _ = fw3.Write([]byte("<svg onload=alert(1)></svg>"))
+	_ = mw3.Close()
+	res3 := postNMultipart(t, ts, c, "/nodes", mw3.FormDataContentType(), &buf3)
+	if res3.StatusCode != http.StatusBadRequest {
+		t.Errorf("svg upload → %d, want 400", res3.StatusCode)
+	}
+	body3, _ := io.ReadAll(res3.Body)
+	_ = res3.Body.Close()
+	if !strings.Contains(string(body3), "Logo muss PNG, JPEG oder WebP sein") {
+		t.Errorf("re-rendered form must show the node.err.logoType i18n message; body=%.500s", body3)
+	}
+	nodes, _ := ns.List(context.Background(), "u1")
+	for _, nn := range nodes {
+		if nn.Name == "BadLogo" {
+			t.Errorf("rejected upload must not create a half-configured node: %+v", nn)
+		}
+	}
+}
+
+// TestWebNodeForm_EditShowsIconAndLogo pins the edit-GET rendering: the icon
+// radio group is always present (name="icon"), and once a node has a
+// LogoRef, the edit form also offers a logoRemove checkbox.
+func TestWebNodeForm_EditShowsIconAndLogo(t *testing.T) {
+	ts, c, _ := newWebNodesServer(t)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("name", "Iconic2")
+	_ = mw.WriteField("kind", "engagement")
+	_ = mw.WriteField("status", "active")
+	_ = mw.WriteField("icon", "rocket")
+	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	_, _ = fw.Write(pngPixel(t))
+	_ = mw.Close()
+	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("create → %d", res.StatusCode)
+	}
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	nodeID := strings.TrimPrefix(loc, "/nodes/")
+
+	code, body := getN(t, ts, c, "/nodes/"+nodeID+"/edit")
+	if code != http.StatusOK {
+		t.Fatalf("edit GET = %d", code)
+	}
+	if !strings.Contains(body, `name="icon"`) {
+		t.Errorf("edit form must contain the icon radio group; body=%.500s", body)
+	}
+	if !strings.Contains(body, `value="rocket" checked`) {
+		t.Errorf("edit form must pre-select the node's current icon (rocket); body=%.500s", body)
+	}
+	if !strings.Contains(body, `name="logoRemove"`) {
+		t.Errorf("edit form with LogoRef set must offer logoRemove checkbox; body=%.500s", body)
 	}
 }

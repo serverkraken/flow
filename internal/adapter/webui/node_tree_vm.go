@@ -112,7 +112,7 @@ type NodesPageData struct {
 type NodeFormValues struct {
 	Name, Slug, Kind, ParentID       string
 	Description, UpstreamGit, Status string
-	Color, Glyph                     string
+	Color, Glyph, Icon               string
 	RateAmount, RateCurrency         string
 	TagsCSV                          string // space-separated tag slugs for the tags input
 	CountsMode                       string // Work/Privat tri-state: ""/"inherit" | "work" | "privat"

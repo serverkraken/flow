@@ -27,6 +27,7 @@ func nodeFormValues(r *http.Request) webui.NodeFormValues {
 		Status:       r.FormValue("status"),
 		Color:        r.FormValue("color"),
 		Glyph:        r.FormValue("glyph"),
+		Icon:         r.FormValue("icon"),
 		RateAmount:   r.FormValue("rateAmount"),
 		RateCurrency: r.FormValue("rateCurrency"),
 		TagsCSV:      r.FormValue("tags"),
@@ -192,6 +193,17 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 		reRender(rerr.Error())
 		return
 	}
+	logoData, lerr := readLogoUpload(r)
+	if lerr != nil {
+		reRender(i18nT(r, "node.err.logo"))
+		return
+	}
+	if len(logoData) > 0 {
+		if _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
+			reRender(logoErrMsg(r, verr))
+			return
+		}
+	}
 	// Reject a bad upstream up front so we never create a half-configured project.
 	if vals.UpstreamGit != "" {
 		if _, ok := domain.NormalizeRemoteSlug(vals.UpstreamGit); !ok {
@@ -209,7 +221,7 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
 		Name: vals.Name, Slug: vals.Slug, Kind: kind, ParentID: parent,
-		Color: vals.Color, Glyph: vals.Glyph,
+		Color: vals.Color, Glyph: vals.Glyph, Icon: vals.Icon,
 		Description: vals.Description, UpstreamGit: vals.UpstreamGit,
 		CountsTowardTarget: countsModeToPtr(vals.CountsMode),
 	})
@@ -223,6 +235,11 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	if s.SetTags.Tags != nil {
 		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {
 			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
+		}
+	}
+	if len(logoData) > 0 {
+		if _, err := s.UploadNodeLogo.Execute(r.Context(), u.ID, n.ID, logoData); err != nil {
+			slog.WarnContext(r.Context(), "webui: upload node logo failed", "nodeID", n.ID, "err", err)
 		}
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
@@ -245,6 +262,7 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 		Status:      string(n.Status),
 		Color:       n.Color,
 		Glyph:       n.Glyph,
+		Icon:        n.Icon,
 		CountsMode:  countsModeOf(n.CountsTowardTarget),
 	}
 	if n.ParentID != nil {
@@ -286,11 +304,23 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		reRender(rerr.Error())
 		return
 	}
+	logoData, lerr := readLogoUpload(r)
+	if lerr != nil {
+		reRender(i18nT(r, "node.err.logo"))
+		return
+	}
+	if len(logoData) > 0 {
+		if _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
+			reRender(logoErrMsg(r, verr))
+			return
+		}
+	}
 	n, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        vals.Name,
 		Slug:        vals.Slug,
 		Color:       vals.Color,
 		Glyph:       vals.Glyph,
+		Icon:        vals.Icon,
 		Description: vals.Description,
 		UpstreamGit: vals.UpstreamGit,
 		Status:      domain.NodeStatus(orStatus(vals.Status)),
@@ -320,6 +350,15 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
 		}
 	}
+	if r.FormValue("logoRemove") == "1" {
+		if _, err := s.DeleteNodeLogo.Execute(r.Context(), u.ID, id); err != nil {
+			slog.WarnContext(r.Context(), "webui: delete node logo failed", "nodeID", id, "err", err)
+		}
+	} else if len(logoData) > 0 {
+		if _, err := s.UploadNodeLogo.Execute(r.Context(), u.ID, id, logoData); err != nil {
+			slog.WarnContext(r.Context(), "webui: upload node logo failed", "nodeID", id, "err", err)
+		}
+	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
@@ -339,6 +378,7 @@ func (s *Server) handleWebNodeStatus(w http.ResponseWriter, r *http.Request) {
 		Slug:        cur.Slug,
 		Color:       cur.Color,
 		Glyph:       cur.Glyph,
+		Icon:        cur.Icon,
 		Description: cur.Description,
 		UpstreamGit: cur.UpstreamGit,
 		Status:      domain.NodeStatus(r.FormValue("status")),
@@ -392,3 +432,14 @@ func (s *Server) handleWebNodeMove(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)
 }
 
+// logoErrMsg maps logo validation sentinels to i18n form errors.
+func logoErrMsg(r *http.Request, err error) string {
+	switch {
+	case errors.Is(err, usecase.ErrLogoTooLarge):
+		return i18nT(r, "node.err.logoSize")
+	case errors.Is(err, usecase.ErrLogoBadType):
+		return i18nT(r, "node.err.logoType")
+	default:
+		return i18nT(r, "node.err.logo")
+	}
+}

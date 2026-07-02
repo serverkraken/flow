@@ -31,13 +31,13 @@ func (s *Server) handleWebNodeLogo(w http.ResponseWriter, r *http.Request) {
 }
 
 // readLogoUpload pulls the optional multipart "logo" file field: nil bytes when
-// the user picked no file. Reads at most MaxNodeLogoBytes+1 so an oversized
-// upload fails validation instead of ballooning memory.
-//
-//nolint:unused // consumed by Task 5's node-form upload handler
+// the user picked no file, or the request wasn't multipart at all (e.g. a
+// plain application/x-www-form-urlencoded submission, which never carries a
+// file field). Reads at most MaxNodeLogoBytes+1 so an oversized upload fails
+// validation instead of ballooning memory.
 func readLogoUpload(r *http.Request) ([]byte, error) {
 	f, hdr, err := r.FormFile("logo")
-	if errors.Is(err, http.ErrMissingFile) {
+	if errors.Is(err, http.ErrMissingFile) || errors.Is(err, http.ErrNotMultipart) {
 		return nil, nil
 	}
 	if err != nil {

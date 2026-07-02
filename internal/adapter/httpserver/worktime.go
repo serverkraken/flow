@@ -177,6 +177,7 @@ type createNodeReq struct {
 	ParentID           *string `json:"parentId"`
 	Color              string  `json:"color"`
 	Glyph              string  `json:"glyph"`
+	Icon               string  `json:"icon"`
 	Description        string  `json:"description"`
 	UpstreamGit        string  `json:"upstreamGit"`
 	CountsTowardTarget *bool   `json:"countsTowardTarget"`
@@ -201,7 +202,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
-		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
+		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph, Icon: req.Icon,
 		Kind: domain.NodeKind(req.Kind), ParentID: req.ParentID,
 		CountsTowardTarget: req.CountsTowardTarget,
 	})
@@ -222,7 +223,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	// Apply optional description/upstream (auto-syncs the remote binding).
 	if req.Description != "" || req.UpstreamGit != "" {
 		p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
-			Name: p.Name, Slug: p.Slug, Color: p.Color, Glyph: p.Glyph,
+			Name: p.Name, Slug: p.Slug, Color: p.Color, Glyph: p.Glyph, Icon: p.Icon,
 			Description: req.Description, UpstreamGit: req.UpstreamGit, Status: p.Status,
 		})
 		if err != nil {
@@ -307,6 +308,7 @@ type updateProjReq struct {
 	Slug               string `json:"slug"`
 	Color              string `json:"color"`
 	Glyph              string `json:"glyph"`
+	Icon               string `json:"icon"`
 	Description        string `json:"description"`
 	UpstreamGit        string `json:"upstreamGit"`
 	Status             string `json:"status"`
@@ -321,7 +323,7 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := s.UpdateNode.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateNodeInput{
-		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph,
+		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph, Icon: req.Icon,
 		Description: req.Description, UpstreamGit: req.UpstreamGit,
 		Status:             domain.NodeStatus(req.Status),
 		CountsTowardTarget: req.CountsTowardTarget,

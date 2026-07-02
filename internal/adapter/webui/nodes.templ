@@ -119,7 +119,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 	if d.Error != "" {
 		<div class="mb-4 rounded-2xl bg-red/10 px-4 py-2 text-sm font-medium text-red" role="alert">{ d.Error }</div>
 	}
-	<form method="post" action={ nodeFormAction(editing) } hx-boost="false" class="max-w-2xl space-y-4 text-sm">
+	<form method="post" action={ nodeFormAction(editing) } enctype="multipart/form-data" hx-boost="false" class="max-w-2xl space-y-4 text-sm">
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.name") }</label>
 			<input name="name" value={ d.Vals.Name } required class="w-full rounded-lg border border-line bg-surface px-3 py-2"/>
@@ -208,6 +208,28 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			</div>
 		</div>
 		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.icon") }</label>
+			<div class="flex flex-wrap gap-2">
+				@nodeIconRadio("", d.Vals.Icon)
+				for _, key := range domain.NodeIcons {
+					@nodeIconRadio(key, d.Vals.Icon)
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.logo") }</label>
+			if editing != nil && editing.LogoRef != "" {
+				<div class="mb-2 flex items-center gap-3">
+					<img src={ "/nodes/" + editing.ID + "/logo?v=" + editing.LogoRef } alt="" class="h-12 w-12 rounded-xl object-cover"/>
+					<label class="flex items-center gap-2 text-[.82rem]">
+						<input type="checkbox" name="logoRemove" value="1"/> { components.T(ctx, "node.logo.remove") }
+					</label>
+				</div>
+			}
+			<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="w-full rounded-lg border border-line bg-surface px-3 py-2"/>
+			<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.logo.hint") }</p>
+		</div>
+		<div>
 			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
 			<input name="tags" value={ d.Vals.TagsCSV } placeholder="tag1 tag2"
 				class="w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono"/>
@@ -289,6 +311,24 @@ templ nodeGlyphRadio(g, current string) {
 				∅
 			} else {
 				{ g }
+			}
+		</span>
+	</label>
+}
+
+// nodeIconRadio renders one icon-picker cell; "" is the no-icon choice.
+templ nodeIconRadio(key, current string) {
+	<label class="cursor-pointer" title={ key }>
+		if key == current {
+			<input type="radio" name="icon" value={ key } checked class="peer sr-only"/>
+		} else {
+			<input type="radio" name="icon" value={ key } class="peer sr-only"/>
+		}
+		<span class="inline-flex h-8 w-8 items-center justify-center rounded border border-line text-muted peer-checked:ring-2 peer-checked:ring-blue peer-checked:text-ink">
+			if key == "" {
+				∅
+			} else {
+				@NodeIcon(key, "h-5 w-5")
 			}
 		</span>
 	</label>
