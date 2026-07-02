@@ -107,10 +107,15 @@ func (c *cockpitTestServer) seedNode(t *testing.T, n domain.Node) {
 
 // TestCockpitHead_SubtreeRollupAndInheritedRate seeds a parent (Vorhaben) node
 // with an hourly rate and a child (Repo) node without its own rate, then adds a
-// 2-hour completed session on the child. It verifies that GET /nodes/p1 renders
-// the subtree rollup (child's time) and the inherited rate + earnings in the
-// cockpit head — the core deliverable of Task 2's nodeCockpitData wiring.
-// Also checks GET /nodes/c1 to confirm the child inherits the parent's rate.
+// 2-hour completed session on the child. It verifies the underlying data pipeline
+// nodeCockpitData wires (subtree rollup + inherited rate) — the core deliverable
+// of the original Task 2. Task 4 (Kristall K2) moved the Σ/earnings rollup tiles
+// out of the always-visible rail and into the Übersicht tab's content, which is
+// a later task's placeholder — so this test was consciously migrated to check
+// the SAME underlying computations via surfaces Task 4 still renders: the
+// rail's inherited-rate row (both nodes) and the Struktur tab's per-child
+// subtree total (parent), plus the rail's own-node TodayHere line (child,
+// whose 2h session happens to be "today" per the fake clock).
 func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 	c := newCockpitTestServer(t)
 
@@ -128,7 +133,7 @@ func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 	})
 
 	// Add a completed 2-hour session on the child (08:00–10:00 on 2026-06-30).
-	// Clock is 12:00 on 2026-06-30, so these times are in the past. ✓
+	// Clock is 12:00 on 2026-06-30, so these times are in the past AND "today". ✓
 	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
 	start := day.Add(8 * time.Hour)
 	stop := day.Add(10 * time.Hour)
@@ -139,40 +144,44 @@ func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 		t.Fatalf("AddSession on child: %v", err)
 	}
 
-	// GET parent cockpit: subtree rollup must include the child's 2 h.
+	// GET parent cockpit: rate resolves natively on p1 (rateLabel(9500,"EUR") = "95 €/h").
 	rec := c.do(t, "GET", "/nodes/p1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /nodes/p1: status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	parentBody := rec.Body.String()
-
-	// fmtDurHM(2h) = "2:00 h"; appears in the Σ-Gesamt tile of the rollup.
-	if !strings.Contains(parentBody, "2:00 h") {
-		t.Errorf("parent cockpit: missing subtree rollup %q\nbody snippet: %.800s", "2:00 h", parentBody)
-	}
-	// rateLabel(&Money{9500,"EUR"}) = "95 €/h"
 	if !strings.Contains(parentBody, "95 €/h") {
-		t.Errorf("parent cockpit: missing inherited rate label %q", "95 €/h")
-	}
-	// Earnings = 9500 cents/h × 7200 s = 19000 minor units = "190.00 EUR"
-	if !strings.Contains(parentBody, "190.00 EUR") {
-		t.Errorf("parent cockpit: missing earnings %q", "190.00 EUR")
+		t.Errorf("parent cockpit: missing rate label %q", "95 €/h")
 	}
 
-	// GET child cockpit: own session (2 h) and rate inherited from parent.
+	// The Struktur tab still lists direct children with their subtree total —
+	// the same NodeStats computation the old Σ-Gesamt tile used to show.
+	recStruktur := c.do(t, "GET", "/nodes/p1/tab/struktur", nil)
+	if recStruktur.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/p1/tab/struktur: status %d", recStruktur.Code)
+	}
+	if !strings.Contains(recStruktur.Body.String(), "2:00 h") {
+		t.Errorf("parent struktur tab: missing child subtree total %q\nbody snippet: %.800s", "2:00 h", recStruktur.Body.String())
+	}
+
+	// GET child cockpit: rate inherited from parent + own-node TodayHere.
 	rec2 := c.do(t, "GET", "/nodes/c1", nil)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("GET /nodes/c1: status %d body=%.400s", rec2.Code, rec2.Body.String())
 	}
 	childBody := rec2.Body.String()
 
-	// Child's own 2-hour session appears in its rollup.
-	if !strings.Contains(childBody, "2:00 h") {
-		t.Errorf("child cockpit: missing own session rollup %q", "2:00 h")
-	}
 	// Child has no Rate of its own; ResolveRate walks ancestors and finds parent's rate.
 	if !strings.Contains(childBody, "95 €/h") {
 		t.Errorf("child cockpit: missing inherited rate label %q", "95 €/h")
+	}
+	// "geerbt von ParentVorhaben" — the rail shows the inheritance source.
+	if !strings.Contains(childBody, "ParentVorhaben") {
+		t.Errorf("child cockpit: missing inherited-from ancestor name %q", "ParentVorhaben")
+	}
+	// TodayHere (own-node, not subtree) sums the child's 2h session (it's "today").
+	if !strings.Contains(childBody, "2:00 h") {
+		t.Errorf("child cockpit: missing own-node TodayHere %q", "2:00 h")
 	}
 }
 
@@ -185,7 +194,10 @@ func TestCockpitView_RollupAndIdentity(t *testing.T) {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"flow", `id="cockpit-head"`, `id="cockpit-main"`, "Σ Gesamt"} {
+	// "Σ Gesamt" (the old NodeHead rollup tile) moved to the Übersicht tab's
+	// content (a later task); the default landing now shows the Übersicht
+	// pill-tab active instead — asserted here in its place.
+	for _, want := range []string{"flow", `id="cockpit-rail"`, `id="cockpit-main"`, "Übersicht", `aria-current="page"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cockpit missing %q", want)
 		}

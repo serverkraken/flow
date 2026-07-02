@@ -26,9 +26,9 @@ type TimerWidgetVM struct {
 // [data-timer data-timer-fmt="clock"] span and the chip's [data-mini-timer]
 // span — the two elements the live-timer script in components/base.templ
 // re-renders via `p(h) + ':' + p(m) + ':' + p(s)` (its p() zero-pads EVERY
-// component, hours included, not just minutes/seconds). Unlike fmtSecsClock
-// (cockpit_vm.go, "0h 01m 30s" — the default/non-clock JS branch), this must
-// match that exact padded-hours shape or the JS tick overwrites a
+// component, hours included, not just minutes/seconds). Unlike the JS live
+// timer's default/non-clock branch ("0h 01m 30s"), this must match the
+// clock-branch's exact padded-hours shape or the JS tick overwrites a
 // differently-formatted initial paint with a visible flash/mismatch.
 func fmtClockHMS(secs int64) string {
 	if secs < 0 {

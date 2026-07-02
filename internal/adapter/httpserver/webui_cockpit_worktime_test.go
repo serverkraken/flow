@@ -145,12 +145,13 @@ func TestCockpitHead_FragmentReturnsOK(t *testing.T) {
 		t.Fatalf("status %d body=%.300s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// The head fragment (NodeHead) renders just the section content — the outer
-	// id="cockpit-head" div lives in cockpitBody and is NOT part of this fragment.
+	// The rail fragment (CockpitRail) renders just the three card sections —
+	// the outer id="cockpit-rail" div lives in cockpitBody and is NOT part of
+	// this fragment.
 	if !strings.Contains(body, "flow") {
 		t.Errorf("head fragment missing node name: %.300s", body)
 	}
-	// NodeHead renders a section with the cockpit head class.
+	// CockpitRail's identity card uses the rounded-3xl glass card class.
 	if !strings.Contains(body, "rounded-3xl") {
 		t.Errorf("head fragment missing section element: %.300s", body)
 	}

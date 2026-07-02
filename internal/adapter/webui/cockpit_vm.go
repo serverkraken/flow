@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -57,19 +58,25 @@ type NodeChild struct {
 	Total string // mini worktime label (e.g. "12:30 h"), "" if zero
 }
 
-// NodeCockpit drives the cockpit page, head fragment, and the active tab panel.
+// NodeCockpit drives the cockpit page, the rail fragment, and the active tab panel.
 type NodeCockpit struct {
 	User            string
 	N               domain.Node
-	Ancestors       []domain.Node // leaf→root (NodeStore.Ancestors order)
+	Ancestors       []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
 	DescriptionHTML template.HTML
-	// head: subtree rollup + inherited rate
-	Rollup   domain.NodeRollup // Total, Week, Month durations
-	Earnings string            // ResolveRate(chain) × Total, "" if no rate in chain
-	Rate     string            // inherited rate label, "" if none
-	Timer    CockpitTimer
+	Today           string // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
+	// rail: subtree rollup + inherited rate + identity/timer extras
+	Rollup       domain.NodeRollup // Total, Week, Month durations
+	Earnings     string            // ResolveRate(chain) × Total, "" if no rate in chain
+	Rate         string            // inherited rate label, "" if none
+	Timer        CockpitTimer
+	LogoShape    string   // ""|"hex"|"tile" — LogoShape(w,h) of the uploaded logo, if any
+	TodayHere    string   // today's own-node time (fmtDurHM), NOT subtree
+	CountsWork   bool     // effective Work/Privat flag (domain.ResolveCountsTowardTarget)
+	Contributors []string // distinct actors active in the subtree; filled by T5, empty until then
+	TabCounts    map[string]int
 	// active tab + its data (only the active tab's slice is populated)
-	ActiveTab   string                  // worktime|wissen|struktur|bindings
+	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
 	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
 	Docs        []domain.Document       // wissen
 	Children    []NodeChild             // struktur
@@ -78,12 +85,28 @@ type NodeCockpit struct {
 	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
 }
 
-// CockpitTabs is the fixed tab order/keys for the strip.
+// CockpitTabs is the fixed tab order/keys for the strip — Übersicht is the
+// default landing (see NormalizeTab).
 var CockpitTabs = []struct{ Key, LabelKey string }{
+	{"uebersicht", "cockpit.tab.uebersicht"},
 	{"worktime", "cockpit.tab.worktime"},
 	{"wissen", "cockpit.tab.wissen"},
 	{"struktur", "cockpit.tab.struktur"},
 	{"bindings", "cockpit.tab.bindings"},
+}
+
+// sessionDialogAddVM builds the add-mode SessionDialogVM for the ONE session
+// dialog mounted once per cockpit page (the Quick Actions "Nachbuchen" button
+// opens it via data-dialog-open="session-dialog"; edit-mode dialogs arrive in
+// a later task). Field names match the existing Nachbuchen endpoint contract.
+func sessionDialogAddVM(d NodeCockpit) components.SessionDialogVM {
+	return components.SessionDialogVM{
+		DialogID: "session-dialog",
+		Mode:     "add",
+		Action:   "/nodes/" + d.N.ID + "/sessions",
+		Target:   "#cockpit-main",
+		Date:     d.Today,
+	}
 }
 
 
@@ -122,6 +145,8 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []Coc
 // cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
 func cockpitPanelSSE(tab string) string {
 	switch tab {
+	case "uebersicht":
+		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:activity.logged, sse:document.updated, sse:node.updated"
 	case "worktime":
 		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
 	case "wissen":
@@ -133,14 +158,15 @@ func cockpitPanelSSE(tab string) string {
 	}
 }
 
-// NormalizeTab returns a valid tab key, defaulting to "worktime".
+// NormalizeTab returns a valid tab key, defaulting to "uebersicht" (the
+// living-project-home landing).
 func NormalizeTab(tab string) string {
 	for _, t := range CockpitTabs {
 		if t.Key == tab {
 			return tab
 		}
 	}
-	return "worktime"
+	return "uebersicht"
 }
 
 // FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
@@ -154,12 +180,6 @@ func fmtDurHM(d time.Duration) string {
 		m = 0
 	}
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
-}
-
-// fmtSecsClock renders integer seconds as the initial clock text (overwritten
-// by the live-timer JS on bind). Format mirrors the [data-timer] hero output.
-func fmtSecsClock(sec int) string {
-	return fmt.Sprintf("%dh %02dm %02ds", sec/3600, (sec%3600)/60, sec%60)
 }
 
 // cockpitAccent maps a node colour name to the left accent-bar class.

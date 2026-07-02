@@ -1,8 +1,8 @@
 package httpserver
 
 import (
-	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// nodeCockpitData assembles the cockpit head + the active tab's panel data.
+// nodeCockpitData assembles the cockpit rail + the active tab's panel data.
 func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id, activeTab string) (webui.NodeCockpit, error) {
 	ctx := r.Context()
 	now := s.Clock.Now()
@@ -21,25 +21,39 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id, activeTab s
 	if err != nil {
 		return webui.NodeCockpit{}, err
 	}
-	d := webui.NodeCockpit{User: u.Username, N: n, ActiveTab: webui.NormalizeTab(activeTab)}
+	d := webui.NodeCockpit{User: u.Username, N: n, ActiveTab: webui.NormalizeTab(activeTab), Today: now.Format(dayLayout)}
 
-	// Ancestor chain (leaf→root) for the breadcrumb + rate resolution.
+	// Ancestor chain (leaf→root, self included) for the breadcrumb + rate resolution.
 	d.Ancestors, _ = s.NodeAncestors.Execute(ctx, u.ID, n.ID)
 	if n.Description != "" {
 		d.DescriptionHTML = webui.RenderDocument(n.Description, func(string) (string, string, bool) { return "", "", false })
+	}
+	chain := d.Ancestors
+	if len(chain) == 0 || chain[0].ID != n.ID {
+		chain = append([]domain.Node{n}, chain...)
 	}
 
 	// Subtree rollup (replaces the old in-process own-only sum).
 	if roll, rerr := s.Stats.NodeStats(ctx, u.ID, n.ID); rerr == nil {
 		d.Rollup = roll
 		// Inherited rate over [node]+ancestors (leaf→root).
-		chain := d.Ancestors
-		if len(chain) == 0 || chain[0].ID != n.ID {
-			chain = append([]domain.Node{n}, chain...)
-		}
 		if rate := domain.ResolveRate(chain); rate != nil {
 			d.Rate = rateLabel(rate)
 			d.Earnings = rate.Mul(roll.Total).String()
+		}
+	}
+	d.CountsWork = domain.ResolveCountsTowardTarget(chain)
+
+	// All owner nodes, fetched once: feeds the timer's "running on Y" name
+	// lookup AND the Struktur tab count below (was two separate ListNodes
+	// calls before the rail needed the count too).
+	all, _ := s.ListNodes.Execute(ctx, u.ID)
+	names := make(map[string]string, len(all))
+	childCount := 0
+	for _, on := range all {
+		names[on.ID] = on.Name
+		if on.ParentID != nil && *on.ParentID == n.ID {
+			childCount++
 		}
 	}
 
@@ -51,21 +65,64 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id, activeTab s
 			running = &r2
 		}
 	}
-	nameOf := s.nodeNameLookup(ctx, u.ID)
-	d.Timer = webui.NodeTimer(running, n.ID, domain.IsBookable(n.Kind), now, nameOf)
+	d.Timer = webui.NodeTimer(running, n.ID, domain.IsBookable(n.Kind), now, func(id string) string { return names[id] })
 
-	// Active-tab data (filled by Tasks 5–8; Task 2 leaves them empty).
-	return d, nil
-}
-
-// nodeNameLookup returns a closure mapping node id → name (for "running on Y").
-func (s *Server) nodeNameLookup(ctx context.Context, ownerID string) func(string) string {
-	all, _ := s.ListNodes.Execute(ctx, ownerID)
-	m := make(map[string]string, len(all))
-	for _, n := range all {
-		m[n.ID] = n.Name
+	// Rail identity: logo auto-crop decision (LogoShape errors default to the
+	// pre-existing hex-crop behavior — never block rendering on a logo read).
+	if n.LogoRef != "" {
+		d.LogoShape = "hex"
+		if s.GetNodeLogo.Logos != nil {
+			if logo, lerr := s.GetNodeLogo.Execute(ctx, u.ID, n.ID); lerr == nil {
+				d.LogoShape = webui.LogoShape(logo.Width, logo.Height)
+			}
+		}
 	}
-	return func(id string) string { return m[id] }
+
+	// Rail timer: today's OWN-node time (not subtree — mirrors heuteDataFor's
+	// day-range source: startOfDay(now)..+1d via ListSessionsRange).
+	d.TodayHere = webui.FmtDurHMExport(0)
+	if s.ListSessionsRange.Sessions != nil {
+		day := startOfDay(now)
+		if sessions, serr := s.ListSessionsRange.Execute(ctx, u.ID, day, day.AddDate(0, 0, 1)); serr == nil {
+			var todaySum time.Duration
+			for _, sess := range sessions {
+				if sess.NodeID != nil && *sess.NodeID == n.ID {
+					todaySum += sess.Elapsed(now)
+				}
+			}
+			d.TodayHere = webui.FmtDurHMExport(todaySum)
+		}
+	}
+
+	// Tab-strip counts (wissen/struktur/bindings; uebersicht/worktime carry no
+	// badge). A failed count degrades to 0 rather than failing the page.
+	wissenCount := 0
+	if s.ListDocuments.Docs != nil {
+		if docs, derr := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil); derr == nil {
+			wissenCount = len(docs)
+		} else {
+			slog.WarnContext(ctx, "cockpit: wissen tab count failed", "nodeID", n.ID, "err", derr)
+		}
+	}
+	bindingsCount := 0
+	if s.ListNodeBindings.Bindings != nil {
+		if bindings, berr := s.ListNodeBindings.ExecuteByProject(ctx, u.ID, n.ID); berr == nil {
+			bindingsCount = len(bindings)
+		} else {
+			slog.WarnContext(ctx, "cockpit: bindings tab count failed", "nodeID", n.ID, "err", berr)
+		}
+	}
+	d.TabCounts = map[string]int{
+		"wissen":   wissenCount,
+		"struktur": childCount,
+		"bindings": bindingsCount,
+	}
+
+	// Contributors: T5 fills this from the subtree activity feed; the rail
+	// row renders conditionally, so leaving it empty here is a no-op.
+
+	// Active-tab data (filled by fillPanelData).
+	return d, nil
 }
 
 // handleWebNodeView serves GET /nodes/{id}?tab= : the cockpit page.
@@ -177,7 +234,8 @@ func (s *Server) handleWebNodeAddSession(w http.ResponseWriter, r *http.Request)
 	s.renderNodePanel(w, r, u, id, "worktime", "")
 }
 
-// handleWebNodeHead serves GET /nodes/{id}/head : the head fragment (SSE reload).
+// handleWebNodeHead serves GET /nodes/{id}/head : the rail fragment (SSE
+// reload target #cockpit-rail; the route path stays /head for compatibility).
 func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	d, err := s.nodeCockpitData(r, u, r.PathValue("id"), "")
@@ -190,7 +248,7 @@ func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodeHead(d).Render(r.Context(), w)
+	_ = webui.CockpitRail(d).Render(r.Context(), w)
 }
 
 // handleWebNodeStart starts a timer pre-booked to {id}. Mirrors handleHomeStart
@@ -256,7 +314,8 @@ func (s *Server) handleWebNodeSwitch(w http.ResponseWriter, r *http.Request) {
 	s.renderNodeHead(w, r, u, id)
 }
 
-// renderNodeHead re-renders the head fragment after a timer mutation.
+// renderNodeHead re-renders the rail fragment after a timer mutation
+// (start/stop/switch) — the rail's own hx-target is #cockpit-rail.
 func (s *Server) renderNodeHead(w http.ResponseWriter, r *http.Request, u domain.User, id string) {
 	d, err := s.nodeCockpitData(r, u, id, "")
 	if err != nil {
@@ -264,7 +323,7 @@ func (s *Server) renderNodeHead(w http.ResponseWriter, r *http.Request, u domain
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodeHead(d).Render(r.Context(), w)
+	_ = webui.CockpitRail(d).Render(r.Context(), w)
 }
 
 // handleWebNodeBindRemote adds a remote binding (form field remoteSlug) to {id}.

@@ -221,8 +221,8 @@ func TestWebNodeCockpit(t *testing.T) {
 		"flow",              // node name
 		"RTL Extern",        // ancestor breadcrumb (engagement parent)
 		"Repo",              // kind badge label
-		`id="cockpit-head"`, // new cockpit shell id
-		`id="cockpit-main"`, // new cockpit shell id
+		`id="cockpit-rail"`, // Kristall K2 rail shell id (renamed from the old head container)
+		`id="cockpit-main"`, // cockpit shell id
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cockpit missing %q; body=%.700s", want, body)

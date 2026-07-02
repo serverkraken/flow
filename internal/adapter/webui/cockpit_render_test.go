@@ -56,49 +56,210 @@ func seededCockpit() NodeCockpit {
 	}
 }
 
-// TestCockpitBody_ContainersAndSSEURL verifies that cockpitBody renders the two
-// structural containers (#cockpit-head for SSE-triggered head reload and #cockpit-main
-// for the tab strip) and embeds the correct SSE head refresh URL.
-func TestCockpitBody_ContainersAndSSEURL(t *testing.T) {
+// TestCockpitLayout_TwoColumns verifies the Direction-B two-column skeleton:
+// cockpitBody renders #cockpit-rail (SSE-triggered on session/node events,
+// BEFORE #cockpit-main in markup order) and #cockpit-main, wrapped in the
+// lg:grid-cols-[340px_1fr] grid, plus the ONE shared session dialog mounted
+// once in the page skeleton.
+func TestCockpitLayout_TwoColumns(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	body := renderToBuf(t, ctx, cockpitBody(d))
 
-	if !strings.Contains(body, `id="cockpit-head"`) {
-		t.Errorf("cockpitBody missing #cockpit-head div: %.400s", body)
+	if !strings.Contains(body, `id="cockpit-rail"`) {
+		t.Errorf("cockpitBody missing #cockpit-rail div: %.400s", body)
 	}
-	if !strings.Contains(body, `/nodes/n1/head`) {
-		t.Errorf("cockpitBody missing /nodes/n1/head SSE URL: %.400s", body)
+	if !strings.Contains(body, "sse:session.started") || !strings.Contains(body, "sse:node.updated") {
+		t.Errorf("cockpitBody rail hx-trigger missing sse:session.started/sse:node.updated: %.400s", body)
 	}
 	if !strings.Contains(body, `id="cockpit-main"`) {
 		t.Errorf("cockpitBody missing #cockpit-main div: %.400s", body)
 	}
+	if railIdx, mainIdx := strings.Index(body, `id="cockpit-rail"`), strings.Index(body, `id="cockpit-main"`); railIdx < 0 || mainIdx < 0 || railIdx > mainIdx {
+		t.Errorf("rail must appear BEFORE main in markup order: railIdx=%d mainIdx=%d body=%.400s", railIdx, mainIdx, body)
+	}
+	if !strings.Contains(body, "lg:grid-cols-[340px_1fr]") {
+		t.Errorf("cockpitBody wrapper missing lg:grid-cols-[340px_1fr]: %.400s", body)
+	}
+	// The single shared session dialog (T3) is mounted once, add-mode, scoped
+	// to this node's Nachbuchen endpoint.
+	if !strings.Contains(body, `id="session-dialog"`) {
+		t.Errorf("cockpitBody missing mounted #session-dialog: %.800s", body)
+	}
+	if !strings.Contains(body, `hx-post="/nodes/n1/sessions"`) {
+		t.Errorf("session-dialog missing add-mode action /nodes/n1/sessions: %.800s", body)
+	}
 }
 
-// TestNodeHead_RendersNameAndSection verifies that NodeHead renders the node name
-// in the h1 and the rounded-3xl section that wraps the glass head.
-func TestNodeHead_RendersNameAndSection(t *testing.T) {
+// TestCockpitRail_IdentityHero pins the hero box's render priority — uploaded
+// logo (tile-contained when LogoShape=="tile", hex-cropped otherwise) > icon
+// > glyph — and its fixed 110px dimensions. It also carries over the
+// Logo>Icon>Glyph priority assertions from the deleted TestCockpitHex_* tests
+// (cockpitHex itself is gone; the identity logic now lives in the rail).
+func TestCockpitRail_IdentityHero(t *testing.T) {
+	ctx := context.Background()
+
+	tile := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", LogoRef: "abc123"}, LogoShape: "tile"}))
+	if !strings.Contains(tile, "<img") || !strings.Contains(tile, "object-contain") {
+		t.Errorf("tile logo must render <img> with object-contain: %.400s", tile)
+	}
+	if strings.Contains(tile, "clip-path") {
+		t.Errorf("tile logo must NOT use clip-path: %.400s", tile)
+	}
+	if !strings.Contains(tile, "h-[110px] w-[110px]") {
+		t.Errorf("hero box must be h-[110px] w-[110px] (tile): %.400s", tile)
+	}
+
+	hex := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", LogoRef: "abc123"}, LogoShape: "hex"}))
+	if !strings.Contains(hex, "clip-path") {
+		t.Errorf("hex logo must render with a clip-path style: %.400s", hex)
+	}
+	if !strings.Contains(hex, "h-[110px] w-[110px]") {
+		t.Errorf("hero box must be h-[110px] w-[110px] (hex): %.400s", hex)
+	}
+
+	icon := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", Icon: "rocket", Color: "cyan"}}))
+	if !strings.Contains(icon, "<svg") {
+		t.Errorf("no-logo-with-icon must render inline <svg>: %.400s", icon)
+	}
+	if !strings.Contains(icon, "h-[110px] w-[110px]") {
+		t.Errorf("hero box must be h-[110px] w-[110px] (icon): %.400s", icon)
+	}
+
+	// Carried over from the deleted TestCockpitHex_LogoIconGlyphPriority:
+	// logo suppresses icon+glyph; icon suppresses glyph; glyph is the last resort.
+	logoWins := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", LogoRef: "abc123def456", Icon: "rocket", Glyph: "◈", Color: "cyan"}, LogoShape: "hex"}))
+	if !strings.Contains(logoWins, "/nodes/n1/logo?v=abc123def456") {
+		t.Errorf("logo-bearing node must render the <img> URL, got: %s", logoWins)
+	}
+	if strings.Contains(logoWins, "<svg") || strings.Contains(logoWins, "◈") {
+		t.Error("logo must suppress icon and glyph")
+	}
+
+	iconWins := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", Icon: "rocket", Glyph: "◈", Color: "cyan"}}))
+	if !strings.Contains(iconWins, "<svg") {
+		t.Errorf("icon-bearing node must render inline SVG, got: %s", iconWins)
+	}
+	if strings.Contains(iconWins, "◈") {
+		t.Error("icon must suppress the glyph")
+	}
+
+	glyph := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", Glyph: "◈", Color: "cyan"}}))
+	if !strings.Contains(glyph, "◈") {
+		t.Errorf("fallback must render the glyph, got: %s", glyph)
+	}
+
+	// Carried over from the deleted TestCockpitHex_RendersGlyphAndClass:
+	// an empty glyph falls back to the default identity glyph ◆.
+	glyphDefault := renderToBuf(t, ctx, cockpitRailHero(NodeCockpit{N: domain.Node{ID: "n1", Color: "blue"}}))
+	if !strings.Contains(glyphDefault, "◆") {
+		t.Errorf("empty glyph must fall back to the default ◆, got: %s", glyphDefault)
+	}
+}
+
+// TestCockpitRail_TimerStates pins the rail's per-state timer card markup —
+// NodeTimer's state machine (cockpit_vm.go) is untouched, only its rendering
+// moved here from the deleted NodeHead.
+func TestCockpitRail_TimerStates(t *testing.T) {
+	ctx := context.Background()
+
+	here := seededCockpit()
+	here.Timer = CockpitTimer{State: TimerHere, RunningID: "sess-1", RunningBase: 3600}
+	hereBody := renderToBuf(t, ctx, CockpitRail(here))
+	if !strings.Contains(hereBody, `/nodes/n1/stop`) {
+		t.Errorf("TimerHere missing stop form action: %.600s", hereBody)
+	}
+	if !strings.Contains(hereBody, "data-timer") {
+		t.Errorf("TimerHere missing data-timer live clock element: %.600s", hereBody)
+	}
+
+	idle := seededCockpit() // Timer.State = TimerIdle by default
+	idle.TodayHere = "3:47 h"
+	idle.CountsWork = true
+	idleBody := renderToBuf(t, ctx, CockpitRail(idle))
+	if !strings.Contains(idleBody, "cta-glow") {
+		t.Errorf("TimerIdle missing the cta-glow start button: %.600s", idleBody)
+	}
+	if !strings.Contains(idleBody, "3:47 h") {
+		t.Errorf("TimerIdle missing the TodayHere value: %.600s", idleBody)
+	}
+	if !strings.Contains(idleBody, "zählt als Work") {
+		t.Errorf("TimerIdle with CountsWork=true missing the Work word: %.600s", idleBody)
+	}
+
+	idlePrivat := seededCockpit()
+	idlePrivat.CountsWork = false
+	idlePrivatBody := renderToBuf(t, ctx, CockpitRail(idlePrivat))
+	if !strings.Contains(idlePrivatBody, "Privat") {
+		t.Errorf("TimerIdle with CountsWork=false missing the Privat word: %.600s", idlePrivatBody)
+	}
+
+	otherBound := seededCockpit()
+	otherBound.Timer = CockpitTimer{State: TimerOtherBound, RunningID: "sess-2", OtherID: "n2", OtherName: "other-node"}
+	otherBody := renderToBuf(t, ctx, CockpitRail(otherBound))
+	if !strings.Contains(otherBody, "other-node") {
+		t.Errorf("TimerOtherBound missing OtherName: %.600s", otherBody)
+	}
+	if !strings.Contains(otherBody, `/nodes/n1/switch`) {
+		t.Errorf("TimerOtherBound missing switch form action: %.600s", otherBody)
+	}
+	if !strings.Contains(otherBody, "Wechseln") {
+		t.Errorf("TimerOtherBound missing the Wechseln switch label: %.600s", otherBody)
+	}
+
+	notBookable := seededCockpit()
+	notBookable.Timer = CockpitTimer{State: TimerNotBookable}
+	nbBody := renderToBuf(t, ctx, CockpitRail(notBookable))
+	if strings.Contains(nbBody, `hx-post="/nodes/n1/start"`) || strings.Contains(nbBody, `hx-post="/nodes/n1/stop"`) {
+		t.Errorf("TimerNotBookable must render no start/stop form: %.600s", nbBody)
+	}
+	if !strings.Contains(nbBody, "nicht buchbar") {
+		t.Errorf("TimerNotBookable missing hint text: %.600s", nbBody)
+	}
+}
+
+// TestCockpitTabs_UebersichtDefault verifies NormalizeTab defaults to
+// "uebersicht" and that the tab nav renders all 5 pill-tab links with the
+// active marker and a count chip when TabCounts[key] > 0.
+func TestCockpitTabs_UebersichtDefault(t *testing.T) {
+	if got := NormalizeTab(""); got != "uebersicht" {
+		t.Errorf(`NormalizeTab("")=%q want "uebersicht"`, got)
+	}
+
 	ctx := context.Background()
 	d := seededCockpit()
-	body := renderToBuf(t, ctx, NodeHead(d))
+	d.ActiveTab = "uebersicht"
+	d.TabCounts = map[string]int{"wissen": 3, "struktur": 0, "bindings": 0}
+	body := renderToBuf(t, ctx, CockpitTabsAndPanel(d))
 
-	if !strings.Contains(body, "flow-rebuild") {
-		t.Errorf("NodeHead missing node name 'flow-rebuild': %.400s", body)
+	for _, tab := range []string{"uebersicht", "worktime", "wissen", "struktur", "bindings"} {
+		url := `/nodes/n1/tab/` + tab
+		if !strings.Contains(body, url) {
+			t.Errorf("tab nav missing link %s: %.800s", url, body)
+		}
 	}
-	if !strings.Contains(body, "rounded-3xl") {
-		t.Errorf("NodeHead missing rounded-3xl section class: %.400s", body)
+	// "pill-tab cursor-pointer" (not the bare "pill-tab" prefix, which also
+	// matches the nav wrapper's own "pill-tabs" class) counts just the links.
+	if got := strings.Count(body, `pill-tab cursor-pointer`); got != 5 {
+		t.Errorf("expected 5 pill-tab links, got %d: %.800s", got, body)
+	}
+	if !strings.Contains(body, `aria-current="page"`) {
+		t.Errorf("active Übersicht tab missing aria-current: %.600s", body)
+	}
+	if !strings.Contains(body, `<span class="pill-cnt">3</span>`) {
+		t.Errorf("wissen tab count chip missing for TabCounts[wissen]=3: %.800s", body)
 	}
 }
 
 // TestCockpitTabsAndPanel_TabLinksAndPanel verifies that CockpitTabsAndPanel renders
-// a tab link for each of the 4 tabs (using the node ID in the URL), the #cockpit-panel
+// a tab link for each of the 5 tabs (using the node ID in the URL), the #cockpit-panel
 // container, and the SSE reload targeting #cockpit-main (not #cockpit-panel).
 func TestCockpitTabsAndPanel_TabLinksAndPanel(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	body := renderToBuf(t, ctx, CockpitTabsAndPanel(d))
 
-	for _, tab := range []string{"worktime", "wissen", "struktur", "bindings"} {
+	for _, tab := range []string{"uebersicht", "worktime", "wissen", "struktur", "bindings"} {
 		url := `/nodes/n1/tab/` + tab
 		if !strings.Contains(body, url) {
 			t.Errorf("CockpitTabsAndPanel missing tab link %s: %.600s", url, body)
@@ -115,11 +276,12 @@ func TestCockpitTabsAndPanel_TabLinksAndPanel(t *testing.T) {
 }
 
 // TestCockpitTabLink_ActiveMarkup verifies that the active tab renders with
-// aria-current="page" and the correct URL, while an inactive tab does not.
+// aria-current="page" and the correct URL, while an inactive tab does not,
+// and that the count chip (pill-cnt) renders only when count > 0.
 func TestCockpitTabLink_ActiveMarkup(t *testing.T) {
 	ctx := context.Background()
 
-	active := renderToBuf(t, ctx, cockpitTabLink("n1", "worktime", "cockpit.tab.worktime", true))
+	active := renderToBuf(t, ctx, cockpitTabLink("n1", "worktime", "cockpit.tab.worktime", 0, true))
 	if !strings.Contains(active, `aria-current="page"`) {
 		t.Errorf("active tab missing aria-current: %.300s", active)
 	}
@@ -127,12 +289,20 @@ func TestCockpitTabLink_ActiveMarkup(t *testing.T) {
 		t.Errorf("active tab missing URL: %.300s", active)
 	}
 
-	inactive := renderToBuf(t, ctx, cockpitTabLink("n1", "wissen", "cockpit.tab.wissen", false))
+	inactive := renderToBuf(t, ctx, cockpitTabLink("n1", "wissen", "cockpit.tab.wissen", 0, false))
 	if strings.Contains(inactive, `aria-current`) {
 		t.Errorf("inactive tab must NOT have aria-current: %.300s", inactive)
 	}
 	if !strings.Contains(inactive, `/nodes/n1/tab/wissen`) {
 		t.Errorf("inactive tab missing URL: %.300s", inactive)
+	}
+	if strings.Contains(inactive, "pill-cnt") {
+		t.Errorf("tab link with count=0 must NOT render a pill-cnt chip: %.300s", inactive)
+	}
+
+	withCount := renderToBuf(t, ctx, cockpitTabLink("n1", "wissen", "cockpit.tab.wissen", 5, false))
+	if !strings.Contains(withCount, `<span class="pill-cnt">5</span>`) {
+		t.Errorf("tab link with count=5 missing pill-cnt chip: %.300s", withCount)
 	}
 }
 
@@ -171,100 +341,6 @@ func TestCockpitSessionRow_RunningOmitsDuration(t *testing.T) {
 	}
 }
 
-// TestCockpitTile_RendersValue verifies that cockpitTile renders the provided
-// value string — the main metric shown in each rollup tile.
-func TestCockpitTile_RendersValue(t *testing.T) {
-	ctx := context.Background()
-	body := renderToBuf(t, ctx, cockpitTile("cockpit.rollup.total", "5:30 h", "", false))
-
-	if !strings.Contains(body, "5:30 h") {
-		t.Errorf("cockpitTile missing value '5:30 h': %.400s", body)
-	}
-}
-
-// TestCockpitRollup_RendersDurations verifies that cockpitRollup renders the
-// precomputed duration strings for Total, Week, and Month from d.Rollup.
-func TestCockpitRollup_RendersDurations(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	body := renderToBuf(t, ctx, cockpitRollup(d))
-
-	// fmtDurHM(5h30m) = "5:30 h", fmtDurHM(2h) = "2:00 h", fmtDurHM(14h) = "14:00 h"
-	for _, want := range []string{"5:30 h", "2:00 h", "14:00 h"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("cockpitRollup missing duration %q: %.500s", want, body)
-		}
-	}
-}
-
-// TestCockpitHex_RendersGlyphAndClass verifies that cockpitHex renders the node's
-// glyph inside a rounded avatar span, and falls back to the default glyph when empty.
-func TestCockpitHex_RendersGlyphAndClass(t *testing.T) {
-	ctx := context.Background()
-
-	// Node with explicit glyph.
-	body := renderToBuf(t, ctx, cockpitHex(domain.Node{Glyph: "◈", Color: "cyan"}))
-	if !strings.Contains(body, "◈") {
-		t.Errorf("cockpitHex missing glyph ◈: %.300s", body)
-	}
-	if !strings.Contains(body, "rounded-xl") {
-		t.Errorf("cockpitHex missing rounded-xl class: %.300s", body)
-	}
-
-	// Node without glyph → default ◆ is substituted.
-	body2 := renderToBuf(t, ctx, cockpitHex(domain.Node{Color: "blue"}))
-	if !strings.Contains(body2, "◆") {
-		t.Errorf("cockpitHex with empty glyph missing default ◆: %.300s", body2)
-	}
-}
-
-// TestCockpitTimer_IdleRendersStartForm verifies that the idle timer state renders
-// the Start form posting to /nodes/{id}/start.
-func TestCockpitTimer_IdleRendersStartForm(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit() // Timer.State = TimerIdle by default
-	body := renderToBuf(t, ctx, cockpitTimer(d))
-
-	if !strings.Contains(body, `/nodes/n1/start`) {
-		t.Errorf("TimerIdle missing start form action: %.400s", body)
-	}
-}
-
-// TestCockpitTimer_HereRendersStopForm verifies that the TimerHere state renders
-// the Stop form with the data-timer live clock element.
-func TestCockpitTimer_HereRendersStopForm(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	d.Timer = CockpitTimer{State: TimerHere, RunningID: "sess-1", RunningBase: 3600}
-	body := renderToBuf(t, ctx, cockpitTimer(d))
-
-	if !strings.Contains(body, `/nodes/n1/stop`) {
-		t.Errorf("TimerHere missing stop form action: %.400s", body)
-	}
-	if !strings.Contains(body, `data-timer`) {
-		t.Errorf("TimerHere missing data-timer live clock element: %.400s", body)
-	}
-}
-
-// TestCockpitTimer_OtherBoundRendersSwitchForm verifies that the TimerOtherBound
-// state renders the switch form targeting the current node's /switch endpoint.
-func TestCockpitTimer_OtherBoundRendersSwitchForm(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	d.Timer = CockpitTimer{
-		State: TimerOtherBound, RunningID: "sess-2",
-		OtherID: "n2", OtherName: "other-node",
-	}
-	body := renderToBuf(t, ctx, cockpitTimer(d))
-
-	if !strings.Contains(body, `/nodes/n1/switch`) {
-		t.Errorf("TimerOtherBound missing switch form action: %.400s", body)
-	}
-	if !strings.Contains(body, "other-node") {
-		t.Errorf("TimerOtherBound missing other node name: %.400s", body)
-	}
-}
-
 // TestCockpitPanel_WorktimeRendersFormAndRows verifies that cockpitPanel with
 // ActiveTab "worktime" renders the Nachbuchen form (with the correct post target
 // and hx-target pointing to #cockpit-main) and the precomputed session rows.
@@ -289,6 +365,25 @@ func TestCockpitPanel_WorktimeRendersFormAndRows(t *testing.T) {
 	}
 }
 
+// TestCockpitPanel_UebersichtRendersPlaceholder verifies that the "uebersicht"
+// tab (the new default landing) renders a placeholder EmptyState — the real
+// Übersicht feed (rollup tiles, Work/Privat split, composition/chain, pulse,
+// knowledge) is a later task; this only pins that the tab is wired end-to-end
+// and shows a translated, non-empty state (no raw "…" loading stub).
+func TestCockpitPanel_UebersichtRendersPlaceholder(t *testing.T) {
+	ctx := context.Background()
+	d := seededCockpit()
+	d.ActiveTab = "uebersicht"
+	body := renderToBuf(t, ctx, cockpitPanel(d))
+
+	if !strings.Contains(body, "Übersicht") {
+		t.Errorf("uebersicht placeholder missing translated title: %.500s", body)
+	}
+	if strings.Contains(body, "…") {
+		t.Errorf("uebersicht placeholder must not use a bare ellipsis loading stub: %.500s", body)
+	}
+}
+
 // TestCockpitBreadcrumb_RendersNodeName verifies that nodeBreadcrumb includes
 // the node name as the leaf breadcrumb entry when there are no ancestors.
 func TestCockpitBreadcrumb_RendersNodeName(t *testing.T) {
@@ -303,87 +398,19 @@ func TestCockpitBreadcrumb_RendersNodeName(t *testing.T) {
 
 // TestNodeCockpitShell_IncludesNodeContent verifies that nodeCockpitShell
 // (the AppShell wrapper) includes the cockpit body content (specifically the
-// cockpit-head and cockpit-main structural IDs that cockpitBody emits).
+// cockpit-rail and cockpit-main structural IDs that cockpitBody emits).
 func TestNodeCockpitShell_IncludesNodeContent(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	body := renderToBuf(t, ctx, nodeCockpitShell(d))
 
 	// nodeCockpitShell wraps AppShell around nodeBreadcrumb + cockpitBody;
-	// cockpitBody emits #cockpit-head and #cockpit-main.
-	if !strings.Contains(body, `id="cockpit-head"`) {
-		t.Errorf("nodeCockpitShell missing #cockpit-head: %.400s", body)
+	// cockpitBody emits #cockpit-rail and #cockpit-main.
+	if !strings.Contains(body, `id="cockpit-rail"`) {
+		t.Errorf("nodeCockpitShell missing #cockpit-rail: %.400s", body)
 	}
 	if !strings.Contains(body, `id="cockpit-main"`) {
 		t.Errorf("nodeCockpitShell missing #cockpit-main: %.400s", body)
-	}
-}
-
-// TestCockpitTimer_NotBookableRendersNoForm verifies that a non-bookable node
-// (e.g. a branch) renders no start/stop form in the timer slot.
-func TestCockpitTimer_NotBookableRendersNoForm(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	d.Timer = CockpitTimer{State: TimerNotBookable}
-	body := renderToBuf(t, ctx, cockpitTimer(d))
-
-	if strings.Contains(body, `hx-post="/nodes/n1/start"`) || strings.Contains(body, `hx-post="/nodes/n1/stop"`) {
-		t.Errorf("TimerNotBookable must render no start/stop form: %.400s", body)
-	}
-}
-
-// TestCockpitTimer_UnboundRendersHomeLink verifies that an unbooked running session
-// shows a home link so the user can navigate to Home to stop it.
-func TestCockpitTimer_UnboundRendersHomeLink(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	d.Timer = CockpitTimer{State: TimerUnbound, RunningID: "sess-3"}
-	body := renderToBuf(t, ctx, cockpitTimer(d))
-
-	if !strings.Contains(body, `href="/"`) {
-		t.Errorf("TimerUnbound missing home link href=/: %.400s", body)
-	}
-}
-
-// TestCockpitTile_WithSubtitle verifies that cockpitTile renders the sub string
-// when it is non-empty (the "incl. children" footnote on the Total rollup tile).
-func TestCockpitTile_WithSubtitle(t *testing.T) {
-	ctx := context.Background()
-	body := renderToBuf(t, ctx, cockpitTile("cockpit.rollup.total", "5:30 h", "incl. children", false))
-
-	if !strings.Contains(body, "5:30 h") {
-		t.Errorf("cockpitTile with sub missing value: %.400s", body)
-	}
-	if !strings.Contains(body, "incl. children") {
-		t.Errorf("cockpitTile with sub missing subtitle: %.400s", body)
-	}
-}
-
-// TestCockpitTile_EarningsVariant verifies that cockpitTile with earn=true renders
-// the earnings value (and uses green styling, not the default gray).
-func TestCockpitTile_EarningsVariant(t *testing.T) {
-	ctx := context.Background()
-	body := renderToBuf(t, ctx, cockpitTile("cockpit.rollup.earnings", "1500 EUR", "", true))
-
-	if !strings.Contains(body, "1500 EUR") {
-		t.Errorf("earnings tile missing value '1500 EUR': %.400s", body)
-	}
-}
-
-// TestCockpitRollup_WithEarnings verifies that when d.Earnings is non-empty an
-// additional earnings tile is rendered alongside the standard three rollup tiles.
-func TestCockpitRollup_WithEarnings(t *testing.T) {
-	ctx := context.Background()
-	d := seededCockpit()
-	d.Earnings = "750 EUR"
-	body := renderToBuf(t, ctx, cockpitRollup(d))
-
-	if !strings.Contains(body, "750 EUR") {
-		t.Errorf("cockpitRollup with earnings missing '750 EUR': %.500s", body)
-	}
-	// The standard tiles must still appear.
-	if !strings.Contains(body, "5:30 h") {
-		t.Errorf("cockpitRollup with earnings missing total duration: %.500s", body)
 	}
 }
 
@@ -400,80 +427,78 @@ func TestCockpitPanel_WorktimeWithError(t *testing.T) {
 	}
 }
 
-// TestNodeHead_WithRateLabel verifies that a non-empty Rate field renders the
-// inherited rate label in the cockpit head identity section.
-func TestNodeHead_WithRateLabel(t *testing.T) {
+// TestCockpitRail_RendersNameAndCard verifies that CockpitRail renders the
+// node name and the identity card's rounded-3xl glass wrapper — carried over
+// from the deleted NodeHead (whose section this replaces).
+func TestCockpitRail_RendersNameAndCard(t *testing.T) {
+	ctx := context.Background()
+	d := seededCockpit()
+	body := renderToBuf(t, ctx, CockpitRail(d))
+
+	if !strings.Contains(body, "flow-rebuild") {
+		t.Errorf("CockpitRail missing node name 'flow-rebuild': %.400s", body)
+	}
+	if !strings.Contains(body, "rounded-3xl") {
+		t.Errorf("CockpitRail missing rounded-3xl card class: %.400s", body)
+	}
+}
+
+// TestCockpitRail_WithRateLabel verifies that a non-empty Rate field renders the
+// inherited rate label in the identity card's id-meta box.
+func TestCockpitRail_WithRateLabel(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	d.Rate = "120 EUR/h"
-	body := renderToBuf(t, ctx, NodeHead(d))
+	body := renderToBuf(t, ctx, CockpitRail(d))
 
 	if !strings.Contains(body, "120 EUR/h") {
-		t.Errorf("NodeHead with Rate missing rate label '120 EUR/h': %.500s", body)
+		t.Errorf("CockpitRail with Rate missing rate label '120 EUR/h': %.500s", body)
 	}
-	// Node name must still appear.
 	if !strings.Contains(body, "flow-rebuild") {
-		t.Errorf("NodeHead with Rate missing node name: %.500s", body)
+		t.Errorf("CockpitRail with Rate missing node name: %.500s", body)
 	}
 }
 
-// TestNodeHead_WithDescription verifies that a non-empty DescriptionHTML is
-// rendered inside the cockpit head (below the rollup tiles).
-func TestNodeHead_WithDescription(t *testing.T) {
+// TestCockpitRail_WithDescription verifies that a non-empty DescriptionHTML is
+// rendered inside the identity card (below the badges).
+func TestCockpitRail_WithDescription(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	d.DescriptionHTML = "<p>A detailed description of the node.</p>"
-	body := renderToBuf(t, ctx, NodeHead(d))
+	body := renderToBuf(t, ctx, CockpitRail(d))
 
 	if !strings.Contains(body, "A detailed description of the node.") {
-		t.Errorf("NodeHead with DescriptionHTML missing description content: %.600s", body)
+		t.Errorf("CockpitRail with DescriptionHTML missing description content: %.600s", body)
 	}
 	// The prose wrapper must be present.
 	if !strings.Contains(body, `class="prose`) {
-		t.Errorf("NodeHead with DescriptionHTML missing prose wrapper class: %.600s", body)
+		t.Errorf("CockpitRail with DescriptionHTML missing prose wrapper class: %.600s", body)
 	}
 }
 
-// TestNodeHead_WithoutDescription verifies that when DescriptionHTML is empty
+// TestCockpitRail_WithoutDescription verifies that when DescriptionHTML is empty
 // no empty prose block is emitted (no orphan wrapper div).
-func TestNodeHead_WithoutDescription(t *testing.T) {
+func TestCockpitRail_WithoutDescription(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit() // DescriptionHTML is zero value = ""
-	body := renderToBuf(t, ctx, NodeHead(d))
+	body := renderToBuf(t, ctx, CockpitRail(d))
 
-	// No prose wrapper should appear when description is empty.
 	if strings.Contains(body, `class="prose`) {
-		t.Errorf("NodeHead without DescriptionHTML must NOT render a prose block: %.600s", body)
+		t.Errorf("CockpitRail without DescriptionHTML must NOT render a prose block: %.600s", body)
 	}
 }
 
-// TestCockpitHex_LogoIconGlyphPriority pins the render priority for the cockpit
-// head identity tile: uploaded logo > icon > glyph.
-func TestCockpitHex_LogoIconGlyphPriority(t *testing.T) {
-	ctx := context.Background()
-
-	logo := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", LogoRef: "abc123def456", Icon: "rocket", Glyph: "◈", Color: "cyan"}))
-	if !strings.Contains(logo, `/nodes/n1/logo?v=abc123def456`) {
-		t.Errorf("logo-bearing node must render the <img> URL, got: %s", logo)
+// TestCockpitRail_RendersEditLink pins the only UI entry point to the node edit
+// form (name/color/icon/logo/rate): the rail must link /nodes/{id}/edit as a
+// full-page navigation (hx-boost off, canonical htmx rule) — carried over from
+// the deleted NodeHead (commit c8c4dee) into its identity card badge row.
+func TestCockpitRail_RendersEditLink(t *testing.T) {
+	body := renderToBuf(t, context.Background(), CockpitRail(seededCockpit()))
+	if !strings.Contains(body, `href="/nodes/n1/edit"`) {
+		t.Errorf("cockpit rail must link the edit form, got: %s", body)
 	}
-	if strings.Contains(logo, "<svg") || strings.Contains(logo, "◈") {
-		t.Error("logo must suppress icon and glyph")
-	}
-	if !strings.Contains(logo, "clip-path") {
-		t.Error("uploaded logo must render with the hexagonal clip")
-	}
-
-	icon := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", Icon: "rocket", Glyph: "◈", Color: "cyan"}))
-	if !strings.Contains(icon, "<svg") {
-		t.Errorf("icon-bearing node must render inline SVG, got: %s", icon)
-	}
-	if strings.Contains(icon, "◈") {
-		t.Error("icon must suppress the glyph")
-	}
-
-	glyph := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", Glyph: "◈", Color: "cyan"}))
-	if !strings.Contains(glyph, "◈") {
-		t.Errorf("fallback must render the glyph, got: %s", glyph)
+	if !strings.Contains(body, `hx-boost="false"`) {
+		t.Error("edit link must opt out of hx-boost (full-page form)")
 	}
 }
 
@@ -495,18 +520,5 @@ func TestNodeGlyphSwatch_LogoIconGlyphPriority(t *testing.T) {
 	glyph := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Glyph: "◆", Color: "cyan"}))
 	if !strings.Contains(glyph, "◆") {
 		t.Errorf("glyph fallback broken, got: %s", glyph)
-	}
-}
-
-// TestNodeHead_RendersEditLink pins the only UI entry point to the node edit
-// form (name/color/icon/logo/rate): the head must link /nodes/{id}/edit as a
-// full-page navigation (hx-boost off, canonical htmx rule).
-func TestNodeHead_RendersEditLink(t *testing.T) {
-	body := renderToBuf(t, context.Background(), NodeHead(seededCockpit()))
-	if !strings.Contains(body, `href="/nodes/n1/edit"`) {
-		t.Errorf("cockpit head must link the edit form, got: %s", body)
-	}
-	if !strings.Contains(body, `hx-boost="false"`) {
-		t.Error("edit link must opt out of hx-boost (full-page form)")
 	}
 }
