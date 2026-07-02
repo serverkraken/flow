@@ -3,6 +3,7 @@ package httpserver
 import (
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -25,6 +26,15 @@ func (s *Server) handleNavTreeFragment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rows := webui.BuildTree(visible)
+
+	// Compute and fill subtree hour badges; errors are warn-only so the tree
+	// always renders (badges are ornamental).
+	if sessions, serr := s.ListSessions.Execute(r.Context(), u.ID, time.Time{}); serr == nil {
+		webui.FillTreeHours(rows, webui.SubtreeHourTotals(visible, sessions, s.Clock.Now()))
+	} else {
+		slog.WarnContext(r.Context(), "nav tree: hour badges skipped", "err", serr)
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.NavTree(rows).Render(r.Context(), w)
 }

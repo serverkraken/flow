@@ -35,6 +35,9 @@ templ NavTree(rows []TreeRow) {
 					>
 						<span class={ navDotClass(row.Node.Kind) } aria-hidden="true"></span>
 						<span class="fade-label min-w-0 flex-1">{ row.Node.Name }</span>
+						if row.Hours != "" {
+							<span class="shrink-0 text-[.68rem] text-faint tnum" aria-hidden="true">{ row.Hours }</span>
+						}
 					</a>
 				</li>
 			}
