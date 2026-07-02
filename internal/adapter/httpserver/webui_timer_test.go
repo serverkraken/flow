@@ -189,3 +189,62 @@ func TestTimerWidget_Lifecycle(t *testing.T) {
 		t.Fatalf("session still running after binding stop")
 	}
 }
+
+// TestTimerWidget_SwitchAbortsBeforeStartOnStopFailure pins the
+// abort-before-start branch in handleTimerSwitch (final-review follow-up):
+// when the currently running session's own node no longer exists — a state
+// StartSession/StopSession alone can never produce through the normal API, so
+// it is seeded directly via the fake session store — StopSession's internal
+// Nodes.Get lookup fails. The handler must render the generic timer.err
+// message and return WITHOUT ever calling StartSession on the (valid) switch
+// target: the old, broken session stays running, and no session.started
+// slips out for a start that never happened.
+func TestTimerWidget_SwitchAbortsBeforeStartOnStopFailure(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})
+
+	// Seed a RUNNING session whose NodeID points at a node that was never
+	// created — an orphaned reference StopSession's Nodes.Get will reject.
+	ghost := "ghost-node"
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "s-orphan", OwnerID: "u1", NodeID: &ghost, Start: c.clk.T,
+	}); err != nil {
+		t.Fatalf("seed orphaned running session: %v", err)
+	}
+
+	ch, cancel := c.srv.Bus.Subscribe("u1")
+	defer cancel()
+
+	rec := c.do(t, "POST", "/ui/timer/switch", map[string]string{"projectId": "n1"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /ui/timer/switch (broken stop half): status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Timer-Aktion fehlgeschlagen") {
+		t.Errorf("switch must render the timer.err message when the stop half fails, got: %.800s", body)
+	}
+
+	rs, ok, err := (usecase.GetRunningSession{Sessions: c.ss}).Execute(context.Background(), "u1")
+	if err != nil || !ok || rs.ID != "s-orphan" {
+		t.Fatalf("orphaned session must still be running after the aborted switch, got ok=%v rs=%+v err=%v", ok, rs, err)
+	}
+
+	// Drain whatever landed on the bus for this request. handleTimerSwitch
+	// runs entirely synchronously (sse.Emitter.Emit publishes inline, no
+	// goroutine) — by the time c.do returned above, anything Emit produced is
+	// already sitting in the buffered channel, so a non-blocking drain is
+	// deterministic here, not a race. On the abort-before-start path Emit is
+	// never even called (Stop failed before its Emit; Start never ran), so no
+	// event at all is expected — asserted on Type rather than presence, so a
+	// future regression is caught even if some other event starts flowing.
+	for {
+		select {
+		case ev := <-ch:
+			if ev.Type == domain.EventSessionStarted {
+				t.Fatalf("switch must not emit session.started for the target when the stop half aborted, got %#v", ev)
+			}
+		default:
+			return
+		}
+	}
+}

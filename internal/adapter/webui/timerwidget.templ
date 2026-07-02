@@ -35,7 +35,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 				} else {
 					<span class="text-[.72rem] text-yellow">{ components.T(ctx, "timer.unbound") }</span>
 				}
-				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
+				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
 			</div>
 			<form hx-post="/ui/timer/stop" hx-target="closest section" hx-swap="outerHTML" class="mt-2 space-y-2">
 				if vm.Unbound {
@@ -74,10 +74,10 @@ templ timerNodeSelect(bookable []domain.Node, label string) {
 // TimerChip is the mobile top-bar mount: a compact live chip that opens the
 // full widget in a Kristall dialog (no browser popups).
 templ TimerChip(vm TimerWidgetVM) {
-	<button type="button" data-dialog-open="timer-sheet" class="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[.78rem]">
+	<button type="button" data-dialog-open="timer-sheet" aria-label={ components.T(ctx, "timer.title") } class="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[.78rem]">
 		if vm.Running {
 			<span class="h-2 w-2 rounded-full bg-green animate-breathe" aria-hidden="true"></span>
-			<span class="font-mono tnum" data-mini-timer>{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
+			<span class="font-mono tnum" data-mini-timer>{ fmtClockHMS(vm.BaseSeconds) }</span>
 		} else {
 			<span class="text-muted">▶ { components.T(ctx, "timer.title") }</span>
 		}

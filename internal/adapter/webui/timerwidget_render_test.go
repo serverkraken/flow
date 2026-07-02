@@ -42,9 +42,15 @@ func TestTimerWidget_RunningRendersClockAndNodePill(t *testing.T) {
 			t.Errorf("running widget missing %q, got: %s", want, body)
 		}
 	}
-	// 90s -> fmtSecsClock renders "0h 01m 30s"; the initial clock text before JS binds.
-	if !strings.Contains(body, "0h 01m 30s") {
+	// 90s -> fmtClockHMS renders "00:01:30", the initial clock text before JS
+	// binds. Must match the live-timer script's data-timer-fmt="clock" branch
+	// (components/base.templ: p(h)+':'+p(m)+':'+p(s), zero-padded hours too)
+	// or the JS's first tick visibly reformats the text (SSR/JS parity bug).
+	if !strings.Contains(body, "00:01:30") {
 		t.Errorf("running widget missing initial clock text, got: %s", body)
+	}
+	if strings.Contains(body, "0h 01m 30s") {
+		t.Errorf("running widget must not use the non-clock fmtSecsClock shape for the data-timer-fmt=clock span, got: %s", body)
 	}
 }
 
@@ -87,21 +93,29 @@ func TestTimerWidget_ErrRendersInlineNeverPopup(t *testing.T) {
 
 // TestTimerChip_RunningRendersMiniTimerAndDialogTrigger verifies the mobile
 // chip: a compact live clock plus the dialog-open trigger that reveals the
-// full widget (no browser popups — Kristall dialogs only).
+// full widget (no browser popups — Kristall dialogs only), and that the
+// trigger button carries an accessible name (its visible content is only a
+// clock digit string, otherwise announced with no label).
 func TestTimerChip_RunningRendersMiniTimerAndDialogTrigger(t *testing.T) {
 	ctx := context.Background()
 	vm := TimerWidgetVM{Running: true, SessionID: "s1", BaseSeconds: 45}
 	body := renderToBuf(t, ctx, TimerChip(vm))
 
-	for _, want := range []string{"data-mini-timer", `data-dialog-open="timer-sheet"`, `id="timer-sheet"`} {
+	for _, want := range []string{"data-mini-timer", `data-dialog-open="timer-sheet"`, `id="timer-sheet"`, `aria-label="Timer"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("running chip missing %q, got: %s", want, body)
 		}
 	}
+	// 45s -> fmtClockHMS renders "00:00:45", matching the [data-mini-timer]
+	// JS branch (p(h)+':'+p(m)+':'+p(s), zero-padded hours too) exactly.
+	if !strings.Contains(body, "00:00:45") {
+		t.Errorf("running chip missing initial mini-timer clock text, got: %s", body)
+	}
 }
 
 // TestTimerChip_IdleRendersPlaceholder verifies the idle chip shows the
-// "start a timer" affordance rather than a clock.
+// "start a timer" affordance rather than a clock, and still carries the
+// accessible name on its (single, state-independent) trigger button.
 func TestTimerChip_IdleRendersPlaceholder(t *testing.T) {
 	ctx := context.Background()
 	body := renderToBuf(t, ctx, TimerChip(TimerWidgetVM{}))
@@ -111,5 +125,8 @@ func TestTimerChip_IdleRendersPlaceholder(t *testing.T) {
 	}
 	if !strings.Contains(body, "Timer") {
 		t.Errorf("idle chip missing timer.title label, got: %s", body)
+	}
+	if !strings.Contains(body, `aria-label="Timer"`) {
+		t.Errorf("idle chip trigger missing accessible name, got: %s", body)
 	}
 }
