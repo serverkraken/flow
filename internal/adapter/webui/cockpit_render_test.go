@@ -497,3 +497,16 @@ func TestNodeGlyphSwatch_LogoIconGlyphPriority(t *testing.T) {
 		t.Errorf("glyph fallback broken, got: %s", glyph)
 	}
 }
+
+// TestNodeHead_RendersEditLink pins the only UI entry point to the node edit
+// form (name/color/icon/logo/rate): the head must link /nodes/{id}/edit as a
+// full-page navigation (hx-boost off, canonical htmx rule).
+func TestNodeHead_RendersEditLink(t *testing.T) {
+	body := renderToBuf(t, context.Background(), NodeHead(seededCockpit()))
+	if !strings.Contains(body, `href="/nodes/n1/edit"`) {
+		t.Errorf("cockpit head must link the edit form, got: %s", body)
+	}
+	if !strings.Contains(body, `hx-boost="false"`) {
+		t.Error("edit link must opt out of hx-boost (full-page form)")
+	}
+}

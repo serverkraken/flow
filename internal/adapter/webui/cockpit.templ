@@ -50,6 +50,9 @@ templ NodeHead(d NodeCockpit) {
 							if d.Rate != "" {
 								<span class="text-muted">· { d.Rate } <span class="text-faint">({ components.T(ctx, "cockpit.rollup.rateInherited") })</span></span>
 							}
+							// Only entry point to the node edit form (name/color/icon/logo/rate);
+							// full-page navigation per the canonical htmx rule.
+							<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } hx-boost="false" class="text-muted underline hover:text-ink">{ components.T(ctx, "common.edit") }</a>
 						</div>
 					</div>
 				</div>
