@@ -17,10 +17,10 @@ templ TimerWidget(vm TimerWidgetVM) {
 			<p class="mb-2 rounded-lg bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
 		}
 		if !vm.Running {
-			<form hx-post="/ui/timer/start" hx-target="#timer-widget" hx-swap="innerHTML" class="space-y-2">
+			<form hx-post="/ui/timer/start" hx-target="closest section" hx-swap="outerHTML" class="space-y-2">
 				@timerNodeSelect(vm.Bookable, "")
 				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-2.5 py-1.5 text-[.8rem]"/>
-				<div class="w-full">
+				<div class="grid">
 					@components.Button(components.BtnPrimary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
 				</div>
 			</form>
@@ -35,21 +35,21 @@ templ TimerWidget(vm TimerWidgetVM) {
 				} else {
 					<span class="text-[.72rem] text-yellow">{ components.T(ctx, "timer.unbound") }</span>
 				}
-				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
+				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtSecsClock(int(vm.BaseSeconds)) }</span>
 			</div>
-			<form hx-post="/ui/timer/stop" hx-target="#timer-widget" hx-swap="innerHTML" class="mt-2 space-y-2">
+			<form hx-post="/ui/timer/stop" hx-target="closest section" hx-swap="outerHTML" class="mt-2 space-y-2">
 				if vm.Unbound {
 					@timerNodeSelect(vm.Bookable, components.T(ctx, "timer.needNode"))
 				}
-				<div class="w-full">
+				<div class="grid">
 					@components.Button(components.BtnDanger, components.T(ctx, "timer.stop"), "■", templ.Attributes{"type": "submit"})
 				</div>
 			</form>
 			<details class="mt-1.5">
 				<summary class="cursor-pointer list-none text-[.72rem] text-muted hover:text-ink">{ components.T(ctx, "timer.switch") } ›</summary>
-				<form hx-post="/ui/timer/switch" hx-target="#timer-widget" hx-swap="innerHTML" class="mt-1.5 space-y-2">
+				<form hx-post="/ui/timer/switch" hx-target="closest section" hx-swap="outerHTML" class="mt-1.5 space-y-2">
 					@timerNodeSelect(vm.Bookable, "")
-					<div class="w-full">
+					<div class="grid">
 						@components.Button(components.BtnSecondary, components.T(ctx, "timer.switch"), "⇄", templ.Attributes{"type": "submit"})
 					</div>
 				</form>

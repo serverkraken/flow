@@ -350,15 +350,14 @@ func init() {
 			"sessions.note":       "Note",
 			"sessions.save":       "Save",
 			// global shell timer widget (Kristall K1)
-			"timer.idle":       "No timer running",
 			"timer.start":      "Start timer",
 			"timer.stop":       "Stop",
 			"timer.switch":     "Switch",
-			"timer.runningOn":  "running on",
 			"timer.unbound":    "no project yet",
 			"timer.choose":     "Choose a project…",
 			"timer.newProject": "…or a new project",
 			"timer.needNode":   "Choose a project to stop",
+			"timer.err":        "Timer action failed",
 			"timer.title":      "Timer",
 		},
 		plurals: map[string]Plural{

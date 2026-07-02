@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -123,10 +124,18 @@ func (s *Server) handleTimerSwitch(w http.ResponseWriter, r *http.Request) {
 		if stopNode == nil {
 			stopNode = target // unbound running: book it to the switch target
 		}
-		if sess, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, stopNode); err == nil {
-			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
-				Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
+		sess, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, stopNode)
+		if err != nil {
+			// Don't proceed to Start on a failed Stop — that would leave the old
+			// session still running while attempting a second one, surfacing a
+			// misleading error from the wrong half of the switch. Render the real
+			// (still-running, old node) state with a generic action-failed error.
+			slog.WarnContext(r.Context(), "timer switch: stop session failed", "sessionID", rs.ID, "err", err)
+			s.renderTimerWidget(w, r, u, i18n.T(r.Context(), "timer.err"))
+			return
 		}
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
 	}
 	sess, err := s.StartSession.Execute(r.Context(), u.ID, target, nil, "")
 	if err != nil {

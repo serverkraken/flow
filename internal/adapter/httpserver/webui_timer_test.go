@@ -115,13 +115,13 @@ func TestTimerWidget_Lifecycle(t *testing.T) {
 			switch ev.Type {
 			case domain.EventSessionStopped:
 				sawStopped = true
-				if ev.Data["node"] != "n1" {
-					t.Errorf("switch stop event should still carry the old node n1, got %#v", ev.Data)
+				if ev.Data["node"] != "n1" || ev.Data["name"] != "flow" || ev.Data["kind"] != "repo" {
+					t.Errorf("switch stop event should still carry the old node n1/flow/repo, got %#v", ev.Data)
 				}
 			case domain.EventSessionStarted:
 				sawStarted = true
-				if ev.Data["node"] != "n2" || ev.Data["name"] != "homelab" {
-					t.Errorf("switch start event should carry n2/homelab, got %#v", ev.Data)
+				if ev.Data["node"] != "n2" || ev.Data["name"] != "homelab" || ev.Data["kind"] != "repo" {
+					t.Errorf("switch start event should carry n2/homelab/repo, got %#v", ev.Data)
 				}
 			case domain.EventActivityLogged:
 				// expected echo from the Emitter — not a session mutation.
