@@ -108,7 +108,7 @@ func AppShell(active string, breadcrumb, subnav, content templ.Component) templ.
 			templ_7745c5c3_Var6 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<aside class=\"hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40\"><div class=\"px-6 pt-7 pb-6 flex items-center justify-between\"><a href=\"/\" class=\"inline-flex items-center gap-2.5\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<aside class=\"hidden md:flex md:flex-col fixed left-4 inset-y-4 w-[248px] rounded-[20px] glass-strong shadow-lift z-40 overflow-hidden\"><div class=\"px-6 pt-7 pb-6 flex items-center justify-between\"><a href=\"/\" class=\"inline-flex items-center gap-2.5\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -213,7 +213,7 @@ func AppShell(active string, breadcrumb, subnav, content templ.Component) templ.
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div></header><main class=\"md:pl-[248px] pb-28 md:pb-12\"><div class=\"mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div></header><main class=\"md:pl-[280px] pb-28 md:pb-12\"><div class=\"mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

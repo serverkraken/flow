@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -120,5 +122,21 @@ func TestMoveTargetsFor(t *testing.T) {
 	engNode := domain.Node{ID: "eng1", Kind: domain.KindEngagement}
 	if got := moveTargetsFor(all, engNode); len(got) != 0 {
 		t.Errorf("engagement move targets must be empty, got %v", got)
+	}
+}
+
+func TestNavTree_FormCodedDots(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	rows := []TreeRow{
+		{Node: domain.Node{ID: "e1", Name: "Kundenarbeit", Kind: domain.KindEngagement, Color: "magenta"}, Level: 0},
+		{Node: domain.Node{ID: "v1", Name: "Plattform-Umbau", Kind: domain.KindVorhaben, Color: "purple"}, Level: 1},
+		{Node: domain.Node{ID: "r1", Name: "flow", Kind: domain.KindRepo, Color: "blue"}, Level: 2},
+	}
+	body := renderToBuf(t, ctx, NavTree(rows))
+	for _, want := range []string{"nvdot-eng", "nvdot-vor", "nvdot-repo", "--nc:var(--magenta)", "fade-label", `title="flow"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("nav tree missing %q in:\n%s", want, body)
+		}
 	}
 }

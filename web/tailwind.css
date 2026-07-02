@@ -376,6 +376,16 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .pill-tab[aria-current="page"] { background: rgb(var(--glass) / var(--glass-strong-a)); color: rgb(var(--ink)); box-shadow: inset 0 0 0 1px rgb(var(--glass) / var(--glass-border-a)); }
   .pill-cnt { font-size:10.5px; color: rgb(var(--faint)); background: rgb(var(--glass) / .07); padding:1px 7px; border-radius:999px; }
   .pill-tab[aria-current="page"] .pill-cnt { color: rgb(var(--cyan)); }
+
+  /* sidebar tree: form-coded kind dots (mockup .node .dot), hue via --nc */
+  .nvdot { width:9px; height:9px; flex:0 0 auto; background: rgb(var(--nc, var(--blue))); box-shadow: 0 0 8px -1px rgb(var(--nc, var(--blue))); }
+  .nvdot-eng { border-radius:50%; }
+  .nvdot-vor { transform: rotate(45deg); border-radius:1.5px; }
+  .nvdot-repo { clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); box-shadow:none; }
+  /* soft fade truncation (mockup .node .lb) — replaces the hard ellipsis */
+  .fade-label { white-space:nowrap; overflow:hidden; -webkit-mask-image: linear-gradient(90deg,#000 80%,transparent); mask-image: linear-gradient(90deg,#000 80%,transparent); }
+  .nv-row-active { background: linear-gradient(90deg, rgb(var(--blue) / .20), rgb(var(--blue) / .03)); box-shadow: inset 0 0 0 1px rgb(var(--blue) / .4); }
+  .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; color: rgb(var(--ink)); font-weight:700; }
 }
 
 @layer components {

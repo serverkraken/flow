@@ -182,6 +182,14 @@ func nodeFilterChip(active bool) string {
 // in the tree (1 rem per level).
 func nodeIndentStyle(level int) string { return fmt.Sprintf("padding-left:%drem", level) }
 
+// nvHue appends the node-color custom property for the tree dot ("" when unset).
+func nvHue(color string) string {
+	if ColorHex(color) == "" {
+		return ""
+	}
+	return ";--nc:var(--" + color + ")"
+}
+
 // nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).
 func nodeFormAction(editing *domain.Node) templ.SafeURL {
 	if editing != nil {
