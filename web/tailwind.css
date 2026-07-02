@@ -54,8 +54,11 @@
   --glass-strong-a: .7;
   --glass-border-a: .7;
 
-  --backdrop: linear-gradient(150deg,#f4f2fb,#eef0fb 55%,#eaf4f6);
-  --facet-a: .22;
+  --backdrop:
+    radial-gradient(900px 620px at 8% -8%, rgba(139,92,246,.10), transparent 60%),
+    radial-gradient(840px 640px at 104% 2%, rgba(11,165,214,.08), transparent 55%),
+    linear-gradient(150deg,#f4f2fb,#eef0fb 55%,#eaf4f6);
+  --facet-a: .3;
 
   --shadow:         40  50 100;
   --shadow-accent: 124  92 246;
@@ -99,8 +102,12 @@
   --glass-strong-a: .09;
   --glass-border-a: .12;
 
-  --backdrop: linear-gradient(150deg,#1c1838,#2c1c42 55%,#102530);
-  --facet-a: .5;
+  --backdrop:
+    radial-gradient(900px 620px at 8% -8%, rgba(196,181,253,.16), transparent 60%),
+    radial-gradient(840px 640px at 104% 2%, rgba(103,232,249,.13), transparent 55%),
+    radial-gradient(760px 720px at 90% 112%, rgba(110,231,183,.08), transparent 60%),
+    linear-gradient(150deg,#1c1838,#2c1c42 55%,#102530);
+  --facet-a: .8;
 
   --shadow:          0   0   0;
   --shadow-accent:  103 232 249;
@@ -160,7 +167,7 @@
   --radius-3xl: 1.75rem;
 
   --shadow-soft: 0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10);
-  --shadow-lift: 0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18);
+  --shadow-lift: 0 22px 55px -22px rgb(var(--shadow) / .60), 0 8px 24px -14px rgb(var(--shadow) / .45), 0 18px 44px -16px rgb(var(--shadow-accent) / .18);
   --shadow-ring: 0 10px 50px -12px rgb(var(--shadow-accent) / .30);
 
   --animate-breathe: breathe 2.2s ease-in-out infinite;
@@ -349,8 +356,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
 
   /* frosted-glass surface — used by the canonical Card component */
-  .glass { background: rgb(var(--glass) / var(--glass-a)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
-  .glass-strong { background: rgb(var(--glass) / var(--glass-strong-a)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
+  .glass { background: rgb(var(--glass) / var(--glass-a)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
+  .glass-strong { background: rgb(var(--glass) / var(--glass-strong-a)); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
   /* colored corner triangle, top-left, clipped to the card's rounded corner via overflow-hidden on the card */
   .card-corner { position: absolute; top: 0; left: 0; width: 30px; height: 30px; clip-path: polygon(0 0, 100% 0, 0 100%); background: rgb(var(--c, var(--muted))); }
 }

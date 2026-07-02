@@ -35,11 +35,23 @@ templ Base(title string, body templ.Component) {
 			</script>
 		</head>
 		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink" hx-ext="sse" sse-connect="/api/v1/events">
-			<svg class="kristall-facets" preserveAspectRatio="none" viewBox="0 0 800 560" aria-hidden="true">
-				<polygon points="0,0 320,0 110,250" fill="rgb(var(--purple))" opacity=".18"/>
-				<polygon points="800,0 800,250 470,60" fill="rgb(var(--cyan))" opacity=".12"/>
-				<polygon points="260,560 640,560 720,330" fill="rgb(var(--magenta))" opacity=".12"/>
-				<polygon points="0,560 0,250 250,420" fill="rgb(var(--blue))" opacity=".16"/>
+			<svg class="kristall-facets" viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+				<defs>
+					<radialGradient id="kfacet-glow" cx="50%" cy="50%" r="50%">
+						<stop offset="0%" stop-color="rgb(var(--cyan))" stop-opacity=".08"></stop>
+						<stop offset="100%" stop-color="rgb(var(--cyan))" stop-opacity="0"></stop>
+					</radialGradient>
+				</defs>
+				<g fill="rgb(var(--ink))" fill-opacity=".022" stroke="rgb(var(--ink))" stroke-opacity=".04" stroke-width="1">
+					<polygon points="0,90 260,0 360,220 60,320"></polygon>
+					<polygon points="360,220 260,0 600,80 500,270"></polygon>
+					<polygon points="880,0 1180,60 1100,290 840,200"></polygon>
+					<polygon points="1100,290 1180,60 1180,420 960,470"></polygon>
+					<polygon points="90,560 350,510 430,780 120,820"></polygon>
+					<polygon points="740,820 690,540 1020,590 1080,820"></polygon>
+				</g>
+				<circle cx="220" cy="140" r="240" fill="url(#kfacet-glow)"></circle>
+				<circle cx="1000" cy="700" r="260" fill="url(#kfacet-glow)"></circle>
 			</svg>
 			@body
 			// Theme toggle wiring: flips data-theme, persists, syncs aria-pressed, cross-tab sync.
