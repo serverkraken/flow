@@ -1,25 +1,33 @@
 package components
 
-// Tab is one sub-navigation entry (e.g. worktime Heute·Woche·Historie·Stats·Frei).
+import "fmt"
+
+// Tab is one sub-navigation entry. Count > 0 renders a count chip (Kristall
+// pill-tabs, mockup .tab .cnt).
 type Tab struct {
 	Key, Href, LabelKey string
+	Count               int
 }
 
-// TabStrip renders a horizontal sub-tab strip; the active tab is underlined and
-// aria-current. Used inside AppShell's subnav slot.
+// TabStrip renders the Kristall pill tab strip; the active tab is glass-raised
+// and aria-current.
 templ TabStrip(tabs []Tab, active string) {
-	<div class="mb-6 border-b border-line">
-		<nav class="flex gap-1 -mb-px overflow-x-auto scroll-thin" aria-label={ T(ctx, "nav.primary") }>
+	<div class="mb-6">
+		<nav class="pill-tabs scroll-thin" aria-label={ T(ctx, "nav.primary") }>
 			for _, t := range tabs {
 				if t.Key == active {
-					<a href={ templ.SafeURL(t.Href) } aria-current="page"
-						class="whitespace-nowrap px-3.5 py-2.5 text-[.9rem] font-medium border-b-2 border-blue text-blue">
+					<a href={ templ.SafeURL(t.Href) } aria-current="page" class="pill-tab">
 						{ T(ctx, t.LabelKey) }
+						if t.Count > 0 {
+							<span class="pill-cnt tnum">{ fmt.Sprint(t.Count) }</span>
+						}
 					</a>
 				} else {
-					<a href={ templ.SafeURL(t.Href) }
-						class="whitespace-nowrap px-3.5 py-2.5 text-[.9rem] font-medium border-b-2 border-transparent text-muted hover:text-ink hover:border-line transition-colors">
+					<a href={ templ.SafeURL(t.Href) } class="pill-tab">
 						{ T(ctx, t.LabelKey) }
+						if t.Count > 0 {
+							<span class="pill-cnt tnum">{ fmt.Sprint(t.Count) }</span>
+						}
 					</a>
 				}
 			}

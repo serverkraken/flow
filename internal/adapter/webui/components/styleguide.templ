@@ -32,6 +32,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgBadgesChips())
 	// StatTiles
 	@Card("mb-6", sgStatTiles())
+	// Kristall Tiles + Tabs
+	@Card("mb-6", sgKristallTilesAndTabs())
 	// EmptyState
 	@Card("mb-6", sgEmpty())
 	// Dialogs
@@ -79,6 +81,28 @@ templ sgStatTiles() {
 		@StatTile("nav.today", "5h 42m", "")
 		@StatTile("nav.week", "32h 10m", "")
 		@StatTile("nav.stats", "6 ▲", "green")
+	</div>
+}
+
+templ sgKristallTilesAndTabs() {
+	<h2 class="font-display text-lg font-semibold mb-4">Kristall-Kacheln + Tabs</h2>
+	<div class="space-y-6">
+		<div>
+			<p class="text-sm text-muted mb-3">Accent Tiles (rollup style)</p>
+			<div class="grid grid-cols-3 gap-3">
+				@StatTileAccent("stats.week", "18h 20m", "+2h 05m ggü. Vorwoche", "purple")
+				@StatTileAccent("stats.balance", "16h 40m", "", "cyan")
+				@StatTileAccent("stats.goals", "8 / 10", "", "green")
+			</div>
+		</div>
+		<div>
+			<p class="text-sm text-muted mb-3">Pill Tab Strip</p>
+			@TabStrip([]Tab{
+				{Key: "a", Href: "#", LabelKey: "nav.home", Count: 12},
+				{Key: "b", Href: "#", LabelKey: "nav.projects", Count: 0},
+				{Key: "c", Href: "#", LabelKey: "nav.week"},
+			}, "a")
+		</div>
 	</div>
 }
 

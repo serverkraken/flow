@@ -71,3 +71,32 @@ func TestEmptyState(t *testing.T) {
 		t.Errorf("EmptyState should render i18n title: %s", out)
 	}
 }
+
+func TestButtonPrimary_KristallCTA(t *testing.T) {
+	out := render(t, components.Button(components.BtnPrimary, "Timer starten", "▶", nil))
+	for _, want := range []string{"from-green", "to-cyan", "text-oncolor", "cta-glow"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("primary CTA missing %q: %s", want, out)
+		}
+	}
+}
+
+func TestStatTileAccent_RendersAccentBarAndSub(t *testing.T) {
+	out := render(t, components.StatTileAccent("stats.week", "18h 20m", "+2h 05m", "purple"))
+	for _, want := range []string{"rtile-ac", "--ac:var(--purple)", "18h 20m", "+2h 05m", "glass"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("accent tile missing %q: %s", want, out)
+		}
+	}
+}
+
+func TestTabStrip_PillsAndCount(t *testing.T) {
+	tabs := []components.Tab{{Key: "a", Href: "/a", LabelKey: "nav.projects", Count: 12}, {Key: "b", Href: "/b", LabelKey: "nav.home"}}
+	out := render(t, components.TabStrip(tabs, "a"))
+	if !strings.Contains(out, "pill-tabs") || !strings.Contains(out, `aria-current="page"`) {
+		t.Errorf("pill container/active missing: %s", out)
+	}
+	if !strings.Contains(out, ">12<") {
+		t.Errorf("count chip missing: %s", out)
+	}
+}

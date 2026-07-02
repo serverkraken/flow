@@ -22,7 +22,7 @@ func btnClass(v ButtonVariant) string {
 	base := "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition active:scale-[.99] "
 	switch v {
 	case BtnPrimary:
-		return base + "bg-ink text-canvas shadow-soft hover:bg-ink/90"
+		return base + "bg-gradient-to-r from-green to-cyan text-oncolor font-bold cta-glow"
 	case BtnSecondary:
 		return base + "border border-line bg-surface text-ink hover:bg-sunken"
 	case BtnGhost:
