@@ -564,8 +564,8 @@ func TestNodeStore_IconLogoRefRoundTrip(t *testing.T) {
 }
 
 // TestNodeLogoStore_PutGetDeleteCascade verifies the node_logos blob store:
-// upsert-on-put, owner-scoped Get, and FK ON DELETE CASCADE when the owning
-// node is deleted.
+// upsert-on-put (including the migration-0027 width/height columns),
+// owner-scoped Get, and FK ON DELETE CASCADE when the owning node is deleted.
 func TestNodeLogoStore_PutGetDeleteCascade(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -592,17 +592,22 @@ func TestNodeLogoStore_PutGetDeleteCascade(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := domain.NodeLogo{NodeID: created.ID, OwnerID: "u-logo", Mime: "image/png",
-		Ref: "aaaabbbbcccc", Bytes: []byte{1, 2, 3}, UpdatedAt: time.Now()}
+		Ref: "aaaabbbbcccc", Bytes: []byte{1, 2, 3}, UpdatedAt: time.Now(),
+		Width: 64, Height: 64}
 	if err := ls.Put(ctx, l); err != nil {
 		t.Fatal(err)
 	}
 	l.Bytes = []byte{9, 9, 9} // replace-on-put
+	l.Width, l.Height = 300, 100
 	if err := ls.Put(ctx, l); err != nil {
 		t.Fatal(err)
 	}
 	got, err := ls.Get(ctx, "u-logo", created.ID)
 	if err != nil || len(got.Bytes) != 3 || got.Bytes[0] != 9 {
 		t.Fatalf("get after upsert: %v (bytes %v)", err, got.Bytes)
+	}
+	if got.Width != 300 || got.Height != 100 {
+		t.Errorf("dimensions did not round-trip: got %dx%d, want 300x100", got.Width, got.Height)
 	}
 	if _, err := ls.Get(ctx, "intruder", created.ID); !errors.Is(err, ports.ErrNodeLogoNotFound) {
 		t.Errorf("foreign owner must not see the logo: %v", err)

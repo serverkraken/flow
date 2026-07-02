@@ -89,3 +89,62 @@ func TestDeleteNodeLogo(t *testing.T) {
 		t.Errorf("second delete errored: %v", err)
 	}
 }
+
+// TestUploadNodeLogo_MeasuresDimensions pins that ValidateNodeLogo's measured
+// width/height (via image.DecodeConfig) land on the stored NodeLogo — the
+// aspect ratio webui.LogoShape later needs to pick hex vs. tile treatment.
+func TestUploadNodeLogo_MeasuresDimensions(t *testing.T) {
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ls := testutil.NewFakeNodeLogoStore()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.Local)}
+	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+	uc := usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Clock: clk}
+
+	if _, err := uc.Execute(ctx, "u1", "n1", pngPixel(t)); err != nil {
+		t.Fatal(err)
+	}
+	logo, err := ls.Get(ctx, "u1", "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logo.Width != 1 || logo.Height != 1 {
+		t.Errorf("stored dims = %dx%d, want 1x1", logo.Width, logo.Height)
+	}
+}
+
+// TestGetNodeLogo_LazyBackfillDimensions pins the migration-0027 backfill
+// path: a legacy row (Width==0/Height==0, uploaded before dimensions were
+// measured) gets its dimensions measured from Bytes on first Get, the
+// returned value carries them, and the store is updated best-effort so a
+// later Get doesn't need to re-measure.
+func TestGetNodeLogo_LazyBackfillDimensions(t *testing.T) {
+	ctx := context.Background()
+	ls := testutil.NewFakeNodeLogoStore()
+	legacy := domain.NodeLogo{
+		NodeID: "n1", OwnerID: "u1", Mime: "image/png", Ref: "aaaabbbbcccc",
+		Bytes: pngPixel(t), UpdatedAt: time.Now(),
+		// Width/Height left at the zero value: pre-migration-0027 row.
+	}
+	if err := ls.Put(ctx, legacy); err != nil {
+		t.Fatal(err)
+	}
+	uc := usecase.GetNodeLogo{Logos: ls}
+
+	got, err := uc.Execute(ctx, "u1", "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Width != 1 || got.Height != 1 {
+		t.Errorf("Execute() dims = %dx%d, want 1x1 (measured)", got.Width, got.Height)
+	}
+	stored, err := ls.Get(ctx, "u1", "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Width != 1 || stored.Height != 1 {
+		t.Errorf("store not backfilled: dims = %dx%d, want 1x1", stored.Width, stored.Height)
+	}
+}

@@ -14,4 +14,7 @@ type NodeLogo struct {
 	Ref       string
 	Bytes     []byte
 	UpdatedAt time.Time
+	// Width, Height are the pixel dimensions, gemessen beim Upload via
+	// image.DecodeConfig; 0 = Altbestand, wird beim ersten Get lazy vermessen.
+	Width, Height int
 }

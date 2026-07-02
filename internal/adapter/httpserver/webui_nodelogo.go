@@ -72,7 +72,7 @@ func readValidatedLogo(r *http.Request) (data []byte, errMsg string, ok bool) {
 		return nil, i18nT(r, "node.err.logo"), false
 	}
 	if len(logoData) > 0 {
-		if _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
+		if _, _, _, verr := usecase.ValidateNodeLogo(logoData); verr != nil {
 			return nil, logoErrMsg(r, verr), false
 		}
 	}

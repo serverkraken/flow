@@ -1,11 +1,17 @@
 package usecase
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"net/http"
+
+	_ "golang.org/x/image/webp"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -21,20 +27,26 @@ var (
 	ErrLogoBadType = errors.New("logo must be PNG, JPEG or WebP")
 )
 
-// ValidateNodeLogo size-checks and content-sniffs logo bytes. Handlers call it
-// BEFORE creating a node so a bad file rejects the whole form; UploadNodeLogo
-// calls it again as its own invariant.
-func ValidateNodeLogo(data []byte) (string, error) {
+// ValidateNodeLogo size-checks, content-sniffs and measures logo bytes.
+// Handlers call it BEFORE creating a node so a bad file rejects the whole
+// form; UploadNodeLogo calls it again as its own invariant. Width/height come
+// from image.DecodeConfig (jpeg/png stdlib, webp via golang.org/x/image); a
+// sniff-valid but unparseable image is rejected.
+func ValidateNodeLogo(data []byte) (mime string, w, h int, err error) {
 	if len(data) > MaxNodeLogoBytes {
-		return "", ErrLogoTooLarge
+		return "", 0, 0, ErrLogoTooLarge
 	}
-	mime := http.DetectContentType(data)
+	mime = http.DetectContentType(data)
 	switch mime {
 	case "image/png", "image/jpeg", "image/webp":
-		return mime, nil
 	default:
-		return "", ErrLogoBadType
+		return "", 0, 0, ErrLogoBadType
 	}
+	cfg, _, derr := image.DecodeConfig(bytes.NewReader(data))
+	if derr != nil {
+		return "", 0, 0, ErrLogoBadType
+	}
+	return mime, cfg.Width, cfg.Height, nil
 }
 
 // UploadNodeLogo stores a node's logo image (replace-on-upload) and stamps the
@@ -46,7 +58,7 @@ type UploadNodeLogo struct {
 }
 
 func (uc UploadNodeLogo) Execute(ctx context.Context, ownerID, nodeID string, data []byte) (domain.Node, error) {
-	mime, err := ValidateNodeLogo(data)
+	mime, w, h, err := ValidateNodeLogo(data)
 	if err != nil {
 		return domain.Node{}, err
 	}
@@ -59,6 +71,7 @@ func (uc UploadNodeLogo) Execute(ctx context.Context, ownerID, nodeID string, da
 	now := uc.Clock.Now()
 	if err := uc.Logos.Put(ctx, domain.NodeLogo{
 		NodeID: nodeID, OwnerID: ownerID, Mime: mime, Ref: ref, Bytes: data, UpdatedAt: now,
+		Width: w, Height: h,
 	}); err != nil {
 		return domain.Node{}, err
 	}
