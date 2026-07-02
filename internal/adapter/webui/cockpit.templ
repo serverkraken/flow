@@ -114,9 +114,23 @@ templ cockpitTile(labelKey, value, sub string, earn bool) {
 	</div>
 }
 
-// cockpitHex renders the node's hex identity glyph tile.
+// cockpitHex renders the node's identity tile — priority: uploaded logo
+// (hex-cropped <img>) > whitelisted icon (tile-tinted SVG) > glyph.
 templ cockpitHex(n domain.Node) {
-	<span class={ "grid place-items-center h-11 w-11 rounded-xl text-lg shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">{ glyphOrDefault(n.Glyph) }</span>
+	if n.LogoRef != "" {
+		<img
+			src={ "/nodes/" + n.ID + "/logo?v=" + n.LogoRef }
+			alt=""
+			class="h-11 w-11 shrink-0 object-cover"
+			style="clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)"
+		/>
+	} else if n.Icon != "" {
+		<span class={ "grid place-items-center h-11 w-11 rounded-xl shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">
+			@NodeIcon(n.Icon, "h-6 w-6")
+		</span>
+	} else {
+		<span class={ "grid place-items-center h-11 w-11 rounded-xl text-lg shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">{ glyphOrDefault(n.Glyph) }</span>
+	}
 }
 
 // CockpitTabsAndPanel is the swappable tab area served by the fragment handler.

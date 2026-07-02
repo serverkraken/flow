@@ -446,3 +446,54 @@ func TestNodeHead_WithoutDescription(t *testing.T) {
 		t.Errorf("NodeHead without DescriptionHTML must NOT render a prose block: %.600s", body)
 	}
 }
+
+// TestCockpitHex_LogoIconGlyphPriority pins the render priority for the cockpit
+// head identity tile: uploaded logo > icon > glyph.
+func TestCockpitHex_LogoIconGlyphPriority(t *testing.T) {
+	ctx := context.Background()
+
+	logo := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", LogoRef: "abc123def456", Icon: "rocket", Glyph: "◈", Color: "cyan"}))
+	if !strings.Contains(logo, `/nodes/n1/logo?v=abc123def456`) {
+		t.Errorf("logo-bearing node must render the <img> URL, got: %s", logo)
+	}
+	if strings.Contains(logo, "<svg") || strings.Contains(logo, "◈") {
+		t.Error("logo must suppress icon and glyph")
+	}
+	if !strings.Contains(logo, "clip-path") {
+		t.Error("uploaded logo must render with the hexagonal clip")
+	}
+
+	icon := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", Icon: "rocket", Glyph: "◈", Color: "cyan"}))
+	if !strings.Contains(icon, "<svg") {
+		t.Errorf("icon-bearing node must render inline SVG, got: %s", icon)
+	}
+	if strings.Contains(icon, "◈") {
+		t.Error("icon must suppress the glyph")
+	}
+
+	glyph := renderToBuf(t, ctx, cockpitHex(domain.Node{ID: "n1", Glyph: "◈", Color: "cyan"}))
+	if !strings.Contains(glyph, "◈") {
+		t.Errorf("fallback must render the glyph, got: %s", glyph)
+	}
+}
+
+// TestNodeGlyphSwatch_LogoIconGlyphPriority pins the render priority for the node
+// tree row identity mark: uploaded logo > icon (tinted in the node color) > glyph.
+func TestNodeGlyphSwatch_LogoIconGlyphPriority(t *testing.T) {
+	ctx := context.Background()
+	logo := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", LogoRef: "abc123def456", Icon: "rocket", Glyph: "◆", Color: "cyan"}))
+	if !strings.Contains(logo, "/nodes/n1/logo?v=abc123def456") || strings.Contains(logo, "<svg") {
+		t.Errorf("logo wins over icon in the tree row, got: %s", logo)
+	}
+	icon := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Icon: "rocket", Glyph: "◆", Color: "cyan"}))
+	if !strings.Contains(icon, "<svg") || strings.Contains(icon, "◆") {
+		t.Errorf("icon wins over glyph in the tree row, got: %s", icon)
+	}
+	if !strings.Contains(icon, "#7dcfff") {
+		t.Errorf("icon must be tinted in the node color, got: %s", icon)
+	}
+	glyph := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Glyph: "◆", Color: "cyan"}))
+	if !strings.Contains(glyph, "◆") {
+		t.Errorf("glyph fallback broken, got: %s", glyph)
+	}
+}
