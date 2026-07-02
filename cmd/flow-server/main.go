@@ -69,6 +69,7 @@ func run() error {
 	dayOffStore := pgstore.NewDayOffStore(pool)
 	settingsStore := pgstore.NewUserSettingsStore(pool)
 	feedTokenStore := pgstore.NewFeedTokenStore(pool)
+	nodeLogoStore := pgstore.NewNodeLogoStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
 	documentStore := pgstore.NewDocumentStore(pool, ids)
@@ -142,6 +143,9 @@ func run() error {
 		},
 		SetNodeRate:           usecase.SetNodeRate{Nodes: nodeStore},
 		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: nodeStore, Clock: clock},
+		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Clock: clock},
+		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Clock: clock},
+		GetNodeLogo:           usecase.GetNodeLogo{Logos: nodeLogoStore},
 		TagTimeReport:        usecase.TagTimeReport{Sessions: sessionStore},
 		SetTags:              usecase.SetTags{Tags: tagStore},
 		GetTags:              usecase.GetTags{Tags: tagStore},

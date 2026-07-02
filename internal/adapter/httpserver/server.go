@@ -55,6 +55,11 @@ type Server struct {
 	// cockpit-story slice 1 (Work/Privat)
 	SetCountsTowardTarget usecase.SetCountsTowardTarget
 
+	// cockpit-story slice 2 (node logos)
+	UploadNodeLogo usecase.UploadNodeLogo
+	DeleteNodeLogo usecase.DeleteNodeLogo
+	GetNodeLogo    usecase.GetNodeLogo
+
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
@@ -255,6 +260,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodeCreate)))
 	mux.Handle("GET /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeView)))
 	mux.Handle("GET /nodes/{id}/head", s.webAuth(http.HandlerFunc(s.handleWebNodeHead)))
+	mux.Handle("GET /nodes/{id}/logo", s.webAuth(http.HandlerFunc(s.handleWebNodeLogo)))
 	mux.Handle("GET /nodes/{id}/tab/{name}", s.webAuth(http.HandlerFunc(s.handleWebNodeTab)))
 	mux.Handle("POST /nodes/{id}/start", s.webAuth(http.HandlerFunc(s.handleWebNodeStart)))
 	mux.Handle("POST /nodes/{id}/stop", s.webAuth(http.HandlerFunc(s.handleWebNodeStop)))
