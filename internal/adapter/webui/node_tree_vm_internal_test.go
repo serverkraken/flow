@@ -144,6 +144,14 @@ func TestSubtreeHourTotals_RollsUpAncestors(t *testing.T) {
 		t.Errorf("totals = %v, want r1=2h v1=3h e1=3h", got)
 	}
 
+	// A session booked to a node ID outside the passed set (archived/foreign)
+	// must not panic and must contribute nothing — pins the ok-guard that
+	// stops the ancestor walk for unknown nodes.
+	gotGhost := SubtreeHourTotals(nodes, append(sessions, mk("ghost", 4)), now)
+	if gotGhost["ghost"] != 0 || gotGhost["e1"] != 3*time.Hour {
+		t.Errorf("foreign-node session must contribute nothing, totals = %v", gotGhost)
+	}
+
 	rows := []TreeRow{{Node: nodes[0]}, {Node: nodes[1]}, {Node: nodes[2]}}
 	FillTreeHours(rows, got)
 	if rows[0].Hours != "3h" || rows[2].Hours != "2h" {

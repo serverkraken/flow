@@ -2,6 +2,7 @@ package httpserver_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -21,10 +22,18 @@ import (
 // needed for the nav-tree fragment endpoint.
 func newNavTreeServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore, *testutil.FakeSessionStore, testutil.FakeClock) {
 	t.Helper()
+	ss := testutil.NewFakeSessionStore()
+	ts, cookie, ns, clk := newNavTreeServerWith(t, ss)
+	return ts, cookie, ns, ss, clk
+}
+
+// newNavTreeServerWith wires the nav-tree fragment server around an arbitrary
+// SessionStore implementation so tests can inject session-listing failures.
+func newNavTreeServerWith(t *testing.T, ss ports.SessionStore) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore, testutil.FakeClock) {
+	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
 	ns := testutil.NewFakeNodeStore()
-	ss := testutil.NewFakeSessionStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -45,7 +54,17 @@ func newNavTreeServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.F
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
 	cv, _ := codec.Issue("u1")
-	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns, ss, clk
+	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns, clk
+}
+
+// failingSessionStore embeds the fake store but always fails List — lets the
+// store-error test drive the handler's warn-only branch with a real error.
+type failingSessionStore struct {
+	*testutil.FakeSessionStore
+}
+
+func (f *failingSessionStore) List(context.Context, string, time.Time) ([]domain.WorkSession, error) {
+	return nil, errors.New("session store down")
 }
 
 // TestNavTreeFragment_Returns200WithNodeLink verifies that GET /ui/nav/tree
@@ -229,13 +248,15 @@ func TestNavTreeFragment_WithHourBadges(t *testing.T) {
 	}
 }
 
-// TestNavTreeFragment_StoreError_StillRenders verifies that when
-// ListSessions fails, the tree still renders without badges (warn-only).
+// TestNavTreeFragment_StoreError_StillRenders injects a session store whose
+// List always errors and verifies the handler's warn-only branch: the tree
+// renders with full structure (200, link, name) and no hour badge appears.
 func TestNavTreeFragment_StoreError_StillRenders(t *testing.T) {
-	ts, cookie, ns, _, _ := newNavTreeServer(t)
+	fss := &failingSessionStore{FakeSessionStore: testutil.NewFakeSessionStore()}
+	ts, cookie, ns, clk := newNavTreeServerWith(t, fss)
 
 	// Seed an active node.
-	now := time.Date(2026, 6, 30, 9, 0, 0, 0, time.UTC)
+	now := clk.T
 	e1, _ := domain.NewNode("e1", "u1", "Engagement", "eng", now)
 	e1.Kind = domain.KindEngagement
 	e1.Status = domain.NodeActive
@@ -243,10 +264,14 @@ func TestNavTreeFragment_StoreError_StillRenders(t *testing.T) {
 		t.Fatalf("Create e1: %v", err)
 	}
 
-	// Inject a broken session store that returns an error.
-	// (This is a simplified test; in real code, we'd use a mock.)
-	// For now, we'll test by seeding a real one, then just verifying
-	// the tree renders with correct structure regardless of badges.
+	// Seed a 2h session on it into the embedded fake: if List did NOT fail,
+	// the fragment would carry a "2h" badge — its absence below proves the
+	// error branch really ran.
+	s1, _ := domain.NewWorkSession("s1", "u1", &e1.ID, now.Add(-2*time.Hour))
+	s1.Stop = &now
+	if _, err := fss.Create(context.Background(), s1); err != nil {
+		t.Fatalf("Create s1: %v", err)
+	}
 
 	// GET /ui/nav/tree.
 	req, _ := http.NewRequest("GET", ts.URL+"/ui/nav/tree", nil)
@@ -258,10 +283,9 @@ func TestNavTreeFragment_StoreError_StillRenders(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /ui/nav/tree (store error case) = %d, want 200", resp.StatusCode)
+		t.Fatalf("GET /ui/nav/tree (failing session store) = %d, want 200", resp.StatusCode)
 	}
 
-	// Verify the tree structure is present even if badges aren't.
 	buf := new(strings.Builder)
 	b := make([]byte, 4096)
 	for {
@@ -273,7 +297,13 @@ func TestNavTreeFragment_StoreError_StillRenders(t *testing.T) {
 	}
 	body := buf.String()
 
-	if !strings.Contains(body, "Engagement") || !strings.Contains(body, "/nodes/e1") {
+	// Tree structure must render despite the session-store error.
+	if !strings.Contains(body, "Engagement") || !strings.Contains(body, `href="/nodes/e1"`) {
 		t.Errorf("nav tree missing engagement node structure in:\n%s", body)
+	}
+	// No badge may appear: neither the would-be "2h" text nor the badge span
+	// (tnum is only used by the hour badge in this fragment).
+	if strings.Contains(body, ">2h<") || strings.Contains(body, "tnum") {
+		t.Errorf("hour badge must not render when session listing fails:\n%s", body)
 	}
 }
