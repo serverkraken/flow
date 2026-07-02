@@ -159,7 +159,9 @@ func TestCockpitRail_IdentityHero(t *testing.T) {
 
 // TestCockpitRail_TimerStates pins the rail's per-state timer card markup —
 // NodeTimer's state machine (cockpit_vm.go) is untouched, only its rendering
-// moved here from the deleted NodeHead.
+// moved here from the deleted NodeHead. It also consolidates the five old
+// standalone TestCockpitTimer_* tests (Idle/Here/OtherBound/NotBookable/
+// Unbound render assertions), now exercised through the full CockpitRail.
 func TestCockpitRail_TimerStates(t *testing.T) {
 	ctx := context.Background()
 
@@ -177,6 +179,9 @@ func TestCockpitRail_TimerStates(t *testing.T) {
 	idle.TodayHere = "3:47 h"
 	idle.CountsWork = true
 	idleBody := renderToBuf(t, ctx, CockpitRail(idle))
+	if !strings.Contains(idleBody, `/nodes/n1/start`) {
+		t.Errorf("TimerIdle missing start form action: %.600s", idleBody)
+	}
 	if !strings.Contains(idleBody, "cta-glow") {
 		t.Errorf("TimerIdle missing the cta-glow start button: %.600s", idleBody)
 	}
@@ -215,6 +220,16 @@ func TestCockpitRail_TimerStates(t *testing.T) {
 	}
 	if !strings.Contains(nbBody, "nicht buchbar") {
 		t.Errorf("TimerNotBookable missing hint text: %.600s", nbBody)
+	}
+
+	// Carried over from the deleted TestCockpitTimer_UnboundRendersHomeLink:
+	// an unbooked running session shows a home link so the user can navigate
+	// to Home to stop it.
+	unbound := seededCockpit()
+	unbound.Timer = CockpitTimer{State: TimerUnbound, RunningID: "sess-3"}
+	unboundBody := renderToBuf(t, ctx, CockpitRail(unbound))
+	if !strings.Contains(unboundBody, `href="/"`) {
+		t.Errorf("TimerUnbound missing home link href=/: %.600s", unboundBody)
 	}
 }
 
