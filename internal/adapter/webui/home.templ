@@ -219,6 +219,10 @@ templ homeLogstreamInner(vm HomeVM) {
 					<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
 					<span class="font-medium text-body">{ row.ActorRef }</span>
 					<span class="text-muted">{ components.T(ctx, row.VerbKey) }</span>
+					if row.TargetName != "" {
+						<span class="text-muted">{ components.T(ctx, "activity.on") }</span>
+						@activityTargetPill(row)
+					}
 					if row.Href != "" {
 						<a href={ templ.SafeURL(row.Href) } class="font-medium text-blue hover:underline truncate">{ row.Label }</a>
 					} else if row.Label != "" {
@@ -250,4 +254,19 @@ templ homeNewestDocRow(row DocRow) {
 			}
 		</a>
 	</li>
+}
+
+// activityTargetPill renders the form-coded target of a session activity row:
+// linked pill with kind glyph for a live node, plain snapshot pill otherwise.
+templ activityTargetPill(row ActivityRowVM) {
+	{{ k := NodeKindStyle(row.TargetKind) }}
+	if row.TargetHref != "" {
+		<a href={ templ.SafeURL(row.TargetHref) } class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.75rem] font-medium hover:underline", kindToneClass(k.Tone) }>
+			<span aria-hidden="true">{ k.Glyph }</span> { row.TargetName }
+		</a>
+	} else {
+		<span class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line px-2 py-0.5 text-[.75rem] font-medium text-muted">
+			{ row.TargetName }
+		</span>
+	}
 }

@@ -321,6 +321,7 @@ func init() {
 			// home activity logstream
 			"home.activity":                  "Activity",
 			"activity.empty":                 "No activity yet.",
+			"activity.on":                    "on",
 			"activity.filter.all":            "All",
 			"activity.filter.zeit":           "Time",
 			"activity.filter.wissen":         "Knowledge",
