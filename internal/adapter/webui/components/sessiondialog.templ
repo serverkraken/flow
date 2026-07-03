@@ -19,6 +19,9 @@ type SessionDialogVM struct {
 	                        // carried as a hidden field so the booked node survives an edit
 	                        // untouched (containment: the viewed cockpit's {id} may differ from
 	                        // the session's own node — Spec §4).
+	SessionID string // optional; when set, posted as a hidden "sessionId" field
+	                  // (Heute's /ui/worktime/edit takes the id from the form, not
+	                  // the URL path like the cockpit endpoints do).
 }
 
 // SessionDialog renders the shared session add/edit dialog using the native
@@ -36,6 +39,9 @@ templ SessionDialog(vm SessionDialogVM) {
 
 templ sessionDialogBody(vm SessionDialogVM) {
 	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" class="space-y-4">
+		if vm.SessionID != "" {
+			<input type="hidden" name="sessionId" value={ vm.SessionID }/>
+		}
 		<!-- Date field -->
 		<label class="block">
 			<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.date") }</span>

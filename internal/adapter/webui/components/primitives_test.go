@@ -183,3 +183,22 @@ func TestSessionDialog_EditMode_WithNodes(t *testing.T) {
 		}
 	}
 }
+
+func TestSessionDialog_EditMode_RendersHiddenSessionID(t *testing.T) {
+	vm := components.SessionDialogVM{
+		DialogID: "d", Mode: "edit", Action: "/ui/worktime/edit", Target: "#content",
+		SessionID: "s-42", Date: "2026-07-03", From: "09:00", To: "10:00",
+	}
+	out := render(t, components.SessionDialog(vm))
+	if !strings.Contains(out, `name="sessionId"`) || !strings.Contains(out, `value="s-42"`) {
+		t.Errorf("edit dialog missing hidden sessionId: %s", out)
+	}
+}
+
+func TestSessionDialog_AddMode_NoSessionID(t *testing.T) {
+	vm := components.SessionDialogVM{DialogID: "d", Mode: "add", Action: "/x", Target: "#c"}
+	out := render(t, components.SessionDialog(vm))
+	if strings.Contains(out, `name="sessionId"`) {
+		t.Errorf("add dialog must not render sessionId: %s", out)
+	}
+}
