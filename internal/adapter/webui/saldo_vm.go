@@ -1,10 +1,10 @@
 package webui
 
-// statsSaldoHue returns the Tailwind color class for a saldo value:
+// statsSaldoHue returns the bare hue token for a saldo value:
 // green when ahead (pos=true), red when behind.
 func statsSaldoHue(pos bool) string {
 	if pos {
-		return "text-green"
+		return "green"
 	}
-	return "text-red"
+	return "red"
 }

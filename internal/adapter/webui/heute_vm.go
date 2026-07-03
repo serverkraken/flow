@@ -166,9 +166,9 @@ func secStr(n int) string { return strconv.Itoa(n) }
 // heuteBalanceHue colors the saldo value: green when ahead, red when behind.
 func heuteBalanceHue(pos bool) string {
 	if pos {
-		return "text-green"
+		return "green"
 	}
-	return "text-red"
+	return "red"
 }
 
 // heuteTileClass maps a project hue to the hero glyph tile wash+text.
