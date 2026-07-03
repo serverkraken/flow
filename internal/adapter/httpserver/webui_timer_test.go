@@ -190,6 +190,54 @@ func TestTimerWidget_Lifecycle(t *testing.T) {
 	}
 }
 
+// TestTimerStart_NewProjectCreatesAndBinds verifies the shell timer widget's
+// quick-create path (spec §3.4): POST newProject=SomeName (with no projectId)
+// to /ui/timer/start creates a new engagement node and binds the running
+// session to it, proving timerNodeFromForm's newProject branch is live.
+func TestTimerStart_NewProjectCreatesAndBinds(t *testing.T) {
+	c := newCockpitTestServer(t)
+
+	// POST with newProject=SomeName, no projectId
+	rec := c.do(t, "POST", "/ui/timer/start", map[string]string{"newProject": "TestProject"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /ui/timer/start (newProject): status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+
+	// Verify: a new node named "TestProject" was created for owner u1
+	nodes, err := c.srv.ListNodes.Execute(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("ListNodes: %v", err)
+	}
+	var newNode *domain.Node
+	for i := range nodes {
+		if nodes[i].Name == "TestProject" {
+			newNode = &nodes[i]
+			break
+		}
+	}
+	if newNode == nil {
+		t.Fatalf("POST /ui/timer/start (newProject) must create a node named 'TestProject', got nodes: %v", nodes)
+	}
+	if newNode.Kind != domain.KindEngagement {
+		t.Errorf("new node kind should be KindEngagement, got %q", newNode.Kind)
+	}
+	if newNode.OwnerID != "u1" {
+		t.Errorf("new node OwnerID should be 'u1', got %q", newNode.OwnerID)
+	}
+
+	// Verify: the running session is bound to the new node's id
+	rs, ok, err := (usecase.GetRunningSession{Sessions: c.ss}).Execute(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("GetRunningSession: %v", err)
+	}
+	if !ok {
+		t.Fatalf("POST /ui/timer/start (newProject) must leave a running session")
+	}
+	if rs.NodeID == nil || *rs.NodeID != newNode.ID {
+		t.Errorf("running session.NodeID should be %q, got %v", newNode.ID, rs.NodeID)
+	}
+}
+
 // TestTimerWidget_SwitchAbortsBeforeStartOnStopFailure pins the
 // abort-before-start branch in handleTimerSwitch (final-review follow-up):
 // when the currently running session's own node no longer exists — a state

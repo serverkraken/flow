@@ -30,7 +30,7 @@ func (s *Server) handleHomeFragment(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderHomeFragment re-renders the Home fragment, optionally with an inline
-// error banner. POST action handlers (start/stop) funnel through here.
+// error banner. GET handlers funnel through here to render with an optional error.
 func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u domain.User, errMsg string) {
 	vm, err := s.homeDataFor(r.Context(), u, errMsg)
 	if err != nil {
