@@ -361,6 +361,11 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .field:disabled { color: rgb(var(--muted)); background: rgb(var(--sunken)); }
   .field::placeholder { color: rgb(var(--faint)); }
 
+  /* K5 L1: on light glass, --line (pale lavender) nearly vanishes over the
+     near-white field bg. Give light-theme fields a stronger, still-soft
+     border so empty inputs read as fields. Dark keeps the original. */
+  :root[data-theme="light"] .field { border-color: rgb(198 200 222); background: rgb(255 255 255 / .75); }
+
   /* frosted-glass surface — used by the canonical Card component */
   .glass { background: rgb(var(--glass) / var(--glass-a)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
   .glass-strong { background: rgb(var(--glass) / var(--glass-strong-a)); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
