@@ -300,7 +300,7 @@ func historieToolbar(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"inline-flex items-center gap-1 rounded-xl border border-line bg-surface shadow-soft\"><a href=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"inline-flex items-center gap-1 rounded-xl glass shadow-soft\"><a href=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -522,7 +522,7 @@ func historieWeek(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\"><div class=\"rounded-3xl bg-surface border border-line shadow-soft overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"min-w-[860px]\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line\"><div class=\"border-r border-line2\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\"><div class=\"rounded-3xl glass shadow-soft overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"min-w-[860px]\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line\"><div class=\"border-r border-line2\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1512,7 +1512,7 @@ func historieMonth(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "\"><div class=\"rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6\"><div class=\"flex items-center justify-between mb-4\"><div><p class=\"eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "\"><div class=\"rounded-3xl glass shadow-soft p-5 sm:p-6\"><div class=\"flex items-center justify-between mb-4\"><div><p class=\"eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2116,7 +2116,7 @@ func HistorieListFragment(vm HistorieListVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 152, "</button></div><div class=\"rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 152, "</button></div><div class=\"rounded-3xl glass shadow-soft p-5 sm:p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2333,7 +2333,7 @@ func historieEditForm(projects []components.NodePickerItem) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "</span> <select name=\"projectId\" data-edit-field-project class=\"mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors\"><option value=\"\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 160, "</span> <select name=\"node\" data-edit-field-project class=\"mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors\"><option value=\"\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2382,98 +2382,85 @@ func historieEditForm(projects []components.NodePickerItem) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "</select></label> <input name=\"newProject\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "</select></label><div class=\"grid grid-cols-2 gap-3\"><label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var127 string
-		templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "picker.new"))
+		templ_7745c5c3_Var127, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.start"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 419, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 421, Col: 112}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var127))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 166, "\" class=\"w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors\"><div class=\"grid grid-cols-2 gap-3\"><label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 166, "</span> <input type=\"time\" name=\"from\" data-edit-field-from class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var128 string
-		templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.start"))
+		templ_7745c5c3_Var128, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.stop"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 423, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 426, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var128))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 167, "</span> <input type=\"time\" name=\"from\" data-edit-field-from class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 167, "</span> <input type=\"time\" name=\"to\" data-edit-field-to class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors\"></label></div><label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var129 string
-		templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.stop"))
+		templ_7745c5c3_Var129, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.tag"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 428, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 432, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var129))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 168, "</span> <input type=\"time\" name=\"to\" data-edit-field-to class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors\"></label></div><label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 168, "</span> <input name=\"tag\" data-edit-field-tag class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var130 string
-		templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.tag"))
+		templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.note"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 434, Col: 109}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 437, Col: 110}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 169, "</span> <input name=\"tag\" data-edit-field-tag class=\"mt-1 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors\"></label> <label class=\"block\"><span class=\"eyebrow uppercase text-[.64rem] font-semibold text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 169, "</span> <textarea name=\"note\" data-edit-field-note rows=\"2\" class=\"mt-1 w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors\"></textarea></label><div class=\"flex items-center justify-between gap-2\"><button type=\"button\" data-dialog-open=\"deleteSessionConfirm\" class=\"rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-red hover:bg-red/10 transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var131 string
-		templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "sessions.note"))
+		templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "historie.delete"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 439, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 443, Col: 144}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 170, "</span> <textarea name=\"note\" data-edit-field-note rows=\"2\" class=\"mt-1 w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors\"></textarea></label><div class=\"flex items-center justify-between gap-2\"><button type=\"button\" data-dialog-open=\"deleteSessionConfirm\" class=\"rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-red hover:bg-red/10 transition-colors\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 170, "</button><div class=\"flex items-center gap-2\"><button type=\"button\" data-dialog-close class=\"rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-muted hover:text-ink transition-colors\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var132 string
-		templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "historie.delete"))
+		templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "common.cancel"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 445, Col: 144}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 445, Col: 183}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 171, "</button><div class=\"flex items-center gap-2\"><button type=\"button\" data-dialog-close class=\"rounded-xl px-3.5 py-2.5 text-[.86rem] font-medium text-muted hover:text-ink transition-colors\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var133 string
-		templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "common.cancel"))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/historie.templ`, Line: 447, Col: 183}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 172, "</button>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 171, "</button>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2481,7 +2468,7 @@ func historieEditForm(projects []components.NodePickerItem) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 173, "</div></div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 172, "</div></div></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

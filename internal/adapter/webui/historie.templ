@@ -66,7 +66,7 @@ templ historieToolbar(vm HistorieVM) {
 					{Key: "week", LabelKey: "historie.week", Href: vm.CalWeekURL},
 					{Key: "month", LabelKey: "historie.month", Href: vm.CalMonthURL},
 				}, vm.CalView)
-				<div class="inline-flex items-center gap-1 rounded-xl border border-line bg-surface shadow-soft">
+				<div class="inline-flex items-center gap-1 rounded-xl glass shadow-soft">
 					<a href={ templ.SafeURL(vm.PrevHref) } class="grid place-items-center h-9 w-9 rounded-l-xl text-muted hover:text-blue transition-colors" aria-label={ components.T(ctx, "woche.prev") }><span aria-hidden="true">‹</span></a>
 					<span class="px-2 text-[.88rem] font-semibold tnum whitespace-nowrap">{ vm.RangeLabel }</span>
 					if vm.NextHref != "" {
@@ -102,7 +102,7 @@ templ historieToolbar(vm HistorieVM) {
 // historieWeek is the desktop time-grid (md+; mobile uses the agenda).
 templ historieWeek(vm HistorieVM) {
 	<section class="hidden md:block" aria-label={ components.T(ctx, "historie.calendar") }>
-		<div class="rounded-3xl bg-surface border border-line shadow-soft overflow-hidden">
+		<div class="rounded-3xl glass shadow-soft overflow-hidden">
 			<div class="overflow-x-auto scroll-thin">
 				<div class="min-w-[860px]">
 					<div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line">
@@ -242,7 +242,7 @@ templ historieAgenda(vm HistorieVM) {
 // historieMonth is the lighter month-grid view.
 templ historieMonth(vm HistorieVM) {
 	<section aria-label={ components.T(ctx, "historie.month") }>
-		<div class="rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6">
+		<div class="rounded-3xl glass shadow-soft p-5 sm:p-6">
 			<div class="flex items-center justify-between mb-4">
 				<div>
 					<p class="eyebrow uppercase text-[.7rem] font-semibold text-blue mb-0.5">{ components.T(ctx, "historie.month") }</p>
@@ -346,7 +346,7 @@ templ HistorieListFragment(vm HistorieListVM) {
 			<span aria-hidden="true">▎</span> { components.T(ctx, "historie.select") }
 		</button>
 	</div>
-	<div class="rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6">
+	<div class="rounded-3xl glass shadow-soft p-5 sm:p-6">
 		if vm.Empty {
 			@components.EmptyState("○", "historie.title", "historie.empty")
 		} else {
@@ -408,7 +408,7 @@ templ historieEditForm(projects []components.NodePickerItem) {
 		<input type="hidden" name="date" data-edit-field-date value=""/>
 		<label class="block">
 			<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.project") }</span>
-			<select name="projectId" data-edit-field-project
+			<select name="node" data-edit-field-project
 				class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors">
 				<option value="">{ components.T(ctx, "historie.unassigned") }</option>
 				for _, p := range projects {
@@ -416,8 +416,6 @@ templ historieEditForm(projects []components.NodePickerItem) {
 				}
 			</select>
 		</label>
-		<input name="newProject" placeholder={ components.T(ctx, "picker.new") }
-			class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 transition-colors"/>
 		<div class="grid grid-cols-2 gap-3">
 			<label class="block">
 				<span class="eyebrow uppercase text-[.64rem] font-semibold text-muted">{ components.T(ctx, "sessions.start") }</span>

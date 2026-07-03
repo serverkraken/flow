@@ -248,6 +248,54 @@ func TestHistorieCalFragment_EditFormHasProjects(t *testing.T) {
 	if !strings.Contains(body, "flow-rebuild") {
 		t.Errorf("edit form missing project name 'flow-rebuild'")
 	}
+	// The single-edit dialog's project select must post the `node` field, matching
+	// the /ui/worktime/edit handler (handleWebEdit reads webNode() → "node"). It
+	// used to post the stale `projectId` name, which the handler now ignores.
+	if !strings.Contains(body, `name="node" data-edit-field-project`) {
+		t.Errorf("edit form project select must post name=\"node\" (matching /ui/worktime/edit), got:\n%s", body[:min(2000, len(body))])
+	}
+	// The bulk-reassign form (SelectionActionBar) legitimately still carries a
+	// hidden newProject field, so scope the "no inline-create in single-edit"
+	// check to the historieEditForm markup itself (bounded by its <form>..</form>).
+	editFormStart := strings.Index(body, `hx-post="/ui/worktime/edit"`)
+	editFormEnd := strings.Index(body[editFormStart:], "</form>")
+	if editFormStart < 0 || editFormEnd < 0 {
+		t.Fatalf("could not locate historieEditForm boundaries in body")
+	}
+	editFormHTML := body[editFormStart : editFormStart+editFormEnd]
+	if strings.Contains(editFormHTML, "newProject") {
+		t.Errorf("single-edit dialog must not carry a newProject inline-create field (dead: /ui/worktime/edit doesn't create), got:\n%s", editFormHTML)
+	}
+}
+
+// TestHistorie_GlassAndBulkAttrsPreserved: the glass restyle must not break the
+// bulk-select data-attrs or the single-edit dialog's post target.
+func TestHistorie_GlassAndBulkAttrsPreserved(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
+
+	rr := histGet(t, srv, "/historie")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "glass") {
+		t.Errorf("historie not on glass")
+	}
+	for _, want := range []string{"data-select-toggle", "data-block-wrap", "/ui/worktime/edit"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("historie lost %q", want)
+		}
+	}
+
+	rrList := histGet(t, srv, "/historie?view=list")
+	if rrList.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rrList.Code, rrList.Body.String())
+	}
+	listBody := rrList.Body.String()
+	if !strings.Contains(listBody, "glass") {
+		t.Errorf("historie list view not on glass")
+	}
 }
 
 // TestHistorieCalFragment_BlockWrapCarriesEditTo: the calendar fragment's block
