@@ -106,10 +106,17 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 	vm.HasProj = len(vm.Nodes) > 0
 
-	// Today's session rows (newest stay in chronological order from the store).
+	// Today's session rows + per-row edit dialog (the ledger; newest stay in
+	// chronological order from the store).
 	vm.Rows = make([]components.SessionRowVM, 0, len(sessions))
+	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
-		vm.Rows = append(vm.Rows, sessionRowVM(sess, projects, now))
+		row := sessionRowVM(sess, projects, now)
+		vm.Rows = append(vm.Rows, row) // kept for any existing consumers/tests
+		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
+			Row:  row,
+			Edit: heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
+		})
 	}
 
 	if running != nil {
@@ -159,6 +166,47 @@ func sessionRowVM(sess domain.WorkSession, projects []domain.Node, now time.Time
 		Unassigned: sess.NodeID == nil,
 		Running:    sess.Running(),
 	}
+}
+
+// heuteEditDialogVM builds the per-row edit SessionDialogVM for the Heute
+// ledger. A running session (no Stop) is not editable here — return the zero VM
+// (Mode "" → the template skips its dialog). Nodes is the shown reassignment
+// picker (preselected to the session's own node); SessionID + Date ride hidden
+// so /ui/worktime/edit (form-based) resolves the target.
+func heuteEditDialogVM(sess domain.WorkSession, nodes []components.NodePickerItem, dayParam string) components.SessionDialogVM {
+	if sess.Stop == nil {
+		return components.SessionDialogVM{}
+	}
+	nodeID := ""
+	if sess.NodeID != nil {
+		nodeID = *sess.NodeID
+	}
+	return components.SessionDialogVM{
+		DialogID:  "edit-" + sess.ID,
+		Mode:      "edit",
+		Action:    "/ui/worktime/edit",
+		Target:    "#content",
+		SessionID: sess.ID,
+		Date:      sess.Start.Local().Format("2006-01-02"),
+		From:      sess.Start.Local().Format("15:04"),
+		To:        sess.Stop.Local().Format("15:04"),
+		Tag:       strings.Join(sess.Tags, " "),
+		Note:      sess.Note,
+		Nodes:     heutePickerNodes(nodes),
+		NodeID:    nodeID,
+	}
+}
+
+// heutePickerNodes converts the Heute booking picker's display items
+// ([]components.NodePickerItem) into the []domain.Node shape the shared
+// SessionDialog's picker field expects. Shared by heuteEditDialogVM and the
+// add-dialog VM (Task 4) so the conversion lives in exactly one place.
+func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
+	nodes := make([]domain.Node, 0, len(items))
+	for _, n := range items {
+		nodes = append(nodes, domain.Node{ID: n.ID, Name: n.Name})
+	}
+	return nodes
 }
 
 // fmtClockRange renders "09:00–11:00" (or "09:00–…" while running).

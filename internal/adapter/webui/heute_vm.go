@@ -24,6 +24,7 @@ type HeuteVM struct {
 	StartedAt   string // running session start time "11:58"
 
 	Rows     []components.SessionRowVM
+	Ledger   []HeuteLedgerRow
 	Nodes    []components.NodePickerItem
 	HasProj  bool   // true when at least one project exists (drives picker vs plain inputs)
 	DayParam string // yyyy-mm-dd for the action forms
@@ -41,6 +42,15 @@ type HeuteVM struct {
 	WeekRows  []HeuteWeekRow
 
 	Err string
+}
+
+// HeuteLedgerRow pairs a session's display row with its per-session edit-mode
+// SessionDialogVM (glass ledger: clicking a block opens the shared dialog
+// pre-filled). Edit is the zero SessionDialogVM (Mode "") for a RUNNING
+// session — the template skips rendering its dialog.
+type HeuteLedgerRow struct {
+	Row  components.SessionRowVM
+	Edit components.SessionDialogVM
 }
 
 // HeuteWeekRow is one day in the week pace strip (Mo..Fr), mirroring the
