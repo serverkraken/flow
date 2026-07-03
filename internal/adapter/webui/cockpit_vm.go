@@ -206,6 +206,23 @@ func cockpitTileClass(color string) string {
 	return heuteTileClass(color)
 }
 
+// cockpitRateSource returns the name of the nearest ancestor that actually
+// carries a rate — matching domain.ResolveRate's leaf→root walk — or "" when
+// none does. The "geerbt von" label must name the real source, not the root:
+// a rate set on an intermediate Vorhaben otherwise mis-attributes to the
+// Engagement in a 3+-level chain.
+func cockpitRateSource(d NodeCockpit) string {
+	for _, a := range d.Ancestors {
+		if a.ID == d.N.ID {
+			continue // the ancestor chain may include the cockpit node itself
+		}
+		if a.Rate != nil {
+			return a.Name
+		}
+	}
+	return ""
+}
+
 // glyphOrDefault returns the node glyph or a default identity glyph when unset.
 // (Named distinctly from httpserver.glyphOr to avoid cross-package confusion.)
 func glyphOrDefault(g string) string {

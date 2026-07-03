@@ -117,7 +117,8 @@ templ cockpitRailHero(d NodeCockpit) {
 // renders conditionally so it's a no-op until then).
 templ cockpitIdMeta(d NodeCockpit) {
 	{{
-		showInherited := d.Rate != "" && d.N.Rate == nil && len(d.Ancestors) > 0
+		rateSrc := cockpitRateSource(d)
+		showInherited := d.Rate != "" && d.N.Rate == nil && rateSrc != ""
 		showChildren := d.N.Kind == domain.KindEngagement
 		showGit := d.N.Kind == domain.KindRepo && d.N.UpstreamGit != ""
 		showContrib := len(d.Contributors) > 0
@@ -133,7 +134,7 @@ templ cockpitIdMeta(d NodeCockpit) {
 			if showInherited {
 				<div class="flex items-center justify-between gap-3">
 					<span class="text-faint">{ components.T(ctx, "cockpit.rail.inherited") }</span>
-					<span class="truncate font-semibold text-ink">{ d.Ancestors[len(d.Ancestors)-1].Name }</span>
+					<span class="truncate font-semibold text-ink">{ rateSrc }</span>
 				</div>
 			}
 			if showChildren {
