@@ -492,6 +492,133 @@ func TestWebNodeForm(t *testing.T) {
 	}
 }
 
+// tagFor returns the innermost enclosing tag (from the last "<" before marker
+// to the next ">") — used to scope class-attribute assertions to a single
+// element rather than the whole page/form.
+func tagFor(t *testing.T, s, marker string) string {
+	t.Helper()
+	idx := strings.Index(s, marker)
+	if idx < 0 {
+		t.Fatalf("marker %q not found; body=%.800s", marker, s)
+	}
+	start := strings.LastIndex(s[:idx], "<")
+	end := strings.Index(s[start:], ">")
+	if start < 0 || end < 0 {
+		t.Fatalf("tag for marker %q not well-formed; body=%.800s", marker, s)
+	}
+	return s[start : start+end]
+}
+
+// TestWebNodeForm_KristallFieldClass pins the K4 Kristall form-language sweep
+// (Task 7): every text/select/textarea/file input in the node create/edit
+// form carries the shared .field class (introduced in Task 5) instead of the
+// old hand-rolled "rounded-lg border border-line bg-surface" chrome, while
+// every field name/id, the disabled-parent-select semantics, the color/glyph
+// radio grids, and the cancel+submit actions survive untouched. The negative
+// assertion is scoped to the <form>...</form> block itself (not the whole
+// page) since AppShell's mobile nav legitimately carries "bg-surface"
+// elsewhere (Task 4/5/6 false-positive lesson).
+func TestWebNodeForm_KristallFieldClass(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+	eng := seedTreeNode(t, ns, "eng1", "RTL Extern", domain.KindEngagement, nil)
+
+	code, body := getN(t, ts, c, "/nodes/new")
+	if code != 200 {
+		t.Fatalf("GET /nodes/new = %d; body=%.500s", code, body)
+	}
+
+	formMarker := `enctype="multipart/form-data"`
+	markerIdx := strings.Index(body, formMarker)
+	if markerIdx < 0 {
+		t.Fatalf("node form (multipart) not found; body=%.500s", body)
+	}
+	formIdx := strings.LastIndex(body[:markerIdx], "<form")
+	if formIdx < 0 {
+		t.Fatalf("node form not found; body=%.500s", body)
+	}
+	formCloseOffset := strings.Index(body[formIdx:], "</form>")
+	if formCloseOffset < 0 {
+		t.Fatalf("node form not closed; body=%.500s", body)
+	}
+	formBlock := body[formIdx : formIdx+formCloseOffset+len("</form>")]
+
+	// Negative: the old flat chrome must be entirely gone from the form.
+	if strings.Contains(formBlock, "bg-surface") {
+		t.Errorf("node form still uses flat bg-surface chrome: %.2000s", formBlock)
+	}
+
+	// Every field carries .field; font-mono / width utilities preserved where
+	// the brief calls for them.
+	cases := []struct {
+		marker string
+		want   []string
+	}{
+		{`name="name"`, []string{"field"}},
+		{`name="slug"`, []string{"field", "font-mono"}},
+		{`id="node-kind"`, []string{"field"}},
+		{`id="node-parent"`, []string{"field"}}, // create-mode: enabled parent select
+		{`name="description"`, []string{"field", "font-mono"}},
+		{`name="upstreamGit"`, []string{"field", "font-mono"}},
+		{`name="status"`, []string{"field"}},
+		{`name="countsMode"`, []string{"field"}},
+		{`name="logo"`, []string{"field"}},
+		{`name="tags"`, []string{"field", "font-mono"}},
+		{`name="rateAmount"`, []string{"field", "w-32"}},
+		{`name="rateCurrency"`, []string{"field", "w-20"}},
+	}
+	for _, tc := range cases {
+		el := tagFor(t, formBlock, tc.marker)
+		for _, want := range tc.want {
+			if !strings.Contains(el, want) {
+				t.Errorf("field %s missing %q: %s", tc.marker, want, el)
+			}
+		}
+	}
+
+	// Radio grids preserved: color/glyph option values still render.
+	for _, name := range domain.NodeColors {
+		if !strings.Contains(formBlock, `value="`+name+`"`) {
+			t.Errorf("color radio %q missing; body=%.500s", name, formBlock)
+		}
+	}
+	for _, g := range domain.NodeGlyphs {
+		if !strings.Contains(formBlock, `value="`+g+`"`) {
+			t.Errorf("glyph radio %q missing; body=%.500s", g, formBlock)
+		}
+	}
+
+	// Cancel + submit present; submit already routes through @components.Button.
+	if !strings.Contains(formBlock, `href="/nodes"`) {
+		t.Errorf("cancel link missing; body=%.500s", formBlock)
+	}
+	if !strings.Contains(formBlock, `type="submit"`) {
+		t.Errorf("submit button missing; body=%.500s", formBlock)
+	}
+
+	// Parent option from the seeded engagement still renders.
+	if !strings.Contains(formBlock, eng.Name) {
+		t.Errorf("parent option %q missing; body=%.500s", eng.Name, formBlock)
+	}
+
+	// Edit form: the disabled parent-select keeps .field alongside its
+	// disabled-semantics utilities (opacity-50 / cursor-not-allowed).
+	res := postN(t, ts, c, "/nodes", url.Values{
+		"name": {"flow"}, "slug": {"flow"}, "kind": {"repo"}, "parentId": {eng.ID},
+		"status": {"active"},
+	})
+	loc := res.Header.Get("Location")
+	_ = res.Body.Close()
+	repoID := strings.TrimPrefix(loc, "/nodes/")
+
+	_, editBody := getN(t, ts, c, "/nodes/"+repoID+"/edit")
+	pTag := tagFor(t, editBody, `id="node-parent"`)
+	for _, want := range []string{"field", "opacity-50", "cursor-not-allowed"} {
+		if !strings.Contains(pTag, want) {
+			t.Errorf("disabled parent-select missing %q: %s", want, pTag)
+		}
+	}
+}
+
 // TestWebNodeMove exercises POST /nodes/{id}/move: successful reparent,
 // cycle-rejection, invalid-kind rejection, and not-found (all redirect 303).
 func TestWebNodeMove(t *testing.T) {
