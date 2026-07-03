@@ -160,23 +160,7 @@ templ uebersichtPulseCard(vm UebersichtVM) {
 		} else {
 			<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
 				for _, row := range vm.Pulse {
-					<li class="flex items-center gap-2 px-4 py-2.5 text-[.85rem]">
-						<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
-						<span class="font-semibold text-body">{ row.ActorRef }</span>
-						if row.ActorKind == "agent" {
-							<span class="inline-flex shrink-0 items-center rounded-md border border-purple/40 px-1.5 py-0.5 text-[.62rem] font-semibold uppercase text-purple">{ components.T(ctx, "cockpit.pulse.agent") }</span>
-						}
-						<span class="text-muted">{ components.T(ctx, row.VerbKey) }</span>
-						if row.TargetName != "" {
-							@activityTargetPill(row)
-						}
-						if row.Href != "" {
-							<a href={ templ.SafeURL(row.Href) } class="font-medium text-blue hover:underline truncate">{ row.Label }</a>
-						} else if row.Label != "" {
-							<span class="truncate text-body">{ row.Label }</span>
-						}
-						<span class="ml-auto shrink-0 text-[.75rem] text-faint tnum">{ row.RelTime }</span>
-					</li>
+					@activityFeedRow(row, true, false)
 				}
 			</ul>
 		}
