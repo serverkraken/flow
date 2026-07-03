@@ -76,6 +76,22 @@ func TestWebExportHome(t *testing.T) {
 	if !strings.Contains(body, "export") {
 		t.Fatalf("expected 'export' nav link in body, got: %.200s", body)
 	}
+	// The three download anchors (CSV/JSON/MD) MUST stay real <a hx-boost="false">
+	// links so the browser performs a real file download instead of htmx
+	// boosting the navigation away (project lesson: hx-boost swallows it).
+	if got := strings.Count(body, `hx-boost="false"`); got < 3 {
+		t.Errorf("expected at least 3 hx-boost=\"false\" download anchors, got %d in: %.800s", got, body)
+	}
+	for _, format := range []string{"format=csv", "format=json", "format=md"} {
+		if !strings.Contains(body, format) {
+			t.Errorf("expected download link for %q in body", format)
+		}
+	}
+	// The non-download "anzeigen" submit button must be a components.Button
+	// (BtnPrimary carries the distinctive cta-glow marker class).
+	if !strings.Contains(body, "cta-glow") {
+		t.Error("expected 'anzeigen' submit to render via components.Button (BtnPrimary, cta-glow marker)")
+	}
 }
 
 func TestWebExportPreview(t *testing.T) {
@@ -125,5 +141,12 @@ func TestWebExportPreview(t *testing.T) {
 	// The seeded session runs 9:00–11:00 = 2h 00m.
 	if !strings.Contains(body, "2h 00m") {
 		t.Errorf("expected seeded duration '2h 00m' in fragment body, got: %.400s", body)
+	}
+	// The summary table must render on the glass treatment.
+	if !strings.Contains(body, "<table") {
+		t.Error("expected the summary <table> to render in the preview fragment")
+	}
+	if !strings.Contains(body, "glass") {
+		t.Error("expected the summary table wrapper to carry a glass treatment class")
 	}
 }

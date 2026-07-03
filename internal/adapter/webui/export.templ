@@ -63,7 +63,7 @@ templ exportCardBody(d ExportPageData) {
 				value={ d.To }
 				class="rounded border border-line bg-sunken/60 px-2 py-1 text-sm text-ink"
 			/>
-			<button class="rounded bg-ink px-3 py-1 text-sm text-canvas hover:bg-ink/90">anzeigen</button>
+			@components.Button(components.BtnPrimary, "anzeigen", "", templ.Attributes{"type": "submit"})
 		</form>
 	</section>
 	<!-- download links: plain anchors, hx-boost=false so browser does real file download -->
@@ -95,13 +95,13 @@ templ exportCardBody(d ExportPageData) {
 }
 
 templ exportSummaryTable(d ExportPageData) {
-	<section class="rounded bg-sunken p-3 text-sm">
+	<section class="rounded-2xl glass shadow-soft p-4 text-sm">
 		<h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">Ubersicht</h2>
 		if len(d.Rows) == 0 {
 			<p class="text-faint">Keine Daten im Zeitraum.</p>
 		} else {
 			<table class="w-full text-left">
-				<thead>
+				<thead class="border-b border-line">
 					<tr class="text-xs uppercase text-muted">
 						<th class="pb-1 pr-4">Projekt</th>
 						<th class="pb-1 pr-4">Zeit</th>
@@ -117,7 +117,7 @@ templ exportSummaryTable(d ExportPageData) {
 						</tr>
 					}
 				</tbody>
-				<tfoot class="border-t-2 border-line">
+				<tfoot class="border-t border-line">
 					<tr class="font-semibold">
 						<td class="pt-2 pr-4 text-body">Summe</td>
 						<td class="pt-2 pr-4 font-mono text-ink">{ d.TotalTime }</td>
