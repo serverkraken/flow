@@ -62,7 +62,7 @@ func newWorktimeTestServer(t *testing.T) *worktimeTestServer {
 		ListSessionsPage:    usecase.ListSessionsPage{Sessions: ss},
 		BulkAssignNode:   usecase.BulkAssignNode{Sessions: ss, Nodes: ps},
 		BulkDeleteSessions:  usecase.BulkDeleteSessions{Sessions: ss},
-		AddSession:          usecase.AddSession{Sessions: ss, IDs: ids, Clock: clk},
+		AddSession:          usecase.AddSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
 		EditSession:         usecase.EditSession{Sessions: ss},
 		DeleteSession:       usecase.DeleteSession{Sessions: ss},
 		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
@@ -95,6 +95,50 @@ func (w *worktimeTestServer) postForm(t *testing.T, path string, form url.Values
 	rec := httptest.NewRecorder()
 	w.srv.Routes().ServeHTTP(rec, req)
 	return rec
+}
+
+// seedNode inserts a bookable node directly into the fake store (bypassing
+// CreateNode's id generation) so tests can reference a fixed id like "n1".
+func (w *worktimeTestServer) seedNode(t *testing.T, n domain.Node) {
+	t.Helper()
+	if _, err := w.ps.Create(context.Background(), n); err != nil {
+		t.Fatalf("seedNode: %v", err)
+	}
+}
+
+// countNodes returns the number of nodes owned by "u1".
+func (w *worktimeTestServer) countNodes(t *testing.T) int {
+	t.Helper()
+	nodes, err := usecase.ListNodes{Nodes: w.ps}.Execute(context.Background(), "u1")
+	if err != nil {
+		t.Fatalf("countNodes: %v", err)
+	}
+	return len(nodes)
+}
+
+// todayStr formats the fixed test clock's date as yyyy-mm-dd, matching the
+// Heute fragment's today-scoping.
+func (w *worktimeTestServer) todayStr() string {
+	return w.clk.T.Format("2006-01-02")
+}
+
+// assertSessionBookedTo fails the test unless at least one session on today's
+// date is booked to the given node id.
+func (w *worktimeTestServer) assertSessionBookedTo(t *testing.T, nodeID string) {
+	t.Helper()
+	y, m, d := w.clk.T.Date()
+	day := time.Date(y, m, d, 0, 0, 0, 0, w.clk.T.Location())
+	sessions, err := usecase.ListSessionsRange{Sessions: w.ss}.Execute(
+		context.Background(), "u1", day, day.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("assertSessionBookedTo: %v", err)
+	}
+	for _, s := range sessions {
+		if s.NodeID != nil && *s.NodeID == nodeID {
+			return
+		}
+	}
+	t.Errorf("no session booked to node %q, got sessions: %#v", nodeID, sessions)
 }
 
 // seedSession creates a completed session on the given date via AddSession.
@@ -170,6 +214,32 @@ func TestWebDelete_RemovesSession(t *testing.T) {
 	)
 	if len(after) != 0 {
 		t.Errorf("expected 0 sessions after delete, got %d", len(after))
+	}
+}
+
+// TestHandleWebAdd_BooksNodeFromNodeField verifies handleWebAdd reads the
+// SessionDialog "node" field (not the legacy "projectId") to book the session.
+func TestHandleWebAdd_BooksNodeFromNodeField(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindEngagement, Color: "cyan"})
+	form := url.Values{"date": {srv.todayStr()}, "from": {"09:00"}, "to": {"10:00"}, "node": {"n1"}}
+	rec := srv.postForm(t, "/ui/worktime/add", form)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("add: got %d, body=%s", rec.Code, rec.Body.String())
+	}
+	srv.assertSessionBookedTo(t, "n1")
+}
+
+// TestHandleWebAdd_IgnoresLegacyNewProject verifies the "newProject" inline-create
+// path is gone from Heute add — quick-create now lives only in the timer widget
+// picker (umbrella spec §3.4).
+func TestHandleWebAdd_IgnoresLegacyNewProject(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	before := srv.countNodes(t)
+	form := url.Values{"date": {srv.todayStr()}, "from": {"09:00"}, "to": {"10:00"}, "newProject": {"ShouldNotExist"}}
+	_ = srv.postForm(t, "/ui/worktime/add", form)
+	if got := srv.countNodes(t); got != before {
+		t.Errorf("newProject must no longer create a node: nodes %d→%d", before, got)
 	}
 }
 
