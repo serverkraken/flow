@@ -271,7 +271,9 @@ func (s *Server) wissenTabDocs(r *http.Request, u domain.User, n domain.Node) ([
 	}
 	all, err := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
 	if err != nil {
-		return nil, "subtree"
+		slog.WarnContext(ctx, "cockpit wissen: list docs failed", "nodeID", n.ID, "err", err)
+		docs, _ := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil)
+		return docs, "self"
 	}
 	out := make([]domain.Document, 0, len(all))
 	for _, doc := range all {
