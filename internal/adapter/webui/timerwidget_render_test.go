@@ -37,7 +37,7 @@ func TestTimerWidget_RunningRendersClockAndNodePill(t *testing.T) {
 	}
 	body := renderToBuf(t, ctx, TimerWidget(vm))
 
-	for _, want := range []string{"data-timer", `data-base="90"`, `href="/nodes/n1"`, "flow", `hx-post="/ui/timer/stop"`, `hx-post="/ui/timer/switch"`} {
+	for _, want := range []string{"data-timer", `data-base="90"`, `href="/nodes/n1"`, "flow", `hx-post="/ui/timer/stop"`, `hx-post="/ui/timer/switch"`, `title="flow"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("running widget missing %q, got: %s", want, body)
 		}

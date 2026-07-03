@@ -28,7 +28,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 			<div class="flex items-center gap-2 min-w-0">
 				if vm.NodeName != "" {
 					{{ k := NodeKindStyle(vm.NodeKind) }}
-					<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class={ "inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
+					<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } title={ vm.NodeName } class={ "inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.72rem] font-medium", kindToneClass(k.Tone) }>
 						<span aria-hidden="true">{ k.Glyph }</span>
 						<span class="fade-label">{ vm.NodeName }</span>
 					</a>
