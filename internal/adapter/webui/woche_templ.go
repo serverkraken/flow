@@ -232,14 +232,14 @@ func wocheNav(vm WocheVM) templ.Component {
 			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"flex flex-wrap items-center gap-2.5\"><div class=\"inline-flex items-center rounded-xl border border-line bg-surface shadow-soft overflow-hidden\" role=\"group\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"flex flex-wrap items-center gap-2.5\"><div class=\"inline-flex items-center rounded-xl glass shadow-soft overflow-hidden\" role=\"group\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "woche.pick"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/woche.templ`, Line: 51, Col: 166}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/woche.templ`, Line: 51, Col: 142}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -343,7 +343,7 @@ func wocheNav(vm WocheVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if !vm.IsCurrent {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<button type=\"button\" hx-get=\"/ui/woche/fragment\" hx-target=\"#content\" hx-swap=\"innerHTML\" class=\"inline-flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-[.88rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors\"><span aria-hidden=\"true\">●</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<button type=\"button\" hx-get=\"/ui/woche/fragment\" hx-target=\"#content\" hx-swap=\"innerHTML\" class=\"inline-flex items-center gap-1.5 rounded-xl glass px-3.5 py-2.5 text-[.88rem] font-medium text-body shadow-soft hover:text-blue hover:border-blue/40 transition-colors\"><span aria-hidden=\"true\">●</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -391,14 +391,14 @@ func wocheDaysCard(vm WocheVM) templ.Component {
 			templ_7745c5c3_Var17 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<section class=\"lg:col-span-2 rounded-3xl bg-surface border border-line shadow-soft p-5 sm:p-6 md:p-7\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<section class=\"lg:col-span-2 rounded-3xl glass shadow-soft p-5 sm:p-6 md:p-7\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "woche.days"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/woche.templ`, Line: 83, Col: 148}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/woche.templ`, Line: 83, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
