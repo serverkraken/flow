@@ -258,6 +258,45 @@ func TestCockpitUebersicht_ArchivedEngagementExcludedFromOwnerTotal(t *testing.T
 	}
 }
 
+// TestCockpitUebersicht_SelfArchivedAncestorCountedInOwnerTotal pins the
+// EXCEPTION to the archived-exclusion rule: when the VIEWED repo's own root
+// engagement is archived (reachable by direct URL), that root's subtree MUST
+// still count in the owner total — otherwise the chain shows the repo's hours
+// in its rows while excluding them from the denominator, making every Pct
+// incoherent.
+func TestCockpitUebersicht_SelfArchivedAncestorCountedInOwnerTotal(t *testing.T) {
+	c := newCockpitTestServer(t)
+	// Viewed repo sits under an ARCHIVED engagement; a separate ACTIVE
+	// engagement carries other hours (the legitimate rest of the denominator).
+	c.seedNode(t, domain.Node{ID: "engArch", OwnerID: "u1", Name: "Archived", Slug: "archived", Kind: domain.KindEngagement, Status: domain.NodeArchived})
+	engArch := "engArch"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engArch})
+	c.seedNode(t, domain.Node{ID: "engActive", OwnerID: "u1", Name: "Active", Slug: "active", Kind: domain.KindEngagement})
+
+	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
+	repoID := "repo"
+	activeID := "engActive"
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &repoID, day.Add(8*time.Hour), day.Add(10*time.Hour), nil, ""); err != nil { // 2h
+		t.Fatalf("AddSession repo: %v", err)
+	}
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &activeID, day.Add(1*time.Hour), day.Add(7*time.Hour), nil, ""); err != nil { // 6h
+		t.Fatalf("AddSession active: %v", err)
+	}
+
+	body := c.do(t, "GET", "/nodes/repo/tab/uebersicht", nil).Body.String()
+	// Owner total = repo's own archived-root subtree (2h) + active sibling (6h) =
+	// 8h, so the This-row is 2/8 = 25%. WITHOUT the exception the archived root
+	// would be excluded, ownerTotal = 6h, and the This-row would be 2/6 ≈ 33%.
+	if !strings.Contains(body, "width:25%") {
+		t.Errorf("viewed archived-root subtree must count in owner total (This-row 25%%): %.800s", body)
+	}
+	if strings.Contains(body, "width:33%") {
+		t.Errorf("owner total wrongly excluded the viewed archived root (This-row at 33%%): %.800s", body)
+	}
+}
+
 func TestCockpitView_RollupAndIdentity(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Color: "cyan"})

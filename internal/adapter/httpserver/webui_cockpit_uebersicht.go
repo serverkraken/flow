@@ -116,11 +116,17 @@ func (s *Server) chainRows(ctx context.Context, ownerID string, d *webui.NodeCoc
 		// disjoint, so no double-count). Archived engagements are excluded to
 		// match the nav tree's active+paused visibility (webui_nav.go) — a
 		// long-done archived engagement must not silently inflate the
-		// denominator and shrink every ChainRow.Pct.
+		// denominator and shrink every ChainRow.Pct. EXCEPTION: the viewed
+		// chain's OWN root is always counted even when archived (a repo under an
+		// archived engagement, reachable by direct URL, would otherwise have its
+		// own hours excluded from the denominator while its rows still show them
+		// — making every Pct incoherent).
+		viewedRootID := chain[len(chain)-1].ID
 		if s.ListNodes.Nodes != nil {
 			if all, err := s.ListNodes.Execute(ctx, ownerID); err == nil {
 				for _, n := range all {
-					if n.ParentID == nil && n.Kind == domain.KindEngagement && n.Status != domain.NodeArchived {
+					if n.ParentID == nil && n.Kind == domain.KindEngagement &&
+						(n.Status != domain.NodeArchived || n.ID == viewedRootID) {
 						if r, serr := s.Stats.NodeStats(ctx, ownerID, n.ID); serr == nil {
 							ownerTotal += r.Total
 						}
