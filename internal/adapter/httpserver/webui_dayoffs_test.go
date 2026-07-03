@@ -78,6 +78,24 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "flow · frei") {
 		t.Fatalf("GET /dayoffs status=%d body=%.120s", code, body)
 	}
+	// Kristall glass chrome on the add/list/settings cards, not the old
+	// hand-rolled bg-surface/border-line styling.
+	if !strings.Contains(body, "glass") {
+		t.Errorf("Frei cards should use glass chrome, got:\n%.400s", body)
+	}
+	if strings.Contains(body, "bg-surface border border-line") {
+		t.Errorf("Frei cards should not keep the old bg-surface border border-line chrome, got:\n%.400s", body)
+	}
+	// Add-form, Bundesland select, and ICS copy button must still render.
+	if !strings.Contains(body, `hx-post="/ui/dayoffs/add"`) {
+		t.Errorf("add-form should still post to /ui/dayoffs/add, got:\n%.400s", body)
+	}
+	if !strings.Contains(body, `name="bundesland"`) {
+		t.Errorf("Bundesland select should still render, got:\n%.400s", body)
+	}
+	if !strings.Contains(body, "data-copy=") {
+		t.Errorf("ICS copy button should still render, got:\n%.400s", body)
+	}
 
 	// Add a vacation week → fragment shows the entries.
 	form := url.Values{
