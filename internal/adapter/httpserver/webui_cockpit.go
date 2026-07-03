@@ -118,8 +118,14 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id, activeTab s
 		"bindings": bindingsCount,
 	}
 
-	// Contributors: T5 fills this from the subtree activity feed; the rail
-	// row renders conditionally, so leaving it empty here is a no-op.
+	// Rail "Beiträger" row: distinct actors (human/agent) active anywhere in
+	// the subtree, max 4. Filled HERE on nodeCockpitData's always-run path —
+	// not in the uebersicht panel builder — because the rail is persistent and
+	// reloads independently on its own SSE events (/head) and after timer
+	// mutations, none of which run fillPanelData. Filling it only in the panel
+	// path would make the row appear on the uebersicht tab's first paint and
+	// then vanish on the very next live reload.
+	d.Contributors = s.railContributors(ctx, u.ID, n.ID)
 
 	// Active-tab data (filled by fillPanelData).
 	return d, nil
@@ -162,6 +168,12 @@ func (s *Server) handleWebNodeTab(w http.ResponseWriter, r *http.Request) {
 // fillPanelData loads the active tab's data into d.
 func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCockpit) {
 	switch d.ActiveTab {
+	case "uebersicht":
+		vm, err := s.uebersichtData(r.Context(), u, d)
+		if err != nil {
+			d.PanelErr = err.Error()
+		}
+		d.Uebersicht = vm
 	case "worktime":
 		now := s.Clock.Now()
 		since := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -229,8 +241,10 @@ func (s *Server) handleWebNodeAddSession(w http.ResponseWriter, r *http.Request)
 		s.renderNodePanel(w, r, u, id, "worktime", "konnte nicht buchen: "+err.Error())
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionUpdated, UserID: u.ID,
-		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
+	s.Emitter.Emit(r.Context(), domain.Event{
+		Type: domain.EventSessionUpdated, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
+	})
 	s.renderNodePanel(w, r, u, id, "worktime", "")
 }
 
@@ -263,8 +277,10 @@ func (s *Server) handleWebNodeStart(w http.ResponseWriter, r *http.Request) {
 		}
 		// already running, etc. — fall through and re-render current state.
 	} else {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
-			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
+		s.Emitter.Emit(r.Context(), domain.Event{
+			Type: domain.EventSessionStarted, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
+		})
 	}
 	s.renderNodeHead(w, r, u, id)
 }
@@ -276,8 +292,10 @@ func (s *Server) handleWebNodeStop(w http.ResponseWriter, r *http.Request) {
 	if rs, ok, gerr := s.GetRunningSession.Execute(r.Context(), u.ID); gerr == nil && ok {
 		nid := id
 		if sess, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, &nid); err == nil {
-			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
-				Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
+			s.Emitter.Emit(r.Context(), domain.Event{
+				Type: domain.EventSessionStopped, UserID: u.ID,
+				Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
+			})
 		}
 	}
 	s.renderNodeHead(w, r, u, id)
@@ -298,8 +316,10 @@ func (s *Server) handleWebNodeSwitch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "could not switch", http.StatusBadRequest)
 			return
 		}
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
-			Data: s.sessionEventData(r.Context(), u.ID, stoppedSess.ID, stoppedSess.NodeID)})
+		s.Emitter.Emit(r.Context(), domain.Event{
+			Type: domain.EventSessionStopped, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, stoppedSess.ID, stoppedSess.NodeID),
+		})
 	}
 	nid := id
 	if sess, err := s.StartSession.Execute(r.Context(), u.ID, &nid, nil, ""); err != nil {
@@ -308,8 +328,10 @@ func (s *Server) handleWebNodeSwitch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
-			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
+		s.Emitter.Emit(r.Context(), domain.Event{
+			Type: domain.EventSessionStarted, UserID: u.ID,
+			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
+		})
 	}
 	s.renderNodeHead(w, r, u, id)
 }
@@ -355,10 +377,10 @@ func (s *Server) handleWebNodeUnbind(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_ = r.ParseForm()
 	key := usecase.BindKey{
-		Kind:      domain.BindingKind(r.FormValue("kind")),
+		Kind:       domain.BindingKind(r.FormValue("kind")),
 		RemoteSlug: r.FormValue("slug"),
-		MachineID: r.FormValue("machine"),
-		Path:      r.FormValue("path"),
+		MachineID:  r.FormValue("machine"),
+		Path:       r.FormValue("path"),
 	}
 	if err := s.UnbindNode.Execute(r.Context(), u.ID, key); err != nil {
 		s.renderNodePanel(w, r, u, id, "bindings", "konnte nicht lösen")

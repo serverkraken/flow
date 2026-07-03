@@ -77,6 +77,7 @@ type NodeCockpit struct {
 	TabCounts    map[string]int
 	// active tab + its data (only the active tab's slice is populated)
 	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
+	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
 	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
 	Docs        []domain.Document       // wissen
 	Children    []NodeChild             // struktur

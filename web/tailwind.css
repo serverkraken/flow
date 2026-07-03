@@ -386,6 +386,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .fade-label { white-space:nowrap; overflow:hidden; -webkit-mask-image: linear-gradient(90deg,#000 80%,transparent); mask-image: linear-gradient(90deg,#000 80%,transparent); }
   .nv-row-active { background: linear-gradient(90deg, rgb(var(--blue) / .20), rgb(var(--blue) / .03)); box-shadow: inset 0 0 0 1px rgb(var(--blue) / .4); }
   .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; color: rgb(var(--ink)); font-weight:700; }
+
+  /* Übersicht feed (Kristall K2 Task 5): Work/Privat split bar + chain/comp share bar */
+  .split-bar { height:14px; border-radius:999px; overflow:hidden; display:flex; background:rgb(var(--sunken)); border:1px solid rgb(var(--line2)); }
+  .split-work { background:linear-gradient(90deg,rgb(var(--green)),rgb(var(--cyan))); }
+  .split-priv { background:linear-gradient(90deg,rgb(var(--purple)),rgb(var(--purple) / .7)); }
+  .chain-bar { height:6px; border-radius:999px; background:rgb(var(--sunken)); overflow:hidden; }
 }
 
 @layer components {

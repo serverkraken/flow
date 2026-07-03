@@ -1,0 +1,219 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// CockpitUebersicht is the "living project home" feed: 4 rollup tiles, the
+// Work/Privat split, a kind-differentiated composition (Engagement/Vorhaben)
+// or chain (Repo) card, the subtree-filtered live pulse, and the recently
+// changed knowledge card. d carries the node identity (links, ID); vm carries
+// the feed data (uebersichtData, httpserver package).
+templ CockpitUebersicht(d NodeCockpit, vm UebersichtVM) {
+	<div class="grid gap-4">
+		<div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
+			@uebersichtSumTile(vm)
+			@components.StatTileAccent("cockpit.ov.week", vm.WeekStr, vm.WeekDelta, "cyan")
+			@components.StatTileAccent("cockpit.ov.month", vm.MonthStr, "", "blue")
+			@components.StatTileAccent("cockpit.ov.earnings", vm.Earnings, "", "yellow")
+		</div>
+		<div class="grid gap-4 xl:grid-cols-2">
+			@uebersichtSplitCard(vm)
+			// Branch on which slice the builder actually populated (Chain for
+			// Repo, Comp otherwise), NOT a re-derived Kind check — the render
+			// choice can't drift from the computed data. BuildChain always
+			// emits ≥2 rows (this + Σ), so a Repo cockpit always takes this arm.
+			if len(vm.Chain) > 0 {
+				@uebersichtChainCard(vm)
+			} else {
+				@uebersichtCompCard(vm)
+			}
+		</div>
+		@uebersichtPulseCard(vm)
+		@uebersichtDocsCard(d, vm)
+	</div>
+}
+
+// uebersichtSumTile is the Subtree Σ tile — the one visual accent that sets
+// the primary rollup apart from the other 3 plain-hue tiles: a bicolor
+// gradient-clip value (existing purple/cyan tokens + standard Tailwind
+// gradient/bg-clip-text/text-transparent utilities, no new classes).
+templ uebersichtSumTile(vm UebersichtVM) {
+	<div class="relative overflow-hidden rounded-[18px] glass shadow-soft rtile-ac px-4 pt-4 pb-4" style="--ac:var(--purple)">
+		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint">{ components.T(ctx, "cockpit.ov.total") }</div>
+		<div class="mt-1.5 bg-gradient-to-r from-purple to-cyan bg-clip-text text-transparent font-display text-[1.45rem] font-semibold leading-tight tnum">{ vm.TotalStr }</div>
+		<div class="mt-0.5 text-[.68rem] text-muted">{ components.T(ctx, "cockpit.ov.inclChildren") }</div>
+	</div>
+}
+
+// uebersichtSplitCard shows the Work/Privat week-window split as a two-tone
+// bar. HasSplit=false collapses it to just the explanatory note — one side
+// being zero means there's nothing to compare.
+templ uebersichtSplitCard(vm UebersichtVM) {
+	<section class="rounded-3xl glass shadow-lift p-5">
+		<h3 class="text-sm font-semibold text-ink mb-3">{ components.T(ctx, "cockpit.wp.title") }</h3>
+		if !vm.HasSplit {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wp.note") }</p>
+		} else {
+			<div class="mb-2 flex items-center justify-between text-[.78rem]">
+				<span class="inline-flex items-center gap-1.5 text-body">
+					<span class="h-2 w-2 rounded-full bg-green" aria-hidden="true"></span>
+					{ components.T(ctx, "node.counts.work") }
+				</span>
+				<span class="inline-flex items-center gap-1.5 text-body">
+					{ components.T(ctx, "node.counts.privat") }
+					<span class="h-2 w-2 rounded-full bg-purple" aria-hidden="true"></span>
+				</span>
+			</div>
+			<div class="split-bar">
+				<div class="split-work" style={ pctStyle(vm.WorkPct) }></div>
+				<div class="split-priv" style={ pctStyle(100 - vm.WorkPct) }></div>
+			</div>
+			<div class="mt-2 flex items-center justify-between text-[.78rem] tnum text-muted">
+				<span>{ vm.WorkWeekStr }</span>
+				<span>{ vm.PrivatWeekStr }</span>
+			</div>
+			<p class="mt-3 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.wp.note") }</p>
+			<div class="mt-2 flex items-center justify-between text-[.78rem]">
+				<span class="text-faint">{ components.T(ctx, "cockpit.wp.workMonth") }</span>
+				<span class="font-semibold tnum text-ink">{ vm.WorkMonthStr }</span>
+			</div>
+		}
+	</section>
+}
+
+// uebersichtCompCard is the Engagement/Vorhaben "Zusammensetzung" card: one
+// row per direct child, its subtree share as a chain-bar, a breathing live
+// dot when a session is running somewhere in its subtree, and the relative
+// time of its freshest activity.
+templ uebersichtCompCard(vm UebersichtVM) {
+	<section class="rounded-3xl glass shadow-lift p-5">
+		<h3 class="text-sm font-semibold text-ink mb-3">{ components.T(ctx, "cockpit.comp.title") }</h3>
+		if len(vm.Comp) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.struktur.empty") }</p>
+		} else {
+			<ul class="flex flex-col gap-3">
+				for _, row := range vm.Comp {
+					<li>
+						<div class="flex items-center gap-2 text-[.85rem]">
+							<span class={ navDotClass(row.Kind) } style={ nvHue(row.Color) } aria-hidden="true"></span>
+							<a href={ templ.SafeURL("/nodes/" + row.ID) } class="min-w-0 flex-1 truncate font-medium text-ink hover:text-cyan">{ row.Name }</a>
+							if row.Live {
+								<span class="h-2 w-2 shrink-0 rounded-full bg-green animate-breathe" aria-hidden="true"></span>
+							}
+							<span class="shrink-0 font-mono tnum text-muted">{ row.DurStr }</span>
+						</div>
+						<div class="chain-bar mt-1.5">
+							<div class="h-full rounded-full bg-cyan" style={ pctStyle(row.Pct) }></div>
+						</div>
+						if row.LastAct != "" {
+							<p class="mt-1 text-[.7rem] text-faint">{ components.T(ctx, "cockpit.comp.lastAct") } { row.LastAct }</p>
+						}
+					</li>
+				}
+			</ul>
+		}
+	</section>
+}
+
+// uebersichtChainCard is the Repo "Fließt nach oben" card: this node, then
+// each ancestor leaf→root, then the owner-wide Sum row. The This row gets a
+// subtle active highlight (nv-row-active, the same token used for the nav
+// tree's current-page row).
+templ uebersichtChainCard(vm UebersichtVM) {
+	<section class="rounded-3xl glass shadow-lift p-5">
+		<h3 class="text-sm font-semibold text-ink mb-3">{ components.T(ctx, "cockpit.chain.title") }</h3>
+		<ul class="flex flex-col gap-2.5">
+			for _, row := range vm.Chain {
+				<li class={ "rounded-xl px-2 py-1.5 -mx-2", templ.KV("nv-row-active", row.This) }>
+					<div class="flex items-center gap-2 text-[.85rem]">
+						if row.Sum {
+							<span class="font-semibold text-ink">Σ { components.T(ctx, "cockpit.chain.total") }</span>
+						} else {
+							<span class={ navDotClass(row.Kind) } aria-hidden="true"></span>
+							<span class="min-w-0 flex-1 truncate font-medium text-ink">{ row.Label }</span>
+							if row.This {
+								<span class="shrink-0 text-[.68rem] text-faint">({ components.T(ctx, "cockpit.chain.here") })</span>
+							}
+						}
+						<span class="ml-auto shrink-0 font-mono tnum text-muted">{ row.DurStr }</span>
+					</div>
+					<div class="chain-bar mt-1">
+						<div class="h-full rounded-full bg-blue" style={ pctStyle(row.Pct) }></div>
+					</div>
+				</li>
+			}
+		</ul>
+	</section>
+}
+
+// uebersichtPulseCard shows the subtree-filtered live activity feed: actor
+// glyph, actor name, an AGENT chip for agent-kind actors, the verb, the
+// form-coded target pill, and relative time.
+templ uebersichtPulseCard(vm UebersichtVM) {
+	<section class="rounded-3xl glass shadow-lift p-5">
+		<div class="mb-3 flex items-center gap-2">
+			<span class="h-2 w-2 rounded-full bg-green animate-breathe" aria-hidden="true"></span>
+			<h3 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.pulse.title") }</h3>
+			<span class="ml-auto text-[.62rem] font-bold uppercase tracking-wide text-green">{ components.T(ctx, "cockpit.pulse.live") }</span>
+		</div>
+		if len(vm.Pulse) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "activity.empty") }</p>
+		} else {
+			<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
+				for _, row := range vm.Pulse {
+					<li class="flex items-center gap-2 px-4 py-2.5 text-[.85rem]">
+						<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
+						<span class="font-semibold text-body">{ row.ActorRef }</span>
+						if row.ActorKind == "agent" {
+							<span class="inline-flex shrink-0 items-center rounded-md border border-purple/40 px-1.5 py-0.5 text-[.62rem] font-semibold uppercase text-purple">{ components.T(ctx, "cockpit.pulse.agent") }</span>
+						}
+						<span class="text-muted">{ components.T(ctx, row.VerbKey) }</span>
+						if row.TargetName != "" {
+							@activityTargetPill(row)
+						}
+						if row.Href != "" {
+							<a href={ templ.SafeURL(row.Href) } class="font-medium text-blue hover:underline truncate">{ row.Label }</a>
+						} else if row.Label != "" {
+							<span class="truncate text-body">{ row.Label }</span>
+						}
+						<span class="ml-auto shrink-0 text-[.75rem] text-faint tnum">{ row.RelTime }</span>
+					</li>
+				}
+			</ul>
+		}
+	</section>
+}
+
+// uebersichtDocsCard shows the top 3 recently changed subtree docs, with a
+// footer link to the full Wissen tab when more exist (targets #cockpit-main,
+// the canonical htmx target for anything re-rendering the tab area).
+templ uebersichtDocsCard(d NodeCockpit, vm UebersichtVM) {
+	<section class="rounded-3xl glass shadow-lift p-5">
+		<h3 class="text-sm font-semibold text-ink mb-3">{ components.T(ctx, "cockpit.ov.docs") }</h3>
+		if len(vm.Docs) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wissen.empty") }</p>
+		} else {
+			<ul class="flex flex-col gap-1">
+				for _, doc := range vm.Docs {
+					<li>
+						<a href={ templ.SafeURL("/wissen/" + doc.ID) } class="group flex items-start gap-3 rounded-xl px-2 py-1.5 -mx-2 hover:bg-sunken/40">
+							<span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line text-[.82rem] text-muted" aria-hidden="true">◆</span>
+							<span class="min-w-0 flex-1">
+								<span class="block truncate font-medium text-ink group-hover:text-cyan">{ doc.Title }</span>
+								<span class="mt-0.5 block text-[.72rem] text-faint">{ doc.Meta }</span>
+							</span>
+						</a>
+					</li>
+				}
+			</ul>
+			if vm.DocsTotal > 3 {
+				<a
+					hx-get={ "/nodes/" + d.N.ID + "/tab/wissen" }
+					hx-target="#cockpit-main"
+					hx-swap="innerHTML"
+					hx-push-url={ "/nodes/" + d.N.ID + "?tab=wissen" }
+					class="mt-3 inline-block cursor-pointer text-[.78rem] font-semibold text-cyan hover:underline"
+				>{ components.Tn(ctx, "cockpit.ov.docsAll", vm.DocsTotal) }</a>
+			}
+		}
+	</section>
+}

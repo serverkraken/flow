@@ -142,7 +142,24 @@ func init() {
 			"cockpit.qa.book":              "Add time",
 			"cockpit.qa.knowledge":         "New knowledge",
 			"cockpit.qa.structure":         "Edit structure",
-			"cockpit.uebersicht.placeholder": "Tiles, work/private split, activity pulse, and recently changed knowledge are coming here.",
+			// Übersicht feed (Kristall K2 Task 5)
+			"cockpit.ov.total":         "Subtree Σ",
+			"cockpit.ov.week":          "This week",
+			"cockpit.ov.month":         "This month",
+			"cockpit.ov.earnings":      "Earnings",
+			"cockpit.ov.inclChildren":  "own + all subnodes",
+			"cockpit.ov.docs":          "Recently changed knowledge",
+			"cockpit.wp.title":         "Work vs. private",
+			"cockpit.wp.note":          "Work counts toward the daily target · private is only tracked",
+			"cockpit.wp.workMonth":     "Work month",
+			"cockpit.comp.title":       "What is this made of?",
+			"cockpit.comp.lastAct":     "last active",
+			"cockpit.chain.title":      "Flows upward",
+			"cockpit.chain.here":       "here",
+			"cockpit.chain.total":      "Total",
+			"cockpit.pulse.title":      "Pulse — what's happening",
+			"cockpit.pulse.live":       "LIVE",
+			"cockpit.pulse.agent":      "AI-AGENT",
 			// node move form
 			"node.move":            "Move",
 			"node.moveTitle":       "Move node",
@@ -387,6 +404,7 @@ func init() {
 			"list.entries":              {One: "{{.N}} entry", Other: "{{.N}} entries"},
 			"list.results":              {One: "{{.N}} result", Other: "{{.N}} results"},
 			"historie.unassignedBanner": {One: "{{.N}} session without project", Other: "{{.N}} sessions without project"},
+			"cockpit.ov.docsAll":        {One: "all {{.N}} ›", Other: "all {{.N}} ›"},
 		},
 	})
 }

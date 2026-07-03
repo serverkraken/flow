@@ -149,7 +149,24 @@ func init() {
 			"cockpit.qa.book":              "Nachbuchen",
 			"cockpit.qa.knowledge":         "Neues Wissen",
 			"cockpit.qa.structure":         "Struktur bearbeiten",
-			"cockpit.uebersicht.placeholder": "Kacheln, Work/Privat-Split, Aktivitäts-Puls und zuletzt geändertes Wissen folgen hier.",
+			// Übersicht feed (Kristall K2 Task 5)
+			"cockpit.ov.total":         "Subtree Σ",
+			"cockpit.ov.week":          "Diese Woche",
+			"cockpit.ov.month":         "Diesen Monat",
+			"cockpit.ov.earnings":      "Verdienst",
+			"cockpit.ov.inclChildren":  "eigen + alle Unterknoten",
+			"cockpit.ov.docs":          "Zuletzt geändertes Wissen",
+			"cockpit.wp.title":         "Work vs. Privat",
+			"cockpit.wp.note":          "Work zählt aufs Tages-Soll · Privat wird nur getrackt",
+			"cockpit.wp.workMonth":     "Work Monat",
+			"cockpit.comp.title":       "Woraus besteht das?",
+			"cockpit.comp.lastAct":     "zuletzt aktiv",
+			"cockpit.chain.title":      "Fließt nach oben",
+			"cockpit.chain.here":       "hier",
+			"cockpit.chain.total":      "Gesamt",
+			"cockpit.pulse.title":      "Puls — was gerade los ist",
+			"cockpit.pulse.live":       "LIVE",
+			"cockpit.pulse.agent":      "AI-AGENT",
 			// node move form
 			"node.move":            "Verschieben",
 			"node.moveTitle":       "Knoten verschieben",
@@ -398,6 +415,9 @@ func init() {
 			"list.results": {One: "{{.N}} Treffer", Other: "{{.N}} Treffer"},
 			// unassigned-sessions banner (plural via Tn)
 			"historie.unassignedBanner": {One: "{{.N}} Sitzung ohne Projekt", Other: "{{.N}} Sitzungen ohne Projekt"},
+			// Übersicht docs-card footer link (same text either way — Tn just
+			// substitutes {{.N}}, no grammatical plural needed for "alle N ›").
+			"cockpit.ov.docsAll": {One: "alle {{.N}} ›", Other: "alle {{.N}} ›"},
 		},
 	})
 }

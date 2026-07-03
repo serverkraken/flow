@@ -23,6 +23,7 @@ type cockpitTestServer struct {
 	ps    *testutil.FakeNodeStore
 	bs    *testutil.FakeProjectBindingStore
 	ds    *testutil.FakeDocumentStore
+	as    *fakeActivityStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
 	codec *websession.Codec
@@ -36,6 +37,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	ds := testutil.NewFakeDocumentStore()
+	as := &fakeActivityStore{}
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -63,6 +65,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		ListActivity:      usecase.ListActivity{Activities: as},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
 			Nodes:    ps, // REQUIRED for NodeStats subtree walk
@@ -71,7 +74,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 			Loc:      time.Local,
 		},
 	}
-	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, ids: ids, clk: clk, codec: codec}
+	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, as: as, ids: ids, clk: clk, codec: codec}
 }
 
 func (c *cockpitTestServer) do(t *testing.T, method, path string, form map[string]string) *httptest.ResponseRecorder {
@@ -182,6 +185,76 @@ func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 	// TodayHere (own-node, not subtree) sums the child's 2h session (it's "today").
 	if !strings.Contains(childBody, "2:00 h") {
 		t.Errorf("child cockpit: missing own-node TodayHere %q", "2:00 h")
+	}
+}
+
+// TestCockpitRail_ContributorsFilledOnHeadPath pins the T5 fix: the rail's
+// "Beiträger" row is filled in nodeCockpitData (the always-run path), so it
+// survives the rail's OWN SSE reload (GET /nodes/{id}/head) which never calls
+// fillPanelData/uebersichtData. A regression that moved the fill back into the
+// panel builder would show an empty rail here.
+func TestCockpitRail_ContributorsFilledOnHeadPath(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Slug: "eng", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engID})
+
+	// Seed a subtree activity entry authored by "claude-code" on the repo child.
+	repoRef := "repo"
+	c.as.items = []domain.ActivityEntry{
+		{ID: "a1", OwnerID: "u1", ActorKind: "agent", ActorRef: "claude-code", Kind: "session.started", NodeRef: &repoRef, At: c.clk.Now()},
+	}
+
+	// The rail fragment path — /head — renders CockpitRail WITHOUT fillPanelData.
+	rec := c.do(t, "GET", "/nodes/eng/head", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/eng/head: status %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "claude-code") {
+		t.Errorf("rail /head must show the subtree contributor 'claude-code' (Beiträger row): %.600s", rec.Body.String())
+	}
+}
+
+// TestCockpitUebersicht_ArchivedEngagementExcludedFromOwnerTotal pins that an
+// archived root engagement's time does NOT inflate the Chain card's owner
+// total (the 100% denominator), matching the nav tree's active+paused
+// visibility. With the archived engagement counted the repo's This-row would
+// be a smaller %; excluding it, the repo (2h of a 2h active-only total) is 100%.
+func TestCockpitUebersicht_ArchivedEngagementExcludedFromOwnerTotal(t *testing.T) {
+	c := newCockpitTestServer(t)
+	// Active engagement → repo (the cockpit node), 2h of work on the repo.
+	c.seedNode(t, domain.Node{ID: "engA", OwnerID: "u1", Name: "Active", Slug: "active", Kind: domain.KindEngagement})
+	engA := "engA"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engA})
+	// Archived engagement with a large amount of logged time.
+	c.seedNode(t, domain.Node{ID: "engArch", OwnerID: "u1", Name: "Archived", Slug: "archived", Kind: domain.KindEngagement, Status: domain.NodeArchived})
+
+	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
+	repoID := "repo"
+	archID := "engArch"
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &repoID, day.Add(8*time.Hour), day.Add(10*time.Hour), nil, ""); err != nil {
+		t.Fatalf("AddSession repo: %v", err)
+	}
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &archID, day.Add(1*time.Hour), day.Add(7*time.Hour), nil, ""); err != nil {
+		t.Fatalf("AddSession archived: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/repo/tab/uebersicht", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/repo/tab/uebersicht: status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	// Chain card present (repo → chain, not composition).
+	if !strings.Contains(body, "Fließt nach oben") {
+		t.Fatalf("repo cockpit missing chain card: %.600s", body)
+	}
+	// Repo This-row = 2h; owner total excludes the archived 6h, so total = 2h
+	// and the This-row bar is at 100% (width:100%). If archived leaked in,
+	// total would be 8h and the This-row would be 25%.
+	if strings.Contains(body, "width:25%") {
+		t.Errorf("archived engagement leaked into owner total (This-row at 25%%, expected 100%%): %.800s", body)
 	}
 }
 

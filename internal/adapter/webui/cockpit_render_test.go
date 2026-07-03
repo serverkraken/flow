@@ -380,22 +380,23 @@ func TestCockpitPanel_WorktimeRendersFormAndRows(t *testing.T) {
 	}
 }
 
-// TestCockpitPanel_UebersichtRendersPlaceholder verifies that the "uebersicht"
-// tab (the new default landing) renders a placeholder EmptyState — the real
-// Übersicht feed (rollup tiles, Work/Privat split, composition/chain, pulse,
-// knowledge) is a later task; this only pins that the tab is wired end-to-end
-// and shows a translated, non-empty state (no raw "…" loading stub).
-func TestCockpitPanel_UebersichtRendersPlaceholder(t *testing.T) {
+// TestCockpitPanel_UebersichtRendersFeedWithoutCrashing verifies that the
+// "uebersicht" tab is wired to the real feed (CockpitUebersicht, cockpit_uebersicht.templ)
+// end-to-end and renders gracefully even with a completely zero-value VM
+// (the degrade-to-empty path every card must survive). The detailed
+// kind-differentiation / tiles / split / pulse / docs assertions live in
+// cockpit_uebersicht_render_test.go.
+func TestCockpitPanel_UebersichtRendersFeedWithoutCrashing(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	d.ActiveTab = "uebersicht"
 	body := renderToBuf(t, ctx, cockpitPanel(d))
 
-	if !strings.Contains(body, "Übersicht") {
-		t.Errorf("uebersicht placeholder missing translated title: %.500s", body)
+	if !strings.Contains(body, "Subtree Σ") {
+		t.Errorf("uebersicht panel missing the Σ tile label: %.500s", body)
 	}
 	if strings.Contains(body, "…") {
-		t.Errorf("uebersicht placeholder must not use a bare ellipsis loading stub: %.500s", body)
+		t.Errorf("uebersicht panel must not use a bare ellipsis loading stub: %.500s", body)
 	}
 }
 

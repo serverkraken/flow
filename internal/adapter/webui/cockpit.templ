@@ -278,10 +278,7 @@ templ cockpitTabLink(id, key, labelKey string, count int, active bool) {
 templ cockpitPanel(d NodeCockpit) {
 	switch d.ActiveTab {
 		case "uebersicht":
-			// Placeholder landing — the real Übersicht feed (rollup tiles,
-			// Work/Privat split, composition/chain, pulse, knowledge) is a
-			// later task; this keeps Übersicht-as-default wired end-to-end.
-			@components.EmptyState("◆", "cockpit.tab.uebersicht", "cockpit.uebersicht.placeholder")
+			@CockpitUebersicht(d, d.Uebersicht)
 		case "worktime":
 			<div class="flex items-center justify-between mb-4">
 				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.worktime.title") }</h2>
