@@ -13,10 +13,12 @@ type AuthVM struct {
 	ShowLogin bool
 }
 
-// AuthPage renders inside components.Base — no sidebar, just the facets
-// canvas + a centered glass card.
+// AuthPage renders inside components.BaseNoSSE — no sidebar, just the facets
+// canvas + a centered glass card. No SSE: these are pre-auth pages (logout
+// landing, OIDC-callback errors) where /api/v1/events would 401 and retry
+// pointlessly (K5 A2).
 templ AuthPage(vm AuthVM) {
-	@components.Base("auth", authBody(vm))
+	@components.BaseNoSSE("auth", authBody(vm))
 }
 
 templ authBody(vm AuthVM) {

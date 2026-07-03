@@ -1,10 +1,24 @@
 package components
 
-// Base is the full HTML hull every page renders inside. It loads only local
-// assets (app.css, vendored htmx, vendored fonts), sets data-theme before
-// first paint (no-flash), wires the SSE body, and exposes toggleTheme() plus a
-// client-side live timer. The page-specific markup is passed as body.
+// Base is the shared HTML hull with live-sync (SSE) enabled — the default for
+// every authenticated page.
 templ Base(title string, body templ.Component) {
+	@baseHull(title, true, body)
+}
+
+// BaseNoSSE is the hull WITHOUT the SSE connection — for pre-auth pages
+// (logout landing, OIDC-callback errors) where /api/v1/events would 401 and
+// retry pointlessly (K5 A2).
+templ BaseNoSSE(title string, body templ.Component) {
+	@baseHull(title, false, body)
+}
+
+// baseHull is the full HTML hull every page renders inside. It loads only
+// local assets (app.css, vendored htmx, vendored fonts), sets data-theme
+// before first paint (no-flash), optionally wires the SSE body connection,
+// and exposes toggleTheme() plus a client-side live timer. The page-specific
+// markup is passed as body.
+templ baseHull(title string, sse bool, body templ.Component) {
 	<!DOCTYPE html>
 	<html lang="de" class="scroll-smooth">
 		<head>
@@ -34,7 +48,11 @@ templ Base(title string, body templ.Component) {
 				})();
 			</script>
 		</head>
-		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink" hx-ext="sse" sse-connect="/api/v1/events">
+		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink"
+			if sse {
+				hx-ext="sse" sse-connect="/api/v1/events"
+			}
+		>
 			<svg class="kristall-facets" viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
 				<defs>
 					<radialGradient id="kfacet-glow" cx="50%" cy="50%" r="50%">
