@@ -243,8 +243,9 @@ templ CockpitTabsAndPanel(d NodeCockpit) {
 	<script>
 		(function () {
 			// Scroll the active cockpit tab into view so Struktur/Bindings are
-			// discoverable on narrow viewports (K5 M2). Runs on load and after
-			// every htmx swap that re-renders the strip.
+			// discoverable on narrow viewports (K5 M2). reveal() runs on each
+			// fragment insertion; the htmx:afterSwap listener is bound ONCE per
+			// page (guard flag) to avoid accumulating a listener per swap.
 			function reveal() {
 				document.querySelectorAll('[data-tabstrip]').forEach(function (nav) {
 					var a = nav.querySelector('[aria-current="page"]');
@@ -252,7 +253,10 @@ templ CockpitTabsAndPanel(d NodeCockpit) {
 				});
 			}
 			reveal();
-			document.body.addEventListener('htmx:afterSwap', reveal);
+			if (!window.__tabstripRevealBound) {
+				window.__tabstripRevealBound = true;
+				document.body.addEventListener('htmx:afterSwap', reveal);
+			}
 		})();
 	</script>
 	<div
