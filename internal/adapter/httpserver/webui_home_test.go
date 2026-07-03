@@ -118,7 +118,7 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 		t.Fatalf("unauth GET / = %d, want 302", res.StatusCode)
 	}
 
-	// Authenticated → 200 with Home heading + Home-specific content (start card + saldo tiles).
+	// Authenticated → 200 with Home heading + Home-specific content (saldo tiles).
 	cookieVal, _ := codec.Issue("u1")
 	req, _ := http.NewRequest("GET", "/", nil)
 	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
@@ -130,9 +130,8 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 	}
 	body := rr.Body.String()
 	for _, want := range []string{
-		"Home",                    // heading — nav.home key renders "Home"
-		`hx-post="/ui/home/start"`, // idle state start-card form (Home-specific content)
-		"sm:grid-cols-3",          // saldo tiles grid (Home-specific content)
+		"Home",           // heading — nav.home key renders "Home"
+		"sm:grid-cols-3", // saldo tiles grid (Home-specific content)
 		"/static/app.css",
 	} {
 		if !strings.Contains(body, want) {
@@ -141,86 +140,9 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 	}
 }
 
-// TestHomeHome_IdleShowsStartCard verifies GET / with no running session shows
-// the home start card pointing at /ui/home/start and the SSE container.
-func TestHomeHome_IdleShowsStartCard(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("GET / status=%d body=%.500s", rr.Code, rr.Body.String())
-	}
-	body := rr.Body.String()
-	if !strings.Contains(body, "/ui/home/start") {
-		t.Errorf("idle home missing start form targeting /ui/home/start")
-	}
-	if strings.Contains(body, "/ui/home/stop") {
-		t.Errorf("idle home must not show stop form")
-	}
-	if !strings.Contains(body, `id="content"`) {
-		t.Errorf("home missing SSE content container id=content")
-	}
-}
-
-// TestHomeHome_RunningShowsHero verifies GET / with a running session renders
-// the live-timer hero (data-timer + stop form pointing at /ui/home/stop).
-func TestHomeHome_RunningShowsHero(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	ctx := context.Background()
-	// Running session started 2h before the fake clock (12:00 local).
-	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "r", OwnerID: "u1", Start: start}); err != nil {
-		t.Fatalf("seed running session: %v", err)
-	}
-
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("GET / status=%d", rr.Code)
-	}
-	body := rr.Body.String()
-	for _, want := range []string{
-		"data-timer",    // live-timer hook
-		"/ui/home/stop", // stop form targets home stop handler
-		`id="content"`,  // SSE container
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("running home missing %q", want)
-		}
-	}
-	if strings.Contains(body, "/ui/home/start") {
-		t.Errorf("running home must not show start form")
-	}
-}
-
-// TestHomeFragment_IdleShowsStartCard verifies GET /ui/home (fragment) returns
-// the start card in idle state.
-func TestHomeFragment_IdleShowsStartCard(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/ui/home", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("GET /ui/home status=%d body=%.500s", rr.Code, rr.Body.String())
-	}
-	if !strings.Contains(rr.Body.String(), "/ui/home/start") {
-		t.Errorf("home fragment missing start form")
-	}
-}
-
-// TestHomeStart_StartsSession verifies POST /ui/home/start starts a session and
-// renders the running hero (data-timer) in the Home fragment.
+// TestHomeStart_StartsSession verifies POST /ui/home/start (still wired pending
+// K3 Task 6's handler/route removal) starts a session; Home itself no longer
+// renders any timer UI in the response (K3 Task 5 — the shell widget owns it).
 func TestHomeStart_StartsSession(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	cookieVal, _ := srv.codec.Issue("u1")
@@ -231,10 +153,6 @@ func TestHomeStart_StartsSession(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("POST /ui/home/start status=%d", rr.Code)
-	}
-	body := rr.Body.String()
-	if !strings.Contains(body, "data-timer") {
-		t.Errorf("after home start, hero with data-timer should render; body=%.500s", body)
 	}
 	// Confirm session was actually started via GetRunningSession.
 	_, ok, err := usecase.GetRunningSession{Sessions: srv.ss}.Execute(context.Background(), "u1")
@@ -274,7 +192,8 @@ func TestHomeHome_ShowsSaldoTilesAndBurndown(t *testing.T) {
 }
 
 // TestHomeStop_WithProjectStopsSession verifies POST /ui/home/stop with a valid
-// projectId stops the session and renders the idle start card.
+// projectId stops the session (Home itself no longer renders any timer UI in
+// the response — K3 Task 5 moved that to the shell widget).
 func TestHomeStop_WithProjectStopsSession(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
@@ -302,64 +221,33 @@ func TestHomeStop_WithProjectStopsSession(t *testing.T) {
 	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop == nil {
 		t.Errorf("session should be stopped after POST /ui/home/stop with project")
 	}
-	// After stop, idle home (start card) should render.
-	if !strings.Contains(rr.Body.String(), "/ui/home/start") {
-		t.Errorf("after home stop, idle start card should render; body=%.500s", rr.Body.String())
-	}
 }
 
-// TestHomeStopSelector_BookableKindsOnly mirrors
-// TestHeuteStopSelector_BookableKindsOnly (webui_heute_test.go) for the Home
-// page's stop form: the Spec #1-Fix booking picker lists every bookable kind
-// (Engagement/Vorhaben/Repo), excludes Branch, and preselects the running
-// session's own node even when that node isn't an Engagement.
-func TestHomeStopSelector_BookableKindsOnly(t *testing.T) {
+// TestHomePage_DashboardNoTimerForms verifies that Home (K3 Task 5) is a pure
+// dashboard: the K1 shell timer widget (sidebar) owns start/stop now, so
+// neither /ui/home/start nor /ui/home/stop forms render on Home anymore. The
+// saldo tiles must be the glass components.StatTileAccent tile, and the rest
+// of the dashboard (greeting, activity logstream) still renders.
+func TestHomePage_DashboardNoTimerForms(t *testing.T) {
 	srv := newWorktimeTestServer(t)
-	ctx := context.Background()
+	srv.seedSession(t, "2026-06-21", "09:00", "11:00")
+	body := getBody(t, srv, "u1", "/")
 
-	eng, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
-		ctx, "u1", usecase.CreateNodeInput{Name: "MyEngagement", Kind: domain.KindEngagement},
-	)
-	if err != nil {
-		t.Fatalf("seed engagement: %v", err)
+	if strings.Contains(body, "/ui/home/start") || strings.Contains(body, "/ui/home/stop") {
+		t.Errorf("Home must not render start/stop forms: %.2000s", body)
 	}
-	repo, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
-		ctx, "u1", usecase.CreateNodeInput{Name: "MyRepo", Kind: domain.KindRepo, ParentID: &eng.ID},
-	)
-	if err != nil {
-		t.Fatalf("seed repo: %v", err)
-	}
-	_, err = (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
-		ctx, "u1", usecase.CreateNodeInput{Name: "MyBranch", Kind: domain.KindBranch, ParentID: &repo.ID},
-	)
-	if err != nil {
-		t.Fatalf("seed branch: %v", err)
-	}
-
-	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run3", OwnerID: "u1", NodeID: &repo.ID, Start: start}); err != nil {
-		t.Fatalf("seed running session: %v", err)
-	}
-
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
-	}
-	body := rr.Body.String()
-	for _, want := range []string{"MyEngagement", "MyRepo"} {
+	// Assert on the rendered German strings the harness produces, not raw i18n keys.
+	for _, want := range []string{
+		"Dein Flow-Überblick.", // home.greeting (DE)
+		"Aktivität",            // home.activity (DE)
+		"sm:grid-cols-3",       // saldo tile grid container
+		"Monat gesamt",         // burndown banner eyebrow
+	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("home booking selector missing bookable node %q: %.2000s", want, body)
+			t.Errorf("GET / dashboard content: missing %q; body=%.2000s", want, body)
 		}
 	}
-	if strings.Contains(body, "MyBranch") {
-		t.Errorf("home booking selector must NOT list non-bookable branch node: %.2000s", body)
-	}
-	if !strings.Contains(body, `<option value="`+repo.ID+`" selected>MyRepo</option>`) {
-		t.Errorf("home booking selector must preselect the running repo node: %.2000s", body)
+	if !strings.Contains(body, "glass") {
+		t.Errorf("saldo tiles / lists not on glass: %.2000s", body)
 	}
 }

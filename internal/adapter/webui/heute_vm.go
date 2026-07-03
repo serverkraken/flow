@@ -171,16 +171,6 @@ func heuteBalanceHue(pos bool) string {
 	return "text-red"
 }
 
-// heuteAccentBar maps a project hue to the hero accent rail color.
-func heuteAccentBar(hue string) string {
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + hue
-	default:
-		return "bg-blue"
-	}
-}
-
 // heuteTileClass maps a project hue to the hero glyph tile wash+text.
 func heuteTileClass(hue string) string {
 	switch hue {

@@ -140,17 +140,6 @@ templ heuteRowInner(row components.SessionRowVM) {
 	</div>
 }
 
-// heuteStat is one <dt>/<dd> metric. Heute itself no longer uses this (the
-// hero it was built for is gone — Task 4), but home.templ's still-live
-// homeHero (Task 5: "Home dashboard glass, no timer block", not yet done)
-// depends on it — keep until that rewrite lands, then delete alongside it.
-templ heuteStat(labelKey, value, hue string) {
-	<div>
-		<dt class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, labelKey) }</dt>
-		<dd class={ "mt-1 font-mono text-[1.05rem] font-semibold tnum", hue }>{ value }</dd>
-	</div>
-}
-
 // heuteWeekCard is the week pace strip (Mo..Fr).
 templ heuteWeekCard(vm HeuteVM) {
 	<article class="rounded-3xl bg-surface border border-line shadow-soft p-6">

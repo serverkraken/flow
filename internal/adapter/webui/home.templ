@@ -2,8 +2,9 @@ package webui
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-// HomePage is the full Home landing page on the AppShell.
-// Slice 4 enriches this page: timer-hero, saldo tiles, logstream, neueste Wissensartikel.
+// HomePage is the full Home landing page on the AppShell — a pure dashboard
+// (K3 Task 5): saldo tiles, burndown, activity logstream, neueste
+// Wissensartikel. The K1 shell timer widget (sidebar) owns start/stop.
 templ HomePage(vm HomeVM) {
 	@components.Base("home", homeBody(vm))
 }
@@ -34,17 +35,10 @@ templ HomeFragment(vm HomeVM) {
 		<h1 class="font-display text-[2rem] sm:text-[2.5rem] font-semibold leading-none tracking-tight">{ components.T(ctx, "nav.home") }</h1>
 		<p class="mt-2 text-[.92rem] text-muted">{ components.T(ctx, "home.greeting") }</p>
 	</div>
-	<section class="mt-5 md:mt-6">
-		if vm.Running != nil {
-			@homeHero(vm)
-		} else {
-			@homeStartCard(vm)
-		}
-	</section>
 	<section class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
-		@statsSaldoTile("stats.tileToday", vm.TodaySaldo, vm.TodayPos, vm.TodaySub)
-		@statsSaldoTile("stats.tileWeek", vm.WeekSaldo, vm.WeekPos, vm.WeekSub)
-		@statsSaldoTile("stats.tileMonth", vm.MonthSaldo, vm.MonthPos, vm.MonthSub)
+		@components.StatTileAccent("stats.tileToday", vm.TodaySaldo, vm.TodaySub, statsSaldoHue(vm.TodayPos))
+		@components.StatTileAccent("stats.tileWeek", vm.WeekSaldo, vm.WeekSub, statsSaldoHue(vm.WeekPos))
+		@components.StatTileAccent("stats.tileMonth", vm.MonthSaldo, vm.MonthSub, statsSaldoHue(vm.MonthPos))
 	</section>
 	<section class="mt-5 md:mt-6">
 		@components.BurndownBanner(vm.Burndown)
@@ -53,100 +47,13 @@ templ HomeFragment(vm HomeVM) {
 	if len(vm.NewestDocs) > 0 {
 		<section class="mt-6">
 			<h2 class="mb-3 text-[.78rem] font-semibold uppercase tracking-wide text-faint">{ components.T(ctx, "wissen.latest") }</h2>
-			<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+			<ul class="divide-y divide-line2 rounded-2xl glass shadow-soft">
 				for _, row := range vm.NewestDocs {
 					@homeNewestDocRow(row)
 				}
 			</ul>
 		</section>
 	}
-}
-
-// homeHero is the running-session focal card with the live timer.
-// Copied from heuteHero (heute.templ); hx-post targets /ui/home/stop instead of
-// /ui/worktime/stop. lg:col-span-2 omitted — Home hero is full-width (no sibling
-// week-strip card).
-// FOLLOW-UP: extract a shared components.TimerHero to eliminate this duplication.
-templ homeHero(vm HomeVM) {
-	<article class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift">
-		<span class={ "absolute inset-y-0 left-0 w-1", heuteAccentBar(vm.RunningHue) } aria-hidden="true"></span>
-		<div class="relative p-6 sm:p-8 lg:p-10">
-			<div class="flex items-center justify-between gap-3 flex-wrap">
-				<div class="flex items-center gap-3">
-					<span class={ "grid place-items-center h-9 w-9 rounded-xl text-[1.05rem]", heuteTileClass(vm.RunningHue) } aria-hidden="true">◆</span>
-					<div>
-						<div class="flex items-center gap-2">
-							<span class="text-blue text-sm animate-breathe" aria-hidden="true">▶</span>
-							<span class="eyebrow uppercase text-[.72rem] font-semibold text-green">{ components.T(ctx, "heute.running") }</span>
-						</div>
-						<p class="text-[.95rem] font-semibold mt-0.5">{ vm.RunningName }</p>
-					</div>
-				</div>
-				if vm.RunningTag != "" {
-					<span class="inline-flex items-center rounded-full bg-blue/[.08] text-blue px-3 py-1 text-[.78rem] font-medium">#{ vm.RunningTag }</span>
-				}
-			</div>
-			<div class="mt-7 sm:mt-8 flex items-end gap-6 flex-wrap">
-				<div class="min-w-0">
-					<div class="font-mono font-medium tnum text-ink leading-none text-[3.1rem] sm:text-[4.2rem] lg:text-[4.6rem]"
-						data-timer data-base={ secStr(vm.RunningBase) }
-						aria-label={ components.T(ctx, "heute.elapsedAria") } role="timer">
-						{ vm.LoggedDur }
-					</div>
-					<p class="mt-2 text-[.9rem] text-muted">{ components.T(ctx, "heute.startedAt") } <span class="font-medium text-body tnum">{ vm.StartedAt }</span> · { components.T(ctx, "heute.target") } <span class="font-mono tnum">{ vm.TargetDur }</span></p>
-				</div>
-			</div>
-			<div class="mt-8 flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
-				<form hx-post="/ui/home/stop" hx-target="#content" hx-swap="innerHTML" class="w-full lg:w-auto flex flex-col gap-2">
-					<input type="hidden" name="sessionId" value={ vm.Running.ID }/>
-					<div class="flex flex-col sm:flex-row gap-2">
-						<select name="projectId"
-							class="min-w-[11rem] rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-[.9rem] focus:border-blue/40 transition-colors">
-							<option value="">{ components.T(ctx, "heute.bookEngagement") }</option>
-							for _, p := range vm.Nodes {
-								if vm.Running.NodeID != nil && *vm.Running.NodeID == p.ID {
-									<option value={ p.ID } selected>{ p.Name }</option>
-								} else {
-									<option value={ p.ID }>{ p.Name }</option>
-								}
-							}
-						</select>
-						@components.Button(components.BtnDanger, components.T(ctx, "heute.stop"), "■", templ.Attributes{})
-					</div>
-					<input name="newProject" placeholder={ components.T(ctx, "heute.orNewEngagement") }
-						class="rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] focus:border-blue/40 transition-colors"/>
-				</form>
-				<dl class="grid grid-cols-3 gap-5 sm:gap-7 flex-1">
-					@heuteStat("heute.todayTotal", vm.LoggedDur, "")
-					@heuteStat("heute.target", vm.TargetDur, "")
-					@heuteStat("heute.balance", vm.Balance, heuteBalanceHue(vm.BalancePos))
-				</dl>
-			</div>
-			<div class="mt-6">
-				<div class="flex items-center justify-between text-[.74rem] text-muted mb-1.5">
-					<span>{ components.T(ctx, "heute.dayProgress") }</span>
-					<span class="font-mono tnum">{ vm.LoggedDur } / { vm.TargetDur }</span>
-				</div>
-				@components.ProgressBar(vm.TargetPct, vm.TargetVar)
-			</div>
-		</div>
-	</article>
-}
-
-// homeStartCard is the idle "start a session" card.
-// Copied from heuteStartCard (heute.templ); hx-post targets /ui/home/start.
-// FOLLOW-UP: extract a shared components.TimerHero to eliminate this duplication.
-templ homeStartCard(vm HomeVM) {
-	<article class="rounded-3xl bg-surface border border-line shadow-soft p-6 sm:p-8">
-		<p class="eyebrow uppercase text-[.7rem] font-semibold text-blue">{ components.T(ctx, "heute.newSession") }</p>
-		<h2 class="font-display text-2xl font-semibold mt-1 leading-tight">{ components.T(ctx, "heute.capture") }</h2>
-		<p class="text-[.86rem] text-muted mt-1.5">{ components.T(ctx, "heute.captureHint") }</p>
-		<form hx-post="/ui/home/start" hx-target="#content" hx-swap="innerHTML" class="mt-5">
-			<button class="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-3.5 text-[.98rem] font-semibold text-canvas hover:bg-ink/90 active:scale-[.99] transition">
-				<span class="text-blue" aria-hidden="true">▶</span> { components.T(ctx, "heute.start") }
-			</button>
-		</form>
-	</article>
 }
 
 // HomeLogstream is the outermost logstream section — also used as the htmx
@@ -213,7 +120,7 @@ templ homeLogstreamInner(vm HomeVM) {
 	if len(vm.LogEntries) == 0 {
 		<p class="text-[.88rem] text-muted">{ components.T(ctx, "activity.empty") }</p>
 	} else {
-		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+		<ul class="divide-y divide-line2 rounded-2xl glass shadow-soft">
 			for _, row := range vm.LogEntries {
 				<li class="flex items-center gap-2 px-4 py-3 text-[.88rem]">
 					<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
