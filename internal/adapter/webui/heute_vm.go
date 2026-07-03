@@ -191,6 +191,34 @@ func heuteTileClass(hue string) string {
 	}
 }
 
+// heutePickerNodes converts the Heute booking picker's display items
+// ([]components.NodePickerItem) into the []domain.Node shape the shared
+// SessionDialog's picker field expects (id + name only). Mirrors the
+// same-named helper in httpserver/webui_heute.go, which does the identical
+// conversion server-side for the per-row edit dialogs; this package-local
+// twin is needed because heute.templ (package webui) cannot reach across the
+// adapter boundary into httpserver.
+func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
+	out := make([]domain.Node, 0, len(items))
+	for _, it := range items {
+		out = append(out, domain.Node{ID: it.ID, Name: it.Name})
+	}
+	return out
+}
+
+// heuteRowTile picks the glyph-tile wash for a ledger block (whitelisted hues).
+func heuteRowTile(row components.SessionRowVM) string {
+	if row.Unassigned {
+		return "bg-orange/10 text-orange"
+	}
+	switch row.Hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "bg-" + row.Hue + "/10 text-" + row.Hue
+	default:
+		return "bg-sunken text-body"
+	}
+}
+
 // heuteDeleteVals builds the hx-vals JSON for a session delete confirm action.
 func heuteDeleteVals(dayParam, sessionID string) string {
 	return fmt.Sprintf(`{"date":%q,"sessionId":%q}`, dayParam, sessionID)

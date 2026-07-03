@@ -137,7 +137,10 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 		t.Fatalf("home status %d", res.StatusCode)
 	}
 	body, _ := io.ReadAll(res.Body)
-	if !strings.Contains(string(body), "/ui/worktime/start") {
+	// Heute is a pure glass ledger since Kristall K3 — start/stop is owned by
+	// the K1 shell sidebar widget, not this page; the Nachbuchen add dialog is
+	// the render-path proof that the Heute screen (not some other page) came back.
+	if !strings.Contains(string(body), "/ui/worktime/add") {
 		t.Fatalf("home did not render the Heute screen:\n%s", string(body))
 	}
 }

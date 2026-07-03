@@ -339,8 +339,10 @@ func TestWebFragmentWithSession(t *testing.T) {
 	}
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	if !strings.Contains(string(body), "/ui/worktime/start") {
-		t.Fatalf("fragment missing start form: %s", string(body))
+	// Heute is a pure glass ledger since Kristall K3 — the idle state shows the
+	// Nachbuchen add SessionDialog, not a start form (owned by the sidebar widget).
+	if !strings.Contains(string(body), "/ui/worktime/add") {
+		t.Fatalf("fragment missing add SessionDialog: %s", string(body))
 	}
 }
 
@@ -359,9 +361,11 @@ func TestWebStartSession(t *testing.T) {
 	}
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	// After start, the running timer should appear in the fragment.
-	if !strings.Contains(string(body), "stop") {
-		t.Fatalf("fragment after start missing stop button: %s", string(body))
+	// After start, the running session should appear as a read-only ledger row
+	// (its "–…" open time range, since it has no Stop yet); Heute no longer
+	// renders its own stop control (owned by the K1 shell sidebar widget).
+	if !strings.Contains(string(body), "–…") {
+		t.Fatalf("fragment after start missing running ledger row: %s", string(body))
 	}
 }
 
