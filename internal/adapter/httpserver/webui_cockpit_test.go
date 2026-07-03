@@ -37,6 +37,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	ds := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
 	as := &fakeActivityStore{}
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
@@ -54,6 +55,8 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		StartSession:      usecase.StartSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
 		StopSession:       usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		AddSession:        usecase.AddSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
+		EditSession:       usecase.EditSession{Sessions: ss, Tags: tags},
+		DeleteSession:     usecase.DeleteSession{Sessions: ss, Tags: tags},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
 		GetRunningSession: usecase.GetRunningSession{Sessions: ss},
 		GetNode:           usecase.GetNode{Nodes: ps},

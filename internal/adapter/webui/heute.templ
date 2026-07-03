@@ -227,7 +227,7 @@ templ heuteSessionRow(vm HeuteVM, row components.SessionRowVM) {
 
 // heuteNachbuchenDialog is the add-session modal (Von–Bis backfill).
 templ heuteNachbuchenDialog(vm HeuteVM) {
-	@components.Dialog("nachbuchen-dialog", "heute.nachbuchen", heuteAddForm(vm))
+	@components.Dialog("nachbuchen-dialog", "heute.nachbuchen", heuteAddForm(vm), false)
 }
 
 templ heuteAddForm(vm HeuteVM) {

@@ -84,6 +84,11 @@ type NodeCockpit struct {
 	MoveTargets []domain.Node           // struktur reparent
 	Bindings    []domain.ProjectBinding // bindings
 	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
+	// EditSession is set by fillPanelData when the worktime tab's ?edit={sid}
+	// query resolves to one of the owner's sessions — it drives the edit-mode
+	// SessionDialog (sessionDialogEditVM), rendered pre-opened in the panel.
+	// nil when not editing.
+	EditSession *domain.WorkSession
 }
 
 // CockpitTabs is the fixed tab order/keys for the strip — Übersicht is the
@@ -98,8 +103,8 @@ var CockpitTabs = []struct{ Key, LabelKey string }{
 
 // sessionDialogAddVM builds the add-mode SessionDialogVM for the ONE session
 // dialog mounted once per cockpit page (the Quick Actions "Nachbuchen" button
-// opens it via data-dialog-open="session-dialog"; edit-mode dialogs arrive in
-// a later task). Field names match the existing Nachbuchen endpoint contract.
+// opens it via data-dialog-open="session-dialog"). Field names match the
+// existing Nachbuchen endpoint contract.
 func sessionDialogAddVM(d NodeCockpit) components.SessionDialogVM {
 	return components.SessionDialogVM{
 		DialogID: "session-dialog",
@@ -110,20 +115,63 @@ func sessionDialogAddVM(d NodeCockpit) components.SessionDialogVM {
 	}
 }
 
+// sessionDialogEditVM builds the edit-mode SessionDialogVM for d.EditSession
+// (resolved by fillPanelData from the worktime tab's ?edit={sid} query),
+// rendered pre-opened (Open: true) so the round-trip GET lands the user
+// directly inside the dialog. Action always targets d.N.ID (the currently
+// VIEWED cockpit — so re-rendering returns to the right panel) but NodeID
+// carries the session's OWN booked node: a containment view (Engagement's
+// subtree list, Spec §4) may be showing a session actually booked on a
+// descendant Repo, and editing its times must not silently reassign it up to
+// the viewed node. Since Nodes stays empty (no reassignment picker in this
+// task), sessionDialogBody renders NodeID as a hidden field instead.
+func sessionDialogEditVM(d NodeCockpit) components.SessionDialogVM {
+	sess := d.EditSession
+	nodeID := ""
+	if sess.NodeID != nil {
+		nodeID = *sess.NodeID
+	}
+	to := ""
+	if sess.Stop != nil {
+		to = sess.Stop.Format("15:04")
+	}
+	return components.SessionDialogVM{
+		DialogID: "session-dialog-edit",
+		Mode:     "edit",
+		Action:   "/nodes/" + d.N.ID + "/sessions/" + sess.ID + "/edit",
+		Target:   "#cockpit-main",
+		Open:     true,
+		Date:     sess.Start.Format("2006-01-02"),
+		From:     sess.Start.Format("15:04"),
+		To:       to,
+		Tag:      strings.Join(sess.Tags, " "),
+		Note:     sess.Note,
+		NodeID:   nodeID,
+	}
+}
+
 
 // CockpitSessionRow is a precomputed display row for the worktime panel.
 // Fields are formatted strings to keep template logic-free.
 type CockpitSessionRow struct {
-	Date    string // e.g. "Sa 27.06."
-	Span    string // e.g. "14:00–16:00"
-	Tag     string // space-joined tags, "" if none
-	Dur     string // e.g. "2:00 h"
-	Running bool   // true if session has no Stop time
+	ID       string          // session id — edit link + delete form target
+	Date     string          // e.g. "Sa 27.06."
+	Span     string          // e.g. "14:00–16:00"
+	Tag      string          // space-joined tags, "" if none
+	Dur      string          // e.g. "2:00 h"
+	Running  bool            // true if session has no Stop time
+	NodeID   string          // booked node id — every row has one (unbooked sessions never list here)
+	NodeName string          // booked node name — the containment pill's label
+	NodeKind domain.NodeKind // booked node kind — the containment pill's glyph/tone
 }
 
-// BuildCockpitSessionRows converts a WorkSession slice (newest-first) to display rows.
-// now is used to compute elapsed for running sessions.
-func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []CockpitSessionRow {
+// BuildCockpitSessionRows converts a WorkSession slice (newest-first) to display
+// rows. now is used to compute elapsed for running sessions. names/kinds map a
+// node id (the subtree the caller resolved — Spec §4 containment) to its
+// display name/kind for the row's node-pill; a session whose node isn't in
+// either map (shouldn't happen — every row's node comes from the same subtree
+// query) degrades to an empty pill rather than panicking.
+func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names map[string]string, kinds map[string]domain.NodeKind) []CockpitSessionRow {
 	rows := make([]CockpitSessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		span := s.Start.Format("15:04") + "–"
@@ -132,12 +180,20 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []Coc
 		} else {
 			span += "…"
 		}
+		nodeID := ""
+		if s.NodeID != nil {
+			nodeID = *s.NodeID
+		}
 		rows = append(rows, CockpitSessionRow{
-			Date:    s.Start.Format("Mon 02.01."),
-			Span:    span,
-			Tag:     strings.Join(s.Tags, " "),
-			Dur:     fmtDurHM(s.Elapsed(now)),
-			Running: s.Stop == nil,
+			ID:       s.ID,
+			Date:     s.Start.Format("Mon 02.01."),
+			Span:     span,
+			Tag:      strings.Join(s.Tags, " "),
+			Dur:      fmtDurHM(s.Elapsed(now)),
+			Running:  s.Stop == nil,
+			NodeID:   nodeID,
+			NodeName: names[nodeID],
+			NodeKind: kinds[nodeID],
 		})
 	}
 	return rows

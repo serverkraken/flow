@@ -178,13 +178,53 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 		now := s.Clock.Now()
 		since := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		all, _ := s.ListSessionsRange.Execute(r.Context(), u.ID, since, now.AddDate(0, 0, 1))
+
+		// Containment (Spec §4): an Engagement/Vorhaben cockpit lists its whole
+		// SUBTREE's sessions (each row carries a node-pill — cockpit.templ);
+		// a Repo cockpit lists ONLY its own (unchanged pre-Task-6 behavior).
+		// allowed/names/kinds default to the own-node-only case and are widened
+		// to the subtree below — same Subtree() source T5's uebersichtData uses,
+		// no new port. Owner-scoped throughout (Subtree takes u.ID).
+		allowed := map[string]bool{d.N.ID: true}
+		names := map[string]string{d.N.ID: d.N.Name}
+		kinds := map[string]domain.NodeKind{d.N.ID: d.N.Kind}
+		if d.N.Kind != domain.KindRepo && s.Stats.Nodes != nil {
+			if subtree, serr := s.Stats.Nodes.Subtree(r.Context(), u.ID, d.N.ID); serr == nil {
+				allowed = make(map[string]bool, len(subtree))
+				names = make(map[string]string, len(subtree))
+				kinds = make(map[string]domain.NodeKind, len(subtree))
+				for _, n := range subtree {
+					allowed[n.ID] = true
+					names[n.ID] = n.Name
+					kinds[n.ID] = n.Kind
+				}
+			} else {
+				slog.WarnContext(r.Context(), "cockpit worktime: subtree failed", "nodeID", d.N.ID, "err", serr)
+			}
+		}
+
 		out := make([]domain.WorkSession, 0, 25)
 		for i := len(all) - 1; i >= 0 && len(out) < 25; i-- { // newest first
-			if all[i].NodeID != nil && *all[i].NodeID == d.N.ID {
+			if all[i].NodeID != nil && allowed[*all[i].NodeID] {
 				out = append(out, all[i])
 			}
 		}
-		d.SessionRows = webui.BuildCockpitSessionRows(out, now)
+		d.SessionRows = webui.BuildCockpitSessionRows(out, now, names, kinds)
+
+		// Edit-mode: ?edit={sid} arrives via a row's Edit round-trip link
+		// (cockpitSessionRow, cockpit.templ). Resolved against the visible `out`
+		// set — sufficient since the link is only ever rendered next to a
+		// visible row — and never against a session outside this owner (`all`
+		// is already owner-scoped via ListSessionsRange).
+		if sid := r.URL.Query().Get("edit"); sid != "" {
+			for i := range out {
+				if out[i].ID == sid {
+					sess := out[i]
+					d.EditSession = &sess
+					break
+				}
+			}
+		}
 	case "wissen":
 		nid := d.N.ID
 		d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &nid, nil)

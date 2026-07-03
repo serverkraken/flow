@@ -186,30 +186,49 @@ func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
 	}
 }
 
-// TestHeuteStopSelector_EngagementsOnly verifies that the booking picker in the
-// stop form lists ONLY engagements — not repos, vorhaben, or other node kinds.
-// D7: Slice-B ensures only engagement nodes are bookable worktime targets.
-func TestHeuteStopSelector_EngagementsOnly(t *testing.T) {
+// TestHeuteStopSelector_BookableKindsOnly verifies the Spec #1-Fix: the
+// booking picker in the stop form now lists every BOOKABLE kind — Engagement,
+// Vorhaben, AND Repo (domain.IsBookable) — not just Engagement (the old
+// Slice-B restriction this test used to pin). Branch stays excluded (not
+// bookable). It also verifies the running session's own node is preselected
+// once it's a kind other than Engagement (a Repo here) — proving the fix
+// actually surfaces a previously-invisible option, not just a no-op filter
+// change on an already-selected Engagement.
+func TestHeuteStopSelector_BookableKindsOnly(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
 
-	// Seed one engagement and one repo node.
+	// Seed one of each kind: Engagement, its Vorhaben child, the Vorhaben's
+	// Repo child, and the Repo's Branch child (not bookable).
 	eng, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
 		ctx, "u1", usecase.CreateNodeInput{Name: "MyEngagement", Kind: domain.KindEngagement},
 	)
 	if err != nil {
 		t.Fatalf("seed engagement: %v", err)
 	}
-	_, err = (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
-		ctx, "u1", usecase.CreateNodeInput{Name: "MyRepo", Kind: domain.KindRepo, ParentID: &eng.ID},
+	vor, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyVorhaben", Kind: domain.KindVorhaben, ParentID: &eng.ID},
+	)
+	if err != nil {
+		t.Fatalf("seed vorhaben: %v", err)
+	}
+	repo, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyRepo", Kind: domain.KindRepo, ParentID: &vor.ID},
 	)
 	if err != nil {
 		t.Fatalf("seed repo: %v", err)
 	}
+	_, err = (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyBranch", Kind: domain.KindBranch, ParentID: &repo.ID},
+	)
+	if err != nil {
+		t.Fatalf("seed branch: %v", err)
+	}
 
-	// Start a running session.
+	// Running session booked on the Repo (not the Engagement) — the
+	// preselection must follow the running node regardless of kind.
 	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run2", OwnerID: "u1", Start: start}); err != nil {
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run2", OwnerID: "u1", NodeID: &repo.ID, Start: start}); err != nil {
 		t.Fatalf("seed running session: %v", err)
 	}
 
@@ -223,12 +242,16 @@ func TestHeuteStopSelector_EngagementsOnly(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Engagement must appear in the booking selector.
-	if !strings.Contains(body, "MyEngagement") {
-		t.Errorf("booking selector missing engagement %q", "MyEngagement")
+	for _, want := range []string{"MyEngagement", "MyVorhaben", "MyRepo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("booking selector missing bookable node %q: %.2000s", want, body)
+		}
 	}
-	// Repo must NOT appear in the booking selector.
-	if strings.Contains(body, "MyRepo") {
-		t.Errorf("booking selector must NOT list repo node %q", "MyRepo")
+	if strings.Contains(body, "MyBranch") {
+		t.Errorf("booking selector must NOT list non-bookable branch node: %.2000s", body)
+	}
+	// The running Repo must be preselected.
+	if !strings.Contains(body, `<option value="`+repo.ID+`" selected>MyRepo</option>`) {
+		t.Errorf("booking selector must preselect the running repo node: %.2000s", body)
 	}
 }

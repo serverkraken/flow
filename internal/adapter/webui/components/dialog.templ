@@ -3,8 +3,11 @@ package components
 // Dialog is a styled native <dialog>. Open it with a trigger carrying
 // data-dialog-open="<id>"; close via the ✕ button, Esc, or backdrop. The
 // included dialog.js wires focus-trap and return-focus (idempotent loader).
-templ Dialog(id, titleKey string, body templ.Component) {
-	<dialog id={ id } aria-modal="true" aria-labelledby={ id + "-title" }
+// open renders the dialog already expanded (no trigger click needed) — used
+// when a server round-trip must land the user directly inside the dialog
+// (e.g. the cockpit session Edit link, Spec §4).
+templ Dialog(id, titleKey string, body templ.Component, open bool) {
+	<dialog id={ id } aria-modal="true" aria-labelledby={ id + "-title" } open?={ open }
 		class="m-auto w-[min(92vw,32rem)] rounded-3xl border border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
 		<div class="flex items-center justify-between px-6 pt-5 pb-3 border-b border-line2">
 			<h2 id={ id + "-title" } class="font-display text-lg font-semibold">{ T(ctx, titleKey) }</h2>

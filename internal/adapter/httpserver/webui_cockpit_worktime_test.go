@@ -339,3 +339,300 @@ func TestCockpitSessionRow_NoTag(t *testing.T) {
 		t.Errorf("expected 1:00 h duration, got: %.300s", body)
 	}
 }
+
+// ── Task 6: containment + session edit/delete ──────────────────────────────
+
+// TestCockpitWorktime_EngagementListsSubtreeSessionWithNodePill verifies the
+// containment rule (Spec §4): an Engagement's worktime tab lists a session
+// booked on a GRANDCHILD repo (Engagement → Vorhaben → Repo), carrying that
+// repo's node-pill (kind glyph + name), and lists the Engagement's own direct
+// booking WITHOUT the "own bookings only" footer note.
+func TestCockpitWorktime_EngagementListsSubtreeSessionWithNodePill(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Name: "Acme", Kind: domain.KindEngagement})
+	c.seedNode(t, domain.Node{ID: "v1", OwnerID: "u1", Name: "Redesign", Kind: domain.KindVorhaben, ParentID: strPtr("e1")})
+	c.seedNode(t, domain.Node{ID: "r1", OwnerID: "u1", Name: "flow-api", Kind: domain.KindRepo, ParentID: strPtr("v1")})
+
+	r1 := "r1"
+	start := time.Date(2026, 6, 29, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "sess-r1", OwnerID: "u1", NodeID: &r1, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/e1/tab/worktime", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "flow-api") {
+		t.Errorf("Engagement worktime tab missing grandchild repo session: %.600s", body)
+	}
+	if !strings.Contains(body, `href="/nodes/r1"`) {
+		t.Errorf("Engagement worktime tab missing node-pill link to /nodes/r1: %.600s", body)
+	}
+	// The subtree footer note replaces the own-only note once containment applies.
+	if strings.Contains(body, "eigene Buchungen dieses Knotens") {
+		t.Errorf("Engagement worktime tab must NOT show the Repo-only footer note: %.600s", body)
+	}
+}
+
+// TestCockpitWorktime_RepoUnderTreeListsOwnOnly verifies the other half of the
+// containment rule: a Repo's worktime tab, even nested under an Engagement
+// with its OWN sessions on ancestor nodes, lists ONLY its own bookings — no
+// upward containment for a Repo (Spec §4).
+func TestCockpitWorktime_RepoUnderTreeListsOwnOnly(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Name: "Acme", Kind: domain.KindEngagement})
+	c.seedNode(t, domain.Node{ID: "r1", OwnerID: "u1", Name: "flow-api", Kind: domain.KindRepo, ParentID: strPtr("e1")})
+
+	e1, r1 := "e1", "r1"
+	start := time.Date(2026, 6, 29, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "sess-e1", OwnerID: "u1", NodeID: &e1, Tags: []string{"engagement-own"}, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed engagement session: %v", err)
+	}
+	start2 := start.Add(2 * time.Hour)
+	stop2 := start2.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "sess-r1", OwnerID: "u1", NodeID: &r1, Tags: []string{"repo-own"}, Start: start2, Stop: &stop2,
+	}); err != nil {
+		t.Fatalf("seed repo session: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/r1/tab/worktime", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "repo-own") {
+		t.Errorf("Repo worktime tab missing its own session: %.400s", body)
+	}
+	if strings.Contains(body, "engagement-own") {
+		t.Errorf("Repo worktime tab must NOT show the ancestor Engagement's session: %.400s", body)
+	}
+	if !strings.Contains(body, "eigene Buchungen dieses Knotens") {
+		t.Errorf("Repo worktime tab must show the own-only footer note: %.400s", body)
+	}
+}
+
+// TestCockpitEditSession_ChangesTimes verifies that POST
+// /nodes/{id}/sessions/{sid}/edit updates the session's stored times (and
+// note/tags) and re-renders the panel (canonical #cockpit-main target).
+func TestCockpitEditSession_ChangesTimes(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	n1 := "n1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "s1", OwnerID: "u1", NodeID: &n1, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	rec := c.do(t, "POST", "/nodes/n1/sessions/s1/edit", map[string]string{
+		"date": "2026-06-28", "from": "10:00", "to": "12:30", "tag": "edited", "note": "moved", "node": "n1",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `hx-target="#cockpit-main"`) {
+		t.Errorf("edit response must target #cockpit-main: %.400s", rec.Body.String())
+	}
+
+	got, err := c.ss.Get(context.Background(), "u1", "s1")
+	if err != nil {
+		t.Fatalf("Get after edit: %v", err)
+	}
+	if got.Start.Format("15:04") != "10:00" || got.Stop == nil || got.Stop.Format("15:04") != "12:30" {
+		t.Fatalf("edit did not update times, got start=%v stop=%v", got.Start, got.Stop)
+	}
+	if got.Note != "moved" {
+		t.Errorf("edit did not update note, got %q", got.Note)
+	}
+}
+
+// TestCockpitEditSession_PreservesNodeAcrossContainmentView is the correctness
+// regression for the hidden-node-field design: editing a descendant Repo's
+// session from its ANCESTOR Engagement's containment view (path {id}=e1, the
+// viewed node) must NOT reassign the session up to e1 — the form's "node"
+// field (hidden in the real dialog, set explicitly here to simulate it)
+// carries the session's OWN node (r1), which the handler must honor over the
+// path {id}.
+func TestCockpitEditSession_PreservesNodeAcrossContainmentView(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "e1", OwnerID: "u1", Name: "Acme", Kind: domain.KindEngagement})
+	c.seedNode(t, domain.Node{ID: "r1", OwnerID: "u1", Name: "flow-api", Kind: domain.KindRepo, ParentID: strPtr("e1")})
+
+	r1 := "r1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "s1", OwnerID: "u1", NodeID: &r1, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	// Edited via the ENGAGEMENT's cockpit ({id}=e1), not the Repo's.
+	rec := c.do(t, "POST", "/nodes/e1/sessions/s1/edit", map[string]string{
+		"date": "2026-06-28", "from": "10:00", "to": "11:00", "node": "r1",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+
+	got, err := c.ss.Get(context.Background(), "u1", "s1")
+	if err != nil {
+		t.Fatalf("Get after edit: %v", err)
+	}
+	if got.NodeID == nil || *got.NodeID != "r1" {
+		t.Fatalf("edit from Engagement containment view must preserve the session's own node r1, got %v", got.NodeID)
+	}
+}
+
+// TestCockpitDeleteSession_RemovesAndEmitsEvent verifies that POST
+// /nodes/{id}/sessions/{sid}/delete removes the session and emits
+// session.deleted with the session's id (SSE live-sync contract).
+func TestCockpitDeleteSession_RemovesAndEmitsEvent(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	n1 := "n1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "s1", OwnerID: "u1", NodeID: &n1, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	ch, cancel := c.srv.Bus.Subscribe("u1")
+	defer cancel()
+
+	rec := c.do(t, "POST", "/nodes/n1/sessions/s1/delete", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+
+	if _, err := c.ss.Get(context.Background(), "u1", "s1"); err == nil {
+		t.Fatalf("session s1 must be gone after delete")
+	}
+
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventSessionDeleted {
+			t.Fatalf("event type=%q, want session.deleted", ev.Type)
+		}
+		if ev.Data["id"] != "s1" {
+			t.Errorf("session.deleted event Data[id]=%v, want s1", ev.Data["id"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no session.deleted event received")
+	}
+}
+
+// TestCockpitEditSession_ForeignSessionReturnsPanelErr verifies the
+// multi-tenant guard: editing a session owned by a DIFFERENT owner returns 200
+// with an inline PanelErr (not a 500, not a silent success) and leaves the
+// foreign session untouched — EditSession's owner-scoped Get/Update already
+// enforce this; this test pins the handler's error path around it.
+func TestCockpitEditSession_ForeignSessionReturnsPanelErr(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	other := "n1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "foreign", OwnerID: "u2", NodeID: &other, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed foreign session: %v", err)
+	}
+
+	rec := c.do(t, "POST", "/nodes/n1/sessions/foreign/edit", map[string]string{
+		"date": "2026-06-28", "from": "10:00", "to": "11:00", "node": "n1",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d (must degrade to 200+PanelErr, not %d): body=%.400s", rec.Code, rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "konnte nicht bearbeiten") {
+		t.Errorf("expected inline PanelErr for foreign session edit, got: %.400s", rec.Body.String())
+	}
+
+	got, err := c.ss.Get(context.Background(), "u2", "foreign")
+	if err != nil {
+		t.Fatalf("foreign session must still exist: %v", err)
+	}
+	if got.Start.Format("15:04") != "09:00" {
+		t.Errorf("foreign session must be unchanged, got start=%v", got.Start)
+	}
+}
+
+// TestCockpitDeleteSession_ForeignSessionReturnsPanelErr mirrors the edit
+// guard above for delete.
+func TestCockpitDeleteSession_ForeignSessionReturnsPanelErr(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	other := "n1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "foreign", OwnerID: "u2", NodeID: &other, Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed foreign session: %v", err)
+	}
+
+	rec := c.do(t, "POST", "/nodes/n1/sessions/foreign/delete", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d (must degrade to 200+PanelErr): body=%.400s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "konnte nicht löschen") {
+		t.Errorf("expected inline PanelErr for foreign session delete, got: %.400s", rec.Body.String())
+	}
+	if _, err := c.ss.Get(context.Background(), "u2", "foreign"); err != nil {
+		t.Fatalf("foreign session must still exist after failed delete: %v", err)
+	}
+}
+
+// TestCockpitWorktime_EditQueryOpensPrefilledDialog verifies the ?edit={sid}
+// round-trip end-to-end: GET /nodes/{id}/tab/worktime?edit={sid} renders the
+// shared SessionDialog pre-opened (native <dialog open>, no click needed) and
+// prefilled from the session, posting back to this same node's edit route.
+func TestCockpitWorktime_EditQueryOpensPrefilledDialog(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	n1 := "n1"
+	start := time.Date(2026, 6, 28, 9, 0, 0, 0, time.Local)
+	stop := start.Add(time.Hour)
+	if _, err := c.ss.Create(context.Background(), domain.WorkSession{
+		ID: "s1", OwnerID: "u1", NodeID: &n1, Note: "impl", Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/n1/tab/worktime?edit=s1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="session-dialog-edit"`) {
+		t.Errorf("missing edit dialog: %.800s", body)
+	}
+	if !strings.Contains(body, `hx-post="/nodes/n1/sessions/s1/edit"`) {
+		t.Errorf("edit dialog form must post to /nodes/n1/sessions/s1/edit: %.800s", body)
+	}
+	if !strings.Contains(body, "impl") {
+		t.Errorf("edit dialog must prefill note 'impl': %.800s", body)
+	}
+}
+
+// strPtr returns a pointer to s (test helper for ParentID fields).
+func strPtr(s string) *string { return &s }

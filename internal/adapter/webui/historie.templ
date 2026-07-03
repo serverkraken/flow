@@ -385,7 +385,7 @@ templ HistorieSelectionBarC(projects []components.NodePickerItem, view string) {
 // Historie #content already subscribes to sse:session.updated, so the fragment
 // reloads itself — we must NOT inject the Heute fragment here.
 templ historieEditDialog(projects []components.NodePickerItem) {
-	@components.Dialog("editSession", "sessions.edit", historieEditForm(projects))
+	@components.Dialog("editSession", "sessions.edit", historieEditForm(projects), false)
 	// Single-session delete: the confirm posts /ui/worktime/delete, pulling the
 	// sessionId/date from the edit form via hx-include; hx-swap="none" so the
 	// SSE session.deleted reload (not the Heute fragment) refreshes the calendar.

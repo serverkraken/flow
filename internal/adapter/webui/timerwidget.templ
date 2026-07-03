@@ -82,7 +82,7 @@ templ TimerChip(vm TimerWidgetVM) {
 			<span class="text-muted">▶ { components.T(ctx, "timer.title") }</span>
 		}
 	</button>
-	@components.Dialog("timer-sheet", "timer.title", timerChipBody(vm))
+	@components.Dialog("timer-sheet", "timer.title", timerChipBody(vm), false)
 }
 
 templ timerChipBody(vm TimerWidgetVM) {

@@ -87,10 +87,13 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		Err:      errMsg,
 	}
 
-	// Engagement picker — only KindEngagement nodes are bookable (Slice B).
+	// Booking picker — bookable = Engagement/Vorhaben/Repo (Spec #1-Fix; was
+	// KindEngagement-only). Status is intentionally left unfiltered, matching
+	// the pre-fix behavior (no status check existed here before either) — a
+	// broader kind filter must not also newly restrict by status.
 	vm.Nodes = make([]components.NodePickerItem, 0, len(projects))
 	for _, p := range projects {
-		if p.Kind != domain.KindEngagement {
+		if !domain.IsBookable(p.Kind) {
 			continue
 		}
 		vm.Nodes = append(vm.Nodes, components.NodePickerItem{

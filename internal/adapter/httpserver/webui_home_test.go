@@ -307,3 +307,59 @@ func TestHomeStop_WithProjectStopsSession(t *testing.T) {
 		t.Errorf("after home stop, idle start card should render; body=%.500s", rr.Body.String())
 	}
 }
+
+// TestHomeStopSelector_BookableKindsOnly mirrors
+// TestHeuteStopSelector_BookableKindsOnly (webui_heute_test.go) for the Home
+// page's stop form: the Spec #1-Fix booking picker lists every bookable kind
+// (Engagement/Vorhaben/Repo), excludes Branch, and preselects the running
+// session's own node even when that node isn't an Engagement.
+func TestHomeStopSelector_BookableKindsOnly(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+
+	eng, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyEngagement", Kind: domain.KindEngagement},
+	)
+	if err != nil {
+		t.Fatalf("seed engagement: %v", err)
+	}
+	repo, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyRepo", Kind: domain.KindRepo, ParentID: &eng.ID},
+	)
+	if err != nil {
+		t.Fatalf("seed repo: %v", err)
+	}
+	_, err = (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", usecase.CreateNodeInput{Name: "MyBranch", Kind: domain.KindBranch, ParentID: &repo.ID},
+	)
+	if err != nil {
+		t.Fatalf("seed branch: %v", err)
+	}
+
+	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
+	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run3", OwnerID: "u1", NodeID: &repo.ID, Start: start}); err != nil {
+		t.Fatalf("seed running session: %v", err)
+	}
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"MyEngagement", "MyRepo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("home booking selector missing bookable node %q: %.2000s", want, body)
+		}
+	}
+	if strings.Contains(body, "MyBranch") {
+		t.Errorf("home booking selector must NOT list non-bookable branch node: %.2000s", body)
+	}
+	if !strings.Contains(body, `<option value="`+repo.ID+`" selected>MyRepo</option>`) {
+		t.Errorf("home booking selector must preselect the running repo node: %.2000s", body)
+	}
+}

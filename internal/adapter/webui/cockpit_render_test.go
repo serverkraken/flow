@@ -326,9 +326,9 @@ func TestCockpitTabLink_ActiveMarkup(t *testing.T) {
 func TestCockpitSessionRow_RendersDateSpanTagDur(t *testing.T) {
 	ctx := context.Background()
 	row := CockpitSessionRow{
-		Date: "Sa 28.06.", Span: "14:00–16:00", Tag: "slice6", Dur: "2:00 h",
+		ID: "s1", Date: "Sa 28.06.", Span: "14:00–16:00", Tag: "slice6", Dur: "2:00 h",
 	}
-	body := renderToBuf(t, ctx, cockpitSessionRow(row))
+	body := renderToBuf(t, ctx, cockpitSessionRow("n1", row, false))
 
 	for _, want := range []string{"Sa 28.06.", "14:00–16:00", "slice6", "2:00 h"} {
 		if !strings.Contains(body, want) {
@@ -342,9 +342,9 @@ func TestCockpitSessionRow_RendersDateSpanTagDur(t *testing.T) {
 func TestCockpitSessionRow_RunningOmitsDuration(t *testing.T) {
 	ctx := context.Background()
 	row := CockpitSessionRow{
-		Date: "Mo 30.06.", Span: "10:00–…", Running: true,
+		ID: "s2", Date: "Mo 30.06.", Span: "10:00–…", Running: true,
 	}
-	body := renderToBuf(t, ctx, cockpitSessionRow(row))
+	body := renderToBuf(t, ctx, cockpitSessionRow("n1", row, false))
 
 	if !strings.Contains(body, "10:00–…") {
 		t.Errorf("running session row missing open span: %.400s", body)
@@ -353,6 +353,63 @@ func TestCockpitSessionRow_RunningOmitsDuration(t *testing.T) {
 	// Exact translated text varies; we just verify the fixed duration "0:00 h" is absent.
 	if strings.Contains(body, "0:00 h") {
 		t.Errorf("running session row must NOT show 0:00 h duration: %.400s", body)
+	}
+}
+
+// TestCockpitSessionRow_NodePillShownForSubtreeHiddenForOwnOnly verifies the
+// containment node-pill (Spec §4): showPill=true renders the booked node's
+// kind glyph + name as a linked pill; showPill=false (a Repo's own-only list)
+// renders no pill even though the row carries the same node fields.
+func TestCockpitSessionRow_NodePillShownForSubtreeHiddenForOwnOnly(t *testing.T) {
+	ctx := context.Background()
+	row := CockpitSessionRow{
+		ID: "s3", Date: "Di 30.06.", Span: "09:00–10:00", Dur: "1:00 h",
+		NodeID: "r1", NodeName: "flow-api", NodeKind: domain.KindRepo,
+	}
+
+	shown := renderToBuf(t, ctx, cockpitSessionRow("e1", row, true))
+	if !strings.Contains(shown, "flow-api") {
+		t.Errorf("showPill=true: node pill missing name 'flow-api': %.400s", shown)
+	}
+	if !strings.Contains(shown, `href="/nodes/r1"`) {
+		t.Errorf("showPill=true: node pill missing link to /nodes/r1: %.400s", shown)
+	}
+	if !strings.Contains(shown, NodeKindStyle(domain.KindRepo).Glyph) {
+		t.Errorf("showPill=true: node pill missing repo kind glyph: %.400s", shown)
+	}
+
+	hidden := renderToBuf(t, ctx, cockpitSessionRow("r1", row, false))
+	if strings.Contains(hidden, "flow-api") {
+		t.Errorf("showPill=false: node pill must NOT render: %.400s", hidden)
+	}
+}
+
+// TestCockpitSessionRow_EditDeleteControlsForCompletedSession verifies that a
+// completed row carries the Edit round-trip link (hx-get ?edit={sid}, landing
+// back in #cockpit-main) and the Delete confirm-dialog trigger — but a running
+// row has neither (mirrors heuteSessionRow's `if !row.Running` convention).
+func TestCockpitSessionRow_EditDeleteControlsForCompletedSession(t *testing.T) {
+	ctx := context.Background()
+	row := CockpitSessionRow{ID: "s4", Date: "Mi 01.07.", Span: "08:00–09:00", Dur: "1:00 h"}
+	body := renderToBuf(t, ctx, cockpitSessionRow("n1", row, false))
+
+	if !strings.Contains(body, `hx-get="/nodes/n1/tab/worktime?edit=s4"`) {
+		t.Errorf("completed row missing edit round-trip link: %.500s", body)
+	}
+	if !strings.Contains(body, `hx-target="#cockpit-main"`) {
+		t.Errorf("completed row edit link must target #cockpit-main: %.500s", body)
+	}
+	if !strings.Contains(body, `data-dialog-open="delete-session-s4"`) {
+		t.Errorf("completed row missing delete confirm trigger: %.500s", body)
+	}
+	if !strings.Contains(body, `hx-post="/nodes/n1/sessions/s4/delete"`) {
+		t.Errorf("completed row delete confirm missing hx-post to sessions/s4/delete: %.500s", body)
+	}
+
+	running := CockpitSessionRow{ID: "s5", Date: "Mi 01.07.", Span: "10:00–…", Running: true}
+	runningBody := renderToBuf(t, ctx, cockpitSessionRow("n1", running, false))
+	if strings.Contains(runningBody, "edit=s5") || strings.Contains(runningBody, "delete-session-s5") {
+		t.Errorf("running row must NOT show edit/delete controls: %.500s", runningBody)
 	}
 }
 
@@ -377,6 +434,37 @@ func TestCockpitPanel_WorktimeRendersFormAndRows(t *testing.T) {
 	}
 	if !strings.Contains(body, "14:00–16:00") {
 		t.Errorf("cockpitPanel missing seeded session row span '14:00–16:00': %.500s", body)
+	}
+}
+
+// TestCockpitPanel_WorktimeEditSessionRendersOpenDialog verifies the ?edit={sid}
+// round-trip: when d.EditSession is set, cockpitPanel renders the shared
+// SessionDialog pre-opened (the native <dialog open> attribute — no click
+// needed) and prefilled from the session, posting to this node's own edit route.
+func TestCockpitPanel_WorktimeEditSessionRendersOpenDialog(t *testing.T) {
+	ctx := context.Background()
+	d := seededCockpit()
+	start := time.Date(2026, 6, 28, 14, 0, 0, 0, time.UTC)
+	stop := start.Add(2 * time.Hour)
+	d.EditSession = &domain.WorkSession{
+		ID: "s1", Start: start, Stop: &stop, Note: "impl", Tags: []string{"slice6"},
+	}
+	body := renderToBuf(t, ctx, cockpitPanel(d))
+
+	if !strings.Contains(body, `id="session-dialog-edit"`) {
+		t.Errorf("missing edit dialog element: %.700s", body)
+	}
+	if !strings.Contains(body, " open") {
+		t.Errorf("edit dialog must render pre-opened (native <dialog open>): %.700s", body)
+	}
+	if !strings.Contains(body, `hx-post="/nodes/n1/sessions/s1/edit"`) {
+		t.Errorf("edit dialog form must post to /nodes/n1/sessions/s1/edit: %.700s", body)
+	}
+	if !strings.Contains(body, `value="2026-06-28"`) || !strings.Contains(body, `value="14:00"`) || !strings.Contains(body, `value="16:00"`) {
+		t.Errorf("edit dialog must prefill date/from/to: %.700s", body)
+	}
+	if !strings.Contains(body, "impl") {
+		t.Errorf("edit dialog must prefill note: %.700s", body)
 	}
 }
 

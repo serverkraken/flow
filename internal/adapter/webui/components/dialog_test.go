@@ -9,7 +9,7 @@ import (
 )
 
 func TestDialogStructure(t *testing.T) {
-	out := render(t, components.Dialog("editDlg", "common.edit", templ.Raw(`<p id="db">form</p>`)))
+	out := render(t, components.Dialog("editDlg", "common.edit", templ.Raw(`<p id="db">form</p>`), false))
 	for _, w := range []string{
 		`id="editDlg"`, `aria-modal="true"`, `data-dialog-close`, `id="db"`,
 		`/static/js/dialog.js`, "Bearbeiten",

@@ -306,12 +306,20 @@ templ cockpitPanel(d NodeCockpit) {
 			if len(d.SessionRows) == 0 {
 				<p class="text-sm text-faint">{ components.T(ctx, "cockpit.worktime.empty") }</p>
 			} else {
+				{{ showPill := d.N.Kind != domain.KindRepo }}
 				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
 					for _, row := range d.SessionRows {
-						@cockpitSessionRow(row)
+						@cockpitSessionRow(d.N.ID, row, showPill)
 					}
 				</ul>
-				<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
+				if showPill {
+					<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.subtreeNote") }</p>
+				} else {
+					<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
+				}
+			}
+			if d.EditSession != nil {
+				@components.SessionDialog(sessionDialogEditVM(d))
 			}
 		case "wissen":
 			<div class="flex items-center justify-between mb-4">
@@ -401,21 +409,66 @@ func bindingTarget(b domain.ProjectBinding) string {
 
 // cockpitSessionRow renders one session row in the worktime panel.
 // On mobile it collapses to a two-line card; on sm+ it reverts to a single row.
-templ cockpitSessionRow(row CockpitSessionRow) {
+// nodeID is the currently VIEWED cockpit node (for the edit/delete route
+// paths — the panel always returns to this same tab). showPill toggles the
+// containment node-pill (Spec §4: shown on Engagement/Vorhaben subtree
+// listings, hidden on a Repo's own-only listing). Edit/delete controls are
+// only offered for completed sessions — a running row has neither (mirrors
+// heuteSessionRow's `if !row.Running` convention).
+templ cockpitSessionRow(nodeID string, row CockpitSessionRow, showPill bool) {
 	<li class="flex flex-col items-start gap-1 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-3 flex-wrap">
 			<span class="shrink-0 text-muted">{ row.Date }</span>
 			<span class="shrink-0 font-mono tnum text-body">{ row.Span }</span>
 			if row.Tag != "" {
 				<span class="rounded-lg bg-cyan/[.08] px-2 py-0.5 text-[.78rem] text-cyan">{ row.Tag }</span>
 			}
+			if showPill {
+				@cockpitSessionNodePill(row)
+			}
 		</div>
-		if row.Running {
-			<span class="text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
-		} else {
-			<span class="font-mono tnum text-muted">{ row.Dur }</span>
-		}
+		<div class="flex items-center gap-3 shrink-0">
+			if row.Running {
+				<span class="text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
+			} else {
+				<span class="font-mono tnum text-muted">{ row.Dur }</span>
+				<a
+					hx-get={ "/nodes/" + nodeID + "/tab/worktime?edit=" + row.ID }
+					hx-target="#cockpit-main"
+					hx-swap="innerHTML"
+					class="text-[.72rem] font-medium text-muted underline hover:text-ink"
+				>
+					{ components.T(ctx, "cockpit.session.edit") }
+				</a>
+				<button type="button" aria-label={ components.T(ctx, "cockpit.session.delete") }
+					data-dialog-open={ "delete-session-" + row.ID }
+					class="grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors">
+					<span aria-hidden="true">✗</span>
+				</button>
+				@components.ConfirmDialog(components.ConfirmSpec{
+					ID:      "delete-session-" + row.ID,
+					BodyKey: "cockpit.session.deleteConfirm",
+					ConfirmAttrs: templ.Attributes{
+						"hx-post":   "/nodes/" + nodeID + "/sessions/" + row.ID + "/delete",
+						"hx-target": "#cockpit-main",
+						"hx-swap":   "innerHTML",
+						"type":      "button",
+					},
+				})
+			}
+		</div>
 	</li>
+}
+
+// cockpitSessionNodePill renders the row's booked-node pill (containment view
+// only — Spec §4): which subnode of the viewed Engagement/Vorhaben's subtree
+// the session was booked to. Mirrors activityTargetPill's linked-pill branch
+// (home.templ) — same tone/glyph vocabulary, no new one-off classes.
+templ cockpitSessionNodePill(row CockpitSessionRow) {
+	{{ k := NodeKindStyle(row.NodeKind) }}
+	<a href={ templ.SafeURL("/nodes/" + row.NodeID) } class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.75rem] font-medium hover:underline", kindToneClass(k.Tone) }>
+		<span aria-hidden="true">{ k.Glyph }</span> { row.NodeName }
+	</a>
 }
 
 // cockpitMoveForm renders the reparent form (ported from the deleted nodeMoveForm).

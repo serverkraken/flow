@@ -2277,7 +2277,7 @@ func historieEditDialog(projects []components.NodePickerItem) templ.Component {
 			templ_7745c5c3_Var121 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = components.Dialog("editSession", "sessions.edit", historieEditForm(projects)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.Dialog("editSession", "sessions.edit", historieEditForm(projects), false).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

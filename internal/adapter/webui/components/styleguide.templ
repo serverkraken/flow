@@ -117,7 +117,7 @@ templ sgDialogs() {
 		@Button(BtnSecondary, T(ctx, "common.edit"), "", templ.Attributes{"data-dialog-open": "sgEditDlg", "type": "button"})
 		@Button(BtnDanger, T(ctx, "common.delete"), "■", templ.Attributes{"data-dialog-open": "sgDelDlg", "type": "button"})
 	</div>
-	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`))
+	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false)
 	@ConfirmDialog(ConfirmSpec{
 		ID:           "sgDelDlg",
 		ConfirmAttrs: templ.Attributes{"type": "button", "data-dialog-close": true},

@@ -279,6 +279,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
 	mux.Handle("POST /nodes/{id}/move", s.webAuth(http.HandlerFunc(s.handleWebNodeMove)))
 	mux.Handle("POST /nodes/{id}/sessions", s.webAuth(http.HandlerFunc(s.handleWebNodeAddSession)))
+	mux.Handle("POST /nodes/{id}/sessions/{sid}/edit", s.webAuth(http.HandlerFunc(s.handleWebNodeEditSession)))
+	mux.Handle("POST /nodes/{id}/sessions/{sid}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDeleteSession)))
 	mux.Handle("POST /nodes/{id}/bindings", s.webAuth(http.HandlerFunc(s.handleWebNodeBindRemote)))
 	mux.Handle("POST /nodes/{id}/bindings/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeUnbind)))
 

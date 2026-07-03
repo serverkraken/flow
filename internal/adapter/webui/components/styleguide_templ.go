@@ -496,7 +496,7 @@ func sgDialogs() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`)).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -9,12 +9,16 @@ type SessionDialogVM struct {
 	Mode     string         // "add" | "edit"
 	Action   string         // hx-post URL (add: POST /nodes/{id}/sessions; edit: POST /nodes/{id}/sessions/{sid}/edit)
 	Target   string         // hx-target selector, e.g. "#cockpit-main"
+	Open     bool           // render the <dialog> already expanded (edit-mode server round-trip; Spec §4)
 	Date     string         // YYYY-MM-DD prefill
 	From, To string         // HH:MM
 	Tag      string         // space-joined
 	Note     string
 	Nodes    []domain.Node  // optional booking picker (empty = hidden, node fixed by Action)
-	NodeID   string         // preselect
+	NodeID   string         // preselect when Nodes is shown; when Nodes is empty and NodeID != "",
+	                        // carried as a hidden field so the booked node survives an edit
+	                        // untouched (containment: the viewed cockpit's {id} may differ from
+	                        // the session's own node — Spec §4).
 }
 
 // SessionDialog renders the shared session add/edit dialog using the native
@@ -27,7 +31,7 @@ templ SessionDialog(vm SessionDialogVM) {
 			titleKey = "session.dialog.editTitle"
 		}
 	}}
-	@Dialog(vm.DialogID, titleKey, sessionDialogBody(vm))
+	@Dialog(vm.DialogID, titleKey, sessionDialogBody(vm), vm.Open)
 }
 
 templ sessionDialogBody(vm SessionDialogVM) {
@@ -53,7 +57,9 @@ templ sessionDialogBody(vm SessionDialogVM) {
 			</label>
 		</div>
 
-		<!-- Node select (only when Nodes not empty) -->
+		<!-- Node select (only when Nodes not empty); when hidden but NodeID is
+		     known, carry it as a hidden field so the booked node survives an
+		     edit untouched (containment: Spec §4). -->
 		if len(vm.Nodes) > 0 {
 			<label class="block">
 				<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.node") }</span>
@@ -67,6 +73,8 @@ templ sessionDialogBody(vm SessionDialogVM) {
 					}
 				</select>
 			</label>
+		} else if vm.NodeID != "" {
+			<input type="hidden" name="node" value={ vm.NodeID }/>
 		}
 
 		<!-- Tags field -->
