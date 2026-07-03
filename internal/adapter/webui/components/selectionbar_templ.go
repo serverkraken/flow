@@ -35,7 +35,7 @@ func SelectionActionBar(vm SelectionBarVM) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"actionBar\" class=\"hidden fixed inset-x-0 bottom-0 md:bottom-5 z-50 px-3 md:pl-[260px] md:pr-6\"><div class=\"mx-auto md:mx-0 max-w-[1100px] rounded-t-3xl md:rounded-3xl bg-surface border border-line shadow-lift p-3 sm:p-3.5\"><form id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"actionBar\" class=\"hidden fixed inset-x-0 bottom-0 md:bottom-5 z-50 px-3 md:pl-[260px] md:pr-6\"><div class=\"mx-auto md:mx-0 max-w-[1100px] rounded-t-3xl md:rounded-3xl glass-strong shadow-lift p-3 sm:p-3.5\"><form id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

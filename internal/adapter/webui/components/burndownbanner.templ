@@ -6,7 +6,7 @@ package components
 // stand by today). No charting library — the marker is an absolutely
 // positioned <span> over the bar.
 templ BurndownBanner(vm BurndownVM) {
-	<article class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift p-6 sm:p-7">
+	<article class="relative overflow-hidden rounded-3xl glass-strong shadow-lift p-6 sm:p-7">
 		<div class="flex items-center justify-between gap-3 flex-wrap">
 			<p class="eyebrow uppercase text-[.7rem] font-semibold text-muted">{ T(ctx, "stats.monthTotal") }</p>
 			if vm.OnTrack {

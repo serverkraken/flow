@@ -202,3 +202,17 @@ func TestSessionDialog_AddMode_NoSessionID(t *testing.T) {
 		t.Errorf("add dialog must not render sessionId: %s", out)
 	}
 }
+
+func TestSharedBanners_OnGlass(t *testing.T) {
+	cases := []string{
+		render(t, components.BurndownBanner(components.BurndownVM{})),
+		render(t, components.WeekTotalBanner(components.WeekTotalVM{})),
+		render(t, components.SelectionActionBar(components.SelectionBarVM{})),
+		render(t, components.KennzahlenPanel(components.KennzahlenVM{})),
+	}
+	for i, out := range cases {
+		if !strings.Contains(out, "glass") {
+			t.Errorf("shared banner %d not on glass: %s", i, out)
+		}
+	}
+}
