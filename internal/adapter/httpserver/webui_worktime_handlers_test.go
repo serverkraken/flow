@@ -268,3 +268,32 @@ func TestWebEdit_UpdatesStop(t *testing.T) {
 		t.Errorf("expected updated session row, got:\n%s", res.Body.String())
 	}
 }
+
+// TestHandleWebEdit_BooksNodeFromNodeField verifies handleWebEdit reads the
+// SessionDialog "node" field to update the session's booking.
+func TestHandleWebEdit_BooksNodeFromNodeField(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindEngagement, Color: "cyan"})
+	// Seed a session (unassigned)
+	srv.seedSession(t, "2026-06-21", "09:00", "11:00")
+	sessions, _ := usecase.ListSessionsRange{Sessions: srv.ss}.Execute(
+		context.Background(), "u1",
+		time.Date(2026, 6, 21, 0, 0, 0, 0, time.Local),
+		time.Date(2026, 6, 22, 0, 0, 0, 0, time.Local),
+	)
+	if len(sessions) != 1 {
+		t.Fatalf("seed: expected 1 session, got %d", len(sessions))
+	}
+	sid := sessions[0].ID
+	// Edit the session with node=n1
+	form := url.Values{
+		"date": {"2026-06-21"}, "sessionId": {sid},
+		"from": {"09:00"}, "to": {"11:00"}, "node": {"n1"},
+	}
+	res := srv.postForm(t, "/ui/worktime/edit", form)
+	if res.Code != http.StatusOK {
+		t.Fatalf("edit: got %d, body=%s", res.Code, res.Body.String())
+	}
+	// Assert the session is now booked to n1
+	srv.assertSessionBookedTo(t, "n1")
+}
