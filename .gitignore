@@ -9,6 +9,8 @@ cover*.out
 /flow-mcp
 .env
 .DS_Store
+# local MCP server wiring (machine-specific paths + endpoints)
+.mcp.json
 # Claude memory-bank files (never committed)
 CLAUDE.md
 CLAUDE-*.md
