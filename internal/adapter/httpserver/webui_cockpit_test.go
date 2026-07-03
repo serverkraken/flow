@@ -568,6 +568,45 @@ func TestCockpitWissen_ForeignDocNotLeaked(t *testing.T) {
 	}
 }
 
+// TestCockpitWissen_ScopeSelfSSEReloadPreservesScope pins that the wissen
+// panel's SSE-driven live-reload (#cockpit-panel's hx-get, fired on
+// sse:document.*) carries ?scope=self when the user toggled to "Nur dieser
+// Knoten" — otherwise a document event would silently revert the panel to
+// the subtree default on next reload.
+func TestCockpitWissen_ScopeSelfSSEReloadPreservesScope(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen?scope=self", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-get="/nodes/eng/tab/wissen?scope=self" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload must carry scope=self: %.800s", body)
+	}
+}
+
+// TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope pins the counterpart: the
+// default subtree scope must NOT gain a stray ?scope= param on the SSE
+// live-reload URL.
+func TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-get="/nodes/eng/tab/wissen" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload (subtree) must not carry scope param: %.800s", body)
+	}
+	if strings.Contains(body, `hx-get="/nodes/eng/tab/wissen?scope=self" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload (subtree) leaked scope=self: %.800s", body)
+	}
+}
+
 func TestEditorNew_PrescopesNode(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})

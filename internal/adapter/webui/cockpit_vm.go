@@ -200,6 +200,19 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names
 	return rows
 }
 
+// cockpitPanelReloadURL returns the hx-get URL for a tab's SSE live-reload.
+// For the wissen tab with an explicit "self" scope, it preserves that scope
+// on reload (?scope=self) so a document.* SSE event doesn't silently revert
+// the user's "Nur dieser Knoten" toggle back to the subtree default. Every
+// other tab reloads its plain "/nodes/{id}/tab/{tab}" URL unchanged.
+func cockpitPanelReloadURL(d NodeCockpit) string {
+	url := "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab
+	if d.ActiveTab == "wissen" && d.WissenScope == "self" {
+		url += "?scope=self"
+	}
+	return url
+}
+
 // cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
 func cockpitPanelSSE(tab string) string {
 	switch tab {

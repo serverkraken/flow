@@ -244,7 +244,7 @@ templ CockpitTabsAndPanel(d NodeCockpit) {
 		id="cockpit-panel"
 		class="pt-6"
 		if cockpitPanelSSE(d.ActiveTab) != "" {
-			hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+			hx-get={ cockpitPanelReloadURL(d) }
 			hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
 			hx-target="#cockpit-main"
 			hx-swap="innerHTML"
