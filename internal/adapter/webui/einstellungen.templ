@@ -36,7 +36,7 @@ templ einstellungenTargetBody(vm EinstellungenVM) {
 		<label class="block">
 			<span class="eyebrow uppercase text-[.68rem] font-semibold text-muted">{ components.T(ctx, "stats.defaultTarget") }</span>
 			<input type="number" name="defaultTargetMin" value={ vm.DefaultTarget } min="0" max="1440" inputmode="numeric"
-				class="mt-1 w-32 rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+				class="field mt-1 w-32 font-mono tnum"/>
 		</label>
 		<div>
 			<p class="eyebrow uppercase text-[.68rem] font-semibold text-muted mb-2">{ components.T(ctx, "stats.weekdayOverrides") } <span class="text-faint normal-case font-normal">· { components.T(ctx, "stats.weekdayHint") }</span></p>
@@ -45,7 +45,7 @@ templ einstellungenTargetBody(vm EinstellungenVM) {
 					<label class="block">
 						<span class="text-[.74rem] font-semibold text-body">{ wd.Label }</span>
 						<input type="number" name={ wd.Name } value={ wd.Value } min="0" max="1440" inputmode="numeric"
-							class="mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] font-mono tnum focus:border-blue/40 transition-colors"/>
+							class="field mt-1 w-full font-mono tnum"/>
 					</label>
 				}
 			</div>

@@ -137,3 +137,29 @@ func TestWebSetTargetEinst_InvalidDefault(t *testing.T) {
 		t.Fatalf("want 400 for invalid defaultTargetMin, got %d", res.StatusCode)
 	}
 }
+
+func TestWebEinstellungenInputsUseFieldClass(t *testing.T) {
+	srv, codec, _ := newWebEinstellungenServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, _ := codec.Issue("u1")
+
+	req, _ := http.NewRequest("GET", ts.URL+"/einstellungen", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	body := string(b)
+
+	// Check that the target form fragment contains the field class
+	if !strings.Contains(body, "class=\"field") {
+		t.Fatalf("expected 'field' class in Einstellungen form, got: %.500s", body)
+	}
+	// Check that the old inline styling (bg-sunken/60) is NOT used in the form
+	if strings.Contains(body, "bg-sunken/60") {
+		t.Fatalf("found legacy 'bg-sunken/60' style in form (should use .field class instead), got: %.500s", body)
+	}
+}
