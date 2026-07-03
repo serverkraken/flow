@@ -273,7 +273,7 @@ func WissenFragment(vm WissenOverviewVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</h1></div><a href=\"/wissen/neu\" class=\"inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]\"><span aria-hidden=\"true\">✚</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</h1></div><a href=\"/wissen/neu\" class=\"inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor shadow-soft transition active:scale-[.99] cta-glow\"><span aria-hidden=\"true\">✚</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -348,7 +348,7 @@ func wissenOverviewCards(vm WissenOverviewVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"group flex min-h-52 flex-col rounded-2xl border border-line bg-surface p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-lift\"><div class=\"mb-4 flex items-start justify-between gap-3\"><div><h2 class=\"font-display text-xl font-semibold text-ink group-hover:text-blue\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"group flex min-h-52 flex-col rounded-2xl glass p-4 shadow-soft transition hover:-translate-y-0.5 hover:border-blue/40 hover:shadow-lift\"><div class=\"mb-4 flex items-start justify-between gap-3\"><div><h2 class=\"font-display text-xl font-semibold text-ink group-hover:text-blue\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -547,7 +547,7 @@ func WissenCategoryFragment(vm WissenCategoryVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</p></div><a href=\"/wissen/neu\" class=\"inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]\"><span aria-hidden=\"true\">✚</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</p></div><a href=\"/wissen/neu\" class=\"inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor shadow-soft transition active:scale-[.99] cta-glow\"><span aria-hidden=\"true\">✚</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -638,7 +638,7 @@ func wissenCategoryNav(active string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\"><a href=\"/wissen\" class=\"inline-flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-[.84rem] font-medium text-muted transition hover:border-blue/40 hover:text-blue\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\"><a href=\"/wissen\" class=\"inline-flex items-center gap-2 rounded-xl glass px-3 py-2 text-[.84rem] font-medium text-muted transition hover:border-blue/40 hover:text-blue\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -736,7 +736,7 @@ func wissenCategoryContent(vm WissenCategoryVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<ul class=\"divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<ul class=\"divide-y divide-line2 rounded-2xl glass shadow-soft\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -781,14 +781,14 @@ func wissenCategoryProjectGroups(vm WissenCategoryVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		for _, group := range vm.Groups {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<article class=\"overflow-hidden rounded-2xl border border-line bg-surface shadow-soft\" style=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<article class=\"overflow-hidden rounded-2xl glass shadow-soft\" style=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(swatchStyle(group.Color))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/wissen.templ`, Line: 148, Col: 122}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/wissen.templ`, Line: 148, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -976,7 +976,7 @@ func wissenSearchBar(vm WissenVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" class=\"w-full rounded-2xl border border-line bg-surface px-4 py-2.5 text-[.92rem] text-ink placeholder:text-faint shadow-soft focus:border-blue/40 focus:outline-none\"></label>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "\" class=\"w-full rounded-2xl glass px-4 py-2.5 text-[.92rem] text-ink placeholder:text-faint shadow-soft focus:border-blue/40 focus:outline-none\"></label>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1069,7 +1069,7 @@ func wissenTagChips(vm WissenVM) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" class=\"inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue\"><span aria-hidden=\"true\">#</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" class=\"inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[.8rem] font-medium text-muted hover:border-blue/40 hover:text-blue\"><span aria-hidden=\"true\">#</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1178,7 +1178,7 @@ func wissenResults(vm WissenVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\" class=\"rounded-2xl border border-line bg-surface shadow-soft\"><ul class=\"divide-y divide-line2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\" class=\"rounded-2xl glass shadow-soft\"><ul class=\"divide-y divide-line2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1433,7 +1433,7 @@ func wissenFlatSection(id, titleKey string, rows []DocRow, extraClass string) te
 			return templ_7745c5c3_Err
 		}
 		if len(rows) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<ul class=\"divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 96, "<ul class=\"divide-y divide-line2 rounded-2xl glass shadow-soft\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

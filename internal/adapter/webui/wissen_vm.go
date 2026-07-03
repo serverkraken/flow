@@ -372,11 +372,11 @@ func wissenResetHref(vm WissenVM) string {
 }
 
 func wissenCategoryNavClass(active, slug string) string {
-	base := "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[.84rem] font-medium transition"
+	base := "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[.84rem] font-medium transition"
 	if active == slug {
-		return base + " border-blue/40 bg-blue/10 text-blue"
+		return base + " border border-blue/40 bg-blue/10 text-blue"
 	}
-	return base + " border-line bg-surface text-muted hover:border-blue/40 hover:text-blue"
+	return base + " glass text-muted hover:border-blue/40 hover:text-blue"
 }
 
 func projectDocCount(groups []ProjectGroup) int {
