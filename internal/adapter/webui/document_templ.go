@@ -326,7 +326,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" class=\"inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" class=\"inline-flex items-center gap-2 rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -414,14 +414,14 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\" class=\"rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("#" + tag.Tag)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/document.templ`, Line: 66, Col: 196}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/document.templ`, Line: 66, Col: 172}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -446,7 +446,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"inline-flex items-center justify-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"inline-flex items-center justify-center rounded-xl glass px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -472,7 +472,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" class=\"inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted hover:border-danger/40 hover:text-danger\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" class=\"inline-flex h-9 w-9 items-center justify-center rounded-xl glass text-muted hover:border-danger/40 hover:text-danger\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -517,7 +517,7 @@ func DocumentFragment(vm DocumentVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div><div class=\"grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start\"><section data-document-prose class=\"min-w-0 max-w-full\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div><div class=\"grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start\"><section data-document-prose class=\"min-w-0 max-w-full rounded-2xl glass shadow-soft p-6\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -642,7 +642,7 @@ func DocumentEmbedBadge(docID string, e EmbedView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" hx-target=\"closest div\" hx-swap=\"outerHTML\" class=\"inline\"><button type=\"submit\" class=\"rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "\" hx-target=\"closest div\" hx-swap=\"outerHTML\" class=\"inline\"><button type=\"submit\" class=\"rounded-lg glass px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

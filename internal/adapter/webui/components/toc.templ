@@ -1,7 +1,7 @@
 package components
 
 templ Toc(id string) {
-	<aside class="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+	<aside class="rounded-2xl glass p-4 shadow-soft">
 		<h2 class="mb-3 font-display text-base font-semibold text-ink">{ T(ctx, "wissen.toc") }</h2>
 		<nav id={ id } data-toc-nav class="space-y-0.5 text-[.84rem]" aria-label={ T(ctx, "wissen.toc") }></nav>
 	</aside>

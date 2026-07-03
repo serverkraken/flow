@@ -27,6 +27,22 @@ func TestWebDocumentView_EmbedBadgeFailedShowsRetry(t *testing.T) {
 	if !strings.Contains(body, "/wissen/d1/reembed") {
 		t.Fatalf("expected /wissen/d1/reembed retry form, got %.600s", body)
 	}
+	// The retry button chrome must be glass, not the old hand-rolled
+	// bg-surface/border-line styling. Scope the negative check to the swapped
+	// block (fragment root up to the shared, untouched ConfirmDialog markup)
+	// since that shared component legitimately still uses bg-surface.
+	fragStart := strings.Index(body, `id="document-fragment"`)
+	dialogStart := strings.Index(body, `<dialog id="del-d1"`)
+	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
+		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
+	}
+	swappedBlock := body[fragStart:dialogStart]
+	if !strings.Contains(swappedBlock, "glass") {
+		t.Errorf("expected reembed retry button to use glass chrome, got swapped block:\n%s", swappedBlock)
+	}
+	if strings.Contains(swappedBlock, "bg-surface") {
+		t.Errorf("reembed retry button should not use bg-surface, got swapped block:\n%s", swappedBlock)
+	}
 }
 
 func TestWebDocumentReembedHTMX(t *testing.T) {
