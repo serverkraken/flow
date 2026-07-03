@@ -88,6 +88,18 @@ func TestWebWissenDocumentView(t *testing.T) {
 	if strings.Contains(swappedBlock, "bg-surface") {
 		t.Errorf("Dokument meta/action chrome should use glass, not bg-surface, got swapped block:\n%s", swappedBlock)
 	}
+	// Also verify the toc/prose/backlinks region (after ConfirmDialog closes)
+	// must use glass. If toc.templ, backlinks.templ, or the prose wrapper
+	// revert to bg-surface, this assertion must catch it.
+	dialogEnd := strings.Index(body, `</dialog>`)
+	articleEnd := strings.Index(body, `</article>`)
+	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
+		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
+	}
+	treeBlock := body[dialogEnd:articleEnd]
+	if strings.Contains(treeBlock, "bg-surface") {
+		t.Errorf("Toc/prose/backlinks should use glass, not bg-surface, got block:\n%s", treeBlock)
+	}
 	// Node pill, tag pill, edit/delete actions, and the reembed retry chrome
 	// (structure, hrefs, hx-attrs) must still be present after the restyle.
 	if !strings.Contains(body, `data-dialog-open="del-target"`) {
