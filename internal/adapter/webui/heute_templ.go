@@ -698,7 +698,7 @@ func heuteWeekCard(vm HeuteVM) templ.Component {
 			templ_7745c5c3_Var28 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<article class=\"rounded-3xl bg-surface border border-line shadow-soft p-6\"><div class=\"flex items-center justify-between mb-1\"><h2 class=\"font-display text-lg font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<article class=\"rounded-3xl glass shadow-soft p-6\"><div class=\"flex items-center justify-between mb-1\"><h2 class=\"font-display text-lg font-semibold\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -184,6 +184,76 @@ func TestSessionDialog_EditMode_WithNodes(t *testing.T) {
 	}
 }
 
+func TestSessionDialog_AddMode_WithNodes_EmptyOptionSelectedByDefault(t *testing.T) {
+	vm := components.SessionDialogVM{
+		DialogID: "session-dialog",
+		Mode:     "add",
+		Action:   "/api/v1/nodes/123/sessions",
+		Target:   "#cockpit-main",
+		Date:     "2026-07-02",
+		Nodes: []domain.Node{
+			{ID: "n1", Name: "Project A"},
+			{ID: "n2", Name: "Project B"},
+		},
+		NodeID: "",
+	}
+	out := render(t, components.SessionDialog(vm))
+
+	if !strings.Contains(out, `<select name="node"`) {
+		t.Fatalf("expected select when Nodes populated: %s", out)
+	}
+
+	selIdx := strings.Index(out, `<select name="node"`)
+	firstOptIdx := strings.Index(out[selIdx:], "<option")
+	if firstOptIdx == -1 {
+		t.Fatalf("no option rendered: %s", out)
+	}
+	firstOpt := out[selIdx+firstOptIdx:]
+	end := strings.Index(firstOpt, "</option>")
+	firstOpt = firstOpt[:end+len("</option>")]
+
+	if !strings.Contains(firstOpt, `value=""`) {
+		t.Errorf("first option should be the empty/unassigned one, got: %s", firstOpt)
+	}
+	if !strings.Contains(firstOpt, "selected") {
+		t.Errorf("empty option should be selected when NodeID is empty, got: %s", firstOpt)
+	}
+	if !strings.Contains(out, ">Project A<") || !strings.Contains(out, ">Project B<") {
+		t.Errorf("real nodes should still be present: %s", out)
+	}
+}
+
+func TestSessionDialog_EditMode_WithNodes_NodeSelectedNotEmptyOption(t *testing.T) {
+	vm := components.SessionDialogVM{
+		DialogID: "edit-dialog",
+		Mode:     "edit",
+		Action:   "/api/v1/nodes/123/sessions/456/edit",
+		Target:   "#cockpit-main",
+		Nodes: []domain.Node{
+			{ID: "n1", Name: "Project A"},
+			{ID: "n2", Name: "Project B"},
+		},
+		NodeID: "n1",
+	}
+	out := render(t, components.SessionDialog(vm))
+
+	selIdx := strings.Index(out, `<select name="node"`)
+	firstOptIdx := strings.Index(out[selIdx:], "<option")
+	firstOpt := out[selIdx+firstOptIdx:]
+	end := strings.Index(firstOpt, "</option>")
+	firstOpt = firstOpt[:end+len("</option>")]
+
+	if !strings.Contains(firstOpt, `value=""`) {
+		t.Errorf("first option should still be the empty/unassigned one, got: %s", firstOpt)
+	}
+	if strings.Contains(firstOpt, "selected") {
+		t.Errorf("empty option must NOT be selected when NodeID is set, got: %s", firstOpt)
+	}
+	if !strings.Contains(out, `value="n1" selected`) {
+		t.Errorf("node n1 should be selected: %s", out)
+	}
+}
+
 func TestSessionDialog_EditMode_RendersHiddenSessionID(t *testing.T) {
 	vm := components.SessionDialogVM{
 		DialogID: "d", Mode: "edit", Action: "/ui/worktime/edit", Target: "#content",

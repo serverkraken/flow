@@ -70,6 +70,7 @@ templ sessionDialogBody(vm SessionDialogVM) {
 			<label class="block">
 				<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.node") }</span>
 				<select name="node" class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors">
+					<option value="" selected?={ vm.NodeID == "" }>{ T(ctx, "historie.unassigned") }</option>
 					for _, node := range vm.Nodes {
 						if node.ID == vm.NodeID {
 							<option value={ node.ID } selected>{ node.Name }</option>
