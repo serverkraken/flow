@@ -137,66 +137,11 @@ func TestHeuteFragment_ListsSessions(t *testing.T) {
 	}
 }
 
-// TestWebStop_NoProjectSurfacesError covers the #6 fix: stopping a running
-// session without booking a project must surface the "choose a project" error
-// (and keep the timer running) instead of silently doing nothing.
-func TestWebStop_NoProjectSurfacesError(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	ctx := context.Background()
-	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", Start: start}); err != nil {
-		t.Fatalf("seed: %v", err)
-	}
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("POST", "/ui/worktime/stop", strings.NewReader("sessionId=run"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d", rr.Code)
-	}
-	body := rr.Body.String()
-	if !strings.Contains(body, "Projekt wählen") {
-		t.Errorf("stop without project should surface the project-required error; body=%s", body[:min(400, len(body))])
-	}
-	// timer still running (not stopped)
-	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop != nil {
-		t.Errorf("session should NOT be stopped without a project")
-	}
-}
-
-// TestWebStop_WithProjectBooksAndStops covers the #6 happy path: stopping with
-// a project books + stops the session and re-renders the Heute ledger without
-// the "choose a project" error.
-func TestWebStop_WithProjectBooksAndStops(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	ctx := context.Background()
-	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", usecase.CreateNodeInput{Name: "flow", Color: "blue", Glyph: "◆", Kind: domain.KindEngagement})
-	if err != nil {
-		t.Fatalf("seed project: %v", err)
-	}
-	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	pid := p.ID
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", NodeID: &pid, Start: start}); err != nil {
-		t.Fatalf("seed running: %v", err)
-	}
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("POST", "/ui/worktime/stop", strings.NewReader("sessionId=run&projectId="+p.ID))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status=%d", rr.Code)
-	}
-	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop == nil {
-		t.Errorf("session should be stopped after booking a project")
-	}
-	if strings.Contains(rr.Body.String(), "Projekt wählen") {
-		t.Errorf("stop with a project must not surface the project-required error")
-	}
-}
+// The mandatory-booking-on-stop behavior (project-required error, keep
+// running without a project, book+stop with one) is now covered end-to-end
+// against the K1 shell timer widget's /ui/timer/stop route by
+// TestTimerWidget_Lifecycle (webui_timer_test.go) — the sole stop surface
+// since K3 Task 6 retired /ui/worktime/stop.
 
 // TestHeuteEditDialog_BookableKindsOnly verifies the Spec #1-Fix survives the
 // Kristall ledger rewrite: the booking picker now lives in a completed

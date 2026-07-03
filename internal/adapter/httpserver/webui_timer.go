@@ -57,8 +57,8 @@ func (s *Server) handleTimerChip(w http.ResponseWriter, r *http.Request) {
 	_ = webui.TimerChip(s.timerWidgetVM(r, u, "")).Render(r.Context(), w)
 }
 
-// timerNodeFromForm resolves projectId / newProject (quick-create, mirrors
-// handleWebStop) into a node id pointer. nil = unbound.
+// timerNodeFromForm resolves projectId / newProject (quick-create) into a
+// node id pointer. nil = unbound.
 func (s *Server) timerNodeFromForm(r *http.Request, u domain.User) *string {
 	_ = r.ParseForm()
 	nodeID := r.FormValue("projectId")

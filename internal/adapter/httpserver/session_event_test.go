@@ -131,16 +131,18 @@ func TestSessionEvents_CarryTarget(t *testing.T) {
 		t.Fatalf("stop running session: %v", err)
 	}
 
-	// Case 2: POST /ui/home/start (no node) → Data carries id only.
+	// Case 2: POST /ui/timer/start (no node) → Data carries id only. The K1
+	// shell timer widget is the sole start/stop surface since K3 Task 6
+	// retired the Home/Heute timer routes.
 	ch2, cancel2 := srv.Bus.Subscribe("u1")
 	defer cancel2()
 
-	req2 := httptest.NewRequest(http.MethodPost, "/ui/home/start", nil)
+	req2 := httptest.NewRequest(http.MethodPost, "/ui/timer/start", nil)
 	req2.AddCookie(&http.Cookie{Name: sessionCookie, Value: cookieVal})
 	rec2 := httptest.NewRecorder()
 	srv.Routes().ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {
-		t.Fatalf("POST /ui/home/start status=%d body=%s", rec2.Code, rec2.Body.String())
+		t.Fatalf("POST /ui/timer/start status=%d body=%s", rec2.Code, rec2.Body.String())
 	}
 
 	select {

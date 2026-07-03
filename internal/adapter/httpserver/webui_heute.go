@@ -36,8 +36,9 @@ func (s *Server) handleHeuteFragment(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderHeuteFragment re-renders the Heute fragment, optionally with an inline
-// error banner. POST action handlers (start/stop/add/edit/delete) funnel through
-// renderFragment/renderDay which now delegate here.
+// error banner. POST action handlers (add/edit/delete) funnel through
+// renderDay, which delegates here; start/stop is owned by the K1 shell timer
+// widget (webui_timer.go) since K3 Task 6.
 func (s *Server) renderHeuteFragment(w http.ResponseWriter, r *http.Request, u domain.User, errMsg string) {
 	vm, err := s.heuteDataFor(r.Context(), u, errMsg)
 	if err != nil {
@@ -108,24 +109,13 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 
 	// Today's session rows + per-row edit dialog (the ledger; newest stay in
 	// chronological order from the store).
-	vm.Rows = make([]components.SessionRowVM, 0, len(sessions))
 	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
 		row := sessionRowVM(sess, projects, now)
-		vm.Rows = append(vm.Rows, row) // kept for any existing consumers/tests
 		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
 			Row:  row,
 			Edit: heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
 		})
-	}
-
-	if running != nil {
-		vm.RunningBase = heuteRunningBase(*running, now)
-		vm.StartedAt = running.Start.Local().Format("15:04")
-		vm.RunningTag = strings.Join(running.Tags, " ")
-		name, hue := nodeIdentity(projects, running.NodeID)
-		vm.RunningName = name
-		vm.RunningHue = hue
 	}
 
 	// Daily target + balance (reuse the stats computation; degrade to zero if the
@@ -265,16 +255,6 @@ func rateLabel(rate *domain.Money) string {
 		sym = "€"
 	}
 	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
-}
-
-// heuteRunningBase returns the running session's elapsed seconds for the
-// live-timer data-base seed.
-func heuteRunningBase(running domain.WorkSession, now time.Time) int {
-	sec := int(now.Sub(running.Start) / time.Second)
-	if sec < 0 {
-		sec = 0
-	}
-	return sec
 }
 
 // heuteTargetVariant picks the progress-bar variant for the day's progress.

@@ -305,8 +305,8 @@ func (s *Server) handleWebNodeHead(w http.ResponseWriter, r *http.Request) {
 	_ = webui.CockpitRail(d).Render(r.Context(), w)
 }
 
-// handleWebNodeStart starts a timer pre-booked to {id}. Mirrors handleHomeStart
-// but passes the node id at start (StartSession validates IsBookable -> 400).
+// handleWebNodeStart starts a timer pre-booked to {id} (StartSession
+// validates IsBookable -> 400).
 func (s *Server) handleWebNodeStart(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")

@@ -140,27 +140,6 @@ func TestHomeHome_RendersLanding(t *testing.T) {
 	}
 }
 
-// TestHomeStart_StartsSession verifies POST /ui/home/start (still wired pending
-// K3 Task 6's handler/route removal) starts a session; Home itself no longer
-// renders any timer UI in the response (K3 Task 5 — the shell widget owns it).
-func TestHomeStart_StartsSession(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("POST", "/ui/home/start", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("POST /ui/home/start status=%d", rr.Code)
-	}
-	// Confirm session was actually started via GetRunningSession.
-	_, ok, err := usecase.GetRunningSession{Sessions: srv.ss}.Execute(context.Background(), "u1")
-	if err != nil || !ok {
-		t.Errorf("no running session after POST /ui/home/start")
-	}
-}
-
 // TestHomeHome_ShowsSaldoTilesAndBurndown verifies GET / with seeded sessions
 // renders the 3 saldo tiles and the burndown banner with a non-zero saldo value.
 // The fake clock is 2026-06-21 12:00 (local); a 2h session logged against an 8h
@@ -191,37 +170,10 @@ func TestHomeHome_ShowsSaldoTilesAndBurndown(t *testing.T) {
 	}
 }
 
-// TestHomeStop_WithProjectStopsSession verifies POST /ui/home/stop with a valid
-// projectId stops the session (Home itself no longer renders any timer UI in
-// the response — K3 Task 5 moved that to the shell widget).
-func TestHomeStop_WithProjectStopsSession(t *testing.T) {
-	srv := newWorktimeTestServer(t)
-	ctx := context.Background()
-	p, err := (usecase.CreateNode{Nodes: srv.ps, IDs: srv.ids, Clock: srv.clk}).Execute(ctx, "u1", usecase.CreateNodeInput{Name: "flow", Color: "blue", Glyph: "◆", Kind: domain.KindEngagement})
-	if err != nil {
-		t.Fatalf("seed project: %v", err)
-	}
-	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local)
-	pid := p.ID
-	if _, err := srv.ss.Create(ctx, domain.WorkSession{ID: "run", OwnerID: "u1", NodeID: &pid, Start: start}); err != nil {
-		t.Fatalf("seed running session: %v", err)
-	}
-
-	cookieVal, _ := srv.codec.Issue("u1")
-	req, _ := http.NewRequest("POST", "/ui/home/stop", strings.NewReader("sessionId=run&projectId="+p.ID))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	rr := httptest.NewRecorder()
-	srv.srv.Routes().ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("POST /ui/home/stop status=%d", rr.Code)
-	}
-	// Session must be stopped in the store.
-	if got, _ := srv.ss.Get(ctx, "u1", "run"); got.Stop == nil {
-		t.Errorf("session should be stopped after POST /ui/home/stop with project")
-	}
-}
+// Session start/stop via POST is now covered end-to-end against the K1 shell
+// timer widget's /ui/timer/start|stop routes by TestTimerWidget_Lifecycle
+// (webui_timer_test.go) — the sole start/stop surface since K3 Task 6 retired
+// /ui/home/start|stop.
 
 // TestHomePage_DashboardNoTimerForms verifies that Home (K3 Task 5) is a pure
 // dashboard: the K1 shell timer widget (sidebar) owns start/stop now, so

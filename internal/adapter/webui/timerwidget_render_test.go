@@ -10,7 +10,7 @@ import (
 
 // TestTimerWidget_IdleRendersStartFormAndQuickCreate verifies the idle desktop
 // card: a start form posting to /ui/timer/start, the bookable-node select, and
-// the newProject quick-create field (mirrors handleWebStop's quick-create UX).
+// the newProject quick-create field.
 func TestTimerWidget_IdleRendersStartFormAndQuickCreate(t *testing.T) {
 	ctx := context.Background()
 	vm := TimerWidgetVM{Bookable: []domain.Node{{ID: "n1", Name: "flow"}}}

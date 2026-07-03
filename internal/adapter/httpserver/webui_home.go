@@ -2,16 +2,12 @@ package httpserver
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
-	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/usecase"
 )
 
 // handleHomeHome renders the Home landing page at GET /.
@@ -45,136 +41,22 @@ func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u do
 	_ = webui.HomeFragment(vm).Render(r.Context(), w)
 }
 
-// handleHomeStart starts a session and re-renders the Home fragment at POST /ui/home/start.
-// Mirrors handleWebStart (webui.go) but targets the Home fragment.
-func (s *Server) handleHomeStart(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	if sess, err := s.StartSession.Execute(r.Context(), u.ID, nil, nil, ""); err == nil {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStarted, UserID: u.ID,
-			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
-	}
-	s.renderHomeFragment(w, r, u, "")
-}
-
-// handleHomeStop stops the running session and re-renders the Home fragment at
-// POST /ui/home/stop. Mirrors handleWebStop (webui.go) but targets the Home fragment.
-func (s *Server) handleHomeStop(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	_ = r.ParseForm()
-	sessionID := r.FormValue("sessionId")
-	nodeID := r.FormValue("projectId")
-	if name := r.FormValue("newProject"); name != "" {
-		if p, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{Name: name, Kind: domain.KindEngagement}); err == nil {
-			nodeID = p.ID
-			s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
-		}
-	}
-	sess, err := s.StopSession.Execute(r.Context(), u.ID, sessionID, &nodeID)
-	if err != nil {
-		// Booking is mandatory: surface the reason instead of silently leaving the
-		// timer running (otherwise Stop appears to "do nothing").
-		msg := "Sitzung konnte nicht gestoppt werden."
-		if errors.Is(err, domain.ErrProjectRequired) {
-			msg = "Bitte ein Projekt wählen, um die Sitzung zu stoppen."
-		}
-		s.renderHomeFragment(w, r, u, msg)
-		return
-	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventSessionStopped, UserID: u.ID,
-		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID)})
-	s.renderHomeFragment(w, r, u, "")
-}
-
-// homeDataFor builds the Home view model from today's sessions, the running
-// session (if any), and daily stats. Mirrors heuteDataFor (webui_heute.go)
-// for the timer-hero fields; guards all usecase calls so the minimal test
-// server (without worktime usecases) still serves a valid idle page.
+// homeDataFor builds the Home view model from today's daily stats, saldo
+// tiles, burndown banner, newest documents, and activity logstream. Guards
+// all usecase calls so the minimal test server (without worktime usecases)
+// still serves a valid idle page. The running-session/timer-hero fields were
+// retired in K3 Task 6 — the K1 shell timer widget owns that surface now.
 func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) (webui.HomeVM, error) {
 	now := s.Clock.Now()
-	day := startOfDay(now)
-
-	// Today's sessions (for LoggedDur computation via Stats).
-	var sessions []domain.WorkSession
-	if s.ListSessionsRange.Sessions != nil {
-		var err error
-		sessions, err = s.ListSessionsRange.Execute(ctx, u.ID, day, day.AddDate(0, 0, 1))
-		if err != nil {
-			return webui.HomeVM{}, err
-		}
-	}
-
-	// Nodes for the engagement picker in the stop form.
-	var projects []domain.Node
-	if s.ListNodes.Nodes != nil {
-		var err error
-		projects, err = s.ListNodes.Execute(ctx, u.ID)
-		if err != nil {
-			return webui.HomeVM{}, err
-		}
-	}
-
-	// Running session — use GetRunningSession so an overnight timer stays visible
-	// and stoppable; fall back to scanning today's range for narrow test harnesses.
-	var running *domain.WorkSession
-	if s.GetRunningSession.Sessions != nil {
-		if r, ok, rerr := s.GetRunningSession.Execute(ctx, u.ID); rerr == nil && ok {
-			rs := r
-			running = &rs
-		}
-	} else {
-		for i := range sessions {
-			if sessions[i].Running() {
-				r := sessions[i]
-				running = &r
-			}
-		}
-	}
 
 	vm := webui.HomeVM{
-		Running: running,
-		Err:     errMsg,
-	}
-
-	// Booking picker — bookable = Engagement/Vorhaben/Repo (Spec #1-Fix; was
-	// KindEngagement-only). Status is intentionally left unfiltered, matching
-	// the pre-fix behavior (no status check existed here before either) — a
-	// broader kind filter must not also newly restrict by status.
-	vm.Nodes = make([]components.NodePickerItem, 0, len(projects))
-	for _, p := range projects {
-		if !domain.IsBookable(p.Kind) {
-			continue
-		}
-		vm.Nodes = append(vm.Nodes, components.NodePickerItem{
-			ID:    p.ID,
-			Name:  p.Name,
-			Hue:   p.Color,
-			Glyph: glyphOr(p.Glyph),
-			Rate:  rateLabel(p.Rate),
-		})
-	}
-	vm.HasProj = len(vm.Nodes) > 0
-
-	if running != nil {
-		vm.RunningBase = heuteRunningBase(*running, now)
-		vm.StartedAt = running.Start.Local().Format("15:04")
-		vm.RunningTag = strings.Join(running.Tags, " ")
-		name, hue := nodeIdentity(projects, running.NodeID)
-		vm.RunningName = name
-		vm.RunningHue = hue
+		Err: errMsg,
 	}
 
 	// Daily target + balance + saldo tiles + burndown banner
 	// (degrade to zero when Stats is not wired, as with the minimal test server).
 	if s.Stats.Sessions != nil {
 		today, _ := s.Stats.Today(ctx, u.ID)
-		vm.LoggedDur = webui.FmtVerbose(today.Logged)
-		vm.TargetDur = webui.FmtVerbose(today.Target)
-		if today.Target > 0 {
-			vm.TargetPct = webui.ClampPct(int(today.Logged * 100 / today.Target))
-		}
-		vm.TargetVar = heuteTargetVariant(today, running != nil)
-		vm.Balance = webui.FmtSaldoVerbose(today.Saldo)
-		vm.BalancePos = today.Saldo >= 0
 
 		// Saldo tile for Heute.
 		vm.TodaySaldo = webui.FmtSaldoVerbose(today.Saldo)

@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -346,61 +345,7 @@ func TestWebFragmentWithSession(t *testing.T) {
 	}
 }
 
-func TestWebStartSession(t *testing.T) {
-	ts, codec, uid := newWebSrv(t)
-	cookieVal, _ := codec.Issue(uid)
-
-	req, _ := http.NewRequest("POST", ts.URL+"/ui/worktime/start", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("start status %d", res.StatusCode)
-	}
-	body, _ := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	// After start, the running session should appear as a read-only ledger row
-	// (its "–…" open time range, since it has no Stop yet); Heute no longer
-	// renders its own stop control (owned by the K1 shell sidebar widget).
-	if !strings.Contains(string(body), "–…") {
-		t.Fatalf("fragment after start missing running ledger row: %s", string(body))
-	}
-}
-
-func TestWebStopSession(t *testing.T) {
-	ts, codec, uid := newWebSrv(t)
-	cookieVal, _ := codec.Issue(uid)
-
-	doWeb := func(method, path string, form url.Values) *http.Response {
-		var body io.Reader
-		var ct string
-		if form != nil {
-			body = strings.NewReader(form.Encode())
-			ct = "application/x-www-form-urlencoded"
-		}
-		req, _ := http.NewRequest(method, ts.URL+path, body)
-		req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-		if ct != "" {
-			req.Header.Set("Content-Type", ct)
-		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return res
-	}
-
-	// First, start a session via webui.
-	res := doWeb("POST", "/ui/worktime/start", nil)
-	_ = res.Body.Close()
-
-	// Now, create a project and stop via webui with newProject field.
-	form := url.Values{"newProject": {"TestProj"}, "sessionId": {""}}
-	res = doWeb("POST", "/ui/worktime/stop", form)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("stop status %d", res.StatusCode)
-	}
-	_ = res.Body.Close()
-}
+// Session start/stop over HTTP is now covered end-to-end by
+// TestTimerWidget_Lifecycle (webui_timer_test.go) against the K1 shell timer
+// widget's /ui/timer/start|stop routes — the sole start/stop surface since
+// K3 Task 6 retired /ui/worktime/start|stop.

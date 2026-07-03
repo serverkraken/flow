@@ -14,16 +14,9 @@ import (
 // Slice-0 AppShell. It composes the running-session card, today's session rows,
 // the daily target/balance and the week pace strip out of Task-5 components.
 type HeuteVM struct {
-	User        string
-	Date        time.Time
-	Running     *domain.WorkSession
-	RunningBase int    // running session's elapsed seconds at render (data-base seed)
-	RunningName string // running session's project name (or i18n "ohne Projekt")
-	RunningHue  string // running session's project hue ("" → blue default)
-	RunningTag  string // running session's tag without '#'
-	StartedAt   string // running session start time "11:58"
-
-	Rows     []components.SessionRowVM
+	User     string
+	Date     time.Time
+	Running  *domain.WorkSession
 	Ledger   []HeuteLedgerRow
 	Nodes    []components.NodePickerItem
 	HasProj  bool   // true when at least one project exists (drives picker vs plain inputs)
