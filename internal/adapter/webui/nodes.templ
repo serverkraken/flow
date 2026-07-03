@@ -38,7 +38,7 @@ templ NodesFragment(d NodesPageData) {
 		</div>
 		<a
 			href="/nodes/new"
-			class="inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]"
+			class="cta-glow inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor shadow-soft transition active:scale-[.99]"
 		>
 			<span aria-hidden="true">✚</span> { components.T(ctx, "nodes.new") }
 		</a>
@@ -51,7 +51,7 @@ templ NodesFragment(d NodesPageData) {
 	if len(d.Rows) == 0 {
 		@components.EmptyState("◆", "nodes.empty", "nodes.emptyHint")
 	} else {
-		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+		<ul class="divide-y divide-line2 rounded-2xl glass shadow-soft">
 			for _, row := range d.Rows {
 				@nodeTreeRow(row)
 			}

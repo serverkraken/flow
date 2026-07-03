@@ -14,6 +14,7 @@ import (
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/sse"
+	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/websession"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -189,6 +190,83 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 	}
 	if !strings.Contains(frag, "padding-left:1rem") {
 		t.Errorf("fragment missing child indentation style padding-left:1rem; body=%.500s", frag)
+	}
+}
+
+// TestWebNodeTree_GlassContainerAndCTA verifies the K4 Kristall glass sweep on
+// the projektliste: the tree-list container carries .glass (not the old flat
+// bg-surface/border-line chrome) and the "Neu" action uses the cta-glow
+// gradient recipe (not the old flat bg-ink button) — while row links,
+// nodeGlyphSwatch (color dot + glyph), kind/status badges, and gitDisplay all
+// survive untouched. Negative assertions are scoped to the swapped elements
+// themselves (the <ul> tag, the Neu anchor) rather than the whole body, since
+// AppShell's mobile-nav dialog legitimately carries "bg-surface"/"bg-ink"
+// elsewhere on the page (Task 4/5 false-positive lesson).
+func TestWebNodeTree_GlassContainerAndCTA(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	eng := seedTreeNode(t, ns, "eng1", "Privat", domain.KindEngagement, nil)
+	repo := seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+	repo.Color = domain.NodeColors[0]
+	repo.Glyph = domain.NodeGlyphs[0]
+	repo.UpstreamGit = "git@github.com:serverkraken/flow.git"
+	_, _ = ns.Update(context.Background(), "u1", repo)
+
+	code, body := getN(t, ts, c, "/nodes")
+	if code != 200 {
+		t.Fatalf("GET /nodes = %d; body=%.500s", code, body)
+	}
+
+	// "Neu" CTA: scoped to the anchor element itself.
+	ctaIdx := strings.Index(body, `href="/nodes/new"`)
+	if ctaIdx < 0 {
+		t.Fatalf("Neu link /nodes/new not found; body=%.500s", body)
+	}
+	ctaCloseOffset := strings.Index(body[ctaIdx:], "</a>")
+	if ctaCloseOffset < 0 {
+		t.Fatalf("Neu anchor not closed; body=%.500s", body)
+	}
+	ctaBlock := body[ctaIdx : ctaIdx+ctaCloseOffset]
+	if !strings.Contains(ctaBlock, "cta-glow") {
+		t.Errorf("Neu button missing cta-glow CTA recipe: %s", ctaBlock)
+	}
+	if strings.Contains(ctaBlock, "bg-ink") {
+		t.Errorf("Neu button still uses flat bg-ink: %s", ctaBlock)
+	}
+
+	// List container: scoped to the <ul ...> opening tag itself.
+	ulIdx := strings.Index(body, "<ul")
+	if ulIdx < 0 {
+		t.Fatalf("tree list container <ul> not found; body=%.500s", body)
+	}
+	ulTagCloseOffset := strings.Index(body[ulIdx:], ">")
+	if ulTagCloseOffset < 0 {
+		t.Fatalf("tree list <ul> tag not closed; body=%.500s", body)
+	}
+	ulTag := body[ulIdx : ulIdx+ulTagCloseOffset]
+	if !strings.Contains(ulTag, "glass") {
+		t.Errorf("tree list container missing glass: %s", ulTag)
+	}
+	if strings.Contains(ulTag, "bg-surface") {
+		t.Errorf("tree list container still uses flat bg-surface: %s", ulTag)
+	}
+
+	// Preservation: row link, nodeGlyphSwatch (color dot + glyph char),
+	// kind/status badges, and gitDisplay must survive the glass swap untouched.
+	if !strings.Contains(body, `href="/nodes/`+repo.ID+`"`) {
+		t.Errorf("tree row link to /nodes/%s missing; body=%.500s", repo.ID, body)
+	}
+	if !strings.Contains(body, "background-color:"+webui.ColorHex(repo.Color)) {
+		t.Errorf("nodeGlyphSwatch color dot missing; body=%.500s", body)
+	}
+	if !strings.Contains(body, repo.Glyph) {
+		t.Errorf("nodeGlyphSwatch glyph missing; body=%.500s", body)
+	}
+	if !strings.Contains(body, "Repo") || !strings.Contains(body, "Engagement") {
+		t.Errorf("kind badges missing; body=%.500s", body)
+	}
+	if !strings.Contains(body, "github.com/serverkraken/flow") {
+		t.Errorf("gitDisplay missing; body=%.500s", body)
 	}
 }
 
