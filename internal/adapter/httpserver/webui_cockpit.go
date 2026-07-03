@@ -226,8 +226,7 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 			}
 		}
 	case "wissen":
-		nid := d.N.ID
-		d.Docs, _ = s.ListDocuments.Execute(r.Context(), u.ID, &nid, nil)
+		d.Docs, d.WissenScope = s.wissenTabDocs(r, u, d.N)
 	case "struktur":
 		all, _ := s.ListNodes.Execute(r.Context(), u.ID)
 		for _, n := range all {
@@ -243,6 +242,44 @@ func (s *Server) fillPanelData(r *http.Request, u domain.User, d *webui.NodeCock
 	case "bindings":
 		d.Bindings, _ = s.ListNodeBindings.ExecuteByProject(r.Context(), u.ID, d.N.ID)
 	}
+}
+
+// wissenTabDocs returns the Wissen-tab documents honouring the §4 containment
+// rule: an Engagement/Vorhaben shows its whole subtree's docs by default and
+// own-only when ?scope=self is set; a Repo always shows own-only. It returns the
+// docs plus the effective scope ("subtree"|"self") that drives the toggle.
+// Owner-scoped throughout; a Subtree/List failure degrades to own-only (never a
+// 500) — mirrors uebersichtData's TopDocs source, no new port.
+func (s *Server) wissenTabDocs(r *http.Request, u domain.User, n domain.Node) ([]domain.Document, string) {
+	ctx := r.Context()
+	self := n.Kind == domain.KindRepo || r.URL.Query().Get("scope") == "self"
+	if self || s.Stats.Nodes == nil {
+		docs, _ := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil)
+		return docs, "self"
+	}
+	subtree, serr := s.Stats.Nodes.Subtree(ctx, u.ID, n.ID)
+	if serr != nil || len(subtree) == 0 {
+		if serr != nil {
+			slog.WarnContext(ctx, "cockpit wissen: subtree failed", "nodeID", n.ID, "err", serr)
+		}
+		docs, _ := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil)
+		return docs, "self"
+	}
+	ids := make(map[string]bool, len(subtree))
+	for _, sn := range subtree {
+		ids[sn.ID] = true
+	}
+	all, err := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+	if err != nil {
+		return nil, "subtree"
+	}
+	out := make([]domain.Document, 0, len(all))
+	for _, doc := range all {
+		if doc.NodeID != nil && ids[*doc.NodeID] {
+			out = append(out, doc)
+		}
+	}
+	return out, "subtree"
 }
 
 // renderNodePanel re-renders the tab strip + one panel fragment (with an optional

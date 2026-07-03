@@ -463,6 +463,111 @@ func TestCockpitWissen_ListsNodeDocs(t *testing.T) {
 	}
 }
 
+// TestCockpitWissen_EngagementDefaultShowsSubtreeDocs pins the §4 containment
+// default: an Engagement's Wissen tab shows its whole subtree's docs (here, a
+// doc booked on a child Repo) with no ?scope query, and marks the effective
+// scope "subtree" on the panel container for the toggle/tests to read.
+func TestCockpitWissen_EngagementDefaultShowsSubtreeDocs(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d1", OwnerID: "u1", NodeID: &repoID, Type: domain.DocFree,
+		Path: "doc-on-repo", Title: "doc-on-repo-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "doc-on-repo-title") {
+		t.Errorf("engagement wissen tab must include subtree (child) docs: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="subtree"`) {
+		t.Errorf("effective scope should be subtree: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_ScopeSelfIsOwnOnly pins the ?scope=self toggle: it drops
+// child-subtree docs and shows only the node's own.
+func TestCockpitWissen_ScopeSelfIsOwnOnly(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d1", OwnerID: "u1", NodeID: &repoID, Type: domain.DocFree,
+		Path: "doc-on-repo", Title: "doc-on-repo-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen?scope=self", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "doc-on-repo-title") {
+		t.Errorf("scope=self must NOT include child docs: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="self"`) {
+		t.Errorf("want self scope marker: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_RepoOwnOnlyNoToggle pins that a Repo cockpit's Wissen tab
+// stays own-only and never renders the subtree/self toggle.
+func TestCockpitWissen_RepoOwnOnlyNoToggle(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "r1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/nodes/r1/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `data-wissen-toggle`) {
+		t.Errorf("repo wissen tab must not render the subtree toggle: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="self"`) {
+		t.Errorf("repo wissen tab scope should be self: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_ForeignDocNotLeaked pins owner-scoping on the subtree
+// rollup path: wissenTabDocs fetches ALL of the requesting owner's docs
+// (ListDocuments.Execute(ctx, u.ID, nil, nil)) and filters in-memory by
+// subtree node id — it must never surface another owner's document even if
+// that document happens to carry a NodeID matching a node in the requester's
+// own subtree.
+func TestCockpitWissen_ForeignDocNotLeaked(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+
+	u2, _ := domain.NewUser("u2", "sub-2", "other", "o@x.de", "O")
+	_, _ = c.srv.Users.UpsertBySub(context.Background(), u2)
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d-foreign", OwnerID: "u2", NodeID: &repoID, Type: domain.DocFree,
+		Path: "foreign-doc", Title: "foreign-doc-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "foreign-doc-title") {
+		t.Errorf("foreign owner's subtree doc leaked into wissen tab: %.600s", rec.Body.String())
+	}
+}
+
 func TestEditorNew_PrescopesNode(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})

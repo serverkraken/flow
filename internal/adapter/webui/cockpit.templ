@@ -322,14 +322,33 @@ templ cockpitPanel(d NodeCockpit) {
 				@components.SessionDialog(sessionDialogEditVM(d))
 			}
 		case "wissen":
-			<div class="flex items-center justify-between mb-4">
+			<div id="wissen-panel" data-scope={ d.WissenScope } class="flex items-center justify-between mb-4">
 				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.wissen.title") }</h2>
 				<a href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false" class="text-[.8rem] font-semibold rounded-xl bg-cyan/[.12] text-cyan border border-cyan/25 px-3 py-1.5">+ { components.T(ctx, "cockpit.wissen.add") }</a>
 			</div>
+			if d.N.Kind != domain.KindRepo {
+				<div data-wissen-toggle class="seg mb-4 inline-flex text-[.8rem]">
+					if d.WissenScope == "subtree" {
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen?scope=self") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+					} else {
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen?scope=self") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+					}
+				</div>
+			}
 			if len(d.Docs) == 0 {
 				<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wissen.empty") }</p>
 			} else {
-				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
+				<ul class="divide-y divide-line2 rounded-2xl glass">
 					for _, doc := range d.Docs {
 						<li class="px-4 py-2.5 text-sm"><a href={ templ.SafeURL("/wissen/" + doc.ID) } class="hover:text-cyan">{ doc.Title }</a></li>
 					}

@@ -122,6 +122,8 @@ func init() {
 			"cockpit.wissen.title":     "Documents",
 			"cockpit.wissen.add":       "New",
 			"cockpit.wissen.empty":     "No documents for this node yet.",
+			"cockpit.wissen.scopeSubtree": "Whole tree",
+			"cockpit.wissen.scopeSelf":    "This node only",
 			"cockpit.struktur.title":   "Sub-nodes",
 			"cockpit.struktur.add":     "Sub-node",
 			"cockpit.struktur.empty":   "No sub-nodes.",

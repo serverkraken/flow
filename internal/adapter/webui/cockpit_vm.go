@@ -80,6 +80,7 @@ type NodeCockpit struct {
 	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
 	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
 	Docs        []domain.Document       // wissen
+	WissenScope string                  // "subtree"|"self" — effective Wissen-tab scope (drives the .seg toggle)
 	Children    []NodeChild             // struktur
 	MoveTargets []domain.Node           // struktur reparent
 	Bindings    []domain.ProjectBinding // bindings
