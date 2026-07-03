@@ -1,0 +1,39 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// AuthVM parametrizes the one Kristall auth page shared by the logout landing
+// and the three OIDC-callback error states (bad state / auth failed /
+// forbidden). ShowLogin gates the "Anmelden" CTA: offered when re-trying the
+// same flow makes sense, withheld for forbidden (re-login can't fix an
+// allowlist rejection).
+type AuthVM struct {
+	TitleKey  string
+	MsgKey    string
+	ShowLogin bool
+}
+
+// AuthPage renders inside components.Base — no sidebar, just the facets
+// canvas + a centered glass card.
+templ AuthPage(vm AuthVM) {
+	@components.Base("auth", authBody(vm))
+}
+
+templ authBody(vm AuthVM) {
+	<main class="grid place-items-center px-6 py-12">
+		<div class="glass shadow-soft rounded-2xl p-6 max-w-sm w-full text-center">
+			<p class="eyebrow mb-2 text-[.72rem] font-semibold uppercase text-cyan">flow</p>
+			<h1 class="font-display text-2xl font-semibold text-ink mb-2">{ components.T(ctx, vm.TitleKey) }</h1>
+			<p class="text-[.92rem] text-muted mb-6">{ components.T(ctx, vm.MsgKey) }</p>
+			if vm.ShowLogin {
+				<a
+					href="/auth/login"
+					hx-boost="false"
+					class="cta-glow inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor"
+				>
+					{ components.T(ctx, "auth.login") } ›
+				</a>
+			}
+		</div>
+	</main>
+}

@@ -390,6 +390,16 @@ func init() {
 			"timer.needNode":   "Choose a project to stop",
 			"timer.err":        "Timer action failed",
 			"timer.title":      "Timer",
+			// auth (logout landing + OIDC-callback error pages)
+			"auth.login":           "Sign in",
+			"auth.loggedOut.title": "Signed out",
+			"auth.loggedOut.msg":   "You are signed out.",
+			"auth.forbidden.title": "No access",
+			"auth.forbidden.msg":   "This account is not allow-listed. Contact your administrator.",
+			"auth.failed.title":    "Sign-in failed",
+			"auth.failed.msg":      "Please sign in again.",
+			"auth.badState.title":  "Session expired",
+			"auth.badState.msg":    "The sign-in flow expired. Please try again.",
 		},
 		plurals: map[string]Plural{
 			"list.entries":              {One: "{{.N}} entry", Other: "{{.N}} entries"},

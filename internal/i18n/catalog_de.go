@@ -400,6 +400,16 @@ func init() {
 			"timer.needNode":   "Zum Stoppen Projekt wählen",
 			"timer.err":        "Timer-Aktion fehlgeschlagen",
 			"timer.title":      "Timer",
+			// auth (logout landing + OIDC-callback error pages)
+			"auth.login":          "Anmelden",
+			"auth.loggedOut.title": "Abgemeldet",
+			"auth.loggedOut.msg":   "Du bist abgemeldet.",
+			"auth.forbidden.title": "Kein Zugriff",
+			"auth.forbidden.msg":   "Dieser Account ist nicht freigeschaltet. Wende dich an den Administrator.",
+			"auth.failed.title":    "Anmeldung fehlgeschlagen",
+			"auth.failed.msg":      "Bitte erneut anmelden.",
+			"auth.badState.title":  "Sitzung abgelaufen",
+			"auth.badState.msg":    "Die Anmeldung ist abgelaufen. Bitte erneut versuchen.",
 		},
 		plurals: map[string]Plural{
 			"list.entries": {One: "{{.N}} Eintrag", Other: "{{.N}} Einträge"},

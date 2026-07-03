@@ -144,3 +144,82 @@ func TestWebHomeRendersWithSessionCookie(t *testing.T) {
 		t.Fatalf("home did not render the Heute screen:\n%s", string(body))
 	}
 }
+
+func TestHandleLogout_RendersKristallLanding(t *testing.T) {
+	srv := &httpserver.Server{
+		Ensure: usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Bus:    sse.NewBus(),
+	}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, _ := http.NewRequest("POST", ts.URL+"/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: "whatever"})
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("want 200, got %d", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), `href="/auth/login"`) {
+		t.Error("logout landing missing login CTA")
+	}
+	var cleared *http.Cookie
+	for _, c := range res.Cookies() {
+		if c.Name == "flow_session" {
+			cleared = c
+		}
+	}
+	if cleared == nil || cleared.MaxAge >= 0 {
+		t.Fatalf("session cookie not cleared: %+v", cleared)
+	}
+}
+
+func TestHandleCallback_ForbiddenRendersKristallPage(t *testing.T) {
+	users := testutil.NewFakeUserStore()
+	srv := &httpserver.Server{
+		Ensure:   usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return false }},
+		Bus:      sse.NewBus(),
+		Users:    users,
+		OIDCAuth: fakeAuth{url: "https://id/authorize?state=", id: ports.Identity{Subject: "sub-nope", Username: "nope"}},
+		Session:  websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour),
+		Dev:      true,
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	res, err := client.Get(ts.URL + "/auth/login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state *http.Cookie
+	for _, c := range res.Cookies() {
+		if c.Name == "flow_oidc_state" {
+			state = c
+		}
+	}
+	if state == nil {
+		t.Fatal("no state cookie set on login")
+	}
+
+	req, _ := http.NewRequest("GET", ts.URL+"/auth/callback?code=abc&state="+state.Value, nil)
+	req.AddCookie(state)
+	res, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", res.StatusCode)
+	}
+	body, _ := io.ReadAll(res.Body)
+	if !strings.Contains(string(body), "glass") {
+		t.Error("forbidden not Kristall")
+	}
+	if strings.Contains(string(body), `href="/auth/login"`) {
+		t.Error("forbidden page must not offer re-login")
+	}
+}
