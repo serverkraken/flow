@@ -119,5 +119,5 @@ K1 → K2 → K3 → K4 → K5. Abhängigkeiten: K2 braucht K1 (Komponenten/Toke
 
 - K1: exakte Light-Ableitungswerte (am `/ui` iterieren); Mobile-Widget-Interaktion (Sheet vs. `<details>`); Stunden-Badge-Schwelle.
 - K2: Zusammensetzungs-Karte Sortierung (Zeit desc vs. Baum-Reihenfolge); Puls-Länge (8–10); Beiträger-Ermittlung (Actors der letzten N Tage).
-- K3: Ledger-Optik Heute (Blöcke vs. Timeline) — am Mockup-Karten-Vokabular entscheiden.
+- K3: ~~Ledger-Optik Heute (Blöcke vs. Timeline)~~ → **ENTSCHIEDEN (Soenne, 2026-07-03): Blöcke/Cards** (Kristall-Glas-Karten, gleiches Karten-Vokabular wie Rail/Mockup; Klick → `SessionDialog`; Timeline verworfen, dupliziert Historie-Metapher). Ferner gefixt: **K3 = ein Plan** (nicht gesliced); **Zwei-CTA-Dogfood-Fund** (Sidebar-Widget vs. Rail-„Start" auf Knoten-Cockpit) → **K5 Politur** (kein IA-Verstoß nach §3 — global vs. objektgebunden —, sondern Gewichts-/Hierarchie-Frage; im K5-Kontrast/Hierarchie-Pass demoten/restylen).
 - K4: Login-Seiten-Gestaltung (Dex-Redirect-Flow zeigt wenig eigene UI — Umfang klären).
