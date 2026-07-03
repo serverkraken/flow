@@ -408,6 +408,11 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .split-work { background:linear-gradient(90deg,rgb(var(--green)),rgb(var(--cyan))); }
   .split-priv { background:linear-gradient(90deg,rgb(var(--purple)),rgb(var(--purple) / .7)); }
   .chain-bar { height:6px; border-radius:999px; background:rgb(var(--sunken)); overflow:hidden; }
+
+  /* K5 L2: quiet scrollbar for the sidebar nav scroll region */
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--scrollthumb)) transparent; }
+  .scroll-thin::-webkit-scrollbar { width: 6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--scrollthumb)); border-radius: 999px; }
 }
 
 @layer components {

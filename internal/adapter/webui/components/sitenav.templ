@@ -40,7 +40,7 @@ func IsSecondaryNavKey(k string) bool {
 // marked aria-current and visually highlighted. Under the "projekte" item the
 // sidebar injects an htmx-lazy-loaded project-tree spine.
 templ SiteNav(active string) {
-	<nav class="flex-1 px-3 space-y-1" aria-label={ T(ctx, "nav.primary") }>
+	<nav class="flex-1 min-h-0 overflow-y-auto px-3 space-y-1 scroll-thin" aria-label={ T(ctx, "nav.primary") }>
 		for _, l := range PrimaryNav() {
 			if l.Key == active {
 				<a href={ templ.SafeURL(l.Href) } aria-current="page"
