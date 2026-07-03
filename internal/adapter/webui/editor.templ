@@ -46,14 +46,14 @@ templ editorOuter(vm EditorVM) {
 		<p class="mb-5 rounded-2xl bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
 	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
-		<form action={ templ.SafeURL(vm.Action()) } method="post" class="rounded-2xl border border-line bg-surface p-5 shadow-soft">
+		<form action={ templ.SafeURL(vm.Action()) } method="post" class="rounded-2xl glass p-5 shadow-soft">
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
 					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
 					if vm.Editing() {
-						<input type="text" value={ vm.Type } disabled class="w-full rounded-xl border border-line bg-sunken px-3 py-2 text-[.9rem] text-muted"/>
+						<input type="text" value={ vm.Type } disabled class="field"/>
 					} else {
-						<select name="type" class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none">
+						<select name="type" class="field">
 							for _, option := range vm.TypeOptions {
 								<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
 							}
@@ -63,7 +63,7 @@ templ editorOuter(vm EditorVM) {
 				if !vm.Editing() {
 					<label class="block">
 						<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
-						<select name="projectId" class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none">
+						<select name="projectId" class="field">
 							<option value="">{ components.T(ctx, "wissen.project.none") }</option>
 							for _, option := range vm.ProjectOptions {
 								<option value={ option.Value } selected?={ option.Value == vm.NodeID }>{ option.Label }</option>
@@ -75,25 +75,25 @@ templ editorOuter(vm EditorVM) {
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
 				if vm.Editing() {
-					<input type="text" value={ vm.Path } disabled class="w-full rounded-xl border border-line bg-sunken px-3 py-2 font-mono text-[.9rem] text-muted"/>
+					<input type="text" value={ vm.Path } disabled class="field font-mono"/>
 				} else {
-					<input type="text" name="path" value={ vm.Path } class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+					<input type="text" name="path" value={ vm.Path } class="field font-mono"/>
 				}
 			</label>
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
-				<input type="text" name="title" value={ vm.Title } class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+				<input type="text" name="title" value={ vm.Title } class="field"/>
 			</label>
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.tags") }</span>
 				<input type="text" name="tags" value={ vm.TagsCSV }
 					placeholder="go tui postgres"
-					class="w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none"/>
+					class="field"/>
 			</label>
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
 				<textarea name="body"
-					class="h-[60vh] min-h-96 w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.86rem] leading-relaxed focus:border-blue/40 focus:outline-none"
+					class="field h-[60vh] min-h-96 font-mono"
 					hx-post="/wissen/preview"
 					hx-trigger="keyup changed delay:400ms, load"
 					hx-target="#preview"
@@ -103,7 +103,7 @@ templ editorOuter(vm EditorVM) {
 				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
 			</div>
 		</form>
-		<section class="rounded-2xl border border-line bg-surface p-5 shadow-soft">
+		<section class="rounded-2xl glass p-5 shadow-soft">
 			<h2 class="mb-4 font-display text-lg font-semibold text-ink">{ components.T(ctx, "wissen.preview") }</h2>
 			<div id="preview">
 				@MarkdownPreview(vm.PreviewHTML)

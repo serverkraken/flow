@@ -298,7 +298,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" method=\"post\" class=\"rounded-2xl border border-line bg-surface p-5 shadow-soft\"><div class=\"grid gap-4 sm:grid-cols-2\"><label class=\"block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" method=\"post\" class=\"rounded-2xl glass p-5 shadow-soft\"><div class=\"grid gap-4 sm:grid-cols-2\"><label class=\"block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -329,12 +329,12 @@ func editorOuter(vm EditorVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" disabled class=\"w-full rounded-xl border border-line bg-sunken px-3 py-2 text-[.9rem] text-muted\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" disabled class=\"field\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<select name=\"type\" class=\"w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<select name=\"type\" class=\"field\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -403,7 +403,7 @@ func editorOuter(vm EditorVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <select name=\"projectId\" class=\"w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none\"><option value=\"\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</span> <select name=\"projectId\" class=\"field\"><option value=\"\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -498,7 +498,7 @@ func editorOuter(vm EditorVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\" disabled class=\"w-full rounded-xl border border-line bg-sunken px-3 py-2 font-mono text-[.9rem] text-muted\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "\" disabled class=\"field font-mono\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -516,7 +516,7 @@ func editorOuter(vm EditorVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\" class=\"w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.9rem] focus:border-blue/40 focus:outline-none\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\" class=\"field font-mono\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -547,7 +547,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\" class=\"w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none\"></label> <label class=\"mt-4 block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "\" class=\"field\"></label> <label class=\"mt-4 block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -573,7 +573,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "\" placeholder=\"go tui postgres\" class=\"w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 text-[.9rem] focus:border-blue/40 focus:outline-none\"></label> <label class=\"mt-4 block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "\" placeholder=\"go tui postgres\" class=\"field\"></label> <label class=\"mt-4 block\"><span class=\"mb-1 block text-[.78rem] font-semibold uppercase text-muted\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -586,7 +586,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</span> <textarea name=\"body\" class=\"h-[60vh] min-h-96 w-full rounded-xl border border-line bg-sunken/60 px-3 py-2 font-mono text-[.86rem] leading-relaxed focus:border-blue/40 focus:outline-none\" hx-post=\"/wissen/preview\" hx-trigger=\"keyup changed delay:400ms, load\" hx-target=\"#preview\" hx-swap=\"innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</span> <textarea name=\"body\" class=\"field h-[60vh] min-h-96 font-mono\" hx-post=\"/wissen/preview\" hx-trigger=\"keyup changed delay:400ms, load\" hx-target=\"#preview\" hx-swap=\"innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -607,7 +607,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</div></form><section class=\"rounded-2xl border border-line bg-surface p-5 shadow-soft\"><h2 class=\"mb-4 font-display text-lg font-semibold text-ink\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</div></form><section class=\"rounded-2xl glass p-5 shadow-soft\"><h2 class=\"mb-4 font-display text-lg font-semibold text-ink\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
