@@ -235,11 +235,26 @@ templ cockpitQuickActions(d NodeCockpit) {
 // CockpitTabsAndPanel is the swappable tab area served by the fragment
 // handler: the pill tab strip (K1 primitives) + the active panel.
 templ CockpitTabsAndPanel(d NodeCockpit) {
-	<nav class="pill-tabs">
+	<nav class="pill-tabs" data-tabstrip>
 		for _, t := range CockpitTabs {
 			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.TabCounts[t.Key], d.ActiveTab == t.Key)
 		}
 	</nav>
+	<script>
+		(function () {
+			// Scroll the active cockpit tab into view so Struktur/Bindings are
+			// discoverable on narrow viewports (K5 M2). Runs on load and after
+			// every htmx swap that re-renders the strip.
+			function reveal() {
+				document.querySelectorAll('[data-tabstrip]').forEach(function (nav) {
+					var a = nav.querySelector('[aria-current="page"]');
+					if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest' });
+				});
+			}
+			reveal();
+			document.body.addEventListener('htmx:afterSwap', reveal);
+		})();
+	</script>
 	<div
 		id="cockpit-panel"
 		class="pt-6"

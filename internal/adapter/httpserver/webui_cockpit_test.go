@@ -320,6 +320,9 @@ func TestCockpitView_RollupAndIdentity(t *testing.T) {
 	if rec2 := c.do(t, "GET", "/nodes/nope", nil); rec2.Code != http.StatusNotFound {
 		t.Errorf("unknown id status=%d want 404", rec2.Code)
 	}
+	if !strings.Contains(body, "data-tabstrip") {
+		t.Fatalf("cockpit tab strip must carry the data-tabstrip scroll hook")
+	}
 }
 
 func TestCockpitStart_BooksNode(t *testing.T) {
