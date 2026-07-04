@@ -15,7 +15,7 @@ templ PaletteDialog() {
 			placeholder={ T(ctx, "palette.placeholder") }
 			class="w-full border-0 border-b border-hair bg-transparent px-5 py-4 text-[16px] text-ink outline-none placeholder:text-faint"
 			hx-get="/ui/palette"
-			hx-trigger="input changed delay:120ms, load"
+			hx-trigger="input changed delay:120ms"
 			hx-target="#palette-results"
 			hx-swap="innerHTML"
 		/>

@@ -17,6 +17,7 @@
     input.value = '';
     input.focus();
     sel = -1;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
   }
   document.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
