@@ -159,8 +159,8 @@
   --color-warning: rgb(var(--yellow));
   --color-danger:  rgb(var(--red));
 
-  --font-display: "Clash Display", ui-sans-serif, system-ui, sans-serif;
-  --font-sans:    "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
   --radius-2xl: 1.25rem;
@@ -182,19 +182,14 @@
    Files added in Task 4 under static/fonts; served at /static/fonts/.
    ════════════════════════════════════════════════════════════════════ */
 @font-face {
-  font-family: "Clash Display";
-  src: url("/static/fonts/ClashDisplay-Variable.woff2") format("woff2");
-  font-weight: 400 700; font-style: normal; font-display: swap;
-}
-@font-face {
-  font-family: "Inter";
-  src: url("/static/fonts/Inter-Variable.woff2") format("woff2");
-  font-weight: 400 700; font-style: normal; font-display: swap;
+  font-family: "Schibsted Grotesk";
+  src: url("/static/fonts/SchibstedGrotesk-Variable.woff2") format("woff2");
+  font-weight: 400 900; font-style: normal; font-display: swap;
 }
 @font-face {
   font-family: "JetBrains Mono";
   src: url("/static/fonts/JetBrainsMono-Variable.woff2") format("woff2");
-  font-weight: 400 700; font-style: normal; font-display: swap;
+  font-weight: 400 800; font-style: normal; font-display: swap;
 }
 
 /* ════════════════════════════════════════════════════════════════════

@@ -29,7 +29,7 @@ func TestBaseHullIsOfflineAndThemed(t *testing.T) {
 		`/static/app.css`,
 		`/static/vendor/htmx.min.js`,            // local, NOT unpkg
 		`/static/vendor/htmx-ext-sse.js`,
-		`/static/fonts/Inter-Variable.woff2`,
+		`/static/fonts/SchibstedGrotesk-Variable.woff2`,
 		`flow-theme`,                            // no-flash boot script reads localStorage key
 		`window.toggleTheme`,                    // theme-sync script
 		`hx-ext="sse"`,
@@ -55,6 +55,18 @@ func TestThemeTogglePressableAndLabeled(t *testing.T) {
 	for _, w := range []string{`data-theme-toggle`, `aria-pressed="false"`, `onclick="toggleTheme()"`, `toggle-sun`, `toggle-moon`, `<svg`, `viewBox="0 0 24 24"`} {
 		if !strings.Contains(out, w) {
 			t.Errorf("ThemeToggle missing %q", w)
+		}
+	}
+}
+
+func TestBase_PreloadsLesesaalFonts(t *testing.T) {
+	out := render(t, components.Base("t", templ.NopComponent))
+	if !strings.Contains(out, "/static/fonts/SchibstedGrotesk-Variable.woff2") {
+		t.Fatalf("Schibsted preload missing:\n%s", out)
+	}
+	for _, gone := range []string{"ClashDisplay", "Inter-Variable"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("stale font reference %q still present", gone)
 		}
 	}
 }
