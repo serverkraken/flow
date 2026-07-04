@@ -8,8 +8,12 @@ func init() {
 			"app.tagline":      "Zeit & Wissen",
 			"app.userInitials": "MS",
 			// ⌘K-Palette (Topbar)
-			"palette.open": "Suchen und springen",
-			"palette.hint": "Suchen …",
+			"palette.open":        "Suchen und springen",
+			"palette.hint":        "Suchen …",
+			"palette.placeholder": "Springen zu Projekt oder Dokument …",
+			"palette.select":      "wählen",
+			"palette.openRow":     "öffnen",
+			"palette.empty":       "Kein Treffer.",
 			// home landing
 			"home.greeting":              "Dein Flow-Überblick.",
 			"home.section.zeit.desc":     "Arbeitszeiterfassung und Tagesüberblick.",

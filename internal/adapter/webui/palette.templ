@@ -1,0 +1,28 @@
+package webui
+
+import "github.com/serverkraken/flow/internal/adapter/webui/components"
+
+// PaletteResults ist das htmx-Fragment: Knoten-Zeilen, dann Dokument-Zeilen.
+// Die Dialog-Hülle (statischer Rahmen, keine VM) liegt in components.PaletteDialog;
+// hier nur das Ergebnis, das PaletteVM aus diesem Paket braucht.
+templ PaletteResults(vm PaletteVM) {
+	if len(vm.Nodes) == 0 && len(vm.Docs) == 0 {
+		<p class="px-4 py-3 text-[13.5px] text-meta">{ components.T(ctx, "palette.empty") }</p>
+	}
+	for _, n := range vm.Nodes {
+		<a href={ templ.SafeURL("/nodes/" + n.ID) } data-palette-row
+			class="flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash" >
+			@components.Avatar(n.Initials, n.Tone, "av-28")
+			<span class="font-medium">{ n.Short }</span>
+			<span class="ml-auto max-w-[46%] truncate font-mono text-[11px] text-faint">{ n.Full }</span>
+		</a>
+	}
+	for _, d := range vm.Docs {
+		<a href={ templ.SafeURL("/wissen/" + d.ID) } data-palette-row
+			class="flex items-center gap-3 rounded-lg px-3 py-2 text-[14px] hover:bg-wash aria-selected:bg-wash">
+			<span class="typechip">{ d.Type }</span>
+			<span class="min-w-0 truncate">{ d.Title }</span>
+			<span class="ml-auto max-w-[38%] truncate font-mono text-[11px] text-faint">{ d.Path }</span>
+		</a>
+	}
+}

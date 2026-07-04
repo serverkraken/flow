@@ -204,6 +204,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /ui/timer/stop", s.webAuth(http.HandlerFunc(s.handleTimerStop)))
 	mux.Handle("POST /ui/timer/switch", s.webAuth(http.HandlerFunc(s.handleTimerSwitch)))
 
+	// ⌘K-Palette (Lesesaal Task 6) — fuzzy Sprung zu Knoten/Dokumenten.
+	mux.Handle("GET /ui/palette", s.webAuth(http.HandlerFunc(s.handlePalette)))
+
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
 	mux.Handle("GET /ui/worktime", s.webAuth(http.HandlerFunc(s.handleHeuteFragment)))

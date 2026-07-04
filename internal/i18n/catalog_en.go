@@ -7,8 +7,12 @@ func init() {
 			"app.tagline":      "Time & Knowledge",
 			"app.userInitials": "MS",
 			// Cmd-K palette (topbar)
-			"palette.open": "Search and jump",
-			"palette.hint": "Search …",
+			"palette.open":        "Search and jump",
+			"palette.hint":        "Search …",
+			"palette.placeholder": "Jump to project or document …",
+			"palette.select":      "select",
+			"palette.openRow":     "open",
+			"palette.empty":       "No match.",
 			// home landing
 			"home.greeting":              "Your flow overview.",
 			"home.section.zeit.desc":     "Time tracking and daily overview.",
