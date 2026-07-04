@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -270,6 +271,19 @@ func TestSessionDialog_AddMode_NoSessionID(t *testing.T) {
 	out := render(t, components.SessionDialog(vm))
 	if strings.Contains(out, `name="sessionId"`) {
 		t.Errorf("add dialog must not render sessionId: %s", out)
+	}
+}
+
+func TestAvatar_RendersToneAndInitials(t *testing.T) {
+	var sb strings.Builder
+	if err := components.Avatar("BA", "av-c", "av-36").Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	for _, want := range []string{"av-c", "av-36", ">BA<", `aria-hidden="true"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Avatar output missing %q:\n%s", want, out)
+		}
 	}
 }
 

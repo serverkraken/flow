@@ -364,6 +364,31 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--scrollthumb)) transparent; }
   .scroll-thin::-webkit-scrollbar { width: 6px; }
   .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--scrollthumb)); border-radius: 999px; }
+
+  /* Zwei-Flächen-Regel (Spec §4): Inhalt auf Papier, Instrumente auf Fläche */
+  .panel { background: rgb(var(--panel)); border-radius: 14px; }
+
+  .eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: rgb(var(--faint)); }
+
+  /* Dokumenttyp-Chips (Spec §7.1) — feste semantische Zuordnung, nie pro Projekt */
+  .typechip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--meta)); border: 1px solid rgb(var(--hair2)); border-radius: 4px; padding: 1.5px 6px; background: rgb(var(--surface)); flex-shrink: 0; }
+  .tc-b { color: #2554E8; background: #E8EEFE; border-color: #C9D8FC; }
+  .tc-v { color: #7A3FE4; background: #F1EAFE; border-color: #DFD0FA; }
+  .tc-t { color: #0B8A7B; background: #E2F5F2; border-color: #C6EAE5; }
+  .tc-o { color: #B45309; background: #FDF0D9; border-color: #F5DFB3; }
+  .tc-g { color: #15883E; background: #E5F6EA; border-color: #CBEBD5; }
+  .tc-r { color: #D14324; background: #FDEAE4; border-color: #F8D5C9; }
+
+  /* Ersatz-Avatare (Spec §7.2/§8): weiße Initialen auf sattem Grund */
+  .ava { display: inline-grid; place-items: center; flex-shrink: 0; font-weight: 700; color: #fff; border-radius: 9px; }
+  .av-28 { width: 28px; height: 28px; font-size: 11px; border-radius: 7px; }
+  .av-36 { width: 36px; height: 36px; font-size: 13px; }
+  .av-64 { width: 64px; height: 64px; font-size: 22px; border-radius: 15px; }
+  .av-96 { width: 96px; height: 96px; font-size: 32px; border-radius: 22px; }
+  .ava-agent { background: rgb(var(--surface)); border: 1.5px dashed rgb(var(--hair2)); color: rgb(var(--meta)); }
+  .ava-logo { background: rgb(var(--surface)); border: 1px solid rgb(var(--hair2)); }
+  .av-a { background: #3D6BF0; } .av-b { background: #8250DF; } .av-c { background: #0E9888; }
+  .av-d { background: #D97706; } .av-e { background: #1FA254; } .av-f { background: #E25C3C; }
 }
 
 @layer components {

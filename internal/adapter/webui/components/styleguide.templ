@@ -48,6 +48,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgKristallCards())
 	// Brand mark at two sizes
 	@Card("mb-6", sgBrandMark())
+	// Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem
+	@Card("mb-6", sgLesesaal())
 }
 
 templ sgButtons() {
@@ -202,5 +204,31 @@ templ sgBrandMark() {
 			@BrandMark("h-6 w-6", "sg2")
 			<p class="text-xs text-muted">h-6 w-6</p>
 		</div>
+	</div>
+}
+
+// ── Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem ──────────────
+
+templ sgLesesaal() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal — Flächen &amp; Identität</h2>
+	<p class="eyebrow mb-3">Eyebrow-Label</p>
+	<div class="panel p-4 mb-4">
+		<p class="text-sm text-body">Papier trägt Inhalt, Fläche trägt Instrumente (Spec §4) — dieser Block liegt auf <span class="typechip">.panel</span>.</p>
+	</div>
+	<div class="flex flex-wrap items-center gap-3 mb-4">
+		@Avatar("A", "av-a", "av-36")
+		@Avatar("B", "av-b", "av-36")
+		@Avatar("C", "av-c", "av-36")
+		@Avatar("D", "av-d", "av-36")
+		@Avatar("E", "av-e", "av-36")
+		@Avatar("F", "av-f", "av-36")
+	</div>
+	<div class="flex flex-wrap items-center gap-2">
+		<span class="typechip tc-b">Backstage</span>
+		<span class="typechip tc-v">Vorhaben</span>
+		<span class="typechip tc-t">Tagebuch</span>
+		<span class="typechip tc-o">Organisation</span>
+		<span class="typechip tc-g">Guide</span>
+		<span class="typechip tc-r">Referenz</span>
 	</div>
 }
