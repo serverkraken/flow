@@ -48,13 +48,8 @@ func (s *Server) renderTimerWidget(w http.ResponseWriter, r *http.Request, u dom
 
 func (s *Server) handleTimerWidget(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	s.renderTimerWidget(w, r, u, "")
-}
-
-func (s *Server) handleTimerChip(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.TimerChip(s.timerWidgetVM(r, u, "")).Render(r.Context(), w)
+	_ = webui.TimerPill(s.timerWidgetVM(r, u, "")).Render(r.Context(), w)
 }
 
 // timerNodeFromForm resolves projectId / newProject (quick-create) into a

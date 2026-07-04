@@ -11,7 +11,7 @@ import (
 // (+ quick-create); running → live clock + node pill + stop/switch; unbound →
 // stop demands a node. All actions post to /ui/timer/* and swap the mount.
 templ TimerWidget(vm TimerWidgetVM) {
-	<section class="rounded-2xl glass shadow-soft p-3 text-[.85rem]">
+	<section class="panel p-4 text-[.9rem]">
 		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint mb-2">{ components.T(ctx, "timer.title") }</div>
 		if vm.Err != "" {
 			<p class="mb-2 rounded-lg bg-red/10 px-2.5 py-1.5 text-[.78rem] text-red" role="alert">{ vm.Err }</p>
@@ -21,7 +21,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 				@timerNodeSelect(vm.Bookable, "")
 				<input name="newProject" placeholder={ components.T(ctx, "timer.newProject") } class="w-full rounded-lg border border-line bg-sunken/60 px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem]"/>
 				<div class="grid">
-					@components.Button(components.BtnPrimary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
+					@components.Button(components.BtnSecondary, components.T(ctx, "timer.start"), "▶", templ.Attributes{"type": "submit"})
 				</div>
 			</form>
 		} else {
@@ -71,20 +71,28 @@ templ timerNodeSelect(bookable []domain.Node, label string) {
 	</select>
 }
 
-// TimerChip is the mobile top-bar mount: a compact live chip that opens the
-// full widget in a Kristall dialog (no browser popups).
-templ TimerChip(vm TimerWidgetVM) {
-	<button type="button" data-dialog-open="timer-sheet" aria-label={ components.T(ctx, "timer.title") } class="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1 text-[.78rem]">
-		if vm.Running {
-			<span class="h-2 w-2 rounded-full bg-green animate-breathe" aria-hidden="true"></span>
-			<span class="font-mono tnum" data-mini-timer>{ fmtClockHMS(vm.BaseSeconds) }</span>
-		} else {
-			<span class="text-muted">▶ { components.T(ctx, "timer.title") }</span>
-		}
-	</button>
-	@components.Dialog("timer-sheet", "timer.title", timerChipBody(vm), false)
+// TimerPill ist DAS eine Timer-Instrument (Spec §10): läuft → Live-Punkt +
+// tickende Mono-Uhr + Kurzname (Link zum Knoten); idle → ruhiger Start, der
+// das Timer-Sheet (TimerWidget als Dialog-Body) öffnet.
+templ TimerPill(vm TimerWidgetVM) {
+	if vm.Running {
+		<span class="inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]">
+			<span class="h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]" aria-hidden="true"></span>
+			<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
+			if vm.NodeName != "" {
+				<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } title={ vm.NodeName } class="hidden sm:inline max-w-[110px] truncate text-[12.5px] text-meta hover:text-accent">{ ShortName(vm.NodeName) }</a>
+			}
+			<button type="button" data-dialog-open="timer-sheet" aria-label={ components.T(ctx, "timer.title") } class="text-meta hover:text-ink text-[12px]">▾</button>
+		</span>
+	} else {
+		<button type="button" data-dialog-open="timer-sheet"
+			class="inline-flex items-center gap-1.5 rounded-full border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint">
+			<span aria-hidden="true">▶</span> { components.T(ctx, "timer.start") }
+		</button>
+	}
+	@components.Dialog("timer-sheet", "timer.title", timerSheetBody(vm), false)
 }
 
-templ timerChipBody(vm TimerWidgetVM) {
+templ timerSheetBody(vm TimerWidgetVM) {
 	@TimerWidget(vm)
 }

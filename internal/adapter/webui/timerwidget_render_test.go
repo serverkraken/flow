@@ -91,42 +91,26 @@ func TestTimerWidget_ErrRendersInlineNeverPopup(t *testing.T) {
 	}
 }
 
-// TestTimerChip_RunningRendersMiniTimerAndDialogTrigger verifies the mobile
-// chip: a compact live clock plus the dialog-open trigger that reveals the
-// full widget (no browser popups — Kristall dialogs only), and that the
-// trigger button carries an accessible name (its visible content is only a
-// clock digit string, otherwise announced with no label).
-func TestTimerChip_RunningRendersMiniTimerAndDialogTrigger(t *testing.T) {
-	ctx := context.Background()
-	vm := TimerWidgetVM{Running: true, SessionID: "s1", BaseSeconds: 45}
-	body := renderToBuf(t, ctx, TimerChip(vm))
-
-	for _, want := range []string{"data-mini-timer", `data-dialog-open="timer-sheet"`, `id="timer-sheet"`, `aria-label="Timer"`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("running chip missing %q, got: %s", want, body)
+func TestTimerPill_RunningShowsClockAndShortName(t *testing.T) {
+	vm := TimerWidgetVM{Running: true, BaseSeconds: 754, NodeID: "n1",
+		NodeName: "gitlab.com/dataalliance/products/foolu/product/backstage", NodeKind: domain.KindRepo}
+	out := renderToBuf(t, context.Background(), TimerPill(vm)) // render-Helper wie in den Nachbartests
+	for _, want := range []string{"data-timer", `data-base="754"`, ">backstage<", "timer-sheet"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("pill missing %q:\n%s", want, out)
 		}
 	}
-	// 45s -> fmtClockHMS renders "00:00:45", matching the [data-mini-timer]
-	// JS branch (p(h)+':'+p(m)+':'+p(s), zero-padded hours too) exactly.
-	if !strings.Contains(body, "00:00:45") {
-		t.Errorf("running chip missing initial mini-timer clock text, got: %s", body)
+	if strings.Contains(out, vm.NodeName+"</a>") {
+		t.Fatal("pill must show ShortName, not the full remote path")
 	}
 }
 
-// TestTimerChip_IdleRendersPlaceholder verifies the idle chip shows the
-// "start a timer" affordance rather than a clock, and still carries the
-// accessible name on its (single, state-independent) trigger button.
-func TestTimerChip_IdleRendersPlaceholder(t *testing.T) {
-	ctx := context.Background()
-	body := renderToBuf(t, ctx, TimerChip(TimerWidgetVM{}))
-
-	if strings.Contains(body, "data-mini-timer") {
-		t.Errorf("idle chip must not render the live clock, got: %s", body)
+func TestTimerPill_IdleIsQuietStart(t *testing.T) {
+	out := renderToBuf(t, context.Background(), TimerPill(TimerWidgetVM{Running: false}))
+	if !strings.Contains(out, "data-dialog-open=\"timer-sheet\"") {
+		t.Fatal("idle pill must open the timer sheet")
 	}
-	if !strings.Contains(body, "Timer") {
-		t.Errorf("idle chip missing timer.title label, got: %s", body)
-	}
-	if !strings.Contains(body, `aria-label="Timer"`) {
-		t.Errorf("idle chip trigger missing accessible name, got: %s", body)
+	if strings.Contains(out, "cta-glow") {
+		t.Fatal("no glow CTAs in Lesesaal")
 	}
 }
