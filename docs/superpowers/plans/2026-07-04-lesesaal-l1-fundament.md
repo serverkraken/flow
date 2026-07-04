@@ -21,6 +21,33 @@
 - Farb-Gesetz der Spec §7: Farbe pro Projekt existiert NUR im Avatar; Kinds bleiben neutrale Text-Chips.
 - Tailwind-v4-Fallen (Memory): kein `<alpha-value>` in `@theme`; niemals `*/` in CSS-Kommentaren; `@source not`-Zeilen nicht anfassen.
 
+## Agent-Besetzung & Dispatch-Protokoll (gilt für L1 und sinngemäß für L2–L4)
+
+Die Rollen sind als Projekt-Agents in `.claude/agents/` hinterlegt — Modell + Effort + Regelwerk fest verdrahtet. Die Orchestrator-Session läuft auf `/effort high` (Fallback: erben Agents keinen Frontmatter-Effort, ist high die Grundlinie). Dispatches nennen das Modell NIE implizit — es steht im Agent (Memory: nie Fable erben).
+
+| Task | Agent (`subagent_type`) | Modell · Effort |
+|---|---|---|
+| 1 Schriften | `lesesaal-implementer` | Sonnet · medium |
+| 2 Token | `lesesaal-implementer` | Sonnet · medium |
+| 3 Primitives | `lesesaal-implementer` | Sonnet · medium |
+| 4 Topbar-Shell | `lesesaal-implementer-deep` | Sonnet · high |
+| 5 Timer-Pill | `lesesaal-implementer` | Sonnet · medium |
+| 6 Palette | `lesesaal-implementer-deep` | Sonnet · high |
+| 7 Wiring-Gate | `lesesaal-implementer` | Sonnet · medium |
+| jedes Task-Review | `lesesaal-task-reviewer` | Haiku · high |
+| Slice-Ende: Whole-Branch | `lesesaal-final-reviewer` | Opus · xhigh |
+| Slice-Ende: Design-Treue | `lesesaal-mockup-auditor` | Sonnet · medium |
+
+**Protokoll pro Task:**
+1. Dispatch Implementer mit: wörtlichem Task-Text + Global-Constraints-Block + „Branch `lesesaal`, Worktree `/Users/msoent/SourceCode/serverkraken/flow-rebuild`". Ein Task pro Dispatch, nie mehrere.
+2. Orchestrator verifiziert danach selbst: `git log --oneline -3` (HEAD vorangegangen? — Subagent-Commits können den Branch-Ref verfehlen, Memory) + `git diff --stat HEAD~1`.
+3. Dispatch `lesesaal-task-reviewer` mit Task-Text + Commit-Range. `Rejected`/Critical → Fix-Dispatch an denselben Implementer-Agent mit den Findings; Minor darf der Orchestrator selbst fixen.
+4. Ledger `.superpowers/sdd/progress.md` fortschreiben (Commits, Verdikt, ci-Stand).
+
+**Protokoll Slice-Ende:** `make ci` grün → `lesesaal-final-reviewer` (Range `rebuild..HEAD`) → Findings fixen → `lesesaal-mockup-auditor` → Abweichungen fixen → **Soenne-Live-Gate** (Browser, nicht delegierbar).
+
+**Optional, ohne Setup vorhanden:** `gemini-bigcontext` (einmal pro Slice: Kristall-Reste/Arbitrary-Values-Sweep über alle geänderten Dateien) · `codex-second-opinion` (nur L3: Mermaid client-side vs. server-side) · `memory-bank-synchronizer` (nach gelandetem Slice).
+
 ---
 
 ### Task 1: Schriften — Schibsted Grotesk rein, Clash Display + Inter raus
