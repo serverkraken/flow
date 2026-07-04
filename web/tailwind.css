@@ -382,6 +382,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .av-64 { width: 64px; height: 64px; font-size: 22px; border-radius: 15px; }
   .av-96 { width: 96px; height: 96px; font-size: 32px; border-radius: 22px; }
   .ava-agent { background: rgb(var(--surface)); border: 1.5px dashed rgb(var(--hair2)); color: rgb(var(--meta)); }
+  .ava-me { background: rgb(var(--wash)); border: 1px solid rgb(var(--hair2)); color: rgb(var(--ink)); }
   .ava-logo { background: rgb(var(--surface)); border: 1px solid rgb(var(--hair2)); }
   .av-a { background: #3D6BF0; } .av-b { background: #8250DF; } .av-c { background: #0E9888; }
   .av-d { background: #D97706; } .av-e { background: #1FA254; } .av-f { background: #E25C3C; }

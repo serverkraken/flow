@@ -59,7 +59,7 @@ func PaletteDialog() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"w-full border-0 border-b border-hair bg-transparent px-5 py-4 text-[16px] text-ink outline-none placeholder:text-faint\" hx-get=\"/ui/palette\" hx-trigger=\"input changed delay:120ms\" hx-target=\"#palette-results\" hx-swap=\"innerHTML\"><div id=\"palette-results\" class=\"max-h-[320px] overflow-y-auto p-1.5\"></div><div class=\"flex gap-4 border-t border-hair px-4 py-2 text-[11.5px] text-faint\"><span>↑↓ ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" class=\"w-full border-0 border-b border-hair bg-transparent px-5 py-4 text-[16px] text-ink outline-none placeholder:text-faint\" hx-get=\"/ui/palette\" hx-trigger=\"input changed delay:120ms\" hx-target=\"#palette-results\" hx-swap=\"innerHTML\"><div id=\"palette-results\" class=\"max-h-[320px] overflow-y-auto p-1.5\"></div><div class=\"flex gap-4 border-t border-hair px-4 py-2 text-[11.5px] text-meta\"><span>↑↓ ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
