@@ -195,7 +195,7 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 
 // TestWebNodeTree_GlassContainerAndCTA verifies the K4 Kristall glass sweep on
 // the projektliste: the tree-list container carries .glass (not the old flat
-// bg-surface/border-line chrome) and the "Neu" action uses the cta-glow
+// bg-surface/border-line chrome) and the "Neu" action uses the BtnPrimary
 // gradient recipe (not the old flat bg-ink button) — while row links,
 // nodeGlyphSwatch (color dot + glyph), kind/status badges, and gitDisplay all
 // survive untouched. Negative assertions are scoped to the swapped elements
@@ -227,8 +227,8 @@ func TestWebNodeTree_GlassContainerAndCTA(t *testing.T) {
 		t.Fatalf("Neu anchor not closed; body=%.500s", body)
 	}
 	ctaBlock := body[ctaIdx : ctaIdx+ctaCloseOffset]
-	if !strings.Contains(ctaBlock, "cta-glow") {
-		t.Errorf("Neu button missing cta-glow CTA recipe: %s", ctaBlock)
+	if !strings.Contains(ctaBlock, "from-green to-cyan") {
+		t.Errorf("Neu button missing the BtnPrimary gradient recipe: %s", ctaBlock)
 	}
 	if strings.Contains(ctaBlock, "bg-ink") {
 		t.Errorf("Neu button still uses flat bg-ink: %s", ctaBlock)

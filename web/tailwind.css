@@ -323,10 +323,6 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* colored corner triangle, top-left, clipped to the card's rounded corner via overflow-hidden on the card */
   .card-corner { position: absolute; top: 0; left: 0; width: 30px; height: 30px; clip-path: polygon(0 0, 100% 0, 0 100%); background: rgb(var(--c, var(--muted))); }
 
-  /* Kristall CTA glow (mockup .big-start) + hover lift */
-  .cta-glow { box-shadow: 0 12px 30px -10px rgb(var(--cyan) / .55); transition: transform .14s ease, box-shadow .14s ease; }
-  .cta-glow:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -10px rgb(var(--cyan) / .65); }
-
   /* rollup-tile accent underline (mockup .rtile::after); hue via --ac */
   .rtile-ac { position: relative; }
   .rtile-ac::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background: linear-gradient(90deg, rgb(var(--ac, var(--blue))), transparent); }

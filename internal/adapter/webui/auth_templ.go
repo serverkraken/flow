@@ -106,7 +106,7 @@ func authBody(vm AuthVM) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if vm.ShowLogin {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/auth/login\" hx-boost=\"false\" class=\"cta-glow inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<a href=\"/auth/login\" hx-boost=\"false\" class=\"inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

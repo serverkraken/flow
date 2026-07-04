@@ -182,8 +182,8 @@ func TestCockpitRail_TimerStates(t *testing.T) {
 	if !strings.Contains(idleBody, `/nodes/n1/start`) {
 		t.Errorf("TimerIdle missing start form action: %.600s", idleBody)
 	}
-	if !strings.Contains(idleBody, "cta-glow") {
-		t.Errorf("TimerIdle missing the cta-glow start button: %.600s", idleBody)
+	if !strings.Contains(idleBody, "font-bold") {
+		t.Errorf("TimerIdle missing the BtnPrimary start button: %.600s", idleBody)
 	}
 	if !strings.Contains(idleBody, "3:47 h") {
 		t.Errorf("TimerIdle missing the TodayHere value: %.600s", idleBody)

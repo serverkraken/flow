@@ -88,9 +88,9 @@ func TestWebExportHome(t *testing.T) {
 		}
 	}
 	// The non-download "anzeigen" submit button must be a components.Button
-	// (BtnPrimary carries the distinctive cta-glow marker class).
-	if !strings.Contains(body, "cta-glow") {
-		t.Error("expected 'anzeigen' submit to render via components.Button (BtnPrimary, cta-glow marker)")
+	// (BtnPrimary carries the distinctive gradient+font-bold marker classes).
+	if !strings.Contains(body, "font-bold") {
+		t.Error("expected 'anzeigen' submit to render via components.Button (BtnPrimary, font-bold marker)")
 	}
 }
 
