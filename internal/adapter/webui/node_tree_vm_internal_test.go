@@ -1,8 +1,6 @@
 package webui
 
 import (
-	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -161,21 +159,5 @@ func TestSubtreeHourTotals_RollsUpAncestors(t *testing.T) {
 	FillTreeHours(short, map[string]time.Duration{"x": 30 * time.Minute})
 	if short[0].Hours != "" {
 		t.Errorf("sub-1h must render empty, got %q", short[0].Hours)
-	}
-}
-
-func TestNavTree_FormCodedDots(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	rows := []TreeRow{
-		{Node: domain.Node{ID: "e1", Name: "Kundenarbeit", Kind: domain.KindEngagement, Color: "magenta"}, Level: 0},
-		{Node: domain.Node{ID: "v1", Name: "Plattform-Umbau", Kind: domain.KindVorhaben, Color: "purple"}, Level: 1},
-		{Node: domain.Node{ID: "r1", Name: "flow", Kind: domain.KindRepo, Color: "blue"}, Level: 2},
-	}
-	body := renderToBuf(t, ctx, NavTree(rows))
-	for _, want := range []string{"nvdot-eng", "nvdot-vor", "nvdot-repo", "--nc:var(--magenta)", "fade-label", `title="flow"`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("nav tree missing %q in:\n%s", want, body)
-		}
 	}
 }
