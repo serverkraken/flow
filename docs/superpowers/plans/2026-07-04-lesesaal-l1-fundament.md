@@ -44,9 +44,29 @@ Die Rollen sind als Projekt-Agents in `.claude/agents/` hinterlegt — Modell + 
 3. Dispatch `lesesaal-task-reviewer` mit Task-Text + Commit-Range. `Rejected`/Critical → Fix-Dispatch an denselben Implementer-Agent mit den Findings; Minor darf der Orchestrator selbst fixen.
 4. Ledger `.superpowers/sdd/progress.md` fortschreiben (Commits, Verdikt, ci-Stand).
 
-**Protokoll Slice-Ende:** `make ci` grün → `lesesaal-final-reviewer` (Range `rebuild..HEAD`) → Findings fixen → `lesesaal-mockup-auditor` → Abweichungen fixen → **Soenne-Live-Gate** (Browser, nicht delegierbar).
+**Protokoll Slice-Ende (feste Reihenfolge):**
+1. `make ci` grün.
+2. `gemini-bigcontext` **Rest-Sweep** (mechanisch, billig) → Treffer fixen.
+3. `lesesaal-final-reviewer` (Range `rebuild..HEAD`) → Findings fixen.
+4. `lesesaal-mockup-auditor` → Abweichungen fixen.
+5. **Soenne-Live-Gate** (Browser, nicht delegierbar).
+6. Nachlauf: Memory/flow-Mirrors aktualisieren (s. u.).
 
-**Optional, ohne Setup vorhanden:** `gemini-bigcontext` (einmal pro Slice: Kristall-Reste/Arbitrary-Values-Sweep über alle geänderten Dateien) · `codex-second-opinion` (nur L3: Mermaid client-side vs. server-side) · `memory-bank-synchronizer` (nach gelandetem Slice).
+### Erweiterte Rollen (User-Level-Agents, feste Einsatzpunkte — kein Setup nötig)
+
+| Einsatzpunkt | Agent | Modell · Effort | Job |
+|---|---|---|---|
+| Slice-Ende Schritt 2 (jeder Slice) | `gemini-bigcontext` | extern (Gemini 1M) · — | Rest-Sweep über alle geänderten Dateien |
+| L3, VOR Task-Dispatch der Mermaid-Tasks | `codex-second-opinion` | extern (Codex) · — | Architektur-Weiche Mermaid-Rendering |
+| Nach Soenne-Gate (jeder Slice) | `memory-bank-synchronizer` | Dispatch mit `model: haiku` · low | Doku-Nachlauf (s. Hinweis) |
+
+**Dispatch-Text `gemini-bigcontext` (wörtlich verwenden, `<RANGE>` = `rebuild..HEAD`):**
+> Lies vollständig: alle Dateien aus `git diff --name-only <RANGE>` plus `web/tailwind.css` und `internal/adapter/webui/static/app.css` im Worktree `/Users/msoent/SourceCode/serverkraken/flow-rebuild`. Finde ausschließlich: (a) **Kristall-Reste** — Vorkommen von `glass`, `kristall`, `facet`, `cta-glow`, `grad-a`, `grad-b`, `twilight`, Formcodierungs-Glyphen `●`/`◆`/`⬡` in UI-Markup (Ausnahmen: der dokumentierte `.glass`-Übergangs-Alias in tailwind.css, historische Kommentare, docs/); (b) **Arbitrary-Tailwind-Werte**, wo ein benanntes Lesesaal-Token existiert (Muster `text-[#`, `bg-[#`, `border-[#`, `rounded-[`, `shadow-[` — gegen die Token-Liste in `docs/superpowers/specs/2026-07-04-lesesaal-webui-redesign-design.md` §6 prüfen); (c) **verwaiste i18n-Keys** (in Katalogen definiert, nirgends per `T(` referenziert) und **verwaiste CSS-Klassen** aus dem Slice. Ausgabe: gruppierte Liste `Datei:Zeile — Befund`, KEINE Fixes, KEINE Stilurteile.
+
+**Dispatch-Text `codex-second-opinion` (einmalig in L3):**
+> Entscheidung für flow (Go + templ + htmx, alles vendored, kein CDN, self-hosted, CSP-freundlich, Docs bis 108 KB): Mermaid-Diagramme in Markdown rendern — Option A: vendored `mermaid.min.js` client-side (~900 KB Asset, rendert im Browser, kein Server-Aufwand, JS-Abhängigkeit auf Leseseiten); Option B: server-seitig SVG erzeugen (mermaid-cli braucht headless Chromium im Container; Alternativen wie kroki = eigener Dienst); Option C: Hybrid (client-side nur auf Dokumentseiten mit ```mermaid-Fence, lazy geladen). Bewerte Wartbarkeit, Offline-Fähigkeit, Sicherheit (untrusted Agent-Markdown!), Seitengewicht. Empfehlung mit Begründung + größtes Risiko der Empfehlung.
+
+**Hinweis `memory-bank-synchronizer`:** In diesem Repo existieren aktuell KEINE `CLAUDE-*.md`-Memory-Bank-Dateien — der Agent hat dann nichts zu tun und wird übersprungen. Der verpflichtende Nachlauf ist stattdessen Orchestrator-Arbeit: Auto-Memory-Eintrag des Slice-Stands + flow-Mirror des Ledgers/Plans aktualisieren (`flow_update_doc`). Legt Soenne später Memory-Bank-Dateien an, ersetzt der Agent-Dispatch diesen Handschritt.
 
 ---
 
