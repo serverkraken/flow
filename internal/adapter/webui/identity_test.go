@@ -33,7 +33,8 @@ func TestShortName(t *testing.T) {
 }
 
 func TestAvatarTone_DeterministicAndSpread(t *testing.T) {
-	if AvatarTone("backstage") != AvatarTone("backstage") {
+	first, second := AvatarTone("backstage"), AvatarTone("backstage")
+	if first != second {
 		t.Fatal("tone not deterministic")
 	}
 	seen := map[string]bool{}
