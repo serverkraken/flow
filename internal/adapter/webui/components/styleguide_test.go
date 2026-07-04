@@ -13,7 +13,6 @@ func TestStyleguideShowcasesEverything(t *testing.T) {
 		"Design-System",              // styleguide.title
 		"/static/app.css",            // Base hull present
 		"/static/vendor/htmx.min.js", // offline
-		"data-theme-toggle",          // working toggle in chrome
 		"bg-red",                     // danger button variant
 		"data-dialog-open",           // a dialog trigger
 		"aria-modal=\"true\"",        // a dialog rendered

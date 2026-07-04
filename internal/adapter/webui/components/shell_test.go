@@ -83,12 +83,15 @@ func TestAppShellRendersSlotsAndChrome(t *testing.T) {
 	out := render(t, components.AppShell("today", bc, sn, body))
 	for _, w := range []string{
 		`id="bc"`, `id="sn"`, `id="main"`,
-		`data-theme-toggle`,                 // mobile topbar carries the toggle
 		`aria-label="Hauptnavigation"`,      // sidebar nav landmark (i18n nav.primary)
 	} {
 		if !strings.Contains(out, w) {
 			t.Errorf("AppShell missing %q", w)
 		}
+	}
+	// Lesesaal L1: theme is fixed light, the toggle is gone (Dunkel-Zwilling = L7).
+	if strings.Contains(out, "data-theme-toggle") {
+		t.Errorf("AppShell must not carry the removed theme toggle")
 	}
 }
 

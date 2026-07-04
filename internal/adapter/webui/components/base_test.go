@@ -30,8 +30,6 @@ func TestBaseHullIsOfflineAndThemed(t *testing.T) {
 		`/static/vendor/htmx.min.js`,            // local, NOT unpkg
 		`/static/vendor/htmx-ext-sse.js`,
 		`/static/fonts/SchibstedGrotesk-Variable.woff2`,
-		`flow-theme`,                            // no-flash boot script reads localStorage key
-		`window.toggleTheme`,                    // theme-sync script
 		`hx-ext="sse"`,
 		`sse-connect="/api/v1/events"`,
 		`data-timer`,                            // live-timer script hook present
@@ -50,15 +48,6 @@ func TestBaseHullIsOfflineAndThemed(t *testing.T) {
 	}
 }
 
-func TestThemeTogglePressableAndLabeled(t *testing.T) {
-	out := render(t, components.ThemeToggle())
-	for _, w := range []string{`data-theme-toggle`, `aria-pressed="false"`, `onclick="toggleTheme()"`, `toggle-sun`, `toggle-moon`, `<svg`, `viewBox="0 0 24 24"`} {
-		if !strings.Contains(out, w) {
-			t.Errorf("ThemeToggle missing %q", w)
-		}
-	}
-}
-
 func TestBase_PreloadsLesesaalFonts(t *testing.T) {
 	out := render(t, components.Base("t", templ.NopComponent))
 	if !strings.Contains(out, "/static/fonts/SchibstedGrotesk-Variable.woff2") {
@@ -71,13 +60,14 @@ func TestBase_PreloadsLesesaalFonts(t *testing.T) {
 	}
 }
 
-func TestBase_KristallFacets(t *testing.T) {
-	// mockup-normative facet layer: token-tinted polygons + soft radial pools
-	body := templ.Raw(`<p id="content">hallo</p>`)
-	out := render(t, components.Base("Test", body))
-	for _, want := range []string{`class="kristall-facets"`, `fill-opacity=".022"`, `stroke-opacity=".04"`, `url(#kfacet-glow)`} {
-		if !strings.Contains(out, want) {
-			t.Errorf("facets layer missing %q", want)
+func TestBase_LightIsHome_NoFacetsNoToggle(t *testing.T) {
+	out := render(t, components.Base("t", templ.NopComponent))
+	if !strings.Contains(out, `data-theme','light'`) && !strings.Contains(out, `data-theme", "light"`) {
+		t.Fatalf("no-flash script does not force light:\n%s", out)
+	}
+	for _, gone := range []string{"kristall-facets", "toggleTheme", "flow-theme"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("kristall remnant %q still present", gone)
 		}
 	}
 }

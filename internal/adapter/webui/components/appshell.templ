@@ -27,7 +27,6 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 				@BrandMark("h-9 w-9", "d")
 				<span class="font-display text-[1.45rem] font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
 			</a>
-			@ThemeToggle()
 		</div>
 		<div
 			id="timer-widget"
@@ -58,7 +57,6 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
 				hx-swap="innerHTML"
 			></div>
-			@ThemeToggle()
 		</div>
 	</header>
 	// ── Main column ──
