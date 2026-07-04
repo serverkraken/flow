@@ -74,7 +74,7 @@ func TestEmptyState(t *testing.T) {
 	}
 }
 
-func TestButtonPrimary_KristallCTA(t *testing.T) {
+func TestButtonPrimary_LesesaalCTA(t *testing.T) {
 	out := render(t, components.Button(components.BtnPrimary, "Timer starten", "▶", nil))
 	for _, want := range []string{"from-green", "to-cyan", "text-oncolor", "font-bold"} {
 		if !strings.Contains(out, want) {

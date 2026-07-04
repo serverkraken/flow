@@ -36,10 +36,6 @@ func init() {
 			"nav.account":   "Konto",
 			"nav.logout":    "Abmelden",
 			"nav.primary":   "Hauptnavigation",
-			// theme toggle
-			"theme.toggle":  "Hell/Dunkel umschalten",
-			"theme.toLight": "Zu Hell wechseln",
-			"theme.toDark":  "Zu Dunkel wechseln",
 			// common buttons / actions
 			"common.new":     "Neu",
 			"common.save":    "Speichern",

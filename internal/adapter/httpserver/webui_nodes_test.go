@@ -509,7 +509,7 @@ func tagFor(t *testing.T, s, marker string) string {
 	return s[start : start+end]
 }
 
-// TestWebNodeForm_KristallFieldClass pins the K4 Kristall form-language sweep
+// TestWebNodeForm_FieldClass pins the K4 Kristall form-language sweep
 // (Task 7): every text/select/textarea/file input in the node create/edit
 // form carries the shared .field class (introduced in Task 5) instead of the
 // old hand-rolled "rounded-lg border border-line bg-surface" chrome, while
@@ -518,7 +518,7 @@ func tagFor(t *testing.T, s, marker string) string {
 // assertion is scoped to the <form>...</form> block itself (not the whole
 // page) since AppShell's mobile nav legitimately carries "bg-surface"
 // elsewhere (Task 4/5/6 false-positive lesson).
-func TestWebNodeForm_KristallFieldClass(t *testing.T) {
+func TestWebNodeForm_FieldClass(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 	eng := seedTreeNode(t, ns, "eng1", "RTL Extern", domain.KindEngagement, nil)
 
