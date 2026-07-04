@@ -1,5 +1,10 @@
 package components
 
+// Empty is a no-op placeholder component — for call sites (mostly tests) that
+// need a templ.Component argument but have no content to render.
+templ Empty() {
+}
+
 // Base is the shared HTML hull with live-sync (SSE) enabled — the default for
 // every authenticated page.
 templ Base(title string, body templ.Component) {

@@ -4,8 +4,12 @@ func init() {
 	register(DE, catalog{
 		strings: map[string]string{
 			// brand / shell
-			"app.name":    "flow",
-			"app.tagline": "Zeit & Wissen",
+			"app.name":         "flow",
+			"app.tagline":      "Zeit & Wissen",
+			"app.userInitials": "MS",
+			// ⌘K-Palette (Topbar)
+			"palette.open": "Suchen und springen",
+			"palette.hint": "Suchen …",
 			// home landing
 			"home.greeting":              "Dein Flow-Überblick.",
 			"home.section.zeit.desc":     "Arbeitszeiterfassung und Tagesüberblick.",
@@ -24,7 +28,6 @@ func init() {
 			"nav.dayoffs":   "Frei",
 			"nav.export":    "Export",
 			"nav.settings":  "Einstellungen",
-			"nav.more":      "Mehr",
 			"nav.menu":      "Menü",
 			"nav.account":   "Konto",
 			"nav.logout":    "Abmelden",

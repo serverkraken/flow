@@ -3,8 +3,12 @@ package i18n
 func init() {
 	register(EN, catalog{
 		strings: map[string]string{
-			"app.name":    "flow",
-			"app.tagline": "Time & Knowledge",
+			"app.name":         "flow",
+			"app.tagline":      "Time & Knowledge",
+			"app.userInitials": "MS",
+			// Cmd-K palette (topbar)
+			"palette.open": "Search and jump",
+			"palette.hint": "Search …",
 			// home landing
 			"home.greeting":              "Your flow overview.",
 			"home.section.zeit.desc":     "Time tracking and daily overview.",
@@ -22,7 +26,6 @@ func init() {
 			"nav.dayoffs":                "Time off",
 			"nav.export":                 "Export",
 			"nav.settings":               "Settings",
-			"nav.more":                   "More",
 			"nav.menu":                   "Menu",
 			"nav.account":                "Account",
 			"nav.logout":                 "Sign out",

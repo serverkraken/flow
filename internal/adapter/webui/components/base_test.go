@@ -19,6 +19,14 @@ func render(t *testing.T, c templ.Component) string {
 	return b.String()
 }
 
+// testCtx is the bare context used by tests that call templ.Component.Render
+// directly instead of going through the render helper (e.g. when a *strings.Builder
+// is needed instead of *bytes.Buffer).
+func testCtx(t *testing.T) context.Context {
+	t.Helper()
+	return context.Background()
+}
+
 func TestBaseHullIsOfflineAndThemed(t *testing.T) {
 	body := templ.Raw(`<p id="content">hallo</p>`)
 	out := render(t, components.Base("Test", body))
