@@ -97,3 +97,117 @@ func TestNodeStats_RollsUpSubtree(t *testing.T) {
 		t.Errorf("Month = %v, want 3h", r.Month)
 	}
 }
+
+func TestNodeStats_WorkPrivatSplit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ss := testutil.NewFakeSessionStore()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 1, 12, 0, 0, 0, time.Local)}
+	b := func(v bool) *bool { return &v }
+	mk := func(id string, parent *string, ctt *bool) {
+		n, _ := domain.NewNode(id, "u1", id, id, clk.Now())
+		n.ParentID = parent
+		n.CountsTowardTarget = ctt
+		n.Kind = domain.KindRepo
+		_, _ = ns.Create(ctx, n)
+	}
+	eng := "eng"
+	mk(eng, nil, b(false)) // engagement explicitly Privat
+	rp := "repo"
+	mk(rp, &eng, nil) // repo inherits -> Privat
+	rp2 := "repo2"
+	mk(rp2, &eng, b(true)) // repo explicit Work (override)
+	// 2h on the inherited-privat repo, 1h on the work-override repo. Booked as
+	// sequential, non-overlapping windows ending at cursor (AddSession enforces
+	// a global no-overlap invariant across all of the owner's nodes, so both
+	// legs can't share the same [now-h, now) window), and sharing one IDGen so
+	// the two sessions get distinct IDs (the fake session store is ID-keyed).
+	ids := &testutil.FakeIDGen{}
+	cursor := clk.Now()
+	add := func(node string, h int) {
+		stop := cursor
+		st := stop.Add(time.Duration(-h) * time.Hour)
+		_, err := usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}.
+			Execute(ctx, "u1", &node, st, stop, nil, "")
+		if err != nil {
+			t.Fatalf("AddSession(%s, %dh): %v", node, h, err)
+		}
+		cursor = st
+	}
+	add(rp, 2)
+	add(rp2, 1)
+
+	sc := usecase.StatsComputer{Sessions: ss, Nodes: ns, Clock: clk, Loc: time.Local}
+	r, err := sc.NodeStats(ctx, "u1", eng)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 3*time.Hour {
+		t.Errorf("Total=%v want 3h", r.Total)
+	}
+	if r.WorkTotal != 1*time.Hour {
+		t.Errorf("WorkTotal=%v want 1h (only repo2 counts)", r.WorkTotal)
+	}
+	// Privat = Total - Work = 2h
+}
+
+func TestNodeStats_PrevWeek(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ss := testutil.NewFakeSessionStore()
+	// Wednesday, 2026-07-01 at 12:00 UTC
+	// This week's Monday = 2026-06-29
+	// Previous week's Monday = 2026-06-22
+	// Two weeks ago Monday = 2026-06-15
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)}
+
+	b := func(v bool) *bool { return &v }
+	eng := "eng"
+	n, _ := domain.NewNode(eng, "u1", eng, eng, clk.Now())
+	n.Kind = domain.KindEngagement
+	n.CountsTowardTarget = b(true) // Work
+	_, _ = ns.Create(ctx, n)
+
+	ids := &testutil.FakeIDGen{}
+
+	// Session 1: 2026-06-29 09:00–11:00 (2h, this week)
+	s1Stop := time.Date(2026, 6, 29, 11, 0, 0, 0, time.UTC)
+	_, err := usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}.
+		Execute(ctx, "u1", &eng, time.Date(2026, 6, 29, 9, 0, 0, 0, time.UTC), s1Stop, nil, "")
+	if err != nil {
+		t.Fatalf("AddSession (this week): %v", err)
+	}
+
+	// Session 2: 2026-06-22 09:00–12:00 (3h, previous week)
+	s2Stop := time.Date(2026, 6, 22, 12, 0, 0, 0, time.UTC)
+	_, err = usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}.
+		Execute(ctx, "u1", &eng, time.Date(2026, 6, 22, 9, 0, 0, 0, time.UTC), s2Stop, nil, "")
+	if err != nil {
+		t.Fatalf("AddSession (prev week): %v", err)
+	}
+
+	// Session 3: 2026-06-15 09:00–10:00 (1h, two weeks ago)
+	s3Stop := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	_, err = usecase.AddSession{Sessions: ss, Nodes: ns, IDs: ids, Clock: clk}.
+		Execute(ctx, "u1", &eng, time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), s3Stop, nil, "")
+	if err != nil {
+		t.Fatalf("AddSession (two weeks ago): %v", err)
+	}
+
+	sc := usecase.StatsComputer{Sessions: ss, Nodes: ns, Clock: clk, Loc: time.UTC}
+	r, err := sc.NodeStats(ctx, "u1", eng)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Total != 6*time.Hour {
+		t.Errorf("Total=%v want 6h", r.Total)
+	}
+	if r.Week != 2*time.Hour {
+		t.Errorf("Week=%v want 2h", r.Week)
+	}
+	if r.PrevWeek != 3*time.Hour {
+		t.Errorf("PrevWeek=%v want 3h", r.PrevWeek)
+	}
+}

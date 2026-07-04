@@ -33,7 +33,7 @@ func balanceHue(pos bool) string {
 // studio-worktime-week.html KENNZAHLEN panel): Schnitt/Ziele/Saldo tiles, the
 // pace-dot strip, and an "auf Kurs" / "Rückstand" status pill.
 templ KennzahlenPanel(vm KennzahlenVM) {
-	<article class="rounded-3xl bg-surface border border-line shadow-soft p-6">
+	<article class="rounded-3xl glass shadow-soft p-6">
 		<div class="flex items-center justify-between mb-4">
 			<h2 class="font-display text-lg font-semibold">{ T(ctx, "kennzahlen.title") }</h2>
 			<span class={ "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[.72rem] font-semibold", onTrackPillClass(vm.OnTrack) }>

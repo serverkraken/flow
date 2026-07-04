@@ -50,6 +50,7 @@ func TestWocheHome_RendersDayBarsAndTotal(t *testing.T) {
 		"id=\"content\"", // SSE swap container
 		"sse:session",    // live-reload trigger
 		"/static/app.css",
+		"glass", // Kristall glass chrome (days card + KW-nav pills)
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Woche home missing %q", want)
@@ -58,6 +59,18 @@ func TestWocheHome_RendersDayBarsAndTotal(t *testing.T) {
 	// The two seeded sessions (8h + 9h) must surface their durations.
 	if !strings.Contains(body, "8h 00m") {
 		t.Errorf("expected Monday bar of 8h 00m, got:\n%s", body)
+	}
+	// KW stepper + day bars must still be present after the glass restyle.
+	if !strings.Contains(body, "KW ") {
+		t.Errorf("expected KW nav label, got:\n%s", body)
+	}
+	if !strings.Contains(body, "&lsaquo;") && !strings.Contains(body, "‹") {
+		t.Errorf("expected the KW '<' stepper glyph, got:\n%s", body)
+	}
+	// The Woche-owned chrome (days card + KW-nav pills) must be glass, not the
+	// old hand-rolled bg-surface/border-line card styling.
+	if strings.Contains(body, "bg-surface border border-line") {
+		t.Errorf("Woche days card / KW nav pills should use glass chrome, not bg-surface border border-line, got:\n%s", body)
 	}
 }
 

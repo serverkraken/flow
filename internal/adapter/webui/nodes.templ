@@ -38,7 +38,7 @@ templ NodesFragment(d NodesPageData) {
 		</div>
 		<a
 			href="/nodes/new"
-			class="inline-flex items-center justify-center gap-2 rounded-2xl bg-ink px-5 py-2.5 text-[.92rem] font-semibold text-canvas shadow-soft transition hover:bg-ink/90 active:scale-[.99]"
+			class="cta-glow inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor shadow-soft transition active:scale-[.99]"
 		>
 			<span aria-hidden="true">✚</span> { components.T(ctx, "nodes.new") }
 		</a>
@@ -51,7 +51,7 @@ templ NodesFragment(d NodesPageData) {
 	if len(d.Rows) == 0 {
 		@components.EmptyState("◆", "nodes.empty", "nodes.emptyHint")
 	} else {
-		<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface shadow-soft">
+		<ul class="divide-y divide-line2 rounded-2xl glass shadow-soft">
 			for _, row := range d.Rows {
 				@nodeTreeRow(row)
 			}
@@ -83,13 +83,28 @@ templ nodeKindBadge(kind domain.NodeKind) {
 	</span>
 }
 
-// nodeGlyphSwatch renders the node's color dot + glyph (both optional).
+// nodeGlyphSwatch renders the node's identity mark in list rows — priority:
+// uploaded logo > icon (tinted in the node color) > color dot + glyph.
 templ nodeGlyphSwatch(n domain.Node) {
-	if ColorHex(n.Color) != "" {
-		<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={ "background-color:" + ColorHex(n.Color) }></span>
-	}
-	if n.Glyph != "" {
-		<span class="shrink-0 font-mono text-faint">{ n.Glyph }</span>
+	if n.LogoRef != "" {
+		<img src={ "/nodes/" + n.ID + "/logo?v=" + n.LogoRef } alt="" class="h-5 w-5 shrink-0 rounded object-cover"/>
+	} else if n.Icon != "" {
+		if ColorHex(n.Color) != "" {
+			<span class="shrink-0" style={ "color:" + ColorHex(n.Color) }>
+				@NodeIcon(n.Icon, "h-4 w-4")
+			</span>
+		} else {
+			<span class="shrink-0 text-faint">
+				@NodeIcon(n.Icon, "h-4 w-4")
+			</span>
+		}
+	} else {
+		if ColorHex(n.Color) != "" {
+			<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={ "background-color:" + ColorHex(n.Color) }></span>
+		}
+		if n.Glyph != "" {
+			<span class="shrink-0 font-mono text-faint">{ n.Glyph }</span>
+		}
 	}
 }
 
@@ -119,19 +134,19 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 	if d.Error != "" {
 		<div class="mb-4 rounded-2xl bg-red/10 px-4 py-2 text-sm font-medium text-red" role="alert">{ d.Error }</div>
 	}
-	<form method="post" action={ nodeFormAction(editing) } hx-boost="false" class="max-w-2xl space-y-4 text-sm">
+	<form method="post" action={ nodeFormAction(editing) } enctype="multipart/form-data" hx-boost="false" class="max-w-2xl space-y-4 text-sm">
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.name") }</label>
-			<input name="name" value={ d.Vals.Name } required class="w-full rounded-lg border border-line bg-surface px-3 py-2"/>
+			<input name="name" value={ d.Vals.Name } required class="field"/>
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.slug") }</label>
-			<input name="slug" value={ d.Vals.Slug } class="w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono"/>
+			<input name="slug" value={ d.Vals.Slug } class="field font-mono"/>
 		</div>
 		<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 			<div>
 				<label class="block text-muted">{ components.T(ctx, "node.kind") }</label>
-				<select name="kind" id="node-kind" class="w-full rounded-lg border border-line bg-surface px-3 py-2">
+				<select name="kind" id="node-kind" class="field">
 					@nodeKindOption("engagement", "node.kind.engagement", d.Vals.Kind)
 					@nodeKindOption("vorhaben", "node.kind.vorhaben", d.Vals.Kind)
 					@nodeKindOption("repo", "node.kind.repo", d.Vals.Kind)
@@ -140,7 +155,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			<div>
 				<label class="block text-muted">{ components.T(ctx, "node.parent") }</label>
 				if editing != nil {
-					<select name="parentId" id="node-parent" class="w-full rounded-lg border border-line bg-surface px-3 py-2 opacity-50 cursor-not-allowed" disabled>
+					<select name="parentId" id="node-parent" class="field opacity-50 cursor-not-allowed" disabled>
 						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
 						for _, p := range d.Parents {
 							if d.Vals.ParentID == p.ID {
@@ -152,7 +167,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 					</select>
 					<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
 				} else {
-					<select name="parentId" id="node-parent" class="w-full rounded-lg border border-line bg-surface px-3 py-2">
+					<select name="parentId" id="node-parent" class="field">
 						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
 						for _, p := range d.Parents {
 							if d.Vals.ParentID == p.ID {
@@ -167,18 +182,26 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.description") }</label>
-			<textarea name="description" rows="6" class="w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono">{ d.Vals.Description }</textarea>
+			<textarea name="description" rows="6" class="field font-mono">{ d.Vals.Description }</textarea>
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.upstream") }</label>
-			<input name="upstreamGit" value={ d.Vals.UpstreamGit } placeholder="git@github.com:org/repo.git" class="w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono"/>
+			<input name="upstreamGit" value={ d.Vals.UpstreamGit } placeholder="git@github.com:org/repo.git" class="field font-mono"/>
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "node.status") }</label>
-			<select name="status" class="rounded-lg border border-line bg-surface px-3 py-2">
+			<select name="status" class="field">
 				@nodeStatusOption("active", "node.status.active", d.Vals.Status)
 				@nodeStatusOption("paused", "node.status.paused", d.Vals.Status)
 				@nodeStatusOption("archived", "node.status.archived", d.Vals.Status)
+			</select>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.counts.label") }</label>
+			<select name="countsMode" class="field">
+				@nodeCountsOption("inherit", "node.counts.inherit", d.Vals.CountsMode)
+				@nodeCountsOption("work", "node.counts.work", d.Vals.CountsMode)
+				@nodeCountsOption("privat", "node.counts.privat", d.Vals.CountsMode)
 			</select>
 		</div>
 		<div>
@@ -200,24 +223,46 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			</div>
 		</div>
 		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.icon") }</label>
+			<div class="flex flex-wrap gap-2">
+				@nodeIconRadio("", d.Vals.Icon)
+				for _, key := range domain.NodeIcons {
+					@nodeIconRadio(key, d.Vals.Icon)
+				}
+			</div>
+		</div>
+		<div>
+			<label class="block text-muted">{ components.T(ctx, "node.logo") }</label>
+			if editing != nil && editing.LogoRef != "" {
+				<div class="mb-2 flex items-center gap-3">
+					<img src={ "/nodes/" + editing.ID + "/logo?v=" + editing.LogoRef } alt="" class="h-12 w-12 rounded-xl object-cover"/>
+					<label class="flex items-center gap-2 text-[.82rem]">
+						<input type="checkbox" name="logoRemove" value="1"/> { components.T(ctx, "node.logo.remove") }
+					</label>
+				</div>
+			}
+			<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="field"/>
+			<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.logo.hint") }</p>
+		</div>
+		<div>
 			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
 			<input name="tags" value={ d.Vals.TagsCSV } placeholder="tag1 tag2"
-				class="w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono"/>
+				class="field font-mono"/>
 		</div>
 		<div id="node-rate" class="flex flex-wrap items-end gap-3">
 			<div>
 				<label class="block text-muted">{ components.T(ctx, "node.rate") }</label>
-				<input name="rateAmount" value={ d.Vals.RateAmount } placeholder="95.00" class="w-32 rounded-lg border border-line bg-surface px-3 py-2"/>
+				<input name="rateAmount" value={ d.Vals.RateAmount } placeholder="95.00" class="field w-32"/>
 			</div>
 			<div>
 				<label class="block text-muted">{ components.T(ctx, "node.rateCurrency") }</label>
-				<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="w-20 rounded-lg border border-line bg-surface px-3 py-2"/>
+				<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="field w-20"/>
 			</div>
 			<span class="text-[.75rem] text-faint">{ components.T(ctx, "node.rateHint") }</span>
 		</div>
 		<div class="flex gap-2">
 			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
-			<a href="/nodes" class="rounded-2xl border border-line px-4 py-2 hover:bg-sunken">{ components.T(ctx, "common.cancel") }</a>
+			<a href="/nodes" class="inline-flex items-center justify-center gap-2 rounded-2xl glass px-5 py-2.5 text-[.92rem] font-semibold text-ink transition hover:bg-sunken active:scale-[.99]">{ components.T(ctx, "common.cancel") }</a>
 		</div>
 	</form>
 	if editing != nil {
@@ -238,6 +283,16 @@ templ nodeKindOption(val, labelKey, current string) {
 
 templ nodeStatusOption(val, labelKey, current string) {
 	if val == current || (current == "" && val == "active") {
+		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
+	} else {
+		<option value={ val }>{ components.T(ctx, labelKey) }</option>
+	}
+}
+
+// nodeCountsOption renders one Work/Privat tri-state option; an empty current
+// value defaults to "inherit" (nil override).
+templ nodeCountsOption(val, labelKey, current string) {
+	if val == current || (current == "" && val == "inherit") {
 		<option value={ val } selected>{ components.T(ctx, labelKey) }</option>
 	} else {
 		<option value={ val }>{ components.T(ctx, labelKey) }</option>
@@ -271,6 +326,24 @@ templ nodeGlyphRadio(g, current string) {
 				∅
 			} else {
 				{ g }
+			}
+		</span>
+	</label>
+}
+
+// nodeIconRadio renders one icon-picker cell; "" is the no-icon choice.
+templ nodeIconRadio(key, current string) {
+	<label class="cursor-pointer" title={ key }>
+		if key == current {
+			<input type="radio" name="icon" value={ key } checked class="peer sr-only"/>
+		} else {
+			<input type="radio" name="icon" value={ key } class="peer sr-only"/>
+		}
+		<span class="inline-flex h-8 w-8 items-center justify-center rounded border border-line text-muted peer-checked:ring-2 peer-checked:ring-blue peer-checked:text-ink">
+			if key == "" {
+				∅
+			} else {
+				@NodeIcon(key, "h-5 w-5")
 			}
 		</span>
 	</label>

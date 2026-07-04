@@ -59,11 +59,14 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"POST", "/auth/logout"},
 		{"GET", "/zeit"},
 		{"GET", "/ui/worktime"},
-		{"POST", "/ui/worktime/start"},
-		{"POST", "/ui/worktime/stop"},
 		{"POST", "/ui/worktime/add"},
 		{"POST", "/ui/worktime/edit"},
 		{"POST", "/ui/worktime/delete"},
+		{"GET", "/ui/timer"},
+		{"GET", "/ui/timer/chip"},
+		{"POST", "/ui/timer/start"},
+		{"POST", "/ui/timer/stop"},
+		{"POST", "/ui/timer/switch"},
 		{"GET", "/static/app.css"},
 		{"GET", "/wissen"},
 		{"GET", "/ui/wissen/list"},
@@ -87,6 +90,29 @@ func TestAllRoutesRegistered(t *testing.T) {
 		h.ServeHTTP(rec, req)
 		if rec.Code == http.StatusNotFound {
 			t.Errorf("%s %s is not registered (404)", tc.method, tc.path)
+		}
+	}
+}
+
+// TestRetiredTimerRoutes_Return404 pins K3 Task 6: the Home/Heute timer
+// start/stop routes are fully retired — the K1 shell timer widget
+// (/ui/timer/start|stop|switch) is the sole start/stop surface now. POSTing
+// to any of the old routes must 404 (unregistered), not fall through to a
+// live handler.
+func TestRetiredTimerRoutes_Return404(t *testing.T) {
+	srv := &httpserver.Server{
+		Verifier: testutil.FakeVerifier{ID: ports.Identity{Subject: "s"}},
+		Ensure:   usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Bus:      sse.NewBus(),
+		Session:  websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour),
+	}
+	h := srv.Routes()
+	for _, path := range []string{"/ui/home/start", "/ui/home/stop", "/ui/worktime/start", "/ui/worktime/stop"} {
+		req := httptest.NewRequest("POST", path, nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s: got %d, want 404", path, rec.Code)
 		}
 	}
 }

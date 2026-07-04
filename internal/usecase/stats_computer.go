@@ -69,9 +69,12 @@ func startOfDay(t time.Time) time.Time {
 }
 
 // countsTowardFn loads nodes once and returns a closure that reports whether a
-// session booked to the given node id counts toward the Soll. A nil Nodes store
-// (e.g. in older tests) falls back to "count all". nil node id or unknown id →
-// counts (legacy-safe).
+// session booked to the given node id counts toward the Soll. The flag is the
+// EFFECTIVE Work/Privat value: nil = inherit, resolved up the parent chain
+// (nearest explicit ancestor wins, mirroring domain.ResolveCountsTowardTarget);
+// an all-nil chain defaults to true (Work). A nil Nodes store (e.g. in older
+// tests) falls back to "count all". nil node id or unknown id → counts
+// (legacy-safe).
 func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func(*string) bool, error) {
 	if c.Nodes == nil {
 		return func(*string) bool { return true }, nil
@@ -80,19 +83,40 @@ func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func
 	if err != nil {
 		return nil, err
 	}
-	flag := make(map[string]bool, len(nodes))
+	byID := make(map[string]domain.Node, len(nodes))
 	for _, n := range nodes {
-		flag[n.ID] = n.CountsTowardTarget
+		byID[n.ID] = n
+	}
+	// Effective flag per node, resolved in-memory over the parent chain and
+	// memoized. Cycles cannot occur (reparenting keeps the tree acyclic), and
+	// a dangling ParentID degrades to the default (true).
+	eff := make(map[string]bool, len(nodes))
+	var resolve func(id string) bool
+	resolve = func(id string) bool {
+		if v, ok := eff[id]; ok {
+			return v
+		}
+		n, ok := byID[id]
+		if !ok {
+			return true // unknown node → count (legacy-safe)
+		}
+		var v bool
+		switch {
+		case n.CountsTowardTarget != nil:
+			v = *n.CountsTowardTarget
+		case n.ParentID != nil:
+			v = resolve(*n.ParentID)
+		default:
+			v = true // root with nil flag → Work
+		}
+		eff[id] = v
+		return v
 	}
 	return func(id *string) bool {
 		if id == nil {
 			return true // unbooked time still counts toward the Soll
 		}
-		v, ok := flag[*id]
-		if !ok {
-			return true // unknown node → count (legacy-safe)
-		}
-		return v
+		return resolve(*id)
 	}, nil
 }
 

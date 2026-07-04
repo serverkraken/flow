@@ -23,6 +23,7 @@ type cockpitTestServer struct {
 	ps    *testutil.FakeNodeStore
 	bs    *testutil.FakeProjectBindingStore
 	ds    *testutil.FakeDocumentStore
+	as    *fakeActivityStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
 	codec *websession.Codec
@@ -36,6 +37,8 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
 	ds := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	as := &fakeActivityStore{}
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -52,6 +55,8 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		StartSession:      usecase.StartSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
 		StopSession:       usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		AddSession:        usecase.AddSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
+		EditSession:       usecase.EditSession{Sessions: ss, Tags: tags},
+		DeleteSession:     usecase.DeleteSession{Sessions: ss, Tags: tags},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
 		GetRunningSession: usecase.GetRunningSession{Sessions: ss},
 		GetNode:           usecase.GetNode{Nodes: ps},
@@ -63,6 +68,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		ListActivity:      usecase.ListActivity{Activities: as},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
 			Nodes:    ps, // REQUIRED for NodeStats subtree walk
@@ -71,7 +77,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 			Loc:      time.Local,
 		},
 	}
-	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, ids: ids, clk: clk, codec: codec}
+	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, as: as, ids: ids, clk: clk, codec: codec}
 }
 
 func (c *cockpitTestServer) do(t *testing.T, method, path string, form map[string]string) *httptest.ResponseRecorder {
@@ -107,10 +113,15 @@ func (c *cockpitTestServer) seedNode(t *testing.T, n domain.Node) {
 
 // TestCockpitHead_SubtreeRollupAndInheritedRate seeds a parent (Vorhaben) node
 // with an hourly rate and a child (Repo) node without its own rate, then adds a
-// 2-hour completed session on the child. It verifies that GET /nodes/p1 renders
-// the subtree rollup (child's time) and the inherited rate + earnings in the
-// cockpit head — the core deliverable of Task 2's nodeCockpitData wiring.
-// Also checks GET /nodes/c1 to confirm the child inherits the parent's rate.
+// 2-hour completed session on the child. It verifies the underlying data pipeline
+// nodeCockpitData wires (subtree rollup + inherited rate) — the core deliverable
+// of the original Task 2. Task 4 (Kristall K2) moved the Σ/earnings rollup tiles
+// out of the always-visible rail and into the Übersicht tab's content, which is
+// a later task's placeholder — so this test was consciously migrated to check
+// the SAME underlying computations via surfaces Task 4 still renders: the
+// rail's inherited-rate row (both nodes) and the Struktur tab's per-child
+// subtree total (parent), plus the rail's own-node TodayHere line (child,
+// whose 2h session happens to be "today" per the fake clock).
 func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 	c := newCockpitTestServer(t)
 
@@ -128,7 +139,7 @@ func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 	})
 
 	// Add a completed 2-hour session on the child (08:00–10:00 on 2026-06-30).
-	// Clock is 12:00 on 2026-06-30, so these times are in the past. ✓
+	// Clock is 12:00 on 2026-06-30, so these times are in the past AND "today". ✓
 	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
 	start := day.Add(8 * time.Hour)
 	stop := day.Add(10 * time.Hour)
@@ -139,40 +150,153 @@ func TestCockpitHead_SubtreeRollupAndInheritedRate(t *testing.T) {
 		t.Fatalf("AddSession on child: %v", err)
 	}
 
-	// GET parent cockpit: subtree rollup must include the child's 2 h.
+	// GET parent cockpit: rate resolves natively on p1 (rateLabel(9500,"EUR") = "95 €/h").
 	rec := c.do(t, "GET", "/nodes/p1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /nodes/p1: status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	parentBody := rec.Body.String()
-
-	// fmtDurHM(2h) = "2:00 h"; appears in the Σ-Gesamt tile of the rollup.
-	if !strings.Contains(parentBody, "2:00 h") {
-		t.Errorf("parent cockpit: missing subtree rollup %q\nbody snippet: %.800s", "2:00 h", parentBody)
-	}
-	// rateLabel(&Money{9500,"EUR"}) = "95 €/h"
 	if !strings.Contains(parentBody, "95 €/h") {
-		t.Errorf("parent cockpit: missing inherited rate label %q", "95 €/h")
-	}
-	// Earnings = 9500 cents/h × 7200 s = 19000 minor units = "190.00 EUR"
-	if !strings.Contains(parentBody, "190.00 EUR") {
-		t.Errorf("parent cockpit: missing earnings %q", "190.00 EUR")
+		t.Errorf("parent cockpit: missing rate label %q", "95 €/h")
 	}
 
-	// GET child cockpit: own session (2 h) and rate inherited from parent.
+	// The Struktur tab still lists direct children with their subtree total —
+	// the same NodeStats computation the old Σ-Gesamt tile used to show.
+	recStruktur := c.do(t, "GET", "/nodes/p1/tab/struktur", nil)
+	if recStruktur.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/p1/tab/struktur: status %d", recStruktur.Code)
+	}
+	if !strings.Contains(recStruktur.Body.String(), "2:00 h") {
+		t.Errorf("parent struktur tab: missing child subtree total %q\nbody snippet: %.800s", "2:00 h", recStruktur.Body.String())
+	}
+
+	// GET child cockpit: rate inherited from parent + own-node TodayHere.
 	rec2 := c.do(t, "GET", "/nodes/c1", nil)
 	if rec2.Code != http.StatusOK {
 		t.Fatalf("GET /nodes/c1: status %d body=%.400s", rec2.Code, rec2.Body.String())
 	}
 	childBody := rec2.Body.String()
 
-	// Child's own 2-hour session appears in its rollup.
-	if !strings.Contains(childBody, "2:00 h") {
-		t.Errorf("child cockpit: missing own session rollup %q", "2:00 h")
-	}
 	// Child has no Rate of its own; ResolveRate walks ancestors and finds parent's rate.
 	if !strings.Contains(childBody, "95 €/h") {
 		t.Errorf("child cockpit: missing inherited rate label %q", "95 €/h")
+	}
+	// "geerbt von ParentVorhaben" — the rail shows the inheritance source.
+	if !strings.Contains(childBody, "ParentVorhaben") {
+		t.Errorf("child cockpit: missing inherited-from ancestor name %q", "ParentVorhaben")
+	}
+	// TodayHere (own-node, not subtree) sums the child's 2h session (it's "today").
+	if !strings.Contains(childBody, "2:00 h") {
+		t.Errorf("child cockpit: missing own-node TodayHere %q", "2:00 h")
+	}
+}
+
+// TestCockpitRail_ContributorsFilledOnHeadPath pins the T5 fix: the rail's
+// "Beiträger" row is filled in nodeCockpitData (the always-run path), so it
+// survives the rail's OWN SSE reload (GET /nodes/{id}/head) which never calls
+// fillPanelData/uebersichtData. A regression that moved the fill back into the
+// panel builder would show an empty rail here.
+func TestCockpitRail_ContributorsFilledOnHeadPath(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Slug: "eng", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engID})
+
+	// Seed a subtree activity entry authored by "claude-code" on the repo child.
+	repoRef := "repo"
+	c.as.items = []domain.ActivityEntry{
+		{ID: "a1", OwnerID: "u1", ActorKind: "agent", ActorRef: "claude-code", Kind: "session.started", NodeRef: &repoRef, At: c.clk.Now()},
+	}
+
+	// The rail fragment path — /head — renders CockpitRail WITHOUT fillPanelData.
+	rec := c.do(t, "GET", "/nodes/eng/head", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/eng/head: status %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "claude-code") {
+		t.Errorf("rail /head must show the subtree contributor 'claude-code' (Beiträger row): %.600s", rec.Body.String())
+	}
+}
+
+// TestCockpitUebersicht_ArchivedEngagementExcludedFromOwnerTotal pins that an
+// archived root engagement's time does NOT inflate the Chain card's owner
+// total (the 100% denominator), matching the nav tree's active+paused
+// visibility. With the archived engagement counted the repo's This-row would
+// be a smaller %; excluding it, the repo (2h of a 2h active-only total) is 100%.
+func TestCockpitUebersicht_ArchivedEngagementExcludedFromOwnerTotal(t *testing.T) {
+	c := newCockpitTestServer(t)
+	// Active engagement → repo (the cockpit node), 2h of work on the repo.
+	c.seedNode(t, domain.Node{ID: "engA", OwnerID: "u1", Name: "Active", Slug: "active", Kind: domain.KindEngagement})
+	engA := "engA"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engA})
+	// Archived engagement with a large amount of logged time.
+	c.seedNode(t, domain.Node{ID: "engArch", OwnerID: "u1", Name: "Archived", Slug: "archived", Kind: domain.KindEngagement, Status: domain.NodeArchived})
+
+	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
+	repoID := "repo"
+	archID := "engArch"
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &repoID, day.Add(8*time.Hour), day.Add(10*time.Hour), nil, ""); err != nil {
+		t.Fatalf("AddSession repo: %v", err)
+	}
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &archID, day.Add(1*time.Hour), day.Add(7*time.Hour), nil, ""); err != nil {
+		t.Fatalf("AddSession archived: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/repo/tab/uebersicht", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /nodes/repo/tab/uebersicht: status %d", rec.Code)
+	}
+	body := rec.Body.String()
+	// Chain card present (repo → chain, not composition).
+	if !strings.Contains(body, "Fließt nach oben") {
+		t.Fatalf("repo cockpit missing chain card: %.600s", body)
+	}
+	// Repo This-row = 2h; owner total excludes the archived 6h, so total = 2h
+	// and the This-row bar is at 100% (width:100%). If archived leaked in,
+	// total would be 8h and the This-row would be 25%.
+	if strings.Contains(body, "width:25%") {
+		t.Errorf("archived engagement leaked into owner total (This-row at 25%%, expected 100%%): %.800s", body)
+	}
+}
+
+// TestCockpitUebersicht_SelfArchivedAncestorCountedInOwnerTotal pins the
+// EXCEPTION to the archived-exclusion rule: when the VIEWED repo's own root
+// engagement is archived (reachable by direct URL), that root's subtree MUST
+// still count in the owner total — otherwise the chain shows the repo's hours
+// in its rows while excluding them from the denominator, making every Pct
+// incoherent.
+func TestCockpitUebersicht_SelfArchivedAncestorCountedInOwnerTotal(t *testing.T) {
+	c := newCockpitTestServer(t)
+	// Viewed repo sits under an ARCHIVED engagement; a separate ACTIVE
+	// engagement carries other hours (the legitimate rest of the denominator).
+	c.seedNode(t, domain.Node{ID: "engArch", OwnerID: "u1", Name: "Archived", Slug: "archived", Kind: domain.KindEngagement, Status: domain.NodeArchived})
+	engArch := "engArch"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Slug: "flow", Kind: domain.KindRepo, ParentID: &engArch})
+	c.seedNode(t, domain.Node{ID: "engActive", OwnerID: "u1", Name: "Active", Slug: "active", Kind: domain.KindEngagement})
+
+	day := time.Date(2026, 6, 30, 0, 0, 0, 0, time.Local)
+	repoID := "repo"
+	activeID := "engActive"
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &repoID, day.Add(8*time.Hour), day.Add(10*time.Hour), nil, ""); err != nil { // 2h
+		t.Fatalf("AddSession repo: %v", err)
+	}
+	if _, err := (usecase.AddSession{Sessions: c.ss, Nodes: c.ps, IDs: c.ids, Clock: c.clk}).Execute(
+		context.Background(), "u1", &activeID, day.Add(1*time.Hour), day.Add(7*time.Hour), nil, ""); err != nil { // 6h
+		t.Fatalf("AddSession active: %v", err)
+	}
+
+	body := c.do(t, "GET", "/nodes/repo/tab/uebersicht", nil).Body.String()
+	// Owner total = repo's own archived-root subtree (2h) + active sibling (6h) =
+	// 8h, so the This-row is 2/8 = 25%. WITHOUT the exception the archived root
+	// would be excluded, ownerTotal = 6h, and the This-row would be 2/6 ≈ 33%.
+	if !strings.Contains(body, "width:25%") {
+		t.Errorf("viewed archived-root subtree must count in owner total (This-row 25%%): %.800s", body)
+	}
+	if strings.Contains(body, "width:33%") {
+		t.Errorf("owner total wrongly excluded the viewed archived root (This-row at 33%%): %.800s", body)
 	}
 }
 
@@ -185,13 +309,19 @@ func TestCockpitView_RollupAndIdentity(t *testing.T) {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"flow", `id="cockpit-head"`, `id="cockpit-main"`, "Σ Gesamt"} {
+	// "Σ Gesamt" (the old NodeHead rollup tile) moved to the Übersicht tab's
+	// content (a later task); the default landing now shows the Übersicht
+	// pill-tab active instead — asserted here in its place.
+	for _, want := range []string{"flow", `id="cockpit-rail"`, `id="cockpit-main"`, "Übersicht", `aria-current="page"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("cockpit missing %q", want)
 		}
 	}
 	if rec2 := c.do(t, "GET", "/nodes/nope", nil); rec2.Code != http.StatusNotFound {
 		t.Errorf("unknown id status=%d want 404", rec2.Code)
+	}
+	if !strings.Contains(body, "data-tabstrip") {
+		t.Fatalf("cockpit tab strip must carry the data-tabstrip scroll hook")
 	}
 }
 
@@ -333,6 +463,150 @@ func TestCockpitWissen_ListsNodeDocs(t *testing.T) {
 	body := rec.Body.String()
 	if !strings.Contains(body, "Architektur") || !strings.Contains(body, "/wissen/neu?node=n1") {
 		t.Errorf("wissen panel missing doc / scoped-new link: %.300s", body)
+	}
+}
+
+// TestCockpitWissen_EngagementDefaultShowsSubtreeDocs pins the §4 containment
+// default: an Engagement's Wissen tab shows its whole subtree's docs (here, a
+// doc booked on a child Repo) with no ?scope query, and marks the effective
+// scope "subtree" on the panel container for the toggle/tests to read.
+func TestCockpitWissen_EngagementDefaultShowsSubtreeDocs(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d1", OwnerID: "u1", NodeID: &repoID, Type: domain.DocFree,
+		Path: "doc-on-repo", Title: "doc-on-repo-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "doc-on-repo-title") {
+		t.Errorf("engagement wissen tab must include subtree (child) docs: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="subtree"`) {
+		t.Errorf("effective scope should be subtree: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_ScopeSelfIsOwnOnly pins the ?scope=self toggle: it drops
+// child-subtree docs and shows only the node's own.
+func TestCockpitWissen_ScopeSelfIsOwnOnly(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d1", OwnerID: "u1", NodeID: &repoID, Type: domain.DocFree,
+		Path: "doc-on-repo", Title: "doc-on-repo-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen?scope=self", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "doc-on-repo-title") {
+		t.Errorf("scope=self must NOT include child docs: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="self"`) {
+		t.Errorf("want self scope marker: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_RepoOwnOnlyNoToggle pins that a Repo cockpit's Wissen tab
+// stays own-only and never renders the subtree/self toggle.
+func TestCockpitWissen_RepoOwnOnlyNoToggle(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "r1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/nodes/r1/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `data-wissen-toggle`) {
+		t.Errorf("repo wissen tab must not render the subtree toggle: %.600s", body)
+	}
+	if !strings.Contains(body, `data-scope="self"`) {
+		t.Errorf("repo wissen tab scope should be self: %.600s", body)
+	}
+}
+
+// TestCockpitWissen_ForeignDocNotLeaked pins owner-scoping on the subtree
+// rollup path: wissenTabDocs fetches ALL of the requesting owner's docs
+// (ListDocuments.Execute(ctx, u.ID, nil, nil)) and filters in-memory by
+// subtree node id — it must never surface another owner's document even if
+// that document happens to carry a NodeID matching a node in the requester's
+// own subtree.
+func TestCockpitWissen_ForeignDocNotLeaked(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+	engID := "eng"
+	c.seedNode(t, domain.Node{ID: "repo", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, ParentID: &engID})
+	repoID := "repo"
+
+	u2, _ := domain.NewUser("u2", "sub-2", "other", "o@x.de", "O")
+	_, _ = c.srv.Users.UpsertBySub(context.Background(), u2)
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "d-foreign", OwnerID: "u2", NodeID: &repoID, Type: domain.DocFree,
+		Path: "foreign-doc", Title: "foreign-doc-title", Body: "# A",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "foreign-doc-title") {
+		t.Errorf("foreign owner's subtree doc leaked into wissen tab: %.600s", rec.Body.String())
+	}
+}
+
+// TestCockpitWissen_ScopeSelfSSEReloadPreservesScope pins that the wissen
+// panel's SSE-driven live-reload (#cockpit-panel's hx-get, fired on
+// sse:document.*) carries ?scope=self when the user toggled to "Nur dieser
+// Knoten" — otherwise a document event would silently revert the panel to
+// the subtree default on next reload.
+func TestCockpitWissen_ScopeSelfSSEReloadPreservesScope(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen?scope=self", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-get="/nodes/eng/tab/wissen?scope=self" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload must carry scope=self: %.800s", body)
+	}
+}
+
+// TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope pins the counterpart: the
+// default subtree scope must NOT gain a stray ?scope= param on the SSE
+// live-reload URL.
+func TestCockpitWissen_ScopeSubtreeSSEReloadOmitsScope(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "eng", OwnerID: "u1", Name: "Engagement", Kind: domain.KindEngagement})
+
+	rec := c.do(t, "GET", "/nodes/eng/tab/wissen", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `hx-get="/nodes/eng/tab/wissen" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload (subtree) must not carry scope param: %.800s", body)
+	}
+	if strings.Contains(body, `hx-get="/nodes/eng/tab/wissen?scope=self" hx-trigger="sse:document.created`) {
+		t.Errorf("wissen panel SSE-reload (subtree) leaked scope=self: %.800s", body)
 	}
 }
 

@@ -130,10 +130,16 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 // nodeRollupDTO is the wire shape for the subtree worktime rollup.
+// Work*Min is the subset of *Min that counts toward the Soll (effective
+// CountsTowardTarget flag = Work); Privat is Total-Work / Week-WorkWeek /
+// Month-WorkMonth, derived by the consumer.
 type nodeRollupDTO struct {
-	TotalMin int `json:"totalMin"`
-	WeekMin  int `json:"weekMin"`
-	MonthMin int `json:"monthMin"`
+	TotalMin     int `json:"totalMin"`
+	WeekMin      int `json:"weekMin"`
+	MonthMin     int `json:"monthMin"`
+	WorkTotalMin int `json:"workTotalMin"`
+	WorkWeekMin  int `json:"workWeekMin"`
+	WorkMonthMin int `json:"workMonthMin"`
 }
 
 func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
@@ -147,9 +153,12 @@ func (s *Server) handleNodeStats(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
 		writeJSON(w, http.StatusOK, nodeRollupDTO{
-			TotalMin: minutes(roll.Total),
-			WeekMin:  minutes(roll.Week),
-			MonthMin: minutes(roll.Month),
+			TotalMin:     minutes(roll.Total),
+			WeekMin:      minutes(roll.Week),
+			MonthMin:     minutes(roll.Month),
+			WorkTotalMin: minutes(roll.WorkTotal),
+			WorkWeekMin:  minutes(roll.WorkWeek),
+			WorkMonthMin: minutes(roll.WorkMonth),
 		})
 	}
 }

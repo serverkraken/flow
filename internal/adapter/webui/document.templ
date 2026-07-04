@@ -48,7 +48,7 @@ templ DocumentFragment(vm DocumentVM) {
 							{ vm.KindLabel }
 						</span>
 						if vm.NodeName != "" {
-							<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
+							<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class="inline-flex items-center gap-2 rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
 								if vm.ProjectColor != "" {
 									<span class="h-2.5 w-2.5 rounded-full" style={ projectSwatchStyle(vm.ProjectColor) } aria-hidden="true"></span>
 								}
@@ -63,18 +63,18 @@ templ DocumentFragment(vm DocumentVM) {
 					if len(vm.Tags) > 0 {
 						<div class="mt-4 flex flex-wrap gap-2">
 							for _, tag := range vm.Tags {
-								<a href={ templ.SafeURL(tag.Href) } class="rounded-full border border-line bg-surface px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue">{ "#" + tag.Tag }</a>
+								<a href={ templ.SafeURL(tag.Href) } class="rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue">{ "#" + tag.Tag }</a>
 							}
 						</div>
 					}
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					<a href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") }
-						class="inline-flex items-center justify-center rounded-xl border border-line bg-surface px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue">
+						class="inline-flex items-center justify-center rounded-xl glass px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue">
 						{ components.T(ctx, "wissen.edit") }
 					</a>
 					<button type="button" data-dialog-open={ "del-" + vm.ID }
-						class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-muted hover:border-danger/40 hover:text-danger"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-xl glass text-muted hover:border-danger/40 hover:text-danger"
 						aria-label={ components.T(ctx, "common.delete") }>
 						<span aria-hidden="true">x</span>
 					</button>
@@ -99,7 +99,7 @@ templ DocumentFragment(vm DocumentVM) {
 			@components.Toc("toc-mobile")
 		</div>
 		<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start">
-			<section data-document-prose class="min-w-0 max-w-full">
+			<section data-document-prose class="min-w-0 max-w-full rounded-2xl glass shadow-soft p-6">
 				@components.MarkdownProse(vm.HTML)
 			</section>
 			<div class="min-w-0 space-y-4 lg:sticky lg:top-6">
@@ -124,7 +124,7 @@ templ DocumentEmbedBadge(docID string, e EmbedView) {
 		}
 		if e.ShowRetry {
 			<form hx-post={ "/wissen/" + docID + "/reembed" } hx-target="closest div" hx-swap="outerHTML" class="inline">
-				<button type="submit" class="rounded-lg border border-line bg-surface px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue">
+				<button type="submit" class="rounded-lg glass px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue">
 					{ components.T(ctx, "embed.retry") }
 				</button>
 			</form>

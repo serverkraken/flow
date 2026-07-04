@@ -257,6 +257,91 @@ func getWissen(t *testing.T, h http.Handler, url string, codec *websession.Codec
 	return rec.Body.String(), rec.Code
 }
 
+// TestWebWissenHomeOnGlass pins the Kristall glass swap on the /wissen
+// overview: positive (glass present on the overview cards), preservation
+// (category links + search form action + doc counts survive the swap), and
+// negative (the old hand-rolled bg-ink CTA + bg-surface card chrome are gone).
+func TestWebWissenHomeOnGlass(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25",
+		Title: "Daily One", Body: "daily body", Date: &now, CreatedAt: now, UpdatedAt: now,
+	})
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
+	}
+
+	// Positive: the overview cards carry the glass class.
+	if !strings.Contains(body, "glass") {
+		t.Errorf("wissen overview not on glass: %.500s", body)
+	}
+
+	// Preservation: category hrefs, search form action, and the "Neu" link
+	// still resolve after the chrome swap.
+	for _, want := range []string{
+		`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`,
+		`action="/wissen"`, `href="/wissen/neu"`, "Daily One",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("wissen overview missing %q after glass swap: %.800s", want, body)
+		}
+	}
+
+	// Negative: the old hand-rolled Studio chrome is gone.
+	if strings.Contains(body, "bg-ink px-5") {
+		t.Errorf("wissen overview still has the old bg-ink CTA button: %.500s", body)
+	}
+	if strings.Contains(body, "rounded-2xl border border-line bg-surface") {
+		t.Errorf("wissen overview cards still have the old bg-surface chrome: %.500s", body)
+	}
+}
+
+// TestWebWissenCategoryOnGlass pins the glass swap on a category page (the
+// doc-list container, the category nav pill, the search input, and inactive
+// tag chips), while preserving the sse hx-trigger wiring and doc links.
+func TestWebWissenCategoryOnGlass(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25",
+		Title: "Daily One", Body: "daily body", Tags: []string{"log"}, Date: &now, CreatedAt: now, UpdatedAt: now,
+	})
+
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/daily", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/daily status=%d body=%.300s", status, body)
+	}
+
+	if !strings.Contains(body, "glass") {
+		t.Errorf("wissen category page not on glass: %.500s", body)
+	}
+
+	for _, want := range []string{
+		`href="/wissen/daily"`, `href="/wissen/neu"`, "Daily One",
+		"sse:document.created, sse:document.updated, sse:document.deleted",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("wissen category page missing %q after glass swap: %.800s", want, body)
+		}
+	}
+
+	if strings.Contains(body, "bg-ink px-5") {
+		t.Errorf("wissen category page still has the old bg-ink CTA button: %.500s", body)
+	}
+	if strings.Contains(body, "rounded-2xl border border-line bg-surface") {
+		t.Errorf("wissen category doc-list still has the old bg-surface chrome: %.500s", body)
+	}
+	if strings.Contains(body, "border border-line bg-surface px-3 py-2") {
+		t.Errorf("wissen category nav pill still has the old bg-surface chrome: %.500s", body)
+	}
+	if strings.Contains(body, "border border-line bg-surface px-4 py-2.5") {
+		t.Errorf("wissen search input still has the old bg-surface chrome: %.500s", body)
+	}
+}
+
 // TestWissenProjectGroup_KindBadge verifies that a project-type document grouped
 // under a repo node shows the node's kind badge in the group header.
 // D7: doc-group headers must render @nodeKindBadge(group.Kind).

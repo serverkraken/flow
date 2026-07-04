@@ -2,17 +2,17 @@ package webui
 
 import "github.com/serverkraken/flow/internal/domain"
 
-// colorHex maps each domain.NodeColors name to its Tokyonight-Night hex.
-// MUST cover every name in domain.NodeColors (enforced by a drift-guard test).
-var colorHex = map[string]string{
-	"blue": "#7aa2f7", "cyan": "#7dcfff", "green": "#9ece6a",
-	"purple": "#bb9af7", "magenta": "#ff007c", "yellow": "#e0af68",
-	"orange": "#ff9e64", "red": "#f7768e", "teal": "#73daca",
+// ColorHex returns a token-reactive CSS color expression for a whitelisted
+// color name ("" for unset/unknown). rgb(var(--x)) flips with the theme —
+// a fixed hex would freeze node swatches in one palette.
+func ColorHex(name string) string {
+	for _, n := range domain.NodeColors {
+		if n == name {
+			return "rgb(var(--" + name + "))"
+		}
+	}
+	return ""
 }
-
-// ColorHex returns the swatch hex for a whitelisted color name, or "" for unset
-// or unknown (the caller renders no swatch rather than guessing).
-func ColorHex(name string) string { return colorHex[name] }
 
 // StatusBadge returns a German label and Tailwind chip classes for a node status.
 func StatusBadge(s domain.NodeStatus) (label, classes string) {

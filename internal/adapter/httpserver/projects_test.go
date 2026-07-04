@@ -178,6 +178,58 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 }
 
+// TestCreateAndUpdateNode_IconRoundTrips pins REST parity for the icon field
+// (cockpit-story Task 5): create with an icon + upstream (which triggers the
+// handler's follow-up full-replace UpdateNodeInput call to apply description/
+// upstream) must not wipe the icon that CreateNode just set, and a PATCH must
+// be able to change it.
+func TestCreateAndUpdateNode_IconRoundTrips(t *testing.T) {
+	_, do, _ := newProjectsSrv(t)
+
+	// Create with an icon AND an upstreamGit, so the handler's post-create
+	// UpdateNodeInput call (to apply description/upstream) also runs.
+	res := do("POST", "/api/v1/nodes",
+		`{"name":"Iconic","kind":"engagement","icon":"rocket","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create status %d, want 201", res.StatusCode)
+	}
+	var created map[string]any
+	if err := decodeJSON(res.Body, &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	_ = res.Body.Close()
+	id := created["id"].(string)
+	if created["icon"] != "rocket" {
+		t.Fatalf("create response icon = %v, want rocket (must survive the post-create description/upstream UpdateNodeInput call)", created["icon"])
+	}
+
+	// GET confirms the icon persisted (not just echoed on create response).
+	res = do("GET", "/api/v1/nodes/"+id, "")
+	var one map[string]any
+	if err := decodeJSON(res.Body, &one); err != nil {
+		t.Fatalf("decode one: %v", err)
+	}
+	_ = res.Body.Close()
+	if one["icon"] != "rocket" {
+		t.Fatalf("GET icon = %v, want rocket", one["icon"])
+	}
+
+	// PATCH with a different icon → response reflects the new value.
+	res = do("PATCH", "/api/v1/nodes/"+id,
+		`{"name":"Iconic","slug":"iconic","status":"active","icon":"flask-conical"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PATCH status %d, want 200", res.StatusCode)
+	}
+	var upd map[string]any
+	if err := decodeJSON(res.Body, &upd); err != nil {
+		t.Fatalf("decode upd: %v", err)
+	}
+	_ = res.Body.Close()
+	if upd["icon"] != "flask-conical" {
+		t.Errorf("PATCH icon = %v, want flask-conical", upd["icon"])
+	}
+}
+
 func TestListProjectsStatusFilter(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 

@@ -42,7 +42,8 @@ func TestNodeTimer_States(t *testing.T) {
 
 func TestNormalizeTab(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
-		{"", "worktime"}, {"bogus", "worktime"}, {"wissen", "wissen"},
+		{"", "uebersicht"}, {"bogus", "uebersicht"}, {"uebersicht", "uebersicht"},
+		{"worktime", "worktime"}, {"wissen", "wissen"},
 		{"struktur", "struktur"}, {"bindings", "bindings"},
 	} {
 		if got := webui.NormalizeTab(c.in); got != c.want {

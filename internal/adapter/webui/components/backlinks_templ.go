@@ -36,7 +36,7 @@ func Backlinks(items []Backlink) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<aside class=\"rounded-2xl border border-line bg-surface p-4 shadow-soft\"><h2 class=\"mb-3 font-display text-base font-semibold text-ink\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<aside class=\"rounded-2xl glass p-4 shadow-soft\"><h2 class=\"mb-3 font-display text-base font-semibold text-ink\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

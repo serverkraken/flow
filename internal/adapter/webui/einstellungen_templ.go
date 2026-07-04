@@ -228,7 +228,7 @@ func einstellungenTargetBody(vm EinstellungenVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"mt-1 w-32 rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.9rem] font-mono tnum focus:border-blue/40 transition-colors\"></label><div><p class=\"eyebrow uppercase text-[.68rem] font-semibold text-muted mb-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"field mt-1 w-32 font-mono tnum\"></label><div><p class=\"eyebrow uppercase text-[.68rem] font-semibold text-muted mb-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -298,7 +298,7 @@ func einstellungenTargetBody(vm EinstellungenVM) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"mt-1 w-full rounded-lg border border-line bg-sunken/60 px-3 py-2 text-[.85rem] font-mono tnum focus:border-blue/40 transition-colors\"></label>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" min=\"0\" max=\"1440\" inputmode=\"numeric\" class=\"field mt-1 w-full font-mono tnum\"></label>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

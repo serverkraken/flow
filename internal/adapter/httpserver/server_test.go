@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -84,6 +83,7 @@ func TestSessionStartStopRoutes(t *testing.T) {
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
+		GetNode:    usecase.GetNode{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -153,6 +153,7 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
+		GetNode:    usecase.GetNode{Nodes: ps},
 		EditSession:   usecase.EditSession{Sessions: ss, Tags: tags},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}
@@ -337,64 +338,14 @@ func TestWebFragmentWithSession(t *testing.T) {
 	}
 	body, _ := io.ReadAll(res.Body)
 	_ = res.Body.Close()
-	if !strings.Contains(string(body), "/ui/worktime/start") {
-		t.Fatalf("fragment missing start form: %s", string(body))
+	// Heute is a pure glass ledger since Kristall K3 — the idle state shows the
+	// Nachbuchen add SessionDialog, not a start form (owned by the sidebar widget).
+	if !strings.Contains(string(body), "/ui/worktime/add") {
+		t.Fatalf("fragment missing add SessionDialog: %s", string(body))
 	}
 }
 
-func TestWebStartSession(t *testing.T) {
-	ts, codec, uid := newWebSrv(t)
-	cookieVal, _ := codec.Issue(uid)
-
-	req, _ := http.NewRequest("POST", ts.URL+"/ui/worktime/start", nil)
-	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("start status %d", res.StatusCode)
-	}
-	body, _ := io.ReadAll(res.Body)
-	_ = res.Body.Close()
-	// After start, the running timer should appear in the fragment.
-	if !strings.Contains(string(body), "stop") {
-		t.Fatalf("fragment after start missing stop button: %s", string(body))
-	}
-}
-
-func TestWebStopSession(t *testing.T) {
-	ts, codec, uid := newWebSrv(t)
-	cookieVal, _ := codec.Issue(uid)
-
-	doWeb := func(method, path string, form url.Values) *http.Response {
-		var body io.Reader
-		var ct string
-		if form != nil {
-			body = strings.NewReader(form.Encode())
-			ct = "application/x-www-form-urlencoded"
-		}
-		req, _ := http.NewRequest(method, ts.URL+path, body)
-		req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
-		if ct != "" {
-			req.Header.Set("Content-Type", ct)
-		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return res
-	}
-
-	// First, start a session via webui.
-	res := doWeb("POST", "/ui/worktime/start", nil)
-	_ = res.Body.Close()
-
-	// Now, create a project and stop via webui with newProject field.
-	form := url.Values{"newProject": {"TestProj"}, "sessionId": {""}}
-	res = doWeb("POST", "/ui/worktime/stop", form)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("stop status %d", res.StatusCode)
-	}
-	_ = res.Body.Close()
-}
+// Session start/stop over HTTP is now covered end-to-end by
+// TestTimerWidget_Lifecycle (webui_timer_test.go) against the K1 shell timer
+// widget's /ui/timer/start|stop routes — the sole start/stop surface since
+// K3 Task 6 retired /ui/worktime/start|stop.

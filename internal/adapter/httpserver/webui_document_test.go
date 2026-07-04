@@ -67,10 +67,52 @@ func TestWebWissenDocumentView(t *testing.T) {
 		`href="/wissen/target/bearbeiten"`,
 		"Source Link",
 		`href="/wissen/source"`,
+		"glass", // Kristall glass chrome (node pill / tag pills / edit / delete)
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("GET /wissen/target missing %q in %.1200s", want, body)
 		}
+	}
+	// The Dokument-owned meta/action chrome (node pill, tag pills, edit/delete
+	// actions) must be glass, not the old hand-rolled bg-surface/border-line.
+	// Scope the negative check to the swapped block only: from the fragment
+	// root up to the (untouched, shared) ConfirmDialog markup — that shared
+	// component still legitimately renders "border border-line bg-surface"
+	// and is explicitly out of scope for this task.
+	fragStart := strings.Index(body, `id="document-fragment"`)
+	dialogStart := strings.Index(body, `<dialog id="del-target"`)
+	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
+		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
+	}
+	swappedBlock := body[fragStart:dialogStart]
+	if strings.Contains(swappedBlock, "bg-surface") {
+		t.Errorf("Dokument meta/action chrome should use glass, not bg-surface, got swapped block:\n%s", swappedBlock)
+	}
+	// Also verify the toc/prose/backlinks region (after ConfirmDialog closes)
+	// must use glass. If toc.templ, backlinks.templ, or the prose wrapper
+	// revert to bg-surface, this assertion must catch it.
+	dialogEnd := strings.Index(body, `</dialog>`)
+	articleEnd := strings.Index(body, `</article>`)
+	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
+		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
+	}
+	treeBlock := body[dialogEnd:articleEnd]
+	if strings.Contains(treeBlock, "bg-surface") {
+		t.Errorf("Toc/prose/backlinks should use glass, not bg-surface, got block:\n%s", treeBlock)
+	}
+	// Node pill, tag pill, edit/delete actions, and the reembed retry chrome
+	// (structure, hrefs, hx-attrs) must still be present after the restyle.
+	if !strings.Contains(body, `data-dialog-open="del-target"`) {
+		t.Errorf("expected delete confirm-dialog trigger to survive the glass swap, got:\n%s", body)
+	}
+	if !strings.Contains(body, "hover:text-danger") {
+		t.Errorf("expected delete button to keep hover:text-danger, got:\n%s", body)
+	}
+	if !strings.Contains(body, `id="document-fragment"`) {
+		t.Errorf("expected DocumentFragment structure intact, got:\n%s", body)
+	}
+	if !strings.Contains(body, `hx-post="/wissen/target/delete"`) {
+		t.Errorf("expected delete ConfirmDialog hx-post intact, got:\n%s", body)
 	}
 }
 

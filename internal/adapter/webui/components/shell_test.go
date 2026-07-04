@@ -66,6 +66,16 @@ func TestSiteNavMarksActive(t *testing.T) {
 	}
 }
 
+func TestSiteNav_ScrollRegion(t *testing.T) {
+	// K5 L2: the nav must be its own scroll region so brand/timer (above) and
+	// logout (below) stay pinned while the tree/nav list scrolls on short
+	// viewports — otherwise the last item ("Einstellungen") is clipped.
+	out := render(t, components.SiteNav("home"))
+	if !strings.Contains(out, "overflow-y-auto") || !strings.Contains(out, "min-h-0") {
+		t.Fatalf("SiteNav nav must be a scroll region (min-h-0 overflow-y-auto): %s", out)
+	}
+}
+
 func TestAppShellRendersSlotsAndChrome(t *testing.T) {
 	bc := templ.Raw(`<nav id="bc">crumbs</nav>`)
 	sn := templ.Raw(`<div id="sn">subnav</div>`)

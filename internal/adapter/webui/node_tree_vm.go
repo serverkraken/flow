@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
@@ -12,10 +13,12 @@ import (
 )
 
 // TreeRow is one rendered line of the node tree: the node plus its depth (0 =
-// engagement root) so the template can indent it.
+// engagement root) so the template can indent it. Hours is the subtree hour
+// badge ("41h"; empty under 1h).
 type TreeRow struct {
 	Level int
 	Node  domain.Node
+	Hours string
 }
 
 // buildNodeTree turns a flat node slice into a depth-first, indented row list:
@@ -112,9 +115,10 @@ type NodesPageData struct {
 type NodeFormValues struct {
 	Name, Slug, Kind, ParentID       string
 	Description, UpstreamGit, Status string
-	Color, Glyph                     string
+	Color, Glyph, Icon               string
 	RateAmount, RateCurrency         string
 	TagsCSV                          string // space-separated tag slugs for the tags input
+	CountsMode                       string // Work/Privat tri-state: ""/"inherit" | "work" | "privat"
 }
 
 // NodeFormData drives the create (editing==nil) / edit form.
@@ -151,6 +155,50 @@ func MoveTargetsFor(all []domain.Node, n domain.Node) []domain.Node { return mov
 // BuildTree is the exported entry point used by the httpserver adapter.
 func BuildTree(nodes []domain.Node) []TreeRow { return buildNodeTree(nodes) }
 
+// SubtreeHourTotals aggregates each node's SUBTREE worktime in ONE pass over
+// the owner's sessions (owner-scoped by construction — callers pass one
+// owner's nodes+sessions): every session adds its elapsed time to its node
+// and all ancestors. Unbooked sessions are skipped.
+func SubtreeHourTotals(nodes []domain.Node, sessions []domain.WorkSession, now time.Time) map[string]time.Duration {
+	parent := make(map[string]*string, len(nodes))
+	for _, n := range nodes {
+		parent[n.ID] = n.ParentID
+	}
+	totals := make(map[string]time.Duration, len(nodes))
+	for _, s := range sessions {
+		if s.NodeID == nil {
+			continue
+		}
+		el := s.Elapsed(now)
+		if el <= 0 {
+			continue
+		}
+		id := *s.NodeID
+		for {
+			p, ok := parent[id]
+			if !ok {
+				break // node not visible (archived/foreign) — stop the walk
+			}
+			totals[id] += el
+			if p == nil {
+				break
+			}
+			id = *p
+		}
+	}
+	return totals
+}
+
+// FillTreeHours stamps rows with a compact subtree-hours badge ("41h");
+// under one hour the badge stays empty to keep the tree calm.
+func FillTreeHours(rows []TreeRow, totals map[string]time.Duration) {
+	for i := range rows {
+		if h := int(totals[rows[i].Node.ID].Hours()); h >= 1 {
+			rows[i].Hours = fmt.Sprintf("%dh", h)
+		}
+	}
+}
+
 // NodeSelectOptions builds hierarchy-ordered <select> options for a node picker:
 // each option is depth-indented (engagement → vorhaben → repo) and carries the
 // node's kind glyph + localized kind label, so a flat dropdown no longer hides
@@ -180,6 +228,14 @@ func nodeFilterChip(active bool) string {
 // nodeIndentStyle returns an inline CSS padding-left for depth-based indentation
 // in the tree (1 rem per level).
 func nodeIndentStyle(level int) string { return fmt.Sprintf("padding-left:%drem", level) }
+
+// nvHue appends the node-color custom property for the tree dot ("" when unset).
+func nvHue(color string) string {
+	if ColorHex(color) == "" {
+		return ""
+	}
+	return ";--nc:var(--" + color + ")"
+}
 
 // nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).
 func nodeFormAction(editing *domain.Node) templ.SafeURL {

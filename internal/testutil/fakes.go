@@ -161,6 +161,8 @@ func (s *FakeNodeStore) Update(_ context.Context, ownerID string, p domain.Node)
 	existing.Status = p.Status
 	existing.Extra = p.Extra
 	existing.CountsTowardTarget = p.CountsTowardTarget
+	existing.Icon = p.Icon
+	existing.LogoRef = p.LogoRef
 	existing.UpdatedAt = p.UpdatedAt
 	s.m[p.ID] = existing
 	return existing, nil
@@ -1361,3 +1363,40 @@ func pseudoVec(s string, dim int) []float32 {
 }
 
 var _ ports.TagStore = (*FakeTagStore)(nil)
+
+// FakeNodeLogoStore is an in-memory ports.NodeLogoStore (keyed by node ID).
+type FakeNodeLogoStore struct {
+	mu    sync.Mutex
+	logos map[string]domain.NodeLogo
+}
+
+// NewFakeNodeLogoStore builds an empty in-memory logo store.
+func NewFakeNodeLogoStore() *FakeNodeLogoStore {
+	return &FakeNodeLogoStore{logos: map[string]domain.NodeLogo{}}
+}
+
+func (s *FakeNodeLogoStore) Put(_ context.Context, l domain.NodeLogo) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logos[l.NodeID] = l
+	return nil
+}
+
+func (s *FakeNodeLogoStore) Get(_ context.Context, ownerID, nodeID string) (domain.NodeLogo, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	l, ok := s.logos[nodeID]
+	if !ok || l.OwnerID != ownerID {
+		return domain.NodeLogo{}, ports.ErrNodeLogoNotFound
+	}
+	return l, nil
+}
+
+func (s *FakeNodeLogoStore) Delete(_ context.Context, ownerID, nodeID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if l, ok := s.logos[nodeID]; ok && l.OwnerID == ownerID {
+		delete(s.logos, nodeID)
+	}
+	return nil
+}

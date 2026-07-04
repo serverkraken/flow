@@ -1,6 +1,9 @@
 package webui
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -18,121 +21,249 @@ templ nodeBreadcrumb(d NodeCockpit) {
 	@components.Breadcrumb(nodeCrumbs(d))
 }
 
+// cockpitBody is the two-column Kristall layout (Direction B): a persistent
+// left rail (identity + timer + quick actions, its own SSE container) beside
+// a tab-switchable right column (#cockpit-main, unchanged canonical target
+// for every tab link / panel SSE reload / mutation form). Under lg it stacks
+// rail-first via normal document flow. The single shared session dialog is
+// mounted once here — Quick Actions' "Nachbuchen" button opens it.
 templ cockpitBody(d NodeCockpit) {
-	// head reloads on timer/struct events; never resets the active tab.
-	<div
-		id="cockpit-head"
-		hx-get={ "/nodes/" + d.N.ID + "/head" }
-		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:node.updated, sse:node.moved"
-		hx-swap="innerHTML"
-	>
-		@NodeHead(d)
+	<div class="grid gap-4 lg:grid-cols-[340px_1fr] items-start">
+		<div
+			id="cockpit-rail"
+			class="lg:sticky lg:top-6 flex flex-col gap-4"
+			hx-get={ "/nodes/" + d.N.ID + "/head" }
+			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:node.updated, sse:node.moved"
+			hx-swap="innerHTML"
+		>
+			@CockpitRail(d)
+		</div>
+		<div id="cockpit-main" class="min-w-0">
+			@CockpitTabsAndPanel(d)
+		</div>
 	</div>
-	// main = tabstrip + panel; tab clicks swap this whole block (keeps active state).
-	<div id="cockpit-main" class="mt-6">
-		@CockpitTabsAndPanel(d)
+	@components.SessionDialog(sessionDialogAddVM(d))
+}
+
+// CockpitRail is the persistent left schiene: three glass cards (identity,
+// timer, quick actions). It replaces the old single-section NodeHead — the
+// SSE fragment served at GET /nodes/{id}/head now renders this. NodeTimer's
+// state machine is untouched; only its presentation lives here now.
+templ CockpitRail(d NodeCockpit) {
+	<section class="relative overflow-hidden rounded-3xl glass shadow-lift p-5 text-center">
+		<span class={ "absolute inset-y-0 left-0 w-1", cockpitAccent(d.N.Color) } aria-hidden="true"></span>
+		@cockpitRailHero(d)
+		<h1 class="font-display text-2xl font-bold text-ink truncate">{ d.N.Name }</h1>
+		<div class="mt-2 flex flex-wrap items-center justify-center gap-2 text-sm">
+			@nodeKindBadge(d.N.Kind)
+			@nodeStatusBadge(d.N.Status)
+			// Only entry point to the node edit form (name/color/icon/logo/rate);
+			// full-page navigation per the canonical htmx rule (from c8c4dee).
+			<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } hx-boost="false" class="text-muted underline hover:text-ink">{ components.T(ctx, "common.edit") }</a>
+		</div>
+		if d.DescriptionHTML != "" {
+			<div class="prose preview-clamp mt-3 max-w-none text-left text-sm">@templ.Raw(string(d.DescriptionHTML))</div>
+		}
+		@cockpitIdMeta(d)
+	</section>
+	@cockpitTimer(d)
+	@cockpitQuickActions(d)
+}
+
+// cockpitRailHero renders the 110px identity hero — priority: uploaded logo
+// (tile-contained when LogoShape=="tile", hex-cropped otherwise) > whitelisted
+// icon (hex glass tile, tinted in the node color) > glyph (color tile). A
+// small glass badge in the corner carries the node-kind glyph.
+templ cockpitRailHero(d NodeCockpit) {
+	<div class="relative mx-auto mb-3.5 h-[110px] w-[110px]">
+		if d.N.LogoRef != "" {
+			if d.LogoShape == "tile" {
+				<img
+					src={ "/nodes/" + d.N.ID + "/logo?v=" + d.N.LogoRef }
+					alt=""
+					class="absolute inset-0 h-[110px] w-[110px] rounded-2xl glass object-contain p-2"
+				/>
+			} else {
+				<div
+					class="absolute -inset-1 opacity-70"
+					style="clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:linear-gradient(135deg,rgb(var(--purple) / .6),rgb(var(--cyan) / .5))"
+					aria-hidden="true"
+				></div>
+				<img
+					src={ "/nodes/" + d.N.ID + "/logo?v=" + d.N.LogoRef }
+					alt=""
+					class="absolute inset-0 h-[110px] w-[110px] object-cover"
+					style="clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)"
+				/>
+			}
+		} else if d.N.Icon != "" {
+			<span
+				class={ "absolute inset-0 grid h-[110px] w-[110px] place-items-center", cockpitTileClass(d.N.Color) }
+				style="clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)"
+				aria-hidden="true"
+			>
+				@NodeIcon(d.N.Icon, "h-12 w-12")
+			</span>
+		} else {
+			<span class={ "absolute inset-0 grid h-[110px] w-[110px] place-items-center rounded-2xl text-4xl", cockpitTileClass(d.N.Color) } aria-hidden="true">{ glyphOrDefault(d.N.Glyph) }</span>
+		}
+		<span class="absolute -right-0.5 bottom-0.5 grid h-[26px] w-[26px] place-items-center rounded-full glass text-blue" aria-hidden="true">{ NodeKindStyle(d.N.Kind).Glyph }</span>
 	</div>
 }
 
-// NodeHead is the persistent glass head: identity, rate, rollup, timer.
-templ NodeHead(d NodeCockpit) {
-	<section class="relative overflow-hidden rounded-3xl bg-surface border border-line shadow-lift">
-		<span class={ "absolute inset-y-0 left-0 w-1", cockpitAccent(d.N.Color) } aria-hidden="true"></span>
-		<div class="relative p-6 sm:p-8">
-			<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-				<div class="flex items-center gap-4 min-w-0">
-					@cockpitHex(d.N)
-					<div class="min-w-0">
-						<h1 class="font-display text-2xl sm:text-3xl font-semibold leading-tight truncate">{ d.N.Name }</h1>
-						<div class="mt-2 flex items-center gap-2 flex-wrap text-sm">
-							@nodeKindBadge(d.N.Kind)
-							@nodeStatusBadge(d.N.Status)
-							if d.Rate != "" {
-								<span class="text-muted">· { d.Rate } <span class="text-faint">({ components.T(ctx, "cockpit.rollup.rateInherited") })</span></span>
-							}
-						</div>
-					</div>
+// cockpitIdMeta is the identity card's summary box: inherited rate (+ its
+// source when not set directly on this node), Engagement child count, Repo
+// upstream git, and subtree contributors (T5 fills Contributors; the row
+// renders conditionally so it's a no-op until then).
+templ cockpitIdMeta(d NodeCockpit) {
+	{{
+		rateSrc := cockpitRateSource(d)
+		showInherited := d.Rate != "" && d.N.Rate == nil && rateSrc != ""
+		showChildren := d.N.Kind == domain.KindEngagement
+		showGit := d.N.Kind == domain.KindRepo && d.N.UpstreamGit != ""
+		showContrib := len(d.Contributors) > 0
+	}}
+	if d.Rate != "" || showChildren || showGit || showContrib {
+		<div class="mt-4 flex flex-col gap-2 rounded-xl bg-sunken/60 p-3 text-left text-[.8rem]">
+			if d.Rate != "" {
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-faint">{ components.T(ctx, "cockpit.rail.rate") }</span>
+					<span class="font-semibold text-yellow">{ d.Rate }</span>
 				</div>
-				<div class="w-full sm:w-auto">
-					@cockpitTimer(d)
-				</div>
-			</div>
-			@cockpitRollup(d)
-			if d.DescriptionHTML != "" {
-				<div class="prose max-w-none mt-6 text-sm">@templ.Raw(string(d.DescriptionHTML))</div>
 			}
+			if showInherited {
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-faint">{ components.T(ctx, "cockpit.rail.inherited") }</span>
+					<span class="truncate font-semibold text-ink">{ rateSrc }</span>
+				</div>
+			}
+			if showChildren {
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-faint">{ components.T(ctx, "cockpit.rail.children") }</span>
+					<span class="font-semibold text-ink">{ strconv.Itoa(d.TabCounts["struktur"]) }</span>
+				</div>
+			}
+			if showGit {
+				<div class="truncate font-mono text-faint">{ gitDisplay(d.N.UpstreamGit) }</div>
+			}
+			if showContrib {
+				<div class="flex items-center justify-between gap-3">
+					<span class="text-faint">{ components.T(ctx, "cockpit.rail.contributors") }</span>
+					<span class="truncate font-semibold text-ink">{ strings.Join(d.Contributors, ", ") }</span>
+				</div>
+			}
+		</div>
+	}
+}
+
+// cockpitTimer renders the rail's timer card (Mockup timer-card). NodeTimer's
+// state machine (cockpit_vm.go) is untouched; only the markup + hx-target
+// moved here from the old (now-removed) NodeHead section — it now targets
+// the rail's own SSE container, #cockpit-rail.
+templ cockpitTimer(d NodeCockpit) {
+	<section class="rounded-3xl glass shadow-lift p-4">
+		switch d.Timer.State {
+			case TimerHere:
+				<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="flex items-center justify-between gap-4 rounded-2xl border border-cyan/20 bg-cyan/[.08] px-4 py-3">
+					<div class="font-mono tnum text-2xl text-ink" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</div>
+					@components.Button(components.BtnDanger, components.T(ctx, "cockpit.timer.stop"), "■", templ.Attributes{"type": "submit"})
+				</form>
+			case TimerIdle:
+				<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="grid">
+					@components.Button(components.BtnPrimary, components.T(ctx, "cockpit.timer.start"), "▶", templ.Attributes{"type": "submit"})
+				</form>
+				<p class="mt-2.5 text-center text-[.72rem] text-faint">
+					{ components.T(ctx, "cockpit.rail.todayHere") }: <b class="tnum text-body">{ d.TodayHere }</b>
+					if d.CountsWork {
+						· { components.T(ctx, "cockpit.rail.countsWork") }
+					} else {
+						· { components.T(ctx, "cockpit.rail.countsPrivat") }
+					}
+				</p>
+			case TimerOtherBound:
+				<div class="flex items-center gap-3 rounded-2xl border border-yellow/30 bg-yellow/[.08] px-3 py-2.5">
+					<span class="h-2.5 w-2.5 shrink-0 rounded-full bg-yellow animate-breathe" aria-hidden="true"></span>
+					<div class="min-w-0 flex-1 text-[.8rem] text-body">
+						{ components.T(ctx, "cockpit.timer.runningOn") } <a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="font-semibold text-ink hover:underline">{ d.Timer.OtherName }</a>
+						<div class="font-mono tnum text-yellow" data-mini-timer>{ fmtClockHMS(int64(d.Timer.RunningBase)) }</div>
+					</div>
+					<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-rail" hx-swap="innerHTML">
+						@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.timer.switch"), "⇄", templ.Attributes{"type": "submit"})
+					</form>
+				</div>
+			case TimerUnbound:
+				<a href="/" class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
+			case TimerNotBookable:
+				<span class="text-sm text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
+		}
+	</section>
+}
+
+// cockpitQuickActions is the rail's third card: Nachbuchen (opens the shared
+// SessionDialog), Neues Wissen (scoped editor link), Struktur (a tab link
+// identical in mechanics to the tab strip, full width).
+templ cockpitQuickActions(d NodeCockpit) {
+	<section class="rounded-3xl glass shadow-lift p-3.5">
+		<div class="grid grid-cols-2 gap-2">
+			<button
+				type="button"
+				data-dialog-open="session-dialog"
+				class="inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2.5 text-[.8rem] font-semibold text-ink transition-colors hover:bg-sunken"
+			>
+				<span aria-hidden="true" class="text-muted">✚</span> { components.T(ctx, "cockpit.qa.book") }
+			</button>
+			<a
+				href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) }
+				hx-boost="false"
+				class="inline-flex items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2.5 text-[.8rem] font-semibold text-ink transition-colors hover:bg-sunken"
+			>
+				<span aria-hidden="true" class="text-muted">✚</span> { components.T(ctx, "cockpit.qa.knowledge") }
+			</a>
+			<a
+				hx-get={ "/nodes/" + d.N.ID + "/tab/struktur" }
+				hx-target="#cockpit-main"
+				hx-swap="innerHTML"
+				hx-push-url={ "/nodes/" + d.N.ID + "?tab=struktur" }
+				class="col-span-2 inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2.5 text-[.8rem] font-semibold text-ink transition-colors hover:bg-sunken"
+			>
+				<span aria-hidden="true" class="text-muted">›</span> { components.T(ctx, "cockpit.qa.structure") }
+			</a>
 		</div>
 	</section>
 }
 
-templ cockpitTimer(d NodeCockpit) {
-	switch d.Timer.State {
-		case TimerHere:
-			<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-head" hx-swap="innerHTML" class="rounded-2xl bg-cyan/[.08] border border-cyan/20 px-4 py-3 flex items-center gap-4">
-				<div>
-					<div class="font-mono tnum text-2xl text-ink" data-timer data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtSecsClock(d.Timer.RunningBase) }</div>
-				</div>
-				@components.Button(components.BtnDanger, components.T(ctx, "cockpit.timer.stop"), "■", templ.Attributes{"type": "submit"})
-			</form>
-		case TimerIdle:
-			<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-head" hx-swap="innerHTML">
-				@components.Button(components.BtnPrimary, components.T(ctx, "cockpit.timer.start"), "▶", templ.Attributes{"type": "submit"})
-			</form>
-		case TimerOtherBound:
-			<details class="rounded-2xl bg-sunken/40 border border-line px-4 py-3">
-				<summary class="cursor-pointer text-sm text-muted list-none">{ components.T(ctx, "cockpit.timer.runningOn") } <a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="text-body hover:text-ink underline">{ d.Timer.OtherName }</a> →</summary>
-				<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-head" hx-swap="innerHTML" class="mt-2 flex items-center gap-2">
-					<span class="text-[.8rem] text-muted">{ components.T(ctx, "cockpit.timer.switchHint") }</span>
-					@components.Button(components.BtnSecondary, components.T(ctx, "cockpit.timer.switch"), "⇄", templ.Attributes{"type": "submit"})
-				</form>
-			</details>
-		case TimerUnbound:
-			<a href="/" class="text-sm text-muted hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
-		case TimerNotBookable:
-			<span class="text-sm text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
-	}
-}
-
-templ cockpitRollup(d NodeCockpit) {
-	<div class="mt-6 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-		@cockpitTile("cockpit.rollup.total", fmtDurHM(d.Rollup.Total), components.T(ctx, "cockpit.rollup.inclChildren"), false)
-		@cockpitTile("cockpit.rollup.week", fmtDurHM(d.Rollup.Week), "", false)
-		@cockpitTile("cockpit.rollup.month", fmtDurHM(d.Rollup.Month), "", false)
-		if d.Earnings != "" {
-			@cockpitTile("cockpit.rollup.earnings", d.Earnings, "", true)
-		}
-	</div>
-}
-
-templ cockpitTile(labelKey, value, sub string, earn bool) {
-	<div class={ "flex-1 min-w-[8rem] rounded-2xl border px-4 py-3", templ.KV("bg-sunken/40 border-line", !earn), templ.KV("bg-green/[.10] border-green/25", earn) }>
-		<div class="eyebrow uppercase text-[.66rem] tracking-wide text-faint">{ components.T(ctx, labelKey) }</div>
-		<div class={ "mt-1 text-xl font-semibold tnum", templ.KV("text-ink", !earn), templ.KV("text-green", earn) }>{ value }</div>
-		if sub != "" {
-			<div class="mt-0.5 text-[.66rem] text-muted">{ sub }</div>
-		}
-	</div>
-}
-
-// cockpitHex renders the node's hex identity glyph tile.
-templ cockpitHex(n domain.Node) {
-	<span class={ "grid place-items-center h-11 w-11 rounded-xl text-lg shrink-0", cockpitTileClass(n.Color) } aria-hidden="true">{ glyphOrDefault(n.Glyph) }</span>
-}
-
-// CockpitTabsAndPanel is the swappable tab area served by the fragment handler.
-// Panels are stubbed here and filled by Tasks 5–8; Task 4 wires the real tab
-// navigation + SSE.
+// CockpitTabsAndPanel is the swappable tab area served by the fragment
+// handler: the pill tab strip (K1 primitives) + the active panel.
 templ CockpitTabsAndPanel(d NodeCockpit) {
-	<nav class="flex gap-1 border-b border-line2 overflow-x-auto whitespace-nowrap">
+	<nav class="pill-tabs" data-tabstrip>
 		for _, t := range CockpitTabs {
-			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.ActiveTab == t.Key)
+			@cockpitTabLink(d.N.ID, t.Key, t.LabelKey, d.TabCounts[t.Key], d.ActiveTab == t.Key)
 		}
 	</nav>
+	<script>
+		(function () {
+			// Scroll the active cockpit tab into view so Struktur/Bindings are
+			// discoverable on narrow viewports (K5 M2). reveal() runs on each
+			// fragment insertion; the htmx:afterSwap listener is bound ONCE per
+			// page (guard flag) to avoid accumulating a listener per swap.
+			function reveal() {
+				document.querySelectorAll('[data-tabstrip]').forEach(function (nav) {
+					var a = nav.querySelector('[aria-current="page"]');
+					if (a && a.scrollIntoView) a.scrollIntoView({ inline: 'center', block: 'nearest' });
+				});
+			}
+			reveal();
+			if (!window.__tabstripRevealBound) {
+				window.__tabstripRevealBound = true;
+				document.body.addEventListener('htmx:afterSwap', reveal);
+			}
+		})();
+	</script>
 	<div
 		id="cockpit-panel"
 		class="pt-6"
 		if cockpitPanelSSE(d.ActiveTab) != "" {
-			hx-get={ "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab }
+			hx-get={ cockpitPanelReloadURL(d) }
 			hx-trigger={ cockpitPanelSSE(d.ActiveTab) }
 			hx-target="#cockpit-main"
 			hx-swap="innerHTML"
@@ -142,24 +273,31 @@ templ CockpitTabsAndPanel(d NodeCockpit) {
 	</div>
 }
 
-templ cockpitTabLink(id, key, labelKey string, active bool) {
+// cockpitTabLink renders one pill-tab nav entry (K1 primitives), with an
+// optional count chip (pill-cnt) when count > 0.
+templ cockpitTabLink(id, key, labelKey string, count int, active bool) {
 	<a
 		hx-get={ "/nodes/" + id + "/tab/" + key }
 		hx-target="#cockpit-main"
 		hx-swap="innerHTML"
 		hx-push-url={ "/nodes/" + id + "?tab=" + key }
-		class={ "px-4 py-2.5 text-sm font-medium border-b-2 -mb-px cursor-pointer",
-			templ.KV("text-cyan border-cyan", active),
-			templ.KV("text-muted border-transparent hover:text-body", !active) }
+		class="pill-tab cursor-pointer"
 		if active {
 			aria-current="page"
 		}
-	>{ components.T(ctx, labelKey) }</a>
+	>
+		{ components.T(ctx, labelKey) }
+		if count > 0 {
+			<span class="pill-cnt">{ strconv.Itoa(count) }</span>
+		}
+	</a>
 }
 
 // cockpitPanel switches on the active tab.
 templ cockpitPanel(d NodeCockpit) {
 	switch d.ActiveTab {
+		case "uebersicht":
+			@CockpitUebersicht(d, d.Uebersicht)
 		case "worktime":
 			<div class="flex items-center justify-between mb-4">
 				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.worktime.title") }</h2>
@@ -187,22 +325,49 @@ templ cockpitPanel(d NodeCockpit) {
 			if len(d.SessionRows) == 0 {
 				<p class="text-sm text-faint">{ components.T(ctx, "cockpit.worktime.empty") }</p>
 			} else {
+				{{ showPill := d.N.Kind != domain.KindRepo }}
 				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
 					for _, row := range d.SessionRows {
-						@cockpitSessionRow(row)
+						@cockpitSessionRow(d.N.ID, row, showPill)
 					}
 				</ul>
-				<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
+				if showPill {
+					<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.subtreeNote") }</p>
+				} else {
+					<p class="mt-2 text-[.72rem] text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
+				}
+			}
+			if d.EditSession != nil {
+				@components.SessionDialog(sessionDialogEditVM(d))
 			}
 		case "wissen":
-			<div class="flex items-center justify-between mb-4">
+			<div id="wissen-panel" data-scope={ d.WissenScope } class="flex items-center justify-between mb-4">
 				<h2 class="text-sm font-semibold text-ink">{ components.T(ctx, "cockpit.wissen.title") }</h2>
 				<a href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false" class="text-[.8rem] font-semibold rounded-xl bg-cyan/[.12] text-cyan border border-cyan/25 px-3 py-1.5">+ { components.T(ctx, "cockpit.wissen.add") }</a>
 			</div>
+			if d.N.Kind != domain.KindRepo {
+				<div data-wissen-toggle class="seg mb-4 inline-flex text-[.8rem]">
+					if d.WissenScope == "subtree" {
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen?scope=self") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+					} else {
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+						<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/tab/wissen?scope=self") }
+							hx-get={ "/nodes/" + d.N.ID + "/tab/wissen?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+							aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+					}
+				</div>
+			}
 			if len(d.Docs) == 0 {
 				<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wissen.empty") }</p>
 			} else {
-				<ul class="divide-y divide-line2 rounded-2xl border border-line bg-surface">
+				<ul class="divide-y divide-line2 rounded-2xl glass">
 					for _, doc := range d.Docs {
 						<li class="px-4 py-2.5 text-sm"><a href={ templ.SafeURL("/wissen/" + doc.ID) } class="hover:text-cyan">{ doc.Title }</a></li>
 					}
@@ -282,21 +447,66 @@ func bindingTarget(b domain.ProjectBinding) string {
 
 // cockpitSessionRow renders one session row in the worktime panel.
 // On mobile it collapses to a two-line card; on sm+ it reverts to a single row.
-templ cockpitSessionRow(row CockpitSessionRow) {
+// nodeID is the currently VIEWED cockpit node (for the edit/delete route
+// paths — the panel always returns to this same tab). showPill toggles the
+// containment node-pill (Spec §4: shown on Engagement/Vorhaben subtree
+// listings, hidden on a Repo's own-only listing). Edit/delete controls are
+// only offered for completed sessions — a running row has neither (mirrors
+// heuteSessionRow's `if !row.Running` convention).
+templ cockpitSessionRow(nodeID string, row CockpitSessionRow, showPill bool) {
 	<li class="flex flex-col items-start gap-1 px-4 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-3 flex-wrap">
 			<span class="shrink-0 text-muted">{ row.Date }</span>
 			<span class="shrink-0 font-mono tnum text-body">{ row.Span }</span>
 			if row.Tag != "" {
 				<span class="rounded-lg bg-cyan/[.08] px-2 py-0.5 text-[.78rem] text-cyan">{ row.Tag }</span>
 			}
+			if showPill {
+				@cockpitSessionNodePill(row)
+			}
 		</div>
-		if row.Running {
-			<span class="text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
-		} else {
-			<span class="font-mono tnum text-muted">{ row.Dur }</span>
-		}
+		<div class="flex items-center gap-3 shrink-0">
+			if row.Running {
+				<span class="text-[.72rem] text-muted">{ components.T(ctx, "cockpit.worktime.running") }</span>
+			} else {
+				<span class="font-mono tnum text-muted">{ row.Dur }</span>
+				<a
+					hx-get={ "/nodes/" + nodeID + "/tab/worktime?edit=" + row.ID }
+					hx-target="#cockpit-main"
+					hx-swap="innerHTML"
+					class="text-[.72rem] font-medium text-muted underline hover:text-ink"
+				>
+					{ components.T(ctx, "cockpit.session.edit") }
+				</a>
+				<button type="button" aria-label={ components.T(ctx, "cockpit.session.delete") }
+					data-dialog-open={ "delete-session-" + row.ID }
+					class="grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors">
+					<span aria-hidden="true">✗</span>
+				</button>
+				@components.ConfirmDialog(components.ConfirmSpec{
+					ID:      "delete-session-" + row.ID,
+					BodyKey: "cockpit.session.deleteConfirm",
+					ConfirmAttrs: templ.Attributes{
+						"hx-post":   "/nodes/" + nodeID + "/sessions/" + row.ID + "/delete",
+						"hx-target": "#cockpit-main",
+						"hx-swap":   "innerHTML",
+						"type":      "button",
+					},
+				})
+			}
+		</div>
 	</li>
+}
+
+// cockpitSessionNodePill renders the row's booked-node pill (containment view
+// only — Spec §4): which subnode of the viewed Engagement/Vorhaben's subtree
+// the session was booked to. Mirrors activityTargetPill's linked-pill branch
+// (home.templ) — same tone/glyph vocabulary, no new one-off classes.
+templ cockpitSessionNodePill(row CockpitSessionRow) {
+	{{ k := NodeKindStyle(row.NodeKind) }}
+	<a href={ templ.SafeURL("/nodes/" + row.NodeID) } class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.75rem] font-medium hover:underline", kindToneClass(k.Tone) }>
+		<span aria-hidden="true">{ k.Glyph }</span> { row.NodeName }
+	</a>
 }
 
 // cockpitMoveForm renders the reparent form (ported from the deleted nodeMoveForm).

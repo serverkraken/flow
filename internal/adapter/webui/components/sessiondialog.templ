@@ -1,0 +1,109 @@
+package components
+
+import "github.com/serverkraken/flow/internal/domain"
+
+// SessionDialogVM drives the single shared add/edit session dialog (IA rule:
+// one mechanism, contextual entry points prefill it).
+type SessionDialogVM struct {
+	DialogID string         // element id, e.g. "session-dialog"
+	Mode     string         // "add" | "edit"
+	Action   string         // hx-post URL (add: POST /nodes/{id}/sessions; edit: POST /nodes/{id}/sessions/{sid}/edit)
+	Target   string         // hx-target selector, e.g. "#cockpit-main"
+	Open     bool           // render the <dialog> already expanded (edit-mode server round-trip; Spec §4)
+	Date     string         // YYYY-MM-DD prefill
+	From, To string         // HH:MM
+	Tag      string         // space-joined
+	Note     string
+	Nodes    []domain.Node  // optional booking picker (empty = hidden, node fixed by Action)
+	NodeID   string         // preselect when Nodes is shown; when Nodes is empty and NodeID != "",
+	                        // carried as a hidden field so the booked node survives an edit
+	                        // untouched (containment: the viewed cockpit's {id} may differ from
+	                        // the session's own node — Spec §4).
+	SessionID string // optional; when set, posted as a hidden "sessionId" field
+	                  // (Heute's /ui/worktime/edit takes the id from the form, not
+	                  // the URL path like the cockpit endpoints do).
+}
+
+// SessionDialog renders the shared session add/edit dialog using the native
+// <dialog> element. The form field names match the cockpit Nachbuchen endpoint
+// contract: date, from, to, tag, note.
+templ SessionDialog(vm SessionDialogVM) {
+	{{
+		titleKey := "session.dialog.addTitle"
+		if vm.Mode == "edit" {
+			titleKey = "session.dialog.editTitle"
+		}
+	}}
+	@Dialog(vm.DialogID, titleKey, sessionDialogBody(vm), vm.Open)
+}
+
+templ sessionDialogBody(vm SessionDialogVM) {
+	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" class="space-y-4">
+		if vm.SessionID != "" {
+			<input type="hidden" name="sessionId" value={ vm.SessionID }/>
+		}
+		<!-- Date field -->
+		<label class="block">
+			<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.date") }</span>
+			<input type="date" name="date" value={ vm.Date }
+				class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors" />
+		</label>
+
+		<!-- Time fields (From/To) -->
+		<div class="grid grid-cols-2 gap-3">
+			<label class="block">
+				<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.from") }</span>
+				<input type="time" name="from" value={ vm.From }
+					class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors" />
+			</label>
+			<label class="block">
+				<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.to") }</span>
+				<input type="time" name="to" value={ vm.To }
+					class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors" />
+			</label>
+		</div>
+
+		<!-- Node select (only when Nodes not empty); when hidden but NodeID is
+		     known, carry it as a hidden field so the booked node survives an
+		     edit untouched (containment: Spec §4). -->
+		if len(vm.Nodes) > 0 {
+			<label class="block">
+				<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.node") }</span>
+				<select name="node" class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors">
+					<option value="" selected?={ vm.NodeID == "" }>{ T(ctx, "historie.unassigned") }</option>
+					for _, node := range vm.Nodes {
+						if node.ID == vm.NodeID {
+							<option value={ node.ID } selected>{ node.Name }</option>
+						} else {
+							<option value={ node.ID }>{ node.Name }</option>
+						}
+					}
+				</select>
+			</label>
+		} else if vm.NodeID != "" {
+			<input type="hidden" name="node" value={ vm.NodeID }/>
+		}
+
+		<!-- Tags field -->
+		<label class="block">
+			<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.tags") }</span>
+			<input type="text" name="tag" value={ vm.Tag }
+				class="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors" />
+		</label>
+
+		<!-- Note field -->
+		<label class="block">
+			<span class="block text-[.85rem] font-medium text-body mb-1">{ T(ctx, "session.dialog.note") }</span>
+			<textarea name="note" rows="2"
+				class="w-full resize-none rounded-lg border border-line bg-surface px-3 py-2.5 text-base md:px-2.5 md:py-1.5 md:text-[.8rem] focus:border-blue/40 transition-colors">{ vm.Note }</textarea>
+		</label>
+
+		<!-- Action buttons -->
+		<div class="mt-6 flex items-center justify-end gap-3">
+			<button type="button" data-dialog-close class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-[.92rem] font-semibold transition border border-line bg-surface text-ink hover:bg-sunken">
+				{ T(ctx, "common.cancel") }
+			</button>
+			@Button(BtnPrimary, T(ctx, "session.dialog.save"), "", templ.Attributes{"type": "submit"})
+		</div>
+	</form>
+}

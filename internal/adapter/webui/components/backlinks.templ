@@ -8,7 +8,7 @@ type Backlink struct {
 }
 
 templ Backlinks(items []Backlink) {
-	<aside class="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+	<aside class="rounded-2xl glass p-4 shadow-soft">
 		<h2 class="mb-3 font-display text-base font-semibold text-ink">{ T(ctx, "wissen.backlinks") }</h2>
 		if len(items) == 0 {
 			<p class="text-[.84rem] text-muted">{ T(ctx, "wissen.backlinks.empty") }</p>

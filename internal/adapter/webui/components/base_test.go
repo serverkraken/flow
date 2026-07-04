@@ -58,3 +58,14 @@ func TestThemeTogglePressableAndLabeled(t *testing.T) {
 		}
 	}
 }
+
+func TestBase_KristallFacets(t *testing.T) {
+	// mockup-normative facet layer: token-tinted polygons + soft radial pools
+	body := templ.Raw(`<p id="content">hallo</p>`)
+	out := render(t, components.Base("Test", body))
+	for _, want := range []string{`class="kristall-facets"`, `fill-opacity=".022"`, `stroke-opacity=".04"`, `url(#kfacet-glow)`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("facets layer missing %q", want)
+		}
+	}
+}

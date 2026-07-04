@@ -26,6 +26,21 @@ func TestProjectColorGlyphWhitelist(t *testing.T) {
 	}
 }
 
+func TestValidNodeIcon(t *testing.T) {
+	if !domain.ValidNodeIcon("") {
+		t.Error("empty icon (unset) must be valid")
+	}
+	if !domain.ValidNodeIcon("rocket") {
+		t.Error("whitelisted icon must be valid")
+	}
+	if domain.ValidNodeIcon("skull") {
+		t.Error("non-whitelisted icon must be invalid")
+	}
+	if len(domain.NodeIcons) != 40 {
+		t.Errorf("NodeIcons has %d entries, want 40", len(domain.NodeIcons))
+	}
+}
+
 func TestProjectValidateColorGlyph(t *testing.T) {
 	base := domain.Node{Name: "Flow", Slug: "flow", Status: domain.NodeActive}
 	t.Run("empty color/glyph ok", func(t *testing.T) {

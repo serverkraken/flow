@@ -52,6 +52,14 @@ type Server struct {
 	BuildExport usecase.BuildExport
 	SetNodeRate usecase.SetNodeRate
 
+	// cockpit-story slice 1 (Work/Privat)
+	SetCountsTowardTarget usecase.SetCountsTowardTarget
+
+	// cockpit-story slice 2 (node logos)
+	UploadNodeLogo usecase.UploadNodeLogo
+	DeleteNodeLogo usecase.DeleteNodeLogo
+	GetNodeLogo    usecase.GetNodeLogo
+
 	// slice 1 bulk ops
 	BulkAssignNode     usecase.BulkAssignNode
 	BulkDeleteSessions usecase.BulkDeleteSessions
@@ -186,16 +194,20 @@ func (s *Server) Routes() http.Handler {
 	// Home landing + timer-hero fragment + start/stop (Slice 4, Task 1)
 	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))
 	mux.Handle("GET /ui/home", s.webAuth(http.HandlerFunc(s.handleHomeFragment)))
-	mux.Handle("POST /ui/home/start", s.webAuth(http.HandlerFunc(s.handleHomeStart)))
-	mux.Handle("POST /ui/home/stop", s.webAuth(http.HandlerFunc(s.handleHomeStop)))
 	// Logstream fragment (Slice 5, Task 9)
 	mux.Handle("GET /ui/home/logstream", s.webAuth(http.HandlerFunc(s.handleHomeLogstream)))
+
+	// Global shell timer widget (Kristall K1, Task 6) — the ONE global home
+	// for the running timer: desktop card + mobile chip, mounted in appshell.
+	mux.Handle("GET /ui/timer", s.webAuth(http.HandlerFunc(s.handleTimerWidget)))
+	mux.Handle("GET /ui/timer/chip", s.webAuth(http.HandlerFunc(s.handleTimerChip)))
+	mux.Handle("POST /ui/timer/start", s.webAuth(http.HandlerFunc(s.handleTimerStart)))
+	mux.Handle("POST /ui/timer/stop", s.webAuth(http.HandlerFunc(s.handleTimerStop)))
+	mux.Handle("POST /ui/timer/switch", s.webAuth(http.HandlerFunc(s.handleTimerSwitch)))
 
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
 	mux.Handle("GET /ui/worktime", s.webAuth(http.HandlerFunc(s.handleHeuteFragment)))
-	mux.Handle("POST /ui/worktime/start", s.webAuth(http.HandlerFunc(s.handleWebStart)))
-	mux.Handle("POST /ui/worktime/stop", s.webAuth(http.HandlerFunc(s.handleWebStop)))
 	mux.Handle("POST /ui/worktime/add", s.webAuth(http.HandlerFunc(s.handleWebAdd)))
 	mux.Handle("POST /ui/worktime/edit", s.webAuth(http.HandlerFunc(s.handleWebEdit)))
 	mux.Handle("POST /ui/worktime/delete", s.webAuth(http.HandlerFunc(s.handleWebDelete)))
@@ -252,6 +264,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodeCreate)))
 	mux.Handle("GET /nodes/{id}", s.webAuth(http.HandlerFunc(s.handleWebNodeView)))
 	mux.Handle("GET /nodes/{id}/head", s.webAuth(http.HandlerFunc(s.handleWebNodeHead)))
+	mux.Handle("GET /nodes/{id}/logo", s.webAuth(http.HandlerFunc(s.handleWebNodeLogo)))
 	mux.Handle("GET /nodes/{id}/tab/{name}", s.webAuth(http.HandlerFunc(s.handleWebNodeTab)))
 	mux.Handle("POST /nodes/{id}/start", s.webAuth(http.HandlerFunc(s.handleWebNodeStart)))
 	mux.Handle("POST /nodes/{id}/stop", s.webAuth(http.HandlerFunc(s.handleWebNodeStop)))
@@ -262,6 +275,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDelete)))
 	mux.Handle("POST /nodes/{id}/move", s.webAuth(http.HandlerFunc(s.handleWebNodeMove)))
 	mux.Handle("POST /nodes/{id}/sessions", s.webAuth(http.HandlerFunc(s.handleWebNodeAddSession)))
+	mux.Handle("POST /nodes/{id}/sessions/{sid}/edit", s.webAuth(http.HandlerFunc(s.handleWebNodeEditSession)))
+	mux.Handle("POST /nodes/{id}/sessions/{sid}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDeleteSession)))
 	mux.Handle("POST /nodes/{id}/bindings", s.webAuth(http.HandlerFunc(s.handleWebNodeBindRemote)))
 	mux.Handle("POST /nodes/{id}/bindings/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeUnbind)))
 

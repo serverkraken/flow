@@ -14,16 +14,10 @@ import (
 // Slice-0 AppShell. It composes the running-session card, today's session rows,
 // the daily target/balance and the week pace strip out of Task-5 components.
 type HeuteVM struct {
-	User        string
-	Date        time.Time
-	Running     *domain.WorkSession
-	RunningBase int    // running session's elapsed seconds at render (data-base seed)
-	RunningName string // running session's project name (or i18n "ohne Projekt")
-	RunningHue  string // running session's project hue ("" → blue default)
-	RunningTag  string // running session's tag without '#'
-	StartedAt   string // running session start time "11:58"
-
-	Rows     []components.SessionRowVM
+	User     string
+	Date     time.Time
+	Running  *domain.WorkSession
+	Ledger   []HeuteLedgerRow
 	Nodes    []components.NodePickerItem
 	HasProj  bool   // true when at least one project exists (drives picker vs plain inputs)
 	DayParam string // yyyy-mm-dd for the action forms
@@ -41,6 +35,15 @@ type HeuteVM struct {
 	WeekRows  []HeuteWeekRow
 
 	Err string
+}
+
+// HeuteLedgerRow pairs a session's display row with its per-session edit-mode
+// SessionDialogVM (glass ledger: clicking a block opens the shared dialog
+// pre-filled). Edit is the zero SessionDialogVM (Mode "") for a RUNNING
+// session — the template skips rendering its dialog.
+type HeuteLedgerRow struct {
+	Row  components.SessionRowVM
+	Edit components.SessionDialogVM
 }
 
 // HeuteWeekRow is one day in the week pace strip (Mo..Fr), mirroring the
@@ -156,19 +159,9 @@ func secStr(n int) string { return strconv.Itoa(n) }
 // heuteBalanceHue colors the saldo value: green when ahead, red when behind.
 func heuteBalanceHue(pos bool) string {
 	if pos {
-		return "text-green"
+		return "green"
 	}
-	return "text-red"
-}
-
-// heuteAccentBar maps a project hue to the hero accent rail color.
-func heuteAccentBar(hue string) string {
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + hue
-	default:
-		return "bg-blue"
-	}
+	return "red"
 }
 
 // heuteTileClass maps a project hue to the hero glyph tile wash+text.
@@ -178,6 +171,34 @@ func heuteTileClass(hue string) string {
 		return "bg-" + hue + "/10 text-" + hue
 	default:
 		return "bg-blue/10 text-blue"
+	}
+}
+
+// heutePickerNodes converts the Heute booking picker's display items
+// ([]components.NodePickerItem) into the []domain.Node shape the shared
+// SessionDialog's picker field expects (id + name only). Mirrors the
+// same-named helper in httpserver/webui_heute.go, which does the identical
+// conversion server-side for the per-row edit dialogs; this package-local
+// twin is needed because heute.templ (package webui) cannot reach across the
+// adapter boundary into httpserver.
+func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
+	out := make([]domain.Node, 0, len(items))
+	for _, it := range items {
+		out = append(out, domain.Node{ID: it.ID, Name: it.Name})
+	}
+	return out
+}
+
+// heuteRowTile picks the glyph-tile wash for a ledger block (whitelisted hues).
+func heuteRowTile(row components.SessionRowVM) string {
+	if row.Unassigned {
+		return "bg-orange/10 text-orange"
+	}
+	switch row.Hue {
+	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
+		return "bg-" + row.Hue + "/10 text-" + row.Hue
+	default:
+		return "bg-sunken text-body"
 	}
 }
 

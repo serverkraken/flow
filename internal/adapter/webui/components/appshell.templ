@@ -21,7 +21,7 @@ templ BrandMark(sizeClass string, idSuffix string) {
 // slots above the content. Any slot component may be nil.
 templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 	// ── Desktop sidebar (md+) ──
-	<aside class="hidden md:flex md:flex-col fixed inset-y-0 left-0 w-[248px] bg-surface/80 backdrop-blur-xl border-r border-line z-40">
+	<aside class="hidden md:flex md:flex-col fixed left-4 inset-y-4 w-[248px] rounded-[20px] glass-strong shadow-lift z-40 overflow-hidden">
 		<div class="px-6 pt-7 pb-6 flex items-center justify-between">
 			<a href="/" class="inline-flex items-center gap-2.5" aria-label={ T(ctx, "app.name") }>
 				@BrandMark("h-9 w-9", "d")
@@ -29,6 +29,13 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 			</a>
 			@ThemeToggle()
 		</div>
+		<div
+			id="timer-widget"
+			class="px-3 pb-1"
+			hx-get="/ui/timer"
+			hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+			hx-swap="innerHTML"
+		></div>
 		@SiteNav(active)
 		<div class="px-3 pb-5">
 			<form action="/auth/logout" method="post" hx-boost="false">
@@ -45,11 +52,17 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 				@BrandMark("h-7 w-7", "m")
 				<span class="font-display text-xl font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
 			</a>
+			<div
+				id="timer-chip"
+				hx-get="/ui/timer/chip"
+				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
+				hx-swap="innerHTML"
+			></div>
 			@ThemeToggle()
 		</div>
 	</header>
 	// ── Main column ──
-	<main class="md:pl-[248px] pb-28 md:pb-12">
+	<main class="md:pl-[280px] pb-28 md:pb-12">
 		<div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
 			if breadcrumb != nil {
 				@breadcrumb

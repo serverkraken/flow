@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -45,20 +46,29 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, s.OIDCAuth.AuthCodeURL(state), http.StatusFound)
 }
 
+// authErrorPage renders a Kristall error page for an OIDC-callback failure.
+// Status must be written BEFORE the body — order matters for a correct
+// response.
+func (s *Server) authErrorPage(w http.ResponseWriter, r *http.Request, status int, titleKey, msgKey string, showLogin bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_ = webui.AuthPage(webui.AuthVM{TitleKey: titleKey, MsgKey: msgKey, ShowLogin: showLogin}).Render(r.Context(), w)
+}
+
 func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 	st, err := r.Cookie(stateCookie)
 	if err != nil || st.Value == "" || st.Value != r.URL.Query().Get("state") {
-		http.Error(w, "bad state", http.StatusBadRequest)
+		s.authErrorPage(w, r, http.StatusBadRequest, "auth.badState.title", "auth.badState.msg", true)
 		return
 	}
 	id, err := s.OIDCAuth.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
-		http.Error(w, "auth failed", http.StatusUnauthorized)
+		s.authErrorPage(w, r, http.StatusUnauthorized, "auth.failed.title", "auth.failed.msg", true)
 		return
 	}
 	u, err := s.Ensure.Execute(r.Context(), id)
 	if errors.Is(err, usecase.ErrNotAllowed) {
-		http.Error(w, "forbidden", http.StatusForbidden)
+		s.authErrorPage(w, r, http.StatusForbidden, "auth.forbidden.title", "auth.forbidden.msg", false)
 		return
 	}
 	if err != nil {
@@ -80,7 +90,8 @@ func (s *Server) handleCallback(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
-	http.Redirect(w, r, "/", http.StatusFound)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.AuthPage(webui.AuthVM{TitleKey: "auth.loggedOut.title", MsgKey: "auth.loggedOut.msg", ShowLogin: true}).Render(r.Context(), w)
 }
 
 // resolveCookie loads the user from a valid session cookie.

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -57,49 +58,121 @@ type NodeChild struct {
 	Total string // mini worktime label (e.g. "12:30 h"), "" if zero
 }
 
-// NodeCockpit drives the cockpit page, head fragment, and the active tab panel.
+// NodeCockpit drives the cockpit page, the rail fragment, and the active tab panel.
 type NodeCockpit struct {
 	User            string
 	N               domain.Node
-	Ancestors       []domain.Node // leaf→root (NodeStore.Ancestors order)
+	Ancestors       []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
 	DescriptionHTML template.HTML
-	// head: subtree rollup + inherited rate
-	Rollup   domain.NodeRollup // Total, Week, Month durations
-	Earnings string            // ResolveRate(chain) × Total, "" if no rate in chain
-	Rate     string            // inherited rate label, "" if none
-	Timer    CockpitTimer
+	Today           string // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
+	// rail: subtree rollup + inherited rate + identity/timer extras
+	Rollup       domain.NodeRollup // Total, Week, Month durations
+	Earnings     string            // ResolveRate(chain) × Total, "" if no rate in chain
+	Rate         string            // inherited rate label, "" if none
+	Timer        CockpitTimer
+	LogoShape    string   // ""|"hex"|"tile" — LogoShape(w,h) of the uploaded logo, if any
+	TodayHere    string   // today's own-node time (fmtDurHM), NOT subtree
+	CountsWork   bool     // effective Work/Privat flag (domain.ResolveCountsTowardTarget)
+	Contributors []string // distinct actors active in the subtree; filled by T5, empty until then
+	TabCounts    map[string]int
 	// active tab + its data (only the active tab's slice is populated)
-	ActiveTab   string                  // worktime|wissen|struktur|bindings
+	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
+	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
 	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
 	Docs        []domain.Document       // wissen
+	WissenScope string                  // "subtree"|"self" — effective Wissen-tab scope (drives the .seg toggle)
 	Children    []NodeChild             // struktur
 	MoveTargets []domain.Node           // struktur reparent
 	Bindings    []domain.ProjectBinding // bindings
 	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
+	// EditSession is set by fillPanelData when the worktime tab's ?edit={sid}
+	// query resolves to one of the owner's sessions — it drives the edit-mode
+	// SessionDialog (sessionDialogEditVM), rendered pre-opened in the panel.
+	// nil when not editing.
+	EditSession *domain.WorkSession
 }
 
-// CockpitTabs is the fixed tab order/keys for the strip.
+// CockpitTabs is the fixed tab order/keys for the strip — Übersicht is the
+// default landing (see NormalizeTab).
 var CockpitTabs = []struct{ Key, LabelKey string }{
+	{"uebersicht", "cockpit.tab.uebersicht"},
 	{"worktime", "cockpit.tab.worktime"},
 	{"wissen", "cockpit.tab.wissen"},
 	{"struktur", "cockpit.tab.struktur"},
 	{"bindings", "cockpit.tab.bindings"},
 }
 
+// sessionDialogAddVM builds the add-mode SessionDialogVM for the ONE session
+// dialog mounted once per cockpit page (the Quick Actions "Nachbuchen" button
+// opens it via data-dialog-open="session-dialog"). Field names match the
+// existing Nachbuchen endpoint contract.
+func sessionDialogAddVM(d NodeCockpit) components.SessionDialogVM {
+	return components.SessionDialogVM{
+		DialogID: "session-dialog",
+		Mode:     "add",
+		Action:   "/nodes/" + d.N.ID + "/sessions",
+		Target:   "#cockpit-main",
+		Date:     d.Today,
+	}
+}
+
+// sessionDialogEditVM builds the edit-mode SessionDialogVM for d.EditSession
+// (resolved by fillPanelData from the worktime tab's ?edit={sid} query),
+// rendered pre-opened (Open: true) so the round-trip GET lands the user
+// directly inside the dialog. Action always targets d.N.ID (the currently
+// VIEWED cockpit — so re-rendering returns to the right panel) but NodeID
+// carries the session's OWN booked node: a containment view (Engagement's
+// subtree list, Spec §4) may be showing a session actually booked on a
+// descendant Repo, and editing its times must not silently reassign it up to
+// the viewed node. Since Nodes stays empty (no reassignment picker in this
+// task), sessionDialogBody renders NodeID as a hidden field instead.
+func sessionDialogEditVM(d NodeCockpit) components.SessionDialogVM {
+	sess := d.EditSession
+	nodeID := ""
+	if sess.NodeID != nil {
+		nodeID = *sess.NodeID
+	}
+	to := ""
+	if sess.Stop != nil {
+		to = sess.Stop.Format("15:04")
+	}
+	return components.SessionDialogVM{
+		DialogID: "session-dialog-edit",
+		Mode:     "edit",
+		Action:   "/nodes/" + d.N.ID + "/sessions/" + sess.ID + "/edit",
+		Target:   "#cockpit-main",
+		Open:     true,
+		Date:     sess.Start.Format("2006-01-02"),
+		From:     sess.Start.Format("15:04"),
+		To:       to,
+		Tag:      strings.Join(sess.Tags, " "),
+		Note:     sess.Note,
+		NodeID:   nodeID,
+	}
+}
+
 
 // CockpitSessionRow is a precomputed display row for the worktime panel.
 // Fields are formatted strings to keep template logic-free.
 type CockpitSessionRow struct {
-	Date    string // e.g. "Sa 27.06."
-	Span    string // e.g. "14:00–16:00"
-	Tag     string // space-joined tags, "" if none
-	Dur     string // e.g. "2:00 h"
-	Running bool   // true if session has no Stop time
+	ID       string          // session id — edit link + delete form target
+	Date     string          // e.g. "Sa 27.06."
+	Span     string          // e.g. "14:00–16:00"
+	Tag      string          // space-joined tags, "" if none
+	Dur      string          // e.g. "2:00 h"
+	Running  bool            // true if session has no Stop time
+	NodeID   string          // booked node id — every row has one (unbooked sessions never list here)
+	NodeName string          // booked node name — the containment pill's label
+	NodeKind domain.NodeKind // booked node kind — the containment pill's glyph/tone
 }
 
-// BuildCockpitSessionRows converts a WorkSession slice (newest-first) to display rows.
-// now is used to compute elapsed for running sessions.
-func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []CockpitSessionRow {
+// BuildCockpitSessionRows converts a WorkSession slice (newest-first) to display
+// rows. now is used to compute elapsed for running sessions. names/kinds map a
+// node id (the subtree the caller resolved — Spec §4 containment) to its
+// display name/kind for the row's node-pill; a session whose node isn't in
+// either map (shouldn't happen — every row's node comes from the same subtree
+// query) degrades to an empty pill rather than panicking.
+func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names map[string]string, kinds map[string]domain.NodeKind) []CockpitSessionRow {
 	rows := make([]CockpitSessionRow, 0, len(sessions))
 	for _, s := range sessions {
 		span := s.Start.Format("15:04") + "–"
@@ -108,20 +181,43 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time) []Coc
 		} else {
 			span += "…"
 		}
+		nodeID := ""
+		if s.NodeID != nil {
+			nodeID = *s.NodeID
+		}
 		rows = append(rows, CockpitSessionRow{
-			Date:    s.Start.Format("Mon 02.01."),
-			Span:    span,
-			Tag:     strings.Join(s.Tags, " "),
-			Dur:     fmtDurHM(s.Elapsed(now)),
-			Running: s.Stop == nil,
+			ID:       s.ID,
+			Date:     s.Start.Format("Mon 02.01."),
+			Span:     span,
+			Tag:      strings.Join(s.Tags, " "),
+			Dur:      fmtDurHM(s.Elapsed(now)),
+			Running:  s.Stop == nil,
+			NodeID:   nodeID,
+			NodeName: names[nodeID],
+			NodeKind: kinds[nodeID],
 		})
 	}
 	return rows
 }
 
+// cockpitPanelReloadURL returns the hx-get URL for a tab's SSE live-reload.
+// For the wissen tab with an explicit "self" scope, it preserves that scope
+// on reload (?scope=self) so a document.* SSE event doesn't silently revert
+// the user's "Nur dieser Knoten" toggle back to the subtree default. Every
+// other tab reloads its plain "/nodes/{id}/tab/{tab}" URL unchanged.
+func cockpitPanelReloadURL(d NodeCockpit) string {
+	url := "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab
+	if d.ActiveTab == "wissen" && d.WissenScope == "self" {
+		url += "?scope=self"
+	}
+	return url
+}
+
 // cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
 func cockpitPanelSSE(tab string) string {
 	switch tab {
+	case "uebersicht":
+		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:activity.logged, sse:document.updated, sse:node.updated"
 	case "worktime":
 		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
 	case "wissen":
@@ -133,14 +229,15 @@ func cockpitPanelSSE(tab string) string {
 	}
 }
 
-// NormalizeTab returns a valid tab key, defaulting to "worktime".
+// NormalizeTab returns a valid tab key, defaulting to "uebersicht" (the
+// living-project-home landing).
 func NormalizeTab(tab string) string {
 	for _, t := range CockpitTabs {
 		if t.Key == tab {
 			return tab
 		}
 	}
-	return "worktime"
+	return "uebersicht"
 }
 
 // FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
@@ -154,12 +251,6 @@ func fmtDurHM(d time.Duration) string {
 		m = 0
 	}
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
-}
-
-// fmtSecsClock renders integer seconds as the initial clock text (overwritten
-// by the live-timer JS on bind). Format mirrors the [data-timer] hero output.
-func fmtSecsClock(sec int) string {
-	return fmt.Sprintf("%dh %02dm %02ds", sec/3600, (sec%3600)/60, sec%60)
 }
 
 // cockpitAccent maps a node colour name to the left accent-bar class.
@@ -184,6 +275,23 @@ func cockpitAccent(color string) string {
 // Delegates to heuteTileClass which already maps all known hues.
 func cockpitTileClass(color string) string {
 	return heuteTileClass(color)
+}
+
+// cockpitRateSource returns the name of the nearest ancestor that actually
+// carries a rate — matching domain.ResolveRate's leaf→root walk — or "" when
+// none does. The "geerbt von" label must name the real source, not the root:
+// a rate set on an intermediate Vorhaben otherwise mis-attributes to the
+// Engagement in a 3+-level chain.
+func cockpitRateSource(d NodeCockpit) string {
+	for _, a := range d.Ancestors {
+		if a.ID == d.N.ID {
+			continue // the ancestor chain may include the cockpit node itself
+		}
+		if a.Rate != nil {
+			return a.Name
+		}
+	}
+	return ""
 }
 
 // glyphOrDefault returns the node glyph or a default identity glyph when unset.

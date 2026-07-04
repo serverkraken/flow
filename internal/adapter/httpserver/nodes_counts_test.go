@@ -9,7 +9,8 @@ import (
 )
 
 // TestCreateNode_CountsTowardTarget_ExplicitFalse verifies that posting
-// countsTowardTarget:false persists false (overrides the server-side default true).
+// countsTowardTarget:false persists an explicit *false (overrides the
+// server-side default of nil/inherit).
 func TestCreateNode_CountsTowardTarget_ExplicitFalse(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
@@ -21,14 +22,15 @@ func TestCreateNode_CountsTowardTarget_ExplicitFalse(t *testing.T) {
 	var n domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&n)
 	_ = res.Body.Close()
-	if n.CountsTowardTarget {
-		t.Fatal("countsTowardTarget explicit false: want false, got true")
+	if n.CountsTowardTarget == nil || *n.CountsTowardTarget {
+		t.Fatalf("countsTowardTarget explicit false: want *false, got %v", n.CountsTowardTarget)
 	}
 }
 
-// TestCreateNode_CountsTowardTarget_OmittedDefaultsTrue verifies that omitting
-// countsTowardTarget from the request preserves the domain default of true.
-func TestCreateNode_CountsTowardTarget_OmittedDefaultsTrue(t *testing.T) {
+// TestCreateNode_CountsTowardTarget_OmittedDefaultsInherit verifies that
+// omitting countsTowardTarget from the request preserves the domain default
+// of nil (inherit from the nearest ancestor with an explicit value).
+func TestCreateNode_CountsTowardTarget_OmittedDefaultsInherit(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
 	res := do("POST", "/api/v1/nodes", `{"name":"Work","kind":"engagement"}`)
@@ -39,8 +41,8 @@ func TestCreateNode_CountsTowardTarget_OmittedDefaultsTrue(t *testing.T) {
 	var n domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&n)
 	_ = res.Body.Close()
-	if !n.CountsTowardTarget {
-		t.Fatal("countsTowardTarget omitted: want true (default), got false")
+	if n.CountsTowardTarget != nil {
+		t.Fatalf("countsTowardTarget omitted: want nil (inherit), got %v", *n.CountsTowardTarget)
 	}
 }
 
@@ -49,7 +51,7 @@ func TestCreateNode_CountsTowardTarget_OmittedDefaultsTrue(t *testing.T) {
 func TestUpdateNode_CountsTowardTarget(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
-	// Create a node (default countsTowardTarget=true).
+	// Create a node (default countsTowardTarget=nil/inherit).
 	res := do("POST", "/api/v1/nodes", `{"name":"Work","kind":"engagement"}`)
 	if res.StatusCode != http.StatusCreated {
 		_ = res.Body.Close()
@@ -58,8 +60,8 @@ func TestUpdateNode_CountsTowardTarget(t *testing.T) {
 	var n domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&n)
 	_ = res.Body.Close()
-	if !n.CountsTowardTarget {
-		t.Fatalf("newly created node: want countsTowardTarget=true, got false")
+	if n.CountsTowardTarget != nil {
+		t.Fatalf("newly created node: want countsTowardTarget=nil (inherit), got %v", *n.CountsTowardTarget)
 	}
 
 	// PATCH with explicit false → persists false.
@@ -72,8 +74,8 @@ func TestUpdateNode_CountsTowardTarget(t *testing.T) {
 	var upd domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&upd)
 	_ = res.Body.Close()
-	if upd.CountsTowardTarget {
-		t.Fatal("after PATCH with false: want false, got true")
+	if upd.CountsTowardTarget == nil || *upd.CountsTowardTarget {
+		t.Fatalf("after PATCH with false: want *false, got %v", upd.CountsTowardTarget)
 	}
 
 	// PATCH omitting countsTowardTarget → existing false preserved.
@@ -86,7 +88,7 @@ func TestUpdateNode_CountsTowardTarget(t *testing.T) {
 	var upd2 domain.Node
 	_ = json.NewDecoder(res.Body).Decode(&upd2)
 	_ = res.Body.Close()
-	if upd2.CountsTowardTarget {
-		t.Fatal("after PATCH with omit: want existing false preserved, got true")
+	if upd2.CountsTowardTarget == nil || *upd2.CountsTowardTarget {
+		t.Fatalf("after PATCH with omit: want existing *false preserved, got %v", upd2.CountsTowardTarget)
 	}
 }

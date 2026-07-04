@@ -36,8 +36,9 @@ func (s *Server) handleHeuteFragment(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderHeuteFragment re-renders the Heute fragment, optionally with an inline
-// error banner. POST action handlers (start/stop/add/edit/delete) funnel through
-// renderFragment/renderDay which now delegate here.
+// error banner. POST action handlers (add/edit/delete) funnel through
+// renderDay, which delegates here; start/stop is owned by the K1 shell timer
+// widget (webui_timer.go) since K3 Task 6.
 func (s *Server) renderHeuteFragment(w http.ResponseWriter, r *http.Request, u domain.User, errMsg string) {
 	vm, err := s.heuteDataFor(r.Context(), u, errMsg)
 	if err != nil {
@@ -87,10 +88,13 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 		Err:      errMsg,
 	}
 
-	// Engagement picker — only KindEngagement nodes are bookable (Slice B).
+	// Booking picker — bookable = Engagement/Vorhaben/Repo (Spec #1-Fix; was
+	// KindEngagement-only). Status is intentionally left unfiltered, matching
+	// the pre-fix behavior (no status check existed here before either) — a
+	// broader kind filter must not also newly restrict by status.
 	vm.Nodes = make([]components.NodePickerItem, 0, len(projects))
 	for _, p := range projects {
-		if p.Kind != domain.KindEngagement {
+		if !domain.IsBookable(p.Kind) {
 			continue
 		}
 		vm.Nodes = append(vm.Nodes, components.NodePickerItem{
@@ -103,19 +107,15 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 	vm.HasProj = len(vm.Nodes) > 0
 
-	// Today's session rows (newest stay in chronological order from the store).
-	vm.Rows = make([]components.SessionRowVM, 0, len(sessions))
+	// Today's session rows + per-row edit dialog (the ledger; newest stay in
+	// chronological order from the store).
+	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
-		vm.Rows = append(vm.Rows, sessionRowVM(sess, projects, now))
-	}
-
-	if running != nil {
-		vm.RunningBase = heuteRunningBase(*running, now)
-		vm.StartedAt = running.Start.Local().Format("15:04")
-		vm.RunningTag = strings.Join(running.Tags, " ")
-		name, hue := nodeIdentity(projects, running.NodeID)
-		vm.RunningName = name
-		vm.RunningHue = hue
+		row := sessionRowVM(sess, projects, now)
+		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
+			Row:  row,
+			Edit: heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
+		})
 	}
 
 	// Daily target + balance (reuse the stats computation; degrade to zero if the
@@ -156,6 +156,47 @@ func sessionRowVM(sess domain.WorkSession, projects []domain.Node, now time.Time
 		Unassigned: sess.NodeID == nil,
 		Running:    sess.Running(),
 	}
+}
+
+// heuteEditDialogVM builds the per-row edit SessionDialogVM for the Heute
+// ledger. A running session (no Stop) is not editable here — return the zero VM
+// (Mode "" → the template skips its dialog). Nodes is the shown reassignment
+// picker (preselected to the session's own node); SessionID + Date ride hidden
+// so /ui/worktime/edit (form-based) resolves the target.
+func heuteEditDialogVM(sess domain.WorkSession, nodes []components.NodePickerItem, dayParam string) components.SessionDialogVM {
+	if sess.Stop == nil {
+		return components.SessionDialogVM{}
+	}
+	nodeID := ""
+	if sess.NodeID != nil {
+		nodeID = *sess.NodeID
+	}
+	return components.SessionDialogVM{
+		DialogID:  "edit-" + sess.ID,
+		Mode:      "edit",
+		Action:    "/ui/worktime/edit",
+		Target:    "#content",
+		SessionID: sess.ID,
+		Date:      sess.Start.Local().Format("2006-01-02"),
+		From:      sess.Start.Local().Format("15:04"),
+		To:        sess.Stop.Local().Format("15:04"),
+		Tag:       strings.Join(sess.Tags, " "),
+		Note:      sess.Note,
+		Nodes:     heutePickerNodes(nodes),
+		NodeID:    nodeID,
+	}
+}
+
+// heutePickerNodes converts the Heute booking picker's display items
+// ([]components.NodePickerItem) into the []domain.Node shape the shared
+// SessionDialog's picker field expects. Shared by heuteEditDialogVM and the
+// add-dialog VM (Task 4) so the conversion lives in exactly one place.
+func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
+	nodes := make([]domain.Node, 0, len(items))
+	for _, n := range items {
+		nodes = append(nodes, domain.Node{ID: n.ID, Name: n.Name})
+	}
+	return nodes
 }
 
 // fmtClockRange renders "09:00–11:00" (or "09:00–…" while running).
@@ -214,16 +255,6 @@ func rateLabel(rate *domain.Money) string {
 		sym = "€"
 	}
 	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
-}
-
-// heuteRunningBase returns the running session's elapsed seconds for the
-// live-timer data-base seed.
-func heuteRunningBase(running domain.WorkSession, now time.Time) int {
-	sec := int(now.Sub(running.Start) / time.Second)
-	if sec < 0 {
-		sec = 0
-	}
-	return sec
 }
 
 // heuteTargetVariant picks the progress-bar variant for the day's progress.

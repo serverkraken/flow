@@ -49,7 +49,7 @@ func TestCreateNode_CountsTowardTarget(t *testing.T) {
 	nodes := testutil.NewFakeNodeStore()
 	uc := usecase.CreateNode{Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Now()}}
 
-	// Explicit false overrides the NewNode default of true.
+	// Explicit false overrides the NewNode default of nil (inherit).
 	eng, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{
 		Name: "Privat", Kind: domain.KindEngagement,
 		CountsTowardTarget: ptrBool(false),
@@ -57,16 +57,16 @@ func TestCreateNode_CountsTowardTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create with false: %v", err)
 	}
-	if eng.CountsTowardTarget {
-		t.Fatal("countsTowardTarget: want false, got true")
+	if eng.CountsTowardTarget == nil || *eng.CountsTowardTarget {
+		t.Fatalf("countsTowardTarget: want *false, got %v", eng.CountsTowardTarget)
 	}
 
-	// Omitted (nil) → NewNode default true is preserved.
+	// Omitted (nil) → NewNode default nil (inherit) is preserved.
 	eng2, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "Work", Kind: domain.KindEngagement})
 	if err != nil {
 		t.Fatalf("create default: %v", err)
 	}
-	if !eng2.CountsTowardTarget {
-		t.Fatal("countsTowardTarget omitted: want true (default), got false")
+	if eng2.CountsTowardTarget != nil {
+		t.Fatalf("countsTowardTarget omitted: want nil (inherit), got %v", *eng2.CountsTowardTarget)
 	}
 }

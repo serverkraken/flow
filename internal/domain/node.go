@@ -34,6 +34,12 @@ type Node struct {
 	Slug               string         `json:"slug"`
 	Color              string         `json:"color"`
 	Glyph              string         `json:"glyph"`
+	// Icon is a whitelisted key into the curated Lucide identity-icon set
+	// ("" = none); rendered in the node's color. LogoRef is the content hash
+	// of the uploaded logo image ("" = none) — render priority is
+	// upload > icon > glyph.
+	Icon               string         `json:"icon"`
+	LogoRef            string         `json:"logoRef,omitempty"`
 	Description        string         `json:"description"`
 	UpstreamGit        string         `json:"upstreamGit"`
 	Rate               *Money         `json:"rate,omitempty"` // optional per-hour rate (nil = unset)
@@ -44,7 +50,9 @@ type Node struct {
 	Kind               NodeKind       `json:"kind"`
 	OriginSlug         string         `json:"originSlug,omitempty"`
 	Extra              map[string]any `json:"extra,omitempty"`
-	CountsTowardTarget bool           `json:"countsTowardTarget"`
+	// CountsTowardTarget: nil = erbt (nächster expliziter Vorfahr entscheidet);
+	// *true = Work (zählt aufs Soll); *false = Privat (nur getrackt).
+	CountsTowardTarget *bool `json:"countsTowardTarget,omitempty"`
 }
 
 // NewNode builds a validated, active Node stamped at now.
@@ -62,7 +70,6 @@ func NewNode(id, ownerID, name, slug string, now time.Time) (Node, error) {
 	return Node{
 		ID: id, OwnerID: ownerID, Name: name, Slug: slug,
 		Status: NodeActive, CreatedAt: now, UpdatedAt: now,
-		CountsTowardTarget: true,
 	}, nil
 }
 
@@ -78,6 +85,8 @@ func (p Node) Validate() error {
 		return fmt.Errorf("%w: invalid color %q", ErrInvalidNode, p.Color)
 	case !ValidNodeGlyph(p.Glyph):
 		return fmt.Errorf("%w: invalid glyph %q", ErrInvalidNode, p.Glyph)
+	case !ValidNodeIcon(p.Icon):
+		return fmt.Errorf("%w: invalid icon %q", ErrInvalidNode, p.Icon)
 	}
 	switch p.Status {
 	case NodeActive, NodePaused, NodeArchived:
@@ -133,4 +142,17 @@ func ResolveRate(chain []Node) *Money {
 		}
 	}
 	return nil
+}
+
+// ResolveCountsTowardTarget returns the effective Work/Privat flag for a node by
+// walking its ancestor chain (leaf→root, as NodeStore.Ancestors returns): the
+// nearest node with an explicit value wins. All-nil (or empty) → true (Work),
+// so an unconfigured tree counts toward the Soll like before.
+func ResolveCountsTowardTarget(chain []Node) bool {
+	for _, n := range chain {
+		if n.CountsTowardTarget != nil {
+			return *n.CountsTowardTarget
+		}
+	}
+	return true
 }

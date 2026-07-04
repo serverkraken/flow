@@ -1,10 +1,24 @@
 package components
 
-// Base is the full HTML hull every page renders inside. It loads only local
-// assets (app.css, vendored htmx, vendored fonts), sets data-theme before
-// first paint (no-flash), wires the SSE body, and exposes toggleTheme() plus a
-// client-side live timer. The page-specific markup is passed as body.
+// Base is the shared HTML hull with live-sync (SSE) enabled — the default for
+// every authenticated page.
 templ Base(title string, body templ.Component) {
+	@baseHull(title, true, body)
+}
+
+// BaseNoSSE is the hull WITHOUT the SSE connection — for pre-auth pages
+// (logout landing, OIDC-callback errors) where /api/v1/events would 401 and
+// retry pointlessly (K5 A2).
+templ BaseNoSSE(title string, body templ.Component) {
+	@baseHull(title, false, body)
+}
+
+// baseHull is the full HTML hull every page renders inside. It loads only
+// local assets (app.css, vendored htmx, vendored fonts), sets data-theme
+// before first paint (no-flash), optionally wires the SSE body connection,
+// and exposes toggleTheme() plus a client-side live timer. The page-specific
+// markup is passed as body.
+templ baseHull(title string, sse bool, body templ.Component) {
 	<!DOCTYPE html>
 	<html lang="de" class="scroll-smooth">
 		<head>
@@ -20,25 +34,42 @@ templ Base(title string, body templ.Component) {
 			<script src="/static/vendor/htmx-ext-sse.js" defer></script>
 			<script src="/static/scrollspy.js" defer></script>
 			<script src="/static/toc.js" defer></script>
-			// No-flash theme init: set data-theme BEFORE first paint.
+			// No-flash theme init: set data-theme BEFORE first paint. Kristall-Dark
+			// is the identity (spec §2.3) — saved preference still wins; no
+			// prefers-color-scheme fallback.
 			<script>
 				(function () {
 					try {
 						var saved = localStorage.getItem('flow-theme');
-						var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-						document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+						document.documentElement.setAttribute('data-theme', saved || 'dark');
 					} catch (e) {
-						document.documentElement.setAttribute('data-theme', 'light');
+						document.documentElement.setAttribute('data-theme', 'dark');
 					}
 				})();
 			</script>
 		</head>
-		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink" hx-ext="sse" sse-connect="/api/v1/events">
-			<svg class="kristall-facets" preserveAspectRatio="none" viewBox="0 0 800 560" aria-hidden="true">
-				<polygon points="0,0 320,0 110,250" fill="rgb(var(--purple))" opacity=".18"/>
-				<polygon points="800,0 800,250 470,60" fill="rgb(var(--cyan))" opacity=".12"/>
-				<polygon points="260,560 640,560 720,330" fill="rgb(var(--magenta))" opacity=".12"/>
-				<polygon points="0,560 0,250 250,420" fill="rgb(var(--blue))" opacity=".16"/>
+		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink"
+			if sse {
+				hx-ext="sse" sse-connect="/api/v1/events"
+			}
+		>
+			<svg class="kristall-facets" viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+				<defs>
+					<radialGradient id="kfacet-glow" cx="50%" cy="50%" r="50%">
+						<stop offset="0%" stop-color="rgb(var(--cyan))" stop-opacity=".08"></stop>
+						<stop offset="100%" stop-color="rgb(var(--cyan))" stop-opacity="0"></stop>
+					</radialGradient>
+				</defs>
+				<g fill="rgb(var(--ink))" fill-opacity=".022" stroke="rgb(var(--ink))" stroke-opacity=".04" stroke-width="1">
+					<polygon points="0,90 260,0 360,220 60,320"></polygon>
+					<polygon points="360,220 260,0 600,80 500,270"></polygon>
+					<polygon points="880,0 1180,60 1100,290 840,200"></polygon>
+					<polygon points="1100,290 1180,60 1180,420 960,470"></polygon>
+					<polygon points="90,560 350,510 430,780 120,820"></polygon>
+					<polygon points="740,820 690,540 1020,590 1080,820"></polygon>
+				</g>
+				<circle cx="220" cy="140" r="240" fill="url(#kfacet-glow)"></circle>
+				<circle cx="1000" cy="700" r="260" fill="url(#kfacet-glow)"></circle>
 			</svg>
 			@body
 			// Theme toggle wiring: flips data-theme, persists, syncs aria-pressed, cross-tab sync.
@@ -67,35 +98,48 @@ templ Base(title string, body templ.Component) {
 					syncToggles();
 				})();
 			</script>
-			// Client-side live timer: advances any [data-timer]/[data-mini-timer]
-			// independently of htmx fragment refreshes. Reads a base elapsed (seconds)
-			// and start epoch from data attributes on the [data-timer] element.
+			// Client-side live timer: advances every [data-timer]/[data-mini-timer]
+			// independently of htmx fragment refreshes. Multi-instance: several
+			// [data-timer] elements can coexist (a page hero clock in #content, the
+			// always-present shell widget clock, the mobile chip's embedded dialog
+			// copy) and must tick independently rather than sharing one binding —
+			// otherwise whichever element querySelector finds first "wins" and the
+			// others freeze. Each element reads its own base elapsed (data-base,
+			// seconds) and tracks its own bind moment (dataset.boundStart).
 			<script>
 				(function () {
 					var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-					var hero, minis, base, start;
 					function p(n) { return n < 10 ? '0' + n : '' + n; }
-					// (Re)capture the timer element + its base elapsed. Must run again after
-					// every htmx swap: a start/stop/error replaces #content with a NEW
-					// [data-timer] node, and a stale reference would never tick (seconds
-					// only appeared after a full page refresh otherwise).
+					// (Re)bind every [data-timer] element. Must run again after every htmx
+					// swap: a start/stop/error can replace #content, the widget mount, or
+					// the chip's embedded dialog copy with a NEW [data-timer] node. An
+					// element that survives a swap untouched (same DOM node) already has
+					// dataset.boundStart and keeps ticking from it; a genuinely new node
+					// has none yet and gets a fresh bind moment.
 					function bind() {
-						var el = document.querySelector('[data-timer]');
-						minis = document.querySelectorAll('[data-mini-timer]');  // re-query each swap
-						if (el && el === hero) { tick(); return; }               // same node → keep ticking
-						hero  = el;
-						base  = hero ? parseInt(hero.getAttribute('data-base') || '0', 10) : 0;
-						start = Date.now();
+						document.querySelectorAll('[data-timer]').forEach(function (el) {
+							if (!el.dataset.boundStart) el.dataset.boundStart = Date.now();
+						});
 						tick();
 					}
 					function tick() {
-						if (!hero && (!minis || minis.length === 0)) return;
-						var elapsed = base + Math.floor((Date.now() - start) / 1000);
-						var h = Math.floor(elapsed / 3600);
-						var m = Math.floor((elapsed % 3600) / 60);
-						var s = elapsed % 60;
-						if (hero) hero.textContent = h + 'h ' + p(m) + 'm ' + p(s) + 's';
-						if (minis) minis.forEach(function (el) { el.textContent = p(h) + ':' + p(m) + ':' + p(s); });
+						var timers = document.querySelectorAll('[data-timer]');
+						var minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap
+						var mh, mm, ms;
+						timers.forEach(function (el) {
+							var base = parseInt(el.getAttribute('data-base') || '0', 10);
+							var elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);
+							var h = Math.floor(elapsed / 3600);
+							var m = Math.floor((elapsed % 3600) / 60);
+							var s = elapsed % 60;
+							el.textContent = el.getAttribute('data-timer-fmt') === 'clock'
+								? p(h) + ':' + p(m) + ':' + p(s)
+								: h + 'h ' + p(m) + 'm ' + p(s) + 's';
+							if (mh === undefined) { mh = h; mm = m; ms = s; }  // first bound timer feeds the mini(s)
+						});
+						if (minis.length && mh !== undefined) {
+							minis.forEach(function (el) { el.textContent = p(mh) + ':' + p(mm) + ':' + p(ms); });
+						}
 					}
 					bind();
 					setInterval(tick, reduce ? 60000 : 1000);

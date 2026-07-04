@@ -32,6 +32,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgBadgesChips())
 	// StatTiles
 	@Card("mb-6", sgStatTiles())
+	// Kristall Tiles + Tabs
+	@Card("mb-6", sgKristallTilesAndTabs())
 	// EmptyState
 	@Card("mb-6", sgEmpty())
 	// Dialogs
@@ -82,6 +84,28 @@ templ sgStatTiles() {
 	</div>
 }
 
+templ sgKristallTilesAndTabs() {
+	<h2 class="font-display text-lg font-semibold mb-4">Kristall-Kacheln + Tabs</h2>
+	<div class="space-y-6">
+		<div>
+			<p class="text-sm text-muted mb-3">Accent Tiles (rollup style)</p>
+			<div class="grid grid-cols-3 gap-3">
+				@StatTileAccent("stats.week", "18h 20m", "+2h 05m ggü. Vorwoche", "purple")
+				@StatTileAccent("stats.balance", "16h 40m", "", "cyan")
+				@StatTileAccent("stats.goals", "8 / 10", "", "green")
+			</div>
+		</div>
+		<div>
+			<p class="text-sm text-muted mb-3">Pill Tab Strip</p>
+			@TabStrip([]Tab{
+				{Key: "a", Href: "#", LabelKey: "nav.home", Count: 12},
+				{Key: "b", Href: "#", LabelKey: "nav.projects", Count: 0},
+				{Key: "c", Href: "#", LabelKey: "nav.week"},
+			}, "a")
+		</div>
+	</div>
+}
+
 templ sgEmpty() {
 	<h2 class="font-display text-lg font-semibold mb-4">EmptyState</h2>
 	@EmptyState("·", "empty.default", "empty.default")
@@ -93,7 +117,7 @@ templ sgDialogs() {
 		@Button(BtnSecondary, T(ctx, "common.edit"), "", templ.Attributes{"data-dialog-open": "sgEditDlg", "type": "button"})
 		@Button(BtnDanger, T(ctx, "common.delete"), "■", templ.Attributes{"data-dialog-open": "sgDelDlg", "type": "button"})
 	</div>
-	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`))
+	@Dialog("sgEditDlg", "common.edit", templ.Raw(`<p class="text-[.9rem] text-body">Beispiel-Dialoginhalt.</p>`), false)
 	@ConfirmDialog(ConfirmSpec{
 		ID:           "sgDelDlg",
 		ConfirmAttrs: templ.Attributes{"type": "button", "data-dialog-close": true},

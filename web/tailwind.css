@@ -6,6 +6,11 @@
 @source "../internal/adapter/webui/**/*.templ";
 @source "../internal/adapter/webui/**/*.go";
 @source not "../internal/adapter/webui/static/**";
+/* v4 auto-detection additionally scans every non-gitignored file in the repo;
+   docs (plans/specs/mockups) and .claude carry class-looking strings that must
+   never feed the stylesheet — a committed plan otherwise breaks verify-css. */
+@source not "../docs/**";
+@source not "../.claude/**";
 
 /* ════════════════════════════════════════════════════════════════════
    DESIGN TOKENS — one Studio identity, two themes (port of
@@ -17,8 +22,8 @@
    breaks the entire @theme block (zero utilities emitted).
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── LIGHT (default) — Kristall twilight-light ── */
-:root {
+/* ── LIGHT — abgeleitet ── */
+:root[data-theme="light"] {
   color-scheme: light;
   --canvas:  244 243 251;
   --surface: 255 255 255;
@@ -49,8 +54,11 @@
   --glass-strong-a: .7;
   --glass-border-a: .7;
 
-  --backdrop: linear-gradient(150deg,#f4f2fb,#eef0fb 55%,#eaf4f6);
-  --facet-a: .22;
+  --backdrop:
+    radial-gradient(900px 620px at 8% -8%, rgba(139,92,246,.10), transparent 60%),
+    radial-gradient(840px 640px at 104% 2%, rgba(11,165,214,.08), transparent 55%),
+    linear-gradient(150deg,#f4f2fb,#eef0fb 55%,#eaf4f6);
+  --facet-a: .3;
 
   --shadow:         40  50 100;
   --shadow-accent: 124  92 246;
@@ -62,8 +70,8 @@
   --scrollthumb: 217 223 236;
 }
 
-/* ── DARK — Kristall twilight-dark (lifted from approved mockup) ── */
-:root[data-theme="dark"] {
+/* ── DARK (default) — Kristall twilight-dark (lifted from approved mockup) ── */
+:root {
   color-scheme: dark;
   --canvas:  28  24  56;
   --surface: 40  33  64;
@@ -94,8 +102,12 @@
   --glass-strong-a: .09;
   --glass-border-a: .12;
 
-  --backdrop: linear-gradient(150deg,#1c1838,#2c1c42 55%,#102530);
-  --facet-a: .5;
+  --backdrop:
+    radial-gradient(900px 620px at 8% -8%, rgba(196,181,253,.16), transparent 60%),
+    radial-gradient(840px 640px at 104% 2%, rgba(103,232,249,.13), transparent 55%),
+    radial-gradient(760px 720px at 90% 112%, rgba(110,231,183,.08), transparent 60%),
+    linear-gradient(150deg,#1c1838,#2c1c42 55%,#102530);
+  --facet-a: .8;
 
   --shadow:          0   0   0;
   --shadow-accent:  103 232 249;
@@ -155,7 +167,7 @@
   --radius-3xl: 1.75rem;
 
   --shadow-soft: 0 1px 2px rgb(var(--shadow) / .05), 0 6px 20px -8px rgb(var(--shadow-accent) / .10);
-  --shadow-lift: 0 2px 4px rgb(var(--shadow) / .06), 0 18px 44px -16px rgb(var(--shadow-accent) / .18);
+  --shadow-lift: 0 22px 55px -22px rgb(var(--shadow) / .60), 0 8px 24px -14px rgb(var(--shadow) / .45), 0 18px 44px -16px rgb(var(--shadow-accent) / .18);
   --shadow-ring: 0 10px 50px -12px rgb(var(--shadow-accent) / .30);
 
   --animate-breathe: breathe 2.2s ease-in-out infinite;
@@ -213,9 +225,14 @@ aside, header, nav, article, input, .theme-fade {
 /* Theme-toggle knob slide + sun/moon swap (driven by data-theme). */
 .toggle-knob { transition: transform .3s cubic-bezier(.4,.1,.2,1); }
 :root[data-theme="dark"] .toggle-knob { transform: translateX(20px); }
+:root:not([data-theme="light"]) .toggle-knob { transform: translateX(20px); }
 .toggle-sun { display:inline; } .toggle-moon { display:none; }
 :root[data-theme="dark"] .toggle-sun { display:none; }
 :root[data-theme="dark"] .toggle-moon { display:inline; }
+/* data-theme is always set by the no-flash script; these keep no-JS/first-paint
+   consistent with the dark default. */
+:root:not([data-theme]) .toggle-sun { display:none; }
+:root:not([data-theme]) .toggle-moon { display:inline; }
 
 /* Styled native <dialog> backdrop (Task 8). */
 dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px); }
@@ -262,7 +279,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     outline: 2px solid transparent;
     outline-offset: 1px;
   }
-  :root[data-theme="dark"] .wtblock { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
+  :root:not([data-theme="light"]) .wtblock { background: rgb(var(--c) / .18); border-color: rgb(var(--c) / .42); }
   .wtblock::before {
     content:""; position:absolute; inset-block:0; left:0; width:3px; background: rgb(var(--c));
   }
@@ -291,7 +308,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
       rgb(var(--sunken));
     border: 1.5px dashed rgb(var(--faint));
   }
-  :root[data-theme="dark"] .wtblock-unassigned {
+  :root:not([data-theme="light"]) .wtblock-unassigned {
     background:
       linear-gradient(0deg, rgb(var(--orange) / .10), rgb(var(--orange) / .10)),
       rgb(var(--sunken));
@@ -309,7 +326,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 
   /* running block — live cyan, breathing rail */
   .wtblock-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
-  :root[data-theme="dark"] .wtblock-running { background: rgb(var(--cyan) / .2); }
+  :root:not([data-theme="light"]) .wtblock-running { background: rgb(var(--cyan) / .2); }
   .wtblock-running::before { background: rgb(var(--cyan)); }
 
   /* now-line across the grid (today) */
@@ -338,11 +355,77 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .seg button, .seg a { border-radius: 9px; transition: background .15s ease, color .15s ease, box-shadow .15s ease; }
   .seg button[aria-pressed="true"], .seg a[aria-pressed="true"] { background: rgb(var(--surface)); color: rgb(var(--blue)); box-shadow: var(--tw-shadow, 0 1px 2px rgb(var(--shadow)/.06)); }
 
+  /* Kristall form field — single source for glass inputs across editor + node form */
+  .field { width: 100%; background: rgb(var(--sunken) / .6); border: 1px solid rgb(var(--line)); border-radius: 12px; padding: 8px 12px; color: rgb(var(--ink)); transition: border-color .13s ease, box-shadow .13s ease; }
+  .field:focus { outline: none; border-color: rgb(var(--blue) / .5); box-shadow: 0 0 0 3px rgb(var(--blue) / .12); }
+  .field:disabled { color: rgb(var(--muted)); background: rgb(var(--sunken)); }
+  .field::placeholder { color: rgb(var(--faint)); }
+
+  /* K5 L1: on light glass, --line (pale lavender) nearly vanishes over the
+     near-white field bg. Give light-theme fields a stronger, still-soft
+     border so empty inputs read as fields. Dark keeps the original. */
+  :root[data-theme="light"] .field { border-color: rgb(198 200 222); background: rgb(255 255 255 / .75); }
+  :root[data-theme="light"] .field:disabled { background: rgb(var(--sunken)); }
+  :root[data-theme="light"] .field:focus { border-color: rgb(var(--blue) / .5); }
+
   /* frosted-glass surface — used by the canonical Card component */
-  .glass { background: rgb(var(--glass) / var(--glass-a)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
-  .glass-strong { background: rgb(var(--glass) / var(--glass-strong-a)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
+  .glass { background: rgb(var(--glass) / var(--glass-a)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
+  .glass-strong { background: rgb(var(--glass) / var(--glass-strong-a)); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgb(var(--glass) / var(--glass-border-a)); }
   /* colored corner triangle, top-left, clipped to the card's rounded corner via overflow-hidden on the card */
   .card-corner { position: absolute; top: 0; left: 0; width: 30px; height: 30px; clip-path: polygon(0 0, 100% 0, 0 100%); background: rgb(var(--c, var(--muted))); }
+
+  /* Kristall CTA glow (mockup .big-start) + hover lift */
+  .cta-glow { box-shadow: 0 12px 30px -10px rgb(var(--cyan) / .55); transition: transform .14s ease, box-shadow .14s ease; }
+  .cta-glow:hover { transform: translateY(-1px); box-shadow: 0 16px 36px -10px rgb(var(--cyan) / .65); }
+
+  /* K5 H1: on a node-cockpit page (only there does #cockpit-rail exist) the
+     rail's object-bound "Start" is the primary action. Demote the GLOBAL
+     sidebar timer widget's idle start button to a quiet secondary so two green
+     Start CTAs don't compete. Running state shows a clock (no start button),
+     so this only affects idle. :has() unsupported → widget stays full (safe). */
+  body:has(#cockpit-rail) #timer-widget .cta-glow {
+    background: rgb(var(--glass) / .07) !important;
+    color: rgb(var(--body)) !important;
+    box-shadow: inset 0 0 0 1px rgb(var(--glass) / var(--glass-border-a));
+  }
+
+  /* rollup-tile accent underline (mockup .rtile::after); hue via --ac */
+  .rtile-ac { position: relative; }
+  .rtile-ac::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background: linear-gradient(90deg, rgb(var(--ac, var(--blue))), transparent); }
+
+  /* pill tab strip (mockup .tabs) */
+  .pill-tabs { display:flex; gap:4px; background: rgb(var(--sunken) / .75); border:1px solid rgb(var(--line2)); border-radius:14px; padding:5px; overflow-x:auto; }
+  /* K5 M2: right-edge fade cues that the pill strip scrolls horizontally when
+     it overflows (mobile has no visible scrollbar). Pure affordance — the
+     strip already scrolls via overflow-x:auto. */
+  .pill-tabs { position: relative; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-snap-type: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 22px), transparent); }
+  .pill-tabs::-webkit-scrollbar { display: none; }
+  .pill-tab { display:flex; align-items:center; gap:8px; padding:9px 15px; border-radius:10px; color: rgb(var(--muted)); font-weight:600; font-size:13px; white-space:nowrap; transition: color .13s ease, background .13s ease; }
+  .pill-tab:hover { color: rgb(var(--ink)); }
+  .pill-tab[aria-current="page"] { background: rgb(var(--glass) / var(--glass-strong-a)); color: rgb(var(--ink)); box-shadow: inset 0 0 0 1px rgb(var(--glass) / var(--glass-border-a)); }
+  .pill-cnt { font-size:10.5px; color: rgb(var(--faint)); background: rgb(var(--glass) / .07); padding:1px 7px; border-radius:999px; }
+  .pill-tab[aria-current="page"] .pill-cnt { color: rgb(var(--cyan)); }
+
+  /* sidebar tree: form-coded kind dots (mockup .node .dot), hue via --nc */
+  .nvdot { width:9px; height:9px; flex:0 0 auto; background: rgb(var(--nc, var(--blue))); box-shadow: 0 0 8px -1px rgb(var(--nc, var(--blue))); }
+  .nvdot-eng { border-radius:50%; }
+  .nvdot-vor { transform: rotate(45deg); border-radius:1.5px; }
+  .nvdot-repo { clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); box-shadow:none; }
+  /* soft fade truncation (mockup .node .lb) — replaces the hard ellipsis */
+  .fade-label { white-space:nowrap; overflow:hidden; -webkit-mask-image: linear-gradient(90deg,#000 80%,transparent); mask-image: linear-gradient(90deg,#000 80%,transparent); }
+  .nv-row-active { background: linear-gradient(90deg, rgb(var(--blue) / .20), rgb(var(--blue) / .03)); box-shadow: inset 0 0 0 1px rgb(var(--blue) / .4); }
+  .nv-row-active .fade-label { -webkit-mask-image:none; mask-image:none; color: rgb(var(--ink)); font-weight:700; }
+
+  /* Übersicht feed (Kristall K2 Task 5): Work/Privat split bar + chain/comp share bar */
+  .split-bar { height:14px; border-radius:999px; overflow:hidden; display:flex; background:rgb(var(--sunken)); border:1px solid rgb(var(--line2)); }
+  .split-work { background:linear-gradient(90deg,rgb(var(--green)),rgb(var(--cyan))); }
+  .split-priv { background:linear-gradient(90deg,rgb(var(--purple)),rgb(var(--purple) / .7)); }
+  .chain-bar { height:6px; border-radius:999px; background:rgb(var(--sunken)); overflow:hidden; }
+
+  /* K5 L2: quiet scrollbar for the sidebar nav scroll region */
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(var(--scrollthumb)) transparent; }
+  .scroll-thin::-webkit-scrollbar { width: 6px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: rgb(var(--scrollthumb)); border-radius: 999px; }
 }
 
 @layer components {

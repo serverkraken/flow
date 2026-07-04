@@ -345,7 +345,7 @@ func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
 	_, err := ns.Create(ctx, domain.Node{
 		ID: "job", OwnerID: "u1", Name: "Job", Slug: "job",
 		Kind: domain.KindEngagement, Status: domain.NodeActive,
-		CountsTowardTarget: true,
+		CountsTowardTarget: ptrBool(true),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -353,7 +353,7 @@ func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
 	_, err = ns.Create(ctx, domain.Node{
 		ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
 		Kind: domain.KindEngagement, Status: domain.NodeActive,
-		CountsTowardTarget: false,
+		CountsTowardTarget: ptrBool(false),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -392,5 +392,109 @@ func TestStatsComputer_Week_PrivEngagementExcludedFromSaldo(t *testing.T) {
 	// Week saldo: 2h (job TargetTotal on Mon) − 5×8h (Mon–Fri workday targets) = −38h.
 	if st.Overtime != -38*time.Hour {
 		t.Errorf("Overtime: want −38h, got %v", st.Overtime)
+	}
+}
+
+// TestStatsComputer_Week_InheritedPrivatExcludedFromSaldo pins the inherited
+// Work/Privat resolution in countsTowardFn: a repo with a nil flag under an
+// explicitly-Privat engagement must NOT count toward the Soll, while a root
+// engagement with a nil flag defaults to Work (counts).
+func TestStatsComputer_Week_InheritedPrivatExcludedFromSaldo(t *testing.T) {
+	ctx := context.Background()
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+
+	ns := testutil.NewFakeNodeStore()
+	privID := "priv"
+	for _, n := range []domain.Node{
+		{ID: "job", OwnerID: "u1", Name: "Job", Slug: "job",
+			Kind: domain.KindEngagement, Status: domain.NodeActive,
+			CountsTowardTarget: nil}, // root, all-nil → Work by default
+		{ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
+			Kind: domain.KindEngagement, Status: domain.NodeActive,
+			CountsTowardTarget: ptrBool(false)}, // explicitly Privat
+		{ID: "privrepo", OwnerID: "u1", Name: "PrivRepo", Slug: "privrepo",
+			Kind: domain.KindRepo, Status: domain.NodeActive, ParentID: &privID,
+			CountsTowardTarget: nil}, // inherits Privat from parent
+	} {
+		if _, err := ns.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	jobID, privRepoID := "job", "privrepo"
+	stop1 := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	stop2 := time.Date(2026, 6, 15, 13, 0, 0, 0, time.UTC)
+	sessions := []domain.WorkSession{
+		{ID: "s1", OwnerID: "u1", NodeID: &jobID, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop1},
+		{ID: "s2", OwnerID: "u1", NodeID: &privRepoID, Start: time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC), Stop: &stop2},
+	}
+
+	c := usecase.StatsComputer{
+		Sessions: fakeSessionStore{list: sessions},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)}, // Monday
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+
+	st, err := c.RangeStats(ctx, "u1", "week")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both sessions appear in Total (raw logged time).
+	if st.Total != 4*time.Hour {
+		t.Errorf("Total: want 4h, got %v", st.Total)
+	}
+	// Only the job session counts: privrepo inherits Privat from its parent.
+	if st.TargetTotal != 2*time.Hour {
+		t.Errorf("TargetTotal: want 2h (job only; privrepo inherits Privat), got %v", st.TargetTotal)
+	}
+}
+
+// TestStatsComputer_Week_WorkOverrideUnderPrivatCountsTowardSaldo is the
+// inverse of the inherited-Privat test: an explicit Work override on a child
+// under a Privat parent DOES count toward the Soll (override beats inheritance).
+func TestStatsComputer_Week_WorkOverrideUnderPrivatCountsTowardSaldo(t *testing.T) {
+	ctx := context.Background()
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+
+	ns := testutil.NewFakeNodeStore()
+	privID := "priv"
+	for _, n := range []domain.Node{
+		{ID: "priv", OwnerID: "u1", Name: "Priv", Slug: "priv",
+			Kind: domain.KindEngagement, Status: domain.NodeActive,
+			CountsTowardTarget: ptrBool(false)}, // explicitly Privat
+		{ID: "workrepo", OwnerID: "u1", Name: "WorkRepo", Slug: "workrepo",
+			Kind: domain.KindRepo, Status: domain.NodeActive, ParentID: &privID,
+			CountsTowardTarget: ptrBool(true)}, // explicit Work override
+	} {
+		if _, err := ns.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	workRepoID := "workrepo"
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	sessions := []domain.WorkSession{
+		{ID: "s1", OwnerID: "u1", NodeID: &workRepoID, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop},
+	}
+
+	c := usecase.StatsComputer{
+		Sessions: fakeSessionStore{list: sessions},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)}, // Monday
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+
+	st, err := c.RangeStats(ctx, "u1", "week")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The override beats the parent's Privat: the 2h count toward the Soll.
+	if st.TargetTotal != 2*time.Hour {
+		t.Errorf("TargetTotal: want 2h (work override counts), got %v", st.TargetTotal)
 	}
 }

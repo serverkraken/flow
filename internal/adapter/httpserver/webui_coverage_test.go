@@ -559,8 +559,8 @@ func TestWebNodeCockpit_WithGitUpstream(t *testing.T) {
 	if !strings.Contains(body, "GitProject") {
 		t.Errorf("cockpit missing project name")
 	}
-	if !strings.Contains(body, `id="cockpit-head"`) {
-		t.Errorf("cockpit missing cockpit-head div")
+	if !strings.Contains(body, `id="cockpit-rail"`) {
+		t.Errorf("cockpit missing cockpit-rail div")
 	}
 }
 

@@ -155,15 +155,15 @@ func TestUpdateProject_CountsTowardTarget(t *testing.T) {
 	uc, ps, _ := newUpdateUC()
 	seedProj(t, ps, "p1", "")
 
-	// Explicit false → persists false (node was seeded with default true).
+	// Explicit false → persists false (node was seeded with default nil/inherit).
 	in := baseInput()
 	in.CountsTowardTarget = ptrBool(false)
 	got, err := uc.Execute(context.Background(), "u1", "p1", in)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.CountsTowardTarget {
-		t.Fatal("countsTowardTarget: want false, got true")
+	if got.CountsTowardTarget == nil || *got.CountsTowardTarget {
+		t.Fatalf("countsTowardTarget: want *false, got %v", got.CountsTowardTarget)
 	}
 
 	// Omit (nil) → existing false is preserved.
@@ -172,7 +172,7 @@ func TestUpdateProject_CountsTowardTarget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got2.CountsTowardTarget {
-		t.Fatal("omit: want existing false preserved, got true")
+	if got2.CountsTowardTarget == nil || *got2.CountsTowardTarget {
+		t.Fatalf("omit: want existing false preserved, got %v", got2.CountsTowardTarget)
 	}
 }

@@ -2,6 +2,7 @@ package domain_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -95,5 +96,41 @@ func TestResolveRate(t *testing.T) {
 	}
 	if got := domain.ResolveRate([]domain.Node{{ID: "repo", Kind: domain.KindRepo}}); got != nil {
 		t.Fatalf("want nil (no rate in chain), got %+v", got)
+	}
+}
+
+func TestResolveCountsTowardTarget(t *testing.T) {
+	b := func(v bool) *bool { return &v }
+	// leaf→root chains (as NodeStore.Ancestors returns): [0]=self … [n]=root
+	cases := []struct {
+		name  string
+		chain []domain.Node
+		want  bool
+	}{
+		{"all nil → default true", []domain.Node{{}, {}}, true},
+		{"self explicit privat wins", []domain.Node{{CountsTowardTarget: b(false)}, {CountsTowardTarget: b(true)}}, false},
+		{"inherit from parent privat", []domain.Node{{CountsTowardTarget: nil}, {CountsTowardTarget: b(false)}}, false},
+		{"nearest ancestor wins", []domain.Node{{CountsTowardTarget: nil}, {CountsTowardTarget: b(true)}, {CountsTowardTarget: b(false)}}, true},
+		{"empty chain → true", nil, true},
+	}
+	for _, c := range cases {
+		if got := domain.ResolveCountsTowardTarget(c.chain); got != c.want {
+			t.Errorf("%s: got %v want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestNodeValidate_Icon(t *testing.T) {
+	n, err := domain.NewNode("n1", "u1", "flow", "flow", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	n.Icon = "rocket"
+	if err := n.Validate(); err != nil {
+		t.Errorf("whitelisted icon rejected: %v", err)
+	}
+	n.Icon = "skull"
+	if err := n.Validate(); err == nil {
+		t.Error("non-whitelisted icon accepted")
 	}
 }

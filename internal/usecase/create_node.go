@@ -13,12 +13,12 @@ import (
 // CreateNodeInput is the field set for creating a node. Kind+ParentID drive the
 // hierarchy validation; a nil ParentID means a root, which must be an engagement.
 type CreateNodeInput struct {
-	Name, Slug                             string
-	Kind                                   domain.NodeKind
-	ParentID                               *string
-	Color, Glyph, Description, UpstreamGit string
-	// CountsTowardTarget overrides the domain default (true) when non-nil.
-	// Omitting it (nil) preserves NewNode's default of true.
+	Name, Slug                                   string
+	Kind                                         domain.NodeKind
+	ParentID                                     *string
+	Color, Glyph, Icon, Description, UpstreamGit string
+	// CountsTowardTarget overrides the domain default (nil = erbt) when non-nil.
+	// Omitting it (nil) preserves NewNode's default of nil (inherit).
 	CountsTowardTarget *bool
 }
 
@@ -53,10 +53,8 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 	}
 	n.Kind = in.Kind
 	n.ParentID = in.ParentID
-	n.Color, n.Glyph = in.Color, in.Glyph
-	if in.CountsTowardTarget != nil {
-		n.CountsTowardTarget = *in.CountsTowardTarget
-	}
+	n.Color, n.Glyph, n.Icon = in.Color, in.Glyph, in.Icon
+	n.CountsTowardTarget = in.CountsTowardTarget
 	n.Description, n.UpstreamGit = in.Description, in.UpstreamGit
 	if err := n.Validate(); err != nil {
 		return domain.Node{}, err
