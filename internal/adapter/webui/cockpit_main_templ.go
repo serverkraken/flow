@@ -300,7 +300,7 @@ func cockpitWissenSection(d NodeCockpit) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if d.N.Kind != domain.KindRepo {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"seg mb-4 inline-flex text-[.8rem]\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"seg seg-sm mb-4 inline-flex\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

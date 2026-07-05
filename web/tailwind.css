@@ -478,6 +478,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* Puls-Zeile (Cockpit-Inhalt T6, Mockup Z.611–626 .puls .who/.agentname) */
   .pulse .who { font-weight: 600; }
   .pulse .agentname { color: rgb(var(--meta)); font-weight: 600; }
+  /* kleine .seg-Variante (Scope-Toggle im Cockpit-Wissen) — benannt statt text-[.8rem] */
+  .seg-sm { font-size: .8rem; }
   /* Seiten-Gerüst + Sektionen (Mockup Z.69–76; L1 hat NUR .seg — Rest fehlt) */
   .pagehead { padding: 44px 0 10px; }
   .pagehead h1 { font-size: 34px; font-weight: 700; letter-spacing: -.025em; line-height: 1.15; }

@@ -76,7 +76,7 @@ templ cockpitWissenSection(d NodeCockpit) {
 			<a class="more" href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
 		</div>
 		if d.N.Kind != domain.KindRepo {
-			<div class="seg mb-4 inline-flex text-[.8rem]">
+			<div class="seg seg-sm mb-4 inline-flex">
 				if d.WissenScope == "self" {
 					<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/main?scope=subtree") }
 						hx-get={ "/nodes/" + d.N.ID + "/main?scope=subtree" } hx-target="#cockpit-main" hx-swap="innerHTML"
