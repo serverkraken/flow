@@ -157,9 +157,12 @@ func TestAppShellNonPrimaryActiveKeyMarksArea(t *testing.T) {
 	if !strings.Contains(out, `aria-current="page"`) {
 		t.Errorf("AppShell with active 'frei' must mark the Zeit area as aria-current: %s", out)
 	}
-	// Exactly one aria-current in the primary nav: the Zeit item only.
-	if n := strings.Count(out, `aria-current="page"`); n != 1 {
-		t.Errorf("AppShell(frei) must have exactly 1 aria-current=page, got %d: %s", n, out)
+	// Exactly one aria-current in the primary nav landmark: the Zeit item only.
+	// (The mobile-nav dialog — Burger-Fix 2026-07-05 — mirrors the same
+	// aria-current on its own copy of the link, so the global count is 2.)
+	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
+	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
+		t.Errorf("AppShell(frei) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
 	}
 }
 

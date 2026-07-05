@@ -223,8 +223,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 @media (max-width: 620px) {
   .topbar-in { gap: 9px; padding: 0 12px; height: 54px; }
   .topbar-mark { font-size: 17px; }
-  .topbar-nav { gap: 12px; }
-  .topbar-nav a { font-size: 13.5px; padding: 16px 0 14px; }
+  .topbar-nav { display: none; }
+  .topbar-burger { display: inline-flex; }
   .searchbtn { padding: 7px 8px; border-radius: 7px; }
   .searchbtn-kbd { display: none; }
   .timerpill { padding: 6px 9px; }

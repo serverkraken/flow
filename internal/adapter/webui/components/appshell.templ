@@ -29,6 +29,10 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 					}
 				}
 			</nav>
+			<button type="button" data-dialog-open="mobile-nav" aria-label={ T(ctx, "nav.primary") }
+				class="topbar-burger hidden shrink-0 items-center justify-center rounded-lg border border-hair2 bg-surface h-8 w-8 text-ink">
+				<span aria-hidden="true" class="font-mono text-[16px] leading-none">☰</span>
+			</button>
 			<div class="flex-1"></div>
 			<button type="button" data-palette-open aria-label={ T(ctx, "palette.open") }
 				class="searchbtn flex items-center gap-2 rounded-lg border border-hair2 bg-surface px-2.5 py-[7px] text-[13.5px] text-faint hover:border-faint hover:text-meta">
@@ -71,6 +75,23 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 			<form action="/auth/logout" method="post" hx-boost="false" class="border-t border-hair mt-1.5 pt-1.5">
 				<button class="w-full text-left px-4 py-2.5 text-[14px] font-medium text-meta hover:bg-wash hover:text-ink">{ T(ctx, "nav.logout") }</button>
 			</form>
+		</div>
+	</dialog>
+	// Mobile-Nav (Burger-Fix 2026-07-05): die drei Bereiche unter 620px, wenn sie
+	// nicht mehr in die Topbar-Zeile passen (Mockup-Lücke bei 375px).
+	<dialog id="mobile-nav" aria-modal="true" aria-labelledby="mobile-nav-title"
+		class="fixed m-0 mt-[54px] ml-4 mr-auto w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20">
+		<div class="px-4 pt-3 pb-2 border-b border-hair">
+			<span id="mobile-nav-title" class="eyebrow">{ T(ctx, "nav.primary") }</span>
+		</div>
+		<div class="py-1.5">
+			for _, l := range PrimaryNav() {
+				if l.Key == AreaFor(active) {
+					<a aria-current="page" href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-ink bg-wash">{ T(ctx, l.LabelKey) }</a>
+				} else {
+					<a href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-body hover:bg-wash hover:text-ink">{ T(ctx, l.LabelKey) }</a>
+				}
+			}
 		</div>
 	</dialog>
 	@PaletteDialog()

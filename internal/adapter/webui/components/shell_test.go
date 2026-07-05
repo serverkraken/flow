@@ -126,13 +126,16 @@ func TestAppShellNilSlotsAreSafe(t *testing.T) {
 
 func TestAppShellPrimaryAreaActive(t *testing.T) {
 	// "zeit" is now a PrimaryNav key (topbar area), not a drawer item — its
-	// topbar link must carry aria-current, and it must be the only one.
+	// topbar link must carry aria-current, and it must be the only one within
+	// the topbar-nav landmark. (The mobile-nav dialog — Burger-Fix 2026-07-05 —
+	// legitimately mirrors the same aria-current on its own copy of the link.)
 	out := render(t, components.AppShell("zeit", nil, nil, templ.Raw(`<p id="c">x</p>`)))
 	if !strings.Contains(out, `aria-current="page"`) {
 		t.Errorf("AppShell(zeit) must emit aria-current=page for the Zeit topbar link: %s", out)
 	}
-	if n := strings.Count(out, `aria-current="page"`); n != 1 {
-		t.Errorf("AppShell(zeit) must have exactly 1 aria-current=page, got %d: %s", n, out)
+	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
+	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
+		t.Errorf("AppShell(zeit) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
 	}
 	if !strings.Contains(out, `aria-current="page" href="/zeit"`) {
 		t.Errorf("AppShell(zeit) aria-current must sit on the /zeit topbar link: %s", out)
@@ -180,6 +183,26 @@ func TestAppShell_TopbarNoSidebar(t *testing.T) {
 	}
 	if strings.Contains(out, "/ui/nav/tree") {
 		t.Fatal("nav tree mount must be gone")
+	}
+	// Burger-Fix (2026-07-05): unter 620px passen die drei Bereiche nicht mehr
+	// in die Zeile (Mockup-Lücke bei 375px) — sie wandern hinter einen
+	// Burger-Button + Dialog (dialog.js-Mechanik).
+	if !strings.Contains(out, `data-dialog-open="mobile-nav"`) {
+		t.Fatal("burger button (data-dialog-open=\"mobile-nav\") missing")
+	}
+	dialogIdx := strings.Index(out, `id="mobile-nav"`)
+	if dialogIdx == -1 {
+		t.Fatal("mobile-nav dialog missing")
+	}
+	mobileNav := out[dialogIdx:]
+	for _, want := range []string{`href="/nodes"`, `href="/wissen"`, `href="/zeit"`} {
+		if !strings.Contains(mobileNav, want) {
+			t.Fatalf("mobile-nav missing area href %q:\n%s", want, mobileNav)
+		}
+	}
+	// active "heute" (Bereich Zeit) muss im mobilen Dialog aria-current tragen.
+	if !strings.Contains(mobileNav, `aria-current="page" href="/zeit"`) && !strings.Contains(mobileNav, `href="/zeit" aria-current="page"`) {
+		t.Fatal("mobile-nav: active area /zeit not marked aria-current")
 	}
 }
 
