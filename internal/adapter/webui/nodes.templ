@@ -286,7 +286,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 		</div>
 		<div class="flex gap-2">
 			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
-			<a href="/nodes" class="inline-flex items-center justify-center gap-2 rounded-2xl glass px-5 py-2.5 text-[.92rem] font-semibold text-ink transition hover:bg-sunken active:scale-[.99]">{ components.T(ctx, "common.cancel") }</a>
+			<a href="/nodes" class="btn btn-q">{ components.T(ctx, "common.cancel") }</a>
 		</div>
 	</form>
 	if editing != nil {
