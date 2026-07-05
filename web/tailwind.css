@@ -430,13 +430,21 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .instr { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 26px; padding: 14px 18px; background: rgb(var(--panel)); border-radius: 14px; }
   .instr .stats { margin-left: auto; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; color: rgb(var(--meta)); font-variant-numeric: tabular-nums; }
   .instr .stats b { color: rgb(var(--ink)); font-weight: 600; }
+  /* instr-Band: Timer-Meta-Texte (Task 4/5 review-fix, Gate #6 — keine Arbitrary-px) */
+  .instr .clock { font-size: 13px; font-weight: 600; }
+  .instr .note { font-size: 13px; }
   /* Meta-Spalte (rail) */
   .rail .blk { margin-top: 18px; background: rgb(var(--panel)); border-radius: 14px; padding: 16px 18px; }
   .rail .blk:first-child { margin-top: 46px; }
   .rail .blk > .eyebrow { display: block; padding-bottom: 9px; color: rgb(var(--meta)); }
+  .blk .empty { font-size: 12.5px; }
+  .blk .err { font-size: 12px; }
+  .bindadd input { font-size: 12px; }
   .krow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgb(var(--hairp)); font-size: 13.5px; }
   .krow:last-child { border-bottom: none; }
   .krow .n { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .krow .bindtarget { font-size: 12px; }
+  .krow .del { font-size: 11px; }
   .krow a.n:hover { color: rgb(var(--accent)); }
   .krow .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   /* Kontext-Instrument */

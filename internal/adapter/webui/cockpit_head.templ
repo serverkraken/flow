@@ -58,7 +58,7 @@ templ cockpitInstr(d NodeCockpit) {
 				<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-main" hx-swap="innerHTML">
 					<button type="submit" class="btn btn-pri"><span aria-hidden="true">■</span> { components.T(ctx, "cockpit.timer.stop") }</button>
 				</form>
-				<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</span>
+				<span class="clock font-mono tnum" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</span>
 			case TimerIdle:
 				<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-main" hx-swap="innerHTML">
 					<button type="submit" class="btn btn-pri"><span aria-hidden="true">▶</span> { components.T(ctx, "cockpit.timer.start") }</button>
@@ -67,11 +67,11 @@ templ cockpitInstr(d NodeCockpit) {
 				<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-main" hx-swap="innerHTML">
 					<button type="submit" class="btn btn-q">{ components.T(ctx, "cockpit.timer.switch") }</button>
 				</form>
-				<span class="text-[13px] text-meta">{ components.T(ctx, "cockpit.timer.runningOn") } <a class="targetlink" href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } title={ d.Timer.OtherName }>{ ShortName(d.Timer.OtherName) }</a></span>
+				<span class="note text-meta">{ components.T(ctx, "cockpit.timer.runningOn") } <a class="targetlink" href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } title={ d.Timer.OtherName }>{ ShortName(d.Timer.OtherName) }</a></span>
 			case TimerUnbound:
-				<a href="/" class="text-[13px] text-meta hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
+				<a href="/" class="note text-meta hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
 			case TimerNotBookable:
-				<span class="text-[13px] text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
+				<span class="note text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
 		}
 		if domain.IsBookable(d.N.Kind) {
 			<button type="button" class="btn btn-q" data-dialog-open="session-dialog">{ components.T(ctx, "cockpit.worktime.add") }</button>

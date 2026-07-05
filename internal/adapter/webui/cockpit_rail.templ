@@ -28,29 +28,29 @@ templ CockpitRailBlocks(d NodeCockpit) {
 	<div class="blk">
 		<span class="eyebrow">{ components.T(ctx, "cockpit.bindings.title") }</span>
 		if len(d.Bindings) == 0 {
-			<p class="text-[12.5px] text-faint">{ components.T(ctx, "cockpit.bindings.empty") }</p>
+			<p class="empty text-faint">{ components.T(ctx, "cockpit.bindings.empty") }</p>
 		} else {
 			for _, b := range d.Bindings {
 				<div class="krow">
-					<span class="n font-mono text-[12px]" title={ bindingTarget(b) }>{ bindingTarget(b) }</span>
+					<span class="n bindtarget font-mono" title={ bindingTarget(b) }>{ bindingTarget(b) }</span>
 					<form hx-post={ "/nodes/" + d.N.ID + "/bindings/delete" } hx-target="#cockpit-rail" hx-swap="innerHTML">
 						<input type="hidden" name="kind" value={ string(b.Kind) }/>
 						<input type="hidden" name="slug" value={ b.RemoteSlug }/>
 						<input type="hidden" name="machine" value={ b.MachineID }/>
 						<input type="hidden" name="path" value={ b.Path }/>
-						<button class="text-[11px] text-faint hover:text-warn" aria-label={ components.T(ctx, "cockpit.bindings.delete") }>✕</button>
+						<button class="del text-faint hover:text-warn" aria-label={ components.T(ctx, "cockpit.bindings.delete") }>✕</button>
 					</form>
 				</div>
 			}
 		}
 		if d.N.Kind == domain.KindRepo {
-			<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="mt-2 flex items-center gap-2">
-				<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="min-w-0 flex-1 rounded-lg border border-hair2 bg-surface px-2 py-1.5 text-[12px] font-mono"/>
+			<form hx-post={ "/nodes/" + d.N.ID + "/bindings" } hx-target="#cockpit-rail" hx-swap="innerHTML" class="bindadd mt-2 flex items-center gap-2">
+				<input name="remoteSlug" placeholder={ components.T(ctx, "cockpit.bindings.remotePlaceholder") } class="min-w-0 flex-1 rounded-lg border border-hair2 bg-surface px-2 py-1.5 font-mono"/>
 				<button class="btn btn-q btn-s" type="submit">+</button>
 			</form>
 		}
 		if d.PanelErr != "" {
-			<p class="mt-2 text-[12px] text-warn" role="alert">{ d.PanelErr }</p>
+			<p class="err mt-2 text-warn" role="alert">{ d.PanelErr }</p>
 		}
 	</div>
 }
