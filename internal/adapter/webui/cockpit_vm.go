@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"strings"
@@ -80,7 +81,12 @@ type NodeCockpit struct {
 	// back to the generic "Kette" i18n label + "—" so the line still renders.
 	ChainRootName  string
 	ChainRootTotal string // fmtDurHM-formatted, "" = unknown/not yet wired
-	TabCounts      map[string]int
+	// ChainStats carries the per-ancestor-level rollup the Meta-Spalte's Kette
+	// block needs (BuildChain wants one NodeRollup per node.ID: N + every
+	// ancestor). Filled by Task 7's page wiring via s.Stats.NodeStats; empty
+	// map means every chain row renders "—" (Nullen ohne Bühne, Spec §4).
+	ChainStats map[string]domain.NodeRollup
+	TabCounts  map[string]int
 	// active tab + its data (only the active tab's slice is populated)
 	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
 	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
@@ -334,6 +340,61 @@ func dashIfZeroDur(s string) string {
 		return "—"
 	}
 	return s
+}
+
+// KetteRow is one row of the Meta-Spalte's Kette block — a pure-string view
+// of ChainRow, ready for the templ to range over (see cockpit_rail.templ).
+type KetteRow struct {
+	Label    string
+	HoursStr string
+	Here     bool // true for the leaf "this node" row (gets the "(hier)" suffix)
+	Href     string
+}
+
+// ChainRows adapts BuildChain (cockpit_uebersicht_vm.go) for the Meta-Spalte
+// rail: this node → ancestors leaf→root → a final "rate inherited" row built
+// from d.Rate instead of BuildChain's percentage Sum row. Reine Strings,
+// Nullen → "—" (dashIfZeroDur).
+//
+// ownerTotal (BuildChain's %-basis) isn't wired yet — Task 7's page handler
+// owns that source; until then it falls back to d.Rollup.Total so every row
+// still renders sane numbers.
+func ChainRows(ctx context.Context, d NodeCockpit) []KetteRow {
+	ownerTotal := d.Rollup.Total
+	chain := BuildChain(d.N, d.Ancestors, d.ChainStats, ownerTotal)
+
+	// ids mirrors BuildChain's own row order (this, then ancestors leaf→root
+	// with self defensively excluded) so each non-Sum row gets its link target.
+	ids := make([]string, 0, len(chain))
+	ids = append(ids, d.N.ID)
+	for _, a := range d.Ancestors {
+		if a.ID == d.N.ID {
+			continue
+		}
+		ids = append(ids, a.ID)
+	}
+
+	rows := make([]KetteRow, 0, len(chain))
+	for i, c := range chain {
+		if c.Sum {
+			rate := d.Rate
+			if rate == "" {
+				rate = "—"
+			}
+			rows = append(rows, KetteRow{Label: components.T(ctx, "cockpit.rail.rateInherited"), HoursStr: rate})
+			continue
+		}
+		label := ShortName(c.Label)
+		href := ""
+		if i < len(ids) {
+			href = "/nodes/" + ids[i]
+		}
+		if c.This {
+			label += " " + components.T(ctx, "cockpit.rail.here")
+		}
+		rows = append(rows, KetteRow{Label: label, HoursStr: dashIfZeroDur(c.DurStr), Here: c.This, Href: href})
+	}
+	return rows
 }
 
 // glyphOrDefault returns the node glyph or a default identity glyph when unset.

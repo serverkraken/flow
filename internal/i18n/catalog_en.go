@@ -142,6 +142,9 @@ func init() {
 			"cockpit.bindings.remoteOnlyRepo": "Remote bindings can only attach to repo nodes.",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.tab.uebersicht":       "Overview",
+			"cockpit.rail.chain":           "Chain",
+			"cockpit.rail.here":            "(here)",
+			"cockpit.rail.rateInherited":   "Rate inherited",
 			"cockpit.rail.rate":            "Hourly rate",
 			"cockpit.rail.todayHere":       "today here",
 			"cockpit.rail.countsWork":      "counts as Work",
