@@ -458,7 +458,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* Projekte-Baum als Inhalt */
   .eng { margin-top: 46px; }
   .eng-h { display: flex; align-items: center; gap: 14px; padding-bottom: 12px; border-bottom: 2px solid rgb(var(--ink)); }
-  .eng-h h2 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .eng-h h2 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; word-break: break-word; }
   .eng-h .right { margin-left: auto; text-align: right; }
   .eng-h .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .eng-h .right .k { font-size: 11.5px; color: rgb(var(--faint)); }

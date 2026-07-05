@@ -163,7 +163,6 @@ func init() {
 			"node.counts.privat":  "Privat — nur tracken",
 			// nodes tree page (Lesesaal L2 Task 3: Baum als Inhalt)
 			"nodes.title":            "Alle Knoten",
-			"nodes.subtitle":         "Engagements, Vorhaben und Repos",
 			"nodes.new":              "Neuer Knoten",
 			"nodes.empty":            "Keine Knoten.",
 			"nodes.emptyHint":        "Lege ein Engagement an, um zu starten.",

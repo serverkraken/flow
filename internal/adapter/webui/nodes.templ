@@ -38,7 +38,7 @@ templ NodesFragment(d NodesPageData) {
 		<div style="flex:1">
 			<span class="eyebrow">{ components.T(ctx, "nav.projects") }</span>
 			<h1>{ components.T(ctx, "nodes.title") }</h1>
-			<p class="sub">{ d.VM.Summary }</p>
+			<p class="sub">{ ProjectsSummary(ctx, d.VM) }</p>
 		</div>
 		<a href="/nodes/new" class="btn btn-q">{ components.T(ctx, "nodes.new") }</a>
 	</div>
@@ -65,7 +65,7 @@ templ engagementSection(es EngagementSection) {
 	<section class="eng">
 		<div class="eng-h">
 			@components.Avatar(es.Initials, es.Tone, "av-36")
-			<h2>{ es.N.Name }</h2>
+			<h2>{ ShortName(es.N.Name) }</h2>
 			<span class="typechip">{ components.T(ctx, "node.kind."+string(es.N.Kind)) }</span>
 			<div class="right"><div class="v">{ es.HoursStr }</div><div class="k">{ es.RateNote }</div></div>
 		</div>

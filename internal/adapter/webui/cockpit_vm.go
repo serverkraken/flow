@@ -87,7 +87,7 @@ type NodeCockpit struct {
 	// ancestor). Filled by Task 7's page wiring via s.Stats.NodeStats; empty
 	// map means every chain row renders "—" (Nullen ohne Bühne, Spec §4).
 	ChainStats  map[string]domain.NodeRollup
-	Uebersicht  UebersichtVM            // Pulse is the only field CockpitMain still reads (subtree activity feed)
+	Pulse       []ActivityRowVM         // subtree-filtered live activity feed (Puls section)
 	SessionRows []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
 	WissenRows  []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
 	WissenScope string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
@@ -222,23 +222,6 @@ func fmtDurHM(d time.Duration) string {
 		m = 0
 	}
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
-}
-
-// cockpitRateSource returns the name of the nearest ancestor that actually
-// carries a rate — matching domain.ResolveRate's leaf→root walk — or "" when
-// none does. The "geerbt von" label must name the real source, not the root:
-// a rate set on an intermediate Vorhaben otherwise mis-attributes to the
-// Engagement in a 3+-level chain.
-func cockpitRateSource(d NodeCockpit) string {
-	for _, a := range d.Ancestors {
-		if a.ID == d.N.ID {
-			continue // the ancestor chain may include the cockpit node itself
-		}
-		if a.Rate != nil {
-			return a.Name
-		}
-	}
-	return ""
 }
 
 // SpineCrumbs returns the cockpit head's "up" crumb chain: every ancestor

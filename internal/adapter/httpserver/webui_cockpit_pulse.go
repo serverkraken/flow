@@ -10,7 +10,7 @@ import (
 
 // cockpitPulse builds the subtree-filtered live activity feed for the
 // cockpit's Puls section (cockpit_main.templ's cockpitPulseSection, top 8
-// entries newest-first) — d.Uebersicht.Pulse. The Kristall-era uebersichtData
+// entries newest-first) — d.Pulse. The Kristall-era uebersichtData
 // aggregator (rollup tiles, Work/Privat split, composition/chain cards) is
 // gone with the tab strip (Task 7 Flatten); the pulse itself survives as the
 // content column's fourth section. Owner-scoped throughout; any missing

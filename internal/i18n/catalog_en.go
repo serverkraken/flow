@@ -157,7 +157,6 @@ func init() {
 			"node.counts.privat":  "Private — track only",
 			// nodes tree page (Lesesaal L2 Task 3: tree as content)
 			"nodes.title":               "All nodes",
-			"nodes.subtitle":            "Engagements, initiatives and repos",
 			"nodes.new":                 "New node",
 			"nodes.empty":               "No nodes.",
 			"nodes.emptyHint":           "Create an engagement to get started.",

@@ -216,7 +216,7 @@ templ cockpitBuchungActions(nodeID string, row CockpitSessionRow) {
 
 // cockpitPulseSection is the subtree-filtered live activity feed (Mockup
 // Z.611–626): a "LIVE" marker in the section head plus one Lesesaal row per
-// entry — d.Uebersicht.Pulse (fed by FilterPulse+BuildActivityRows, the
+// entry — d.Pulse (fed by FilterPulse+BuildActivityRows, the
 // existing cockpit_uebersicht_vm.go/activity_row.go builders, reused here
 // rather than duplicated). NOT activityFeedRow (Kristall, stays on Home/L4).
 templ cockpitPulseSection(d NodeCockpit) {
@@ -225,10 +225,10 @@ templ cockpitPulseSection(d NodeCockpit) {
 			<span class="eyebrow">{ components.T(ctx, "cockpit.pulse.subtree") }</span>
 			<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
 		</div>
-		if len(d.Uebersicht.Pulse) == 0 {
+		if len(d.Pulse) == 0 {
 			<p class="text-sm text-faint">{ components.T(ctx, "activity.empty") }</p>
 		} else {
-			for _, row := range d.Uebersicht.Pulse {
+			for _, row := range d.Pulse {
 				@cockpitPulseRow(row)
 			}
 		}

@@ -145,7 +145,7 @@ func TestBuildProjectsVM_EmptyIsQuiet(t *testing.T) {
 	if len(vm.Engagements) != 0 {
 		t.Fatalf("want 0 engagements, got %+v", vm.Engagements)
 	}
-	if vm.Summary == "" {
-		t.Fatalf("summary must still render (0 counts), got empty string")
+	if vm.TotalHoursStr == "" {
+		t.Fatalf("summary counts must still render (0 counts), got empty TotalHoursStr")
 	}
 }

@@ -174,30 +174,3 @@ func TestNodeCockpitShell_IncludesNodeContent(t *testing.T) {
 		}
 	}
 }
-
-// TestCockpitRateSource_NearestAncestor pins that cockpitRateSource names the
-// NEAREST rate-setting ancestor (matching domain.ResolveRate), not the root: a
-// repo inheriting a rate set on an intermediate Vorhaben must attribute it to
-// the Vorhaben, not the top Engagement. (The old cockpitIdMeta card that
-// rendered this in the rail is gone — CockpitHead/CockpitRailBlocks (T4/T5)
-// surface the resolved rate value itself; this pure helper is still real,
-// tested logic.)
-func TestCockpitRateSource_NearestAncestor(t *testing.T) {
-	rate := &domain.Money{Amount: 5000, Currency: "EUR"}
-	d := NodeCockpit{
-		N: domain.Node{ID: "repo1", Name: "flow", Kind: domain.KindRepo}, // no own rate
-		// leaf→root: Vorhaben carries the rate, Engagement (root) does not.
-		Ancestors: []domain.Node{
-			{ID: "vor1", Name: "Plattform-Umbau", Kind: domain.KindVorhaben, Rate: rate},
-			{ID: "eng1", Name: "Kundenarbeit", Kind: domain.KindEngagement},
-		},
-	}
-	if got := cockpitRateSource(d); got != "Plattform-Umbau" {
-		t.Errorf("cockpitRateSource = %q, want Plattform-Umbau", got)
-	}
-
-	none := NodeCockpit{N: domain.Node{ID: "x"}, Ancestors: []domain.Node{{ID: "y", Name: "Y"}}}
-	if got := cockpitRateSource(none); got != "" {
-		t.Errorf("cockpitRateSource with no rate ancestor = %q, want empty", got)
-	}
-}

@@ -32,7 +32,7 @@ templ CockpitRailBlocks(d NodeCockpit) {
 	if len(d.Contributors) > 0 {
 		<div class="blk">
 			<span class="eyebrow">{ components.T(ctx, "cockpit.rail.contributors") }</span>
-			<p class="text-sm text-body">{ strings.Join(d.Contributors, ", ") }</p>
+			<p class="text-sm text-meta">{ strings.Join(d.Contributors, ", ") }</p>
 		</div>
 	}
 	<div class="blk">

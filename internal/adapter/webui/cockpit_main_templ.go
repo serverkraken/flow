@@ -1056,7 +1056,7 @@ func cockpitBuchungActions(nodeID string, row CockpitSessionRow) templ.Component
 
 // cockpitPulseSection is the subtree-filtered live activity feed (Mockup
 // Z.611–626): a "LIVE" marker in the section head plus one Lesesaal row per
-// entry — d.Uebersicht.Pulse (fed by FilterPulse+BuildActivityRows, the
+// entry — d.Pulse (fed by FilterPulse+BuildActivityRows, the
 // existing cockpit_uebersicht_vm.go/activity_row.go builders, reused here
 // rather than duplicated). NOT activityFeedRow (Kristall, stays on Home/L4).
 func cockpitPulseSection(d NodeCockpit) templ.Component {
@@ -1110,7 +1110,7 @@ func cockpitPulseSection(d NodeCockpit) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if len(d.Uebersicht.Pulse) == 0 {
+		if len(d.Pulse) == 0 {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<p class=\"text-sm text-faint\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1129,7 +1129,7 @@ func cockpitPulseSection(d NodeCockpit) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			for _, row := range d.Uebersicht.Pulse {
+			for _, row := range d.Pulse {
 				templ_7745c5c3_Err = cockpitPulseRow(row).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

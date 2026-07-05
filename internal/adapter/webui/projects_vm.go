@@ -16,8 +16,11 @@ import (
 // vorhaben sub-heads, repo rows with short name + full mono path (Mockup
 // Z.442–570).
 type ProjectsVM struct {
-	Summary     string
-	Engagements []EngagementSection
+	CountEng      int
+	CountVor      int
+	CountRepo     int
+	TotalHoursStr string
+	Engagements   []EngagementSection
 }
 
 // EngagementSection is one .eng block: the engagement header plus its
@@ -137,8 +140,13 @@ func BuildProjectsVM(nodes []domain.Node, sessions []domain.WorkSession, docCoun
 		markSubtreeSeen(seen, n.ID, childrenOf)
 	}
 
-	summary := fmt.Sprintf("%d Engagements · %d Vorhaben · %d Repos · Σ %s", len(engs), totalVorhaben, totalRepos, FmtDurHMExport(sumHours))
-	return ProjectsVM{Summary: summary, Engagements: sections}
+	return ProjectsVM{
+		CountEng:      len(engs),
+		CountVor:      totalVorhaben,
+		CountRepo:     totalRepos,
+		TotalHoursStr: FmtDurHMExport(sumHours),
+		Engagements:   sections,
+	}
 }
 
 // buildEngagementSection builds one .eng section rooted at root (a real
@@ -300,4 +308,13 @@ func repoCountNote(n int) string { return fmt.Sprintf("%d Repos", n) }
 // user-facing text — see task completion report.
 func projRowUnderNote(ctx context.Context, parentShort string) string {
 	return fmt.Sprintf(components.T(ctx, "nodes.row.under"), parentShort)
+}
+
+// ProjectsSummary composes the Projekte page's headline count line via i18n
+// (nodes.summary) from the VM's raw counts — the VM itself stays ctx-free
+// (same convention as RightK/projRowUnderNote), so the templ resolves the
+// locale-specific format string at render time instead of the VM baking in
+// hardcoded German (Final-Review Finding 1).
+func ProjectsSummary(ctx context.Context, vm ProjectsVM) string {
+	return fmt.Sprintf(components.T(ctx, "nodes.summary"), vm.CountEng, vm.CountVor, vm.CountRepo, vm.TotalHoursStr)
 }

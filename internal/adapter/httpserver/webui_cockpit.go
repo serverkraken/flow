@@ -146,7 +146,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	}
 
 	// Puls section: subtree-filtered live activity feed, top 8.
-	d.Uebersicht = webui.UebersichtVM{Pulse: s.cockpitPulse(ctx, u.ID, n.ID, now)}
+	d.Pulse = s.cockpitPulse(ctx, u.ID, n.ID, now)
 
 	return d, nil
 }
