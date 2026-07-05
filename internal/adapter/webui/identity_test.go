@@ -32,6 +32,29 @@ func TestShortName(t *testing.T) {
 	}
 }
 
+func TestDisplayNames_DedupOnCollision(t *testing.T) {
+	in := []string{
+		"gitlab.com/dataalliance/infra/common/tf-modules/gitlab/group",
+		"gitlab.com/acme/shared/terraform-modules/gitlab/group", // colliding short "group" → both get parent prefix
+		"gitlab.com/dataalliance/infra/common/tf-modules/gitlab/project",
+		"gitlab.com/dataalliance/products/oopii/infra/base-infra",
+		"github.com/serverkraken/flow", // unique short → no parent segment
+	}
+	got := DisplayNames(in)
+	want := map[string]string{
+		in[0]: "gitlab / group",
+		in[1]: "gitlab / group",
+		in[2]: "project",   // "project" is unique here → no dedup
+		in[3]: "base-infra", // "base-infra" is unique here → no dedup
+		in[4]: "flow",
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("DisplayNames[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
 func TestAvatarTone_DeterministicAndSpread(t *testing.T) {
 	first, second := AvatarTone("backstage"), AvatarTone("backstage")
 	if first != second {
