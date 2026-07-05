@@ -1,0 +1,12 @@
+package components
+
+// Avatar rendert die Identität eines Namens: getönte Initialen-Kachel
+// (Logo-Variante folgt in L2 über NodeLogo). sizeClass: av-28|av-36|av-64|av-96.
+templ Avatar(initials string, tone string, sizeClass string) {
+	<span class={ "ava", tone, sizeClass } aria-hidden="true">{ initials }</span>
+}
+
+// AgentAvatar ist die neutrale, gestrichelte Akteurs-Kachel für Agenten.
+templ AgentAvatar(initials string, sizeClass string) {
+	<span class={ "ava ava-agent", sizeClass } aria-hidden="true">{ initials }</span>
+}

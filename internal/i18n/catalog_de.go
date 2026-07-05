@@ -4,8 +4,16 @@ func init() {
 	register(DE, catalog{
 		strings: map[string]string{
 			// brand / shell
-			"app.name":    "flow",
-			"app.tagline": "Zeit & Wissen",
+			"app.name":         "flow",
+			"app.tagline":      "Zeit & Wissen",
+			"app.userInitials": "MS",
+			// ⌘K-Palette (Topbar)
+			"palette.open":        "Suchen und springen",
+			"palette.hint":        "Suchen …",
+			"palette.placeholder": "Springen zu Projekt oder Dokument …",
+			"palette.select":      "wählen",
+			"palette.openRow":     "öffnen",
+			"palette.empty":       "Kein Treffer.",
 			// home landing
 			"home.greeting":              "Dein Flow-Überblick.",
 			"home.section.zeit.desc":     "Arbeitszeiterfassung und Tagesüberblick.",
@@ -24,15 +32,10 @@ func init() {
 			"nav.dayoffs":   "Frei",
 			"nav.export":    "Export",
 			"nav.settings":  "Einstellungen",
-			"nav.more":      "Mehr",
 			"nav.menu":      "Menü",
 			"nav.account":   "Konto",
 			"nav.logout":    "Abmelden",
 			"nav.primary":   "Hauptnavigation",
-			// theme toggle
-			"theme.toggle":  "Hell/Dunkel umschalten",
-			"theme.toLight": "Zu Hell wechseln",
-			"theme.toDark":  "Zu Dunkel wechseln",
 			// common buttons / actions
 			"common.new":     "Neu",
 			"common.save":    "Speichern",

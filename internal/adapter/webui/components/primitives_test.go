@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -73,12 +74,15 @@ func TestEmptyState(t *testing.T) {
 	}
 }
 
-func TestButtonPrimary_KristallCTA(t *testing.T) {
+func TestButtonPrimary_LesesaalCTA(t *testing.T) {
 	out := render(t, components.Button(components.BtnPrimary, "Timer starten", "▶", nil))
-	for _, want := range []string{"from-green", "to-cyan", "text-oncolor", "cta-glow"} {
+	for _, want := range []string{"from-green", "to-cyan", "text-oncolor", "font-bold"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("primary CTA missing %q: %s", want, out)
 		}
+	}
+	if strings.Contains(out, "cta-glow") {
+		t.Error("primary CTA must be a quiet Lesesaal surface, not glow: no cta-glow")
 	}
 }
 
@@ -270,6 +274,19 @@ func TestSessionDialog_AddMode_NoSessionID(t *testing.T) {
 	out := render(t, components.SessionDialog(vm))
 	if strings.Contains(out, `name="sessionId"`) {
 		t.Errorf("add dialog must not render sessionId: %s", out)
+	}
+}
+
+func TestAvatar_RendersToneAndInitials(t *testing.T) {
+	var sb strings.Builder
+	if err := components.Avatar("BA", "av-c", "av-36").Render(context.Background(), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	for _, want := range []string{"av-c", "av-36", ">BA<", `aria-hidden="true"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Avatar output missing %q:\n%s", want, out)
+		}
 	}
 }
 

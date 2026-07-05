@@ -61,7 +61,7 @@ func TestStyleguideRouteRendersBehindAuth(t *testing.T) {
 	body := make([]byte, 64*1024)
 	n, _ := res2.Body.Read(body)
 	out := string(body[:n])
-	for _, w := range []string{"Design-System", "/static/app.css", "data-theme-toggle"} {
+	for _, w := range []string{"Design-System", "/static/app.css"} {
 		if !strings.Contains(out, w) {
 			t.Errorf("/ui body missing %q", w)
 		}

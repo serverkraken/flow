@@ -113,8 +113,7 @@ func (s *Server) chainRows(ctx context.Context, ownerID string, d *webui.NodeCoc
 			}
 		}
 		// Owner total = Σ over the owner's ROOT engagements (their subtrees are
-		// disjoint, so no double-count). Archived engagements are excluded to
-		// match the nav tree's active+paused visibility (webui_nav.go) — a
+		// disjoint, so no double-count). Archived engagements are excluded — a
 		// long-done archived engagement must not silently inflate the
 		// denominator and shrink every ChainRow.Pct. EXCEPTION: the viewed
 		// chain's OWN root is always counted even when archived (a repo under an

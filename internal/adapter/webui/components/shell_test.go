@@ -14,7 +14,7 @@ func TestPrimaryNavItems(t *testing.T) {
 	for i, it := range items {
 		keys[i] = it.Key
 	}
-	wantKeys := []string{"home", "docs", "projekte"}
+	wantKeys := []string{"projekte", "docs", "zeit"}
 	if len(items) != len(wantKeys) {
 		t.Fatalf("PrimaryNav len=%d, want %d; keys=%v", len(items), len(wantKeys), keys)
 	}
@@ -31,48 +31,44 @@ func TestPrimaryNavItems(t *testing.T) {
 	}
 }
 
-func TestSecondaryNavItems(t *testing.T) {
-	items := components.SecondaryNav()
+func TestUtilityNavItems(t *testing.T) {
+	// Lesesaal L1 Task 4: the sidebar's SecondaryNav died with the sidebar;
+	// its destinations now live in the avatar-menu UtilityNav (Zeit moved to
+	// PrimaryNav, so it's no longer a utility-menu item).
+	items := components.UtilityNav()
 	keys := make([]string, len(items))
 	for i, it := range items {
 		keys[i] = it.Key
 	}
-	wantKeys := []string{"zeit", "frei", "export", "einstellungen"}
+	wantKeys := []string{"frei", "export", "einstellungen"}
 	if len(items) != len(wantKeys) {
-		t.Fatalf("SecondaryNav len=%d, want %d; keys=%v", len(items), len(wantKeys), keys)
+		t.Fatalf("UtilityNav len=%d, want %d; keys=%v", len(items), len(wantKeys), keys)
 	}
 	for i, k := range wantKeys {
 		if items[i].Key != k {
-			t.Errorf("SecondaryNav[%d].Key=%q, want %q", i, items[i].Key, k)
+			t.Errorf("UtilityNav[%d].Key=%q, want %q", i, items[i].Key, k)
 		}
 	}
 }
 
-func TestSiteNavInjectsNavTreeContainer(t *testing.T) {
-	out := render(t, components.SiteNav("projekte"))
-	if !strings.Contains(out, `hx-get="/ui/nav/tree"`) {
-		t.Errorf("SiteNav must inject htmx nav-tree container: %s", out)
+func TestAreaFor(t *testing.T) {
+	cases := []struct{ active, want string }{
+		{"projekte", "projekte"},
+		{"docs", "docs"},
+		{"zeit", "zeit"},
+		{"heute", "zeit"},
+		{"woche", "zeit"},
+		{"historie", "zeit"},
+		{"stats", "zeit"},
+		{"frei", "zeit"},
+		{"export", "zeit"},
+		{"", ""},
+		{"einstellungen", ""},
 	}
-}
-
-func TestSiteNavMarksActive(t *testing.T) {
-	out := render(t, components.SiteNav("docs"))
-	// nav items link to their REAL routes (/wissen, /nodes, /dayoffs), not the
-	// German label-named paths — see fix for dead sidebar links.
-	for _, w := range []string{"Home", "Wissen", "Projekte", `href="/wissen"`, `aria-current="page"`} {
-		if !strings.Contains(out, w) {
-			t.Errorf("SiteNav missing %q", w)
+	for _, c := range cases {
+		if got := components.AreaFor(c.active); got != c.want {
+			t.Errorf("AreaFor(%q) = %q, want %q", c.active, got, c.want)
 		}
-	}
-}
-
-func TestSiteNav_ScrollRegion(t *testing.T) {
-	// K5 L2: the nav must be its own scroll region so brand/timer (above) and
-	// logout (below) stay pinned while the tree/nav list scrolls on short
-	// viewports — otherwise the last item ("Einstellungen") is clipped.
-	out := render(t, components.SiteNav("home"))
-	if !strings.Contains(out, "overflow-y-auto") || !strings.Contains(out, "min-h-0") {
-		t.Fatalf("SiteNav nav must be a scroll region (min-h-0 overflow-y-auto): %s", out)
 	}
 }
 
@@ -83,36 +79,42 @@ func TestAppShellRendersSlotsAndChrome(t *testing.T) {
 	out := render(t, components.AppShell("today", bc, sn, body))
 	for _, w := range []string{
 		`id="bc"`, `id="sn"`, `id="main"`,
-		`data-theme-toggle`,                 // mobile topbar carries the toggle
-		`aria-label="Hauptnavigation"`,      // sidebar nav landmark (i18n nav.primary)
+		`aria-label="Hauptnavigation"`, // topbar primary-nav landmark (i18n nav.primary)
 	} {
 		if !strings.Contains(out, w) {
 			t.Errorf("AppShell missing %q", w)
 		}
 	}
+	// Lesesaal L1: theme is fixed light, the toggle is gone (Dunkel-Zwilling = L7).
+	if strings.Contains(out, "data-theme-toggle") {
+		t.Errorf("AppShell must not carry the removed theme toggle")
+	}
 }
 
-func TestAppShellMobileMoreDrawer(t *testing.T) {
+func TestAppShellUserMenu(t *testing.T) {
+	// Lesesaal L1 Task 4: the mobile bottom-tab "More" drawer died with the
+	// sidebar; its utility destinations now live behind the avatar-menu dialog.
 	out := render(t, components.AppShell("home", nil, nil, templ.Raw(`<p id="c">x</p>`)))
-	// 4th cell: More button opens the drawer
-	if !strings.Contains(out, `data-dialog-open="more-menu"`) {
-		t.Errorf("AppShell mobile nav missing More button trigger: %s", out)
+	if !strings.Contains(out, `data-dialog-open="user-menu"`) {
+		t.Errorf("AppShell missing avatar-menu trigger: %s", out)
 	}
-	// Drawer element present
-	if !strings.Contains(out, `id="more-menu"`) {
-		t.Errorf("AppShell missing More drawer dialog: %s", out)
+	if !strings.Contains(out, `id="user-menu"`) {
+		t.Errorf("AppShell missing user-menu dialog: %s", out)
 	}
-	// All SecondaryNav destinations reachable from the drawer
-	for _, want := range []string{`href="/zeit"`, `href="/dayoffs"`, `href="/export"`, `href="/einstellungen"`} {
+	// All UtilityNav destinations reachable from the avatar menu.
+	for _, want := range []string{`href="/dayoffs"`, `href="/export"`, `href="/einstellungen"`} {
 		if !strings.Contains(out, want) {
-			t.Errorf("AppShell More drawer missing link %q: %s", want, out)
+			t.Errorf("AppShell user-menu missing link %q: %s", want, out)
 		}
 	}
-	// dialog.js loaded for the trigger to work
+	// dialog.js loaded for the trigger to work.
 	if !strings.Contains(out, `dialog.js`) {
-		t.Errorf("AppShell More drawer missing dialog.js script: %s", out)
+		t.Errorf("AppShell user-menu missing dialog.js script: %s", out)
 	}
-	// No new popup calls
+	// Logout is a full-page POST, must NOT be hx-boosted.
+	if !strings.Contains(out, `action="/auth/logout"`) || !strings.Contains(out, `hx-boost="false"`) {
+		t.Errorf("AppShell logout form must post with hx-boost=false: %s", out)
+	}
 }
 
 func TestAppShellNilSlotsAreSafe(t *testing.T) {
@@ -122,34 +124,21 @@ func TestAppShellNilSlotsAreSafe(t *testing.T) {
 	}
 }
 
-func TestSiteNavSecondaryActive(t *testing.T) {
-	out := render(t, components.SiteNav("zeit"))
-	// Active SecondaryNav item must carry aria-current and active-highlight class.
-	if !strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("SiteNav(zeit) must emit aria-current=page: %s", out)
-	}
-	if !strings.Contains(out, "bg-blue") {
-		t.Errorf("SiteNav(zeit) must apply bg-blue active class to Zeit item: %s", out)
-	}
-	// Exactly one aria-current: only the Zeit item.
-	if n := strings.Count(out, `aria-current="page"`); n != 1 {
-		t.Errorf("SiteNav(zeit) must have exactly 1 aria-current=page, got %d: %s", n, out)
-	}
-}
-
-func TestAppShellDrawerSecondaryActive(t *testing.T) {
+func TestAppShellPrimaryAreaActive(t *testing.T) {
+	// "zeit" is now a PrimaryNav key (topbar area), not a drawer item — its
+	// topbar link must carry aria-current, and it must be the only one within
+	// the topbar-nav landmark. (The mobile-nav dialog — Burger-Fix 2026-07-05 —
+	// legitimately mirrors the same aria-current on its own copy of the link.)
 	out := render(t, components.AppShell("zeit", nil, nil, templ.Raw(`<p id="c">x</p>`)))
-	// Drawer's Zeit link must carry aria-current=page.
 	if !strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("AppShell(zeit) must emit aria-current=page for drawer Zeit link: %s", out)
+		t.Errorf("AppShell(zeit) must emit aria-current=page for the Zeit topbar link: %s", out)
 	}
-	// "More" tab cell must be highlighted when active is a SecondaryNav key.
-	if !strings.Contains(out, `data-dialog-open="more-menu"`) {
-		t.Errorf("AppShell(zeit) More button must still be present: %s", out)
+	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
+	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
+		t.Errorf("AppShell(zeit) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
 	}
-	// "More" cell should carry text-blue (not text-muted) when secondary key active.
-	if !strings.Contains(out, "py-2.5 text-blue") {
-		t.Errorf("AppShell(zeit) More tab cell must use text-blue active style: %s", out)
+	if !strings.Contains(out, `aria-current="page" href="/zeit"`) {
+		t.Errorf("AppShell(zeit) aria-current must sit on the /zeit topbar link: %s", out)
 	}
 }
 
@@ -161,6 +150,59 @@ func TestTabStripActive(t *testing.T) {
 	out := render(t, components.TabStrip(tabs, "week"))
 	if !strings.Contains(out, "Woche") || !strings.Contains(out, `aria-current="page"`) {
 		t.Errorf("TabStrip should render labels and mark active: %s", out)
+	}
+}
+
+func TestAppShell_TopbarNoSidebar(t *testing.T) {
+	var sb strings.Builder
+	err := components.AppShell("heute", nil, nil, components.Empty()).Render(testCtx(t), &sb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	if strings.Contains(out, "<aside") {
+		t.Fatal("sidebar <aside> must be gone")
+	}
+	for _, want := range []string{`id="timer-pill"`, `href="/nodes"`, `href="/wissen"`, `href="/zeit"`, "data-palette-open"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("topbar missing %q:\n%s", want, out)
+		}
+	}
+	// Mobile-Fix (L1-Nachzügler): the topbar carries the responsive named
+	// classes that the 960px/620px @media rules in web/tailwind.css target —
+	// NOT Tailwind's sm/md (640/768) — so it compacts instead of overlapping
+	// at 375px.
+	for _, want := range []string{"topbar-in", "topbar-mark", "topbar-nav", "searchbtn", "searchbtn-lbl", "searchbtn-kbd"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("topbar missing responsive class %q:\n%s", want, out)
+		}
+	}
+	// active "heute" gehört zum Bereich Zeit
+	if !strings.Contains(out, `aria-current="page" href="/zeit"`) && !strings.Contains(out, `href="/zeit" aria-current="page"`) {
+		t.Fatal("Zeit area not marked current for active=heute")
+	}
+	if strings.Contains(out, "/ui/nav/tree") {
+		t.Fatal("nav tree mount must be gone")
+	}
+	// Burger-Fix (2026-07-05): unter 620px passen die drei Bereiche nicht mehr
+	// in die Zeile (Mockup-Lücke bei 375px) — sie wandern hinter einen
+	// Burger-Button + Dialog (dialog.js-Mechanik).
+	if !strings.Contains(out, `data-dialog-open="mobile-nav"`) {
+		t.Fatal("burger button (data-dialog-open=\"mobile-nav\") missing")
+	}
+	dialogIdx := strings.Index(out, `id="mobile-nav"`)
+	if dialogIdx == -1 {
+		t.Fatal("mobile-nav dialog missing")
+	}
+	mobileNav := out[dialogIdx:]
+	for _, want := range []string{`href="/nodes"`, `href="/wissen"`, `href="/zeit"`} {
+		if !strings.Contains(mobileNav, want) {
+			t.Fatalf("mobile-nav missing area href %q:\n%s", want, mobileNav)
+		}
+	}
+	// active "heute" (Bereich Zeit) muss im mobilen Dialog aria-current tragen.
+	if !strings.Contains(mobileNav, `aria-current="page" href="/zeit"`) && !strings.Contains(mobileNav, `href="/zeit" aria-current="page"`) {
+		t.Fatal("mobile-nav: active area /zeit not marked aria-current")
 	}
 }
 

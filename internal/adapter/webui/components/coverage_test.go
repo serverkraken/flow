@@ -143,31 +143,36 @@ func TestAppShellBreadcrumbNilSubnavSet(t *testing.T) {
 	}
 }
 
-// ── SiteNav: non-primary active key and empty active ───────────────────────
+// ── AppShell topbar: non-primary active key and empty active ───────────────
+// (Lesesaal L1 Task 4: SiteNav/sidebar died; AreaFor(active) now carries the
+// same "which area is this page under" wayfinding logic the old SiteNav did.)
 
-func TestSiteNavNonPrimaryActiveKey(t *testing.T) {
-	// "frei" is a secondary nav item — no primary item matches; Frei must get aria-current.
-	out := render(t, components.SiteNav("frei"))
-	if !strings.Contains(out, "Home") {
-		t.Errorf("SiteNav should still render primary items: %s", out)
+func TestAppShellNonPrimaryActiveKeyMarksArea(t *testing.T) {
+	// "frei" is a utility-menu destination, not a PrimaryNav key — but it
+	// belongs to the Zeit area, so the Zeit topbar link must get aria-current.
+	out := render(t, components.AppShell("frei", nil, nil, components.Empty()))
+	if !strings.Contains(out, "Zeit") {
+		t.Errorf("AppShell should still render all primary areas: %s", out)
 	}
-	// Secondary active item must carry aria-current (the wayfinding fix).
 	if !strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("SiteNav with secondary key 'frei' must mark Frei as aria-current: %s", out)
+		t.Errorf("AppShell with active 'frei' must mark the Zeit area as aria-current: %s", out)
 	}
-	// Exactly one aria-current: the Frei item only.
-	if n := strings.Count(out, `aria-current="page"`); n != 1 {
-		t.Errorf("SiteNav(frei) must have exactly 1 aria-current=page, got %d: %s", n, out)
+	// Exactly one aria-current in the primary nav landmark: the Zeit item only.
+	// (The mobile-nav dialog — Burger-Fix 2026-07-05 — mirrors the same
+	// aria-current on its own copy of the link, so the global count is 2.)
+	topbarNav := out[strings.Index(out, `class="topbar-nav`):strings.Index(out, "</nav>")]
+	if n := strings.Count(topbarNav, `aria-current="page"`); n != 1 {
+		t.Errorf("AppShell(frei) must have exactly 1 aria-current=page in topbar-nav, got %d: %s", n, topbarNav)
 	}
 }
 
-func TestSiteNavEmptyActiveKey(t *testing.T) {
-	out := render(t, components.SiteNav(""))
-	if !strings.Contains(out, "Home") || !strings.Contains(out, "Wissen") {
-		t.Errorf("SiteNav with empty active should render all items: %s", out)
+func TestAppShellEmptyActiveKeyMarksNoArea(t *testing.T) {
+	out := render(t, components.AppShell("", nil, nil, components.Empty()))
+	if !strings.Contains(out, "Projekte") || !strings.Contains(out, "Wissen") {
+		t.Errorf("AppShell with empty active should render all primary areas: %s", out)
 	}
 	if strings.Contains(out, `aria-current="page"`) {
-		t.Errorf("SiteNav with empty active must not mark any item current: %s", out)
+		t.Errorf("AppShell with empty active must not mark any area current: %s", out)
 	}
 }
 

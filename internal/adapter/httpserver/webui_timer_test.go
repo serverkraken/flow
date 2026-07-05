@@ -62,18 +62,6 @@ func TestTimerWidget_Lifecycle(t *testing.T) {
 		t.Fatal("no session.started event received for POST /ui/timer/start")
 	}
 
-	// Route wiring smoke check for GET /ui/timer/chip while a session is running.
-	chipRec := c.do(t, "GET", "/ui/timer/chip", nil)
-	if chipRec.Code != http.StatusOK {
-		t.Fatalf("GET /ui/timer/chip: status %d body=%.400s", chipRec.Code, chipRec.Body.String())
-	}
-	chipBody := chipRec.Body.String()
-	for _, want := range []string{"data-mini-timer", `data-dialog-open="timer-sheet"`} {
-		if !strings.Contains(chipBody, want) {
-			t.Errorf("running chip missing %q, got: %.800s", want, chipBody)
-		}
-	}
-
 	// Double-submit guard: starting again while n1 is already running must
 	// hit domain.ErrAlreadyRunning and simply re-render the real (running)
 	// state — never the contradictory "no timer running" banner over a live

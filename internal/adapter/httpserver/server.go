@@ -197,13 +197,15 @@ func (s *Server) Routes() http.Handler {
 	// Logstream fragment (Slice 5, Task 9)
 	mux.Handle("GET /ui/home/logstream", s.webAuth(http.HandlerFunc(s.handleHomeLogstream)))
 
-	// Global shell timer widget (Kristall K1, Task 6) — the ONE global home
-	// for the running timer: desktop card + mobile chip, mounted in appshell.
+	// Global shell timer pill (Lesesaal Task 5) — the ONE global home for the
+	// running timer, mounted in the topbar as #timer-pill.
 	mux.Handle("GET /ui/timer", s.webAuth(http.HandlerFunc(s.handleTimerWidget)))
-	mux.Handle("GET /ui/timer/chip", s.webAuth(http.HandlerFunc(s.handleTimerChip)))
 	mux.Handle("POST /ui/timer/start", s.webAuth(http.HandlerFunc(s.handleTimerStart)))
 	mux.Handle("POST /ui/timer/stop", s.webAuth(http.HandlerFunc(s.handleTimerStop)))
 	mux.Handle("POST /ui/timer/switch", s.webAuth(http.HandlerFunc(s.handleTimerSwitch)))
+
+	// ⌘K-Palette (Lesesaal Task 6) — fuzzy Sprung zu Knoten/Dokumenten.
+	mux.Handle("GET /ui/palette", s.webAuth(http.HandlerFunc(s.handlePalette)))
 
 	// WebUI routes (handlers in webui.go, Task 8)
 	mux.Handle("GET /zeit", s.webAuth(http.HandlerFunc(s.handleZeitHome)))
@@ -279,9 +281,6 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /nodes/{id}/sessions/{sid}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeDeleteSession)))
 	mux.Handle("POST /nodes/{id}/bindings", s.webAuth(http.HandlerFunc(s.handleWebNodeBindRemote)))
 	mux.Handle("POST /nodes/{id}/bindings/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeUnbind)))
-
-	// Sidebar project-tree fragment (Task 8 — htmx lazy-load by SiteNav).
-	mux.Handle("GET /ui/nav/tree", s.webAuth(http.HandlerFunc(s.handleNavTreeFragment)))
 
 	// WebUI design-system showcase (Slice 0 deliverable; handler in webui_styleguide.go).
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))

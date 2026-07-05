@@ -1,8 +1,8 @@
 package components
 
 // StyleguidePage is the /ui showcase: it renders every Slice-0 component inside
-// the real Base + AppShell chrome (so the theme toggle and offline assets are
-// exercised end-to-end), in a single page that reads in both themes.
+// the real Base + AppShell chrome (so offline assets are exercised end-to-end),
+// in a single page that reads in both themes.
 templ StyleguidePage() {
 	@Base("Design-System", styleguideBody())
 }
@@ -32,22 +32,18 @@ templ styleguideContent() {
 	@Card("mb-6", sgBadgesChips())
 	// StatTiles
 	@Card("mb-6", sgStatTiles())
-	// Kristall Tiles + Tabs
-	@Card("mb-6", sgKristallTilesAndTabs())
 	// EmptyState
 	@Card("mb-6", sgEmpty())
 	// Dialogs
 	@Card("mb-6", sgDialogs())
 	// Pagination (middle page so both edges enabled)
 	@Card("mb-6", sgPagination())
-	// Kristall identity intro
-	@Card("mb-6", sgKristallIntro())
 	// Token swatches
 	@Card("mb-6", sgTokenSwatches())
-	// Glass project-cards (CardCorner)
-	@Card("mb-6", sgKristallCards())
 	// Brand mark at two sizes
 	@Card("mb-6", sgBrandMark())
+	// Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem
+	@Card("mb-6", sgLesesaal())
 }
 
 templ sgButtons() {
@@ -84,28 +80,6 @@ templ sgStatTiles() {
 	</div>
 }
 
-templ sgKristallTilesAndTabs() {
-	<h2 class="font-display text-lg font-semibold mb-4">Kristall-Kacheln + Tabs</h2>
-	<div class="space-y-6">
-		<div>
-			<p class="text-sm text-muted mb-3">Accent Tiles (rollup style)</p>
-			<div class="grid grid-cols-3 gap-3">
-				@StatTileAccent("stats.week", "18h 20m", "+2h 05m ggü. Vorwoche", "purple")
-				@StatTileAccent("stats.balance", "16h 40m", "", "cyan")
-				@StatTileAccent("stats.goals", "8 / 10", "", "green")
-			</div>
-		</div>
-		<div>
-			<p class="text-sm text-muted mb-3">Pill Tab Strip</p>
-			@TabStrip([]Tab{
-				{Key: "a", Href: "#", LabelKey: "nav.home", Count: 12},
-				{Key: "b", Href: "#", LabelKey: "nav.projects", Count: 0},
-				{Key: "c", Href: "#", LabelKey: "nav.week"},
-			}, "a")
-		</div>
-	</div>
-}
-
 templ sgEmpty() {
 	<h2 class="font-display text-lg font-semibold mb-4">EmptyState</h2>
 	@EmptyState("·", "empty.default", "empty.default")
@@ -127,12 +101,6 @@ templ sgDialogs() {
 templ sgPagination() {
 	<h2 class="font-display text-lg font-semibold mb-4">Pagination</h2>
 	@Pagination(PageNav{Page: 2, Total: 95, PageSize: 20, BaseHref: "/ui"})
-}
-
-// ── Kristall identity sections ──────────────────────────────────────────────
-
-templ sgKristallIntro() {
-	<p class="text-body">Kristall — Twilight-Backdrop, Glas-Karten, farbige Projekt-Ecke. Toggle oben rechts für Hell/Dunkel.</p>
 }
 
 templ sgTokenSwatches() {
@@ -165,42 +133,42 @@ templ sgSwatch(token string) {
 	</div>
 }
 
-templ sgKristallCards() {
-	<h2 class="font-display text-lg font-semibold mb-4">Glas-Projektkarten</h2>
-	<div class="grid grid-cols-2 gap-4">
-		@CardCorner("blue", "") {
-			<h3 class="font-semibold text-ink">Kunde A</h3>
-			<p class="text-sm text-muted">Engagement</p>
-			<p class="text-sm text-body mt-2">Backend-Entwicklung für Q3-Lieferung.</p>
-		}
-		@CardCorner("green", "") {
-			<h3 class="font-semibold text-ink">Kunde B</h3>
-			<p class="text-sm text-muted">Engagement</p>
-			<p class="text-sm text-body mt-2">Infrastruktur-Modernisierung laufend.</p>
-		}
-		@CardCorner("purple", "") {
-			<h3 class="font-semibold text-ink">Projekt X</h3>
-			<p class="text-sm text-muted">Engagement</p>
-			<p class="text-sm text-body mt-2">Design-System-Aufbau abgeschlossen.</p>
-		}
-		@CardCorner("cyan", "") {
-			<h3 class="font-semibold text-ink">Projekt Y</h3>
-			<p class="text-sm text-muted">Engagement</p>
-			<p class="text-sm text-body mt-2">Migrations-Plan in Abstimmung.</p>
-		}
-	</div>
-}
-
 templ sgBrandMark() {
 	<h2 class="font-display text-lg font-semibold mb-4">Brand-Mark</h2>
 	<div class="flex items-center gap-4">
 		<div class="flex flex-col items-center gap-2">
-			@BrandMark("h-10 w-10", "sg1")
+			@BrandMark("h-10 w-10")
 			<p class="text-xs text-muted">h-10 w-10</p>
 		</div>
 		<div class="flex flex-col items-center gap-2">
-			@BrandMark("h-6 w-6", "sg2")
+			@BrandMark("h-6 w-6")
 			<p class="text-xs text-muted">h-6 w-6</p>
 		</div>
+	</div>
+}
+
+// ── Lesesaal: Zwei-Flächen-Primitives + Avatar/Chip-Farbsystem ──────────────
+
+templ sgLesesaal() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal — Flächen &amp; Identität</h2>
+	<p class="eyebrow mb-3">Eyebrow-Label</p>
+	<div class="panel p-4 mb-4">
+		<p class="text-sm text-body">Papier trägt Inhalt, Fläche trägt Instrumente (Spec §4) — dieser Block liegt auf <span class="typechip">.panel</span>.</p>
+	</div>
+	<div class="flex flex-wrap items-center gap-3 mb-4">
+		@Avatar("A", "av-a", "av-36")
+		@Avatar("B", "av-b", "av-36")
+		@Avatar("C", "av-c", "av-36")
+		@Avatar("D", "av-d", "av-36")
+		@Avatar("E", "av-e", "av-36")
+		@Avatar("F", "av-f", "av-36")
+	</div>
+	<div class="flex flex-wrap items-center gap-2">
+		<span class="typechip tc-b">Backstage</span>
+		<span class="typechip tc-v">Vorhaben</span>
+		<span class="typechip tc-t">Tagebuch</span>
+		<span class="typechip tc-o">Organisation</span>
+		<span class="typechip tc-g">Guide</span>
+		<span class="typechip tc-r">Referenz</span>
 	</div>
 }

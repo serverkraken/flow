@@ -1,69 +1,58 @@
 package components
 
-// BrandMark renders the faceted hexagon SVG logo. sizeClass is applied to the
-// <svg> element (e.g. "h-9 w-9"). idSuffix must be unique per page instance
-// (e.g. "d" for desktop, "m" for mobile) to avoid duplicate gradient ids.
-templ BrandMark(sizeClass string, idSuffix string) {
-	<svg viewBox="0 0 34 34" aria-hidden="true" class={ sizeClass }>
-		<defs>
-			<linearGradient id={ "brandgrad-" + idSuffix } x1="0" y1="0" x2="1" y2="1">
-				<stop offset="0" stop-color="rgb(var(--grad-a))"></stop>
-				<stop offset="1" stop-color="rgb(var(--grad-b))"></stop>
-			</linearGradient>
-		</defs>
-		<polygon points="17,2 31,9.5 31,24.5 17,32 3,24.5 3,9.5" fill={ "url(#brandgrad-" + idSuffix + ")" } opacity=".92"></polygon>
-		<path d="M17,2 L17,32 M3,9.5 L31,24.5 M31,9.5 L3,24.5" stroke="rgb(var(--canvas))" stroke-width="1" opacity=".4"></path>
+// BrandMark: schlichte Lesesaal-Wortbild-Raute in Akzent (Gradient tot, Spec §15).
+templ BrandMark(sizeClass string) {
+	<svg viewBox="0 0 24 24" aria-hidden="true" class={ sizeClass }>
+		<g fill="none" stroke="rgb(var(--accent))" stroke-width="1.6" stroke-linejoin="round">
+			<path d="M12 3l7 4v10l-7 4-7-4V7z"></path>
+			<path d="M12 3v18M5 7l7 4 7-4" opacity=".5"></path>
+		</g>
 	</svg>
 }
 
-// AppShell is the responsive page chrome: desktop sidebar (md+), mobile top
-// bar, mobile bottom-tab, and a main column with optional breadcrumb + subnav
-// slots above the content. Any slot component may be nil.
+// AppShell ist die Lesesaal-Topbar-Shell (Spec §5): Wortmarke · drei Bereiche ·
+// Suche (⌘K) · Timer-Pill · Avatar-Menü. Kein Seitenbaum, keine Bottom-Tabs.
+// Signatur bleibt stabil — Seiten-Caller sind unberührt.
 templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
-	// ── Desktop sidebar (md+) ──
-	<aside class="hidden md:flex md:flex-col fixed left-4 inset-y-4 w-[248px] rounded-[20px] glass-strong shadow-lift z-40 overflow-hidden">
-		<div class="px-6 pt-7 pb-6 flex items-center justify-between">
-			<a href="/" class="inline-flex items-center gap-2.5" aria-label={ T(ctx, "app.name") }>
-				@BrandMark("h-9 w-9", "d")
-				<span class="font-display text-[1.45rem] font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
+	<header class="sticky top-0 z-40 bg-paper/90 backdrop-blur-sm border-b border-hair">
+		<div class="topbar-in mx-auto w-full max-w-[1140px] px-4 sm:px-7 h-[58px] flex items-center gap-4 sm:gap-6">
+			<a href="/" class="inline-flex items-center gap-2 shrink-0" aria-label={ T(ctx, "app.name") }>
+				@BrandMark("h-5 w-5")
+				<span class="topbar-mark font-display text-[19px] font-bold tracking-tight">{ T(ctx, "app.name") }<span class="text-accent">.</span></span>
 			</a>
-			@ThemeToggle()
-		</div>
-		<div
-			id="timer-widget"
-			class="px-3 pb-1"
-			hx-get="/ui/timer"
-			hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
-			hx-swap="innerHTML"
-		></div>
-		@SiteNav(active)
-		<div class="px-3 pb-5">
-			<form action="/auth/logout" method="post" hx-boost="false">
-				<button class="w-full text-left flex items-center gap-3 rounded-xl px-3.5 py-2 text-[.85rem] text-muted hover:bg-sunken hover:text-ink transition-colors">
-					<span class="w-5 text-center text-faint" aria-hidden="true">›</span> { T(ctx, "nav.logout") }
-				</button>
-			</form>
-		</div>
-	</aside>
-	// ── Mobile top bar ──
-	<header class="md:hidden sticky top-0 z-40 bg-canvas/85 backdrop-blur-xl border-b border-line">
-		<div class="flex items-center justify-between px-4 h-14">
-			<a href="/" class="inline-flex items-center gap-2" aria-label={ T(ctx, "app.name") }>
-				@BrandMark("h-7 w-7", "m")
-				<span class="font-display text-xl font-semibold tracking-tight">{ T(ctx, "app.name") }</span>
-			</a>
+			<nav class="topbar-nav flex items-center gap-4 sm:gap-6 min-w-0" aria-label={ T(ctx, "nav.primary") }>
+				for _, l := range PrimaryNav() {
+					if l.Key == AreaFor(active) {
+						<a aria-current="page" href={ templ.SafeURL(l.Href) } class="text-[14.5px] font-medium text-ink border-b-2 border-accent pt-[18px] pb-[16px]">{ T(ctx, l.LabelKey) }</a>
+					} else {
+						<a href={ templ.SafeURL(l.Href) } class="text-[14.5px] font-medium text-muted hover:text-ink border-b-2 border-transparent pt-[18px] pb-[16px]">{ T(ctx, l.LabelKey) }</a>
+					}
+				}
+			</nav>
+			<button type="button" data-dialog-open="mobile-nav" aria-label={ T(ctx, "nav.primary") }
+				class="topbar-burger hidden shrink-0 items-center justify-center rounded-lg border border-hair2 bg-surface h-8 w-8 text-ink">
+				<span aria-hidden="true" class="font-mono text-[16px] leading-none">☰</span>
+			</button>
+			<div class="flex-1"></div>
+			<button type="button" data-palette-open aria-label={ T(ctx, "palette.open") }
+				class="searchbtn flex items-center gap-2 rounded-lg border border-hair2 bg-surface px-2.5 py-[7px] text-[13.5px] text-faint hover:border-faint hover:text-meta">
+				<span aria-hidden="true">⌕</span>
+				<span class="searchbtn-lbl">{ T(ctx, "palette.hint") }</span>
+				<kbd class="searchbtn-kbd font-mono text-[11px] border border-hair rounded px-1.5 bg-surface text-faint">⌘K</kbd>
+			</button>
 			<div
-				id="timer-chip"
-				hx-get="/ui/timer/chip"
+				id="timer-pill"
+				hx-get="/ui/timer"
 				hx-trigger="load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
 				hx-swap="innerHTML"
 			></div>
-			@ThemeToggle()
+			<button type="button" data-dialog-open="user-menu" aria-label={ T(ctx, "nav.menu") } class="shrink-0">
+				<span class="ava ava-me av-28" style="width:32px;height:32px;border-radius:8px" aria-hidden="true">{ T(ctx, "app.userInitials") }</span>
+			</button>
 		</div>
 	</header>
-	// ── Main column ──
-	<main class="md:pl-[280px] pb-28 md:pb-12">
-		<div class="mx-auto w-full max-w-[1340px] px-4 sm:px-6 lg:px-10 pt-6 md:pt-9">
+	<main class="pb-16">
+		<div class="mx-auto w-full max-w-[1140px] px-4 sm:px-7 pt-6 md:pt-8">
 			if breadcrumb != nil {
 				@breadcrumb
 			}
@@ -73,68 +62,38 @@ templ AppShell(active string, breadcrumb, subnav, content templ.Component) {
 			@content
 		</div>
 	</main>
-	// ── Mobile bottom-tab ──
-	<nav class="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface/90 backdrop-blur-xl border-t border-line" aria-label={ T(ctx, "nav.primary") }>
-		<ul class="grid grid-cols-4">
-			for _, l := range PrimaryNav() {
-				<li>
-					if l.Key == active {
-						<a href={ templ.SafeURL(l.Href) } aria-current="page" class="flex flex-col items-center gap-0.5 py-2.5 text-blue">
-							<span class="text-[1.1rem] leading-none" aria-hidden="true">{ l.Glyph }</span>
-							<span class="text-[.66rem] font-medium">{ T(ctx, l.LabelKey) }</span>
-						</a>
-					} else {
-						<a href={ templ.SafeURL(l.Href) } class="flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
-							<span class="text-[1.1rem] leading-none" aria-hidden="true">{ l.Glyph }</span>
-							<span class="text-[.66rem] font-medium">{ T(ctx, l.LabelKey) }</span>
-						</a>
-					}
-				</li>
-			}
-			// 4th cell: "More" — opens the utility drawer; highlighted when a
-			// SecondaryNav item is the active page.
-			<li>
-				if IsSecondaryNavKey(active) {
-					<button type="button" data-dialog-open="more-menu"
-						class="w-full flex flex-col items-center gap-0.5 py-2.5 text-blue">
-						<span class="text-[1.1rem] leading-none" aria-hidden="true">≡</span>
-						<span class="text-[.66rem] font-medium">{ T(ctx, "nav.more") }</span>
-					</button>
-				} else {
-					<button type="button" data-dialog-open="more-menu"
-						class="w-full flex flex-col items-center gap-0.5 py-2.5 text-muted hover:text-ink transition-colors">
-						<span class="text-[1.1rem] leading-none" aria-hidden="true">≡</span>
-						<span class="text-[.66rem] font-medium">{ T(ctx, "nav.more") }</span>
-					</button>
-				}
-			</li>
-		</ul>
-	</nav>
-	// ── Mobile "More" utility drawer (bottom-sheet, mobile-only) ──
-	<dialog id="more-menu" aria-modal="true" aria-labelledby="more-menu-title"
-		class="md:hidden fixed inset-x-0 bottom-0 m-0 w-full rounded-t-3xl border-t border-line bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/40">
-		<div class="flex items-center justify-between px-5 pt-4 pb-3 border-b border-line2">
-			<span id="more-menu-title" class="font-display text-base font-semibold">{ T(ctx, "nav.more") }</span>
-			<button type="button" data-dialog-close aria-label={ T(ctx, "common.close") }
-				class="flex items-center justify-center w-8 h-8 rounded-full text-muted hover:text-ink hover:bg-sunken transition-colors text-[.9rem]">✕</button>
+	// Avatar-Menü: Werkzeuge + Abmelden (ersetzt Sidebar-Sekundärnav + More-Drawer)
+	<dialog id="user-menu" aria-modal="true" aria-labelledby="user-menu-title"
+		class="fixed m-0 mt-[64px] ml-auto mr-4 w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20">
+		<div class="px-4 pt-3 pb-2 border-b border-hair">
+			<span id="user-menu-title" class="eyebrow">{ T(ctx, "nav.menu") }</span>
 		</div>
-		<div class="py-2">
-			for _, l := range SecondaryNav() {
-				if l.Key == active {
-					<a href={ templ.SafeURL(l.Href) } data-dialog-close aria-current="page"
-						class="flex items-center gap-3 px-5 py-3 text-[.95rem] font-medium text-blue hover:bg-sunken transition-colors">
-						<span class="w-5 text-center" aria-hidden="true">{ l.Glyph }</span>
-						{ T(ctx, l.LabelKey) }
-					</a>
+		<div class="py-1.5">
+			for _, l := range UtilityNav() {
+				<a href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-body hover:bg-wash hover:text-ink">{ T(ctx, l.LabelKey) }</a>
+			}
+			<form action="/auth/logout" method="post" hx-boost="false" class="border-t border-hair mt-1.5 pt-1.5">
+				<button class="w-full text-left px-4 py-2.5 text-[14px] font-medium text-meta hover:bg-wash hover:text-ink">{ T(ctx, "nav.logout") }</button>
+			</form>
+		</div>
+	</dialog>
+	// Mobile-Nav (Burger-Fix 2026-07-05): die drei Bereiche unter 620px, wenn sie
+	// nicht mehr in die Topbar-Zeile passen (Mockup-Lücke bei 375px).
+	<dialog id="mobile-nav" aria-modal="true" aria-labelledby="mobile-nav-title"
+		class="fixed m-0 mt-[54px] ml-4 mr-auto w-[240px] rounded-[14px] border border-hair2 bg-surface text-ink p-0 shadow-lift backdrop:bg-ink/20">
+		<div class="px-4 pt-3 pb-2 border-b border-hair">
+			<span id="mobile-nav-title" class="eyebrow">{ T(ctx, "nav.primary") }</span>
+		</div>
+		<div class="py-1.5">
+			for _, l := range PrimaryNav() {
+				if l.Key == AreaFor(active) {
+					<a aria-current="page" href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-ink bg-wash">{ T(ctx, l.LabelKey) }</a>
 				} else {
-					<a href={ templ.SafeURL(l.Href) } data-dialog-close
-						class="flex items-center gap-3 px-5 py-3 text-[.95rem] font-medium text-body hover:bg-sunken hover:text-ink transition-colors">
-						<span class="w-5 text-center text-faint" aria-hidden="true">{ l.Glyph }</span>
-						{ T(ctx, l.LabelKey) }
-					</a>
+					<a href={ templ.SafeURL(l.Href) } data-dialog-close class="block px-4 py-2.5 text-[14px] font-medium text-body hover:bg-wash hover:text-ink">{ T(ctx, l.LabelKey) }</a>
 				}
 			}
 		</div>
 	</dialog>
+	@PaletteDialog()
 	<script src="/static/js/dialog.js" defer></script>
 }

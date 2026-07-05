@@ -8,9 +8,9 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// Base is the shared HTML hull with live-sync (SSE) enabled — the default for
-// every authenticated page.
-func Base(title string, body templ.Component) templ.Component {
+// Empty is a no-op placeholder component — for call sites (mostly tests) that
+// need a templ.Component argument but have no content to render.
+func Empty() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,6 +29,33 @@ func Base(title string, body templ.Component) templ.Component {
 		templ_7745c5c3_Var1 := templ.GetChildren(ctx)
 		if templ_7745c5c3_Var1 == nil {
 			templ_7745c5c3_Var1 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		return nil
+	})
+}
+
+// Base is the shared HTML hull with live-sync (SSE) enabled — the default for
+// every authenticated page.
+func Base(title string, body templ.Component) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var2 == nil {
+			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = baseHull(title, true, body).Render(ctx, templ_7745c5c3_Buffer)
@@ -58,9 +85,9 @@ func BaseNoSSE(title string, body templ.Component) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var2 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var2 == nil {
-			templ_7745c5c3_Var2 = templ.NopComponent
+		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var3 == nil {
+			templ_7745c5c3_Var3 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = baseHull(title, false, body).Render(ctx, templ_7745c5c3_Buffer)
@@ -72,10 +99,10 @@ func BaseNoSSE(title string, body templ.Component) templ.Component {
 }
 
 // baseHull is the full HTML hull every page renders inside. It loads only
-// local assets (app.css, vendored htmx, vendored fonts), sets data-theme
-// before first paint (no-flash), optionally wires the SSE body connection,
-// and exposes toggleTheme() plus a client-side live timer. The page-specific
-// markup is passed as body.
+// local assets (app.css, vendored htmx, vendored fonts), fixes data-theme to
+// light before first paint (Lesesaal Spec §6/§7 — Dunkel-Zwilling returns in
+// L7), optionally wires the SSE body connection, and exposes a client-side
+// live timer. The page-specific markup is passed as body.
 func baseHull(title string, sse bool, body templ.Component) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -92,25 +119,25 @@ func baseHull(title string, sse bool, body templ.Component) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var3 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var3 == nil {
-			templ_7745c5c3_Var3 = templ.NopComponent
+		templ_7745c5c3_Var4 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var4 == nil {
+			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"de\" class=\"scroll-smooth\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>flow · ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(title)
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/base.templ`, Line: 27, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/base.templ`, Line: 32, Col: 25}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/Inter-Variable.woff2\" crossorigin><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/ClashDisplay-Variable.woff2\" crossorigin><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/JetBrainsMono-Variable.woff2\" crossorigin><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/htmx-ext-sse.js\" defer></script><script src=\"/static/scrollspy.js\" defer></script><script src=\"/static/toc.js\" defer></script><script>\n\t\t\t\t(function () {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tvar saved = localStorage.getItem('flow-theme');\n\t\t\t\t\t\tdocument.documentElement.setAttribute('data-theme', saved || 'dark');\n\t\t\t\t\t} catch (e) {\n\t\t\t\t\t\tdocument.documentElement.setAttribute('data-theme', 'dark');\n\t\t\t\t\t}\n\t\t\t\t})();\n\t\t\t</script></head><body class=\"font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/SchibstedGrotesk-Variable.woff2\" crossorigin><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/JetBrainsMono-Variable.woff2\" crossorigin><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/htmx-ext-sse.js\" defer></script><script src=\"/static/scrollspy.js\" defer></script><script src=\"/static/toc.js\" defer></script><script>document.documentElement.setAttribute('data-theme','light');</script></head><body class=\"font-sans text-ink antialiased selection:bg-accent-wash selection:text-ink\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -120,7 +147,7 @@ func baseHull(title string, sse bool, body templ.Component) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "><svg class=\"kristall-facets\" viewBox=\"0 0 1180 820\" preserveAspectRatio=\"xMidYMid slice\" aria-hidden=\"true\"><defs><radialGradient id=\"kfacet-glow\" cx=\"50%\" cy=\"50%\" r=\"50%\"><stop offset=\"0%\" stop-color=\"rgb(var(--cyan))\" stop-opacity=\".08\"></stop> <stop offset=\"100%\" stop-color=\"rgb(var(--cyan))\" stop-opacity=\"0\"></stop></radialGradient></defs> <g fill=\"rgb(var(--ink))\" fill-opacity=\".022\" stroke=\"rgb(var(--ink))\" stroke-opacity=\".04\" stroke-width=\"1\"><polygon points=\"0,90 260,0 360,220 60,320\"></polygon> <polygon points=\"360,220 260,0 600,80 500,270\"></polygon> <polygon points=\"880,0 1180,60 1100,290 840,200\"></polygon> <polygon points=\"1100,290 1180,60 1180,420 960,470\"></polygon> <polygon points=\"90,560 350,510 430,780 120,820\"></polygon> <polygon points=\"740,820 690,540 1020,590 1080,820\"></polygon></g> <circle cx=\"220\" cy=\"140\" r=\"240\" fill=\"url(#kfacet-glow)\"></circle> <circle cx=\"1000\" cy=\"700\" r=\"260\" fill=\"url(#kfacet-glow)\"></circle></svg>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, ">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -128,7 +155,7 @@ func baseHull(title string, sse bool, body templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<script>\n\t\t\t\t(function () {\n\t\t\t\t\tvar root = document.documentElement;\n\t\t\t\t\tfunction syncToggles() {\n\t\t\t\t\t\tvar dark = root.getAttribute('data-theme') === 'dark';\n\t\t\t\t\t\tdocument.querySelectorAll('[data-theme-toggle]').forEach(function (b) {\n\t\t\t\t\t\t\tb.setAttribute('aria-pressed', dark ? 'true' : 'false');\n\t\t\t\t\t\t\tb.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');\n\t\t\t\t\t\t});\n\t\t\t\t\t}\n\t\t\t\t\twindow.toggleTheme = function () {\n\t\t\t\t\t\tvar next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';\n\t\t\t\t\t\troot.setAttribute('data-theme', next);\n\t\t\t\t\t\ttry { localStorage.setItem('flow-theme', next); } catch (e) {}\n\t\t\t\t\t\tsyncToggles();\n\t\t\t\t\t};\n\t\t\t\t\twindow.addEventListener('storage', function (e) {\n\t\t\t\t\t\tif (e.key === 'flow-theme' && e.newValue) {\n\t\t\t\t\t\t\troot.setAttribute('data-theme', e.newValue);\n\t\t\t\t\t\t\tsyncToggles();\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t\tsyncToggles();\n\t\t\t\t})();\n\t\t\t</script><script>\n\t\t\t\t(function () {\n\t\t\t\t\tvar reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n\t\t\t\t\tfunction p(n) { return n < 10 ? '0' + n : '' + n; }\n\t\t\t\t\t// (Re)bind every [data-timer] element. Must run again after every htmx\n\t\t\t\t\t// swap: a start/stop/error can replace #content, the widget mount, or\n\t\t\t\t\t// the chip's embedded dialog copy with a NEW [data-timer] node. An\n\t\t\t\t\t// element that survives a swap untouched (same DOM node) already has\n\t\t\t\t\t// dataset.boundStart and keeps ticking from it; a genuinely new node\n\t\t\t\t\t// has none yet and gets a fresh bind moment.\n\t\t\t\t\tfunction bind() {\n\t\t\t\t\t\tdocument.querySelectorAll('[data-timer]').forEach(function (el) {\n\t\t\t\t\t\t\tif (!el.dataset.boundStart) el.dataset.boundStart = Date.now();\n\t\t\t\t\t\t});\n\t\t\t\t\t\ttick();\n\t\t\t\t\t}\n\t\t\t\t\tfunction tick() {\n\t\t\t\t\t\tvar timers = document.querySelectorAll('[data-timer]');\n\t\t\t\t\t\tvar minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap\n\t\t\t\t\t\tvar mh, mm, ms;\n\t\t\t\t\t\ttimers.forEach(function (el) {\n\t\t\t\t\t\t\tvar base = parseInt(el.getAttribute('data-base') || '0', 10);\n\t\t\t\t\t\t\tvar elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);\n\t\t\t\t\t\t\tvar h = Math.floor(elapsed / 3600);\n\t\t\t\t\t\t\tvar m = Math.floor((elapsed % 3600) / 60);\n\t\t\t\t\t\t\tvar s = elapsed % 60;\n\t\t\t\t\t\t\tel.textContent = el.getAttribute('data-timer-fmt') === 'clock'\n\t\t\t\t\t\t\t\t? p(h) + ':' + p(m) + ':' + p(s)\n\t\t\t\t\t\t\t\t: h + 'h ' + p(m) + 'm ' + p(s) + 's';\n\t\t\t\t\t\t\tif (mh === undefined) { mh = h; mm = m; ms = s; }  // first bound timer feeds the mini(s)\n\t\t\t\t\t\t});\n\t\t\t\t\t\tif (minis.length && mh !== undefined) {\n\t\t\t\t\t\t\tminis.forEach(function (el) { el.textContent = p(mh) + ':' + p(mm) + ':' + p(ms); });\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tbind();\n\t\t\t\t\tsetInterval(tick, reduce ? 60000 : 1000);\n\t\t\t\t\tdocument.body.addEventListener('htmx:afterSwap', bind);\n\t\t\t\t})();\n\t\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<script>\n\t\t\t\t(function () {\n\t\t\t\t\tvar reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n\t\t\t\t\tfunction p(n) { return n < 10 ? '0' + n : '' + n; }\n\t\t\t\t\t// (Re)bind every [data-timer] element. Must run again after every htmx\n\t\t\t\t\t// swap: a start/stop/error can replace #content, the widget mount, or\n\t\t\t\t\t// the chip's embedded dialog copy with a NEW [data-timer] node. An\n\t\t\t\t\t// element that survives a swap untouched (same DOM node) already has\n\t\t\t\t\t// dataset.boundStart and keeps ticking from it; a genuinely new node\n\t\t\t\t\t// has none yet and gets a fresh bind moment.\n\t\t\t\t\tfunction bind() {\n\t\t\t\t\t\tdocument.querySelectorAll('[data-timer]').forEach(function (el) {\n\t\t\t\t\t\t\tif (!el.dataset.boundStart) el.dataset.boundStart = Date.now();\n\t\t\t\t\t\t});\n\t\t\t\t\t\ttick();\n\t\t\t\t\t}\n\t\t\t\t\tfunction tick() {\n\t\t\t\t\t\tvar timers = document.querySelectorAll('[data-timer]');\n\t\t\t\t\t\tvar minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap\n\t\t\t\t\t\tvar mh, mm, ms;\n\t\t\t\t\t\ttimers.forEach(function (el) {\n\t\t\t\t\t\t\tvar base = parseInt(el.getAttribute('data-base') || '0', 10);\n\t\t\t\t\t\t\tvar elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);\n\t\t\t\t\t\t\tvar h = Math.floor(elapsed / 3600);\n\t\t\t\t\t\t\tvar m = Math.floor((elapsed % 3600) / 60);\n\t\t\t\t\t\t\tvar s = elapsed % 60;\n\t\t\t\t\t\t\tel.textContent = el.getAttribute('data-timer-fmt') === 'clock'\n\t\t\t\t\t\t\t\t? p(h) + ':' + p(m) + ':' + p(s)\n\t\t\t\t\t\t\t\t: h + 'h ' + p(m) + 'm ' + p(s) + 's';\n\t\t\t\t\t\t\tif (mh === undefined) { mh = h; mm = m; ms = s; }  // first bound timer feeds the mini(s)\n\t\t\t\t\t\t});\n\t\t\t\t\t\tif (minis.length && mh !== undefined) {\n\t\t\t\t\t\t\tminis.forEach(function (el) { el.textContent = p(mh) + ':' + p(mm) + ':' + p(ms); });\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tbind();\n\t\t\t\t\tsetInterval(tick, reduce ? 60000 : 1000);\n\t\t\t\t\tdocument.body.addEventListener('htmx:afterSwap', bind);\n\t\t\t\t})();\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

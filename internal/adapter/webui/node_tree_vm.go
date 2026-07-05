@@ -237,6 +237,20 @@ func nvHue(color string) string {
 	return ";--nc:var(--" + color + ")"
 }
 
+// navDotClass maps a node kind to its form-coded dot (● Engagement, ◆ Vorhaben
+// as rotated square, ⬡ Repo as hexagon clip). Used by the cockpit overview's
+// node rows.
+func navDotClass(k domain.NodeKind) string {
+	switch k {
+	case domain.KindEngagement:
+		return "nvdot nvdot-eng"
+	case domain.KindVorhaben:
+		return "nvdot nvdot-vor"
+	default:
+		return "nvdot nvdot-repo"
+	}
+}
+
 // nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).
 func nodeFormAction(editing *domain.Node) templ.SafeURL {
 	if editing != nil {

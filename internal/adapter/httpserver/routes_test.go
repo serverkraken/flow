@@ -63,7 +63,6 @@ func TestAllRoutesRegistered(t *testing.T) {
 		{"POST", "/ui/worktime/edit"},
 		{"POST", "/ui/worktime/delete"},
 		{"GET", "/ui/timer"},
-		{"GET", "/ui/timer/chip"},
 		{"POST", "/ui/timer/start"},
 		{"POST", "/ui/timer/stop"},
 		{"POST", "/ui/timer/switch"},

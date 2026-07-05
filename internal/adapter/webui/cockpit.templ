@@ -184,7 +184,7 @@ templ cockpitTimer(d NodeCockpit) {
 				<div class="flex items-center gap-3 rounded-2xl border border-yellow/30 bg-yellow/[.08] px-3 py-2.5">
 					<span class="h-2.5 w-2.5 shrink-0 rounded-full bg-yellow animate-breathe" aria-hidden="true"></span>
 					<div class="min-w-0 flex-1 text-[.8rem] text-body">
-						{ components.T(ctx, "cockpit.timer.runningOn") } <a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } class="font-semibold text-ink hover:underline">{ d.Timer.OtherName }</a>
+						{ components.T(ctx, "cockpit.timer.runningOn") } <a href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } title={ d.Timer.OtherName } class="inline-block max-w-full truncate align-bottom font-semibold text-ink hover:underline">{ ShortName(d.Timer.OtherName) }</a>
 						<div class="font-mono tnum text-yellow" data-mini-timer>{ fmtClockHMS(int64(d.Timer.RunningBase)) }</div>
 					</div>
 					<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-rail" hx-swap="innerHTML">

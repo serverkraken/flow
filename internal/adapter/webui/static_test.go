@@ -17,9 +17,8 @@ func TestStaticHandlerServesVendorAndFonts(t *testing.T) {
 		"/static/app.css",
 		"/static/vendor/htmx.min.js",
 		"/static/vendor/htmx-ext-sse.js",
-		"/static/fonts/Inter-Variable.woff2",
+		"/static/fonts/SchibstedGrotesk-Variable.woff2",
 		"/static/fonts/JetBrainsMono-Variable.woff2",
-		"/static/fonts/ClashDisplay-Variable.woff2",
 	} {
 		res, err := http.Get(ts.URL + p)
 		if err != nil {

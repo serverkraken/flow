@@ -1,0 +1,30 @@
+package components
+
+// PaletteDialog ist der ⌘K-Überbau (in der AppShell gemountet); die Zeilen
+// kommen per htmx aus /ui/palette in #palette-results. Statischer Rahmen ohne
+// VM — das Ergebnis-Fragment (PaletteResults, braucht PaletteVM) lebt im
+// Paket webui; Import-Richtung bleibt webui → components.
+templ PaletteDialog() {
+	<dialog id="palette" aria-modal="true" aria-label={ T(ctx, "palette.open") }
+		class="fixed left-1/2 top-[16%] -translate-x-1/2 m-0 w-[min(600px,92vw)] rounded-[14px] border border-hair2 bg-surface p-0 shadow-lift backdrop:bg-ink/25">
+		<input
+			id="palette-input"
+			type="text"
+			name="q"
+			autocomplete="off"
+			placeholder={ T(ctx, "palette.placeholder") }
+			class="w-full border-0 border-b border-hair bg-transparent px-5 py-4 text-[16px] text-ink outline-none placeholder:text-faint"
+			hx-get="/ui/palette"
+			hx-trigger="input changed delay:120ms"
+			hx-target="#palette-results"
+			hx-swap="innerHTML"
+		/>
+		<div id="palette-results" class="max-h-[320px] overflow-y-auto p-1.5"></div>
+		<div class="flex gap-4 border-t border-hair px-4 py-2 text-[11.5px] text-meta">
+			<span>↑↓ { T(ctx, "palette.select") }</span>
+			<span>↵ { T(ctx, "palette.openRow") }</span>
+			<span>esc { T(ctx, "common.close") }</span>
+		</div>
+	</dialog>
+	<script src="/static/js/palette.js" defer></script>
+}

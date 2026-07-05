@@ -106,7 +106,7 @@ Sichtbarkeits-Prinzip gewahrt ([[feedback_navigation_discoverability_over_minima
 
 - **≥960px**: Bühne + Meta-Spalte (280px Cockpit / 250px Dokument), Gap 56–64.
 - **<960px**: Meta-Spalte stackt unter die Bühne (Panels bleiben Panels); Prose volle Breite.
-- **<620px**: Topbar kompakt (Suche = Icon, ⌘K-kbd weg, Timer-Pill ohne Namen), Zeilen zeigen nur den Hauptwert (`.k`-Unterzeile entfällt, Werte bleiben), Hero 96→64, Sektions-Köpfe brechen um, Such-Platzhalter kurz.
+- **<620px**: Topbar kompakt (Suche = Icon, ⌘K-kbd weg, Timer-Pill ohne Namen), Zeilen zeigen nur den Hauptwert (`.k`-Unterzeile entfällt, Werte bleiben), Hero 96→64, Sektions-Köpfe brechen um, Such-Platzhalter kurz. Bereiche (Projekte/Wissen/Zeit) wandern hinter einen Menü-Button (Dialog, dialog.js-Mechanik) — Entscheid Soenne 2026-07-05, Mockup-Lücke bei 375px (die drei Bereiche passten rechnerisch nicht mehr in die Zeile).
 
 ## 13. A11y · Motion · i18n
 

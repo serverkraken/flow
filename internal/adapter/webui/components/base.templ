@@ -1,5 +1,10 @@
 package components
 
+// Empty is a no-op placeholder component — for call sites (mostly tests) that
+// need a templ.Component argument but have no content to render.
+templ Empty() {
+}
+
 // Base is the shared HTML hull with live-sync (SSE) enabled — the default for
 // every authenticated page.
 templ Base(title string, body templ.Component) {
@@ -14,10 +19,10 @@ templ BaseNoSSE(title string, body templ.Component) {
 }
 
 // baseHull is the full HTML hull every page renders inside. It loads only
-// local assets (app.css, vendored htmx, vendored fonts), sets data-theme
-// before first paint (no-flash), optionally wires the SSE body connection,
-// and exposes toggleTheme() plus a client-side live timer. The page-specific
-// markup is passed as body.
+// local assets (app.css, vendored htmx, vendored fonts), fixes data-theme to
+// light before first paint (Lesesaal Spec §6/§7 — Dunkel-Zwilling returns in
+// L7), optionally wires the SSE body connection, and exposes a client-side
+// live timer. The page-specific markup is passed as body.
 templ baseHull(title string, sse bool, body templ.Component) {
 	<!DOCTYPE html>
 	<html lang="de" class="scroll-smooth">
@@ -27,77 +32,22 @@ templ baseHull(title string, sse bool, body templ.Component) {
 			<title>flow · { title }</title>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<link rel="stylesheet" href="/static/chroma.css"/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/Inter-Variable.woff2" crossorigin/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/ClashDisplay-Variable.woff2" crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/SchibstedGrotesk-Variable.woff2" crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/JetBrainsMono-Variable.woff2" crossorigin/>
 			<script src="/static/vendor/htmx.min.js" defer></script>
 			<script src="/static/vendor/htmx-ext-sse.js" defer></script>
 			<script src="/static/scrollspy.js" defer></script>
 			<script src="/static/toc.js" defer></script>
-			// No-flash theme init: set data-theme BEFORE first paint. Kristall-Dark
-			// is the identity (spec §2.3) — saved preference still wins; no
-			// prefers-color-scheme fallback.
-			<script>
-				(function () {
-					try {
-						var saved = localStorage.getItem('flow-theme');
-						document.documentElement.setAttribute('data-theme', saved || 'dark');
-					} catch (e) {
-						document.documentElement.setAttribute('data-theme', 'dark');
-					}
-				})();
-			</script>
+			// No-flash theme init: Lesesaal fixes light as home (Spec §6/§7).
+			// The dark twin returns in L7 with its own toggle.
+			<script>document.documentElement.setAttribute('data-theme','light');</script>
 		</head>
-		<body class="font-sans text-ink antialiased selection:bg-blue/15 selection:text-ink"
+		<body class="font-sans text-ink antialiased selection:bg-accent-wash selection:text-ink"
 			if sse {
 				hx-ext="sse" sse-connect="/api/v1/events"
 			}
 		>
-			<svg class="kristall-facets" viewBox="0 0 1180 820" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-				<defs>
-					<radialGradient id="kfacet-glow" cx="50%" cy="50%" r="50%">
-						<stop offset="0%" stop-color="rgb(var(--cyan))" stop-opacity=".08"></stop>
-						<stop offset="100%" stop-color="rgb(var(--cyan))" stop-opacity="0"></stop>
-					</radialGradient>
-				</defs>
-				<g fill="rgb(var(--ink))" fill-opacity=".022" stroke="rgb(var(--ink))" stroke-opacity=".04" stroke-width="1">
-					<polygon points="0,90 260,0 360,220 60,320"></polygon>
-					<polygon points="360,220 260,0 600,80 500,270"></polygon>
-					<polygon points="880,0 1180,60 1100,290 840,200"></polygon>
-					<polygon points="1100,290 1180,60 1180,420 960,470"></polygon>
-					<polygon points="90,560 350,510 430,780 120,820"></polygon>
-					<polygon points="740,820 690,540 1020,590 1080,820"></polygon>
-				</g>
-				<circle cx="220" cy="140" r="240" fill="url(#kfacet-glow)"></circle>
-				<circle cx="1000" cy="700" r="260" fill="url(#kfacet-glow)"></circle>
-			</svg>
 			@body
-			// Theme toggle wiring: flips data-theme, persists, syncs aria-pressed, cross-tab sync.
-			<script>
-				(function () {
-					var root = document.documentElement;
-					function syncToggles() {
-						var dark = root.getAttribute('data-theme') === 'dark';
-						document.querySelectorAll('[data-theme-toggle]').forEach(function (b) {
-							b.setAttribute('aria-pressed', dark ? 'true' : 'false');
-							b.setAttribute('title', dark ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln');
-						});
-					}
-					window.toggleTheme = function () {
-						var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-						root.setAttribute('data-theme', next);
-						try { localStorage.setItem('flow-theme', next); } catch (e) {}
-						syncToggles();
-					};
-					window.addEventListener('storage', function (e) {
-						if (e.key === 'flow-theme' && e.newValue) {
-							root.setAttribute('data-theme', e.newValue);
-							syncToggles();
-						}
-					});
-					syncToggles();
-				})();
-			</script>
 			// Client-side live timer: advances every [data-timer]/[data-mini-timer]
 			// independently of htmx fragment refreshes. Multi-instance: several
 			// [data-timer] elements can coexist (a page hero clock in #content, the
