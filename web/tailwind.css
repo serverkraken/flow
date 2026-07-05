@@ -207,6 +207,30 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 }
 
 /* ════════════════════════════════════════════════════════════════════
+   TOPBAR — mobile compaction, breakpoints ported verbatim from the
+   normative mockup (assets/2026-07-03-lesesaal/lesesaal.html, @media
+   960/620; Spec §12: "<620px: Topbar kompakt — Suche = Icon, ⌘K-kbd
+   weg, Timer-Pill ohne Namen"). Named classes sit alongside the topbar
+   elements' existing Tailwind utilities so these two thresholds — not
+   Tailwind's sm/md (640/768) — govern the squeeze; unlayered rules win
+   over the layered Tailwind utilities regardless of source order.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 960px) {
+  .topbar-in { gap: 14px; padding: 0 18px; }
+  .searchbtn { min-width: 0; }
+  .searchbtn-lbl, .topbar-timer-name { display: none; }
+}
+@media (max-width: 620px) {
+  .topbar-in { gap: 9px; padding: 0 12px; height: 54px; }
+  .topbar-mark { font-size: 17px; }
+  .topbar-nav { gap: 12px; }
+  .topbar-nav a { font-size: 13.5px; padding: 16px 0 14px; }
+  .searchbtn { padding: 7px 8px; border-radius: 7px; }
+  .searchbtn-kbd { display: none; }
+  .timerpill { padding: 6px 9px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
    WORKTIME CALENDAR — surface-specific rules ported verbatim from
    docs/superpowers/specs/assets/2026-06-23-webui/studio-worktime-calendar.html.
    These back the .seg toggle, the time-grid .wtblock family, gridlines, the

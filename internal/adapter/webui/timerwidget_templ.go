@@ -396,7 +396,7 @@ func TimerPill(vm TimerWidgetVM) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		if vm.Running {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<span class=\"inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]\"><span class=\"h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]\" aria-hidden=\"true\"></span> <span class=\"font-mono tnum text-[13px] font-semibold\" data-timer data-timer-fmt=\"clock\" data-base=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<span class=\"timerpill inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]\"><span class=\"h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]\" aria-hidden=\"true\"></span> <span class=\"font-mono tnum text-[13px] font-semibold\" data-timer data-timer-fmt=\"clock\" data-base=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -449,14 +449,14 @@ func TimerPill(vm TimerWidgetVM) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" class=\"hidden sm:inline max-w-[110px] truncate text-[12.5px] text-meta hover:text-accent\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "\" class=\"topbar-timer-name max-w-[110px] truncate text-[12.5px] text-meta hover:text-accent\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(ShortName(vm.NodeName))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/timerwidget.templ`, Line: 83, Col: 189}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/timerwidget.templ`, Line: 83, Col: 190}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -485,7 +485,7 @@ func TimerPill(vm TimerWidgetVM) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<button type=\"button\" data-dialog-open=\"timer-sheet\" class=\"inline-flex items-center gap-1.5 rounded-full border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint\"><span aria-hidden=\"true\">▶</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<button type=\"button\" data-dialog-open=\"timer-sheet\" class=\"timerpill inline-flex items-center gap-1.5 rounded-full border border-hair2 bg-surface px-3 py-[5px] text-[13px] font-medium text-meta hover:text-ink hover:border-faint\"><span aria-hidden=\"true\">▶</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

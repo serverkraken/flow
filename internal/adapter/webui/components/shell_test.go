@@ -165,6 +165,15 @@ func TestAppShell_TopbarNoSidebar(t *testing.T) {
 			t.Fatalf("topbar missing %q:\n%s", want, out)
 		}
 	}
+	// Mobile-Fix (L1-Nachzügler): the topbar carries the responsive named
+	// classes that the 960px/620px @media rules in web/tailwind.css target —
+	// NOT Tailwind's sm/md (640/768) — so it compacts instead of overlapping
+	// at 375px.
+	for _, want := range []string{"topbar-in", "topbar-mark", "topbar-nav", "searchbtn", "searchbtn-lbl", "searchbtn-kbd"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("topbar missing responsive class %q:\n%s", want, out)
+		}
+	}
 	// active "heute" gehört zum Bereich Zeit
 	if !strings.Contains(out, `aria-current="page" href="/zeit"`) && !strings.Contains(out, `href="/zeit" aria-current="page"`) {
 		t.Fatal("Zeit area not marked current for active=heute")

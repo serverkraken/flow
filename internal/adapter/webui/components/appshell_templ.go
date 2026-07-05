@@ -80,7 +80,7 @@ func AppShell(active string, breadcrumb, subnav, content templ.Component) templ.
 			templ_7745c5c3_Var4 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<header class=\"sticky top-0 z-40 bg-paper/90 backdrop-blur-sm border-b border-hair\"><div class=\"mx-auto w-full max-w-[1140px] px-4 sm:px-7 h-[58px] flex items-center gap-4 sm:gap-6\"><a href=\"/\" class=\"inline-flex items-center gap-2 shrink-0\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<header class=\"sticky top-0 z-40 bg-paper/90 backdrop-blur-sm border-b border-hair\"><div class=\"topbar-in mx-auto w-full max-w-[1140px] px-4 sm:px-7 h-[58px] flex items-center gap-4 sm:gap-6\"><a href=\"/\" class=\"inline-flex items-center gap-2 shrink-0\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -101,27 +101,27 @@ func AppShell(active string, breadcrumb, subnav, content templ.Component) templ.
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"font-display text-[19px] font-bold tracking-tight\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<span class=\"topbar-mark font-display text-[19px] font-bold tracking-tight\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "app.name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 21, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 21, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"text-accent\">.</span></span></a><nav class=\"flex items-center gap-4 sm:gap-6 min-w-0\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<span class=\"text-accent\">.</span></span></a><nav class=\"topbar-nav flex items-center gap-4 sm:gap-6 min-w-0\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "nav.primary"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 23, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 23, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -201,20 +201,20 @@ func AppShell(active string, breadcrumb, subnav, content templ.Component) templ.
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"flex items-center gap-2 rounded-lg border border-hair2 bg-surface px-2.5 py-[7px] text-[13.5px] text-faint hover:border-faint hover:text-meta\"><span aria-hidden=\"true\">⌕</span> <span class=\"hidden sm:inline\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"searchbtn flex items-center gap-2 rounded-lg border border-hair2 bg-surface px-2.5 py-[7px] text-[13.5px] text-faint hover:border-faint hover:text-meta\"><span aria-hidden=\"true\">⌕</span> <span class=\"searchbtn-lbl\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(T(ctx, "palette.hint"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 36, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/appshell.templ`, Line: 36, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span> <kbd class=\"hidden md:inline font-mono text-[11px] border border-hair rounded px-1.5 bg-surface text-faint\">⌘K</kbd></button><div id=\"timer-pill\" hx-get=\"/ui/timer\" hx-trigger=\"load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted\" hx-swap=\"innerHTML\"></div><button type=\"button\" data-dialog-open=\"user-menu\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</span> <kbd class=\"searchbtn-kbd font-mono text-[11px] border border-hair rounded px-1.5 bg-surface text-faint\">⌘K</kbd></button><div id=\"timer-pill\" hx-get=\"/ui/timer\" hx-trigger=\"load, sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted\" hx-swap=\"innerHTML\"></div><button type=\"button\" data-dialog-open=\"user-menu\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
