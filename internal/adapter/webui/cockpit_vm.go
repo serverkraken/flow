@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html/template"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,7 +92,8 @@ type NodeCockpit struct {
 	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
 	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
 	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
-	Docs        []domain.Document       // wissen
+	Docs        []domain.Document       // wissen — raw source, kept for the tab count/back-compat
+	WissenRows  []WissenRow             // wissen — built display rows (BuildWissenRows), what CockpitMain renders
 	WissenScope string                  // "subtree"|"self" — effective Wissen-tab scope (drives the .seg toggle)
 	Children    []NodeChild             // struktur
 	MoveTargets []domain.Node           // struktur reparent
@@ -395,6 +397,49 @@ func ChainRows(ctx context.Context, d NodeCockpit) []KetteRow {
 		rows = append(rows, KetteRow{Label: label, HoursStr: dashIfZeroDur(c.DurStr), Here: c.This, Href: href})
 	}
 	return rows
+}
+
+// WissenRow is one display row in the cockpit's Wissen section (cockpit_main.templ):
+// a document rendered as a type-chip + title + meta line + estimated reading
+// time — the built counterpart to the raw domain.Document slice (d.Docs).
+type WissenRow struct {
+	ID, Title, ChipClass, ChipLabel, Meta, ReadTime string
+}
+
+// BuildWissenRows maps documents to Wissen-section display rows: ChipClass/
+// ChipLabel from DocTypeChipClass/DocTypeLabel (Spec §7.1), Meta = relative
+// update time + path (Spec §16.9 "Akteur · Zeit · Pfad" — domain.Document
+// carries no last-editor field, verified via `rg "type Document struct"
+// internal/domain/`, so Meta degrades to "Zeit · Pfad"), ReadTime = word
+// count/220 minutes, rounded up to at least 1 — "" when Body is empty (a
+// list query without full bodies degrades gracefully, no blocker).
+func BuildWissenRows(docs []domain.Document, now time.Time) []WissenRow {
+	rows := make([]WissenRow, 0, len(docs))
+	for _, doc := range docs {
+		rows = append(rows, WissenRow{
+			ID:        doc.ID,
+			Title:     doc.Title,
+			ChipClass: DocTypeChipClass(doc.Type),
+			ChipLabel: DocTypeLabel(doc.Type),
+			Meta:      fmtRelTime(doc.UpdatedAt, now) + " · " + doc.Path,
+			ReadTime:  readTimeLabel(doc.Body),
+		})
+	}
+	return rows
+}
+
+// readTimeLabel estimates reading time at 220 words/minute (Spec §16.9),
+// rounding up to at least 1 minute. Empty body yields "" (no readtime box).
+func readTimeLabel(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	mins := len(strings.Fields(body)) / 220
+	if mins < 1 {
+		mins = 1
+	}
+	return strconv.Itoa(mins) + " min"
 }
 
 // glyphOrDefault returns the node glyph or a default identity glyph when unset.

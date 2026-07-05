@@ -180,6 +180,13 @@ func init() {
 			"cockpit.stats.hereToday":  "here today",
 			"cockpit.stats.repoTotal":  "repo total",
 			"cockpit.stats.chainTotal": "chain",
+			// cockpit main content (L2 T6): Enthält · Wissen · Buchungen · Puls
+			"cockpit.enthaelt.title":     "Contains",
+			"cockpit.wissen.sectionRepo": "Knowledge on this repo",
+			"cockpit.wissen.section":     "Knowledge on this node",
+			"cockpit.wissen.readtime":    "Reading time",
+			"cockpit.buchungen.title":    "Bookings",
+			"cockpit.pulse.subtree":      "Pulse — this repo & below",
 			// node move form
 			"node.move":            "Move",
 			"node.moveTitle":       "Move node",

@@ -186,6 +186,13 @@ func init() {
 			"cockpit.stats.hereToday":  "hier heute",
 			"cockpit.stats.repoTotal":  "Repo gesamt",
 			"cockpit.stats.chainTotal": "Kette",
+			// cockpit main content (L2 T6): Enthält · Wissen · Buchungen · Puls
+			"cockpit.enthaelt.title":     "Enthält",
+			"cockpit.wissen.sectionRepo": "Wissen zu diesem Repo",
+			"cockpit.wissen.section":     "Wissen zu diesem Knoten",
+			"cockpit.wissen.readtime":    "Lesezeit",
+			"cockpit.buchungen.title":    "Buchungen",
+			"cockpit.pulse.subtree":      "Puls — dieses Repo & darunter",
 			// node move form
 			"node.move":            "Verschieben",
 			"node.moveTitle":       "Knoten verschieben",
