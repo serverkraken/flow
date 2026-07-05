@@ -175,27 +175,6 @@ func TestNodeCockpitShell_IncludesNodeContent(t *testing.T) {
 	}
 }
 
-// TestNodeGlyphSwatch_LogoIconGlyphPriority pins the render priority for the node
-// tree row identity mark: uploaded logo > icon (tinted in the node color) > glyph.
-func TestNodeGlyphSwatch_LogoIconGlyphPriority(t *testing.T) {
-	ctx := context.Background()
-	logo := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", LogoRef: "abc123def456", Icon: "rocket", Glyph: "◆", Color: "cyan"}))
-	if !strings.Contains(logo, "/nodes/n1/logo?v=abc123def456") || strings.Contains(logo, "<svg") {
-		t.Errorf("logo wins over icon in the tree row, got: %s", logo)
-	}
-	icon := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Icon: "rocket", Glyph: "◆", Color: "cyan"}))
-	if !strings.Contains(icon, "<svg") || strings.Contains(icon, "◆") {
-		t.Errorf("icon wins over glyph in the tree row, got: %s", icon)
-	}
-	if !strings.Contains(icon, "rgb(var(--cyan))") {
-		t.Errorf("icon must be tinted in the node color (token-reactive), got: %s", icon)
-	}
-	glyph := renderToBuf(t, ctx, nodeGlyphSwatch(domain.Node{ID: "n1", Glyph: "◆", Color: "cyan"}))
-	if !strings.Contains(glyph, "◆") {
-		t.Errorf("glyph fallback broken, got: %s", glyph)
-	}
-}
-
 // TestCockpitRateSource_NearestAncestor pins that cockpitRateSource names the
 // NEAREST rate-setting ancestor (matching domain.ResolveRate), not the root: a
 // repo inheriting a rate set on an intermediate Vorhaben must attribute it to

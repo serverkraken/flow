@@ -137,37 +137,6 @@ templ nodeKindBadge(kind domain.NodeKind) {
 	</span>
 }
 
-// nodeGlyphSwatch renders the node's identity mark in list rows — priority:
-// uploaded logo > icon (tinted in the node color) > color dot + glyph.
-templ nodeGlyphSwatch(n domain.Node) {
-	if n.LogoRef != "" {
-		<img src={ "/nodes/" + n.ID + "/logo?v=" + n.LogoRef } alt="" class="h-5 w-5 shrink-0 rounded object-cover"/>
-	} else if n.Icon != "" {
-		if ColorHex(n.Color) != "" {
-			<span class="shrink-0" style={ "color:" + ColorHex(n.Color) }>
-				@NodeIcon(n.Icon, "h-4 w-4")
-			</span>
-		} else {
-			<span class="shrink-0 text-faint">
-				@NodeIcon(n.Icon, "h-4 w-4")
-			</span>
-		}
-	} else {
-		if ColorHex(n.Color) != "" {
-			<span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={ "background-color:" + ColorHex(n.Color) }></span>
-		}
-		if n.Glyph != "" {
-			<span class="shrink-0 font-mono text-faint">{ n.Glyph }</span>
-		}
-	}
-}
-
-// nodeStatusBadge renders the status chip (aktiv / pausiert / archiviert).
-templ nodeStatusBadge(s domain.NodeStatus) {
-	{{ label, classes := StatusBadge(s) }}
-	<span class={ "shrink-0", classes }>{ label }</span>
-}
-
 // NodeForm renders the create (editing==nil) or edit form for a node.
 templ NodeForm(d NodeFormData, editing *domain.Node) {
 	@components.Base("projekte", nodeFormBody(d, editing))
