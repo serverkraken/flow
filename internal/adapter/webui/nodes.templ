@@ -28,51 +28,105 @@ templ nodesOuter(d NodesPageData) {
 }
 
 // NodesFragment is the SSE-swappable inner tree — served at both
-// GET /ui/nodes/list and GET /ui/nodes/tree.
+// GET /ui/nodes/list and GET /ui/nodes/tree. The Projekte page renders the
+// node tree as content (Mockup Z.442–570): an engagement header (double
+// rule), vorhaben sub-heads, and repo rows with a large short name plus the
+// full mono path underneath — glyph-free throughout (Spec §7 Farb-Gesetz:
+// kind stays a neutral .typechip, color lives only in the avatar).
 templ NodesFragment(d NodesPageData) {
-	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-		<div>
-			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.projects") }</p>
-			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, "nodes.title") }</h1>
-			<p class="mt-1 text-[.9rem] text-muted">{ components.T(ctx, "nodes.subtitle") }</p>
+	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
+		<div style="flex:1">
+			<span class="eyebrow">{ components.T(ctx, "nav.projects") }</span>
+			<h1>{ components.T(ctx, "nodes.title") }</h1>
+			<p class="sub">{ d.VM.Summary }</p>
 		</div>
-		<a
-			href="/nodes/new"
-			class="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-green to-cyan px-5 py-2.5 text-[.92rem] font-semibold text-oncolor shadow-soft transition active:scale-[.99]"
-		>
-			<span aria-hidden="true">✚</span> { components.T(ctx, "nodes.new") }
-		</a>
-	</header>
+		<a href="/nodes/new" class="btn btn-q">{ components.T(ctx, "nodes.new") }</a>
+	</div>
 	<div class="mb-4 flex flex-wrap gap-2 text-sm">
 		<a href="/nodes" class={ nodeFilterChip(d.Status == "") }>{ components.T(ctx, "nodes.filterActive") }</a>
 		<a href="/nodes?status=archived" class={ nodeFilterChip(d.Status == "archived") }>{ components.T(ctx, "nodes.filterArchived") }</a>
 		<a href="/nodes?status=all" class={ nodeFilterChip(d.Status == "all") }>{ components.T(ctx, "nodes.filterAll") }</a>
 	</div>
-	if len(d.Rows) == 0 {
-		@components.EmptyState("◆", "nodes.empty", "nodes.emptyHint")
+	if len(d.VM.Engagements) == 0 {
+		@components.EmptyState("", "nodes.empty", "nodes.emptyHint")
 	} else {
-		<ul class="divide-y divide-line2 rounded-2xl glass shadow-soft">
-			for _, row := range d.Rows {
-				@nodeTreeRow(row)
-			}
-		</ul>
+		for _, es := range d.VM.Engagements {
+			@engagementSection(es)
+		}
 	}
 }
 
-// nodeTreeRow renders one indented row: kind badge + color swatch + name + git +
-// status badge.  The row links to the node cockpit at /nodes/{id}.
-templ nodeTreeRow(row TreeRow) {
-	<li class="p-3 transition-colors hover:bg-sunken/40">
-		<a href={ templ.SafeURL("/nodes/" + row.Node.ID) } class="group flex items-center gap-3" style={ nodeIndentStyle(row.Level) }>
-			@nodeKindBadge(row.Node.Kind)
-			@nodeGlyphSwatch(row.Node)
-			<span class="min-w-0 flex-1 truncate font-medium text-ink group-hover:text-blue">{ row.Node.Name }</span>
-			if row.Node.UpstreamGit != "" {
-				<span class="hidden sm:block truncate font-mono text-[.75rem] text-faint">{ gitDisplay(row.Node.UpstreamGit) }</span>
+// engagementSection renders one .eng block: the double-ruled header, each
+// vorhaben's group (rows indented .lvl2 under it), then any repos parented
+// directly on the engagement — as a "Direkt am Engagement" group when vorhaben
+// groups exist alongside them, or as plain top-level rows when they're the
+// engagement's only children (Mockup's "Privat" section has no vh head at all).
+templ engagementSection(es EngagementSection) {
+	<section class="eng">
+		<div class="eng-h">
+			@components.Avatar(es.Initials, es.Tone, "av-36")
+			<h2>{ es.N.Name }</h2>
+			<span class="typechip">{ components.T(ctx, "node.kind."+string(es.N.Kind)) }</span>
+			<div class="right"><div class="v">{ es.HoursStr }</div><div class="k">{ es.RateNote }</div></div>
+		</div>
+		if len(es.Groups) > 0 {
+			for _, g := range es.Groups {
+				@vorhabenHead(g)
+				for _, row := range g.Rows {
+					@projRow(row, true)
+				}
 			}
-			@nodeStatusBadge(row.Node.Status)
-		</a>
-	</li>
+			if len(es.DirectRepos) > 0 {
+				<div class="vh">
+					<span class="t">{ components.T(ctx, "nodes.group.direct") }</span>
+					<span class="c">{ repoCountNote(len(es.DirectRepos)) }</span>
+				</div>
+				for _, row := range es.DirectRepos {
+					@projRow(row, true)
+				}
+			}
+		} else {
+			for _, row := range es.DirectRepos {
+				@projRow(row, false)
+			}
+		}
+	</section>
+}
+
+// vorhabenHead renders one .vh sub-head: short name, neutral "vorhaben"
+// typechip, and the group's repo/sub-vorhaben count note.
+templ vorhabenHead(g VorhabenGroup) {
+	<div class="vh">
+		<span class="t">{ g.Short }</span>
+		<span class="typechip">{ components.T(ctx, "node.kind.vorhaben") }</span>
+		<span class="c">{ g.CountNote }</span>
+	</div>
+}
+
+// projRow renders one repo (or nested-vorhaben) line: avatar, short name +
+// full mono path (word-break:break-all via .path — Spec §11 Eindämmung), and
+// the right-aligned doc-count/hours + status note. indented adds .lvl2 when
+// the row sits under a .vh head (vs. a bare top-level row).
+templ projRow(row ProjRow, indented bool) {
+	<a class={ "projrow", templ.KV("lvl2", indented) } href={ templ.SafeURL("/nodes/" + row.ID) }>
+		@components.Avatar(row.Initials, row.Tone, "av-28")
+		<div class="grow">
+			if row.IsVorhaben {
+				<div class="t">
+					{ row.Short }
+					<span class="dim" style="font-weight:400">· { components.T(ctx, "node.kind."+row.KindLabel) }</span>
+				</div>
+				<div class="s">{ projRowUnderNote(ctx, row.Full) }</div>
+			} else {
+				<div class="t">{ row.Short }</div>
+				<div class="path">{ row.Full }</div>
+			}
+		</div>
+		<div class="right">
+			<div class="v">{ row.RightV }</div>
+			<div class="k">{ components.T(ctx, row.RightK) }</div>
+		</div>
+	</a>
 }
 
 // nodeKindBadge renders the kind pill (glyph + i18n label, kind-toned).

@@ -147,12 +147,22 @@ func postNMultipart(t *testing.T, ts *httptest.Server, c *http.Cookie, path, con
 	return res
 }
 
-func TestWebNodeTree_IndentAndFilter(t *testing.T) {
+// TestWebNodesPage_TreeAsContentAndFilter pins the Lesesaal L2 Task 3 redesign
+// of /nodes: the tree renders as content (an .eng section per engagement, a
+// .vh group per vorhaben, .projrow.lvl2 rows nested under it) rather than an
+// indented <li> list — replacing the pre-Task-3
+// "padding-left:1rem"-indentation assertion, which no longer applies now that
+// nesting is expressed via named CSS classes instead of inline depth styles.
+// The status filter (default hides archived; ?status=archived shows it)
+// survives the redesign untouched.
+func TestWebNodesPage_TreeAsContentAndFilter(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
-	// Seed: an engagement with a child repo (has color+glyph+upstreamGit), and an archived engagement.
+	// Seed: an engagement with a vorhaben group containing one repo (nested →
+	// .lvl2), and an archived engagement.
 	eng := seedTreeNode(t, ns, "eng1", "Privat", domain.KindEngagement, nil)
-	repo := seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+	vor := seedTreeNode(t, ns, "vor1", "Buch", domain.KindVorhaben, &eng.ID)
+	repo := seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &vor.ID)
 	repo.Color = domain.NodeColors[0]
 	repo.Glyph = domain.NodeGlyphs[0]
 	repo.UpstreamGit = "git@github.com:serverkraken/flow.git"
@@ -166,11 +176,15 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("GET /nodes = %d; body=%.500s", code, body)
 	}
-	// Engagement + child repo must appear, with kind badge labels.
-	for _, want := range []string{"Privat", "flow", "Engagement", "Repo"} {
+	// Engagement, its vorhaben group and the nested repo must all appear.
+	for _, want := range []string{"Privat", "Buch", "flow", `class="eng"`, `class="vh"`, `class="typechip"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("tree page missing %q; body=%.500s", want, body)
 		}
+	}
+	// The repo row is nested under the vorhaben's .vh head → .lvl2.
+	if !strings.Contains(body, `class="projrow lvl2"`) {
+		t.Errorf("nested repo row missing projrow lvl2; body=%.500s", body)
 	}
 	// Archived node must be hidden by default.
 	if strings.Contains(body, "Alt") {
@@ -183,33 +197,30 @@ func TestWebNodeTree_IndentAndFilter(t *testing.T) {
 		t.Errorf("archived filter must show Alt; body=%.500s", arr)
 	}
 
-	// SSE fragment route must return 200 and render indented child node.
+	// SSE fragment route must return 200 and render the same nested row.
 	code, frag := getN(t, ts, c, "/ui/nodes/list")
 	if code != 200 {
 		t.Errorf("GET /ui/nodes/list = %d, want 200", code)
 	}
-	if !strings.Contains(frag, "padding-left:1rem") {
-		t.Errorf("fragment missing child indentation style padding-left:1rem; body=%.500s", frag)
+	if !strings.Contains(frag, `class="projrow lvl2"`) {
+		t.Errorf("fragment missing nested projrow lvl2; body=%.500s", frag)
 	}
 }
 
-// TestWebNodeTree_GlassContainerAndCTA verifies the K4 Kristall glass sweep on
-// the projektliste: the tree-list container carries .glass (not the old flat
-// bg-surface/border-line chrome) and the "Neu" action uses the BtnPrimary
-// gradient recipe (not the old flat bg-ink button) — while row links,
-// nodeGlyphSwatch (color dot + glyph), kind/status badges, and gitDisplay all
-// survive untouched. Negative assertions are scoped to the swapped elements
-// themselves (the <ul> tag, the Neu anchor) rather than the whole body, since
-// AppShell's mobile-nav dialog legitimately carries "bg-surface"/"bg-ink"
-// elsewhere on the page (Task 4/5 false-positive lesson).
-func TestWebNodeTree_GlassContainerAndCTA(t *testing.T) {
+// TestWebNodesPage_QuietCTAAndAvatarIdentity pins the Lesesaal L2 Task 3
+// redesign of /nodes: the "Neuer Knoten" action is the quiet .btn.btn-q
+// (not the old bg-gradient CTA), and a node's visual identity on this page is
+// carried ONLY by its avatar (initials + deterministic tone) — never by the
+// node's own stored Color/Glyph fields or a kind glyph (Spec §7 Farb-Gesetz:
+// color lives only in the avatar; ◆▲● are dead everywhere on L2). The row
+// link and the full remote-style path survive untouched.
+func TestWebNodesPage_QuietCTAAndAvatarIdentity(t *testing.T) {
 	ts, c, ns := newWebNodesServer(t)
 
 	eng := seedTreeNode(t, ns, "eng1", "Privat", domain.KindEngagement, nil)
-	repo := seedTreeNode(t, ns, "repo1", "flow", domain.KindRepo, &eng.ID)
+	repo := seedTreeNode(t, ns, "repo1", "gitlab.com/x/y/flow", domain.KindRepo, &eng.ID)
 	repo.Color = domain.NodeColors[0]
 	repo.Glyph = domain.NodeGlyphs[0]
-	repo.UpstreamGit = "git@github.com:serverkraken/flow.git"
 	_, _ = ns.Update(context.Background(), "u1", repo)
 
 	code, body := getN(t, ts, c, "/nodes")
@@ -217,56 +228,46 @@ func TestWebNodeTree_GlassContainerAndCTA(t *testing.T) {
 		t.Fatalf("GET /nodes = %d; body=%.500s", code, body)
 	}
 
-	// "Neu" CTA: scoped to the anchor element itself.
+	// "Neuer Knoten" CTA: quiet .btn.btn-q, not the old bg-gradient chrome.
 	ctaIdx := strings.Index(body, `href="/nodes/new"`)
 	if ctaIdx < 0 {
-		t.Fatalf("Neu link /nodes/new not found; body=%.500s", body)
+		t.Fatalf("Neuer Knoten link /nodes/new not found; body=%.500s", body)
 	}
 	ctaCloseOffset := strings.Index(body[ctaIdx:], "</a>")
 	if ctaCloseOffset < 0 {
-		t.Fatalf("Neu anchor not closed; body=%.500s", body)
+		t.Fatalf("Neuer Knoten anchor not closed; body=%.500s", body)
 	}
 	ctaBlock := body[ctaIdx : ctaIdx+ctaCloseOffset]
-	if !strings.Contains(ctaBlock, "from-green to-cyan") {
-		t.Errorf("Neu button missing the BtnPrimary gradient recipe: %s", ctaBlock)
+	if !strings.Contains(ctaBlock, "btn-q") {
+		t.Errorf("Neuer Knoten button missing the quiet btn-q class: %s", ctaBlock)
 	}
-	if strings.Contains(ctaBlock, "bg-ink") {
-		t.Errorf("Neu button still uses flat bg-ink: %s", ctaBlock)
-	}
-
-	// List container: scoped to the <ul ...> opening tag itself.
-	ulIdx := strings.Index(body, "<ul")
-	if ulIdx < 0 {
-		t.Fatalf("tree list container <ul> not found; body=%.500s", body)
-	}
-	ulTagCloseOffset := strings.Index(body[ulIdx:], ">")
-	if ulTagCloseOffset < 0 {
-		t.Fatalf("tree list <ul> tag not closed; body=%.500s", body)
-	}
-	ulTag := body[ulIdx : ulIdx+ulTagCloseOffset]
-	if !strings.Contains(ulTag, "glass") {
-		t.Errorf("tree list container missing glass: %s", ulTag)
-	}
-	if strings.Contains(ulTag, "bg-surface") {
-		t.Errorf("tree list container still uses flat bg-surface: %s", ulTag)
+	if strings.Contains(ctaBlock, "bg-gradient-to-r") {
+		t.Errorf("Neuer Knoten button still uses the old gradient CTA: %s", ctaBlock)
 	}
 
-	// Preservation: row link, nodeGlyphSwatch (color dot + glyph char),
-	// kind/status badges, and gitDisplay must survive the glass swap untouched.
+	// Row link + full path survive; the row's own Color/Glyph never render on
+	// this page — identity comes from the avatar's tone/initials only.
 	if !strings.Contains(body, `href="/nodes/`+repo.ID+`"`) {
 		t.Errorf("tree row link to /nodes/%s missing; body=%.500s", repo.ID, body)
 	}
-	if !strings.Contains(body, "background-color:"+webui.ColorHex(repo.Color)) {
-		t.Errorf("nodeGlyphSwatch color dot missing; body=%.500s", body)
+	if !strings.Contains(body, "gitlab.com/x/y/flow") {
+		t.Errorf("full mono path missing; body=%.500s", body)
 	}
-	if !strings.Contains(body, repo.Glyph) {
-		t.Errorf("nodeGlyphSwatch glyph missing; body=%.500s", body)
+	if strings.Contains(body, "background-color:"+webui.ColorHex(repo.Color)) {
+		t.Errorf("node's own Color must not render as a swatch on this page (Farb-Gesetz): body=%.500s", body)
 	}
-	if !strings.Contains(body, "Repo") || !strings.Contains(body, "Engagement") {
-		t.Errorf("kind badges missing; body=%.500s", body)
+	if strings.Contains(body, repo.Glyph) {
+		t.Errorf("node's own Glyph must not render on this page (Farb-Gesetz): body=%.500s", body)
 	}
-	if !strings.Contains(body, "github.com/serverkraken/flow") {
-		t.Errorf("gitDisplay missing; body=%.500s", body)
+	for _, dead := range []string{"◆", "▲", "●"} {
+		if strings.Contains(body, dead) {
+			t.Errorf("dead kind-glyph %q must not render on the Projekte page; body=%.500s", dead, body)
+		}
+	}
+	// Avatar identity: initials tile at the engagement (av-36) and repo (av-28)
+	// sizes, both carrying a deterministic av-a..av-f tone class.
+	if !strings.Contains(body, "av-36") || !strings.Contains(body, "av-28") {
+		t.Errorf("avatar identity tiles missing (av-36 engagement / av-28 repo); body=%.500s", body)
 	}
 }
 
@@ -1023,5 +1024,73 @@ func TestWebNodeForm_EmptyLogoFilePinsNoUpload(t *testing.T) {
 	}
 	if n.LogoRef != "" {
 		t.Errorf("LogoRef = %q, want empty (empty file part must not count as an upload)", n.LogoRef)
+	}
+}
+
+// TestWebNodesPage_OwnerScope_NoCrossTenantLeak pins the owner-scope
+// guarantee on the redesigned /nodes page (Lesesaal L2 Task 3): two owners
+// share the same FakeNodeStore, and owner A's Projekte page must never
+// contain owner B's engagement (or vice versa). flow is multi-tenant
+// throughout — "it's just one user" is never a valid justification (AGENTS.md
+// Grundsätze) — so a cross-tenant leak here is a Critical finding.
+func TestWebNodesPage_OwnerScope_NoCrossTenantLeak(t *testing.T) {
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	ns := testutil.NewFakeNodeStore()
+	users := testutil.NewFakeUserStore()
+	uA, _ := domain.NewUser("uA", "sub-a", "alice", "a@x.de", "Alice")
+	uB, _ := domain.NewUser("uB", "sub-b", "bob", "b@x.de", "Bob")
+	_, _ = users.UpsertBySub(context.Background(), uA)
+	_, _ = users.UpsertBySub(context.Background(), uB)
+	codec := websession.NewCodec("test-secret-test-secret-test-12", time.Hour)
+	bus := sse.NewBus()
+	srv := &httpserver.Server{
+		Users:     users,
+		Session:   codec,
+		Bus:       bus,
+		Emitter:   sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Clock:     clk,
+		ListNodes: usecase.ListNodes{Nodes: ns},
+		GetNode:   usecase.GetNode{Nodes: ns},
+	}
+	ts := httptest.NewServer(srv.Routes())
+	t.Cleanup(ts.Close)
+	cvA, _ := codec.Issue("uA")
+	cvB, _ := codec.Issue("uB")
+	cA := &http.Cookie{Name: "flow_session", Value: cvA}
+	cB := &http.Cookie{Name: "flow_session", Value: cvB}
+
+	now := time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)
+	nA, _ := domain.NewNode("engA", "uA", "Alice Only Engagement", "alice-only", now)
+	nA.Kind, nA.Status = domain.KindEngagement, domain.NodeActive
+	if _, err := ns.Create(context.Background(), nA); err != nil {
+		t.Fatalf("seed A: %v", err)
+	}
+	nB, _ := domain.NewNode("engB", "uB", "Bob Only Engagement", "bob-only", now)
+	nB.Kind, nB.Status = domain.KindEngagement, domain.NodeActive
+	if _, err := ns.Create(context.Background(), nB); err != nil {
+		t.Fatalf("seed B: %v", err)
+	}
+
+	_, bodyA := getN(t, ts, cA, "/nodes")
+	if !strings.Contains(bodyA, "Alice Only Engagement") {
+		t.Fatalf("A's own engagement missing from A's page; body=%.500s", bodyA)
+	}
+	if strings.Contains(bodyA, "Bob Only Engagement") {
+		t.Fatalf("CROSS-TENANT LEAK: B's engagement visible on A's /nodes page; body=%.500s", bodyA)
+	}
+
+	_, bodyB := getN(t, ts, cB, "/nodes")
+	if !strings.Contains(bodyB, "Bob Only Engagement") {
+		t.Fatalf("B's own engagement missing from B's page; body=%.500s", bodyB)
+	}
+	if strings.Contains(bodyB, "Alice Only Engagement") {
+		t.Fatalf("CROSS-TENANT LEAK: A's engagement visible on B's /nodes page; body=%.500s", bodyB)
+	}
+
+	// Same guarantee on the SSE fragment route.
+	_, fragA := getN(t, ts, cA, "/ui/nodes/list")
+	if strings.Contains(fragA, "Bob Only Engagement") {
+		t.Fatalf("CROSS-TENANT LEAK: B's engagement visible on A's /ui/nodes/list fragment; body=%.500s", fragA)
 	}
 }

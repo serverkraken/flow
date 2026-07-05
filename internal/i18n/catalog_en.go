@@ -182,8 +182,8 @@ func init() {
 			"node.counts.inherit": "inherit (from parent)",
 			"node.counts.work":    "Work — counts",
 			"node.counts.privat":  "Private — track only",
-			// nodes tree page
-			"nodes.title":               "Projects",
+			// nodes tree page (Lesesaal L2 Task 3: tree as content)
+			"nodes.title":               "All nodes",
 			"nodes.subtitle":            "Engagements, initiatives and repos",
 			"nodes.new":                 "New node",
 			"nodes.empty":               "No nodes.",
@@ -191,6 +191,12 @@ func init() {
 			"nodes.filterActive":        "active + paused",
 			"nodes.filterArchived":      "archived",
 			"nodes.filterAll":           "all",
+			"nodes.summary":             "%d Engagements · %d Vorhaben · %d Repos · Σ %s",
+			"nodes.group.direct":        "Directly on the engagement",
+			"nodes.row.timerRunning":    "Timer running",
+			"nodes.row.quiet":           "quiet",
+			"nodes.row.pathWarn":        "Check path?",
+			"nodes.row.under":           "under %s",
 			"dockind.daily":             "Daily",
 			"dockind.project":           "Project",
 			"dockind.free":              "Free",

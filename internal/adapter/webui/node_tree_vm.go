@@ -104,11 +104,12 @@ func descendantIDs(all []domain.Node, id string) map[string]bool {
 
 // ---- page/form/cockpit view models (rendered by D3–D6) ----
 
-// NodesPageData is the tree view model (node-management home).
+// NodesPageData is the Projekte page's view model (node-management home):
+// the tree-as-content ProjectsVM (Task 3) plus the active status filter.
 type NodesPageData struct {
 	User   string
 	Status string // "" (active+paused) | "archived" | "all"
-	Rows   []TreeRow
+	VM     ProjectsVM
 }
 
 // NodeFormValues holds raw create/edit form fields (re-rendered on error).
@@ -224,10 +225,6 @@ func nodeFilterChip(active bool) string {
 	}
 	return "rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted hover:border-blue/40 hover:text-blue"
 }
-
-// nodeIndentStyle returns an inline CSS padding-left for depth-based indentation
-// in the tree (1 rem per level).
-func nodeIndentStyle(level int) string { return fmt.Sprintf("padding-left:%drem", level) }
 
 // nvHue appends the node-color custom property for the tree dot ("" when unset).
 func nvHue(color string) string {
