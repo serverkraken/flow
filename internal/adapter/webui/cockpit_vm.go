@@ -86,34 +86,18 @@ type NodeCockpit struct {
 	// block needs (BuildChain wants one NodeRollup per node.ID: N + every
 	// ancestor). Filled by Task 7's page wiring via s.Stats.NodeStats; empty
 	// map means every chain row renders "—" (Nullen ohne Bühne, Spec §4).
-	ChainStats map[string]domain.NodeRollup
-	TabCounts  map[string]int
-	// active tab + its data (only the active tab's slice is populated)
-	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
-	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
-	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
-	Docs        []domain.Document       // wissen — raw source, kept for the tab count/back-compat
-	WissenRows  []WissenRow             // wissen — built display rows (BuildWissenRows), what CockpitMain renders
-	WissenScope string                  // "subtree"|"self" — effective Wissen-tab scope (drives the .seg toggle)
-	Children    []NodeChild             // struktur
-	MoveTargets []domain.Node           // struktur reparent
-	Bindings    []domain.ProjectBinding // bindings
-	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
-	// EditSession is set by fillPanelData when the worktime tab's ?edit={sid}
-	// query resolves to one of the owner's sessions — it drives the edit-mode
-	// SessionDialog (sessionDialogEditVM), rendered pre-opened in the panel.
-	// nil when not editing.
+	ChainStats  map[string]domain.NodeRollup
+	Uebersicht  UebersichtVM            // Pulse is the only field CockpitMain still reads (subtree activity feed)
+	SessionRows []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
+	WissenRows  []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
+	WissenScope string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
+	Children    []NodeChild             // Enthält
+	Bindings    []domain.ProjectBinding // rail Bindings block
+	PanelErr    string                  // inline error surfaced on #cockpit-main or #cockpit-rail
+	// EditSession is set by nodeCockpitData when the ?edit={sid} query resolves
+	// to one of the owner's sessions — it drives the edit-mode SessionDialog
+	// (sessionDialogEditVM), rendered pre-opened. nil when not editing.
 	EditSession *domain.WorkSession
-}
-
-// CockpitTabs is the fixed tab order/keys for the strip — Übersicht is the
-// default landing (see NormalizeTab).
-var CockpitTabs = []struct{ Key, LabelKey string }{
-	{"uebersicht", "cockpit.tab.uebersicht"},
-	{"worktime", "cockpit.tab.worktime"},
-	{"wissen", "cockpit.tab.wissen"},
-	{"struktur", "cockpit.tab.struktur"},
-	{"bindings", "cockpit.tab.bindings"},
 }
 
 // sessionDialogAddVM builds the add-mode SessionDialogVM for the ONE session
@@ -214,49 +198,22 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names
 	return rows
 }
 
-// cockpitPanelReloadURL returns the hx-get URL for a tab's SSE live-reload.
-// For the wissen tab with an explicit "self" scope, it preserves that scope
-// on reload (?scope=self) so a document.* SSE event doesn't silently revert
-// the user's "Nur dieser Knoten" toggle back to the subtree default. Every
-// other tab reloads its plain "/nodes/{id}/tab/{tab}" URL unchanged.
-func cockpitPanelReloadURL(d NodeCockpit) string {
-	url := "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab
-	if d.ActiveTab == "wissen" && d.WissenScope == "self" {
+// FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
+// Exported so the httpserver adapter can format child worktime totals.
+func FmtDurHMExport(d time.Duration) string { return fmtDurHM(d) }
+
+// cockpitMainReloadURL returns #cockpit-main's hx-get URL for its SSE live
+// reload. It preserves the Wissen section's "self" scope (?scope=self) so a
+// session/document/node SSE event doesn't silently revert the user's "Nur
+// dieser Knoten" toggle back to the subtree default — the same contract the
+// old (now-deleted) per-tab cockpitPanelReloadURL guaranteed.
+func cockpitMainReloadURL(d NodeCockpit) string {
+	url := "/nodes/" + d.N.ID + "/main"
+	if d.WissenScope == "self" {
 		url += "?scope=self"
 	}
 	return url
 }
-
-// cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
-func cockpitPanelSSE(tab string) string {
-	switch tab {
-	case "uebersicht":
-		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:activity.logged, sse:document.updated, sse:node.updated"
-	case "worktime":
-		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
-	case "wissen":
-		return "sse:document.created, sse:document.updated, sse:document.deleted"
-	case "struktur":
-		return "sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
-	default:
-		return "" // bindings: reload only after own mutation
-	}
-}
-
-// NormalizeTab returns a valid tab key, defaulting to "uebersicht" (the
-// living-project-home landing).
-func NormalizeTab(tab string) string {
-	for _, t := range CockpitTabs {
-		if t.Key == tab {
-			return tab
-		}
-	}
-	return "uebersicht"
-}
-
-// FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
-// Exported so the httpserver adapter can format child worktime totals.
-func FmtDurHMExport(d time.Duration) string { return fmtDurHM(d) }
 
 // fmtDurHM renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
 func fmtDurHM(d time.Duration) string {
@@ -265,30 +222,6 @@ func fmtDurHM(d time.Duration) string {
 		m = 0
 	}
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
-}
-
-// cockpitAccent maps a node colour name to the left accent-bar class.
-func cockpitAccent(color string) string {
-	switch color {
-	case "cyan":
-		return "bg-cyan"
-	case "purple":
-		return "bg-purple"
-	case "green":
-		return "bg-green"
-	case "blue":
-		return "bg-blue"
-	case "orange":
-		return "bg-orange"
-	default:
-		return "bg-blue"
-	}
-}
-
-// cockpitTileClass maps a node colour to the hex tile wash+text class.
-// Delegates to heuteTileClass which already maps all known hues.
-func cockpitTileClass(color string) string {
-	return heuteTileClass(color)
 }
 
 // cockpitRateSource returns the name of the nearest ancestor that actually
@@ -440,13 +373,4 @@ func readTimeLabel(body string) string {
 		mins = 1
 	}
 	return strconv.Itoa(mins) + " min"
-}
-
-// glyphOrDefault returns the node glyph or a default identity glyph when unset.
-// (Named distinctly from httpserver.glyphOr to avoid cross-package confusion.)
-func glyphOrDefault(g string) string {
-	if g == "" {
-		return "◆"
-	}
-	return g
 }

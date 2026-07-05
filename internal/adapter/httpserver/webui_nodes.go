@@ -322,8 +322,12 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 			vals.TagsCSV = strings.Join(slugs, " ")
 		}
 	}
+	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Vals: vals, Parents: s.nodeParents(r, u)}, &n).Render(r.Context(), w)
+	_ = webui.NodeForm(webui.NodeFormData{
+		User: u.Username, Vals: vals, Parents: s.nodeParents(r, u),
+		MoveTargets: webui.MoveTargetsFor(all, n),
+	}, &n).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {

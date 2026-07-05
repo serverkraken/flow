@@ -106,3 +106,81 @@ func TestCockpitMain_BuchungenRendersSessionRow(t *testing.T) {
 		}
 	}
 }
+
+// TestCockpitMain_PanelErrShown verifies that a non-empty d.PanelErr renders
+// an inline error banner in #cockpit-main (Task 7: every #cockpit-main
+// mutation handler — Nachbuchen, session edit/delete — sets PanelErr on its
+// error path; without this banner the error would be invisible to the user).
+func TestCockpitMain_PanelErrShown(t *testing.T) {
+	d := seededCockpit()
+	d.PanelErr = "ungültige Zeit"
+	out := renderToBuf(t, context.Background(), CockpitMain(d))
+	if !strings.Contains(out, "ungültige Zeit") {
+		t.Fatalf("CockpitMain with PanelErr missing the error message:\n%s", out)
+	}
+
+	clean := seededCockpit()
+	cleanOut := renderToBuf(t, context.Background(), CockpitMain(clean))
+	if strings.Contains(cleanOut, `role="alert"`) {
+		t.Fatalf("CockpitMain without PanelErr must not render an alert banner:\n%s", cleanOut)
+	}
+}
+
+// TestCockpitBuchungRow_RunningOmitsDurationAndControls verifies a running
+// Buchung row (Stop==nil) shows the running indicator instead of a fixed
+// duration and renders NEITHER the edit link nor the delete trigger (carried
+// over from the deleted cockpitSessionRow's equivalent assertion).
+func TestCockpitBuchungRow_RunningOmitsDurationAndControls(t *testing.T) {
+	row := CockpitSessionRow{ID: "s5", Date: "Mi 01.07.", Span: "10:00–…", Running: true}
+	out := renderToBuf(t, context.Background(), cockpitBuchungRow("n1", row, false))
+	if !strings.Contains(out, "10:00–…") {
+		t.Errorf("running Buchung row missing the open span: %.400s", out)
+	}
+	if strings.Contains(out, "edit=s5") || strings.Contains(out, "delete-session-s5") {
+		t.Errorf("running Buchung row must NOT show edit/delete controls: %.400s", out)
+	}
+}
+
+// TestCockpitBuchungRow_NodePillShownForSubtreeHiddenForOwnOnly pins the
+// containment node-pill (Spec §4): showPill=true renders the booked node's
+// kind label + name as a linked .targetlink; showPill=false (a Repo's
+// own-only list) renders neither, even though the row carries the same
+// node fields (carried over from the deleted cockpitSessionNodePill test).
+func TestCockpitBuchungRow_NodePillShownForSubtreeHiddenForOwnOnly(t *testing.T) {
+	row := CockpitSessionRow{
+		ID: "s3", Date: "Di 30.06.", Span: "09:00–10:00", Dur: "1:00 h",
+		NodeID: "r1", NodeName: "flow-api", NodeKind: domain.KindRepo,
+	}
+	shown := renderToBuf(t, context.Background(), cockpitBuchungRow("e1", row, true))
+	if !strings.Contains(shown, "flow-api") || !strings.Contains(shown, `href="/nodes/r1"`) {
+		t.Errorf("showPill=true: node pill missing name/link: %.400s", shown)
+	}
+
+	hidden := renderToBuf(t, context.Background(), cockpitBuchungRow("r1", row, false))
+	if strings.Contains(hidden, "flow-api") {
+		t.Errorf("showPill=false: node pill must NOT render: %.400s", hidden)
+	}
+}
+
+// TestCockpitBuchungRow_EditDeleteControlsForCompletedSession verifies that a
+// completed row carries the Edit round-trip link (hx-get ?edit={sid} against
+// /main, landing back in #cockpit-main) and the Delete confirm-dialog
+// trigger (carried over from the deleted cockpitSessionRow test, updated for
+// the /main fragment route).
+func TestCockpitBuchungRow_EditDeleteControlsForCompletedSession(t *testing.T) {
+	row := CockpitSessionRow{ID: "s4", Date: "Mi 01.07.", Span: "08:00–09:00", Dur: "1:00 h"}
+	out := renderToBuf(t, context.Background(), cockpitBuchungRow("n1", row, false))
+
+	if !strings.Contains(out, `hx-get="/nodes/n1/main?edit=s4"`) {
+		t.Errorf("completed row missing edit round-trip link: %.500s", out)
+	}
+	if !strings.Contains(out, `hx-target="#cockpit-main"`) {
+		t.Errorf("completed row edit link must target #cockpit-main: %.500s", out)
+	}
+	if !strings.Contains(out, `data-dialog-open="delete-session-s4"`) {
+		t.Errorf("completed row missing delete confirm trigger: %.500s", out)
+	}
+	if !strings.Contains(out, `hx-post="/nodes/n1/sessions/s4/delete"`) {
+		t.Errorf("completed row delete confirm missing hx-post to sessions/s4/delete: %.500s", out)
+	}
+}

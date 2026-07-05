@@ -30,7 +30,7 @@ func (s *Server) handleWebNodeEditSession(w http.ResponseWriter, r *http.Request
 	start, err1 := dayTime(day, r.FormValue("from"))
 	stop, err2 := dayTime(day, r.FormValue("to"))
 	if err1 != nil || err2 != nil || !stop.After(start) {
-		s.renderNodePanel(w, r, u, id, "worktime", "ungültige Zeit — HH:MM, bis > von")
+		s.renderCockpitMain(w, r, u, id, "ungültige Zeit — HH:MM, bis > von")
 		return
 	}
 
@@ -47,14 +47,14 @@ func (s *Server) handleWebNodeEditSession(w http.ResponseWriter, r *http.Request
 		Stop:   &stop,
 	})
 	if err != nil {
-		s.renderNodePanel(w, r, u, id, "worktime", "konnte nicht bearbeiten: "+err.Error())
+		s.renderCockpitMain(w, r, u, id, "konnte nicht bearbeiten: "+err.Error())
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{
 		Type: domain.EventSessionUpdated, UserID: u.ID,
 		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
 	})
-	s.renderNodePanel(w, r, u, id, "worktime", "")
+	s.renderCockpitMain(w, r, u, id, "")
 }
 
 // handleWebNodeDeleteSession handles POST /nodes/{id}/sessions/{sid}/delete —
@@ -67,12 +67,12 @@ func (s *Server) handleWebNodeDeleteSession(w http.ResponseWriter, r *http.Reque
 	sid := r.PathValue("sid")
 
 	if err := s.DeleteSession.Execute(r.Context(), u.ID, sid); err != nil {
-		s.renderNodePanel(w, r, u, id, "worktime", "konnte nicht löschen: "+err.Error())
+		s.renderCockpitMain(w, r, u, id, "konnte nicht löschen: "+err.Error())
 		return
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{
 		Type: domain.EventSessionDeleted, UserID: u.ID,
 		Data: map[string]any{"id": sid},
 	})
-	s.renderNodePanel(w, r, u, id, "worktime", "")
+	s.renderCockpitMain(w, r, u, id, "")
 }

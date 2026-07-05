@@ -1,16 +1,20 @@
 package webui
 
 import (
+	"strings"
+
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// CockpitRailBlocks is the Meta-Spalte's two functional panels (Mockup
-// Z.634–668): the Kette (this node → ancestors → inherited rate) and
-// Bindings. The "Kontext für Agenten" curation block from the mockup is
-// explicitly L5 scope and does NOT belong here yet (Offene Entscheidung #6).
-// Task 7 mounts this in #cockpit-rail and repoints the bind/unbind handlers
-// to re-render it on sse:node.updated.
+// CockpitRailBlocks is the Meta-Spalte's functional panels (Mockup Z.634–668):
+// the Kette (this node → ancestors → inherited rate), the subtree Beiträger
+// row (only when the subtree has activity — Contributors is filled by
+// nodeCockpitData's always-run path so it survives the rail's own SSE
+// reload), and Bindings. The "Kontext für Agenten" curation block from the
+// mockup is explicitly L5 scope and does NOT belong here yet (Offene
+// Entscheidung #6). Task 7 mounts this in #cockpit-rail and repoints the
+// bind/unbind handlers to re-render it on sse:node.updated.
 templ CockpitRailBlocks(d NodeCockpit) {
 	<div class="blk">
 		<span class="eyebrow">{ components.T(ctx, "cockpit.rail.chain") }</span>
@@ -25,6 +29,12 @@ templ CockpitRailBlocks(d NodeCockpit) {
 			</div>
 		}
 	</div>
+	if len(d.Contributors) > 0 {
+		<div class="blk">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.rail.contributors") }</span>
+			<p class="text-sm text-body">{ strings.Join(d.Contributors, ", ") }</p>
+		</div>
+	}
 	<div class="blk">
 		<span class="eyebrow">{ components.T(ctx, "cockpit.bindings.title") }</span>
 		if len(d.Bindings) == 0 {
@@ -53,4 +63,17 @@ templ CockpitRailBlocks(d NodeCockpit) {
 			<p class="err mt-2 text-warn" role="alert">{ d.PanelErr }</p>
 		}
 	</div>
+}
+
+// bindingTarget returns the display label for a binding:
+// remote → remoteSlug; path → machineLabel:path (or machineID:path as fallback).
+func bindingTarget(b domain.ProjectBinding) string {
+	if b.Kind == domain.BindingRemote {
+		return b.RemoteSlug
+	}
+	label := b.MachineLabel
+	if label == "" {
+		label = b.MachineID
+	}
+	return label + ":" + b.Path
 }

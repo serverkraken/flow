@@ -220,6 +220,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 						}
 					</select>
 					<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
+					@nodeMoveForm(d, editing)
 				} else {
 					<select name="parentId" id="node-parent" class="field">
 						<option value="">{ components.T(ctx, "node.parentRoot") }</option>
@@ -325,6 +326,30 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 		</form>
 	}
 	<script src="/static/js/nodeform.js" defer></script>
+}
+
+// nodeMoveForm renders the reparent form on the edit page (Task 7: moved here
+// from the cockpit page's old cockpitMoveForm — the cockpit no longer has a
+// Struktur tab to host it). Posts to the existing POST /nodes/{id}/move
+// handler (full-page redirect back to the cockpit — no htmx swap). Only
+// called from the editing!=nil branch of the Parent field.
+templ nodeMoveForm(d NodeFormData, editing *domain.Node) {
+	<div class="mt-2">
+		<label class="block text-muted">{ components.T(ctx, "node.moveTitle") }</label>
+		<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false" class="flex flex-wrap items-end gap-2">
+			<select name="parentId" class="field">
+				<option value="">{ components.T(ctx, "node.parentRoot") }</option>
+				for _, p := range d.MoveTargets {
+					if editing.ParentID != nil && *editing.ParentID == p.ID {
+						<option value={ p.ID } selected>{ nodeParentLabel(p) }</option>
+					} else {
+						<option value={ p.ID }>{ nodeParentLabel(p) }</option>
+					}
+				}
+			</select>
+			@components.Button(components.BtnSecondary, components.T(ctx, "node.move"), "→", templ.Attributes{"type": "submit"})
+		</form>
+	</div>
 }
 
 templ nodeKindOption(val, labelKey, current string) {

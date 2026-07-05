@@ -85,6 +85,15 @@ func TestCockpitHead_MetaLineShowsStatusEditAndLogo(t *testing.T) {
 	if !strings.Contains(out, "Bearbeiten") {
 		t.Fatalf("spine-meta missing the edit link: %s", out)
 	}
+	// Full-page navigation (hx-boost off) — the only UI entry point to the node
+	// edit form, carried over from the deleted rail's edit-link regression pin
+	// (commit c8c4dee).
+	if !strings.Contains(out, `href="/nodes/n1/edit"`) {
+		t.Fatalf("spine edit link must point at /nodes/n1/edit: %s", out)
+	}
+	if !strings.Contains(out, `hx-boost="false"`) {
+		t.Fatalf("spine edit link must opt out of hx-boost (full-page form): %s", out)
+	}
 	if !strings.Contains(out, "Logo hinzufügen") {
 		t.Fatalf("spine-meta missing the logo-add link: %s", out)
 	}

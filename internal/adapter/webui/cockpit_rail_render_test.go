@@ -43,3 +43,27 @@ func TestCockpitRail_ChainAndBindings(t *testing.T) {
 		t.Fatalf("Kontext block is L5, must not appear in L2 rail")
 	}
 }
+
+// TestCockpitRail_ContributorsBlockOnlyWhenPresent pins the Beiträger block
+// (Task 7): it renders the subtree's distinct actors when railContributors
+// filled d.Contributors, and stays absent entirely when empty (no orphan
+// heading for a quiet subtree).
+func TestCockpitRail_ContributorsBlockOnlyWhenPresent(t *testing.T) {
+	d := seededCockpit()
+	d.N.Kind = domain.KindRepo
+	d.Contributors = []string{"claude-code", "msoent"}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, CockpitRailBlocks(d))
+	for _, want := range []string{"Beiträger", "claude-code", "msoent"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("rail Beiträger block misses %q:\n%s", want, out)
+		}
+	}
+
+	empty := seededCockpit()
+	empty.N.Kind = domain.KindRepo
+	emptyOut := renderToBuf(t, ctx, CockpitRailBlocks(empty))
+	if strings.Contains(emptyOut, "Beiträger") {
+		t.Fatalf("rail must NOT render an empty Beiträger block: %s", emptyOut)
+	}
+}

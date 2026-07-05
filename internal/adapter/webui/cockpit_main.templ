@@ -8,12 +8,24 @@ import (
 // CockpitMain is the cockpit's single scrolling content column (Mockup v2.4 —
 // no tabs, Spec §5/§9 "Rückgrat ersetzt den Baum, Kinder stehen als Listen im
 // Inhalt"): the instr-band first (Mockup DOM .cock>.main>.instr — it is NOT
-// part of the CockpitHead spine, Task 4/5 review-fix), then four stacked
-// Haarlinien-Sektionen — Enthält (non-leaf only), Wissen, Buchungen
-// (bookable only), Puls. Mounted in #cockpit-main by Task 7's fragment
-// GET /nodes/{id}/main.
+// part of the CockpitHead spine, Task 4/5 review-fix), an inline error banner
+// when a #cockpit-main mutation (Nachbuchen, session edit/delete) failed
+// (Task 7: every #cockpit-main handler sets d.PanelErr on its error path),
+// then four stacked Haarlinien-Sektionen — Enthält (non-leaf only), Wissen,
+// Buchungen (bookable only), Puls. Mounted in #cockpit-main by Task 7's
+// fragment GET /nodes/{id}/main.
+//
+// The edit-mode SessionDialog is mounted HERE (not in cockpitBody, Task 7):
+// a Buchung row's ?edit={sid} round-trip (cockpitBuchungActions) hx-gets
+// /main?edit={sid} targeting #cockpit-main and swaps ONLY this component's
+// output — a dialog mounted at the page level would never appear on that
+// swap. The add-mode dialog stays page-level (cockpitBody) since it opens
+// client-side (data-dialog-open) and never needs a server round-trip.
 templ CockpitMain(d NodeCockpit) {
 	@cockpitInstr(d)
+	if d.PanelErr != "" {
+		<p class="text-warn text-sm mb-3" role="alert">{ d.PanelErr }</p>
+	}
 	if d.N.Kind != domain.KindRepo {
 		@cockpitEnthaeltSection(d)
 	}
@@ -22,6 +34,9 @@ templ CockpitMain(d NodeCockpit) {
 		@cockpitBuchungenSection(d)
 	}
 	@cockpitPulseSection(d)
+	if d.EditSession != nil {
+		@components.SessionDialog(sessionDialogEditVM(d))
+	}
 }
 
 // cockpitEnthaeltSection lists the node's direct children as Haarlinien-Zeilen

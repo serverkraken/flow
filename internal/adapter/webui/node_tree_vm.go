@@ -128,6 +128,11 @@ type NodeFormData struct {
 	Error   string
 	Vals    NodeFormValues
 	Parents []domain.Node // candidate parents (engagements + vorhaben)
+	// MoveTargets is only filled in edit mode (handleWebNodeEdit) — valid new
+	// parents for the inline Move form (Task 7: moved here from the cockpit
+	// page's old cockpitMoveForm). "" (root) is always offered separately by
+	// the template.
+	MoveTargets []domain.Node
 }
 
 // NodeMoveData drives the inline move form on the cockpit page.
@@ -226,28 +231,6 @@ func nodeFilterChip(active bool) string {
 	return "rounded-full border border-line bg-surface px-3 py-1 text-xs font-medium text-muted hover:border-blue/40 hover:text-blue"
 }
 
-// nvHue appends the node-color custom property for the tree dot ("" when unset).
-func nvHue(color string) string {
-	if ColorHex(color) == "" {
-		return ""
-	}
-	return ";--nc:var(--" + color + ")"
-}
-
-// navDotClass maps a node kind to its form-coded dot (● Engagement, ◆ Vorhaben
-// as rotated square, ⬡ Repo as hexagon clip). Used by the cockpit overview's
-// node rows.
-func navDotClass(k domain.NodeKind) string {
-	switch k {
-	case domain.KindEngagement:
-		return "nvdot nvdot-eng"
-	case domain.KindVorhaben:
-		return "nvdot nvdot-vor"
-	default:
-		return "nvdot nvdot-repo"
-	}
-}
-
 // nodeFormAction returns the form POST target for create (/nodes) or edit (/nodes/{id}).
 func nodeFormAction(editing *domain.Node) templ.SafeURL {
 	if editing != nil {
@@ -262,27 +245,6 @@ func nodeParentLabel(p domain.Node) string { return p.Name }
 // ---------------------------------------------------------------------------
 // Helpers shared by nodes.templ templates.
 // ---------------------------------------------------------------------------
-
-// gitDisplay normalises a git remote URL to a human-friendly "host/path" form.
-// SSH  git@github.com:org/repo.git  → github.com/org/repo
-// HTTPS https://github.com/org/repo.git → github.com/org/repo
-// Anything else is returned unchanged.
-func gitDisplay(raw string) string {
-	if after, ok := strings.CutPrefix(raw, "git@"); ok {
-		colonIdx := strings.Index(after, ":")
-		if colonIdx > 0 {
-			host := after[:colonIdx]
-			path := strings.TrimSuffix(after[colonIdx+1:], ".git")
-			return host + "/" + path
-		}
-	}
-	for _, scheme := range []string{"https://", "http://"} {
-		if after, ok := strings.CutPrefix(raw, scheme); ok {
-			return strings.TrimSuffix(after, ".git")
-		}
-	}
-	return raw
-}
 
 // orDefault returns v if non-empty, otherwise def.
 func orDefault(v, def string) string {
