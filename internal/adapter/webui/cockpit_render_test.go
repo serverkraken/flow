@@ -212,6 +212,27 @@ func TestCockpitRail_TimerStates(t *testing.T) {
 		t.Errorf("TimerOtherBound missing the Wechseln switch label: %.600s", otherBody)
 	}
 
+	// TimerOtherBound with a long remote path as OtherName must not render an
+	// unbreakable inline link — that blows the 375px viewport (Spec §11
+	// containment rule). The link text must be the ShortName, the full path
+	// only in title, and the link must carry a truncate class.
+	longPath := "gitlab.com/dataalliance/infra/common/cmdb"
+	otherLong := seededCockpit()
+	otherLong.Timer = CockpitTimer{State: TimerOtherBound, RunningID: "sess-3", OtherID: "n3", OtherName: longPath}
+	otherLongBody := renderToBuf(t, ctx, CockpitRail(otherLong))
+	if !strings.Contains(otherLongBody, ">cmdb<") {
+		t.Errorf("TimerOtherBound with long OtherName must show the ShortName as link text: %.900s", otherLongBody)
+	}
+	if strings.Contains(otherLongBody, ">"+longPath+"<") {
+		t.Errorf("TimerOtherBound must not render the full remote path as unbroken link text: %.900s", otherLongBody)
+	}
+	if !strings.Contains(otherLongBody, `title="`+longPath+`"`) {
+		t.Errorf("TimerOtherBound with long OtherName must carry the full path in title: %.900s", otherLongBody)
+	}
+	if !strings.Contains(otherLongBody, "truncate") {
+		t.Errorf("TimerOtherBound link must carry a truncate class: %.900s", otherLongBody)
+	}
+
 	notBookable := seededCockpit()
 	notBookable.Timer = CockpitTimer{State: TimerNotBookable}
 	nbBody := renderToBuf(t, ctx, CockpitRail(notBookable))
