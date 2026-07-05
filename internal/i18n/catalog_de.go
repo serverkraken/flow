@@ -176,6 +176,13 @@ func init() {
 			"cockpit.pulse.title":      "Puls — was gerade los ist",
 			"cockpit.pulse.live":       "LIVE",
 			"cockpit.pulse.agent":      "AI-AGENT",
+			// cockpit head (Slice 6, L2 T4)
+			"cockpit.copyPath":         "Pfad kopieren",
+			"cockpit.logo.add":         "Logo hinzufügen",
+			"cockpit.logo.hint":        "PNG/JPG/WebP — ersetzt den Initialen-Avatar überall",
+			"cockpit.stats.hereToday":  "hier heute",
+			"cockpit.stats.repoTotal":  "Repo gesamt",
+			"cockpit.stats.chainTotal": "Kette",
 			// node move form
 			"node.move":            "Verschieben",
 			"node.moveTitle":       "Knoten verschieben",

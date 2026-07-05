@@ -74,7 +74,13 @@ type NodeCockpit struct {
 	TodayHere    string   // today's own-node time (fmtDurHM), NOT subtree
 	CountsWork   bool     // effective Work/Privat flag (domain.ResolveCountsTowardTarget)
 	Contributors []string // distinct actors active in the subtree; filled by T5, empty until then
-	TabCounts    map[string]int
+	// ChainRootName/ChainRootTotal feed the instr-band's third stats segment
+	// (the root engagement's whole-chain total, Mockup "RTL Extern 304:46 h").
+	// Filled by Task 7's page wiring; "" until then — cockpitStatsLine falls
+	// back to the generic "Kette" i18n label + "—" so the line still renders.
+	ChainRootName  string
+	ChainRootTotal string // fmtDurHM-formatted, "" = unknown/not yet wired
+	TabCounts      map[string]int
 	// active tab + its data (only the active tab's slice is populated)
 	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
 	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
@@ -292,6 +298,42 @@ func cockpitRateSource(d NodeCockpit) string {
 		}
 	}
 	return ""
+}
+
+// SpineCrumbs returns the cockpit head's "up" crumb chain: every ancestor
+// EXCEPT self, root→leaf order (self renders as the <h1>, not a crumb link).
+// Derived from the same nodeCrumbs data as the old breadcrumb, minus the
+// trailing self segment.
+func SpineCrumbs(d NodeCockpit) []components.Crumb {
+	all := nodeCrumbs(d)
+	if len(all) <= 1 {
+		return nil // no ancestors (or the defensive self-only fallback)
+	}
+	return all[:len(all)-1]
+}
+
+// cockpitStatusWord maps a node status to its i18n KEY (not the resolved
+// label) — the VM stays domain-free/i18n-free, the templ resolves it via
+// components.T. Deliberately NOT StatusBadge: its amber/slate/emerald chip
+// classes are non-token colors banned on Lesesaal surfaces (Spec §7).
+func cockpitStatusWord(s domain.NodeStatus) string {
+	switch s {
+	case domain.NodePaused:
+		return "node.status.paused"
+	case domain.NodeArchived:
+		return "node.status.archived"
+	default:
+		return "node.status.active"
+	}
+}
+
+// dashIfZeroDur renders a fmtDurHM-formatted duration string as "—" when it's
+// empty or the zero value ("0:00 h") — "Nullen ohne Bühne" (Spec §4).
+func dashIfZeroDur(s string) string {
+	if s == "" || s == "0:00 h" {
+		return "—"
+	}
+	return s
 }
 
 // glyphOrDefault returns the node glyph or a default identity glyph when unset.
