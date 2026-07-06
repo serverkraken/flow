@@ -73,3 +73,30 @@ func TestNodesFragment_Empty(t *testing.T) {
 		t.Errorf("empty state must not render the dead glyph; out=%.1000s", out)
 	}
 }
+
+// TestNodesFragment_HeadsLinkToCockpit pins that the engagement section head
+// and each vorhaben group head are links to their node's cockpit — without
+// them, an engagement (or a vorhaben that has children) is unreachable from
+// the Projekte page except via a child row plus the path backbone (Memory:
+// Sichtbarkeit > Redundanz-Elimination). The synthetic "Direkt am Engagement"
+// group head has no node and must stay a plain <div>.
+func TestNodesFragment_HeadsLinkToCockpit(t *testing.T) {
+	eng := domain.Node{ID: "e1", Name: "RTL Extern", Kind: domain.KindEngagement}
+	vor := domain.Node{ID: "v1", Name: "backstage", Kind: domain.KindVorhaben, ParentID: ptr("e1")}
+	repo := domain.Node{ID: "r1", Name: "gitlab.com/x/backstage-app", Kind: domain.KindRepo, ParentID: ptr("v1")}
+	direct := domain.Node{ID: "r2", Name: "gitlab.com/x/cmdb", Kind: domain.KindRepo, ParentID: ptr("e1")}
+
+	vm := BuildProjectsVM([]domain.Node{eng, vor, repo, direct}, nil, nil, nil, time.Now())
+	out := renderToBuf(t, context.Background(), NodesFragment(NodesPageData{User: "u1", VM: vm}))
+
+	if !strings.Contains(out, `class="eng-h" href="/nodes/e1"`) {
+		t.Errorf("engagement head must link to its cockpit /nodes/e1; out=%.2000s", out)
+	}
+	if !strings.Contains(out, `class="vh" href="/nodes/v1"`) {
+		t.Errorf("vorhaben group head must link to its cockpit /nodes/v1; out=%.2000s", out)
+	}
+	// The "Direkt am Engagement" pseudo-group stays unlinked (no node behind it).
+	if !strings.Contains(out, `<div class="vh">`) {
+		t.Errorf("direct-repos pseudo group head must stay a plain div; out=%.2000s", out)
+	}
+}

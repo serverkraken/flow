@@ -63,12 +63,12 @@ templ NodesFragment(d NodesPageData) {
 // engagement's only children (Mockup's "Privat" section has no vh head at all).
 templ engagementSection(es EngagementSection) {
 	<section class="eng">
-		<div class="eng-h">
+		<a class="eng-h" href={ templ.SafeURL("/nodes/" + es.N.ID) }>
 			@components.Avatar(es.Initials, es.Tone, "av-36")
 			<h2>{ ShortName(es.N.Name) }</h2>
 			<span class="typechip">{ components.T(ctx, "node.kind."+string(es.N.Kind)) }</span>
 			<div class="right"><div class="v">{ es.HoursStr }</div><div class="k">{ es.RateNote }</div></div>
-		</div>
+		</a>
 		if len(es.Groups) > 0 {
 			for _, g := range es.Groups {
 				@vorhabenHead(g)
@@ -94,13 +94,15 @@ templ engagementSection(es EngagementSection) {
 }
 
 // vorhabenHead renders one .vh sub-head: short name, neutral "vorhaben"
-// typechip, and the group's repo/sub-vorhaben count note.
+// typechip, and the group's repo/sub-vorhaben count note. The head links to
+// the vorhaben's cockpit — group-head vorhaben have no .projrow of their own,
+// so without the link they'd be unreachable from the Projekte page.
 templ vorhabenHead(g VorhabenGroup) {
-	<div class="vh">
+	<a class="vh" href={ templ.SafeURL("/nodes/" + g.N.ID) }>
 		<span class="t">{ g.Short }</span>
 		<span class="typechip">{ components.T(ctx, "node.kind.vorhaben") }</span>
 		<span class="c">{ g.CountNote }</span>
-	</div>
+	</a>
 }
 
 // projRow renders one repo (or nested-vorhaben) line: avatar, short name +
@@ -290,6 +292,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 		</div>
 	</form>
 	if editing != nil {
+		<form id="node-move-form" method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false"></form>
 		<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/delete") } hx-boost="false" class="mt-3 max-w-2xl">
 			@components.Button(components.BtnDanger, components.T(ctx, "common.delete"), "✗", templ.Attributes{"type": "submit"})
 		</form>
@@ -297,16 +300,20 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 	<script src="/static/js/nodeform.js" defer></script>
 }
 
-// nodeMoveForm renders the reparent form on the edit page (Task 7: moved here
-// from the cockpit page's old cockpitMoveForm — the cockpit no longer has a
-// Struktur tab to host it). Posts to the existing POST /nodes/{id}/move
-// handler (full-page redirect back to the cockpit — no htmx swap). Only
-// called from the editing!=nil branch of the Parent field.
+// nodeMoveForm renders the reparent controls on the edit page (Task 7: moved
+// here from the cockpit page's old cockpitMoveForm — the cockpit no longer has
+// a Struktur tab to host it). It sits INSIDE the main edit <form>, so it must
+// not open its own <form> (nested forms are invalid HTML; the browser drops
+// the inner tag and the stray </form> closes the edit form early, orphaning
+// every control below — logo upload, Speichern). The controls bind via the
+// form attribute to the empty #node-move-form element rendered AFTER the edit
+// form, which posts to POST /nodes/{id}/move (full-page redirect, no htmx
+// swap). Only called from the editing!=nil branch of the Parent field.
 templ nodeMoveForm(d NodeFormData, editing *domain.Node) {
 	<div class="mt-2">
 		<label class="block text-muted">{ components.T(ctx, "node.moveTitle") }</label>
-		<form method="post" action={ templ.SafeURL("/nodes/" + editing.ID + "/move") } hx-boost="false" class="flex flex-wrap items-end gap-2">
-			<select name="parentId" class="field">
+		<div class="flex flex-wrap items-end gap-2">
+			<select name="parentId" form="node-move-form" class="field">
 				<option value="">{ components.T(ctx, "node.parentRoot") }</option>
 				for _, p := range d.MoveTargets {
 					if editing.ParentID != nil && *editing.ParentID == p.ID {
@@ -316,8 +323,8 @@ templ nodeMoveForm(d NodeFormData, editing *domain.Node) {
 					}
 				}
 			</select>
-			@components.Button(components.BtnSecondary, components.T(ctx, "node.move"), "→", templ.Attributes{"type": "submit"})
-		</form>
+			@components.Button(components.BtnSecondary, components.T(ctx, "node.move"), "→", templ.Attributes{"type": "submit", "form": "node-move-form"})
+		</div>
 	</div>
 }
 
