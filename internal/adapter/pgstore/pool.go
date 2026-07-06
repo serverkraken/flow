@@ -5,6 +5,7 @@ import (
 	"context"
 	"embed"
 	"fmt"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -13,6 +14,11 @@ import (
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+
+// gooseMu serializes Migrate/MigrateUpTo: goose.SetBaseFS/SetDialect mutate
+// goose's package-global state, so concurrent callers (t.Parallel()-Tests,
+// each migrating its own testcontainer) race without this lock.
+var gooseMu sync.Mutex
 
 func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, dsn)
@@ -28,6 +34,8 @@ func NewPool(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 
 // Migrate runs all up migrations using a stdlib *sql.DB derived from the pool's config.
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	gooseMu.Lock()
+	defer gooseMu.Unlock()
 	db := stdlib.OpenDBFromPool(pool)
 	defer func() { _ = db.Close() }()
 	goose.SetBaseFS(migrationsFS)
@@ -43,6 +51,8 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
 // MigrateUpTo applies up migrations through the given version (inclusive). Used
 // by data-migration tests to stage rows before later migrations (e.g. CHECKs).
 func MigrateUpTo(ctx context.Context, pool *pgxpool.Pool, version int64) error {
+	gooseMu.Lock()
+	defer gooseMu.Unlock()
 	db := stdlib.OpenDBFromPool(pool)
 	defer func() { _ = db.Close() }()
 	goose.SetBaseFS(migrationsFS)
