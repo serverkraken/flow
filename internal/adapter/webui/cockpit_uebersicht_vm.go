@@ -117,7 +117,7 @@ func BuildComp(children []domain.Node, statsByID map[string]domain.NodeRollup, r
 		pct := sharePct(total, nodeTotal)
 		lastAct := ""
 		if t, ok := lastAt[c.ID]; ok {
-			lastAct = fmtRelTime(t, now)
+			lastAct = FmtRelTime(t, now)
 		}
 		rows = append(rows, CompRow{
 			ID: c.ID, Name: c.Name, Kind: c.Kind, Color: c.Color,
@@ -199,7 +199,7 @@ func TopDocs(docs []domain.Document, subtreeIDs map[string]bool, now time.Time) 
 	}
 	out := make([]UebersichtDoc, 0, len(matched))
 	for _, d := range matched {
-		out = append(out, UebersichtDoc{ID: d.ID, Title: d.Title, Meta: fmtRelTime(d.UpdatedAt, now)})
+		out = append(out, UebersichtDoc{ID: d.ID, Title: d.Title, Meta: FmtRelTime(d.UpdatedAt, now)})
 	}
 	return out, total
 }

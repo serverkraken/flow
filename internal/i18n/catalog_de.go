@@ -222,6 +222,13 @@ func init() {
 			"document.figure.label":   "Abb.",
 			"document.figure.mermaid": "gerendert aus ```mermaid",
 			"document.figure.source":  "Quelle",
+			// Provenance-Zeile + docrail (Lesesaal L3 Task 5)
+			"document.readtime":   "min Lesezeit",
+			"document.updatedRel": "aktualisiert %s",
+			"document.pin":        "Anpinnen",
+			"document.pinned":     "Angepinnt",
+			"document.pin.hint":   "In den Agenten-Kontext pinnen",
+			"document.toc":        "Auf dieser Seite",
 			"embed.ok":                  "Eingebettet",
 			"embed.pending":             "Einbettung geplant",
 			"embed.retrying":            "Einbettung wiederholt",

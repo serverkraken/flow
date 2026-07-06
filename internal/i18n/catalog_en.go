@@ -214,6 +214,13 @@ func init() {
 			"document.figure.label":   "Fig.",
 			"document.figure.mermaid": "rendered from ```mermaid",
 			"document.figure.source":  "Source",
+			// Provenance row + docrail (Lesesaal L3 Task 5)
+			"document.readtime":   "min read",
+			"document.updatedRel": "updated %s",
+			"document.pin":        "Pin",
+			"document.pinned":     "Pinned",
+			"document.pin.hint":   "Pin into agent context",
+			"document.toc":        "On this page",
 			"embed.ok":                  "Embedded",
 			"embed.pending":             "Embedding queued",
 			"embed.retrying":            "Embedding retrying",

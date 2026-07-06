@@ -53,7 +53,7 @@ func TestWebWissenDocumentView(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, status := getWissenDocument(t, srv, codec, "/wissen/target")
+	body, status := getWissenDocumentAs(t, srv, codec, "u1", "/wissen/target")
 	if status != http.StatusOK {
 		t.Fatalf("GET /wissen/target status=%d body=%.400s", status, body)
 	}
@@ -61,52 +61,50 @@ func TestWebWissenDocumentView(t *testing.T) {
 		"<table",
 		"callout-",
 		`class="chroma"`,
-		"Zurück zu",
-		"Frei",
-		`href="/wissen/frei"`,
+		`class="spine"`,
+		`class="prov"`,
 		`href="/wissen/target/bearbeiten"`,
-		"Source Link",
+		`hx-post="/wissen/target/pin"`,
+		"Source Link", // inline wikilink resolution inside the prose body
 		`href="/wissen/source"`,
-		"glass", // Kristall glass chrome (node pill / tag pills / edit / delete)
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("GET /wissen/target missing %q in %.1200s", want, body)
 		}
 	}
-	// The Dokument-owned meta/action chrome (node pill, tag pills, edit/delete
-	// actions) must be glass, not the old hand-rolled bg-surface/border-line.
-	// Scope the negative check to the swapped block only: from the fragment
-	// root up to the (untouched, shared) ConfirmDialog markup — that shared
-	// component still legitimately renders "border border-line bg-surface"
-	// and is explicitly out of scope for this task.
+	// Lesesaal L3 (Task 5): no Kristall chrome left on the swapped fragment.
+	// Scope the negative check to everything BEFORE the shared ConfirmDialog
+	// markup — that shared component's BtnDanger button legitimately still
+	// carries its own "shadow-soft" (button.templ, app-wide, out of scope).
 	fragStart := strings.Index(body, `id="document-fragment"`)
 	dialogStart := strings.Index(body, `<dialog id="del-target"`)
 	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
 		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
 	}
 	swappedBlock := body[fragStart:dialogStart]
-	if strings.Contains(swappedBlock, "bg-surface") {
-		t.Errorf("Dokument meta/action chrome should use glass, not bg-surface, got swapped block:\n%s", swappedBlock)
+	for _, gone := range []string{"glass", "bg-surface", "shadow-soft", "font-display"} {
+		if strings.Contains(swappedBlock, gone) {
+			t.Errorf("Dokument meta/action chrome should not carry Kristall %q, got swapped block:\n%s", gone, swappedBlock)
+		}
 	}
-	// Also verify the toc/prose/backlinks region (after ConfirmDialog closes)
-	// must use glass. If toc.templ, backlinks.templ, or the prose wrapper
-	// revert to bg-surface, this assertion must catch it.
+	// Also verify the read/prose/docrail region (after ConfirmDialog closes)
+	// stays Kristall-free.
 	dialogEnd := strings.Index(body, `</dialog>`)
 	articleEnd := strings.Index(body, `</article>`)
 	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
 		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
 	}
 	treeBlock := body[dialogEnd:articleEnd]
-	if strings.Contains(treeBlock, "bg-surface") {
-		t.Errorf("Toc/prose/backlinks should use glass, not bg-surface, got block:\n%s", treeBlock)
+	for _, gone := range []string{"glass", "bg-surface", "shadow-soft"} {
+		if strings.Contains(treeBlock, gone) {
+			t.Errorf("Read/prose/docrail should not carry Kristall %q, got block:\n%s", gone, treeBlock)
+		}
 	}
-	// Node pill, tag pill, edit/delete actions, and the reembed retry chrome
-	// (structure, hrefs, hx-attrs) must still be present after the restyle.
+	// Edit/delete/pin actions (structure, hrefs, hx-attrs) must still be
+	// present after the restyle — Delete stays reachable from this page
+	// (Bestand ConfirmDialog), only its chrome moved to named .btn classes.
 	if !strings.Contains(body, `data-dialog-open="del-target"`) {
-		t.Errorf("expected delete confirm-dialog trigger to survive the glass swap, got:\n%s", body)
-	}
-	if !strings.Contains(body, "hover:text-danger") {
-		t.Errorf("expected delete button to keep hover:text-danger, got:\n%s", body)
+		t.Errorf("expected delete confirm-dialog trigger to survive the restyle, got:\n%s", body)
 	}
 	if !strings.Contains(body, `id="document-fragment"`) {
 		t.Errorf("expected DocumentFragment structure intact, got:\n%s", body)
@@ -116,11 +114,33 @@ func TestWebWissenDocumentView(t *testing.T) {
 	}
 }
 
+// TestWebWissenDocumentView_OwnerScoped covers the Task 5 owner-scope
+// negative test explicitly required by the brief: a second tenant (u2) must
+// never be able to load u1's document via the web document-view route.
+func TestWebWissenDocumentView_OwnerScoped(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "secret", OwnerID: "u1", Type: domain.DocFree, Path: "p/secret",
+		Title: "Secret", Body: "shh", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	})
+
+	body, status := getWissenDocumentAs(t, srv, codec, "u2", "/wissen/secret")
+	if status != http.StatusNotFound {
+		t.Fatalf("u2 GET /wissen/secret status=%d, want 404 (owner-scoped), body=%.400s", status, body)
+	}
+}
+
 func getWissenDocument(t *testing.T, s *Server, codec SessionCodec, target string) (string, int) {
+	t.Helper()
+	return getWissenDocumentAs(t, s, codec, "u1", target)
+}
+
+func getWissenDocumentAs(t *testing.T, s *Server, codec SessionCodec, userID, target string) (string, int) {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.Handle("GET /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocumentView)))
-	cookieVal, err := codec.Issue("u1")
+	cookieVal, err := codec.Issue(userID)
 	if err != nil {
 		t.Fatal(err)
 	}

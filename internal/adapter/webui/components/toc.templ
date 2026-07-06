@@ -1,8 +1,12 @@
 package components
 
+// Toc is the docrail "Auf dieser Seite" block (Lesesaal Mockup Z.778–787):
+// a named `.blk` rail card with an eyebrow label and an empty `<nav>` that
+// static/toc.js fills client-side from the prose's h1/h2/h3 headings — and
+// hides the whole `[data-toc-block]` again when a document has none.
 templ Toc(id string) {
-	<aside class="rounded-2xl glass p-4 shadow-soft">
-		<h2 class="mb-3 font-display text-base font-semibold text-ink">{ T(ctx, "wissen.toc") }</h2>
-		<nav id={ id } data-toc-nav class="space-y-0.5 text-[.84rem]" aria-label={ T(ctx, "wissen.toc") }></nav>
-	</aside>
+	<div class="blk" data-toc-block>
+		<span class="eyebrow">{ T(ctx, "document.toc") }</span>
+		<nav id={ id } data-toc-nav class="toc" aria-label={ T(ctx, "document.toc") }></nav>
+	</div>
 }

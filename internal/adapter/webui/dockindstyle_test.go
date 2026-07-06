@@ -6,16 +6,6 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func TestProjectSwatchStyle(t *testing.T) {
-	if s := projectSwatchStyle(""); s != "" {
-		t.Errorf("projectSwatchStyle('') = %q, want ''", s)
-	}
-	got := projectSwatchStyle("#ff0000")
-	if got != "background-color: #ff0000" {
-		t.Errorf("projectSwatchStyle('#ff0000') = %q", got)
-	}
-}
-
 func TestIsSystemKind(t *testing.T) {
 	for _, system := range []domain.DocumentType{domain.DocAgent, domain.DocMemory, domain.DocInstruction, domain.DocSkill, domain.DocPlan} {
 		if !IsSystemKind(system) {

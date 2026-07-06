@@ -27,33 +27,39 @@ func TestWebDocumentView_EmbedBadgeFailedShowsRetry(t *testing.T) {
 	if !strings.Contains(body, "/wissen/d1/reembed") {
 		t.Fatalf("expected /wissen/d1/reembed retry form, got %.600s", body)
 	}
-	// The retry button chrome must be glass, not the old hand-rolled
-	// bg-surface/border-line styling. Scope the negative check to the swapped
-	// block (fragment root up to the shared, untouched ConfirmDialog markup)
-	// since that shared component legitimately still uses bg-surface.
+	// Lesesaal L3 (Task 5): the retry button chrome is now a named
+	// `.btn.btn-q.btn-s` (DocumentEmbedBadge, document.templ), NOT the old
+	// hand-rolled glass pill. Scope the negative check to the swapped block
+	// (fragment root up to the shared, untouched ConfirmDialog markup) since
+	// that shared component's BtnDanger button legitimately still carries
+	// its own "shadow-soft" (button.templ, app-wide, out of scope here).
 	fragStart := strings.Index(body, `id="document-fragment"`)
 	dialogStart := strings.Index(body, `<dialog id="del-d1"`)
 	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
 		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
 	}
 	swappedBlock := body[fragStart:dialogStart]
-	if !strings.Contains(swappedBlock, "glass") {
-		t.Errorf("expected reembed retry button to use glass chrome, got swapped block:\n%s", swappedBlock)
+	if !strings.Contains(swappedBlock, `class="btn btn-q btn-s"`) {
+		t.Errorf("expected reembed retry button to use the named .btn.btn-q.btn-s class, got swapped block:\n%s", swappedBlock)
 	}
-	if strings.Contains(swappedBlock, "bg-surface") {
-		t.Errorf("reembed retry button should not use bg-surface, got swapped block:\n%s", swappedBlock)
+	for _, gone := range []string{"glass", "bg-surface"} {
+		if strings.Contains(swappedBlock, gone) {
+			t.Errorf("reembed retry button should not use %q chrome, got swapped block:\n%s", gone, swappedBlock)
+		}
 	}
-	// Also verify the toc/prose/backlinks region (after ConfirmDialog closes)
-	// must use glass. If toc.templ, backlinks.templ, or the prose wrapper
-	// revert to bg-surface, this assertion must catch it.
+	// Also verify the toc/prose region (after ConfirmDialog closes) stays
+	// glass-free. If toc.templ or the prose wrapper regress to glass/
+	// bg-surface, this assertion must catch it.
 	dialogEnd := strings.Index(body, `</dialog>`)
 	articleEnd := strings.Index(body, `</article>`)
 	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
 		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
 	}
 	treeBlock := body[dialogEnd:articleEnd]
-	if strings.Contains(treeBlock, "bg-surface") {
-		t.Errorf("Toc/prose/backlinks should use glass, not bg-surface, got block:\n%s", treeBlock)
+	for _, gone := range []string{"glass", "bg-surface"} {
+		if strings.Contains(treeBlock, gone) {
+			t.Errorf("Toc/prose should not use %q, got block:\n%s", gone, treeBlock)
+		}
 	}
 }
 

@@ -354,7 +354,7 @@ func BuildWissenRows(docs []domain.Document, now time.Time) []WissenRow {
 			Title:     doc.Title,
 			ChipClass: DocTypeChipClass(doc.Type),
 			ChipLabel: DocTypeLabel(doc.Type),
-			Meta:      fmtRelTime(doc.UpdatedAt, now) + " · " + doc.Path,
+			Meta:      FmtRelTime(doc.UpdatedAt, now) + " · " + doc.Path,
 			ReadTime:  readTimeLabel(doc.Body),
 		})
 	}

@@ -33,6 +33,11 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
 	_, _ = users.UpsertBySub(context.Background(), u)
+	// u2 exists purely so owner-scope negative tests (a second tenant that
+	// must never see u1's documents) can issue a session for it via the
+	// already-returned codec without needing the users store exposed too.
+	u2, _ := domain.NewUser("u2", "sub-2", "other", "o@x", "Other")
+	_, _ = users.UpsertBySub(context.Background(), u2)
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
@@ -59,6 +64,8 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		SearchDocuments:   usecase.SearchDocuments{Docs: docs},
 		GetEmbedStatus:    usecase.GetEmbedStatus{Docs: docs},
 		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs},
+		NodeAncestors:     usecase.NodeAncestors{Nodes: projects},
+		SetPinned:         usecase.SetPinned{Docs: docs},
 	}
 	return srv, codec, docs, projects
 }

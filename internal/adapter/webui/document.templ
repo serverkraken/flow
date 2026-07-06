@@ -1,119 +1,130 @@
 package webui
 
-import "github.com/serverkraken/flow/internal/adapter/webui/components"
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
 
 templ DocumentPage(vm DocumentVM) {
 	@components.Base("wissen", documentBody(vm))
 }
 
+// documentBody wires the Lesesaal AppShell around the document outer
+// fragment and mounts mermaid-init.js (Task 4) once, outside
+// #document-fragment, so an SSE-driven fragment swap never re-adds it — the
+// script's own htmx:afterSwap listener re-scans for pre.mermaid every time.
 templ documentBody(vm DocumentVM) {
-	@components.AppShell("docs", documentBreadcrumb(vm), nil, documentOuter(vm))
-}
-
-templ documentBreadcrumb(vm DocumentVM) {
-	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
-		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
-		<span class="mx-1.5 text-faint">/</span>
-		<a href={ templ.SafeURL(vm.CategoryHref) } class="hover:text-blue">{ components.T(ctx, vm.CategoryLabelKey) }</a>
-		<span class="mx-1.5 text-faint">/</span>
-		<span class="text-body">{ vm.Title }</span>
-	</nav>
+	@components.AppShell("docs", nil, nil, documentOuter(vm))
+	<script src="/static/js/mermaid-init.js" defer></script>
 }
 
 templ documentOuter(vm DocumentVM) {
-	<div id="content"
+	<div
+		id="content"
 		hx-get={ "/wissen/" + vm.ID }
 		hx-trigger="sse:document.updated"
 		hx-select="#document-fragment"
 		hx-target="#document-fragment"
-		hx-swap="outerHTML">
+		hx-swap="outerHTML"
+	>
 		@DocumentFragment(vm)
 	</div>
 }
 
+// DocumentFragment is the Lesesaal document page (Mockup Z.677–800): the
+// path Spine (".up" crumbs + title), the Provenance row (actor/time/path/
+// reading time + edit/pin/delete), the `.read` grid (prose + docrail), and
+// the delete ConfirmDialog. The docrail carries only the ToC block in this
+// slice — the Verweise block is Task 6, the "Im Agenten-Kontext" block is
+// deliberately L5 (Anpinnen is the only L3 context interaction).
 templ DocumentFragment(vm DocumentVM) {
 	<article id="document-fragment">
-		<div class="mb-4">
-			<a href={ templ.SafeURL(vm.CategoryHref) } class="inline-flex items-center gap-1.5 text-[.86rem] text-muted hover:text-blue">
-				<span aria-hidden="true">&larr;</span>
-				<span>{ components.T(ctx, "wissen.backToCategory") } { components.T(ctx, vm.CategoryLabelKey) }</span>
-			</a>
-		</div>
-		<header class="mb-6 border-b border-line pb-5">
-			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-				<div class="min-w-0">
-					<div class="mb-3 flex flex-wrap items-center gap-2">
-						<span class={ "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[.78rem] font-medium", kindToneClass(vm.KindTone) }>
-							<span aria-hidden="true">{ vm.KindGlyph }</span>
-							{ vm.KindLabel }
-						</span>
-						if vm.NodeName != "" {
-							<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } class="inline-flex items-center gap-2 rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-body hover:border-blue/40 hover:text-blue">
-								if vm.ProjectColor != "" {
-									<span class="h-2.5 w-2.5 rounded-full" style={ projectSwatchStyle(vm.ProjectColor) } aria-hidden="true"></span>
-								}
-								{ vm.NodeName }
-							</a>
-						}
-						if vm.DateStr != "" {
-							<span class="rounded-full bg-sunken px-2.5 py-1 font-mono text-[.76rem] text-muted">{ vm.DateStr }</span>
-						}
-					</div>
-					<h1 class="font-display text-[2rem] font-semibold leading-tight sm:text-[2.6rem]">{ vm.Title }</h1>
-					if len(vm.Tags) > 0 {
-						<div class="mt-4 flex flex-wrap gap-2">
-							for _, tag := range vm.Tags {
-								<a href={ templ.SafeURL(tag.Href) } class="rounded-full glass px-2.5 py-1 text-[.78rem] font-medium text-muted hover:border-blue/40 hover:text-blue">{ "#" + tag.Tag }</a>
-							}
-						</div>
+		<div class="spine">
+			<div class="up">
+				for _, c := range vm.Crumbs {
+					<a href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
+					<span class="sep">/</span>
+				}
+				<span>{ components.T(ctx, "wissen.title") }</span>
+			</div>
+			<div class="spine-main">
+				<h1>{ vm.Title }</h1>
+			</div>
+			<div class="prov">
+				if vm.UpdatedByKind == "agent" {
+					@components.AgentAvatar(Initials(vm.UpdatedByRef), "av-28")
+				} else if vm.UpdatedByKind != "" {
+					@components.Avatar(Initials(vm.UpdatedByRef), AvatarTone(vm.UpdatedByRef), "av-28")
+				} else {
+					@components.AgentAvatar("", "av-28")
+				}
+				<span>
+					if vm.UpdatedByKind != "" {
+						<b class="provref" title={ vm.UpdatedByRef }>{ vm.UpdatedByRef }</b>
+						{ " " }&middot;{ " " }
 					}
-				</div>
-				<div class="flex shrink-0 items-center gap-2">
-					<a href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") }
-						class="inline-flex items-center justify-center rounded-xl glass px-3.5 py-2 text-[.86rem] font-medium text-body hover:border-blue/40 hover:text-blue">
-						{ components.T(ctx, "wissen.edit") }
-					</a>
-					<button type="button" data-dialog-open={ "del-" + vm.ID }
-						class="inline-flex h-9 w-9 items-center justify-center rounded-xl glass text-muted hover:border-danger/40 hover:text-danger"
-						aria-label={ components.T(ctx, "common.delete") }>
-						<span aria-hidden="true">x</span>
-					</button>
-				</div>
+					{ fmt.Sprintf(components.T(ctx, "document.updatedRel"), vm.UpdatedRel) }
+				</span>
+				<span class="dotsep">&middot;</span>
+				<span class="mono">{ vm.Path }</span>
+				<span class="dotsep">&middot;</span>
+				<span>{ fmt.Sprintf("%d ", vm.ReadMinutes) }{ components.T(ctx, "document.readtime") }</span>
+				<span class="dotsep">&middot;</span>
+				<a class="btn btn-q btn-s" href={ templ.SafeURL("/wissen/" + vm.ID + "/bearbeiten") } hx-boost="false">
+					{ components.T(ctx, "wissen.edit") }
+				</a>
+				<button
+					type="button"
+					class="btn btn-q btn-s"
+					hx-post={ "/wissen/" + vm.ID + "/pin" }
+					hx-target="#document-fragment"
+					hx-swap="outerHTML"
+					title={ components.T(ctx, "document.pin.hint") }
+				>
+					if vm.Pinned {
+						{ components.T(ctx, "document.pinned") }
+					} else {
+						{ components.T(ctx, "document.pin") }
+					}
+				</button>
+				<button
+					type="button"
+					data-dialog-open={ "del-" + vm.ID }
+					class="btn btn-q btn-s"
+					aria-label={ components.T(ctx, "common.delete") }
+				>
+					<span aria-hidden="true">x</span>
+				</button>
 			</div>
 			if vm.Embed != nil {
 				@DocumentEmbedBadge(vm.ID, *vm.Embed)
 			}
-			@components.ConfirmDialog(components.ConfirmSpec{
-				ID: "del-" + vm.ID,
-				TitleKey: "wissen.delete.title",
-				BodyKey: "wissen.delete.body",
-				ConfirmLabelKey: "common.delete",
-				ConfirmAttrs: templ.Attributes{
-					"hx-post": "/wissen/" + vm.ID + "/delete",
-					"hx-target": "body",
-					"type": "button",
-				},
-			})
-		</header>
-		<div data-mobile-toc class="mb-6 lg:hidden">
-			@components.Toc("toc-mobile")
 		</div>
-		<div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_clamp(260px,22vw,320px)] lg:items-start">
-			<section data-document-prose class="min-w-0 max-w-full rounded-2xl glass shadow-soft p-6">
-				@components.MarkdownProse(vm.HTML)
-			</section>
-			<div class="min-w-0 space-y-4 lg:sticky lg:top-6">
-				<div data-desktop-toc class="hidden lg:block">
-					@components.Toc("toc-desktop")
-				</div>
-				<div data-document-backlinks>
-					@components.Backlinks(vm.Backlinks)
-				</div>
-			</div>
+		<div class="read">
+			@components.MarkdownProse(vm.HTML)
+			<aside class="docrail">
+				@components.Toc("toc-doc")
+			</aside>
 		</div>
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID:              "del-" + vm.ID,
+			TitleKey:        "wissen.delete.title",
+			BodyKey:         "wissen.delete.body",
+			ConfirmLabelKey: "common.delete",
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/wissen/" + vm.ID + "/delete",
+				"hx-target": "body",
+				"type":      "button",
+			},
+		})
 	</article>
 }
 
+// DocumentEmbedBadge renders the embedding-status affordance (Kristall-era
+// feature, kept — TestWebDocumentView_EmbedBadgeFailedShowsRetry). Restyled
+// to Lesesaal tokens: no `glass` chrome, the retry action is a named
+// `.btn.btn-q.btn-s` button instead of a hand-rolled glass pill.
 templ DocumentEmbedBadge(docID string, e EmbedView) {
 	<div class="mb-4 flex flex-wrap items-center gap-2 text-[.8rem]">
 		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
@@ -124,7 +135,7 @@ templ DocumentEmbedBadge(docID string, e EmbedView) {
 		}
 		if e.ShowRetry {
 			<form hx-post={ "/wissen/" + docID + "/reembed" } hx-target="closest div" hx-swap="outerHTML" class="inline">
-				<button type="submit" class="rounded-lg glass px-2.5 py-1 font-medium text-body hover:border-blue/40 hover:text-blue">
+				<button type="submit" class="btn btn-q btn-s">
 					{ components.T(ctx, "embed.retry") }
 				</button>
 			</form>
