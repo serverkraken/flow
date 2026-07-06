@@ -503,7 +503,10 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
 }
 
 @media (max-width: 960px) {
-  .cock { grid-template-columns: 1fr; gap: 0; }
+  /* minmax(0,…) statt Mockup-wörtlichem 1fr: plain 1fr min = min-content —
+     eine nowrap-Rail-Zeile (Binding-Slug) weitet die Spalte sonst über den
+     375px-Viewport hinaus und clippt das instr-Stats-Band (Spec §11). */
+  .cock { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .rail .blk:first-child { margin-top: 38px; }
   .spine-main h1 { font-size: 29px; }
   .eng-h, .spine-main, .instr { flex-wrap: wrap; }   /* §12 Sektions-Köpfe brechen um */

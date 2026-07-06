@@ -13,6 +13,11 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
+// wissenSectionCap bounds the stacked Wissen section (a node like flow carries
+// 180+ docs — uncapped it dwarfs every other cockpit section). ?wissen=all
+// expands in place via the "Alle N ›" more-link (Mockup "Alle 6 ›").
+const wissenSectionCap = 8
+
 // nodeCockpitData is the cockpit's single-pass builder (Task 7 Flatten): it
 // fills EVERYTHING the flat page needs in one call — head/spine data, the
 // content column's Enthält/Wissen/Buchungen/Puls sections, and the rail's
@@ -134,10 +139,16 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 		}
 	}
 
-	// Wissen section: containment-aware (§4), honors ?scope=.
+	// Wissen section: containment-aware (§4), honors ?scope=. The stacked
+	// section is capped (Mockup "Alle 6 ›") — ?wissen=all expands in place.
 	docs, scope := s.wissenTabDocs(r, u, n)
 	d.WissenScope = scope
 	d.WissenRows = webui.BuildWissenRows(docs, now)
+	d.WissenTotal = len(d.WissenRows)
+	d.WissenAll = r.URL.Query().Get("wissen") == "all"
+	if !d.WissenAll && len(d.WissenRows) > wissenSectionCap {
+		d.WissenRows = d.WissenRows[:wissenSectionCap]
+	}
 
 	// Buchungen section: bookable kinds only, containment-aware (§4), honors
 	// ?edit={sid} for the pre-opened edit dialog.

@@ -24,4 +24,14 @@ func TestDocTypeChipClass(t *testing.T) {
 	if DocTypeLabel(domain.DocPlan) == "" {
 		t.Fatal("DocTypeLabel must not be empty")
 	}
+	// Chip-Text nie der rohe Typ-String (Gate-Finding: "spec"/"activecontext").
+	labels := map[domain.DocumentType]string{
+		domain.DocSpec:          "Spec",
+		domain.DocActiveContext: "Kontext",
+	}
+	for in, want := range labels {
+		if got := DocTypeLabel(in); got != want {
+			t.Errorf("DocTypeLabel(%v) = %q, want %q", in, got, want)
+		}
+	}
 }

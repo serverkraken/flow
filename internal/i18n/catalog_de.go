@@ -117,6 +117,7 @@ func init() {
 			"cockpit.session.delete":             "Löschen",
 			"cockpit.session.deleteConfirm":      "Sitzung löschen?",
 			"cockpit.wissen.add":                 "Neu",
+			"cockpit.wissen.all":                 "Alle %d ›",
 			"cockpit.wissen.empty":               "Noch keine Dokumente zu diesem Knoten.",
 			"cockpit.wissen.scopeSubtree":        "Ganzer Baum",
 			"cockpit.wissen.scopeSelf":           "Nur dieser Knoten",

@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"fmt"
+
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -88,6 +90,10 @@ templ cockpitWissenSection(d NodeCockpit) {
 	<div class="sect">
 		<div class="sect-h">
 			<span class="eyebrow">{ components.T(ctx, titleKey) }</span>
+			if !d.WissenAll && d.WissenTotal > len(d.WissenRows) {
+				<a class="more" href={ templ.SafeURL(cockpitMainURL(d, true)) }
+					hx-get={ cockpitMainURL(d, true) } hx-target="#cockpit-main" hx-swap="innerHTML">{ fmt.Sprintf(components.T(ctx, "cockpit.wissen.all"), d.WissenTotal) }</a>
+			}
 			<a class="more" href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
 		</div>
 		if d.N.Kind != domain.KindRepo {

@@ -19,5 +19,15 @@ func DocTypeChipClass(t domain.DocumentType) string {
 	}
 }
 
-// DocTypeLabel ist der dt. Anzeigename (ohne Glyph) — wiederverwendet DocKindStyle.
-func DocTypeLabel(t domain.DocumentType) string { return DocKindStyle(t).Label }
+// DocTypeLabel ist der dt. Anzeigename (ohne Glyph) — wiederverwendet
+// DocKindStyle, überschreibt aber die Typen, für die dessen default auf den
+// rohen Typ-String zurückfällt ("spec"/"activecontext" als Chip-Text).
+func DocTypeLabel(t domain.DocumentType) string {
+	switch t {
+	case domain.DocSpec:
+		return "Spec"
+	case domain.DocActiveContext:
+		return "Kontext"
+	}
+	return DocKindStyle(t).Label
+}

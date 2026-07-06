@@ -111,6 +111,7 @@ func init() {
 			"cockpit.session.delete":             "Delete",
 			"cockpit.session.deleteConfirm":      "Delete session?",
 			"cockpit.wissen.add":                 "New",
+			"cockpit.wissen.all":                 "All %d ›",
 			"cockpit.wissen.empty":               "No documents for this node yet.",
 			"cockpit.wissen.scopeSubtree":        "Whole tree",
 			"cockpit.wissen.scopeSelf":           "This node only",

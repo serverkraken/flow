@@ -91,6 +91,8 @@ type NodeCockpit struct {
 	SessionRows []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
 	WissenRows  []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
 	WissenScope string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
+	WissenTotal int                     // Wissen: doc count before the section cap — drives the "Alle N ›" more-link
+	WissenAll   bool                    // Wissen: true when ?wissen=all expanded the section past the cap
 	Children    []NodeChild             // Enthält
 	Bindings    []domain.ProjectBinding // rail Bindings block
 	PanelErr    string                  // inline error surfaced on #cockpit-main or #cockpit-rail
@@ -208,9 +210,24 @@ func FmtDurHMExport(d time.Duration) string { return fmtDurHM(d) }
 // dieser Knoten" toggle back to the subtree default — the same contract the
 // old (now-deleted) per-tab cockpitPanelReloadURL guaranteed.
 func cockpitMainReloadURL(d NodeCockpit) string {
+	return cockpitMainURL(d, d.WissenAll)
+}
+
+// cockpitMainURL builds a /main fragment URL carrying the section's sticky
+// query state: the Wissen "self" scope and — when all=true — the expanded
+// ?wissen=all view, so neither an SSE reload nor the "Alle N ›" link drops
+// the other toggle.
+func cockpitMainURL(d NodeCockpit, all bool) string {
 	url := "/nodes/" + d.N.ID + "/main"
+	var q []string
 	if d.WissenScope == "self" {
-		url += "?scope=self"
+		q = append(q, "scope=self")
+	}
+	if all {
+		q = append(q, "wissen=all")
+	}
+	if len(q) > 0 {
+		url += "?" + strings.Join(q, "&")
 	}
 	return url
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/i18n"
 )
 
 // TestCockpitMain_WissenRowHasTypechipAndReadtime pins the Wissen section's
@@ -182,5 +183,28 @@ func TestCockpitBuchungRow_EditDeleteControlsForCompletedSession(t *testing.T) {
 	}
 	if !strings.Contains(out, `hx-post="/nodes/n1/sessions/s4/delete"`) {
 		t.Errorf("completed row delete confirm missing hx-post to sessions/s4/delete: %.500s", out)
+	}
+}
+
+// TestCockpitMain_WissenCapShowsAllLink pins the section cap contract
+// (Gate-Finding: 187 ungedeckelte Zeilen): when more docs exist than rows
+// rendered, the sect-h carries an in-place "Alle N ›" expander targeting
+// #cockpit-main with ?wissen=all; the expanded view (WissenAll) drops it.
+func TestCockpitMain_WissenCapShowsAllLink(t *testing.T) {
+	d := seededCockpit()
+	d.N.Kind = domain.KindRepo
+	d.WissenRows = []WissenRow{{ID: "d1", Title: "Doc 1", ChipClass: "tc-b", ChipLabel: "Projekt"}}
+	d.WissenTotal = 187
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, CockpitMain(d))
+	for _, want := range []string{"Alle 187 ›", "wissen=all", `hx-target="#cockpit-main"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("capped wissen section misses %q:\n%s", want, out)
+		}
+	}
+	d.WissenAll = true
+	out = renderToBuf(t, ctx, CockpitMain(d))
+	if strings.Contains(out, "Alle 187 ›") {
+		t.Fatalf("expanded wissen section must not repeat the all-link:\n%s", out)
 	}
 }
