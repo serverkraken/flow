@@ -35,9 +35,9 @@ templ documentOuter(vm DocumentVM) {
 // DocumentFragment is the Lesesaal document page (Mockup Z.677–800): the
 // path Spine (".up" crumbs + title), the Provenance row (actor/time/path/
 // reading time + edit/pin), and the `.read` grid (prose + docrail). The
-// docrail carries only the ToC block in this slice — the Verweise block is
-// Task 6, the "Im Agenten-Kontext" block is deliberately L5 (Anpinnen is the
-// only L3 context interaction). Delete lives on the edit page (editor.templ,
+// docrail carries the ToC block and the Verweise block (outgoing wikilinks +
+// backlinks, Task 6) — the "Im Agenten-Kontext" block is deliberately L5
+// (Anpinnen is the only L3 context interaction). Delete lives on the edit page (editor.templ,
 // edit mode only), not here — matches the Mockup (Z.688–695: only Bearbeiten
 // + Anpinnen) and the same L2 doctrine already applied to nodes ("Move/
 // Status/Delete auf der Edit-Seite").
@@ -100,6 +100,25 @@ templ DocumentFragment(vm DocumentVM) {
 			@components.MarkdownProse(vm.HTML)
 			<aside class="docrail">
 				@components.Toc("toc-doc")
+				<div class="blk">
+					<span class="eyebrow">{ components.T(ctx, "document.refs") }</span>
+					if len(vm.Outgoing) == 0 && len(vm.Backlinks) == 0 {
+						<div class="krow"><span class="n">{ components.T(ctx, "document.refs.empty") }</span></div>
+					} else {
+						for _, row := range vm.Outgoing {
+							<div class="krow">
+								<a class="n" href={ templ.SafeURL(row.Href) } title={ row.Title }>{ "↪ " + row.Title }</a>
+								<span class="v">{ components.T(ctx, row.Dir) }</span>
+							</div>
+						}
+						for _, row := range vm.Backlinks {
+							<div class="krow">
+								<a class="n" href={ templ.SafeURL(row.Href) } title={ row.Title }>{ "↩ " + row.Title }</a>
+								<span class="v">{ components.T(ctx, row.Dir) }</span>
+							</div>
+						}
+					}
+				</div>
 			</aside>
 		</div>
 	</article>

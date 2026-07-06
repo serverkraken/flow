@@ -14,9 +14,8 @@ type DocCrumb struct {
 
 // DocumentVM is the Lesesaal document-page view model: Spine (path
 // breadcrumb + title), Provenance row (actor/time/path/reading time/
-// pin/edit/delete), the rendered prose, and the ToC rail. Backlinks/Outgoing
-// (Verweise rail) are Task 6's addition — Task 5's docrail only carries the
-// ToC block.
+// pin/edit/delete), the rendered prose, the ToC rail, and the Verweise rail
+// (Outgoing/Backlinks, Task 6).
 type DocumentVM struct {
 	ID      string
 	Title   string
@@ -31,10 +30,27 @@ type DocumentVM struct {
 	ReadMinutes   int
 	Pinned        bool
 	HTML          template.HTML
+	// Outgoing/Backlinks feed the docrail's Verweise `.blk` (Task 6, Mockup
+	// Z.788-793): Outgoing are this document's own resolved wikilinks ("von
+	// hier"), Backlinks are other documents that link here ("hierher"). Only
+	// resolved targets appear — an unresolved (broken) wikilink stays visible
+	// as `.wikilink-broken` in the prose but is never listed in the rail.
+	Outgoing  []RefRow
+	Backlinks []RefRow
 	// Embed mirrors the Kristall-era embedding-status affordance
 	// (TestWebDocumentView_EmbedBadgeFailedShowsRetry) — kept verbatim, only
 	// its chrome is de-glassed (DocumentEmbedBadge).
 	Embed *EmbedView
+}
+
+// RefRow is one Verweise-rail `.krow` line (Task 6): a resolved reference to
+// another document, either outgoing (this doc links to it) or a backlink
+// (it links to this doc). Dir carries the i18n key for the direction label
+// ("document.ref.from"/"document.ref.to"), not display text.
+type RefRow struct {
+	Title string
+	Href  string
+	Dir   string
 }
 
 func embedLabelKey(state string) string {

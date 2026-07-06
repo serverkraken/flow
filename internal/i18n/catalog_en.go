@@ -221,6 +221,11 @@ func init() {
 			"document.pinned":     "Pinned",
 			"document.pin.hint":   "Pin into agent context",
 			"document.toc":        "On this page",
+			// Refs rail (Lesesaal L3 Task 6)
+			"document.refs":       "References",
+			"document.ref.from":   "from here",
+			"document.ref.to":     "to here",
+			"document.refs.empty": "No references",
 			"embed.ok":                  "Embedded",
 			"embed.pending":             "Embedding queued",
 			"embed.retrying":            "Embedding retrying",

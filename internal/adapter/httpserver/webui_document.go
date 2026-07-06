@@ -58,6 +58,12 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		UpdatedRel:    webui.FmtRelTime(doc.UpdatedAt, s.Clock.Now()),
 		ReadMinutes:   webui.ReadingTime(doc.Body),
 		Pinned:        doc.Pinned,
+		Outgoing:      buildOutgoingRefs(doc, all),
+	}
+	if refs, rerr := s.BacklinksDocument.Execute(r.Context(), ownerID, doc.ID); rerr == nil {
+		for _, b := range refs {
+			vm.Backlinks = append(vm.Backlinks, webui.RefRow{Title: b.Title, Href: "/wissen/" + b.ID, Dir: "document.ref.to"})
+		}
 	}
 	if doc.NodeID != nil {
 		// Fire-and-forget like webui_cockpit.go's own CockpitHead spine: an
@@ -79,6 +85,26 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		}
 	}
 	return vm, nil
+}
+
+// buildOutgoingRefs resolves doc's own wikilink targets against the
+// already-loaded all slice (no extra store call — Task 6) into the Verweise
+// rail's "von hier" rows. Only resolved targets appear (an unresolved target
+// stays a `.wikilink-broken` span in the prose, never listed here); results
+// are de-duplicated by resolved document ID since distinct wikilink targets
+// can resolve to the same document.
+func buildOutgoingRefs(doc domain.Document, all []domain.Document) []webui.RefRow {
+	seen := make(map[string]bool)
+	var out []webui.RefRow
+	for _, target := range domain.WikilinkTargets(doc.Body) {
+		t, ok := domain.ResolveWikilink(doc, target, all)
+		if !ok || seen[t.ID] {
+			continue
+		}
+		seen[t.ID] = true
+		out = append(out, webui.RefRow{Title: t.Title, Href: "/wissen/" + t.ID, Dir: "document.ref.from"})
+	}
+	return out
 }
 
 func (s *Server) handleWebDocReembed(w http.ResponseWriter, r *http.Request) {

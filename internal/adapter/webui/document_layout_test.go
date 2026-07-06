@@ -112,6 +112,43 @@ func TestDocumentFragmentSingleTocAfterProseInRead(t *testing.T) {
 	}
 }
 
+// TestDocumentFragmentRefsRailShowsOutgoingAndBacklinks is the Task 6 anchor
+// test: an outgoing (resolved) wikilink renders as a `.krow` labelled "von
+// hier", a backlink renders as a `.krow` labelled "hierher", both link to
+// /wissen/<id>, and no Kristall chrome (glass/shadow-soft) survives.
+func TestDocumentFragmentRefsRailShowsOutgoingAndBacklinks(t *testing.T) {
+	vm := DocumentVM{
+		ID: "d1", Title: "T", HTML: template.HTML("<p>x</p>"),
+		Outgoing:  []RefRow{{Title: "Backstage Probleme", Href: "/wissen/d2", Dir: "document.ref.from"}},
+		Backlinks: []RefRow{{Title: "Karpenter Rollout", Href: "/wissen/d3", Dir: "document.ref.to"}},
+	}
+	out := renderToBuf(t, testCtx(t), DocumentFragment(vm))
+	for _, want := range []string{
+		`class="krow"`, `href="/wissen/d2"`, "Backstage Probleme", "von hier",
+		`href="/wissen/d3"`, "Karpenter Rollout", "hierher",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("refs rail misses %q:\n%s", want, out)
+		}
+	}
+	for _, gone := range []string{"glass", "shadow-soft"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("refs rail must not resurrect Kristall chrome %q:\n%s", gone, out)
+		}
+	}
+}
+
+// TestDocumentFragmentRefsRailEmptyShowsPlaceholder covers the empty state:
+// no outgoing links and no backlinks renders the "Keine Verweise" row, not a
+// bare/empty block.
+func TestDocumentFragmentRefsRailEmptyShowsPlaceholder(t *testing.T) {
+	vm := DocumentVM{ID: "d1", Title: "T", HTML: template.HTML("<p>x</p>")}
+	out := renderToBuf(t, testCtx(t), DocumentFragment(vm))
+	if !strings.Contains(out, "Keine Verweise") {
+		t.Fatalf("empty refs rail must show placeholder row:\n%s", out)
+	}
+}
+
 func TestMarkdownProseCSSGuardsWideContent(t *testing.T) {
 	css, err := os.ReadFile("../../../web/tailwind.css")
 	if err != nil {

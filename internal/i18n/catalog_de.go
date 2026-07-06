@@ -229,6 +229,11 @@ func init() {
 			"document.pinned":     "Angepinnt",
 			"document.pin.hint":   "In den Agenten-Kontext pinnen",
 			"document.toc":        "Auf dieser Seite",
+			// Verweise-Rail (Lesesaal L3 Task 6)
+			"document.refs":       "Verweise",
+			"document.ref.from":   "von hier",
+			"document.ref.to":     "hierher",
+			"document.refs.empty": "Keine Verweise",
 			"embed.ok":                  "Eingebettet",
 			"embed.pending":             "Einbettung geplant",
 			"embed.retrying":            "Einbettung wiederholt",
