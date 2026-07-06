@@ -19,16 +19,8 @@ templ EditorPage(vm EditorVM) {
 // figure too (like the document page) — the script's own htmx:afterSwap
 // listener re-scans for pre.mermaid on every keyup-triggered preview update.
 templ editorBody(vm EditorVM) {
-	@components.AppShell("docs", editorBreadcrumb(vm), nil, editorOuter(vm))
+	@components.AppShell("docs", components.Breadcrumb(editorCrumbs(ctx, vm)), nil, editorOuter(vm))
 	<script src="/static/js/mermaid-init.js" defer></script>
-}
-
-templ editorBreadcrumb(vm EditorVM) {
-	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
-		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
-		<span class="mx-1.5 text-faint">/</span>
-		<span class="text-body">{ components.T(ctx, vm.HeadingKey()) }</span>
-	</nav>
 }
 
 templ editorOuter(vm EditorVM) {
