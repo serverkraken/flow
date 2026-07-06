@@ -564,6 +564,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
   /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */
   .narrow { max-width: 860px; margin: 0 auto; }
+  /* Scroll-Boden für breite Grids (Kalender): Inhalt behält 860px und scrollt
+     im eigenen overflow-x-Rahmen statt die Seite zu pannen (Spec §11/§12). */
+  .narrow-min { min-width: 860px; }
   /* Jetzt-Panelzeile (zweite Fläche, Zwei-Flächen-Regel) */
   .panelrow { background: rgb(var(--panel)); border-radius: 14px; padding: 13px 16px; border-bottom: none; margin-top: 12px; }
   /* Zeit-Wochenskala: vertikale Balken (horizontale heuteWeekRows/wocheDayBarStyle bleiben unberührt) */

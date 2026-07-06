@@ -146,7 +146,7 @@ templ historieWeek(vm HistorieVM) {
 	<section class="hidden md:block" aria-label={ components.T(ctx, "historie.calendar") }>
 		<div class="rounded-xl border border-line2 overflow-hidden">
 			<div class="overflow-x-auto scroll-thin">
-				<div class="min-w-[860px]">
+				<div class="narrow-min">
 					<div class="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2">
 						<div class="border-r border-line2"></div>
 						for _, d := range vm.Days {

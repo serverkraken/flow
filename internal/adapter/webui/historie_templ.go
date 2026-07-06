@@ -627,7 +627,7 @@ func historieWeek(vm HistorieVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\"><div class=\"rounded-xl border border-line2 overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"min-w-[860px]\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2\"><div class=\"border-r border-line2\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\"><div class=\"rounded-xl border border-line2 overflow-hidden\"><div class=\"overflow-x-auto scroll-thin\"><div class=\"narrow-min\"><div class=\"grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-line2\"><div class=\"border-r border-line2\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
