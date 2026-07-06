@@ -77,6 +77,41 @@ func TestActivityFeedRow_StacksActorAndTime(t *testing.T) {
 	}
 }
 
+// TestActivityFeedRow_TargetPill verifies that activityFeedRow renders the
+// form-coded target pill for session activities: a linked, glyph-free
+// .targetlink for live nodes (Spec §7 Farb-Gesetz — kinds stay neutral,
+// color lives only in the avatar), an unlinked neutral pill for deleted
+// nodes, and a connector word (activity.on) between the verb and the pill.
+// Moved from home_render_test.go (L4 Task 2, which retired the Home
+// logstream fragment activityFeedRow was only reachable through) onto the
+// still-alive activityFeedRow/activityTargetPill directly, so the behavior
+// stays pinned instead of being test-deleted with its dead caller.
+func TestActivityFeedRow_TargetPill(t *testing.T) {
+	live := ActivityRowVM{ActorKind: "human", ActorRef: "msoent", VerbKey: "activity.verb.session.started",
+		TargetName: "flow", TargetKind: domain.KindRepo, TargetHref: "/nodes/n1", RelTime: "vor 5 Min"}
+	deleted := ActivityRowVM{ActorKind: "human", ActorRef: "msoent", VerbKey: "activity.verb.session.stopped",
+		TargetName: "Altprojekt", RelTime: "vor 10 Min"} // deleted node: pill without link
+
+	liveHTML := renderRow(t, live, false, true)
+	if !strings.Contains(liveHTML, `href="/nodes/n1"`) || !strings.Contains(liveHTML, "flow") {
+		t.Errorf("live pill must link the node, got: %s", liveHTML)
+	}
+	if !strings.Contains(liveHTML, `class="targetlink"`) {
+		t.Errorf("live pill must use the neutral .targetlink class, got: %s", liveHTML)
+	}
+	if strings.Contains(liveHTML, "●") || strings.Contains(liveHTML, "▲") {
+		t.Errorf("target pill must be glyph-free (Farb-Gesetz), got: %s", liveHTML)
+	}
+	if !strings.Contains(liveHTML, "auf") {
+		t.Errorf("connector word missing, got: %s", liveHTML)
+	}
+
+	deletedHTML := renderRow(t, deleted, false, true)
+	if !strings.Contains(deletedHTML, "Altprojekt") || strings.Contains(deletedHTML, `href="/nodes/"`) {
+		t.Errorf("deleted-node pill must render unlinked, got: %s", deletedHTML)
+	}
+}
+
 func TestActivityFeedRow_AgentChipOnlyWhenAsked(t *testing.T) {
 	agent := ActivityRowVM{ActorKind: "agent", ActorRef: "claude", VerbKey: "activity.verb.document.created", RelTime: "vor 2 Min"}
 	// The AGENT chip is the only element carrying text-purple; assert on that

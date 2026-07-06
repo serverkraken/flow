@@ -15,6 +15,23 @@ func init() {
 			"palette.empty":       "Kein Treffer.",
 			// home landing
 			"home.greeting": "Dein Flow-Überblick.",
+			// Schreibtisch (L4 Task 2 — Jetzt/Weiterarbeiten/Zuletzt im Wissen/Puls)
+			"home.desk":         "Schreibtisch",
+			"home.deskSub":      "Ein Ort für Arbeit und Wissen — weiter, wo Du aufgehört hast.",
+			"home.now":          "Jetzt",
+			"home.timerOn":      "Timer läuft auf",
+			"home.timerSince":   "seit %s · zählt als %s",
+			"home.noTimer":      "Kein Timer läuft",
+			"home.todayTotal":   "heute %s",
+			"home.continue":     "Weiterarbeiten",
+			"home.continueAll":  "Alle Projekte",
+			"home.runningNow":   "läuft gerade",
+			"home.lastActive":   "zuletzt aktiv",
+			"home.recentWissen": "Zuletzt im Wissen",
+			"home.puls":         "Puls",
+			"home.emptyRecent":  "Noch keine Aktivität",
+			"home.countsWork":   "Work",
+			"home.countsPrivat": "Privat",
 			// top-level navigation
 			"nav.today":     "Heute",
 			"nav.wissen":    "Wissen",

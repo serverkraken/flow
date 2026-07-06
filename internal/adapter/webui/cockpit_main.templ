@@ -221,61 +221,9 @@ templ cockpitBuchungActions(nodeID string, row CockpitSessionRow) {
 }
 
 // cockpitPulseSection is the subtree-filtered live activity feed (Mockup
-// Z.611–626): a "LIVE" marker in the section head plus one Lesesaal row per
-// entry — d.Pulse (fed by FilterPulse+BuildActivityRows, the
-// existing cockpit_uebersicht_vm.go/activity_row.go builders, reused here
-// rather than duplicated). NOT activityFeedRow (Kristall, stays on Home/L4).
+// Z.611–626): the shared pulseSection (activity_row.templ, L4 Task 2) with
+// the cockpit's subtree-scoped eyebrow wording — d.Pulse is fed by
+// FilterPulse+BuildActivityRows (cockpit_uebersicht_vm.go/activity_row.go).
 templ cockpitPulseSection(d NodeCockpit) {
-	<div class="sect pulse">
-		<div class="sect-h">
-			<span class="eyebrow">{ components.T(ctx, "cockpit.pulse.subtree") }</span>
-			<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
-		</div>
-		if len(d.Pulse) == 0 {
-			<p class="text-sm text-faint">{ components.T(ctx, "activity.empty") }</p>
-		} else {
-			for _, row := range d.Pulse {
-				@cockpitPulseRow(row)
-			}
-		}
-	</div>
-}
-
-// cockpitPulseRow is the Lesesaal Puls row (NOT activityFeedRow): Avatar or
-// AgentAvatar, who/agentname + verb + a glyph-free .targetlink pill for the
-// event's target, and the relative time — mirrors Mockup Z.620–627.
-templ cockpitPulseRow(row ActivityRowVM) {
-	<div class="projrow">
-		if row.ActorKind == "agent" {
-			@components.AgentAvatar(Initials(row.ActorRef), "av-28")
-		} else {
-			@components.Avatar(Initials(row.ActorRef), AvatarTone(row.ActorRef), "av-28")
-		}
-		<div class="grow">
-			<div class="t">
-				if row.ActorKind == "agent" {
-					<span class="agentname">{ row.ActorRef }</span>
-				} else {
-					<span class="who">{ row.ActorRef }</span>
-				}
-				{ " " }{ components.T(ctx, row.VerbKey) }
-				if row.TargetName != "" {
-					{ " " }
-					if row.TargetHref != "" {
-						<a class="targetlink" href={ templ.SafeURL(row.TargetHref) } title={ row.TargetName }>{ ShortName(row.TargetName) }</a>
-					} else {
-						<span class="targetlink" title={ row.TargetName }>{ ShortName(row.TargetName) }</span>
-					}
-				} else if row.Label != "" {
-					{ " " }
-					if row.Href != "" {
-						<a class="targetlink" href={ templ.SafeURL(row.Href) } title={ row.Label }>{ ShortName(row.Label) }</a>
-					} else {
-						<span class="targetlink" title={ row.Label }>{ ShortName(row.Label) }</span>
-					}
-				}
-			</div>
-		</div>
-		<div class="right"><div class="v">{ row.RelTime }</div></div>
-	</div>
+	@pulseSection("cockpit.pulse.subtree", d.Pulse)
 }

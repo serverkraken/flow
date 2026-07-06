@@ -33,16 +33,13 @@ templ CockpitHead(d NodeCockpit) {
 	</div>
 }
 
-// cockpitIdentity renders the spine's 96er identity: an uploaded logo
-// (content-contained, never cropped) or the deterministic initials avatar.
-// Kein Hex-Clip mehr (Kristall tot). Mobile 64 comes for free via the Task-1
-// responsive rule (.av-96 → 64 below 620px).
+// cockpitIdentity renders the spine's 96er identity via the shared
+// components.NodeAvatar (L4 Task 2 — Single Source, Offene Entsch. #12):
+// an uploaded logo (content-contained, never cropped) or the deterministic
+// initials avatar. Kein Hex-Clip mehr (Kristall tot). Mobile 64 comes for
+// free via the Task-1 responsive rule (.av-96 → 64 below 620px).
 templ cockpitIdentity(d NodeCockpit) {
-	if d.N.LogoRef != "" {
-		<span class="ava ava-logo av-96" aria-hidden="true"><img src={ "/nodes/" + d.N.ID + "/logo?v=" + d.N.LogoRef } alt="" class="h-full w-full rounded-[inherit] object-contain p-2"/></span>
-	} else {
-		@components.Avatar(Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96")
-	}
+	@components.NodeAvatar(d.N.ID, d.N.LogoRef, Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96")
 }
 
 // cockpitInstr is the instr-band (Mockup Z.592–597): timer-state action(s) +

@@ -368,7 +368,7 @@ func engagementSection(es EngagementSection) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.Avatar(es.Initials, es.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.NodeAvatar(es.N.ID, es.N.LogoRef, es.Initials, es.Tone, "av-36").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -636,7 +636,7 @@ func projRow(row ProjRow, indented bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.Avatar(row.Initials, row.Tone, "av-28").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-28").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

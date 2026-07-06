@@ -1,72 +1,79 @@
 package webui
 
 import (
-	"net/url"
-
-	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"fmt"
+	"time"
 )
 
-// HomeVM is the view model for the Home landing page — a pure dashboard
-// (K3 Task 5/6): saldo tiles, burndown, activity logstream, newest knowledge
-// articles. The K1 shell timer widget (sidebar) owns start/stop, so HomeVM
-// carries no running-session/timer-hero fields.
+// HomeVM is the view model for the Schreibtisch (Home) landing page — L4
+// Task 2 replaces the Kristall dashboard (saldo tiles/burndown/activity
+// logstream) with four ruhige Zeilen-Sektionen: Jetzt (the one running
+// timer, display-only), Weiterarbeiten (MRU bookable nodes), Zuletzt im
+// Wissen (shared WissenRowVM), and Puls (shared pulseRow/pulseSection).
 type HomeVM struct {
-	// Saldo tiles (Heute / Woche / Monat) — fed by homeDataFor when Stats is wired.
-	TodaySaldo string
-	TodayPos   bool
-	TodaySub   string
+	// Today is the pagehead eyebrow's localized full date ("Donnerstag, 3.
+	// Juli 2026", Mockup Z.352) — see FmtDeskDate.
+	Today string
 
-	WeekSaldo string
-	WeekPos   bool
-	WeekSub   string
+	// Now is the currently-running session's display state, nil when idle.
+	Now *RunningNowVM
 
-	MonthSaldo string
-	MonthPos   bool
-	MonthSub   string
+	// TodayLogged is the owner's total logged time today ("heute 5:12 h"),
+	// shown on both the running and the idle Jetzt-row.
+	TodayLogged string
 
-	Burndown components.BurndownVM
+	// Continue holds the MRU bookable nodes for "Weiterarbeiten" (cap 5).
+	Continue []RecentNode
 
-	// NewestDocs holds the most-recently-updated documents shown in the
-	// "Zuletzt im Wissen" section (capped at 5, sorted newest-first).
-	NewestDocs []DocRow
+	// RecentWissen holds the newest documents for "Zuletzt im Wissen" (cap 5)
+	// — the same WissenRowVM shared with the /wissen "Zuletzt aktualisiert"
+	// row (wissen.templ wissenRow).
+	RecentWissen []WissenRowVM
 
-	// Logstream — activity feed (Slice 5, Task 9).
-	LogEntries []ActivityRowVM // activity rows (capped at 15)
-	LogClass   string          // active class filter: "" | "zeit" | "wissen" | "struktur" | "frei"
-	LogActor   string          // active actor filter: "" = all
-	LogActors  []string        // distinct actor refs from the current result set
+	// Puls holds the account-wide activity feed (cap 8), rendered with the
+	// shared pulseRow/pulseSection (activity_row.templ).
+	Puls []ActivityRowVM
 
-	Err string // inline error message (surfaced when stop fails validation)
+	Err string // inline error message (surfaced when a mutation failed)
 }
 
-// logQuery returns the current class/actor filter as a URL query string
-// (prefixed with "?") so the logstream section can include it in hx-get.
-func (vm HomeVM) logQuery() string {
-	q := url.Values{}
-	if vm.LogClass != "" {
-		q.Set("class", vm.LogClass)
-	}
-	if vm.LogActor != "" {
-		q.Set("actor", vm.LogActor)
-	}
-	if len(q) == 0 {
-		return ""
-	}
-	return "?" + q.Encode()
+// RunningNowVM is the Jetzt-panelzeile's display state of the ONE running
+// timer (Spec §10 — no second Start/Stop surface). NodeID is "" for an
+// unbound running session (Stop lives only on the Topbar-Pill's node-picker
+// sheet then, never here — webui_timer.go handleTimerStop needs a node for
+// an unbound session and would otherwise error timer.needNode).
+type RunningNowVM struct {
+	NodeID      string
+	NodeName    string // ShortName
+	NodeHref    string
+	Initials    string
+	Tone        string
+	LogoRef     string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
+	BaseSeconds int64
+	SinceStr    string // "HH:MM" the session started at
+	CountsWork  bool   // domain.ResolveCountsTowardTarget(chain) — bound sessions only
 }
 
-// logstreamHref builds the /ui/home/logstream URL with optional class and actor
-// query params, properly URL-encoded. Either param may be empty ("" = omit).
-func logstreamHref(class, actor string) string {
-	v := url.Values{}
-	if class != "" {
-		v.Set("class", class)
+// homeCountsLabelKey resolves the Now row's Work/Privat i18n key.
+func homeCountsLabelKey(countsWork bool) string {
+	if countsWork {
+		return "home.countsWork"
 	}
-	if actor != "" {
-		v.Set("actor", actor)
-	}
-	if len(v) == 0 {
-		return "/ui/home/logstream"
-	}
-	return "/ui/home/logstream?" + v.Encode()
+	return "home.countsPrivat"
+}
+
+// homeWeekdaysDE and homeMonthsDE back FmtDeskDate — hardcoded German like
+// FmtRelTime (activity_row.go) and historieMonthYear
+// (webui_historie.go): the app's day/date formatting is already
+// intentionally locale-fixed in those callers rather than routed through
+// the i18n catalog, and this eyebrow follows the same established
+// precedent instead of introducing 19 new one-off weekday/month keys for a
+// single caller.
+var homeWeekdaysDE = [...]string{"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"}
+var homeMonthsDE = [...]string{"Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}
+
+// FmtDeskDate renders the Schreibtisch pagehead's eyebrow date, e.g.
+// "Donnerstag, 3. Juli 2026" (Mockup Z.352).
+func FmtDeskDate(t time.Time) string {
+	return fmt.Sprintf("%s, %d. %s %d", homeWeekdaysDE[t.Weekday()], t.Day(), homeMonthsDE[t.Month()-1], t.Year())
 }

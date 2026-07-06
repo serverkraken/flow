@@ -46,3 +46,66 @@ templ activityTargetPill(row ActivityRowVM) {
 		<span class="targetlink">{ row.TargetName }</span>
 	}
 }
+
+// pulseRow is the ONE Lesesaal Puls row (promoted here from cockpit_main.templ
+// in L4 Task 2 — L2's cockpitPulseRow, moved verbatim so the L4 Schreibtisch
+// "Puls" section and the cockpit's subtree-filtered Puls section share the
+// exact same row, NOT activityFeedRow which is Kristall-era and Home-only):
+// Avatar or AgentAvatar, who/agentname + verb + a glyph-free .targetlink pill
+// for the event's target, and the relative time.
+templ pulseRow(row ActivityRowVM) {
+	<div class="projrow">
+		if row.ActorKind == "agent" {
+			@components.AgentAvatar(Initials(row.ActorRef), "av-28")
+		} else {
+			@components.Avatar(Initials(row.ActorRef), AvatarTone(row.ActorRef), "av-28")
+		}
+		<div class="grow">
+			<div class="t">
+				if row.ActorKind == "agent" {
+					<span class="agentname">{ row.ActorRef }</span>
+				} else {
+					<span class="who">{ row.ActorRef }</span>
+				}
+				{ " " }{ components.T(ctx, row.VerbKey) }
+				if row.TargetName != "" {
+					{ " " }
+					if row.TargetHref != "" {
+						<a class="targetlink" href={ templ.SafeURL(row.TargetHref) } title={ row.TargetName }>{ ShortName(row.TargetName) }</a>
+					} else {
+						<span class="targetlink" title={ row.TargetName }>{ ShortName(row.TargetName) }</span>
+					}
+				} else if row.Label != "" {
+					{ " " }
+					if row.Href != "" {
+						<a class="targetlink" href={ templ.SafeURL(row.Href) } title={ row.Label }>{ ShortName(row.Label) }</a>
+					} else {
+						<span class="targetlink" title={ row.Label }>{ ShortName(row.Label) }</span>
+					}
+				}
+			</div>
+		</div>
+		<div class="right"><div class="v">{ row.RelTime }</div></div>
+	</div>
+}
+
+// pulseSection is the shared "Puls" live-activity section: an eyebrow title
+// (caller-supplied i18n key — the cockpit's subtree-scoped wording differs
+// from the Schreibtisch's account-wide wording) + a "LIVE" chip + pulseRow
+// per entry, with the app-wide empty state. Shared by cockpit_main.templ
+// (cockpitPulseSection, subtree-filtered) and home.templ (account-wide).
+templ pulseSection(titleKey string, rows []ActivityRowVM) {
+	<div class="sect pulse">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, titleKey) }</span>
+			<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
+		</div>
+		if len(rows) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "activity.empty") }</p>
+		} else {
+			for _, row := range rows {
+				@pulseRow(row)
+			}
+		}
+	</div>
+}

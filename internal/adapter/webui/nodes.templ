@@ -64,7 +64,7 @@ templ NodesFragment(d NodesPageData) {
 templ engagementSection(es EngagementSection) {
 	<section class="eng">
 		<a class="eng-h" href={ templ.SafeURL("/nodes/" + es.N.ID) }>
-			@components.Avatar(es.Initials, es.Tone, "av-36")
+			@components.NodeAvatar(es.N.ID, es.N.LogoRef, es.Initials, es.Tone, "av-36")
 			<h2>{ ShortName(es.N.Name) }</h2>
 			<span class="typechip">{ components.T(ctx, "node.kind."+string(es.N.Kind)) }</span>
 			<div class="right"><div class="v">{ es.HoursStr }</div><div class="k">{ es.RateNote }</div></div>
@@ -111,7 +111,7 @@ templ vorhabenHead(g VorhabenGroup) {
 // the row sits under a .vh head (vs. a bare top-level row).
 templ projRow(row ProjRow, indented bool) {
 	<a class={ "projrow", templ.KV("lvl2", indented) } href={ templ.SafeURL("/nodes/" + row.ID) }>
-		@components.Avatar(row.Initials, row.Tone, "av-28")
+		@components.NodeAvatar(row.ID, row.LogoRef, row.Initials, row.Tone, "av-28")
 		<div class="grow">
 			if row.IsVorhaben {
 				<div class="t">

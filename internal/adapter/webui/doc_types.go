@@ -21,18 +21,6 @@ type TagLink struct {
 	Href string
 }
 
-// DocRow is one document in a list.
-type DocRow struct {
-	ID           string
-	Type         string
-	Path         string
-	Title        string
-	Preview      string
-	Tags         []string
-	NodeID    string
-	ProjectColor string
-}
-
 // EmbedView is the embedding-status chip shown on a document.
 type EmbedView struct {
 	State     string

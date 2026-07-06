@@ -51,6 +51,7 @@ type VorhabenGroup struct {
 // "unter <Full>" via projRowUnderNote) instead of a git path.
 type ProjRow struct {
 	ID, Short, Full, Initials, Tone, KindLabel string
+	LogoRef                                    string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
 	RightV, RightK                             string
 	IsVorhaben                                 bool
 	PathWarn                                   bool
@@ -249,6 +250,7 @@ func buildProjRow(n domain.Node, totals map[string]time.Duration, docCounts map[
 		Full:     n.Name,
 		Initials: Initials(short),
 		Tone:     AvatarTone(n.Name),
+		LogoRef:  n.LogoRef,
 		PathWarn: warn,
 	}
 	switch {

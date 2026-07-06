@@ -271,6 +271,42 @@ func TestWebNodesPage_QuietCTAAndAvatarIdentity(t *testing.T) {
 	}
 }
 
+// TestWebNodesPage_LogoOrInitials verifies that /nodes renders the shared
+// components.NodeAvatar (L4 Task 2, Offene Entsch. #12): a node carrying a
+// LogoRef shows its uploaded logo (<img src=".../logo?v=...">) at the
+// engagement (av-36) or repo (av-28) row, while a node without one still
+// falls back to the deterministic initials tile — Logos no longer appear
+// only on the cockpit.
+func TestWebNodesPage_LogoOrInitials(t *testing.T) {
+	ts, c, ns := newWebNodesServer(t)
+
+	engWithLogo := seedTreeNode(t, ns, "eng-logo", "Mit Logo", domain.KindEngagement, nil)
+	engWithLogo.LogoRef = "abc123"
+	_, _ = ns.Update(context.Background(), "u1", engWithLogo)
+	repoNoLogo := seedTreeNode(t, ns, "repo-plain", "gitlab.com/x/plain", domain.KindRepo, &engWithLogo.ID)
+	repoWithLogo := seedTreeNode(t, ns, "repo-logo", "gitlab.com/x/withlogo", domain.KindRepo, &engWithLogo.ID)
+	repoWithLogo.LogoRef = "def456"
+	_, _ = ns.Update(context.Background(), "u1", repoWithLogo)
+
+	code, body := getN(t, ts, c, "/nodes")
+	if code != 200 {
+		t.Fatalf("GET /nodes = %d; body=%.500s", code, body)
+	}
+
+	if !strings.Contains(body, `/nodes/`+engWithLogo.ID+`/logo?v=abc123`) {
+		t.Errorf("engagement with LogoRef must render its logo <img>; body=%.2000s", body)
+	}
+	if !strings.Contains(body, `/nodes/`+repoWithLogo.ID+`/logo?v=def456`) {
+		t.Errorf("repo with LogoRef must render its logo <img>; body=%.2000s", body)
+	}
+
+	// The plain repo's row must fall back to initials — no logo <img> for its
+	// own node id anywhere in the body.
+	if strings.Contains(body, `/nodes/`+repoNoLogo.ID+`/logo?v=`) {
+		t.Errorf("repo without LogoRef must not render a logo <img>; body=%.2000s", body)
+	}
+}
+
 // seedEngNode seeds an engagement with the given status (extends seedTreeNode).
 func seedEngNode(t *testing.T, ns *testutil.FakeNodeStore, id, name string, status domain.NodeStatus) domain.Node {
 	t.Helper()

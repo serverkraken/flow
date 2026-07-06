@@ -200,8 +200,6 @@ func (s *Server) Routes() http.Handler {
 	// Home landing + timer-hero fragment + start/stop (Slice 4, Task 1)
 	mux.Handle("GET /{$}", s.webAuth(http.HandlerFunc(s.handleHomeHome)))
 	mux.Handle("GET /ui/home", s.webAuth(http.HandlerFunc(s.handleHomeFragment)))
-	// Logstream fragment (Slice 5, Task 9)
-	mux.Handle("GET /ui/home/logstream", s.webAuth(http.HandlerFunc(s.handleHomeLogstream)))
 
 	// Global shell timer pill (Lesesaal Task 5) — the ONE global home for the
 	// running timer, mounted in the topbar as #timer-pill.
