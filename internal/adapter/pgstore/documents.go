@@ -2,6 +2,7 @@ package pgstore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,9 +28,9 @@ func NewDocumentStore(pool *pgxpool.Pool, ids ports.IDGen) *DocumentStore {
 	return &DocumentStore{pool: pool, ids: ids}
 }
 
-const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at`
+const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at, updated_by_kind, updated_by_ref`
 
-const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref`
 
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
@@ -90,7 +91,7 @@ func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []
 
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
@@ -98,7 +99,8 @@ RETURNING ` + docCols
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
 		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
-		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt, d.Pinned, d.Archived, d.ArchivedAt))
+		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt, d.Pinned, d.Archived, d.ArchivedAt,
+		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef)))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
 	}
@@ -171,15 +173,16 @@ func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *st
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {
 	// type and path are included so maintenance ops (RedesignDocTypes) can reclassify docs.
-	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4, type=$5, path=$6
-WHERE owner_id=$7 AND id=$8
+	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4, type=$5, path=$6, updated_by_kind=$7, updated_by_ref=$8
+WHERE owner_id=$9 AND id=$10
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
 		return domain.Document{}, fmt.Errorf("pgstore: marshal extra: %w", err)
 	}
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
-		d.Title, d.Body, extra, d.UpdatedAt, string(d.Type), d.Path, d.OwnerID, d.ID))
+		d.Title, d.Body, extra, d.UpdatedAt, string(d.Type), d.Path,
+		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.OwnerID, d.ID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Document{}, ports.ErrDocumentNotFound
 	}
@@ -228,17 +231,19 @@ func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]dom
 	return scanDocuments(rows)
 }
 
-func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool) (string, time.Time, error) {
+func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool, updatedByKind, updatedByRef string) (string, time.Time, error) {
 	id := s.ids.NewID()
 	const q = `
-INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, archived, created_at, updated_at)
-VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,$9,now(),now())
+INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, archived, created_at, updated_at, updated_by_kind, updated_by_ref)
+VALUES ($1,$2,$3,$4,$5,$6,$7,'{}',$8,$9,now(),now(),$10,$11)
 ON CONFLICT (owner_id, coalesce(node_id, ''), path)
-DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type, updated_at = now()
+DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type, updated_at = now(),
+              updated_by_kind = EXCLUDED.updated_by_kind, updated_by_ref = EXCLUDED.updated_by_ref
 RETURNING id, updated_at`
 	var gotID string
 	var updated time.Time
-	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned, archived).Scan(&gotID, &updated)
+	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned, archived,
+		nullIfEmpty(updatedByKind), nullIfEmpty(updatedByRef)).Scan(&gotID, &updated)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("pgstore: upsert by path: %w", err)
 	}
@@ -382,12 +387,15 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var d domain.Document
 	var typ string
 	var extra []byte
+	var updatedByKind, updatedByRef sql.NullString
 	var snippet string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt, &snippet); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
+		&updatedByKind, &updatedByRef, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {
 			return domain.SearchHit{}, fmt.Errorf("pgstore: unmarshal extra: %w", err)
@@ -492,13 +500,16 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var d domain.Document
 	var typ string
 	var extra []byte
+	var updatedByKind, updatedByRef sql.NullString
 	var content string
 	var dist float32
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt, &content, &dist); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
+		&updatedByKind, &updatedByRef, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {
 			return domain.SemanticHit{}, fmt.Errorf("pgstore: unmarshal extra: %w", err)
@@ -519,18 +530,31 @@ func orEmpty(m map[string]any) map[string]any {
 	return m
 }
 
+// nullIfEmpty converts an empty Go string to a genuine SQL NULL so an unknown
+// actor round-trips as NULL (not the empty-string literal) — matching
+// pre-L3 rows that never had these columns populated.
+func nullIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 func scanDocument(r rowScanner) (domain.Document, error) {
 	var d domain.Document
 	var typ string
 	var extra []byte
+	var updatedByKind, updatedByRef sql.NullString
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt); err != nil {
+		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
+		&updatedByKind, &updatedByRef); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err
 		}
 		return domain.Document{}, fmt.Errorf("pgstore: scan document: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {
 			return domain.Document{}, fmt.Errorf("pgstore: unmarshal extra: %w", err)

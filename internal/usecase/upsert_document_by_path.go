@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -37,7 +38,8 @@ func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in U
 	if err := (domain.Document{Type: in.Type, NodeID: in.NodeID, Path: in.Path, Title: in.Title, Body: in.Body}).Validate(); err != nil {
 		return "", time.Time{}, err
 	}
-	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned, in.Archived)
+	a := actor.FromContext(ctx)
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned, in.Archived, string(a.Kind), a.Ref)
 	if err != nil {
 		return "", time.Time{}, err
 	}

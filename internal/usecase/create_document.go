@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -30,11 +31,13 @@ type CreateDocumentInput struct {
 func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateDocumentInput) (domain.Document, error) {
 	now := uc.Clock.Now()
 	eff := in.Tags
+	a := actor.FromContext(ctx)
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
 		Path: in.Path, Title: domain.StripHighlightSentinels(in.Title), Body: domain.StripHighlightSentinels(in.Body),
 		Tags:      domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
 		CreatedAt: now, UpdatedAt: now,
+		UpdatedByKind: string(a.Kind), UpdatedByRef: a.Ref,
 	}
 	if in.Type == domain.DocDaily {
 		d.Date = &now

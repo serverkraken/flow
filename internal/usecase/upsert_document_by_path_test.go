@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -71,6 +72,27 @@ func TestUpsertDocumentByPath_Archived(t *testing.T) {
 	got, _ = docs.Get(context.Background(), "u1", id)
 	if got.Archived {
 		t.Fatalf("re-run did not reclassify: %+v", got)
+	}
+}
+
+func TestUpsertDocumentByPath_StampsActor(t *testing.T) {
+	store := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	uc := usecase.UpsertDocumentByPath{Docs: store, Tags: tags}
+
+	ctx := actor.WithContext(context.Background(), actor.Actor{Kind: actor.Agent, Ref: "claude-code"})
+	id, _, err := uc.Execute(ctx, "owner", usecase.UpsertByPathInput{
+		Type: domain.DocMemory, Path: "prov-upsert", Title: "T", Body: "b",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := store.Get(context.Background(), "owner", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.UpdatedByKind != "agent" || doc.UpdatedByRef != "claude-code" {
+		t.Fatalf("UpdatedByKind/Ref = %q/%q, want agent/claude-code", doc.UpdatedByKind, doc.UpdatedByRef)
 	}
 }
 
