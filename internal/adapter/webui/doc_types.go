@@ -1,9 +1,10 @@
 package webui
 
-// SearchRow is one search hit: a doc row plus its rendered snippet HTML.
+// SearchRow is one Wissen bigsearch hit rendered as a Lesesaal row: the type
+// chip (DocTypeChipClass/DocTypeLabel), title, path, and the rendered
+// snippet HTML (server-escaped with <mark> highlights, see renderSnippet).
 type SearchRow struct {
-	DocRow
-	Snippet string
+	ID, Title, ChipClass, ChipLabel, Path, Snippet string
 }
 
 // TagChip is one tag in the filter bar.

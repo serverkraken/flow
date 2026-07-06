@@ -136,7 +136,7 @@ func (s *Server) handleWebEditorDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	categoryHref, _ := wissenCategoryHrefAndLabel(doc)
+	categoryHref := wissenShelfHref(doc)
 
 	err = s.DeleteDocument.Execute(r.Context(), u.ID, id)
 	if errors.Is(err, ports.ErrDocumentNotFound) {

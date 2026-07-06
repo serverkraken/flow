@@ -14,8 +14,13 @@ import (
 
 const wissenPageSize = 50
 
+// wissenOverviewData builds the /wissen library page's data: search-hit rows
+// when a query is present, otherwise the type-shelf counts + capped "Zuletzt
+// aktualisiert" list built from the (tag-filtered) owner document set —
+// owner-scoped throughout via s.ListDocuments/s.SearchDocuments (both take
+// u.ID).
 func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.WissenOverviewVM, error) {
-	base, active, q, err := s.wissenBaseVM(r, u, "/wissen")
+	base, active, q, err := s.wissenBaseVM(r, u, "/wissen", "")
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
@@ -26,12 +31,7 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 			return webui.WissenOverviewVM{}, err
 		}
 		for _, h := range hits {
-			base.Results = append(base.Results, webui.SearchRow{
-				DocRow: webui.DocRow{
-					ID: h.ID, Type: string(h.Type), Path: h.Path, Title: h.Title, Tags: h.Tags,
-				},
-				Snippet: renderSnippet(h.Snippet),
-			})
+			base.Results = append(base.Results, wissenSearchRow(h))
 		}
 		return webui.WissenOverviewVM{WissenVM: base}, nil
 	}
@@ -40,36 +40,36 @@ func (s *Server) wissenOverviewData(r *http.Request, u domain.User) (webui.Wisse
 	if err != nil {
 		return webui.WissenOverviewVM{}, err
 	}
-	_, colors, _, err := s.nodeMaps(r.Context(), u.ID)
-	if err != nil {
-		return webui.WissenOverviewVM{}, err
-	}
-	vm := webui.BuildWissenOverview(docs, colors)
+	recentAll := r.URL.Query().Get("recent") == "all"
+	vm := webui.BuildWissenOverview(docs, s.Clock.Now(), recentAll)
 	vm.WissenVM = base
 	return vm, nil
 }
 
-func (s *Server) wissenCategoryData(r *http.Request, u domain.User, c webui.WissenCategory) (webui.WissenCategoryVM, error) {
-	base, active, q, err := s.wissenBaseVM(r, u, c.Href)
+// wissenTypeData builds one /wissen/typ?type= shelf page's data: search hits
+// scoped to the shelf's types when a query is present, otherwise a
+// paginated, flat Lesesaal-row listing of the shelf's documents. The shelf
+// route is a query param rather than a path segment — see WissenVM.TypeParam
+// for why "/wissen/typ/{type}" can't coexist with the established
+// "/wissen/{id}/bearbeiten" action route in Go's http.ServeMux.
+func (s *Server) wissenTypeData(r *http.Request, u domain.User, shelf webui.WissenShelf) (webui.WissenTypeVM, error) {
+	const basePath = "/wissen/typ"
+	base, active, q, err := s.wissenBaseVM(r, u, basePath, shelf.TypeKey)
 	if err != nil {
-		return webui.WissenCategoryVM{}, err
+		return webui.WissenTypeVM{}, err
 	}
+
 	if q != "" {
 		hits, err := s.SearchDocuments.Execute(r.Context(), u.ID, q, nil, active)
 		if err != nil {
-			return webui.WissenCategoryVM{}, err
+			return webui.WissenTypeVM{}, err
 		}
-		vm := webui.WissenCategoryVM{WissenVM: base, Category: c}
+		vm := webui.WissenTypeVM{WissenVM: base, Shelf: shelf}
 		for _, h := range hits {
-			if !webui.DocumentInWissenCategory(h.Document, c) {
+			if !webui.DocumentInShelf(h.Document, shelf) {
 				continue
 			}
-			vm.Results = append(vm.Results, webui.SearchRow{
-				DocRow: webui.DocRow{
-					ID: h.ID, Type: string(h.Type), Path: h.Path, Title: h.Title, Tags: h.Tags,
-				},
-				Snippet: renderSnippet(h.Snippet),
-			})
+			vm.Results = append(vm.Results, wissenSearchRow(h))
 		}
 		vm.Total = len(vm.Results)
 		return vm, nil
@@ -77,31 +77,43 @@ func (s *Server) wissenCategoryData(r *http.Request, u domain.User, c webui.Wiss
 
 	docs, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, active)
 	if err != nil {
-		return webui.WissenCategoryVM{}, err
+		return webui.WissenTypeVM{}, err
 	}
-	filtered := filterWissenCategoryDocs(docs, c)
+	filtered := filterWissenShelfDocs(docs, shelf)
 	page := atoiDefault(r.URL.Query().Get("page"), 1)
 	offset := (page - 1) * wissenPageSize
 	pageDocs := paginateDocuments(filtered, wissenPageSize, offset)
 
-	names, colors, kinds, err := s.nodeMaps(r.Context(), u.ID)
-	if err != nil {
-		return webui.WissenCategoryVM{}, err
-	}
-	vm := webui.BuildWissenCategory(c, pageDocs, names, colors, kinds)
+	vm := webui.BuildWissenType(shelf, pageDocs, s.Clock.Now())
 	vm.WissenVM = base
-	vm.Category = c
 	vm.Total = len(filtered)
 	vm.Page = components.PageNav{
 		Page:     page,
 		Total:    len(filtered),
 		PageSize: wissenPageSize,
-		BaseHref: c.Href + wissenEncodeListQuery(active, q),
+		BaseHref: basePath + wissenQueryString(shelf.TypeKey, active, q),
 	}
 	return vm, nil
 }
 
-func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath string) (webui.WissenVM, []string, string, error) {
+func wissenSearchRow(h domain.SearchHit) webui.SearchRow {
+	return webui.SearchRow{
+		ID:        h.ID,
+		Title:     h.Title,
+		Path:      h.Path,
+		ChipClass: webui.DocTypeChipClass(h.Type),
+		ChipLabel: webui.DocTypeLabel(h.Type),
+		Snippet:   renderSnippet(h.Snippet),
+	}
+}
+
+// wissenBaseVM builds the bigsearch/tag-chip machinery shared by the
+// overview and type-shelf pages. typeKey is "" on the overview page and the
+// shelf's TypeKey on /wissen/typ — threaded through every href/query built
+// here (and via wissenBigsearch's hidden "type" input, since a GET form
+// drops its action URL's existing query string on submit) so the shelf
+// filter survives search/tag/pagination round-trips.
+func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath, typeKey string) (webui.WissenVM, []string, string, error) {
 	active := r.URL.Query()["tag"]
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 
@@ -120,7 +132,7 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath string) (
 			Tag:    tc.Tag,
 			Count:  tc.Count,
 			Active: activeSet[tc.Tag],
-			Href:   wissenToggleTagHref(basePath, active, tc.Tag),
+			Href:   basePath + wissenQueryString(typeKey, toggledTags(active, tc.Tag), ""),
 		})
 	}
 	return webui.WissenVM{
@@ -128,9 +140,10 @@ func (s *Server) wissenBaseVM(r *http.Request, u domain.User, basePath string) (
 		AllTags:      chips,
 		ActiveTags:   active,
 		SearchQ:      q,
-		Query:        wissenEncodeListQuery(active, q),
+		Query:        wissenQueryString(typeKey, active, q),
 		SearchAction: basePath,
-		ResetHref:    basePath,
+		ResetHref:    basePath + wissenQueryString(typeKey, nil, ""),
+		TypeParam:    typeKey,
 	}, active, q, nil
 }
 
@@ -156,52 +169,53 @@ func (s *Server) handleWebWissenList(w http.ResponseWriter, r *http.Request) {
 	_ = webui.WissenFragment(vm).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebWissenCategory(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebWissenType(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	c, ok := webui.WissenCategoryFromSlug(wissenCategorySlug(r))
+	shelf, ok := webui.WissenShelfFromTypeKey(r.URL.Query().Get("type"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	vm, err := s.wissenCategoryData(r, u, c)
+	vm, err := s.wissenTypeData(r, u, shelf)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.WissenCategoryPage(vm).Render(r.Context(), w)
+	_ = webui.WissenTypePage(vm).Render(r.Context(), w)
 }
 
-func (s *Server) handleWebWissenCategoryList(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleWebWissenTypeList(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	c, ok := webui.WissenCategoryFromSlug(wissenCategorySlug(r))
+	shelf, ok := webui.WissenShelfFromTypeKey(r.URL.Query().Get("type"))
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-	vm, err := s.wissenCategoryData(r, u, c)
+	vm, err := s.wissenTypeData(r, u, shelf)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.WissenCategoryFragment(vm).Render(r.Context(), w)
+	_ = webui.WissenTypeFragment(vm).Render(r.Context(), w)
 }
 
-func wissenCategorySlug(r *http.Request) string {
-	if slug := r.PathValue("category"); slug != "" {
-		return slug
+// handleWebWissenRedirect 302s a retired Wissen category slug to its
+// type-shelf successor (Offene Entsch. #7 — no dead links). /wissen/system
+// has no 1:1 target (Codex #17: its five legacy types now spread across
+// plan/memory/context/spec) and redirects to the /wissen overview instead —
+// the caller wires that asymmetry explicitly in server.go.
+func (s *Server) handleWebWissenRedirect(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target, http.StatusFound)
 	}
-	if slug := strings.TrimPrefix(r.URL.Path, "/wissen/"); slug != r.URL.Path {
-		return slug
-	}
-	return strings.TrimPrefix(r.URL.Path, "/ui/wissen/list/")
 }
 
-func filterWissenCategoryDocs(docs []domain.Document, c webui.WissenCategory) []domain.Document {
+func filterWissenShelfDocs(docs []domain.Document, shelf webui.WissenShelf) []domain.Document {
 	out := make([]domain.Document, 0, len(docs))
 	for _, d := range docs {
-		if webui.DocumentInWissenCategory(d, c) {
+		if webui.DocumentInShelf(d, shelf) {
 			out = append(out, d)
 		}
 	}
@@ -227,7 +241,7 @@ func paginateDocuments(docs []domain.Document, limit, offset int) []domain.Docum
 }
 
 // nodeMaps builds id→name, id→color, id→kind maps from ListNodes for use by
-// wissen view models and document views.
+// document/cockpit/home view models.
 func (s *Server) nodeMaps(ctx context.Context, ownerID string) (map[string]string, map[string]string, map[string]domain.NodeKind, error) {
 	names := map[string]string{}
 	colors := map[string]string{}
@@ -255,8 +269,15 @@ func atoiDefault(s string, def int) int {
 	return n
 }
 
-func wissenEncodeListQuery(tags []string, q string) string {
+// wissenQueryString builds the query string shared by every Wissen href and
+// the SSE fragment's hx-get: an optional fixed "type" (the /wissen/typ shelf
+// filter, empty on the overview page), the active tag filters, and the
+// free-text query.
+func wissenQueryString(typeKey string, tags []string, q string) string {
 	v := url.Values{}
+	if typeKey != "" {
+		v.Set("type", typeKey)
+	}
 	for _, t := range tags {
 		v.Add("tag", t)
 	}
@@ -270,7 +291,9 @@ func wissenEncodeListQuery(tags []string, q string) string {
 	return "?" + enc
 }
 
-func wissenToggleTagHref(basePath string, active []string, tag string) string {
+// toggledTags returns active with tag removed if present, or appended if not
+// — the "click a tag chip to add/remove it from the filter" behavior.
+func toggledTags(active []string, tag string) []string {
 	var next []string
 	removed := false
 	for _, t := range active {
@@ -283,16 +306,5 @@ func wissenToggleTagHref(basePath string, active []string, tag string) string {
 	if !removed {
 		next = append(next, tag)
 	}
-	return basePath + wissenEncodeTagQuery(next)
-}
-
-func wissenEncodeTagQuery(tags []string) string {
-	if len(tags) == 0 {
-		return ""
-	}
-	q := url.Values{}
-	for _, t := range tags {
-		q.Add("tag", t)
-	}
-	return "?" + q.Encode()
+	return next
 }

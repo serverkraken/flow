@@ -1,107 +1,158 @@
 package webui
 
 import (
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func TestGroupDocsByCategory(t *testing.T) {
-	docs := []domain.Document{
-		{ID: "1", Type: domain.DocDaily, Title: "Mon"},
-		{ID: "2", Type: domain.DocProject, Title: "Note", NodeID: strptr("p1")},
-		{ID: "3", Type: domain.DocFree, Title: "Urlaub"},
-		{ID: "4", Type: domain.DocMemory, Title: "Mem"},
+func TestWissenShelvesOrderAndTypeKeys(t *testing.T) {
+	shelves := WissenShelves()
+	wantKeys := []string{"project", "plan", "spec", "memory", "daily", "context", "free"}
+	if len(shelves) != len(wantKeys) {
+		t.Fatalf("WissenShelves() = %d shelves, want %d", len(shelves), len(wantKeys))
 	}
-	names := map[string]string{"p1": "Alpha"}
-	colors := map[string]string{"p1": "blue"}
-
-	vm := groupDocsByCategory(docs, names, colors, nil)
-
-	if len(vm.Daily) != 1 || len(vm.Free) != 1 || len(vm.System) != 1 {
-		t.Fatalf("category split wrong: %+v", vm)
-	}
-	if len(vm.Notes) != 1 || vm.Notes[0].Name != "Alpha" || len(vm.Notes[0].Docs) != 1 {
-		t.Fatalf("project grouping wrong: %+v", vm.Notes)
-	}
-}
-
-func TestWissenCategoryFromSlug(t *testing.T) {
-	tests := map[string]struct {
-		wantID string
-		ok     bool
-	}{
-		"daily":    {"daily", true},
-		"projekte": {"projekte", true},
-		"frei":     {"frei", true},
-		"system":   {"system", true},
-		"bogus":    {"", false},
-	}
-	for slug, tt := range tests {
-		got, ok := WissenCategoryFromSlug(slug)
-		if ok != tt.ok || got.ID != tt.wantID {
-			t.Fatalf("WissenCategoryFromSlug(%q) = (%q,%v), want (%q,%v)", slug, got.ID, ok, tt.wantID, tt.ok)
+	for i, want := range wantKeys {
+		if shelves[i].TypeKey != want {
+			t.Errorf("shelves[%d].TypeKey = %q, want %q", i, shelves[i].TypeKey, want)
+		}
+		if shelves[i].LabelKey == "" || shelves[i].DescKey == "" {
+			t.Errorf("shelves[%d] (%s) missing LabelKey/DescKey", i, want)
 		}
 	}
 }
 
-func TestDocPreviewTextStripsMarkdownAndLimitsLines(t *testing.T) {
-	body := "---\ntags: [x]\n---\n# Heading\n\n- first [[daily/2026-06-25|Daily Link]]\n<script>alert(1)</script>\n```terraform\nresource \"x\" \"y\" {}\n```\nplain **bold** text\nsixth line\n"
-	got := DocPreviewText(body, 5)
-	for _, bad := range []string{"---", "tags:", "<script>", "```", "**", "[[", "]]"} {
-		if strings.Contains(got, bad) {
-			t.Fatalf("preview leaked %q: %q", bad, got)
-		}
+func TestWissenShelfFromTypeKey(t *testing.T) {
+	if _, ok := WissenShelfFromTypeKey("bogus"); ok {
+		t.Error("WissenShelfFromTypeKey(bogus) = ok, want not found")
 	}
-	lines := strings.Split(got, "\n")
-	if len(lines) > 5 {
-		t.Fatalf("preview lines=%d, want <=5: %q", len(lines), got)
-	}
-	if !strings.Contains(got, "Heading") || !strings.Contains(got, "Daily Link") {
-		t.Fatalf("preview missing readable content: %q", got)
+	shelf, ok := WissenShelfFromTypeKey("project")
+	if !ok || shelf.TypeKey != "project" {
+		t.Fatalf("WissenShelfFromTypeKey(project) = %+v, %v", shelf, ok)
 	}
 }
 
-func TestBuildWissenOverviewCountsAndLatest(t *testing.T) {
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+func TestWissenShelfForType_AgentFoldsIntoSpec(t *testing.T) {
+	shelf, ok := WissenShelfForType(domain.DocAgent)
+	if !ok || shelf.TypeKey != "spec" {
+		t.Fatalf("WissenShelfForType(DocAgent) = %+v, %v, want spec shelf", shelf, ok)
+	}
+}
+
+func TestWissenShelfForType_ContextFoldsThreeTypes(t *testing.T) {
+	for _, typ := range []domain.DocumentType{domain.DocActiveContext, domain.DocInstruction, domain.DocSkill} {
+		shelf, ok := WissenShelfForType(typ)
+		if !ok || shelf.TypeKey != "context" {
+			t.Fatalf("WissenShelfForType(%s) = %+v, %v, want context shelf", typ, shelf, ok)
+		}
+	}
+}
+
+func TestBuildWissenOverviewShelfCounts(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
 	docs := []domain.Document{
-		{ID: "d1", Type: domain.DocDaily, Title: "Old daily", UpdatedAt: now.Add(-time.Hour)},
-		{ID: "d2", Type: domain.DocDaily, Title: "New daily", UpdatedAt: now},
-		{ID: "p1", Type: domain.DocProject, Title: "Project", UpdatedAt: now},
+		{ID: "p1", Type: domain.DocProject, Title: "Project", UpdatedAt: now, Pinned: true},
+		{ID: "pl1", Type: domain.DocPlan, Title: "Plan", UpdatedAt: now},
+		{ID: "s1", Type: domain.DocSpec, Title: "Spec", UpdatedAt: now},
+		{ID: "a1", Type: domain.DocAgent, Title: "Legacy Agent", UpdatedAt: now}, // folds into spec
 		{ID: "m1", Type: domain.DocMemory, Title: "Memory", UpdatedAt: now},
+		{ID: "d1", Type: domain.DocDaily, Title: "Daily", UpdatedAt: now},
+		{ID: "c1", Type: domain.DocActiveContext, Title: "Context", UpdatedAt: now},
+		{ID: "i1", Type: domain.DocInstruction, Title: "Instruction", UpdatedAt: now}, // folds into context
+		{ID: "f1", Type: domain.DocFree, Title: "Free", UpdatedAt: now},
 	}
-	vm := BuildWissenOverview(docs, nil)
-	daily := vm.Categories[0]
-	if daily.Count != 2 || len(daily.Latest) != 2 || daily.Latest[0].Title != "New daily" {
-		t.Fatalf("daily overview = %+v", daily)
+	vm := BuildWissenOverview(docs, now, false)
+
+	if vm.TotalCount != len(docs) {
+		t.Errorf("TotalCount = %d, want %d", vm.TotalCount, len(docs))
 	}
-	system := vm.Categories[3]
-	if system.Count != 1 || system.Latest[0].Title != "Memory" {
-		t.Fatalf("system overview = %+v", system)
+	if vm.PinnedCount != 1 {
+		t.Errorf("PinnedCount = %d, want 1", vm.PinnedCount)
+	}
+
+	counts := map[string]int{}
+	for _, s := range vm.Shelves {
+		counts[s.TypeKey] = s.Count
+	}
+	want := map[string]int{"project": 1, "plan": 1, "spec": 2, "memory": 1, "daily": 1, "context": 2, "free": 1}
+	for typeKey, wantCount := range want {
+		if counts[typeKey] != wantCount {
+			t.Errorf("shelf %q count = %d, want %d", typeKey, counts[typeKey], wantCount)
+		}
 	}
 }
 
-func strptr(s string) *string { return &s }
+func TestBuildWissenOverviewRecentCapAndAll(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	var docs []domain.Document
+	for i := 0; i < 10; i++ {
+		docs = append(docs, domain.Document{
+			ID: "d" + itoa(i), Type: domain.DocFree, Title: "Doc " + itoa(i),
+			UpdatedAt: now.Add(-time.Duration(i) * time.Minute),
+		})
+	}
+	capped := BuildWissenOverview(docs, now, false)
+	if len(capped.Recent) != wissenRecentCap {
+		t.Fatalf("capped Recent = %d rows, want %d", len(capped.Recent), wissenRecentCap)
+	}
+	if capped.RecentTotal != 10 {
+		t.Errorf("RecentTotal = %d, want 10", capped.RecentTotal)
+	}
+	if capped.Recent[0].Title != "Doc 0" {
+		t.Errorf("Recent[0].Title = %q, want newest-first %q", capped.Recent[0].Title, "Doc 0")
+	}
 
-func TestWissenTabsAndEmpty(t *testing.T) {
-	empty := WissenVM{}
-	if !WissenEmpty(empty) {
-		t.Error("WissenEmpty on zero vm should be true")
+	all := BuildWissenOverview(docs, now, true)
+	if len(all.Recent) != 10 {
+		t.Fatalf("recentAll Recent = %d rows, want 10", len(all.Recent))
 	}
-	tabs := WissenTabs(empty)
-	if len(tabs) != 4 {
-		t.Fatalf("expected 4 tabs, got %d", len(tabs))
+	if !all.RecentAll {
+		t.Error("RecentAll should be true when requested")
+	}
+}
+
+func TestWissenRowFromDocument_MetaDegradesWithoutActor(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	withActor := domain.Document{
+		ID: "d1", Type: domain.DocProject, Title: "Doc", Path: "alpha/note",
+		UpdatedAt: now.Add(-time.Hour), UpdatedByKind: "human", UpdatedByRef: "Soenne",
+	}
+	row := WissenRowFromDocument(withActor, now)
+	if row.Meta != "alpha/note · Soenne" {
+		t.Errorf("Meta with actor = %q, want %q", row.Meta, "alpha/note · Soenne")
+	}
+	if row.ChipClass != DocTypeChipClass(domain.DocProject) || row.ChipLabel != DocTypeLabel(domain.DocProject) {
+		t.Errorf("chip class/label not wired: %+v", row)
 	}
 
-	nonEmpty := WissenVM{Daily: []DocRow{{ID: "d1"}}}
-	if WissenEmpty(nonEmpty) {
-		t.Error("WissenEmpty on non-zero vm should be false")
+	noActor := domain.Document{ID: "d2", Type: domain.DocFree, Title: "Doc2", Path: "free/idea", UpdatedAt: now}
+	row2 := WissenRowFromDocument(noActor, now)
+	if row2.Meta != "free/idea" {
+		t.Errorf("Meta without actor = %q, want just the path %q", row2.Meta, "free/idea")
 	}
-	tabs2 := WissenTabs(nonEmpty)
-	if tabs2[0].Count != 1 {
-		t.Errorf("daily tab count = %d, want 1", tabs2[0].Count)
+}
+
+func TestBuildWissenType(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	shelf, _ := WissenShelfFromTypeKey("daily")
+	docs := []domain.Document{
+		{ID: "d1", Type: domain.DocDaily, Title: "Daily One", Path: "daily/2026-07-06", UpdatedAt: now},
+	}
+	vm := BuildWissenType(shelf, docs, now)
+	if vm.Shelf.TypeKey != "daily" {
+		t.Fatalf("Shelf not carried through: %+v", vm.Shelf)
+	}
+	if len(vm.Rows) != 1 || vm.Rows[0].Title != "Daily One" {
+		t.Fatalf("Rows = %+v, want one row for Daily One", vm.Rows)
+	}
+}
+
+func TestWissenSummary(t *testing.T) {
+	ctx := testCtx(t)
+	got := WissenSummary(ctx, WissenOverviewVM{TotalCount: 264, PinnedCount: 12})
+	if got != "264 Dokumente · 12 angepinnt" {
+		t.Errorf("WissenSummary = %q, want %q", got, "264 Dokumente · 12 angepinnt")
 	}
 }
 
@@ -114,20 +165,28 @@ func TestWissenResetHref(t *testing.T) {
 	}
 }
 
-func TestProjectDocCountAndSwatchStyle(t *testing.T) {
-	groups := []ProjectGroup{
-		{Name: "A", Docs: []DocRow{{ID: "1"}, {ID: "2"}}},
-		{Name: "B", Docs: []DocRow{{ID: "3"}}},
-	}
-	if n := projectDocCount(groups); n != 3 {
-		t.Errorf("projectDocCount = %d, want 3", n)
-	}
-
+func TestSwatchStyle(t *testing.T) {
 	if s := swatchStyle(""); s != "" {
 		t.Errorf("swatchStyle('') = %q, want ''", s)
 	}
 	got := swatchStyle("#aabbcc")
 	if got != "--swatch: #aabbcc" {
 		t.Errorf("swatchStyle('#aabbcc') = %q, want '--swatch: #aabbcc'", got)
+	}
+}
+
+// TestDocRowUnaffected pins that DocRow/docRowFromDocument (and their
+// BuildHomeNewest caller) keep working unmodified — the L3 Task 7 Wissen
+// redesign adds WissenRowVM as a separate display struct instead of
+// reshaping DocRow, which the L4 Schreibtisch page (home_newest.go) still
+// depends on (Codex #18).
+func TestDocRowUnaffected(t *testing.T) {
+	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "d1", Type: domain.DocFree, Title: "Home Doc", Path: "free/idea", UpdatedAt: now},
+	}
+	rows := BuildHomeNewest(docs, nil, 5)
+	if len(rows) != 1 || rows[0].ID != "d1" || rows[0].Title != "Home Doc" {
+		t.Fatalf("BuildHomeNewest regressed: %+v", rows)
 	}
 }

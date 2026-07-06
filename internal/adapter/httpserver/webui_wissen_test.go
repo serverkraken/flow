@@ -45,16 +45,16 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	bus := sse.NewBus()
 
 	srv := &Server{
-		Ensure:   usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
-		Bus:      bus,
-		Emitter:  sse.NewEmitter(bus, noopActivityStore{}, &testutil.FakeIDGen{}, clk),
-		Clock:    clk,
-		Users:    users,
-		Session:  codec,
+		Ensure:  usecase.EnsureUser{Users: users, IDs: &testutil.FakeIDGen{}, Allow: func(ports.Identity) bool { return true }},
+		Bus:     bus,
+		Emitter: sse.NewEmitter(bus, noopActivityStore{}, &testutil.FakeIDGen{}, clk),
+		Clock:   clk,
+		Users:   users,
+		Session: codec,
 
 		ListDocuments:     usecase.ListDocuments{Docs: docs},
 		ListDocumentsPage: usecase.NewListDocumentsPage(docs),
-		ListNodes:      usecase.ListNodes{Nodes: projects},
+		ListNodes:         usecase.ListNodes{Nodes: projects},
 		CreateDocument:    usecase.CreateDocument{Docs: docs, Tags: tags, IDs: &testutil.FakeIDGen{}, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
@@ -70,7 +70,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	return srv, codec, docs, projects
 }
 
-func TestWebWissenHomeSections(t *testing.T) {
+func TestWebWissenHomeShelvesAndRecent(t *testing.T) {
 	srv, codec, docs, projects := newWebWissenServer(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
@@ -89,34 +89,20 @@ func TestWebWissenHomeSections(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
 	}
-	for _, want := range []string{`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`, "Daily Note", "Project Note", "Free Note", "System Memory"} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("GET /wissen missing %q in %.800s", want, body)
-		}
-	}
-}
-
-func TestWebWissenHomeOverviewCards(t *testing.T) {
-	srv, codec, docs, _ := newWebWissenServer(t)
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
-	for _, doc := range []domain.Document{
-		{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25", Title: "Daily One", Body: "daily body", Date: &now, CreatedAt: now, UpdatedAt: now},
-		{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/idea", Title: "Free One", Body: "free body", CreatedAt: now, UpdatedAt: now},
+	for _, want := range []string{
+		`href="/wissen/typ?type=project"`, `href="/wissen/typ?type=plan"`, `href="/wissen/typ?type=spec"`,
+		`href="/wissen/typ?type=memory"`, `href="/wissen/typ?type=daily"`, `href="/wissen/typ?type=context"`, `href="/wissen/typ?type=free"`,
+		"Daily Note", "Project Note", "Free Note", "System Memory",
+		"4 Dokumente", // summary "%d Dokumente · %d angepinnt"
 	} {
-		_, _ = docs.Create(context.Background(), doc)
-	}
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen", codec)
-	if status != http.StatusOK {
-		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
-	}
-	for _, want := range []string{`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`, "Daily One", "Free One"} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("overview missing %q in %.1200s", want, body)
+			t.Fatalf("GET /wissen missing %q in %.1500s", want, body)
 		}
 	}
+	// Old category sections are gone.
 	for _, notWant := range []string{"daily-sec", "notes-sec", "free-sec", "system-sec"} {
 		if strings.Contains(body, notWant) {
-			t.Fatalf("overview should not render old long section %q", notWant)
+			t.Fatalf("overview should not render old category section %q", notWant)
 		}
 	}
 }
@@ -138,7 +124,7 @@ func TestWebWissenSearch(t *testing.T) {
 	}
 }
 
-func TestWebWissenCategoryRoutesFilterDocuments(t *testing.T) {
+func TestWebWissenTypeRoutesFilterDocuments(t *testing.T) {
 	srv, codec, docs, _ := newWebWissenServer(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
@@ -149,31 +135,89 @@ func TestWebWissenCategoryRoutesFilterDocuments(t *testing.T) {
 	} {
 		_, _ = docs.Create(ctx, doc)
 	}
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen/daily", codec)
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=daily", codec)
 	if status != http.StatusOK {
-		t.Fatalf("GET /wissen/daily status=%d body=%.300s", status, body)
+		t.Fatalf("GET /wissen/typ?type=daily status=%d body=%.300s", status, body)
 	}
-	if !strings.Contains(body, "Daily One") || !strings.Contains(body, "daily preview") {
-		t.Fatalf("daily page missing daily doc/preview: %.1000s", body)
+	if !strings.Contains(body, "Daily One") {
+		t.Fatalf("daily shelf page missing daily doc: %.1000s", body)
 	}
 	for _, notWant := range []string{"Free One", "Memory One"} {
 		if strings.Contains(body, notWant) {
-			t.Fatalf("daily page leaked %q in %.1000s", notWant, body)
+			t.Fatalf("daily shelf page leaked %q in %.1000s", notWant, body)
 		}
 	}
 }
 
-func TestWebWissenCategorySearchIsCategoryScoped(t *testing.T) {
+func TestWebWissenTypeContextIsThreeTypeSet(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	for _, doc := range []domain.Document{
+		{ID: "ac-1", OwnerID: "u1", Type: domain.DocActiveContext, Path: "activecontext/x", Title: "Active Context Doc", Body: "b", CreatedAt: now, UpdatedAt: now},
+		{ID: "in-1", OwnerID: "u1", Type: domain.DocInstruction, Path: "instr/x", Title: "Instruction Doc", Body: "b", CreatedAt: now, UpdatedAt: now},
+		{ID: "sk-1", OwnerID: "u1", Type: domain.DocSkill, Path: "skill/x", Title: "Skill Doc", Body: "b", CreatedAt: now, UpdatedAt: now},
+		{ID: "fr-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/x", Title: "Free Doc", Body: "b", CreatedAt: now, UpdatedAt: now},
+	} {
+		_, _ = docs.Create(context.Background(), doc)
+	}
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=context", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/typ?type=context status=%d body=%.300s", status, body)
+	}
+	for _, want := range []string{"Active Context Doc", "Instruction Doc", "Skill Doc"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("context shelf missing %q: %.1000s", want, body)
+		}
+	}
+	if strings.Contains(body, "Free Doc") {
+		t.Fatalf("context shelf leaked Free Doc: %.1000s", body)
+	}
+}
+
+func TestWebWissenTypeUnknownIs404(t *testing.T) {
+	srv, codec, _, _ := newWebWissenServer(t)
+	_, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=bogus", codec)
+	if status != http.StatusNotFound {
+		t.Fatalf("GET /wissen/typ?type=bogus status=%d, want 404", status)
+	}
+}
+
+func TestWebWissenTypeSearchIsShelfScoped(t *testing.T) {
 	srv, codec, docs, _ := newWebWissenServer(t)
 	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
 	_, _ = docs.Create(context.Background(), domain.Document{ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25", Title: "Daily Alpha", Body: "alpha", Date: &now, CreatedAt: now, UpdatedAt: now})
 	_, _ = docs.Create(context.Background(), domain.Document{ID: "free-1", OwnerID: "u1", Type: domain.DocFree, Path: "free/alpha", Title: "Free Alpha", Body: "alpha", CreatedAt: now, UpdatedAt: now})
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen/frei?q=alpha", codec)
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=free&q=alpha", codec)
 	if status != http.StatusOK {
-		t.Fatalf("GET /wissen/frei?q=alpha status=%d body=%.300s", status, body)
+		t.Fatalf("GET /wissen/typ?type=free&q=alpha status=%d body=%.300s", status, body)
 	}
 	if !strings.Contains(body, "Free Alpha") || strings.Contains(body, "Daily Alpha") {
-		t.Fatalf("free search not category scoped: %.1000s", body)
+		t.Fatalf("free shelf search not scoped: %.1000s", body)
+	}
+}
+
+// TestWebWissenOldSlugsRedirect pins the Task 7 cutover: retired category
+// slugs redirect to their type-shelf successor, and /wissen/system (no 1:1
+// successor — its five legacy types now spread across plan/memory/context/
+// spec) redirects to the overview instead (Offene Entsch. #7 / Codex #17).
+func TestWebWissenOldSlugsRedirect(t *testing.T) {
+	srv, codec, _, _ := newWebWissenServer(t)
+	h := srv.Routes()
+	cases := map[string]string{
+		"/wissen/daily":    "/wissen/typ?type=daily",
+		"/wissen/projekte": "/wissen/typ?type=project",
+		"/wissen/frei":     "/wissen/typ?type=free",
+		"/wissen/system":   "/wissen",
+	}
+	for from, want := range cases {
+		loc, status := getWissenRedirect(t, h, from, codec)
+		if status != http.StatusFound {
+			t.Errorf("GET %s status=%d, want 302", from, status)
+			continue
+		}
+		if loc != want {
+			t.Errorf("GET %s redirected to %q, want %q", from, loc, want)
+		}
 	}
 }
 
@@ -210,30 +254,116 @@ func TestWebWissenListFragments(t *testing.T) {
 		t.Fatalf("wissen list fragment missing doc; body=%.500s", body)
 	}
 
-	// handleWebWissenCategoryList — daily fragment
-	body2, status2 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/daily", codec)
+	// handleWebWissenTypeList — daily shelf fragment
+	body2, status2 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/typ?type=daily", codec)
 	if status2 != http.StatusOK {
-		t.Fatalf("GET /ui/wissen/list/daily status=%d body=%.300s", status2, body2)
+		t.Fatalf("GET /ui/wissen/list/typ?type=daily status=%d body=%.300s", status2, body2)
 	}
 	if !strings.Contains(body2, "Daily Frag") {
 		t.Fatalf("wissen daily fragment missing doc; body=%.500s", body2)
 	}
 
-	// projekte fragment — exercises wissenCategoryProjectGroups (has color swatch branch)
-	pid := "p1"
-	_, _ = docs.Create(context.Background(), domain.Document{
-		ID: "proj-1", OwnerID: "u1", Type: domain.DocProject, NodeID: &pid,
-		Path: "alpha/note", Title: "Proj Note", Body: "notes body", CreatedAt: now, UpdatedAt: now,
-	})
-	body3, status3 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/projekte", codec)
-	if status3 != http.StatusOK {
-		t.Fatalf("GET /ui/wissen/list/projekte status=%d body=%.300s", status3, body3)
+	// invalid type → 404 from the handler (unknown shelf key)
+	_, status3 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/typ?type=bogus", codec)
+	if status3 != http.StatusNotFound {
+		t.Fatalf("GET /ui/wissen/list/typ?type=bogus status=%d, want 404", status3)
+	}
+}
+
+// TestWebWissenRecentAllExpandsCap pins the "Alle N ›" expand-in-place
+// affordance: with more than the cap of recently-updated documents,
+// ?recent=all must render every one of them instead of just the cap.
+func TestWebWissenRecentAllExpandsCap(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	for i := 0; i < 10; i++ {
+		id := "d" + string(rune('a'+i))
+		_, _ = docs.Create(context.Background(), domain.Document{
+			ID: id, OwnerID: "u1", Type: domain.DocFree, Path: "free/" + id,
+			Title: "Recent " + id, Body: "b", CreatedAt: now, UpdatedAt: now.Add(-time.Duration(i) * time.Minute),
+		})
+	}
+	capped, status := getWissen(t, wissenTestMux(srv), "/wissen", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen status=%d", status)
+	}
+	if !strings.Contains(capped, "Alle 10") {
+		t.Fatalf("expected 'Alle 10' expand link, got %.1500s", capped)
 	}
 
-	// invalid category → 404 from mux (route not registered)
-	_, status4 := getWissen(t, wissenTestMux(srv), "/ui/wissen/list/bogus", codec)
-	if status4 != http.StatusNotFound {
-		t.Fatalf("GET /ui/wissen/list/bogus status=%d, want 404", status4)
+	all, status := getWissen(t, wissenTestMux(srv), "/wissen?recent=all", codec)
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen?recent=all status=%d", status)
+	}
+	for i := 0; i < 10; i++ {
+		id := "d" + string(rune('a'+i))
+		if !strings.Contains(all, "Recent "+id) {
+			t.Errorf("recent=all missing %q: %.2000s", "Recent "+id, all)
+		}
+	}
+}
+
+// TestWebWissenOwnerScope_Overview verifies Regale + Recent on /wissen never
+// leak another owner's documents (Global Constraint owner-scope negative
+// test, surface a).
+func TestWebWissenOwnerScope_Overview(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "mine", OwnerID: "u1", Type: domain.DocFree, Path: "free/mine", Title: "Mine Doc", Body: "b", CreatedAt: now, UpdatedAt: now})
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "theirs", OwnerID: "u2", Type: domain.DocFree, Path: "free/theirs", Title: "Their Doc", Body: "b", CreatedAt: now, UpdatedAt: now})
+
+	body, status := getWissenAs(t, wissenTestMux(srv), "/wissen", codec, "u1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen (u1) status=%d", status)
+	}
+	if !strings.Contains(body, "Mine Doc") {
+		t.Fatalf("u1 should see own doc: %.1000s", body)
+	}
+	if strings.Contains(body, "Their Doc") {
+		t.Fatalf("u1 must not see u2's doc: %.1000s", body)
+	}
+	if !strings.Contains(body, "1 Dokumente") {
+		t.Fatalf("u1 summary should count only own doc: %.1000s", body)
+	}
+}
+
+// TestWebWissenOwnerScope_Search verifies /wissen?q= (surface b,
+// s.SearchDocuments) never returns another owner's documents.
+func TestWebWissenOwnerScope_Search(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "mine", OwnerID: "u1", Type: domain.DocFree, Path: "free/mine", Title: "Mine Doc", Body: "alpha needle", CreatedAt: now, UpdatedAt: now})
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "theirs", OwnerID: "u2", Type: domain.DocFree, Path: "free/theirs", Title: "Their Doc", Body: "alpha needle", CreatedAt: now, UpdatedAt: now})
+
+	body, status := getWissenAs(t, wissenTestMux(srv), "/wissen?q=alpha", codec, "u1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen?q=alpha (u1) status=%d", status)
+	}
+	if !strings.Contains(body, "Mine Doc") {
+		t.Fatalf("u1 search should find own doc: %.1000s", body)
+	}
+	if strings.Contains(body, "Their Doc") {
+		t.Fatalf("u1 search must not leak u2's doc: %.1000s", body)
+	}
+}
+
+// TestWebWissenOwnerScope_TypeShelf verifies /wissen/typ?type= (surface c)
+// never returns another owner's documents.
+func TestWebWissenOwnerScope_TypeShelf(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "mine", OwnerID: "u1", Type: domain.DocFree, Path: "free/mine", Title: "Mine Doc", Body: "b", CreatedAt: now, UpdatedAt: now})
+	_, _ = docs.Create(context.Background(), domain.Document{ID: "theirs", OwnerID: "u2", Type: domain.DocFree, Path: "free/theirs", Title: "Their Doc", Body: "b", CreatedAt: now, UpdatedAt: now})
+
+	body, status := getWissenAs(t, wissenTestMux(srv), "/wissen/typ?type=free", codec, "u1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/typ?type=free (u1) status=%d", status)
+	}
+	if !strings.Contains(body, "Mine Doc") {
+		t.Fatalf("u1 shelf listing should show own doc: %.1000s", body)
+	}
+	if strings.Contains(body, "Their Doc") {
+		t.Fatalf("u1 shelf listing must not leak u2's doc: %.1000s", body)
 	}
 }
 
@@ -241,16 +371,19 @@ func wissenTestMux(s *Server) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
-	for _, slug := range []string{"daily", "projekte", "frei", "system"} {
-		mux.Handle("GET /wissen/"+slug, s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
-		mux.Handle("GET /ui/wissen/list/"+slug, s.webAuth(http.HandlerFunc(s.handleWebWissenCategoryList)))
-	}
+	mux.Handle("GET /wissen/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenType)))
+	mux.Handle("GET /ui/wissen/list/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenTypeList)))
 	return mux
 }
 
 func getWissen(t *testing.T, h http.Handler, url string, codec *websession.Codec) (string, int) {
 	t.Helper()
-	cookieVal, err := codec.Issue("u1")
+	return getWissenAs(t, h, url, codec, "u1")
+}
+
+func getWissenAs(t *testing.T, h http.Handler, url string, codec *websession.Codec, userID string) (string, int) {
+	t.Helper()
+	cookieVal, err := codec.Issue(userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,132 +397,20 @@ func getWissen(t *testing.T, h http.Handler, url string, codec *websession.Codec
 	return rec.Body.String(), rec.Code
 }
 
-// TestWebWissenHomeOnGlass pins the Kristall glass swap on the /wissen
-// overview: positive (glass present on the overview cards), preservation
-// (category links + search form action + doc counts survive the swap), and
-// negative (the old hand-rolled bg-ink CTA + bg-surface card chrome are gone).
-func TestWebWissenHomeOnGlass(t *testing.T) {
-	srv, codec, docs, _ := newWebWissenServer(t)
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
-	_, _ = docs.Create(context.Background(), domain.Document{
-		ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25",
-		Title: "Daily One", Body: "daily body", Date: &now, CreatedAt: now, UpdatedAt: now,
-	})
-
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen", codec)
-	if status != http.StatusOK {
-		t.Fatalf("GET /wissen status=%d body=%.300s", status, body)
+// getWissenRedirect issues the request but does not follow the redirect,
+// returning the Location header instead of the (empty) body.
+func getWissenRedirect(t *testing.T, h http.Handler, url string, codec *websession.Codec) (string, int) {
+	t.Helper()
+	cookieVal, err := codec.Issue("u1")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Positive: the overview cards carry the glass class.
-	if !strings.Contains(body, "glass") {
-		t.Errorf("wissen overview not on glass: %.500s", body)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Preservation: category hrefs, search form action, and the "Neu" link
-	// still resolve after the chrome swap.
-	for _, want := range []string{
-		`href="/wissen/daily"`, `href="/wissen/projekte"`, `href="/wissen/frei"`, `href="/wissen/system"`,
-		`action="/wissen"`, `href="/wissen/neu"`, "Daily One",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("wissen overview missing %q after glass swap: %.800s", want, body)
-		}
-	}
-
-	// Negative: the old hand-rolled Studio chrome is gone.
-	if strings.Contains(body, "bg-ink px-5") {
-		t.Errorf("wissen overview still has the old bg-ink CTA button: %.500s", body)
-	}
-	if strings.Contains(body, "rounded-2xl border border-line bg-surface") {
-		t.Errorf("wissen overview cards still have the old bg-surface chrome: %.500s", body)
-	}
-}
-
-// TestWebWissenCategoryOnGlass pins the glass swap on a category page (the
-// doc-list container, the category nav pill, the search input, and inactive
-// tag chips), while preserving the sse hx-trigger wiring and doc links.
-func TestWebWissenCategoryOnGlass(t *testing.T) {
-	srv, codec, docs, _ := newWebWissenServer(t)
-	now := time.Date(2026, 6, 25, 12, 0, 0, 0, time.UTC)
-	_, _ = docs.Create(context.Background(), domain.Document{
-		ID: "daily-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-06-25",
-		Title: "Daily One", Body: "daily body", Tags: []string{"log"}, Date: &now, CreatedAt: now, UpdatedAt: now,
-	})
-
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen/daily", codec)
-	if status != http.StatusOK {
-		t.Fatalf("GET /wissen/daily status=%d body=%.300s", status, body)
-	}
-
-	if !strings.Contains(body, "glass") {
-		t.Errorf("wissen category page not on glass: %.500s", body)
-	}
-
-	for _, want := range []string{
-		`href="/wissen/daily"`, `href="/wissen/neu"`, "Daily One",
-		"sse:document.created, sse:document.updated, sse:document.deleted",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("wissen category page missing %q after glass swap: %.800s", want, body)
-		}
-	}
-
-	if strings.Contains(body, "bg-ink px-5") {
-		t.Errorf("wissen category page still has the old bg-ink CTA button: %.500s", body)
-	}
-	if strings.Contains(body, "rounded-2xl border border-line bg-surface") {
-		t.Errorf("wissen category doc-list still has the old bg-surface chrome: %.500s", body)
-	}
-	if strings.Contains(body, "border border-line bg-surface px-3 py-2") {
-		t.Errorf("wissen category nav pill still has the old bg-surface chrome: %.500s", body)
-	}
-	if strings.Contains(body, "border border-line bg-surface px-4 py-2.5") {
-		t.Errorf("wissen search input still has the old bg-surface chrome: %.500s", body)
-	}
-}
-
-// TestWissenProjectGroup_KindBadge verifies that a project-type document grouped
-// under a repo node shows the node's kind badge in the group header.
-// D7: doc-group headers must render @nodeKindBadge(group.Kind).
-func TestWissenProjectGroup_KindBadge(t *testing.T) {
-	srv, codec, docs, projects := newWebWissenServer(t)
-	ctx := context.Background()
-	now := time.Date(2026, 6, 27, 10, 0, 0, 0, time.UTC)
-
-	// Seed an engagement root, then a repo child.
-	// Node names deliberately do NOT contain the badge label text ("Repo")
-	// so we can test the badge independently.
-	eng, _ := projects.Create(ctx, domain.Node{
-		ID: "eng1", OwnerID: "u1", Name: "MainEngagement", Slug: "main-eng",
-		Kind: domain.KindEngagement, Status: domain.NodeActive,
-	})
-	codebase, _ := projects.Create(ctx, domain.Node{
-		ID: "cb1", OwnerID: "u1", Name: "Codebase", Slug: "codebase",
-		Kind: domain.KindRepo, ParentID: &eng.ID, Status: domain.NodeActive,
-	})
-
-	// Seed a project-type doc linked to the repo node.
-	pid := codebase.ID
-	_, _ = docs.Create(ctx, domain.Document{
-		ID: "proj-doc-1", OwnerID: "u1", Type: domain.DocProject,
-		NodeID: &pid, Path: "codebase/design", Title: "Design Doc",
-		Body: "content", CreatedAt: now, UpdatedAt: now,
-	})
-
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen/projekte", codec)
-	if status != http.StatusOK {
-		t.Fatalf("GET /wissen/projekte status=%d body=%.300s", status, body)
-	}
-
-	// Group header must show the node name.
-	if !strings.Contains(body, "Codebase") {
-		t.Errorf("projekte group header missing repo node name; body=%.800s", body)
-	}
-	// Kind badge for repo must be present as a standalone badge element.
-	// nodeKindBadge renders: <span class="inline-flex ... rounded-md border px-2 py-0.5 text-[.72rem] ...">
-	// This CSS combination is unique to nodeKindBadge (doc-row glyphs use rounded-lg + h-7/h-8, not px-2 py-0.5).
-	if !strings.Contains(body, "px-2 py-0.5") {
-		t.Errorf("projekte group header missing node kind badge (px-2 py-0.5 marker); body=%.800s", body)
-	}
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: cookieVal})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec.Header().Get("Location"), rec.Code
 }

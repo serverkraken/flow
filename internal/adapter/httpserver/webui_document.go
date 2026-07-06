@@ -162,15 +162,17 @@ func (s *Server) handleWebDocPin(w http.ResponseWriter, r *http.Request) {
 	_ = webui.DocumentFragment(vm).Render(r.Context(), w)
 }
 
-// wissenCategoryHrefAndLabel is no longer used by the document page itself
-// (Lesesaal Spine replaces the old "Zurück zu Kategorie" breadcrumb), but
-// webui_editor.go still uses it for the editor's own "back to category"
-// link — kept for that caller (Bestand gewinnt; rg-verified).
-func wissenCategoryHrefAndLabel(doc domain.Document) (string, string) {
-	if cat, ok := webui.WissenCategoryForType(doc.Type); ok {
-		return cat.Href, cat.LabelKey
+// wissenShelfHref is no longer used by the document page itself (Lesesaal
+// Spine replaces the old "Zurück zu Kategorie" breadcrumb), but
+// webui_editor.go still uses it as the post-delete redirect target — kept
+// for that caller (Bestand gewinnt; rg-verified). Replaces the old
+// wissenCategoryHrefAndLabel now that Wissen groups documents by type-shelf
+// (Task 7) instead of the four-way daily/projekte/frei/system split.
+func wissenShelfHref(doc domain.Document) string {
+	if shelf, ok := webui.WissenShelfForType(doc.Type); ok {
+		return "/wissen/typ?type=" + shelf.TypeKey
 	}
-	return "/wissen", "wissen.title"
+	return "/wissen"
 }
 
 func truncateError(s string) string {

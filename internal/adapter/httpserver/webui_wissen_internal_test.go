@@ -44,65 +44,52 @@ func TestRenderSnippet_StrayStentinelDropped(t *testing.T) {
 	}
 }
 
-func TestEncodeListQuery(t *testing.T) {
+func TestWissenQueryString(t *testing.T) {
 	tests := []struct {
-		name string
-		tags []string
-		q    string
-		want string
+		name    string
+		typeKey string
+		tags    []string
+		q       string
+		want    string
 	}{
-		{"empty", nil, "", ""},
-		{"q only", nil, "foo", "?q=foo"},
-		{"tags only", []string{"go"}, "", "?tag=go"},
-		{"tags and q", []string{"go"}, "bar", "?q=bar&tag=go"},
+		{"empty", "", nil, "", ""},
+		{"q only", "", nil, "foo", "?q=foo"},
+		{"tags only", "", []string{"go"}, "", "?tag=go"},
+		{"tags and q", "", []string{"go"}, "bar", "?q=bar&tag=go"},
+		{"type only", "daily", nil, "", "?type=daily"},
+		{"type and tags and q", "daily", []string{"go"}, "bar", "?q=bar&tag=go&type=daily"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := wissenEncodeListQuery(tc.tags, tc.q)
+			got := wissenQueryString(tc.typeKey, tc.tags, tc.q)
 			if got != tc.want {
-				t.Errorf("wissenEncodeListQuery(%v, %q) = %q, want %q", tc.tags, tc.q, got, tc.want)
+				t.Errorf("wissenQueryString(%q, %v, %q) = %q, want %q", tc.typeKey, tc.tags, tc.q, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestEncodeTagQuery(t *testing.T) {
-	tests := []struct {
-		name string
-		tags []string
-		want string
-	}{
-		{"nil", nil, ""},
-		{"empty", []string{}, ""},
-		{"one tag", []string{"go"}, "?tag=go"},
-		{"two tags", []string{"go", "tui"}, "?tag=go&tag=tui"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := wissenEncodeTagQuery(tc.tags)
-			if got != tc.want {
-				t.Errorf("wissenEncodeTagQuery(%v) = %q, want %q", tc.tags, got, tc.want)
-			}
-		})
-	}
-}
-
-func TestToggleTagHref(t *testing.T) {
+func TestToggledTags(t *testing.T) {
 	tests := []struct {
 		name   string
 		active []string
 		tag    string
-		want   string
+		want   []string
 	}{
-		{"add to empty", nil, "go", "/wissen?tag=go"},
-		{"remove only tag", []string{"go"}, "go", "/wissen"},
-		{"add second tag", []string{"go"}, "tui", "/wissen?tag=go&tag=tui"},
+		{"add to empty", nil, "go", []string{"go"}},
+		{"remove only tag", []string{"go"}, "go", nil},
+		{"add second tag", []string{"go"}, "tui", []string{"go", "tui"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := wissenToggleTagHref("/wissen", tc.active, tc.tag)
-			if got != tc.want {
-				t.Errorf("wissenToggleTagHref(%v, %q) = %q, want %q", tc.active, tc.tag, got, tc.want)
+			got := toggledTags(tc.active, tc.tag)
+			if len(got) != len(tc.want) {
+				t.Fatalf("toggledTags(%v, %q) = %v, want %v", tc.active, tc.tag, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("toggledTags(%v, %q) = %v, want %v", tc.active, tc.tag, got, tc.want)
+				}
 			}
 		})
 	}
