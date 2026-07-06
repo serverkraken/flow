@@ -34,10 +34,13 @@ templ documentOuter(vm DocumentVM) {
 
 // DocumentFragment is the Lesesaal document page (Mockup Z.677–800): the
 // path Spine (".up" crumbs + title), the Provenance row (actor/time/path/
-// reading time + edit/pin/delete), the `.read` grid (prose + docrail), and
-// the delete ConfirmDialog. The docrail carries only the ToC block in this
-// slice — the Verweise block is Task 6, the "Im Agenten-Kontext" block is
-// deliberately L5 (Anpinnen is the only L3 context interaction).
+// reading time + edit/pin), and the `.read` grid (prose + docrail). The
+// docrail carries only the ToC block in this slice — the Verweise block is
+// Task 6, the "Im Agenten-Kontext" block is deliberately L5 (Anpinnen is the
+// only L3 context interaction). Delete lives on the edit page (editor.templ,
+// edit mode only), not here — matches the Mockup (Z.688–695: only Bearbeiten
+// + Anpinnen) and the same L2 doctrine already applied to nodes ("Move/
+// Status/Delete auf der Edit-Seite").
 templ DocumentFragment(vm DocumentVM) {
 	<article id="document-fragment">
 		<div class="spine">
@@ -88,14 +91,6 @@ templ DocumentFragment(vm DocumentVM) {
 						{ components.T(ctx, "document.pin") }
 					}
 				</button>
-				<button
-					type="button"
-					data-dialog-open={ "del-" + vm.ID }
-					class="btn btn-q btn-s"
-					aria-label={ components.T(ctx, "common.delete") }
-				>
-					<span aria-hidden="true">x</span>
-				</button>
 			</div>
 			if vm.Embed != nil {
 				@DocumentEmbedBadge(vm.ID, *vm.Embed)
@@ -107,17 +102,6 @@ templ DocumentFragment(vm DocumentVM) {
 				@components.Toc("toc-doc")
 			</aside>
 		</div>
-		@components.ConfirmDialog(components.ConfirmSpec{
-			ID:              "del-" + vm.ID,
-			TitleKey:        "wissen.delete.title",
-			BodyKey:         "wissen.delete.body",
-			ConfirmLabelKey: "common.delete",
-			ConfirmAttrs: templ.Attributes{
-				"hx-post":   "/wissen/" + vm.ID + "/delete",
-				"hx-target": "body",
-				"type":      "button",
-			},
-		})
 	</article>
 }
 

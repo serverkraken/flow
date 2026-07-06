@@ -33,15 +33,33 @@ templ editorOuter(vm EditorVM) {
 			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, vm.HeadingKey()) }</h1>
 		</div>
 		if vm.Editing() {
-			<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
-				{ components.T(ctx, "common.cancel") }
-			</a>
+			<div class="flex items-center gap-3">
+				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "del-" + vm.ID }>
+					{ components.T(ctx, "common.delete") }
+				</button>
+				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
+					{ components.T(ctx, "common.cancel") }
+				</a>
+			</div>
 		} else {
 			<a href="/wissen" class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
 				{ components.T(ctx, "common.cancel") }
 			</a>
 		}
 	</header>
+	if vm.Editing() {
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID:              "del-" + vm.ID,
+			TitleKey:        "wissen.delete.title",
+			BodyKey:         "wissen.delete.body",
+			ConfirmLabelKey: "common.delete",
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/wissen/" + vm.ID + "/delete",
+				"hx-target": "body",
+				"type":      "button",
+			},
+		})
+	}
 	if vm.Err != "" {
 		<p class="mb-5 rounded-2xl bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}

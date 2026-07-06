@@ -146,6 +146,51 @@ func TestWebEditorCreate_ParsesTags(t *testing.T) {
 	}
 }
 
+// TestEditorEditModeHasDeleteConfirmDialog covers the Task 5 fix (post-review):
+// Delete moved off the Lesesaal document view page to the edit page, edit
+// mode only — matching the Mockup (Z.688–695: the document page shows only
+// Bearbeiten + Anpinnen) and the same L2 doctrine already applied to nodes
+// ("Move/Status/Delete auf der Edit-Seite"). The trigger + ConfirmDialog use
+// the shared component (no native browser confirm/alert popup); the new-doc
+// form must not show a delete affordance at all (nothing to delete yet).
+func TestEditorEditModeHasDeleteConfirmDialog(t *testing.T) {
+	srv, _, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "doc-1", OwnerID: "u1", Type: domain.DocFree, Path: "notes/edit",
+		Title: "Edit Me", Body: "body",
+	})
+
+	editReq := authedEditorRequest(http.MethodGet, "/wissen/doc-1/bearbeiten", nil)
+	editReq.SetPathValue("id", "doc-1")
+	editRec := httptest.NewRecorder()
+	srv.handleWebEditorEdit(editRec, editReq)
+	editBody := editRec.Body.String()
+	if editRec.Code != http.StatusOK {
+		t.Fatalf("edit editor code=%d body=%.400s", editRec.Code, editBody)
+	}
+	for _, want := range []string{
+		`data-dialog-open="del-doc-1"`,
+		`<dialog id="del-doc-1"`,
+		`hx-post="/wissen/doc-1/delete"`,
+	} {
+		if !strings.Contains(editBody, want) {
+			t.Fatalf("edit editor missing delete affordance %q: %.800s", want, editBody)
+		}
+	}
+
+	newReq := authedEditorRequest(http.MethodGet, "/wissen/neu", nil)
+	newRec := httptest.NewRecorder()
+	srv.handleWebEditorNew(newRec, newReq)
+	newBody := newRec.Body.String()
+	if newRec.Code != http.StatusOK {
+		t.Fatalf("new editor code=%d body=%.400s", newRec.Code, newBody)
+	}
+	if strings.Contains(newBody, `data-dialog-open="del-`) || strings.Contains(newBody, "<dialog id=\"del-") {
+		t.Fatalf("new-doc editor must not show a delete affordance (nothing to delete yet): %.400s", newBody)
+	}
+}
+
 // TestEditorKristallGlassAndField verifies the editor form + preview run on
 // the Kristall glass surface and the shared `.field` input class, per K4
 // Task 5: form container carries `glass` (not `bg-surface`), every

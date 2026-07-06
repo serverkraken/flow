@@ -20,26 +20,19 @@ func TestDocumentFragment_LesesaalSpineProvAndRail(t *testing.T) {
 		Crumbs: []DocCrumb{{Label: "RTL Extern", Href: "/nodes/e1"}, {Label: "backstage", Href: "/nodes/r1"}},
 	}
 	out := renderToBuf(t, testCtx(t), DocumentFragment(vm))
-	for _, want := range []string{`class="spine"`, `class="prov"`, "Claude", "docs/gitlab-token-integration", "18", `class="read"`, `class="docrail"`, "data-toc-nav", "/wissen/d1/pin"} {
+	for _, want := range []string{`class="spine"`, `class="prov"`, `class="provref"`, "Claude", "docs/gitlab-token-integration", "18", `class="read"`, `class="docrail"`, "data-toc-nav", "/wissen/d1/pin"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("doc fragment misses %q:\n%s", want, out)
 		}
 	}
-	// Scope the Kristall-remnant check to everything BEFORE the shared
-	// ConfirmDialog markup (Delete stays on this page — see
-	// TestWebWissenDocumentView in httpserver — via the pre-existing,
-	// unrestyled components.ConfirmDialog/BtnDanger). That shared component
-	// legitimately carries "shadow-soft" on its danger button (button.templ)
-	// on every confirm dialog across the whole app; it is out of scope for
-	// this task, exactly like the existing webui_document_test.go precedent
-	// that scopes its own glass/bg-surface checks around the same dialog.
-	ownContent := out
-	if i := strings.Index(out, `<dialog id="del-`); i >= 0 {
-		ownContent = out[:i]
-	}
-	for _, gone := range []string{"glass", "shadow-soft", "font-display", "kindToneClass"} {
-		if strings.Contains(ownContent, gone) {
-			t.Fatalf("kristall remnant %q still present outside the shared ConfirmDialog:\n%s", gone, ownContent)
+	// Fixed after review: Delete moved off the document page entirely (to the
+	// edit page, editor.templ — see TestEditorEditModeHasDeleteConfirmDialog),
+	// matching the Mockup (Z.688–695: only Bearbeiten + Anpinnen). No
+	// ConfirmDialog/BtnDanger lives here anymore, so the whole fragment can be
+	// checked directly without any scoping.
+	for _, gone := range []string{"glass", "shadow-soft", "font-display", "kindToneClass", "data-dialog-open=\"del-", "<dialog"} {
+		if strings.Contains(out, gone) {
+			t.Fatalf("kristall/delete remnant %q still present:\n%s", gone, out)
 		}
 	}
 }

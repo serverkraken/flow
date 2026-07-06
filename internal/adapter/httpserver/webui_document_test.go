@@ -72,45 +72,30 @@ func TestWebWissenDocumentView(t *testing.T) {
 			t.Fatalf("GET /wissen/target missing %q in %.1200s", want, body)
 		}
 	}
-	// Lesesaal L3 (Task 5): no Kristall chrome left on the swapped fragment.
-	// Scope the negative check to everything BEFORE the shared ConfirmDialog
-	// markup — that shared component's BtnDanger button legitimately still
-	// carries its own "shadow-soft" (button.templ, app-wide, out of scope).
+	// Lesesaal L3 (Task 5, fixed after review): the document view page itself
+	// no longer carries a ConfirmDialog at all — Delete moved to the edit
+	// page (editor.templ, edit mode only; see TestEditorEditModeHasDeleteConfirmDialog
+	// in webui_editor_test.go) to match the Mockup (Z.688–695: only
+	// Bearbeiten + Anpinnen) and the same L2 doctrine already applied to
+	// nodes. So the whole document-fragment article can be checked directly
+	// for Kristall remnants, no ConfirmDialog scoping needed anymore.
 	fragStart := strings.Index(body, `id="document-fragment"`)
-	dialogStart := strings.Index(body, `<dialog id="del-target"`)
-	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
-		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
-	}
-	swappedBlock := body[fragStart:dialogStart]
-	for _, gone := range []string{"glass", "bg-surface", "shadow-soft", "font-display"} {
-		if strings.Contains(swappedBlock, gone) {
-			t.Errorf("Dokument meta/action chrome should not carry Kristall %q, got swapped block:\n%s", gone, swappedBlock)
-		}
-	}
-	// Also verify the read/prose/docrail region (after ConfirmDialog closes)
-	// stays Kristall-free.
-	dialogEnd := strings.Index(body, `</dialog>`)
 	articleEnd := strings.Index(body, `</article>`)
-	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
-		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
+	if fragStart < 0 || articleEnd < 0 || articleEnd < fragStart {
+		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
 	}
-	treeBlock := body[dialogEnd:articleEnd]
-	for _, gone := range []string{"glass", "bg-surface", "shadow-soft"} {
-		if strings.Contains(treeBlock, gone) {
-			t.Errorf("Read/prose/docrail should not carry Kristall %q, got block:\n%s", gone, treeBlock)
+	fragment := body[fragStart:articleEnd]
+	for _, gone := range []string{"glass", "bg-surface", "shadow-soft", "font-display", "data-dialog-open=\"del-"} {
+		if strings.Contains(fragment, gone) {
+			t.Errorf("Document fragment should not carry Kristall/delete remnant %q, got fragment:\n%s", gone, fragment)
 		}
 	}
-	// Edit/delete/pin actions (structure, hrefs, hx-attrs) must still be
-	// present after the restyle — Delete stays reachable from this page
-	// (Bestand ConfirmDialog), only its chrome moved to named .btn classes.
-	if !strings.Contains(body, `data-dialog-open="del-target"`) {
-		t.Errorf("expected delete confirm-dialog trigger to survive the restyle, got:\n%s", body)
-	}
+	// Edit/pin actions (structure, hrefs, hx-attrs) must still be present.
 	if !strings.Contains(body, `id="document-fragment"`) {
 		t.Errorf("expected DocumentFragment structure intact, got:\n%s", body)
 	}
-	if !strings.Contains(body, `hx-post="/wissen/target/delete"`) {
-		t.Errorf("expected delete ConfirmDialog hx-post intact, got:\n%s", body)
+	if strings.Contains(body, `hx-post="/wissen/target/delete"`) {
+		t.Errorf("delete must no longer be reachable from the document view page, got:\n%s", body)
 	}
 }
 

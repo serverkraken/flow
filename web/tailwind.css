@@ -537,6 +537,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .prov { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: rgb(var(--meta)); }
   .prov .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
   .prov .dotsep { color: rgb(var(--hair2)); }
+  /* agy#8: ein sehr langer UpdatedByRef (MCP-Client-String) darf die
+     Prov-Zeile nicht sprengen — ellipsiert, voller Wert via title-Attribut. */
+  .provref { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
   /* Wissen: große Suche + Regal-Zeilen */
   .bigsearch { display: flex; align-items: center; gap: 14px; margin-top: 26px; border: 1.5px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 16px 20px; }
   .bigsearch input { flex: 1; min-width: 0; border: none; outline: none; font: inherit; font-size: 16.5px; background: none; color: rgb(var(--ink)); }
@@ -589,6 +592,7 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .frame svg { max-width: none; }
   figure .frame { padding: 14px; }
   .prov .mono { overflow-wrap: anywhere; }
+  .provref { max-width: 140px; }
 }
 
 @layer components {

@@ -27,38 +27,21 @@ func TestWebDocumentView_EmbedBadgeFailedShowsRetry(t *testing.T) {
 	if !strings.Contains(body, "/wissen/d1/reembed") {
 		t.Fatalf("expected /wissen/d1/reembed retry form, got %.600s", body)
 	}
-	// Lesesaal L3 (Task 5): the retry button chrome is now a named
-	// `.btn.btn-q.btn-s` (DocumentEmbedBadge, document.templ), NOT the old
-	// hand-rolled glass pill. Scope the negative check to the swapped block
-	// (fragment root up to the shared, untouched ConfirmDialog markup) since
-	// that shared component's BtnDanger button legitimately still carries
-	// its own "shadow-soft" (button.templ, app-wide, out of scope here).
+	// Lesesaal L3 (Task 5, fixed after review): the document view page no
+	// longer carries a ConfirmDialog at all (Delete moved to the edit page),
+	// so the whole fragment can be checked directly — no scoping needed.
 	fragStart := strings.Index(body, `id="document-fragment"`)
-	dialogStart := strings.Index(body, `<dialog id="del-d1"`)
-	if fragStart < 0 || dialogStart < 0 || dialogStart < fragStart {
-		t.Fatalf("could not locate document-fragment/ConfirmDialog markers in body: %.1200s", body)
-	}
-	swappedBlock := body[fragStart:dialogStart]
-	if !strings.Contains(swappedBlock, `class="btn btn-q btn-s"`) {
-		t.Errorf("expected reembed retry button to use the named .btn.btn-q.btn-s class, got swapped block:\n%s", swappedBlock)
-	}
-	for _, gone := range []string{"glass", "bg-surface"} {
-		if strings.Contains(swappedBlock, gone) {
-			t.Errorf("reembed retry button should not use %q chrome, got swapped block:\n%s", gone, swappedBlock)
-		}
-	}
-	// Also verify the toc/prose region (after ConfirmDialog closes) stays
-	// glass-free. If toc.templ or the prose wrapper regress to glass/
-	// bg-surface, this assertion must catch it.
-	dialogEnd := strings.Index(body, `</dialog>`)
 	articleEnd := strings.Index(body, `</article>`)
-	if dialogEnd < 0 || articleEnd < 0 || articleEnd < dialogEnd {
-		t.Fatalf("could not locate </dialog> or </article> markers in body: %.1200s", body)
+	if fragStart < 0 || articleEnd < 0 || articleEnd < fragStart {
+		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
 	}
-	treeBlock := body[dialogEnd:articleEnd]
+	fragment := body[fragStart:articleEnd]
+	if !strings.Contains(fragment, `class="btn btn-q btn-s"`) {
+		t.Errorf("expected reembed retry button to use the named .btn.btn-q.btn-s class, got fragment:\n%s", fragment)
+	}
 	for _, gone := range []string{"glass", "bg-surface"} {
-		if strings.Contains(treeBlock, gone) {
-			t.Errorf("Toc/prose should not use %q, got block:\n%s", gone, treeBlock)
+		if strings.Contains(fragment, gone) {
+			t.Errorf("document fragment should not use %q chrome, got fragment:\n%s", gone, fragment)
 		}
 	}
 }
