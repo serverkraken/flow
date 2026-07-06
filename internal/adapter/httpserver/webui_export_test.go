@@ -76,21 +76,41 @@ func TestWebExportHome(t *testing.T) {
 	if !strings.Contains(body, "export") {
 		t.Fatalf("expected 'export' nav link in body, got: %.200s", body)
 	}
-	// The three download anchors (CSV/JSON/MD) MUST stay real <a hx-boost="false">
-	// links so the browser performs a real file download instead of htmx
-	// boosting the navigation away (project lesson: hx-boost swallows it).
-	if got := strings.Count(body, `hx-boost="false"`); got < 3 {
-		t.Errorf("expected at least 3 hx-boost=\"false\" download anchors, got %d in: %.800s", got, body)
-	}
-	for _, format := range []string{"format=csv", "format=json", "format=md"} {
-		if !strings.Contains(body, format) {
-			t.Errorf("expected download link for %q in body", format)
+	// L4 Task 6: Export is now a full Lesesaal page (pagehead/panel), not the
+	// retired Kristall glass card.
+	content := nonDialogContent(body)
+	for _, want := range []string{"pagehead", "panel", "spine", "‹ Zeit"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("Export page-flow content missing %q, got:\n%.800s", want, content)
 		}
 	}
-	// The non-download "anzeigen" submit button must be a components.Button
-	// (BtnPrimary carries the distinctive gradient+font-bold marker classes).
-	if !strings.Contains(body, "font-bold") {
-		t.Error("expected 'anzeigen' submit to render via components.Button (BtnPrimary, font-bold marker)")
+	// "font-display" also appears in the shared AppShell topbar logo mark
+	// (unrelated to Export content, see Woche/Historie precedent), so it's
+	// excluded here and checked below via the Export-owned preview fragment.
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl"} {
+		if strings.Contains(content, unwanted) {
+			t.Errorf("Export page-flow content must not render retired Kristall chrome %q, got:\n%.800s", unwanted, content)
+		}
+	}
+	// The download form MUST stay a real native GET (hx-boost="false") so the
+	// browser performs a real file download instead of htmx boosting the
+	// navigation away (project lesson: hx-boost swallows it) — one form now
+	// carries the Format-Radio-Zeile (csv/json/md) instead of three anchors.
+	if !strings.Contains(body, `hx-boost="false"`) {
+		t.Error("expected the download form to carry hx-boost=\"false\"")
+	}
+	if !strings.Contains(body, `action="/api/v1/export"`) {
+		t.Error("expected the download form to post to /api/v1/export")
+	}
+	for _, format := range []string{`value="csv"`, `value="json"`, `value="md"`} {
+		if !strings.Contains(body, format) {
+			t.Errorf("expected a format radio option %q in body", format)
+		}
+	}
+	// Exactly one Primär-Button (Download) on the page — the "anzeigen"
+	// preview trigger is a quiet .btn-q, not a second primary CTA.
+	if strings.Count(body, "btn-pri") != 1 {
+		t.Errorf("expected exactly one btn-pri (Download), got %d in: %.800s", strings.Count(body, "btn-pri"), body)
 	}
 }
 
@@ -142,11 +162,17 @@ func TestWebExportPreview(t *testing.T) {
 	if !strings.Contains(body, "2h 00m") {
 		t.Errorf("expected seeded duration '2h 00m' in fragment body, got: %.400s", body)
 	}
-	// The summary table must render on the glass treatment.
+	// The summary table renders as .tblwrap + .prose table (L3-Bestand), not
+	// the retired rounded-2xl glass shadow-soft card.
 	if !strings.Contains(body, "<table") {
 		t.Error("expected the summary <table> to render in the preview fragment")
 	}
-	if !strings.Contains(body, "glass") {
-		t.Error("expected the summary table wrapper to carry a glass treatment class")
+	if !strings.Contains(body, "tblwrap") {
+		t.Error("expected the summary table to be wrapped in .tblwrap")
+	}
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-2xl", "font-display"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("preview fragment must not render retired Kristall chrome %q, got:\n%.600s", unwanted, body)
+		}
 	}
 }

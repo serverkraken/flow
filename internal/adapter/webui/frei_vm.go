@@ -6,6 +6,11 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+// FreiRowVM.Hue feeds wocheDayOffTypeChip (woche_vm.go) for the row's
+// .typechip/.tc-* tone — the same semantic day-off-kind→chip mapping Woche
+// and Historie already share (Farb-Gesetz §7: fixed, semantic type colors,
+// not a per-row hue wash). No local chip-color helper here anymore.
+
 // FreiVM is the view model for the Frei page: a day-off capture form, the
 // own-entries + holidays list for the year, and the settings card (ICS feed +
 // Bundesland).
@@ -52,17 +57,6 @@ func freiKinds() []FreiKindOption {
 		out = append(out, FreiKindOption{Value: k, Label: k.LabelDe()})
 	}
 	return out
-}
-
-// freiKindChip maps a day-off hue to its pill wash+text utility (whitelisted),
-// mirroring the Woche day-off chip look.
-func freiKindChip(hue string) string {
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + hue + "/10 text-" + hue
-	default:
-		return "bg-blue/10 text-blue"
-	}
 }
 
 // freiDeleteVals builds the hx-vals JSON for a day-off delete confirm action.
