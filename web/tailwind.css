@@ -560,6 +560,27 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .row .right { text-align: right; flex-shrink: 0; }
   .row .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
   .row .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
+
+  /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
+  /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */
+  .narrow { max-width: 860px; margin: 0 auto; }
+  /* Jetzt-Panelzeile (zweite Fläche, Zwei-Flächen-Regel) */
+  .panelrow { background: rgb(var(--panel)); border-radius: 14px; padding: 13px 16px; border-bottom: none; margin-top: 12px; }
+  /* Zeit-Wochenskala: vertikale Balken (horizontale heuteWeekRows/wocheDayBarStyle bleiben unberührt) */
+  .weekbar { display: flex; gap: 26px; align-items: flex-end; padding: 20px 18px 14px; background: rgb(var(--panel)); border-radius: 14px; margin-top: 14px; overflow-x: auto; }
+  .day { flex: 1; min-width: 36px; text-align: center; }
+  .day .bar { height: 74px; display: flex; align-items: flex-end; justify-content: center; }
+  .day .bar i { display: block; width: 22px; border-radius: 3px 3px 0 0; background: rgb(var(--hair2)); min-height: 3px; }
+  .day.has .bar i { background: rgb(var(--accent)); }
+  .day.today .bar i { background: rgb(var(--live-bright)); }
+  .day .d { margin-top: 8px; font-size: 11.5px; color: rgb(var(--faint)); }
+  .day .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--meta)); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  /* Zeit-Ledger Von–Bis (Mockup Z.60–62) */
+  .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .dim { color: rgb(var(--meta)); }
+  .led-when { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; color: rgb(var(--meta)); font-size: 13px; flex-shrink: 0; }
+  /* Soll-Zeile in einer .sect-h (Mockup Z.870) — .instr .note ist ein anderer Scope */
+  .sect-h .note { margin-left: auto; font-size: 12.5px; color: rgb(var(--meta)); }
 }
 
 @media (max-width: 960px) {
@@ -594,6 +615,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   figure .frame { padding: 14px; }
   .prov .mono { overflow-wrap: anywhere; }
   .provref { max-width: 140px; }
+  /* Lesesaal L4 (Mockup Z.311/314): weekbar-Balken enger, pagehead h1 kleiner */
+  .weekbar { gap: 10px; }
+  .pagehead h1 { font-size: 27px; }
 }
 
 @layer components {

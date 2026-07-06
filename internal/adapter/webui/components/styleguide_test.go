@@ -47,3 +47,16 @@ func TestStyleguide_HasLesesaalL3Section(t *testing.T) {
 		}
 	}
 }
+
+func TestStyleguide_HasLesesaalL4Section(t *testing.T) {
+	var sb strings.Builder
+	if err := components.StyleguidePage().Render(testCtx(t), &sb); err != nil {
+		t.Fatal(err)
+	}
+	out := sb.String()
+	for _, want := range []string{"panelrow", "weekbar", "led-when"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Styleguide misses Lesesaal-L4 demo of %q", want)
+		}
+	}
+}
