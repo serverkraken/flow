@@ -52,6 +52,9 @@ func TestDocumentFragmentDegradesProvRowWithoutActor(t *testing.T) {
 			t.Fatalf("degraded prov row misses %q:\n%s", want, out)
 		}
 	}
+	if strings.Contains(out, `class="ava`) {
+		t.Fatalf("no actor known: no avatar (ava) may render at all — degrade to time · path · readtime:\n%s", out)
+	}
 }
 
 // TestDocumentFragmentPinButtonLabelReflectsPinned covers the Anpinnen/

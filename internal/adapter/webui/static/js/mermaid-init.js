@@ -22,10 +22,19 @@
       window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, flowchart: { htmlLabels: false } });
       pending.forEach(function (el) {
         el.setAttribute('data-mm-done', '1');
-        if ((el.textContent || '').length > MAX) el.closest('.mermaid-figure').classList.add('mermaid-error');
+        var figure = el.closest('.mermaid-figure');
+        var src = el.textContent || '';
+        if (src.length > MAX) { figure.classList.add('mermaid-error'); return; }
+        // mermaid.parse(..., {suppressErrors:true}) resolves to `false` on a
+        // syntax error instead of throwing/rendering mermaid's own bomb-SVG —
+        // validate BEFORE run() ever touches the element, so an invalid
+        // diagram never gets its <pre> replaced: the source stays readable
+        // and only the warn-styled .mermaid-error state is added.
+        window.mermaid.parse(src, { suppressErrors: true }).then(function (ok) {
+          if (!ok) { figure.classList.add('mermaid-error'); return; }
+          return window.mermaid.run({ nodes: [el], suppressErrors: true });
+        }).catch(function () { figure.classList.add('mermaid-error'); });
       });
-      try { window.mermaid.run({ querySelector: 'pre.mermaid[data-mm-done]:not(.mermaid-error pre)', suppressErrors: true }); }
-      catch (e) { markError(); }
     });
   }
   if (document.readyState !== 'loading') render(); else document.addEventListener('DOMContentLoaded', render);

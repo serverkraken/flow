@@ -59,8 +59,6 @@ templ DocumentFragment(vm DocumentVM) {
 					@components.AgentAvatar(Initials(vm.UpdatedByRef), "av-28")
 				} else if vm.UpdatedByKind != "" {
 					@components.Avatar(Initials(vm.UpdatedByRef), AvatarTone(vm.UpdatedByRef), "av-28")
-				} else {
-					@components.AgentAvatar("", "av-28")
 				}
 				<span>
 					if vm.UpdatedByKind != "" {
