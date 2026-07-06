@@ -37,7 +37,6 @@ type HistorieVM struct {
 	WeekStart   time.Time
 	RangeLabel  string // "16.–22.06.2026" (week) or "Juni 2026" (month)
 	MonthLabel  string // "Juni 2026" eyebrow for month view
-	Eyebrow     string // "Worktime · Juni 2026" — no longer rendered (L4: static pagehead eyebrow), kept as the unchanged data-source field
 	PrevHref    string
 	NextHref    string
 	ThisHref    string // "Diese Woche"/"Dieser Monat" jump ("" when already current)

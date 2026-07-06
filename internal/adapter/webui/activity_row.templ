@@ -2,55 +2,11 @@ package webui
 
 import "github.com/serverkraken/flow/internal/adapter/webui/components"
 
-// activityFeedRow is the ONE shared activity/pulse row (Home feed + Cockpit
-// pulse), rendering ActivityRowVM. It always stacks: actor + relative time on
-// the top line, then verb + target pill + label on a flex-wrap detail line so
-// the pill drops to a new line WITHIN the card instead of overflowing at
-// narrow widths (K5 M1). showAgentChip adds the AGENT badge for agent actors
-// (pulse only); onPrefix inserts the "auf/on" word before the pill (Home feed).
-templ activityFeedRow(row ActivityRowVM, showAgentChip bool, onPrefix bool) {
-	<li class="px-4 py-3 text-[.88rem]">
-		<div class="flex items-baseline gap-2">
-			<span class="shrink-0 text-muted">@components.ActorGlyph(row.ActorKind)</span>
-			<span class="min-w-0 flex-1 truncate font-medium text-body">{ row.ActorRef }</span>
-			<span class="shrink-0 text-[.75rem] text-faint tnum">{ row.RelTime }</span>
-		</div>
-		<div class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 pl-6">
-			if showAgentChip && row.ActorKind == "agent" {
-				<span class="inline-flex shrink-0 items-center rounded-md border border-purple/40 px-1.5 py-0.5 text-[.62rem] font-semibold uppercase text-purple">{ components.T(ctx, "cockpit.pulse.agent") }</span>
-			}
-			<span class="text-muted">{ components.T(ctx, row.VerbKey) }</span>
-			if row.TargetName != "" {
-				if onPrefix {
-					<span class="text-muted">{ components.T(ctx, "activity.on") }</span>
-				}
-				@activityTargetPill(row)
-			}
-			if row.Href != "" {
-				<a href={ templ.SafeURL(row.Href) } class="min-w-0 truncate font-medium text-blue hover:underline">{ row.Label }</a>
-			} else if row.Label != "" {
-				<span class="min-w-0 truncate text-body">{ row.Label }</span>
-			}
-		</div>
-	</li>
-}
-
-// activityTargetPill renders the form-coded target of a session activity row:
-// the node name, linking to the node when it still exists — glyph-free and
-// kind-tone-free (Spec §7 Farb-Gesetz: color lives only in the avatar, kinds
-// stay neutral). Moved here from home.templ (K5 M1 — shared by feed+pulse).
-templ activityTargetPill(row ActivityRowVM) {
-	if row.TargetHref != "" {
-		<a href={ templ.SafeURL(row.TargetHref) } class="targetlink">{ row.TargetName }</a>
-	} else {
-		<span class="targetlink">{ row.TargetName }</span>
-	}
-}
-
 // pulseRow is the ONE Lesesaal Puls row (promoted here from cockpit_main.templ
 // in L4 Task 2 — L2's cockpitPulseRow, moved verbatim so the L4 Schreibtisch
 // "Puls" section and the cockpit's subtree-filtered Puls section share the
-// exact same row, NOT activityFeedRow which is Kristall-era and Home-only):
+// exact same row; the Kristall-era Home-only activityFeedRow it replaced was
+// retired in L4 Task 8 — Wiring-Gate, zero consumers left):
 // Avatar or AgentAvatar, who/agentname + verb + a glyph-free .targetlink pill
 // for the event's target, and the relative time.
 templ pulseRow(row ActivityRowVM) {

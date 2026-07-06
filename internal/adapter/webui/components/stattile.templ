@@ -16,15 +16,3 @@ templ StatTile(labelKey, value, hue string) {
 		<div class={ "mt-1 font-display text-[1.35rem] font-semibold tnum", valueHue(hue) }>{ value }</div>
 	</div>
 }
-
-// StatTileAccent is the Kristall rollup tile (mockup .rtile): left-aligned,
-// hue accent underline via --ac, optional sub line. sub may be "".
-templ StatTileAccent(labelKey, value, sub, hue string) {
-	<div class="relative overflow-hidden rounded-[18px] glass shadow-soft rtile-ac px-4 pt-4 pb-4" style={ "--ac:var(--" + hue + ")" }>
-		<div class="eyebrow uppercase text-[.62rem] font-bold text-faint">{ T(ctx, labelKey) }</div>
-		<div class={ "mt-1.5 font-display text-[1.45rem] font-semibold leading-tight tnum", valueHue(hue) }>{ value }</div>
-		if sub != "" {
-			<div class="mt-0.5 text-[.68rem] text-muted">{ sub }</div>
-		}
-	</div>
-}
