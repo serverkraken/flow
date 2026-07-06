@@ -8,13 +8,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// TestWocheHome_RendersDayBarsAndTotal verifies GET /woche renders the Woche page
-// on the AppShell with the WOCHE GESAMT banner, the worktime sub-tab strip, the
-// SSE swap container, and per-day bars seeded from sessions in the current week.
-func TestWocheHome_RendersDayBarsAndTotal(t *testing.T) {
+// TestWocheHome_RendersLesesaalChrome verifies GET /woche renders the fully
+// rebuilt Lesesaal Woche page (L4 Task 4): the "‹ Zeit" spine, the pagehead,
+// the weekbar skyline, the Kennzahlen/Statistik .panel/.krow blocks, the SSE
+// swap container, per-day durations — and NONE of the retired Kristall glass
+// chrome (glass/shadow-soft/font-display).
+func TestWocheHome_RendersLesesaalChrome(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
 	// Clock is 2026-06-21 (a Sunday); its ISO-week Monday is 2026-06-15. Seed two
@@ -45,32 +48,56 @@ func TestWocheHome_RendersDayBarsAndTotal(t *testing.T) {
 	}
 	body := rr.Body.String()
 	for _, want := range []string{
-		"Woche gesamt",   // WOCHE GESAMT banner label
-		"progressbar",    // a day bar (role="progressbar")
+		"pagehead",
+		"weekbar",
+		"panel",
+		"krow",
+		"spine",
+		"‹ Zeit", // the spine "up" back-link to /zeit
 		"id=\"content\"", // SSE swap container
 		"sse:session",    // live-reload trigger
 		"/static/app.css",
-		"glass", // Kristall glass chrome (days card + KW-nav pills)
+		"Statistik", // the monthly Burndown/Saldo panel (Offene Entsch. #4)
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Woche home missing %q", want)
+		}
+	}
+	// "font-display" also appears in the shared AppShell topbar logo mark
+	// (unrelated to Woche content), so the Kristall-chrome check is scoped to
+	// glass/shadow-soft only here; the Woche-owned fragment content itself is
+	// checked below via the fragment endpoint.
+	for _, unwanted := range []string{"glass", "shadow-soft"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("Woche home must not render retired Kristall chrome %q, got:\n%.3000s", unwanted, body)
 		}
 	}
 	// The two seeded sessions (8h + 9h) must surface their durations.
 	if !strings.Contains(body, "8h 00m") {
 		t.Errorf("expected Monday bar of 8h 00m, got:\n%s", body)
 	}
-	// KW stepper + day bars must still be present after the glass restyle.
+	// KW stepper + day bars must still be present after the Lesesaal rebuild.
 	if !strings.Contains(body, "KW ") {
 		t.Errorf("expected KW nav label, got:\n%s", body)
 	}
 	if !strings.Contains(body, "&lsaquo;") && !strings.Contains(body, "‹") {
 		t.Errorf("expected the KW '<' stepper glyph, got:\n%s", body)
 	}
-	// The Woche-owned chrome (days card + KW-nav pills) must be glass, not the
-	// old hand-rolled bg-surface/border-line card styling.
-	if strings.Contains(body, "bg-surface border border-line") {
-		t.Errorf("Woche days card / KW nav pills should use glass chrome, not bg-surface border border-line, got:\n%s", body)
+
+	// The Woche-owned fragment (no shared topbar chrome) must not render any
+	// of the retired Kristall classes, including font-display.
+	fragReq, _ := http.NewRequest("GET", "/ui/woche/fragment", nil)
+	fragReq.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	fragRR := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(fragRR, fragReq)
+	if fragRR.Code != http.StatusOK {
+		t.Fatalf("fragment status=%d body=%s", fragRR.Code, fragRR.Body.String())
+	}
+	fragBody := fragRR.Body.String()
+	for _, unwanted := range []string{"glass", "shadow-soft", "font-display"} {
+		if strings.Contains(fragBody, unwanted) {
+			t.Errorf("Woche fragment must not render retired Kristall chrome %q, got:\n%.3000s", unwanted, fragBody)
+		}
 	}
 }
 
@@ -105,5 +132,43 @@ func TestWocheFragment_KWNavClampsForward(t *testing.T) {
 	}
 	if !strings.Contains(body2, "Diese Woche") {
 		t.Errorf("past week should offer the 'Diese Woche' jump")
+	}
+}
+
+// TestWoche_OwnerScoped is the owner-scope negative test for the Woche page
+// (AGENTS.md §Grundsätze — flow is multi-tenant): user B's session must never
+// surface in user A's Woche week totals/day rows.
+func TestWoche_OwnerScoped(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	// u1's own Monday session (so the week isn't simply empty).
+	srv.seedSession(t, "2026-06-15", "09:00", "10:00") // 1h
+
+	// u2's session, same Monday, distinctly larger — must never surface.
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.Local)
+	stop := start.Add(6 * time.Hour)
+	if _, err := srv.ss.Create(context.Background(), domain.WorkSession{
+		ID: "u2-secret", OwnerID: "u2", Start: start, Stop: &stop,
+	}); err != nil {
+		t.Fatalf("seed u2 session: %v", err)
+	}
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/woche", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	// If u2's 6h leaked into u1's Monday total, the day-row .v cell would show
+	// the combined 7h instead of u1's own 1h. Anchored on the .v cell's own
+	// closing tag so this doesn't collide with the (expected, correct) Saldo
+	// line's "−7h 00m" substring (1h logged − 8h target).
+	if strings.Contains(body, "text-muted\">7h 00m</div>") {
+		t.Errorf("owner-scope leak: u1's Woche rendered a day total including u2's 6h session, got:\n%.2000s", body)
+	}
+	if !strings.Contains(body, "text-muted\">1h 00m</div>") {
+		t.Errorf("expected u1's own scoped 1h Monday total, got:\n%.2000s", body)
 	}
 }

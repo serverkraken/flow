@@ -154,6 +154,20 @@ func (s *Server) wocheDataFor(ctx context.Context, u domain.User, weekParam stri
 	}
 	vm.Empty = !anyLogged
 
+	// Statistik panel (Offene Entsch. #4): the monthly Burndown/Saldo glance
+	// metric that used to live on Home now renders here (WocheStatsVM,
+	// wocheStatsPanel) instead of the retired Kristall BurndownBanner.
+	burn, err := s.Stats.Burndown(ctx, u.ID)
+	if err != nil {
+		return webui.WocheVM{}, err
+	}
+	vm.Stats = webui.WocheStatsVM{
+		Total:   webui.FmtVerbose(burn.Total),
+		Target:  webui.FmtVerbose(burn.Target),
+		Saldo:   webui.FmtSaldoVerbose(burn.Saldo),
+		OnTrack: burn.OnTrack,
+	}
+
 	return vm, nil
 }
 

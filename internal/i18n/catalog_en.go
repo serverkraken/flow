@@ -272,7 +272,7 @@ func init() {
 			"week.target":        "Target",
 			"week.weekdays":      "Mon–Fri",
 			// week (Woche) page
-			"woche.eyebrow":     "Worktime · Week overview",
+			"woche.eyebrow":     "Time / Statistics",
 			"woche.pick":        "Choose week",
 			"woche.prev":        "Previous week",
 			"woche.next":        "Next week",
@@ -284,6 +284,11 @@ func init() {
 			"woche.legendUnder": "under goal",
 			"woche.legendToday": "today · running",
 			"woche.weekend":     "Weekend",
+			"woche.logged":      "Logged",
+			"woche.sub":         "%s of %s logged · %s",
+			"woche.statsTitle":  "Statistics",
+			"woche.pace":        "Pace",
+			"zeit.back":         "‹ Time",
 			// today surface
 			"heute.target":      "Daily goal",
 			"heute.balance":     "Balance",
