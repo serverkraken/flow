@@ -39,7 +39,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// resolution + the rail's Kette block.
 	d.Ancestors, _ = s.NodeAncestors.Execute(ctx, u.ID, n.ID)
 	if n.Description != "" {
-		d.DescriptionHTML = webui.RenderDocument(n.Description, func(string) (string, string, bool) { return "", "", false })
+		d.DescriptionHTML, _ = webui.RenderDocument(ctx, n.Description, func(string) (string, string, bool) { return "", "", false })
 	}
 	chain := d.Ancestors
 	if len(chain) == 0 || chain[0].ID != n.ID {

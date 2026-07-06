@@ -34,7 +34,7 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		}
 		return "", "", false
 	}
-	rendered := webui.RenderDocument(doc.Body, resolve)
+	rendered, meta := webui.RenderDocument(r.Context(), doc.Body, resolve)
 
 	refs, err := s.BacklinksDocument.Execute(r.Context(), u.ID, id)
 	if err != nil {
@@ -59,6 +59,7 @@ func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
 		KindTone:         kind.Tone,
 		Title:            doc.Title,
 		HTML:             rendered,
+		HasMermaid:       meta.HasMermaid,
 		CategoryHref:     categoryHref,
 		CategoryLabelKey: categoryLabelKey,
 	}

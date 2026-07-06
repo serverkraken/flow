@@ -1,12 +1,13 @@
 package webui
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
 
 func TestCallout_Note(t *testing.T) {
-	out := string(RenderDocument("> [!NOTE]\n> hello\n", resolveNone))
+	out := string(mustHTML(RenderDocument(context.Background(), "> [!NOTE]\n> hello\n", resolveNone)))
 	if !strings.Contains(out, `class="callout callout-note"`) {
 		t.Fatalf("expected callout-note div, got: %s", out)
 	}
@@ -18,7 +19,7 @@ func TestCallout_Note(t *testing.T) {
 func TestCallout_AllKinds(t *testing.T) {
 	for _, k := range []string{"note", "tip", "warning", "important", "danger"} {
 		src := "> [!" + strings.ToUpper(k) + "]\n> body\n"
-		out := string(RenderDocument(src, resolveNone))
+		out := string(mustHTML(RenderDocument(context.Background(), src, resolveNone)))
 		if !strings.Contains(out, "callout-"+k) {
 			t.Fatalf("kind %s not rendered: %s", k, out)
 		}
@@ -26,7 +27,7 @@ func TestCallout_AllKinds(t *testing.T) {
 }
 
 func TestCallout_PlainBlockquoteUnchanged(t *testing.T) {
-	out := string(RenderDocument("> just a quote\n", resolveNone))
+	out := string(mustHTML(RenderDocument(context.Background(), "> just a quote\n", resolveNone)))
 	if strings.Contains(out, "callout") {
 		t.Fatalf("plain blockquote should not be a callout: %s", out)
 	}

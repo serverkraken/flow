@@ -27,7 +27,7 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 		}
 		return "", "", false
 	}
-	rendered := webui.RenderDocument(bodyMD, resolve)
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.MarkdownPreview(rendered).Render(r.Context(), w)
 }
@@ -191,5 +191,6 @@ func (s *Server) renderEditorPreview(r *http.Request, u domain.User, bodyMD stri
 		}
 		return "", "", false
 	}
-	return webui.RenderDocument(bodyMD, resolve)
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve)
+	return rendered
 }

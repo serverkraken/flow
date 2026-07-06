@@ -218,6 +218,10 @@ func init() {
 			"wissen.toc":                "Inhalt",
 			"wissen.delete.title":       "Dokument löschen?",
 			"wissen.delete.body":        "Das kann nicht rückgängig gemacht werden.",
+			// Mermaid-Figuren im Markdown-Renderer (Lesesaal L3 Task 2)
+			"document.figure.label":   "Abb.",
+			"document.figure.mermaid": "gerendert aus ```mermaid",
+			"document.figure.source":  "Quelle",
 			"embed.ok":                  "Eingebettet",
 			"embed.pending":             "Einbettung geplant",
 			"embed.retrying":            "Einbettung wiederholt",

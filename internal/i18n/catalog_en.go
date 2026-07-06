@@ -210,6 +210,10 @@ func init() {
 			"wissen.toc":                "Contents",
 			"wissen.delete.title":       "Delete document?",
 			"wissen.delete.body":        "This cannot be undone.",
+			// Mermaid figures in the markdown renderer (Lesesaal L3 Task 2)
+			"document.figure.label":   "Fig.",
+			"document.figure.mermaid": "rendered from ```mermaid",
+			"document.figure.source":  "Source",
 			"embed.ok":                  "Embedded",
 			"embed.pending":             "Embedding queued",
 			"embed.retrying":            "Embedding retrying",

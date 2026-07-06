@@ -21,6 +21,10 @@ type DocumentVM struct {
 	DateStr      string
 	Tags         []TagLink
 	HTML         template.HTML
+	// HasMermaid mirrors DocMeta.HasMermaid from RenderDocument — the single
+	// source of truth for whether this document needs mermaid-init.js
+	// (Task 4/5 wire the conditional <script> load off this field).
+	HasMermaid   bool
 	Backlinks    []components.Backlink
 	Embed        *EmbedView
 	CategoryHref     string
