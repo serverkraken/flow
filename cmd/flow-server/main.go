@@ -104,6 +104,14 @@ func run() error {
 		Bus:                bus,
 		Clock:              clock,
 		Dev:                cfg.Dev,
+		// CSPEnforce: flipped to enforcing (Soenne Entsch. #8) after the L3
+		// Task 9 cross-surface smoke (document/Mermaid, Wissen search,
+		// palette, SSE, dialogs, editor preview, projects/cockpit/time)
+		// found zero constructs needing script-src beyond 'self'+nonce — see
+		// security_headers.go and l3-global-constraints.md Entsch. #8. If a
+		// later browser DevTools pass (Soenne-Live-Gate) finds a violation
+		// this static+live-curl audit missed, flip back to false.
+		CSPEnforce: true,
 		StartSession:       usecase.StartSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Tags: tagStore},
 		StopSession:        usecase.StopSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local, Tags: tagStore},
 		ListSessions:       usecase.ListSessions{Sessions: sessionStore, Clock: clock},

@@ -19,6 +19,12 @@ type Server struct {
 	Dev      bool
 	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready
 
+	// CSPEnforce switches the Content-Security-Policy header from
+	// Report-Only (default, false) to enforcing (Lesesaal L3 Task 9,
+	// Soenne Entsch. #8 — flip once the cross-surface smoke shows zero
+	// violations).
+	CSPEnforce bool
+
 	// worktime usecases
 	StartSession      usecase.StartSession
 	StopSession       usecase.StopSession
@@ -298,5 +304,5 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
-	return mux
+	return s.securityHeaders(mux)
 }

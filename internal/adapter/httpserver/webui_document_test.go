@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -113,6 +114,74 @@ func TestWebWissenDocumentView_OwnerScoped(t *testing.T) {
 	body, status := getWissenDocumentAs(t, srv, codec, "u2", "/wissen/secret")
 	if status != http.StatusNotFound {
 		t.Fatalf("u2 GET /wissen/secret status=%d, want 404 (owner-scoped), body=%.400s", status, body)
+	}
+}
+
+// TestWebDocumentView_SanitizerBoundaryEndToEnd is the Task 9 end-to-end
+// smoke for the sanitizer boundary already unit-tested at the RenderDocument
+// level in Task 2 (markdown_test.go: TestRenderDocument_XSSStripped,
+// TestRenderDocument_RawHTMLNeutralized): agent-authored Markdown with
+// <script>, hx-get, onclick and a javascript: href must come out neutralized
+// through the REAL /wissen/{id} HTTP route — the full Server.Routes() chain,
+// including the securityHeaders middleware — not just through the
+// RenderDocument unit under test.
+func TestWebDocumentView_SanitizerBoundaryEndToEnd(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	malicious := strings.Join([]string{
+		"<script>alert(1)</script>",
+		"",
+		`<div hx-get="/evil" onclick="alert(1)">poke</div>`,
+		"",
+		"[click me](javascript:alert(1))",
+	}, "\n")
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "evil", OwnerID: "u1", Type: domain.DocFree, Path: "p/evil",
+		Title: "Evil", Body: malicious, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	cookieVal, err := codec.Issue("u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/wissen/evil", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: cookieVal})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("GET /wissen/evil status=%d", res.StatusCode)
+	}
+	if res.Header.Get("Content-Security-Policy-Report-Only") == "" {
+		t.Fatal("expected the securityHeaders middleware on the real document route too")
+	}
+	raw, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	// Scope the check to the rendered document content, not the whole page —
+	// base.templ legitimately carries <script src="/static/vendor/...">
+	// tags and the nonce'd theme-init/live-timer inline scripts outside the
+	// article; only the agent-authored fragment must be free of the
+	// malicious markers.
+	fragStart := strings.Index(body, `id="document-fragment"`)
+	articleEnd := strings.Index(body, `</article>`)
+	if fragStart < 0 || articleEnd < 0 || articleEnd < fragStart {
+		t.Fatalf("could not locate document-fragment markers in body: %.1200s", body)
+	}
+	fragment := body[fragStart:articleEnd]
+	for _, want := range []string{"<script", "hx-get", "onclick", "javascript:"} {
+		if strings.Contains(fragment, want) {
+			t.Fatalf("agent markdown not neutralized end-to-end, found %q in fragment:\n%s", want, fragment)
+		}
 	}
 }
 
