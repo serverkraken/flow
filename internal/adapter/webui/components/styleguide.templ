@@ -46,6 +46,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgLesesaal())
 	// Lesesaal L2: Rückgrat, Cockpit-Baum, Meta-Spalte, instr-Band
 	@Card("mb-6", sgLesesaalL2())
+	// Lesesaal L3: Lese-Ebene (prose/figure/docrail/prov) + Wissen (bigsearch/shelf)
+	@Card("mb-6", sgLesesaalL3())
 }
 
 templ sgButtons() {
@@ -254,5 +256,98 @@ templ sgLesesaalL2() {
 		<a class="btn btn-pri btn-s" href="#">Timer starten</a>
 		<a class="btn btn-q btn-s" href="#">Nachbuchen</a>
 		<div class="stats">Heute <b>3h 12m</b> · Diese Woche <b>42h 10m</b></div>
+	</div>
+}
+
+// ── Lesesaal L3: Lese-Ebene (prose/figure/docrail/prov) + Wissen ────────────
+
+templ sgLesesaalL3() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L3 — Lese-Ebene &amp; Wissen</h2>
+	<div class="read mb-6">
+		<article class="prose">
+			<p>Ein normaler Absatz eröffnet das Dokument mit ruhigem Fließtext, der die <strong>Lesespalte</strong> auf 680px begrenzt.</p>
+			<blockquote class="lede">Eine Lede fasst den Kontext in einem Satz zusammen, bevor die Details folgen.</blockquote>
+			<h2>Ein Abschnitt mit Haarlinie</h2>
+			<p>Text nach der Überschrift, inklusive einem <a href="#" class="wl">Wikilink</a> auf ein anderes Dokument.</p>
+			<h3>Ein Unterabschnitt</h3>
+			<div class="tblwrap">
+				<table>
+					<thead>
+						<tr><th>Spalte</th><th>Wert</th></tr>
+					</thead>
+					<tbody>
+						<tr><td>Erste Zeile</td><td><code>ok</code></td></tr>
+						<tr><td>Sehr lange Kennung für die Scroll-Probe</td><td>42</td></tr>
+					</tbody>
+				</table>
+			</div>
+			<pre><code>var beispiel = "so sieht ein Codeblock aus"</code></pre>
+			<div class="callout callout-warning">
+				<span class="callout-glyph" aria-hidden="true">!</span>
+				<p class="callout-title">Hinweis</p>
+			</div>
+			<figure>
+				<div class="frame">
+					<svg width="120" height="60" viewBox="0 0 120 60"><rect width="120" height="60" fill="none" stroke="currentColor"></rect></svg>
+				</div>
+				<figcaption><b>Abb. 1</b> — Platzhalter-Figur</figcaption>
+			</figure>
+			<div class="mermaid-error">
+				<p>Diagramm konnte nicht gerendert werden.</p>
+				<pre><code>graph TD; A --&gt; B</code></pre>
+			</div>
+			<details class="mermaid-src">
+				<summary>Quelltext</summary>
+				<pre><code>graph TD; A --&gt; B</code></pre>
+			</details>
+		</article>
+		<aside class="docrail">
+			<div class="blk">
+				<span class="eyebrow">Inhalt</span>
+				<nav class="toc">
+					<a href="#" class="here"><span class="n">01</span>Ein Abschnitt mit Haarlinie</a>
+					<a href="#"><span class="n">02</span>Ein Unterabschnitt</a>
+				</nav>
+			</div>
+			<div class="blk">
+				<span class="eyebrow">Verweise</span>
+				<div class="krow">
+					<span class="n">Rückverlinkt von</span>
+					<span class="v">3</span>
+				</div>
+			</div>
+		</aside>
+	</div>
+	<div class="prov mb-6">
+		<span>Angepinnt von Martin</span>
+		<span class="dotsep">·</span>
+		<span class="mono">/Users/soenne/SourceCode/serverkraken/flow-rebuild-mit-einem-sehr-langen-verschachtelten-pfad-zur-probe</span>
+	</div>
+	<div class="bigsearch mb-4">
+		<span class="ico" aria-hidden="true">⌕</span>
+		<input type="text" placeholder="Wissen durchsuchen…"/>
+		<kbd>⌘K</kbd>
+	</div>
+	<div class="shelf">
+		<a class="row" href="#">
+			<div class="grow">
+				<div class="t">Backstage-Notiz</div>
+				<div class="mono s">notiz · vor 2 Tagen</div>
+			</div>
+			<div class="right">
+				<div class="v">·</div>
+				<div class="k">—</div>
+			</div>
+		</a>
+		<a class="row" href="#">
+			<div class="grow">
+				<div class="t">Vorhaben-Guide</div>
+				<div class="mono s">guide · heute</div>
+			</div>
+			<div class="right">
+				<div class="v">·</div>
+				<div class="k">—</div>
+			</div>
+		</a>
 	</div>
 }
