@@ -1,18 +1,20 @@
 package webui
 
 import (
-	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// HeuteVM is the view model for the Heute (today) worktime page rendered on the
-// Slice-0 AppShell. It composes the running-session card, today's session rows,
-// the daily target/balance and the week pace strip out of Task-5 components.
+// HeuteVM is the view model for Zeit (/zeit) — L4 Task 3 replaces the Kristall
+// day dashboard (Saldo-Kacheln + Mo–Fr pace strip + sub-tab-strip) with the
+// Lesesaal Tages-Ledger + vertical 7-day Wochenskala + Werkzeuge menu (Mockup
+// Z.845–892). The running timer stays display-only (Spec §10 — no second
+// Start/Stop surface); the LIVE ledger row never renders a stop control.
 type HeuteVM struct {
 	User     string
 	Date     time.Time
@@ -22,38 +24,49 @@ type HeuteVM struct {
 	HasProj  bool   // true when at least one project exists (drives picker vs plain inputs)
 	DayParam string // yyyy-mm-dd for the action forms
 
-	LoggedDur  string // "5h 12m"
-	TargetDur  string // "8h 00m"
-	TargetPct  int
-	TargetVar  string // hit|over|under|running
-	Balance    string // "+2h 18m" / "−1h 05m"
-	BalancePos bool
+	DateTitle  string // pagehead h1, "Donnerstag, 3. Juli" (FmtDayTitle)
+	AllTimeSub string // pagehead sub, "Σ 304h 46m in 41 Sessions seit 24. April · 41 freie Tage gepflegt"
 
-	WeekKW    string // "KW 26"
-	WeekTotal string // "32h 10m"
-	WeekGoal  string // "40h 00m"
-	WeekRows  []HeuteWeekRow
+	WeekTotal    string        // this week's logged total (Mon..Sun, FmtVerbose)
+	WeekGoal     string        // this week's target total (FmtVerbose)
+	WeekGoalLine string        // "Soll 40h 00m · bisher 21h 34m · auf Kurs"
+	WeekDays     []ZeitWeekDay // 7 vertical bars, Mo..So
+
+	Tools []ZeitTool
 
 	Err string
 }
 
 // HeuteLedgerRow pairs a session's display row with its per-session edit-mode
-// SessionDialogVM (glass ledger: clicking a block opens the shared dialog
+// SessionDialogVM (clicking a completed row opens the shared dialog
 // pre-filled). Edit is the zero SessionDialogVM (Mode "") for a RUNNING
-// session — the template skips rendering its dialog.
+// session — the template skips rendering its dialog and its delete control.
+// BaseSeconds feeds the LIVE row's ticking data-timer span (Row.Running only).
 type HeuteLedgerRow struct {
-	Row  components.SessionRowVM
-	Edit components.SessionDialogVM
+	Row         components.SessionRowVM
+	Edit        components.SessionDialogVM
+	BaseSeconds int64
 }
 
-// HeuteWeekRow is one day in the week pace strip (Mo..Fr), mirroring the
-// studio mockup's per-day bar + pace dot.
-type HeuteWeekRow struct {
-	Label   string // "Mo"
-	Logged  string // "7h 36m"
-	Pct     int
-	State   string // hit|missed|today (drives bar + dot color)
-	IsToday bool
+// ZeitWeekDay is one vertical bar in the Wochenskala (Mockup Z.871–879): a
+// day's label, its logged-time value ("—"/"frei" when there is nothing to
+// show), and the bar's height percentage. Built by zeitWeekDays
+// (webui_heute.go) from the raw domain.WeekDay rows — never from the lossy
+// WocheDayVM (Codex-Fund #3: its pre-formatted Pct is unusable here).
+type ZeitWeekDay struct {
+	Label    string // "Mo" / "Do · heute"
+	ValueStr string // "6h 10m" / "—" / "frei"
+	Pct      int    // bar height %
+	Has      bool   // logged time > 0 → accent bar (.day.has)
+	Today    bool   // today → live-bright bar (.day.today)
+}
+
+// ZeitTool is one Werkzeuge row (Mockup Z.884–888, extended 3→4 with Historie
+// for auffindbarkeit — Offene Entsch. #6).
+type ZeitTool struct {
+	TitleKey string
+	DescKey  string
+	Href     string
 }
 
 // FmtVerbose renders a duration as "5h 12m" (clamped at zero), matching the
@@ -85,84 +98,26 @@ func ClampPct(p int) int {
 	return p
 }
 
-// heuteBarFill maps a week-row state to its bar fill utility.
-func heuteBarFill(state string) string {
-	switch state {
-	case "today":
-		return "bg-blue"
-	case "hit":
-		return "bg-green/70"
-	default:
-		return "bg-yellow/70"
-	}
+// zeitDayBarStyle returns the inline height style for a Wochenskala bar
+// (dynamic data binding, not a design token — precedent wocheDayBarStyle).
+func zeitDayBarStyle(d ZeitWeekDay) string {
+	return fmt.Sprintf("height:%d%%", ClampPct(d.Pct))
 }
 
-// heuteBarStyle returns the inline width style for a week-row bar.
-func heuteBarStyle(r HeuteWeekRow) string {
-	return fmt.Sprintf("width:%d%%", ClampPct(r.Pct))
+// FmtDayTitle renders the Zeit pagehead's h1 ("Donnerstag, 3. Juli", no year
+// — reuses the German weekday/month tables Home's FmtDeskDate defined).
+func FmtDayTitle(t time.Time) string {
+	return fmt.Sprintf("%s, %d. %s", homeWeekdaysDE[t.Weekday()], t.Day(), homeMonthsDE[t.Month()-1])
 }
 
-// heuteLabelClass colors the week-row weekday label (blue for today).
-func heuteLabelClass(r HeuteWeekRow) string {
-	if r.IsToday {
-		return "w-7 text-[.78rem] font-semibold text-blue"
-	}
-	return "w-7 text-[.78rem] font-semibold text-muted"
-}
-
-// heuteValueClass colors the week-row logged value (blue/bold for today).
-func heuteValueClass(r HeuteWeekRow) string {
-	if r.IsToday {
-		return "w-16 text-right font-mono text-[.78rem] tnum text-blue font-semibold"
-	}
-	return "w-16 text-right font-mono text-[.78rem] tnum"
-}
-
-// heuteDotClass / heuteDotGlyph render the per-day pace dot.
-func heuteDotClass(r HeuteWeekRow) string {
-	switch r.State {
-	case "running":
-		return "text-blue text-[.8rem] animate-breathe" // blink ONLY when a timer is actually running this day
-	case "today":
-		return "text-blue text-[.8rem]" // static "today" marker
-	case "hit":
-		return "text-green text-[.8rem]"
-	default:
-		return "text-faint text-[.8rem]"
-	}
-}
-
-func heuteDotGlyph(r HeuteWeekRow) string {
-	if r.State == "missed" {
-		return "○"
-	}
-	return "●"
-}
-
-// heuteDotTitle resolves the localized title/aria-label for a pace dot.
-func heuteDotTitle(ctx context.Context, r HeuteWeekRow) string {
-	switch r.State {
-	case "running":
-		return components.T(ctx, "heute.running")
-	case "today":
-		return components.T(ctx, "heute.todayPace")
-	case "hit":
-		return components.T(ctx, "heute.met")
-	default:
-		return components.T(ctx, "heute.missed")
-	}
+// FmtDayMonth renders "24. April" (day + German month, no year) for the
+// AllTimeSub "seit ..." clause.
+func FmtDayMonth(t time.Time) string {
+	return fmt.Sprintf("%d. %s", t.Day(), homeMonthsDE[t.Month()-1])
 }
 
 // secStr renders an int as a string for the live-timer data-base attribute.
 func secStr(n int) string { return strconv.Itoa(n) }
-
-// heuteBalanceHue colors the saldo value: green when ahead, red when behind.
-func heuteBalanceHue(pos bool) string {
-	if pos {
-		return "green"
-	}
-	return "red"
-}
 
 // heutePickerNodes converts the Heute booking picker's display items
 // ([]components.NodePickerItem) into the []domain.Node shape the shared
@@ -179,17 +134,25 @@ func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
 	return out
 }
 
-// heuteRowTile picks the glyph-tile wash for a ledger block (whitelisted hues).
-func heuteRowTile(row components.SessionRowVM) string {
-	if row.Unassigned {
-		return "bg-orange/10 text-orange"
+// zeitRunningStartLabel extracts the "HH:MM" start time from a running
+// session's fmtClockRange output ("14:32–…") for the LIVE ledger row, which
+// shows "{start} – {läuft}" instead (Mockup Z.862) rather than fmtClockRange's
+// universal "–…" ending (shared by Woche/Historie — left untouched).
+func zeitRunningStartLabel(timeRange string) string {
+	return strings.TrimSuffix(timeRange, "–…")
+}
+
+// zeitLedgerSub renders a ledger row's tag line ("#deep #foo"), empty when
+// the session carries no tags — the row's .s sub-line is simply omitted then.
+func zeitLedgerSub(tags []string) string {
+	if len(tags) == 0 {
+		return ""
 	}
-	switch row.Hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + row.Hue + "/10 text-" + row.Hue
-	default:
-		return "bg-sunken text-body"
+	parts := make([]string, len(tags))
+	for i, t := range tags {
+		parts[i] = "#" + t
 	}
+	return strings.Join(parts, " ")
 }
 
 // heuteDeleteVals builds the hx-vals JSON for a session delete confirm action.

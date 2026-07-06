@@ -13,11 +13,13 @@ import (
 )
 
 // TestHeuteHome_RendersLedgerNoLiveTimerHook verifies GET /zeit renders the
-// Heute page on the AppShell with the offline app.css + the SSE content
-// container, and — since Kristall K3 — carries NO Heute-owned timer control
-// forms: start/stop is owned entirely by the K1 shell sidebar widget now
-// (mounted separately via its own lazy hx-get="/ui/timer", not by Heute). A
-// running-today session still shows as a read-only ledger row (no stop button).
+// Zeit-Hub page on the AppShell with the offline app.css + the SSE content
+// container, on the Lesesaal .row/.led-when ledger surface (L4 Task 3 — the
+// Kristall "glass" ledger card is gone), and carries NO Heute-owned timer
+// control forms: start/stop is owned entirely by the K1 shell sidebar widget
+// now (mounted separately via its own lazy hx-get="/ui/timer", not by Zeit).
+// A running-today session still shows as a read-only LIVE ledger row (no
+// stop button — Spec §10 anzeige-only).
 func TestHeuteHome_RendersLedgerNoLiveTimerHook(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	ctx := context.Background()
@@ -40,15 +42,15 @@ func TestHeuteHome_RendersLedgerNoLiveTimerHook(t *testing.T) {
 	for _, want := range []string{
 		"/static/app.css", // offline stylesheet
 		"id=\"content\"",  // SSE swap container
-		"glass",           // Kristall ledger surface
+		"led-when",        // Lesesaal ledger row (L4 Task 3)
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Heute home missing %q", want)
 		}
 	}
-	for _, unwanted := range []string{"/ui/worktime/stop", "/ui/worktime/start"} {
+	for _, unwanted := range []string{"/ui/worktime/stop", "/ui/worktime/start", "glass"} {
 		if strings.Contains(body, unwanted) {
-			t.Errorf("Heute must not render timer control markup %q (owned by the sidebar widget)", unwanted)
+			t.Errorf("Heute must not render timer control markup / Kristall glass %q (owned by the sidebar widget / retired by L4)", unwanted)
 		}
 	}
 }
@@ -273,11 +275,11 @@ func getBody(t *testing.T, srv *worktimeTestServer, u, path string) string {
 }
 
 // TestHeutePage_LedgerNoTimerForms is the Task 4 RED→GREEN guard: Heute
-// becomes a pure glass ledger. The K1 shell timer widget (sidebar) owns
-// start/stop now, so /zeit must render neither timer control form; the
-// Nachbuchen affordance opens the shared add SessionDialog, each session
-// carries a per-row edit SessionDialog, delete keeps its ConfirmDialog, and
-// the ledger renders on the Kristall glass surface.
+// becomes a pure Lesesaal .row ledger (L4 Task 3 — the Kristall glass card
+// is retired). The K1 shell timer widget (sidebar) owns start/stop now, so
+// /zeit must render neither timer control form; the Nachbuchen affordance
+// opens the shared add SessionDialog, each session carries a per-row edit
+// SessionDialog, and delete keeps its ConfirmDialog.
 func TestHeutePage_LedgerNoTimerForms(t *testing.T) {
 	srv, u := newHeuteTestServer(t)
 	seedCompletedSession(t, srv, u, "n1", "09:00", "11:00", nil, "")
@@ -297,8 +299,103 @@ func TestHeutePage_LedgerNoTimerForms(t *testing.T) {
 	if !strings.Contains(body, "/ui/worktime/delete") {
 		t.Errorf("delete confirm missing")
 	}
-	// glass ledger cards
-	if !strings.Contains(body, "glass") {
-		t.Errorf("ledger not on glass")
+	// Lesesaal ledger row, not the retired Kristall glass card
+	if strings.Contains(body, "glass") {
+		t.Errorf("ledger must not render on the retired Kristall glass surface")
+	}
+	if !strings.Contains(body, "led-when") {
+		t.Errorf("ledger not on the Lesesaal .row/.led-when surface")
+	}
+}
+
+// TestZeitHub_WeekbarAndWerkzeuge is the L4 Task 3 RED→GREEN guard: /zeit
+// renders the vertical 7-day Wochenskala (.weekbar/.day) and the four
+// Werkzeuge rows (Export/Freie Tage/Statistik/Historie hrefs), and carries
+// NEITHER the retired sub-tab-strip (TabStrip's own .pill-tabs marker) NOR
+// the retired Saldo-Kacheln (StatTileAccent's own .rtile-ac marker).
+func TestZeitHub_WeekbarAndWerkzeuge(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-15", "09:00", "17:00") // Monday this ISO week
+
+	rr := histGet(t, srv, "/zeit")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		`class="weekbar"`,
+		`class="day has"`,
+		`href="/export"`,
+		`href="/dayoffs"`,
+		`href="/woche"`,
+		`href="/historie"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Zeit-Hub missing %q, got:\n%.3000s", want, body)
+		}
+	}
+	for _, unwanted := range []string{"pill-tabs", "rtile-ac"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("Zeit-Hub must not render retired marker %q (sub-tab-strip / Saldo-Kachel)", unwanted)
+		}
+	}
+}
+
+// TestZeitHub_RunningSessionShowsLiveRow verifies a session running today
+// renders the LIVE ledger row: the livechip, a ticking data-timer span with
+// its data-base seconds, and the "{start} – Läuft" led-when label — never a
+// stop control (Spec §10 anzeige-only, l4-global-constraints.md).
+func TestZeitHub_RunningSessionShowsLiveRow(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	start := time.Date(2026, 6, 21, 10, 0, 0, 0, time.Local) // 2h before the 12:00 clock
+	if _, err := srv.ss.Create(context.Background(), domain.WorkSession{ID: "r", OwnerID: "u1", Start: start}); err != nil {
+		t.Fatalf("seed running: %v", err)
+	}
+
+	rr := histGet(t, srv, "/zeit")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	for _, want := range []string{
+		"livechip",
+		`data-timer data-timer-fmt="clock" data-base="7200"`,
+		"10:00 – Läuft",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("Zeit-Hub LIVE row missing %q, got:\n%.3000s", want, body)
+		}
+	}
+	if strings.Contains(body, "/ui/worktime/stop") {
+		t.Errorf("Zeit-Hub LIVE row must never render a stop control (anzeige-only, Spec §10)")
+	}
+}
+
+// TestZeitHub_LedgerOwnerScoped is the owner-scope negative test for the Zeit
+// ledger + the Σ all-time line: user B's session must never surface on user
+// A's Zeit-Hub (AGENTS.md §Grundsätze — flow is multi-tenant).
+func TestZeitHub_LedgerOwnerScoped(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	// u1's own session today (so the ledger/Σ line aren't simply empty).
+	srv.seedSession(t, "2026-06-21", "09:00", "10:00")
+	// u2's session, same day, distinctly tagged.
+	start := time.Date(2026, 6, 21, 9, 0, 0, 0, time.Local)
+	stop := start.Add(3 * time.Hour)
+	if _, err := srv.ss.Create(context.Background(), domain.WorkSession{
+		ID: "u2-secret", OwnerID: "u2", Start: start, Stop: &stop, Tags: []string{"u2-only-tag"},
+	}); err != nil {
+		t.Fatalf("seed u2 session: %v", err)
+	}
+
+	rr := histGet(t, srv, "/zeit")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if strings.Contains(body, "u2-only-tag") {
+		t.Errorf("owner-scope leak: u1's Zeit-Hub rendered u2's session tag: %.2000s", body)
+	}
+	if strings.Contains(body, "09:00–12:00") {
+		t.Errorf("owner-scope leak: u1's Zeit-Hub rendered u2's 3h session time range: %.2000s", body)
 	}
 }

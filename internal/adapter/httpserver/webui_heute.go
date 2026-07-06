@@ -10,12 +10,9 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/usecase"
+	"github.com/serverkraken/flow/internal/i18n"
 )
 
-// heuteDataFor builds the Heute (today) view model from the same data sources as
-// worktimeDataFor (sessions/projects) plus the stats target math, shaped for the
-// Slice-0 AppShell components.
 // handleZeitHome renders the full Heute page on the AppShell at GET /zeit.
 func (s *Server) handleZeitHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
@@ -49,8 +46,12 @@ func (s *Server) renderHeuteFragment(w http.ResponseWriter, r *http.Request, u d
 	_ = webui.HeuteFragment(vm).Render(r.Context(), w)
 }
 
+// heuteDataFor builds the Zeit (/zeit) view model — L4 Task 3 replaces the
+// Kristall Saldo-Kacheln + Mo–Fr pace strip with the Lesesaal Tages-Ledger,
+// the vertical 7-day Wochenskala, and the Werkzeuge menu.
 func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string) (webui.HeuteVM, error) {
 	now := s.Clock.Now()
+	loc := now.Location()
 	day := startOfDay(now)
 	sessions, err := s.ListSessionsRange.Execute(ctx, u.ID, day, day.AddDate(0, 0, 1))
 	if err != nil {
@@ -63,8 +64,8 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 
 	// The running timer is a singleton and may have been started on an EARLIER
 	// day (e.g. left running overnight). Resolve it via GetRunningSession so it
-	// stays visible + stoppable on Heute regardless of its start day; fall back
-	// to scanning today's range for harnesses that don't wire the usecase.
+	// stays visible on Zeit regardless of its start day; fall back to scanning
+	// today's range for harnesses that don't wire the usecase.
 	var running *domain.WorkSession
 	if s.GetRunningSession.Sessions != nil {
 		if r, ok, rerr := s.GetRunningSession.Execute(ctx, u.ID); rerr == nil && ok {
@@ -81,11 +82,12 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 
 	vm := webui.HeuteVM{
-		User:     u.Username,
-		Date:     day,
-		Running:  running,
-		DayParam: day.Format(dayLayout),
-		Err:      errMsg,
+		User:      u.Username,
+		Date:      day,
+		Running:   running,
+		DayParam:  day.Format(dayLayout),
+		DateTitle: webui.FmtDayTitle(now),
+		Err:       errMsg,
 	}
 
 	// Booking picker — bookable = Engagement/Vorhaben/Repo (Spec #1-Fix; was
@@ -107,38 +109,141 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 	vm.HasProj = len(vm.Nodes) > 0
 
-	// Today's session rows + per-row edit dialog (the ledger; newest stay in
-	// chronological order from the store).
+	// Today's ledger rows + per-row edit dialog (newest stay in chronological
+	// order from the store). A running row's BaseSeconds feeds the LIVE row's
+	// ticking data-timer span (heute.templ); it stays zero for completed rows.
 	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
 		row := sessionRowVM(sess, projects, now)
+		var base int64
+		if row.Running {
+			base = int64(sess.Elapsed(now) / time.Second)
+		}
 		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
-			Row:  row,
-			Edit: heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
+			Row:         row,
+			Edit:        heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
+			BaseSeconds: base,
 		})
 	}
 
-	// Daily target + balance (reuse the stats computation; degrade to zero if the
-	// stats usecase is not wired, e.g. in narrow tests).
+	// Diese Woche: the raw 7-day domain.WeekDay slice (Stats.Week, Mon..Sun) —
+	// NOT the lossy WocheDayVM — feeds the vertical Wochenskala + the Soll-Zeile
+	// (WeekGoalLine), reusing computeWocheSummary/onTrack (woche_summary.go)
+	// verbatim rather than a second Rechenpfad.
 	if s.Stats.Sessions != nil {
-		if today, terr := s.Stats.Today(ctx, u.ID); terr == nil {
-			vm.LoggedDur = webui.FmtVerbose(today.Logged)
-			vm.TargetDur = webui.FmtVerbose(today.Target)
-			if today.Target > 0 {
-				vm.TargetPct = webui.ClampPct(int(today.Logged * 100 / today.Target))
+		if week, werr := s.Stats.Week(ctx, u.ID, time.Time{}); werr == nil && len(week) > 0 {
+			offs := map[string]domain.DayOff{}
+			if s.ListDayOffs.Store != nil {
+				weekStart := week[0].Date
+				weekEnd := week[len(week)-1].Date
+				if offList, oerr := s.ListDayOffs.Execute(ctx, u.ID, weekStart, weekEnd); oerr == nil {
+					for _, o := range offList {
+						offs[o.Date.In(loc).Format("2006-01-02")] = o
+					}
+				}
 			}
-			vm.TargetVar = heuteTargetVariant(today, running != nil)
-			vm.Balance = webui.FmtSaldoVerbose(today.Saldo)
-			vm.BalancePos = today.Saldo >= 0
-		}
-		// Week pace strip (Mon..Fri).
-		if week, werr := s.Stats.Week(ctx, u.ID, time.Time{}); werr == nil {
-			vm.WeekKW = fmt.Sprintf("KW %d", isoWeek(now))
-			vm.WeekRows, vm.WeekTotal, vm.WeekGoal = heuteWeekRows(week, now, running)
+			vm.WeekDays = zeitWeekDays(ctx, week, now, offs)
+			sum := computeWocheSummary(week, offs, now)
+			vm.WeekTotal = webui.FmtVerbose(sum.totalLogged)
+			vm.WeekGoal = webui.FmtVerbose(sum.totalTarget)
+			track := i18n.T(ctx, "zeit.onTrack")
+			if !sum.onTrack() {
+				track = i18n.T(ctx, "zeit.behind")
+			}
+			vm.WeekGoalLine = fmt.Sprintf(i18n.T(ctx, "zeit.weekGoal"), vm.WeekGoal, vm.WeekTotal, track)
 		}
 	}
 
+	// Σ-Zeile (AllTimeSub, Mockup Z.851): owner-scoped all-time session scan
+	// (s.ListSessions, since=zero) + the merged day-off count over the same
+	// window — never a new/ungescoped read path (l4-global-constraints.md).
+	if s.ListSessions.Sessions != nil {
+		if all, aerr := s.ListSessions.Execute(ctx, u.ID, time.Time{}); aerr == nil {
+			var total time.Duration
+			var earliest time.Time
+			for _, sess := range all {
+				total += sess.Elapsed(now)
+				if earliest.IsZero() || sess.Start.Before(earliest) {
+					earliest = sess.Start
+				}
+			}
+			since := earliest
+			if since.IsZero() {
+				since = now
+			}
+			dayoffCount := 0
+			if s.ListDayOffs.Store != nil {
+				if offs, oerr := s.ListDayOffs.Execute(ctx, u.ID, since, now.AddDate(1, 0, 0)); oerr == nil {
+					dayoffCount = len(offs)
+				}
+			}
+			vm.AllTimeSub = fmt.Sprintf(i18n.T(ctx, "zeit.allTimeSub"),
+				webui.FmtVerbose(total), len(all), webui.FmtDayMonth(since), dayoffCount)
+		}
+	}
+
+	vm.Tools = []webui.ZeitTool{
+		{TitleKey: "zeit.tool.export", DescKey: "zeit.tool.export.desc", Href: "/export"},
+		{TitleKey: "zeit.tool.dayoffs", DescKey: "zeit.tool.dayoffs.desc", Href: "/dayoffs"},
+		{TitleKey: "zeit.tool.stats", DescKey: "zeit.tool.stats.desc", Href: "/woche"},
+		{TitleKey: "zeit.tool.historie", DescKey: "zeit.tool.historie.desc", Href: "/historie"},
+	}
+
 	return vm, nil
+}
+
+// zeitWeekDays maps the raw 7-day domain.WeekDay slice into the vertical
+// Wochenskala's per-day bars (webui.ZeitWeekDay). scale is computed per day as
+// max(that day's own Target, the week's own max logged) so a zero-target
+// weekend day never divides by zero (Codex-Fund #3: WocheDayVM's
+// pre-formatted Pct is unusable here) while workdays still share a
+// roughly-comparable scale across the week. off reports which local dates
+// carry a day-off (mirrors wocheDataFor's own offs lookup, webui_woche.go) so
+// a weekend/holiday day shows "frei" instead of a bare "—".
+func zeitWeekDays(ctx context.Context, week []domain.WeekDay, now time.Time, off map[string]domain.DayOff) []webui.ZeitWeekDay {
+	loc := now.Location()
+	var maxLogged time.Duration
+	logged := make([]time.Duration, len(week))
+	for i, wd := range week {
+		logged[i] = wd.Total(now)
+		if logged[i] > maxLogged {
+			maxLogged = logged[i]
+		}
+	}
+	out := make([]webui.ZeitWeekDay, 0, len(week))
+	for i, wd := range week {
+		l := logged[i]
+		scale := wd.Target
+		if maxLogged > scale {
+			scale = maxLogged
+		}
+		pct := 0
+		if scale > 0 {
+			pct = webui.ClampPct(int(l * 100 / scale))
+		}
+		key := wd.Date.In(loc).Format("2006-01-02")
+		_, isOff := off[key]
+		valueStr := webui.FmtVerbose(l)
+		if l == 0 {
+			if isOff || isWeekendTime(wd.Date) {
+				valueStr = i18n.T(ctx, "zeit.weekDayOff")
+			} else {
+				valueStr = "—"
+			}
+		}
+		label := wocheWeekdayLabel(wd.Date.Weekday())
+		if wd.IsToday {
+			label += " · heute"
+		}
+		out = append(out, webui.ZeitWeekDay{
+			Label:    label,
+			ValueStr: valueStr,
+			Pct:      pct,
+			Has:      l > 0,
+			Today:    wd.IsToday,
+		})
+	}
+	return out
 }
 
 // sessionRowVM maps a stored session to its list-row view model.
@@ -190,7 +295,7 @@ func heuteEditDialogVM(sess domain.WorkSession, nodes []components.NodePickerIte
 // heutePickerNodes converts the Heute booking picker's display items
 // ([]components.NodePickerItem) into the []domain.Node shape the shared
 // SessionDialog's picker field expects. Shared by heuteEditDialogVM and the
-// add-dialog VM (Task 4) so the conversion lives in exactly one place.
+// add-dialog VM so the conversion lives in exactly one place.
 func heutePickerNodes(items []components.NodePickerItem) []domain.Node {
 	nodes := make([]domain.Node, 0, len(items))
 	for _, n := range items {
@@ -257,64 +362,9 @@ func rateLabel(rate *domain.Money) string {
 	return fmt.Sprintf("%d %s/h", rate.Amount/100, sym)
 }
 
-// heuteTargetVariant picks the progress-bar variant for the day's progress.
-func heuteTargetVariant(today usecase.TodaySummary, running bool) string {
-	switch {
-	case running:
-		return "running"
-	case today.Saldo > 0:
-		return "over"
-	case today.Saldo == 0 && today.Target > 0:
-		return "hit"
-	default:
-		return "under"
-	}
-}
-
-// isoWeek returns the ISO-8601 week number for t.
+// isoWeek returns the ISO-8601 week number for t (still used by wocheDataFor,
+// webui_woche.go).
 func isoWeek(t time.Time) int {
 	_, wk := t.ISOWeek()
 	return wk
-}
-
-// heuteWeekRows maps the stats week days into Mon..Fri pace rows and returns the
-// week total + goal labels (workweek excludes weekends, matching the worktime
-// parity rules).
-func heuteWeekRows(week []domain.WeekDay, now time.Time, running *domain.WorkSession) ([]webui.HeuteWeekRow, string, string) {
-	labels := map[time.Weekday]string{
-		time.Monday: "Mo", time.Tuesday: "Di", time.Wednesday: "Mi",
-		time.Thursday: "Do", time.Friday: "Fr",
-	}
-	rows := make([]webui.HeuteWeekRow, 0, 5)
-	var total, goal time.Duration
-	for _, wd := range week {
-		label, ok := labels[wd.Date.Weekday()]
-		if !ok {
-			continue // skip weekends
-		}
-		logged := wd.Total(now)
-		total += logged
-		goal += wd.Target
-		pct := 0
-		if wd.Target > 0 {
-			pct = webui.ClampPct(int(logged * 100 / wd.Target))
-		}
-		state := "missed"
-		switch {
-		case running != nil && sameLocalDay(wd.Date, running.Start, now.Location()):
-			state = "running" // a timer is actually running on this day → blink
-		case wd.IsToday:
-			state = "today" // static "today" marker (no blink)
-		case wd.Target > 0 && logged >= wd.Target:
-			state = "hit"
-		}
-		rows = append(rows, webui.HeuteWeekRow{
-			Label:   label,
-			Logged:  webui.FmtVerbose(logged),
-			Pct:     pct,
-			State:   state,
-			IsToday: wd.IsToday,
-		})
-	}
-	return rows, webui.FmtVerbose(total), webui.FmtVerbose(goal)
 }
