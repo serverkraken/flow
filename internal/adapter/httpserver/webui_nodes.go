@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
@@ -63,10 +64,17 @@ func countsModeOf(v *bool) string {
 }
 
 // nodesListData loads the owner's nodes, applies the status filter and builds
-// the indented tree.  "" → active+paused; "archived" → archived only; "all".
+// the Projekte page's tree-as-content view model. "" → active+paused;
+// "archived" → archived only; "all". Side-sources (sessions/docs/running) each
+// degrade silently on failure (brief §Zustände "Request-Fehler") — the page
+// still renders, just with "—"/quiet notes instead of hours/doc-counts/timer.
 func (s *Server) nodesListData(r *http.Request, u domain.User) webui.NodesPageData {
+	ctx := r.Context()
 	status := r.URL.Query().Get("status")
-	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
+	all, err := s.ListNodes.Execute(ctx, u.ID)
+	if err != nil {
+		return webui.NodesPageData{User: u.Username, Status: status}
+	}
 	filtered := make([]domain.Node, 0, len(all))
 	for _, n := range all {
 		switch status {
@@ -82,10 +90,45 @@ func (s *Server) nodesListData(r *http.Request, u domain.User) webui.NodesPageDa
 			}
 		}
 	}
+
+	now := s.Clock.Now()
+	var sessions []domain.WorkSession
+	if s.ListSessionsRange.Sessions != nil {
+		since := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		if sess, serr := s.ListSessionsRange.Execute(ctx, u.ID, since, now.AddDate(0, 0, 1)); serr == nil {
+			sessions = sess
+		} else {
+			slog.WarnContext(ctx, "projekte: list sessions failed", "err", serr)
+		}
+	}
+
+	docCounts := map[string]int{}
+	if s.ListDocuments.Docs != nil {
+		if docs, derr := s.ListDocuments.Execute(ctx, u.ID, nil, nil); derr == nil {
+			for _, d := range docs {
+				if d.NodeID != nil {
+					docCounts[*d.NodeID]++
+				}
+			}
+		} else {
+			slog.WarnContext(ctx, "projekte: list documents failed", "err", derr)
+		}
+	}
+
+	var running *domain.WorkSession
+	if s.GetRunningSession.Sessions != nil {
+		if rs, ok, rerr := s.GetRunningSession.Execute(ctx, u.ID); rerr == nil && ok {
+			r2 := rs
+			running = &r2
+		} else if rerr != nil {
+			slog.WarnContext(ctx, "projekte: get running session failed", "err", rerr)
+		}
+	}
+
 	return webui.NodesPageData{
 		User:   u.Username,
 		Status: status,
-		Rows:   webui.BuildTree(filtered),
+		VM:     webui.BuildProjectsVM(filtered, sessions, docCounts, running, now),
 	}
 }
 
@@ -279,8 +322,12 @@ func (s *Server) handleWebNodeEdit(w http.ResponseWriter, r *http.Request) {
 			vals.TagsCSV = strings.Join(slugs, " ")
 		}
 	}
+	all, _ := s.ListNodes.Execute(r.Context(), u.ID)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.NodeForm(webui.NodeFormData{User: u.Username, Vals: vals, Parents: s.nodeParents(r, u)}, &n).Render(r.Context(), w)
+	_ = webui.NodeForm(webui.NodeFormData{
+		User: u.Username, Vals: vals, Parents: s.nodeParents(r, u),
+		MoveTargets: webui.MoveTargetsFor(all, n),
+	}, &n).Render(r.Context(), w)
 }
 
 func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {

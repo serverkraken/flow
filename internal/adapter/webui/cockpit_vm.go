@@ -1,8 +1,10 @@
 package webui
 
 import (
+	"context"
 	"fmt"
 	"html/template"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,32 +76,30 @@ type NodeCockpit struct {
 	TodayHere    string   // today's own-node time (fmtDurHM), NOT subtree
 	CountsWork   bool     // effective Work/Privat flag (domain.ResolveCountsTowardTarget)
 	Contributors []string // distinct actors active in the subtree; filled by T5, empty until then
-	TabCounts    map[string]int
-	// active tab + its data (only the active tab's slice is populated)
-	ActiveTab   string                  // uebersicht|worktime|wissen|struktur|bindings
-	Uebersicht  UebersichtVM            // uebersicht: rollup tiles, split, comp/chain, pulse, docs
-	SessionRows []CockpitSessionRow     // worktime: precomputed display rows, newest first
-	Docs        []domain.Document       // wissen
-	WissenScope string                  // "subtree"|"self" — effective Wissen-tab scope (drives the .seg toggle)
-	Children    []NodeChild             // struktur
-	MoveTargets []domain.Node           // struktur reparent
-	Bindings    []domain.ProjectBinding // bindings
-	PanelErr    string                  // inline panel error (Nachbuchen validation, bindings)
-	// EditSession is set by fillPanelData when the worktime tab's ?edit={sid}
-	// query resolves to one of the owner's sessions — it drives the edit-mode
-	// SessionDialog (sessionDialogEditVM), rendered pre-opened in the panel.
-	// nil when not editing.
+	// ChainRootName/ChainRootTotal feed the instr-band's third stats segment
+	// (the root engagement's whole-chain total, Mockup "RTL Extern 304:46 h").
+	// Filled by Task 7's page wiring; "" until then — cockpitStatsLine falls
+	// back to the generic "Kette" i18n label + "—" so the line still renders.
+	ChainRootName  string
+	ChainRootTotal string // fmtDurHM-formatted, "" = unknown/not yet wired
+	// ChainStats carries the per-ancestor-level rollup the Meta-Spalte's Kette
+	// block needs (BuildChain wants one NodeRollup per node.ID: N + every
+	// ancestor). Filled by Task 7's page wiring via s.Stats.NodeStats; empty
+	// map means every chain row renders "—" (Nullen ohne Bühne, Spec §4).
+	ChainStats  map[string]domain.NodeRollup
+	Pulse       []ActivityRowVM         // subtree-filtered live activity feed (Puls section)
+	SessionRows []CockpitSessionRow     // Buchungen: precomputed display rows, newest first
+	WissenRows  []WissenRow             // Wissen: built display rows (BuildWissenRows), what CockpitMain renders
+	WissenScope string                  // "subtree"|"self" — effective Wissen scope (drives the .seg toggle)
+	WissenTotal int                     // Wissen: doc count before the section cap — drives the "Alle N ›" more-link
+	WissenAll   bool                    // Wissen: true when ?wissen=all expanded the section past the cap
+	Children    []NodeChild             // Enthält
+	Bindings    []domain.ProjectBinding // rail Bindings block
+	PanelErr    string                  // inline error surfaced on #cockpit-main or #cockpit-rail
+	// EditSession is set by nodeCockpitData when the ?edit={sid} query resolves
+	// to one of the owner's sessions — it drives the edit-mode SessionDialog
+	// (sessionDialogEditVM), rendered pre-opened. nil when not editing.
 	EditSession *domain.WorkSession
-}
-
-// CockpitTabs is the fixed tab order/keys for the strip — Übersicht is the
-// default landing (see NormalizeTab).
-var CockpitTabs = []struct{ Key, LabelKey string }{
-	{"uebersicht", "cockpit.tab.uebersicht"},
-	{"worktime", "cockpit.tab.worktime"},
-	{"wissen", "cockpit.tab.wissen"},
-	{"struktur", "cockpit.tab.struktur"},
-	{"bindings", "cockpit.tab.bindings"},
 }
 
 // sessionDialogAddVM builds the add-mode SessionDialogVM for the ONE session
@@ -200,49 +200,37 @@ func BuildCockpitSessionRows(sessions []domain.WorkSession, now time.Time, names
 	return rows
 }
 
-// cockpitPanelReloadURL returns the hx-get URL for a tab's SSE live-reload.
-// For the wissen tab with an explicit "self" scope, it preserves that scope
-// on reload (?scope=self) so a document.* SSE event doesn't silently revert
-// the user's "Nur dieser Knoten" toggle back to the subtree default. Every
-// other tab reloads its plain "/nodes/{id}/tab/{tab}" URL unchanged.
-func cockpitPanelReloadURL(d NodeCockpit) string {
-	url := "/nodes/" + d.N.ID + "/tab/" + d.ActiveTab
-	if d.ActiveTab == "wissen" && d.WissenScope == "self" {
-		url += "?scope=self"
-	}
-	return url
-}
-
-// cockpitPanelSSE returns the hx-trigger SSE event list for a tab's live reload.
-func cockpitPanelSSE(tab string) string {
-	switch tab {
-	case "uebersicht":
-		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:activity.logged, sse:document.updated, sse:node.updated"
-	case "worktime":
-		return "sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted"
-	case "wissen":
-		return "sse:document.created, sse:document.updated, sse:document.deleted"
-	case "struktur":
-		return "sse:node.created, sse:node.updated, sse:node.moved, sse:node.deleted"
-	default:
-		return "" // bindings: reload only after own mutation
-	}
-}
-
-// NormalizeTab returns a valid tab key, defaulting to "uebersicht" (the
-// living-project-home landing).
-func NormalizeTab(tab string) string {
-	for _, t := range CockpitTabs {
-		if t.Key == tab {
-			return tab
-		}
-	}
-	return "uebersicht"
-}
-
 // FmtDurHMExport renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
 // Exported so the httpserver adapter can format child worktime totals.
 func FmtDurHMExport(d time.Duration) string { return fmtDurHM(d) }
+
+// cockpitMainReloadURL returns #cockpit-main's hx-get URL for its SSE live
+// reload. It preserves the Wissen section's "self" scope (?scope=self) so a
+// session/document/node SSE event doesn't silently revert the user's "Nur
+// dieser Knoten" toggle back to the subtree default — the same contract the
+// old (now-deleted) per-tab cockpitPanelReloadURL guaranteed.
+func cockpitMainReloadURL(d NodeCockpit) string {
+	return cockpitMainURL(d, d.WissenAll)
+}
+
+// cockpitMainURL builds a /main fragment URL carrying the section's sticky
+// query state: the Wissen "self" scope and — when all=true — the expanded
+// ?wissen=all view, so neither an SSE reload nor the "Alle N ›" link drops
+// the other toggle.
+func cockpitMainURL(d NodeCockpit, all bool) string {
+	url := "/nodes/" + d.N.ID + "/main"
+	var q []string
+	if d.WissenScope == "self" {
+		q = append(q, "scope=self")
+	}
+	if all {
+		q = append(q, "wissen=all")
+	}
+	if len(q) > 0 {
+		url += "?" + strings.Join(q, "&")
+	}
+	return url
+}
 
 // fmtDurHM renders a duration as "H:MM h" (e.g. 2h30m → "2:30 h").
 func fmtDurHM(d time.Duration) string {
@@ -253,52 +241,136 @@ func fmtDurHM(d time.Duration) string {
 	return fmt.Sprintf("%d:%02d h", m/60, m%60)
 }
 
-// cockpitAccent maps a node colour name to the left accent-bar class.
-func cockpitAccent(color string) string {
-	switch color {
-	case "cyan":
-		return "bg-cyan"
-	case "purple":
-		return "bg-purple"
-	case "green":
-		return "bg-green"
-	case "blue":
-		return "bg-blue"
-	case "orange":
-		return "bg-orange"
+// SpineCrumbs returns the cockpit head's "up" crumb chain: every ancestor
+// EXCEPT self, root→leaf order (self renders as the <h1>, not a crumb link).
+// Derived from the same nodeCrumbs data as the old breadcrumb, minus the
+// trailing self segment.
+func SpineCrumbs(d NodeCockpit) []components.Crumb {
+	all := nodeCrumbs(d)
+	if len(all) <= 1 {
+		return nil // no ancestors (or the defensive self-only fallback)
+	}
+	return all[:len(all)-1]
+}
+
+// cockpitStatusWord maps a node status to its i18n KEY (not the resolved
+// label) — the VM stays domain-free/i18n-free, the templ resolves it via
+// components.T. Deliberately NOT StatusBadge: its amber/slate/emerald chip
+// classes are non-token colors banned on Lesesaal surfaces (Spec §7).
+func cockpitStatusWord(s domain.NodeStatus) string {
+	switch s {
+	case domain.NodePaused:
+		return "node.status.paused"
+	case domain.NodeArchived:
+		return "node.status.archived"
 	default:
-		return "bg-blue"
+		return "node.status.active"
 	}
 }
 
-// cockpitTileClass maps a node colour to the hex tile wash+text class.
-// Delegates to heuteTileClass which already maps all known hues.
-func cockpitTileClass(color string) string {
-	return heuteTileClass(color)
+// dashIfZeroDur renders a fmtDurHM-formatted duration string as "—" when it's
+// empty or the zero value ("0:00 h") — "Nullen ohne Bühne" (Spec §4).
+func dashIfZeroDur(s string) string {
+	if s == "" || s == "0:00 h" {
+		return "—"
+	}
+	return s
 }
 
-// cockpitRateSource returns the name of the nearest ancestor that actually
-// carries a rate — matching domain.ResolveRate's leaf→root walk — or "" when
-// none does. The "geerbt von" label must name the real source, not the root:
-// a rate set on an intermediate Vorhaben otherwise mis-attributes to the
-// Engagement in a 3+-level chain.
-func cockpitRateSource(d NodeCockpit) string {
+// KetteRow is one row of the Meta-Spalte's Kette block — a pure-string view
+// of ChainRow, ready for the templ to range over (see cockpit_rail.templ).
+type KetteRow struct {
+	Label    string
+	HoursStr string
+	Here     bool // true for the leaf "this node" row (gets the "(hier)" suffix)
+	Href     string
+}
+
+// ChainRows adapts BuildChain (cockpit_uebersicht_vm.go) for the Meta-Spalte
+// rail: this node → ancestors leaf→root → a final "rate inherited" row built
+// from d.Rate instead of BuildChain's percentage Sum row. Reine Strings,
+// Nullen → "—" (dashIfZeroDur).
+//
+// ownerTotal (BuildChain's %-basis) isn't wired yet — Task 7's page handler
+// owns that source; until then it falls back to d.Rollup.Total so every row
+// still renders sane numbers.
+func ChainRows(ctx context.Context, d NodeCockpit) []KetteRow {
+	ownerTotal := d.Rollup.Total
+	chain := BuildChain(d.N, d.Ancestors, d.ChainStats, ownerTotal)
+
+	// ids mirrors BuildChain's own row order (this, then ancestors leaf→root
+	// with self defensively excluded) so each non-Sum row gets its link target.
+	ids := make([]string, 0, len(chain))
+	ids = append(ids, d.N.ID)
 	for _, a := range d.Ancestors {
 		if a.ID == d.N.ID {
-			continue // the ancestor chain may include the cockpit node itself
+			continue
 		}
-		if a.Rate != nil {
-			return a.Name
-		}
+		ids = append(ids, a.ID)
 	}
-	return ""
+
+	rows := make([]KetteRow, 0, len(chain))
+	for i, c := range chain {
+		if c.Sum {
+			rate := d.Rate
+			if rate == "" {
+				rate = "—"
+			}
+			rows = append(rows, KetteRow{Label: components.T(ctx, "cockpit.rail.rateInherited"), HoursStr: rate})
+			continue
+		}
+		label := ShortName(c.Label)
+		href := ""
+		if i < len(ids) {
+			href = "/nodes/" + ids[i]
+		}
+		if c.This {
+			label += " " + components.T(ctx, "cockpit.rail.here")
+		}
+		rows = append(rows, KetteRow{Label: label, HoursStr: dashIfZeroDur(c.DurStr), Here: c.This, Href: href})
+	}
+	return rows
 }
 
-// glyphOrDefault returns the node glyph or a default identity glyph when unset.
-// (Named distinctly from httpserver.glyphOr to avoid cross-package confusion.)
-func glyphOrDefault(g string) string {
-	if g == "" {
-		return "◆"
+// WissenRow is one display row in the cockpit's Wissen section (cockpit_main.templ):
+// a document rendered as a type-chip + title + meta line + estimated reading
+// time — the built counterpart to the raw domain.Document slice (d.Docs).
+type WissenRow struct {
+	ID, Title, ChipClass, ChipLabel, Meta, ReadTime string
+}
+
+// BuildWissenRows maps documents to Wissen-section display rows: ChipClass/
+// ChipLabel from DocTypeChipClass/DocTypeLabel (Spec §7.1), Meta = relative
+// update time + path (Spec §16.9 "Akteur · Zeit · Pfad" — domain.Document
+// carries no last-editor field, verified via `rg "type Document struct"
+// internal/domain/`, so Meta degrades to "Zeit · Pfad"), ReadTime = word
+// count/220 minutes, rounded up to at least 1 — "" when Body is empty (a
+// list query without full bodies degrades gracefully, no blocker).
+func BuildWissenRows(docs []domain.Document, now time.Time) []WissenRow {
+	rows := make([]WissenRow, 0, len(docs))
+	for _, doc := range docs {
+		rows = append(rows, WissenRow{
+			ID:        doc.ID,
+			Title:     doc.Title,
+			ChipClass: DocTypeChipClass(doc.Type),
+			ChipLabel: DocTypeLabel(doc.Type),
+			Meta:      fmtRelTime(doc.UpdatedAt, now) + " · " + doc.Path,
+			ReadTime:  readTimeLabel(doc.Body),
+		})
 	}
-	return g
+	return rows
+}
+
+// readTimeLabel estimates reading time at 220 words/minute (Spec §16.9),
+// rounding up to at least 1 minute. Empty body yields "" (no readtime box).
+func readTimeLabel(body string) string {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	mins := len(strings.Fields(body)) / 220
+	if mins < 1 {
+		mins = 1
+	}
+	return strconv.Itoa(mins) + " min"
 }

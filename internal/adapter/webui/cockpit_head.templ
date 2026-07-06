@@ -1,0 +1,96 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// CockpitHead is the cockpit's path spine: the "up" ancestor crumbs, the 96er
+// identity + short name as <h1>, the neutral kind/status meta line, and the
+// full path with a copy affordance. It renders full width above the .cock
+// grid (Mockup Z.573–590). The instr-band lives separately as cockpitInstr,
+// the first element of CockpitMain (Task 6) — NOT part of this spine. The
+// page wiring (id="cockpit-head" + SSE hx-attrs, reload on node.updated/
+// node.moved only) is Task 7's job; this component is pure content.
+templ CockpitHead(d NodeCockpit) {
+	<div class="spine">
+		<div class="up">
+			for _, c := range SpineCrumbs(d) {
+				<a href={ templ.SafeURL(c.Href) }>{ c.Label }</a><span class="sep">/</span>
+			}
+		</div>
+		<div class="spine-main">
+			@cockpitIdentity(d)
+			<h1>{ ShortName(d.N.Name) }</h1>
+		</div>
+		<div class="spine-meta">
+			<span class="k">{ components.T(ctx, NodeKindStyle(d.N.Kind).LabelKey) }</span>
+			<span>{ components.T(ctx, cockpitStatusWord(d.N.Status)) }</span><span class="dotsep">·</span>
+			<a class="targetlink" href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } hx-boost="false">{ components.T(ctx, "common.edit") }</a><span class="dotsep">·</span>
+			<a class="targetlink" href={ templ.SafeURL("/nodes/" + d.N.ID + "/edit") } hx-boost="false" title={ components.T(ctx, "cockpit.logo.hint") }>{ components.T(ctx, "cockpit.logo.add") }</a>
+		</div>
+		<div class="fullpath">{ d.N.Name } <button type="button" data-copy={ d.N.Name } title={ components.T(ctx, "cockpit.copyPath") } aria-label={ components.T(ctx, "cockpit.copyPath") }>⧉</button></div>
+	</div>
+}
+
+// cockpitIdentity renders the spine's 96er identity: an uploaded logo
+// (content-contained, never cropped) or the deterministic initials avatar.
+// Kein Hex-Clip mehr (Kristall tot). Mobile 64 comes for free via the Task-1
+// responsive rule (.av-96 → 64 below 620px).
+templ cockpitIdentity(d NodeCockpit) {
+	if d.N.LogoRef != "" {
+		<span class="ava ava-logo av-96" aria-hidden="true"><img src={ "/nodes/" + d.N.ID + "/logo?v=" + d.N.LogoRef } alt="" class="h-full w-full rounded-[inherit] object-contain p-2"/></span>
+	} else {
+		@components.Avatar(Initials(ShortName(d.N.Name)), AvatarTone(d.N.Name), "av-96")
+	}
+}
+
+// cockpitInstr is the instr-band (Mockup Z.592–597): timer-state action(s) +
+// the "Nachbuchen" quick action + the compact stats line. It is its own
+// component so Task 6 can mount it as the first element of CockpitMain
+// (Mockup DOM: .cock > .main > .instr) — it does NOT live inside CockpitHead.
+// Start/Stop/Switch target #cockpit-main (Task 7 swaps the main fragment);
+// the spine above reloads separately, only on node.updated/node.moved.
+templ cockpitInstr(d NodeCockpit) {
+	<div class="instr">
+		switch d.Timer.State {
+			case TimerHere:
+				<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-main" hx-swap="innerHTML">
+					<button type="submit" class="btn btn-pri"><span aria-hidden="true">■</span> { components.T(ctx, "cockpit.timer.stop") }</button>
+				</form>
+				<span class="clock font-mono tnum" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</span>
+			case TimerIdle:
+				<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-main" hx-swap="innerHTML">
+					<button type="submit" class="btn btn-pri"><span aria-hidden="true">▶</span> { components.T(ctx, "cockpit.timer.start") }</button>
+				</form>
+			case TimerOtherBound:
+				<form hx-post={ "/nodes/" + d.N.ID + "/switch" } hx-target="#cockpit-main" hx-swap="innerHTML">
+					<button type="submit" class="btn btn-q">{ components.T(ctx, "cockpit.timer.switch") }</button>
+				</form>
+				<span class="note text-meta">{ components.T(ctx, "cockpit.timer.runningOn") } <a class="targetlink" href={ templ.SafeURL("/nodes/" + d.Timer.OtherID) } title={ d.Timer.OtherName }>{ ShortName(d.Timer.OtherName) }</a></span>
+			case TimerUnbound:
+				<a href="/" class="note text-meta hover:text-ink">{ components.T(ctx, "cockpit.timer.unbound") } →</a>
+			case TimerNotBookable:
+				<span class="note text-faint">{ components.T(ctx, "cockpit.timer.notBookable") }</span>
+		}
+		if domain.IsBookable(d.N.Kind) {
+			<button type="button" class="btn btn-q" data-dialog-open="session-dialog">{ components.T(ctx, "cockpit.worktime.add") }</button>
+		}
+		<div class="stats">@cockpitStatsLine(d)</div>
+	</div>
+}
+
+// cockpitStatsLine composes the instr-band's compact stats line: own-node
+// time today, this node's own total, and the root engagement's whole-chain
+// total (Mockup "hier heute 2:41 · Repo gesamt 2:41 · RTL Extern 304:46 h").
+// The chain segment shows d.ChainRootName once Task 7 wires it; until then it
+// falls back to the generic "Kette" label so the line still renders three
+// segments. "Nullen ohne Bühne" (Spec §4): zero/empty values render as "—".
+templ cockpitStatsLine(d NodeCockpit) {
+	{ components.T(ctx, "cockpit.stats.hereToday") } <b>{ dashIfZeroDur(d.TodayHere) }</b> · { components.T(ctx, "cockpit.stats.repoTotal") } <b>{ dashIfZeroDur(FmtDurHMExport(d.Rollup.Total)) }</b> ·
+	if d.ChainRootName != "" {
+		{ d.ChainRootName } <b>{ dashIfZeroDur(d.ChainRootTotal) }</b>
+	} else {
+		{ components.T(ctx, "cockpit.stats.chainTotal") } <b>{ dashIfZeroDur(d.ChainRootTotal) }</b>
+	}
+}

@@ -9,34 +9,6 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// UebersichtVM is the overview landing's card data (kind-differentiated per
-// the Containment rule, spec §4): Engagement/Vorhaben carry Comp (direct
-// children), Repo carries Chain (this → ancestors → owner total). Both carry
-// the rollup tiles, the Work/Privat split, the subtree-filtered pulse, and
-// the recently-changed-knowledge card.
-type UebersichtVM struct {
-	Kind domain.NodeKind
-
-	// rollup tiles (BuildUebersichtTiles)
-	TotalStr, WeekStr, WeekDelta, MonthStr, Earnings string
-
-	// work/privat split, week window (BuildSplit). HasSplit=false collapses
-	// the card — one side is zero, so there's nothing to compare.
-	WorkPct                                  int
-	HasSplit                                 bool
-	WorkWeekStr, PrivatWeekStr, WorkMonthStr string
-
-	// composition (Engagement/Vorhaben) — direct children, BuildComp.
-	Comp []CompRow
-	// chain (Repo) — this → ancestors → total, BuildChain.
-	Chain []ChainRow
-
-	// pulse + knowledge
-	Pulse     []ActivityRowVM
-	Docs      []UebersichtDoc
-	DocsTotal int
-}
-
 // CompRow is one direct child's share of the cockpit node's subtree total.
 type CompRow struct {
 	ID, Name string

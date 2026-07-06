@@ -36,17 +36,13 @@ templ activityFeedRow(row ActivityRowVM, showAgentChip bool, onPrefix bool) {
 }
 
 // activityTargetPill renders the form-coded target of a session activity row:
-// a kind-glyph + node name, tinted by the node kind, linking to the node when
-// it still exists. Moved here from home.templ (K5 M1 — shared by feed+pulse).
+// the node name, linking to the node when it still exists — glyph-free and
+// kind-tone-free (Spec §7 Farb-Gesetz: color lives only in the avatar, kinds
+// stay neutral). Moved here from home.templ (K5 M1 — shared by feed+pulse).
 templ activityTargetPill(row ActivityRowVM) {
-	{{ k := NodeKindStyle(row.TargetKind) }}
 	if row.TargetHref != "" {
-		<a href={ templ.SafeURL(row.TargetHref) } class={ "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[.75rem] font-medium hover:underline", kindToneClass(k.Tone) }>
-			<span aria-hidden="true">{ k.Glyph }</span> { row.TargetName }
-		</a>
+		<a href={ templ.SafeURL(row.TargetHref) } class="targetlink">{ row.TargetName }</a>
 	} else {
-		<span class="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-line px-2 py-0.5 text-[.75rem] font-medium text-muted">
-			{ row.TargetName }
-		</span>
+		<span class="targetlink">{ row.TargetName }</span>
 	}
 }

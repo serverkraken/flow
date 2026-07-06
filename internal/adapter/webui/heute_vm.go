@@ -164,16 +164,6 @@ func heuteBalanceHue(pos bool) string {
 	return "red"
 }
 
-// heuteTileClass maps a project hue to the hero glyph tile wash+text.
-func heuteTileClass(hue string) string {
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + hue + "/10 text-" + hue
-	default:
-		return "bg-blue/10 text-blue"
-	}
-}
-
 // heutePickerNodes converts the Heute booking picker's display items
 // ([]components.NodePickerItem) into the []domain.Node shape the shared
 // SessionDialog's picker field expects (id + name only). Mirrors the

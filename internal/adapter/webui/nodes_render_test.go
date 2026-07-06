@@ -1,0 +1,75 @@
+package webui
+
+import (
+	"context"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// TestNodesFragment_TreeAsContent renders the Projekte page (Task 3: the tree
+// as content, Mockup Z.442–570) with a 2-engagement fixture and pins: the
+// short name renders large ("backstage"), the full remote-style path renders
+// UNCUT in the .path mono line (Spec §11 Eindämmung — no truncation of long
+// paths), kind chips are neutral .typechip text (never a glyph), avatar sizes
+// av-28/av-36 are wired, and "Direkt am Engagement" appears for the
+// engagement that mixes a vorhaben group with direct repos. The dead
+// ◆/▲/● kind-glyph coding (pre-L2) must never render.
+func TestNodesFragment_TreeAsContent(t *testing.T) {
+	longPath := "gitlab.com/dataalliance/products/foolu/product/backstage-application-service-x86"
+	if len(longPath) < 80 {
+		t.Fatalf("fixture path too short to exercise containment, len=%d", len(longPath))
+	}
+
+	eng := domain.Node{ID: "e1", Name: "RTL Extern", Kind: domain.KindEngagement}
+	vor := domain.Node{ID: "v1", Name: "backstage", Kind: domain.KindVorhaben, ParentID: ptr("e1")}
+	repo := domain.Node{ID: "r1", Name: longPath, Kind: domain.KindRepo, ParentID: ptr("v1")}
+	direct := domain.Node{ID: "r2", Name: "gitlab.com/dataalliance/infra/common/cmdb", Kind: domain.KindRepo, ParentID: ptr("e1")}
+
+	eng2 := domain.Node{ID: "e2", Name: "Privat", Kind: domain.KindEngagement}
+	repo2 := domain.Node{ID: "r3", Name: "github.com/serverkraken/flow", Kind: domain.KindRepo, ParentID: ptr("e2")}
+
+	nodes := []domain.Node{eng, vor, repo, direct, eng2, repo2}
+	vm := BuildProjectsVM(nodes, nil, nil, nil, time.Now())
+
+	out := renderToBuf(t, context.Background(), NodesFragment(NodesPageData{User: "u1", VM: vm}))
+
+	if !strings.Contains(out, ">backstage<") {
+		t.Errorf("short name %q not rendered as its own element; out=%.2000s", "backstage", out)
+	}
+	if !strings.Contains(out, longPath) {
+		t.Errorf("full path must render uncut (Spec §11 Eindämmung); want %q in out=%.2000s", longPath, out)
+	}
+	if !strings.Contains(out, `class="path"`) {
+		t.Errorf("mono full-path line missing class=\"path\"; out=%.2000s", out)
+	}
+	if !strings.Contains(out, `class="typechip"`) {
+		t.Errorf("neutral kind chip missing; out=%.2000s", out)
+	}
+	if !strings.Contains(out, "av-28") || !strings.Contains(out, "av-36") {
+		t.Errorf("avatar sizes av-28 (repo)/av-36 (engagement) missing; out=%.2000s", out)
+	}
+	if !strings.Contains(out, "Direkt am Engagement") {
+		t.Errorf("Direkt am Engagement group header missing for mixed engagement; out=%.2000s", out)
+	}
+	for _, dead := range []string{"◆", "▲", "●"} {
+		if strings.Contains(out, dead) {
+			t.Errorf("dead kind-glyph %q must never render on the Projekte page; out=%.2000s", dead, out)
+		}
+	}
+}
+
+// TestNodesFragment_Empty pins the "leer" state: no engagements at all
+// renders the calm empty-state copy, never a card grid, and stays glyph-free.
+func TestNodesFragment_Empty(t *testing.T) {
+	vm := BuildProjectsVM(nil, nil, nil, nil, time.Now())
+	out := renderToBuf(t, context.Background(), NodesFragment(NodesPageData{User: "u1", VM: vm}))
+	if !strings.Contains(out, "Keine Knoten") {
+		t.Errorf("empty state copy missing; out=%.1000s", out)
+	}
+	if strings.Contains(out, "◆") {
+		t.Errorf("empty state must not render the dead glyph; out=%.1000s", out)
+	}
+}

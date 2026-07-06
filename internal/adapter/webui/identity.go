@@ -33,6 +33,48 @@ func Initials(name string) string {
 	}
 }
 
+// DisplayNames liefert für jeden Namen seinen Kurznamen (ShortName). Kollidieren
+// zwei Kurznamen im übergebenen (sichtbaren) Kontext, bekommt jeder betroffene
+// Name genau ein Elternsegment davor ("gitlab / group"). Spec §5.5 — eine Quelle
+// für Projekte, Cockpit, Palette, Pills.
+func DisplayNames(names []string) map[string]string {
+	short := make(map[string]string, len(names))
+	count := map[string]int{}
+	for _, n := range names {
+		s := ShortName(n)
+		short[n] = s
+		count[s]++
+	}
+	out := make(map[string]string, len(names))
+	for _, n := range names {
+		s := short[n]
+		if count[s] > 1 {
+			out[n] = parentSlashLeaf(n)
+		} else {
+			out[n] = s
+		}
+	}
+	return out
+}
+
+// parentSlashLeaf gibt "<vorletztes Segment> / <letztes Segment>" zurück
+// (nur ein Segment mehr), Fallback = ShortName wenn kein Elternsegment existiert.
+func parentSlashLeaf(name string) string {
+	name = strings.TrimRight(strings.TrimSpace(name), "/")
+	i := strings.LastIndex(name, "/")
+	if i < 0 {
+		return name
+	}
+	leaf := name[i+1:]
+	rest := name[:i]
+	j := strings.LastIndex(rest, "/")
+	parent := rest
+	if j >= 0 {
+		parent = rest[j+1:]
+	}
+	return parent + " / " + leaf
+}
+
 // AvatarTone wählt deterministisch einen der sechs Lesesaal-Töne (Spec §7.2).
 // Farbe pro Projekt lebt NUR hier — nirgendwo sonst.
 func AvatarTone(name string) string {

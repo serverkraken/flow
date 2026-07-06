@@ -1,0 +1,281 @@
+package webui
+
+import (
+	"fmt"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
+)
+
+// CockpitMain is the cockpit's single scrolling content column (Mockup v2.4 —
+// no tabs, Spec §5/§9 "Rückgrat ersetzt den Baum, Kinder stehen als Listen im
+// Inhalt"): the instr-band first (Mockup DOM .cock>.main>.instr — it is NOT
+// part of the CockpitHead spine, Task 4/5 review-fix), an inline error banner
+// when a #cockpit-main mutation (Nachbuchen, session edit/delete) failed
+// (Task 7: every #cockpit-main handler sets d.PanelErr on its error path),
+// then four stacked Haarlinien-Sektionen — Enthält (non-leaf only), Wissen,
+// Buchungen (bookable only), Puls. Mounted in #cockpit-main by Task 7's
+// fragment GET /nodes/{id}/main.
+//
+// The edit-mode SessionDialog is mounted HERE (not in cockpitBody, Task 7):
+// a Buchung row's ?edit={sid} round-trip (cockpitBuchungActions) hx-gets
+// /main?edit={sid} targeting #cockpit-main and swaps ONLY this component's
+// output — a dialog mounted at the page level would never appear on that
+// swap. The add-mode dialog stays page-level (cockpitBody) since it opens
+// client-side (data-dialog-open) and never needs a server round-trip.
+templ CockpitMain(d NodeCockpit) {
+	@cockpitInstr(d)
+	if d.PanelErr != "" {
+		<p class="text-warn text-sm mb-3" role="alert">{ d.PanelErr }</p>
+	}
+	if d.N.Kind != domain.KindRepo {
+		@cockpitEnthaeltSection(d)
+	}
+	@cockpitWissenSection(d)
+	if domain.IsBookable(d.N.Kind) {
+		@cockpitBuchungenSection(d)
+	}
+	@cockpitPulseSection(d)
+	if d.EditSession != nil {
+		@components.SessionDialog(sessionDialogEditVM(d))
+	}
+}
+
+// cockpitEnthaeltSection lists the node's direct children as Haarlinien-Zeilen
+// (Spec §5.3 "Kinder als Listen im Inhalt") — replaces both the old Struktur
+// tab's child list and the Übersicht comp-card. Engagement/Vorhaben only; a
+// Repo is a leaf here (branch is reserved, no behavior yet — mirrors the
+// existing Chain/Comp kind split in cockpit_uebersicht_vm.go).
+templ cockpitEnthaeltSection(d NodeCockpit) {
+	{{
+		childNames := make([]string, len(d.Children))
+		for i, ch := range d.Children {
+			childNames[i] = ch.N.Name
+		}
+		names := DisplayNames(childNames)
+	}}
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.enthaelt.title") }</span>
+			<a class="more" href={ templ.SafeURL("/nodes/new?parent=" + d.N.ID) } hx-boost="false">+ { components.T(ctx, "cockpit.struktur.add") }</a>
+		</div>
+		if len(d.Children) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.struktur.empty") }</p>
+		} else {
+			for _, ch := range d.Children {
+				<a class="projrow" href={ templ.SafeURL("/nodes/" + ch.N.ID) }>
+					@components.Avatar(Initials(names[ch.N.Name]), AvatarTone(ch.N.Name), "av-36")
+					<div class="grow">
+						<div class="t">{ names[ch.N.Name] }</div>
+						<div class="path">{ ch.N.Name }</div>
+					</div>
+					<div class="right"><div class="v">{ dashIfZeroDur(ch.Total) }</div></div>
+				</a>
+			}
+		}
+	</div>
+}
+
+// cockpitWissenSection is the "Wissen zu diesem Repo/Knoten" section: a
+// type-chipped, read-time-annotated document list (d.WissenRows, built by
+// BuildWissenRows) plus the subtree/self scope toggle (non-Repo only) and a
+// "Neues Wissen" link scoped to this node.
+templ cockpitWissenSection(d NodeCockpit) {
+	{{
+		titleKey := "cockpit.wissen.section"
+		if d.N.Kind == domain.KindRepo {
+			titleKey = "cockpit.wissen.sectionRepo"
+		}
+	}}
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, titleKey) }</span>
+			if !d.WissenAll && d.WissenTotal > len(d.WissenRows) {
+				<a class="more" href={ templ.SafeURL(cockpitMainURL(d, true)) }
+					hx-get={ cockpitMainURL(d, true) } hx-target="#cockpit-main" hx-swap="innerHTML">{ fmt.Sprintf(components.T(ctx, "cockpit.wissen.all"), d.WissenTotal) }</a>
+			}
+			<a class="more" href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
+		</div>
+		if d.N.Kind != domain.KindRepo {
+			<div class="seg seg-sm mb-4 inline-flex">
+				if d.WissenScope == "self" {
+					<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/main?scope=subtree") }
+						hx-get={ "/nodes/" + d.N.ID + "/main?scope=subtree" } hx-target="#cockpit-main" hx-swap="innerHTML"
+						aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+					<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/main?scope=self") }
+						hx-get={ "/nodes/" + d.N.ID + "/main?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+						aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+				} else {
+					<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/main?scope=subtree") }
+						hx-get={ "/nodes/" + d.N.ID + "/main?scope=subtree" } hx-target="#cockpit-main" hx-swap="innerHTML"
+						aria-pressed="true" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSubtree") }</a>
+					<a href={ templ.SafeURL("/nodes/" + d.N.ID + "/main?scope=self") }
+						hx-get={ "/nodes/" + d.N.ID + "/main?scope=self" } hx-target="#cockpit-main" hx-swap="innerHTML"
+						aria-pressed="false" class="px-3 py-1.5">{ components.T(ctx, "cockpit.wissen.scopeSelf") }</a>
+				}
+			</div>
+		}
+		if len(d.WissenRows) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.wissen.empty") }</p>
+		} else {
+			for _, row := range d.WissenRows {
+				@cockpitWissenRow(row)
+			}
+		}
+	</div>
+}
+
+// cockpitWissenRow renders one Wissen-section document row: neutral type
+// chip, title + meta, and the reading-time box (omitted when unknown).
+templ cockpitWissenRow(row WissenRow) {
+	<a class="projrow" href={ templ.SafeURL("/wissen/" + row.ID) }>
+		<span class={ "typechip", row.ChipClass }>{ row.ChipLabel }</span>
+		<div class="grow"><div class="t">{ row.Title }</div><div class="s">{ row.Meta }</div></div>
+		if row.ReadTime != "" {
+			<div class="right"><div class="v">{ row.ReadTime }</div><div class="k">{ components.T(ctx, "cockpit.wissen.readtime") }</div></div>
+		}
+	</a>
+}
+
+// cockpitBuchungenSection is the Session-Ledger: the existing d.SessionRows
+// (Datum · Span · Tag · Dauer, Edit/Delete für abgeschlossene Sitzungen) as
+// flat Lesesaal-Zeilen — replaces the old worktime tab's card-list. Bookable
+// kinds only (Offene Entscheidung #2: der Ledger bleibt am Cockpit).
+templ cockpitBuchungenSection(d NodeCockpit) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.buchungen.title") }</span>
+		</div>
+		if len(d.SessionRows) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "cockpit.worktime.empty") }</p>
+		} else {
+			{{ showPill := d.N.Kind != domain.KindRepo }}
+			for _, row := range d.SessionRows {
+				@cockpitBuchungRow(d.N.ID, row, showPill)
+			}
+			if showPill {
+				<p class="mt-2 text-sm text-faint">{ components.T(ctx, "cockpit.worktime.subtreeNote") }</p>
+			} else {
+				<p class="mt-2 text-sm text-faint">{ components.T(ctx, "cockpit.worktime.ownOnly") }</p>
+			}
+		}
+	</div>
+}
+
+// cockpitBuchungRow renders one booking row: date/span, tag + (subtree-only)
+// containment badge, and duration + edit/delete controls for completed
+// sessions — a running row shows neither (mirrors the old cockpitSessionRow
+// convention). The containment badge is a neutral .typechip (Farb-Gesetz —
+// no per-kind tone/glyph on Lesesaal surfaces) + a plain .targetlink name.
+templ cockpitBuchungRow(nodeID string, row CockpitSessionRow, showPill bool) {
+	<div class="projrow">
+		<div class="grow">
+			<div class="t">{ row.Date } <span class="dotsep">·</span> { row.Span }</div>
+			<div class="s">
+				if row.Tag != "" {
+					<span class="typechip">{ row.Tag }</span>
+				}
+				if showPill && row.NodeName != "" {
+					<span class="typechip">{ components.T(ctx, NodeKindStyle(row.NodeKind).LabelKey) }</span>
+					<a class="targetlink" href={ templ.SafeURL("/nodes/" + row.NodeID) }>{ row.NodeName }</a>
+				}
+			</div>
+		</div>
+		<div class="right">
+			if row.Running {
+				<div class="v">{ components.T(ctx, "cockpit.worktime.running") }</div>
+			} else {
+				<div class="v">{ row.Dur }</div>
+				@cockpitBuchungActions(nodeID, row)
+			}
+		</div>
+	</div>
+}
+
+// cockpitBuchungActions renders the edit-link + delete-confirm-dialog trigger
+// for a completed Buchung row — split out of cockpitBuchungRow so the
+// templ if/else above stays simple (nesting a multi-field ConfirmDialog call
+// straight inside an else-branch tripped the templ parser).
+templ cockpitBuchungActions(nodeID string, row CockpitSessionRow) {
+	<div class="k">
+		<a
+			hx-get={ "/nodes/" + nodeID + "/main?edit=" + row.ID }
+			hx-target="#cockpit-main"
+			hx-swap="innerHTML"
+			class="targetlink"
+		>{ components.T(ctx, "cockpit.session.edit") }</a>
+		<button type="button" aria-label={ components.T(ctx, "cockpit.session.delete") }
+			data-dialog-open={ "delete-session-" + row.ID }
+			class="text-faint hover:text-warn">✕</button>
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID:      "delete-session-" + row.ID,
+			BodyKey: "cockpit.session.deleteConfirm",
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/nodes/" + nodeID + "/sessions/" + row.ID + "/delete",
+				"hx-target": "#cockpit-main",
+				"hx-swap":   "innerHTML",
+				"type":      "button",
+			},
+		})
+	</div>
+}
+
+// cockpitPulseSection is the subtree-filtered live activity feed (Mockup
+// Z.611–626): a "LIVE" marker in the section head plus one Lesesaal row per
+// entry — d.Pulse (fed by FilterPulse+BuildActivityRows, the
+// existing cockpit_uebersicht_vm.go/activity_row.go builders, reused here
+// rather than duplicated). NOT activityFeedRow (Kristall, stays on Home/L4).
+templ cockpitPulseSection(d NodeCockpit) {
+	<div class="sect pulse">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.pulse.subtree") }</span>
+			<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
+		</div>
+		if len(d.Pulse) == 0 {
+			<p class="text-sm text-faint">{ components.T(ctx, "activity.empty") }</p>
+		} else {
+			for _, row := range d.Pulse {
+				@cockpitPulseRow(row)
+			}
+		}
+	</div>
+}
+
+// cockpitPulseRow is the Lesesaal Puls row (NOT activityFeedRow): Avatar or
+// AgentAvatar, who/agentname + verb + a glyph-free .targetlink pill for the
+// event's target, and the relative time — mirrors Mockup Z.620–627.
+templ cockpitPulseRow(row ActivityRowVM) {
+	<div class="projrow">
+		if row.ActorKind == "agent" {
+			@components.AgentAvatar(Initials(row.ActorRef), "av-28")
+		} else {
+			@components.Avatar(Initials(row.ActorRef), AvatarTone(row.ActorRef), "av-28")
+		}
+		<div class="grow">
+			<div class="t">
+				if row.ActorKind == "agent" {
+					<span class="agentname">{ row.ActorRef }</span>
+				} else {
+					<span class="who">{ row.ActorRef }</span>
+				}
+				{ " " }{ components.T(ctx, row.VerbKey) }
+				if row.TargetName != "" {
+					{ " " }
+					if row.TargetHref != "" {
+						<a class="targetlink" href={ templ.SafeURL(row.TargetHref) } title={ row.TargetName }>{ ShortName(row.TargetName) }</a>
+					} else {
+						<span class="targetlink" title={ row.TargetName }>{ ShortName(row.TargetName) }</span>
+					}
+				} else if row.Label != "" {
+					{ " " }
+					if row.Href != "" {
+						<a class="targetlink" href={ templ.SafeURL(row.Href) } title={ row.Label }>{ ShortName(row.Label) }</a>
+					} else {
+						<span class="targetlink" title={ row.Label }>{ ShortName(row.Label) }</span>
+					}
+				}
+			</div>
+		</div>
+		<div class="right"><div class="v">{ row.RelTime }</div></div>
+	</div>
+}

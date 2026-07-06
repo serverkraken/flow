@@ -11,10 +11,9 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// TestCockpitWorktime_ListsOwnSessions verifies that GET /nodes/{id}/tab/worktime
-// renders the session list filtered to the requested node (not other nodes'
-// sessions), shows the Nachbuchen form with the correct route, and targets
-// #cockpit-main (not #cockpit-panel) so HTMX does not nest the strip inside itself.
+// TestCockpitWorktime_ListsOwnSessions verifies that GET /nodes/{id}/main
+// renders the Buchungen section filtered to the requested node (not other
+// nodes' sessions), with the edit link targeting #cockpit-main.
 func TestCockpitWorktime_ListsOwnSessions(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
@@ -38,26 +37,24 @@ func TestCockpitWorktime_ListsOwnSessions(t *testing.T) {
 		Tags: []string{"n2only"}, Start: start2, Stop: &stop2,
 	})
 
-	rec := c.do(t, "GET", "/nodes/n1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
 
 	if !strings.Contains(body, "slice6") {
-		t.Errorf("worktime panel missing session tag 'slice6': %.400s", body)
+		t.Errorf("Buchungen section missing session tag 'slice6': %.400s", body)
 	}
-	if !strings.Contains(body, "/nodes/n1/sessions") {
-		t.Errorf("worktime panel missing Nachbuchen form action /nodes/n1/sessions: %.400s", body)
-	}
-	// The form must target #cockpit-main (outer container) not #cockpit-panel.
-	// CockpitTabsAndPanel returns the full strip+panel; swapping INTO #cockpit-panel
-	// would duplicate the tab strip and the id — the nesting bug fixed in Task 4.
+	// The completed row's edit link must target #cockpit-main (Task 7 — the
+	// old worktime tab's Nachbuchen mini-form is gone; booking now goes through
+	// the page-level SessionDialog, but the row's Edit round-trip still lands
+	// back in #cockpit-main).
 	if !strings.Contains(body, `hx-target="#cockpit-main"`) {
-		t.Errorf(`Nachbuchen form must use hx-target="#cockpit-main": %.600s`, body)
+		t.Errorf(`Buchung row edit link must use hx-target="#cockpit-main": %.600s`, body)
 	}
 	if strings.Contains(body, "n2only") {
-		t.Errorf("worktime panel must NOT show other node's sessions: %.400s", body)
+		t.Errorf("Buchungen section must NOT show other node's sessions: %.400s", body)
 	}
 }
 
@@ -106,36 +103,31 @@ func TestCockpitAddSession_InvalidTime(t *testing.T) {
 	}
 }
 
-// TestCockpitWorktime_NachbuchenFormTargetsCockpitMain pins the fix for the
-// DOM-nesting bug: the Nachbuchen form must target #cockpit-main (which holds
-// the full strip+panel), not #cockpit-panel (which is inside that container).
-// Swapping CockpitTabsAndPanel INTO #cockpit-panel would nest a second strip
-// inside the first and duplicate the id.
+// TestCockpitWorktime_NachbuchenFormTargetsCockpitMain verifies the shared
+// Nachbuchen SessionDialog (mounted once on the full page, Task 7 — no more
+// per-tab mini-form) posts to /nodes/{id}/sessions targeting #cockpit-main,
+// and that the now-meaningless #cockpit-panel target never appears anywhere.
 func TestCockpitWorktime_NachbuchenFormTargetsCockpitMain(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
 
-	rec := c.do(t, "GET", "/nodes/n1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/n1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
 	body := rec.Body.String()
 
-	// The form action must be present.
 	if !strings.Contains(body, `hx-post="/nodes/n1/sessions"`) {
-		t.Errorf("Nachbuchen form action missing: %.600s", body)
+		t.Errorf("Nachbuchen dialog action missing: %.600s", body)
 	}
-	// #cockpit-panel is never a valid hx-target in this cockpit — everything that
-	// re-renders the tab area targets #cockpit-main. Order-independent guard.
 	if strings.Contains(body, `hx-target="#cockpit-panel"`) {
-		t.Errorf("nothing may target #cockpit-panel (nesting bug): %.600s", body)
+		t.Errorf("nothing may target #cockpit-panel (Kristall-era id, gone since Task 7): %.600s", body)
 	}
 }
 
 // TestCockpitHead_FragmentReturnsOK verifies that GET /nodes/{id}/head returns
-// the head fragment (used by the SSE live-reload hx-get). This covers the
-// handleWebNodeHead code path which the other tests miss (they use full-page
-// GET /nodes/{id} or tab GET /nodes/{id}/tab/{name}).
+// the spine fragment (used by the SSE live-reload hx-get) — the outer
+// id="cockpit-head" div lives in cockpitBody and is NOT part of this fragment.
 func TestCockpitHead_FragmentReturnsOK(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
@@ -145,15 +137,12 @@ func TestCockpitHead_FragmentReturnsOK(t *testing.T) {
 		t.Fatalf("status %d body=%.300s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// The rail fragment (CockpitRail) renders just the three card sections —
-	// the outer id="cockpit-rail" div lives in cockpitBody and is NOT part of
-	// this fragment.
 	if !strings.Contains(body, "flow") {
 		t.Errorf("head fragment missing node name: %.300s", body)
 	}
-	// CockpitRail's identity card uses the rounded-3xl glass card class.
-	if !strings.Contains(body, "rounded-3xl") {
-		t.Errorf("head fragment missing section element: %.300s", body)
+	// CockpitHead's spine wrapper class.
+	if !strings.Contains(body, `class="spine"`) {
+		t.Errorf("head fragment missing the spine wrapper: %.300s", body)
 	}
 	// Unknown node → 404
 	if rec2 := c.do(t, "GET", "/nodes/nope/head", nil); rec2.Code != http.StatusNotFound {
@@ -176,7 +165,7 @@ func TestCockpitWorktime_RunningSessionRow(t *testing.T) {
 		Start: start, // Stop is nil → running
 	})
 
-	rec := c.do(t, "GET", "/nodes/n1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -184,7 +173,7 @@ func TestCockpitWorktime_RunningSessionRow(t *testing.T) {
 	// The i18n key cockpit.worktime.running → "running" (EN) / "läuft" (DE).
 	// We check for the row date being present as a proxy for the row rendering.
 	if !strings.Contains(body, "10:00") {
-		t.Errorf("running session start time missing from worktime panel: %.400s", body)
+		t.Errorf("running session start time missing from Buchungen section: %.400s", body)
 	}
 }
 
@@ -217,8 +206,9 @@ func TestCockpitAddSession_OverlapError(t *testing.T) {
 }
 
 // TestCockpitTimer_OtherBound verifies that when a session is running on a
-// different node, the cockpit head shows the "running on Y" switch widget.
-// This covers the TimerOtherBound branch in cockpitTimer templ.
+// different node, the cockpit's instr-band shows the "running on Y" switch
+// widget. This covers the TimerOtherBound branch in cockpitInstr (the
+// timer forms live in #cockpit-main now, Task 7 — not the spine).
 func TestCockpitTimer_OtherBound(t *testing.T) {
 	c := newCockpitTestServer(t)
 	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo, Slug: "flow"})
@@ -229,11 +219,10 @@ func TestCockpitTimer_OtherBound(t *testing.T) {
 	_, _ = c.srv.StartSession.Execute(context.Background(), "u1", &n2, nil, "")
 
 	// Viewing n1: timer should be OtherBound → shows switch form.
-	rec := c.do(t, "GET", "/nodes/n1/head", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
-	// TimerOtherBound renders a <details> with the switch form.
 	if !strings.Contains(rec.Body.String(), "/nodes/n1/switch") {
 		t.Errorf("TimerOtherBound: expected switch form, got: %.400s", rec.Body.String())
 	}
@@ -248,7 +237,7 @@ func TestCockpitTimer_Unbound(t *testing.T) {
 	// Start a session without a node (unbooked timer).
 	_, _ = c.srv.StartSession.Execute(context.Background(), "u1", nil, nil, "")
 
-	rec := c.do(t, "GET", "/nodes/n1/head", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -280,36 +269,6 @@ func TestCockpitTimer_NotBookable(t *testing.T) {
 	}
 }
 
-// TestCockpitHead_NodeColors verifies that nodes with different colors render
-// the correct accent bar class. This covers cockpitAccent branches for colors
-// that aren't hit by other tests (purple, green, orange).
-func TestCockpitHead_NodeColors(t *testing.T) {
-	for _, c := range []struct {
-		color string
-		want  string
-	}{
-		{"purple", "bg-purple"},
-		{"green", "bg-green"},
-		{"orange", "bg-orange"},
-		{"unknown-color", "bg-blue"}, // default
-	} {
-		t.Run(c.color, func(t *testing.T) {
-			srv := newCockpitTestServer(t)
-			srv.seedNode(t, domain.Node{
-				ID: "n-color", OwnerID: "u1", Name: "colortest", Kind: domain.KindRepo,
-				Color: c.color, Glyph: "◈",
-			})
-			rec := srv.do(t, "GET", "/nodes/n-color/head", nil)
-			if rec.Code != http.StatusOK {
-				t.Fatalf("status %d", rec.Code)
-			}
-			if !strings.Contains(rec.Body.String(), c.want) {
-				t.Errorf("color %q: expected class %q in head, got: %.300s", c.color, c.want, rec.Body.String())
-			}
-		})
-	}
-}
-
 // TestCockpitSessionRow_NoTag verifies that sessions with no tags still render
 // correctly (covers the `if row.Tag != ""` false branch in cockpitSessionRow).
 func TestCockpitSessionRow_NoTag(t *testing.T) {
@@ -325,7 +284,7 @@ func TestCockpitSessionRow_NoTag(t *testing.T) {
 		Start: start, Stop: &stop, Tags: nil,
 	})
 
-	rec := c.do(t, "GET", "/nodes/n1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.300s", rec.Code, rec.Body.String())
 	}
@@ -362,7 +321,7 @@ func TestCockpitWorktime_EngagementListsSubtreeSessionWithNodePill(t *testing.T)
 		t.Fatalf("seed session: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/e1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/e1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -404,7 +363,7 @@ func TestCockpitWorktime_RepoUnderTreeListsOwnOnly(t *testing.T) {
 		t.Fatalf("seed repo session: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/r1/tab/worktime", nil)
+	rec := c.do(t, "GET", "/nodes/r1/main", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
@@ -602,7 +561,7 @@ func TestCockpitDeleteSession_ForeignSessionReturnsPanelErr(t *testing.T) {
 }
 
 // TestCockpitWorktime_EditQueryOpensPrefilledDialog verifies the ?edit={sid}
-// round-trip end-to-end: GET /nodes/{id}/tab/worktime?edit={sid} renders the
+// round-trip end-to-end: GET /nodes/{id}/main?edit={sid} renders the
 // shared SessionDialog pre-opened (native <dialog open>, no click needed) and
 // prefilled from the session, posting back to this same node's edit route.
 func TestCockpitWorktime_EditQueryOpensPrefilledDialog(t *testing.T) {
@@ -618,7 +577,7 @@ func TestCockpitWorktime_EditQueryOpensPrefilledDialog(t *testing.T) {
 		t.Fatalf("seed session: %v", err)
 	}
 
-	rec := c.do(t, "GET", "/nodes/n1/tab/worktime?edit=s1", nil)
+	rec := c.do(t, "GET", "/nodes/n1/main?edit=s1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}

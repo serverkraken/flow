@@ -194,6 +194,10 @@ func styleguideContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = Card("mb-6", sgLesesaalL2()).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
@@ -608,7 +612,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: rgb(var(--" + token + "))")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 131, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 133, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -621,7 +625,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(token)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 132, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 134, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -731,6 +735,36 @@ func sgLesesaal() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div><div class=\"flex flex-wrap items-center gap-2\"><span class=\"typechip tc-b\">Backstage</span> <span class=\"typechip tc-v\">Vorhaben</span> <span class=\"typechip tc-t\">Tagebuch</span> <span class=\"typechip tc-o\">Organisation</span> <span class=\"typechip tc-g\">Guide</span> <span class=\"typechip tc-r\">Referenz</span></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// ── Lesesaal L2: Rückgrat, Cockpit-Baum, Meta-Spalte, instr-Band ────────────
+func sgLesesaalL2() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var19 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var19 == nil {
+			templ_7745c5c3_Var19 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<h2 class=\"font-display text-lg font-semibold mb-4\">Lesesaal L2 — Rückgrat &amp; Cockpit</h2><div class=\"spine mb-4\"><div class=\"up\"><a href=\"/projekte\">Projekte</a> <span class=\"sep\">/</span> <span>ACME</span></div><div class=\"spine-main\"><h1>flow-rebuild</h1></div><div class=\"fullpath\">/Users/soenne/SourceCode/serverkraken/flow-rebuild-mit-einem-sehr-langen-verschachtelten-pfad-zur-probe <button type=\"button\">Kopieren</button></div></div><div class=\"eng mb-4\"><div class=\"eng-h\"><h2>ACME</h2><div class=\"right\"><div class=\"v\">128h 30m</div><div class=\"k\">Gesamt</div></div></div><div class=\"vh\"><span class=\"t\">Website-Relaunch</span> <span class=\"c\">2 Repos</span></div><a class=\"projrow\" href=\"/nodes/1\"><div class=\"grow\"><div class=\"t\">flow-rebuild</div><div class=\"s\">zuletzt aktiv vor 2 Tagen</div><div class=\"path\">github.com/serverkraken/flow-rebuild</div></div><div class=\"right\"><div class=\"v\">42h 10m</div><div class=\"k\">Diese Woche</div></div></a><div class=\"vh\"><span class=\"t\">Backend-Migration</span> <span class=\"c\">1 Repo</span></div><a class=\"projrow\" href=\"/nodes/2\"><div class=\"grow\"><div class=\"t\">flow-mcp</div><div class=\"s\">zuletzt aktiv heute</div><div class=\"path\">github.com/serverkraken/flow-mcp</div></div><div class=\"right\"><div class=\"v\">6h 05m</div><div class=\"k\">Diese Woche</div></div></a></div><div class=\"rail mb-4\"><div class=\"blk\"><span class=\"eyebrow\">Kennzahlen</span><div class=\"krow\"><span class=\"n\">Diese Woche</span> <span class=\"v\">42h 10m</span></div><div class=\"krow\"><span class=\"n\">Dieser Monat</span> <span class=\"v\">128h 30m</span></div><div class=\"krow\"><span class=\"n\">Ziel-Quote</span> <span class=\"v\">92%</span></div></div></div><div class=\"instr\"><div class=\"livechip\">LIVE</div><a class=\"btn btn-pri btn-s\" href=\"#\">Timer starten</a> <a class=\"btn btn-q btn-s\" href=\"#\">Nachbuchen</a><div class=\"stats\">Heute <b>3h 12m</b> · Diese Woche <b>42h 10m</b></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
