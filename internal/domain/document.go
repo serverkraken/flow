@@ -75,6 +75,14 @@ type Document struct {
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
+	// UpdatedByKind/UpdatedByRef stamp who last wrote this document (actor.Kind
+	// as string + actor.Actor.Ref). Both empty means unknown/pre-L3 (NULL in
+	// storage) — the provenance line then renders without an actor. Set by the
+	// write use cases (CreateDocument/UpdateDocument/UpsertDocumentByPath) from
+	// actor.FromContext(ctx); SetPinned/SetArchived deliberately do not restamp
+	// (pin/archive is not authorship).
+	UpdatedByKind string `json:"updatedByKind,omitempty"`
+	UpdatedByRef  string `json:"updatedByRef,omitempty"`
 }
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:[-_][a-z0-9]+)*(?:/[a-z0-9]+(?:[-_][a-z0-9]+)*)*$`)

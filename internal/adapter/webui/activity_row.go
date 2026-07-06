@@ -45,7 +45,7 @@ func BuildActivityRows(entries []domain.ActivityEntry, names map[string]string, 
 			VerbKey:   "activity.verb." + e.Kind,
 			Label:     label,
 			Href:      href,
-			RelTime:   fmtRelTime(e.At, now),
+			RelTime:   FmtRelTime(e.At, now),
 		}
 		if strings.HasPrefix(e.Kind, "session.") && e.NodeRef != nil {
 			if name, ok := names[*e.NodeRef]; ok {
@@ -63,11 +63,18 @@ func BuildActivityRows(entries []domain.ActivityEntry, names map[string]string, 
 	return rows
 }
 
-// fmtRelTime formats a timestamp relative to now in German.
+// FmtRelTime formats a timestamp relative to now in German.
 // < 60 min  → "vor N Min"
 // < 24 h    → "vor N Std"
 // older     → date "02.01.2006"
-func fmtRelTime(at, now time.Time) string {
+//
+// Exported so httpserver's document-page handler (Provenance row) can reuse
+// the exact same relative-time convention as the cockpit/activity feed
+// instead of inventing a second one. NOTE: this is hardcoded German
+// regardless of locale, matching the pre-existing behaviour of every other
+// caller (cockpit pulse, activity feed, Wissen "zuletzt aktualisiert") — a
+// wider locale-aware fix is out of scope for this task.
+func FmtRelTime(at, now time.Time) string {
 	diff := now.Sub(at)
 	if diff < 0 {
 		diff = 0

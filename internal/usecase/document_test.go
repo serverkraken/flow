@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -115,6 +116,33 @@ func TestUpdateDocument(t *testing.T) {
 	}
 	if !updated.UpdatedAt.Equal(t1) {
 		t.Errorf("UpdatedAt = %v, want %v", updated.UpdatedAt, t1)
+	}
+}
+
+func TestUpdateDocument_StampsActor(t *testing.T) {
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	clk := testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+
+	create := usecase.CreateDocument{Docs: docs, IDs: ids, Clock: clk}
+	created, err := create.Execute(ctx, "u1", usecase.CreateDocumentInput{
+		Type: domain.DocFree, Path: "docs/prov", Title: "Old",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	actCtx := actor.WithContext(ctx, actor.Actor{Kind: actor.Human, Ref: "Soenne"})
+	update := usecase.UpdateDocument{Docs: docs, Clock: clk}
+	updated, err := update.Execute(actCtx, "u1", created.ID, usecase.UpdateDocumentInput{
+		Title: "New", Body: "new body",
+	})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.UpdatedByKind != "human" || updated.UpdatedByRef != "Soenne" {
+		t.Fatalf("UpdatedByKind/Ref = %q/%q, want human/Soenne", updated.UpdatedByKind, updated.UpdatedByRef)
 	}
 }
 

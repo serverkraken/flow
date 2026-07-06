@@ -111,6 +111,109 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 	}
 }
 
+// TestDocumentStore_ProvenanceRoundTrip covers Task 3 (Migration 0028): the
+// updated_by_kind/updated_by_ref stamp survives Get AND Search (Codex #8 —
+// Search scans via prefixedDocCols/scanSearchHit, a separate column list +
+// scanner from docCols/scanDocument, so it needs its own coverage). A doc
+// inserted the pre-L3 way (no provenance columns) must read back as empty
+// strings without a scan error.
+func TestDocumentStore_ProvenanceRoundTrip(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-prov", "sub-prov", "provuser", "prov@x.de", "Prov User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	owner := "u-prov"
+
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Now().UTC().Truncate(time.Second)
+
+	// Doc written with a known actor (agent).
+	stamped := domain.Document{
+		ID: "prov-1", OwnerID: owner, Type: domain.DocFree, Path: "prov/stamped",
+		Title: "Prov Stamped", Body: "kompendium body", CreatedAt: now, UpdatedAt: now,
+		UpdatedByKind: "agent", UpdatedByRef: "claude-code",
+	}
+	if _, err := st.Create(ctx, stamped); err != nil {
+		t.Fatal(err)
+	}
+
+	// Doc inserted the pre-L3 way, bypassing provenance columns entirely
+	// (simulates a row from before migration 0028; NULL, not empty string).
+	if _, err := pool.Exec(ctx, `INSERT INTO documents (id, owner_id, type, path, title, body, extra, created_at, updated_at)
+VALUES ($1,$2,$3,$4,$5,$6,'{}',$7,$7)`,
+		"prov-2", owner, string(domain.DocFree), "prov/legacy", "Prov Legacy", "legacy body", now); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get: stamped doc carries the actor.
+	got, err := st.Get(ctx, owner, "prov-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.UpdatedByKind != "agent" || got.UpdatedByRef != "claude-code" {
+		t.Fatalf("Get UpdatedByKind/Ref = %q/%q, want agent/claude-code", got.UpdatedByKind, got.UpdatedByRef)
+	}
+
+	// Get: legacy (NULL) doc reads back as empty strings, no scan error.
+	gotLegacy, err := st.Get(ctx, owner, "prov-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotLegacy.UpdatedByKind != "" || gotLegacy.UpdatedByRef != "" {
+		t.Fatalf("Get legacy UpdatedByKind/Ref = %q/%q, want empty/empty", gotLegacy.UpdatedByKind, gotLegacy.UpdatedByRef)
+	}
+
+	// Search (prefixedDocCols + scanSearchHit path, Codex #8): both docs
+	// surface provenance correctly, including the NULL legacy row.
+	hits, err := st.Search(ctx, owner, "kompendium", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "prov-1" {
+		t.Fatalf(`search "kompendium" = %#v, want [prov-1]`, hits)
+	}
+	if hits[0].UpdatedByKind != "agent" || hits[0].UpdatedByRef != "claude-code" {
+		t.Fatalf("Search UpdatedByKind/Ref = %q/%q, want agent/claude-code", hits[0].UpdatedByKind, hits[0].UpdatedByRef)
+	}
+
+	legacyHits, err := st.Search(ctx, owner, "legacy", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(legacyHits) != 1 || legacyHits[0].UpdatedByKind != "" || legacyHits[0].UpdatedByRef != "" {
+		t.Fatalf(`search "legacy" provenance = %#v, want empty/empty`, legacyHits)
+	}
+
+	// SemanticSearch (prefixedDocCols + scanSemanticHit path, Codex #8): an
+	// embedder is not wired in this suite, but chunks can be seeded directly.
+	vec := make([]float32, 768)
+	for i := range vec {
+		vec[i] = 0.5
+	}
+	if err := st.ReplaceChunks(ctx, "prov-1", owner, []string{"chunk"}, [][]float32{vec}); err != nil {
+		t.Fatal(err)
+	}
+	semHits, err := st.SemanticSearch(ctx, owner, vec, nil, nil, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(semHits) != 1 || semHits[0].UpdatedByKind != "agent" || semHits[0].UpdatedByRef != "claude-code" {
+		t.Fatalf("SemanticSearch UpdatedByKind/Ref = %#v, want agent/claude-code", semHits)
+	}
+}
+
 func TestDocumentStore_ListTagFilter(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -637,11 +740,11 @@ func TestDocumentStore_UpsertByPath_InsertThenUpdate(t *testing.T) {
 	nid := "n1"
 	seedNode(t, ns, "u1", nid)
 
-	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2 body", false, false)
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2 body", false, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -664,7 +767,7 @@ func TestDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	seedNode(t, ns, "u1", nid)
 
 	// Insert as memory type
-	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1 body", false, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -674,7 +777,7 @@ func TestDocumentStore_UpsertByPath_ConvergesType(t *testing.T) {
 	}
 
 	// Re-upsert at same path with activecontext type — must converge
-	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocActiveContext, "active-context", "AC", "v2 body", false, false)
+	id2, _, err := ds.UpsertByPath(ctx, "u1", &nid, domain.DocActiveContext, "active-context", "AC", "v2 body", false, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -694,11 +797,11 @@ func TestDocumentStore_UpsertByPath_GlobalNodeNull(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, us, "u1")
 
-	id1, _, err := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g1", false, false)
+	id1, _, err := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g1", false, false, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	id2, _, _ := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g2", false, false)
+	id2, _, _ := ds.UpsertByPath(ctx, "u1", nil, domain.DocMemory, "active-context", "G", "g2", false, false, "", "")
 	if id1 != id2 {
 		t.Fatalf("global (node_id NULL) upsert must hit the coalesce('') index, got %q vs %q", id1, id2)
 	}
@@ -712,8 +815,8 @@ func TestDocumentStore_UpsertByPath_PreservesPin(t *testing.T) {
 	seedUser(t, us, "u1")
 	nid := "n1"
 	seedNode(t, ns, "u1", nid)
-	id, _, _ := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1", true, false)
-	_, _, _ = ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2", false, false) // flush, pinned arg false
+	id, _, _ := ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v1", true, false, "", "")
+	_, _, _ = ds.UpsertByPath(ctx, "u1", &nid, domain.DocMemory, "active-context", "AC", "v2", false, false, "", "") // flush, pinned arg false
 	got, _ := ds.Get(ctx, "u1", id)
 	if !got.Pinned {
 		t.Fatalf("upsert-on-conflict must PRESERVE the existing pin")

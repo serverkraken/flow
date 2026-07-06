@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -32,6 +33,8 @@ func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in Upd
 	cur.Title, cur.Body = domain.StripHighlightSentinels(in.Title), domain.StripHighlightSentinels(in.Body)
 	_, bodyStart := domain.ParseFrontmatter(in.Body)
 	cur.UpdatedAt = uc.Clock.Now()
+	a := actor.FromContext(ctx)
+	cur.UpdatedByKind, cur.UpdatedByRef = string(a.Kind), a.Ref
 	updated, err := uc.Docs.Update(ctx, cur)
 	if err != nil {
 		return domain.Document{}, err

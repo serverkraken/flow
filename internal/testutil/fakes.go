@@ -746,6 +746,8 @@ func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain
 	existing.Tags = d.Tags
 	existing.Extra = d.Extra
 	existing.UpdatedAt = d.UpdatedAt
+	existing.UpdatedByKind = d.UpdatedByKind
+	existing.UpdatedByRef = d.UpdatedByRef
 	s.m[d.ID] = existing
 	return existing, nil
 }
@@ -1005,7 +1007,7 @@ func (s *FakeDocumentStore) ListArchived(_ context.Context, ownerID string) ([]d
 	return out, nil
 }
 
-func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool) (string, time.Time, error) {
+func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool, updatedByKind, updatedByRef string) (string, time.Time, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	nv := ""
@@ -1019,13 +1021,17 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 		}
 		if d.OwnerID == ownerID && dn == nv && d.Path == path {
 			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, archived, id; mirror pgstore ON CONFLICT
+			d.UpdatedByKind, d.UpdatedByRef = updatedByKind, updatedByRef
 			s.m[d.ID] = d
 			return d.ID, time.Time{}, nil
 		}
 	}
 	s.seq++
 	id := "fdoc-" + itoa(s.seq)
-	s.m[id] = domain.Document{ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body, Pinned: pinned, Archived: archived}
+	s.m[id] = domain.Document{
+		ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body,
+		Pinned: pinned, Archived: archived, UpdatedByKind: updatedByKind, UpdatedByRef: updatedByRef,
+	}
 	return id, time.Time{}, nil
 }
 

@@ -15,6 +15,11 @@
         link.className = 'block py-1 text-muted hover:text-ink toc-' + heading.tagName.toLowerCase();
         toc.appendChild(link);
       });
+      // Empty doc (no headings): hide the surrounding .blk rail block instead
+      // of leaving a bare eyebrow + empty <nav> frame standing (Lesesaal
+      // docrail "Auf dieser Seite" — Codex #10).
+      var block = toc.closest('[data-toc-block]');
+      if (block) block.hidden = headings.length === 0;
     });
   }
 

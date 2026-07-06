@@ -1,58 +1,192 @@
 package webui
 
 import (
+	"context"
+	"fmt"
 	"net/url"
-	"regexp"
 	"sort"
-	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// WissenCategory identifies one first-level Wissen page.
-type WissenCategory struct {
-	ID             string
-	Slug           string
-	LabelKey       string
-	DescriptionKey string
-	Href           string
-	Types          []domain.DocumentType
+// wissenRecentCap bounds the Wissen overview's "Zuletzt aktualisiert" section
+// to 8 rows (Mockup Z.832–838) — mirrors the cockpit Wissen section's
+// identical cap (webui_cockpit.go wissenSectionCap). ?recent=all expands it
+// in place (BuildWissenOverview's recentAll parameter).
+const wissenRecentCap = 8
+
+// WissenShelf is one type-based shelf on the Wissen library overview
+// (Mockup Z.821–830): a group of domain.DocumentType shown as one row with a
+// document count. Replaces the historic WissenCategory four-way split
+// (daily/projekte/frei/system) — shelves group by document type instead,
+// with no 1:1 successor for the old "system" bucket (Codex #17): its five
+// legacy types now spread across plan/memory/context/spec.
+type WissenShelf struct {
+	Types    []domain.DocumentType
+	TypeKey  string // mono key on the shelf row + the /wissen/typ/{TypeKey} route segment
+	LabelKey string
+	DescKey  string
+	Count    int
 }
 
-// WissenCategoryCard is one card on the Wissen overview page.
-type WissenCategoryCard struct {
-	WissenCategory
-	Count  int
-	Latest []DocRow
+// WissenShelves returns the 7 fixed type-shelves in Mockup order (Z.821–
+// 830). DocAgent (deprecated, B3d: split into spec/plan) folds into the spec
+// shelf; DocActiveContext/DocInstruction/DocSkill fold into "context".
+func WissenShelves() []WissenShelf {
+	return []WissenShelf{
+		{Types: []domain.DocumentType{domain.DocProject}, TypeKey: "project", LabelKey: "wissen.shelf.project", DescKey: "wissen.shelf.project.desc"},
+		{Types: []domain.DocumentType{domain.DocPlan}, TypeKey: "plan", LabelKey: "wissen.shelf.plan", DescKey: "wissen.shelf.plan.desc"},
+		{Types: []domain.DocumentType{domain.DocSpec, domain.DocAgent}, TypeKey: "spec", LabelKey: "wissen.shelf.spec", DescKey: "wissen.shelf.spec.desc"},
+		{Types: []domain.DocumentType{domain.DocMemory}, TypeKey: "memory", LabelKey: "wissen.shelf.memory", DescKey: "wissen.shelf.memory.desc"},
+		{Types: []domain.DocumentType{domain.DocDaily}, TypeKey: "daily", LabelKey: "wissen.shelf.daily", DescKey: "wissen.shelf.daily.desc"},
+		{Types: []domain.DocumentType{domain.DocActiveContext, domain.DocInstruction, domain.DocSkill}, TypeKey: "context", LabelKey: "wissen.shelf.context", DescKey: "wissen.shelf.context.desc"},
+		{Types: []domain.DocumentType{domain.DocFree}, TypeKey: "free", LabelKey: "wissen.shelf.free", DescKey: "wissen.shelf.free.desc"},
+	}
 }
 
-// WissenOverviewVM is the view model for the /wissen overview page.
+// WissenShelfFromTypeKey resolves a /wissen/typ/{type} path segment to its shelf.
+func WissenShelfFromTypeKey(key string) (WissenShelf, bool) {
+	for _, s := range WissenShelves() {
+		if s.TypeKey == key {
+			return s, true
+		}
+	}
+	return WissenShelf{}, false
+}
+
+// WissenShelfForType resolves a document's own type to the shelf it lands in
+// — used by the editor's post-delete redirect (webui_document.go
+// wissenShelfHrefForType), replacing the old WissenCategoryForType.
+func WissenShelfForType(t domain.DocumentType) (WissenShelf, bool) {
+	for _, s := range WissenShelves() {
+		if DocumentInShelf(domain.Document{Type: t}, s) {
+			return s, true
+		}
+	}
+	return WissenShelf{}, false
+}
+
+// DocumentInShelf reports whether d's type belongs to shelf s.
+func DocumentInShelf(d domain.Document, s WissenShelf) bool {
+	for _, typ := range s.Types {
+		if d.Type == typ {
+			return true
+		}
+	}
+	return false
+}
+
+// WissenRowVM is one Lesesaal row on a Wissen library surface — the
+// "Zuletzt aktualisiert" section on /wissen and the /wissen/typ/{type} shelf
+// listing. A new, additional display struct: DocRow/docRowFromDocument stay
+// untouched (they back BuildHomeNewest for the L4 Schreibtisch page —
+// rg-verified, Codex #18).
+type WissenRowVM struct {
+	ID, Title, ChipClass, ChipLabel, Meta, TimeStr string
+}
+
+// WissenRowFromDocument maps a document to a WissenRowVM: ChipClass/
+// ChipLabel from DocTypeChipClass/DocTypeLabel (Spec §7.1, L2 Bestand), Meta
+// is "Pfad · Akteur" (Mockup Z.834) built from UpdatedByRef (Task 3
+// provenance stamp) — degrading to just the path when the stamp is unset
+// (pre-L3 documents carry no UpdatedByKind/Ref, NULL in storage). TimeStr
+// reuses FmtRelTime, the app-wide relative-time convention already used for
+// the cockpit/activity feed and the Wissen "zuletzt aktualisiert" caller
+// noted in its own doc comment.
+func WissenRowFromDocument(d domain.Document, now time.Time) WissenRowVM {
+	meta := d.Path
+	if d.UpdatedByRef != "" {
+		meta = d.Path + " · " + d.UpdatedByRef
+	}
+	return WissenRowVM{
+		ID:        d.ID,
+		Title:     d.Title,
+		ChipClass: DocTypeChipClass(d.Type),
+		ChipLabel: DocTypeLabel(d.Type),
+		Meta:      meta,
+		TimeStr:   FmtRelTime(d.UpdatedAt, now),
+	}
+}
+
+// WissenOverviewVM is the view model for the /wissen library overview page:
+// the bigsearch/tag-chip machinery (WissenVM, shared with search mode), the
+// summary counts, the 7 type shelves, and the capped "Zuletzt aktualisiert"
+// list.
 type WissenOverviewVM struct {
 	WissenVM
-	Categories []WissenCategoryCard
+	TotalCount  int
+	PinnedCount int
+	Shelves     []WissenShelf
+	Recent      []WissenRowVM
+	RecentTotal int
+	RecentAll   bool
 }
 
-// WissenCategoryVM is the view model for one category subpage.
-type WissenCategoryVM struct {
+// WissenSummary renders "%d Dokumente · %d angepinnt" (mirrors the
+// ProjectsSummary(ctx, vm) convention used by the Projekte pagehead).
+func WissenSummary(ctx context.Context, vm WissenOverviewVM) string {
+	return fmt.Sprintf(components.T(ctx, "wissen.summary"), vm.TotalCount, vm.PinnedCount)
+}
+
+// BuildWissenOverview builds the shelf counts and the capped "Zuletzt
+// aktualisiert" list from the owner's full document set. recentAll disables
+// the cap (the "Alle N ›" expand-in-place, mirrors the cockpit Wissen
+// section's ?wissen=all).
+func BuildWissenOverview(docs []domain.Document, now time.Time, recentAll bool) WissenOverviewVM {
+	vm := WissenOverviewVM{TotalCount: len(docs)}
+	for _, d := range docs {
+		if d.Pinned {
+			vm.PinnedCount++
+		}
+	}
+
+	shelves := WissenShelves()
+	for i := range shelves {
+		for _, d := range docs {
+			if DocumentInShelf(d, shelves[i]) {
+				shelves[i].Count++
+			}
+		}
+	}
+	vm.Shelves = shelves
+
+	sorted := sortedDocuments(docs)
+	vm.RecentTotal = len(sorted)
+	vm.RecentAll = recentAll
+	if !recentAll && len(sorted) > wissenRecentCap {
+		sorted = sorted[:wissenRecentCap]
+	}
+	for _, d := range sorted {
+		vm.Recent = append(vm.Recent, WissenRowFromDocument(d, now))
+	}
+	return vm
+}
+
+// WissenTypeVM is the view model for the /wissen/typ/{type} shelf listing:
+// one type's documents as flat Lesesaal rows plus pagination — replaces the
+// old WissenCategoryVM (which additionally grouped "projekte" docs by
+// project; the type-shelf page lists flat, matching the Mockup's other
+// Wissen rows).
+type WissenTypeVM struct {
 	WissenVM
-	Category WissenCategory
-	Rows     []DocRow
-	Groups   []ProjectGroup
-	Total    int
+	Shelf WissenShelf
+	Rows  []WissenRowVM
+	Total int
 }
 
-// ProjectGroup groups project notes under one project header.
-type ProjectGroup struct {
-	NodeID string
-	Name   string
-	Color  string
-	Glyph  string
-	Kind   domain.NodeKind // kind of the linked node (used by nodeKindBadge)
-	Docs   []DocRow
+// BuildWissenType maps one page of a shelf's documents to Lesesaal rows.
+func BuildWissenType(shelf WissenShelf, pageDocs []domain.Document, now time.Time) WissenTypeVM {
+	vm := WissenTypeVM{Shelf: shelf}
+	for _, d := range pageDocs {
+		vm.Rows = append(vm.Rows, WissenRowFromDocument(d, now))
+	}
+	return vm
 }
 
-// WissenVM is the view model for the AppShell Wissen list page.
+// WissenVM is the view model for the Wissen bigsearch/tag-filter machinery,
+// shared by the overview page and the type-shelf page.
 type WissenVM struct {
 	User         string
 	AllTags      []TagChip
@@ -62,194 +196,20 @@ type WissenVM struct {
 	SearchAction string
 	ResetHref    string
 
-	// Category sections; empty when the page is in search mode.
-	Daily  []DocRow
-	Notes  []ProjectGroup
-	Free   []DocRow
-	System []DocRow
+	// TypeParam is the /wissen/typ?type= shelf filter, empty on the plain
+	// overview page. A GET form drops its action URL's existing query string
+	// on submit, so the bigsearch form re-submits it via a hidden input
+	// (wissenBigsearch) — a query param rather than a path segment because
+	// Go's http.ServeMux rejects "/wissen/typ/{type}" as ambiguous against
+	// the already-established "/wissen/{id}/bearbeiten" action route (both
+	// are 3-segment patterns with the wildcard/literal swapped, e.g.
+	// "/wissen/typ/bearbeiten" would match either).
+	TypeParam string
 
 	// Search mode.
 	Results []SearchRow
 
 	Page components.PageNav
-}
-
-var (
-	wikiAliasPreviewRE  = regexp.MustCompile(`\[\[([^|\]]+)\|([^\]]+)\]\]`)
-	wikiSimplePreviewRE = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
-	htmlPreviewRE       = regexp.MustCompile(`<[^>]*>`)
-	markdownPreviewRE   = regexp.MustCompile(`[*_~` + "`" + `]+([^*_~` + "`" + `]+)[*_~` + "`" + `]+`)
-	markdownLinkRE      = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
-)
-
-func WissenCategories() []WissenCategory {
-	return []WissenCategory{
-		{
-			ID:             "daily",
-			Slug:           "daily",
-			LabelKey:       "wissen.daily",
-			DescriptionKey: "wissen.daily.description",
-			Href:           "/wissen/daily",
-			Types:          []domain.DocumentType{domain.DocDaily},
-		},
-		{
-			ID:             "projekte",
-			Slug:           "projekte",
-			LabelKey:       "wissen.notes",
-			DescriptionKey: "wissen.notes.description",
-			Href:           "/wissen/projekte",
-			Types:          []domain.DocumentType{domain.DocProject},
-		},
-		{
-			ID:             "frei",
-			Slug:           "frei",
-			LabelKey:       "wissen.free",
-			DescriptionKey: "wissen.free.description",
-			Href:           "/wissen/frei",
-			Types:          []domain.DocumentType{domain.DocFree},
-		},
-		{
-			ID:             "system",
-			Slug:           "system",
-			LabelKey:       "wissen.system",
-			DescriptionKey: "wissen.system.description",
-			Href:           "/wissen/system",
-			Types: []domain.DocumentType{
-				domain.DocAgent,
-				domain.DocMemory,
-				domain.DocInstruction,
-				domain.DocSkill,
-				domain.DocPlan,
-			},
-		},
-	}
-}
-
-func WissenCategoryFromSlug(slug string) (WissenCategory, bool) {
-	for _, c := range WissenCategories() {
-		if c.Slug == slug {
-			return c, true
-		}
-	}
-	return WissenCategory{}, false
-}
-
-func DocumentInWissenCategory(d domain.Document, c WissenCategory) bool {
-	for _, typ := range c.Types {
-		if d.Type == typ {
-			return true
-		}
-	}
-	return false
-}
-
-func WissenCategoryForType(t domain.DocumentType) (WissenCategory, bool) {
-	for _, c := range WissenCategories() {
-		for _, typ := range c.Types {
-			if t == typ {
-				return c, true
-			}
-		}
-	}
-	return WissenCategory{}, false
-}
-
-func BuildWissenOverview(docs []domain.Document, projectColors map[string]string) WissenOverviewVM {
-	sorted := sortedDocuments(docs)
-	vm := WissenOverviewVM{}
-	for _, c := range WissenCategories() {
-		card := WissenCategoryCard{WissenCategory: c}
-		for _, d := range sorted {
-			if !DocumentInWissenCategory(d, c) {
-				continue
-			}
-			card.Count++
-			if len(card.Latest) < 3 {
-				card.Latest = append(card.Latest, docRowFromDocument(d, projectColors))
-			}
-		}
-		vm.Categories = append(vm.Categories, card)
-	}
-	return vm
-}
-
-func BuildWissenCategory(c WissenCategory, docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenCategoryVM {
-	filtered := make([]domain.Document, 0, len(docs))
-	for _, d := range sortedDocuments(docs) {
-		if DocumentInWissenCategory(d, c) {
-			filtered = append(filtered, d)
-		}
-	}
-	grouped := GroupDocsByCategory(filtered, projectNames, projectColors, nodeKinds)
-	previews := map[string]string{}
-	for _, d := range filtered {
-		previews[d.ID] = DocPreviewText(d.Body, 5)
-	}
-	for gi := range grouped.Notes {
-		for ri := range grouped.Notes[gi].Docs {
-			grouped.Notes[gi].Docs[ri].Preview = previews[grouped.Notes[gi].Docs[ri].ID]
-		}
-	}
-	vm := WissenCategoryVM{
-		WissenVM: grouped,
-		Category: c,
-		Groups:   grouped.Notes,
-		Total:    len(filtered),
-	}
-	for _, d := range filtered {
-		row := docRowFromDocument(d, projectColors)
-		row.Preview = DocPreviewText(d.Body, 5)
-		vm.Rows = append(vm.Rows, row)
-	}
-	return vm
-}
-
-func DocPreviewText(body string, maxLines int) string {
-	if maxLines <= 0 {
-		maxLines = 5
-	}
-	body = stripPreviewFrontmatter(body)
-	var out []string
-	inFence := false
-	for _, raw := range strings.Split(body, "\n") {
-		line := strings.TrimSpace(raw)
-		if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
-			inFence = !inFence
-			continue
-		}
-		if inFence || line == "" {
-			continue
-		}
-		line = simplifyPreviewMarkdown(line)
-		if line == "" {
-			continue
-		}
-		out = append(out, line)
-		if len(out) == maxLines {
-			break
-		}
-	}
-	return strings.Join(out, "\n")
-}
-
-func stripPreviewFrontmatter(body string) string {
-	if !strings.HasPrefix(body, "---\n") {
-		return body
-	}
-	if end := strings.Index(body[4:], "\n---\n"); end >= 0 {
-		return body[end+9:]
-	}
-	return body
-}
-
-func simplifyPreviewMarkdown(line string) string {
-	line = strings.TrimLeft(line, "#>-*+ \t")
-	line = wikiAliasPreviewRE.ReplaceAllString(line, "$2")
-	line = wikiSimplePreviewRE.ReplaceAllString(line, "$1")
-	line = markdownLinkRE.ReplaceAllString(line, "$1")
-	line = htmlPreviewRE.ReplaceAllString(line, "")
-	line = markdownPreviewRE.ReplaceAllString(line, "$1")
-	return strings.Join(strings.Fields(line), " ")
 }
 
 func sortedDocuments(docs []domain.Document) []domain.Document {
@@ -260,63 +220,6 @@ func sortedDocuments(docs []domain.Document) []domain.Document {
 	return out
 }
 
-// GroupDocsByCategory splits docs into the four Wissen list sections.
-// nodeKinds maps node id → NodeKind and is used to populate ProjectGroup.Kind
-// for the node-kind badge rendered in group headers.
-func GroupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenVM {
-	var vm WissenVM
-	groups := map[string]*ProjectGroup{}
-
-	for _, d := range docs {
-		row := docRowFromDocument(d, projectColors)
-		switch d.Type {
-		case domain.DocDaily:
-			vm.Daily = append(vm.Daily, row)
-		case domain.DocFree:
-			vm.Free = append(vm.Free, row)
-		case domain.DocProject:
-			pid := projectIDString(d.NodeID)
-			g := groups[pid]
-			if g == nil {
-				docKind := DocKindStyle(domain.DocProject)
-				var nk domain.NodeKind
-				if nodeKinds != nil {
-					nk = nodeKinds[pid]
-				}
-				g = &ProjectGroup{
-					NodeID: pid,
-					Name:   projectDisplayName(pid, projectNames),
-					Color:  ColorHex(projectColors[pid]),
-					Glyph:  docKind.Glyph,
-					Kind:   nk,
-				}
-				groups[pid] = g
-			}
-			g.Docs = append(g.Docs, row)
-		default:
-			vm.System = append(vm.System, row)
-		}
-	}
-
-	seen := map[string]bool{}
-	for _, d := range docs {
-		if d.Type != domain.DocProject {
-			continue
-		}
-		pid := projectIDString(d.NodeID)
-		if seen[pid] {
-			continue
-		}
-		seen[pid] = true
-		vm.Notes = append(vm.Notes, *groups[pid])
-	}
-	return vm
-}
-
-func groupDocsByCategory(docs []domain.Document, projectNames, projectColors map[string]string, nodeKinds map[string]domain.NodeKind) WissenVM {
-	return GroupDocsByCategory(docs, projectNames, projectColors, nodeKinds)
-}
-
 func docRowFromDocument(d domain.Document, projectColors map[string]string) DocRow {
 	row := DocRow{ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title, Tags: d.Tags}
 	if d.NodeID != nil {
@@ -324,33 +227,6 @@ func docRowFromDocument(d domain.Document, projectColors map[string]string) DocR
 		row.ProjectColor = ColorHex(projectColors[*d.NodeID])
 	}
 	return row
-}
-
-func projectIDString(nodeID *string) string {
-	if nodeID == nil {
-		return ""
-	}
-	return *nodeID
-}
-
-func projectDisplayName(nodeID string, projectNames map[string]string) string {
-	if name := projectNames[nodeID]; name != "" {
-		return name
-	}
-	return nodeID
-}
-
-func WissenTabs(vm WissenVM) []components.CatTab {
-	return []components.CatTab{
-		{ID: "daily-sec", LabelKey: "wissen.daily", Count: len(vm.Daily)},
-		{ID: "notes-sec", LabelKey: "wissen.notes", Count: projectDocCount(vm.Notes)},
-		{ID: "free-sec", LabelKey: "wissen.free", Count: len(vm.Free)},
-		{ID: "system-sec", LabelKey: "wissen.system", Count: len(vm.System)},
-	}
-}
-
-func WissenEmpty(vm WissenVM) bool {
-	return len(vm.Daily) == 0 && len(vm.Notes) == 0 && len(vm.Free) == 0 && len(vm.System) == 0
 }
 
 func WissenSingleTagHref(tag string) string {
@@ -369,22 +245,6 @@ func wissenResetHref(vm WissenVM) string {
 		return vm.ResetHref
 	}
 	return "/wissen"
-}
-
-func wissenCategoryNavClass(active, slug string) string {
-	base := "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[.84rem] font-medium transition"
-	if active == slug {
-		return base + " border border-blue/40 bg-blue/10 text-blue"
-	}
-	return base + " glass text-muted hover:border-blue/40 hover:text-blue"
-}
-
-func projectDocCount(groups []ProjectGroup) int {
-	var n int
-	for _, group := range groups {
-		n += len(group.Docs)
-	}
-	return n
 }
 
 func rowKind(row DocRow) DocKind {

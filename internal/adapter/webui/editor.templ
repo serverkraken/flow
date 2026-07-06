@@ -14,39 +14,54 @@ templ EditorPage(vm EditorVM) {
 	@components.Base("wissen", editorBody(vm))
 }
 
+// editorBody mounts mermaid-init.js (Task 4) once, outside the htmx-swapped
+// #preview fragment, so the Editor-Vorschau renders Mermaid-Fences as a
+// figure too (like the document page) — the script's own htmx:afterSwap
+// listener re-scans for pre.mermaid on every keyup-triggered preview update.
 templ editorBody(vm EditorVM) {
-	@components.AppShell("docs", editorBreadcrumb(vm), nil, editorOuter(vm))
-}
-
-templ editorBreadcrumb(vm EditorVM) {
-	<nav class="mb-5 text-[.84rem] text-muted" aria-label={ components.T(ctx, "nav.knowledge") }>
-		<a href="/wissen" class="hover:text-blue">{ components.T(ctx, "wissen.title") }</a>
-		<span class="mx-1.5 text-faint">/</span>
-		<span class="text-body">{ components.T(ctx, vm.HeadingKey()) }</span>
-	</nav>
+	@components.AppShell("docs", components.Breadcrumb(editorCrumbs(ctx, vm)), nil, editorOuter(vm))
+	<script src="/static/js/mermaid-init.js" defer></script>
 }
 
 templ editorOuter(vm EditorVM) {
-	<header class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-		<div>
-			<p class="eyebrow mb-1 text-[.72rem] font-semibold uppercase text-blue">{ components.T(ctx, "nav.knowledge") }</p>
-			<h1 class="font-display text-[2rem] font-semibold leading-tight">{ components.T(ctx, vm.HeadingKey()) }</h1>
+	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
+		<div style="flex:1;min-width:0">
+			<span class="eyebrow">{ components.T(ctx, "nav.knowledge") }</span>
+			<h1>{ components.T(ctx, vm.HeadingKey()) }</h1>
 		</div>
 		if vm.Editing() {
-			<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
-				{ components.T(ctx, "common.cancel") }
-			</a>
+			<div class="flex items-center gap-3">
+				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "del-" + vm.ID }>
+					{ components.T(ctx, "common.delete") }
+				</button>
+				<a href={ templ.SafeURL("/wissen/" + vm.ID) } class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
+					{ components.T(ctx, "common.cancel") }
+				</a>
+			</div>
 		} else {
-			<a href="/wissen" class="text-[.86rem] font-medium text-muted underline underline-offset-2 hover:text-blue">
+			<a href="/wissen" class="text-[.8rem] text-muted underline underline-offset-2 hover:text-ink">
 				{ components.T(ctx, "common.cancel") }
 			</a>
 		}
-	</header>
+	</div>
+	if vm.Editing() {
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID:              "del-" + vm.ID,
+			TitleKey:        "wissen.delete.title",
+			BodyKey:         "wissen.delete.body",
+			ConfirmLabelKey: "common.delete",
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/wissen/" + vm.ID + "/delete",
+				"hx-target": "body",
+				"type":      "button",
+			},
+		})
+	}
 	if vm.Err != "" {
-		<p class="mb-5 rounded-2xl bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
+		<p class="mb-5 rounded-lg bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
 	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
-		<form action={ templ.SafeURL(vm.Action()) } method="post" class="rounded-2xl glass p-5 shadow-soft">
+		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5">
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
 					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
@@ -103,8 +118,8 @@ templ editorOuter(vm EditorVM) {
 				@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "", templ.Attributes{"type": "submit"})
 			</div>
 		</form>
-		<section class="rounded-2xl glass p-5 shadow-soft">
-			<h2 class="mb-4 font-display text-lg font-semibold text-ink">{ components.T(ctx, "wissen.preview") }</h2>
+		<section class="panel p-5">
+			<h2 class="mb-4 text-lg font-semibold text-ink">{ components.T(ctx, "wissen.preview") }</h2>
 			<div id="preview">
 				@MarkdownPreview(vm.PreviewHTML)
 			</div>

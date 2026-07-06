@@ -19,6 +19,12 @@ type Server struct {
 	Dev      bool
 	Ready    func(context.Context) error // optional DB readiness probe; nil = always ready
 
+	// CSPEnforce switches the Content-Security-Policy header from
+	// Report-Only (default, false) to enforcing (Lesesaal L3 Task 9,
+	// Soenne Entsch. #8 — flip once the cross-surface smoke shows zero
+	// violations).
+	CSPEnforce bool
+
 	// worktime usecases
 	StartSession      usecase.StartSession
 	StopSession       usecase.StopSession
@@ -240,11 +246,21 @@ func (s *Server) Routes() http.Handler {
 
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
-	mux.Handle("GET /wissen/daily", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
-	mux.Handle("GET /wissen/projekte", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
-	mux.Handle("GET /wissen/frei", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
-	mux.Handle("GET /wissen/system", s.webAuth(http.HandlerFunc(s.handleWebWissenCategory)))
-	mux.Handle("GET /ui/wissen/list/{category}", s.webAuth(http.HandlerFunc(s.handleWebWissenCategoryList)))
+	// /wissen/typ?type={key} is a query param, not a path segment
+	// (/wissen/typ/{type}): Go's http.ServeMux rejects that as ambiguous
+	// against the established /wissen/{id}/bearbeiten action route — both
+	// are 3-segment patterns with the wildcard/literal swapped, so e.g.
+	// "/wissen/typ/bearbeiten" would match either (WissenVM.TypeParam).
+	mux.Handle("GET /wissen/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenType)))
+	mux.Handle("GET /ui/wissen/list/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenTypeList)))
+	// Retired category slugs (Lesesaal L3 Task 7 — Regale nach Typ ersetzen
+	// die vier Alt-Kategorien) redirect to their type-shelf successor.
+	// /wissen/system has no 1:1 successor (its five legacy types now spread
+	// across plan/memory/context/spec) and redirects to the overview.
+	mux.Handle("GET /wissen/daily", s.webAuth(s.handleWebWissenRedirect("/wissen/typ?type=daily")))
+	mux.Handle("GET /wissen/projekte", s.webAuth(s.handleWebWissenRedirect("/wissen/typ?type=project")))
+	mux.Handle("GET /wissen/frei", s.webAuth(s.handleWebWissenRedirect("/wissen/typ?type=free")))
+	mux.Handle("GET /wissen/system", s.webAuth(s.handleWebWissenRedirect("/wissen")))
 	mux.Handle("GET /wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebEditorNew)))
 	mux.Handle("POST /wissen/preview", s.webAuth(http.HandlerFunc(s.handleWebEditorPreview)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))
@@ -253,6 +269,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebEditorUpdate)))
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
+	mux.Handle("POST /wissen/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebDocPin)))
 
 	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
 	mux.Handle("POST /api/v1/maintenance/redesign-doctypes", s.authAny(http.HandlerFunc(s.handleRedesignDocTypes)))
@@ -287,5 +304,5 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
-	return mux
+	return s.securityHeaders(mux)
 }

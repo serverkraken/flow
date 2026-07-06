@@ -19,6 +19,8 @@ func TestStaticHandlerServesVendorAndFonts(t *testing.T) {
 		"/static/vendor/htmx-ext-sse.js",
 		"/static/fonts/SchibstedGrotesk-Variable.woff2",
 		"/static/fonts/JetBrainsMono-Variable.woff2",
+		"/static/vendor/mermaid.min.js",
+		"/static/js/mermaid-init.js",
 	} {
 		res, err := http.Get(ts.URL + p)
 		if err != nil {

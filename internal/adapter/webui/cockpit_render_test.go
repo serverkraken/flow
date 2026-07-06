@@ -37,6 +37,14 @@ func renderToBuf(t *testing.T, ctx context.Context, c templ.Component) string {
 	return buf.String()
 }
 
+// testCtx is the bare context used by webui-package render tests — mirrors
+// components_test's own testCtx (components/base_test.go); duplicated here
+// because the two are separate packages and this one is unexported.
+func testCtx(t *testing.T) context.Context {
+	t.Helper()
+	return context.Background()
+}
+
 // seededCockpit builds a minimal NodeCockpit with a bookable node and one session row
 // for use across multiple tests.
 func seededCockpit() NodeCockpit {

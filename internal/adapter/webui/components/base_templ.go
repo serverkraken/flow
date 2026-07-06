@@ -137,17 +137,30 @@ func baseHull(title string, sse bool, body templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/SchibstedGrotesk-Variable.woff2\" crossorigin><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/JetBrainsMono-Variable.woff2\" crossorigin><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/htmx-ext-sse.js\" defer></script><script src=\"/static/scrollspy.js\" defer></script><script src=\"/static/toc.js\" defer></script><script>document.documentElement.setAttribute('data-theme','light');</script></head><body class=\"font-sans text-ink antialiased selection:bg-accent-wash selection:text-ink\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><link rel=\"stylesheet\" href=\"/static/chroma.css\"><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/SchibstedGrotesk-Variable.woff2\" crossorigin><link rel=\"preload\" as=\"font\" type=\"font/woff2\" href=\"/static/fonts/JetBrainsMono-Variable.woff2\" crossorigin><meta name=\"htmx-config\" content=\"{&#34;allowEval&#34;:false,&#34;allowScriptTags&#34;:false,&#34;selfRequestsOnly&#34;:true,&#34;includeIndicatorStyles&#34;:false}\"><script src=\"/static/vendor/htmx.min.js\" defer></script><script src=\"/static/vendor/htmx-ext-sse.js\" defer></script><script src=\"/static/scrollspy.js\" defer></script><script src=\"/static/toc.js\" defer></script><script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(CSPNonce(ctx))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/base.templ`, Line: 49, Col: 32}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">document.documentElement.setAttribute('data-theme','light');</script></head><body class=\"font-sans text-ink antialiased selection:bg-accent-wash selection:text-ink\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if sse {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " hx-ext=\"sse\" sse-connect=\"/api/v1/events\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " hx-ext=\"sse\" sse-connect=\"/api/v1/events\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, ">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, ">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -155,7 +168,20 @@ func baseHull(title string, sse bool, body templ.Component) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<script>\n\t\t\t\t(function () {\n\t\t\t\t\tvar reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n\t\t\t\t\tfunction p(n) { return n < 10 ? '0' + n : '' + n; }\n\t\t\t\t\t// (Re)bind every [data-timer] element. Must run again after every htmx\n\t\t\t\t\t// swap: a start/stop/error can replace #content, the widget mount, or\n\t\t\t\t\t// the chip's embedded dialog copy with a NEW [data-timer] node. An\n\t\t\t\t\t// element that survives a swap untouched (same DOM node) already has\n\t\t\t\t\t// dataset.boundStart and keeps ticking from it; a genuinely new node\n\t\t\t\t\t// has none yet and gets a fresh bind moment.\n\t\t\t\t\tfunction bind() {\n\t\t\t\t\t\tdocument.querySelectorAll('[data-timer]').forEach(function (el) {\n\t\t\t\t\t\t\tif (!el.dataset.boundStart) el.dataset.boundStart = Date.now();\n\t\t\t\t\t\t});\n\t\t\t\t\t\ttick();\n\t\t\t\t\t}\n\t\t\t\t\tfunction tick() {\n\t\t\t\t\t\tvar timers = document.querySelectorAll('[data-timer]');\n\t\t\t\t\t\tvar minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap\n\t\t\t\t\t\tvar mh, mm, ms;\n\t\t\t\t\t\ttimers.forEach(function (el) {\n\t\t\t\t\t\t\tvar base = parseInt(el.getAttribute('data-base') || '0', 10);\n\t\t\t\t\t\t\tvar elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);\n\t\t\t\t\t\t\tvar h = Math.floor(elapsed / 3600);\n\t\t\t\t\t\t\tvar m = Math.floor((elapsed % 3600) / 60);\n\t\t\t\t\t\t\tvar s = elapsed % 60;\n\t\t\t\t\t\t\tel.textContent = el.getAttribute('data-timer-fmt') === 'clock'\n\t\t\t\t\t\t\t\t? p(h) + ':' + p(m) + ':' + p(s)\n\t\t\t\t\t\t\t\t: h + 'h ' + p(m) + 'm ' + p(s) + 's';\n\t\t\t\t\t\t\tif (mh === undefined) { mh = h; mm = m; ms = s; }  // first bound timer feeds the mini(s)\n\t\t\t\t\t\t});\n\t\t\t\t\t\tif (minis.length && mh !== undefined) {\n\t\t\t\t\t\t\tminis.forEach(function (el) { el.textContent = p(mh) + ':' + p(mm) + ':' + p(ms); });\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tbind();\n\t\t\t\t\tsetInterval(tick, reduce ? 60000 : 1000);\n\t\t\t\t\tdocument.body.addEventListener('htmx:afterSwap', bind);\n\t\t\t\t})();\n\t\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(CSPNonce(ctx))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/base.templ`, Line: 65, Col: 32}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">\n\t\t\t\t(function () {\n\t\t\t\t\tvar reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\n\t\t\t\t\tfunction p(n) { return n < 10 ? '0' + n : '' + n; }\n\t\t\t\t\t// (Re)bind every [data-timer] element. Must run again after every htmx\n\t\t\t\t\t// swap: a start/stop/error can replace #content, the widget mount, or\n\t\t\t\t\t// the chip's embedded dialog copy with a NEW [data-timer] node. An\n\t\t\t\t\t// element that survives a swap untouched (same DOM node) already has\n\t\t\t\t\t// dataset.boundStart and keeps ticking from it; a genuinely new node\n\t\t\t\t\t// has none yet and gets a fresh bind moment.\n\t\t\t\t\tfunction bind() {\n\t\t\t\t\t\tdocument.querySelectorAll('[data-timer]').forEach(function (el) {\n\t\t\t\t\t\t\tif (!el.dataset.boundStart) el.dataset.boundStart = Date.now();\n\t\t\t\t\t\t});\n\t\t\t\t\t\ttick();\n\t\t\t\t\t}\n\t\t\t\t\tfunction tick() {\n\t\t\t\t\t\tvar timers = document.querySelectorAll('[data-timer]');\n\t\t\t\t\t\tvar minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap\n\t\t\t\t\t\tvar mh, mm, ms;\n\t\t\t\t\t\ttimers.forEach(function (el) {\n\t\t\t\t\t\t\tvar base = parseInt(el.getAttribute('data-base') || '0', 10);\n\t\t\t\t\t\t\tvar elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);\n\t\t\t\t\t\t\tvar h = Math.floor(elapsed / 3600);\n\t\t\t\t\t\t\tvar m = Math.floor((elapsed % 3600) / 60);\n\t\t\t\t\t\t\tvar s = elapsed % 60;\n\t\t\t\t\t\t\tel.textContent = el.getAttribute('data-timer-fmt') === 'clock'\n\t\t\t\t\t\t\t\t? p(h) + ':' + p(m) + ':' + p(s)\n\t\t\t\t\t\t\t\t: h + 'h ' + p(m) + 'm ' + p(s) + 's';\n\t\t\t\t\t\t\tif (mh === undefined) { mh = h; mm = m; ms = s; }  // first bound timer feeds the mini(s)\n\t\t\t\t\t\t});\n\t\t\t\t\t\tif (minis.length && mh !== undefined) {\n\t\t\t\t\t\t\tminis.forEach(function (el) { el.textContent = p(mh) + ':' + p(mm) + ':' + p(ms); });\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tbind();\n\t\t\t\t\tsetInterval(tick, reduce ? 60000 : 1000);\n\t\t\t\t\tdocument.body.addEventListener('htmx:afterSwap', bind);\n\t\t\t\t})();\n\t\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

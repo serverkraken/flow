@@ -110,7 +110,7 @@ func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 	deleteReq.SetPathValue("id", "doc-1")
 	deleteRec := httptest.NewRecorder()
 	srv.handleWebEditorDelete(deleteRec, deleteReq)
-	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen/frei" {
+	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen/typ?type=free" {
 		t.Fatalf("delete code=%d location=%q", deleteRec.Code, deleteRec.Header().Get("Location"))
 	}
 }
@@ -146,12 +146,58 @@ func TestWebEditorCreate_ParsesTags(t *testing.T) {
 	}
 }
 
-// TestEditorKristallGlassAndField verifies the editor form + preview run on
-// the Kristall glass surface and the shared `.field` input class, per K4
-// Task 5: form container carries `glass` (not `bg-surface`), every
+// TestEditorEditModeHasDeleteConfirmDialog covers the Task 5 fix (post-review):
+// Delete moved off the Lesesaal document view page to the edit page, edit
+// mode only — matching the Mockup (Z.688–695: the document page shows only
+// Bearbeiten + Anpinnen) and the same L2 doctrine already applied to nodes
+// ("Move/Status/Delete auf der Edit-Seite"). The trigger + ConfirmDialog use
+// the shared component (no native browser confirm/alert popup); the new-doc
+// form must not show a delete affordance at all (nothing to delete yet).
+func TestEditorEditModeHasDeleteConfirmDialog(t *testing.T) {
+	srv, _, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "doc-1", OwnerID: "u1", Type: domain.DocFree, Path: "notes/edit",
+		Title: "Edit Me", Body: "body",
+	})
+
+	editReq := authedEditorRequest(http.MethodGet, "/wissen/doc-1/bearbeiten", nil)
+	editReq.SetPathValue("id", "doc-1")
+	editRec := httptest.NewRecorder()
+	srv.handleWebEditorEdit(editRec, editReq)
+	editBody := editRec.Body.String()
+	if editRec.Code != http.StatusOK {
+		t.Fatalf("edit editor code=%d body=%.400s", editRec.Code, editBody)
+	}
+	for _, want := range []string{
+		`data-dialog-open="del-doc-1"`,
+		`<dialog id="del-doc-1"`,
+		`hx-post="/wissen/doc-1/delete"`,
+	} {
+		if !strings.Contains(editBody, want) {
+			t.Fatalf("edit editor missing delete affordance %q: %.800s", want, editBody)
+		}
+	}
+
+	newReq := authedEditorRequest(http.MethodGet, "/wissen/neu", nil)
+	newRec := httptest.NewRecorder()
+	srv.handleWebEditorNew(newRec, newReq)
+	newBody := newRec.Body.String()
+	if newRec.Code != http.StatusOK {
+		t.Fatalf("new editor code=%d body=%.400s", newRec.Code, newBody)
+	}
+	if strings.Contains(newBody, `data-dialog-open="del-`) || strings.Contains(newBody, "<dialog id=\"del-") {
+		t.Fatalf("new-doc editor must not show a delete affordance (nothing to delete yet): %.400s", newBody)
+	}
+}
+
+// TestEditorLesesaalPanelAndField verifies the editor form + preview run on
+// the Lesesaal `.panel` primitive (no leftover Kristall glass/shadow chrome)
+// and the shared `.field` input class, per L3 Task 8: form + preview
+// containers carry `panel` (not `glass`/`bg-surface`), every
 // text/select/textarea input carries `field`, and the form still posts to
 // vm.Action() with all fields + the save button preserved.
-func TestEditorKristallGlassAndField(t *testing.T) {
+func TestEditorLesesaalPanelAndField(t *testing.T) {
 	srv, _, docs, _ := newWebWissenServer(t)
 	ctx := context.Background()
 	_, _ = docs.Create(ctx, domain.Document{
@@ -170,11 +216,11 @@ func TestEditorKristallGlassAndField(t *testing.T) {
 	if !strings.Contains(newBody, `action="/wissen"`) {
 		t.Fatalf("new editor form must still post to vm.Action(): %.400s", newBody)
 	}
-	if !strings.Contains(newBody, "glass") {
-		t.Fatalf("new editor form container must carry glass: %.400s", newBody)
+	if editorPanel := scopeToEditorPanel(t, newBody); !strings.Contains(editorPanel, "panel") {
+		t.Fatalf("new editor form/preview panel must carry the Lesesaal .panel class: %.800s", editorPanel)
 	}
-	if editorPanel := scopeToEditorPanel(t, newBody); strings.Contains(editorPanel, "bg-surface") {
-		t.Fatalf("new editor form/preview panel must not use bg-surface anymore: %.800s", editorPanel)
+	if editorPanel := scopeToEditorPanel(t, newBody); strings.Contains(editorPanel, "glass") || strings.Contains(editorPanel, "bg-surface") || strings.Contains(editorPanel, "shadow-soft") {
+		t.Fatalf("new editor form/preview panel must not use Kristall glass/shadow-soft/bg-surface anymore: %.800s", editorPanel)
 	}
 	for _, name := range []string{`name="type"`, `name="projectId"`, `name="path"`, `name="title"`, `name="body"`} {
 		if !strings.Contains(newBody, name) {
@@ -200,11 +246,11 @@ func TestEditorKristallGlassAndField(t *testing.T) {
 	if !strings.Contains(editBody, `action="/wissen/doc-1"`) {
 		t.Fatalf("edit editor form must still post to vm.Action(): %.400s", editBody)
 	}
-	if !strings.Contains(editBody, "glass") {
-		t.Fatalf("edit editor form container must carry glass: %.400s", editBody)
+	if editorPanel := scopeToEditorPanel(t, editBody); !strings.Contains(editorPanel, "panel") {
+		t.Fatalf("edit editor form/preview panel must carry the Lesesaal .panel class: %.800s", editorPanel)
 	}
-	if editorPanel := scopeToEditorPanel(t, editBody); strings.Contains(editorPanel, "bg-surface") {
-		t.Fatalf("edit editor form/preview panel must not use bg-surface anymore: %.800s", editorPanel)
+	if editorPanel := scopeToEditorPanel(t, editBody); strings.Contains(editorPanel, "glass") || strings.Contains(editorPanel, "bg-surface") || strings.Contains(editorPanel, "shadow-soft") {
+		t.Fatalf("edit editor form/preview panel must not use Kristall glass/shadow-soft/bg-surface anymore: %.800s", editorPanel)
 	}
 	if !strings.Contains(editBody, "field") {
 		t.Fatalf("edit editor disabled fields must carry the .field class (for .field:disabled styling): %.800s", editBody)

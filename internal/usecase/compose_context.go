@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
@@ -57,7 +58,8 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 	if strings.TrimSpace(title) == "" {
 		title = "Active Context"
 	}
-	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false, false)
+	a := actor.FromContext(ctx)
+	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false, false, string(a.Kind), a.Ref)
 	if err != nil {
 		return "", time.Time{}, err
 	}

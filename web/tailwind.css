@@ -500,6 +500,65 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .projrow .right { text-align: right; flex-shrink: 0; }
   .projrow .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
   .projrow .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
+
+  /* ── Lesesaal L3: Lese-Ebene + Wissen (Mockup Z.179–262, benannt statt arbitrary) ── */
+  /* Dokument-Ansicht: Lesespalte + Meta-Spalte */
+  .read { display: grid; grid-template-columns: minmax(0,1fr) 250px; gap: 64px; padding-bottom: 80px; }
+  /* Figuren (Mermaid/statisch) */
+  figure { margin-top: 1.6em; min-width: 0; }
+  figure .frame { border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); padding: 20px; overflow-x: auto; }
+  .frame svg { display: block; }
+  figcaption { margin-top: 9px; font-size: 12.5px; color: rgb(var(--faint)); }
+  figcaption b { color: rgb(var(--meta)); font-weight: 600; }
+  /* Mermaid-Quelltext-Disclosure (agy #5: natives Dreieck bricht den Stil) */
+  .mermaid-src { margin-top: 10px; }
+  .mermaid-src summary { cursor: pointer; list-style: none; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(var(--faint)); padding: 4px 0; }
+  .mermaid-src summary::-webkit-details-marker { display: none; }
+  .mermaid-src summary::before { content: "▸"; display: inline-block; margin-right: 6px; transition: transform .12s ease; }
+  .mermaid-src[open] summary::before { transform: rotate(90deg); }
+  .mermaid-src pre { margin-top: 8px; }
+  /* Mermaid-Fehlerzustand (Parse-Fehler sichtbar + Codefence-Quelle bleibt lesbar) */
+  .mermaid-error { border: 1px dashed rgb(var(--warn) / .5); background: rgb(var(--warn-wash) / .5); border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: rgb(var(--warn)); }
+  .mermaid-error pre { margin-top: 8px; }
+  .mermaid-figure { position: relative; }
+  .mermaid-figure svg { max-width: 100%; height: auto; }
+  /* Doc-Meta-Spalte */
+  .docrail { font-size: 13px; padding-top: 8px; }
+  .docrail .blk { margin-top: 16px; background: rgb(var(--panel)); border-radius: 14px; padding: 15px 17px; }
+  .docrail .blk:first-child { margin-top: 0; }
+  .docrail .blk > .eyebrow { display: block; padding-bottom: 8px; color: rgb(var(--meta)); }
+  .docrail .krow { border-color: rgb(var(--hairp)); }
+  .docrail .krow .n { font-weight: 400; }
+  .toc a { display: block; padding: 6.5px 0; color: rgb(var(--meta)); border-bottom: 1px solid rgb(var(--hairp)); }
+  .toc a:hover { color: rgb(var(--ink)); }
+  .toc a.here { color: rgb(var(--accent)); font-weight: 600; }
+  .toc .n { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; color: rgb(var(--faint)); margin-right: 7px; }
+  /* Provenienz */
+  .prov { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; color: rgb(var(--meta)); }
+  .prov .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
+  .prov .dotsep { color: rgb(var(--hair2)); }
+  /* agy#8: ein sehr langer UpdatedByRef (MCP-Client-String) darf die
+     Prov-Zeile nicht sprengen — ellipsiert, voller Wert via title-Attribut. */
+  .provref { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+  /* Wissen: große Suche + Regal-Zeilen */
+  .bigsearch { display: flex; align-items: center; gap: 14px; margin-top: 26px; border: 1.5px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 16px 20px; }
+  .bigsearch input { flex: 1; min-width: 0; border: none; outline: none; font: inherit; font-size: 16.5px; background: none; color: rgb(var(--ink)); }
+  .bigsearch input::placeholder { color: rgb(var(--faint)); }
+  /* Mockup nennt die Lupe .glass — kollidiert mit der Kristall-.glass-Übergangs-Fläche (Codex #13) */
+  .bigsearch .ico { color: rgb(var(--faint)); font-size: 17px; }
+  .bigsearch kbd { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; border: 1px solid rgb(var(--hair)); border-radius: 4px; padding: 2px 6px; color: rgb(var(--faint)); }
+  .shelf .t { font-weight: 600; }
+  .shelf .mono { font-size: 11.5px; }
+  /* Generische Zeile (Mockup .row) — zusätzlich zu .projrow, Task 7 wählt frei */
+  .row { display: flex; align-items: center; gap: 16px; padding: 13px 2px; border-bottom: 1px solid rgb(var(--hair)); }
+  a.row:hover, .row.click:hover { background: rgb(var(--wash)); }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .t { font-size: 15px; font-weight: 500; line-height: 1.35; }
+  .row .s { margin-top: 2px; font-size: 12.5px; color: rgb(var(--meta)); }
+  .row .path { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(var(--faint)); margin-top: 3px; word-break: break-all; }
+  .row .right { text-align: right; flex-shrink: 0; }
+  .row .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .row .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
 }
 
 @media (max-width: 960px) {
@@ -510,6 +569,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .rail .blk:first-child { margin-top: 38px; }
   .spine-main h1 { font-size: 29px; }
   .eng-h, .spine-main, .instr { flex-wrap: wrap; }   /* §12 Sektions-Köpfe brechen um */
+  /* minmax(0,…) statt Mockup-wörtlichem 1fr — dieselbe .cock-Lehre (Zeile 562)
+     gilt für die Lesespalte: eine nowrap-Doc-Meta-Zeile weitet sonst .read
+     über den Viewport hinaus. */
+  .read { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .docrail { margin-top: 40px; padding-top: 0; }
+  .prose { max-width: 100%; }
 }
 @media (max-width: 620px) {
   .projrow .right .k { display: none; }               /* §12 nur Hauptwert */
@@ -517,41 +582,89 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .instr .stats { margin-left: 0; width: 100%; }
   .ava.av-96 { width: 64px; height: 64px; font-size: 22px; border-radius: 15px; }
   .spine-main h1 { font-size: 27px; }
+  .row .right .k { display: none; }
+  .row .right .v { font-size: 12px; }
+  .sect-h { flex-wrap: wrap; row-gap: 3px; }
+  .bigsearch { padding: 12px 14px; gap: 10px; }
+  .bigsearch kbd { display: none; }
+  .bigsearch input { font-size: 15px; }
+  .prose { font-size: 15px; }
+  .frame svg { max-width: none; }
+  figure .frame { padding: 14px; }
+  .prov .mono { overflow-wrap: anywhere; }
+  .provref { max-width: 140px; }
 }
 
 @layer components {
   .prose {
     @apply text-body leading-relaxed;
-    overflow-wrap: anywhere;
+    /* Lesesaal L3 (Mockup Z.180–181): eigene Lesespalten-Maße statt der
+       generischen text-body/leading-relaxed-Werte. */
+    max-width: 680px;
+    font-size: 15.5px;
+    line-height: 1.72;
+    overflow-wrap: break-word;
+    min-width: 0;
   }
+  .prose > * + * { margin-top: 1.05em; }
   .prose h1 { @apply font-display text-2xl mt-8 mb-3 text-ink; }
-  .prose h2 { @apply font-display text-xl mt-6 mb-2 text-ink; }
-  .prose h3 { @apply font-semibold text-lg mt-5 mb-2 text-ink; }
+  .prose h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
+  .prose h3 { font-size: 16.5px; font-weight: 600; margin-top: 1.7em; color: rgb(var(--ink)); }
+  .prose strong { font-weight: 600; }
+  .prose .lede { border-left: 2px solid rgb(var(--hair2)); padding: 2px 0 2px 18px; color: rgb(var(--meta)); font-size: 15px; }
   .prose p { @apply my-3; }
   .prose ul { @apply list-disc pl-6 my-3; }
   .prose ol { @apply list-decimal pl-6 my-3; }
   .prose a { @apply text-accent underline underline-offset-2 break-words; }
   .prose code {
-    @apply font-mono text-sm px-1 py-0.5 rounded bg-sunken;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: .87em;
+    background: rgb(var(--sheet));
+    border: 1px solid rgb(var(--hair));
+    border-radius: 4px;
+    padding: .08em .35em;
     overflow-wrap: anywhere;
     word-break: break-word;
   }
-  .prose pre { @apply max-w-full overflow-x-auto; }
+  .prose pre {
+    background: rgb(var(--sheet));
+    border: 1px solid rgb(var(--hair));
+    border-radius: 8px;
+    padding: 16px 18px;
+    overflow-x: auto;
+  }
   .prose pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 12.8px;
+    line-height: 1.65;
+    /* Mockup Z.189 referenziert das nicht existierende Token --sheet-ink
+       (Minor, dokumentiert im Plan) — Chroma-Spans liefern die Code-Farben,
+       hier nur die Fallback-Grundfarbe. */
+    color: rgb(var(--ink));
     overflow-wrap: normal;
     word-break: normal;
     white-space: pre;
   }
   .prose pre.chroma { @apply font-mono text-sm p-4 my-4 rounded-lg; }
   .prose pre.chroma code { @apply bg-transparent p-0; }
+  .tblwrap { overflow-x: auto; margin-top: 1.05em; }
+  .tblwrap table { margin-top: 0 !important; min-width: 480px; }
   .prose table {
     @apply my-4 border-collapse w-full;
+    /* display:block + overflow-x:auto bleiben als Sicherheitsnetz für heute
+       schon gerenderte Dokumente (Renderer wrappt erst ab Task 2 in
+       .tblwrap) — Eindämmung Spec §11 darf zwischen den Tasks nicht reißen. */
     display: block;
     max-width: 100%;
     overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.5;
   }
   .prose th, .prose td { @apply border border-line px-3 py-1.5 text-left; }
-  .prose .wikilink { @apply text-accent; }
+  .prose .wikilink, .prose .wl { @apply text-accent; text-decoration: underline dotted 1px; text-underline-offset: 3px; }
+  .prose .wikilink:hover, .prose .wl:hover { background: rgb(var(--accent-wash)); }
   .prose .wikilink-broken { @apply text-danger line-through; }
 
   .preview-clamp {
@@ -561,8 +674,14 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     overflow: hidden;
   }
 
-  .callout { @apply my-4 rounded-lg border-l-4 pl-4 pr-3 py-2; }
+  /* Lesesaal L3 (Mockup Z.196–197): Basislayout flex/gap/radius statt
+     border-l-4-Karte; der reale Renderer (markdown_callout.go) emittiert
+     .callout.callout-<kind> + .callout-title/.callout-glyph (nicht das
+     Mockup-.m) — Kind-Farbcodierung bleibt über die bestehenden
+     .callout-<kind>-Utilities erhalten. */
+  .callout { @apply my-4 rounded-lg; display: flex; gap: 12px; background: rgb(var(--warn-wash)); border: 1px solid #EADFC8; border-radius: 8px; padding: 14px 16px; font-size: 14px; }
   .callout-title { @apply font-semibold mb-1 flex items-center gap-2; }
+  .callout-glyph { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 700; color: rgb(var(--warn)); flex-shrink: 0; }
   .callout-note { @apply border-accent bg-accent/5; }
   .callout-tip { @apply border-success bg-success/5; }
   .callout-warning { @apply border-warning bg-warning/5; }

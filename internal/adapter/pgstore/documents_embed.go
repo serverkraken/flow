@@ -3,6 +3,7 @@ package pgstore
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,12 +36,15 @@ LIMIT $1`
 		var d domain.Document
 		var typ string
 		var extra []byte
+		var updatedByKind, updatedByRef sql.NullString
 		var attempts int
 		if err := rows.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
-			&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt, &attempts); err != nil {
+			&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
+			&updatedByKind, &updatedByRef, &attempts); err != nil {
 			return nil, fmt.Errorf("pgstore: scan stale document: %w", err)
 		}
 		d.Type = domain.DocumentType(typ)
+		d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 		if len(extra) > 0 {
 			if err := json.Unmarshal(extra, &d.Extra); err != nil {
 				return nil, fmt.Errorf("pgstore: unmarshal extra: %w", err)

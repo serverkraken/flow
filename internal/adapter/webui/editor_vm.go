@@ -1,6 +1,11 @@
 package webui
 
-import "html/template"
+import (
+	"context"
+	"html/template"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
 
 type EditorOption struct {
 	Value string
@@ -36,6 +41,15 @@ func (vm EditorVM) HeadingKey() string {
 		return "wissen.edit.title"
 	}
 	return "wissen.new"
+}
+
+// editorCrumbs builds the Wissen -> heading breadcrumb trail for the editor
+// page, reusing components.Breadcrumb (like nodeCrumbs does for the cockpit).
+func editorCrumbs(ctx context.Context, vm EditorVM) []components.Crumb {
+	return []components.Crumb{
+		{Href: "/wissen", Label: components.T(ctx, "wissen.title")},
+		{Label: components.T(ctx, vm.HeadingKey())},
+	}
 }
 
 func DocumentTypeOptions(_ string) []EditorOption {

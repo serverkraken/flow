@@ -2,6 +2,7 @@ package webui
 
 import (
 	"bytes"
+	"context"
 	"html"
 	"html/template"
 	"sync"
@@ -15,6 +16,7 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -50,20 +52,36 @@ func getDocPolicy() *bluemonday.Policy {
 		p.AllowAttrs("class").OnElements("div", "p")
 		p.AllowAttrs("aria-hidden").OnElements("span")
 		p.AllowAttrs("class").OnElements("pre", "code", "span")
+		p.AllowElements("figure", "figcaption", "details", "summary", "b")
+		p.AllowAttrs("class").OnElements("figure", "figcaption", "details")
 		docPolicy = p
 	})
 	return docPolicy
 }
 
+// DocMeta carries render-time facts about a document that the caller needs
+// but that the sanitised HTML itself no longer safely exposes. HasMermaid is
+// the single source of truth for "does this document need mermaid-init.js" —
+// there is deliberately no separate string-scan for a ```mermaid fence,
+// which would drift from what the fence parser actually accepted.
+type DocMeta struct {
+	HasMermaid bool
+}
+
 // RenderDocument converts Markdown src to sanitised HTML, extending
-// CommonMark with [[target]] and [[target|display]] wikilink syntax.
-// The resolve function maps a target string to its href + title; when
-// resolve returns ok=false the link renders as a broken-wikilink span
-// instead.
-func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
+// CommonMark with [[target]] and [[target|display]] wikilink syntax and
+// setting ```mermaid fences as numbered figures. The resolve function maps
+// a target string to its href + title; when resolve returns ok=false the
+// link renders as a broken-wikilink span instead. ctx supplies the locale
+// for the figure caption ("Abb." / "Fig.").
+func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver) (template.HTML, DocMeta) {
 	if _, start := domain.ParseFrontmatter(src); start > 0 {
 		src = src[start:]
 	}
+	figLabel := components.T(ctx, "document.figure.label")
+	renderedFrom := components.T(ctx, "document.figure.mermaid")
+	sourceLabel := components.T(ctx, "document.figure.source")
+	mt := &mermaidTransformer{}
 	gm := goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
@@ -76,6 +94,7 @@ func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
 			),
 			parser.WithASTTransformers(
 				util.Prioritized(calloutTransformer{}, 0),
+				util.Prioritized(mt, 0),
 			),
 		),
 	)
@@ -83,14 +102,15 @@ func RenderDocument(src string, resolve WikilinkResolver) template.HTML {
 		renderer.WithNodeRenderers(
 			util.Prioritized(&wikiLinkHTMLRenderer{resolve: resolve}, 100),
 			util.Prioritized(&calloutHTMLRenderer{}, 100),
+			util.Prioritized(&mermaidHTMLRenderer{FigLabel: figLabel, RenderedFrom: renderedFrom, SourceLabel: sourceLabel}, 100),
 		),
 	)
 	var buf bytes.Buffer
 	if err := gm.Convert([]byte(src), &buf); err != nil {
-		return template.HTML(template.HTMLEscapeString(src))
+		return template.HTML(template.HTMLEscapeString(src)), DocMeta{}
 	}
 	clean := getDocPolicy().SanitizeBytes(buf.Bytes())
-	return template.HTML(clean)
+	return template.HTML(clean), DocMeta{HasMermaid: mt.Count > 0}
 }
 
 // --- AST node ---------------------------------------------------------
