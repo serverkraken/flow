@@ -262,16 +262,16 @@ templ cockpitPulseRow(row ActivityRowVM) {
 				if row.TargetName != "" {
 					{ " " }
 					if row.TargetHref != "" {
-						<a class="targetlink" href={ templ.SafeURL(row.TargetHref) }>{ row.TargetName }</a>
+						<a class="targetlink" href={ templ.SafeURL(row.TargetHref) } title={ row.TargetName }>{ ShortName(row.TargetName) }</a>
 					} else {
-						<span class="targetlink">{ row.TargetName }</span>
+						<span class="targetlink" title={ row.TargetName }>{ ShortName(row.TargetName) }</span>
 					}
 				} else if row.Label != "" {
 					{ " " }
 					if row.Href != "" {
-						<a class="targetlink" href={ templ.SafeURL(row.Href) }>{ row.Label }</a>
+						<a class="targetlink" href={ templ.SafeURL(row.Href) } title={ row.Label }>{ ShortName(row.Label) }</a>
 					} else {
-						<span class="targetlink">{ row.Label }</span>
+						<span class="targetlink" title={ row.Label }>{ ShortName(row.Label) }</span>
 					}
 				}
 			</div>
