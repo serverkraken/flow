@@ -399,3 +399,36 @@ func TestZeitHub_LedgerOwnerScoped(t *testing.T) {
 		t.Errorf("owner-scope leak: u1's Zeit-Hub rendered u2's 3h session time range: %.2000s", body)
 	}
 }
+
+// TestZeitHub_LedgerRowShowsNoteAndClockDuration is the Review Fix 1/2
+// RED→GREEN guard: a completed session's ledger .s sub-line shows its
+// free-text Note (Mockup Z.858–866, e.g. "Daily + DACORE-10279 Review"), and
+// its duration column renders in the Mockup's colon clock format ("2:00"),
+// not the codebase-wide FmtVerbose "2h 00m".
+func TestZeitHub_LedgerRowShowsNoteAndClockDuration(t *testing.T) {
+	srv, u := newHeuteTestServer(t)
+	seedCompletedSession(t, srv, u, "n1", "09:00", "11:00", []string{"deep"}, "Daily + Review")
+
+	body := getBody(t, srv, u, "/zeit")
+	if !strings.Contains(body, "Daily + Review") {
+		t.Errorf("ledger row missing the session's Note text: %.2000s", body)
+	}
+	if strings.Contains(body, "#deep") {
+		t.Errorf("ledger row must show the Note, not the tag fallback, when Note is set: %.2000s", body)
+	}
+	if !strings.Contains(body, ">2:00<") {
+		t.Errorf("ledger row missing the clock-format duration '2:00': %.2000s", body)
+	}
+}
+
+// TestZeitHub_LedgerRowFallsBackToTagsWhenNoteEmpty verifies the .s sub-line
+// falls back to the session's tags (Review Fix 2) when there is no Note.
+func TestZeitHub_LedgerRowFallsBackToTagsWhenNoteEmpty(t *testing.T) {
+	srv, u := newHeuteTestServer(t)
+	seedCompletedSession(t, srv, u, "n1", "09:00", "11:00", []string{"deep", "review"}, "")
+
+	body := getBody(t, srv, u, "/zeit")
+	if !strings.Contains(body, "#deep #review") {
+		t.Errorf("ledger row missing the tag fallback when Note is empty: %.2000s", body)
+	}
+}

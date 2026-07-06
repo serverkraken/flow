@@ -496,8 +496,9 @@ func TestWebNodesListWithSessions(t *testing.T) {
 }
 
 // TestHeuteHome_HitWeekRow seeds exactly 8h on a weekday in the current week
-// to drive heuteBarFill("hit") and heuteDotClass("hit") branches in the
-// heute week-row card.
+// and pins the WeekGoalLine's "bisher {WeekTotal}" clause (FmtVerbose,
+// unchanged by Review Fix 1 — only the .weekbar day values and the ledger
+// duration column switched to the Mockup's clock format).
 // Clock = 2026-06-21 (Sunday); current ISO week Mon 2026-06-15 – Sun 2026-06-21.
 func TestHeuteHome_HitWeekRow(t *testing.T) {
 	srv := newWorktimeTestServer(t)
@@ -509,7 +510,7 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Week-row for Monday shows 8h 00m (logged = target → "hit" variant).
+	// WeekGoalLine's "bisher" clause shows 8h 00m (WeekTotal, FmtVerbose).
 	if !strings.Contains(body, "8h 00m") {
 		t.Errorf("heute home missing '8h 00m' for hit week row, got:\n%s", body[:limitLen(1000, len(body))])
 	}

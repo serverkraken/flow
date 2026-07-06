@@ -42,10 +42,17 @@ type HeuteVM struct {
 // pre-filled). Edit is the zero SessionDialogVM (Mode "") for a RUNNING
 // session — the template skips rendering its dialog and its delete control.
 // BaseSeconds feeds the LIVE row's ticking data-timer span (Row.Running only).
+// DurationShort/Note are Zeit-Hub-only additions (Review Fix 1/2, kept off
+// the shared components.SessionRowVM so Woche/Historie stay unaffected):
+// DurationShort is the completed-row duration in the Mockup's "6:10" clock
+// format (FmtClockShort), and Note carries the session's free-text note for
+// the ledger row's .s sub-line (Mockup Z.858–866 — a real sentence, not tags).
 type HeuteLedgerRow struct {
-	Row         components.SessionRowVM
-	Edit        components.SessionDialogVM
-	BaseSeconds int64
+	Row           components.SessionRowVM
+	Edit          components.SessionDialogVM
+	BaseSeconds   int64
+	DurationShort string
+	Note          string
 }
 
 // ZeitWeekDay is one vertical bar in the Wochenskala (Mockup Z.871–879): a
@@ -53,9 +60,10 @@ type HeuteLedgerRow struct {
 // show), and the bar's height percentage. Built by zeitWeekDays
 // (webui_heute.go) from the raw domain.WeekDay rows — never from the lossy
 // WocheDayVM (Codex-Fund #3: its pre-formatted Pct is unusable here).
+// ValueStr uses FmtClockShort (Mockup "6:10", Review Fix 1), NOT FmtVerbose.
 type ZeitWeekDay struct {
 	Label    string // "Mo" / "Do · heute"
-	ValueStr string // "6h 10m" / "—" / "frei"
+	ValueStr string // "6:10" / "—" / "frei"
 	Pct      int    // bar height %
 	Has      bool   // logged time > 0 → accent bar (.day.has)
 	Today    bool   // today → live-bright bar (.day.today)
@@ -85,6 +93,20 @@ func FmtSaldoVerbose(d time.Duration) string {
 		return "−" + FmtVerbose(-d)
 	}
 	return "+" + FmtVerbose(d)
+}
+
+// FmtClockShort renders a duration as "6:10" / "40:00" / "304:46" (clamped at
+// zero) — the colon clock format the Zeit-Hub Mockup uses for the Wochenskala
+// day values and the ledger duration column (Review Fix 1). Deliberately
+// NOT a codebase-wide reformat: FmtVerbose ("6h 10m") stays the format
+// everywhere else (Home, Woche, Historie) — only the Zeit page's two Mockup-
+// specified spots use this. Unlike format.go's unexported fmtDur ("06:10"),
+// hours are never zero-padded, matching the Mockup's "6:10" (not "06:10").
+func FmtClockShort(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	return fmt.Sprintf("%d:%02d", int(d.Hours()), int(d.Minutes())%60)
 }
 
 // ClampPct clamps a percentage into [0,100].
@@ -143,7 +165,9 @@ func zeitRunningStartLabel(timeRange string) string {
 }
 
 // zeitLedgerSub renders a ledger row's tag line ("#deep #foo"), empty when
-// the session carries no tags — the row's .s sub-line is simply omitted then.
+// the session carries no tags. Used as the .s sub-line's FALLBACK when the
+// session has no Note (Review Fix 2 — the Mockup's .s is the session's free-
+// text Note first; tags only stand in when there is no note at all).
 func zeitLedgerSub(tags []string) string {
 	if len(tags) == 0 {
 		return ""

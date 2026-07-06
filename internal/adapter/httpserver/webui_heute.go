@@ -112,6 +112,8 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	// Today's ledger rows + per-row edit dialog (newest stay in chronological
 	// order from the store). A running row's BaseSeconds feeds the LIVE row's
 	// ticking data-timer span (heute.templ); it stays zero for completed rows.
+	// DurationShort (Mockup clock format, Review Fix 1) and Note (Review Fix
+	// 2) are Zeit-Hub-only additions kept off the shared SessionRowVM.
 	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
 		row := sessionRowVM(sess, projects, now)
@@ -120,9 +122,11 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 			base = int64(sess.Elapsed(now) / time.Second)
 		}
 		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
-			Row:         row,
-			Edit:        heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
-			BaseSeconds: base,
+			Row:           row,
+			Edit:          heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
+			BaseSeconds:   base,
+			DurationShort: webui.FmtClockShort(sess.Elapsed(now)),
+			Note:          sess.Note,
 		})
 	}
 
@@ -223,7 +227,7 @@ func zeitWeekDays(ctx context.Context, week []domain.WeekDay, now time.Time, off
 		}
 		key := wd.Date.In(loc).Format("2006-01-02")
 		_, isOff := off[key]
-		valueStr := webui.FmtVerbose(l)
+		valueStr := webui.FmtClockShort(l)
 		if l == 0 {
 			if isOff || isWeekendTime(wd.Date) {
 				valueStr = i18n.T(ctx, "zeit.weekDayOff")

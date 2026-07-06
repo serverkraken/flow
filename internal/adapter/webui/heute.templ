@@ -90,14 +90,17 @@ templ heuteTodaySection(vm HeuteVM) {
 }
 
 // heuteLedgerRow is one Lesesaal ledger .row (Mockup Z.858–866): the Von–Bis
-// mono .led-when, the node/title + tags, and the duration. A running session
-// shows the LIVE chip + a ticking clock instead of a static duration — it is
-// ANZEIGE-ONLY (no stop control here, Spec §10 / l4-global-constraints.md —
-// stop lives on the Topbar-Pill / Cockpit-instr-Band). Edit/delete for a
-// completed session live as small controls under the duration (.right .k),
-// mirroring cockpitBuchungActions' established convention rather than
-// wrapping the whole row in a <button> (which would nest interactive
-// elements once delete sits beside it).
+// mono .led-when, the node/title + the session's free-text Note (falling
+// back to its tags when there is no note — Review Fix 2), and the duration
+// in the Mockup's "6:10" clock format (DurationShort, Review Fix 1 — NOT
+// SessionRowVM.Duration's "6h 10m", which stays untouched for Woche/
+// Historie). A running session shows the LIVE chip + a ticking clock instead
+// of a static duration — it is ANZEIGE-ONLY (no stop control here, Spec §10
+// / l4-global-constraints.md — stop lives on the Topbar-Pill / Cockpit-instr-
+// Band). Edit/delete for a completed session live as small controls under
+// the duration (.right .k), mirroring cockpitBuchungActions' established
+// convention rather than wrapping the whole row in a <button> (which would
+// nest interactive elements once delete sits beside it).
 templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
 	<div class="row">
 		<span class="led-when">
@@ -109,7 +112,9 @@ templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
 		</span>
 		<div class="grow">
 			<div class="t">{ lr.Row.Title }</div>
-			if sub := zeitLedgerSub(lr.Row.Tags); sub != "" {
+			if lr.Note != "" {
+				<div class="s">{ lr.Note }</div>
+			} else if sub := zeitLedgerSub(lr.Row.Tags); sub != "" {
 				<div class="s">{ sub }</div>
 			}
 		</div>
@@ -120,7 +125,7 @@ templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
 			if lr.Row.Running {
 				<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(lr.BaseSeconds, 10) } role="timer">{ fmtClockHMS(lr.BaseSeconds) }</div>
 			} else {
-				<div class="v">{ lr.Row.Duration }</div>
+				<div class="v">{ lr.DurationShort }</div>
 				<div class="k">
 					<button type="button" class="targetlink" data-dialog-open={ lr.Edit.DialogID }>{ components.T(ctx, "common.edit") }</button>
 					<button type="button" aria-label={ components.T(ctx, "common.delete") }
