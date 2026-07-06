@@ -28,7 +28,7 @@ templ historieCalOuter(vm HistorieVM) {
 		hx-swap="innerHTML">
 		@HistorieCalendarFragment(vm)
 	</div>
-	<script src="/static/js/historie-select.js" defer></script>
+	<script src={ AssetURL("js/historie-select.js") } defer></script>
 }
 
 // HistorieCalendarFragment is the inner calendar content (week or month): the
@@ -374,7 +374,7 @@ templ historieListOuter(vm HistorieListVM) {
 		hx-swap="innerHTML">
 		@HistorieListFragment(vm)
 	</div>
-	<script src="/static/js/historie-select.js" defer></script>
+	<script src={ AssetURL("js/historie-select.js") } defer></script>
 }
 
 // HistorieListFragment is the paginated flat list inner content: the "‹ Zeit"

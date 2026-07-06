@@ -297,7 +297,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 			@components.Button(components.BtnDanger, components.T(ctx, "common.delete"), "✗", templ.Attributes{"type": "submit"})
 		</form>
 	}
-	<script src="/static/js/nodeform.js" defer></script>
+	<script src={ AssetURL("js/nodeform.js") } defer></script>
 }
 
 // nodeMoveForm renders the reparent controls on the edit page (Task 7: moved

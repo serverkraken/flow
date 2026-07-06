@@ -3,6 +3,13 @@
 (function () {
   var MAX = 20000;          // Input-Cap gegen Browser-DoS
   var loading = false, failed = false;
+  // document.currentScript is only valid synchronously while THIS script
+  // (deferred or not) is executing — captured now so the later async
+  // ensureLib() callback can still build a cache-busted vendor URL (Lesesaal
+  // L4 Task 7: the mermaid.min.js self-inject has no <script src> of its own
+  // for AssetURL to touch, so the version travels as data-v on this init
+  // tag's own <script> instead).
+  var v = (document.currentScript && document.currentScript.dataset.v) || '';
   function markError() { document.querySelectorAll('.mermaid-figure:not(.mermaid-error)').forEach(function (f) { f.classList.add('mermaid-error'); }); }
   function ensureLib(cb) {
     if (window.mermaid) return cb();
@@ -10,7 +17,7 @@
     if (loading) return;
     loading = true;
     var s = document.createElement('script');
-    s.src = '/static/vendor/mermaid.min.js';  // 'self' → CSP script-src ok
+    s.src = '/static/vendor/mermaid.min.js' + (v ? '?v=' + v : '');  // 'self' → CSP script-src ok
     s.onload = function () { loading = false; cb(); };
     s.onerror = function () { loading = false; failed = true; markError(); };
     document.head.appendChild(s);

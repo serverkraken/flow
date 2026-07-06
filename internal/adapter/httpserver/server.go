@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -302,5 +303,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui", s.webAuth(http.HandlerFunc(s.handleWebStyleguide)))
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", webui.StaticHandler()))
+	// Cross the webui → components import direction the one way it's allowed:
+	// components can't call webui.AssetVersion() itself (would reverse the
+	// dependency), so Routes() hands it the value once here — every
+	// components-side AssetURL() call afterwards returns the same
+	// fingerprinted URL webui's own AssetURL does (Lesesaal L4 Task 7).
+	components.SetAssetVersion(webui.AssetVersion())
 	return s.securityHeaders(mux)
 }
