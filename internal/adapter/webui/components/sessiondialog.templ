@@ -38,7 +38,7 @@ templ SessionDialog(vm SessionDialogVM) {
 }
 
 templ sessionDialogBody(vm SessionDialogVM) {
-	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" class="space-y-4">
+	<form hx-post={ vm.Action } hx-target={ vm.Target } hx-swap="innerHTML" data-dialog-close-on-success class="space-y-4">
 		if vm.SessionID != "" {
 			<input type="hidden" name="sessionId" value={ vm.SessionID }/>
 		}

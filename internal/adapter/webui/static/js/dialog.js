@@ -69,4 +69,15 @@
       lastOpener = null;
     }
   }, true);
+
+  // Forms opting into [data-dialog-close-on-success] (e.g. the Nachbuchen
+  // add/edit dialog) close their enclosing <dialog> after a successful
+  // htmx submit, instead of staying open post-save.
+  document.body.addEventListener('htmx:afterRequest', function (e) {
+    var form = e.target;
+    if (!form.hasAttribute || !form.hasAttribute('data-dialog-close-on-success')) return;
+    if (!e.detail.successful) return;
+    var dlg = form.closest('dialog');
+    if (dlg) dlg.close();
+  });
 })();

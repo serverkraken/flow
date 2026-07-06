@@ -216,8 +216,6 @@ func init() {
 			"wissen.project.none":       "No project",
 			"wissen.path":               "Path",
 			"wissen.tags":               "Tags",
-			"wissen.backlinks":          "Referenced by",
-			"wissen.backlinks.empty":    "No references",
 			"wissen.toc":                "Contents",
 			"wissen.delete.title":       "Delete document?",
 			"wissen.delete.body":        "This cannot be undone.",
