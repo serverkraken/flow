@@ -247,6 +247,7 @@ func init() {
 			"styleguide.title":    "Design-System",
 			"styleguide.subtitle": "Komponenten-Schaukasten",
 			// worktime: history / calendar surface
+			"historie.eyebrow":             "Zeit / Historie",
 			"historie.title":               "Historie",
 			"historie.calendar":            "Kalender",
 			"historie.list":                "Liste",

@@ -425,9 +425,11 @@ func TestHistorieCalFragment_MonthViewWithSessions(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Today's cell has the cyan/ring styling (IsToday=true).
-	if !strings.Contains(body, "ring-cyan") {
-		t.Errorf("month fragment missing today-ring class, got:\n%s", body[:limitLen(500, len(body))])
+	// Today's cell carries the cyan accent wash (IsToday=true) — L4 Task 5
+	// replaced the Kristall "ring-1 ring-cyan/30" card highlight with the
+	// hairline day-cell's plain bg-cyan/5 wash (historieMonthCellClass).
+	if !strings.Contains(body, "bg-cyan") {
+		t.Errorf("month fragment missing today cyan accent, got:\n%s", body[:limitLen(500, len(body))])
 	}
 }
 

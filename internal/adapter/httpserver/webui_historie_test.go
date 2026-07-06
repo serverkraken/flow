@@ -51,9 +51,11 @@ func histSessionIDs(t *testing.T, srv *worktimeTestServer, from, to string) []st
 	return ids
 }
 
-// TestHistorieHome_RendersCalendarGridAndSubnav: GET /historie → 200 with the
-// time-grid (grid-lines) and the worktime sub-tab strip.
-func TestHistorieHome_RendersCalendarGridAndSubnav(t *testing.T) {
+// TestHistorieHome_RendersLesesaalChrome: GET /historie → 200 with the
+// L4 Task 5 Lesesaal chrome (pagehead, "‹ Zeit" spine back-link, the time-grid)
+// and NO worktime sub-tab-strip — that pill strip (and its worktimeSubnav
+// definition) is retired; Historie was its last caller.
+func TestHistorieHome_RendersLesesaalChrome(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	// Clock 2026-06-21 (Sun); ISO Monday 2026-06-15. Seed unassigned sessions.
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
@@ -66,15 +68,23 @@ func TestHistorieHome_RendersCalendarGridAndSubnav(t *testing.T) {
 	body := rr.Body.String()
 	for _, want := range []string{
 		"grid-lines",                    // the week time-grid columns
-		"href=\"/historie\"",            // sub-tab strip (Historie active link)
+		"pagehead",                       // Lesesaal pagehead
+		"‹ Zeit",                        // the spine "up" back-link to /zeit
 		"id=\"content\"",                // SSE swap container
 		"sse:session",                   // live-reload trigger
+		"sse:dayoff.changed",            // SSE-Härtung (Berater-Fund #8): day-off must live-update the calendar
 		"/static/js/historie-select.js", // selection JS loaded
 		"/static/app.css",               // AppShell head
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("Historie home missing %q", want)
 		}
+	}
+	// The worktime sub-tab-strip (Heute/Woche/Historie pill nav) is retired
+	// from Historie in L4 Task 5 — its href="/historie" active-tab link must
+	// no longer appear (the "‹ Zeit" spine back-link replaces it).
+	if strings.Contains(body, `href="/historie"`) {
+		t.Errorf("Historie home must not render the retired worktime sub-tab-strip, got:\n%.2000s", body)
 	}
 }
 
@@ -268,9 +278,26 @@ func TestHistorieCalFragment_EditFormHasProjects(t *testing.T) {
 	}
 }
 
-// TestHistorie_GlassAndBulkAttrsPreserved: the glass restyle must not break the
-// bulk-select data-attrs or the single-edit dialog's post target.
-func TestHistorie_GlassAndBulkAttrsPreserved(t *testing.T) {
+// nonDialogContent trims a rendered page/fragment to the part BEFORE the
+// first native <dialog> element. Historie legitimately keeps its mandated
+// components.Dialog/ConfirmDialog modals (edit + 2 confirms — Bestand, shared
+// with Heute/Editor/Frei), which carry their own rounded-3xl/shadow-lift/
+// shadow-soft/font-display chrome by design (a floating modal, not a
+// page-flow card) — so the "retired Kristall card chrome" check below is
+// scoped to the calendar/list page-flow content, not the modals.
+func nonDialogContent(body string) string {
+	if i := strings.Index(body, "<dialog"); i >= 0 {
+		return body[:i]
+	}
+	return body
+}
+
+// TestHistorie_NoKristallChromeAndBulkAttrsPreserved: the L4 Task 5 Lesesaal
+// rebuild must not break the bulk-select data-attrs or the single-edit
+// dialog's post target, and the calendar/list page-flow content must no
+// longer render the retired Kristall card chrome (glass/shadow-soft/
+// rounded-3xl) it used to carry.
+func TestHistorie_NoKristallChromeAndBulkAttrsPreserved(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
 
@@ -279,8 +306,11 @@ func TestHistorie_GlassAndBulkAttrsPreserved(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "glass") {
-		t.Errorf("historie not on glass")
+	content := nonDialogContent(body)
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl"} {
+		if strings.Contains(content, unwanted) {
+			t.Errorf("historie page-flow content must not render retired Kristall chrome %q, got:\n%.3000s", unwanted, content)
+		}
 	}
 	for _, want := range []string{"data-select-toggle", "data-block-wrap", "/ui/worktime/edit"} {
 		if !strings.Contains(body, want) {
@@ -293,8 +323,11 @@ func TestHistorie_GlassAndBulkAttrsPreserved(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rrList.Code, rrList.Body.String())
 	}
 	listBody := rrList.Body.String()
-	if !strings.Contains(listBody, "glass") {
-		t.Errorf("historie list view not on glass")
+	listContent := nonDialogContent(listBody)
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl"} {
+		if strings.Contains(listContent, unwanted) {
+			t.Errorf("historie list view page-flow content must not render retired Kristall chrome %q, got:\n%.3000s", unwanted, listContent)
+		}
 	}
 }
 
@@ -371,5 +404,65 @@ func TestHistorieCal_ShowsDayOffBadge(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "Urlaub") {
 		t.Errorf("calendar missing day-off badge label %q", "Urlaub")
+	}
+}
+
+// TestHistorieFragments_NoKristallChrome checks the raw calendar/list fragment
+// endpoints (no AppShell topbar, so "font-display" cannot leak in from the
+// shared brand mark either) for the retired-Kristall marker set, scoped to the
+// page-flow content (the mandated edit/confirm <dialog> modals keep their own
+// rounded-3xl/shadow-lift/shadow-soft/font-display chrome by design).
+func TestHistorieFragments_NoKristallChrome(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-15", "09:00", "11:00")
+
+	for _, path := range []string{"/ui/historie/calendar", "/ui/historie/list"} {
+		rr := histGet(t, srv, path)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("%s status=%d body=%s", path, rr.Code, rr.Body.String())
+		}
+		content := nonDialogContent(rr.Body.String())
+		for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl", "font-display"} {
+			if strings.Contains(content, unwanted) {
+				t.Errorf("%s page-flow content must not render retired Kristall chrome %q, got:\n%.3000s", path, unwanted, content)
+			}
+		}
+	}
+}
+
+// TestHistorie_OwnerScoped is the owner-scope negative test for Historie
+// (AGENTS.md §Grundsätze — flow is multi-tenant): another user's session must
+// never surface in u1's Historie calendar or list.
+func TestHistorie_OwnerScoped(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	srv.seedSession(t, "2026-06-15", "09:00", "10:00") // u1's own session
+
+	start := time.Date(2026, 6, 15, 9, 0, 0, 0, time.Local)
+	stop := start.Add(6 * time.Hour)
+	if _, err := srv.ss.Create(context.Background(), domain.WorkSession{
+		ID: "u2-secret", OwnerID: "u2", Start: start, Stop: &stop, Tags: []string{"u2-only-tag"},
+	}); err != nil {
+		t.Fatalf("seed u2 session: %v", err)
+	}
+
+	rr := histGet(t, srv, "/historie")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if strings.Contains(body, "u2-only-tag") {
+		t.Errorf("owner-scope leak: u1's Historie calendar rendered u2's session tag: %.2000s", body)
+	}
+
+	rrList := histGet(t, srv, "/historie?view=list")
+	if rrList.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rrList.Code, rrList.Body.String())
+	}
+	listBody := rrList.Body.String()
+	if strings.Contains(listBody, "u2-only-tag") {
+		t.Errorf("owner-scope leak: u1's Historie list rendered u2's session tag: %.2000s", listBody)
+	}
+	if strings.Contains(listBody, "u2-secret") {
+		t.Errorf("owner-scope leak: u1's Historie list rendered u2's session id: %.2000s", listBody)
 	}
 }

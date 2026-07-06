@@ -6,19 +6,6 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche ·
-// Historie). The Zeit-Hub (this file) stopped calling it in L4 Task 3 — the
-// Mockup Zeit page carries no sub-tab-strip — but the DEFINITION stays: Woche
-// (woche.templ) and Historie (historie.templ) still call it until their own
-// L4 rebuild tasks retire it (Historie, Task 5, is the last caller).
-templ worktimeSubnav(active string) {
-	@components.TabStrip([]components.Tab{
-		{Key: "today", Href: "/zeit", LabelKey: "nav.today"},
-		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
-		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
-	}, active)
-}
-
 // HeutePage is the full Zeit page on the AppShell.
 templ HeutePage(vm HeuteVM) {
 	@components.Base("heute", heuteBody(vm))

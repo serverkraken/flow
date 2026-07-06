@@ -238,6 +238,7 @@ func init() {
 			"styleguide.title":    "Design System",
 			"styleguide.subtitle": "Component showcase",
 			// worktime: history / calendar surface
+			"historie.eyebrow":             "Time / History",
 			"historie.title":               "History",
 			"historie.calendar":            "Calendar",
 			"historie.list":                "List",

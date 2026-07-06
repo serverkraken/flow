@@ -8,8 +8,8 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// FmtCompact renders a duration as the studio calendar's tight form: "1h30",
-// "2h45", "45m" (sub-hour). Used in block time-lines and month-cell totals where
+// FmtCompact renders a duration as the calendar's tight form: "1h30", "2h45",
+// "45m" (sub-hour). Used in block time-lines and month-cell totals where
 // horizontal space is scarce (distinct from FmtVerbose's "1h 30m").
 func FmtCompact(d time.Duration) string {
 	if d < 0 {
@@ -24,7 +24,10 @@ func FmtCompact(d time.Duration) string {
 }
 
 // HistorieVM is the view model for the Historie calendar (week/month) view on
-// the Slice-0 AppShell. The list view uses HistorieListVM.
+// the Lesesaal AppShell. The list view uses HistorieListVM. Field shapes are
+// the unchanged data source (httpserver's historieCalData/historieBuildWeek/
+// historieBuildMonth) — L4 Task 5 rebuilds only the templ presentation +
+// historie_vm.go's render helpers.
 type HistorieVM struct {
 	User    string
 	View    string // "cal" | "list"
@@ -34,7 +37,7 @@ type HistorieVM struct {
 	WeekStart   time.Time
 	RangeLabel  string // "16.–22.06.2026" (week) or "Juni 2026" (month)
 	MonthLabel  string // "Juni 2026" eyebrow for month view
-	Eyebrow     string // "Worktime · Juni 2026"
+	Eyebrow     string // "Worktime · Juni 2026" — no longer rendered (L4: static pagehead eyebrow), kept as the unchanged data-source field
 	PrevHref    string
 	NextHref    string
 	ThisHref    string // "Diese Woche"/"Dieser Monat" jump ("" when already current)
@@ -55,7 +58,7 @@ type HistorieVM struct {
 	MonthTotal      string // "118h 42m"
 	MonthUnassigned int
 
-	Nodes    []components.NodePickerItem
+	Nodes           []components.NodePickerItem
 	UnassignedCount int
 	Empty           bool
 	Err             string
@@ -106,12 +109,12 @@ type HistorieMonthBar struct {
 
 // HistorieListVM is the paginated flat list view model.
 type HistorieListVM struct {
-	User     string
-	Rows     []components.SessionRowVM
-	Nodes    []components.NodePickerItem
-	Page     components.PageNav
-	Empty    bool
-	Err      string
+	User  string
+	Rows  []components.SessionRowVM
+	Nodes []components.NodePickerItem
+	Page  components.PageNav
+	Empty bool
+	Err   string
 }
 
 // itoaPx renders an int as a "Npx" CSS length.
@@ -138,44 +141,39 @@ func historieClockStart(timeRange string) string {
 	return ""
 }
 
-// historieAgendaToday appends the " · heute" marker to an agenda heading.
-func historieAgendaToday(d HistorieDayVM) string {
-	if d.IsToday {
-		return " · heute"
-	}
-	return ""
-}
+// ── week grid class helpers (Lesesaal: hairline borders + a cyan accent for
+// "heute", no Kristall bg-hue/[.x] washes or font-display) ──────────────────
 
-// ── week grid class helpers ──────────────────────────────────────────────────
-
+// historieDayHeadClass styles one day-column header cell: a hairline right
+// border shared by all columns, plus a bottom accent rule on today's column
+// (the same --cyan "live/heute" token the Wochenskala/now-line/running chip
+// already use).
 func historieDayHeadClass(d HistorieDayVM) string {
-	switch {
-	case d.IsToday:
-		return "day-head group px-2 py-3 text-left bg-cyan/[.06] hover:bg-cyan/[.1] transition-colors border-r border-line2"
-	default:
-		return "day-head group border-r border-line2 px-2 py-3 text-left hover:bg-sunken/60 transition-colors"
+	if d.IsToday {
+		return "border-r border-b-2 border-line2 border-b-cyan px-2 py-3 text-left"
 	}
+	return "border-r border-line2 px-2 py-3 text-left"
 }
 
 func historieDayLabelClass(d HistorieDayVM) string {
 	switch {
 	case d.IsToday:
-		return "flex items-center gap-1.5 eyebrow uppercase text-[.62rem] font-semibold text-cyan whitespace-nowrap"
+		return "flex items-center gap-1.5 eyebrow text-cyan whitespace-nowrap"
 	case d.IsWeekend:
-		return "block eyebrow uppercase text-[.62rem] font-semibold text-faint"
+		return "block eyebrow text-faint"
 	default:
-		return "block eyebrow uppercase text-[.62rem] font-semibold text-muted"
+		return "block eyebrow"
 	}
 }
 
 func historieDayNumClass(d HistorieDayVM) string {
 	switch {
 	case d.IsToday:
-		return "font-display text-[1.05rem] font-semibold tnum text-cyan"
+		return "text-[1.05rem] font-semibold tnum text-cyan"
 	case d.IsWeekend:
-		return "font-display text-[1.05rem] font-semibold tnum text-faint"
+		return "text-[1.05rem] font-semibold tnum text-faint"
 	default:
-		return "font-display text-[1.05rem] font-semibold tnum"
+		return "text-[1.05rem] font-semibold tnum"
 	}
 }
 
@@ -186,10 +184,12 @@ func historieDayDurClass(d HistorieDayVM) string {
 	return "hidden xl:inline font-mono text-[.66rem] tnum text-muted"
 }
 
+// historieColumnClass styles one day's grid-lines column: a subtle wash on
+// today/weekend, using the standard (non-arbitrary) Tailwind opacity scale.
 func historieColumnClass(d HistorieDayVM) string {
 	switch {
 	case d.IsToday:
-		return "relative grid-lines bg-cyan/[.04]"
+		return "relative grid-lines bg-cyan/5"
 	case d.IsWeekend:
 		return "relative grid-lines border-r border-line2 bg-sunken/30"
 	default:
@@ -199,22 +199,22 @@ func historieColumnClass(d HistorieDayVM) string {
 
 func historieAgendaHeadClass(d HistorieDayVM) string {
 	if d.IsToday {
-		return "font-display text-[1.05rem] font-semibold text-cyan"
+		return "text-[1.05rem] font-semibold text-cyan"
 	}
-	return "font-display text-[1.05rem] font-semibold"
+	return "text-[1.05rem] font-semibold"
 }
 
-// ── month cell class helpers ─────────────────────────────────────────────────
+// ── month cell class helpers (hairline day-cells, not Kristall cards) ───────
 
 func historieMonthCellClass(c HistorieMonthCellVM) string {
-	base := "relative rounded-xl border p-2 h-[92px] flex flex-col transition-colors "
+	base := "relative border-b border-r border-line2 p-2 h-[92px] flex flex-col "
 	switch {
 	case c.IsToday:
-		return base + "border-cyan/45 bg-cyan/[.06] ring-1 ring-cyan/30"
+		return base + "bg-cyan/5"
 	case c.IsWeekend:
-		return base + "border-line2 bg-sunken/40"
+		return base + "bg-sunken/30"
 	default:
-		return base + "border-line bg-surface hover:border-blue/30"
+		return base
 	}
 }
 
@@ -248,18 +248,6 @@ func historieMonthBarClass(b HistorieMonthBar) string {
 		return "block h-1.5 rounded-full bg-" + b.Hue
 	default:
 		return "block h-1.5 rounded-full bg-blue"
-	}
-}
-
-// historieDayOffBadgeClass styles the day-off chip in a day header, tinted by
-// the kind's hue (whitelisted to prevent arbitrary class injection).
-func historieDayOffBadgeClass(hue string) string {
-	base := "mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[.58rem] font-semibold "
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return base + "bg-" + hue + "/15 text-" + hue
-	default:
-		return base + "bg-blue/15 text-blue"
 	}
 }
 
