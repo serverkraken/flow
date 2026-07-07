@@ -50,6 +50,7 @@ type RunningNowVM struct {
 	Tone        string
 	LogoRef     string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
 	BaseSeconds int64
+	SinceEpoch  int64 // unix epoch of the effective start (now-elapsed) — absolute data-since anchor
 	SinceStr    string // "HH:MM" the session started at
 	CountsWork  bool   // domain.ResolveCountsTowardTarget(chain) — bound sessions only
 }

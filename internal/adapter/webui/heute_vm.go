@@ -51,6 +51,7 @@ type HeuteLedgerRow struct {
 	Row           components.SessionRowVM
 	Edit          components.SessionDialogVM
 	BaseSeconds   int64
+	SinceEpoch    int64 // absolute data-since anchor (LIVE row only; 0 for completed rows)
 	DurationShort string
 	Note          string
 }

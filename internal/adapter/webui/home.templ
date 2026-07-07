@@ -81,7 +81,7 @@ templ homeNowSection(vm HomeVM) {
 				</div>
 				<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
 				<div class="right">
-					<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.Now.BaseSeconds, 10) } role="timer">{ fmtClockHMS(vm.Now.BaseSeconds) }</div>
+					<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.Now.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.Now.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.Now.BaseSeconds) }</div>
 					<div class="k">{ fmt.Sprintf(components.T(ctx, "home.todayTotal"), vm.TodayLogged) }</div>
 				</div>
 				if vm.Now.NodeID != "" {

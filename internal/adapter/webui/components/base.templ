@@ -83,8 +83,20 @@ templ baseHull(title string, sse bool, body templ.Component) {
 						var minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap
 						var mh, mm, ms;
 						timers.forEach(function (el) {
-							var base = parseInt(el.getAttribute('data-base') || '0', 10);
-							var elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);
+							// Absolute anchor wins (data-since = unix epoch of the effective
+							// start): every surface computes floor(now)-since and flips on
+							// the SAME wall-clock second. The relative data-base+boundStart
+							// path drifts up to ~1s between surfaces (data-base truncates the
+							// sub-second phase; boundStart differs per render) — kept only as
+							// fallback for anchors without an epoch (e.g. styleguide demo).
+							var since = parseInt(el.getAttribute('data-since') || '0', 10);
+							var elapsed;
+							if (since > 0) {
+								elapsed = Math.max(0, Math.floor(Date.now() / 1000) - since);
+							} else {
+								var base = parseInt(el.getAttribute('data-base') || '0', 10);
+								elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);
+							}
 							var h = Math.floor(elapsed / 3600);
 							var m = Math.floor((elapsed % 3600) / 60);
 							var s = elapsed % 60;

@@ -128,6 +128,7 @@ func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) 
 func (s *Server) homeRunningNowVM(ctx context.Context, u domain.User, rs domain.WorkSession, now time.Time) *webui.RunningNowVM {
 	nowVM := &webui.RunningNowVM{
 		BaseSeconds: int64(rs.Elapsed(now) / time.Second),
+		SinceEpoch:  now.Unix() - int64(rs.Elapsed(now)/time.Second),
 		SinceStr:    rs.Start.Format("15:04"),
 	}
 	if rs.NodeID == nil || s.GetNode.Nodes == nil {

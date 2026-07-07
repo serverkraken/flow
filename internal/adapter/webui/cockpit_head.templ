@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"strconv"
+
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 )
@@ -55,7 +57,7 @@ templ cockpitInstr(d NodeCockpit) {
 				<form hx-post={ "/nodes/" + d.N.ID + "/stop" } hx-target="#cockpit-main" hx-swap="innerHTML">
 					<button type="submit" class="btn btn-pri"><span aria-hidden="true">■</span> { components.T(ctx, "cockpit.timer.stop") }</button>
 				</form>
-				<span class="clock font-mono tnum" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</span>
+				<span class="clock font-mono tnum" data-timer data-timer-fmt="clock" data-base={ secStr(d.Timer.RunningBase) } data-since={ strconv.FormatInt(d.Timer.RunningSince, 10) } role="timer">{ fmtClockHMS(int64(d.Timer.RunningBase)) }</span>
 			case TimerIdle:
 				<form hx-post={ "/nodes/" + d.N.ID + "/start" } hx-target="#cockpit-main" hx-swap="innerHTML">
 					<button type="submit" class="btn btn-pri"><span aria-hidden="true">▶</span> { components.T(ctx, "cockpit.timer.start") }</button>

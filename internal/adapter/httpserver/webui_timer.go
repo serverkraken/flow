@@ -26,7 +26,9 @@ func (s *Server) timerWidgetVM(r *http.Request, u domain.User, errMsg string) we
 	}
 	vm.Running = true
 	vm.SessionID = rs.ID
-	vm.BaseSeconds = int64(rs.Elapsed(s.Clock.Now()) / time.Second)
+	now := s.Clock.Now()
+	vm.BaseSeconds = int64(rs.Elapsed(now) / time.Second)
+	vm.SinceEpoch = now.Unix() - vm.BaseSeconds
 	if rs.NodeID == nil {
 		vm.Unbound = true
 		return vm

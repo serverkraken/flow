@@ -18,6 +18,7 @@ type TimerWidgetVM struct {
 	NodeColor   string
 	NodeKind    domain.NodeKind
 	BaseSeconds int64
+	SinceEpoch  int64 // absolute data-since anchor for the ticking clock
 	Bookable    []domain.Node
 	Err         string // i18n-resolved message rendered inline (never a popup)
 }

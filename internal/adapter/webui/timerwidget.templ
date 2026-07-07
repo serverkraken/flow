@@ -35,7 +35,7 @@ templ TimerWidget(vm TimerWidgetVM) {
 				} else {
 					<span class="text-[.72rem] text-yellow">{ components.T(ctx, "timer.unbound") }</span>
 				}
-				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
+				<span class="ml-auto shrink-0 font-mono tnum text-[1.05rem] text-ink" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
 			</div>
 			<form hx-post="/ui/timer/stop" hx-target="closest section" hx-swap="outerHTML" class="mt-2 space-y-2">
 				if vm.Unbound {
@@ -78,7 +78,7 @@ templ TimerPill(vm TimerWidgetVM) {
 	if vm.Running {
 		<span class="timerpill inline-flex items-center gap-2 rounded-full border border-hair2 bg-surface pl-2.5 pr-3 py-[5px]">
 			<span class="h-[7px] w-[7px] rounded-full bg-live-bright shadow-[0_0_0_3px_rgb(var(--live-wash))]" aria-hidden="true"></span>
-			<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
+			<span class="font-mono tnum text-[13px] font-semibold" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(vm.BaseSeconds, 10) } data-since={ strconv.FormatInt(vm.SinceEpoch, 10) } role="timer">{ fmtClockHMS(vm.BaseSeconds) }</span>
 			if vm.NodeName != "" {
 				<a href={ templ.SafeURL("/nodes/" + vm.NodeID) } title={ vm.NodeName } class="topbar-timer-name max-w-[110px] truncate text-[12.5px] text-meta hover:text-accent">{ ShortName(vm.NodeName) }</a>
 			}

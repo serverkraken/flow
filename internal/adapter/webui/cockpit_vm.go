@@ -28,6 +28,7 @@ type CockpitTimer struct {
 	State       CockpitTimerState
 	RunningID   string // running session id (hidden field for stop/switch)
 	RunningBase int    // elapsed seconds at render (data-base for the live clock)
+	RunningSince int64 // unix epoch of the effective start — absolute data-since anchor
 	OtherID     string // node id the timer runs on (OtherBound) — link target
 	OtherName   string // node name the timer runs on (OtherBound)
 }
@@ -42,14 +43,15 @@ func NodeTimer(running *domain.WorkSession, nodeID string, bookable bool, now ti
 		return CockpitTimer{State: TimerIdle}
 	}
 	base := int(running.Elapsed(now).Seconds())
+	since := now.Unix() - int64(base)
 	if running.NodeID == nil {
-		return CockpitTimer{State: TimerUnbound, RunningID: running.ID, RunningBase: base}
+		return CockpitTimer{State: TimerUnbound, RunningID: running.ID, RunningBase: base, RunningSince: since}
 	}
 	if *running.NodeID == nodeID {
-		return CockpitTimer{State: TimerHere, RunningID: running.ID, RunningBase: base}
+		return CockpitTimer{State: TimerHere, RunningID: running.ID, RunningBase: base, RunningSince: since}
 	}
 	return CockpitTimer{
-		State: TimerOtherBound, RunningID: running.ID, RunningBase: base,
+		State: TimerOtherBound, RunningID: running.ID, RunningBase: base, RunningSince: since,
 		OtherID: *running.NodeID, OtherName: nameOf(*running.NodeID),
 	}
 }

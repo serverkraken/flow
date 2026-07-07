@@ -117,14 +117,16 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	vm.Ledger = make([]webui.HeuteLedgerRow, 0, len(sessions))
 	for _, sess := range sessions {
 		row := sessionRowVM(sess, projects, now)
-		var base int64
+		var base, since int64
 		if row.Running {
 			base = int64(sess.Elapsed(now) / time.Second)
+			since = now.Unix() - base
 		}
 		vm.Ledger = append(vm.Ledger, webui.HeuteLedgerRow{
 			Row:           row,
 			Edit:          heuteEditDialogVM(sess, vm.Nodes, vm.DayParam),
 			BaseSeconds:   base,
+			SinceEpoch:    since,
 			DurationShort: webui.FmtClockShort(sess.Elapsed(now)),
 			Note:          sess.Note,
 		})

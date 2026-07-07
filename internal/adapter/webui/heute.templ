@@ -110,7 +110,7 @@ templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
 		}
 		<div class="right">
 			if lr.Row.Running {
-				<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(lr.BaseSeconds, 10) } role="timer">{ fmtClockHMS(lr.BaseSeconds) }</div>
+				<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(lr.BaseSeconds, 10) } data-since={ strconv.FormatInt(lr.SinceEpoch, 10) } role="timer">{ fmtClockHMS(lr.BaseSeconds) }</div>
 			} else {
 				<div class="v">{ lr.DurationShort }</div>
 				<div class="k">
