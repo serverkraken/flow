@@ -3,7 +3,6 @@ package webui
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"strconv"
 	"strings"
 	"time"
@@ -64,11 +63,10 @@ type NodeChild struct {
 
 // NodeCockpit drives the cockpit page, the rail fragment, and the active tab panel.
 type NodeCockpit struct {
-	User            string
-	N               domain.Node
-	Ancestors       []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
-	DescriptionHTML template.HTML
-	Today           string // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
+	User      string
+	N         domain.Node
+	Ancestors []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
+	Today     string        // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
 	// rail: subtree rollup + inherited rate + identity/timer extras
 	Rollup       domain.NodeRollup // Total, Week, Month durations
 	Earnings     string            // ResolveRate(chain) × Total, "" if no rate in chain

@@ -121,6 +121,9 @@ templ projRow(row ProjRow, indented bool) {
 				<div class="s">{ projRowUnderNote(ctx, row.Full) }</div>
 			} else {
 				<div class="t">{ row.Short }</div>
+				if row.Desc != "" {
+					<div class="s truncate" title={ row.Desc }>{ row.Desc }</div>
+				}
 				<div class="path">{ row.Full }</div>
 			}
 		</div>

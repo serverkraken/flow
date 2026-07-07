@@ -38,9 +38,6 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// Ancestor chain (leaf→root, self included) for the spine crumbs + rate
 	// resolution + the rail's Kette block.
 	d.Ancestors, _ = s.NodeAncestors.Execute(ctx, u.ID, n.ID)
-	if n.Description != "" {
-		d.DescriptionHTML, _ = webui.RenderDocument(ctx, n.Description, func(string) (string, string, bool) { return "", "", false })
-	}
 	chain := d.Ancestors
 	if len(chain) == 0 || chain[0].ID != n.ID {
 		chain = append([]domain.Node{n}, chain...)

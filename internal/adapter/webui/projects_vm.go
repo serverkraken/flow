@@ -52,9 +52,10 @@ type VorhabenGroup struct {
 type ProjRow struct {
 	ID, Short, Full, Initials, Tone, KindLabel string
 	LogoRef                                    string // domain.Node.LogoRef, "" = no logo (NodeAvatar)
-	RightV, RightK                             string
-	IsVorhaben                                 bool
-	PathWarn                                   bool
+	Desc                                        string // domain.Node.Description, "" = no subtitle line (Task 5, OE #7)
+	RightV, RightK                              string
+	IsVorhaben                                  bool
+	PathWarn                                    bool
 }
 
 // BuildProjectsVM turns the owner's flat node list into the Projekte page's
@@ -251,6 +252,7 @@ func buildProjRow(n domain.Node, totals map[string]time.Duration, docCounts map[
 		Initials: Initials(short),
 		Tone:     AvatarTone(n.Name),
 		LogoRef:  n.LogoRef,
+		Desc:     n.Description,
 		PathWarn: warn,
 	}
 	switch {

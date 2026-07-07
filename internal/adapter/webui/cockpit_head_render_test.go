@@ -39,6 +39,46 @@ func TestCockpitHead_SpineShowsShortNameAndFullPath(t *testing.T) {
 	}
 }
 
+// TestCockpitHead_DescriptionRendersAsPlaintextSubtitle pins Task 5 (Offene
+// Entscheidung #6): a node with a short Description shows it as a plaintext
+// subtitle line under the <h1>, inside a .spine-title column (NOT a flex
+// sibling of the h1 inside the flex-row .spine-main — Codex-Fund #7); an
+// empty Description renders no .spine-desc element at all (no empty div).
+func TestCockpitHead_DescriptionRendersAsPlaintextSubtitle(t *testing.T) {
+	d := seededCockpit()
+	d.N.Description = "Kurz-Einzeiler"
+	out := renderToBuf(t, context.Background(), CockpitHead(d))
+	if !strings.Contains(out, `class="spine-desc"`) || !strings.Contains(out, "Kurz-Einzeiler") {
+		t.Fatalf("spine must render the description as .spine-desc:\n%s", out)
+	}
+	if !strings.Contains(out, `title="Kurz-Einzeiler"`) {
+		t.Fatalf("spine-desc must carry the full text in title (containment/ellipsis):\n%s", out)
+	}
+	if !strings.Contains(out, `class="spine-title"`) {
+		t.Fatalf("h1 + description must sit in a .spine-title column, not directly in the flex-row .spine-main:\n%s", out)
+	}
+	// The description must render AFTER the h1 within the same .spine-title
+	// column so it lands under the title, not beside it as a third flex
+	// sibling of .spine-main.
+	titleIdx := strings.Index(out, `class="spine-title"`)
+	h1Idx := strings.Index(out, "<h1")
+	descIdx := strings.Index(out, `class="spine-desc"`)
+	if titleIdx == -1 || h1Idx == -1 || descIdx == -1 || titleIdx >= h1Idx || h1Idx >= descIdx {
+		t.Fatalf("expected order .spine-title, <h1>, .spine-desc; got titleIdx=%d h1Idx=%d descIdx=%d:\n%s", titleIdx, h1Idx, descIdx, out)
+	}
+}
+
+// TestCockpitHead_EmptyDescriptionRendersNoLine verifies "Nullen ohne Bühne"
+// for the description: an empty Description renders no .spine-desc element.
+func TestCockpitHead_EmptyDescriptionRendersNoLine(t *testing.T) {
+	d := seededCockpit()
+	d.N.Description = ""
+	out := renderToBuf(t, context.Background(), CockpitHead(d))
+	if strings.Contains(out, "spine-desc") {
+		t.Fatalf("empty description must render no .spine-desc element:\n%s", out)
+	}
+}
+
 // TestCockpitHead_UpCrumbsExcludeSelf verifies SpineCrumbs derives the "up"
 // chain from d.Ancestors without the trailing self segment (self renders as
 // the <h1>, not as a crumb link).

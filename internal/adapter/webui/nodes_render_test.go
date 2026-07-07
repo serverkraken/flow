@@ -61,6 +61,28 @@ func TestNodesFragment_TreeAsContent(t *testing.T) {
 	}
 }
 
+// TestNodesFragment_RepoRowShowsDescriptionSubtitle pins Task 5's optional
+// Step 5 (Offene Entscheidung #7, entschieden "ja"): a repo row's short
+// Description renders as a dimmed, single-line subtitle under the node name
+// (Bestand `.s` class, truncate — no new arbitrary CSS); an empty Description
+// renders no subtitle at all.
+func TestNodesFragment_RepoRowShowsDescriptionSubtitle(t *testing.T) {
+	eng := domain.Node{ID: "e1", Name: "RTL Extern", Kind: domain.KindEngagement}
+	withDesc := domain.Node{ID: "r1", Name: "backstage", Kind: domain.KindRepo, ParentID: ptr("e1"), Description: "Kurz-Einzeiler"}
+	withoutDesc := domain.Node{ID: "r2", Name: "cmdb", Kind: domain.KindRepo, ParentID: ptr("e1")}
+
+	nodes := []domain.Node{eng, withDesc, withoutDesc}
+	vm := BuildProjectsVM(nodes, nil, nil, nil, time.Now())
+	out := renderToBuf(t, context.Background(), NodesFragment(NodesPageData{User: "u1", VM: vm}))
+
+	if !strings.Contains(out, "Kurz-Einzeiler") {
+		t.Errorf("repo row with a Description must render it as a subtitle; out=%.2000s", out)
+	}
+	if strings.Count(out, `class="s truncate"`) != 1 {
+		t.Errorf("exactly one repo row (the one with a Description) may render the .s truncate subtitle; out=%.2000s", out)
+	}
+}
+
 // TestNodesFragment_Empty pins the "leer" state: no engagements at all
 // renders the calm empty-state copy, never a card grid, and stays glyph-free.
 func TestNodesFragment_Empty(t *testing.T) {

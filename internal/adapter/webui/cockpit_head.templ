@@ -23,7 +23,12 @@ templ CockpitHead(d NodeCockpit) {
 		</div>
 		<div class="spine-main">
 			@cockpitIdentity(d)
-			<h1>{ ShortName(d.N.Name) }</h1>
+			<div class="spine-title">
+				<h1>{ ShortName(d.N.Name) }</h1>
+				if d.N.Description != "" {
+					<p class="spine-desc" title={ d.N.Description }>{ d.N.Description }</p>
+				}
+			</div>
 		</div>
 		<div class="spine-meta">
 			<span class="k">{ components.T(ctx, NodeKindStyle(d.N.Kind).LabelKey) }</span>
