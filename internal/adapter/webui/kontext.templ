@@ -72,6 +72,14 @@ templ KontextFragment(vm KontextVM) {
 				</div>
 			</section>
 		</div>
+		if len(vm.Always) > 0 {
+			<div class="sect">
+				<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.curate.always") }</span></div>
+				for _, a := range vm.Always {
+					@kontextAlwaysRow(a)
+				}
+			</div>
+		}
 		<div class="sect">
 			<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.rail.title") }</span></div>
 			if len(vm.Rows) == 0 {
@@ -142,6 +150,22 @@ templ kontextRow(nodeID string, row KontextRowVM) {
 				↓
 			</button>
 		</div>
+	</div>
+}
+
+// kontextAlwaysRow is one Always-Tier row (Instruction/ActiveContext,
+// Mini-Task 6b): same .row shell + type chip + title/scope/tokens as
+// kontextRow, but no rank badge and no pin/↑/↓ buttons (Always-Tier is not
+// curatable) — a dim "immer" label (document.context.always, reused from the
+// document page's context-standing line) stands in their place.
+templ kontextAlwaysRow(a KontextAlwaysVM) {
+	<div class="row">
+		<span class={ "typechip", a.ChipClass }>{ a.TypeLabel }</span>
+		<div class="grow">
+			<div class="t" title={ a.Title }>{ a.Title }</div>
+			<div class="s">{ a.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), a.TokensStr) }</div>
+		</div>
+		<span class="dim text-sm">{ components.T(ctx, "document.context.always") }</span>
 	</div>
 }
 

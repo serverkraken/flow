@@ -51,6 +51,7 @@ templ CockpitRailBlocks(d NodeCockpit) {
 				}
 			</div>
 			<div class="ctxrows">
+				<div class="krow"><span class="n">{ components.T(ctx, "context.rail.always") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.AlwaysN) }</span></div>
 				<div class="krow"><span class="n">{ components.T(ctx, "context.included") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.IncludedN) }</span></div>
 				<div class="krow"><span class="n">{ components.T(ctx, "context.dropped") }</span><span class="v">{ strconv.Itoa(d.Context.DroppedN) }</span></div>
 				<div class="krow"><span class="n">{ components.T(ctx, "context.pinned") }</span><span class="v">{ strconv.Itoa(d.Context.PinnedN) }</span></div>

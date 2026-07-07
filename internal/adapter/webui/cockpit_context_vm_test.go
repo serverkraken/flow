@@ -104,6 +104,35 @@ func TestBuildCockpitContext_EmptyAndClamped(t *testing.T) {
 	}
 }
 
+// TestBuildCockpitContext_AlwaysN verifies AlwaysN counts Instructions plus
+// ActiveContext (when set) — the Always-Tier docs that count into
+// Budget.Used but never appear as a Ranked row (Mini-Task 6b: Soenne stumbled
+// on "2.766 tk bei 0 Docs" live).
+func TestBuildCockpitContext_AlwaysN(t *testing.T) {
+	ac := usecase.ContextItem{Title: "Active Context"}
+	cc := usecase.ComposedContext{
+		Instructions:  []usecase.ContextItem{{Title: "AGENTS.md"}, {Title: "CLAUDE.md"}},
+		ActiveContext: &ac,
+	}
+	vm := BuildCockpitContext(cc, "node-1")
+	if vm.AlwaysN != 3 {
+		t.Errorf("AlwaysN = %d, want 3 (2 instructions + 1 active context)", vm.AlwaysN)
+	}
+
+	noActive := usecase.ComposedContext{
+		Instructions: []usecase.ContextItem{{Title: "AGENTS.md"}},
+	}
+	vm2 := BuildCockpitContext(noActive, "node-1")
+	if vm2.AlwaysN != 1 {
+		t.Errorf("AlwaysN = %d, want 1 (no active context set)", vm2.AlwaysN)
+	}
+
+	empty := BuildCockpitContext(usecase.ComposedContext{}, "node-1")
+	if empty.AlwaysN != 0 {
+		t.Errorf("AlwaysN = %d, want 0", empty.AlwaysN)
+	}
+}
+
 func TestFmtThousandsDE(t *testing.T) {
 	cases := []struct {
 		in   int

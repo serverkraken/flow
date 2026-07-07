@@ -124,14 +124,15 @@ func init() {
 			"cockpit.rail.rateInherited": "Rate inherited",
 			"cockpit.rail.contributors":  "Contributors",
 			// rail context-instrument panel (L5 Task 5)
-			"context.rail.title": "Agent context",
-			"context.included":   "Included",
-			"context.dropped":    "Dropped (budget)",
-			"context.pinned":     "Pinned",
-			"context.docsN":      "%d docs",
-			"context.budgetFull": "nearly full",
-			"context.curate":     "Curate — sort & pin ›",
-			"context.meterAria":  "Context budget %d percent used",
+			"context.rail.title":  "Agent context",
+			"context.rail.always": "Always included",
+			"context.included":    "Included",
+			"context.dropped":     "Dropped (budget)",
+			"context.pinned":      "Pinned",
+			"context.docsN":       "%d docs",
+			"context.budgetFull":  "nearly full",
+			"context.curate":      "Curate — sort & pin ›",
+			"context.meterAria":   "Context budget %d percent used",
 			// Kuratieren page /kontext/{id} (L5 Task 7)
 			"context.curate.eyebrow": "Curate context",
 			"context.curate.sub":     "%s · %d included · %d dropped",
@@ -140,6 +141,8 @@ func init() {
 			"context.cutline":        "Budget full — dropped below",
 			"context.estTokens":      "%s tk",
 			"context.curate.empty":   "No curatable context for this node.",
+			// Kuratieren page: always-tier section (instructions + active context, Mini-Task 6b)
+			"context.curate.always": "Always included — instructions & active context",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

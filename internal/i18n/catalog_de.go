@@ -130,14 +130,15 @@ func init() {
 			"cockpit.rail.rateInherited": "Satz geerbt",
 			"cockpit.rail.contributors":  "Beiträger",
 			// rail context-instrument panel (L5 Task 5)
-			"context.rail.title": "Kontext für Agenten",
-			"context.included":   "Enthalten",
-			"context.dropped":    "Verworfen (Budget)",
-			"context.pinned":     "Angepinnt",
-			"context.docsN":      "%d Docs",
-			"context.budgetFull": "fast voll",
-			"context.curate":     "Kuratieren — sortieren & pinnen ›",
-			"context.meterAria":  "Kontext-Budget zu %d Prozent belegt",
+			"context.rail.title":  "Kontext für Agenten",
+			"context.rail.always": "Immer enthalten",
+			"context.included":    "Enthalten",
+			"context.dropped":     "Verworfen (Budget)",
+			"context.pinned":      "Angepinnt",
+			"context.docsN":       "%d Docs",
+			"context.budgetFull":  "fast voll",
+			"context.curate":      "Kuratieren — sortieren & pinnen ›",
+			"context.meterAria":   "Kontext-Budget zu %d Prozent belegt",
 			// Kuratieren-Seite /kontext/{id} (L5 Task 7)
 			"context.curate.eyebrow": "Kontext kuratieren",
 			"context.curate.sub":     "%s · %d enthalten · %d verworfen",
@@ -146,6 +147,8 @@ func init() {
 			"context.cutline":        "Budget voll — ab hier verworfen",
 			"context.estTokens":      "%s tk",
 			"context.curate.empty":   "Kein kuratierbarer Kontext für diesen Knoten.",
+			// Kuratieren-Seite: Always-Tier-Abschnitt (Instruktionen + Active Context, Mini-Task 6b)
+			"context.curate.always": "Immer enthalten — Instruktionen & Active Context",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

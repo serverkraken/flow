@@ -57,7 +57,7 @@ func TestCockpitRail_ContextPanel_PresentWhenSet(t *testing.T) {
 	d.N.ID = "n1"
 	d.Context = &CockpitContextVM{
 		NodeID: "n1", UsedStr: "11.891", CapStr: "12.000", Pct: 99, Full: true,
-		IncludedN: 24, DroppedN: 65, PinnedN: 3,
+		IncludedN: 24, DroppedN: 65, PinnedN: 3, AlwaysN: 2,
 		TopPins: []ContextPinVM{
 			{Num: "01", Title: "Tailwind v4 + templ Gotchas"},
 			{Num: "02", Title: "Plans need a main-wiring task"},
@@ -69,6 +69,7 @@ func TestCockpitRail_ContextPanel_PresentWhenSet(t *testing.T) {
 	for _, want := range []string{
 		"Kontext für Agenten", `class="meter full"`, "11.891", "12.000",
 		"fast voll", "24 Docs", "65", "Enthalten", "Verworfen (Budget)", "Angepinnt",
+		"Immer enthalten", "2 Docs", // Always-Tier row (Mini-Task 6b)
 		"Tailwind v4 + templ Gotchas", "Plans need a main-wiring task", "Keine Monolithen",
 		"Kuratieren", "/kontext/n1",
 	} {
