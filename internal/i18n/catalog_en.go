@@ -138,7 +138,7 @@ func init() {
 			"context.curate.sub":     "%s · %d included · %d dropped",
 			"context.moveUp":         "Move up",
 			"context.moveDown":       "Move down",
-			"context.cutline":        "Budget full — dropped below",
+			"context.cutline":        "— budget boundary —",
 			"context.estTokens":      "%s tk",
 			"context.curate.empty":   "No curatable context for this node.",
 			// Kuratieren page: always-tier section (instructions + active context, Mini-Task 6b)

@@ -144,7 +144,7 @@ func init() {
 			"context.curate.sub":     "%s · %d enthalten · %d verworfen",
 			"context.moveUp":         "Höher",
 			"context.moveDown":       "Tiefer",
-			"context.cutline":        "Budget voll — ab hier verworfen",
+			"context.cutline":        "— Budget-Grenze —",
 			"context.estTokens":      "%s tk",
 			"context.curate.empty":   "Kein kuratierbarer Kontext für diesen Knoten.",
 			// Kuratieren-Seite: Always-Tier-Abschnitt (Instruktionen + Active Context, Mini-Task 6b)

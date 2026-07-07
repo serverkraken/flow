@@ -79,6 +79,28 @@ func TestCockpitRail_ContextPanel_PresentWhenSet(t *testing.T) {
 	}
 }
 
+// TestCockpitRail_ContextPanel_AlwaysRowAbsentWhenZero verifies the "Immer
+// enthalten" krow (Final-Review F3) renders only when AlwaysN > 0 — an
+// unwired/empty Always-Tier must not show a "0 Docs" row, mirroring the
+// Kuratieren page's own len(vm.Always) > 0 guard (kontext.templ:75).
+func TestCockpitRail_ContextPanel_AlwaysRowAbsentWhenZero(t *testing.T) {
+	d := seededCockpit()
+	d.N.Kind = domain.KindRepo
+	d.N.ID = "n1"
+	d.Context = &CockpitContextVM{
+		NodeID: "n1", UsedStr: "100", CapStr: "12.000", Pct: 1, Full: false,
+		IncludedN: 3, DroppedN: 0, PinnedN: 0, AlwaysN: 0,
+	}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, CockpitRailBlocks(d))
+	if strings.Contains(out, "Immer enthalten") {
+		t.Fatalf("AlwaysN=0 must render no Immer-enthalten row:\n%s", out)
+	}
+	if !strings.Contains(out, "Enthalten") {
+		t.Fatalf("context panel must still render (Included row present):\n%s", out)
+	}
+}
+
 // TestCockpitRail_ContextPanel_AbsentWhenNil confirms the guard: a nil
 // d.Context (unwired ComposeContext, or a failed compose) renders no panel at
 // all rather than crashing — seededCockpit()'s default leaves Context nil.

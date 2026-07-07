@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/i18n"
@@ -13,7 +14,14 @@ import (
 // rankedContextItem is a small test helper building a usecase.RankedItem with
 // the fields BuildKontextVM reads (mirrors cockpit_context_vm_test.go's
 // rankedItem, extended with ID/Type/ScopeLabel/EstTokens for the rows).
+// rank mirrors what usecase.Compose actually assigns (the Included-Rank, 0
+// for dropped items) — callers pass 0 for included fixtures that don't care
+// about the exact badge number, and the real included-counter otherwise.
 func rankedContextItem(id, title string, pinned, included bool) usecase.RankedItem {
+	return rankedContextItemRanked(id, title, pinned, included, 0)
+}
+
+func rankedContextItemRanked(id, title string, pinned, included bool, rank int) usecase.RankedItem {
 	return usecase.RankedItem{
 		Item: usecase.ContextItem{
 			ID:         id,
@@ -24,6 +32,7 @@ func rankedContextItem(id, title string, pinned, included bool) usecase.RankedIt
 			EstTokens:  1234,
 		},
 		Included: included,
+		Rank:     rank,
 	}
 }
 
@@ -36,10 +45,10 @@ func TestBuildKontextVM_RowsOrderAndCutline(t *testing.T) {
 	cc := usecase.ComposedContext{
 		Budget: usecase.ContextBudget{Used: 9000, Cap: 12000},
 		Ranked: []usecase.RankedItem{
-			rankedContextItem("d1", "First", true, true),
-			rankedContextItem("d2", "Second", false, true),
-			rankedContextItem("d3", "Third dropped", false, false),
-			rankedContextItem("d4", "Fourth dropped", false, false),
+			rankedContextItemRanked("d1", "First", true, true, 1),
+			rankedContextItemRanked("d2", "Second", false, true, 2),
+			rankedContextItemRanked("d3", "Third dropped", false, false, 0),
+			rankedContextItemRanked("d4", "Fourth dropped", false, false, 0),
 		},
 	}
 
@@ -55,12 +64,13 @@ func TestBuildKontextVM_RowsOrderAndCutline(t *testing.T) {
 		t.Fatalf("len(Rows) = %d, want 4", len(vm.Rows))
 	}
 	wantOrder := []string{"d1", "d2", "d3", "d4"}
+	wantNum := []int{1, 2, 0, 0} // Included-Rank (usecase.RankedItem.Rank) — 0 for dropped rows
 	for i, want := range wantOrder {
 		if vm.Rows[i].DocID != want {
 			t.Errorf("Rows[%d].DocID = %q, want %q (must preserve cc.Ranked order)", i, vm.Rows[i].DocID, want)
 		}
-		if vm.Rows[i].Num != i+1 {
-			t.Errorf("Rows[%d].Num = %d, want %d", i, vm.Rows[i].Num, i+1)
+		if vm.Rows[i].Num != wantNum[i] {
+			t.Errorf("Rows[%d].Num = %d, want %d", i, vm.Rows[i].Num, wantNum[i])
 		}
 	}
 	if !vm.Rows[0].IsFirst {
@@ -254,6 +264,77 @@ func TestKontextFragment_RowsAndAlwaysLinkToDocument(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("fragment misses %q:\n%s", want, out)
 		}
+	}
+}
+
+// TestBuildKontextVM_NumMatchesStandingOfRank is the Final-Review F1
+// regression: on a real (non-monotone) budget overflow — one large doc
+// dropped, a later smaller doc included right after it — the Kuratieren
+// badge (vm.Rows[i].Num) must equal usecase.StandingOf's Included-Rank for
+// the SAME document, and the dropped row must carry no number (Num == 0,
+// rendered as "—" by kontext.templ) rather than a stale positional index.
+func TestBuildKontextVM_NumMatchesStandingOfRank(t *testing.T) {
+	leaf := "L"
+	chain := []domain.Node{{ID: leaf, Name: "flow", Slug: "flow", Kind: domain.KindRepo}}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return strings.Repeat("x", n) } // EstTokens = ceil(n/4)
+	docs := []domain.Document{
+		// big, newer → ranked first (newest-first tiebreak) but does NOT fit cap=150.
+		{ID: "big", NodeID: &leaf, Type: domain.DocMemory, Path: "big", UpdatedAt: t0.Add(time.Hour), Body: body(800)},
+		// small, older → ranked second, fits the remaining cap.
+		{ID: "small", NodeID: &leaf, Type: domain.DocMemory, Path: "small", UpdatedAt: t0, Body: body(40)},
+	}
+	cc := usecase.Compose(chain, docs, map[string]bool{}, 150)
+
+	n := domain.Node{ID: leaf, Name: "flow"}
+	vm := BuildKontextVM(n, cc)
+	if len(vm.Rows) != 2 {
+		t.Fatalf("len(Rows) = %d, want 2", len(vm.Rows))
+	}
+	big, small := vm.Rows[0], vm.Rows[1]
+	if big.DocID != "big" || big.Included {
+		t.Fatalf("Rows[0] = %+v, want dropped doc %q", big, "big")
+	}
+	if big.Num != 0 {
+		t.Errorf("dropped row Num = %d, want 0 (no rank badge)", big.Num)
+	}
+	if small.DocID != "small" || !small.Included {
+		t.Fatalf("Rows[1] = %+v, want included doc %q", small, "small")
+	}
+
+	standing := usecase.StandingOf(cc, "small")
+	if standing.State != "included" {
+		t.Fatalf("StandingOf(small).State = %q, want included", standing.State)
+	}
+	if small.Num != standing.Rank {
+		t.Errorf("Kuratieren badge Num = %d, StandingOf Rank = %d — must match (F1)", small.Num, standing.Rank)
+	}
+	if small.Num != 1 {
+		t.Errorf("small.Num = %d, want 1 (only included doc)", small.Num)
+	}
+}
+
+// TestKontextFragment_DroppedRowShowsNoNumberBadge verifies the templ output:
+// an included row (Num>0) shows the "%02d" rank badge, a dropped row
+// (Included=false, Num=0) shows a dash instead of a stale/zero number.
+func TestKontextFragment_DroppedRowShowsNoNumberBadge(t *testing.T) {
+	vm := KontextVM{
+		NodeID: "n1", Title: "flow",
+		Rows: []KontextRowVM{
+			{DocID: "d1", Num: 1, Title: "Included", TypeLabel: DocTypeLabel(domain.DocMemory), ScopeLabel: "repo:flow", TokensStr: "10", Included: true, IsFirst: true},
+			{DocID: "d2", Num: 0, Title: "Dropped", TypeLabel: DocTypeLabel(domain.DocMemory), ScopeLabel: "repo:flow", TokensStr: "10", Included: false, FirstDropped: true, IsLast: true},
+		},
+	}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, KontextFragment(vm))
+	if !strings.Contains(out, `<span class="num">01</span>`) {
+		t.Fatalf("included row must show 01 rank badge:\n%s", out)
+	}
+	if !strings.Contains(out, `<span class="num text-faint">—</span>`) {
+		t.Fatalf("dropped row must show a dash, not a number:\n%s", out)
+	}
+	if strings.Contains(out, `<span class="num">00</span>`) {
+		t.Fatalf("dropped row must never render Num=0 as 00:\n%s", out)
 	}
 }
 

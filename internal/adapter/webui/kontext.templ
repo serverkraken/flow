@@ -104,7 +104,11 @@ templ KontextFragment(vm KontextVM) {
 // parameterized mutation buttons outside a <form>).
 templ kontextRow(nodeID string, row KontextRowVM) {
 	<div class={ "row", templ.KV("dim", !row.Included) }>
-		<span class="num">{ fmt.Sprintf("%02d", row.Num) }</span>
+		if row.Included {
+			<span class="num">{ fmt.Sprintf("%02d", row.Num) }</span>
+		} else {
+			<span class="num text-faint">—</span>
+		}
 		<span class={ "typechip", row.ChipClass }>{ row.TypeLabel }</span>
 		<div class="grow">
 			<a class="t" href={ templ.SafeURL("/wissen/" + row.DocID) } title={ row.Title }>{ row.Title }</a>

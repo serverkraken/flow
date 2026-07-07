@@ -9,7 +9,7 @@ import (
 // reduced to display strings, in Compose's global fill order (no re-sort).
 type KontextRowVM struct {
 	DocID        string
-	Num          int    // 1-based position in cc.Ranked (the row's rank badge)
+	Num          int    // Included-Rank (usecase.RankedItem.Rank, 1-based, counts only included docs) — same source as usecase.StandingOf; 0 for dropped rows (rendered as "—", no number)
 	Title        string
 	ChipClass    string // DocTypeChipClass(Item.Type)
 	TypeLabel    string // DocTypeLabel(Item.Type)
@@ -80,7 +80,7 @@ func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 	for i, r := range cc.Ranked {
 		row := KontextRowVM{
 			DocID:      r.Item.ID,
-			Num:        i + 1,
+			Num:        r.Rank,
 			Title:      r.Item.Title,
 			ChipClass:  DocTypeChipClass(r.Item.Type),
 			TypeLabel:  DocTypeLabel(r.Item.Type),
