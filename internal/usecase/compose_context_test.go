@@ -1,10 +1,14 @@
 package usecase_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -220,6 +224,200 @@ func TestCompose_DroppedPinnedSignaled(t *testing.T) {
 	}
 	if got.Budget.Dropped.Leaf != 1 {
 		t.Errorf("the dropped pin is a leaf → Dropped.Leaf must also count it, got %+v", got.Budget.Dropped)
+	}
+}
+
+// TestCompose_PriorityLiftsAcrossTier: a leaf memory with Priority=5 must fill
+// before an unprioritized engagement memory, even though tierRank alone would
+// put engagement (rank 1) ahead of leaf (rank 3). Same pin status (both
+// unpinned) so priority is the deciding key.
+func TestCompose_PriorityLiftsAcrossTier(t *testing.T) {
+	t.Parallel()
+	leaf, eng := "L", "E"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo), node(eng, "Privat", domain.KindEngagement)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "leafPrio", NodeID: &leaf, Type: domain.DocMemory, Path: "l", Priority: 5, UpdatedAt: t0, Body: "leaf, prioritized"},
+		{ID: "engPlain", NodeID: &eng, Type: domain.DocMemory, Path: "e", Priority: 0, UpdatedAt: t0, Body: "engagement, default prio"},
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if len(got.Ranked) != 2 {
+		t.Fatalf("want 2 ranked items, got %d: %+v", len(got.Ranked), got.Ranked)
+	}
+	if got.Ranked[0].Item.ID != "leafPrio" {
+		t.Fatalf("priority must lift the leaf memory ahead of the engagement memory: %+v", got.Ranked)
+	}
+	if got.Ranked[1].Item.ID != "engPlain" {
+		t.Fatalf("engagement memory should follow: %+v", got.Ranked)
+	}
+}
+
+// TestCompose_RankedFlatOrder: Ranked mirrors the pool's global fill order;
+// Included items get a contiguous 1..N rank, dropped items get Included=false
+// and Rank=0. Priority does NOT bypass the cap (only pinned does): a
+// high-priority item that does not fit still drops.
+func TestCompose_RankedFlatOrder(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) } // EstTokens = ceil(n/4)
+	docs := []domain.Document{
+		{ID: "hiPrioBig", NodeID: &leaf, Type: domain.DocMemory, Path: "a", Priority: 9, UpdatedAt: t0, Body: body(400)}, // 100 tok, fills first but too big alone with the next
+		{ID: "loPrioSmall", NodeID: &leaf, Type: domain.DocMemory, Path: "b", Priority: 1, UpdatedAt: t0, Body: body(400)},
+	}
+	// cap=100 → only the first (highest priority) fits; the second drops.
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100)
+	if len(got.Ranked) != 2 {
+		t.Fatalf("want 2 ranked items (one included, one dropped), got %+v", got.Ranked)
+	}
+	if got.Ranked[0].Item.ID != "hiPrioBig" || !got.Ranked[0].Included || got.Ranked[0].Rank != 1 {
+		t.Fatalf("first item should be included at rank 1: %+v", got.Ranked[0])
+	}
+	if got.Ranked[1].Item.ID != "loPrioSmall" || got.Ranked[1].Included || got.Ranked[1].Rank != 0 {
+		t.Fatalf("second item should be dropped (priority does not bypass the cap): %+v", got.Ranked[1])
+	}
+}
+
+// TestCompose_ZeroPriorityIsBestandOrder: with every doc at the Priority
+// zero-value, the new (pinned, priority, tierRank, updatedAt) key must
+// degenerate to the pre-L5 (pinned, tierRank, updatedAt) order — this is the
+// same fixture/assertions as TestCompose_TierRankFillOrder, restated to pin
+// down backward compatibility explicitly.
+func TestCompose_ZeroPriorityIsBestandOrder(t *testing.T) {
+	t.Parallel()
+	leaf, vor, eng := "L", "V", "E"
+	chain := []domain.Node{
+		node(leaf, "flow", domain.KindRepo),
+		node(vor, "Vorhaben", domain.KindVorhaben),
+		node(eng, "Privat", domain.KindEngagement),
+	}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) }
+	docs := []domain.Document{
+		doc("le", &leaf, domain.DocMemory, "l", false, t0, body(400)),
+		doc("vo", &vor, domain.DocMemory, "v", false, t0, body(400)),
+		doc("en", &eng, domain.DocMemory, "e", false, t0, body(400)),
+		doc("gl", nil, domain.DocMemory, "g", false, t0, body(400)),
+	}
+	for _, d := range docs {
+		if d.Priority != 0 {
+			t.Fatalf("fixture must use the Priority zero-value: %+v", d)
+		}
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{"gl": true}, 250)
+	if len(got.Memories["global"]) != 1 || len(got.Memories["engagement"]) != 1 {
+		t.Fatalf("global+engagement should survive tight cap unchanged: %+v", got.Memories)
+	}
+	if len(got.Memories["vorhaben"]) != 0 || len(got.Memories["leaf"]) != 0 {
+		t.Fatalf("vorhaben+leaf should still drop: %+v", got.Memories)
+	}
+	if got.Budget.Dropped.Vorhaben != 1 || got.Budget.Dropped.Leaf != 1 {
+		t.Errorf("want vorhaben=1 leaf=1 dropped, got %+v", got.Budget.Dropped)
+	}
+}
+
+func TestStandingOf_States(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) }
+	docs := []domain.Document{
+		doc("instr", &leaf, domain.DocInstruction, "claude", false, t0, "rule"),
+		doc("ac", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, "where"),
+		doc("kept", &leaf, domain.DocMemory, "k", false, t0, body(4)),
+		doc("gone", &leaf, domain.DocMemory, "g", false, t0, body(400)),
+	}
+	// cap fits instructions(~1tok)+activeContext(~1tok)+kept(1tok) but not gone(100tok).
+	got := usecase.Compose(chain, docs, map[string]bool{}, 10)
+
+	if st := usecase.StandingOf(got, "instr"); st.State != "always" {
+		t.Errorf("instruction should be always, got %+v", st)
+	}
+	if st := usecase.StandingOf(got, "ac"); st.State != "always" {
+		t.Errorf("activeContext should be always, got %+v", st)
+	}
+	if st := usecase.StandingOf(got, "kept"); st.State != "included" || st.Rank != 1 || st.Total != 1 {
+		t.Errorf("kept memory should be included rank 1/1, got %+v", st)
+	}
+	if st := usecase.StandingOf(got, "gone"); st.State != "dropped" {
+		t.Errorf("dropped memory should be dropped, got %+v", st)
+	}
+	if st := usecase.StandingOf(got, "nonexistent"); st.State != "absent" {
+		t.Errorf("unknown doc should be absent, got %+v", st)
+	}
+}
+
+// TestComposeContext_ExecuteForNode: composing by node ID must yield the same
+// result as resolving the same leaf via the binding registry.
+func TestComposeContext_ExecuteForNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docsStore := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
+	eng, _ := nodes.Create(ctx, domain.Node{ID: "E", OwnerID: "u1", Kind: domain.KindEngagement, Name: "Privat", Slug: "privat"})
+	leaf, _ := nodes.Create(ctx, domain.Node{ID: "L", OwnerID: "u1", Kind: domain.KindRepo, Name: "flow", Slug: "flow", ParentID: &eng.ID, OriginSlug: "flow"})
+	_, _ = binds.Upsert(ctx, domain.ProjectBinding{Kind: domain.BindingRemote, OwnerID: "u1", RemoteSlug: "flow", NodeID: leaf.ID})
+
+	t0 := time.Now()
+	_, _ = docsStore.Create(ctx, domain.Document{ID: "ac", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocActiveContext, Path: usecase.ActiveContextPath, Body: "where", UpdatedAt: t0})
+	_, _ = docsStore.Create(ctx, domain.Document{ID: "m", OwnerID: "u1", NodeID: &leaf.ID, Type: domain.DocMemory, Path: "m", Body: "mem", UpdatedAt: t0})
+
+	uc := usecase.ComposeContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docsStore, Tags: tags,
+	}
+	viaSlug, err := uc.Execute(ctx, "u1", usecase.ContextResolveInput{RemoteSlug: "flow"}, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viaID, err := uc.ExecuteForNode(ctx, "u1", leaf.ID, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viaID.Resolution.Unresolved {
+		t.Fatalf("ExecuteForNode should resolve: %+v", viaID.Resolution)
+	}
+	if viaID.ActiveContext == nil || viaID.ActiveContext.ID != viaSlug.ActiveContext.ID {
+		t.Errorf("ExecuteForNode activeContext mismatch: %+v vs %+v", viaID.ActiveContext, viaSlug.ActiveContext)
+	}
+	if len(viaID.Memories["leaf"]) != len(viaSlug.Memories["leaf"]) {
+		t.Errorf("ExecuteForNode leaf memories mismatch: %+v vs %+v", viaID.Memories["leaf"], viaSlug.Memories["leaf"])
+	}
+}
+
+// TestComposeContext_ExecuteForNode_ForeignNode: an owner-scoped
+// FakeNodeStore.Get on a foreign owner's node returns ports.ErrNodeNotFound;
+// ExecuteForNode must propagate it and surface no foreign docs (Codex-Fund #2).
+func TestComposeContext_ExecuteForNode_ForeignNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	docsStore := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	binds := testutil.NewFakeProjectBindingStore()
+
+	foreign, _ := nodes.Create(ctx, domain.Node{ID: "F", OwnerID: "u2", Kind: domain.KindRepo, Name: "secret", Slug: "secret"})
+	_, _ = docsStore.Create(ctx, domain.Document{ID: "secretmem", OwnerID: "u2", NodeID: &foreign.ID, Type: domain.DocMemory, Path: "s", Body: "top secret"})
+
+	uc := usecase.ComposeContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docsStore, Tags: tags,
+	}
+	got, err := uc.ExecuteForNode(ctx, "u1", foreign.ID, 100000)
+	if !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ports.ErrNodeNotFound for a foreign node, got %v", err)
+	}
+	for _, mems := range got.Memories {
+		for _, m := range mems {
+			if m.ID == "secretmem" {
+				t.Fatalf("foreign owner's document must not leak into ComposedContext")
+			}
+		}
 	}
 }
 
