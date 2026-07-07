@@ -131,7 +131,7 @@ templ DocumentFragment(vm DocumentVM) {
 						} else if vm.Context.State == "always" {
 							<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "document.context.always") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
 						}
-						<div class="krow" style="border-bottom:none">
+						<div class="krow">
 							<span class="n">{ components.T(ctx, "context.mode.label") }</span>
 							@modeSeg("/wissen/"+vm.ID+"/mode", "#document-fragment", vm.ID, vm.Context.Mode)
 						</div>

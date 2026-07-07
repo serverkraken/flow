@@ -34,8 +34,8 @@ templ nodesOuter(d NodesPageData) {
 // full mono path underneath — glyph-free throughout (Spec §7 Farb-Gesetz:
 // kind stays a neutral .typechip, color lives only in the avatar).
 templ NodesFragment(d NodesPageData) {
-	<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px">
-		<div style="flex:1">
+	<div class="pagehead flex items-end gap-5 flex-wrap">
+		<div class="flex-1">
 			<span class="eyebrow">{ components.T(ctx, "nav.projects") }</span>
 			<h1>{ components.T(ctx, "nodes.title") }</h1>
 			<p class="sub">{ ProjectsSummary(ctx, d.VM) }</p>
@@ -116,7 +116,7 @@ templ projRow(row ProjRow, indented bool) {
 			if row.IsVorhaben {
 				<div class="t">
 					{ row.Short }
-					<span class="dim" style="font-weight:400">· { components.T(ctx, "node.kind."+row.KindLabel) }</span>
+					<span class="dim font-normal">· { components.T(ctx, "node.kind."+row.KindLabel) }</span>
 				</div>
 				<div class="s">{ projRowUnderNote(ctx, row.Full) }</div>
 			} else {
@@ -193,7 +193,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 							}
 						}
 					</select>
-					<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
+					<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.parentEditHint") }</p>
 					@nodeMoveForm(d, editing)
 				} else {
 					<select name="parentId" id="node-parent" class="field">
@@ -271,7 +271,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 				</div>
 			}
 			<input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="field"/>
-			<p class="mt-1 text-[.75rem] text-faint">{ components.T(ctx, "node.logo.hint") }</p>
+			<p class="mt-1 text-xs text-faint">{ components.T(ctx, "node.logo.hint") }</p>
 		</div>
 		<div>
 			<label class="block text-muted">{ components.T(ctx, "wissen.tags") }</label>
@@ -287,7 +287,7 @@ templ nodeFormInner(d NodeFormData, editing *domain.Node) {
 				<label class="block text-muted">{ components.T(ctx, "node.rateCurrency") }</label>
 				<input name="rateCurrency" value={ orDefault(d.Vals.RateCurrency, "EUR") } class="field w-20"/>
 			</div>
-			<span class="text-[.75rem] text-faint">{ components.T(ctx, "node.rateHint") }</span>
+			<span class="text-xs text-faint">{ components.T(ctx, "node.rateHint") }</span>
 		</div>
 		<div class="flex gap-2">
 			@components.Button(components.BtnPrimary, components.T(ctx, "common.save"), "✓", templ.Attributes{"type": "submit"})
