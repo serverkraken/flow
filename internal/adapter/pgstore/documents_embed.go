@@ -37,13 +37,15 @@ LIMIT $1`
 		var typ string
 		var extra []byte
 		var updatedByKind, updatedByRef sql.NullString
+		var mode string
 		var attempts int
 		if err := rows.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 			&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-			&updatedByKind, &updatedByRef, &d.Priority, &attempts); err != nil {
+			&updatedByKind, &updatedByRef, &d.Priority, &mode, &attempts); err != nil {
 			return nil, fmt.Errorf("pgstore: scan stale document: %w", err)
 		}
 		d.Type = domain.DocumentType(typ)
+		d.ContextMode = domain.ContextMode(mode)
 		d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 		if len(extra) > 0 {
 			if err := json.Unmarshal(extra, &d.Extra); err != nil {

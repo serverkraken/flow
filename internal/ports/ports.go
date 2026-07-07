@@ -218,6 +218,12 @@ type DocumentStore interface {
 	// updated_at (priority is orthogonal to recency).
 	SetPriority(ctx context.Context, ownerID, id string, priority int) error
 
+	// SetContextMode sets a document's agent-context membership mode
+	// (auto/immer/nie). Owner-scoped; returns ErrDocumentNotFound if absent or
+	// foreign. Deliberately does NOT bump updated_at (mode is curation,
+	// orthogonal to content recency).
+	SetContextMode(ctx context.Context, ownerID, id string, mode domain.ContextMode) error
+
 	// SetArchived sets (archived=true) or clears (archived=false) the archived
 	// flag. Archiving also clears pinned (archived dominates) and stamps
 	// archived_at; un-archiving nulls archived_at and leaves pinned untouched.

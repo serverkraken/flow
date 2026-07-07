@@ -28,9 +28,9 @@ func NewDocumentStore(pool *pgxpool.Pool, ids ports.IDGen) *DocumentStore {
 	return &DocumentStore{pool: pool, ids: ids}
 }
 
-const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at, updated_by_kind, updated_by_ref, priority`
+const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at, updated_by_kind, updated_by_ref, priority, context_mode`
 
-const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref, d.priority`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref, d.priority, d.context_mode`
 
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
@@ -91,7 +91,7 @@ func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []
 
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
@@ -100,7 +100,7 @@ RETURNING ` + docCols
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
 		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
 		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt, d.Pinned, d.Archived, d.ArchivedAt,
-		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.Priority))
+		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.Priority, string(d.ContextMode.OrAuto())))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
 	}
@@ -218,6 +218,20 @@ func (s *DocumentStore) SetPriority(ctx context.Context, ownerID, id string, pri
 	ct, err := s.pool.Exec(ctx, `UPDATE documents SET priority=$1 WHERE owner_id=$2 AND id=$3`, priority, ownerID, id)
 	if err != nil {
 		return fmt.Errorf("pgstore: set priority: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ports.ErrDocumentNotFound
+	}
+	return nil
+}
+
+// SetContextMode sets a document's agent-context membership mode. Owner-scoped;
+// deliberately does NOT bump updated_at (mode is curation, orthogonal to content
+// recency — mirrors SetPriority; see domain.Document.ContextMode / Offene Entsch. #2).
+func (s *DocumentStore) SetContextMode(ctx context.Context, ownerID, id string, mode domain.ContextMode) error {
+	ct, err := s.pool.Exec(ctx, `UPDATE documents SET context_mode=$1 WHERE owner_id=$2 AND id=$3`, string(mode), ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: set context mode: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return ports.ErrDocumentNotFound
@@ -402,13 +416,15 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var typ string
 	var extra []byte
 	var updatedByKind, updatedByRef sql.NullString
+	var mode string
 	var snippet string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef, &d.Priority, &snippet); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority, &mode, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.ContextMode = domain.ContextMode(mode)
 	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {
@@ -515,14 +531,16 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var typ string
 	var extra []byte
 	var updatedByKind, updatedByRef sql.NullString
+	var mode string
 	var content string
 	var dist float32
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef, &d.Priority, &content, &dist); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority, &mode, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.ContextMode = domain.ContextMode(mode)
 	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {
@@ -559,15 +577,17 @@ func scanDocument(r rowScanner) (domain.Document, error) {
 	var typ string
 	var extra []byte
 	var updatedByKind, updatedByRef sql.NullString
+	var mode string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef, &d.Priority); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority, &mode); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err
 		}
 		return domain.Document{}, fmt.Errorf("pgstore: scan document: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
+	d.ContextMode = domain.ContextMode(mode)
 	d.UpdatedByKind, d.UpdatedByRef = updatedByKind.String, updatedByRef.String
 	if len(extra) > 0 {
 		if err := json.Unmarshal(extra, &d.Extra); err != nil {

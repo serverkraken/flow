@@ -648,6 +648,7 @@ func (s *FakeDocumentStore) Create(_ context.Context, d domain.Document) (domain
 			return domain.Document{}, ports.ErrDocumentExists
 		}
 	}
+	d.ContextMode = d.ContextMode.OrAuto()
 	s.m[d.ID] = d
 	return d, nil
 }
@@ -978,6 +979,18 @@ func (s *FakeDocumentStore) SetPriority(_ context.Context, ownerID, id string, p
 	return nil
 }
 
+func (s *FakeDocumentStore) SetContextMode(_ context.Context, ownerID, id string, mode domain.ContextMode) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	d.ContextMode = mode
+	s.m[id] = d
+	return nil
+}
+
 func (s *FakeDocumentStore) SetArchived(_ context.Context, ownerID, id string, archived bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1043,6 +1056,7 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 	s.m[id] = domain.Document{
 		ID: id, OwnerID: ownerID, NodeID: nodeID, Type: typ, Path: path, Title: title, Body: body,
 		Pinned: pinned, Archived: archived, UpdatedByKind: updatedByKind, UpdatedByRef: updatedByRef,
+		ContextMode: domain.ContextModeAuto, // mirrors pgstore's own column list → DB default 'auto'
 	}
 	return id, time.Time{}, nil
 }

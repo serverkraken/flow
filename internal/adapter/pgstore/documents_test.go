@@ -400,6 +400,53 @@ func TestDocumentStore_SearchFuzzyAndTag(t *testing.T) {
 	}
 }
 
+// TestDocumentStore_SearchIncludesNieContextMode guards the L5.5 requirement
+// that context_mode="nie" only hides a document from agent-context compose —
+// it stays fully visible in Wissen/search. Search must NOT filter by
+// context_mode (Codex-Fund #4).
+func TestDocumentStore_SearchIncludesNieContextMode(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	u, _ := domain.NewUser("u-nie", "sub-nie", "nieuser", "nie@x.de", "Nie User")
+	if _, err := users.UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	owner := "u-nie"
+
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Now().UTC().Truncate(time.Second)
+	d, err := st.Create(ctx, domain.Document{
+		ID: "nie-doc", OwnerID: owner, Type: domain.DocFree, Path: "nie-path",
+		Title: "Versteckt", Body: "geheimer Suchtext kompendium", CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetContextMode(ctx, owner, d.ID, domain.ContextModeNie); err != nil {
+		t.Fatal(err)
+	}
+
+	hits, err := st.Search(ctx, owner, "kompendium", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].ID != "nie-doc" {
+		t.Fatalf("nie-mode doc must still be found by Search, got %#v", hits)
+	}
+	if hits[0].ContextMode != domain.ContextModeNie {
+		t.Fatalf("search hit ContextMode = %q, want nie", hits[0].ContextMode)
+	}
+}
+
 func TestDocumentStore_Links(t *testing.T) {
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -685,6 +732,40 @@ func TestDocumentStore_SetPriority(t *testing.T) {
 	got, _ = ds.Get(ctx, "u1", d.ID)
 	if got.Priority != 7 {
 		t.Fatalf("cross-owner SetPriority mutated priority: got %d, want 7", got.Priority)
+	}
+}
+
+func TestDocumentStore_SetContextMode(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	d, err := ds.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u1", Type: domain.DocMemory, Path: "m/p", Title: "T", Body: "b",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.ContextMode != domain.ContextModeAuto {
+		t.Fatalf("new doc ContextMode = %q, want auto (DB default via Create OrAuto)", d.ContextMode)
+	}
+	if err := ds.SetContextMode(ctx, "u1", d.ID, domain.ContextModeImmer); err != nil {
+		t.Fatalf("SetContextMode: %v", err)
+	}
+	got, _ := ds.Get(ctx, "u1", d.ID)
+	if got.ContextMode != domain.ContextModeImmer {
+		t.Fatalf("ContextMode = %q, want immer", got.ContextMode)
+	}
+
+	// Owner-Scope: fremder Owner darf nicht schreiben.
+	if err := ds.SetContextMode(ctx, "u2", d.ID, domain.ContextModeNie); !errors.Is(err, ports.ErrDocumentNotFound) {
+		t.Fatalf("cross-owner SetContextMode err = %v, want ErrDocumentNotFound", err)
+	}
+	got, _ = ds.Get(ctx, "u1", d.ID)
+	if got.ContextMode != domain.ContextModeImmer {
+		t.Fatalf("cross-owner SetContextMode mutated context_mode: got %q, want immer", got.ContextMode)
 	}
 }
 
