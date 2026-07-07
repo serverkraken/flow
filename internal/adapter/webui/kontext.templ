@@ -1,0 +1,148 @@
+package webui
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// KontextPage is the Kuratieren page (Soenne-Entscheid OE #1: schlichte
+// Reorder-Liste, kein Mockup) — a .narrow page belonging to the project
+// context ("projekte" tab), reachable from the cockpit rail's context
+// instrument panel ("Kuratieren — sortieren & pinnen ›").
+templ KontextPage(vm KontextVM) {
+	@components.AppShell("projekte", nil, nil, kontextOuter(vm))
+}
+
+// kontextOuter mirrors document.templ's fragment-safe SSE pattern
+// (documentOuter): #content wraps #kontext-fragment and reloads it via
+// hx-get + hx-select on every document.* mutation (a pin/reorder anywhere —
+// including this page's own actions on other clients — refreshes the
+// ranking). hx-select extracts ONLY #kontext-fragment from the full page
+// response, so the AppShell never nests inside itself.
+templ kontextOuter(vm KontextVM) {
+	<div
+		id="content"
+		hx-get={ "/kontext/" + vm.NodeID }
+		hx-trigger="sse:document.updated, sse:document.created, sse:document.deleted"
+		hx-select="#kontext-fragment"
+		hx-target="#kontext-fragment"
+		hx-swap="outerHTML"
+	>
+		@KontextFragment(vm)
+	</div>
+}
+
+// KontextFragment is the reorder/pin round-trip's own render target: the
+// pagehead, the budget-meter panel (same instrument as the cockpit rail), and
+// the flat rang list in Compose fill order. Returned by the view handler AND
+// both mutation handlers (reorder/pin) — never the full page — so those
+// POSTs can safely target #kontext-fragment with hx-swap="outerHTML".
+templ KontextFragment(vm KontextVM) {
+	<div id="kontext-fragment" class="narrow">
+		if vm.Err != "" {
+			<p class="alert-err" role="alert">{ vm.Err }</p>
+		}
+		<div class="pagehead">
+			<span class="eyebrow">{ components.T(ctx, "context.curate.eyebrow") }</span>
+			<h1>{ vm.Title }</h1>
+			<p class="sub">{ fmt.Sprintf(components.T(ctx, "context.curate.sub"), vm.Title, vm.IncludedN, vm.DroppedN) }</p>
+		</div>
+		<div class="sect">
+			<section class="panel p-5">
+				<div class={ "meter", templ.KV("full", vm.Full) } role="img" aria-label={ fmt.Sprintf(components.T(ctx, "context.meterAria"), vm.Pct) }>
+					<i style={ "width:" + strconv.Itoa(vm.Pct) + "%" }></i>
+				</div>
+				<div class="meter-l">
+					<span>{ vm.UsedStr } tk</span>
+					if vm.Full {
+						<span class="warn">{ components.T(ctx, "context.budgetFull") } · { vm.CapStr }</span>
+					} else {
+						<span>{ vm.CapStr }</span>
+					}
+				</div>
+			</section>
+		</div>
+		<div class="sect">
+			<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.rail.title") }</span></div>
+			if len(vm.Rows) == 0 {
+				<p class="text-sm text-faint" style="margin-top:16px">{ components.T(ctx, "context.curate.empty") }</p>
+			} else {
+				for _, row := range vm.Rows {
+					if row.FirstDropped {
+						<div class="cutline">{ components.T(ctx, "context.cutline") }</div>
+					}
+					@kontextRow(vm.NodeID, row)
+				}
+			}
+		</div>
+	</div>
+}
+
+// kontextRow is one rang-list row: rang badge, type chip, title+scope+tokens,
+// and the pin/reorder actions. Dropped rows (Included=false) dim via
+// templ.KV("dim", ...) so the cutline visually separates them without a
+// second list. All actions target #kontext-fragment (Codex-Fund #3) and send
+// their document id via hx-vals (the frei.templ/heute.templ precedent for
+// parameterized mutation buttons outside a <form>).
+templ kontextRow(nodeID string, row KontextRowVM) {
+	<div class={ "row", templ.KV("dim", !row.Included) }>
+		<span class="num">{ fmt.Sprintf("%02d", row.Num) }</span>
+		<span class={ "typechip", row.ChipClass }>{ row.TypeLabel }</span>
+		<div class="grow">
+			<div class="t" title={ row.Title }>{ row.Title }</div>
+			<div class="s">{ row.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), row.TokensStr) }</div>
+		</div>
+		<div class="right" style="display:flex;gap:6px;align-items:center">
+			<button
+				type="button"
+				class="btn btn-q btn-s"
+				hx-post={ "/kontext/" + nodeID + "/pin" }
+				hx-target="#kontext-fragment"
+				hx-swap="outerHTML"
+				hx-vals={ fmt.Sprintf(`{"doc":"%s"}`, row.DocID) }
+				aria-label={ components.T(ctx, pinLabelKey(row.Pinned)) }
+				title={ components.T(ctx, pinLabelKey(row.Pinned)) }
+			>
+				{ components.T(ctx, pinLabelKey(row.Pinned)) }
+			</button>
+			<button
+				type="button"
+				class="btn btn-q btn-s"
+				hx-post={ "/kontext/" + nodeID + "/reorder" }
+				hx-target="#kontext-fragment"
+				hx-swap="outerHTML"
+				hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"up"}`, row.DocID) }
+				aria-label={ components.T(ctx, "context.moveUp") }
+				title={ components.T(ctx, "context.moveUp") }
+				disabled?={ row.IsFirst }
+			>
+				↑
+			</button>
+			<button
+				type="button"
+				class="btn btn-q btn-s"
+				hx-post={ "/kontext/" + nodeID + "/reorder" }
+				hx-target="#kontext-fragment"
+				hx-swap="outerHTML"
+				hx-vals={ fmt.Sprintf(`{"doc":"%s","dir":"down"}`, row.DocID) }
+				aria-label={ components.T(ctx, "context.moveDown") }
+				title={ components.T(ctx, "context.moveDown") }
+				disabled?={ row.IsLast }
+			>
+				↓
+			</button>
+		</div>
+	</div>
+}
+
+// pinLabelKey reuses the document page's Anpinnen/Angepinnt i18n keys
+// (document.pin/document.pinned — Bestand, verified reusable per the brief)
+// rather than minting Kuratieren-local duplicates.
+func pinLabelKey(pinned bool) string {
+	if pinned {
+		return "document.pinned"
+	}
+	return "document.pin"
+}

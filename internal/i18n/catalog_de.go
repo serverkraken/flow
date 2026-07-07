@@ -138,6 +138,14 @@ func init() {
 			"context.budgetFull": "fast voll",
 			"context.curate":     "Kuratieren — sortieren & pinnen ›",
 			"context.meterAria":  "Kontext-Budget zu %d Prozent belegt",
+			// Kuratieren-Seite /kontext/{id} (L5 Task 7)
+			"context.curate.eyebrow": "Kontext kuratieren",
+			"context.curate.sub":     "%s · %d enthalten · %d verworfen",
+			"context.moveUp":         "Höher",
+			"context.moveDown":       "Tiefer",
+			"context.cutline":        "Budget voll — ab hier verworfen",
+			"context.estTokens":      "%s tk",
+			"context.curate.empty":   "Kein kuratierbarer Kontext für diesen Knoten.",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

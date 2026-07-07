@@ -69,6 +69,8 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		GetDocument:       usecase.GetDocument{Docs: ds},
+		SetPinned:         usecase.SetPinned{Docs: ds},
 		ListActivity:      usecase.ListActivity{Activities: as},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
@@ -80,8 +82,9 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		// L5 Task 5: the cockpit rail's context-instrument panel composes via
 		// ExecuteForNode, which only needs Nodes+Docs+Tags (Resolve is unused
 		// by the ID-based entry point).
-		ComposeContext: usecase.ComposeContext{Nodes: ps, Docs: ds, Tags: tags},
-		ContextBudget:  12000,
+		ComposeContext:     usecase.ComposeContext{Nodes: ps, Docs: ds, Tags: tags},
+		ContextBudget:      12000,
+		ReorderContextDocs: usecase.ReorderContextDocs{Docs: ds},
 	}
 	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, tags: tags, as: as, ids: ids, clk: clk, codec: codec}
 }
