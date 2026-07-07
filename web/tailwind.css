@@ -579,8 +579,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .kontext-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
   /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
-  /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */
-  .narrow { max-width: 860px; margin: 0 auto; }
+  /* Home/Zeit-Wrapper fluchtet mit der AppShell-Breite (1140px) — einheitliche
+     Seitenbreite über alle Bereiche, kein Breiten-/Überschrift-Sprung beim Tab-Wechsel */
+  .narrow { max-width: 1140px; margin: 0 auto; }
   /* Scroll-Boden für breite Grids (Kalender): Inhalt behält 860px und scrollt
      im eigenen overflow-x-Rahmen statt die Seite zu pannen (Spec §11/§12). */
   .narrow-min { min-width: 860px; }
