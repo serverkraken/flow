@@ -30,19 +30,19 @@ templ baseHull(title string, sse bool, body templ.Component) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>flow · { title }</title>
-			<link rel="stylesheet" href="/static/app.css"/>
-			<link rel="stylesheet" href="/static/chroma.css"/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/SchibstedGrotesk-Variable.woff2" crossorigin/>
-			<link rel="preload" as="font" type="font/woff2" href="/static/fonts/JetBrainsMono-Variable.woff2" crossorigin/>
+			<link rel="stylesheet" href={ AssetURL("app.css") }/>
+			<link rel="stylesheet" href={ AssetURL("chroma.css") }/>
+			<link rel="preload" as="font" type="font/woff2" href={ AssetURL("fonts/SchibstedGrotesk-Variable.woff2") } crossorigin/>
+			<link rel="preload" as="font" type="font/woff2" href={ AssetURL("fonts/JetBrainsMono-Variable.woff2") } crossorigin/>
 			// htmx-Härtung (Lesesaal L3 Task 9, Codex #12): a <script> BEFORE
 			// htmx.min.js can't set window.htmx.config yet (not loaded), so the
 			// hardening travels as a <meta> htmx reads on load instead — no
 			// timing problem, no extra inline script (CSP-friendly).
 			<meta name="htmx-config" content="{&#34;allowEval&#34;:false,&#34;allowScriptTags&#34;:false,&#34;selfRequestsOnly&#34;:true,&#34;includeIndicatorStyles&#34;:false}"/>
-			<script src="/static/vendor/htmx.min.js" defer></script>
-			<script src="/static/vendor/htmx-ext-sse.js" defer></script>
-			<script src="/static/scrollspy.js" defer></script>
-			<script src="/static/toc.js" defer></script>
+			<script src={ AssetURL("vendor/htmx.min.js") } defer></script>
+			<script src={ AssetURL("vendor/htmx-ext-sse.js") } defer></script>
+			<script src={ AssetURL("scrollspy.js") } defer></script>
+			<script src={ AssetURL("toc.js") } defer></script>
 			// No-flash theme init: Lesesaal fixes light as home (Spec §6/§7).
 			// The dark twin returns in L7 with its own toggle. nonce matches the
 			// Content-Security-Policy(-Report-Only) script-src (Task 9).
@@ -83,8 +83,20 @@ templ baseHull(title string, sse bool, body templ.Component) {
 						var minis = document.querySelectorAll('[data-mini-timer]');  // re-query each tick/swap
 						var mh, mm, ms;
 						timers.forEach(function (el) {
-							var base = parseInt(el.getAttribute('data-base') || '0', 10);
-							var elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);
+							// Absolute anchor wins (data-since = unix epoch of the effective
+							// start): every surface computes floor(now)-since and flips on
+							// the SAME wall-clock second. The relative data-base+boundStart
+							// path drifts up to ~1s between surfaces (data-base truncates the
+							// sub-second phase; boundStart differs per render) — kept only as
+							// fallback for anchors without an epoch (e.g. styleguide demo).
+							var since = parseInt(el.getAttribute('data-since') || '0', 10);
+							var elapsed;
+							if (since > 0) {
+								elapsed = Math.max(0, Math.floor(Date.now() / 1000) - since);
+							} else {
+								var base = parseInt(el.getAttribute('data-base') || '0', 10);
+								elapsed = base + Math.floor((Date.now() - el.dataset.boundStart) / 1000);
+							}
 							var h = Math.floor(elapsed / 3600);
 							var m = Math.floor((elapsed % 3600) / 60);
 							var s = elapsed % 60;

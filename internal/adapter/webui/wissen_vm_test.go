@@ -164,29 +164,3 @@ func TestWissenResetHref(t *testing.T) {
 		t.Error("custom reset href not returned")
 	}
 }
-
-func TestSwatchStyle(t *testing.T) {
-	if s := swatchStyle(""); s != "" {
-		t.Errorf("swatchStyle('') = %q, want ''", s)
-	}
-	got := swatchStyle("#aabbcc")
-	if got != "--swatch: #aabbcc" {
-		t.Errorf("swatchStyle('#aabbcc') = %q, want '--swatch: #aabbcc'", got)
-	}
-}
-
-// TestDocRowUnaffected pins that DocRow/docRowFromDocument (and their
-// BuildHomeNewest caller) keep working unmodified — the L3 Task 7 Wissen
-// redesign adds WissenRowVM as a separate display struct instead of
-// reshaping DocRow, which the L4 Schreibtisch page (home_newest.go) still
-// depends on (Codex #18).
-func TestDocRowUnaffected(t *testing.T) {
-	now := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
-	docs := []domain.Document{
-		{ID: "d1", Type: domain.DocFree, Title: "Home Doc", Path: "free/idea", UpdatedAt: now},
-	}
-	rows := BuildHomeNewest(docs, nil, 5)
-	if len(rows) != 1 || rows[0].ID != "d1" || rows[0].Title != "Home Doc" {
-		t.Fatalf("BuildHomeNewest regressed: %+v", rows)
-	}
-}

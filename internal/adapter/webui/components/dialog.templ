@@ -17,7 +17,7 @@ templ Dialog(id, titleKey string, body templ.Component, open bool) {
 			@body
 		</div>
 	</dialog>
-	<script src="/static/js/dialog.js" defer></script>
+	<script src={ AssetURL("js/dialog.js") } defer></script>
 }
 
 // ConfirmSpec configures a ConfirmDialog. Empty key fields fall back to safe
@@ -60,5 +60,5 @@ templ ConfirmDialog(spec ConfirmSpec) {
 			@Button(BtnDanger, T(ctx, s.ConfirmLabelKey), "", s.ConfirmAttrs)
 		</div>
 	</dialog>
-	<script src="/static/js/dialog.js" defer></script>
+	<script src={ AssetURL("js/dialog.js") } defer></script>
 }

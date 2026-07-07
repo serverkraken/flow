@@ -1,16 +1,20 @@
 package webui
 
 import (
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
 )
 
-// WocheVM is the view model for the Woche (week) worktime page rendered on the
-// Slice-0 AppShell: per-day bars (Mo–So), the WOCHE GESAMT banner and the
-// KENNZAHLEN panel, plus calendar-week (KW) navigation.
+// WocheVM is the view model for the Woche (week) worktime page — L4 Task 4's
+// full Lesesaal rebuild (pagehead + "‹ Zeit" spine, weekbar skyline, Mo–So
+// row-list, two Kennzahlen panels, the Statistik/Burndown panel). The
+// underlying per-day/week computation (wocheDataFor, httpserver package) and
+// the KW-nav fields stay the unchanged data source (Interfaces: "unangetastet
+// als Datenquelle") — Total/Kennzahlen/Days keep their pre-L4 field shapes.
+// Stats is additive: the monthly Burndown/Saldo metric that used to live on
+// Home now lives here (Offene Entsch. #4, "Woche ist die Statistik-
+// Destination").
 type WocheVM struct {
 	User        string
 	WeekStart   time.Time // Monday of the displayed week
@@ -21,10 +25,12 @@ type WocheVM struct {
 	CanForward  bool      // false on (or past) the current week → hide next/„Diese Woche"
 	IsCurrent   bool      // true when the displayed week is the current week
 	Days        []WocheDayVM
+	WeekDays    []ZeitWeekDay // .weekbar skyline bars, Mo..So (BuildWeekBars — same builder/format as Zeit-Hub, Finding 1)
 	Total       components.WeekTotalVM
 	Kennzahlen  components.KennzahlenVM
 	WorkdayGoal string // "8h 00m" per-weekday target (header hint)
 	Empty       bool   // no logged time anywhere in the week
+	Stats       WocheStatsVM
 }
 
 // WocheDayVM is one day row in the week list (Mo..So).
@@ -36,7 +42,7 @@ type WocheDayVM struct {
 	Saldo       string // "+1h 24m" / "−0h 20m"; "" hides the delta line
 	SaldoPos    bool
 	Pct         int
-	Variant     string // hit|over|under|running|weekend (drives the bar fill + dot)
+	Variant     string // hit|over|under|running|weekend (drives the .v hue + weekbar bar height)
 	Weekend     bool
 	DayOff      bool
 	DayOffLabel string // kind label, e.g. "Urlaub"
@@ -44,79 +50,69 @@ type WocheDayVM struct {
 	IsToday     bool
 }
 
-// wocheBarFill maps a day variant to the bar fill utility (mirrors the studio
-// micro-legend: green=hit/over, cyan=running/today, yellow=under).
-func wocheBarFill(variant string) string {
+// WocheStatsVM drives the Woche page's "Statistik" panel: the monthly
+// Burndown/Saldo glance metric that moved here from Home (Offene Entsch. #4).
+// Built by httpserver's wocheDataFor from domain.MonthBurndownReport
+// (s.Stats.Burndown) — deliberately NOT components.BurndownBanner (that
+// Kristall glass card stays retired); this renders as a plain Lesesaal
+// .panel/.krow block (wocheStatsPanel, woche.templ).
+type WocheStatsVM struct {
+	Total   string // "78h 00m" — month logged so far
+	Target  string // "160h 00m" — month target
+	Saldo   string // "+5h 12m" / "−2h 30m" (FmtSaldoVerbose)
+	OnTrack bool
+}
+
+// wocheDayOffTypeChip maps a WocheDayVM.DayOffHue (the same semantic hue
+// token dayOffHue/TUI kindcolor.DayOffColor produce) onto its .typechip tc-*
+// tone (Farb-Gesetz §7: fixed & semantic, never per-project). Only 6 tc-
+// tokens exist (b/v/t/o/g/r) for 7 day-off hues — yellow (Special) shares
+// tc-o with orange (Sick); the kind LABEL text (not the chip color) carries
+// that distinction. Replaces the retired wocheDayOffChip (Tailwind
+// bg-hue/10 text-hue).
+func wocheDayOffTypeChip(hue string) string {
+	switch hue {
+	case "purple":
+		return "tc-v"
+	case "orange", "yellow":
+		return "tc-o"
+	case "green":
+		return "tc-g"
+	case "red":
+		return "tc-r"
+	case "cyan":
+		return "tc-t"
+	default: // "blue" (Holiday) + any unknown fallback
+		return "tc-b"
+	}
+}
+
+// wocheVariantHue maps a day/week Variant (hit|over|running|under|weekend —
+// WocheDayVM.Variant and components.WeekTotalVM.Variant share this
+// vocabulary) onto a semantic text-color utility for the Woche row-list's
+// duration value and the "Woche gesamt" panel's Ist figure (status color,
+// not project color — Farb-Gesetz §7 only bans per-project hue outside the
+// avatar). Replaces the retired wocheBarFill, which colored the now-gone
+// horizontal per-day progress-bar fill.
+func wocheVariantHue(variant string) string {
 	switch variant {
 	case "hit", "over":
-		return "bg-green"
+		return "text-green"
 	case "running":
-		return "bg-cyan"
-	default:
-		return "bg-yellow"
+		return "text-live"
+	default: // under, weekend
+		return "text-muted"
 	}
 }
 
-// wocheDayDotClass / wocheDayDotGlyph render the per-day trailing status dot.
-func wocheDayDotClass(v WocheDayVM) string {
-	switch {
-	case v.Weekend:
-		return "text-faint text-[.85rem] shrink-0 w-3 text-center"
-	case v.Variant == "running":
-		return "text-cyan text-[.85rem] shrink-0 w-3 text-center"
-	case v.Variant == "hit" || v.Variant == "over":
-		return "text-green text-[.85rem] shrink-0 w-3 text-center"
-	default:
-		return "text-faint text-[.85rem] shrink-0 w-3 text-center"
+// wocheStatsHue colors the Statistik panel's "Kurs" krow value: green when
+// the month is on track, orange when behind (mirrors components.balanceHue's
+// on/off semantics for the same on-track vocabulary).
+func wocheStatsHue(onTrack bool) string {
+	if onTrack {
+		return "text-green"
 	}
-}
-
-func wocheDayDotGlyph(v WocheDayVM) string {
-	switch {
-	case v.Weekend:
-		return "·"
-	case v.Variant == "under":
-		return "○"
-	default:
-		return "●"
-	}
-}
-
-// wocheLabelClass colors today's weekday label blue.
-func wocheLabelClass(v WocheDayVM) string {
-	if v.IsToday {
-		return "text-[.92rem] font-semibold leading-none text-blue"
-	}
-	if v.Weekend {
-		return "text-[.92rem] font-medium leading-none text-muted"
-	}
-	return "text-[.92rem] font-semibold leading-none"
-}
-
-// wocheSaldoHue colors the per-day delta line.
-func wocheSaldoHue(pos bool) string {
-	if pos {
-		return "font-mono text-[.72rem] tnum text-green leading-none mt-0.5"
-	}
-	return "font-mono text-[.72rem] tnum text-yellow leading-none mt-0.5"
-}
-
-// wocheDayOffChip maps a day-off hue token onto its chip wash+text classes.
-func wocheDayOffChip(hue string) string {
-	switch hue {
-	case "blue", "cyan", "green", "purple", "magenta", "yellow", "orange", "red", "teal":
-		return "bg-" + hue + "/10 text-" + hue
-	default:
-		return "bg-blue/10 text-blue"
-	}
-}
-
-// wochePctStr renders a clamped percentage for the bar aria-valuenow.
-func wochePctStr(pct int) string { return strconv.Itoa(ClampPct(pct)) }
-
-// wocheDayBarStyle returns the inline width style for a day bar.
-func wocheDayBarStyle(d WocheDayVM) string {
-	return fmt.Sprintf("width:%d%%", ClampPct(d.Pct))
+	return "text-orange"
 }
 
 // wocheFragmentURL builds the SSE hx-get target for the displayed week. The

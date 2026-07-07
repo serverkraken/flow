@@ -2,7 +2,7 @@
  *
  * Drives select-mode (toggle), per-block / per-day / all-unassigned / whole-week
  * selection, the project fuzzy-picker (filter + pick + inline-create), and fills
- * the hidden ids/projectId/newProject fields on the SelectionActionBar form so
+ * the hidden ids/projectId/newProject fields on the historieActionBar form so
  * htmx posts the real selection to /ui/historie/reassign | /ui/historie/bulk-delete.
  *
  * Re-binds after htmx swaps (SSE/pagination re-render the fragment). Esc exits.

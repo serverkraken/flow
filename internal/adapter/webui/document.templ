@@ -16,7 +16,7 @@ templ DocumentPage(vm DocumentVM) {
 // script's own htmx:afterSwap listener re-scans for pre.mermaid every time.
 templ documentBody(vm DocumentVM) {
 	@components.AppShell("docs", nil, nil, documentOuter(vm))
-	<script src="/static/js/mermaid-init.js" defer></script>
+	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 }
 
 templ documentOuter(vm DocumentVM) {

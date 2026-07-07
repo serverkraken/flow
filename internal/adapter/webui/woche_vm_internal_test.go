@@ -5,44 +5,60 @@ import (
 	"testing"
 )
 
-// TestWocheDayDotClass covers all branches of wocheDayDotClass:
-// Weekend, running, hit/over, and default (under/unknown).
-func TestWocheDayDotClass(t *testing.T) {
+// TestWocheDayOffTypeChip covers all branches of wocheDayOffTypeChip: each
+// known hue's fixed tc-* token (Farb-Gesetz §7 — semantic, not per-project),
+// the yellow/orange tc-o overlap (only 6 tc- tokens exist for 7 day-off
+// hues), and the unknown-hue fallback.
+func TestWocheDayOffTypeChip(t *testing.T) {
 	cases := []struct {
-		name    string
-		vm      WocheDayVM
-		wantSub string // must contain this substring
+		hue  string
+		want string
 	}{
-		{"weekend", WocheDayVM{Weekend: true}, "text-faint"},
-		{"running", WocheDayVM{Variant: "running"}, "text-cyan"},
-		{"hit", WocheDayVM{Variant: "hit"}, "text-green"},
-		{"over", WocheDayVM{Variant: "over"}, "text-green"},
-		{"under", WocheDayVM{Variant: "under"}, "text-faint"},
+		{"purple", "tc-v"},
+		{"orange", "tc-o"},
+		{"yellow", "tc-o"},
+		{"green", "tc-g"},
+		{"red", "tc-r"},
+		{"cyan", "tc-t"},
+		{"blue", "tc-b"},
+		{"unknown-hue", "tc-b"},
 	}
 	for _, tc := range cases {
-		got := wocheDayDotClass(tc.vm)
-		if !strings.Contains(got, tc.wantSub) {
-			t.Errorf("%s: wocheDayDotClass = %q, want to contain %q", tc.name, got, tc.wantSub)
+		if got := wocheDayOffTypeChip(tc.hue); got != tc.want {
+			t.Errorf("wocheDayOffTypeChip(%q) = %q, want %q", tc.hue, got, tc.want)
 		}
 	}
 }
 
-// TestWocheLabelClass covers all branches of wocheLabelClass:
-// IsToday, Weekend, and the default.
-func TestWocheLabelClass(t *testing.T) {
+// TestWocheVariantHue covers all branches of wocheVariantHue: hit/over share
+// the "hit" hue, running gets its own, and under/weekend/unknown fall back to
+// the neutral muted hue.
+func TestWocheVariantHue(t *testing.T) {
 	cases := []struct {
-		name    string
-		vm      WocheDayVM
+		variant string
 		wantSub string
 	}{
-		{"today", WocheDayVM{IsToday: true}, "text-blue"},
-		{"weekend", WocheDayVM{Weekend: true}, "text-muted"},
-		{"normal", WocheDayVM{}, "font-semibold"},
+		{"hit", "text-green"},
+		{"over", "text-green"},
+		{"running", "text-live"},
+		{"under", "text-muted"},
+		{"weekend", "text-muted"},
+		{"", "text-muted"},
 	}
 	for _, tc := range cases {
-		got := wocheLabelClass(tc.vm)
-		if !strings.Contains(got, tc.wantSub) {
-			t.Errorf("%s: wocheLabelClass = %q, want to contain %q", tc.name, got, tc.wantSub)
+		if got := wocheVariantHue(tc.variant); !strings.Contains(got, tc.wantSub) {
+			t.Errorf("wocheVariantHue(%q) = %q, want to contain %q", tc.variant, got, tc.wantSub)
 		}
+	}
+}
+
+// TestWocheStatsHue covers both branches of wocheStatsHue: on-track green,
+// behind orange.
+func TestWocheStatsHue(t *testing.T) {
+	if got := wocheStatsHue(true); got != "text-green" {
+		t.Errorf("wocheStatsHue(true) = %q, want text-green", got)
+	}
+	if got := wocheStatsHue(false); got != "text-orange" {
+		t.Errorf("wocheStatsHue(false) = %q, want text-orange", got)
 	}
 }

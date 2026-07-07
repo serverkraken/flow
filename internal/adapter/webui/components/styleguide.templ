@@ -48,6 +48,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgLesesaalL2())
 	// Lesesaal L3: Lese-Ebene (prose/figure/docrail/prov) + Wissen (bigsearch/shelf)
 	@Card("mb-6", sgLesesaalL3())
+	// Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala (panelrow/weekbar/day/led-when)
+	@Card("mb-6", sgLesesaalL4())
 }
 
 templ sgButtons() {
@@ -349,5 +351,66 @@ templ sgLesesaalL3() {
 				<div class="k">—</div>
 			</div>
 		</a>
+	</div>
+}
+
+// ── Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala ─────────────────
+
+templ sgLesesaalL4() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L4 — Panelzeile &amp; Wochenskala</h2>
+	<div class="narrow">
+		<div class="panelrow flex items-center gap-3">
+			@Avatar("MS", "av-a", "av-36")
+			<div class="grow">
+				<div class="t">Timer läuft auf flow-rebuild</div>
+				<div class="s"><span class="livechip">LIVE</span> <span class="led-when num dim">09:14</span></div>
+			</div>
+			<a class="btn btn-q btn-s" href="#">Stop</a>
+		</div>
+		<div class="weekbar mt-4" role="img" aria-label="Wochenübersicht: Montag bis Sonntag, gebuchte Stunden pro Tag">
+			for _, d := range []struct {
+				label string
+				val   string
+				cls   string
+			}{
+				{"Mo", "6h 10m", "day has"},
+				{"Di", "7h 40m", "day has"},
+				{"Mi", "5h 05m", "day has"},
+				{"Do", "8h 20m", "day has today"},
+				{"Fr", "—", "day"},
+				{"Sa", "—", "day"},
+				{"So", "—", "day"},
+			} {
+				<div class={ d.cls }>
+					<div class="bar"><i></i></div>
+					<div class="d">{ d.label }</div>
+					<div class="v">{ d.val }</div>
+				</div>
+			}
+		</div>
+		<div class="sect">
+			<div class="sect-h">
+				<span class="eyebrow">Heute</span>
+				<span class="note dim">Soll 8h · bisher 6h 10m · auf Kurs</span>
+			</div>
+			<div class="row">
+				<span class="led-when">09:02–11:30</span>
+				<div class="grow">
+					<div class="t">flow-rebuild</div>
+				</div>
+				<div class="right">
+					<div class="v">2h 28m</div>
+				</div>
+			</div>
+			<div class="row">
+				<span class="led-when">13:00–16:42</span>
+				<div class="grow">
+					<div class="t">homelab-study</div>
+				</div>
+				<div class="right">
+					<div class="v">3h 42m</div>
+				</div>
+			</div>
+		</div>
 	</div>
 }

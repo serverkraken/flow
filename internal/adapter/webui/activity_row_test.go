@@ -1,14 +1,10 @@
 package webui
 
 import (
-	"bytes"
-	"context"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
-	"github.com/serverkraken/flow/internal/i18n"
 )
 
 func TestBuildActivityRows_TargetPill(t *testing.T) {
@@ -46,47 +42,3 @@ func TestBuildActivityRows_TargetPill(t *testing.T) {
 	}
 }
 
-func renderRow(t *testing.T, row ActivityRowVM, agentChip, onPrefix bool) string {
-	t.Helper()
-	ctx := i18n.WithLocale(context.Background(), i18n.DE)
-	var b bytes.Buffer
-	if err := activityFeedRow(row, agentChip, onPrefix).Render(ctx, &b); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	return b.String()
-}
-
-func TestActivityFeedRow_StacksActorAndTime(t *testing.T) {
-	row := ActivityRowVM{ActorKind: "human", ActorRef: "msoent", VerbKey: "activity.verb.session.stopped", RelTime: "vor 1 Std", TargetName: "RTL Extern", TargetHref: "/nodes/x"}
-	html := renderRow(t, row, false, true)
-	// two-line structure: actor+time in the first flex row, detail in the second
-	if strings.Count(html, "<div") < 2 {
-		t.Fatalf("expected two stacked divs, got: %s", html)
-	}
-	// timestamp present, and NOT wrapped in a nowrap single-line container
-	if !strings.Contains(html, "vor 1 Std") {
-		t.Fatalf("reltime missing: %s", html)
-	}
-	// target pill contained (border pill), not a bare overflowing span
-	if !strings.Contains(html, "RTL Extern") {
-		t.Fatalf("target pill missing: %s", html)
-	}
-	// the detail row wraps (flex-wrap) so the pill can drop to a new line inside the card
-	if !strings.Contains(html, "flex-wrap") {
-		t.Fatalf("detail row must be flex-wrap: %s", html)
-	}
-}
-
-func TestActivityFeedRow_AgentChipOnlyWhenAsked(t *testing.T) {
-	agent := ActivityRowVM{ActorKind: "agent", ActorRef: "claude", VerbKey: "activity.verb.document.created", RelTime: "vor 2 Min"}
-	// The AGENT chip is the only element carrying text-purple; assert on that
-	// class rather than the localized chip text.
-	withChip := renderRow(t, agent, true, false)
-	without := renderRow(t, agent, false, false)
-	if !strings.Contains(withChip, "text-purple") {
-		t.Fatalf("agent chip expected when showAgentChip=true: %s", withChip)
-	}
-	if strings.Contains(without, "text-purple") {
-		t.Fatalf("agent chip must be absent when showAgentChip=false: %s", without)
-	}
-}

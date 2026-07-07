@@ -198,8 +198,12 @@ func TestWocheFragment_RunningSession(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "progressbar") {
-		t.Errorf("woche fragment with running session missing 'progressbar' role, body:\n%s", body[:limitLen(2000, len(body))])
+	// The current week isn't hit yet (isCurrent && !hit) → wocheTotalVariant
+	// "running" → the Woche-gesamt panel's Ist value carries the running hue
+	// (wocheVariantHue, Lesesaal — the retired Kristall path used
+	// role="progressbar" instead).
+	if !strings.Contains(body, "text-live") {
+		t.Errorf("woche fragment with running session missing running-variant hue 'text-live', body:\n%s", body[:limitLen(2000, len(body))])
 	}
 }
 
@@ -214,8 +218,11 @@ func TestWocheTotalVariant_PastWeekUnder(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	if !strings.Contains(body, "progressbar") {
-		t.Errorf("past-week under fragment missing progressbar, body:\n%s", body[:limitLen(1000, len(body))])
+	// A past week under target (isCurrent=false, logged < target) hits
+	// wocheTotalVariant's neutral "under" branch — no hit/running hue should
+	// render for the Woche-gesamt panel's Ist value (wocheVariantHue).
+	if strings.Contains(body, "text-green") || strings.Contains(body, "text-live") {
+		t.Errorf("past-week under fragment should not render hit/running hue classes, body:\n%s", body[:limitLen(1000, len(body))])
 	}
 }
 
@@ -290,9 +297,10 @@ func TestWocheTotal_OverVariant(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Total = 45h > 40h target → "over" bar variant → bg-green fill.
-	if !strings.Contains(body, "bg-green") {
-		t.Errorf("over-variant week missing bg-green fill class, body:\n%s", body[:limitLen(2000, len(body))])
+	// Total = 45h > 40h target → "over" variant → the Woche-gesamt panel's
+	// Ist value carries the hit/over hue (wocheVariantHue "text-green").
+	if !strings.Contains(body, "text-green") {
+		t.Errorf("over-variant week missing text-green hue class, body:\n%s", body[:limitLen(2000, len(body))])
 	}
 }
 
@@ -312,9 +320,10 @@ func TestWocheTotal_HitVariant(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Total = 40h == 40h target → "hit" or "over" bar variant → bg-green fill.
-	if !strings.Contains(body, "bg-green") {
-		t.Errorf("hit-variant week missing bg-green fill, body:\n%s", body[:limitLen(2000, len(body))])
+	// Total = 40h == 40h target → "hit" or "over" variant → the Woche-gesamt
+	// panel's Ist value carries the hit/over hue (wocheVariantHue "text-green").
+	if !strings.Contains(body, "text-green") {
+		t.Errorf("hit-variant week missing text-green hue, body:\n%s", body[:limitLen(2000, len(body))])
 	}
 }
 
@@ -416,9 +425,11 @@ func TestHistorieCalFragment_MonthViewWithSessions(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Today's cell has the cyan/ring styling (IsToday=true).
-	if !strings.Contains(body, "ring-cyan") {
-		t.Errorf("month fragment missing today-ring class, got:\n%s", body[:limitLen(500, len(body))])
+	// Today's cell carries the cyan accent wash (IsToday=true) — L4 Task 5
+	// replaced the Kristall "ring-1 ring-cyan/30" card highlight with the
+	// hairline day-cell's plain bg-cyan/5 wash (historieMonthCellClass).
+	if !strings.Contains(body, "bg-cyan") {
+		t.Errorf("month fragment missing today cyan accent, got:\n%s", body[:limitLen(500, len(body))])
 	}
 }
 
@@ -496,8 +507,9 @@ func TestWebNodesListWithSessions(t *testing.T) {
 }
 
 // TestHeuteHome_HitWeekRow seeds exactly 8h on a weekday in the current week
-// to drive heuteBarFill("hit") and heuteDotClass("hit") branches in the
-// heute week-row card.
+// and pins the WeekGoalLine's "bisher {WeekTotal}" clause (FmtVerbose,
+// unchanged by Review Fix 1 — only the .weekbar day values and the ledger
+// duration column switched to the Mockup's clock format).
 // Clock = 2026-06-21 (Sunday); current ISO week Mon 2026-06-15 – Sun 2026-06-21.
 func TestHeuteHome_HitWeekRow(t *testing.T) {
 	srv := newWorktimeTestServer(t)
@@ -509,7 +521,7 @@ func TestHeuteHome_HitWeekRow(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 	body := rr.Body.String()
-	// Week-row for Monday shows 8h 00m (logged = target → "hit" variant).
+	// WeekGoalLine's "bisher" clause shows 8h 00m (WeekTotal, FmtVerbose).
 	if !strings.Contains(body, "8h 00m") {
 		t.Errorf("heute home missing '8h 00m' for hit week row, got:\n%s", body[:limitLen(1000, len(body))])
 	}
@@ -736,9 +748,12 @@ func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 }
 
 // TestWocheFragment_WithDayOffKinds seeds DayOffs with multiple Kind values
-// (Vacation, Sick, Flex, Special, ChildSick, Training) on days in the current
-// week and renders the Woche fragment. This exercises the dayOffHue switch
-// branches: purple/orange/green/yellow/red/cyan, hitting > 80% of dayOffHue.
+// (Vacation, Sick, Flex, Special, ChildSick) on the five weekdays of the
+// current week and renders the Woche fragment. This exercises the dayOffHue
+// switch branches: purple/orange/green/yellow/red. Training (cyan/tc-t) has
+// no free weekday slot in a single ISO week (only Mon–Fri are non-weekend —
+// a Sat/Sun day-off never renders specially, wocheDayRowVM's Weekend early
+// return) and is covered directly by TestWocheDayOffTypeChip instead.
 func TestWocheFragment_WithDayOffKinds(t *testing.T) {
 	srv, dos, codec := newWocheWithDayOffServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -747,17 +762,16 @@ func TestWocheFragment_WithDayOffKinds(t *testing.T) {
 	ctx := context.Background()
 
 	// Clock = 2026-06-21 (Sunday), ISO week Mon 2026-06-15 – Sun 2026-06-21.
-	// Seed one day-off per kind on days Mon–Sat of the current week.
+	// Seed one day-off per kind on the week's five weekdays (Mon–Fri).
 	dayOffs := []struct {
 		date string
 		kind domain.Kind
 	}{
-		{"2026-06-15", domain.KindVacation},   // purple
-		{"2026-06-16", domain.KindSick},        // orange
-		{"2026-06-17", domain.KindFlex},        // green
-		{"2026-06-18", domain.KindSpecial},     // yellow
-		{"2026-06-19", domain.KindChildSick},   // red
-		{"2026-06-20", domain.KindTraining},    // cyan
+		{"2026-06-15", domain.KindVacation},  // purple
+		{"2026-06-16", domain.KindSick},      // orange
+		{"2026-06-17", domain.KindFlex},      // green
+		{"2026-06-18", domain.KindSpecial},   // yellow
+		{"2026-06-19", domain.KindChildSick}, // red
 	}
 	for _, d := range dayOffs {
 		day, _ := time.ParseInLocation("2006-01-02", d.date, time.Local)
@@ -783,10 +797,25 @@ func TestWocheFragment_WithDayOffKinds(t *testing.T) {
 		t.Fatalf("GET /ui/woche/fragment status=%d body=%.200s", res.StatusCode, string(b))
 	}
 	body := string(b)
-	// DayOff chips should appear for multiple hues.
-	for _, want := range []string{"purple", "orange", "green", "yellow", "red", "cyan"} {
+	// Each day-off kind's German label must render in its row (wocheDayRow's
+	// .typechip text).
+	for _, want := range []string{
+		domain.KindVacation.LabelDe(),
+		domain.KindSick.LabelDe(),
+		domain.KindFlex.LabelDe(),
+		domain.KindSpecial.LabelDe(),
+		domain.KindChildSick.LabelDe(),
+	} {
 		if !strings.Contains(body, want) {
-			t.Errorf("woche fragment missing hue %q for day-off chip", want)
+			t.Errorf("woche fragment missing day-off label %q", want)
+		}
+	}
+	// The distinct tc-* tone classes (wocheDayOffTypeChip, Farb-Gesetz-fixed
+	// semantic tones) must still differentiate the chips — Special (yellow)
+	// shares tc-o with Sick (orange), only 6 tc- tokens exist for 7 hues.
+	for _, want := range []string{"tc-v", "tc-o", "tc-g", "tc-r"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("woche fragment missing day-off chip tone class %q", want)
 		}
 	}
 }
@@ -813,7 +842,7 @@ func TestHistorieHome_MonthFragmentUnassignedBanner(t *testing.T) {
 }
 
 // TestWocheFragment_WeekendRow verifies the woche fragment renders weekend rows
-// (Sa/So) via the wocheWeekendRow templ and wocheDayDotClass "weekend" branch.
+// (Sa/So) via wocheDayRow's Weekend branch (unified row template, L4 Task 4).
 func TestWocheFragment_WeekendRow(t *testing.T) {
 	srv := newWorktimeTestServer(t)
 	// Seed a session on Saturday 2026-06-20 (weekend day in current week).

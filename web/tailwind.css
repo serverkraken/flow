@@ -55,7 +55,7 @@
 
   /* Legacy-Farbnamen → Lesesaal-Semantik (Seiten-Kompatibilität, L2–L4 räumt auf) */
   --blue:     43  91 246;
-  --cyan:     14 152 136;   /* Petrol — trägt wtblock-running/now-line bis L4 */
+  --cyan:     14 152 136;   /* Petrol — heute-Akzent (Historie-Grid), Pill-Tab, Split-Bar, Auth-Branding (L4: wtblock-running/now-line auf --live umgezogen) */
   --green:    15 138  70;
   --purple:  122  63 228;
   --magenta: 209  67  36;
@@ -306,15 +306,15 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     font-size:.72rem; font-weight:700; color: rgb(var(--blue));
   }
 
-  /* running block — live cyan, breathing rail */
-  .wtblock-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
-  .wtblock-running::before { background: rgb(var(--cyan)); }
+  /* running block — live green, breathing rail (Spec §7.3: Live = Grün) */
+  .wtblock-running { background: rgb(var(--live) / .14); border-color: rgb(var(--live) / .5); }
+  .wtblock-running::before { background: rgb(var(--live-bright)); }
 
   /* now-line across the grid (today) */
-  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--cyan)); z-index:8; pointer-events:none; }
+  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--live-bright)); z-index:8; pointer-events:none; }
   .now-line::before {
-    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--cyan));
-    box-shadow:0 0 0 3px rgb(var(--cyan) / .25);
+    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--live-bright));
+    box-shadow:0 0 0 3px rgb(var(--live-bright) / .25);
   }
 
   /* fuzzy-picker option rows */
@@ -560,6 +560,33 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .row .right { text-align: right; flex-shrink: 0; }
   .row .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
   .row .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
+
+  /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
+  /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */
+  .narrow { max-width: 860px; margin: 0 auto; }
+  /* Scroll-Boden für breite Grids (Kalender): Inhalt behält 860px und scrollt
+     im eigenen overflow-x-Rahmen statt die Seite zu pannen (Spec §11/§12). */
+  .narrow-min { min-width: 860px; }
+  /* Fehler-Hinweiszeile der Seiten-Flows (Rest-Sweep L4: 5× identisches
+     Inline-Muster → benannte Klasse; Rot bleibt Fehler-Reserve, Spec §7). */
+  .alert-err { margin-bottom: 1.25rem; border-radius: 14px; background: rgb(var(--red)/.1); padding: 12px 16px; font-size: .9rem; font-weight: 500; color: rgb(var(--red)); }
+  /* Jetzt-Panelzeile (zweite Fläche, Zwei-Flächen-Regel) */
+  .panelrow { background: rgb(var(--panel)); border-radius: 14px; padding: 13px 16px; border-bottom: none; margin-top: 12px; }
+  /* Zeit-Wochenskala: vertikale Balken (horizontale heuteWeekRows/wocheDayBarStyle bleiben unberührt) */
+  .weekbar { display: flex; gap: 26px; align-items: flex-end; padding: 20px 18px 14px; background: rgb(var(--panel)); border-radius: 14px; margin-top: 14px; overflow-x: auto; }
+  .day { flex: 1; min-width: 36px; text-align: center; }
+  .day .bar { height: 74px; display: flex; align-items: flex-end; justify-content: center; }
+  .day .bar i { display: block; width: 22px; border-radius: 3px 3px 0 0; background: rgb(var(--hair2)); min-height: 3px; }
+  .day.has .bar i { background: rgb(var(--accent)); }
+  .day.today .bar i { background: rgb(var(--live-bright)); }
+  .day .d { margin-top: 8px; font-size: 11.5px; color: rgb(var(--faint)); }
+  .day .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--meta)); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  /* Zeit-Ledger Von–Bis (Mockup Z.60–62) */
+  .num { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .dim { color: rgb(var(--meta)); }
+  .led-when { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; color: rgb(var(--meta)); font-size: 13px; flex-shrink: 0; }
+  /* Soll-Zeile in einer .sect-h (Mockup Z.870) — .instr .note ist ein anderer Scope */
+  .sect-h .note { margin-left: auto; font-size: 12.5px; color: rgb(var(--meta)); }
 }
 
 @media (max-width: 960px) {
@@ -594,6 +621,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   figure .frame { padding: 14px; }
   .prov .mono { overflow-wrap: anywhere; }
   .provref { max-width: 140px; }
+  /* Lesesaal L4 (Mockup Z.311/314): weekbar-Balken enger, pagehead h1 kleiner */
+  .weekbar { gap: 10px; }
+  .pagehead h1 { font-size: 27px; }
 }
 
 @layer components {

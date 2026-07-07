@@ -10,6 +10,15 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+// homeContinueCap / homeWissenCap / homePulseCap bound the Schreibtisch's
+// three list sections (Mockup Z.371–435: 3/5/3 illustrative rows — the
+// brief settles on 5/5/8 so a light user still sees a full-feeling page).
+const (
+	homeContinueCap = 5
+	homeWissenCap   = 5
+	homePulseCap    = 8
+)
+
 // handleHomeHome renders the Home landing page at GET /.
 func (s *Server) handleHomeHome(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
@@ -41,137 +50,109 @@ func (s *Server) renderHomeFragment(w http.ResponseWriter, r *http.Request, u do
 	_ = webui.HomeFragment(vm).Render(r.Context(), w)
 }
 
-// homeDataFor builds the Home view model from today's daily stats, saldo
-// tiles, burndown banner, newest documents, and activity logstream. Guards
-// all usecase calls so the minimal test server (without worktime usecases)
-// still serves a valid idle page. The running-session/timer-hero fields were
-// retired in K3 Task 6 — the K1 shell timer widget owns that surface now.
+// homeDataFor builds the Schreibtisch view model (L4 Task 2): the ONE
+// running timer's display state (Jetzt), MRU bookable nodes
+// (Weiterarbeiten), the newest documents (Zuletzt im Wissen), and the
+// account-wide activity feed (Puls). Every usecase call is guarded so the
+// minimal test server (without worktime usecases wired) still serves a
+// valid idle page — owner-scoped throughout (every call carries u.ID).
 func (s *Server) homeDataFor(ctx context.Context, u domain.User, errMsg string) (webui.HomeVM, error) {
 	now := s.Clock.Now()
+	vm := webui.HomeVM{Today: webui.FmtDeskDate(now), Err: errMsg}
 
-	vm := webui.HomeVM{
-		Err: errMsg,
+	// Jetzt: the one running timer's display state.
+	if s.GetRunningSession.Sessions != nil {
+		if rs, ok, rerr := s.GetRunningSession.Execute(ctx, u.ID); rerr == nil && ok {
+			vm.Now = s.homeRunningNowVM(ctx, u, rs, now)
+		}
 	}
 
-	// Daily target + balance + saldo tiles + burndown banner
-	// (degrade to zero when Stats is not wired, as with the minimal test server).
+	// Today's total logged time — feeds both the running and idle Jetzt-row.
 	if s.Stats.Sessions != nil {
 		today, _ := s.Stats.Today(ctx, u.ID)
-
-		// Saldo tile for Heute.
-		vm.TodaySaldo = webui.FmtSaldoVerbose(today.Saldo)
-		vm.TodayPos = today.Saldo >= 0
-		vm.TodaySub = webui.FmtVerbose(today.Logged) + " / " + webui.FmtVerbose(today.Target)
-
-		// Woche saldo: Mon–Fri only (exclude Sat/Sun per the recovered pattern).
-		burndown, _ := s.Stats.Burndown(ctx, u.ID)
-		weekDays, _ := s.Stats.Week(ctx, u.ID, time.Time{})
-		var weekLogged, weekTarget time.Duration
-		for _, wd := range weekDays {
-			if wd.Date.Weekday() == time.Saturday || wd.Date.Weekday() == time.Sunday {
-				continue
-			}
-			weekLogged += wd.Total(now)
-			weekTarget += wd.Target
-		}
-		weekSaldo := weekLogged - weekTarget
-		vm.WeekSaldo = webui.FmtSaldoVerbose(weekSaldo)
-		vm.WeekPos = weekSaldo >= 0
-		vm.WeekSub = webui.FmtVerbose(weekLogged) + " / " + webui.FmtVerbose(weekTarget)
-
-		// Monat saldo + burndown banner.
-		vm.MonthSaldo = webui.FmtSaldoVerbose(burndown.Saldo)
-		vm.MonthPos = burndown.Saldo >= 0
-		vm.MonthSub = webui.FmtVerbose(burndown.Total) + " / " + webui.FmtVerbose(burndown.Target)
-		vm.Burndown = burndownBannerVM(burndown)
+		vm.TodayLogged = webui.FmtVerbose(today.Logged)
 	}
 
-	// Newest knowledge articles for the "Zuletzt im Wissen" section.
-	// Guard: skip gracefully when ListDocuments is not wired (minimal test server).
-	var names, colors map[string]string
-	var kinds map[string]domain.NodeKind
+	// Weiterarbeiten: MRU bookable nodes derived from the last 30 days of
+	// sessions — the exact ListSessions signature/window the ⌘K-Palette
+	// already uses (webui_palette.go), not ListSessionsRange.
+	if s.ListSessions.Sessions != nil && s.ListNodes.Nodes != nil {
+		sessions, serr := s.ListSessions.Execute(ctx, u.ID, now.AddDate(0, 0, -30))
+		if serr != nil {
+			slog.WarnContext(ctx, "home: list sessions failed", "err", serr)
+		}
+		nodes, nerr := s.ListNodes.Execute(ctx, u.ID)
+		if nerr != nil {
+			slog.WarnContext(ctx, "home: list nodes failed", "err", nerr)
+		}
+		vm.Continue = webui.BuildRecentNodes(sessions, nodes, now, homeContinueCap)
+	}
+
+	// Zuletzt im Wissen: newest documents, reusing SortedDocuments +
+	// WissenRowFromDocument (the /wissen "Zuletzt aktualisiert" builders).
 	if s.ListDocuments.Docs != nil {
-		docs, err := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
-		if err != nil {
-			slog.WarnContext(ctx, "home: list documents failed", "err", err)
+		docs, derr := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+		if derr != nil {
+			slog.WarnContext(ctx, "home: list documents failed", "err", derr)
 		}
-		names, colors, kinds, err = s.nodeMaps(ctx, u.ID)
-		if err != nil {
-			slog.WarnContext(ctx, "home: nodeMaps failed", "err", err)
+		sorted := webui.SortedDocuments(docs)
+		if len(sorted) > homeWissenCap {
+			sorted = sorted[:homeWissenCap]
 		}
-		vm.NewestDocs = webui.BuildHomeNewest(docs, colors, 5)
+		for _, d := range sorted {
+			vm.RecentWissen = append(vm.RecentWissen, webui.WissenRowFromDocument(d, now))
+		}
 	}
 
-	// Activity logstream — guard: skip when ListActivity is not wired.
+	// Puls: account-wide activity feed.
 	if s.ListActivity.Activities != nil {
-		entries, _, _ := s.ListActivity.Execute(ctx, u.ID, nil, nil, 15, 0)
-		// If nodeMaps wasn't already loaded for docs, load it now for activity
-		if names == nil {
-			var nerr error
-			if names, _, kinds, nerr = s.nodeMaps(ctx, u.ID); nerr != nil {
-				slog.WarnContext(ctx, "home: nodeMaps for activity failed", "err", nerr)
-			}
+		entries, _, aerr := s.ListActivity.Execute(ctx, u.ID, nil, nil, homePulseCap, 0)
+		if aerr != nil {
+			slog.WarnContext(ctx, "home: list activity failed", "err", aerr)
 		}
-		vm.LogEntries = webui.BuildActivityRows(entries, names, kinds, now)
-		actors, _ := s.ListActivity.Actors(ctx, u.ID)
-		vm.LogActors = actors
+		names, _, kinds, merr := s.nodeMaps(ctx, u.ID)
+		if merr != nil {
+			slog.WarnContext(ctx, "home: nodeMaps for activity failed", "err", merr)
+		}
+		vm.Puls = webui.BuildActivityRows(entries, names, kinds, now)
 	}
 
 	return vm, nil
 }
 
-// classToPrefix maps the WebUI chip class name to the kind-prefix used by ListActivity.
-// Empty / unknown → nil (no filter).
-func classToPrefix(class string) []string {
-	switch class {
-	case "zeit":
-		return []string{"session"}
-	case "wissen":
-		return []string{"document"}
-	case "struktur":
-		return []string{"node"}
-	case "frei":
-		return []string{"dayoff"}
-	default:
-		return nil
+// homeRunningNowVM resolves the running session's node (when bound) into
+// the Jetzt row's display fields, including the Work/Privat flag via the
+// node's ancestor chain (domain.ResolveCountsTowardTarget) — degrading to
+// an unbound-looking row (NodeID == "", no Stop button, Spec §10) on any
+// resolution error rather than failing the whole page.
+func (s *Server) homeRunningNowVM(ctx context.Context, u domain.User, rs domain.WorkSession, now time.Time) *webui.RunningNowVM {
+	nowVM := &webui.RunningNowVM{
+		BaseSeconds: int64(rs.Elapsed(now) / time.Second),
+		SinceEpoch:  now.Unix() - int64(rs.Elapsed(now)/time.Second),
+		SinceStr:    rs.Start.Format("15:04"),
 	}
-}
-
-// handleHomeLogstream renders the logstream section fragment at
-// GET /ui/home/logstream with optional class and actor filters.
-func (s *Server) handleHomeLogstream(w http.ResponseWriter, r *http.Request) {
-	u, _ := userFrom(r.Context())
-	now := s.Clock.Now()
-
-	class := r.URL.Query().Get("class")
-	actor := r.URL.Query().Get("actor")
-
-	var actorPtr *string
-	if actor != "" {
-		actorPtr = &actor
+	if rs.NodeID == nil || s.GetNode.Nodes == nil {
+		return nowVM
 	}
-
-	classes := classToPrefix(class)
-
-	var entries []domain.ActivityEntry
-	var logActors []string
-	if s.ListActivity.Activities != nil {
-		entries, _, _ = s.ListActivity.Execute(r.Context(), u.ID, classes, actorPtr, 15, 0)
-		logActors, _ = s.ListActivity.Actors(r.Context(), u.ID)
+	n, err := s.GetNode.Execute(ctx, u.ID, *rs.NodeID)
+	if err != nil {
+		slog.WarnContext(ctx, "home: running session node lookup failed", "err", err)
+		return nowVM
 	}
-
-	names, _, kinds, nerr := s.nodeMaps(r.Context(), u.ID)
-	if nerr != nil {
-		slog.WarnContext(r.Context(), "home: nodeMaps for activity failed", "err", nerr)
+	nowVM.NodeID = n.ID
+	nowVM.NodeName = webui.ShortName(n.Name)
+	nowVM.NodeHref = "/nodes/" + n.ID
+	nowVM.Initials = webui.Initials(n.Name)
+	nowVM.Tone = webui.AvatarTone(n.Name)
+	nowVM.LogoRef = n.LogoRef
+	if s.NodeAncestors.Nodes != nil {
+		if chain, aerr := s.NodeAncestors.Execute(ctx, u.ID, n.ID); aerr == nil {
+			full := chain
+			if len(full) == 0 || full[0].ID != n.ID {
+				full = append([]domain.Node{n}, full...)
+			}
+			nowVM.CountsWork = domain.ResolveCountsTowardTarget(full)
+		}
 	}
-
-	vm := webui.HomeVM{
-		LogEntries: webui.BuildActivityRows(entries, names, kinds, now),
-		LogActors:  logActors,
-		LogClass:   class,
-		LogActor:   actor,
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = webui.HomeLogstream(vm).Render(r.Context(), w)
+	return nowVM
 }

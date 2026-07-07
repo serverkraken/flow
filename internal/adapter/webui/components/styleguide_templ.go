@@ -202,6 +202,10 @@ func styleguideContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = Card("mb-6", sgLesesaalL4()).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
@@ -616,7 +620,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: rgb(var(--" + token + "))")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 135, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 137, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -629,7 +633,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(token)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 136, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 138, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -799,6 +803,110 @@ func sgLesesaalL3() templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<h2 class=\"font-display text-lg font-semibold mb-4\">Lesesaal L3 — Lese-Ebene &amp; Wissen</h2><div class=\"read mb-6\"><article class=\"prose\"><p>Ein normaler Absatz eröffnet das Dokument mit ruhigem Fließtext, der die <strong>Lesespalte</strong> auf 680px begrenzt.</p><blockquote class=\"lede\">Eine Lede fasst den Kontext in einem Satz zusammen, bevor die Details folgen.</blockquote><h2>Ein Abschnitt mit Haarlinie</h2><p>Text nach der Überschrift, inklusive einem <a href=\"#\" class=\"wl\">Wikilink</a> auf ein anderes Dokument.</p><h3>Ein Unterabschnitt</h3><div class=\"tblwrap\"><table><thead><tr><th>Spalte</th><th>Wert</th></tr></thead> <tbody><tr><td>Erste Zeile</td><td><code>ok</code></td></tr><tr><td>Sehr lange Kennung für die Scroll-Probe</td><td>42</td></tr></tbody></table></div><pre><code>var beispiel = \"so sieht ein Codeblock aus\"</code></pre><div class=\"callout callout-warning\"><span class=\"callout-glyph\" aria-hidden=\"true\">!</span><p class=\"callout-title\">Hinweis</p></div><figure><div class=\"frame\"><svg width=\"120\" height=\"60\" viewBox=\"0 0 120 60\"><rect width=\"120\" height=\"60\" fill=\"none\" stroke=\"currentColor\"></rect></svg></div><figcaption><b>Abb. 1</b> — Platzhalter-Figur</figcaption></figure><div class=\"mermaid-error\"><p>Diagramm konnte nicht gerendert werden.</p><pre><code>graph TD; A --&gt; B</code></pre></div><details class=\"mermaid-src\"><summary>Quelltext</summary><pre><code>graph TD; A --&gt; B</code></pre></details></article><aside class=\"docrail\"><div class=\"blk\"><span class=\"eyebrow\">Inhalt</span><nav class=\"toc\"><a href=\"#\" class=\"here\"><span class=\"n\">01</span>Ein Abschnitt mit Haarlinie</a> <a href=\"#\"><span class=\"n\">02</span>Ein Unterabschnitt</a></nav></div><div class=\"blk\"><span class=\"eyebrow\">Verweise</span><div class=\"krow\"><span class=\"n\">Rückverlinkt von</span> <span class=\"v\">3</span></div></div></aside></div><div class=\"prov mb-6\"><span>Angepinnt von Martin</span> <span class=\"dotsep\">·</span> <span class=\"mono\">/Users/soenne/SourceCode/serverkraken/flow-rebuild-mit-einem-sehr-langen-verschachtelten-pfad-zur-probe</span></div><div class=\"bigsearch mb-4\"><span class=\"ico\" aria-hidden=\"true\">⌕</span> <input type=\"text\" placeholder=\"Wissen durchsuchen…\"> <kbd>⌘K</kbd></div><div class=\"shelf\"><a class=\"row\" href=\"#\"><div class=\"grow\"><div class=\"t\">Backstage-Notiz</div><div class=\"mono s\">notiz · vor 2 Tagen</div></div><div class=\"right\"><div class=\"v\">·</div><div class=\"k\">—</div></div></a> <a class=\"row\" href=\"#\"><div class=\"grow\"><div class=\"t\">Vorhaben-Guide</div><div class=\"mono s\">guide · heute</div></div><div class=\"right\"><div class=\"v\">·</div><div class=\"k\">—</div></div></a></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// ── Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala ─────────────────
+func sgLesesaalL4() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var21 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var21 == nil {
+			templ_7745c5c3_Var21 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "<h2 class=\"font-display text-lg font-semibold mb-4\">Lesesaal L4 — Panelzeile &amp; Wochenskala</h2><div class=\"narrow\"><div class=\"panelrow flex items-center gap-3\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = Avatar("MS", "av-a", "av-36").Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<div class=\"grow\"><div class=\"t\">Timer läuft auf flow-rebuild</div><div class=\"s\"><span class=\"livechip\">LIVE</span> <span class=\"led-when num dim\">09:14</span></div></div><a class=\"btn btn-q btn-s\" href=\"#\">Stop</a></div><div class=\"weekbar mt-4\" role=\"img\" aria-label=\"Wochenübersicht: Montag bis Sonntag, gebuchte Stunden pro Tag\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, d := range []struct {
+			label string
+			val   string
+			cls   string
+		}{
+			{"Mo", "6h 10m", "day has"},
+			{"Di", "7h 40m", "day has"},
+			{"Mi", "5h 05m", "day has"},
+			{"Do", "8h 20m", "day has today"},
+			{"Fr", "—", "day"},
+			{"Sa", "—", "day"},
+			{"So", "—", "day"},
+		} {
+			var templ_7745c5c3_Var22 = []any{d.cls}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var22...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var23 string
+			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(templ.CSSClasses(templ_7745c5c3_Var22).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "\"><div class=\"bar\"><i></i></div><div class=\"d\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var24 string
+			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(d.label)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 386, Col: 29}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div><div class=\"v\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var25 string
+			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(d.val)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 387, Col: 27}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><div class=\"sect\"><div class=\"sect-h\"><span class=\"eyebrow\">Heute</span> <span class=\"note dim\">Soll 8h · bisher 6h 10m · auf Kurs</span></div><div class=\"row\"><span class=\"led-when\">09:02–11:30</span><div class=\"grow\"><div class=\"t\">flow-rebuild</div></div><div class=\"right\"><div class=\"v\">2h 28m</div></div></div><div class=\"row\"><span class=\"led-when\">13:00–16:42</span><div class=\"grow\"><div class=\"t\">homelab-study</div></div><div class=\"right\"><div class=\"v\">3h 42m</div></div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

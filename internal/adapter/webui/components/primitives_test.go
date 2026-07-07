@@ -86,15 +86,6 @@ func TestButtonPrimary_LesesaalCTA(t *testing.T) {
 	}
 }
 
-func TestStatTileAccent_RendersAccentBarAndSub(t *testing.T) {
-	out := render(t, components.StatTileAccent("stats.week", "18h 20m", "+2h 05m", "purple"))
-	for _, want := range []string{"rtile-ac", "--ac:var(--purple)", "18h 20m", "+2h 05m", "glass"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("accent tile missing %q: %s", want, out)
-		}
-	}
-}
-
 func TestTabStrip_PillsAndCount(t *testing.T) {
 	tabs := []components.Tab{{Key: "a", Href: "/a", LabelKey: "nav.projects", Count: 12}, {Key: "b", Href: "/b", LabelKey: "nav.home"}}
 	out := render(t, components.TabStrip(tabs, "a"))
@@ -286,20 +277,6 @@ func TestAvatar_RendersToneAndInitials(t *testing.T) {
 	for _, want := range []string{"av-c", "av-36", ">BA<", `aria-hidden="true"`} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("Avatar output missing %q:\n%s", want, out)
-		}
-	}
-}
-
-func TestSharedBanners_OnGlass(t *testing.T) {
-	cases := []string{
-		render(t, components.BurndownBanner(components.BurndownVM{})),
-		render(t, components.WeekTotalBanner(components.WeekTotalVM{})),
-		render(t, components.SelectionActionBar(components.SelectionBarVM{})),
-		render(t, components.KennzahlenPanel(components.KennzahlenVM{})),
-	}
-	for i, out := range cases {
-		if !strings.Contains(out, "glass") {
-			t.Errorf("shared banner %d not on glass: %s", i, out)
 		}
 	}
 }

@@ -78,13 +78,21 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "flow · frei") {
 		t.Fatalf("GET /dayoffs status=%d body=%.120s", code, body)
 	}
-	// Kristall glass chrome on the add/list/settings cards, not the old
-	// hand-rolled bg-surface/border-line styling.
-	if !strings.Contains(body, "glass") {
-		t.Errorf("Frei cards should use glass chrome, got:\n%.400s", body)
+	// L4 Task 6: Frei is now a full Lesesaal page (pagehead/panel/row), not
+	// the retired Kristall glass cards.
+	content := nonDialogContent(body)
+	for _, want := range []string{"pagehead", "panel", "spine", "‹ Zeit"} {
+		if !strings.Contains(content, want) {
+			t.Errorf("Frei page-flow content missing %q, got:\n%.800s", want, content)
+		}
 	}
-	if strings.Contains(body, "bg-surface border border-line") {
-		t.Errorf("Frei cards should not keep the old bg-surface border border-line chrome, got:\n%.400s", body)
+	// "font-display" also appears in the shared AppShell topbar logo mark
+	// (unrelated to Frei content, see Woche/Historie precedent), so it's
+	// excluded here and checked below via the Frei-owned fragment endpoint.
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl"} {
+		if strings.Contains(content, unwanted) {
+			t.Errorf("Frei page-flow content must not render retired Kristall chrome %q, got:\n%.800s", unwanted, content)
+		}
 	}
 	// Add-form, Bundesland select, and ICS copy button must still render.
 	if !strings.Contains(body, `hx-post="/ui/dayoffs/add"`) {
@@ -106,6 +114,11 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 	if code != http.StatusOK || !strings.Contains(body, "15.06.2026") {
 		t.Fatalf("add status=%d body=%.200s", code, body)
 	}
+	// The added entry renders as a Lesesaal .row with a .typechip kind tone,
+	// not the retired freiKindChip bg-{hue}/10 wash.
+	if !strings.Contains(body, `class="row"`) || !strings.Contains(body, "typechip") {
+		t.Errorf("expected the day-off list to render .row/.typechip entries, got:\n%.600s", body)
+	}
 
 	// Regenerate the ICS token → fragment shows a feed URL.
 	code, body = do("POST", "/ui/dayoffs/regen-token", "")
@@ -117,6 +130,16 @@ func TestWebDayOffPageAndMutations(t *testing.T) {
 	code, body = do("GET", "/ui/dayoffs", "")
 	if code != http.StatusOK || !strings.Contains(body, "name=\"bundesland\"") {
 		t.Fatalf("fragment status=%d body=%.120s", code, body)
+	}
+	// The Frei-owned fragment (no shared topbar chrome) must not render any
+	// of the retired Kristall classes, including font-display, in its
+	// page-flow content — scoped before the first native <dialog> (the
+	// ConfirmDialogs legitimately keep their own modal chrome).
+	fragContent := nonDialogContent(body)
+	for _, unwanted := range []string{"glass", "shadow-soft", "rounded-3xl", "font-display"} {
+		if strings.Contains(fragContent, unwanted) {
+			t.Errorf("Frei fragment must not render retired Kristall chrome %q, got:\n%.800s", unwanted, fragContent)
+		}
 	}
 
 	// Delete the day → still renders.

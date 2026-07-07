@@ -261,7 +261,6 @@ func (s *Server) historieBuildWeek(ctx context.Context, u domain.User, vm *webui
 
 	isCurrent := weekStart.Equal(curMonday)
 	vm.RangeLabel = wocheRangeLabel(weekStart)
-	vm.Eyebrow = "Worktime · " + historieMonthYear(weekStart)
 	vm.PrevHref = historieCalHref("week", weekStart.AddDate(0, 0, -7))
 	if !isCurrent {
 		nx := weekStart.AddDate(0, 0, 7)
@@ -359,7 +358,6 @@ func (s *Server) historieBuildMonth(ctx context.Context, u domain.User, vm *webu
 	}
 
 	vm.MonthLabel = historieMonthYear(first)
-	vm.Eyebrow = "Worktime · " + historieMonthYear(first)
 	vm.RangeLabel = historieMonthYear(first)
 	vm.MonthTotal = webui.FmtVerbose(monthTotal)
 	vm.MonthUnassigned = monthUnassigned

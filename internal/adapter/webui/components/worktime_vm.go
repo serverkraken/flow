@@ -90,15 +90,3 @@ type PaceDot struct{ State string } // behind|ontrack|ahead|running|holiday|off
 
 // SegOption is one tab in a SegToggle segmented control.
 type SegOption struct{ Key, LabelKey, Href string }
-
-// BurndownVM drives the Monats-Burndown banner: the month total/target, the
-// progress-bar fill (Pct/Variant) and a pace marker (PacePct = where one
-// should stand by today). OnTrack toggles the auf-Kurs / Rückstand chip.
-type BurndownVM struct {
-	Total   string // "78h 00m"
-	Target  string // "160h 00m"
-	Pct     int    // logged fill, 0..100
-	PacePct int    // pace-marker position, 0..100
-	Variant string // hit|over|under|running (ProgressBar color)
-	OnTrack bool
-}

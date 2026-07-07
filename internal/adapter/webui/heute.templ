@@ -1,65 +1,74 @@
 package webui
 
-import "github.com/serverkraken/flow/internal/adapter/webui/components"
+import (
+	"strconv"
 
-// worktimeSubnav is the shared worktime sub-tab strip (Heute · Woche · Historie).
-// Woche/Historie (Tasks 7-8) reuse this; keep the name stable.
-templ worktimeSubnav(active string) {
-	@components.TabStrip([]components.Tab{
-		{Key: "today", Href: "/zeit", LabelKey: "nav.today"},
-		{Key: "week", Href: "/woche", LabelKey: "nav.week"},
-		{Key: "history", Href: "/historie", LabelKey: "nav.history"},
-	}, active)
-}
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
 
-// HeutePage is the full Heute page on the Slice-0 AppShell.
+// HeutePage is the full Zeit page on the AppShell.
 templ HeutePage(vm HeuteVM) {
 	@components.Base("heute", heuteBody(vm))
 }
 
+// heuteBody mounts the Zeit-Hub with NO sub-tab-strip (subnav = nil) — L4
+// Task 3 retires the Heute/Woche/Historie pill strip from this surface.
 templ heuteBody(vm HeuteVM) {
-	@components.AppShell("zeit", nil, worktimeSubnav("today"), heuteOuter(vm))
+	@components.AppShell("zeit", nil, nil, heuteOuter(vm))
 }
 
 // heuteOuter is the SSE-swap container: it reloads the inner HeuteFragment on
-// any worktime/project event.
+// every event that can change a Zeit row (session/dayoff/settings — Gemini-
+// Fund #4: node.created replaces the dead project.created so a Quick-Create
+// node from the Nachbuchen picker live-updates the picker's option list).
 templ heuteOuter(vm HeuteVM) {
 	<div id="content"
 		hx-get="/ui/worktime"
-		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:project.created"
+		hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.created, sse:dayoff.changed, sse:settings.changed"
 		hx-swap="innerHTML">
 		@HeuteFragment(vm)
 	</div>
 }
 
-// HeuteFragment is the inner content re-rendered live and after every mutation.
-// Heute is a pure glass day-ledger now — no running-hero, no idle start-card;
-// the K1 shell timer widget (sidebar) owns start/stop.
+// HeuteFragment is the inner content re-rendered live and after every
+// mutation: the Lesesaal Tages-Ledger (Mockup Z.845–892) — pagehead,
+// "Heute" ledger, vertical "Diese Woche" Wochenskala, and the "Werkzeuge"
+// menu. No Saldo-Kacheln, no Burndown-Banner, no sub-tab-strip.
 templ HeuteFragment(vm HeuteVM) {
 	if vm.Err != "" {
-		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+		<p class="alert-err" role="alert">{ vm.Err }</p>
 	}
-	<section class="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-5">
-		@heuteDaySummary(vm)
-	</section>
-	<section class="mt-5 md:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5 md:gap-6">
-		@heuteLedgerCard(vm)
-		@heuteWeekCard(vm)
-	</section>
+	<div class="narrow">
+		<div class="pagehead">
+			<span class="eyebrow">{ components.T(ctx, "zeit.eyebrow") }</span>
+			<h1>{ vm.DateTitle }</h1>
+			<p class="sub">{ vm.AllTimeSub }</p>
+		</div>
+		@heuteTodaySection(vm)
+		@heuteWeekSection(vm)
+		@heuteToolsSection(vm)
+	</div>
 }
 
-// heuteDaySummary is the Tages-Summen tile row (replaces the removed hero stats).
-templ heuteDaySummary(vm HeuteVM) {
-	@components.StatTileAccent("heute.todayTotal", vm.LoggedDur, "", "")
-	@components.StatTileAccent("heute.target", vm.TargetDur, "", "")
-	@components.StatTileAccent("heute.balance", vm.Balance, "", heuteBalanceHue(vm.BalancePos))
-}
-
-// heuteLedgerCard lists today's sessions as clickable Kristall blocks + the
-// Nachbuchen affordance; each block opens its edit SessionDialog, plus a delete
-// ConfirmDialog for completed sessions.
-templ heuteLedgerCard(vm HeuteVM) {
-	@components.Card("lg:col-span-2 p-6", heuteLedgerBody(vm))
+// heuteTodaySection is "Heute" (Mockup Z.856–867): the day's ledger rows plus
+// the Nachbuchen affordance, which opens the shared add SessionDialog (no
+// server round-trip, data-dialog-open — Bestand).
+templ heuteTodaySection(vm HeuteVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "zeit.today") }</span>
+			<button type="button" class="more" data-dialog-open="nachbuchen-dialog">
+				{ components.T(ctx, "zeit.nachbuchen") } ›
+			</button>
+		</div>
+		if len(vm.Ledger) == 0 && vm.Running == nil {
+			<p class="text-sm text-faint">{ components.T(ctx, "zeit.emptyToday") }</p>
+		} else {
+			for _, lr := range vm.Ledger {
+				@heuteLedgerRow(vm.DayParam, lr)
+			}
+		}
+	</div>
 	@components.SessionDialog(components.SessionDialogVM{
 		DialogID: "nachbuchen-dialog", Mode: "add",
 		Action: "/ui/worktime/add", Target: "#content",
@@ -67,106 +76,103 @@ templ heuteLedgerCard(vm HeuteVM) {
 	})
 }
 
-templ heuteLedgerBody(vm HeuteVM) {
-	<div class="flex items-center justify-between mb-4">
-		<h2 class="font-display text-lg font-semibold">{ components.T(ctx, "heute.sessions") }</h2>
-		<span class="text-[.8rem] text-muted">{ components.Tn(ctx, "list.entries", len(vm.Ledger)) }</span>
-	</div>
-	if len(vm.Ledger) == 0 && vm.Running == nil {
-		@components.EmptyState("○", "heute.emptyTitle", "heute.empty")
-	} else {
-		<ul class="space-y-2.5">
-			for _, lr := range vm.Ledger {
-				@heuteLedgerRow(vm, lr)
+// heuteLedgerRow is one Lesesaal ledger .row (Mockup Z.858–866): the Von–Bis
+// mono .led-when, the node/title + the session's free-text Note (falling
+// back to its tags when there is no note — Review Fix 2), and the duration
+// in the Mockup's "6:10" clock format (DurationShort, Review Fix 1 — NOT
+// SessionRowVM.Duration's "6h 10m", which stays untouched for Woche/
+// Historie). A running session shows the LIVE chip + a ticking clock instead
+// of a static duration — it is ANZEIGE-ONLY (no stop control here, Spec §10
+// / l4-global-constraints.md — stop lives on the Topbar-Pill / Cockpit-instr-
+// Band). Edit/delete for a completed session live as small controls under
+// the duration (.right .k), mirroring cockpitBuchungActions' established
+// convention rather than wrapping the whole row in a <button> (which would
+// nest interactive elements once delete sits beside it).
+templ heuteLedgerRow(dayParam string, lr HeuteLedgerRow) {
+	<div class="row">
+		<span class="led-when">
+			if lr.Row.Running {
+				{ zeitRunningStartLabel(lr.Row.TimeRange) + " – " + components.T(ctx, "heute.running") }
+			} else {
+				{ lr.Row.TimeRange }
 			}
-		</ul>
+		</span>
+		<div class="grow">
+			<div class="t">{ lr.Row.Title }</div>
+			if lr.Note != "" {
+				<div class="s">{ lr.Note }</div>
+			} else if sub := zeitLedgerSub(lr.Row.Tags); sub != "" {
+				<div class="s">{ sub }</div>
+			}
+		</div>
+		if lr.Row.Running {
+			<span class="livechip">{ components.T(ctx, "cockpit.pulse.live") }</span>
+		}
+		<div class="right">
+			if lr.Row.Running {
+				<div class="v" data-timer data-timer-fmt="clock" data-base={ strconv.FormatInt(lr.BaseSeconds, 10) } data-since={ strconv.FormatInt(lr.SinceEpoch, 10) } role="timer">{ fmtClockHMS(lr.BaseSeconds) }</div>
+			} else {
+				<div class="v">{ lr.DurationShort }</div>
+				<div class="k">
+					<button type="button" class="targetlink" data-dialog-open={ lr.Edit.DialogID }>{ components.T(ctx, "common.edit") }</button>
+					<button type="button" aria-label={ components.T(ctx, "common.delete") }
+						data-dialog-open={ "delete-" + lr.Row.ID }
+						class="ml-1 text-faint hover:text-red">✗</button>
+				</div>
+			}
+		</div>
+	</div>
+	if !lr.Row.Running {
+		@components.SessionDialog(lr.Edit)
+		@components.ConfirmDialog(components.ConfirmSpec{
+			ID: "delete-" + lr.Row.ID,
+			ConfirmAttrs: templ.Attributes{
+				"hx-post":   "/ui/worktime/delete",
+				"hx-target": "#content",
+				"hx-swap":   "innerHTML",
+				"hx-vals":   heuteDeleteVals(dayParam, lr.Row.ID),
+				"type":      "button",
+			},
+		})
 	}
-	<button type="button" data-dialog-open="nachbuchen-dialog"
-		class="mt-4 w-full rounded-2xl border border-dashed border-line py-3 text-[.86rem] font-medium text-muted hover:border-blue/40 hover:text-blue transition-colors">
-		<span aria-hidden="true">✚</span> { components.T(ctx, "heute.nachbuchen") }
-	</button>
 }
 
-// heuteLedgerRow is one glass session block: the whole card opens the edit
-// dialog (completed sessions); a running session is not editable. Delete lives
-// in the mounted per-row ConfirmDialog.
-templ heuteLedgerRow(vm HeuteVM, lr HeuteLedgerRow) {
-	<li class="flex items-center gap-3">
-		if lr.Edit.Mode == "edit" {
-			<button type="button" data-dialog-open={ lr.Edit.DialogID }
-				class="flex-1 min-w-0 text-left rounded-2xl glass shadow-soft px-3.5 py-3 hover:border-blue/40 transition-colors">
-				@heuteRowInner(lr.Row)
-			</button>
-			@components.SessionDialog(lr.Edit)
-		} else {
-			<div class="flex-1 min-w-0 rounded-2xl glass shadow-soft px-3.5 py-3">
-				@heuteRowInner(lr.Row)
-			</div>
-		}
-		if !lr.Row.Running {
-			<button type="button" aria-label={ components.T(ctx, "common.delete") }
-				data-dialog-open={ "delete-" + lr.Row.ID }
-				class="grid place-items-center h-8 w-8 rounded-lg text-faint hover:text-red hover:bg-red/10 transition-colors">
-				<span aria-hidden="true">✗</span>
-			</button>
-			@components.ConfirmDialog(components.ConfirmSpec{
-				ID: "delete-" + lr.Row.ID,
-				ConfirmAttrs: templ.Attributes{
-					"hx-post":   "/ui/worktime/delete",
-					"hx-target": "#content",
-					"hx-swap":   "innerHTML",
-					"hx-vals":   heuteDeleteVals(vm.DayParam, lr.Row.ID),
-					"type":      "button",
-				},
-			})
-		}
-	</li>
-}
-
-// heuteRowInner is the block's visual content (glyph tile, title+tags, range, duration).
-templ heuteRowInner(row components.SessionRowVM) {
-	<div class="flex items-center gap-3">
-		<span class={ "grid place-items-center h-9 w-9 rounded-xl text-[.95rem] flex-none", heuteRowTile(row) } aria-hidden="true">{ row.Glyph }</span>
-		<div class="min-w-0 flex-1">
-			<p class={ "text-[.9rem] font-semibold truncate", templ.KV("text-muted", row.Unassigned) }>
-				{ row.Title }
-				for _, t := range row.Tags {
-					<span class="ml-1">@components.Tag(t)</span>
-				}
-			</p>
-			<p class="text-[.78rem] text-muted font-mono tnum">{ row.TimeRange }</p>
+// heuteWeekSection is "Diese Woche" (Mockup Z.869–880): the vertical 7-day
+// Wochenskala, replacing the old Mo–Fr pace strip. The .sect-h .note carries
+// the Soll/bisher/Kurs line (Mockup Z.870); the .weekbar role="img"
+// aria-label is the A11y-mandatory summary (Spec §13 — not optional).
+templ heuteWeekSection(vm HeuteVM) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "zeit.thisWeek") }</span>
+			<span class="note">{ vm.WeekGoalLine }</span>
 		</div>
-		<span class={ "font-mono text-[.85rem] font-semibold tnum flex-none", templ.KV("text-muted", row.Unassigned) }>{ row.Duration }</span>
+		<div class="weekbar" role="img" aria-label={ components.T(ctx, "zeit.weekAria") }>
+			for _, d := range vm.WeekDays {
+				<div class={ "day", templ.KV("has", d.Has), templ.KV("today", d.Today) }>
+					<div class="bar"><i style={ zeitDayBarStyle(d) }></i></div>
+					<div class="d">{ d.Label }</div>
+					<div class="v">{ d.ValueStr }</div>
+				</div>
+			}
+		</div>
 	</div>
 }
 
-// heuteWeekCard is the week pace strip (Mo..Fr).
-templ heuteWeekCard(vm HeuteVM) {
-	<article class="rounded-3xl glass shadow-soft p-6">
-		<div class="flex items-center justify-between mb-1">
-			<h2 class="font-display text-lg font-semibold">{ components.T(ctx, "heute.thisWeek") }</h2>
-			<span class="eyebrow uppercase text-[.62rem] font-semibold text-muted">{ vm.WeekKW }</span>
-		</div>
-		<p class="text-[.82rem] text-muted mb-5">
-			<span>{ components.T(ctx, "week.total") }</span>
-			<span class="font-mono tnum text-ink font-semibold ml-1">{ vm.WeekTotal }</span> / <span class="font-mono tnum">{ vm.WeekGoal }</span>
-		</p>
-		<ul class="space-y-2.5">
-			for _, row := range vm.WeekRows {
-				<li class={ "flex items-center gap-3", templ.KV("rounded-lg -mx-1.5 px-1.5 py-1 bg-blue/[.05]", row.IsToday) }>
-					<span class={ heuteLabelClass(row) }>{ row.Label }</span>
-					<div class="flex-1 h-2 rounded-full bg-sunken overflow-hidden">
-						<div class={ "h-full rounded-full", heuteBarFill(row.State) } style={ heuteBarStyle(row) }></div>
-					</div>
-					<span class={ heuteValueClass(row) }>{ row.Logged }</span>
-					<span class={ heuteDotClass(row) } title={ heuteDotTitle(ctx, row) } aria-label={ heuteDotTitle(ctx, row) }>{ heuteDotGlyph(row) }</span>
-				</li>
-			}
-		</ul>
-		<div class="mt-5 flex items-center gap-3 text-[.78rem] text-muted">
-			<span class="inline-flex items-center gap-1"><span class="text-green" aria-hidden="true">●</span> { components.T(ctx, "heute.legendMet") }</span>
-			<span class="inline-flex items-center gap-1"><span class="text-faint" aria-hidden="true">○</span> { components.T(ctx, "heute.legendMiss") }</span>
-			<span class="inline-flex items-center gap-1"><span class="text-blue" aria-hidden="true">●</span> { components.T(ctx, "heute.legendToday") }</span>
-		</div>
-	</article>
+// heuteToolsSection is "Werkzeuge" (Mockup Z.882–888, extended 3→4 rows with
+// Historie — Offene Entsch. #6): plain Lesesaal .row links, no destination
+// logic lives here (the routes themselves get their own L4 rebuild tasks).
+templ heuteToolsSection(vm HeuteVM) {
+	<div class="sect">
+		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "zeit.tools") }</span></div>
+		for _, tool := range vm.Tools {
+			<a class="row" href={ templ.SafeURL(tool.Href) }>
+				<div class="grow">
+					<div class="t">{ components.T(ctx, tool.TitleKey) }</div>
+					<div class="s">{ components.T(ctx, tool.DescKey) }</div>
+				</div>
+				<div class="right"><div class="v">›</div></div>
+			</a>
+		}
+	</div>
 }

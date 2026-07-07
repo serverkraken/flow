@@ -79,10 +79,8 @@ func DocumentInShelf(d domain.Document, s WissenShelf) bool {
 }
 
 // WissenRowVM is one Lesesaal row on a Wissen library surface — the
-// "Zuletzt aktualisiert" section on /wissen and the /wissen/typ/{type} shelf
-// listing. A new, additional display struct: DocRow/docRowFromDocument stay
-// untouched (they back BuildHomeNewest for the L4 Schreibtisch page —
-// rg-verified, Codex #18).
+// "Zuletzt aktualisiert" section on /wissen, the /wissen/typ/{type} shelf
+// listing, and (L4 Task 2) the Schreibtisch's "Zuletzt im Wissen" section.
 type WissenRowVM struct {
 	ID, Title, ChipClass, ChipLabel, Meta, TimeStr string
 }
@@ -152,7 +150,7 @@ func BuildWissenOverview(docs []domain.Document, now time.Time, recentAll bool) 
 	}
 	vm.Shelves = shelves
 
-	sorted := sortedDocuments(docs)
+	sorted := SortedDocuments(docs)
 	vm.RecentTotal = len(sorted)
 	vm.RecentAll = recentAll
 	if !recentAll && len(sorted) > wissenRecentCap {
@@ -212,21 +210,17 @@ type WissenVM struct {
 	Page components.PageNav
 }
 
-func sortedDocuments(docs []domain.Document) []domain.Document {
+// SortedDocuments returns docs newest-first by UpdatedAt. Exported (L4 Task
+// 2) so httpserver's homeDataFor can reuse the exact same sort as
+// BuildWissenOverview's "Zuletzt aktualisiert" list for the Schreibtisch's
+// "Zuletzt im Wissen" section, instead of re-sorting with a second
+// convention.
+func SortedDocuments(docs []domain.Document) []domain.Document {
 	out := append([]domain.Document(nil), docs...)
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[j].UpdatedAt.Before(out[i].UpdatedAt)
 	})
 	return out
-}
-
-func docRowFromDocument(d domain.Document, projectColors map[string]string) DocRow {
-	row := DocRow{ID: d.ID, Type: string(d.Type), Path: d.Path, Title: d.Title, Tags: d.Tags}
-	if d.NodeID != nil {
-		row.NodeID = *d.NodeID
-		row.ProjectColor = ColorHex(projectColors[*d.NodeID])
-	}
-	return row
 }
 
 func WissenSingleTagHref(tag string) string {
@@ -247,10 +241,6 @@ func wissenResetHref(vm WissenVM) string {
 	return "/wissen"
 }
 
-func rowKind(row DocRow) DocKind {
-	return DocKindStyle(domain.DocumentType(row.Type))
-}
-
 func kindToneClass(tone string) string {
 	switch tone {
 	case "accent":
@@ -266,11 +256,4 @@ func kindToneClass(tone string) string {
 	default:
 		return "border-line bg-sunken text-muted"
 	}
-}
-
-func swatchStyle(color string) string {
-	if color == "" {
-		return ""
-	}
-	return "--swatch: " + color
 }

@@ -20,8 +20,8 @@ func cspHeaderName(enforce bool) string {
 
 // cspPolicy builds the L3-Task-9 policy string for a single request's nonce.
 // style-src keeps 'unsafe-inline' deliberately (Mermaid-SVG inline styles,
-// templ style= attributes such as projectSwatchStyle/swatchStyle — Offene
-// Entsch. #8, l3-global-constraints.md).
+// templ style= attributes such as ColorHex/wocheDayBarStyle/heuteBarStyle —
+// Offene Entsch. #8, l3-global-constraints.md).
 func cspPolicy(nonce string) string {
 	return "default-src 'self'; " +
 		"script-src 'self' 'nonce-" + nonce + "'; " +

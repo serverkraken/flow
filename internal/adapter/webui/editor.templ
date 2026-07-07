@@ -20,7 +20,7 @@ templ EditorPage(vm EditorVM) {
 // listener re-scans for pre.mermaid on every keyup-triggered preview update.
 templ editorBody(vm EditorVM) {
 	@components.AppShell("docs", components.Breadcrumb(editorCrumbs(ctx, vm)), nil, editorOuter(vm))
-	<script src="/static/js/mermaid-init.js" defer></script>
+	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 }
 
 templ editorOuter(vm EditorVM) {
