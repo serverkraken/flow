@@ -8,7 +8,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-// ActivityRowVM is the view model for one activity-log row on the Home logstream.
+// ActivityRowVM is the view model for one activity-log row in the Home Puls feed.
 type ActivityRowVM struct {
 	ActorKind string // "human" | "agent"
 	ActorRef  string // display name or agent client name

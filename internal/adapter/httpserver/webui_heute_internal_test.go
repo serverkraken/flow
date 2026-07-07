@@ -2,7 +2,6 @@ package httpserver
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -114,58 +113,5 @@ func TestHeuteDataFor_LedgerSkipsEditForRunningSession(t *testing.T) {
 	}
 	if got := vm.Ledger[0].Edit.Mode; got != "" {
 		t.Errorf("running session should have zero Edit VM, got Mode=%q", got)
-	}
-}
-
-// TestZeitWeekDays_ScaleAndLabels is the unit-level RED→GREEN guard for the
-// pure builder feeding the vertical Wochenskala: bar height is proportional
-// to the week's own max logged (never a NaN/divide-by-zero on a zero-target
-// weekend day), a zero-logged workday shows "—", a zero-logged day covered
-// by a day-off (or a weekend with nothing logged) shows "frei", and today's
-// label carries the "· heute" suffix.
-func TestZeitWeekDays_ScaleAndLabels(t *testing.T) {
-	now := time.Date(2026, 6, 18, 15, 0, 0, 0, time.Local) // Thursday
-	mon := time.Date(2026, 6, 15, 0, 0, 0, 0, time.Local)
-	week := make([]domain.WeekDay, 7)
-	for i := range week {
-		d := mon.AddDate(0, 0, i)
-		week[i] = domain.WeekDay{Date: d, Target: 8 * time.Hour, IsToday: d.Equal(startOfDay(now))}
-	}
-	// Monday: 4h logged (half of the 8h target/scale) → has, ~50%.
-	week[0].Logged = 4 * time.Hour
-	// Tuesday: nothing logged, no day-off, a workday → "—".
-	week[1].Logged = 0
-	// Wednesday: nothing logged but covered by a day-off → "frei".
-	week[2].Logged = 0
-	// Thursday (today): 8h exactly on target/scale → 100%.
-	week[3].Logged = 8 * time.Hour
-	// Sat/Sun: zero target (weekend), nothing logged → "frei" via isWeekendTime.
-	week[5].Target, week[6].Target = 0, 0
-
-	off := map[string]domain.DayOff{
-		week[2].Date.Format("2006-01-02"): {Date: week[2].Date, Kind: domain.KindVacation},
-	}
-
-	days := zeitWeekDays(context.Background(), week, now, off)
-	if len(days) != 7 {
-		t.Fatalf("want 7 days, got %d", len(days))
-	}
-	if !days[0].Has || days[0].Pct <= 0 || days[0].Pct >= 100 {
-		t.Errorf("Monday (4h/8h): want Has + partial bar, got %+v", days[0])
-	}
-	if days[1].ValueStr != "—" {
-		t.Errorf("Tuesday (0 logged, no day-off): want %q, got %q", "—", days[1].ValueStr)
-	}
-	if days[2].ValueStr != "frei" {
-		t.Errorf("Wednesday (0 logged, day-off): want %q, got %q", "frei", days[2].ValueStr)
-	}
-	if !days[3].Today || !days[3].Has || days[3].Pct != 100 {
-		t.Errorf("Thursday (today, 8h/8h): want Today+Has+100%%, got %+v", days[3])
-	}
-	if !strings.Contains(days[3].Label, "· heute") {
-		t.Errorf("today's label missing '· heute' suffix, got %q", days[3].Label)
-	}
-	if days[5].ValueStr != "frei" || days[6].ValueStr != "frei" {
-		t.Errorf("weekend with zero target/logged: want %q, got Sa=%q So=%q", "frei", days[5].ValueStr, days[6].ValueStr)
 	}
 }

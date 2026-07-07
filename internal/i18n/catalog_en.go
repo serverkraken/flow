@@ -340,7 +340,7 @@ func init() {
 			"export.amount":   "Amount",
 			"export.total":    "Total",
 			"export.empty":    "No data in this range.",
-			// home activity logstream
+			// Puls/Aktivität (Schreibtisch)
 			"activity.empty":                 "No activity yet.",
 			"activity.verb.session.started":  "started a timer",
 			"activity.verb.session.stopped":  "stopped the timer",

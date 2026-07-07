@@ -146,7 +146,7 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 					}
 				}
 			}
-			vm.WeekDays = zeitWeekDays(ctx, week, now, offs)
+			vm.WeekDays = webui.BuildWeekBars(ctx, week, now, offs)
 			sum := computeWocheSummary(week, offs, now)
 			vm.WeekTotal = webui.FmtVerbose(sum.totalLogged)
 			vm.WeekGoal = webui.FmtVerbose(sum.totalTarget)
@@ -194,60 +194,6 @@ func (s *Server) heuteDataFor(ctx context.Context, u domain.User, errMsg string)
 	}
 
 	return vm, nil
-}
-
-// zeitWeekDays maps the raw 7-day domain.WeekDay slice into the vertical
-// Wochenskala's per-day bars (webui.ZeitWeekDay). scale is computed per day as
-// max(that day's own Target, the week's own max logged) so a zero-target
-// weekend day never divides by zero (Codex-Fund #3: WocheDayVM's
-// pre-formatted Pct is unusable here) while workdays still share a
-// roughly-comparable scale across the week. off reports which local dates
-// carry a day-off (mirrors wocheDataFor's own offs lookup, webui_woche.go) so
-// a weekend/holiday day shows "frei" instead of a bare "—".
-func zeitWeekDays(ctx context.Context, week []domain.WeekDay, now time.Time, off map[string]domain.DayOff) []webui.ZeitWeekDay {
-	loc := now.Location()
-	var maxLogged time.Duration
-	logged := make([]time.Duration, len(week))
-	for i, wd := range week {
-		logged[i] = wd.Total(now)
-		if logged[i] > maxLogged {
-			maxLogged = logged[i]
-		}
-	}
-	out := make([]webui.ZeitWeekDay, 0, len(week))
-	for i, wd := range week {
-		l := logged[i]
-		scale := wd.Target
-		if maxLogged > scale {
-			scale = maxLogged
-		}
-		pct := 0
-		if scale > 0 {
-			pct = webui.ClampPct(int(l * 100 / scale))
-		}
-		key := wd.Date.In(loc).Format("2006-01-02")
-		_, isOff := off[key]
-		valueStr := webui.FmtClockShort(l)
-		if l == 0 {
-			if isOff || isWeekendTime(wd.Date) {
-				valueStr = i18n.T(ctx, "zeit.weekDayOff")
-			} else {
-				valueStr = "—"
-			}
-		}
-		label := wocheWeekdayLabel(wd.Date.Weekday())
-		if wd.IsToday {
-			label += " · heute"
-		}
-		out = append(out, webui.ZeitWeekDay{
-			Label:    label,
-			ValueStr: valueStr,
-			Pct:      pct,
-			Has:      l > 0,
-			Today:    wd.IsToday,
-		})
-	}
-	return out
 }
 
 // sessionRowVM maps a stored session to its list-row view model.

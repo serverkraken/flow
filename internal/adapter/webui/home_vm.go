@@ -7,7 +7,7 @@ import (
 
 // HomeVM is the view model for the Schreibtisch (Home) landing page — L4
 // Task 2 replaces the Kristall dashboard (saldo tiles/burndown/activity
-// logstream) with four ruhige Zeilen-Sektionen: Jetzt (the one running
+// feed) with four ruhige Zeilen-Sektionen: Jetzt (the one running
 // timer, display-only), Weiterarbeiten (MRU bookable nodes), Zuletzt im
 // Wissen (shared WissenRowVM), and Puls (shared pulseRow/pulseSection).
 type HomeVM struct {

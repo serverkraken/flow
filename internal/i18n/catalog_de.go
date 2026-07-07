@@ -349,7 +349,7 @@ func init() {
 			"export.amount":   "Betrag",
 			"export.total":    "Summe",
 			"export.empty":    "Keine Daten im Zeitraum.",
-			// home activity logstream
+			// Puls/Aktivität (Schreibtisch)
 			"activity.empty":                 "Noch keine Aktivität.",
 			"activity.verb.session.started":  "startete einen Timer",
 			"activity.verb.session.stopped":  "stoppte den Timer",

@@ -92,27 +92,22 @@ templ wocheNav(vm WocheVM) {
 }
 
 // wocheWeekBarSection is the "Diese Woche" skyline (Mockup-consistent with
-// the Zeit-Hub's .weekbar, Task 3): a bar per Mo..So day, height from the
-// day's own target-relative Pct (WocheDayVM, unchanged data source), accented
-// when logged (.has) and live-bright on today (.today) — same CSS the
-// Zeit-Hub already established, no new classes.
+// the Zeit-Hub's .weekbar): a bar per Mo..So day, driven by vm.WeekDays
+// ([]ZeitWeekDay) — the SAME shared builder (webui.BuildWeekBars) and "H:MM"
+// format (FmtClockShort) the Zeit-Hub weekbar uses, so the two pages' weekbar
+// skylines can never drift apart again (L4 Final-Review Finding 1). The
+// Mo–So detail rows below (wocheDaysSection) still read from vm.Days and
+// keep their own FmtVerbose ("6h 10m") page prose — only this skyline
+// changed.
 templ wocheWeekBarSection(vm WocheVM) {
 	<div class="sect">
 		<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "zeit.thisWeek") }</span></div>
 		<div class="weekbar" role="img" aria-label={ components.T(ctx, "zeit.weekAria") }>
-			for _, d := range vm.Days {
-				<div class={ "day", templ.KV("has", d.Pct > 0), templ.KV("today", d.IsToday) }>
-					<div class="bar"><i style={ wocheDayBarStyle(d) }></i></div>
+			for _, d := range vm.WeekDays {
+				<div class={ "day", templ.KV("has", d.Has), templ.KV("today", d.Today) }>
+					<div class="bar"><i style={ zeitDayBarStyle(d) }></i></div>
 					<div class="d">{ d.Label }</div>
-					<div class="v">
-						if d.Dur != "" && d.Dur != "0h 00m" {
-							{ d.Dur }
-						} else if d.Weekend || d.DayOff {
-							{ components.T(ctx, "zeit.weekDayOff") }
-						} else {
-							{ "—" }
-						}
-					</div>
+					<div class="v">{ d.ValueStr }</div>
 				</div>
 			}
 		</div>
@@ -184,7 +179,7 @@ templ wocheKennzahlenSection(vm WocheVM) {
 // wocheStatsPanel is the monthly Statistik/Burndown block (Offene Entsch. #4
 // — this glance metric moved here from Home): a plain Lesesaal .panel/.krow
 // block built from WocheStatsVM (domain.MonthBurndownReport), never the
-// Kristall components.BurndownVM/BurndownBanner glass card.
+// Kristall components.BurndownBanner glass card.
 templ wocheStatsPanel(vm WocheStatsVM) {
 	<section class="panel p-5">
 		<span class="eyebrow">{ components.T(ctx, "woche.statsTitle") }</span>

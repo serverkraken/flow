@@ -101,6 +101,44 @@ func TestWocheHome_RendersLesesaalChrome(t *testing.T) {
 	}
 }
 
+// TestWocheHome_WeekbarMatchesZeitHubFormat is the RED→GREEN guard for L4
+// Final-Review Finding 1: a Saturday with logged hours (Target 0, since
+// weekends carry no default target) must produce a non-zero weekbar bar and
+// its "H:MM" clock-format value (FmtClockShort, e.g. "6:10") — the same
+// builder/format the Zeit-Hub weekbar uses (webui.BuildWeekBars) — instead of
+// the old Woche-only WocheDayVM.Pct, which stayed 0 for any Weekend day
+// regardless of logged hours (wocheDayRowVM's early "weekend" return never
+// computes Pct) and rendered via FmtVerbose ("6h 10m") page prose. The Mo–So
+// detail list still shows "—" for a weekend day's duration (unchanged,
+// wocheDayRow) — only the weekbar skyline reflects the logged Saturday.
+func TestWocheHome_WeekbarMatchesZeitHubFormat(t *testing.T) {
+	srv := newWorktimeTestServer(t)
+	ctx := context.Background()
+	// Clock is 2026-06-21 (Sunday); ISO-week Monday is 2026-06-15, so
+	// Saturday 2026-06-20 is inside the displayed (current) week.
+	day, _ := time.ParseInLocation("2006-01-02", "2026-06-20", time.Local)
+	from := time.Date(day.Year(), day.Month(), day.Day(), 9, 0, 0, 0, time.Local)
+	to := from.Add(6*time.Hour + 10*time.Minute)
+	if _, err := (usecase.AddSession{Sessions: srv.ss, IDs: srv.ids, Clock: srv.clk}).Execute(
+		ctx, "u1", nil, from, to, nil, "",
+	); err != nil {
+		t.Fatalf("seed Saturday session: %v", err)
+	}
+
+	cookieVal, _ := srv.codec.Issue("u1")
+	req, _ := http.NewRequest("GET", "/woche", nil)
+	req.AddCookie(&http.Cookie{Name: "flow_session", Value: cookieVal})
+	rr := httptest.NewRecorder()
+	srv.srv.Routes().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "6:10") {
+		t.Errorf("weekbar missing FmtClockShort value %q for logged Saturday, got:\n%s", "6:10", body)
+	}
+}
+
 // TestWocheFragment_KWNavClampsForward verifies the inner fragment honors ?week=
 // and that the "next week" link is suppressed on the current week (no forward
 // navigation past today).

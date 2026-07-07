@@ -62,23 +62,3 @@ func TestWocheStatsHue(t *testing.T) {
 		t.Errorf("wocheStatsHue(false) = %q, want text-orange", got)
 	}
 }
-
-// TestWocheDayBarStyle verifies the weekbar's per-day bar fill uses a HEIGHT
-// style (repurposed from its former horizontal-bar WIDTH role, Task 4 — the
-// Kristall per-day progress bar it used to feed is retired) and clamps via
-// ClampPct.
-func TestWocheDayBarStyle(t *testing.T) {
-	cases := []struct {
-		pct  int
-		want string
-	}{
-		{50, "height:50%"},
-		{-10, "height:0%"},
-		{150, "height:100%"},
-	}
-	for _, tc := range cases {
-		if got := wocheDayBarStyle(WocheDayVM{Pct: tc.pct}); got != tc.want {
-			t.Errorf("wocheDayBarStyle(Pct=%d) = %q, want %q", tc.pct, got, tc.want)
-		}
-	}
-}

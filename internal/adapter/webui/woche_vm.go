@@ -1,7 +1,6 @@
 package webui
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
@@ -26,6 +25,7 @@ type WocheVM struct {
 	CanForward  bool      // false on (or past) the current week → hide next/„Diese Woche"
 	IsCurrent   bool      // true when the displayed week is the current week
 	Days        []WocheDayVM
+	WeekDays    []ZeitWeekDay // .weekbar skyline bars, Mo..So (BuildWeekBars — same builder/format as Zeit-Hub, Finding 1)
 	Total       components.WeekTotalVM
 	Kennzahlen  components.KennzahlenVM
 	WorkdayGoal string // "8h 00m" per-weekday target (header hint)
@@ -53,8 +53,8 @@ type WocheDayVM struct {
 // WocheStatsVM drives the Woche page's "Statistik" panel: the monthly
 // Burndown/Saldo glance metric that moved here from Home (Offene Entsch. #4).
 // Built by httpserver's wocheDataFor from domain.MonthBurndownReport
-// (s.Stats.Burndown) — deliberately NOT components.BurndownVM/BurndownBanner
-// (that Kristall glass card stays retired); this renders as a plain Lesesaal
+// (s.Stats.Burndown) — deliberately NOT components.BurndownBanner (that
+// Kristall glass card stays retired); this renders as a plain Lesesaal
 // .panel/.krow block (wocheStatsPanel, woche.templ).
 type WocheStatsVM struct {
 	Total   string // "78h 00m" — month logged so far
@@ -113,15 +113,6 @@ func wocheStatsHue(onTrack bool) string {
 		return "text-green"
 	}
 	return "text-orange"
-}
-
-// wocheDayBarStyle returns the inline HEIGHT style for the Woche weekbar's
-// per-day bar fill — Mockup/Task-3-consistent with the Zeit-Hub's
-// .weekbar .day .bar i (zeitDayBarStyle, heute_vm.go). Reused from its
-// former horizontal-bar WIDTH role now that the Kristall per-day progress
-// bar (the retired wocheDayBar templ) is gone.
-func wocheDayBarStyle(d WocheDayVM) string {
-	return fmt.Sprintf("height:%d%%", ClampPct(d.Pct))
 }
 
 // wocheFragmentURL builds the SSE hx-get target for the displayed week. The
