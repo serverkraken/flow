@@ -491,8 +491,13 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .sect { margin-top: 40px; }
   .sect-h { display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgb(var(--hair2)); }
   .sect-h .eyebrow { color: rgb(var(--meta)); }
-  .sect-h .more { margin-left: auto; font-size: 13px; font-weight: 500; color: rgb(var(--accent)); }
-  .sect-h .more:hover { color: rgb(var(--accent-deep)); }
+  /* .more is the CTA style ("Kuratieren ›" etc.) — a base rule so it also
+     works outside a .sect-h header (Mockup-Audit-Fund: cockpit_rail.templ's
+     "Kuratieren ›" link sits in .blk/.mt-3, not .sect-h, and rendered
+     unstyled). .sect-h .more keeps the header-only margin-left:auto. */
+  .more { font-size: 13px; font-weight: 500; color: rgb(var(--accent)); }
+  .more:hover { color: rgb(var(--accent-deep)); }
+  .sect-h .more { margin-left: auto; }
   .dotsep { color: rgb(var(--hair2)); }
   /* Repo-Zeile (Mockup Z.98–107) */
   .projrow { display: flex; align-items: center; gap: 16px; padding: 13px 2px; border-bottom: 1px solid rgb(var(--hair)); }
