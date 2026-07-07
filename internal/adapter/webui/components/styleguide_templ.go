@@ -206,6 +206,10 @@ func styleguideContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
+		templ_7745c5c3_Err = Card("mb-6", sgLesesaalL5()).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
@@ -620,7 +624,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: rgb(var(--" + token + "))")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 137, Col: 102}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 139, Col: 102}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -633,7 +637,7 @@ func sgSwatch(token string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(token)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 138, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 140, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -882,7 +886,7 @@ func sgLesesaalL4() templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(d.label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 386, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 388, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -895,7 +899,7 @@ func sgLesesaalL4() templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(d.val)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 387, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 389, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -907,6 +911,79 @@ func sgLesesaalL4() templ.Component {
 			}
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "</div><div class=\"sect\"><div class=\"sect-h\"><span class=\"eyebrow\">Heute</span> <span class=\"note dim\">Soll 8h · bisher 6h 10m · auf Kurs</span></div><div class=\"row\"><span class=\"led-when\">09:02–11:30</span><div class=\"grow\"><div class=\"t\">flow-rebuild</div></div><div class=\"right\"><div class=\"v\">2h 28m</div></div></div><div class=\"row\"><span class=\"led-when\">13:00–16:42</span><div class=\"grow\"><div class=\"t\">homelab-study</div></div><div class=\"right\"><div class=\"v\">3h 42m</div></div></div></div></div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// ── Lesesaal L5: Kontext-Instrument (meter) + Kuratieren-Budgetgrenze ───────
+func sgLesesaalL5() templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var26 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var26 == nil {
+			templ_7745c5c3_Var26 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<h2 class=\"font-display text-lg font-semibold mb-4\">Lesesaal L5 — Kontext-Instrument &amp; Kuratieren</h2><div class=\"narrow\"><div class=\"meter\" role=\"img\" aria-label=\"Kontext-Budget: 40 Prozent belegt\"><i style=\"width:40%\"></i></div><div class=\"meter-l\"><span>4.800 / 12.000 Tokens</span> <span>40 %</span></div><div class=\"meter full mt-4\" role=\"img\" aria-label=\"Kontext-Budget: 98 Prozent belegt\"><i style=\"width:98%\"></i></div><div class=\"meter-l\"><span class=\"warn\">fast voll · 12.000</span> <span>98 %</span></div><div class=\"ctxrows\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		for _, p := range []struct {
+			g string
+			n string
+		}{
+			{"01", "Deploy-Runbook flow-server"},
+			{"02", "OIDC Multi-Issuer Entscheidung"},
+			{"03", "Kompendium Hybrid-Search Notizen"},
+		} {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<div class=\"pin\"><span class=\"g\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var27 string
+			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(p.g)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 449, Col: 26}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</span> <span class=\"n\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var28 string
+			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(p.n)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/components/styleguide.templ`, Line: 450, Col: 26}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</span></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div><div class=\"cutline\">Budgetgrenze</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

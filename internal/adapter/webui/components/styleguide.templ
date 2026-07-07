@@ -50,6 +50,8 @@ templ styleguideContent() {
 	@Card("mb-6", sgLesesaalL3())
 	// Lesesaal L4: Schreibtisch-Panelzeile + Zeit-Wochenskala (panelrow/weekbar/day/led-when)
 	@Card("mb-6", sgLesesaalL4())
+	// Lesesaal L5: Kontext-Instrument (meter accent/full-warn) + Kuratieren-Budgetgrenze (cutline)
+	@Card("mb-6", sgLesesaalL5())
 }
 
 templ sgButtons() {
@@ -412,5 +414,43 @@ templ sgLesesaalL4() {
 				</div>
 			</div>
 		</div>
+	</div>
+}
+
+// ── Lesesaal L5: Kontext-Instrument (meter) + Kuratieren-Budgetgrenze ───────
+
+templ sgLesesaalL5() {
+	<h2 class="font-display text-lg font-semibold mb-4">Lesesaal L5 — Kontext-Instrument &amp; Kuratieren</h2>
+	<div class="narrow">
+		<div class="meter" role="img" aria-label="Kontext-Budget: 40 Prozent belegt">
+			<i style="width:40%"></i>
+		</div>
+		<div class="meter-l">
+			<span>4.800 / 12.000 Tokens</span>
+			<span>40 %</span>
+		</div>
+		<div class="meter full mt-4" role="img" aria-label="Kontext-Budget: 98 Prozent belegt">
+			<i style="width:98%"></i>
+		</div>
+		<div class="meter-l">
+			<span class="warn">fast voll · 12.000</span>
+			<span>98 %</span>
+		</div>
+		<div class="ctxrows">
+			for _, p := range []struct {
+				g string
+				n string
+			}{
+				{"01", "Deploy-Runbook flow-server"},
+				{"02", "OIDC Multi-Issuer Entscheidung"},
+				{"03", "Kompendium Hybrid-Search Notizen"},
+			} {
+				<div class="pin">
+					<span class="g">{ p.g }</span>
+					<span class="n">{ p.n }</span>
+				</div>
+			}
+		</div>
+		<div class="cutline">Budgetgrenze</div>
 	</div>
 }
