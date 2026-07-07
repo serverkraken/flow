@@ -26,6 +26,7 @@ type KontextRowVM struct {
 // ActiveContext) — not curatable, so it carries no rank/pin/reorder fields,
 // only the same title/chip/scope/tokens display fields as KontextRowVM.
 type KontextAlwaysVM struct {
+	DocID      string
 	Title      string
 	ChipClass  string // DocTypeChipClass(Item.Type)
 	TypeLabel  string // DocTypeLabel(Item.Type)
@@ -103,6 +104,7 @@ func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 // ActiveContext) to its display VM.
 func kontextAlwaysOf(item usecase.ContextItem) KontextAlwaysVM {
 	return KontextAlwaysVM{
+		DocID:      item.ID,
 		Title:      item.Title,
 		ChipClass:  DocTypeChipClass(item.Type),
 		TypeLabel:  DocTypeLabel(item.Type),

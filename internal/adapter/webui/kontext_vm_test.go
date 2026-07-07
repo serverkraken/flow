@@ -231,6 +231,32 @@ func TestKontextFragment_AlwaysSection_AbsentWhenEmpty(t *testing.T) {
 	}
 }
 
+// TestKontextFragment_RowsAndAlwaysLinkToDocument verifies both the rang-list
+// rows and the Always-Tier rows link their title to the document page
+// (/wissen/{id}), so Kuratieren can jump straight to Bearbeiten without going
+// via Wissen (Mini-Task 7b).
+func TestKontextFragment_RowsAndAlwaysLinkToDocument(t *testing.T) {
+	vm := KontextVM{
+		NodeID: "n1", Title: "flow",
+		Always: []KontextAlwaysVM{
+			{DocID: "ac1", Title: "Active Context", ChipClass: DocTypeChipClass(domain.DocActiveContext), TypeLabel: DocTypeLabel(domain.DocActiveContext), ScopeLabel: "repo:flow", TokensStr: "456"},
+		},
+		Rows: []KontextRowVM{
+			{DocID: "d1", Num: 1, Title: "First", ChipClass: DocTypeChipClass(domain.DocMemory), TypeLabel: DocTypeLabel(domain.DocMemory), ScopeLabel: "repo:flow", TokensStr: "1.234", IsFirst: true, IsLast: true, Included: true},
+		},
+	}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, KontextFragment(vm))
+	for _, want := range []string{
+		`href="/wissen/ac1"`,
+		`href="/wissen/d1"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("fragment misses %q:\n%s", want, out)
+		}
+	}
+}
+
 // TestBuildKontextVM_AllIncludedNoCutline covers the case where every row is
 // included: FirstDropped must never fire (no cutline row exists).
 func TestBuildKontextVM_AllIncludedNoCutline(t *testing.T) {
