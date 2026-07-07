@@ -40,7 +40,7 @@ LIMIT $1`
 		var attempts int
 		if err := rows.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 			&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-			&updatedByKind, &updatedByRef, &attempts); err != nil {
+			&updatedByKind, &updatedByRef, &d.Priority, &attempts); err != nil {
 			return nil, fmt.Errorf("pgstore: scan stale document: %w", err)
 		}
 		d.Type = domain.DocumentType(typ)

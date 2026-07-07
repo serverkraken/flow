@@ -966,6 +966,18 @@ func (s *FakeDocumentStore) SetPinned(_ context.Context, ownerID, id string, pin
 	return nil
 }
 
+func (s *FakeDocumentStore) SetPriority(_ context.Context, ownerID, id string, priority int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.m[id]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	d.Priority = priority
+	s.m[id] = d
+	return nil
+}
+
 func (s *FakeDocumentStore) SetArchived(_ context.Context, ownerID, id string, archived bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

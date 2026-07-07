@@ -28,9 +28,9 @@ func NewDocumentStore(pool *pgxpool.Pool, ids ports.IDGen) *DocumentStore {
 	return &DocumentStore{pool: pool, ids: ids}
 }
 
-const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at, updated_by_kind, updated_by_ref`
+const docCols = `id, owner_id, node_id, type, path, title, body, doc_date, role, extra, created_at, updated_at, pinned, archived, archived_at, updated_by_kind, updated_by_ref, priority`
 
-const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref`
+const prefixedDocCols = `d.id, d.owner_id, d.node_id, d.type, d.path, d.title, d.body, d.doc_date, d.role, d.extra, d.created_at, d.updated_at, d.pinned, d.archived, d.archived_at, d.updated_by_kind, d.updated_by_ref, d.priority`
 
 // appendNodeFilter adds a project predicate to q, binding the next positional
 // parameter when needed. nodeID == nil → no filter; *nodeID == "none" →
@@ -91,7 +91,7 @@ func (s *DocumentStore) hydrateTags(ctx context.Context, ownerID string, docs []
 
 func (s *DocumentStore) Create(ctx context.Context, d domain.Document) (domain.Document, error) {
 	const q = `INSERT INTO documents (` + docCols + `)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
 RETURNING ` + docCols
 	extra, err := json.Marshal(orEmpty(d.Extra))
 	if err != nil {
@@ -100,7 +100,7 @@ RETURNING ` + docCols
 	out, err := scanDocument(s.pool.QueryRow(ctx, q,
 		d.ID, d.OwnerID, d.NodeID, string(d.Type), d.Path, d.Title, d.Body,
 		d.Date, d.Role, extra, d.CreatedAt, d.UpdatedAt, d.Pinned, d.Archived, d.ArchivedAt,
-		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef)))
+		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.Priority))
 	if isUniqueViolation(err) {
 		return domain.Document{}, ports.ErrDocumentExists
 	}
@@ -204,6 +204,20 @@ func (s *DocumentStore) SetPinned(ctx context.Context, ownerID, id string, pinne
 	ct, err := s.pool.Exec(ctx, `UPDATE documents SET pinned=$1, updated_at=now() WHERE owner_id=$2 AND id=$3`, pinned, ownerID, id)
 	if err != nil {
 		return fmt.Errorf("pgstore: set pinned: %w", err)
+	}
+	if ct.RowsAffected() == 0 {
+		return ports.ErrDocumentNotFound
+	}
+	return nil
+}
+
+// SetPriority sets the manual context-ranking priority (higher = ranked earlier
+// within the memory pool). Owner-scoped; deliberately does NOT bump updated_at
+// (priority is orthogonal to recency — see domain.Document.Priority).
+func (s *DocumentStore) SetPriority(ctx context.Context, ownerID, id string, priority int) error {
+	ct, err := s.pool.Exec(ctx, `UPDATE documents SET priority=$1 WHERE owner_id=$2 AND id=$3`, priority, ownerID, id)
+	if err != nil {
+		return fmt.Errorf("pgstore: set priority: %w", err)
 	}
 	if ct.RowsAffected() == 0 {
 		return ports.ErrDocumentNotFound
@@ -391,7 +405,7 @@ func scanSearchHit(r rowScanner) (domain.SearchHit, error) {
 	var snippet string
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef, &snippet); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority, &snippet); err != nil {
 		return domain.SearchHit{}, fmt.Errorf("pgstore: scan search hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -505,7 +519,7 @@ func scanSemanticHit(r rowScanner) (domain.SemanticHit, error) {
 	var dist float32
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef, &content, &dist); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority, &content, &dist); err != nil {
 		return domain.SemanticHit{}, fmt.Errorf("pgstore: scan semantic hit: %w", err)
 	}
 	d.Type = domain.DocumentType(typ)
@@ -547,7 +561,7 @@ func scanDocument(r rowScanner) (domain.Document, error) {
 	var updatedByKind, updatedByRef sql.NullString
 	if err := r.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 		&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-		&updatedByKind, &updatedByRef); err != nil {
+		&updatedByKind, &updatedByRef, &d.Priority); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Document{}, err
 		}

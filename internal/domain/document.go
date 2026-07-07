@@ -73,6 +73,12 @@ type Document struct {
 	Pinned     bool       `json:"pinned"`
 	Archived   bool       `json:"archived"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	// Priority is the manual context-ranking priority (higher = ranked earlier
+	// within the memory pool; default 0). Set by ReorderContextDocs. Create
+	// binds it explicitly (zero-value 0 for new docs, since docCols is the
+	// shared INSERT column list); UpsertByPath omits it (own column list → DB
+	// default 0).
+	Priority  int            `json:"priority"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	// UpdatedByKind/UpdatedByRef stamp who last wrote this document (actor.Kind

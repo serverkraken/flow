@@ -654,6 +654,40 @@ func TestDocumentStore_SetPinned(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_SetPriority(t *testing.T) {
+	t.Parallel()
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+
+	d, err := ds.Create(ctx, domain.Document{
+		ID: "d1", OwnerID: "u1", Type: domain.DocMemory, Path: "m/p", Title: "T", Body: "b",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Priority != 0 {
+		t.Fatalf("new doc should default priority=0, got %d", d.Priority)
+	}
+	if err := ds.SetPriority(ctx, "u1", d.ID, 7); err != nil {
+		t.Fatalf("SetPriority: %v", err)
+	}
+	got, _ := ds.Get(ctx, "u1", d.ID)
+	if got.Priority != 7 {
+		t.Fatalf("Priority = %d, want 7", got.Priority)
+	}
+
+	// Owner-Scope: fremder Owner darf nicht schreiben.
+	if err := ds.SetPriority(ctx, "u2", d.ID, 3); !errors.Is(err, ports.ErrDocumentNotFound) {
+		t.Fatalf("cross-owner SetPriority err = %v, want ErrDocumentNotFound", err)
+	}
+	got, _ = ds.Get(ctx, "u1", d.ID)
+	if got.Priority != 7 {
+		t.Fatalf("cross-owner SetPriority mutated priority: got %d, want 7", got.Priority)
+	}
+}
+
 func TestDocumentStore_ArchivedRoundTrip(t *testing.T) {
 	t.Parallel()
 	ds, us, _, done := newDocStore(t)
