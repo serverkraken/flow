@@ -20,11 +20,19 @@ type KontextRowVM struct {
 	FirstDropped bool // true on the first row where Included flips true→false — the .cutline position
 	IsFirst      bool // true on Rows[0] — disables the "Höher" button
 	IsLast       bool // true on the last row — disables the "Tiefer" button
+	// Mode is r.Item.ContextMode — constructively always "auto" (only
+	// auto-mode docs ever enter the ranked pool; immer/nie bypass it
+	// entirely, Task 2 Compose semantics), but the mode switcher still reads
+	// it to render its pressed segment and to promote/demote the doc.
+	Mode domain.ContextMode
 }
 
 // KontextAlwaysVM is one row of the Always-Tier section (Instructions +
-// ActiveContext) — not curatable, so it carries no rank/pin/reorder fields,
-// only the same title/chip/scope/tokens display fields as KontextRowVM.
+// ActiveContext + immer-mode memories, Task 4) — not curatable via pin/
+// reorder, so it carries no rank/pin/reorder fields, only the same title/
+// chip/scope/tokens display fields as KontextRowVM plus the mode switcher
+// (so an Instruction/ActiveContext can still be demoted to "nie", and an
+// immer-memory's pressed segment reflects its forced mode).
 type KontextAlwaysVM struct {
 	DocID      string
 	Title      string
@@ -32,13 +40,31 @@ type KontextAlwaysVM struct {
 	TypeLabel  string // DocTypeLabel(Item.Type)
 	ScopeLabel string // Item.ScopeLabel
 	TokensStr  string // fmtThousandsDE(Item.EstTokens)
+	Mode       domain.ContextMode
+}
+
+// KontextHiddenVM is one row of the new "Ausgeblendet (nie)" section (Task
+// 4): a nie-mode doc, collected by Compose purely for this restore
+// affordance (cc.Hidden, 0 extra queries) — never in Used/Ranked/Memories/
+// Always. Carries no pin/reorder actions (not curatable there either), only
+// the mode switcher (the restore path — flipping back to auto/immer moves it
+// back into the composed context in-place) and an editor link.
+type KontextHiddenVM struct {
+	DocID      string
+	Title      string
+	ChipClass  string
+	TypeLabel  string
+	ScopeLabel string
+	TokensStr  string
+	Mode       domain.ContextMode
 }
 
 // KontextVM is the Kuratieren page's view model: the pagehead counters, the
 // same budget-meter instrument as the cockpit rail (Pct/Full/UsedStr/CapStr —
 // reuses BuildCockpitContext so the meter math + fmtThousandsDE formatting
 // live in exactly one place), the Always-Tier section (Instructions +
-// ActiveContext — Mini-Task 6b), and the flat rang list.
+// ActiveContext + immer memories — Mini-Task 6b, extended by Task 4), the
+// flat rang list, and the new Hidden (nie) section.
 type KontextVM struct {
 	NodeID    string
 	Title     string // ShortName(n.Name)
@@ -48,9 +74,10 @@ type KontextVM struct {
 	CapStr    string
 	Pct       int
 	Full      bool
-	Always    []KontextAlwaysVM // Instructions + ActiveContext, not curatable — empty section must not render
+	Always    []KontextAlwaysVM // Instructions + ActiveContext + immer memories — empty section must not render
 	Rows      []KontextRowVM
-	Err       string // set by the handler (not BuildKontextVM) on a Compose failure — .alert-err line
+	Hidden    []KontextHiddenVM // nie-mode docs (cc.Hidden) — empty section must not render
+	Err       string            // set by the handler (not BuildKontextVM) on a Compose failure — .alert-err line
 }
 
 // BuildKontextVM reduces a composed context (usecase.Compose's output for
@@ -74,6 +101,12 @@ func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 	if cc.ActiveContext != nil {
 		vm.Always = append(vm.Always, kontextAlwaysOf(*cc.ActiveContext))
 	}
+	for _, it := range cc.AlwaysMemories {
+		vm.Always = append(vm.Always, kontextAlwaysOf(it))
+	}
+	for _, it := range cc.Hidden {
+		vm.Hidden = append(vm.Hidden, kontextHiddenOf(it))
+	}
 
 	n2 := len(cc.Ranked)
 	firstDroppedSet := false
@@ -90,6 +123,7 @@ func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 			Included:   r.Included,
 			IsFirst:    i == 0,
 			IsLast:     i == n2-1,
+			Mode:       r.Item.ContextMode,
 		}
 		if !r.Included && !firstDroppedSet {
 			row.FirstDropped = true
@@ -100,8 +134,8 @@ func BuildKontextVM(n domain.Node, cc usecase.ComposedContext) KontextVM {
 	return vm
 }
 
-// kontextAlwaysOf reduces one Always-Tier ContextItem (Instruction or
-// ActiveContext) to its display VM.
+// kontextAlwaysOf reduces one Always-Tier ContextItem (Instruction,
+// ActiveContext, or an immer-mode memory) to its display VM.
 func kontextAlwaysOf(item usecase.ContextItem) KontextAlwaysVM {
 	return KontextAlwaysVM{
 		DocID:      item.ID,
@@ -110,5 +144,20 @@ func kontextAlwaysOf(item usecase.ContextItem) KontextAlwaysVM {
 		TypeLabel:  DocTypeLabel(item.Type),
 		ScopeLabel: item.ScopeLabel,
 		TokensStr:  fmtThousandsDE(item.EstTokens),
+		Mode:       item.ContextMode,
+	}
+}
+
+// kontextHiddenOf reduces one cc.Hidden ContextItem (a nie-mode doc) to its
+// display VM for the Ausgeblendet section.
+func kontextHiddenOf(item usecase.ContextItem) KontextHiddenVM {
+	return KontextHiddenVM{
+		DocID:      item.ID,
+		Title:      item.Title,
+		ChipClass:  DocTypeChipClass(item.Type),
+		TypeLabel:  DocTypeLabel(item.Type),
+		ScopeLabel: item.ScopeLabel,
+		TokensStr:  fmtThousandsDE(item.EstTokens),
+		Mode:       item.ContextMode,
 	}
 }

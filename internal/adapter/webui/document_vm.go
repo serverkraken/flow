@@ -42,8 +42,10 @@ type DocumentVM struct {
 	// its chrome is de-glassed (DocumentEmbedBadge).
 	Embed *EmbedView
 	// Context feeds the docrail's "Im Agenten-Kontext" `.blk` (Task 6, Mockup
-	// Z.794-798): nil means no block (non-context-type doc, or a
-	// context-type doc absent from the composed chain/compose failed).
+	// Z.794-798) plus the mode switcher (Task 4): nil means no block at all
+	// (non-context-type doc, or Compose itself failed) — for every
+	// context-eligible type, buildDocumentVM always builds one so the
+	// switcher stays reachable, even in the "absent"/"nie" states.
 	Context *DocContextVM
 }
 

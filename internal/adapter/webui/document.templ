@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 templ DocumentPage(vm DocumentVM) {
@@ -120,7 +121,9 @@ templ DocumentFragment(vm DocumentVM) {
 				if vm.Context != nil {
 					<div class="blk">
 						<span class="eyebrow">{ components.T(ctx, "document.context.title") }</span>
-						if vm.Context.State == "included" {
+						if vm.Context.Mode == domain.ContextModeNie {
+							<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "document.context.hidden") }</span><span class="v">✗</span></div>
+						} else if vm.Context.State == "included" {
 							<div class="krow"><span class="n">{ vm.Context.NodeName } · { components.T(ctx, "document.context.in") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
 							<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "document.context.rank") }</span><span class="v">{ vm.Context.RankStr }</span></div>
 						} else if vm.Context.State == "dropped" {
@@ -128,6 +131,10 @@ templ DocumentFragment(vm DocumentVM) {
 						} else if vm.Context.State == "always" {
 							<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "document.context.always") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
 						}
+						<div class="krow" style="border-bottom:none">
+							<span class="n">{ components.T(ctx, "context.mode.label") }</span>
+							@modeSeg("/wissen/"+vm.ID+"/mode", "#document-fragment", vm.ID, vm.Context.Mode)
+						</div>
 					</div>
 				}
 			</aside>

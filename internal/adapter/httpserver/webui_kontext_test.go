@@ -258,3 +258,136 @@ func TestWebKontextPin_UnknownDocIsNoOp(t *testing.T) {
 		t.Fatalf("status %d, want 200 no-op", rec.Code)
 	}
 }
+
+// TestWebKontextMode_ImmerMovesDocToAlways is the Kuratieren mode-switcher's
+// promotion round-trip (L5.5 Task 4): POST mode=immer moves the doc out of
+// the rang list into the Always-Tier section, emits document.updated, and
+// returns ONLY the #kontext-fragment.
+func TestWebKontextMode_ImmerMovesDocToAlways(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nodeID := "n1"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "Promote me", Body: "b1", CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	ch, cancel := c.srv.Bus.Subscribe("u1")
+	defer cancel()
+
+	rec := c.do(t, "POST", "/kontext/n1/mode", map[string]string{"doc": "mem-1", "mode": "immer"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="kontext-fragment"`) {
+		t.Errorf("mode response must contain #kontext-fragment: %.600s", body)
+	}
+	if strings.Contains(body, "<html") || strings.Contains(body, "<!DOCTYPE") {
+		t.Errorf("mode response must be fragment-only, not a full page: %.600s", body)
+	}
+	if !strings.Contains(body, "Promote me") {
+		t.Errorf("promoted doc must still show somewhere (Always section): %.1200s", body)
+	}
+	d, err := c.ds.Get(context.Background(), "u1", "mem-1")
+	if err != nil {
+		t.Fatalf("get mem-1: %v", err)
+	}
+	if d.ContextMode != domain.ContextModeImmer {
+		t.Errorf("mem-1.ContextMode = %q, want immer", d.ContextMode)
+	}
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventDocumentUpdated {
+			t.Errorf("want document.updated, got %q", ev.Type)
+		}
+	default:
+		t.Error("want document.updated SSE event after mode change, got none")
+	}
+}
+
+// TestWebKontextMode_NieMovesDocToHidden covers the demotion path: mode=nie
+// pulls the doc out of the rang list entirely into the Ausgeblendet section.
+func TestWebKontextMode_NieMovesDocToHidden(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nodeID := "n1"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "Hide me", Body: "b1", CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "POST", "/kontext/n1/mode", map[string]string{"doc": "mem-1", "mode": "nie"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Ausgeblendet (nie)") {
+		t.Errorf("hidden doc must render the Ausgeblendet section: %.1200s", body)
+	}
+	if !strings.Contains(body, "Hide me") {
+		t.Errorf("hidden doc title must still be visible in the Hidden section: %.1200s", body)
+	}
+	d, err := c.ds.Get(context.Background(), "u1", "mem-1")
+	if err != nil {
+		t.Fatalf("get mem-1: %v", err)
+	}
+	if d.ContextMode != domain.ContextModeNie {
+		t.Errorf("mem-1.ContextMode = %q, want nie", d.ContextMode)
+	}
+}
+
+// TestWebKontextMode_OwnerScopeNoOp is the owner-scope negative test: a
+// foreign doc id must not be mutated and must not 500 — a clean no-op
+// re-render of the current node's own (unaffected) fragment.
+func TestWebKontextMode_OwnerScopeNoOp(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	u2, _ := domain.NewUser("u2", "sub-2", "other", "o@x.de", "O")
+	_, _ = c.srv.Users.UpsertBySub(context.Background(), u2)
+	foreignNode := "n2"
+	c.seedNode(t, domain.Node{ID: foreignNode, OwnerID: "u2", Name: "other-repo", Kind: domain.KindRepo})
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "foreign-doc", OwnerID: "u2", NodeID: &foreignNode, Type: domain.DocMemory,
+		Path: "foreign-doc", Title: "Foreign", Body: "b1", CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "POST", "/kontext/n1/mode", map[string]string{"doc": "foreign-doc", "mode": "immer"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 no-op", rec.Code)
+	}
+	d, err := c.ds.Get(context.Background(), "u2", "foreign-doc")
+	if err != nil {
+		t.Fatalf("get foreign-doc: %v", err)
+	}
+	if d.ContextMode == domain.ContextModeImmer {
+		t.Error("foreign doc must not be mutated by another owner's mode POST")
+	}
+}
+
+// TestWebKontextMode_InvalidModeIsNoOp covers the belt-and-suspenders check:
+// an unknown mode string must degrade to a clean re-render, never a 500.
+func TestWebKontextMode_InvalidModeIsNoOp(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nodeID := "n1"
+	_, _ = c.ds.Create(context.Background(), domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "Untouched", Body: "b1", CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+
+	rec := c.do(t, "POST", "/kontext/n1/mode", map[string]string{"doc": "mem-1", "mode": "bogus"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, want 200 no-op", rec.Code)
+	}
+	d, err := c.ds.Get(context.Background(), "u1", "mem-1")
+	if err != nil {
+		t.Fatalf("get mem-1: %v", err)
+	}
+	// The fake store coalesces ContextMode to "auto" at Create (mirrors the
+	// pgstore column default) — the no-op must leave that default untouched,
+	// not apply "bogus".
+	if d.ContextMode != domain.ContextModeAuto {
+		t.Errorf("mem-1.ContextMode = %q, want unchanged auto (no-op)", d.ContextMode)
+	}
+}

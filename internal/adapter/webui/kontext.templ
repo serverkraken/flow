@@ -76,7 +76,7 @@ templ KontextFragment(vm KontextVM) {
 			<div class="sect">
 				<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.curate.always") }</span></div>
 				for _, a := range vm.Always {
-					@kontextAlwaysRow(a)
+					@kontextAlwaysRow(vm.NodeID, a)
 				}
 			</div>
 		}
@@ -93,6 +93,14 @@ templ KontextFragment(vm KontextVM) {
 				}
 			}
 		</div>
+		if len(vm.Hidden) > 0 {
+			<div class="sect">
+				<div class="sect-h"><span class="eyebrow">{ components.T(ctx, "context.curate.hidden") }</span></div>
+				for _, h := range vm.Hidden {
+					@kontextHiddenRow(vm.NodeID, h)
+				}
+			</div>
+		}
 	</div>
 }
 
@@ -114,7 +122,7 @@ templ kontextRow(nodeID string, row KontextRowVM) {
 			<a class="t" href={ templ.SafeURL("/wissen/" + row.DocID) } title={ row.Title }>{ row.Title }</a>
 			<div class="s">{ row.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), row.TokensStr) }</div>
 		</div>
-		<div class="right" style="display:flex;gap:6px;align-items:center">
+		<div class="right kontext-actions">
 			<button
 				type="button"
 				class="btn btn-q btn-s"
@@ -153,6 +161,7 @@ templ kontextRow(nodeID string, row KontextRowVM) {
 			>
 				↓
 			</button>
+			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", row.DocID, row.Mode)
 			<a
 				class="btn btn-q btn-s"
 				href={ templ.SafeURL("/wissen/" + row.DocID + "/bearbeiten") }
@@ -166,25 +175,56 @@ templ kontextRow(nodeID string, row KontextRowVM) {
 	</div>
 }
 
-// kontextAlwaysRow is one Always-Tier row (Instruction/ActiveContext,
-// Mini-Task 6b): same .row shell + type chip + title/scope/tokens as
-// kontextRow, but no rank badge and no pin/↑/↓ buttons (Always-Tier is not
-// curatable) — a dim "immer" label (document.context.always, reused from the
-// document page's context-standing line) stands in their place. Mini-Task 7c
-// adds the same direct Bearbeiten-link as kontextRow — the row's only action,
-// since Always-Tier isn't pinnable/reorderable.
-templ kontextAlwaysRow(a KontextAlwaysVM) {
+// kontextAlwaysRow is one Always-Tier row (Instruction/ActiveContext/immer
+// memory, Mini-Task 6b + Task 4): same .row shell + type chip + title/scope/
+// tokens as kontextRow, but no rank badge and no pin/↑/↓ buttons (Always-Tier
+// is not curatable that way) — a dim "immer" label (document.context.always,
+// reused from the document page's context-standing line) stands in their
+// place. The mode switcher (Task 4) lets even an Instruction/ActiveContext be
+// demoted to "nie" (OE #4/#5). Mini-Task 7c adds the same direct
+// Bearbeiten-link as kontextRow — the row's remaining action.
+templ kontextAlwaysRow(nodeID string, a KontextAlwaysVM) {
 	<div class="row">
 		<span class={ "typechip", a.ChipClass }>{ a.TypeLabel }</span>
 		<div class="grow">
 			<a class="t" href={ templ.SafeURL("/wissen/" + a.DocID) } title={ a.Title }>{ a.Title }</a>
 			<div class="s">{ a.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), a.TokensStr) }</div>
 		</div>
-		<div class="right" style="display:flex;gap:6px;align-items:center">
+		<div class="right kontext-actions">
 			<span class="dim text-sm">{ components.T(ctx, "document.context.always") }</span>
+			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", a.DocID, a.Mode)
 			<a
 				class="btn btn-q btn-s"
 				href={ templ.SafeURL("/wissen/" + a.DocID + "/bearbeiten") }
+				hx-boost="false"
+				aria-label={ components.T(ctx, "wissen.edit") }
+				title={ components.T(ctx, "wissen.edit") }
+			>
+				{ components.T(ctx, "wissen.edit") }
+			</a>
+		</div>
+	</div>
+}
+
+// kontextHiddenRow is one row of the new "Ausgeblendet (nie)" section (Task
+// 4): a nie-mode doc, dimmed via the static `dim` class (mirrors the dropped
+// rang-row's Included=false treatment), with only the mode switcher (the
+// in-place restore path — flipping to auto/immer moves it back into the
+// composed context) and the same Bearbeiten-link as the other sections. No
+// pin/↑/↓ (not curatable there either — this section only exists to make
+// "nie" reversible without leaving Kuratieren).
+templ kontextHiddenRow(nodeID string, h KontextHiddenVM) {
+	<div class="row dim">
+		<span class={ "typechip", h.ChipClass }>{ h.TypeLabel }</span>
+		<div class="grow">
+			<a class="t" href={ templ.SafeURL("/wissen/" + h.DocID) } title={ h.Title }>{ h.Title }</a>
+			<div class="s">{ h.ScopeLabel } · { fmt.Sprintf(components.T(ctx, "context.estTokens"), h.TokensStr) }</div>
+		</div>
+		<div class="right kontext-actions">
+			@modeSeg("/kontext/"+nodeID+"/mode", "#kontext-fragment", h.DocID, h.Mode)
+			<a
+				class="btn btn-q btn-s"
+				href={ templ.SafeURL("/wissen/" + h.DocID + "/bearbeiten") }
 				hx-boost="false"
 				aria-label={ components.T(ctx, "wissen.edit") }
 				title={ components.T(ctx, "wissen.edit") }

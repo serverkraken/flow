@@ -27,7 +27,7 @@ type CockpitContextVM struct {
 	IncludedN int            // included Memories (len Ranked.Included) — Mockup "24 Docs"
 	DroppedN  int            // Σ Budget.Dropped (Leaf+Vorhaben+Engagement+Global)
 	PinnedN   int            // context-scoped: Ranked mit Item.Pinned (Offene Entscheidung #5)
-	AlwaysN   int            // len(Instructions) + (1 wenn ActiveContext gesetzt) — zählt in Budget.Used, erscheint in keiner Ranked-Zeile (Mini-Task 6b)
+	AlwaysN   int            // len(Instructions) + (1 wenn ActiveContext gesetzt) + len(AlwaysMemories) — zählt in Budget.Used, erscheint in keiner Ranked-Zeile (Mini-Task 6b, erweitert Task 4)
 	TopPins   []ContextPinVM // included && Pinned, top 3, nummeriert
 }
 
@@ -65,6 +65,7 @@ func BuildCockpitContext(cc usecase.ComposedContext, nodeID string) *CockpitCont
 	if cc.ActiveContext != nil {
 		vm.AlwaysN++
 	}
+	vm.AlwaysN += len(cc.AlwaysMemories) // immer-mode memories also count as "immer enthalten" (Task 4)
 
 	for _, r := range cc.Ranked {
 		if r.Included {

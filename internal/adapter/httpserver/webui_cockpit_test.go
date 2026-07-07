@@ -71,6 +71,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
 		GetDocument:       usecase.GetDocument{Docs: ds},
 		SetPinned:         usecase.SetPinned{Docs: ds},
+		SetContextMode:    usecase.SetContextMode{Docs: ds},
 		ListActivity:      usecase.ListActivity{Activities: as},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,

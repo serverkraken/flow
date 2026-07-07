@@ -569,6 +569,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .row .right { text-align: right; flex-shrink: 0; }
   .row .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
   .row .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
+  /* Kuratieren-Zeilenaktionen (L5.5 Task 4, Codex-Fund #6): eine Rang-Zeile
+     trägt jetzt Pin + ↑ + ↓ + Bearbeiten UND den neuen Modus-Umschalter — bei
+     375px pannt das sonst horizontal. flex-wrap lässt den .seg-Umschalter in
+     eine zweite Zeile fallen statt zu überlaufen (Spec §11). Ersetzt das
+     bisherige Inline-style auf .row .right in kontext.templ. */
+  .kontext-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
   /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
   /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */

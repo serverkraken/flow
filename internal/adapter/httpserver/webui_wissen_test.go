@@ -66,6 +66,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		RetryEmbedding:    usecase.RetryEmbedding{Docs: docs},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: projects},
 		SetPinned:         usecase.SetPinned{Docs: docs},
+		SetContextMode:    usecase.SetContextMode{Docs: docs},
 	}
 	return srv, codec, docs, projects
 }

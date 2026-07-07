@@ -133,6 +133,22 @@ func TestBuildCockpitContext_AlwaysN(t *testing.T) {
 	}
 }
 
+// TestBuildCockpitContext_AlwaysN_IncludesAlwaysMemories is L5.5 Task 4's
+// regression: an "immer"-mode memory forced into cc.AlwaysMemories must count
+// toward the rail panel's "Immer enthalten" line just like Instructions/
+// ActiveContext — otherwise the panel undercounts what Budget.Used already
+// includes (Compose already adds AlwaysMemories tokens to Used, Task 2).
+func TestBuildCockpitContext_AlwaysN_IncludesAlwaysMemories(t *testing.T) {
+	cc := usecase.ComposedContext{
+		Instructions:   []usecase.ContextItem{{Title: "AGENTS.md"}},
+		AlwaysMemories: []usecase.ContextItem{{Title: "Pinned-forever memory"}, {Title: "Another immer memory"}},
+	}
+	vm := BuildCockpitContext(cc, "node-1")
+	if vm.AlwaysN != 3 {
+		t.Errorf("AlwaysN = %d, want 3 (1 instruction + 2 immer memories)", vm.AlwaysN)
+	}
+}
+
 func TestFmtThousandsDE(t *testing.T) {
 	cases := []struct {
 		in   int

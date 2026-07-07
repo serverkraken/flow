@@ -143,6 +143,15 @@ func init() {
 			"context.curate.empty":   "No curatable context for this node.",
 			// Kuratieren page: always-tier section (instructions + active context, Mini-Task 6b)
 			"context.curate.always": "Always included — instructions & active context",
+			// Context-mode switcher (Lesesaal L5.5 Task 4): auto/always/never
+			"context.mode.label":    "Context mode",
+			"context.mode.auto":     "Auto",
+			"context.mode.immer":    "Always",
+			"context.mode.nie":      "Never",
+			"context.mode.autoHint": "Automatic by type/rules",
+			"context.mode.immerHint": "Always in agent context",
+			"context.mode.nieHint":   "Never in agent context (still in Wissen)",
+			"context.curate.hidden":  "Hidden (never)",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)
@@ -251,6 +260,7 @@ func init() {
 			"document.context.rank":    "Rank",
 			"document.context.dropped": "dropped (budget)",
 			"document.context.always":  "always included",
+			"document.context.hidden":  "hidden (never)",
 			"embed.ok":                 "Embedded",
 			"embed.pending":       "Embedding queued",
 			"embed.retrying":      "Embedding retrying",

@@ -9,6 +9,15 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
+// contextModeErrKnown reports whether err is one of the two "clean no-op"
+// outcomes for a mode POST — an invalid mode string (domain.ErrInvalidDocument,
+// belt-and-suspenders with the DB CHECK) or a foreign/unknown doc id
+// (ports.ErrDocumentNotFound, Owner-Scope). Neither is a 500; both just skip
+// the mutation and fall through to a clean re-render.
+func contextModeErrKnown(err error) bool {
+	return errors.Is(err, domain.ErrInvalidDocument) || errors.Is(err, ports.ErrDocumentNotFound)
+}
+
 // kontextComposeErr is the Kuratieren fragment's inline error line for a
 // Compose failure (docs/tags store I/O) — plain hardcoded German, matching
 // the existing renderCockpitMain/renderNodeRail convention (webui_cockpit.go)
@@ -145,6 +154,38 @@ func (s *Server) handleWebKontextPin(w http.ResponseWriter, r *http.Request) {
 	if err := s.SetPinned.Execute(r.Context(), u.ID, doc, !d.Pinned); err == nil {
 		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
 	} else if !errors.Is(err, ports.ErrDocumentNotFound) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	vm, err := s.kontextDataFor(r, u.ID, nodeID)
+	if errors.Is(err, ports.ErrNodeNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.renderKontext(w, r, vm)
+}
+
+// handleWebKontextMode serves POST /kontext/{id}/mode: the Auto/Immer/Nie
+// mode switcher on every Kuratieren row (rang list, Always-Tier, and the new
+// Ausgeblendet section, Task 4). ErrInvalidDocument (bad mode string,
+// belt-and-suspenders with the DB CHECK) and ErrDocumentNotFound (foreign or
+// unknown doc — Owner-Scope) both degrade to a clean no-op re-render, never a
+// 500 — mirrors handleWebKontextPin's no-op-on-missing-doc shape.
+func (s *Server) handleWebKontextMode(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	nodeID := r.PathValue("id")
+	_ = r.ParseForm()
+	doc := r.FormValue("doc")
+	mode := r.FormValue("mode")
+
+	if err := s.SetContextMode.Execute(r.Context(), u.ID, doc, domain.ContextMode(mode)); err == nil {
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
+	} else if !contextModeErrKnown(err) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

@@ -272,12 +272,15 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 	mux.Handle("POST /wissen/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebDocPin)))
+	mux.Handle("POST /wissen/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebDocMode)))
 
 	// Kuratieren-Seite (L5 Task 7): Budget-Meter + Rang-Liste mit Höher/
-	// Tiefer + Anpinnen, owner-scoped per Knoten-ID.
+	// Tiefer + Anpinnen, owner-scoped per Knoten-ID. Task 4 adds the
+	// Auto/Immer/Nie mode switcher (rang list, Always-Tier, Ausgeblendet).
 	mux.Handle("GET /kontext/{id}", s.webAuth(http.HandlerFunc(s.handleWebKontextView)))
 	mux.Handle("POST /kontext/{id}/reorder", s.webAuth(http.HandlerFunc(s.handleWebKontextReorder)))
 	mux.Handle("POST /kontext/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebKontextPin)))
+	mux.Handle("POST /kontext/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebKontextMode)))
 
 	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
 	mux.Handle("POST /api/v1/maintenance/redesign-doctypes", s.authAny(http.HandlerFunc(s.handleRedesignDocTypes)))

@@ -149,6 +149,15 @@ func init() {
 			"context.curate.empty":   "Kein kuratierbarer Kontext für diesen Knoten.",
 			// Kuratieren-Seite: Always-Tier-Abschnitt (Instruktionen + Active Context, Mini-Task 6b)
 			"context.curate.always": "Immer enthalten — Instruktionen & Active Context",
+			// Kontext-Modus-Umschalter (Lesesaal L5.5 Task 4): Auto/Immer/Nie
+			"context.mode.label":    "Kontext-Modus",
+			"context.mode.auto":     "Auto",
+			"context.mode.immer":    "Immer",
+			"context.mode.nie":      "Nie",
+			"context.mode.autoHint": "Automatisch nach Typ/Regeln",
+			"context.mode.immerHint": "Immer im Agenten-Kontext",
+			"context.mode.nieHint":   "Nie im Agenten-Kontext (in Wissen sichtbar)",
+			"context.curate.hidden":  "Ausgeblendet (nie)",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)
@@ -259,6 +268,7 @@ func init() {
 			"document.context.rank":    "Rang",
 			"document.context.dropped": "verworfen (Budget)",
 			"document.context.always":  "immer enthalten",
+			"document.context.hidden":  "ausgeblendet (nie)",
 			"embed.ok":                 "Eingebettet",
 			"embed.pending":       "Einbettung geplant",
 			"embed.retrying":      "Einbettung wiederholt",

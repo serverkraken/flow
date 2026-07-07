@@ -362,3 +362,160 @@ func TestBuildKontextVM_AllIncludedNoCutline(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildKontextVM_RowsCarryMode is L5.5 Task 4: each rang-list row carries
+// its ContextItem's ContextMode (constructively always "auto" — only
+// auto-mode docs ever enter the ranked pool, Task 2 Compose semantics) so the
+// mode switcher can render its current segment as pressed.
+func TestBuildKontextVM_RowsCarryMode(t *testing.T) {
+	n := domain.Node{ID: "n1", Name: "flow"}
+	cc := usecase.ComposedContext{
+		Ranked: []usecase.RankedItem{
+			{Item: usecase.ContextItem{ID: "d1", Title: "A", ContextMode: domain.ContextModeAuto}, Included: true, Rank: 1},
+		},
+	}
+	vm := BuildKontextVM(n, cc)
+	if len(vm.Rows) != 1 {
+		t.Fatalf("len(Rows) = %d, want 1", len(vm.Rows))
+	}
+	if vm.Rows[0].Mode != domain.ContextModeAuto {
+		t.Errorf("Rows[0].Mode = %q, want auto", vm.Rows[0].Mode)
+	}
+}
+
+// TestBuildKontextVM_AlwaysIncludesAlwaysMemories verifies cc.AlwaysMemories
+// (immer-mode memories, forced always-tier by Task 2's Compose) are appended
+// to vm.Always alongside Instructions/ActiveContext, carrying Mode="immer" so
+// the switcher shows the correct pressed segment and Instructions/ActiveContext
+// (Mode="auto", alwaysByType) remain demotable to "nie".
+func TestBuildKontextVM_AlwaysIncludesAlwaysMemories(t *testing.T) {
+	n := domain.Node{ID: "n1", Name: "flow"}
+	cc := usecase.ComposedContext{
+		Instructions: []usecase.ContextItem{
+			{ID: "i1", Title: "AGENTS.md", Type: domain.DocInstruction, ContextMode: domain.ContextModeAuto},
+		},
+		AlwaysMemories: []usecase.ContextItem{
+			{ID: "m1", Title: "Forced-immer memory", Type: domain.DocMemory, ContextMode: domain.ContextModeImmer},
+		},
+	}
+	vm := BuildKontextVM(n, cc)
+	if len(vm.Always) != 2 {
+		t.Fatalf("len(Always) = %d, want 2 (1 instruction + 1 immer memory)", len(vm.Always))
+	}
+	if vm.Always[0].Mode != domain.ContextModeAuto {
+		t.Errorf("Always[0] (instruction) Mode = %q, want auto", vm.Always[0].Mode)
+	}
+	if vm.Always[1].DocID != "m1" || vm.Always[1].Mode != domain.ContextModeImmer {
+		t.Errorf("Always[1] = %+v, want DocID=m1 Mode=immer", vm.Always[1])
+	}
+}
+
+// TestBuildKontextVM_HiddenFromCcHidden covers the new "Ausgeblendet"
+// section: cc.Hidden (nie-mode docs, collected by Compose purely for this
+// restore affordance — 0 extra queries) is reduced to vm.Hidden with
+// Mode=nie.
+func TestBuildKontextVM_HiddenFromCcHidden(t *testing.T) {
+	n := domain.Node{ID: "n1", Name: "flow"}
+	cc := usecase.ComposedContext{
+		Hidden: []usecase.ContextItem{
+			{ID: "h1", Title: "Hidden doc", Type: domain.DocMemory, ScopeLabel: "repo:flow", EstTokens: 42, ContextMode: domain.ContextModeNie},
+		},
+	}
+	vm := BuildKontextVM(n, cc)
+	if len(vm.Hidden) != 1 {
+		t.Fatalf("len(Hidden) = %d, want 1", len(vm.Hidden))
+	}
+	h := vm.Hidden[0]
+	if h.DocID != "h1" || h.Title != "Hidden doc" {
+		t.Errorf("Hidden[0] = %+v, want DocID=h1 Title=%q", h, "Hidden doc")
+	}
+	if h.Mode != domain.ContextModeNie {
+		t.Errorf("Hidden[0].Mode = %q, want nie", h.Mode)
+	}
+	if h.ChipClass != DocTypeChipClass(domain.DocMemory) || h.TypeLabel != DocTypeLabel(domain.DocMemory) {
+		t.Errorf("Hidden[0] chip = %q/%q, want DocTypeChipClass/Label(DocMemory)", h.ChipClass, h.TypeLabel)
+	}
+	if h.ScopeLabel != "repo:flow" {
+		t.Errorf("Hidden[0].ScopeLabel = %q, want repo:flow", h.ScopeLabel)
+	}
+	if h.TokensStr != "42" {
+		t.Errorf("Hidden[0].TokensStr = %q, want 42", h.TokensStr)
+	}
+
+	// No Hidden docs → empty section (the section must not render at all).
+	empty := BuildKontextVM(n, usecase.ComposedContext{})
+	if len(empty.Hidden) != 0 {
+		t.Errorf("len(Hidden) = %d, want 0 for empty ComposedContext", len(empty.Hidden))
+	}
+}
+
+// TestKontextFragment_HiddenSection_PresentWhenSet verifies the Ausgeblendet
+// section renders below the rang list when vm.Hidden is populated: eyebrow,
+// title/scope, a Bearbeiten-link (wiederherstellbar in-place — no separate
+// restore action, the mode switcher itself IS the restore path), and NO pin/
+// reorder controls (mirrors kontextAlwaysRow's non-curatable shape).
+func TestKontextFragment_HiddenSection_PresentWhenSet(t *testing.T) {
+	vm := KontextVM{
+		NodeID: "n1", Title: "flow",
+		Hidden: []KontextHiddenVM{
+			{DocID: "h1", Title: "Hidden doc", ChipClass: DocTypeChipClass(domain.DocMemory), TypeLabel: DocTypeLabel(domain.DocMemory), ScopeLabel: "repo:flow", TokensStr: "42", Mode: domain.ContextModeNie},
+		},
+	}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, KontextFragment(vm))
+	for _, want := range []string{
+		"Ausgeblendet (nie)",
+		"Hidden doc",
+		`href="/wissen/h1"`,
+		`href="/wissen/h1/bearbeiten"`,
+		`aria-pressed="true"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("hidden section misses %q:\n%s", want, out)
+		}
+	}
+	for _, unwanted := range []string{"↑", "↓"} {
+		if strings.Contains(out, unwanted) {
+			t.Fatalf("hidden section must render no pin/reorder controls, found %q:\n%s", unwanted, out)
+		}
+	}
+}
+
+// TestKontextFragment_HiddenSection_AbsentWhenEmpty verifies the empty Hidden
+// list renders no section at all (Trap-Vermeidung: an empty section must not
+// leave a stray heading behind).
+func TestKontextFragment_HiddenSection_AbsentWhenEmpty(t *testing.T) {
+	vm := KontextVM{NodeID: "n1", Title: "flow"}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, KontextFragment(vm))
+	if strings.Contains(out, "Ausgeblendet (nie)") {
+		t.Fatalf("empty Hidden must render no section:\n%s", out)
+	}
+}
+
+// TestKontextFragment_RowModeSegment_ShowsCurrentModePressed verifies the
+// rang-row's mode switcher renders three segments (Auto/Immer/Nie) targeting
+// the Kuratieren fragment, with the row's current mode marked aria-pressed.
+func TestKontextFragment_RowModeSegment_ShowsCurrentModePressed(t *testing.T) {
+	vm := KontextVM{
+		NodeID: "n1", Title: "flow",
+		Rows: []KontextRowVM{
+			{DocID: "d1", Num: 1, Title: "First", TypeLabel: DocTypeLabel(domain.DocMemory), ScopeLabel: "repo:flow", TokensStr: "10", Included: true, IsFirst: true, IsLast: true, Mode: domain.ContextModeAuto},
+		},
+	}
+	ctx := i18n.WithLocale(context.Background(), i18n.DE)
+	out := renderToBuf(t, ctx, KontextFragment(vm))
+	for _, want := range []string{
+		`hx-post="/kontext/n1/mode"`,
+		`hx-target="#kontext-fragment"`,
+		"d1",
+		"auto",
+		"immer",
+		"nie",
+		`aria-pressed="true"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("row mode segment misses %q:\n%s", want, out)
+		}
+	}
+}
