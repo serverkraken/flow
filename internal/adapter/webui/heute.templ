@@ -36,7 +36,7 @@ templ heuteOuter(vm HeuteVM) {
 // menu. No Saldo-Kacheln, no Burndown-Banner, no sub-tab-strip.
 templ HeuteFragment(vm HeuteVM) {
 	if vm.Err != "" {
-		<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+		<p class="alert-err" role="alert">{ vm.Err }</p>
 	}
 	<div class="narrow">
 		<div class="pagehead">

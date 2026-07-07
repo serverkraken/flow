@@ -567,6 +567,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* Scroll-Boden für breite Grids (Kalender): Inhalt behält 860px und scrollt
      im eigenen overflow-x-Rahmen statt die Seite zu pannen (Spec §11/§12). */
   .narrow-min { min-width: 860px; }
+  /* Fehler-Hinweiszeile der Seiten-Flows (Rest-Sweep L4: 5× identisches
+     Inline-Muster → benannte Klasse; Rot bleibt Fehler-Reserve, Spec §7). */
+  .alert-err { margin-bottom: 1.25rem; border-radius: 14px; background: rgb(var(--red)/.1); padding: 12px 16px; font-size: .9rem; font-weight: 500; color: rgb(var(--red)); }
   /* Jetzt-Panelzeile (zweite Fläche, Zwei-Flächen-Regel) */
   .panelrow { background: rgb(var(--panel)); border-radius: 14px; padding: 13px 16px; border-bottom: none; margin-top: 12px; }
   /* Zeit-Wochenskala: vertikale Balken (horizontale heuteWeekRows/wocheDayBarStyle bleiben unberührt) */

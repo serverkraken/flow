@@ -48,7 +48,7 @@ templ HistorieCalendarFragment(vm HistorieVM) {
 			<h1>{ components.T(ctx, "historie.title") }</h1>
 		</div>
 		if vm.Err != "" {
-			<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+			<p class="alert-err" role="alert">{ vm.Err }</p>
 		}
 		@historieToolbar(vm)
 		if vm.CalView == "month" {
@@ -333,7 +333,7 @@ templ historieMonthCell(c HistorieMonthCellVM) {
 				if c.HasUnassigned {
 					<span class="text-orange text-[.66rem]" aria-label={ components.T(ctx, "historie.unassigned") }>○</span>
 				} else if c.Hours != "" {
-					<span class="text-green text-[.6rem]" aria-hidden="true">●</span>
+					<span class="text-accent text-[.6rem]" aria-hidden="true">●</span>
 				}
 			</div>
 			<div class="mt-auto" style="display:flex;flex-direction:column;gap:3px">
@@ -391,7 +391,7 @@ templ HistorieListFragment(vm HistorieListVM) {
 			<h1>{ components.T(ctx, "historie.title") }</h1>
 		</div>
 		if vm.Err != "" {
-			<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+			<p class="alert-err" role="alert">{ vm.Err }</p>
 		}
 		<div class="sect-h" style="flex-wrap:wrap;row-gap:10px">
 			@historieSeg([]components.SegOption{
@@ -466,7 +466,7 @@ templ historieActionBar(vm components.SelectionBarVM) {
 				<div class="flex-1"></div>
 				<div class="relative">
 					<button type="button" data-assign-toggle data-assign-url={ vm.AssignURL } class="btn btn-pri btn-s">
-						<span aria-hidden="true">◆</span> { components.T(ctx, "historie.assignProject") } <span class="text-[.7rem] opacity-80" aria-hidden="true">▴</span>
+						{ components.T(ctx, "historie.assignProject") } <span class="text-[.7rem] opacity-80" aria-hidden="true">▴</span>
 					</button>
 					<div data-assign-panel class="hidden absolute bottom-[calc(100%+8px)] right-0">
 						@components.ProjectFuzzyPicker(vm.Picker)

@@ -40,7 +40,7 @@ templ FreiFragment(vm FreiVM) {
 			<h1>{ components.T(ctx, "frei.title") }</h1>
 		</div>
 		if vm.Err != "" {
-			<p class="mb-5 rounded-2xl bg-red/10 px-4 py-3 text-[.9rem] font-medium text-red" role="alert">{ vm.Err }</p>
+			<p class="alert-err" role="alert">{ vm.Err }</p>
 		}
 		@freiAddSection(vm)
 		@freiListSection(vm)
