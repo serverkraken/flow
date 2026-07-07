@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func TestWebWissenDocumentView(t *testing.T) {
@@ -182,6 +184,114 @@ func TestWebDocumentView_SanitizerBoundaryEndToEnd(t *testing.T) {
 		if strings.Contains(fragment, want) {
 			t.Fatalf("agent markdown not neutralized end-to-end, found %q in fragment:\n%s", want, fragment)
 		}
+	}
+}
+
+// TestWebDocumentView_ContextRankShownForMemoryDoc is Task 6's Step 5
+// coverage: a memory doc that sits within a node's composed chain shows
+// "enthalten ✓" plus the "Rang N/M" krow, and the Anpinnen button (Bestand,
+// L3) is untouched.
+func TestWebDocumentView_ContextRankShownForMemoryDoc(t *testing.T) {
+	srv, codec, docs, projects := newWebWissenServer(t)
+	srv.ComposeContext = usecase.ComposeContext{Nodes: projects, Docs: docs, Tags: testutil.NewFakeTagStore()}
+	srv.ContextBudget = 12000
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := projects.Create(ctx, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nodeID := "n1"
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "Tailwind v4 gotchas", Body: "some memory body",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed memory doc: %v", err)
+	}
+
+	body, status := getWissenDocumentAs(t, srv, codec, "u1", "/wissen/mem-1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/mem-1 status=%d body=%.400s", status, body)
+	}
+	for _, want := range []string{
+		"Im Agenten-Kontext",
+		"flow · enthalten",
+		"Rang",
+		"01 / 01",
+		`hx-post="/wissen/mem-1/pin"`, // Anpinnen bleibt Bestand, unangetastet
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("GET /wissen/mem-1 missing %q in %.1200s", want, body)
+		}
+	}
+}
+
+// TestWebDocumentView_ContextRankAbsentForNonContextType covers the "kein
+// Kontext-Typ" state: a non-context-type doc (free) never shows the "Im
+// Agenten-Kontext" block, and Compose is never even consulted for it.
+func TestWebDocumentView_ContextRankAbsentForNonContextType(t *testing.T) {
+	srv, codec, docs, projects := newWebWissenServer(t)
+	srv.ComposeContext = usecase.ComposeContext{Nodes: projects, Docs: docs, Tags: testutil.NewFakeTagStore()}
+	srv.ContextBudget = 12000
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "free-1", OwnerID: "u1", Type: domain.DocFree,
+		Path: "free-1", Title: "Free Doc", Body: "body",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed free doc: %v", err)
+	}
+
+	body, status := getWissenDocumentAs(t, srv, codec, "u1", "/wissen/free-1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/free-1 status=%d body=%.400s", status, body)
+	}
+	if strings.Contains(body, "Im Agenten-Kontext") {
+		t.Errorf("non-context-type doc must never show the context block: %.800s", body)
+	}
+}
+
+// TestWebDocumentView_ContextRankOwnerScoped is the owner-scope negative test
+// (Global Constraints): a second tenant's own view of their own memory doc
+// must compose against their OWN chain, never leaking u1's rank/total.
+func TestWebDocumentView_ContextRankOwnerScoped(t *testing.T) {
+	srv, codec, docs, projects := newWebWissenServer(t)
+	srv.ComposeContext = usecase.ComposeContext{Nodes: projects, Docs: docs, Tags: testutil.NewFakeTagStore()}
+	srv.ContextBudget = 12000
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+	if _, err := projects.Create(ctx, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nodeID := "n1"
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "u1 memory", Body: "body",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed memory doc: %v", err)
+	}
+	// A foreign owner's memory doc in the same node must never inflate u1's
+	// Rang total (Compose is owner-scoped end to end).
+	if _, err := projects.Create(ctx, domain.Node{ID: "n2", OwnerID: "u2", Name: "other", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed foreign node: %v", err)
+	}
+	nodeID2 := "n2"
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "mem-foreign", OwnerID: "u2", NodeID: &nodeID2, Type: domain.DocMemory,
+		Path: "mem-foreign", Title: "foreign memory", Body: "body",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed foreign doc: %v", err)
+	}
+
+	body, status := getWissenDocumentAs(t, srv, codec, "u1", "/wissen/mem-1")
+	if status != http.StatusOK {
+		t.Fatalf("GET /wissen/mem-1 status=%d body=%.400s", status, body)
+	}
+	if !strings.Contains(body, "01 / 01") {
+		t.Errorf("owner-scoped compose must show total 1 (foreign doc excluded), got: %.800s", body)
 	}
 }
 

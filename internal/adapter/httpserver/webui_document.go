@@ -7,6 +7,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +85,44 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 			}
 		}
 	}
+
+	// Kontext-Rang (L5): only context-eligible docs participate in Compose. Compose
+	// the OWNING node's context by ID (nil node → global/unresolved context via
+	// Execute). Guarded/owner-scoped; a compose error just omits the block.
+	if isContextType(doc.Type) && s.ComposeContext.Nodes != nil {
+		budget := s.ContextBudget
+		if budget <= 0 {
+			budget = 12000
+		}
+		var cc usecase.ComposedContext
+		var cerr error
+		if doc.NodeID != nil {
+			cc, cerr = s.ComposeContext.ExecuteForNode(r.Context(), ownerID, *doc.NodeID, budget)
+		} else {
+			cc, cerr = s.ComposeContext.Execute(r.Context(), ownerID, usecase.ContextResolveInput{}, budget)
+		}
+		if cerr == nil {
+			nodeName := ""
+			if len(vm.Crumbs) > 0 {
+				nodeName = vm.Crumbs[len(vm.Crumbs)-1].Label // leaf crumb = doc's node
+			}
+			vm.Context = webui.BuildDocContext(usecase.StandingOf(cc, doc.ID), nodeName)
+		}
+	}
 	return vm, nil
+}
+
+// isContextType reports whether t is one of the three context-eligible
+// document types that participate in Compose (memory/instruction/
+// activecontext). All other types never show the "Im Agenten-Kontext" block —
+// buildDocumentVM skips the Compose call entirely for them.
+func isContextType(t domain.DocumentType) bool {
+	switch t {
+	case domain.DocMemory, domain.DocInstruction, domain.DocActiveContext:
+		return true
+	default:
+		return false
+	}
 }
 
 // buildOutgoingRefs resolves doc's own wikilink targets against the
