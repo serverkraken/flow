@@ -77,6 +77,12 @@ func (c *Client) SetPinned(ctx context.Context, id string, pinned bool) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/pin", map[string]bool{"pinned": pinned}, nil)
 }
 
+// SetContextMode calls POST /api/v1/documents/{id}/context-mode to set a
+// document's agent-context membership mode (auto/immer/nie).
+func (c *Client) SetContextMode(ctx context.Context, id string, mode domain.ContextMode) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/context-mode", map[string]string{"mode": string(mode)}, nil)
+}
+
 // SetArchived calls POST /api/v1/documents/{id}/archive to archive or un-archive a document.
 func (c *Client) SetArchived(ctx context.Context, id string, archived bool) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/archive", map[string]bool{"archived": archived}, nil)

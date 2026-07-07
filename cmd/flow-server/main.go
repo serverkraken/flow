@@ -189,6 +189,7 @@ func run() error {
 			Nodes:   nodeStore, Docs: documentStore, Tags: tagStore,
 		},
 		SetPinned:          usecase.SetPinned{Docs: documentStore},
+		SetContextMode:     usecase.SetContextMode{Docs: documentStore},
 		ReorderContextDocs: usecase.ReorderContextDocs{Docs: documentStore},
 		SetArchived:  usecase.SetArchived{Docs: documentStore},
 		ListArchived: usecase.ListArchived{Docs: documentStore},

@@ -63,6 +63,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		ListTags:             usecase.ListTags{Tags: tags},
 		SearchDocuments:      usecase.SearchDocuments{Docs: docs},
 		SetPinned:            usecase.SetPinned{Docs: docs},
+		SetContextMode:       usecase.SetContextMode{Docs: docs},
 		SetArchived:          usecase.SetArchived{Docs: docs},
 		ListArchived:         usecase.ListArchived{Docs: docs},
 		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Tags: tags},
@@ -828,6 +829,132 @@ func TestHandlePinDocument_NotFound(t *testing.T) {
 	primeUser(t, ts.URL)
 
 	res := doDoc(t, ts, "POST", "/api/v1/documents/no-such-id/pin", `{"pinned":true}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleSetContextMode_HappyPath(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"memory","path":"ctxmode-test","title":"CtxMode","body":""}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/context-mode", `{"mode":"immer"}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("want 204, got %d", res.StatusCode)
+	}
+
+	getRes := doDoc(t, ts, "GET", "/api/v1/documents/"+created.ID, "")
+	defer func() { _ = getRes.Body.Close() }()
+	var doc domain.Document
+	_ = json.NewDecoder(getRes.Body).Decode(&doc)
+	if doc.ContextMode != domain.ContextModeImmer {
+		t.Errorf("want contextMode=immer, got %q", doc.ContextMode)
+	}
+}
+
+func TestHandleSetContextMode_InvalidMode(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"memory","path":"ctxmode-bad","title":"CtxModeBad","body":""}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/context-mode", `{"mode":"bogus"}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleSetContextMode_NotFound(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/no-such-id/context-mode", `{"mode":"immer"}`)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleSetContextMode_PublishesSSE(t *testing.T) {
+	srv, bus := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"memory","path":"ctxmode-sse","title":"CtxModeSSE","body":""}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	_ = json.NewDecoder(createRes.Body).Decode(&created)
+
+	ch, cancel := bus.Subscribe("id-1")
+	defer cancel()
+
+	for {
+		select {
+		case <-ch:
+		default:
+			goto drained
+		}
+	}
+drained:
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/"+created.ID+"/context-mode", `{"mode":"nie"}`)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("want 204, got %d", res.StatusCode)
+	}
+
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventDocumentUpdated {
+			t.Errorf("want event type %q, got %q", domain.EventDocumentUpdated, ev.Type)
+		}
+		if id, _ := ev.Data["id"].(string); id != created.ID {
+			t.Errorf("want event id %q, got %q", created.ID, id)
+		}
+	default:
+		t.Error("want document.updated SSE event after context-mode change, got none")
+	}
+}
+
+func TestHandleSetContextMode_OwnerScoped(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+
+	_, err := srv.CreateDocument.Docs.Create(context.Background(), domain.Document{ID: "doc-foreign", OwnerID: "someone-else", Title: "Foreign", Path: "foreign-ctxmode.md"})
+	if err != nil {
+		t.Fatalf("seed foreign doc: %v", err)
+	}
+
+	res := doDoc(t, ts, "POST", "/api/v1/documents/doc-foreign/context-mode", `{"mode":"immer"}`)
 	_ = res.Body.Close()
 
 	if res.StatusCode != http.StatusNotFound {

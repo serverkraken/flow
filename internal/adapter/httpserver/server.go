@@ -101,6 +101,7 @@ type Server struct {
 	RetryEmbedding    usecase.RetryEmbedding
 	GetEmbedStatus    usecase.GetEmbedStatus
 	SetPinned         usecase.SetPinned
+	SetContextMode    usecase.SetContextMode
 	SetArchived       usecase.SetArchived
 	ListArchived      usecase.ListArchived
 
@@ -190,6 +191,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
 	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))
+	mux.Handle("POST /api/v1/documents/{id}/context-mode", s.auth(http.HandlerFunc(s.handleSetContextMode)))
 	mux.Handle("POST /api/v1/documents/{id}/archive", s.auth(http.HandlerFunc(s.handleArchiveDocument)))
 
 	mux.Handle("GET /api/v1/activity", s.auth(http.HandlerFunc(s.handleListActivity)))
