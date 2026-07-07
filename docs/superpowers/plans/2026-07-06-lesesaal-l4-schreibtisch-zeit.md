@@ -475,3 +475,19 @@ Beide Berater liefen gegen Spec + Mockup + Plan-Entwurf + Dossier und prüften i
 **Non-Findings (von beiden Beratern explizit als sauber bestätigt, kein Plan-Change):** zwei gleichzeitige `data-timer`-Ticker (base.templ ist Multi-Instanz-fähig); `worktimeSubnav`-Zwischenzustand nach Task 3 kompiliert (3 Aufrufer bleiben); `WissenRowFromDocument(d,now)`-Signatur + `WissenRowVM`-Felder exakt; `cockpitPulseRow` genau ein Aufrufer (Promotion zu `pulseRow` Cockpit-sicher); `dayoff.changed` als reales Event; keine erfundenen/falsch signierten Symbole im Plan.
 
 **Dissens:** keiner — die Berater überschnitten sich auf beiden CRITICALs ohne Widerspruch und waren sonst komplementär (Codex tiefer bei Retirement-/Signatur-Kanten, Gemini breiter bei SSE-Triggern/Responsive/Mockup-Zeilen-Details). Alle Sichten eingearbeitet.
+
+---
+
+## Ausführungsstand (final, 2026-07-07) — L4 KOMPLETT, gemerged nach rebuild (`4c75f90`)
+
+**Slice in einem Tag ausgeführt (06.07. abends – 07.07.):** 17 Commits `1adea6d..596896f`, per `--no-ff` nach `rebuild` gemerged (`4c75f90`, gepusht); Branch `lesesaal-l4` gelöscht. Alle 8 Tasks implementiert und einzeln reviewt (T3 Approved nach 2 Fixes [FmtClockShort + Ledger-Note], T5 nach 1 Minor [.narrow-min], Rest auf Anhieb). Plan lief als v2 (Soenne-Direktentscheidungen im Planner-Chat: OE #7 voller Rebuild der Werkzeug-Destinationen → 3 Deep-Tasks; OE #12 NodeAvatar/Logos überall); v1→v2-Rekonziliation mitten in Task 2 (Brief-Neuschnitt + Delta-Nachreichung an laufenden Implementer) verlief sauber.
+
+**Slice-Ende:** make ci grün (85,6 %) · Rest-Sweep (agy 2× Timeout → mechanischer rg-Sweep): 3 Fixes (`dfaf84a`: .alert-err, Stundenpunkt akzent, ◆ weg) · Final-Review (opus): **READY-WITH-FIXES**, 0 Critical/Important, 5 Minor → Fixes `840d4dd` (geteilter Weekbar-Builder für /zeit+/woche, toter BurndownVM, Kommentare) · Mockup-Audit: **TREU-MIT-ABWEICHUNGEN** → Fixes `1f4a773` (Inline-Flex→Utilities, Running Petrol→Live-Grün) · Soenne-Live-Gate: 1 Befund (Uhren ~1s Versatz zwischen Flächen) → `596896f` (absoluter `data-since`-Anker statt relativem data-base+boundStart-Tick, Invarianten-Test).
+
+**Bonus-Fixes außerhalb des Plans:** goose-Migrate-Race (`45fe230` — SetBaseFS/SetDialect-Package-Globals unter t.Parallel, gooseMu; T8 hatte den langjährigen „pgstore-race-Flake" als echten Bug entlarvt) · Vortages-Hotfix `fa9b7b5` (Edit-Form-Entschachtelung + Engagement/Vorhaben-Kopf-Links) liegt unter dem Slice.
+
+**Lehren:** (1) verify-generate/verify-css diffen gegen den Index — bei uncommitted templ-Ständen false-positiv; erst stagen, dann ci. (2) Podman-VM (2 GiB) keilt bei parallelen Testcontainer-Läufen ein („running", aber ssh-EOF) → Hard-Stop+Start; nie zwei make ci parallel. (3) Subagenten verfallen in Warte-Posen auf nie kommende Background-Notifications → Dispatches explizit „SYNCHRON foreground, keine Hintergrund-Testläufe" pinnen. (4) Live-Tick-Uhren brauchen absolute Anker (Epoche), nie relative (base+boundStart) — Phasen-Drift zwischen Flächen. (5) Cloudflare cached /static/ 4h ohne Origin-Header → Fingerprinting (T7) macht Deploys atomar; bis zum nächsten PROD-Deploy einmal purgen.
+
+**Deferred (L7-Rollup):** Kolophon (Soenne-Entscheid beim L7-Start: eigener Text statt Entwurfs-Metadaten empfohlen) · Micro-Type-Sammelklasse · AllTime-Σ-Scan (OE #8-Fallback dokumentiert) · @font-face-URLs unversioniert · L3-Reste (readTimeLabel-Duplikat, T9-Härtung, list.results) · L2-Rest (Projekte-Summary seit <Datum>).
+
+**Next:** L5 Kontext-Kuratierung → L6 Artefakte → L7 Dunkel-Zwilling + Politur-Gate (L5/L6 tauschbar). PROD-Deploy: Digest-Bump + einmaliger Cloudflare-Purge (letzter nötiger — danach greift Fingerprinting).
