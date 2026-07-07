@@ -12,6 +12,14 @@ import (
 // context ("projekte" tab), reachable from the cockpit rail's context
 // instrument panel ("Kuratieren — sortieren & pinnen ›").
 templ KontextPage(vm KontextVM) {
+	@components.Base("projekte", kontextBody(vm))
+}
+
+// kontextBody wires the Lesesaal AppShell around the Kuratieren fragment,
+// mirroring document.templ's Base→Body→AppShell layering (KontextPage must
+// not call AppShell directly — that skips the shared HTML hull, shipping
+// kopfloses HTML with no app.css).
+templ kontextBody(vm KontextVM) {
 	@components.AppShell("projekte", nil, nil, kontextOuter(vm))
 }
 

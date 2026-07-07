@@ -48,6 +48,28 @@ func TestWebKontextView_RendersMeterRowsAndActions(t *testing.T) {
 	}
 }
 
+// TestWebKontextView_FullPageHasHTMLHull guards against a kopfloses-HTML
+// regression (Soenne live-Befund): the full GET /kontext/{id} view must render
+// inside the shared HTML hull (components.Base) — DOCTYPE + app.css link —
+// not just the bare AppShell fragment, otherwise the browser gets unstyled
+// text with no CSS.
+func TestWebKontextView_FullPageHasHTMLHull(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/kontext/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "<!doctype html") {
+		t.Errorf("kontext full page missing <!doctype html>: %.400s", body)
+	}
+	if !strings.Contains(body, "app.css") {
+		t.Errorf("kontext full page missing app.css link: %.400s", body)
+	}
+}
+
 // TestWebKontextView_EmptyState covers the no-docs node: the quiet empty-state
 // line renders instead of an empty list or a crash.
 func TestWebKontextView_EmptyState(t *testing.T) {
