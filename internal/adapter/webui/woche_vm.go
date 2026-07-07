@@ -99,7 +99,7 @@ func wocheVariantHue(variant string) string {
 	case "hit", "over":
 		return "text-green"
 	case "running":
-		return "text-cyan"
+		return "text-live"
 	default: // under, weekend
 		return "text-muted"
 	}

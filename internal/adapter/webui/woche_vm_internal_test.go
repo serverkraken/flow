@@ -40,7 +40,7 @@ func TestWocheVariantHue(t *testing.T) {
 	}{
 		{"hit", "text-green"},
 		{"over", "text-green"},
-		{"running", "text-cyan"},
+		{"running", "text-live"},
 		{"under", "text-muted"},
 		{"weekend", "text-muted"},
 		{"", "text-muted"},

@@ -43,8 +43,8 @@ templ WocheFragment(vm WocheVM) {
 				<a href="/zeit">{ components.T(ctx, "zeit.back") }</a>
 			</div>
 		</div>
-		<div class="pagehead" style="display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap">
-			<div style="flex:1;min-width:0">
+		<div class="pagehead flex items-end gap-5 flex-wrap">
+			<div class="flex-1 min-w-0">
 				<span class="eyebrow">{ components.T(ctx, "woche.eyebrow") }</span>
 				<h1>{ vm.KWLabel } · { vm.WeekLabel }</h1>
 				{{ track := components.T(ctx, "stats.onTrack") }}
@@ -69,7 +69,7 @@ templ WocheFragment(vm WocheVM) {
 // Forward navigation is clamped: on the current week neither the › button
 // nor "Diese Woche" is shown.
 templ wocheNav(vm WocheVM) {
-	<div style="display:flex;align-items:center;gap:8px">
+	<div class="flex items-center gap-2">
 		<button type="button" class="btn btn-q btn-s" aria-label={ components.T(ctx, "woche.prev") }
 			hx-get={ wocheWeekURL(vm.PrevWeek) } hx-target="#content" hx-swap="innerHTML">
 			<span aria-hidden="true">‹</span>
@@ -160,17 +160,17 @@ templ wocheDayRow(d WocheDayVM) {
 // Kristall glass cards). Wraps + stacks on narrow viewports via flex-wrap.
 templ wocheKennzahlenSection(vm WocheVM) {
 	<div class="sect">
-		<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px">
-			<section class="panel p-5" style="flex:1;min-width:240px">
+		<div class="flex gap-4 flex-wrap mt-3.5">
+			<section class="panel p-5 flex-1 min-w-60">
 				<span class="eyebrow">{ components.T(ctx, "week.total") }</span>
 				<div class="krow"><span class="n">{ components.T(ctx, "woche.logged") }</span><span class={ "v", wocheVariantHue(vm.Total.Variant) }>{ vm.Total.Total }</span></div>
-				<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "week.target") }</span><span class="v">{ vm.Total.Target }</span></div>
+				<div class="krow border-b-0"><span class="n">{ components.T(ctx, "week.target") }</span><span class="v">{ vm.Total.Target }</span></div>
 			</section>
-			<section class="panel p-5" style="flex:1;min-width:240px">
+			<section class="panel p-5 flex-1 min-w-60">
 				<span class="eyebrow">{ components.T(ctx, "kennzahlen.title") }</span>
 				<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.avg") }</span><span class="v">{ vm.Kennzahlen.AvgPerDay }</span></div>
 				<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.goals") }</span><span class="v">{ fmt.Sprintf("%d / %d", vm.Kennzahlen.GoalsHit, vm.Kennzahlen.GoalsTotal) }</span></div>
-				<div class="krow" style="border-bottom:none"><span class="n">{ components.T(ctx, "kennzahlen.balance") }</span><span class="v">{ vm.Kennzahlen.Balance }</span></div>
+				<div class="krow border-b-0"><span class="n">{ components.T(ctx, "kennzahlen.balance") }</span><span class="v">{ vm.Kennzahlen.Balance }</span></div>
 			</section>
 		</div>
 	</div>
@@ -186,7 +186,7 @@ templ wocheStatsPanel(vm WocheStatsVM) {
 		<div class="krow"><span class="n">{ components.T(ctx, "stats.monthTotal") }</span><span class="v">{ vm.Total }</span></div>
 		<div class="krow"><span class="n">{ components.T(ctx, "week.target") }</span><span class="v">{ vm.Target }</span></div>
 		<div class="krow"><span class="n">{ components.T(ctx, "kennzahlen.balance") }</span><span class="v">{ vm.Saldo }</span></div>
-		<div class="krow" style="border-bottom:none">
+		<div class="krow border-b-0">
 			<span class="n">{ components.T(ctx, "woche.pace") }</span>
 			<span class={ "v", wocheStatsHue(vm.OnTrack) }>
 				if vm.OnTrack {

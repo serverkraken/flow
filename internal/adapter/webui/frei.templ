@@ -96,12 +96,12 @@ templ freiAddSection(vm FreiVM) {
 // hairline .rows, replacing the retired freiListCard glass article.
 templ freiListSection(vm FreiVM) {
 	<div class="sect">
-		<div class="sect-h" style="justify-content:space-between">
+		<div class="sect-h justify-between">
 			<span class="eyebrow">{ vm.BundeslandName } · { vm.Year }</span>
 			<span class="text-[.8rem] text-muted">{ components.Tn(ctx, "list.entries", len(vm.Rows)) }</span>
 		</div>
 		if !vm.HasOwn {
-			<p class="text-sm text-faint" style="margin-top:16px">{ components.T(ctx, "frei.empty") }</p>
+			<p class="text-sm text-faint mt-4">{ components.T(ctx, "frei.empty") }</p>
 		}
 		if len(vm.Rows) > 0 {
 			<ul>
@@ -158,7 +158,7 @@ templ freiSettingsSection(vm FreiVM) {
 				<span class="n">{ components.T(ctx, "frei.bundesland") }</span>
 				<select name="bundesland"
 					hx-post="/ui/dayoffs/bundesland" hx-target="#content" hx-swap="innerHTML" hx-trigger="change"
-					class="field" style="width:auto;min-width:200px">
+					class="field w-auto min-w-50">
 					for _, o := range vm.BundeslandOptions {
 						if o.Code == vm.BundeslandCode {
 							<option value={ o.Code } selected>{ o.Name }</option>
@@ -168,7 +168,7 @@ templ freiSettingsSection(vm FreiVM) {
 					}
 				</select>
 			</div>
-			<div style="margin-top:16px">
+			<div class="mt-4">
 				<span class="eyebrow">{ components.T(ctx, "frei.icsFeed") }</span>
 				<p class="mt-1 text-[.82rem] text-muted">{ components.T(ctx, "frei.icsHint") }</p>
 				<div class="mt-2 flex items-center gap-2">

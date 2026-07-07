@@ -55,7 +55,7 @@
 
   /* Legacy-Farbnamen → Lesesaal-Semantik (Seiten-Kompatibilität, L2–L4 räumt auf) */
   --blue:     43  91 246;
-  --cyan:     14 152 136;   /* Petrol — trägt wtblock-running/now-line bis L4 */
+  --cyan:     14 152 136;   /* Petrol — heute-Akzent (Historie-Grid), Pill-Tab, Split-Bar, Auth-Branding (L4: wtblock-running/now-line auf --live umgezogen) */
   --green:    15 138  70;
   --purple:  122  63 228;
   --magenta: 209  67  36;
@@ -306,15 +306,15 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
     font-size:.72rem; font-weight:700; color: rgb(var(--blue));
   }
 
-  /* running block — live cyan, breathing rail */
-  .wtblock-running { background: rgb(var(--cyan) / .14); border-color: rgb(var(--cyan) / .5); }
-  .wtblock-running::before { background: rgb(var(--cyan)); }
+  /* running block — live green, breathing rail (Spec §7.3: Live = Grün) */
+  .wtblock-running { background: rgb(var(--live) / .14); border-color: rgb(var(--live) / .5); }
+  .wtblock-running::before { background: rgb(var(--live-bright)); }
 
   /* now-line across the grid (today) */
-  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--cyan)); z-index:8; pointer-events:none; }
+  .now-line { position:absolute; left:0; right:0; height:0; border-top:2px solid rgb(var(--live-bright)); z-index:8; pointer-events:none; }
   .now-line::before {
-    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--cyan));
-    box-shadow:0 0 0 3px rgb(var(--cyan) / .25);
+    content:""; position:absolute; left:-4px; top:-4px; height:8px; width:8px; border-radius:99px; background:rgb(var(--live-bright));
+    box-shadow:0 0 0 3px rgb(var(--live-bright) / .25);
   }
 
   /* fuzzy-picker option rows */

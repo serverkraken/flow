@@ -202,8 +202,8 @@ func TestWocheFragment_RunningSession(t *testing.T) {
 	// "running" → the Woche-gesamt panel's Ist value carries the running hue
 	// (wocheVariantHue, Lesesaal — the retired Kristall path used
 	// role="progressbar" instead).
-	if !strings.Contains(body, "text-cyan") {
-		t.Errorf("woche fragment with running session missing running-variant hue 'text-cyan', body:\n%s", body[:limitLen(2000, len(body))])
+	if !strings.Contains(body, "text-live") {
+		t.Errorf("woche fragment with running session missing running-variant hue 'text-live', body:\n%s", body[:limitLen(2000, len(body))])
 	}
 }
 
@@ -221,7 +221,7 @@ func TestWocheTotalVariant_PastWeekUnder(t *testing.T) {
 	// A past week under target (isCurrent=false, logged < target) hits
 	// wocheTotalVariant's neutral "under" branch — no hit/running hue should
 	// render for the Woche-gesamt panel's Ist value (wocheVariantHue).
-	if strings.Contains(body, "text-green") || strings.Contains(body, "text-cyan") {
+	if strings.Contains(body, "text-green") || strings.Contains(body, "text-live") {
 		t.Errorf("past-week under fragment should not render hit/running hue classes, body:\n%s", body[:limitLen(1000, len(body))])
 	}
 }
