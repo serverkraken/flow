@@ -107,7 +107,9 @@ func nodeBreadcrumb(d NodeCockpit) templ.Component {
 // table: #cockpit-head (spine, full width — reloads only on node.updated/
 // node.moved), then the .cock grid holding #cockpit-main (content column —
 // reloads on every session/document/node/activity mutation) and #cockpit-rail
-// (Meta-Spalte aside — reloads on session + node.updated/moved). The shared
+// (Meta-Spalte aside — reloads on session, node.updated/moved, and
+// document.* so the L5 context-instrument panel's meter/pins live-follow a
+// pin/reorder mutation). The shared
 // add-mode session dialog mounts once here (opened client-side via
 // data-dialog-open, no server round-trip needed); the edit-mode dialog is
 // mounted inside CockpitMain instead (cockpit_main.templ) so it also
@@ -140,7 +142,7 @@ func cockpitBody(d NodeCockpit) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.N.ID + "/head")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 35, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 37, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -161,7 +163,7 @@ func cockpitBody(d NodeCockpit) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(cockpitMainReloadURL(d))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 45, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 47, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -182,13 +184,13 @@ func cockpitBody(d NodeCockpit) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs("/nodes/" + d.N.ID + "/rail")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 54, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 56, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" hx-trigger=\"sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.updated, sse:node.moved\" hx-swap=\"innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" hx-trigger=\"sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.updated, sse:node.moved, sse:document.created, sse:document.updated, sse:document.deleted\" hx-swap=\"innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -211,7 +213,7 @@ func cockpitBody(d NodeCockpit) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(AssetURL("js/clipboard.js"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 62, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/cockpit.templ`, Line: 64, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {

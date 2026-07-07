@@ -129,6 +129,15 @@ func init() {
 			"cockpit.rail.here":          "(hier)",
 			"cockpit.rail.rateInherited": "Satz geerbt",
 			"cockpit.rail.contributors":  "Beiträger",
+			// rail context-instrument panel (L5 Task 5)
+			"context.rail.title": "Kontext für Agenten",
+			"context.included":   "Enthalten",
+			"context.dropped":    "Verworfen (Budget)",
+			"context.pinned":     "Angepinnt",
+			"context.docsN":      "%d Docs",
+			"context.budgetFull": "fast voll",
+			"context.curate":     "Kuratieren — sortieren & pinnen ›",
+			"context.meterAria":  "Kontext-Budget zu %d Prozent belegt",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

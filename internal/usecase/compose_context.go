@@ -80,6 +80,7 @@ type ContextItem struct {
 	NodeID     *string             `json:"nodeId"`
 	ScopeLabel string              `json:"scope"`
 	Type       domain.DocumentType `json:"type"`
+	Title      string              `json:"title"`
 	Tags       []string            `json:"tags,omitempty"`
 	UpdatedAt  string              `json:"updatedAt"`
 	Pinned     bool                `json:"pinned"`
@@ -142,7 +143,7 @@ func estTokens(body string) int { return (len(body) + 3) / 4 }
 
 func itemOf(d domain.Document, label string) ContextItem {
 	return ContextItem{
-		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Tags: d.Tags,
+		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Title: d.Title, Tags: d.Tags,
 		UpdatedAt: d.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"), Pinned: d.Pinned,
 		Priority: d.Priority, EstTokens: estTokens(d.Body), Body: d.Body,
 	}

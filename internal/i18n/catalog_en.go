@@ -123,6 +123,15 @@ func init() {
 			"cockpit.rail.here":          "(here)",
 			"cockpit.rail.rateInherited": "Rate inherited",
 			"cockpit.rail.contributors":  "Contributors",
+			// rail context-instrument panel (L5 Task 5)
+			"context.rail.title": "Agent context",
+			"context.included":   "Included",
+			"context.dropped":    "Dropped (budget)",
+			"context.pinned":     "Pinned",
+			"context.docsN":      "%d docs",
+			"context.budgetFull": "nearly full",
+			"context.curate":     "Curate — sort & pin ›",
+			"context.meterAria":  "Context budget %d percent used",
 			// Übersicht feed (Kristall K2 Task 5)
 			"cockpit.pulse.live": "LIVE",
 			// cockpit head (Slice 6, L2 T4)

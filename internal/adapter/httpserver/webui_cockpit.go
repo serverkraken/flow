@@ -139,6 +139,22 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 		}
 	}
 
+	// Kontext-Instrument (L5): the composed agent-context budget for THIS
+	// node's chain. ExecuteForNode uses the node ID directly (slugs are only
+	// sibling-unique). Guarded — an unwired/failed compose degrades to no
+	// panel (the page still renders). Owner-scoped (u.ID).
+	if s.ComposeContext.Nodes != nil {
+		budget := s.ContextBudget
+		if budget <= 0 {
+			budget = 12000
+		}
+		if cc, cerr := s.ComposeContext.ExecuteForNode(ctx, u.ID, n.ID, budget); cerr == nil {
+			d.Context = webui.BuildCockpitContext(cc, n.ID)
+		} else {
+			slog.WarnContext(ctx, "cockpit: compose context failed", "nodeID", n.ID, "err", cerr)
+		}
+	}
+
 	// Wissen section: containment-aware (§4), honors ?scope=. The stacked
 	// section is capped (Mockup "Alle 6 ›") — ?wissen=all expands in place.
 	docs, scope := s.wissenTabDocs(r, u, n)

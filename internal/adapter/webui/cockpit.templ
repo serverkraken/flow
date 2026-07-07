@@ -24,7 +24,9 @@ templ nodeBreadcrumb(d NodeCockpit) {
 // table: #cockpit-head (spine, full width — reloads only on node.updated/
 // node.moved), then the .cock grid holding #cockpit-main (content column —
 // reloads on every session/document/node/activity mutation) and #cockpit-rail
-// (Meta-Spalte aside — reloads on session + node.updated/moved). The shared
+// (Meta-Spalte aside — reloads on session, node.updated/moved, and
+// document.* so the L5 context-instrument panel's meter/pins live-follow a
+// pin/reorder mutation). The shared
 // add-mode session dialog mounts once here (opened client-side via
 // data-dialog-open, no server round-trip needed); the edit-mode dialog is
 // mounted inside CockpitMain instead (cockpit_main.templ) so it also
@@ -52,7 +54,7 @@ templ cockpitBody(d NodeCockpit) {
 			class="rail"
 			id="cockpit-rail"
 			hx-get={ "/nodes/" + d.N.ID + "/rail" }
-			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.updated, sse:node.moved"
+			hx-trigger="sse:session.started, sse:session.stopped, sse:session.updated, sse:session.deleted, sse:node.updated, sse:node.moved, sse:document.created, sse:document.updated, sse:document.deleted"
 			hx-swap="innerHTML"
 		>
 			@CockpitRailBlocks(d)
