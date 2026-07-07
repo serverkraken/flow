@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 templ DocumentPage(vm DocumentVM) {
@@ -117,6 +118,25 @@ templ DocumentFragment(vm DocumentVM) {
 						}
 					}
 				</div>
+				if vm.Context != nil {
+					<div class="blk">
+						<span class="eyebrow">{ components.T(ctx, "document.context.title") }</span>
+						if vm.Context.Mode == domain.ContextModeNie {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.hidden") }</span><span class="v">✗</span></div>
+						} else if vm.Context.State == "included" {
+							<div class="krow"><span class="n">{ vm.Context.NodeName } · { components.T(ctx, "document.context.in") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.rank") }</span><span class="v">{ vm.Context.RankStr }</span></div>
+						} else if vm.Context.State == "dropped" {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.dropped") }</span><span class="v">✗</span></div>
+						} else if vm.Context.State == "always" {
+							<div class="krow"><span class="n">{ components.T(ctx, "document.context.always") }</span><span class="v" style="color:rgb(var(--live))">✓</span></div>
+						}
+						<div class="krow">
+							<span class="n">{ components.T(ctx, "context.mode.label") }</span>
+							@modeSeg("/wissen/"+vm.ID+"/mode", "#document-fragment", vm.ID, vm.Context.Mode)
+						</div>
+					</div>
+				}
 			</aside>
 		</div>
 	</article>
@@ -127,7 +147,7 @@ templ DocumentFragment(vm DocumentVM) {
 // to Lesesaal tokens: no `glass` chrome, the retry action is a named
 // `.btn.btn-q.btn-s` button instead of a hand-rolled glass pill.
 templ DocumentEmbedBadge(docID string, e EmbedView) {
-	<div class="mb-4 flex flex-wrap items-center gap-2 text-[.8rem]">
+	<div class="mb-4 flex flex-wrap items-center gap-2 seg-sm">
 		<span class={ "inline-flex items-center rounded-full border px-2.5 py-1 font-medium", embedToneClass(e.State) }>
 			{ components.T(ctx, embedLabelKey(e.State)) }
 		</span>

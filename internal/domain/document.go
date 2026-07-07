@@ -55,6 +55,38 @@ func (t DocumentType) valid() bool {
 	return false
 }
 
+// ContextMode is a document's agent-context membership mode: auto (type-driven,
+// the pre-L5.5 behavior), immer (always composed, uncapped, bypasses tag-gate
+// and pin), or nie (never composed but fully visible in Wissen/search).
+type ContextMode string
+
+const (
+	ContextModeAuto  ContextMode = "auto"
+	ContextModeImmer ContextMode = "immer"
+	ContextModeNie   ContextMode = "nie"
+)
+
+// OrAuto returns the mode, defaulting an empty (zero-value) mode to auto — the
+// pgstore Create binding uses it so a Document built without an explicit mode
+// never binds '' (which the CHECK constraint forbids).
+func (m ContextMode) OrAuto() ContextMode {
+	if m == "" {
+		return ContextModeAuto
+	}
+	return m
+}
+
+// Valid reports whether m is one of the three known modes (used by the write
+// use case to reject bad API input before it hits the CHECK constraint).
+func (m ContextMode) Valid() bool {
+	switch m {
+	case ContextModeAuto, ContextModeImmer, ContextModeNie:
+		return true
+	default:
+		return false
+	}
+}
+
 // Document is a compendium note. Path is a human-readable slug, unique per
 // owner(+project). Tags/Role/Extra are carried by the schema from M2a but
 // exercised by later slices (M2c tags, M3 brief role, M2d search).
@@ -73,6 +105,16 @@ type Document struct {
 	Pinned     bool       `json:"pinned"`
 	Archived   bool       `json:"archived"`
 	ArchivedAt *time.Time `json:"archivedAt,omitempty"`
+	// Priority is the manual context-ranking priority (higher = ranked earlier
+	// within the memory pool; default 0). Set by ReorderContextDocs. Create
+	// binds it explicitly (zero-value 0 for new docs, since docCols is the
+	// shared INSERT column list); UpsertByPath omits it (own column list → DB
+	// default 0).
+	Priority  int            `json:"priority"`
+	// ContextMode is the per-document agent-context membership mode (auto/immer/nie;
+	// default auto). Set by SetContextMode. Create binds it via OrAuto() (empty→'auto',
+	// since the CHECK forbids ''); UpsertByPath omits it (own column list → DB default 'auto').
+	ContextMode ContextMode `json:"contextMode"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
 	// UpdatedByKind/UpdatedByRef stamp who last wrote this document (actor.Kind

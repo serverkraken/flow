@@ -3,7 +3,6 @@ package webui
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"strconv"
 	"strings"
 	"time"
@@ -64,11 +63,10 @@ type NodeChild struct {
 
 // NodeCockpit drives the cockpit page, the rail fragment, and the active tab panel.
 type NodeCockpit struct {
-	User            string
-	N               domain.Node
-	Ancestors       []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
-	DescriptionHTML template.HTML
-	Today           string // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
+	User      string
+	N         domain.Node
+	Ancestors []domain.Node // leaf→root, self included (NodeStore.Ancestors order)
+	Today     string        // YYYY-MM-DD, today's date — Nachbuchen dialog prefill
 	// rail: subtree rollup + inherited rate + identity/timer extras
 	Rollup       domain.NodeRollup // Total, Week, Month durations
 	Earnings     string            // ResolveRate(chain) × Total, "" if no rate in chain
@@ -97,7 +95,12 @@ type NodeCockpit struct {
 	WissenAll   bool                    // Wissen: true when ?wissen=all expanded the section past the cap
 	Children    []NodeChild             // Enthält
 	Bindings    []domain.ProjectBinding // rail Bindings block
-	PanelErr    string                  // inline error surfaced on #cockpit-main or #cockpit-rail
+	// Context is the rail's "Kontext für Agenten" instrument panel (L5): the
+	// composed agent-context budget for this node's chain. nil means either
+	// ComposeContext is unwired or ExecuteForNode failed — the rail then
+	// degrades to no panel rather than crashing (see nodeCockpitData).
+	Context  *CockpitContextVM
+	PanelErr string // inline error surfaced on #cockpit-main or #cockpit-rail
 	// EditSession is set by nodeCockpitData when the ?edit={sid} query resolves
 	// to one of the owner's sessions — it drives the edit-mode SessionDialog
 	// (sessionDialogEditVM), rendered pre-opened. nil when not editing.

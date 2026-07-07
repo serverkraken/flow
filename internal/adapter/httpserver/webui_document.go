@@ -7,6 +7,7 @@ import (
 	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func (s *Server) handleWebDocumentView(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +85,47 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 			}
 		}
 	}
+
+	// Kontext-Rang (L5, Modus-Umschalter Task 4): only context-eligible docs
+	// participate in Compose. Compose the OWNING node's context by ID (nil
+	// node → global/unresolved context via Execute). Guarded/owner-scoped; a
+	// compose error just omits the block. BuildDocContext now always returns
+	// a non-nil VM (never nil for absent/nie) so the mode switcher stays
+	// reachable in every standing.
+	if isContextType(doc.Type) && s.ComposeContext.Nodes != nil {
+		budget := s.ContextBudget
+		if budget <= 0 {
+			budget = 12000
+		}
+		var cc usecase.ComposedContext
+		var cerr error
+		if doc.NodeID != nil {
+			cc, cerr = s.ComposeContext.ExecuteForNode(r.Context(), ownerID, *doc.NodeID, budget)
+		} else {
+			cc, cerr = s.ComposeContext.Execute(r.Context(), ownerID, usecase.ContextResolveInput{}, budget)
+		}
+		if cerr == nil {
+			nodeName := ""
+			if len(vm.Crumbs) > 0 {
+				nodeName = vm.Crumbs[len(vm.Crumbs)-1].Label // leaf crumb = doc's node
+			}
+			vm.Context = webui.BuildDocContext(usecase.StandingOf(cc, doc.ID), nodeName, doc.ContextMode.OrAuto())
+		}
+	}
 	return vm, nil
+}
+
+// isContextType reports whether t is one of the three context-eligible
+// document types that participate in Compose (memory/instruction/
+// activecontext). All other types never show the "Im Agenten-Kontext" block —
+// buildDocumentVM skips the Compose call entirely for them.
+func isContextType(t domain.DocumentType) bool {
+	switch t {
+	case domain.DocMemory, domain.DocInstruction, domain.DocActiveContext:
+		return true
+	default:
+		return false
+	}
 }
 
 // buildOutgoingRefs resolves doc's own wikilink targets against the
@@ -152,6 +193,47 @@ func (s *Server) handleWebDocPin(w http.ResponseWriter, r *http.Request) {
 	}
 	doc.Pinned = !doc.Pinned
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+
+	vm, err := s.buildDocumentVM(r, u.ID, doc)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.DocumentFragment(vm).Render(r.Context(), w)
+}
+
+// handleWebDocMode toggles a document's agent-context mode (POST
+// /wissen/{id}/mode — the docrail context block's Auto/Immer/Nie switcher,
+// Task 4), emits document.updated so #document-fragment SSE-refreshes
+// everywhere else the doc is open, and returns the fresh fragment for the
+// switcher's own hx-swap="outerHTML". Mirrors handleWebDocPin's shape: an
+// unknown/foreign doc id (ErrDocumentNotFound) and an invalid mode string
+// (ErrInvalidDocument, belt-and-suspenders with the DB CHECK) both degrade to
+// a clean no-op re-render — never a 500.
+func (s *Server) handleWebDocMode(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	mode := r.FormValue("mode")
+
+	doc, err := s.GetDocument.Execute(r.Context(), u.ID, id)
+	if errors.Is(err, ports.ErrDocumentNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.SetContextMode.Execute(r.Context(), u.ID, id, domain.ContextMode(mode)); err == nil {
+		doc.ContextMode = domain.ContextMode(mode)
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	} else if !contextModeErrKnown(err) {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
 
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {

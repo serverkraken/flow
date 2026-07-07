@@ -1,6 +1,8 @@
 package webui
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
@@ -11,10 +13,9 @@ import (
 // the Kette (this node → ancestors → inherited rate), the subtree Beiträger
 // row (only when the subtree has activity — Contributors is filled by
 // nodeCockpitData's always-run path so it survives the rail's own SSE
-// reload), and Bindings. The "Kontext für Agenten" curation block from the
-// mockup is explicitly L5 scope and does NOT belong here yet (Offene
-// Entscheidung #6). Task 7 mounts this in #cockpit-rail and repoints the
-// bind/unbind handlers to re-render it on sse:node.updated.
+// reload), the "Kontext für Agenten" instrument panel (L5, only when
+// d.Context != nil — an unwired/failed compose degrades to no panel), and
+// Bindings.
 templ CockpitRailBlocks(d NodeCockpit) {
 	<div class="blk">
 		<span class="eyebrow">{ components.T(ctx, "cockpit.rail.chain") }</span>
@@ -33,6 +34,38 @@ templ CockpitRailBlocks(d NodeCockpit) {
 		<div class="blk">
 			<span class="eyebrow">{ components.T(ctx, "cockpit.rail.contributors") }</span>
 			<p class="text-sm text-meta">{ strings.Join(d.Contributors, ", ") }</p>
+		</div>
+	}
+	if d.Context != nil {
+		<div class="blk">
+			<span class="eyebrow">{ components.T(ctx, "context.rail.title") }</span>
+			<div class={ "meter", templ.KV("full", d.Context.Full) } role="img" aria-label={ fmt.Sprintf(components.T(ctx, "context.meterAria"), d.Context.Pct) }>
+				<i style={ "width:" + strconv.Itoa(d.Context.Pct) + "%" }></i>
+			</div>
+			<div class="meter-l">
+				<span>{ d.Context.UsedStr } tk</span>
+				if d.Context.Full {
+					<span class="warn">{ components.T(ctx, "context.budgetFull") } · { d.Context.CapStr }</span>
+				} else {
+					<span>{ d.Context.CapStr }</span>
+				}
+			</div>
+			<div class="ctxrows">
+				if d.Context.AlwaysN > 0 {
+					<div class="krow"><span class="n">{ components.T(ctx, "context.rail.always") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.AlwaysN) }</span></div>
+				}
+				<div class="krow"><span class="n">{ components.T(ctx, "context.included") }</span><span class="v">{ fmt.Sprintf(components.T(ctx, "context.docsN"), d.Context.IncludedN) }</span></div>
+				<div class="krow"><span class="n">{ components.T(ctx, "context.dropped") }</span><span class="v">{ strconv.Itoa(d.Context.DroppedN) }</span></div>
+				<div class="krow"><span class="n">{ components.T(ctx, "context.pinned") }</span><span class="v">{ strconv.Itoa(d.Context.PinnedN) }</span></div>
+			</div>
+			for i, p := range d.Context.TopPins {
+				<div class="pin" if i == len(d.Context.TopPins)-1 { style="border-bottom:none" }>
+					<span class="g">{ p.Num }</span><span class="n" title={ p.Title }>{ p.Title }</span>
+				</div>
+			}
+			<div class="mt-3">
+				<a class="more" href={ templ.SafeURL("/kontext/" + d.Context.NodeID) }>{ components.T(ctx, "context.curate") }</a>
+			</div>
 		</div>
 	}
 	<div class="blk">

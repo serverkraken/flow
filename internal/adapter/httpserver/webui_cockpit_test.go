@@ -23,6 +23,7 @@ type cockpitTestServer struct {
 	ps    *testutil.FakeNodeStore
 	bs    *testutil.FakeProjectBindingStore
 	ds    *testutil.FakeDocumentStore
+	tags  *testutil.FakeTagStore
 	as    *fakeActivityStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
@@ -68,6 +69,9 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		BindNode:          usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:        usecase.UnbindNode{Bindings: bs},
 		ListDocuments:     usecase.ListDocuments{Docs: ds},
+		GetDocument:       usecase.GetDocument{Docs: ds},
+		SetPinned:         usecase.SetPinned{Docs: ds},
+		SetContextMode:    usecase.SetContextMode{Docs: ds},
 		ListActivity:      usecase.ListActivity{Activities: as},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
@@ -76,8 +80,14 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 			Clock:    clk,
 			Loc:      time.Local,
 		},
+		// L5 Task 5: the cockpit rail's context-instrument panel composes via
+		// ExecuteForNode, which only needs Nodes+Docs+Tags (Resolve is unused
+		// by the ID-based entry point).
+		ComposeContext:     usecase.ComposeContext{Nodes: ps, Docs: ds, Tags: tags},
+		ContextBudget:      12000,
+		ReorderContextDocs: usecase.ReorderContextDocs{Docs: ds},
 	}
-	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, as: as, ids: ids, clk: clk, codec: codec}
+	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, tags: tags, as: as, ids: ids, clk: clk, codec: codec}
 }
 
 func (c *cockpitTestServer) do(t *testing.T, method, path string, form map[string]string) *httptest.ResponseRecorder {
@@ -626,5 +636,88 @@ func TestCockpitBindings_DeleteRemote(t *testing.T) {
 	bs, _ := (usecase.ListNodeBindings{Bindings: c.bs}).ExecuteByProject(context.Background(), "u1", "n1")
 	if len(bs) != 0 {
 		t.Errorf("expected 0 bindings after delete, got %+v", bs)
+	}
+}
+
+// TestCockpitContext_PanelShowsMeterAndCurateLink pins the L5 rail panel's
+// wiring end-to-end: a repo node with a memory doc composes via
+// ExecuteForNode (nodeCockpitData) into d.Context, and the rendered page
+// shows the meter + Kuratieren link pointing at THIS node.
+func TestCockpitContext_PanelShowsMeterAndCurateLink(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nodeID := "n1"
+	_, err := c.ds.Create(context.Background(), domain.Document{
+		ID: "mem-1", OwnerID: "u1", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-1", Title: "Tailwind v4 gotchas", Body: "some memory body",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+	if err != nil {
+		t.Fatalf("seed memory doc: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"Kontext für Agenten", `class="meter`, "Kuratieren", "/kontext/n1", "1 Docs"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("cockpit page misses context panel %q: %.800s", want, body)
+		}
+	}
+}
+
+// TestCockpitContext_OwnerScopeNoForeignDocsInMeter is the L5 owner-scope
+// negative test (Global Constraints §"Jede neue Datenfläche bekommt einen
+// Owner-Scope-Negativtest"): a foreign owner's memory doc — even one that
+// happens to carry u1's own node id — must never inflate u1's Included
+// counter (ExecuteForNode's ListForContext call is owner-scoped).
+func TestCockpitContext_OwnerScopeNoForeignDocsInMeter(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	nodeID := "n1"
+
+	u2, _ := domain.NewUser("u2", "sub-2", "other", "o@x.de", "O")
+	_, _ = c.srv.Users.UpsertBySub(context.Background(), u2)
+	_, err := c.ds.Create(context.Background(), domain.Document{
+		ID: "mem-foreign", OwnerID: "u2", NodeID: &nodeID, Type: domain.DocMemory,
+		Path: "mem-foreign", Title: "foreign memory", Body: "should not leak",
+		CreatedAt: c.clk.Now(), UpdatedAt: c.clk.Now(),
+	})
+	if err != nil {
+		t.Fatalf("seed foreign doc: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "foreign memory") {
+		t.Errorf("foreign owner's memory doc leaked into cockpit page: %.800s", body)
+	}
+	if !strings.Contains(body, "0 Docs") {
+		t.Errorf("context panel must count 0 included docs (foreign doc excluded): %.800s", body)
+	}
+}
+
+// TestCockpitContext_NoDocsRendersWithoutCrash covers the empty state: a
+// node with no context docs still renders the full cockpit page (meter at
+// 0%, no pins), guarded degrade-to-no-panic per nodeCockpitData's contract.
+func TestCockpitContext_NoDocsRendersWithoutCrash(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+
+	rec := c.do(t, "GET", "/nodes/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Kontext für Agenten") {
+		t.Errorf("context panel must still render (guarded, not absent) when compose succeeds with zero docs: %.800s", body)
+	}
+	if !strings.Contains(body, "0 Docs") {
+		t.Errorf("no-docs cockpit must show 0 Docs, got: %.800s", body)
 	}
 }

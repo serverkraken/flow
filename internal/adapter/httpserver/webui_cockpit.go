@@ -38,9 +38,6 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// Ancestor chain (leaf→root, self included) for the spine crumbs + rate
 	// resolution + the rail's Kette block.
 	d.Ancestors, _ = s.NodeAncestors.Execute(ctx, u.ID, n.ID)
-	if n.Description != "" {
-		d.DescriptionHTML, _ = webui.RenderDocument(ctx, n.Description, func(string) (string, string, bool) { return "", "", false })
-	}
 	chain := d.Ancestors
 	if len(chain) == 0 || chain[0].ID != n.ID {
 		chain = append([]domain.Node{n}, chain...)
@@ -136,6 +133,22 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 			d.Bindings = bindings
 		} else {
 			slog.WarnContext(ctx, "cockpit: bindings failed", "nodeID", n.ID, "err", berr)
+		}
+	}
+
+	// Kontext-Instrument (L5): the composed agent-context budget for THIS
+	// node's chain. ExecuteForNode uses the node ID directly (slugs are only
+	// sibling-unique). Guarded — an unwired/failed compose degrades to no
+	// panel (the page still renders). Owner-scoped (u.ID).
+	if s.ComposeContext.Nodes != nil {
+		budget := s.ContextBudget
+		if budget <= 0 {
+			budget = 12000
+		}
+		if cc, cerr := s.ComposeContext.ExecuteForNode(ctx, u.ID, n.ID, budget); cerr == nil {
+			d.Context = webui.BuildCockpitContext(cc, n.ID)
+		} else {
+			slog.WarnContext(ctx, "cockpit: compose context failed", "nodeID", n.ID, "err", cerr)
 		}
 	}
 

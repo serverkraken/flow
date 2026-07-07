@@ -101,6 +101,7 @@ type Server struct {
 	RetryEmbedding    usecase.RetryEmbedding
 	GetEmbedStatus    usecase.GetEmbedStatus
 	SetPinned         usecase.SetPinned
+	SetContextMode    usecase.SetContextMode
 	SetArchived       usecase.SetArchived
 	ListArchived      usecase.ListArchived
 
@@ -115,9 +116,10 @@ type Server struct {
 	RedesignDocTypes usecase.RedesignDocTypes
 
 	// B3 context store (B1, B2)
-	ComposeContext   usecase.ComposeContext
-	SetActiveContext usecase.SetActiveContext
-	ContextBudget    int // default cap when ?cap= absent; 0 → fall back to 12000
+	ComposeContext     usecase.ComposeContext
+	SetActiveContext   usecase.SetActiveContext
+	ReorderContextDocs usecase.ReorderContextDocs
+	ContextBudget      int // default cap when ?cap= absent; 0 → fall back to 12000
 
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
@@ -189,6 +191,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
 	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))
+	mux.Handle("POST /api/v1/documents/{id}/context-mode", s.auth(http.HandlerFunc(s.handleSetContextMode)))
 	mux.Handle("POST /api/v1/documents/{id}/archive", s.auth(http.HandlerFunc(s.handleArchiveDocument)))
 
 	mux.Handle("GET /api/v1/activity", s.auth(http.HandlerFunc(s.handleListActivity)))
@@ -269,12 +272,22 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /wissen/{id}/delete", s.webAuth(http.HandlerFunc(s.handleWebEditorDelete)))
 	mux.Handle("POST /wissen/{id}/reembed", s.webAuth(http.HandlerFunc(s.handleWebDocReembed)))
 	mux.Handle("POST /wissen/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebDocPin)))
+	mux.Handle("POST /wissen/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebDocMode)))
+
+	// Kuratieren-Seite (L5 Task 7): Budget-Meter + Rang-Liste mit Höher/
+	// Tiefer + Anpinnen, owner-scoped per Knoten-ID. Task 4 adds the
+	// Auto/Immer/Nie mode switcher (rang list, Always-Tier, Ausgeblendet).
+	mux.Handle("GET /kontext/{id}", s.webAuth(http.HandlerFunc(s.handleWebKontextView)))
+	mux.Handle("POST /kontext/{id}/reorder", s.webAuth(http.HandlerFunc(s.handleWebKontextReorder)))
+	mux.Handle("POST /kontext/{id}/pin", s.webAuth(http.HandlerFunc(s.handleWebKontextPin)))
+	mux.Handle("POST /kontext/{id}/mode", s.webAuth(http.HandlerFunc(s.handleWebKontextMode)))
 
 	mux.Handle("POST /api/v1/maintenance/strip-frontmatter", s.authAny(http.HandlerFunc(s.handleStripFrontmatter)))
 	mux.Handle("POST /api/v1/maintenance/redesign-doctypes", s.authAny(http.HandlerFunc(s.handleRedesignDocTypes)))
 
 	mux.Handle("GET /api/v1/context", s.auth(http.HandlerFunc(s.handleGetContext)))
 	mux.Handle("PUT /api/v1/context/active", s.auth(http.HandlerFunc(s.handlePutContextActive)))
+	mux.Handle("POST /api/v1/context/reorder", s.auth(http.HandlerFunc(s.handleReorderContext)))
 
 	mux.Handle("GET /nodes", s.webAuth(http.HandlerFunc(s.handleWebNodesHome)))
 	mux.Handle("GET /ui/nodes/list", s.webAuth(http.HandlerFunc(s.handleWebNodesList)))

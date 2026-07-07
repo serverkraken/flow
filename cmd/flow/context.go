@@ -93,6 +93,12 @@ func renderContext(cc usecase.ComposedContext, offline bool, stamp string) strin
 	} else {
 		b.WriteString("_(none yet — flush with `flow_set_active_context`)_\n")
 	}
+	if len(cc.AlwaysMemories) > 0 {
+		b.WriteString("\n## Always\n")
+		for _, it := range cc.AlwaysMemories {
+			fmt.Fprintf(&b, "\n### [%s]\n%s\n", it.ScopeLabel, it.Body)
+		}
+	}
 	groups := []struct{ key, label string }{
 		{"leaf", "Leaf"}, {"vorhaben", "Vorhaben"}, {"engagement", "Engagement"}, {"global", "Global"},
 	}

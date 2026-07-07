@@ -279,6 +279,31 @@ type pinReq struct {
 	Pinned bool `json:"pinned"`
 }
 
+type contextModeReq struct {
+	Mode string `json:"mode"`
+}
+
+func (s *Server) handleSetContextMode(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req contextModeReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	id := r.PathValue("id")
+	switch err := s.SetContextMode.Execute(r.Context(), u.ID, id, domain.ContextMode(req.Mode)); {
+	case errors.Is(err, domain.ErrInvalidDocument):
+		http.Error(w, "bad mode", http.StatusBadRequest)
+	case errors.Is(err, ports.ErrDocumentNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func (s *Server) handleListArchived(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	list, err := s.ListArchived.Execute(r.Context(), u.ID)

@@ -41,6 +41,12 @@ type DocumentVM struct {
 	// (TestWebDocumentView_EmbedBadgeFailedShowsRetry) — kept verbatim, only
 	// its chrome is de-glassed (DocumentEmbedBadge).
 	Embed *EmbedView
+	// Context feeds the docrail's "Im Agenten-Kontext" `.blk` (Task 6, Mockup
+	// Z.794-798) plus the mode switcher (Task 4): nil means no block at all
+	// (non-context-type doc, or Compose itself failed) — for every
+	// context-eligible type, buildDocumentVM always builds one so the
+	// switcher stays reachable, even in the "absent"/"nie" states.
+	Context *DocContextVM
 }
 
 // RefRow is one Verweise-rail `.krow` line (Task 6): a resolved reference to

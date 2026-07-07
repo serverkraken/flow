@@ -76,15 +76,39 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 const ActiveContextPath = "active-context"
 
 type ContextItem struct {
-	ID         string              `json:"id"`
-	NodeID     *string             `json:"nodeId"`
-	ScopeLabel string              `json:"scope"`
-	Type       domain.DocumentType `json:"type"`
-	Tags       []string            `json:"tags,omitempty"`
-	UpdatedAt  string              `json:"updatedAt"`
-	Pinned     bool                `json:"pinned"`
-	EstTokens  int                 `json:"estTokens"`
-	Body       string              `json:"body"`
+	ID          string              `json:"id"`
+	NodeID      *string             `json:"nodeId"`
+	ScopeLabel  string              `json:"scope"`
+	Type        domain.DocumentType `json:"type"`
+	Title       string              `json:"title"`
+	Tags        []string            `json:"tags,omitempty"`
+	UpdatedAt   string              `json:"updatedAt"`
+	Pinned      bool                `json:"pinned"`
+	Priority    int                 `json:"priority,omitempty"`
+	EstTokens   int                 `json:"estTokens"`
+	Body        string              `json:"body"`
+	ContextMode domain.ContextMode  `json:"contextMode,omitempty"`
+}
+
+// RankedItem is one entry of the flat, globally-ordered ranking pool that
+// Compose exposes alongside the tiered Memories map. It is the single source
+// for the curation list, the meter counters, and the per-document rank
+// ("04/24") — additive to Memories/Dropped, never a replacement.
+type RankedItem struct {
+	Item     ContextItem `json:"item"`
+	Group    string      `json:"group"`
+	Included bool        `json:"included"`
+	Rank     int         `json:"rank"`
+}
+
+// ContextStanding is the per-document answer to "where does this doc stand in
+// the composed context" — used by the curation UI to render a document's
+// rank/dropped/always/absent state without recomputing Compose.
+type ContextStanding struct {
+	State      string `json:"state"` // "included" | "dropped" | "always" | "absent"
+	Rank       int    `json:"rank,omitempty"`
+	Total      int    `json:"total,omitempty"`
+	ScopeLabel string `json:"scope,omitempty"`
 }
 
 type DroppedCount struct {
@@ -108,25 +132,34 @@ type ContextBudget struct {
 }
 
 type ComposedContext struct {
-	Resolution    ContextResolution        `json:"resolution"`
-	Instructions  []ContextItem            `json:"instructions"`
-	ActiveContext *ContextItem             `json:"activeContext"`
-	Memories      map[string][]ContextItem `json:"memories"`
-	Budget        ContextBudget            `json:"budget"`
+	Resolution     ContextResolution        `json:"resolution"`
+	Instructions   []ContextItem            `json:"instructions"`
+	ActiveContext  *ContextItem             `json:"activeContext"`
+	Memories       map[string][]ContextItem `json:"memories"`
+	Ranked         []RankedItem             `json:"ranked,omitempty"`
+	AlwaysMemories []ContextItem            `json:"alwaysMemories,omitempty"`
+	Hidden         []ContextItem            `json:"hidden,omitempty"`
+	Budget         ContextBudget            `json:"budget"`
 }
 
 func estTokens(body string) int { return (len(body) + 3) / 4 }
 
 func itemOf(d domain.Document, label string) ContextItem {
 	return ContextItem{
-		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Tags: d.Tags,
+		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Title: d.Title, Tags: d.Tags,
 		UpdatedAt: d.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"), Pinned: d.Pinned,
-		EstTokens: estTokens(d.Body), Body: d.Body,
+		Priority: d.Priority, EstTokens: estTokens(d.Body), Body: d.Body,
+		ContextMode: d.ContextMode.OrAuto(),
 	}
 }
 
 // Compose classifies docs, ranks all memories into one pool
-// (pinned desc, tierRank asc, updatedAt desc), and fills until the token cap.
+// (pinned desc, priority desc, tierRank asc, updatedAt desc), and fills until
+// the token cap. Priority is a manual curation override: it lifts a doc's
+// fill order within/across tiers but does NOT bypass the cap (only pinned
+// docs do that, via first-fill priority alone — a too-large pin still drops).
+// Default priority 0 is behavior-neutral: with every doc at 0 the key
+// degenerates to the pre-L5 (pinned, tierRank, updatedAt) order.
 // instructions + activeContext are always-tier (counted, never dropped). A pinned
 // global memory bypasses the D7 tag-gate. Pure: no I/O.
 func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[string]bool, cap int) ComposedContext {
@@ -162,12 +195,54 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		item   ContextItem
 		group  string
 		pinned bool
+		prio   int // manual curation override (d.Priority); higher fills first
 		rank   int
 		upd    string
 	}
 	var pool []ranked
 
 	for _, d := range docs {
+		mode := d.ContextMode.OrAuto()
+		if mode == domain.ContextModeNie {
+			// Never composed. Collect for the Kuratieren restore affordance only
+			// (node-in-chain OR global). Not in Used/Ranked/Memories/Always.
+			lbl := "global"
+			if d.NodeID != nil {
+				if l, ok := label[*d.NodeID]; ok {
+					lbl = l
+				} else {
+					continue // node not in chain — not this chain's concern
+				}
+			}
+			out.Hidden = append(out.Hidden, itemOf(d, lbl))
+			continue
+		}
+		if mode == domain.ContextModeImmer {
+			// Forced always-tier regardless of type/tag-gate/pin. Uncapped; counted below.
+			lbl := "global"
+			if d.NodeID != nil {
+				if l, ok := label[*d.NodeID]; ok {
+					lbl = l
+				} else {
+					continue // node not in chain
+				}
+			}
+			it := itemOf(d, lbl)
+			switch d.Type {
+			case domain.DocInstruction:
+				out.Instructions = append(out.Instructions, it)
+			case domain.DocActiveContext:
+				if d.NodeID != nil && tier[*d.NodeID] == "leaf" {
+					out.ActiveContext = &it
+				} else {
+					out.AlwaysMemories = append(out.AlwaysMemories, it)
+				}
+			default: // memory
+				out.AlwaysMemories = append(out.AlwaysMemories, it)
+			}
+			continue
+		}
+		// mode == auto: exact Bestand logic, unverändert.
 		switch d.Type {
 		case domain.DocInstruction:
 			lbl := "global"
@@ -184,7 +259,7 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 			if d.NodeID == nil {
 				if globalAllowed[d.ID] || d.Pinned { // pinned bypasses the D7 tag-gate
 					it := itemOf(d, "global")
-					pool = append(pool, ranked{it, "global", d.Pinned, rankOf["global"], it.UpdatedAt})
+					pool = append(pool, ranked{it, "global", d.Pinned, it.Priority, rankOf["global"], it.UpdatedAt})
 				}
 				continue
 			}
@@ -193,32 +268,42 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 				continue // node not in chain (defensive)
 			}
 			it := itemOf(d, label[*d.NodeID])
-			pool = append(pool, ranked{it, g, d.Pinned, rankOf[g], it.UpdatedAt})
+			pool = append(pool, ranked{it, g, d.Pinned, it.Priority, rankOf[g], it.UpdatedAt})
 		}
 	}
 
-	// Always-tier (uncapped): instructions + activeContext into Used.
+	// Always-tier (uncapped): instructions + activeContext + immer memories into Used.
 	for _, it := range out.Instructions {
 		out.Budget.Used += it.EstTokens
 	}
 	if out.ActiveContext != nil {
 		out.Budget.Used += out.ActiveContext.EstTokens
 	}
+	for _, it := range out.AlwaysMemories {
+		out.Budget.Used += it.EstTokens
+	}
 
-	// Rank: pinned first, then tierRank (global→engagement→vorhaben→leaf), then newest.
+	// Rank: pinned first, then priority (manual override), then tierRank
+	// (global→engagement→vorhaben→leaf), then newest.
 	sort.SliceStable(pool, func(i, j int) bool {
 		if pool[i].pinned != pool[j].pinned {
 			return pool[i].pinned
+		}
+		if pool[i].prio != pool[j].prio {
+			return pool[i].prio > pool[j].prio // higher priority fills first
 		}
 		if pool[i].rank != pool[j].rank {
 			return pool[i].rank < pool[j].rank
 		}
 		return pool[i].upd > pool[j].upd
 	})
+	incl := 0
 	for _, r := range pool {
 		if out.Budget.Used+r.item.EstTokens <= cap {
 			out.Budget.Used += r.item.EstTokens
 			out.Memories[r.group] = append(out.Memories[r.group], r.item)
+			incl++
+			out.Ranked = append(out.Ranked, RankedItem{Item: r.item, Group: r.group, Included: true, Rank: incl})
 			continue
 		}
 		switch r.group {
@@ -234,6 +319,7 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		if r.pinned {
 			out.Budget.Dropped.Pinned++
 		}
+		out.Ranked = append(out.Ranked, RankedItem{Item: r.item, Group: r.group, Included: false, Rank: 0})
 	}
 	return out
 }
@@ -276,6 +362,30 @@ func (uc ComposeContext) Execute(ctx context.Context, ownerID string, in Context
 	if err != nil {
 		return ComposedContext{}, err
 	}
+	return uc.composeForChain(ctx, ownerID, chain, cap)
+}
+
+// ExecuteForNode composes the context of a node addressed by ID (not slug —
+// slugs are only sibling-unique). Mirrors the cockpit chain assembly.
+func (uc ComposeContext) ExecuteForNode(ctx context.Context, ownerID, nodeID string, cap int) (ComposedContext, error) {
+	leaf, err := uc.Nodes.Get(ctx, ownerID, nodeID)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+	chain, err := uc.Nodes.Ancestors(ctx, ownerID, leaf.ID)
+	if err != nil {
+		return ComposedContext{}, err
+	}
+	if len(chain) == 0 || chain[0].ID != leaf.ID {
+		chain = append([]domain.Node{leaf}, chain...)
+	}
+	return uc.composeForChain(ctx, ownerID, chain, cap)
+}
+
+// composeForChain is the post-resolve tail shared by Execute and
+// ExecuteForNode: gather docs for the chain, apply the D7 tag-gate for
+// global memories, and call the pure Compose function.
+func (uc ComposeContext) composeForChain(ctx context.Context, ownerID string, chain []domain.Node, cap int) (ComposedContext, error) {
 	chainIDs := make([]string, len(chain))
 	for i, n := range chain {
 		chainIDs[i] = n.ID
@@ -340,4 +450,40 @@ func (uc ComposeContext) globalAllowed(ctx context.Context, ownerID string, chai
 		allowed[id] = true
 	}
 	return allowed, nil
+}
+
+// StandingOf is the single source for a document's standing within an already
+// composed context: "always" for instructions/activeContext (never in the
+// pool/Ranked), "included"/"dropped" for a pooled memory (Rank/Total only set
+// for "included" — Total is the count of included memories), or "absent" if
+// the doc does not appear in cc at all. Pure: reads only cc.
+func StandingOf(cc ComposedContext, docID string) ContextStanding {
+	for _, it := range cc.Instructions {
+		if it.ID == docID {
+			return ContextStanding{State: "always", ScopeLabel: it.ScopeLabel}
+		}
+	}
+	if cc.ActiveContext != nil && cc.ActiveContext.ID == docID {
+		return ContextStanding{State: "always", ScopeLabel: cc.ActiveContext.ScopeLabel}
+	}
+	for _, it := range cc.AlwaysMemories {
+		if it.ID == docID {
+			return ContextStanding{State: "always", ScopeLabel: it.ScopeLabel}
+		}
+	}
+	total := 0
+	for _, r := range cc.Ranked {
+		if r.Included {
+			total++
+		}
+	}
+	for _, r := range cc.Ranked {
+		if r.Item.ID == docID {
+			if r.Included {
+				return ContextStanding{State: "included", Rank: r.Rank, Total: total, ScopeLabel: r.Item.ScopeLabel}
+			}
+			return ContextStanding{State: "dropped", ScopeLabel: r.Item.ScopeLabel}
+		}
+	}
+	return ContextStanding{State: "absent"}
 }

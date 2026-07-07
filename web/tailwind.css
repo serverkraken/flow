@@ -420,6 +420,8 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .spine .up .sep { color: rgb(var(--hair2)); }
   .spine-main { display: flex; align-items: center; gap: 18px; margin-top: 10px; }
   .spine-main h1 { font-size: 38px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; word-break: break-word; }
+  .spine-title { display: flex; flex-direction: column; min-width: 0; }
+  .spine-desc { color: rgb(var(--meta)); font-size: .9rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
   .spine-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; color: rgb(var(--meta)); }
   .spine-meta .k { border: 1px solid rgb(var(--hair2)); background: rgb(var(--surface)); border-radius: 4px; padding: 1.5px 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgb(var(--meta)); }
   .fullpath { margin-top: 9px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--faint)); word-break: break-all; }
@@ -449,12 +451,16 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .krow .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); font-variant-numeric: tabular-nums; flex-shrink: 0; }
   /* Kontext-Instrument */
   .meter { height: 6px; border-radius: 3px; background: rgb(var(--hairp)); margin: 12px 0 7px; overflow: hidden; }
-  .meter i { display: block; height: 100%; width: 99.1%; background: rgb(var(--warn)); border-radius: 3px; }
+  .meter i { display: block; height: 100%; background: rgb(var(--accent)); border-radius: 3px; }
+  .meter.full i { background: rgb(var(--warn)); }
   .meter-l { display: flex; justify-content: space-between; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--meta)); }
+  .meter-l .warn { color: rgb(var(--warn)); font-weight: 600; }
   .ctxrows { margin-top: 10px; }
   .pin { display: flex; gap: 8px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid rgb(var(--hair)); font-size: 12.5px; color: rgb(var(--meta)); }
   .pin .g { color: rgb(var(--accent)); font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11px; flex-shrink: 0; }
   .pin .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cutline { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: rgb(var(--warn)); }
+  .cutline::before, .cutline::after { content: ""; flex: 1; height: 1px; background: rgb(var(--hairp)); }
   /* Projekte-Baum als Inhalt */
   .eng { margin-top: 46px; }
   .eng-h { display: flex; align-items: center; gap: 14px; padding-bottom: 12px; border-bottom: 2px solid rgb(var(--ink)); }
@@ -487,8 +493,13 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .sect { margin-top: 40px; }
   .sect-h { display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgb(var(--hair2)); }
   .sect-h .eyebrow { color: rgb(var(--meta)); }
-  .sect-h .more { margin-left: auto; font-size: 13px; font-weight: 500; color: rgb(var(--accent)); }
-  .sect-h .more:hover { color: rgb(var(--accent-deep)); }
+  /* .more is the CTA style ("Kuratieren ›" etc.) — a base rule so it also
+     works outside a .sect-h header (Mockup-Audit-Fund: cockpit_rail.templ's
+     "Kuratieren ›" link sits in .blk/.mt-3, not .sect-h, and rendered
+     unstyled). .sect-h .more keeps the header-only margin-left:auto. */
+  .more { font-size: 13px; font-weight: 500; color: rgb(var(--accent)); }
+  .more:hover { color: rgb(var(--accent-deep)); }
+  .sect-h .more { margin-left: auto; }
   .dotsep { color: rgb(var(--hair2)); }
   /* Repo-Zeile (Mockup Z.98–107) */
   .projrow { display: flex; align-items: center; gap: 16px; padding: 13px 2px; border-bottom: 1px solid rgb(var(--hair)); }
@@ -560,6 +571,12 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .row .right { text-align: right; flex-shrink: 0; }
   .row .right .v { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 13px; font-variant-numeric: tabular-nums; }
   .row .right .k { font-size: 11.5px; color: rgb(var(--faint)); margin-top: 1px; }
+  /* Kuratieren-Zeilenaktionen (L5.5 Task 4, Codex-Fund #6): eine Rang-Zeile
+     trägt jetzt Pin + ↑ + ↓ + Bearbeiten UND den neuen Modus-Umschalter — bei
+     375px pannt das sonst horizontal. flex-wrap lässt den .seg-Umschalter in
+     eine zweite Zeile fallen statt zu überlaufen (Spec §11). Ersetzt das
+     bisherige Inline-style auf .row .right in kontext.templ. */
+  .kontext-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 
   /* ── Lesesaal L4: Schreibtisch + Zeit (Mockup Z.87–266, benannt statt arbitrary) ── */
   /* schmale Seiten (Home/Zeit) begrenzen ihren inneren Wrapper statt AppShell selbst */
