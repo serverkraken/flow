@@ -203,13 +203,14 @@ func TestBuildKontextVM_AlwaysTier(t *testing.T) {
 
 // TestKontextFragment_AlwaysSection_PresentWhenSet verifies the Always-Tier
 // section (eyebrow + non-curatable rows, no rank/pin/reorder) renders above
-// the rang list when vm.Always is populated (Mini-Task 6b).
+// the rang list when vm.Always is populated (Mini-Task 6b). Mini-Task 7c adds
+// a direct Bearbeiten-link as the row's only action — pin/reorder stay absent.
 func TestKontextFragment_AlwaysSection_PresentWhenSet(t *testing.T) {
 	vm := KontextVM{
 		NodeID: "n1", Title: "flow",
 		Always: []KontextAlwaysVM{
-			{Title: "AGENTS.md", ChipClass: DocTypeChipClass(domain.DocInstruction), TypeLabel: DocTypeLabel(domain.DocInstruction), ScopeLabel: "repo:flow", TokensStr: "1.234"},
-			{Title: "Active Context", ChipClass: DocTypeChipClass(domain.DocActiveContext), TypeLabel: DocTypeLabel(domain.DocActiveContext), ScopeLabel: "repo:flow", TokensStr: "456"},
+			{DocID: "i1", Title: "AGENTS.md", ChipClass: DocTypeChipClass(domain.DocInstruction), TypeLabel: DocTypeLabel(domain.DocInstruction), ScopeLabel: "repo:flow", TokensStr: "1.234"},
+			{DocID: "ac1", Title: "Active Context", ChipClass: DocTypeChipClass(domain.DocActiveContext), TypeLabel: DocTypeLabel(domain.DocActiveContext), ScopeLabel: "repo:flow", TokensStr: "456"},
 		},
 	}
 	ctx := i18n.WithLocale(context.Background(), i18n.DE)
@@ -217,13 +218,15 @@ func TestKontextFragment_AlwaysSection_PresentWhenSet(t *testing.T) {
 	for _, want := range []string{
 		"Immer enthalten — Instruktionen &amp; Active Context",
 		"AGENTS.md", "Active Context", "immer enthalten",
+		`href="/wissen/i1/bearbeiten"`, `href="/wissen/ac1/bearbeiten"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("always section misses %q:\n%s", want, out)
 		}
 	}
-	// Always rows carry no rank badge and no pin/reorder actions (not curatable).
-	for _, unwanted := range []string{"↑", "↓", "btn-q"} {
+	// Always rows carry no rank badge and no pin/reorder actions (not curatable) —
+	// only the Bearbeiten-link (btn-q styled, Mini-Task 7c).
+	for _, unwanted := range []string{"↑", "↓"} {
 		if strings.Contains(out, unwanted) {
 			t.Fatalf("always section must render no pin/reorder controls, found %q:\n%s", unwanted, out)
 		}
@@ -260,6 +263,10 @@ func TestKontextFragment_RowsAndAlwaysLinkToDocument(t *testing.T) {
 	for _, want := range []string{
 		`href="/wissen/ac1"`,
 		`href="/wissen/d1"`,
+		// Mini-Task 7c: each row also carries a direct Bearbeiten-link to the
+		// editor route (/wissen/{id}/bearbeiten), next to the title link.
+		`href="/wissen/ac1/bearbeiten"`,
+		`href="/wissen/d1/bearbeiten"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("fragment misses %q:\n%s", want, out)
