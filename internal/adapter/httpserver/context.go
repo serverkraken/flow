@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
@@ -40,6 +41,29 @@ func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) 
 		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 	}
+}
+
+type reorderReq struct {
+	IDs []string `json:"ids"`
+}
+
+func (s *Server) handleReorderContext(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req reorderReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	if err := s.ReorderContextDocs.Execute(r.Context(), u.ID, req.IDs); err != nil {
+		if errors.Is(err, ports.ErrDocumentNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": len(req.IDs)}})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "n": len(req.IDs)})
 }
 
 func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {

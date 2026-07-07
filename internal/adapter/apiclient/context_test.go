@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -93,6 +94,34 @@ func TestClient_SetPinned(t *testing.T) {
 	}
 	if !gotBody.Pinned {
 		t.Errorf("body.pinned: got %v, want true", gotBody.Pinned)
+	}
+}
+
+func TestClient_ReorderContext(t *testing.T) {
+	t.Parallel()
+	var gotMethod, gotPath string
+	var gotBody struct {
+		IDs []string `json:"ids"`
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+	if err := c.ReorderContext(context.Background(), []string{"doc-c", "doc-a", "doc-b"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method: got %s, want POST", gotMethod)
+	}
+	if gotPath != "/api/v1/context/reorder" {
+		t.Errorf("path: got %s, want /api/v1/context/reorder", gotPath)
+	}
+	if want := []string{"doc-c", "doc-a", "doc-b"}; !reflect.DeepEqual(gotBody.IDs, want) {
+		t.Errorf("ids: got %v, want %v", gotBody.IDs, want)
 	}
 }
 

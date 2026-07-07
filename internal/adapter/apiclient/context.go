@@ -66,6 +66,12 @@ func (c *Client) SetActiveContext(ctx context.Context, in SetActiveContextInput)
 	return out, err
 }
 
+// ReorderContext calls POST /api/v1/context/reorder to stamp a dense
+// descending priority on the given documents in the given order.
+func (c *Client) ReorderContext(ctx context.Context, orderedIDs []string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/context/reorder", map[string][]string{"ids": orderedIDs}, nil)
+}
+
 // SetPinned calls POST /api/v1/documents/{id}/pin to pin or unpin a document.
 func (c *Client) SetPinned(ctx context.Context, id string, pinned bool) error {
 	return c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/pin", map[string]bool{"pinned": pinned}, nil)
