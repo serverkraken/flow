@@ -34,6 +34,26 @@ func TestRenderContext_BodiesAndFooter(t *testing.T) {
 	}
 }
 
+// TestRenderContext_AlwaysMemories: an `immer` memory doc must reach the
+// actual agent prompt, not just the server-side Used/JSON accounting
+// (agy-Fund #1) — a non-empty AlwaysMemories renders its scope+body; an
+// empty AlwaysMemories emits no section at all.
+func TestRenderContext_AlwaysMemories(t *testing.T) {
+	cc := usecase.ComposedContext{
+		AlwaysMemories: []usecase.ContextItem{{ScopeLabel: "global", Body: "ALWAYS BODY"}},
+	}
+	out := renderContext(cc, false, "")
+	if !strings.Contains(out, "ALWAYS BODY") {
+		t.Errorf("render must include the AlwaysMemories body:\n%s", out)
+	}
+
+	empty := usecase.ComposedContext{}
+	out2 := renderContext(empty, false, "")
+	if strings.Contains(out2, "Always") {
+		t.Errorf("empty AlwaysMemories must emit no Always section:\n%s", out2)
+	}
+}
+
 func TestRenderContext_UnboundHintAndOffline(t *testing.T) {
 	cc := usecase.ComposedContext{}
 	cc.Resolution.Unresolved = true

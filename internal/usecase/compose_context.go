@@ -76,17 +76,18 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 const ActiveContextPath = "active-context"
 
 type ContextItem struct {
-	ID         string              `json:"id"`
-	NodeID     *string             `json:"nodeId"`
-	ScopeLabel string              `json:"scope"`
-	Type       domain.DocumentType `json:"type"`
-	Title      string              `json:"title"`
-	Tags       []string            `json:"tags,omitempty"`
-	UpdatedAt  string              `json:"updatedAt"`
-	Pinned     bool                `json:"pinned"`
-	Priority   int                 `json:"priority,omitempty"`
-	EstTokens  int                 `json:"estTokens"`
-	Body       string              `json:"body"`
+	ID          string              `json:"id"`
+	NodeID      *string             `json:"nodeId"`
+	ScopeLabel  string              `json:"scope"`
+	Type        domain.DocumentType `json:"type"`
+	Title       string              `json:"title"`
+	Tags        []string            `json:"tags,omitempty"`
+	UpdatedAt   string              `json:"updatedAt"`
+	Pinned      bool                `json:"pinned"`
+	Priority    int                 `json:"priority,omitempty"`
+	EstTokens   int                 `json:"estTokens"`
+	Body        string              `json:"body"`
+	ContextMode domain.ContextMode  `json:"contextMode,omitempty"`
 }
 
 // RankedItem is one entry of the flat, globally-ordered ranking pool that
@@ -131,12 +132,14 @@ type ContextBudget struct {
 }
 
 type ComposedContext struct {
-	Resolution    ContextResolution        `json:"resolution"`
-	Instructions  []ContextItem            `json:"instructions"`
-	ActiveContext *ContextItem             `json:"activeContext"`
-	Memories      map[string][]ContextItem `json:"memories"`
-	Ranked        []RankedItem             `json:"ranked,omitempty"`
-	Budget        ContextBudget            `json:"budget"`
+	Resolution     ContextResolution        `json:"resolution"`
+	Instructions   []ContextItem            `json:"instructions"`
+	ActiveContext  *ContextItem             `json:"activeContext"`
+	Memories       map[string][]ContextItem `json:"memories"`
+	Ranked         []RankedItem             `json:"ranked,omitempty"`
+	AlwaysMemories []ContextItem            `json:"alwaysMemories,omitempty"`
+	Hidden         []ContextItem            `json:"hidden,omitempty"`
+	Budget         ContextBudget            `json:"budget"`
 }
 
 func estTokens(body string) int { return (len(body) + 3) / 4 }
@@ -146,6 +149,7 @@ func itemOf(d domain.Document, label string) ContextItem {
 		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Title: d.Title, Tags: d.Tags,
 		UpdatedAt: d.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"), Pinned: d.Pinned,
 		Priority: d.Priority, EstTokens: estTokens(d.Body), Body: d.Body,
+		ContextMode: d.ContextMode.OrAuto(),
 	}
 }
 
@@ -198,6 +202,47 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 	var pool []ranked
 
 	for _, d := range docs {
+		mode := d.ContextMode.OrAuto()
+		if mode == domain.ContextModeNie {
+			// Never composed. Collect for the Kuratieren restore affordance only
+			// (node-in-chain OR global). Not in Used/Ranked/Memories/Always.
+			lbl := "global"
+			if d.NodeID != nil {
+				if l, ok := label[*d.NodeID]; ok {
+					lbl = l
+				} else {
+					continue // node not in chain — not this chain's concern
+				}
+			}
+			out.Hidden = append(out.Hidden, itemOf(d, lbl))
+			continue
+		}
+		if mode == domain.ContextModeImmer {
+			// Forced always-tier regardless of type/tag-gate/pin. Uncapped; counted below.
+			lbl := "global"
+			if d.NodeID != nil {
+				if l, ok := label[*d.NodeID]; ok {
+					lbl = l
+				} else {
+					continue // node not in chain
+				}
+			}
+			it := itemOf(d, lbl)
+			switch d.Type {
+			case domain.DocInstruction:
+				out.Instructions = append(out.Instructions, it)
+			case domain.DocActiveContext:
+				if d.NodeID != nil && tier[*d.NodeID] == "leaf" {
+					out.ActiveContext = &it
+				} else {
+					out.AlwaysMemories = append(out.AlwaysMemories, it)
+				}
+			default: // memory
+				out.AlwaysMemories = append(out.AlwaysMemories, it)
+			}
+			continue
+		}
+		// mode == auto: exact Bestand logic, unverändert.
 		switch d.Type {
 		case domain.DocInstruction:
 			lbl := "global"
@@ -227,12 +272,15 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		}
 	}
 
-	// Always-tier (uncapped): instructions + activeContext into Used.
+	// Always-tier (uncapped): instructions + activeContext + immer memories into Used.
 	for _, it := range out.Instructions {
 		out.Budget.Used += it.EstTokens
 	}
 	if out.ActiveContext != nil {
 		out.Budget.Used += out.ActiveContext.EstTokens
+	}
+	for _, it := range out.AlwaysMemories {
+		out.Budget.Used += it.EstTokens
 	}
 
 	// Rank: pinned first, then priority (manual override), then tierRank
@@ -417,6 +465,11 @@ func StandingOf(cc ComposedContext, docID string) ContextStanding {
 	}
 	if cc.ActiveContext != nil && cc.ActiveContext.ID == docID {
 		return ContextStanding{State: "always", ScopeLabel: cc.ActiveContext.ScopeLabel}
+	}
+	for _, it := range cc.AlwaysMemories {
+		if it.ID == docID {
+			return ContextStanding{State: "always", ScopeLabel: it.ScopeLabel}
+		}
 	}
 	total := 0
 	for _, r := range cc.Ranked {

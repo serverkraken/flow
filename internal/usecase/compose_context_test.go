@@ -421,6 +421,169 @@ func TestComposeContext_ExecuteForNode_ForeignNode(t *testing.T) {
 	}
 }
 
+// TestCompose_ImmerAlwaysUncapped: a memory doc marked ContextModeImmer lands
+// in AlwaysMemories, is counted in Budget.Used, and is never dropped even
+// under a cap far too small to hold it — the always-tier is uncapped.
+func TestCompose_ImmerAlwaysUncapped(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	body := func(n int) string { return string(make([]byte, n)) } // 400 bytes → 100 tok
+	docs := []domain.Document{
+		{ID: "immerMem", NodeID: &leaf, Type: domain.DocMemory, Path: "m", ContextMode: domain.ContextModeImmer, UpdatedAt: t0, Body: body(400)},
+	}
+	// cap=1 is far too small for the 100-tok doc; immer must still be kept.
+	got := usecase.Compose(chain, docs, map[string]bool{}, 1)
+	if len(got.AlwaysMemories) != 1 || got.AlwaysMemories[0].ID != "immerMem" {
+		t.Fatalf("immer memory must land in AlwaysMemories, got %+v", got.AlwaysMemories)
+	}
+	if got.Budget.Used != 100 {
+		t.Errorf("immer memory must count in Budget.Used, got %d", got.Budget.Used)
+	}
+	if len(got.Memories["leaf"]) != 0 {
+		t.Errorf("immer memory must NOT appear in the pooled Memories, got %+v", got.Memories["leaf"])
+	}
+	if len(got.Ranked) != 0 {
+		t.Errorf("immer memory must NOT appear in Ranked, got %+v", got.Ranked)
+	}
+}
+
+// TestCompose_ImmerGlobalBypassesGate: an immer global memory is included
+// with NEITHER globalAllowed NOR Pinned set — immer bypasses the D7 tag-gate
+// and the pin mechanism entirely (Soenne's "8 globals" fix).
+func TestCompose_ImmerGlobalBypassesGate(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "immerGlobal", NodeID: nil, Type: domain.DocMemory, Path: "g", ContextMode: domain.ContextModeImmer, Pinned: false, UpdatedAt: t0, Body: "x"},
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000) // empty globalAllowed, not pinned
+	if len(got.AlwaysMemories) != 1 || got.AlwaysMemories[0].ID != "immerGlobal" {
+		t.Fatalf("immer global memory must bypass the tag-gate/pin, got %+v", got.AlwaysMemories)
+	}
+	if len(got.Memories["global"]) != 0 {
+		t.Errorf("immer global memory must NOT be in the pooled global memories, got %+v", got.Memories["global"])
+	}
+}
+
+// TestCompose_NieHiddenNotComposed: a nie-Doc (memory or instruction) is
+// collected in Hidden only, never in Used/Ranked/Memories/Instructions/Always.
+func TestCompose_NieHiddenNotComposed(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "nieMem", NodeID: &leaf, Type: domain.DocMemory, Path: "m", ContextMode: domain.ContextModeNie, UpdatedAt: t0, Body: "hidden"},
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if len(got.Hidden) != 1 || got.Hidden[0].ID != "nieMem" {
+		t.Fatalf("nie memory must land in Hidden, got %+v", got.Hidden)
+	}
+	if got.Budget.Used != 0 {
+		t.Errorf("nie doc must not count in Budget.Used, got %d", got.Budget.Used)
+	}
+	if len(got.Memories["leaf"]) != 0 {
+		t.Errorf("nie doc must not be pooled, got %+v", got.Memories["leaf"])
+	}
+	if len(got.Ranked) != 0 {
+		t.Errorf("nie doc must not appear in Ranked, got %+v", got.Ranked)
+	}
+	if len(got.AlwaysMemories) != 0 {
+		t.Errorf("nie doc must not appear in AlwaysMemories, got %+v", got.AlwaysMemories)
+	}
+}
+
+// TestCompose_NieDemotesInstruction: an instruction marked nie is degraded to
+// Hidden instead of Instructions — Soenne can silence an instruction outright.
+func TestCompose_NieDemotesInstruction(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "nieInstr", NodeID: &leaf, Type: domain.DocInstruction, Path: "claude", ContextMode: domain.ContextModeNie, UpdatedAt: t0, Body: "silenced rule"},
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if len(got.Instructions) != 0 {
+		t.Fatalf("nie instruction must NOT appear in Instructions, got %+v", got.Instructions)
+	}
+	if len(got.Hidden) != 1 || got.Hidden[0].ID != "nieInstr" {
+		t.Fatalf("nie instruction must land in Hidden, got %+v", got.Hidden)
+	}
+}
+
+// TestCompose_AutoIsBestandNeutral: every doc left at the auto/zero-value
+// ContextMode must produce Memories+Ranked+Used IDENTICAL to the pre-L5.5
+// behavior — AlwaysMemories/Hidden stay empty. This restates
+// TestCompose_TiersAndActiveContext to pin down default-neutrality explicitly.
+func TestCompose_AutoIsBestandNeutral(t *testing.T) {
+	t.Parallel()
+	leaf, eng := "L", "E"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo), node(eng, "Privat", domain.KindEngagement)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		doc("i1", &leaf, domain.DocInstruction, "claude", false, t0, "rules"),
+		doc("i0", nil, domain.DocInstruction, "claude", false, t0, "global rules"),
+		doc("ac", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, "where I was"),
+		doc("ml", &leaf, domain.DocMemory, "m-leaf", false, t0, "leaf mem"),
+		doc("me", &eng, domain.DocMemory, "m-eng", false, t0, "eng mem"),
+	}
+	for _, d := range docs {
+		if d.ContextMode != "" {
+			t.Fatalf("fixture must use the ContextMode zero-value: %+v", d)
+		}
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if len(got.Instructions) != 2 {
+		t.Errorf("want 2 instructions (chain+global), got %d", len(got.Instructions))
+	}
+	if got.ActiveContext == nil || got.ActiveContext.ID != "ac" {
+		t.Fatalf("activeContext not extracted: %+v", got.ActiveContext)
+	}
+	if len(got.Memories["leaf"]) != 1 || got.Memories["leaf"][0].ID != "ml" {
+		t.Errorf("leaf memory tier wrong: %+v", got.Memories["leaf"])
+	}
+	if len(got.Memories["engagement"]) != 1 || got.Memories["engagement"][0].ID != "me" {
+		t.Errorf("engagement memory tier wrong: %+v", got.Memories["engagement"])
+	}
+	if len(got.AlwaysMemories) != 0 {
+		t.Errorf("auto path must leave AlwaysMemories empty, got %+v", got.AlwaysMemories)
+	}
+	if len(got.Hidden) != 0 {
+		t.Errorf("auto path must leave Hidden empty, got %+v", got.Hidden)
+	}
+	for _, it := range got.Instructions {
+		if it.ContextMode != domain.ContextModeAuto {
+			t.Errorf("ContextItem.ContextMode must default to auto, got %q for %s", it.ContextMode, it.ID)
+		}
+	}
+}
+
+// TestStandingOf_ImmerMemoryAlways: an immer memory's standing is "always"
+// (mirroring instructions/activeContext); a nie-doc is absent (StandingOf
+// stays independent of Hidden by design — the doc side upgrades it).
+func TestStandingOf_ImmerMemoryAlways(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "immerMem", NodeID: &leaf, Type: domain.DocMemory, Path: "m", ContextMode: domain.ContextModeImmer, UpdatedAt: t0, Body: "x"},
+		{ID: "nieMem", NodeID: &leaf, Type: domain.DocMemory, Path: "n", ContextMode: domain.ContextModeNie, UpdatedAt: t0, Body: "y"},
+	}
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100000)
+	if st := usecase.StandingOf(got, "immerMem"); st.State != "always" {
+		t.Errorf("immer memory should be always, got %+v", st)
+	}
+	if st := usecase.StandingOf(got, "nieMem"); st.State != "absent" {
+		t.Errorf("nie doc should be absent from StandingOf, got %+v", st)
+	}
+}
+
 func TestCompose_FloorExceedsCapKeepsAlways(t *testing.T) {
 	t.Parallel()
 	leaf := "L"
