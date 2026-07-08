@@ -102,7 +102,7 @@ func runStop(ctx context.Context, c *apiclient.Client,
 		return err
 	}
 	if !st.Running {
-		fmt.Fprintln(out, "keine laufende Session")
+		_, _ = fmt.Fprintln(out, "keine laufende Session")
 		return nil
 	}
 	nodeID, err := resolveStopNode(ctx, c, st, nodeRef, interactive, pick)
@@ -122,7 +122,7 @@ func runStop(ctx context.Context, c *apiclient.Client,
 	if n, gerr := c.GetNode(ctx, nodeID); gerr == nil && n.Name != "" {
 		name = n.Name // best-effort; falls back to the id
 	}
-	fmt.Fprintf(out, "gestoppt · gebucht auf %s · %s\n", name, sess.Elapsed(time.Now()).Round(time.Minute))
+	_, _ = fmt.Fprintf(out, "gestoppt · gebucht auf %s · %s\n", name, sess.Elapsed(time.Now()).Round(time.Minute))
 	return nil
 }
 

@@ -31,7 +31,7 @@ func worktimeStatusCmd() *cobra.Command {
 			}
 			seg := renderStatus(cmd.Context(), time.Now(), statusCachePath(), fetch, ro)
 			if seg != "" {
-				fmt.Fprintln(cmd.OutOrStdout(), seg)
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), seg)
 			}
 			return nil // ALWAYS exit 0, never stderr (Spec §2)
 		},
