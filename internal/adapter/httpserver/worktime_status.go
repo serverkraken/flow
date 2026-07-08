@@ -28,9 +28,12 @@ type wsDayOffDTO struct {
 }
 
 type wsWeekDayDTO struct {
-	Date       string  `json:"date"`
-	LoggedMin  int     `json:"loggedMin"`
-	TargetMin  int     `json:"targetMin"`
+	Date      string `json:"date"`
+	LoggedMin int    `json:"loggedMin"`
+	TargetMin int    `json:"targetMin"`
+	// Workday is part of the public wire contract (Spec §1) for future consumers
+	// (e.g. a web client). The tmux CLI itself re-derives the weekday from Date,
+	// so this field is unread on that path — kept for contract completeness.
 	Workday    bool    `json:"workday"`
 	IsToday    bool    `json:"isToday"`
 	DayOffKind *string `json:"dayOffKind"`
