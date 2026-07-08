@@ -55,8 +55,9 @@ type Server struct {
 	Stats     usecase.StatsComputer
 	SetTarget usecase.SetTargetConfig
 
-	// tmux status segment — aggregated read-only composer
+	// tmux status segment — aggregated read-only composer + node MRU
 	WorktimeStatus usecase.WorktimeStatus
+	NodeMRU        usecase.NodeMRU
 
 	// m1e export
 	BuildExport usecase.BuildExport
@@ -174,6 +175,7 @@ func (s *Server) Routes() http.Handler {
 	// project bindings — static paths before {id} wildcard
 	mux.Handle("GET /api/v1/nodes/resolve", s.auth(http.HandlerFunc(s.handleResolveNode)))
 	mux.Handle("GET /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleListAllNodeBindings)))
+	mux.Handle("GET /api/v1/nodes/mru", s.auth(http.HandlerFunc(s.handleNodeMRU)))
 	mux.Handle("DELETE /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleUnbindNode)))
 	mux.Handle("GET /api/v1/nodes/resolve-engagement", s.auth(http.HandlerFunc(s.handleResolveEngagement)))
 	mux.Handle("PUT /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindNode)))

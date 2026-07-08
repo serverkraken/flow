@@ -209,6 +209,8 @@ func run() error {
 		Clock:   clock,
 		Loc:     time.Local,
 	}
+	// stop-picker MRU ranking (exact server support, not a client heuristic).
+	srv.NodeMRU = usecase.NodeMRU{Sessions: sessionStore}
 
 	httpSrv := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Routes(), ReadHeaderTimeout: 10 * time.Second}
 	srvErr := make(chan error, 1)
