@@ -455,6 +455,23 @@ func (s *FakeSessionStore) TagTimes(_ context.Context, ownerID string, from, to 
 	return out, nil
 }
 
+// LastBookedByNode returns the newest stopped-and-booked session start per node,
+// owner-scoped. Mirrors the pgstore query (running/unbooked excluded).
+func (s *FakeSessionStore) LastBookedByNode(_ context.Context, ownerID string) (map[string]time.Time, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[string]time.Time{}
+	for _, ws := range s.m {
+		if ws.OwnerID != ownerID || ws.NodeID == nil || ws.Stop == nil {
+			continue
+		}
+		if cur, ok := out[*ws.NodeID]; !ok || ws.Start.After(cur) {
+			out[*ws.NodeID] = ws.Start
+		}
+	}
+	return out, nil
+}
+
 // FakeDayOffStore is an in-memory ports.DayOffStore keyed by (owner, yyyy-mm-dd).
 type FakeDayOffStore struct {
 	mu sync.Mutex

@@ -244,3 +244,28 @@ func scanSession(r rowScanner) (domain.WorkSession, error) {
 	}
 	return ws, nil
 }
+
+// LastBookedByNode returns, per node the owner has ever booked a STOPPED session
+// to, the newest such session's start_at. Owner-scoped, read-only. Running
+// (stop_at NULL) and unbooked (node_id NULL) sessions are excluded. Used by the
+// stop-picker MRU ranking (usecase.NodeMRU) — exact, not a client heuristic.
+func (s *SessionStore) LastBookedByNode(ctx context.Context, ownerID string) (map[string]time.Time, error) {
+	const q = `SELECT node_id, MAX(start_at) FROM work_sessions
+WHERE owner_id=$1 AND node_id IS NOT NULL AND stop_at IS NOT NULL
+GROUP BY node_id`
+	rows, err := s.pool.Query(ctx, q, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: last booked by node: %w", err)
+	}
+	defer rows.Close()
+	out := map[string]time.Time{}
+	for rows.Next() {
+		var id string
+		var t time.Time
+		if err := rows.Scan(&id, &t); err != nil {
+			return nil, fmt.Errorf("pgstore: scan last booked: %w", err)
+		}
+		out[id] = t
+	}
+	return out, rows.Err()
+}

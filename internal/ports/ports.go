@@ -144,6 +144,11 @@ type SessionStore interface {
 	// filtered to sessions whose start_at falls in [from, to). Zero value means
 	// unbounded on that side. Results are ordered by minutes DESC, tag ASC.
 	TagTimes(ctx context.Context, ownerID string, from, to time.Time) ([]domain.TagTime, error)
+	// LastBookedByNode returns, per node the owner has booked a STOPPED session
+	// to, the newest such session's start_at. Owner-scoped, read-only. Running
+	// (stop_at NULL) and unbooked (node_id NULL) sessions are excluded. Backs the
+	// stop-picker MRU ranking (usecase.NodeMRU).
+	LastBookedByNode(ctx context.Context, ownerID string) (map[string]time.Time, error)
 }
 
 // DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,
