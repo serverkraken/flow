@@ -39,9 +39,19 @@ Naiv-Polling keine Option.
 **Route:** `GET /api/v1/worktime/status` (owner-scoped wie alle anderen, read-only,
 kein SSE-Emit).
 
-**Usecase:** `usecase.WorktimeStatus` (ein File, „keine Monolithen") — reine
-Komposition der bestehenden Reader, analog dem alten `StatusComposer`:
-heute + Woche + DayOffs + Streak + Monats-Burndown. **Keine neuen Store-Methoden.**
+**Usecase:** `usecase.WorktimeStatus` (ein File, „keine Monolithen") — Komposition
+der bestehenden Reader, analog dem alten `StatusComposer`:
+heute + Woche + DayOffs + Streak + Monats-Burndown.
+
+**Zwei dedizierte Server-Erweiterungen (Entscheidung Soenne, 2026-07-08):**
+
+- **Streak:** fensterloser Streak-Reader (Semantik wie alter `CurrentStreak` —
+  rückwärts bis zum ersten Miss, kein Monatsfenster-Schnitt). `RangeStats("month")`
+  würde einen über den Monatsanfang reichenden Streak am 1. kürzen — abgelehnt.
+- **MRU fürs Stop-Picker-Ranking:** der Server liefert den letzten
+  Buchungszeitpunkt je Node (exakte MRU statt Client-Heuristik über die
+  letzten 100 Sessions). Form (eigener Endpoint vs. Feld an der Node-Liste)
+  entscheidet der Plan; owner-scoped, reine Query, keine Migration.
 
 **DTO (Wire-Form):**
 
@@ -132,7 +142,8 @@ Außerhalb von tmux (`$TMUX` leer): Defaults, kein Fehler.
      buchen, kein Picker.
   4. Unzugeordnet (Normalfall) → fuzzy/MRU-Picker über die bookable Nodes —
      dieselbe Picker-Komponente wie TUI-Booking-Dialog / `flow project bind`
-     (`projectbind_picker.go`-Pattern). Enter = buchen + stoppen,
+     (`projectbind_picker.go`-Pattern); MRU-Ranking aus dem server-seitigen
+     letzten Buchungszeitpunkt je Node (s. §1). Enter = buchen + stoppen,
      Esc = abbrechen **ohne** zu stoppen.
   5. Nach Erfolg: gebuchten Posten ausgeben, Cache invalidieren (Datei löschen)
      → Segment aktualisiert beim nächsten 5-s-Tick.
