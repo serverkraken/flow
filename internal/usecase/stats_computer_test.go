@@ -58,6 +58,18 @@ func (f fakeSessionStore) ListPage(_ context.Context, _ string, _, _ int) ([]dom
 func (f fakeSessionStore) TagTimes(_ context.Context, _ string, _, _ time.Time) ([]domain.TagTime, error) {
 	return nil, nil
 }
+func (f fakeSessionStore) LastBookedByNode(_ context.Context, _ string) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	for _, s := range f.list {
+		if s.NodeID == nil || s.Stop == nil {
+			continue
+		}
+		if cur, ok := out[*s.NodeID]; !ok || s.Start.After(cur) {
+			out[*s.NodeID] = s.Start
+		}
+	}
+	return out, nil
+}
 
 // fakeStatsSettings is a settings fake that carries full Settings (including
 // DefaultTargetMin). Named differently from dayoffs_test.go's fakeSettings

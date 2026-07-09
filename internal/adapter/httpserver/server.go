@@ -55,6 +55,10 @@ type Server struct {
 	Stats     usecase.StatsComputer
 	SetTarget usecase.SetTargetConfig
 
+	// tmux status segment — aggregated read-only composer + node MRU
+	WorktimeStatus usecase.WorktimeStatus
+	NodeMRU        usecase.NodeMRU
+
 	// m1e export
 	BuildExport usecase.BuildExport
 	SetNodeRate usecase.SetNodeRate
@@ -162,6 +166,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/week", s.auth(http.HandlerFunc(s.handleWeek)))
 	mux.Handle("GET /api/v1/stats", s.auth(http.HandlerFunc(s.handleStats)))
 	mux.Handle("GET /api/v1/burndown", s.auth(http.HandlerFunc(s.handleBurndown)))
+	mux.Handle("GET /api/v1/worktime/status", s.auth(http.HandlerFunc(s.handleWorktimeStatus)))
 
 	mux.Handle("GET /api/v1/export", s.authAny(http.HandlerFunc(s.handleExport)))
 	mux.Handle("POST /api/v1/nodes/{id}/rate", s.auth(http.HandlerFunc(s.handleSetNodeRate)))
@@ -170,6 +175,7 @@ func (s *Server) Routes() http.Handler {
 	// project bindings — static paths before {id} wildcard
 	mux.Handle("GET /api/v1/nodes/resolve", s.auth(http.HandlerFunc(s.handleResolveNode)))
 	mux.Handle("GET /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleListAllNodeBindings)))
+	mux.Handle("GET /api/v1/nodes/mru", s.auth(http.HandlerFunc(s.handleNodeMRU)))
 	mux.Handle("DELETE /api/v1/nodes/bindings", s.auth(http.HandlerFunc(s.handleUnbindNode)))
 	mux.Handle("GET /api/v1/nodes/resolve-engagement", s.auth(http.HandlerFunc(s.handleResolveEngagement)))
 	mux.Handle("PUT /api/v1/nodes/{id}/bindings", s.auth(http.HandlerFunc(s.handleBindNode)))

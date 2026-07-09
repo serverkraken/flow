@@ -55,6 +55,15 @@ func newPickParentProgram(items []fuzzylist.Item, pal theme.Palette) *pickProjec
 	}
 }
 
+// newPickBookableProgram is the pick-only variant used by `flow worktime stop`
+// to book the running session onto a node (Enter=book+stop, Esc=cancel).
+func newPickBookableProgram(items []fuzzylist.Item, pal theme.Palette) *pickProjectProgram {
+	return &pickProjectProgram{
+		list:  fuzzylist.New(items, pal), // no create hint → pick-only
+		title: "Zeit buchen auf …",
+	}
+}
+
 // Init satisfies tea.Model. No I/O commands needed at startup.
 func (m *pickProjectProgram) Init() tea.Cmd { return nil }
 
