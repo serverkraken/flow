@@ -16,6 +16,10 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 	u, _ := userFrom(r.Context())
 	_ = r.ParseForm()
 	bodyMD := r.FormValue("body")
+	nodeID := r.FormValue("node")
+	if nodeID == "" {
+		nodeID = r.FormValue("projectId")
+	}
 	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, nil)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -27,14 +31,44 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 		}
 		return "", "", false
 	}
-	// resolveArtifact is nil here: the editor preview has no confirmed
-	// document node yet at this task (a new/unsaved doc, or a node picker
-	// value not yet persisted) — every ![[slug]] embed renders unresolved.
-	// Task 6 wires the editor's selected node through so live previews can
-	// resolve embeds the same way the read view does.
-	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, nil)
+	// Task 6: resolveArtifact is now built from the editor's current node —
+	// the hidden "node" field (edit mode) or the "projectId" select (new
+	// mode), both included on the preview POST (editor.templ's hx-include).
+	// A doc/selection without a node keeps resolveArtifact nil, exactly as
+	// before — every ![[slug]] embed then renders unresolved rather than a
+	// 500 (Spec §13 Pflicht-Testfall covers the WITH-node case).
+	resolveArtifact := s.buildEditorArtifactResolver(r, u.ID, nodeID)
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, resolveArtifact)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.MarkdownPreview(rendered).Render(r.Context(), w)
+}
+
+// buildEditorArtifactResolver builds the same nearest-ancestor-wins artifact
+// resolver buildDocumentVM uses for the read view (Task 3, buildArtifactResolver
+// in webui_document.go), but keyed off the EDITOR's currently selected/known
+// node instead of a persisted Document.NodeID. Both editor preview call sites
+// (this handler's live keyup preview, and renderEditorPreview's initial
+// page-load preview) share it. An empty nodeID, an unwired ListArtifacts
+// (some test servers only wire the worktime/document usecases, not L6's
+// artifact ones — same nil-guard idiom as editorVM's `s.ListNodes.Nodes !=
+// nil` check just above), or any ancestor/artifact lookup failure (including
+// a foreign-owner nodeID, which NodeStore.Ancestors resolves to an empty
+// chain rather than an error — owner-scoped, no leak), all degrade to a nil
+// resolver: every embed just stays "unresolved" rather than a 500 for what
+// is, worst case, a preview-only cosmetic miss.
+func (s *Server) buildEditorArtifactResolver(r *http.Request, ownerID, nodeID string) webui.ArtifactResolver {
+	if nodeID == "" || s.ListArtifacts.Artifacts == nil || s.NodeAncestors.Nodes == nil {
+		return nil
+	}
+	chain, err := s.NodeAncestors.Execute(r.Context(), ownerID, nodeID)
+	if err != nil {
+		return nil
+	}
+	arts, err := s.ListArtifacts.Execute(r.Context(), ownerID, nodeID)
+	if err != nil {
+		return nil
+	}
+	return buildArtifactResolver(chain, arts)
 }
 
 func (s *Server) handleWebEditorNew(w http.ResponseWriter, r *http.Request) {
@@ -181,11 +215,11 @@ func (s *Server) editorVM(r *http.Request, u domain.User, vm webui.EditorVM) (we
 		}
 		vm.ProjectOptions = webui.NodeSelectOptions(r.Context(), projects)
 	}
-	vm.PreviewHTML = s.renderEditorPreview(r, u, vm.Body)
+	vm.PreviewHTML = s.renderEditorPreview(r, u, vm.NodeID, vm.Body)
 	return vm, nil
 }
 
-func (s *Server) renderEditorPreview(r *http.Request, u domain.User, bodyMD string) template.HTML {
+func (s *Server) renderEditorPreview(r *http.Request, u domain.User, nodeID, bodyMD string) template.HTML {
 	all, err := s.ListDocuments.Execute(r.Context(), u.ID, nil, nil)
 	if err != nil {
 		return ""
@@ -196,11 +230,9 @@ func (s *Server) renderEditorPreview(r *http.Request, u domain.User, bodyMD stri
 		}
 		return "", "", false
 	}
-	// resolveArtifact is nil here: the editor preview has no confirmed
-	// document node yet at this task (a new/unsaved doc, or a node picker
-	// value not yet persisted) — every ![[slug]] embed renders unresolved.
-	// Task 6 wires the editor's selected node through so live previews can
-	// resolve embeds the same way the read view does.
-	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, nil)
+	// Task 6: same node-aware resolver as handleWebEditorPreview — see
+	// buildEditorArtifactResolver's doc comment.
+	resolveArtifact := s.buildEditorArtifactResolver(r, u.ID, nodeID)
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, resolveArtifact)
 	return rendered
 }

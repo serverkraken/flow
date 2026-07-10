@@ -315,6 +315,13 @@ func init() {
 			// project fuzzy-picker
 			"picker.filter": "Filter projects…",
 			"picker.new":    "new",
+			// Editor insert helper (Lesesaal L6 Task 6)
+			"editor.insertArtifact":       "Insert artifact ⋯",
+			"editor.insertArtifact.filter": "Filter artifacts…",
+			"editor.insertArtifact.empty":  "No artifacts for this node.",
+			"editor.insertPage":           "Link page ⋯",
+			"editor.insertPage.filter":     "Filter pages…",
+			"editor.insertPage.empty":      "No documents found.",
 			// week summary metrics
 			"kennzahlen.title":   "Metrics",
 			"kennzahlen.avg":     "Average",

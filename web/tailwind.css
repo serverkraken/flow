@@ -627,6 +627,35 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .led-when { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; color: rgb(var(--meta)); font-size: 13px; flex-shrink: 0; }
   /* Soll-Zeile in einer .sect-h (Mockup Z.870) — .instr .note ist ein anderer Scope */
   .sect-h .note { margin-left: auto; font-size: 12.5px; color: rgb(var(--meta)); }
+
+  /* ── Lesesaal L6 Task 6: Editor-Einfügehelfer (Artefakt-/Seiten-Picker) ──
+     Named-class Geschwister von ProjectFuzzyPicker (components/fuzzypicker.templ)
+     — dieselbe Filter-Input+Zeilenliste-Mechanik, aber ohne dessen Arbitrary-
+     Tailwind-Werte (Design-Gate). */
+  .editor-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .insert-picker-anchor { position: relative; }
+  .insert-picker {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+    width: min(86vw, 320px);
+    border-radius: 14px; background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line)); box-shadow: var(--shadow-lift);
+    padding: 8px;
+  }
+  .insert-picker-input {
+    width: 100%; border-radius: 8px; border: 1px solid rgb(var(--line));
+    background: rgb(var(--sunken) / .6); padding: 8px 10px; font-size: 13.5px;
+  }
+  .insert-picker-input:focus { outline: none; border-color: rgb(var(--accent) / .5); }
+  .insert-picker-list { max-height: 230px; overflow: auto; margin-top: 8px; }
+  .insert-picker-row {
+    display: flex; width: 100%; flex-direction: column; align-items: flex-start;
+    gap: 2px; border-radius: 8px; padding: 8px 10px; text-align: left;
+  }
+  .insert-picker-row:hover, .insert-picker-row[aria-selected="true"] { background: rgb(var(--sunken)); }
+  .insert-picker-label, .insert-picker-sub { display: block; width: 100%; }
+  .insert-picker-label { font-size: 13.5px; font-weight: 500; }
+  .insert-picker-sub { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--faint)); }
+  .insert-picker-empty { padding: 10px 6px; font-size: 12.5px; color: rgb(var(--faint)); }
 }
 
 @media (max-width: 960px) {

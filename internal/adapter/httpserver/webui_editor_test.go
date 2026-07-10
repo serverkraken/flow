@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/testutil"
 )
 
 func TestEditorPreview(t *testing.T) {
@@ -282,6 +283,106 @@ func authedEditorRequest(method, target string, body *strings.Reader) *http.Requ
 		req = httptest.NewRequest(method, target, body)
 	}
 	return req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+}
+
+// TestEditorPreviewResolvesArtifactEmbedWithNode is the Task 6 / Spec §13
+// mandatory test: POST /wissen/preview with an artifact-bearing node id in
+// the "node" form field must resolve a ![[slug]] embed to the actual figure
+// (the real serve-route <img src>), not the unresolved chip — proving the
+// preview handler's node-aware resolver (buildEditorArtifactResolver) is
+// actually wired in, not just present as dead code.
+func TestEditorPreviewResolvesArtifactEmbedWithNode(t *testing.T) {
+	srv, _, _, projects := newWebWissenServer(t)
+	artifacts := srv.ListArtifacts.Artifacts.(*testutil.FakeArtifactStore)
+	ctx := context.Background()
+	if _, err := projects.Create(ctx, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	if err := artifacts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "n1", Slug: "bild", Name: "bild.png", Mime: "image/png", Ref: "abcdef123456",
+	}); err != nil {
+		t.Fatalf("seed artifact: %v", err)
+	}
+
+	form := url.Values{"body": {"![[bild]]"}, "node": {"n1"}}
+	req := httptest.NewRequest(http.MethodPost, "/wissen/preview", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+	rec := httptest.NewRecorder()
+
+	srv.handleWebEditorPreview(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`class="figure"`, `src="/nodes/n1/artifacts/bild?v=abcdef123456"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q — preview did not resolve the artifact embed via node context: %.800s", want, body)
+		}
+	}
+}
+
+// TestEditorPreviewWithoutNodeLeavesEmbedUnresolved covers the counterpart
+// state: no "node" (and no "projectId") field at all — the same body renders
+// the unresolved wikilink-broken chip instead of a figure, exactly as before
+// Task 6 (a doc/selection without a node never had artifacts to resolve
+// against).
+func TestEditorPreviewWithoutNodeLeavesEmbedUnresolved(t *testing.T) {
+	srv, _, _, _ := newWebWissenServer(t)
+
+	form := url.Values{"body": {"![[bild]]"}}
+	req := httptest.NewRequest(http.MethodPost, "/wissen/preview", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req = req.WithContext(context.WithValue(req.Context(), userKey, domain.User{ID: "u1", Username: "msoent"}))
+	rec := httptest.NewRecorder()
+
+	srv.handleWebEditorPreview(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "wikilink-broken") {
+		t.Fatalf("expected the unresolved chip without a node: %.800s", body)
+	}
+	if strings.Contains(body, `class="figure"`) {
+		t.Fatalf("must not render a figure without a node: %.800s", body)
+	}
+}
+
+// TestEditorToolbarHasInsertPickerAffordances asserts the Task 6 static
+// surface the brief calls out as the non-JS-testable part's Go-side proxy:
+// both toolbar buttons, the editor-insert.js asset tag, and — in edit mode —
+// the hidden "node" field the preview POST/picker GETs rely on.
+func TestEditorToolbarHasInsertPickerAffordances(t *testing.T) {
+	srv, _, docs, _ := newWebWissenServer(t)
+	ctx := context.Background()
+	nodeID := "n1"
+	_, _ = docs.Create(ctx, domain.Document{
+		ID: "doc-1", OwnerID: "u1", Type: domain.DocFree, Path: "notes/edit", NodeID: &nodeID,
+		Title: "Edit Me", Body: "body",
+	})
+
+	editReq := authedEditorRequest(http.MethodGet, "/wissen/doc-1/bearbeiten", nil)
+	editReq.SetPathValue("id", "doc-1")
+	editRec := httptest.NewRecorder()
+	srv.handleWebEditorEdit(editRec, editReq)
+	editBody := editRec.Body.String()
+	if editRec.Code != http.StatusOK {
+		t.Fatalf("edit editor code=%d body=%.400s", editRec.Code, editBody)
+	}
+	for _, want := range []string{
+		`data-insert-toggle="insert-picker-artefakte"`,
+		`data-insert-toggle="insert-picker-seiten"`,
+		`src="/static/js/editor-insert.js`,
+		`<input type="hidden" name="node" value="n1"`,
+		`id="editor-body"`,
+	} {
+		if !strings.Contains(editBody, want) {
+			t.Fatalf("edit editor missing %q: %.1200s", want, editBody)
+		}
+	}
 }
 
 // TestEditorCreate_InvalidType verifies that renderEditorError is called

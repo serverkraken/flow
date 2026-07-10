@@ -21,6 +21,7 @@ templ EditorPage(vm EditorVM) {
 templ editorBody(vm EditorVM) {
 	@components.AppShell("docs", components.Breadcrumb(editorCrumbs(ctx, vm)), nil, editorOuter(vm))
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
+	<script src={ AssetURL("js/editor-insert.js") } defer data-v={ AssetVersion() }></script>
 }
 
 templ editorOuter(vm EditorVM) {
@@ -105,11 +106,62 @@ templ editorOuter(vm EditorVM) {
 					placeholder="go tui postgres"
 					class="field"/>
 			</label>
+			if vm.Editing() {
+				// Edit mode disables the type/path fields and shows no
+				// projectId select at all (Editing()'s node never changes
+				// here) — a hidden field is the only way the preview POST
+				// and the Artefakt-picker's own hx-get learn the doc's node
+				// (Task 6: Preview-Node-Kontext, Spec §13 Pflicht-Testfall).
+				<input type="hidden" name="node" value={ vm.NodeID }/>
+			}
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.body") }</span>
-				<textarea name="body"
+				<div class="editor-toolbar">
+					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
+						<button type="button" class="btn btn-q btn-s"
+							data-insert-toggle="insert-picker-artefakte"
+							hx-get="/ui/editor/artefakte"
+							hx-params="projectId,node"
+							hx-target="#insert-picker-artefakte-results"
+							hx-swap="innerHTML"
+							hx-trigger="click">
+							{ components.T(ctx, "editor.insertArtifact") }
+						</button>
+						@components.InsertPicker(components.InsertPickerVM{
+							ID:         "insert-picker-artefakte",
+							ResultsID:  "insert-picker-artefakte-results",
+							Endpoint:   "/ui/editor/artefakte",
+							FilterKey:  "editor.insertArtifact.filter",
+							EmptyKey:   "editor.insertArtifact.empty",
+							QueryParam: "aq",
+							Params:     "projectId,node,aq",
+						})
+					</div>
+					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">
+						<button type="button" class="btn btn-q btn-s"
+							data-insert-toggle="insert-picker-seiten"
+							hx-get="/ui/editor/seiten"
+							hx-params="none"
+							hx-target="#insert-picker-seiten-results"
+							hx-swap="innerHTML"
+							hx-trigger="click">
+							{ components.T(ctx, "editor.insertPage") }
+						</button>
+						@components.InsertPicker(components.InsertPickerVM{
+							ID:         "insert-picker-seiten",
+							ResultsID:  "insert-picker-seiten-results",
+							Endpoint:   "/ui/editor/seiten",
+							FilterKey:  "editor.insertPage.filter",
+							EmptyKey:   "editor.insertPage.empty",
+							QueryParam: "q",
+							Params:     "q",
+						})
+					</div>
+				</div>
+				<textarea id="editor-body" name="body"
 					class="field h-[60vh] min-h-96 font-mono"
 					hx-post="/wissen/preview"
+					hx-include="[name=projectId], [name=node]"
 					hx-trigger="keyup changed delay:400ms, load"
 					hx-target="#preview"
 					hx-swap="innerHTML">{ vm.Body }</textarea>

@@ -287,6 +287,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /wissen/system", s.webAuth(s.handleWebWissenRedirect("/wissen")))
 	mux.Handle("GET /wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebEditorNew)))
 	mux.Handle("POST /wissen/preview", s.webAuth(http.HandlerFunc(s.handleWebEditorPreview)))
+	// L6 Task 6: editor toolbar insert-pickers (Artefakt-Embed / Seiten-Wikilink).
+	mux.Handle("GET /ui/editor/artefakte", s.webAuth(http.HandlerFunc(s.handleWebEditorArtefaktePicker)))
+	mux.Handle("GET /ui/editor/seiten", s.webAuth(http.HandlerFunc(s.handleWebEditorSeitenPicker)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))
 	mux.Handle("GET /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocumentView)))
 	mux.Handle("GET /wissen/{id}/bearbeiten", s.webAuth(http.HandlerFunc(s.handleWebEditorEdit)))
