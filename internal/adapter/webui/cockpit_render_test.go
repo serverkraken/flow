@@ -69,14 +69,14 @@ func seededCockpit() NodeCockpit {
 	}
 }
 
-// TestCockpitBody_ThreeSSEFragments verifies the flat layout (Task 7, plus
+// TestCockpitBody_FourSSEFragments verifies the flat layout (Task 7, plus
 // Task 5's #cockpit-artifacts addition): four independent SSE containers in
 // markup order head→main→rail→artifacts, each hx-get-ing its own fragment
 // route and hx-trigger-ing the mutation table's SSE events, wrapped by the
 // .cock grid around main+rail (artifacts sits BELOW the grid, full width —
 // Spec OE #2). The shared add-mode session dialog is mounted once, scoped to
 // this node's Nachbuchen endpoint.
-func TestCockpitBody_ThreeSSEFragments(t *testing.T) {
+func TestCockpitBody_FourSSEFragments(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
 	body := renderToBuf(t, ctx, cockpitBody(d))

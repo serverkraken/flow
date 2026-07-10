@@ -145,8 +145,8 @@ func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver, r
 
 // artifactSrcRe is the ONLY <img src> shape safeImageHTMLRenderer ever
 // emits for a core `![alt](url)` image: the artifact serve route, bare or
-// with its "?v={ref}" cache-buster (ref = 12 lowercase hex chars, see
-// usecase.UploadNodeLogo's sha256[:12] convention). Anything else — an
+// with its "?v={ref}" cache-buster (ref = 12 lowercase hex chars, computed
+// in usecase.UploadArtifact via the sha256[:12] convention). Anything else — an
 // external host, a data: URI, a protocol-relative "//host/..." — renders
 // with an empty src.
 var artifactSrcRe = regexp.MustCompile(`^/nodes/[A-Za-z0-9_-]+/artifacts/[a-z0-9-]+(\?v=[0-9a-f]{12})?$`)
