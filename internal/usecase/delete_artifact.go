@@ -20,6 +20,6 @@ func (uc DeleteArtifact) Execute(ctx context.Context, ownerID, nodeID, slug stri
 	if err := uc.Artifacts.Delete(ctx, ownerID, nodeID, slug); err != nil {
 		return err
 	}
-	uc.Emitter.Emit(ctx, domain.Event{Type: domain.EventArtifactDeleted, UserID: ownerID, Data: map[string]any{"nodeId": nodeID, "slug": slug}})
+	uc.Emitter.Emit(ctx, domain.Event{Type: domain.EventArtifactDeleted, UserID: ownerID, Data: map[string]any{"id": slug, "node": nodeID}})
 	return nil
 }

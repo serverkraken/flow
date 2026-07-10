@@ -31,8 +31,8 @@ func TestDeleteArtifact_RoundtripEmitsDeleted(t *testing.T) {
 	if len(em.events) != 1 || em.events[0].Type != domain.EventArtifactDeleted {
 		t.Fatalf("want exactly one artifact.deleted, got %+v", em.events)
 	}
-	if em.events[0].Data["nodeId"] != "n1" || em.events[0].Data["slug"] != "diagram" {
-		t.Errorf("event data = %+v, want nodeId=n1 slug=diagram", em.events[0].Data)
+	if em.events[0].Data["node"] != "n1" || em.events[0].Data["id"] != "diagram" {
+		t.Errorf("event data = %+v, want node=n1 id=diagram", em.events[0].Data)
 	}
 }
 

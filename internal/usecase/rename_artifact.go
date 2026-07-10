@@ -24,6 +24,6 @@ func (uc RenameArtifact) Execute(ctx context.Context, ownerID, nodeID, slug, nam
 	if err := uc.Artifacts.Rename(ctx, ownerID, nodeID, slug, name); err != nil {
 		return err
 	}
-	uc.Emitter.Emit(ctx, domain.Event{Type: domain.EventArtifactUpdated, UserID: ownerID, Data: map[string]any{"nodeId": nodeID, "slug": slug}})
+	uc.Emitter.Emit(ctx, domain.Event{Type: domain.EventArtifactUpdated, UserID: ownerID, Data: map[string]any{"id": slug, "name": name, "node": nodeID}})
 	return nil
 }

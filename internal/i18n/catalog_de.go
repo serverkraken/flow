@@ -325,10 +325,10 @@ func init() {
 			"picker.filter": "Projekt filtern…",
 			"picker.new":    "neu",
 			// Editor-Einfügehelfer (Lesesaal L6 Task 6)
-			"editor.insertArtifact":       "Artefakt einfügen ⋯",
+			"editor.insertArtifact":       "Artefakt einfügen …",
 			"editor.insertArtifact.filter": "Artefakte filtern…",
 			"editor.insertArtifact.empty":  "Keine Artefakte für diesen Knoten.",
-			"editor.insertPage":           "Seite verlinken ⋯",
+			"editor.insertPage":           "Seite verlinken …",
 			"editor.insertPage.filter":     "Seiten filtern…",
 			"editor.insertPage.empty":      "Keine Dokumente gefunden.",
 			// week summary metrics
@@ -427,6 +427,9 @@ func init() {
 			"activity.verb.node.deleted":     "löschte ein Projekt",
 			"activity.verb.node.moved":       "verschob ein Projekt",
 			"activity.verb.dayoff.changed":   "aktualisierte Frei-Zeiten",
+			"activity.verb.artifact.created": "lud ein Artefakt hoch",
+			"activity.verb.artifact.updated": "aktualisierte ein Artefakt",
+			"activity.verb.artifact.deleted": "löschte ein Artefakt",
 			// session edit dialog
 			"sessions.edit":    "Sitzung bearbeiten",
 			"sessions.project": "Projekt",

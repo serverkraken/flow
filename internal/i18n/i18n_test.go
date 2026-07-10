@@ -37,6 +37,29 @@ func TestT_FallsBackToDefaultLocale(t *testing.T) {
 	}
 }
 
+// TestT_ArtifactVerbKeys guards the L6 final-review finding: artifact
+// mutations (upload/rename/delete) emit VerbKey "activity.verb.artifact.*"
+// into the Home Puls feed (see activity_row.go BuildActivityRows). Before
+// this fix those keys didn't exist in either catalog, so T() fell through to
+// returning the raw key string — this pins that both locales now resolve to
+// real copy.
+func TestT_ArtifactVerbKeys(t *testing.T) {
+	keys := []string{
+		"activity.verb.artifact.created",
+		"activity.verb.artifact.updated",
+		"activity.verb.artifact.deleted",
+	}
+	for _, k := range keys {
+		if got := i18n.T(context.Background(), k); got == k {
+			t.Errorf("T(%q) = raw key, want a translated de string", k)
+		}
+		ctx := i18n.WithLocale(context.Background(), i18n.EN)
+		if got := i18n.T(ctx, k); got == k {
+			t.Errorf("T(%q, en) = raw key, want a translated en string", k)
+		}
+	}
+}
+
 func TestTn_Plural(t *testing.T) {
 	ctx := context.Background()
 	if got := i18n.Tn(ctx, "list.entries", 1); got != "1 Eintrag" {

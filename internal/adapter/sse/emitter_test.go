@@ -106,6 +106,53 @@ func TestEmitter_loggable(t *testing.T) {
 	}
 }
 
+// TestEmitter_artifactCreated_mapsToActivityEntry is the regression test for
+// the L6 final-review finding: the artifact usecases emit Data{"id","name",
+// "node"} (the same convention as document/node events), and activityFor must
+// map those onto TargetRef/Label/NodeRef so the Home Puls feed renders a real
+// row (VerbKey "activity.verb.artifact.created", resolved via the i18n
+// catalogs — see TestT_ArtifactVerbKeys) instead of falling through with a
+// raw key because the entry's refs stayed unset.
+func TestEmitter_artifactCreated_mapsToActivityEntry(t *testing.T) {
+	bus := sse.NewBus()
+	store := &fakeStore{}
+	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	emitter := sse.NewEmitter(bus, store, fakeIDs{"id-2"}, fakeClock{now})
+
+	const userID = "user-3"
+	ch, cancel := bus.Subscribe(userID)
+	defer cancel()
+
+	ctx := actor.WithContext(context.Background(), actor.Actor{Kind: actor.Human, Ref: "soenne"})
+	emitter.Emit(ctx, domain.Event{
+		Type:   domain.EventArtifactCreated,
+		UserID: userID,
+		Data:   map[string]any{"id": "diagram", "name": "Diagram.png", "node": "n1"},
+	})
+
+	evts := drain(ch, 2)
+	if len(evts) != 2 {
+		t.Fatalf("expected 2 events, got %d: %v", len(evts), evts)
+	}
+
+	if len(store.entries) != 1 {
+		t.Fatalf("expected 1 store entry, got %d", len(store.entries))
+	}
+	e := store.entries[0]
+	if e.Kind != string(domain.EventArtifactCreated) {
+		t.Errorf("Kind: want %q, got %q", domain.EventArtifactCreated, e.Kind)
+	}
+	if e.TargetRef == nil || *e.TargetRef != "diagram" {
+		t.Errorf("TargetRef: want %q, got %v", "diagram", e.TargetRef)
+	}
+	if e.NodeRef == nil || *e.NodeRef != "n1" {
+		t.Errorf("NodeRef: want %q, got %v", "n1", e.NodeRef)
+	}
+	if e.Label == nil || *e.Label != "Diagram.png" {
+		t.Errorf("Label: want %q, got %v", "Diagram.png", e.Label)
+	}
+}
+
 func TestEmitter_settingsChanged_notLogged(t *testing.T) {
 	bus := sse.NewBus()
 	store := &fakeStore{}

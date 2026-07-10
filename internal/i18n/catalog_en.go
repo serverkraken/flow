@@ -316,10 +316,10 @@ func init() {
 			"picker.filter": "Filter projects…",
 			"picker.new":    "new",
 			// Editor insert helper (Lesesaal L6 Task 6)
-			"editor.insertArtifact":       "Insert artifact ⋯",
+			"editor.insertArtifact":       "Insert artifact …",
 			"editor.insertArtifact.filter": "Filter artifacts…",
 			"editor.insertArtifact.empty":  "No artifacts for this node.",
-			"editor.insertPage":           "Link page ⋯",
+			"editor.insertPage":           "Link page …",
 			"editor.insertPage.filter":     "Filter pages…",
 			"editor.insertPage.empty":      "No documents found.",
 			// week summary metrics
@@ -418,6 +418,9 @@ func init() {
 			"activity.verb.node.deleted":     "deleted a project",
 			"activity.verb.node.moved":       "moved a project",
 			"activity.verb.dayoff.changed":   "updated time-off entries",
+			"activity.verb.artifact.created": "uploaded an artifact",
+			"activity.verb.artifact.updated": "updated an artifact",
+			"activity.verb.artifact.deleted": "deleted an artifact",
 			// session edit dialog
 			"sessions.edit":    "Edit session",
 			"sessions.project": "Project",

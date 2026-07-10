@@ -184,7 +184,7 @@ func (uc UploadArtifact) Execute(ctx context.Context, ownerID, nodeID, name, dec
 	if err := uc.Artifacts.Put(ctx, a); err != nil {
 		return domain.Artifact{}, err
 	}
-	uc.Emitter.Emit(ctx, domain.Event{Type: eventType, UserID: ownerID, Data: map[string]any{"nodeId": nodeID, "slug": slug}})
+	uc.Emitter.Emit(ctx, domain.Event{Type: eventType, UserID: ownerID, Data: map[string]any{"id": slug, "name": a.Name, "node": nodeID}})
 	a.Bytes = nil
 	return a, nil
 }

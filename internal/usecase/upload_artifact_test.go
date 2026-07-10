@@ -58,8 +58,8 @@ func TestUploadArtifact_Image_SlugFromName(t *testing.T) {
 	if len(em.events) != 1 || em.events[0].Type != domain.EventArtifactCreated {
 		t.Fatalf("want exactly one artifact.created, got %+v", em.events)
 	}
-	if em.events[0].Data["nodeId"] != "n1" || em.events[0].Data["slug"] != "my-photo" {
-		t.Errorf("event data = %+v, want nodeId=n1 slug=my-photo", em.events[0].Data)
+	if em.events[0].Data["node"] != "n1" || em.events[0].Data["id"] != "my-photo" || em.events[0].Data["name"] != "My Photo.png" {
+		t.Errorf("event data = %+v, want node=n1 id=my-photo name=\"My Photo.png\"", em.events[0].Data)
 	}
 }
 
