@@ -13,7 +13,6 @@ import (
 // chain — before renaming, and doubles as the owner+node+slug existence
 // check (ErrArtifactNotFound covers both "missing" and "foreign").
 type RenameArtifact struct {
-	Nodes     ports.NodeStore
 	Artifacts ports.ArtifactStore
 	Emitter   ports.Emitter
 }

@@ -156,7 +156,7 @@ func run() error {
 		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Clock: clock},
 		GetNodeLogo:           usecase.GetNodeLogo{Logos: nodeLogoStore},
 		UploadArtifact:        usecase.UploadArtifact{Nodes: nodeStore, Artifacts: artifactStore, IDs: ids, Clock: clock, Emitter: emitter},
-		RenameArtifact:        usecase.RenameArtifact{Nodes: nodeStore, Artifacts: artifactStore, Emitter: emitter},
+		RenameArtifact:        usecase.RenameArtifact{Artifacts: artifactStore, Emitter: emitter},
 		ListArtifacts:         usecase.ListArtifacts{Nodes: nodeStore, Artifacts: artifactStore},
 		DeleteArtifact:        usecase.DeleteArtifact{Artifacts: artifactStore, Emitter: emitter},
 		GetArtifact:           usecase.GetArtifact{Artifacts: artifactStore},

@@ -68,7 +68,7 @@ func newArtifactServer(t *testing.T) (*httpserver.Server, *testutil.FakeNodeStor
 		Users:          users,
 		ListNodes:      usecase.ListNodes{Nodes: nodes},
 		UploadArtifact: usecase.UploadArtifact{Nodes: nodes, Artifacts: artifacts, IDs: ids, Clock: clk, Emitter: emitter},
-		RenameArtifact: usecase.RenameArtifact{Nodes: nodes, Artifacts: artifacts, Emitter: emitter},
+		RenameArtifact: usecase.RenameArtifact{Artifacts: artifacts, Emitter: emitter},
 		ListArtifacts:  usecase.ListArtifacts{Nodes: nodes, Artifacts: artifacts},
 		DeleteArtifact: usecase.DeleteArtifact{Artifacts: artifacts, Emitter: emitter},
 		GetArtifact:    usecase.GetArtifact{Artifacts: artifacts},
