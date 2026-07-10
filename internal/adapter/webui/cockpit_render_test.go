@@ -69,11 +69,13 @@ func seededCockpit() NodeCockpit {
 	}
 }
 
-// TestCockpitBody_ThreeSSEFragments verifies the flat layout (Task 7): three
-// independent SSE containers in markup order head→main→rail, each hx-get-ing
-// its own fragment route and hx-trigger-ing the mutation table's SSE events,
-// wrapped by the .cock grid around main+rail. The shared add-mode session
-// dialog is mounted once, scoped to this node's Nachbuchen endpoint.
+// TestCockpitBody_ThreeSSEFragments verifies the flat layout (Task 7, plus
+// Task 5's #cockpit-artifacts addition): four independent SSE containers in
+// markup order head→main→rail→artifacts, each hx-get-ing its own fragment
+// route and hx-trigger-ing the mutation table's SSE events, wrapped by the
+// .cock grid around main+rail (artifacts sits BELOW the grid, full width —
+// Spec OE #2). The shared add-mode session dialog is mounted once, scoped to
+// this node's Nachbuchen endpoint.
 func TestCockpitBody_ThreeSSEFragments(t *testing.T) {
 	ctx := context.Background()
 	d := seededCockpit()
@@ -100,12 +102,20 @@ func TestCockpitBody_ThreeSSEFragments(t *testing.T) {
 	if !strings.Contains(body, `hx-get="/nodes/n1/rail"`) {
 		t.Errorf("cockpitBody rail fragment missing hx-get: %.400s", body)
 	}
+	if !strings.Contains(body, `id="cockpit-artifacts"`) {
+		t.Errorf("cockpitBody missing #cockpit-artifacts: %.400s", body)
+	}
+	if !strings.Contains(body, `hx-get="/nodes/n1/artifacts"`) || !strings.Contains(body, "sse:artifact.created, sse:artifact.updated, sse:artifact.deleted") {
+		t.Errorf("cockpitBody artifacts fragment missing hx-get/hx-trigger: %.400s", body)
+	}
 
 	headIdx := strings.Index(body, `id="cockpit-head"`)
 	mainIdx := strings.Index(body, `id="cockpit-main"`)
 	railIdx := strings.Index(body, `id="cockpit-rail"`)
-	if headIdx < 0 || mainIdx < 0 || railIdx < 0 || headIdx >= mainIdx || mainIdx >= railIdx {
-		t.Errorf("fragments must appear head→main→rail in markup order: head=%d main=%d rail=%d", headIdx, mainIdx, railIdx)
+	artifactsIdx := strings.Index(body, `id="cockpit-artifacts"`)
+	if headIdx < 0 || mainIdx < 0 || railIdx < 0 || artifactsIdx < 0 ||
+		headIdx >= mainIdx || mainIdx >= railIdx || railIdx >= artifactsIdx {
+		t.Errorf("fragments must appear head→main→rail→artifacts in markup order: head=%d main=%d rail=%d artifacts=%d", headIdx, mainIdx, railIdx, artifactsIdx)
 	}
 
 	if !strings.Contains(body, `id="session-dialog"`) {

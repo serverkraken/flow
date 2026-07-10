@@ -127,6 +127,19 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// the subtree, max 4.
 	d.Contributors = s.railContributors(ctx, u.ID, n.ID)
 
+	// Artifacts gallery (Task 5): own + inherited artifact cards for the
+	// #cockpit-artifacts section, built from ListArtifacts' Ahnenkette result.
+	// An unwired ListArtifacts (nil Artifacts store, e.g. a test/dev server
+	// without it) or a failed compose degrades to an empty gallery (empty
+	// state) rather than failing the whole cockpit render.
+	if s.ListArtifacts.Artifacts != nil {
+		if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
+			d.Artifacts = webui.BuildArtifactCards(arts, n.ID, names)
+		} else {
+			slog.WarnContext(ctx, "cockpit: list artifacts failed", "nodeID", n.ID, "err", aerr)
+		}
+	}
+
 	// Rail Bindings block.
 	if s.ListNodeBindings.Bindings != nil {
 		if bindings, berr := s.ListNodeBindings.ExecuteByProject(ctx, u.ID, n.ID); berr == nil {
@@ -337,6 +350,38 @@ func (s *Server) handleWebNodeRail(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.CockpitRailBlocks(d).Render(r.Context(), w)
+}
+
+// handleWebNodeArtifacts serves GET /nodes/{id}/artifacts : the
+// #cockpit-artifacts fragment (Task 5 — own+inherited gallery, reload target
+// for artifact.created/updated/deleted).
+func (s *Server) handleWebNodeArtifacts(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	d, err := s.nodeCockpitData(r, u, r.PathValue("id"))
+	if errors.Is(err, ports.ErrNodeNotFound) {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.CockpitArtifacts(d).Render(r.Context(), w)
+}
+
+// renderNodeArtifacts re-renders #cockpit-artifacts with an optional inline
+// error — the target for the gallery's upload/rename/delete mutations
+// (webui_artifacts.go).
+func (s *Server) renderNodeArtifacts(w http.ResponseWriter, r *http.Request, u domain.User, id, errMsg string) {
+	d, err := s.nodeCockpitData(r, u, id)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	d.PanelErr = errMsg
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_ = webui.CockpitArtifacts(d).Render(r.Context(), w)
 }
 
 // renderCockpitMain re-renders #cockpit-main with an optional inline error —

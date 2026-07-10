@@ -20,13 +20,15 @@ templ nodeBreadcrumb(d NodeCockpit) {
 	@components.Breadcrumb(nodeCrumbs(d))
 }
 
-// cockpitBody wires the three fragments per the brief's SSE-per-mutation
+// cockpitBody wires the four fragments per the brief's SSE-per-mutation
 // table: #cockpit-head (spine, full width — reloads only on node.updated/
 // node.moved), then the .cock grid holding #cockpit-main (content column —
 // reloads on every session/document/node/activity mutation) and #cockpit-rail
 // (Meta-Spalte aside — reloads on session, node.updated/moved, and
 // document.* so the L5 context-instrument panel's meter/pins live-follow a
-// pin/reorder mutation). The shared
+// pin/reorder mutation), and finally #cockpit-artifacts (Task 5 — a full-
+// width Haarlinien-Sektion BELOW the .cock grid, not a rail block; Spec OE
+// #2, reloads on artifact.created/updated/deleted). The shared
 // add-mode session dialog mounts once here (opened client-side via
 // data-dialog-open, no server round-trip needed); the edit-mode dialog is
 // mounted inside CockpitMain instead (cockpit_main.templ) so it also
@@ -59,6 +61,14 @@ templ cockpitBody(d NodeCockpit) {
 		>
 			@CockpitRailBlocks(d)
 		</aside>
+	</div>
+	<div
+		id="cockpit-artifacts"
+		hx-get={ "/nodes/" + d.N.ID + "/artifacts" }
+		hx-trigger="sse:artifact.created, sse:artifact.updated, sse:artifact.deleted"
+		hx-swap="innerHTML"
+	>
+		@CockpitArtifacts(d)
 	</div>
 	@components.SessionDialog(sessionDialogAddVM(d))
 	<script src={ AssetURL("js/clipboard.js") } defer></script>

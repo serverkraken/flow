@@ -1,0 +1,143 @@
+package webui
+
+import (
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
+)
+
+// CockpitArtifacts is the cockpit's own+inherited artifact gallery (Task 5,
+// Spec OE #2 — a full-width Haarlinien-Sektion under the .cock grid, NOT a
+// rail block: a grid of cards needs the wide column, and the rail's narrow
+// 280px would immediately force a 1-per-row layout). Own cards (Inherited
+// == false) carry rename/delete/replace affordances; inherited cards
+// (artifact.NodeID != d.N.ID) are read-only with their origin node marked.
+// Mounted as the page-level #cockpit-artifacts SSE container (cockpit.templ)
+// and re-rendered wholesale by every upload/rename/delete mutation — the
+// gallery is small enough that a full re-render (rather than an OOB swap of
+// one card) is the simplest correct thing.
+templ CockpitArtifacts(d NodeCockpit) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.artifacts.title") }</span>
+		</div>
+		if d.PanelErr != "" {
+			<p class="err mt-2 text-warn" role="alert">{ d.PanelErr }</p>
+		}
+		if len(d.Artifacts) == 0 {
+			<p class="empty text-faint mt-3">{ components.T(ctx, "cockpit.artifacts.empty") }</p>
+		} else {
+			<div class="gallery mt-3">
+				for _, a := range d.Artifacts {
+					@artifactCard(d, a)
+				}
+			</div>
+		}
+		@artifactUploadForm(d)
+	</div>
+}
+
+// artifactCard renders one gallery card: an image thumbnail or a
+// type-glyph chip, the truncated name, size (+ origin marker when
+// inherited), and — own artifacts only — replace/rename/delete affordances.
+templ artifactCard(d NodeCockpit, a ArtifactCardVM) {
+	<div class="artcard">
+		if a.IsImage {
+			<div class="artcard-thumb">
+				<img loading="lazy" src={ a.Href } alt={ a.Name }/>
+			</div>
+		} else {
+			<div class="artcard-thumb artcard-chip">
+				<span>▤ { a.TypeLabel }</span>
+			</div>
+		}
+		<div class="artcard-name truncate min-w-0" title={ a.Name }>{ a.Name }</div>
+		<div class="artcard-meta">
+			<span>{ a.SizeStr }</span>
+			if a.Inherited {
+				<span class="artcard-origin truncate min-w-0">{ components.T(ctx, "cockpit.artifacts.inherited") } { a.FromNode }</span>
+			}
+		</div>
+		if !a.Inherited {
+			<div class="artcard-actions">
+				<form enctype="multipart/form-data" class="artcard-replace">
+					<input type="hidden" name="slug" value={ a.Slug }/>
+					<label class="btn btn-q btn-s">
+						{ components.T(ctx, "cockpit.artifacts.replace") }
+						<input
+							type="file"
+							name="file"
+							class="sr-only"
+							hx-post={ "/nodes/" + d.N.ID + "/artifacts" }
+							hx-target="#cockpit-artifacts"
+							hx-swap="innerHTML"
+							hx-encoding="multipart/form-data"
+							hx-trigger="change"
+						/>
+					</label>
+				</form>
+				<button type="button" class="btn btn-q btn-s" data-dialog-open={ "rename-artifact-" + a.Slug }>
+					{ components.T(ctx, "common.rename") }
+				</button>
+				<button
+					type="button"
+					class="btn btn-q btn-s"
+					aria-label={ components.T(ctx, "cockpit.artifacts.delete") }
+					data-dialog-open={ "delete-artifact-" + a.Slug }
+				>✕</button>
+			</div>
+			@artifactRenameDialog(d, a)
+			@components.ConfirmDialog(components.ConfirmSpec{
+				ID:      "delete-artifact-" + a.Slug,
+				BodyKey: "cockpit.artifacts.deleteConfirm",
+				ConfirmAttrs: templ.Attributes{
+					"hx-post":   "/nodes/" + d.N.ID + "/artifacts/" + a.Slug + "/delete",
+					"hx-target": "#cockpit-artifacts",
+					"hx-swap":   "innerHTML",
+					"type":      "button",
+				},
+			})
+		}
+	</div>
+}
+
+// artifactRenameDialog wraps artifactRenameForm in the shared Dialog shell
+// (Muster components.Dialog, e.g. historie.templ's editSession dialog) —
+// renaming isn't destructive, so it uses the plain Dialog rather than
+// ConfirmDialog.
+templ artifactRenameDialog(d NodeCockpit, a ArtifactCardVM) {
+	@components.Dialog("rename-artifact-"+a.Slug, "cockpit.artifacts.rename", artifactRenameForm(d, a), false)
+}
+
+templ artifactRenameForm(d NodeCockpit, a ArtifactCardVM) {
+	<form
+		hx-post={ "/nodes/" + d.N.ID + "/artifacts/" + a.Slug + "/rename" }
+		hx-target="#cockpit-artifacts"
+		hx-swap="innerHTML"
+		class="flex flex-col gap-3"
+	>
+		<label class="flex flex-col gap-1">
+			<span class="text-sm text-meta">{ components.T(ctx, "node.name") }</span>
+			<input type="text" name="name" value={ a.Name } required class="rounded-lg border border-hair2 bg-surface px-3 py-2"/>
+		</label>
+		<div class="flex justify-end gap-2">
+			<button type="submit" class="btn btn-pri btn-s">{ components.T(ctx, "common.save") }</button>
+		</div>
+	</form>
+}
+
+// artifactUploadForm is the always-visible new-upload form (no "slug" field
+// — an empty replaceSlug means UploadArtifact.Execute derives a fresh slug
+// from the name/filename, suffixing "-1"/"-2" on collision).
+templ artifactUploadForm(d NodeCockpit) {
+	<form
+		hx-post={ "/nodes/" + d.N.ID + "/artifacts" }
+		hx-target="#cockpit-artifacts"
+		hx-swap="innerHTML"
+		hx-encoding="multipart/form-data"
+		enctype="multipart/form-data"
+		class="artupload mt-3"
+	>
+		<input type="file" name="file" class="field"/>
+		<button type="submit" class="btn btn-q btn-s">{ components.T(ctx, "cockpit.artifacts.upload") }</button>
+		<p class="mt-1 text-xs text-faint">{ components.T(ctx, "cockpit.artifacts.uploadHint") }</p>
+	</form>
+}

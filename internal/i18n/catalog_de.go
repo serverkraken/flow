@@ -52,6 +52,7 @@ func init() {
 			"common.cancel": "Abbrechen",
 			"common.delete": "Löschen",
 			"common.edit":   "Bearbeiten",
+			"common.rename": "Umbenennen",
 			"common.close":  "Schließen",
 			// pagination
 			"page.prev":  "Zurück",
@@ -124,6 +125,20 @@ func init() {
 			"cockpit.bindings.delete":            "Lösen",
 			"cockpit.bindings.empty":             "Keine Bindings.",
 			"cockpit.bindings.remoteOnlyRepo":    "Remote-Bindings nur an Repo-Knoten möglich.",
+			// cockpit artifact gallery (L6 Task 5)
+			"cockpit.artifacts.title":         "Artefakte",
+			"cockpit.artifacts.empty":         "Noch keine Artefakte.",
+			"cockpit.artifacts.inherited":     "geerbt von",
+			"cockpit.artifacts.delete":        "Artefakt löschen",
+			"cockpit.artifacts.deleteConfirm": "Artefakt löschen?",
+			"cockpit.artifacts.rename":        "Artefakt umbenennen",
+			"cockpit.artifacts.replace":       "Ersetzen",
+			"cockpit.artifacts.upload":        "Hochladen",
+			"cockpit.artifacts.uploadHint":    "Bild oder Datei · max. 8 MB",
+			"cockpit.artifacts.err.tooLarge":  "Datei zu groß (max. 8 MB)",
+			"cockpit.artifacts.err.badType":   "Dateityp nicht erlaubt",
+			"cockpit.artifacts.err.quota":     "Speicherlimit erreicht (256 MB)",
+			"cockpit.artifacts.err.generic":   "Aktion fehlgeschlagen",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Kette",
 			"cockpit.rail.here":          "(hier)",

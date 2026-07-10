@@ -529,6 +529,21 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
      Prosaspalte horizontal aufzureißen. */
   .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .filechip:hover { background: rgb(var(--wash)); }
+  /* Cockpit-Artefakt-Galerie (Lesesaal L6 Task 5, Spec OE #2/#3): eigene
+     Klassen fürs Karten-Grid, den Bild-Thumb, den Datei-Chip (monospace
+     Glyph statt Emoji) und die Aktionsleiste. Grid kollabiert unten
+     (960px/620px) auf 2 bzw. 1 Spalte statt horizontal zu pannen (§11). */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  .artcard { min-width: 0; border: 1px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .artcard-thumb { aspect-ratio: 4 / 3; border-radius: 8px; background: rgb(var(--sheet)); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .artcard-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .artcard-chip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); letter-spacing: .03em; }
+  .artcard-name { font-size: 13px; font-weight: 500; }
+  .artcard-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: rgb(var(--faint)); }
+  .artcard-origin { color: rgb(var(--meta)); }
+  .artcard-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .artcard-replace { display: contents; }
+  .artupload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   /* Mermaid-Quelltext-Disclosure (agy #5: natives Dreieck bricht den Stil) */
   .mermaid-src { margin-top: 10px; }
   .mermaid-src summary { cursor: pointer; list-style: none; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(var(--faint)); padding: 4px 0; }
@@ -649,6 +664,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* Lesesaal L4 (Mockup Z.311/314): weekbar-Balken enger, pagehead h1 kleiner */
   .weekbar { gap: 10px; }
   .pagehead h1 { font-size: 27px; }
+  /* Lesesaal L6 Task 5: Artefakt-Galerie auf 375px — kleinere Mindestbreite
+     kollabiert das Grid auf 1–2 Spalten statt horizontal zu pannen (§11). */
+  .gallery { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 12px; }
 }
 
 @layer components {
