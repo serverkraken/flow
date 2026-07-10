@@ -68,6 +68,11 @@ func getDocPolicy() *bluemonday.Policy {
 		p.AllowAttrs("download").OnElements("a")
 		p.AllowAttrs("class").OnElements("img", "a")
 		p.AllowAttrs("id").OnElements("h1", "h2", "h3", "h4", "h5", "h6")
+		// Task 4 (heading deep-links): the head-anchor "¶" headAnchorHTMLRenderer
+		// emits on every heading's last child — data-copy/data-copied-label feed
+		// the existing static/js/clipboard.js click handler, aria-label is
+		// already allowed on "a" above but title is not.
+		p.AllowAttrs("data-copy", "data-copied-label", "title").OnElements("a")
 		docPolicy = p
 	})
 	return docPolicy
@@ -99,6 +104,8 @@ func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver, r
 	sourceLabel := components.T(ctx, "document.figure.source")
 	downloadLabel := components.T(ctx, "document.figure.download")
 	unresolvedLabel := components.T(ctx, "document.figure.unresolved")
+	copyLinkLabel := components.T(ctx, "heading.copyLink")
+	copiedLabel := components.T(ctx, "heading.copied")
 	ft := &figureTransformer{resolveArtifact: resolveArtifact}
 	gm := goldmark.New(
 		goldmark.WithExtensions(
@@ -110,9 +117,11 @@ func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver, r
 			parser.WithInlineParsers(
 				util.Prioritized(&wikiLinkParser{}, 100),
 			),
+			parser.WithHeadingAttribute(),
 			parser.WithASTTransformers(
 				util.Prioritized(calloutTransformer{}, 0),
 				util.Prioritized(ft, 0),
+				util.Prioritized(headingSlugTransformer{}, 0),
 			),
 		),
 	)
@@ -123,6 +132,7 @@ func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver, r
 			util.Prioritized(&mermaidHTMLRenderer{FigLabel: figLabel, RenderedFrom: renderedFrom, SourceLabel: sourceLabel}, 100),
 			util.Prioritized(&artifactEmbedHTMLRenderer{resolve: resolveArtifact, FigLabel: figLabel, DownloadLabel: downloadLabel, UnresolvedLabel: unresolvedLabel}, 100),
 			util.Prioritized(&safeImageHTMLRenderer{}, 100),
+			util.Prioritized(&headAnchorHTMLRenderer{CopyLabel: copyLinkLabel, CopiedLabel: copiedLabel}, 100),
 		),
 	)
 	var buf bytes.Buffer

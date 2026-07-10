@@ -666,6 +666,32 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .prose h1 { @apply font-display text-2xl mt-8 mb-3 text-ink; }
   .prose h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
   .prose h3 { font-size: 16.5px; font-weight: 600; margin-top: 1.7em; color: rgb(var(--ink)); }
+  /* Lesesaal L6 Task 4: hover-¶ deep-link anchor, server-rendered as the
+     last child of every h1-h6 (headAnchorHTMLRenderer). Hidden until the
+     heading is hovered/focused so the prose stays clean; always visible
+     on touch (no hover state) so it stays tappable on mobile. */
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { position: relative; }
+  .head-anchor {
+    display: inline-block;
+    margin-left: .4em;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 400;
+    text-decoration: none;
+    color: rgb(var(--faint));
+    opacity: 0;
+  }
+  .prose h1:hover .head-anchor,
+  .prose h2:hover .head-anchor,
+  .prose h3:hover .head-anchor,
+  .prose h4:hover .head-anchor,
+  .prose h5:hover .head-anchor,
+  .prose h6:hover .head-anchor,
+  .head-anchor:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .head-anchor { opacity: 1; }
+  }
   .prose strong { font-weight: 600; }
   .prose .lede { border-left: 2px solid rgb(var(--hair2)); padding: 2px 0 2px 18px; color: rgb(var(--meta)); font-size: 15px; }
   .prose p { @apply my-3; }

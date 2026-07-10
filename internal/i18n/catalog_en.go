@@ -252,6 +252,9 @@ func init() {
 			"document.pinned":     "Pinned",
 			"document.pin.hint":   "Pin into agent context",
 			"document.toc":        "On this page",
+			// Heading deep-links (Lesesaal L6 Task 4)
+			"heading.copyLink": "Copy link",
+			"heading.copied":   "Link copied ✓",
 			// Refs rail (Lesesaal L3 Task 6)
 			"document.refs":       "References",
 			"document.ref.from":   "from here",

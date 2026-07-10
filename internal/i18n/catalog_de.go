@@ -260,6 +260,9 @@ func init() {
 			"document.pinned":     "Angepinnt",
 			"document.pin.hint":   "In den Agenten-Kontext pinnen",
 			"document.toc":        "Auf dieser Seite",
+			// Überschriften-Deep-Links (Lesesaal L6 Task 4)
+			"heading.copyLink": "Link kopieren",
+			"heading.copied":   "Link kopiert ✓",
 			// Verweise-Rail (Lesesaal L3 Task 6)
 			"document.refs":       "Verweise",
 			"document.ref.from":   "von hier",
