@@ -26,6 +26,7 @@ func TestFindWikilinks(t *testing.T) {
 			{Start: 5, End: 10, Target: "b", Display: ""},
 		}},
 		{"path slug", "[[daily/2026-06-15]]", []WikilinkSpan{{Start: 0, End: 20, Target: "daily/2026-06-15", Display: ""}}},
+		{"artifact embed excluded (L6)", "![[bild]] und [[doc]]", []WikilinkSpan{{Start: 14, End: 21, Target: "doc", Display: ""}}},
 		{"stray bracket in target aborts", "[[a]b]]", nil},
 		{"stray bracket in display passes through", "[[a|b]c]]", []WikilinkSpan{{Start: 0, End: 9, Target: "a", Display: "b]c"}}},
 	}
@@ -47,6 +48,17 @@ func TestWikilinkTargets(t *testing.T) {
 	}
 	if WikilinkTargets("no links") != nil {
 		t.Fatalf("expected nil for no links")
+	}
+}
+
+// TestWikilinkTargets_ArtifactEmbedExcluded verifies the L6 !-prefix
+// exclusion: ![[slug]] is an artifact embed, not a doc wikilink, so it must
+// not surface in WikilinkTargets (used for the backlink index).
+func TestWikilinkTargets_ArtifactEmbedExcluded(t *testing.T) {
+	got := WikilinkTargets("![[bild]] und [[doc]]")
+	want := []string{"doc"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("WikilinkTargets(%q) = %#v, want %#v", "![[bild]] und [[doc]]", got, want)
 	}
 }
 

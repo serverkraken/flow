@@ -17,6 +17,9 @@ func FindWikilinks(s string) []WikilinkSpan {
 		if s[i] != '[' || s[i+1] != '[' {
 			continue
 		}
+		if i > 0 && s[i-1] == '!' {
+			continue // artifact embed ![[slug]] — not a doc wikilink (L6)
+		}
 		end := -1
 		for j := i + 2; j+1 < len(s); j++ {
 			if s[j] == '\n' {

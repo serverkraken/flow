@@ -64,6 +64,8 @@ var (
 	ErrNodeSlugTaken = errors.New("node slug already taken under this parent")
 	// ErrNodeLogoNotFound signals a node without an uploaded logo.
 	ErrNodeLogoNotFound = errors.New("node logo not found")
+	// ErrArtifactNotFound signals a missing (or owner-foreign) artifact.
+	ErrArtifactNotFound = errors.New("artifact not found")
 
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
@@ -115,6 +117,30 @@ type NodeLogoStore interface {
 	Get(ctx context.Context, ownerID, nodeID string) (domain.NodeLogo, error)
 	// Delete removes the node's logo; absent is a no-op, not an error.
 	Delete(ctx context.Context, ownerID, nodeID string) error
+}
+
+// ArtifactStore persists node-scoped artifacts as Postgres blobs (N per node,
+// FK ON DELETE CASCADE). All reads are owner-scoped.
+type ArtifactStore interface {
+	// Put upserts on (owner_id, node_id, slug).
+	Put(ctx context.Context, a domain.Artifact) error
+	// Get returns one artifact incl. bytes. Owner-scoped; ErrArtifactNotFound when absent.
+	Get(ctx context.Context, ownerID, nodeID, slug string) (domain.Artifact, error)
+	// GetMeta returns one artifact WITHOUT bytes (rename/exists checks).
+	GetMeta(ctx context.Context, ownerID, nodeID, slug string) (domain.Artifact, error)
+	// List returns artifact META (no bytes) for the given nodeIDs (caller passes
+	// the ancestor chain — Node + ancestors), newest first. Owner-scoped.
+	List(ctx context.Context, ownerID string, nodeIDs ...string) ([]domain.Artifact, error)
+	// Rename changes only the display name + updated_at (slug/ref/bytes untouched
+	// — Referenzen + Embed-URLs bleiben stabil). Owner-scoped; ErrArtifactNotFound
+	// when absent. (OE #6 — Empfehlung: eigene Methode statt Get(bytes)+Put.)
+	Rename(ctx context.Context, ownerID, nodeID, slug, name string) error
+	// Delete removes one artifact; ErrArtifactNotFound when absent.
+	Delete(ctx context.Context, ownerID, nodeID, slug string) error
+	// ExistingSlugs returns the slugs already used under (owner,node) — collision suffix.
+	ExistingSlugs(ctx context.Context, ownerID, nodeID string) ([]string, error)
+	// TotalBytes returns SUM(size_bytes) for the owner (per-user quota).
+	TotalBytes(ctx context.Context, ownerID string) (int64, error)
 }
 
 // SessionStore persists work sessions. The DB enforces at most one running
