@@ -18,6 +18,7 @@ func rootCmd() *cobra.Command {
 	root.AddCommand(dayoffCmd())
 	root.AddCommand(exportCmd())
 	root.AddCommand(nodeCmd())
+	root.AddCommand(artifactCmd())
 	root.AddCommand(docsCmd())
 	root.AddCommand(contextCmd())
 	root.AddCommand(uiCmd())

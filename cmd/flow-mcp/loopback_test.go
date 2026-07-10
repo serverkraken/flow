@@ -328,8 +328,8 @@ func TestLoopback_BindProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(tools.Tools) != 14 {
-		t.Fatalf("tool count = %d, want 14; got %v", len(tools.Tools), toolNames(tools.Tools))
+	if len(tools.Tools) != 17 {
+		t.Fatalf("tool count = %d, want 17; got %v", len(tools.Tools), toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_list_projects") {
 		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))

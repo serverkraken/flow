@@ -106,6 +106,18 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Name:        "flow_archive_doc",
 		Description: "Archive a context doc (out of bootstrap + default lists/search, but findable + reversible) or un-archive it. Safe, reversible — use this to retire done/historical memories instead of deleting them.",
 	}, h.archiveDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_upload_artifact",
+		Description: "Upload an artifact (image or downloadable file) onto a node. Scoped to the current project by default; pass node to target another. Images render inline via ![[slug]] in Kompendium docs; other MIME types are download links.",
+	}, h.uploadArtifact)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_list_artifacts",
+		Description: "List a node's artifact library (its own artifacts plus its ancestors', not its subtree). Scoped to the current project by default; pass node to target another.",
+	}, h.listArtifacts)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_delete_artifact",
+		Description: "Delete an artifact by slug from a node. Scoped to the current project by default; pass node to target another.",
+	}, h.deleteArtifact)
 	return s, h
 }
 
