@@ -33,14 +33,25 @@ type mermaidNode struct {
 func (n *mermaidNode) Kind() ast.NodeKind       { return kindMermaid }
 func (n *mermaidNode) Dump(src []byte, lvl int) { ast.DumpHelper(n, src, lvl, nil, nil) }
 
-// mermaidTransformer replaces every ```mermaid fenced code block with a
-// mermaidNode, numbering them in document order. Count is read back by
-// RenderDocument after Convert to populate DocMeta.HasMermaid.
-type mermaidTransformer struct {
-	Count int
+// figureTransformer does two passes over the document. (1) It replaces every
+// ```mermaid fenced code block with an (unnumbered) mermaidNode — Count
+// tracks how many were found, read back by RenderDocument after Convert to
+// populate DocMeta.HasMermaid. (2) It then walks the WHOLE document once
+// more, in source order, and assigns the shared figure counter: every
+// mermaidNode gets the next number, and every artifactEmbedNode (Task 3,
+// artifact_embed.go) gets the next number too, but ONLY if resolveArtifact
+// resolves its slug — an unresolved ![[slug]] must not consume a number
+// (Spec OE #4), or a broken reference would leave a visible gap ("Abb. 1",
+// "Abb. 3" with no "Abb. 2" anywhere). Both node kinds' HTML renderers only
+// ever read N back; they never number themselves, which is what keeps a
+// mixed Mermaid/artifact document numbered in one true document order
+// instead of two independent per-kind counters.
+type figureTransformer struct {
+	resolveArtifact ArtifactResolver
+	Count           int
 }
 
-func (t *mermaidTransformer) Transform(doc *ast.Document, reader text.Reader, _ parser.Context) {
+func (t *figureTransformer) Transform(doc *ast.Document, reader text.Reader, _ parser.Context) {
 	src := reader.Source()
 	var targets []*ast.FencedCodeBlock
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -56,9 +67,29 @@ func (t *mermaidTransformer) Transform(doc *ast.Document, reader text.Reader, _ 
 
 	for _, fcb := range targets {
 		t.Count++
-		mn := &mermaidNode{Source: string(fcb.Lines().Value(src)), N: t.Count}
+		mn := &mermaidNode{Source: string(fcb.Lines().Value(src))}
 		fcb.Parent().ReplaceChild(fcb.Parent(), fcb, mn)
 	}
+
+	n := 0
+	_ = ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch v := node.(type) {
+		case *mermaidNode:
+			n++
+			v.N = n
+		case *artifactEmbedNode:
+			if t.resolveArtifact != nil {
+				if _, ok := t.resolveArtifact(v.Slug); ok {
+					n++
+					v.N = n
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
 }
 
 // mermaidHTMLRenderer renders kindMermaid nodes as a progressively enhanced

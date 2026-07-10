@@ -27,7 +27,12 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 		}
 		return "", "", false
 	}
-	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve)
+	// resolveArtifact is nil here: the editor preview has no confirmed
+	// document node yet at this task (a new/unsaved doc, or a node picker
+	// value not yet persisted) — every ![[slug]] embed renders unresolved.
+	// Task 6 wires the editor's selected node through so live previews can
+	// resolve embeds the same way the read view does.
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, nil)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = webui.MarkdownPreview(rendered).Render(r.Context(), w)
 }
@@ -191,6 +196,11 @@ func (s *Server) renderEditorPreview(r *http.Request, u domain.User, bodyMD stri
 		}
 		return "", "", false
 	}
-	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve)
+	// resolveArtifact is nil here: the editor preview has no confirmed
+	// document node yet at this task (a new/unsaved doc, or a node picker
+	// value not yet persisted) — every ![[slug]] embed renders unresolved.
+	// Task 6 wires the editor's selected node through so live previews can
+	// resolve embeds the same way the read view does.
+	rendered, _ := webui.RenderDocument(r.Context(), bodyMD, resolve, nil)
 	return rendered
 }

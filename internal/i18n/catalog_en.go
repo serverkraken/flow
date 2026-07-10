@@ -242,6 +242,9 @@ func init() {
 			"document.figure.label":   "Fig.",
 			"document.figure.mermaid": "rendered from ```mermaid",
 			"document.figure.source":  "Source",
+			// Artifact embeds ![[slug]] (Lesesaal L6 Task 3)
+			"document.figure.download":   "Download",
+			"document.figure.unresolved": "Unresolved artifact reference",
 			// Provenance row + docrail (Lesesaal L3 Task 5)
 			"document.readtime":   "min read",
 			"document.updatedRel": "updated %s",

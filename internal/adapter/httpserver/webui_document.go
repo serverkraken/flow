@@ -47,7 +47,20 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		}
 		return "", "", false
 	}
-	rendered, _ := webui.RenderDocument(r.Context(), doc.Body, resolve)
+
+	// Artefact-Resolver (Task 3): fire-and-forget like the crumbs lookup just
+	// below, which reuses the SAME chain — an ancestor-lookup or artifact-list
+	// failure just degrades every ![[slug]] embed to "unresolved" rather than
+	// a hard 500 for what is, worst case, a broken inline figure.
+	var chain []domain.Node
+	var resolveArtifact webui.ArtifactResolver
+	if doc.NodeID != nil {
+		chain, _ = s.NodeAncestors.Execute(r.Context(), ownerID, *doc.NodeID)
+		if arts, aerr := s.ListArtifacts.Execute(r.Context(), ownerID, *doc.NodeID); aerr == nil {
+			resolveArtifact = buildArtifactResolver(chain, arts)
+		}
+	}
+	rendered, _ := webui.RenderDocument(r.Context(), doc.Body, resolve, resolveArtifact)
 
 	vm := webui.DocumentVM{
 		ID:            doc.ID,
@@ -67,10 +80,6 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		}
 	}
 	if doc.NodeID != nil {
-		// Fire-and-forget like webui_cockpit.go's own CockpitHead spine: an
-		// ancestor-lookup failure degrades to "no crumbs but the page still
-		// renders" rather than a hard 500 for a purely decorative breadcrumb.
-		chain, _ := s.NodeAncestors.Execute(r.Context(), ownerID, *doc.NodeID)
 		for i := len(chain) - 1; i >= 0; i-- {
 			n := chain[i]
 			vm.Crumbs = append(vm.Crumbs, webui.DocCrumb{Label: n.Name, Href: "/nodes/" + n.ID})
@@ -125,6 +134,56 @@ func isContextType(t domain.DocumentType) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// buildArtifactResolver turns the flat, newest-first list ListArtifacts
+// returns into a slug-keyed webui.ArtifactResolver, applying the
+// nearest-ancestor-wins rule (Spec §6.1): chain is the document node's own
+// ancestor chain in NodeStore.Ancestors order (leaf→root, chain[0] = the
+// document's own node), so its slice index IS the "how close" ranking. When
+// the same slug exists on more than one node in the chain (e.g. one on the
+// document's own node, another on an ancestor), the artifact at the LOWEST
+// chain index — i.e. nearest to the document — wins; List's own
+// created-at-desc ordering is irrelevant here and deliberately not relied
+// upon. Href always points at the winning artifact's OWN NodeID, which can
+// be an ancestor's, never the document's node unconditionally — otherwise
+// the serve route 404s for artifacts inherited from a parent.
+func buildArtifactResolver(chain []domain.Node, arts []domain.Artifact) webui.ArtifactResolver {
+	pos := make(map[string]int, len(chain))
+	for i, n := range chain {
+		pos[n.ID] = i
+	}
+	best := make(map[string]domain.Artifact, len(arts))
+	bestPos := make(map[string]int, len(arts))
+	for _, a := range arts {
+		p, ok := pos[a.NodeID]
+		if !ok {
+			continue
+		}
+		if cur, seen := bestPos[a.Slug]; !seen || p < cur {
+			best[a.Slug] = a
+			bestPos[a.Slug] = p
+		}
+	}
+	if len(best) == 0 {
+		return nil
+	}
+	return func(slug string) (webui.ArtifactRef, bool) {
+		a, ok := best[slug]
+		if !ok {
+			return webui.ArtifactRef{}, false
+		}
+		return webui.ArtifactRef{
+			Href:    "/nodes/" + a.NodeID + "/artifacts/" + a.Slug,
+			Ref:     a.Ref,
+			Name:    a.Name,
+			Mime:    a.Mime,
+			SizeStr: webui.FormatArtifactSize(a.SizeBytes),
+			IsImage: a.IsImage(),
+			Width:   a.Width,
+			Height:  a.Height,
+		}, true
 	}
 }
 

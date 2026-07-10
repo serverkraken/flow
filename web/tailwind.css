@@ -522,6 +522,13 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .frame svg { display: block; }
   figcaption { margin-top: 9px; font-size: 12.5px; color: rgb(var(--faint)); }
   figcaption b { color: rgb(var(--meta)); font-weight: 600; }
+  /* Datei-Chip (Lesesaal L6 Task 3: ![[slug]]-Embed für Nicht-Bild-Artefakte) —
+     einzige neue benannte Klasse dieses Tasks; die Bild-Figur nutzt die
+     Bestand-Klassen figure/.frame oben. min-width:0 + overflow:hidden +
+     text-overflow:ellipsis truncaten einen langen Dateinamen statt die
+     Prosaspalte horizontal aufzureißen. */
+  .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .filechip:hover { background: rgb(var(--wash)); }
   /* Mermaid-Quelltext-Disclosure (agy #5: natives Dreieck bricht den Stil) */
   .mermaid-src { margin-top: 10px; }
   .mermaid-src summary { cursor: pointer; list-style: none; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(var(--faint)); padding: 4px 0; }
