@@ -46,6 +46,41 @@ func TestWebEditorArtefaktePicker_ListsAncestorChain(t *testing.T) {
 	}
 }
 
+// TestWebEditorArtefaktePicker_ProjectIdFallback covers the NEW-doc editor
+// path: a fresh (unsaved) page has no hidden "node" field — its node comes
+// from the "projectId" <select>. The picker button hx-includes both fields,
+// so a new-mode request arrives as ?projectId={id} and must resolve exactly
+// like ?node={id} (the handler falls back to projectId). Regression guard for
+// the live-gate finding that new-mode picking appeared to require save+reopen.
+func TestWebEditorArtefaktePicker_ProjectIdFallback(t *testing.T) {
+	srv, _, _, projects := newWebWissenServer(t)
+	artifacts := srv.ListArtifacts.Artifacts.(*testutil.FakeArtifactStore)
+	ctx := context.Background()
+
+	if _, err := projects.Create(ctx, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	if err := artifacts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "n1", Slug: "bild", Name: "bild.png", Mime: "image/png", SizeBytes: 1024,
+	}); err != nil {
+		t.Fatalf("seed artifact: %v", err)
+	}
+
+	req := authedEditorRequest(http.MethodGet, "/ui/editor/artefakte?projectId=n1", nil)
+	rec := httptest.NewRecorder()
+	srv.handleWebEditorArtefaktePicker(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`data-insert-value="![[bild]]"`, "bild.png"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in projectId-fallback picker fragment: %.800s", want, body)
+		}
+	}
+}
+
 // TestWebEditorArtefaktePicker_ForeignNodeIsEmpty is the Task 6 mandatory
 // owner-scope test: a node owned by a different user must yield the
 // picker's own empty state (never that owner's artifacts, never a 500) —
