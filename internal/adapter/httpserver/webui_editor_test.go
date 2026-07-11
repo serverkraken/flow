@@ -378,10 +378,24 @@ func TestEditorToolbarHasInsertPickerAffordances(t *testing.T) {
 		`src="/static/js/editor-insert.js`,
 		`<input type="hidden" name="node" value="n1"`,
 		`id="editor-body"`,
+		// The Artefakt-picker fires GET requests; htmx 2.x does NOT auto-include
+		// the enclosing form on GET (only on POST), so both the toggle button and
+		// the filter input must hx-include the node/projectId fields — otherwise
+		// the picker's ListArtifacts call gets an empty node and shows nothing.
+		// Include order [name=node], [name=projectId] is deliberately distinct
+		// from the preview textarea's [name=projectId], [name=node] so this
+		// substring identifies only the picker elements.
+		`hx-get="/ui/editor/artefakte" hx-include="[name=node], [name=projectId]"`,
+		`hx-include="[name=node], [name=projectId]" hx-params="projectId,node,aq"`,
 	} {
 		if !strings.Contains(editBody, want) {
 			t.Fatalf("edit editor missing %q: %.1200s", want, editBody)
 		}
+	}
+	// The Seiten-picker needs no node context — it must NOT carry the picker
+	// node-include (it lists all owner docs regardless).
+	if strings.Contains(editBody, `hx-get="/ui/editor/seiten" hx-include="[name=node]`) {
+		t.Fatalf("seiten picker must not include node context")
 	}
 }
 

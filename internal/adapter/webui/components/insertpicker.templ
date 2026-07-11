@@ -25,6 +25,12 @@ type InsertPickerRow struct {
 // is the full hx-params allowlist for that same input (QueryParam plus
 // whatever else the handler needs, e.g. "projectId,node,aq" for the
 // Artefakt-picker's node context).
+// Include is the hx-include CSS selector that PULLS extra form fields into the
+// picker's GET request: htmx 2.x only auto-includes the enclosing <form> on
+// non-GET verbs, so a GET picker request otherwise sends only the filter
+// input's own value (hx-params can filter, never add). The Artefakt-picker
+// sets Include="[name=node], [name=projectId]"; the Seiten-picker leaves it
+// empty (it needs no node context).
 type InsertPickerVM struct {
 	ID         string
 	ResultsID  string
@@ -33,6 +39,7 @@ type InsertPickerVM struct {
 	EmptyKey   string
 	QueryParam string
 	Params     string
+	Include    string
 	Rows       []InsertPickerRow
 }
 
@@ -52,6 +59,9 @@ templ InsertPicker(vm InsertPickerVM) {
 			hx-trigger="input changed delay:150ms"
 			hx-target={ "#" + vm.ResultsID }
 			hx-swap="innerHTML"
+			if vm.Include != "" {
+				hx-include={ vm.Include }
+			}
 			hx-params={ vm.Params }
 			autocomplete="off"/>
 		<div id={ vm.ResultsID } class="insert-picker-list scroll-thin">

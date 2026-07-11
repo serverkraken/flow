@@ -121,6 +121,7 @@ templ editorOuter(vm EditorVM) {
 						<button type="button" class="btn btn-q btn-s"
 							data-insert-toggle="insert-picker-artefakte"
 							hx-get="/ui/editor/artefakte"
+							hx-include="[name=node], [name=projectId]"
 							hx-params="projectId,node"
 							hx-target="#insert-picker-artefakte-results"
 							hx-swap="innerHTML"
@@ -135,6 +136,7 @@ templ editorOuter(vm EditorVM) {
 							EmptyKey:   "editor.insertArtifact.empty",
 							QueryParam: "aq",
 							Params:     "projectId,node,aq",
+							Include:    "[name=node], [name=projectId]",
 						})
 					</div>
 					<div class="insert-picker-anchor" data-insert-anchor data-insert-target="editor-body">

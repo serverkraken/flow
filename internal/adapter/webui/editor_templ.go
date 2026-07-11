@@ -643,14 +643,14 @@ func editorOuter(vm EditorVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</span><div class=\"editor-toolbar\"><div class=\"insert-picker-anchor\" data-insert-anchor data-insert-target=\"editor-body\"><button type=\"button\" class=\"btn btn-q btn-s\" data-insert-toggle=\"insert-picker-artefakte\" hx-get=\"/ui/editor/artefakte\" hx-params=\"projectId,node\" hx-target=\"#insert-picker-artefakte-results\" hx-swap=\"innerHTML\" hx-trigger=\"click\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "</span><div class=\"editor-toolbar\"><div class=\"insert-picker-anchor\" data-insert-anchor data-insert-target=\"editor-body\"><button type=\"button\" class=\"btn btn-q btn-s\" data-insert-toggle=\"insert-picker-artefakte\" hx-get=\"/ui/editor/artefakte\" hx-include=\"[name=node], [name=projectId]\" hx-params=\"projectId,node\" hx-target=\"#insert-picker-artefakte-results\" hx-swap=\"innerHTML\" hx-trigger=\"click\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "editor.insertArtifact"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 128, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 129, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
@@ -668,6 +668,7 @@ func editorOuter(vm EditorVM) templ.Component {
 			EmptyKey:   "editor.insertArtifact.empty",
 			QueryParam: "aq",
 			Params:     "projectId,node,aq",
+			Include:    "[name=node], [name=projectId]",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -679,7 +680,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "editor.insertPage"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 148, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 150, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 		if templ_7745c5c3_Err != nil {
@@ -708,7 +709,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(vm.Body)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 167, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 169, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -729,7 +730,7 @@ func editorOuter(vm EditorVM) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(components.T(ctx, "wissen.preview"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 174, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/adapter/webui/editor.templ`, Line: 176, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
