@@ -134,6 +134,12 @@ func init() {
 			"cockpit.artifacts.err.quota":     "Storage limit reached (256 MB)",
 			"cockpit.artifacts.err.generic":   "Action failed",
 			"cockpit.artifacts.free":          "Free",
+			// free artifact gallery /wissen/artefakte (free-artifacts Task 4)
+			"wissen.artifacts.title":      "Free artifacts",
+			"wissen.artifacts.empty":      "No free artifacts yet.",
+			"wissen.artifacts.upload":     "Upload artifact",
+			"wissen.artifacts.uploadHint": "Image or file · max 8 MB · visible everywhere in Knowledge",
+			"wissen.artifacts.nav":        "Artifacts",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Chain",
 			"cockpit.rail.here":          "(here)",

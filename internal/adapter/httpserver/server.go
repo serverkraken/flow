@@ -287,6 +287,13 @@ func (s *Server) Routes() http.Handler {
 	// "/wissen/typ/bearbeiten" would match either (WissenVM.TypeParam).
 	mux.Handle("GET /wissen/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenType)))
 	mux.Handle("GET /ui/wissen/list/typ", s.webAuth(http.HandlerFunc(s.handleWebWissenTypeList)))
+	// Free (node-less, free-artifacts Task 4) artifact web gallery. The
+	// fragment route (grid+form+error, NO AppShell) is grouped with the
+	// other /ui/wissen/* fragment routes; the full page + mutation routes
+	// are grouped below, registered BEFORE /wissen/{id} so the specific
+	// "/wissen/artefakte" segment is unambiguous (Go 1.22 mux prefers the
+	// specific literal — no real conflict, just kept clean per the plan).
+	mux.Handle("GET /ui/wissen/artefakte", s.webAuth(http.HandlerFunc(s.handleWebWissenArtifactsFragment)))
 	// Retired category slugs (Lesesaal L3 Task 7 — Regale nach Typ ersetzen
 	// die vier Alt-Kategorien) redirect to their type-shelf successor.
 	// /wissen/system has no 1:1 successor (its five legacy types now spread
@@ -301,6 +308,13 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /ui/editor/artefakte", s.webAuth(http.HandlerFunc(s.handleWebEditorArtefaktePicker)))
 	mux.Handle("GET /ui/editor/seiten", s.webAuth(http.HandlerFunc(s.handleWebEditorSeitenPicker)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))
+	// Free (node-less) artifact web gallery page + mutations — registered
+	// BEFORE /wissen/{id} (the specific "artefakte" segment wins over the
+	// wildcard either way, kept grouped here for readability).
+	mux.Handle("GET /wissen/artefakte", s.webAuth(http.HandlerFunc(s.handleWebWissenArtifacts)))
+	mux.Handle("POST /wissen/artefakte", s.webAuth(http.HandlerFunc(s.handleWebWissenArtifactUpload)))
+	mux.Handle("POST /wissen/artefakte/{slug}/rename", s.webAuth(http.HandlerFunc(s.handleWebWissenArtifactRename)))
+	mux.Handle("POST /wissen/artefakte/{slug}/delete", s.webAuth(http.HandlerFunc(s.handleWebWissenArtifactDelete)))
 	mux.Handle("GET /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocumentView)))
 	mux.Handle("GET /wissen/{id}/bearbeiten", s.webAuth(http.HandlerFunc(s.handleWebEditorEdit)))
 	mux.Handle("POST /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebEditorUpdate)))
