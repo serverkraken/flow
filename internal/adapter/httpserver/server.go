@@ -268,6 +268,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /export", s.webAuth(http.HandlerFunc(s.handleWebExportHome)))
 	mux.Handle("GET /ui/export/preview", s.webAuth(http.HandlerFunc(s.handleWebExportPreview)))
 
+	// Free (node-less, free-artifacts Task 2) artifact serve route — the
+	// owner-global counterpart of GET /nodes/{id}/artifacts/{slug}.
+	mux.Handle("GET /artefakte/{slug}", s.webAuth(http.HandlerFunc(s.handleServeFreeArtifact)))
+
 	mux.Handle("GET /wissen", s.webAuth(http.HandlerFunc(s.handleWebWissenHome)))
 	mux.Handle("GET /ui/wissen/list", s.webAuth(http.HandlerFunc(s.handleWebWissenList)))
 	// /wissen/typ?type={key} is a query param, not a path segment

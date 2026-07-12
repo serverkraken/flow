@@ -190,10 +190,32 @@ func TestSafeImageRenderer_RejectsNonArtifactSrc(t *testing.T) {
 }
 
 // TestSafeImageRenderer_AllowsArtifactServeRoute is the positive control for
-// the negative tests above: the one src shape that IS allowed to survive.
+// the negative tests above: the one src shape that IS allowed to survive
+// (node-form serve route, both bare and versioned).
 func TestSafeImageRenderer_AllowsArtifactServeRoute(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "![x](/nodes/n1/artifacts/bild?v=abcdef123456)\n", resolveNone, nil)))
-	if !strings.Contains(out, `src="/nodes/n1/artifacts/bild?v=abcdef123456"`) {
-		t.Fatalf("expected the artifact serve-route src to survive untouched: %s", out)
+	for _, url := range []string{
+		"/nodes/n1/artifacts/bild",
+		"/nodes/n1/artifacts/bild?v=abcdef123456",
+	} {
+		out := string(mustHTML(RenderDocument(context.Background(), "![x]("+url+")\n", resolveNone, nil)))
+		if !strings.Contains(out, `src="`+url+`"`) {
+			t.Fatalf("expected the node-form artifact serve-route src to survive untouched: %s", out)
+		}
+	}
+}
+
+// TestSafeImageRenderer_AllowsFreeArtifactServeRoute is the free-artifact-read-path
+// (Task 2) positive control: the NEW `/artefakte/{slug}` serve form must
+// survive the sanitizer identically to the node form above, both bare and
+// versioned.
+func TestSafeImageRenderer_AllowsFreeArtifactServeRoute(t *testing.T) {
+	for _, url := range []string{
+		"/artefakte/bild",
+		"/artefakte/bild?v=abcdef123456",
+	} {
+		out := string(mustHTML(RenderDocument(context.Background(), "![x]("+url+")\n", resolveNone, nil)))
+		if !strings.Contains(out, `src="`+url+`"`) {
+			t.Fatalf("expected the free-artifact serve-route src to survive untouched: %s", out)
+		}
 	}
 }

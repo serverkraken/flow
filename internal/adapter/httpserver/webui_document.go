@@ -148,18 +148,26 @@ func isContextType(t domain.DocumentType) bool {
 // created-at-desc ordering is irrelevant here and deliberately not relied
 // upon. Href always points at the winning artifact's OWN NodeID, which can
 // be an ancestor's, never the document's node unconditionally — otherwise
-// the serve route 404s for artifacts inherited from a parent.
+// the serve route 404s for artifacts inherited from a parent. Free (node-
+// less, Task 2) artifacts rank at position len(chain) — root-lowest, below
+// every chain node — and get an /artefakte/{slug} href instead; nearest-
+// wins still applies unchanged, so a chain node's artifact always beats a
+// free artifact of the same slug.
 func buildArtifactResolver(chain []domain.Node, arts []domain.Artifact) webui.ArtifactResolver {
 	pos := make(map[string]int, len(chain))
 	for i, n := range chain {
 		pos[n.ID] = i
 	}
+	freePos := len(chain) // free artifacts rank below the root (lowest priority, E1)
 	best := make(map[string]domain.Artifact, len(arts))
 	bestPos := make(map[string]int, len(arts))
 	for _, a := range arts {
 		p, ok := pos[a.NodeID]
 		if !ok {
-			continue
+			if a.NodeID != "" {
+				continue // artifact on a non-ancestor node — not reachable here
+			}
+			p = freePos // free (node-less) artifact — lowest priority
 		}
 		if cur, seen := bestPos[a.Slug]; !seen || p < cur {
 			best[a.Slug] = a
@@ -174,8 +182,12 @@ func buildArtifactResolver(chain []domain.Node, arts []domain.Artifact) webui.Ar
 		if !ok {
 			return webui.ArtifactRef{}, false
 		}
+		href := "/nodes/" + a.NodeID + "/artifacts/" + a.Slug
+		if a.NodeID == "" {
+			href = "/artefakte/" + a.Slug
+		}
 		return webui.ArtifactRef{
-			Href:    "/nodes/" + a.NodeID + "/artifacts/" + a.Slug,
+			Href:    href,
 			Ref:     a.Ref,
 			Name:    a.Name,
 			Mime:    a.Mime,

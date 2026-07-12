@@ -83,6 +83,70 @@ func TestBuildArtifactResolver_NothingResolvesReturnsNilResolver(t *testing.T) {
 	}
 }
 
+// --- Free artifacts (Task 2: read/serve path, dormant until Task 3) -----
+
+// TestBuildArtifactResolver_FreeArtifactResolves covers a free artifact
+// (NodeID=="") on its own, with no chain artifact shadowing it: it must
+// resolve with an /artefakte/{slug} href (never /nodes//artifacts/...) and
+// its Ref set.
+func TestBuildArtifactResolver_FreeArtifactResolves(t *testing.T) {
+	chain := []domain.Node{{ID: "leaf"}, {ID: "root"}}
+	arts := []domain.Artifact{
+		{NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png", Ref: "aaaaaaaaaaaa"},
+	}
+	resolve := buildArtifactResolver(chain, arts)
+	if resolve == nil {
+		t.Fatal("expected a non-nil resolver")
+	}
+	ref, ok := resolve("brand")
+	if !ok {
+		t.Fatal("expected slug \"brand\" to resolve")
+	}
+	if ref.Href != "/artefakte/brand" {
+		t.Fatalf("free artifact href = %q, want /artefakte/brand", ref.Href)
+	}
+	if ref.Ref != "aaaaaaaaaaaa" {
+		t.Fatalf("free artifact Ref = %q, want aaaaaaaaaaaa", ref.Ref)
+	}
+}
+
+// TestBuildArtifactResolver_NodeWinsOverFree is the Spec §E1 nearest-wins
+// rule extended to the free tier: the same slug exists on a chain node AND
+// free — the node version must win (href points at the node, not /artefakte).
+func TestBuildArtifactResolver_NodeWinsOverFree(t *testing.T) {
+	chain := []domain.Node{{ID: "leaf"}, {ID: "root"}}
+	arts := []domain.Artifact{
+		{NodeID: "", Slug: "logo", Name: "free-logo.png", Mime: "image/png"},
+		{NodeID: "root", Slug: "logo", Name: "root-logo.png", Mime: "image/png"},
+	}
+	resolve := buildArtifactResolver(chain, arts)
+	ref, ok := resolve("logo")
+	if !ok {
+		t.Fatal("expected slug \"logo\" to resolve")
+	}
+	if ref.Href != "/nodes/root/artifacts/logo" || ref.Name != "root-logo.png" {
+		t.Fatalf("node artifact must win over free, got href=%q name=%q", ref.Href, ref.Name)
+	}
+}
+
+// TestBuildArtifactResolver_OnlyFreeWins covers a slug that exists ONLY as a
+// free artifact — it must resolve (root-lowest priority is not "never wins",
+// just "loses to any chain node").
+func TestBuildArtifactResolver_OnlyFreeWins(t *testing.T) {
+	chain := []domain.Node{{ID: "leaf"}}
+	arts := []domain.Artifact{
+		{NodeID: "", Slug: "spec", Name: "spec.pdf", Mime: "application/pdf"},
+	}
+	resolve := buildArtifactResolver(chain, arts)
+	ref, ok := resolve("spec")
+	if !ok {
+		t.Fatal("expected the free-only slug to resolve")
+	}
+	if ref.Href != "/artefakte/spec" {
+		t.Fatalf("free-only artifact href = %q, want /artefakte/spec", ref.Href)
+	}
+}
+
 // --- End-to-end through the real /wissen/{id} route ----------------------
 
 // TestWebDocumentView_ArtifactEmbedResolvesEndToEnd exercises the full path

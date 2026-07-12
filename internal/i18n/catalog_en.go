@@ -133,6 +133,7 @@ func init() {
 			"cockpit.artifacts.err.badType":   "File type not allowed",
 			"cockpit.artifacts.err.quota":     "Storage limit reached (256 MB)",
 			"cockpit.artifacts.err.generic":   "Action failed",
+			"cockpit.artifacts.free":          "Free",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Chain",
 			"cockpit.rail.here":          "(here)",

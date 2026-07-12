@@ -48,10 +48,19 @@ func artifactTypeLabel(mime string) string {
 // names maps a node id to its display name (the caller's already-loaded
 // owner-nodes map, Muster nodeCockpitData's "names") for the origin label.
 // A missing names entry degrades to an empty FromNode rather than panicking.
+// A free (node-less, Task 2) artifact has NodeID=="", which never equals a
+// real nodeID, so it is always Inherited=true and gets an /artefakte/{slug}
+// href; its origin label comes from names[""], which the caller sets to the
+// "Frei" i18n string (Task 3) — this function does not special-case it.
 func BuildArtifactCards(arts []domain.Artifact, nodeID string, names map[string]string) []ArtifactCardVM {
 	cards := make([]ArtifactCardVM, 0, len(arts))
 	for _, a := range arts {
-		href := "/nodes/" + a.NodeID + "/artifacts/" + a.Slug
+		var href string
+		if a.NodeID == "" {
+			href = "/artefakte/" + a.Slug
+		} else {
+			href = "/nodes/" + a.NodeID + "/artifacts/" + a.Slug
+		}
 		if a.IsImage() {
 			href += "?v=" + a.Ref
 		}
