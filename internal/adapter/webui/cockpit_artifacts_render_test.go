@@ -179,3 +179,28 @@ func TestBuildArtifactCards_OwnVsInherited(t *testing.T) {
 		t.Errorf("ancestor artifact (NodeID=root) must be Inherited with FromNode=RTL Extern: %+v", inherited)
 	}
 }
+
+// TestBuildArtifactCards_FreeArtifact is the Task 2 free-read-path test: a
+// free artifact (NodeID=="") card is always Inherited (it never belongs to
+// the cockpit's own node), carries the caller-supplied "Frei" origin label
+// (names[""], set by the caller — Task 3), and its Href begins with
+// /artefakte/ rather than /nodes/{id}/artifacts/.
+func TestBuildArtifactCards_FreeArtifact(t *testing.T) {
+	arts := []domain.Artifact{
+		{NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png", SizeBytes: 300, Ref: "abcdef123456"},
+	}
+	cards := BuildArtifactCards(arts, "leaf", map[string]string{"": "Frei"})
+	if len(cards) != 1 {
+		t.Fatalf("want 1 card, got %d", len(cards))
+	}
+	card := cards[0]
+	if !card.Inherited {
+		t.Errorf("free artifact card must be Inherited: %+v", card)
+	}
+	if card.FromNode != "Frei" {
+		t.Errorf("free artifact card FromNode = %q, want Frei: %+v", card.FromNode, card)
+	}
+	if !strings.HasPrefix(card.Href, "/artefakte/") {
+		t.Errorf("free artifact card Href = %q, want prefix /artefakte/", card.Href)
+	}
+}

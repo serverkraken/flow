@@ -143,13 +143,14 @@ func RenderDocument(ctx context.Context, src string, resolve WikilinkResolver, r
 	return template.HTML(clean), DocMeta{HasMermaid: ft.Count > 0}
 }
 
-// artifactSrcRe is the ONLY <img src> shape safeImageHTMLRenderer ever
-// emits for a core `![alt](url)` image: the artifact serve route, bare or
-// with its "?v={ref}" cache-buster (ref = 12 lowercase hex chars, computed
-// in usecase.UploadArtifact via the sha256[:12] convention). Anything else — an
-// external host, a data: URI, a protocol-relative "//host/..." — renders
-// with an empty src.
-var artifactSrcRe = regexp.MustCompile(`^/nodes/[A-Za-z0-9_-]+/artifacts/[a-z0-9-]+(\?v=[0-9a-f]{12})?$`)
+// artifactSrcRe is the ONLY <img src> shapes safeImageHTMLRenderer ever
+// emits for a core `![alt](url)` image: the node-scoped artifact serve route
+// OR the free (node-less, Task 2) `/artefakte/{slug}` serve route, either
+// bare or with its "?v={ref}" cache-buster (ref = 12 lowercase hex chars,
+// computed in usecase.UploadArtifact via the sha256[:12] convention).
+// Anything else — an external host, a data: URI, a protocol-relative
+// "//host/..." — renders with an empty src.
+var artifactSrcRe = regexp.MustCompile(`^(/nodes/[A-Za-z0-9_-]+/artifacts/[a-z0-9-]+|/artefakte/[a-z0-9-]+)(\?v=[0-9a-f]{12})?$`)
 
 // safeImageHTMLRenderer overrides goldmark's core Image renderer (same
 // ast.KindImage, registered at a lower util.Prioritized number so it wins —

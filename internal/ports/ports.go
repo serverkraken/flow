@@ -131,6 +131,8 @@ type ArtifactStore interface {
 	// List returns artifact META (no bytes) for the given nodeIDs (caller passes
 	// the ancestor chain — Node + ancestors), newest first. Owner-scoped.
 	List(ctx context.Context, ownerID string, nodeIDs ...string) ([]domain.Artifact, error)
+	// ListFree returns owner-global (node-less) artifact META (no bytes), newest first.
+	ListFree(ctx context.Context, ownerID string) ([]domain.Artifact, error)
 	// Rename changes only the display name + updated_at (slug/ref/bytes untouched
 	// — Referenzen + Embed-URLs bleiben stabil). Owner-scoped; ErrArtifactNotFound
 	// when absent. (OE #6 — Empfehlung: eigene Methode statt Get(bytes)+Put.)

@@ -48,23 +48,34 @@ func (s *Server) handleWebEditorPreview(w http.ResponseWriter, r *http.Request) 
 // in webui_document.go), but keyed off the EDITOR's currently selected/known
 // node instead of a persisted Document.NodeID. Both editor preview call sites
 // (this handler's live keyup preview, and renderEditorPreview's initial
-// page-load preview) share it. An empty nodeID, an unwired ListArtifacts
-// (some test servers only wire the worktime/document usecases, not L6's
-// artifact ones — same nil-guard idiom as editorVM's `s.ListNodes.Nodes !=
-// nil` check just above), or any ancestor/artifact lookup failure (including
-// a foreign-owner nodeID, which NodeStore.Ancestors resolves to an empty
-// chain rather than an error — owner-scoped, no leak), all degrade to a nil
-// resolver: every embed just stays "unresolved" rather than a 500 for what
-// is, worst case, a preview-only cosmetic miss.
+// page-load preview) share it, as does the editor's Artefakt-Picker handler.
+//
+// nodeID=="" is the FREE context (free-artifacts Task 3): a new/free note has
+// no node at all, so ListArtifacts.Execute(ownerID, "") resolves to that
+// owner's free library alone (no ancestor chain to build). An unwired
+// ListArtifacts (some test servers only wire the worktime/document usecases,
+// not L6's artifact ones — same nil-guard idiom as editorVM's
+// `s.ListNodes.Nodes != nil` check just above), or any ancestor/artifact
+// lookup failure (including a foreign-owner nodeID, which NodeStore.Ancestors
+// resolves to an empty chain rather than an error — owner-scoped, no leak),
+// all degrade to a nil resolver: every embed just stays "unresolved" rather
+// than a 500 for what is, worst case, a preview-only cosmetic miss.
 func (s *Server) buildEditorArtifactResolver(r *http.Request, ownerID, nodeID string) webui.ArtifactResolver {
-	if nodeID == "" || s.ListArtifacts.Artifacts == nil || s.NodeAncestors.Nodes == nil {
+	if s.ListArtifacts.Artifacts == nil {
 		return nil
 	}
-	chain, err := s.NodeAncestors.Execute(r.Context(), ownerID, nodeID)
-	if err != nil {
-		return nil
+	var chain []domain.Node
+	if nodeID != "" {
+		if s.NodeAncestors.Nodes == nil {
+			return nil
+		}
+		c, err := s.NodeAncestors.Execute(r.Context(), ownerID, nodeID)
+		if err != nil {
+			return nil
+		}
+		chain = c
 	}
-	arts, err := s.ListArtifacts.Execute(r.Context(), ownerID, nodeID)
+	arts, err := s.ListArtifacts.Execute(r.Context(), ownerID, nodeID) // nodeID=="" → free library
 	if err != nil {
 		return nil
 	}

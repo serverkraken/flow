@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 // artifactNode resolves a tool's optional `node` argument to a concrete node ID
@@ -24,8 +25,14 @@ func (h *handlers) artifactNode(ctx context.Context, node string) (string, strin
 	return *sc.nodeID, sc.label, nil
 }
 
+// errFreeNodeExclusive is the MCP-side mutual-exclusion error for
+// free:true + a non-empty node — the free (owner-global, node-less) library
+// and a node-scoped library are mutually exclusive targets (OE #1).
+const errFreeNodeExclusive = "free and node are mutually exclusive"
+
 type uploadArtifactIn struct {
 	Node   string `json:"node,omitempty" jsonschema:"project slug, name, or id to attach the artifact to; omit to use the current directory's project"`
+	Free   bool   `json:"free,omitempty" jsonschema:"upload/list/delete in the owner-global free (node-less) library instead of a node"`
 	Name   string `json:"name" jsonschema:"the artifact's file name"`
 	Mime   string `json:"mime" jsonschema:"the artifact's MIME type, e.g. image/png or application/pdf"`
 	Base64 string `json:"base64" jsonschema:"the file contents, base64-encoded"`
@@ -35,12 +42,23 @@ func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest,
 	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Mime) == "" {
 		return errorResult("name and mime are required"), nil, nil
 	}
+	if in.Free && in.Node != "" {
+		return errorResult(errFreeNodeExclusive), nil, nil
+	}
 	data, decErr := base64.StdEncoding.DecodeString(in.Base64)
 	if decErr != nil {
 		return errorResult("base64: invalid encoding: " + decErr.Error()), nil, nil
 	}
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
+		if in.Free {
+			a, err := c.UploadFreeArtifact(ctx, in.Name, in.Mime, data)
+			if err != nil {
+				return err
+			}
+			out = fmt.Sprintf("Uploaded artifact [%s] %s (%s, %d bytes) %s.", a.Slug, a.Name, a.Mime, a.SizeBytes, "(free library)")
+			return nil
+		}
 		nodeID, label, err := h.artifactNode(ctx, in.Node)
 		if err != nil {
 			return err
@@ -60,11 +78,23 @@ func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest,
 
 type listArtifactsIn struct {
 	Node string `json:"node,omitempty" jsonschema:"project slug, name, or id whose artifact library (incl. ancestors) to list; omit to use the current directory's project"`
+	Free bool   `json:"free,omitempty" jsonschema:"upload/list/delete in the owner-global free (node-less) library instead of a node"`
 }
 
 func (h *handlers) listArtifacts(ctx context.Context, req *mcp.CallToolRequest, in listArtifactsIn) (*mcp.CallToolResult, any, error) {
+	if in.Free && in.Node != "" {
+		return errorResult(errFreeNodeExclusive), nil, nil
+	}
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
+		if in.Free {
+			as, err := c.ListFreeArtifacts(ctx)
+			if err != nil {
+				return err
+			}
+			out = formatArtifactList(as, "(free library)")
+			return nil
+		}
 		nodeID, label, err := h.artifactNode(ctx, in.Node)
 		if err != nil {
 			return err
@@ -73,16 +103,7 @@ func (h *handlers) listArtifacts(ctx context.Context, req *mcp.CallToolRequest, 
 		if err != nil {
 			return err
 		}
-		if len(as) == 0 {
-			out = "No artifacts " + label + "."
-			return nil
-		}
-		var b strings.Builder
-		fmt.Fprintf(&b, "Artifacts %s:\n", label)
-		for _, a := range as {
-			fmt.Fprintf(&b, "- [%s] %s · %s · %d bytes\n", a.Slug, a.Name, a.Mime, a.SizeBytes)
-		}
-		out = b.String()
+		out = formatArtifactList(as, label)
 		return nil
 	})
 	if err != nil {
@@ -91,8 +112,21 @@ func (h *handlers) listArtifacts(ctx context.Context, req *mcp.CallToolRequest, 
 	return textResult(out), nil, nil
 }
 
+func formatArtifactList(as []domain.Artifact, label string) string {
+	if len(as) == 0 {
+		return "No artifacts " + label + "."
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Artifacts %s:\n", label)
+	for _, a := range as {
+		fmt.Fprintf(&b, "- [%s] %s · %s · %d bytes\n", a.Slug, a.Name, a.Mime, a.SizeBytes)
+	}
+	return b.String()
+}
+
 type deleteArtifactIn struct {
 	Node string `json:"node,omitempty" jsonschema:"project slug, name, or id the artifact is attached to; omit to use the current directory's project"`
+	Free bool   `json:"free,omitempty" jsonschema:"upload/list/delete in the owner-global free (node-less) library instead of a node"`
 	Slug string `json:"slug" jsonschema:"the artifact's slug"`
 }
 
@@ -100,8 +134,18 @@ func (h *handlers) deleteArtifact(ctx context.Context, req *mcp.CallToolRequest,
 	if strings.TrimSpace(in.Slug) == "" {
 		return errorResult("slug is required"), nil, nil
 	}
+	if in.Free && in.Node != "" {
+		return errorResult(errFreeNodeExclusive), nil, nil
+	}
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
+		if in.Free {
+			if err := c.DeleteFreeArtifact(ctx, in.Slug); err != nil {
+				return err
+			}
+			out = fmt.Sprintf("Deleted artifact [%s] %s.", in.Slug, "(free library)")
+			return nil
+		}
 		nodeID, label, err := h.artifactNode(ctx, in.Node)
 		if err != nil {
 			return err

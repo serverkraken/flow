@@ -34,3 +34,27 @@ func (c *Client) ListArtifacts(ctx context.Context, nodeID string) ([]domain.Art
 func (c *Client) DeleteArtifact(ctx context.Context, nodeID, slug string) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/nodes/"+nodeID+"/artifacts/"+slug, nil, nil)
 }
+
+// UploadFreeArtifact POSTs a new free (node-less, owner-global)
+// artifact (JSON, base64-encoded bytes) — the free-artifacts Task 3
+// counterpart of UploadArtifact, hitting /api/v1/artifacts instead of a
+// node-scoped path.
+func (c *Client) UploadFreeArtifact(ctx context.Context, name, mime string, data []byte) (domain.Artifact, error) {
+	var out domain.Artifact
+	err := c.do(ctx, http.MethodPost, "/api/v1/artifacts", uploadArtifactBody{
+		Name: name, Mime: mime, DataBase64: base64.StdEncoding.EncodeToString(data),
+	}, &out)
+	return out, err
+}
+
+// ListFreeArtifacts returns the owner's free (node-less) artifact meta.
+func (c *Client) ListFreeArtifacts(ctx context.Context) ([]domain.Artifact, error) {
+	var out []domain.Artifact
+	err := c.do(ctx, http.MethodGet, "/api/v1/artifacts", nil, &out)
+	return out, err
+}
+
+// DeleteFreeArtifact removes one free artifact by slug.
+func (c *Client) DeleteFreeArtifact(ctx context.Context, slug string) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/artifacts/"+slug, nil, nil)
+}

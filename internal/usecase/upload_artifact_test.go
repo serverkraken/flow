@@ -221,6 +221,131 @@ func TestUploadArtifact_UnknownNode(t *testing.T) {
 	}
 }
 
+// --- Free (node-less) artifacts (free-artifacts Task 3) --------------------
+
+// TestUploadArtifact_Free_NoNodeGetCalled is the free-upload skip-guard
+// mandatory test: nodeID=="" must never call Nodes.Get (the fake NodeStore
+// here has ZERO nodes seeded — any Get call would return ErrNodeNotFound and
+// fail the upload, so a successful free upload IS the proof the guard held).
+func TestUploadArtifact_Free_NoNodeGetCalled(t *testing.T) {
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := testutil.NewFakeNodeStore() // deliberately empty — no "" node exists
+	as := testutil.NewFakeArtifactStore()
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	got, err := uc.Execute(ctx, "u1", "", "Brand.png", "application/octet-stream", pngPixel(t), "", "human", "soenne")
+	if err != nil {
+		t.Fatalf("free upload must not require a node: %v", err)
+	}
+	if got.NodeID != "" {
+		t.Errorf("NodeID = %q, want empty (free)", got.NodeID)
+	}
+	if got.Slug != "brand" {
+		t.Errorf("slug = %q, want brand", got.Slug)
+	}
+	if len(em.events) != 1 || em.events[0].Type != domain.EventArtifactCreated {
+		t.Fatalf("want exactly one artifact.created, got %+v", em.events)
+	}
+	if em.events[0].Data["node"] != "" {
+		t.Errorf("event data node = %v, want empty string (free)", em.events[0].Data["node"])
+	}
+}
+
+// TestUploadArtifact_Free_SlugCollisionGetsSuffix mirrors
+// TestUploadArtifact_SlugCollisionGetsSuffix for the free tier — the
+// collision check goes through ExistingSlugs(owner, "") + nextArtifactSlug,
+// the real usecase path (not just the pgstore Put-overwrite Task 1 covers).
+func TestUploadArtifact_Free_SlugCollisionGetsSuffix(t *testing.T) {
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := testutil.NewFakeNodeStore()
+	as := testutil.NewFakeArtifactStore()
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	first, err := uc.Execute(ctx, "u1", "", "diagram.png", "application/octet-stream", pngPixel(t), "", "human", "soenne")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Slug != "diagram" {
+		t.Fatalf("first slug = %q, want diagram", first.Slug)
+	}
+	second, err := uc.Execute(ctx, "u1", "", "diagram.png", "application/octet-stream", pngPixel(t), "", "human", "soenne")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Slug != "diagram-1" {
+		t.Errorf("second slug = %q, want diagram-1", second.Slug)
+	}
+	if len(em.events) != 2 || em.events[1].Type != domain.EventArtifactCreated {
+		t.Fatalf("want two artifact.created events, got %+v", em.events)
+	}
+}
+
+// TestUploadArtifact_Free_ReplaceSlugOverwritesAndUpdates mirrors the node
+// replace test for the free tier.
+func TestUploadArtifact_Free_ReplaceSlugOverwritesAndUpdates(t *testing.T) {
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := testutil.NewFakeNodeStore()
+	as := testutil.NewFakeArtifactStore()
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	orig, err := uc.Execute(ctx, "u1", "", "diagram.png", "application/octet-stream", pngPixel(t), "", "human", "soenne")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := uc.Execute(ctx, "u1", "", "diagram-v2.png", "application/pdf", pdfBytes(), orig.Slug, "human", "soenne")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced.Slug != orig.Slug {
+		t.Errorf("slug changed on replace: got %q, want %q", replaced.Slug, orig.Slug)
+	}
+	if replaced.Ref == orig.Ref {
+		t.Error("ref did not change after replacing with different content")
+	}
+	if len(em.events) != 2 || em.events[1].Type != domain.EventArtifactUpdated {
+		t.Fatalf("want [created, updated], got %+v", em.events)
+	}
+	all, err := as.ListFree(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("want 1 stored free artifact after replace, got %d", len(all))
+	}
+}
+
+// TestUploadArtifact_Free_QuotaExceeded proves the owner quota applies to
+// free uploads too (TotalBytes sums all owner artifacts including free ones —
+// no code change needed, but it must be test-covered).
+func TestUploadArtifact_Free_QuotaExceeded(t *testing.T) {
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := testutil.NewFakeNodeStore()
+	as := testutil.NewFakeArtifactStore()
+	if err := as.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "", Slug: "existing", Name: "existing.pdf",
+		Mime: "application/pdf", SizeBytes: usecase.MaxArtifactBytesPerOwner - 10,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	_, err := uc.Execute(ctx, "u1", "", "report.pdf", "application/pdf", pdfBytes(), "", "human", "soenne")
+	if !errors.Is(err, usecase.ErrArtifactQuotaExceeded) {
+		t.Errorf("err = %v, want ErrArtifactQuotaExceeded", err)
+	}
+	if len(em.events) != 0 {
+		t.Errorf("want no event on quota rejection, got %+v", em.events)
+	}
+}
+
 func TestUploadArtifact_ActorKindPassedThrough(t *testing.T) {
 	ctx := context.Background()
 	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}

@@ -34,14 +34,32 @@ func sortScoredRows(rows []scoredInsertRow) []components.InsertPickerRow {
 
 // BuildArtefaktInsertRows turns the Ahnenkette's artifact list
 // (usecase.ListArtifacts — already scoped to the editor's node plus its
-// ancestors) into "Artefakt einfügen" picker rows: Label=Name, Sub=Slug,
+// ancestors, PLUS the owner's free artifacts appended last, free-artifacts
+// Task 3) into "Artefakt einfügen" picker rows: Label=Name, Sub=Slug,
 // Value=the ![[slug]] embed markdown the row's selection inserts. An empty q
 // keeps List's own (newest-first) order; a non-empty q fuzzy-matches Name
 // first (weighted higher, like the palette's short-name preference), then
 // falls back to Slug.
+//
+// Slug-dedup (codex #1 / OE #6): ListArtifacts(node) = chain ++ free can
+// return the SAME slug twice (e.g. a node-"logo" and a free-"logo"). Both
+// rows would insert the identical "![[logo]]" markdown, which the read-side
+// resolver (buildArtifactResolver) resolves node-wins — the duplicate free
+// row would be a silent misdirect, looking like a second valid choice while
+// actually being shadowed. This function therefore dedups by slug, first hit
+// wins. That's correct ONLY because ListArtifacts returns node-before-free
+// (append(nodeArts, free...)) — the node entry is always seen first here, so
+// "first wins" matches the resolver's own node-over-free tie-break. (The
+// pre-existing node-vs-ancestor equal-slug case from L6 is out of scope —
+// only the node-vs-free collision that free makes common.)
 func BuildArtefaktInsertRows(arts []domain.Artifact, q string) []components.InsertPickerRow {
 	rows := make([]scoredInsertRow, 0, len(arts))
+	seenSlug := make(map[string]bool, len(arts))
 	for i, a := range arts {
+		if seenSlug[a.Slug] {
+			continue
+		}
+		seenSlug[a.Slug] = true
 		row := components.InsertPickerRow{Label: a.Name, Sub: a.Slug, Value: "![[" + a.Slug + "]]"}
 		if q == "" {
 			rows = append(rows, scoredInsertRow{row, len(arts) - i})

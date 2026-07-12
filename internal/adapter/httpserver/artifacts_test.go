@@ -274,6 +274,47 @@ func TestHandleListArtifacts_AncestorChain(t *testing.T) {
 	}
 }
 
+// TestHandleListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary is the
+// REST-boundary regression guard for the codex #2 CRITICAL cross-tenant
+// free-library leak: GET /api/v1/nodes/{bogus}/artifacts must return [] —
+// NEVER the caller's whole free library. Nodes.Ancestors returns (nil, nil)
+// for an unknown/foreign node, and without the usecase's len(chain)==0 guard
+// an empty chain would fall through to appending ListFree(owner), leaking
+// every free artifact through the node-scoped route. This test seeds a free
+// artifact for the caller and asserts it does NOT appear when listing a
+// non-existent node id. (Belt-and-suspenders on top of the usecase-level
+// TestListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary — guards against a
+// future handler bypassing ListArtifacts.Execute at the REST edge.)
+func TestHandleListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/nodes/does-not-exist/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("bogus/foreign node must yield [], NOT the free library, got %+v", list)
+	}
+	for _, a := range list {
+		if a.Slug == "brand" {
+			t.Fatalf("caller's free artifact leaked through the node-scoped route: %+v", list)
+		}
+	}
+}
+
 func TestHandleDeleteArtifact_NoContent_EmitsDeleted(t *testing.T) {
 	srv, ns, as, bus, _ := newArtifactServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -498,6 +539,356 @@ func TestHandleServeArtifact_CrossTenant_404(t *testing.T) {
 	body, _ := readAll(res)
 	if strings.Contains(body, "secret") {
 		t.Error("response body must not leak the foreign artifact's content")
+	}
+}
+
+// --- Free-artifact serve route: GET /artefakte/{slug} (Task 2) -----------
+
+// TestHandleServeFreeArtifact_Image_InlineWithETag mirrors
+// TestHandleServeArtifact_Image_InlineWithETag for the node-less serve route
+// — same header set via the shared writeArtifactResponse helper.
+func TestHandleServeFreeArtifact_Image_InlineWithETag(t *testing.T) {
+	srv, _, as, _, cookie := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+		Ref: "abc123def456", Bytes: pngPixelBytes(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/artefakte/brand", nil)
+	req.AddCookie(cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	if res.Header.Get("Content-Type") != "image/png" {
+		t.Errorf("Content-Type = %q, want image/png", res.Header.Get("Content-Type"))
+	}
+	if res.Header.Get("Content-Disposition") != "inline" {
+		t.Errorf("Content-Disposition = %q, want inline", res.Header.Get("Content-Disposition"))
+	}
+	if res.Header.Get("ETag") != `"abc123def456"` {
+		t.Errorf("ETag = %q, want %q", res.Header.Get("ETag"), `"abc123def456"`)
+	}
+	if res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", res.Header.Get("X-Content-Type-Options"))
+	}
+	if res.Header.Get("Cache-Control") != "private, no-cache" {
+		t.Errorf("Cache-Control (bare url) = %q, want private, no-cache", res.Header.Get("Cache-Control"))
+	}
+}
+
+func TestHandleServeFreeArtifact_VersionedQuery_Immutable(t *testing.T) {
+	srv, _, as, _, cookie := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+		Ref: "abc123def456", Bytes: pngPixelBytes(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/artefakte/brand?v=abc123def456", nil)
+	req.AddCookie(cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if got := res.Header.Get("Cache-Control"); got != "private, max-age=31536000, immutable" {
+		t.Errorf("Cache-Control (?v=ref) = %q, want immutable", got)
+	}
+}
+
+func TestHandleServeFreeArtifact_IfNoneMatch_304(t *testing.T) {
+	srv, _, as, _, cookie := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+		Ref: "abc123def456", Bytes: pngPixelBytes(t),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/artefakte/brand", nil)
+	req.AddCookie(cookie)
+	req.Header.Set("If-None-Match", `"abc123def456"`)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNotModified {
+		t.Errorf("status = %d, want 304", res.StatusCode)
+	}
+	if res.Header.Get("ETag") != `"abc123def456"` {
+		t.Errorf("304 missing ETag: %q", res.Header.Get("ETag"))
+	}
+}
+
+func TestHandleServeFreeArtifact_NonImage_Attachment(t *testing.T) {
+	srv, _, as, _, cookie := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "report", Name: "Report.pdf", Mime: "application/pdf",
+		Ref: "deadbeef0000", Bytes: []byte("%PDF-1.4 mock"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/artefakte/report", nil)
+	req.AddCookie(cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Errorf("X-Content-Type-Options = %q, want nosniff", res.Header.Get("X-Content-Type-Options"))
+	}
+	want := `attachment; filename="Report.pdf"`
+	if got := res.Header.Get("Content-Disposition"); got != want {
+		t.Errorf("Content-Disposition = %q, want %q", got, want)
+	}
+}
+
+// TestHandleServeFreeArtifact_CrossTenant_404 is the owner-scope negative
+// test for the free serve route: a foreign owner's free artifact at the same
+// slug must 404 for this tenant, never leaking its bytes.
+func TestHandleServeFreeArtifact_CrossTenant_404(t *testing.T) {
+	srv, _, as, _, cookie := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: "other-owner", NodeID: "", Slug: "secret", Name: "Secret.pdf", Mime: "application/pdf",
+		Ref: "cafebabef00d", Bytes: []byte("%PDF-1.4 secret"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/artefakte/secret", nil)
+	req.AddCookie(cookie)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (cross-tenant free serve)", res.StatusCode)
+	}
+	body, _ := readAll(res)
+	if strings.Contains(body, "secret") {
+		t.Error("response body must not leak the foreign artifact's content")
+	}
+}
+
+// --- Free (node-less) REST verbs: /api/v1/artifacts (Task 3) --------------
+
+func TestHandleUploadFreeArtifact_HappyPath_EmitsCreated(t *testing.T) {
+	srv, _, _, bus, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	ch, cancel := bus.Subscribe(owner)
+	defer cancel()
+
+	reqBody, _ := json.Marshal(map[string]string{
+		"name": "Brand.png", "mime": "application/octet-stream",
+		"dataBase64": base64.StdEncoding.EncodeToString(pngPixelBytes(t)),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", reqBody)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", res.StatusCode)
+	}
+	var got domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.NodeID != "" {
+		t.Errorf("got NodeID = %q, want empty (free)", got.NodeID)
+	}
+	if got.Slug != "brand" || got.Mime != "image/png" {
+		t.Errorf("got slug=%q mime=%q, want brand/image/png", got.Slug, got.Mime)
+	}
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventArtifactCreated {
+			t.Errorf("event type = %q, want artifact.created", ev.Type)
+		}
+		if ev.Data["node"] != "" {
+			t.Errorf("event node = %v, want empty (free)", ev.Data["node"])
+		}
+	default:
+		t.Error("want artifact.created event, got none")
+	}
+}
+
+func TestHandleUploadFreeArtifact_TooLarge_400(t *testing.T) {
+	srv, _, _, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	oversized := make([]byte, domain.MaxArtifactBytes+1)
+	body, _ := json.Marshal(map[string]string{
+		"name": "huge.bin", "mime": "application/octet-stream",
+		"dataBase64": base64.StdEncoding.EncodeToString(oversized),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestHandleUploadFreeArtifact_QuotaExceeded_413(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "existing", Name: "existing.pdf",
+		Mime: "application/pdf", SizeBytes: usecase.MaxArtifactBytesPerOwner - 4,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"name": "report.pdf", "mime": "application/pdf",
+		"dataBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 mock content overflowing quota")),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", res.StatusCode)
+	}
+}
+
+func TestHandleListFreeArtifacts_ReturnsFreeLibrary(t *testing.T) {
+	srv, ns, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	seedArtifactNode(t, ns, "n1", owner)
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "n1", Slug: "logo", Name: "Logo.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Slug != "brand" {
+		t.Errorf("list = %+v, want only the free artifact 'brand' (not the node one)", list)
+	}
+}
+
+func TestHandleDeleteFreeArtifact_NoContent_EmitsDeleted(t *testing.T) {
+	srv, _, as, bus, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ch, cancel := bus.Subscribe(owner)
+	defer cancel()
+
+	res := doArtifact(t, ts, http.MethodDelete, "/api/v1/artifacts/brand", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", res.StatusCode)
+	}
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventArtifactDeleted {
+			t.Errorf("event type = %q, want artifact.deleted", ev.Type)
+		}
+	default:
+		t.Error("want artifact.deleted event, got none")
+	}
+	if _, err := as.Get(context.Background(), owner, "", "brand"); !errors.Is(err, ports.ErrArtifactNotFound) {
+		t.Errorf("artifact still present after delete: %v", err)
+	}
+}
+
+// TestHandleDeleteFreeArtifact_CrossTenant_404 is the owner-scope negative
+// test (codex #3): User B DELETE-ing User A's free artifact by slug must 404,
+// never a silent success, and must not touch A's artifact.
+func TestHandleDeleteFreeArtifact_CrossTenant_404(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: "other-owner", NodeID: "", Slug: "secret", Name: "Secret.pdf", Mime: "application/pdf",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodDelete, "/api/v1/artifacts/secret", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (cross-tenant free delete must not succeed)", res.StatusCode)
+	}
+	if _, err := as.Get(context.Background(), "other-owner", "", "secret"); err != nil {
+		t.Error("foreign owner's free artifact must survive an unrelated tenant's delete attempt")
+	}
+}
+
+// TestHandleListFreeArtifacts_OwnerScopeNegative is the codex #3 list-side
+// isolation test: User B's GET /api/v1/artifacts must contain NONE of User
+// A's free artifacts (not just the delete-verb negative above).
+func TestHandleListFreeArtifacts_OwnerScopeNegative(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: "other-owner", NodeID: "", Slug: "secret", Name: "Secret.pdf", Mime: "application/pdf",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// authenticated caller is always "u1" (newArtifactServer) — u1 has no free
+	// artifacts of its own here, so the list must come back empty, never
+	// leaking other-owner's.
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Errorf("list = %+v, want empty (foreign owner's free artifacts must not leak)", list)
 	}
 }
 

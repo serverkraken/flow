@@ -35,6 +35,7 @@ templ WissenFragment(vm WissenOverviewVM) {
 			<h1>{ components.T(ctx, "wissen.libraryTitle") }</h1>
 			<p class="sub">{ WissenSummary(ctx, vm) }</p>
 		</div>
+		<a href="/wissen/artefakte" class="btn btn-q" hx-boost="false">{ components.T(ctx, "wissen.artifacts.nav") }</a>
 		<a href="/wissen/neu" class="btn btn-q" hx-boost="false">{ components.T(ctx, "common.new") }</a>
 	</div>
 	@wissenBigsearch(vm.WissenVM)

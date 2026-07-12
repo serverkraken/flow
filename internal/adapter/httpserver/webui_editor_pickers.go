@@ -16,13 +16,17 @@ import (
 // already in the page (components.InsertPicker).
 //
 // Reuses usecase.ListArtifacts (Task 2/3), so the reachable set is exactly
-// the node's Ahnenkette — the same scope the read-side ![[slug]] resolver
-// (buildArtifactResolver, webui_document.go) already uses. Owner-scoped end
-// to end: NodeStore.Ancestors resolves the chain for THIS owner only (a
-// foreign or unknown node id degrades to an empty chain — see
-// testutil.FakeNodeStore.Ancestors / pgstore's mirrored WHERE owner_id=$1 —
-// never another owner's node), so a foreign node id degrades to the
-// picker's own "no artifacts" empty state, never a leak or a 500.
+// the node's Ahnenkette PLUS the owner's free library appended last
+// (free-artifacts Task 3) — the same scope the read-side ![[slug]] resolver
+// (buildArtifactResolver, webui_document.go) already uses. nodeID=="" (a
+// free/new note sends neither "node" nor "projectId") means the FREE
+// context: ListArtifacts.Execute(owner, "") returns the free library alone,
+// never another owner's artifacts. Owner-scoped end to end: NodeStore.
+// Ancestors resolves the chain for THIS owner only (a foreign or unknown
+// node id degrades to an empty chain — see testutil.FakeNodeStore.Ancestors
+// / pgstore's mirrored WHERE owner_id=$1 — never another owner's node), so a
+// foreign node id degrades to the picker's own "no artifacts" empty state,
+// never a leak or a 500.
 func (s *Server) handleWebEditorArtefaktePicker(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	nodeID := r.URL.Query().Get("node")
@@ -31,10 +35,8 @@ func (s *Server) handleWebEditorArtefaktePicker(w http.ResponseWriter, r *http.R
 	}
 	q := r.URL.Query().Get("aq")
 	var rows []components.InsertPickerRow
-	if nodeID != "" {
-		if arts, err := s.ListArtifacts.Execute(r.Context(), u.ID, nodeID); err == nil {
-			rows = webui.BuildArtefaktInsertRows(arts, q)
-		}
+	if arts, err := s.ListArtifacts.Execute(r.Context(), u.ID, nodeID); err == nil { // nodeID=="" → free library
+		rows = webui.BuildArtefaktInsertRows(arts, q)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_ = components.InsertPickerRows(rows, "editor.insertArtifact.empty").Render(r.Context(), w)

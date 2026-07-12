@@ -48,17 +48,26 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		return "", "", false
 	}
 
-	// Artefact-Resolver (Task 3): fire-and-forget like the crumbs lookup just
-	// below, which reuses the SAME chain — an ancestor-lookup or artifact-list
-	// failure just degrades every ![[slug]] embed to "unresolved" rather than
-	// a hard 500 for what is, worst case, a broken inline figure.
+	// Artefact-Resolver (Task 3): built ALWAYS, even for a free doc
+	// (doc.NodeID == nil → nodeID == ""), since ListArtifacts.Execute("")
+	// resolves to that owner's free library alone (free-artifacts Task 3) —
+	// a free doc's ![[slug]] embed must resolve against it, matching Spec
+	// E1 ("a free doc sees only the free library"). Before this fix the
+	// resolver was only built inside `if doc.NodeID != nil`, so a free doc's
+	// embed always stayed unresolved regardless of a matching free artifact.
+	// Fire-and-forget like the crumbs lookup just below, which reuses the
+	// SAME chain — an ancestor-lookup or artifact-list failure just degrades
+	// every ![[slug]] embed to "unresolved" rather than a hard 500 for what
+	// is, worst case, a broken inline figure.
 	var chain []domain.Node
-	var resolveArtifact webui.ArtifactResolver
+	nodeID := ""
 	if doc.NodeID != nil {
-		chain, _ = s.NodeAncestors.Execute(r.Context(), ownerID, *doc.NodeID)
-		if arts, aerr := s.ListArtifacts.Execute(r.Context(), ownerID, *doc.NodeID); aerr == nil {
-			resolveArtifact = buildArtifactResolver(chain, arts)
-		}
+		nodeID = *doc.NodeID
+		chain, _ = s.NodeAncestors.Execute(r.Context(), ownerID, nodeID)
+	}
+	var resolveArtifact webui.ArtifactResolver
+	if arts, aerr := s.ListArtifacts.Execute(r.Context(), ownerID, nodeID); aerr == nil {
+		resolveArtifact = buildArtifactResolver(chain, arts)
 	}
 	rendered, _ := webui.RenderDocument(r.Context(), doc.Body, resolve, resolveArtifact)
 
@@ -148,18 +157,26 @@ func isContextType(t domain.DocumentType) bool {
 // created-at-desc ordering is irrelevant here and deliberately not relied
 // upon. Href always points at the winning artifact's OWN NodeID, which can
 // be an ancestor's, never the document's node unconditionally — otherwise
-// the serve route 404s for artifacts inherited from a parent.
+// the serve route 404s for artifacts inherited from a parent. Free (node-
+// less, Task 2) artifacts rank at position len(chain) — root-lowest, below
+// every chain node — and get an /artefakte/{slug} href instead; nearest-
+// wins still applies unchanged, so a chain node's artifact always beats a
+// free artifact of the same slug.
 func buildArtifactResolver(chain []domain.Node, arts []domain.Artifact) webui.ArtifactResolver {
 	pos := make(map[string]int, len(chain))
 	for i, n := range chain {
 		pos[n.ID] = i
 	}
+	freePos := len(chain) // free artifacts rank below the root (lowest priority, E1)
 	best := make(map[string]domain.Artifact, len(arts))
 	bestPos := make(map[string]int, len(arts))
 	for _, a := range arts {
 		p, ok := pos[a.NodeID]
 		if !ok {
-			continue
+			if a.NodeID != "" {
+				continue // artifact on a non-ancestor node — not reachable here
+			}
+			p = freePos // free (node-less) artifact — lowest priority
 		}
 		if cur, seen := bestPos[a.Slug]; !seen || p < cur {
 			best[a.Slug] = a
@@ -174,8 +191,12 @@ func buildArtifactResolver(chain []domain.Node, arts []domain.Artifact) webui.Ar
 		if !ok {
 			return webui.ArtifactRef{}, false
 		}
+		href := "/nodes/" + a.NodeID + "/artifacts/" + a.Slug
+		if a.NodeID == "" {
+			href = "/artefakte/" + a.Slug
+		}
 		return webui.ArtifactRef{
-			Href:    "/nodes/" + a.NodeID + "/artifacts/" + a.Slug,
+			Href:    href,
 			Ref:     a.Ref,
 			Name:    a.Name,
 			Mime:    a.Mime,

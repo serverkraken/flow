@@ -139,6 +139,13 @@ func init() {
 			"cockpit.artifacts.err.badType":   "Dateityp nicht erlaubt",
 			"cockpit.artifacts.err.quota":     "Speicherlimit erreicht (256 MB)",
 			"cockpit.artifacts.err.generic":   "Aktion fehlgeschlagen",
+			"cockpit.artifacts.free":          "Frei",
+			// freie Artefakt-Galerie /wissen/artefakte (free-artifacts Task 4)
+			"wissen.artifacts.title":      "Freie Artefakte",
+			"wissen.artifacts.empty":      "Noch keine freien Artefakte.",
+			"wissen.artifacts.upload":     "Artefakt hochladen",
+			"wissen.artifacts.uploadHint": "Bild oder Datei · max. 8 MB · überall im Wissen sichtbar",
+			"wissen.artifacts.nav":        "Artefakte",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Kette",
 			"cockpit.rail.here":          "(hier)",

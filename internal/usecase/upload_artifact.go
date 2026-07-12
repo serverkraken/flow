@@ -134,8 +134,10 @@ type UploadArtifact struct {
 // a transactional check (SELECT … FOR UPDATE / advisory lock) is deferred
 // until it's actually needed. No concurrency test is part of this slice.
 func (uc UploadArtifact) Execute(ctx context.Context, ownerID, nodeID, name, declaredMime string, data []byte, replaceSlug, actorKind, actorRef string) (domain.Artifact, error) {
-	if _, err := uc.Nodes.Get(ctx, ownerID, nodeID); err != nil {
-		return domain.Artifact{}, err
+	if nodeID != "" {
+		if _, err := uc.Nodes.Get(ctx, ownerID, nodeID); err != nil {
+			return domain.Artifact{}, err
+		}
 	}
 	mime, w, h, err := ValidateArtifactBytes(data, declaredMime)
 	if err != nil {
