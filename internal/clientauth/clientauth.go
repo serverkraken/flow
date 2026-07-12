@@ -30,6 +30,11 @@ var ErrNotLoggedIn = errors.New("not logged in — run `flow login`")
 // discovery and therefore needs FLOW_OIDC_ISSUER — once the token has actually
 // expired.
 type lazyDeviceSource struct {
+	// ctx MUST be a process-lifetime context, never a per-request one: oidcdevice
+	// bakes it into the refreshing TokenSource below and reuses it for every
+	// future refresh. A request-scoped ctx is canceled when its request ends,
+	// after which every refresh fails "oidcdevice: context canceled". Long-lived
+	// callers (flow-mcp) build against context.Background() (see authManager.base).
 	ctx context.Context
 	cfg clientconfig.Config
 

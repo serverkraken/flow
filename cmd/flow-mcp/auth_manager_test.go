@@ -148,6 +148,40 @@ func TestAuthManager_Do_RecoversAfterReLogin(t *testing.T) {
 	}
 }
 
+// TestAuthManager_BuildUsesProcessContextNotRequest is the regression guard for
+// the "oidcdevice: context canceled" wedge. The built apiclient's oauth2 token
+// source bakes in whatever context it is constructed with and reuses it for
+// every later refresh (clientauth.lazyDeviceSource). If the manager builds it
+// against a per-request context, that context is canceled when the request
+// ends, so the cached refresher then fails every refresh with "context
+// canceled" — which is not an auth error, so the wedged client is never rebuilt
+// and no `flow login`/reconnect recovers within the process. The manager must
+// build against a process-lifetime context.
+func TestAuthManager_BuildUsesProcessContextNotRequest(t *testing.T) {
+	var gotBuildCtx context.Context
+	m := newAuthManager(
+		func(c context.Context) (*apiclient.Client, error) { gotBuildCtx = c; return dummyClient(), nil },
+		nil,
+	)
+	reqCtx, cancel := context.WithCancel(context.Background())
+	if _, err := m.client(reqCtx); err != nil {
+		t.Fatal(err)
+	}
+	cancel() // the triggering request ends
+
+	if gotBuildCtx == reqCtx {
+		t.Fatal("build used the request ctx; the cached token source is poisoned once the request ends")
+	}
+	if gotBuildCtx == nil || gotBuildCtx.Err() != nil {
+		t.Fatalf("build ctx must stay live for the process; got err=%v — future token refreshes would fail 'context canceled'", func() error {
+			if gotBuildCtx == nil {
+				return errors.New("nil")
+			}
+			return gotBuildCtx.Err()
+		}())
+	}
+}
+
 func TestIsAuthError(t *testing.T) {
 	if !isAuthError(&apiclient.APIError{StatusCode: http.StatusUnauthorized}) {
 		t.Error("401 is an auth error")
