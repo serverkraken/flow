@@ -274,6 +274,47 @@ func TestHandleListArtifacts_AncestorChain(t *testing.T) {
 	}
 }
 
+// TestHandleListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary is the
+// REST-boundary regression guard for the codex #2 CRITICAL cross-tenant
+// free-library leak: GET /api/v1/nodes/{bogus}/artifacts must return [] —
+// NEVER the caller's whole free library. Nodes.Ancestors returns (nil, nil)
+// for an unknown/foreign node, and without the usecase's len(chain)==0 guard
+// an empty chain would fall through to appending ListFree(owner), leaking
+// every free artifact through the node-scoped route. This test seeds a free
+// artifact for the caller and asserts it does NOT appear when listing a
+// non-existent node id. (Belt-and-suspenders on top of the usecase-level
+// TestListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary — guards against a
+// future handler bypassing ListArtifacts.Execute at the REST edge.)
+func TestHandleListArtifacts_BogusNode_ReturnsEmptyNotFreeLibrary(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/nodes/does-not-exist/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("bogus/foreign node must yield [], NOT the free library, got %+v", list)
+	}
+	for _, a := range list {
+		if a.Slug == "brand" {
+			t.Fatalf("caller's free artifact leaked through the node-scoped route: %+v", list)
+		}
+	}
+}
+
 func TestHandleDeleteArtifact_NoContent_EmitsDeleted(t *testing.T) {
 	srv, ns, as, bus, _ := newArtifactServer(t)
 	ts := httptest.NewServer(srv.Routes())
