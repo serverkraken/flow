@@ -12,11 +12,13 @@ import (
 
 // ArtifactRef is what an ArtifactResolver returns for a resolved ![[slug]]
 // embed — everything the renderer needs to emit either an inline <img>
-// figure (IsImage) or a downloadable file chip. Href always points at the
-// artifact's OWN node ("/nodes/{artifact.NodeID}/artifacts/{slug}"), which
-// can differ from the document's node when the artifact lives on an
-// ancestor — pointing at the document's node instead would 404 on the serve
-// route. Ref (the content hash) is mandatory: the image renderer appends it
+// figure (IsImage) or a downloadable file chip. Href points at the
+// artifact's OWN node ("/nodes/{artifact.NodeID}/artifacts/{slug}"), or at
+// the owner-global free library ("/artefakte/{slug}") when the artifact is
+// node-less. Either can differ from the document's node — the artifact may
+// live on an ancestor or in the free library — and pointing at the
+// document's node instead would 404 on the serve route. Ref (the content
+// hash) is mandatory: the image renderer appends it
 // as "?v={Ref}" so the <img src> is content-addressed and thus
 // immutable-cacheable; the file chip deliberately uses the bare Href (no
 // "?v=") so a rename is reflected on the very next download instead of
@@ -34,8 +36,8 @@ type ArtifactRef struct {
 
 // ArtifactResolver maps a ![[slug]] embed's slug to its ArtifactRef. A nil
 // resolver (or one that never resolves the slug) treats every embed as
-// unresolved — RenderDocument callers without a document node (the editor's
-// live preview, until Task 6 wires its node) pass nil.
+// unresolved — RenderDocument callers pass nil when no artifact library is
+// available for the current scope (node chain or free library).
 type ArtifactResolver func(slug string) (ArtifactRef, bool)
 
 // FormatArtifactSize renders a byte count as a short human string ("512 B",
