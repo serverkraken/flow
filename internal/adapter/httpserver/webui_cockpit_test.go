@@ -25,6 +25,7 @@ type cockpitTestServer struct {
 	ds    *testutil.FakeDocumentStore
 	tags  *testutil.FakeTagStore
 	as    *fakeActivityStore
+	arts  *testutil.FakeArtifactStore
 	ids   *testutil.FakeIDGen
 	clk   testutil.FakeClock
 	codec *websession.Codec
@@ -40,6 +41,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 	ds := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
 	as := &fakeActivityStore{}
+	arts := testutil.NewFakeArtifactStore()
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x", "Martin")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -73,6 +75,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		SetPinned:         usecase.SetPinned{Docs: ds},
 		SetContextMode:    usecase.SetContextMode{Docs: ds},
 		ListActivity:      usecase.ListActivity{Activities: as},
+		ListArtifacts:     usecase.ListArtifacts{Nodes: ps, Artifacts: arts},
 		Stats: usecase.StatsComputer{
 			Sessions: ss,
 			Nodes:    ps, // REQUIRED for NodeStats subtree walk
@@ -87,7 +90,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		ContextBudget:      12000,
 		ReorderContextDocs: usecase.ReorderContextDocs{Docs: ds},
 	}
-	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, tags: tags, as: as, ids: ids, clk: clk, codec: codec}
+	return &cockpitTestServer{srv: srv, ss: ss, ps: ps, bs: bs, ds: ds, tags: tags, as: as, arts: arts, ids: ids, clk: clk, codec: codec}
 }
 
 func (c *cockpitTestServer) do(t *testing.T, method, path string, form map[string]string) *httptest.ResponseRecorder {
@@ -719,5 +722,50 @@ func TestCockpitContext_NoDocsRendersWithoutCrash(t *testing.T) {
 	}
 	if !strings.Contains(body, "0 Docs") {
 		t.Errorf("no-docs cockpit must show 0 Docs, got: %.800s", body)
+	}
+}
+
+// TestCockpitArtifacts_FreeCardShowsFreiOrigin is the free-artifacts Task 3
+// mandatory wiring test (E4): a free (node-less) artifact appears in the
+// node cockpit's gallery as inherited, read-only, with FromNode == the
+// "cockpit.artifacts.free" i18n label ("Frei") — nodeCockpitData must set
+// names[""] to that label BEFORE calling BuildArtifactCards, or the free
+// card's origin marker renders blank instead of "geerbt von Frei". A node's
+// own artifact (same node, not inherited) must NOT show an origin marker at
+// all, proving the cockpit still distinguishes "own" from "free" correctly
+// (E4: both appear, but only the free one is marked as inherited-from-Frei).
+func TestCockpitArtifacts_FreeCardShowsFreiOrigin(t *testing.T) {
+	c := newCockpitTestServer(t)
+	c.seedNode(t, domain.Node{ID: "n1", OwnerID: "u1", Name: "flow", Kind: domain.KindRepo})
+	ctx := context.Background()
+	if err := c.arts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "n1", Slug: "own-logo", Name: "own-logo.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatalf("seed node artifact: %v", err)
+	}
+	if err := c.arts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "", Slug: "brand", Name: "brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatalf("seed free artifact: %v", err)
+	}
+
+	rec := c.do(t, "GET", "/nodes/n1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "brand.png") {
+		t.Fatalf("free artifact card missing from cockpit gallery: %.1200s", body)
+	}
+	if !strings.Contains(body, "geerbt von Frei") {
+		t.Fatalf("free artifact card must show the 'Frei' origin label (geerbt von Frei), got: %.1200s", body)
+	}
+	if !strings.Contains(body, "own-logo.png") {
+		t.Fatalf("own node artifact card missing: %.1200s", body)
+	}
+	// own-logo is on n1 itself (not inherited) — only the free card's origin
+	// marker ("geerbt von Frei") may appear, exactly once.
+	if got := strings.Count(body, "geerbt von"); got != 1 {
+		t.Fatalf("want exactly 1 origin marker (the free card only), got %d in: %.1200s", got, body)
 	}
 }

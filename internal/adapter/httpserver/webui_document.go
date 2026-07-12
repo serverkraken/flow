@@ -48,17 +48,26 @@ func (s *Server) buildDocumentVM(r *http.Request, ownerID string, doc domain.Doc
 		return "", "", false
 	}
 
-	// Artefact-Resolver (Task 3): fire-and-forget like the crumbs lookup just
-	// below, which reuses the SAME chain — an ancestor-lookup or artifact-list
-	// failure just degrades every ![[slug]] embed to "unresolved" rather than
-	// a hard 500 for what is, worst case, a broken inline figure.
+	// Artefact-Resolver (Task 3): built ALWAYS, even for a free doc
+	// (doc.NodeID == nil → nodeID == ""), since ListArtifacts.Execute("")
+	// resolves to that owner's free library alone (free-artifacts Task 3) —
+	// a free doc's ![[slug]] embed must resolve against it, matching Spec
+	// E1 ("a free doc sees only the free library"). Before this fix the
+	// resolver was only built inside `if doc.NodeID != nil`, so a free doc's
+	// embed always stayed unresolved regardless of a matching free artifact.
+	// Fire-and-forget like the crumbs lookup just below, which reuses the
+	// SAME chain — an ancestor-lookup or artifact-list failure just degrades
+	// every ![[slug]] embed to "unresolved" rather than a hard 500 for what
+	// is, worst case, a broken inline figure.
 	var chain []domain.Node
-	var resolveArtifact webui.ArtifactResolver
+	nodeID := ""
 	if doc.NodeID != nil {
-		chain, _ = s.NodeAncestors.Execute(r.Context(), ownerID, *doc.NodeID)
-		if arts, aerr := s.ListArtifacts.Execute(r.Context(), ownerID, *doc.NodeID); aerr == nil {
-			resolveArtifact = buildArtifactResolver(chain, arts)
-		}
+		nodeID = *doc.NodeID
+		chain, _ = s.NodeAncestors.Execute(r.Context(), ownerID, nodeID)
+	}
+	var resolveArtifact webui.ArtifactResolver
+	if arts, aerr := s.ListArtifacts.Execute(r.Context(), ownerID, nodeID); aerr == nil {
+		resolveArtifact = buildArtifactResolver(chain, arts)
 	}
 	rendered, _ := webui.RenderDocument(r.Context(), doc.Body, resolve, resolveArtifact)
 

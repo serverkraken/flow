@@ -128,11 +128,17 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	d.Contributors = s.railContributors(ctx, u.ID, n.ID)
 
 	// Artifacts gallery (Task 5): own + inherited artifact cards for the
-	// #cockpit-artifacts section, built from ListArtifacts' Ahnenkette result.
-	// An unwired ListArtifacts (nil Artifacts store, e.g. a test/dev server
-	// without it) or a failed compose degrades to an empty gallery (empty
-	// state) rather than failing the whole cockpit render.
+	// #cockpit-artifacts section, built from ListArtifacts' Ahnenkette result
+	// (which now also appends the owner's free/node-less artifacts last,
+	// free-artifacts Task 3). names[""] gets the "Frei" i18n origin label
+	// BEFORE BuildArtifactCards so a free card's FromNode renders "Frei"
+	// instead of blank (E4: free artifacts show as inherited/read-only, source
+	// "Frei", managed only under /wissen/artefakte). An unwired ListArtifacts
+	// (nil Artifacts store, e.g. a test/dev server without it) or a failed
+	// compose degrades to an empty gallery (empty state) rather than failing
+	// the whole cockpit render.
 	if s.ListArtifacts.Artifacts != nil {
+		names[""] = i18nT(r, "cockpit.artifacts.free")
 		if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
 			d.Artifacts = webui.BuildArtifactCards(arts, n.ID, names)
 		} else {

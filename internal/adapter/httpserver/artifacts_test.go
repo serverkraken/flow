@@ -655,6 +655,202 @@ func TestHandleServeFreeArtifact_CrossTenant_404(t *testing.T) {
 	}
 }
 
+// --- Free (node-less) REST verbs: /api/v1/artifacts (Task 3) --------------
+
+func TestHandleUploadFreeArtifact_HappyPath_EmitsCreated(t *testing.T) {
+	srv, _, _, bus, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	ch, cancel := bus.Subscribe(owner)
+	defer cancel()
+
+	reqBody, _ := json.Marshal(map[string]string{
+		"name": "Brand.png", "mime": "application/octet-stream",
+		"dataBase64": base64.StdEncoding.EncodeToString(pngPixelBytes(t)),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", reqBody)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d, want 201", res.StatusCode)
+	}
+	var got domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.NodeID != "" {
+		t.Errorf("got NodeID = %q, want empty (free)", got.NodeID)
+	}
+	if got.Slug != "brand" || got.Mime != "image/png" {
+		t.Errorf("got slug=%q mime=%q, want brand/image/png", got.Slug, got.Mime)
+	}
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventArtifactCreated {
+			t.Errorf("event type = %q, want artifact.created", ev.Type)
+		}
+		if ev.Data["node"] != "" {
+			t.Errorf("event node = %v, want empty (free)", ev.Data["node"])
+		}
+	default:
+		t.Error("want artifact.created event, got none")
+	}
+}
+
+func TestHandleUploadFreeArtifact_TooLarge_400(t *testing.T) {
+	srv, _, _, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	oversized := make([]byte, domain.MaxArtifactBytes+1)
+	body, _ := json.Marshal(map[string]string{
+		"name": "huge.bin", "mime": "application/octet-stream",
+		"dataBase64": base64.StdEncoding.EncodeToString(oversized),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", res.StatusCode)
+	}
+}
+
+func TestHandleUploadFreeArtifact_QuotaExceeded_413(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "existing", Name: "existing.pdf",
+		Mime: "application/pdf", SizeBytes: usecase.MaxArtifactBytesPerOwner - 4,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"name": "report.pdf", "mime": "application/pdf",
+		"dataBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 mock content overflowing quota")),
+	})
+	res := doArtifact(t, ts, http.MethodPost, "/api/v1/artifacts", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Errorf("status = %d, want 413", res.StatusCode)
+	}
+}
+
+func TestHandleListFreeArtifacts_ReturnsFreeLibrary(t *testing.T) {
+	srv, ns, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	seedArtifactNode(t, ns, "n1", owner)
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "n1", Slug: "logo", Name: "Logo.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Slug != "brand" {
+		t.Errorf("list = %+v, want only the free artifact 'brand' (not the node one)", list)
+	}
+}
+
+func TestHandleDeleteFreeArtifact_NoContent_EmitsDeleted(t *testing.T) {
+	srv, _, as, bus, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	owner := "u1"
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: owner, NodeID: "", Slug: "brand", Name: "Brand.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ch, cancel := bus.Subscribe(owner)
+	defer cancel()
+
+	res := doArtifact(t, ts, http.MethodDelete, "/api/v1/artifacts/brand", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", res.StatusCode)
+	}
+	select {
+	case ev := <-ch:
+		if ev.Type != domain.EventArtifactDeleted {
+			t.Errorf("event type = %q, want artifact.deleted", ev.Type)
+		}
+	default:
+		t.Error("want artifact.deleted event, got none")
+	}
+	if _, err := as.Get(context.Background(), owner, "", "brand"); !errors.Is(err, ports.ErrArtifactNotFound) {
+		t.Errorf("artifact still present after delete: %v", err)
+	}
+}
+
+// TestHandleDeleteFreeArtifact_CrossTenant_404 is the owner-scope negative
+// test (codex #3): User B DELETE-ing User A's free artifact by slug must 404,
+// never a silent success, and must not touch A's artifact.
+func TestHandleDeleteFreeArtifact_CrossTenant_404(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: "other-owner", NodeID: "", Slug: "secret", Name: "Secret.pdf", Mime: "application/pdf",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	res := doArtifact(t, ts, http.MethodDelete, "/api/v1/artifacts/secret", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 (cross-tenant free delete must not succeed)", res.StatusCode)
+	}
+	if _, err := as.Get(context.Background(), "other-owner", "", "secret"); err != nil {
+		t.Error("foreign owner's free artifact must survive an unrelated tenant's delete attempt")
+	}
+}
+
+// TestHandleListFreeArtifacts_OwnerScopeNegative is the codex #3 list-side
+// isolation test: User B's GET /api/v1/artifacts must contain NONE of User
+// A's free artifacts (not just the delete-verb negative above).
+func TestHandleListFreeArtifacts_OwnerScopeNegative(t *testing.T) {
+	srv, _, as, _, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	if err := as.Put(context.Background(), domain.Artifact{
+		OwnerID: "other-owner", NodeID: "", Slug: "secret", Name: "Secret.pdf", Mime: "application/pdf",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// authenticated caller is always "u1" (newArtifactServer) — u1 has no free
+	// artifacts of its own here, so the list must come back empty, never
+	// leaking other-owner's.
+	res := doArtifact(t, ts, http.MethodGet, "/api/v1/artifacts", nil)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	var list []domain.Artifact
+	if err := json.NewDecoder(res.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 0 {
+		t.Errorf("list = %+v, want empty (foreign owner's free artifacts must not leak)", list)
+	}
+}
+
 func readAll(res *http.Response) (string, error) {
 	var buf bytes.Buffer
 	_, err := buf.ReadFrom(res.Body)

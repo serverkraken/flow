@@ -241,3 +241,43 @@ func TestWebDocumentView_ArtifactEmbedNearestAncestorWinsEndToEnd(t *testing.T) 
 		t.Fatalf("root's shadowed artifact must not appear at all:\n%.1500s", body)
 	}
 }
+
+// TestWebDocumentView_FreeDocResolvesFreeArtifactEmbed is the free-artifacts
+// Task 3 mandatory regression test: a free doc (NodeID==nil) embedding a free
+// image via ![[slug]] must resolve it end to end. Before this task,
+// buildDocumentVM only built the artifact resolver inside the
+// `if doc.NodeID != nil` branch, so a free doc's embed always stayed
+// unresolved — the actual bug this task fixes.
+func TestWebDocumentView_FreeDocResolvesFreeArtifactEmbed(t *testing.T) {
+	srv, codec, docs, _ := newWebWissenServer(t)
+	artifacts := srv.ListArtifacts.Artifacts.(*testutil.FakeArtifactStore)
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
+
+	if err := artifacts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "", Slug: "bild", Name: "bild.png", Mime: "image/png",
+		SizeBytes: 1024, Ref: "abcdef123456", Width: 10, Height: 8,
+	}); err != nil {
+		t.Fatalf("seed free artifact: %v", err)
+	}
+	if _, err := docs.Create(ctx, domain.Document{
+		ID: "free-with-embed", OwnerID: "u1", NodeID: nil, Type: domain.DocFree,
+		Path: "p/free-with-embed", Title: "Free Has Embed", Body: "See ![[bild]] above.\n",
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed doc: %v", err)
+	}
+
+	body, status := getWissenDocumentAs(t, srv, codec, "u1", "/wissen/free-with-embed")
+	if status != 200 {
+		t.Fatalf("GET /wissen/free-with-embed status=%d body=%.400s", status, body)
+	}
+	for _, want := range []string{
+		`class="figure"`,
+		`src="/artefakte/bild?v=abcdef123456"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q — free doc did not resolve the free artifact embed:\n%.1500s", want, body)
+		}
+	}
+}

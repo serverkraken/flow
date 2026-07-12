@@ -116,6 +116,67 @@ func TestWebEditorArtefaktePicker_ForeignNodeIsEmpty(t *testing.T) {
 	}
 }
 
+// TestWebEditorArtefaktePicker_NoNodeListsFreeLibrary is the free-artifacts
+// Task 3 mandatory test: GET /ui/editor/artefakte WITHOUT node/projectId
+// (the free-doc editor context) must list the owner's FREE library, not the
+// empty state — proving the `if nodeID != ""` guard removal actually wires
+// nodeID=="" through to ListArtifacts' free branch.
+func TestWebEditorArtefaktePicker_NoNodeListsFreeLibrary(t *testing.T) {
+	srv, _, _, _ := newWebWissenServer(t)
+	artifacts := srv.ListArtifacts.Artifacts.(*testutil.FakeArtifactStore)
+	ctx := context.Background()
+
+	if err := artifacts.Put(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: "", Slug: "brand", Name: "brand.png", Mime: "image/png", SizeBytes: 512,
+	}); err != nil {
+		t.Fatalf("seed free artifact: %v", err)
+	}
+
+	req := authedEditorRequest(http.MethodGet, "/ui/editor/artefakte", nil)
+	rec := httptest.NewRecorder()
+	srv.handleWebEditorArtefaktePicker(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, want := range []string{`data-insert-value="![[brand]]"`, "brand.png"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %q in free-library picker fragment: %.800s", want, body)
+		}
+	}
+}
+
+// TestWebEditorArtefaktePicker_NoNode_OwnerScopeNegative is the free
+// library's owner-scope negative test: a foreign owner's free artifact must
+// never appear in this owner's free-context picker.
+func TestWebEditorArtefaktePicker_NoNode_OwnerScopeNegative(t *testing.T) {
+	srv, _, _, _ := newWebWissenServer(t)
+	artifacts := srv.ListArtifacts.Artifacts.(*testutil.FakeArtifactStore)
+	ctx := context.Background()
+
+	if err := artifacts.Put(ctx, domain.Artifact{
+		OwnerID: "u2", NodeID: "", Slug: "geheim", Name: "geheim.png", Mime: "image/png",
+	}); err != nil {
+		t.Fatalf("seed foreign free artifact: %v", err)
+	}
+
+	req := authedEditorRequest(http.MethodGet, "/ui/editor/artefakte", nil)
+	rec := httptest.NewRecorder()
+	srv.handleWebEditorArtefaktePicker(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.400s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "geheim") {
+		t.Fatalf("foreign owner's free artifact must not appear: %.800s", body)
+	}
+	if !strings.Contains(body, "insert-picker-empty") {
+		t.Fatalf("expected the empty state (owner u1 has no free artifacts): %.800s", body)
+	}
+}
+
 // TestWebEditorSeitenPicker_ListsDocs is the Task 6 mandatory test for
 // GET /ui/editor/seiten: the picker fragment must list the owner's documents,
 // each row carrying the exact [[path]] insert value editor-insert.js writes
