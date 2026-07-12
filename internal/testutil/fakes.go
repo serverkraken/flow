@@ -1511,6 +1511,23 @@ func (s *FakeArtifactStore) List(_ context.Context, ownerID string, nodeIDs ...s
 	return out, nil
 }
 
+// ListFree returns owner-global (node-less) artifact META (no bytes), newest first.
+func (s *FakeArtifactStore) ListFree(_ context.Context, ownerID string) ([]domain.Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []domain.Artifact
+	for _, a := range s.artifacts {
+		if a.OwnerID != ownerID || a.NodeID != "" {
+			continue
+		}
+		meta := a
+		meta.Bytes = nil
+		out = append(out, meta)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
 func (s *FakeArtifactStore) Rename(_ context.Context, ownerID, nodeID, slug, name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
