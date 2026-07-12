@@ -522,6 +522,28 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .frame svg { display: block; }
   figcaption { margin-top: 9px; font-size: 12.5px; color: rgb(var(--faint)); }
   figcaption b { color: rgb(var(--meta)); font-weight: 600; }
+  /* Datei-Chip (Lesesaal L6 Task 3: ![[slug]]-Embed für Nicht-Bild-Artefakte) —
+     einzige neue benannte Klasse dieses Tasks; die Bild-Figur nutzt die
+     Bestand-Klassen figure/.frame oben. min-width:0 + overflow:hidden +
+     text-overflow:ellipsis truncaten einen langen Dateinamen statt die
+     Prosaspalte horizontal aufzureißen. */
+  .filechip { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; padding: 9px 14px; border: 1px solid rgb(var(--hair2)); border-radius: 10px; background: rgb(var(--surface)); color: rgb(var(--ink)); text-decoration: none; font-size: 13.5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .filechip:hover { background: rgb(var(--wash)); }
+  /* Cockpit-Artefakt-Galerie (Lesesaal L6 Task 5, Spec OE #2/#3): eigene
+     Klassen fürs Karten-Grid, den Bild-Thumb, den Datei-Chip (monospace
+     Glyph statt Emoji) und die Aktionsleiste. Grid kollabiert unten
+     (960px/620px) auf 2 bzw. 1 Spalte statt horizontal zu pannen (§11). */
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
+  .artcard { min-width: 0; border: 1px solid rgb(var(--hair2)); border-radius: 12px; background: rgb(var(--surface)); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .artcard-thumb { aspect-ratio: 4 / 3; border-radius: 8px; background: rgb(var(--sheet)); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .artcard-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .artcard-chip { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12.5px; color: rgb(var(--meta)); letter-spacing: .03em; }
+  .artcard-name { font-size: 13px; font-weight: 500; }
+  .artcard-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: rgb(var(--faint)); }
+  .artcard-origin { color: rgb(var(--meta)); }
+  .artcard-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .artcard-replace { display: contents; }
+  .artupload { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   /* Mermaid-Quelltext-Disclosure (agy #5: natives Dreieck bricht den Stil) */
   .mermaid-src { margin-top: 10px; }
   .mermaid-src summary { cursor: pointer; list-style: none; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; color: rgb(var(--faint)); padding: 4px 0; }
@@ -605,6 +627,35 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .led-when { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; color: rgb(var(--meta)); font-size: 13px; flex-shrink: 0; }
   /* Soll-Zeile in einer .sect-h (Mockup Z.870) — .instr .note ist ein anderer Scope */
   .sect-h .note { margin-left: auto; font-size: 12.5px; color: rgb(var(--meta)); }
+
+  /* ── Lesesaal L6 Task 6: Editor-Einfügehelfer (Artefakt-/Seiten-Picker) ──
+     Named-class Geschwister von ProjectFuzzyPicker (components/fuzzypicker.templ)
+     — dieselbe Filter-Input+Zeilenliste-Mechanik, aber ohne dessen Arbitrary-
+     Tailwind-Werte (Design-Gate). */
+  .editor-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .insert-picker-anchor { position: relative; }
+  .insert-picker {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 20;
+    width: min(86vw, 320px);
+    border-radius: 14px; background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line)); box-shadow: var(--shadow-lift);
+    padding: 8px;
+  }
+  .insert-picker-input {
+    width: 100%; border-radius: 8px; border: 1px solid rgb(var(--line));
+    background: rgb(var(--sunken) / .6); padding: 8px 10px; font-size: 13.5px;
+  }
+  .insert-picker-input:focus { outline: none; border-color: rgb(var(--accent) / .5); }
+  .insert-picker-list { max-height: 230px; overflow: auto; margin-top: 8px; }
+  .insert-picker-row {
+    display: flex; width: 100%; flex-direction: column; align-items: flex-start;
+    gap: 2px; border-radius: 8px; padding: 8px 10px; text-align: left;
+  }
+  .insert-picker-row:hover, .insert-picker-row[aria-selected="true"] { background: rgb(var(--sunken)); }
+  .insert-picker-label, .insert-picker-sub { display: block; width: 100%; }
+  .insert-picker-label { font-size: 13.5px; font-weight: 500; }
+  .insert-picker-sub { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px; color: rgb(var(--faint)); }
+  .insert-picker-empty { padding: 10px 6px; font-size: 12.5px; color: rgb(var(--faint)); }
 }
 
 @media (max-width: 960px) {
@@ -642,6 +693,9 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   /* Lesesaal L4 (Mockup Z.311/314): weekbar-Balken enger, pagehead h1 kleiner */
   .weekbar { gap: 10px; }
   .pagehead h1 { font-size: 27px; }
+  /* Lesesaal L6 Task 5: Artefakt-Galerie auf 375px — kleinere Mindestbreite
+     kollabiert das Grid auf 1–2 Spalten statt horizontal zu pannen (§11). */
+  .gallery { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 12px; }
 }
 
 @layer components {
@@ -659,6 +713,32 @@ dialog::backdrop { background: rgb(var(--ink) / .45); backdrop-filter: blur(2px)
   .prose h1 { @apply font-display text-2xl mt-8 mb-3 text-ink; }
   .prose h2 { font-size: 21px; font-weight: 700; letter-spacing: -.015em; margin-top: 2.1em; padding-top: 1.1em; border-top: 1px solid rgb(var(--hair)); color: rgb(var(--ink)); }
   .prose h3 { font-size: 16.5px; font-weight: 600; margin-top: 1.7em; color: rgb(var(--ink)); }
+  /* Lesesaal L6 Task 4: hover-¶ deep-link anchor, server-rendered as the
+     last child of every h1-h6 (headAnchorHTMLRenderer). Hidden until the
+     heading is hovered/focused so the prose stays clean; always visible
+     on touch (no hover state) so it stays tappable on mobile. */
+  .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { position: relative; }
+  .head-anchor {
+    display: inline-block;
+    margin-left: .4em;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-weight: 400;
+    text-decoration: none;
+    color: rgb(var(--faint));
+    opacity: 0;
+  }
+  .prose h1:hover .head-anchor,
+  .prose h2:hover .head-anchor,
+  .prose h3:hover .head-anchor,
+  .prose h4:hover .head-anchor,
+  .prose h5:hover .head-anchor,
+  .prose h6:hover .head-anchor,
+  .head-anchor:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .head-anchor { opacity: 1; }
+  }
   .prose strong { font-weight: 600; }
   .prose .lede { border-left: 2px solid rgb(var(--hair2)); padding: 2px 0 2px 18px; color: rgb(var(--meta)); font-size: 15px; }
   .prose p { @apply my-3; }

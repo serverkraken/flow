@@ -125,6 +125,15 @@ type Server struct {
 	ReorderContextDocs usecase.ReorderContextDocs
 	ContextBudget      int // default cap when ?cap= absent; 0 → fall back to 12000
 
+	// L6 Task 2: node-scoped artifacts (upload/rename/list/delete/get).
+	// Upload/Rename/Delete emit artifact.* themselves (see each usecase's
+	// doc comment) — the handlers below do not emit.
+	UploadArtifact usecase.UploadArtifact
+	RenameArtifact usecase.RenameArtifact
+	ListArtifacts  usecase.ListArtifacts
+	DeleteArtifact usecase.DeleteArtifact
+	GetArtifact    usecase.GetArtifact
+
 	// WebUI auth (wired in Task 5)
 	OIDCAuth Authenticator
 	Session  SessionCodec
@@ -184,6 +193,13 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/nodes/{id}/ancestors", s.auth(http.HandlerFunc(s.handleNodeAncestors)))
 	mux.Handle("GET /api/v1/nodes/{id}/tags", s.auth(http.HandlerFunc(s.handleGetNodeTags)))
 	mux.Handle("PUT /api/v1/nodes/{id}/tags", s.auth(http.HandlerFunc(s.handleSetNodeTags)))
+
+	// L6 Task 2: node-scoped artifacts (REST JSON upload/list/delete; the
+	// web gallery serve route is registered further down with the other
+	// /nodes/{id}/... web routes).
+	mux.Handle("POST /api/v1/nodes/{id}/artifacts", s.auth(http.HandlerFunc(s.handleUploadArtifact)))
+	mux.Handle("GET /api/v1/nodes/{id}/artifacts", s.auth(http.HandlerFunc(s.handleListArtifacts)))
+	mux.Handle("DELETE /api/v1/nodes/{id}/artifacts/{slug}", s.auth(http.HandlerFunc(s.handleDeleteArtifact)))
 
 	mux.Handle("POST /api/v1/documents", s.auth(http.HandlerFunc(s.handleCreateDocument)))
 	mux.Handle("POST /api/v1/documents/import", s.auth(http.HandlerFunc(s.handleImportDocument)))
@@ -271,6 +287,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /wissen/system", s.webAuth(s.handleWebWissenRedirect("/wissen")))
 	mux.Handle("GET /wissen/neu", s.webAuth(http.HandlerFunc(s.handleWebEditorNew)))
 	mux.Handle("POST /wissen/preview", s.webAuth(http.HandlerFunc(s.handleWebEditorPreview)))
+	// L6 Task 6: editor toolbar insert-pickers (Artefakt-Embed / Seiten-Wikilink).
+	mux.Handle("GET /ui/editor/artefakte", s.webAuth(http.HandlerFunc(s.handleWebEditorArtefaktePicker)))
+	mux.Handle("GET /ui/editor/seiten", s.webAuth(http.HandlerFunc(s.handleWebEditorSeitenPicker)))
 	mux.Handle("POST /wissen", s.webAuth(http.HandlerFunc(s.handleWebEditorCreate)))
 	mux.Handle("GET /wissen/{id}", s.webAuth(http.HandlerFunc(s.handleWebDocumentView)))
 	mux.Handle("GET /wissen/{id}/bearbeiten", s.webAuth(http.HandlerFunc(s.handleWebEditorEdit)))
@@ -304,6 +323,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /nodes/{id}/main", s.webAuth(http.HandlerFunc(s.handleWebNodeMain)))
 	mux.Handle("GET /nodes/{id}/rail", s.webAuth(http.HandlerFunc(s.handleWebNodeRail)))
 	mux.Handle("GET /nodes/{id}/logo", s.webAuth(http.HandlerFunc(s.handleWebNodeLogo)))
+	mux.Handle("GET /nodes/{id}/artifacts/{slug}", s.webAuth(http.HandlerFunc(s.handleServeArtifact)))
+	mux.Handle("GET /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifacts)))
+	mux.Handle("POST /nodes/{id}/artifacts", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifactUpload)))
+	mux.Handle("POST /nodes/{id}/artifacts/{slug}/rename", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifactRename)))
+	mux.Handle("POST /nodes/{id}/artifacts/{slug}/delete", s.webAuth(http.HandlerFunc(s.handleWebNodeArtifactDelete)))
 	mux.Handle("POST /nodes/{id}/start", s.webAuth(http.HandlerFunc(s.handleWebNodeStart)))
 	mux.Handle("POST /nodes/{id}/stop", s.webAuth(http.HandlerFunc(s.handleWebNodeStop)))
 	mux.Handle("POST /nodes/{id}/switch", s.webAuth(http.HandlerFunc(s.handleWebNodeSwitch)))

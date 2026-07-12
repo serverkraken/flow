@@ -1449,3 +1449,115 @@ func (s *FakeNodeLogoStore) Delete(_ context.Context, ownerID, nodeID string) er
 	}
 	return nil
 }
+
+// artifactKey is the (owner,node,slug) composite key FakeArtifactStore uses,
+// mirroring the DB's UNIQUE (owner_id, node_id, slug) constraint.
+type artifactKey struct{ owner, node, slug string }
+
+// FakeArtifactStore is an in-memory ports.ArtifactStore (keyed by owner+node+slug).
+type FakeArtifactStore struct {
+	mu        sync.Mutex
+	artifacts map[artifactKey]domain.Artifact
+}
+
+// NewFakeArtifactStore builds an empty in-memory artifact store.
+func NewFakeArtifactStore() *FakeArtifactStore {
+	return &FakeArtifactStore{artifacts: map[artifactKey]domain.Artifact{}}
+}
+
+func (s *FakeArtifactStore) Put(_ context.Context, a domain.Artifact) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.artifacts[artifactKey{a.OwnerID, a.NodeID, a.Slug}] = a
+	return nil
+}
+
+func (s *FakeArtifactStore) Get(_ context.Context, ownerID, nodeID, slug string) (domain.Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.artifacts[artifactKey{ownerID, nodeID, slug}]
+	if !ok {
+		return domain.Artifact{}, ports.ErrArtifactNotFound
+	}
+	return a, nil
+}
+
+func (s *FakeArtifactStore) GetMeta(ctx context.Context, ownerID, nodeID, slug string) (domain.Artifact, error) {
+	a, err := s.Get(ctx, ownerID, nodeID, slug)
+	if err != nil {
+		return domain.Artifact{}, err
+	}
+	a.Bytes = nil
+	return a, nil
+}
+
+func (s *FakeArtifactStore) List(_ context.Context, ownerID string, nodeIDs ...string) ([]domain.Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	nodeSet := make(map[string]bool, len(nodeIDs))
+	for _, id := range nodeIDs {
+		nodeSet[id] = true
+	}
+	var out []domain.Artifact
+	for _, a := range s.artifacts {
+		if a.OwnerID != ownerID || !nodeSet[a.NodeID] {
+			continue
+		}
+		meta := a
+		meta.Bytes = nil
+		out = append(out, meta)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (s *FakeArtifactStore) Rename(_ context.Context, ownerID, nodeID, slug, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := artifactKey{ownerID, nodeID, slug}
+	a, ok := s.artifacts[key]
+	if !ok {
+		return ports.ErrArtifactNotFound
+	}
+	a.Name = name
+	s.artifacts[key] = a
+	return nil
+}
+
+func (s *FakeArtifactStore) Delete(_ context.Context, ownerID, nodeID, slug string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := artifactKey{ownerID, nodeID, slug}
+	if _, ok := s.artifacts[key]; !ok {
+		return ports.ErrArtifactNotFound
+	}
+	delete(s.artifacts, key)
+	return nil
+}
+
+func (s *FakeArtifactStore) ExistingSlugs(_ context.Context, ownerID, nodeID string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []string
+	for k := range s.artifacts {
+		if k.owner == ownerID && k.node == nodeID {
+			out = append(out, k.slug)
+		}
+	}
+	sort.Strings(out)
+	return out, nil
+}
+
+func (s *FakeArtifactStore) TotalBytes(_ context.Context, ownerID string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var total int64
+	for _, a := range s.artifacts {
+		if a.OwnerID == ownerID {
+			total += a.SizeBytes
+		}
+	}
+	return total, nil
+}
+
+var _ ports.ArtifactStore = (*FakeArtifactStore)(nil)

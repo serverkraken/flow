@@ -20,4 +20,5 @@ var (
 	ErrInvalidRate     = errors.New("invalid rate")
 	ErrInvalidDocument = errors.New("invalid document")
 	ErrInvalidUpstream = errors.New("invalid upstream git url")
+	ErrInvalidArtifact = errors.New("invalid artifact")
 )

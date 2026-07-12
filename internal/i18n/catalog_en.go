@@ -49,6 +49,7 @@ func init() {
 			"common.cancel":      "Cancel",
 			"common.delete":      "Delete",
 			"common.edit":        "Edit",
+			"common.rename":      "Rename",
 			"common.close":       "Close",
 			"page.prev":          "Previous",
 			"page.next":          "Next",
@@ -118,6 +119,20 @@ func init() {
 			"cockpit.bindings.delete":            "Unbind",
 			"cockpit.bindings.empty":             "No bindings.",
 			"cockpit.bindings.remoteOnlyRepo":    "Remote bindings can only attach to repo nodes.",
+			// cockpit artifact gallery (L6 Task 5)
+			"cockpit.artifacts.title":         "Artifacts",
+			"cockpit.artifacts.empty":         "No artifacts yet.",
+			"cockpit.artifacts.inherited":     "inherited from",
+			"cockpit.artifacts.delete":        "Delete artifact",
+			"cockpit.artifacts.deleteConfirm": "Delete artifact?",
+			"cockpit.artifacts.rename":        "Rename artifact",
+			"cockpit.artifacts.replace":       "Replace",
+			"cockpit.artifacts.upload":        "Upload",
+			"cockpit.artifacts.uploadHint":    "Image or file · max 8 MB",
+			"cockpit.artifacts.err.tooLarge":  "File too large (max 8 MB)",
+			"cockpit.artifacts.err.badType":   "File type not allowed",
+			"cockpit.artifacts.err.quota":     "Storage limit reached (256 MB)",
+			"cockpit.artifacts.err.generic":   "Action failed",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Chain",
 			"cockpit.rail.here":          "(here)",
@@ -242,6 +257,9 @@ func init() {
 			"document.figure.label":   "Fig.",
 			"document.figure.mermaid": "rendered from ```mermaid",
 			"document.figure.source":  "Source",
+			// Artifact embeds ![[slug]] (Lesesaal L6 Task 3)
+			"document.figure.download":   "Download",
+			"document.figure.unresolved": "Unresolved artifact reference",
 			// Provenance row + docrail (Lesesaal L3 Task 5)
 			"document.readtime":   "min read",
 			"document.updatedRel": "updated %s",
@@ -249,6 +267,9 @@ func init() {
 			"document.pinned":     "Pinned",
 			"document.pin.hint":   "Pin into agent context",
 			"document.toc":        "On this page",
+			// Heading deep-links (Lesesaal L6 Task 4)
+			"heading.copyLink": "Copy link",
+			"heading.copied":   "Link copied ✓",
 			// Refs rail (Lesesaal L3 Task 6)
 			"document.refs":       "References",
 			"document.ref.from":   "from here",
@@ -294,6 +315,13 @@ func init() {
 			// project fuzzy-picker
 			"picker.filter": "Filter projects…",
 			"picker.new":    "new",
+			// Editor insert helper (Lesesaal L6 Task 6)
+			"editor.insertArtifact":       "Insert artifact …",
+			"editor.insertArtifact.filter": "Filter artifacts…",
+			"editor.insertArtifact.empty":  "No artifacts for this node.",
+			"editor.insertPage":           "Link page …",
+			"editor.insertPage.filter":     "Filter pages…",
+			"editor.insertPage.empty":      "No documents found.",
 			// week summary metrics
 			"kennzahlen.title":   "Metrics",
 			"kennzahlen.avg":     "Average",
@@ -390,6 +418,9 @@ func init() {
 			"activity.verb.node.deleted":     "deleted a project",
 			"activity.verb.node.moved":       "moved a project",
 			"activity.verb.dayoff.changed":   "updated time-off entries",
+			"activity.verb.artifact.created": "uploaded an artifact",
+			"activity.verb.artifact.updated": "updated an artifact",
+			"activity.verb.artifact.deleted": "deleted an artifact",
 			// session edit dialog
 			"sessions.edit":    "Edit session",
 			"sessions.project": "Project",

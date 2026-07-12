@@ -42,6 +42,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
 	projects := testutil.NewFakeNodeStore()
+	artifacts := testutil.NewFakeArtifactStore()
 	bus := sse.NewBus()
 
 	srv := &Server{
@@ -67,6 +68,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		NodeAncestors:     usecase.NodeAncestors{Nodes: projects},
 		SetPinned:         usecase.SetPinned{Docs: docs},
 		SetContextMode:    usecase.SetContextMode{Docs: docs},
+		ListArtifacts:     usecase.ListArtifacts{Nodes: projects, Artifacts: artifacts},
 	}
 	return srv, codec, docs, projects
 }

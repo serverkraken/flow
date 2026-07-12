@@ -52,6 +52,7 @@ func init() {
 			"common.cancel": "Abbrechen",
 			"common.delete": "Löschen",
 			"common.edit":   "Bearbeiten",
+			"common.rename": "Umbenennen",
 			"common.close":  "Schließen",
 			// pagination
 			"page.prev":  "Zurück",
@@ -124,6 +125,20 @@ func init() {
 			"cockpit.bindings.delete":            "Lösen",
 			"cockpit.bindings.empty":             "Keine Bindings.",
 			"cockpit.bindings.remoteOnlyRepo":    "Remote-Bindings nur an Repo-Knoten möglich.",
+			// cockpit artifact gallery (L6 Task 5)
+			"cockpit.artifacts.title":         "Artefakte",
+			"cockpit.artifacts.empty":         "Noch keine Artefakte.",
+			"cockpit.artifacts.inherited":     "geerbt von",
+			"cockpit.artifacts.delete":        "Artefakt löschen",
+			"cockpit.artifacts.deleteConfirm": "Artefakt löschen?",
+			"cockpit.artifacts.rename":        "Artefakt umbenennen",
+			"cockpit.artifacts.replace":       "Ersetzen",
+			"cockpit.artifacts.upload":        "Hochladen",
+			"cockpit.artifacts.uploadHint":    "Bild oder Datei · max. 8 MB",
+			"cockpit.artifacts.err.tooLarge":  "Datei zu groß (max. 8 MB)",
+			"cockpit.artifacts.err.badType":   "Dateityp nicht erlaubt",
+			"cockpit.artifacts.err.quota":     "Speicherlimit erreicht (256 MB)",
+			"cockpit.artifacts.err.generic":   "Aktion fehlgeschlagen",
 			// cockpit rail + Übersicht tab (Kristall K2 Task 4)
 			"cockpit.rail.chain":         "Kette",
 			"cockpit.rail.here":          "(hier)",
@@ -250,6 +265,9 @@ func init() {
 			"document.figure.label":   "Abb.",
 			"document.figure.mermaid": "gerendert aus ```mermaid",
 			"document.figure.source":  "Quelle",
+			// Artefakt-Embeds ![[slug]] (Lesesaal L6 Task 3)
+			"document.figure.download":   "Herunterladen",
+			"document.figure.unresolved": "Unaufgelöste Artefakt-Referenz",
 			// Provenance-Zeile + docrail (Lesesaal L3 Task 5)
 			"document.readtime":   "min Lesezeit",
 			"document.updatedRel": "aktualisiert %s",
@@ -257,6 +275,9 @@ func init() {
 			"document.pinned":     "Angepinnt",
 			"document.pin.hint":   "In den Agenten-Kontext pinnen",
 			"document.toc":        "Auf dieser Seite",
+			// Überschriften-Deep-Links (Lesesaal L6 Task 4)
+			"heading.copyLink": "Link kopieren",
+			"heading.copied":   "Link kopiert ✓",
 			// Verweise-Rail (Lesesaal L3 Task 6)
 			"document.refs":       "Verweise",
 			"document.ref.from":   "von hier",
@@ -303,6 +324,13 @@ func init() {
 			// project fuzzy-picker
 			"picker.filter": "Projekt filtern…",
 			"picker.new":    "neu",
+			// Editor-Einfügehelfer (Lesesaal L6 Task 6)
+			"editor.insertArtifact":       "Artefakt einfügen …",
+			"editor.insertArtifact.filter": "Artefakte filtern…",
+			"editor.insertArtifact.empty":  "Keine Artefakte für diesen Knoten.",
+			"editor.insertPage":           "Seite verlinken …",
+			"editor.insertPage.filter":     "Seiten filtern…",
+			"editor.insertPage.empty":      "Keine Dokumente gefunden.",
 			// week summary metrics
 			"kennzahlen.title":   "Kennzahlen",
 			"kennzahlen.avg":     "Schnitt",
@@ -399,6 +427,9 @@ func init() {
 			"activity.verb.node.deleted":     "löschte ein Projekt",
 			"activity.verb.node.moved":       "verschob ein Projekt",
 			"activity.verb.dayoff.changed":   "aktualisierte Frei-Zeiten",
+			"activity.verb.artifact.created": "lud ein Artefakt hoch",
+			"activity.verb.artifact.updated": "aktualisierte ein Artefakt",
+			"activity.verb.artifact.deleted": "löschte ein Artefakt",
 			// session edit dialog
 			"sessions.edit":    "Sitzung bearbeiten",
 			"sessions.project": "Projekt",

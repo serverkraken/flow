@@ -19,6 +19,10 @@ const (
 	EventDocumentUpdated EventType = "document.updated"
 	EventDocumentDeleted EventType = "document.deleted"
 
+	EventArtifactCreated EventType = "artifact.created"
+	EventArtifactUpdated EventType = "artifact.updated"
+	EventArtifactDeleted EventType = "artifact.deleted"
+
 	EventActivityLogged EventType = "activity.logged"
 )
 

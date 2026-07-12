@@ -95,12 +95,16 @@ type NodeCockpit struct {
 	WissenAll   bool                    // Wissen: true when ?wissen=all expanded the section past the cap
 	Children    []NodeChild             // Enthält
 	Bindings    []domain.ProjectBinding // rail Bindings block
+	// Artifacts feeds the #cockpit-artifacts gallery (Task 5): own + inherited
+	// artifact cards built from ListArtifacts' Ahnenkette result
+	// (BuildArtifactCards). Empty (nil) renders the gallery's empty state.
+	Artifacts []ArtifactCardVM
 	// Context is the rail's "Kontext für Agenten" instrument panel (L5): the
 	// composed agent-context budget for this node's chain. nil means either
 	// ComposeContext is unwired or ExecuteForNode failed — the rail then
 	// degrades to no panel rather than crashing (see nodeCockpitData).
 	Context  *CockpitContextVM
-	PanelErr string // inline error surfaced on #cockpit-main or #cockpit-rail
+	PanelErr string // inline error surfaced on #cockpit-main, #cockpit-rail, or #cockpit-artifacts
 	// EditSession is set by nodeCockpitData when the ?edit={sid} query resolves
 	// to one of the owner's sessions — it drives the edit-mode SessionDialog
 	// (sessionDialogEditVM), rendered pre-opened. nil when not editing.

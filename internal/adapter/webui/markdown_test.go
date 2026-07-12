@@ -44,42 +44,42 @@ func TestRenderMarkdown_SkipsFrontmatter(t *testing.T) {
 func resolveNone(target string) (string, string, bool) { return "", "", false }
 
 func TestRenderDocument_GFMTable(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "| A | B |\n|---|---|\n| 1 | 2 |\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "| A | B |\n|---|---|\n| 1 | 2 |\n", resolveNone, nil)))
 	if !strings.Contains(out, "<table") || !strings.Contains(out, "<td") {
 		t.Fatalf("expected GFM table, got: %s", out)
 	}
 }
 
 func TestRenderDocument_Tasklist(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "- [x] done\n- [ ] todo\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "- [x] done\n- [ ] todo\n", resolveNone, nil)))
 	if !strings.Contains(out, `type="checkbox"`) {
 		t.Fatalf("expected task checkboxes, got: %s", out)
 	}
 }
 
 func TestRenderDocument_Strikethrough(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "~~gone~~\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "~~gone~~\n", resolveNone, nil)))
 	if !strings.Contains(out, "<del>") {
 		t.Fatalf("expected <del>, got: %s", out)
 	}
 }
 
 func TestRenderDocument_Footnote(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "Text[^1]\n\n[^1]: note\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "Text[^1]\n\n[^1]: note\n", resolveNone, nil)))
 	if !strings.Contains(out, `class="footnotes"`) && !strings.Contains(out, "footnote-ref") {
 		t.Fatalf("expected footnote markup, got: %s", out)
 	}
 }
 
 func TestRenderDocument_XSSStripped(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "<script>alert(1)</script>\n\n[ok](javascript:alert(1))\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "<script>alert(1)</script>\n\n[ok](javascript:alert(1))\n", resolveNone, nil)))
 	if strings.Contains(out, "<script") || strings.Contains(out, "javascript:") {
 		t.Fatalf("XSS not stripped: %s", out)
 	}
 }
 
 func TestRenderDocument_CodeHighlightUsesClasses(t *testing.T) {
-	out := string(mustHTML(RenderDocument(context.Background(), "```go\nfunc main() {}\n```\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "```go\nfunc main() {}\n```\n", resolveNone, nil)))
 	if !strings.Contains(out, `class="chroma"`) {
 		t.Fatalf("expected chroma container, got: %s", out)
 	}
@@ -90,7 +90,7 @@ func TestRenderDocument_CodeHighlightUsesClasses(t *testing.T) {
 
 func TestRenderDocument_BrokenWikilink(t *testing.T) {
 	// resolveNone always returns false, so wikilinks render as broken spans.
-	out := string(mustHTML(RenderDocument(context.Background(), "See [[NonExistentPage]] for details.\n", resolveNone)))
+	out := string(mustHTML(RenderDocument(context.Background(), "See [[NonExistentPage]] for details.\n", resolveNone, nil)))
 	if !strings.Contains(out, "wikilink-broken") {
 		t.Fatalf("expected wikilink-broken span, got: %s", out)
 	}
@@ -106,7 +106,7 @@ func TestRenderDocument_ResolvedWikilink(t *testing.T) {
 		}
 		return "", "", false
 	}
-	out := string(mustHTML(RenderDocument(context.Background(), "See [[ExistingPage]] for details.\n", resolve)))
+	out := string(mustHTML(RenderDocument(context.Background(), "See [[ExistingPage]] for details.\n", resolve, nil)))
 	if !strings.Contains(out, `href="/wissen/doc-1"`) {
 		t.Fatalf("expected resolved wikilink href, got: %s", out)
 	}
@@ -120,7 +120,7 @@ func TestRenderDocument_ResolvedWikilink(t *testing.T) {
 func TestRenderDocument_MermaidBecomesFigure(t *testing.T) {
 	ctx := i18n.WithLocale(context.Background(), i18n.DE)
 	src := "# H\n\n```mermaid\ngraph TD; A-->B\n```\n"
-	html, meta := RenderDocument(ctx, src, func(string) (string, string, bool) { return "", "", false })
+	html, meta := RenderDocument(ctx, src, func(string) (string, string, bool) { return "", "", false }, nil)
 	out := string(html)
 	for _, want := range []string{`class="mermaid-figure"`, `<pre class="mermaid">`, "graph TD", "Abb. 1", "<details"} {
 		if !strings.Contains(out, want) {
@@ -138,7 +138,7 @@ func TestRenderDocument_MermaidBecomesFigure(t *testing.T) {
 func TestRenderDocument_TwoMermaidNumbered(t *testing.T) {
 	ctx := i18n.WithLocale(context.Background(), i18n.DE)
 	src := "```mermaid\nA\n```\n\ntext\n\n```mermaid\nB\n```\n"
-	out := string(mustHTML(RenderDocument(ctx, src, nilResolve)))
+	out := string(mustHTML(RenderDocument(ctx, src, nilResolve, nil)))
 	if !strings.Contains(out, "Abb. 1") || !strings.Contains(out, "Abb. 2") {
 		t.Fatalf("figures must number sequentially:\n%s", out)
 	}
@@ -150,7 +150,7 @@ func TestRenderDocument_TwoMermaidNumbered(t *testing.T) {
 func TestRenderDocument_MermaidDoesNotBreakHighlighting(t *testing.T) {
 	ctx := i18n.WithLocale(context.Background(), i18n.DE)
 	src := "```go\nfmt.Println(\"x\")\n```\n\n```mermaid\nA-->B\n```\n"
-	out := string(mustHTML(RenderDocument(ctx, src, nilResolve)))
+	out := string(mustHTML(RenderDocument(ctx, src, nilResolve, nil)))
 	if !strings.Contains(out, "class=\"mermaid-figure\"") {
 		t.Fatal("mermaid block missing")
 	}
@@ -162,7 +162,7 @@ func TestRenderDocument_MermaidDoesNotBreakHighlighting(t *testing.T) {
 func TestRenderDocument_RawHTMLNeutralized(t *testing.T) {
 	ctx := i18n.WithLocale(context.Background(), i18n.DE)
 	src := `<div hx-get="/x" onclick="alert(1)">x</div>` + "\n\n<script>alert(1)</script>"
-	out := string(mustHTML(RenderDocument(ctx, src, nilResolve)))
+	out := string(mustHTML(RenderDocument(ctx, src, nilResolve, nil)))
 	if strings.Contains(out, "hx-get") || strings.Contains(out, "onclick") || strings.Contains(out, "<script") {
 		t.Fatalf("agent raw HTML must be neutralized:\n%s", out)
 	}
