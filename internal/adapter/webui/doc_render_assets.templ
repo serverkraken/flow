@@ -1,0 +1,21 @@
+package webui
+
+// DocRenderScripts mounts the client-side scripts that turn RenderDocument's
+// server-rendered document HTML into its full presentation — currently only
+// mermaid-init.js (renders <pre class="mermaid"> blocks into diagrams; chroma
+// code-highlighting and prose styling are pure CSS from components.Base and
+// need no script).
+//
+// It exists so every surface that renders a Kompendium document body mounts the
+// SAME set: the document view (/wissen/{id}, document.templ) and the node
+// cockpit (README section, cockpit.templ). Add a new render feature here once
+// and both surfaces gain it — the two must not drift apart.
+//
+// Mount it ONCE per full page load, OUTSIDE any SSE-/htmx-swapped fragment: each
+// script re-scans the whole document on htmx:afterSwap, so a fragment swap must
+// never re-add the <script> tag itself. Scripts are page-agnostic and lazy-load
+// their heavy libs only when a matching element is present, so a page with no
+// diagram pays nothing.
+templ DocRenderScripts() {
+	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
+}

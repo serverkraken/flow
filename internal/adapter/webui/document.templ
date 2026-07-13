@@ -11,13 +11,15 @@ templ DocumentPage(vm DocumentVM) {
 	@components.Base("wissen", documentBody(vm))
 }
 
-// documentBody wires the Lesesaal AppShell around the document outer
-// fragment and mounts mermaid-init.js (Task 4) once, outside
-// #document-fragment, so an SSE-driven fragment swap never re-adds it — the
-// script's own htmx:afterSwap listener re-scans for pre.mermaid every time.
+// documentBody wires the Lesesaal AppShell around the document outer fragment
+// and mounts the shared document-render scripts (DocRenderScripts) once, outside
+// #document-fragment, so an SSE-driven fragment swap never re-adds them — each
+// script's own htmx:afterSwap listener re-scans on every swap. The SAME
+// component is mounted by the node cockpit (cockpit.templ) so both surfaces
+// render a document body identically.
 templ documentBody(vm DocumentVM) {
 	@components.AppShell("docs", nil, nil, documentOuter(vm))
-	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
+	@DocRenderScripts()
 }
 
 templ documentOuter(vm DocumentVM) {
