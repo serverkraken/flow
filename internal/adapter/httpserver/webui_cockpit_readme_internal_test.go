@@ -96,6 +96,37 @@ func TestNodeCockpitData_NoReadmeEmptyState(t *testing.T) {
 	}
 }
 
+// TestNodeCockpitData_ReadmeUppercaseMDSuffix pins the case-insensitivity fix:
+// findReadme lowercases the path BEFORE trimming ".md", so an uppercase
+// extension ("README.MD") still matches. Regression guard for a bug where
+// lowercasing happened AFTER TrimSuffix(".md"), so "README.MD" was left as
+// "readme.md" (never trimmed) and failed to match "readme".
+func TestNodeCockpitData_ReadmeUppercaseMDSuffix(t *testing.T) {
+	s, ps, ds := newReadmeCockpitServer(t)
+	if _, err := ps.Create(t.Context(), domain.Node{ID: "n1", OwnerID: "u1", Kind: domain.KindRepo, Name: "R", Slug: "r"}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nid := "n1"
+	if _, err := ds.Create(t.Context(), domain.Document{
+		ID: "d1", OwnerID: "u1", NodeID: &nid, Path: "README.MD",
+		Title: "R", Body: "# Upper\n\nCase.",
+	}); err != nil {
+		t.Fatalf("seed doc: %v", err)
+	}
+
+	req := httptest.NewRequest("GET", "/nodes/n1", nil)
+	d, err := s.nodeCockpitData(req, readmeTestUser(), "n1")
+	if err != nil {
+		t.Fatalf("nodeCockpitData: %v", err)
+	}
+	if !d.HasReadme {
+		t.Fatalf("HasReadme = false, want true for README.MD (uppercase suffix)")
+	}
+	if !strings.Contains(string(d.Readme), "Upper") {
+		t.Errorf("rendered README missing content: %q", d.Readme)
+	}
+}
+
 // TestNodeCockpitData_ReadmeOwnNodeOnly pins the no-inheritance rule: a
 // readme doc on the PARENT must not surface on the child's cockpit.
 func TestNodeCockpitData_ReadmeOwnNodeOnly(t *testing.T) {

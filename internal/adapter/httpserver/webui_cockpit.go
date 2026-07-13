@@ -207,8 +207,10 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 					return "", "", false
 				}
 				var resolveArtifact webui.ArtifactResolver
-				if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
-					resolveArtifact = buildArtifactResolver(chain, arts)
+				if s.ListArtifacts.Artifacts != nil {
+					if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
+						resolveArtifact = buildArtifactResolver(chain, arts)
+					}
 				}
 				if html, _ := webui.RenderDocument(ctx, doc.Body, resolve, resolveArtifact); html != "" {
 					d.Readme = html
@@ -226,7 +228,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 // false when none matches.
 func findReadme(docs []domain.Document) (domain.Document, bool) {
 	for _, doc := range docs {
-		p := strings.ToLower(strings.TrimSuffix(doc.Path, ".md"))
+		p := strings.TrimSuffix(strings.ToLower(doc.Path), ".md")
 		if p == "readme" {
 			return doc, true
 		}
