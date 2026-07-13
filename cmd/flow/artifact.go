@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/artifactfile"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/projectresolve"
 	"github.com/spf13/cobra"
@@ -37,23 +37,6 @@ func resolveArtifactNode(ctx context.Context, c *apiclient.Client, nodeFlag stri
 	return n.ID, nil
 }
 
-// resolveArtifactMime returns override when set, else a best-effort guess from
-// path's extension (stripping any "; charset=..." parameter), else the
-// catch-all application/octet-stream. No content sniffing — the server
-// validates the final MIME type against the allowed set.
-func resolveArtifactMime(path, override string) string {
-	if override != "" {
-		return override
-	}
-	if m := mime.TypeByExtension(filepath.Ext(path)); m != "" {
-		if i := strings.Index(m, ";"); i >= 0 {
-			m = strings.TrimSpace(m[:i])
-		}
-		return m
-	}
-	return "application/octet-stream"
-}
-
 // errFreeNodeExclusive is returned by runArtifactAdd/Ls/Rm when both --free
 // and --node are given — the free (owner-global, node-less) library and a
 // node-scoped library are mutually exclusive targets.
@@ -68,7 +51,7 @@ func runArtifactAdd(ctx context.Context, c *apiclient.Client, w io.Writer, path,
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	name := filepath.Base(path)
-	mimeType := resolveArtifactMime(path, mimeFlag)
+	mimeType := artifactfile.GuessMime(path, mimeFlag)
 	var a domain.Artifact
 	if free {
 		a, err = c.UploadFreeArtifact(ctx, name, mimeType, data)
