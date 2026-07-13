@@ -254,16 +254,19 @@ func (c *Client) GetNode(ctx context.Context, id string) (domain.Node, error) {
 	return p, err
 }
 
-// UpdateNodeFields are the mutable project fields (full replace; rate has its
-// own endpoint). JSON tags match the server's updateProjReq.
+// UpdateNodeFields are the mutable project fields for a PARTIAL update (rate has
+// its own endpoint). A nil field is omitted from the request body and left
+// untouched server-side; a non-nil pointer to "" clears the field. JSON tags
+// match the server's updateProjReq.
 type UpdateNodeFields struct {
-	Name        string `json:"name"`
-	Slug        string `json:"slug"`
-	Color       string `json:"color"`
-	Glyph       string `json:"glyph"`
-	Description string `json:"description"`
-	UpstreamGit string `json:"upstreamGit"`
-	Status      string `json:"status"`
+	Name        *string `json:"name,omitempty"`
+	Slug        *string `json:"slug,omitempty"`
+	Color       *string `json:"color,omitempty"`
+	Glyph       *string `json:"glyph,omitempty"`
+	Icon        *string `json:"icon,omitempty"`
+	Description *string `json:"description,omitempty"`
+	UpstreamGit *string `json:"upstreamGit,omitempty"`
+	Status      *string `json:"status,omitempty"`
 }
 
 func (c *Client) UpdateNode(ctx context.Context, id string, in UpdateNodeFields) (domain.Node, error) {
