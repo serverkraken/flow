@@ -266,14 +266,16 @@ func (r *FormRoute) Submit() (shell.Route, tea.Cmd) {
 		var id string
 		if editing != nil {
 			id = editing.ID
+			// Icon is deliberately omitted: nil = preserve whatever the server
+			// already has (this form has no icon field to edit).
 			if _, err := api.UpdateNode(ctx, id, UpdateFields{
-				Name:        v.Name,
-				Slug:        v.Slug,
-				Color:       v.Color,
-				Glyph:       v.Glyph,
-				Description: v.Description,
-				UpstreamGit: v.UpstreamGit,
-				Status:      v.Status,
+				Name:        &v.Name,
+				Slug:        &v.Slug,
+				Color:       &v.Color,
+				Glyph:       &v.Glyph,
+				Description: &v.Description,
+				UpstreamGit: &v.UpstreamGit,
+				Status:      &v.Status,
 			}); err != nil {
 				return formErrMsg{fmt.Sprintf("Speichern: %v", err)}
 			}

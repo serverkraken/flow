@@ -95,6 +95,10 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Bind the current working directory to a flow project so other tools auto-scope here. Pass project (existing id/slug/name) or create_name (to create one). Auto-detects a git-origin (remote) vs per-device (path) binding; override with kind.",
 	}, h.bindProject)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_update_node",
+		Description: "Update a node's metadata (name, description, color, glyph, icon, upstream, status) and/or rate — only the fields you pass change. Scoped to the current project by default; pass node to target another. This is how an agent maintains a project's description without the TUI.",
+	}, h.updateNode)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_get_context",
 		Description: "Compose the cross-device start-context (instructions + activeContext + memories) for the current repo, token-budgeted.",
 	}, h.getContext)

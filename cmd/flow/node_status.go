@@ -9,21 +9,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// runNodeSetStatus reads the node, then PATCHes it with the new status (full
-// replace; rate is untouched by UpdateNode).
+// runNodeSetStatus PATCHes only the status; the partial UpdateNode leaves every
+// other field (name, icon, upstream, binding) untouched.
 func runNodeSetStatus(ctx context.Context, c *apiclient.Client, w io.Writer, slug, status string) error {
 	id, err := resolveSlug(ctx, c, slug)
 	if err != nil {
 		return err
 	}
-	n, err := c.GetNode(ctx, id)
-	if err != nil {
-		return err
-	}
-	if _, err := c.UpdateNode(ctx, id, apiclient.UpdateNodeFields{
-		Name: n.Name, Slug: n.Slug, Color: n.Color, Glyph: n.Glyph,
-		Description: n.Description, UpstreamGit: n.UpstreamGit, Status: status,
-	}); err != nil {
+	st := status
+	if _, err := c.UpdateNode(ctx, id, apiclient.UpdateNodeFields{Status: &st}); err != nil {
 		return err
 	}
 	_, _ = fmt.Fprintf(w, "%s is now %s\n", slug, status)

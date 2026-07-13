@@ -13,6 +13,9 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+// TestRunNodeSetStatus is the regression guard for the icon-zeroing bug:
+// pause/resume/archive must PATCH status only, never a GetNode-then-full-
+// replace body that would clobber icon (or any other field) with a zero value.
 func TestRunNodeSetStatus(t *testing.T) {
 	t.Parallel()
 	var patched map[string]any
@@ -20,8 +23,6 @@ func TestRunNodeSetStatus(t *testing.T) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes":
 			_ = json.NewEncoder(w).Encode([]domain.Node{{ID: "n1", Slug: "flow"}})
-		case r.Method == "GET" && r.URL.Path == "/api/v1/nodes/n1":
-			_ = json.NewEncoder(w).Encode(domain.Node{ID: "n1", Name: "flow", Slug: "flow", Status: domain.NodeActive})
 		case r.Method == "PATCH" && r.URL.Path == "/api/v1/nodes/n1":
 			_ = json.NewDecoder(r.Body).Decode(&patched)
 			_ = json.NewEncoder(w).Encode(domain.Node{ID: "n1", Slug: "flow", Status: domain.NodePaused})
@@ -38,6 +39,9 @@ func TestRunNodeSetStatus(t *testing.T) {
 	}
 	if patched["status"] != "paused" {
 		t.Fatalf("patched status = %v", patched["status"])
+	}
+	if len(patched) != 1 {
+		t.Fatalf("expected status-only body, got %v", patched)
 	}
 }
 

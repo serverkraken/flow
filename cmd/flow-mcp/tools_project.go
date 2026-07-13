@@ -105,3 +105,90 @@ func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in
 	msg := fmt.Sprintf("Bound this directory to project %s (%s) via %s binding. flow_project_context now resolves here.", bound.Name, bound.Slug, kind)
 	return textResult(msg), nil, nil
 }
+
+// updateNodeIn holds node identification and partial metadata/rate fields to change.
+type updateNodeIn struct {
+	Node        string `json:"node,omitempty" jsonschema:"project slug, name, or id to update; omit to use the current directory's bound project"`
+	Name        string `json:"name,omitempty" jsonschema:"new display name"`
+	Description string `json:"description,omitempty" jsonschema:"new description (one-line subtitle)"`
+	Color       string `json:"color,omitempty" jsonschema:"identity color name"`
+	Glyph       string `json:"glyph,omitempty" jsonschema:"identity glyph"`
+	Icon        string `json:"icon,omitempty" jsonschema:"identity icon"`
+	Upstream    string `json:"upstream,omitempty" jsonschema:"git clone URL (repo only)"`
+	Status      string `json:"status,omitempty" jsonschema:"active, paused or archived"`
+	Slug        string `json:"slug,omitempty" jsonschema:"new slug — an identity change; rarely needed, changes how the node is addressed"`
+	Rate        *int64 `json:"rate,omitempty" jsonschema:"per-hour rate in minor units (e.g. 8000 = 80.00)"`
+	Currency    string `json:"currency,omitempty" jsonschema:"rate currency (default EUR)"`
+	ClearRate   bool   `json:"clearRate,omitempty" jsonschema:"clear the rate instead of setting it"`
+}
+
+// updateNode applies a partial metadata update to a node (only the fields you
+// pass change) and, optionally, a rate mutation. An empty string means "leave
+// this field unchanged" — the MCP surface cannot clear a text field to empty
+// (use the WebUI/TUI for that); rate can be cleared via clearRate.
+func (h *handlers) updateNode(ctx context.Context, req *mcp.CallToolRequest, in updateNodeIn) (*mcp.CallToolResult, any, error) {
+	if in.Status != "" && in.Status != "active" && in.Status != "paused" && in.Status != "archived" {
+		return errorResult("status must be active, paused or archived"), nil, nil
+	}
+	if in.ClearRate && in.Rate != nil {
+		return errorResult("rate and clearRate are mutually exclusive"), nil, nil
+	}
+	var out string
+	err := h.do(ctx, req, func(c *apiclient.Client) error {
+		nodeID, label, err := h.artifactNode(ctx, in.Node)
+		if err != nil {
+			return err
+		}
+		var f apiclient.UpdateNodeFields
+		if in.Name != "" {
+			f.Name = &in.Name
+		}
+		if in.Slug != "" {
+			f.Slug = &in.Slug
+		}
+		if in.Color != "" {
+			f.Color = &in.Color
+		}
+		if in.Glyph != "" {
+			f.Glyph = &in.Glyph
+		}
+		if in.Icon != "" {
+			f.Icon = &in.Icon
+		}
+		if in.Description != "" {
+			f.Description = &in.Description
+		}
+		if in.Upstream != "" {
+			f.UpstreamGit = &in.Upstream
+		}
+		if in.Status != "" {
+			f.Status = &in.Status
+		}
+		if f.Name != nil || f.Slug != nil || f.Color != nil || f.Glyph != nil ||
+			f.Icon != nil || f.Description != nil || f.UpstreamGit != nil || f.Status != nil {
+			if _, err := c.UpdateNode(ctx, nodeID, f); err != nil {
+				return err
+			}
+		}
+		switch {
+		case in.ClearRate:
+			if err := c.SetNodeRate(ctx, nodeID, nil, ""); err != nil {
+				return err
+			}
+		case in.Rate != nil:
+			cur := in.Currency
+			if cur == "" {
+				cur = "EUR"
+			}
+			if err := c.SetNodeRate(ctx, nodeID, in.Rate, cur); err != nil {
+				return err
+			}
+		}
+		out = fmt.Sprintf("Updated node %s.", label)
+		return nil
+	})
+	if err != nil {
+		return h.resultErr(err), nil, nil
+	}
+	return textResult(out), nil, nil
+}

@@ -191,7 +191,49 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// Puls section: subtree-filtered live activity feed, top 8.
 	d.Pulse = s.cockpitPulse(ctx, u.ID, n.ID, now)
 
+	// README (FR-A): render the node's OWN `readme` document as the project
+	// front page. Own-node only (no inheritance). Degrades silently — a missing
+	// readme, an unwired store, or a render error never 500s the cockpit; it
+	// falls back to the empty-state link.
+	d.ReadmeNewHref = "/wissen/neu?node=" + n.ID
+	if s.ListDocuments.Docs != nil {
+		if docs, derr := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil); derr == nil {
+			if doc, ok := findReadme(docs); ok {
+				all, _ := s.ListDocuments.Execute(ctx, u.ID, nil, nil)
+				resolve := func(target string) (string, string, bool) {
+					if t, ok := domain.ResolveWikilink(doc, target, all); ok {
+						return "/wissen/" + t.ID, t.Title, true
+					}
+					return "", "", false
+				}
+				var resolveArtifact webui.ArtifactResolver
+				if s.ListArtifacts.Artifacts != nil {
+					if arts, aerr := s.ListArtifacts.Execute(ctx, u.ID, n.ID); aerr == nil {
+						resolveArtifact = buildArtifactResolver(chain, arts)
+					}
+				}
+				if html, _ := webui.RenderDocument(ctx, doc.Body, resolve, resolveArtifact); html != "" {
+					d.Readme = html
+					d.HasReadme = true
+				}
+			}
+		}
+	}
+
 	return d, nil
+}
+
+// findReadme returns the node's own README document — the first doc whose path
+// is "readme"/"README"/"readme.md" (case-insensitive, optional .md). Returns
+// false when none matches.
+func findReadme(docs []domain.Document) (domain.Document, bool) {
+	for _, doc := range docs {
+		p := strings.TrimSuffix(strings.ToLower(doc.Path), ".md")
+		if p == "readme" {
+			return doc, true
+		}
+	}
+	return domain.Document{}, false
 }
 
 // fillSessionRows loads the Buchungen section's session rows (containment:

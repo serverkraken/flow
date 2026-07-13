@@ -35,6 +35,48 @@ func runNodeCreate(ctx context.Context, c *apiclient.Client, w io.Writer, name, 
 	return nil
 }
 
+// rateChange carries an optional rate mutation for `node update`: clear=true
+// clears the rate, otherwise amount (minor units) + currency set it.
+type rateChange struct {
+	clear    bool
+	amount   *int64
+	currency string
+}
+
+// updateHasField reports whether at least one metadata field is set (so an
+// invocation with only --rate skips the empty PATCH).
+func updateHasField(f apiclient.UpdateNodeFields) bool {
+	return f.Name != nil || f.Slug != nil || f.Color != nil || f.Glyph != nil ||
+		f.Icon != nil || f.Description != nil || f.UpstreamGit != nil || f.Status != nil
+}
+
+// runNodeUpdate applies a partial metadata PATCH (only the set fields) and,
+// when rc != nil, a separate rate mutation via the rate endpoint.
+func runNodeUpdate(ctx context.Context, c *apiclient.Client, w io.Writer, slug string, f apiclient.UpdateNodeFields, rc *rateChange) error {
+	id, err := resolveSlug(ctx, c, slug)
+	if err != nil {
+		return err
+	}
+	if updateHasField(f) {
+		if _, err := c.UpdateNode(ctx, id, f); err != nil {
+			return err
+		}
+	}
+	if rc != nil {
+		if rc.clear {
+			if err := c.SetNodeRate(ctx, id, nil, ""); err != nil {
+				return err
+			}
+		} else {
+			if err := c.SetNodeRate(ctx, id, rc.amount, rc.currency); err != nil {
+				return err
+			}
+		}
+	}
+	_, _ = fmt.Fprintf(w, "updated %s\n", slug)
+	return nil
+}
+
 // statusWanted reports whether n passes the --status filter (""/"all" → any).
 func statusWanted(n domain.Node, status string) bool {
 	if status == "" || status == "all" {
@@ -128,6 +170,9 @@ func runNodeShow(ctx context.Context, c *apiclient.Client, w io.Writer, getenv f
 	}
 	_, _ = fmt.Fprintf(w, "%s %s (%s)\n", node.Kind, node.Name, node.Slug)
 	_, _ = fmt.Fprintf(w, "status: %s\n", node.Status)
+	if node.Description != "" {
+		_, _ = fmt.Fprintf(w, "description: %s\n", node.Description)
+	}
 	if node.UpstreamGit != "" {
 		_, _ = fmt.Fprintf(w, "upstream: %s\n", node.UpstreamGit)
 	}
@@ -160,6 +205,80 @@ func nodeCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&desc, "desc", "", "description")
 	cmd.Flags().StringVar(&upstream, "upstream", "", "git clone URL (repo only)")
 	_ = cmd.MarkFlagRequired("kind")
+	return cmd
+}
+
+func nodeUpdateCmd() *cobra.Command {
+	var name, slug, color, glyph, icon, desc, upstream, status, currency string
+	var rate int64
+	var clearRate bool
+	cmd := &cobra.Command{
+		Use:   "update <slug>",
+		Short: "update a node's fields (only the flags you pass change)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fl := cmd.Flags()
+			if clearRate && fl.Changed("rate") {
+				return fmt.Errorf("--clear-rate and --rate are mutually exclusive")
+			}
+			if fl.Changed("status") && status != "active" && status != "paused" && status != "archived" {
+				return fmt.Errorf("--status must be active, paused or archived")
+			}
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			var f apiclient.UpdateNodeFields
+			if fl.Changed("name") {
+				f.Name = &name
+			}
+			if fl.Changed("slug") {
+				f.Slug = &slug
+			}
+			if fl.Changed("color") {
+				f.Color = &color
+			}
+			if fl.Changed("glyph") {
+				f.Glyph = &glyph
+			}
+			if fl.Changed("icon") {
+				f.Icon = &icon
+			}
+			if fl.Changed("desc") {
+				f.Description = &desc
+			}
+			if fl.Changed("upstream") {
+				f.UpstreamGit = &upstream
+			}
+			if fl.Changed("status") {
+				f.Status = &status
+			}
+			var rc *rateChange
+			switch {
+			case clearRate:
+				rc = &rateChange{clear: true}
+			case fl.Changed("rate"):
+				cur := currency
+				if cur == "" {
+					cur = "EUR"
+				}
+				amt := rate
+				rc = &rateChange{amount: &amt, currency: cur}
+			}
+			return runNodeUpdate(cmd.Context(), c, cmd.OutOrStdout(), args[0], f, rc)
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "new name")
+	cmd.Flags().StringVar(&slug, "slug", "", "new slug (identity change)")
+	cmd.Flags().StringVar(&color, "color", "", "identity color name")
+	cmd.Flags().StringVar(&glyph, "glyph", "", "identity glyph")
+	cmd.Flags().StringVar(&icon, "icon", "", "identity icon")
+	cmd.Flags().StringVar(&desc, "desc", "", "description")
+	cmd.Flags().StringVar(&upstream, "upstream", "", "git clone URL (repo only)")
+	cmd.Flags().StringVar(&status, "status", "", "active|paused|archived")
+	cmd.Flags().Int64Var(&rate, "rate", 0, "per-hour rate in minor units (e.g. 8000 = 80.00)")
+	cmd.Flags().StringVar(&currency, "currency", "", "rate currency (default EUR)")
+	cmd.Flags().BoolVar(&clearRate, "clear-rate", false, "clear the rate")
 	return cmd
 }
 

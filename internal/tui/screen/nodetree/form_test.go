@@ -96,7 +96,7 @@ func TestForm_EditUpdatesMetadata(t *testing.T) {
 		t.Fatal("edit must return cmd")
 	}
 	cmd()
-	if f.updID != "r1" || f.updated.Name != "flow2" {
+	if f.updID != "r1" || f.updated.Name == nil || *f.updated.Name != "flow2" {
 		t.Fatalf("UpdateNode wrong: id=%q %+v", f.updID, f.updated)
 	}
 	if f.created.Name != "" {

@@ -7,19 +7,20 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
-// UpdateNodeInput is the full mutable field set of a project (rate excluded —
-// see SetNodeRate). Update is a full replace: callers send current values.
-// CountsTowardTarget is a pointer so omission (nil) preserves the node's
-// existing value; only an explicit true/false changes it.
+// UpdateNodeInput is a PARTIAL update: a nil field is left untouched, a non-nil
+// field is applied (a non-nil pointer to "" deliberately clears the field).
+// Rate is excluded — see SetNodeRate. syncRemoteBinding only fires when
+// UpstreamGit is provided (non-nil) and actually changes, so an update that
+// omits UpstreamGit can never delete the node's remote binding.
 type UpdateNodeInput struct {
-	Name               string
-	Slug               string
-	Color              string
-	Glyph              string
-	Icon               string
-	Description        string
-	UpstreamGit        string
-	Status             domain.NodeStatus
+	Name               *string
+	Slug               *string
+	Color              *string
+	Glyph              *string
+	Icon               *string
+	Description        *string
+	UpstreamGit        *string
+	Status             *domain.NodeStatus
 	CountsTowardTarget *bool
 }
 
@@ -38,8 +39,30 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 		return domain.Node{}, err
 	}
 	p := cur
-	p.Name, p.Slug, p.Color, p.Glyph, p.Icon = in.Name, in.Slug, in.Color, in.Glyph, in.Icon
-	p.Description, p.UpstreamGit, p.Status = in.Description, in.UpstreamGit, in.Status
+	if in.Name != nil {
+		p.Name = *in.Name
+	}
+	if in.Slug != nil {
+		p.Slug = *in.Slug
+	}
+	if in.Color != nil {
+		p.Color = *in.Color
+	}
+	if in.Glyph != nil {
+		p.Glyph = *in.Glyph
+	}
+	if in.Icon != nil {
+		p.Icon = *in.Icon
+	}
+	if in.Description != nil {
+		p.Description = *in.Description
+	}
+	if in.UpstreamGit != nil {
+		p.UpstreamGit = *in.UpstreamGit
+	}
+	if in.Status != nil {
+		p.Status = *in.Status
+	}
 	if in.CountsTowardTarget != nil {
 		p.CountsTowardTarget = in.CountsTowardTarget
 	}

@@ -198,8 +198,9 @@ func TestClientUpdateAndGetProject(t *testing.T) {
 	defer ts.Close()
 	c := apiclient.New(ts.URL, "tok")
 
+	name, slug, status, upstream := "Flow", "flow", "paused", "git@github.com:serverkraken/flow.git"
 	got, err := c.UpdateNode(context.Background(), "p1", apiclient.UpdateNodeFields{
-		Name: "Flow", Slug: "flow", Status: "paused", UpstreamGit: "git@github.com:serverkraken/flow.git",
+		Name: &name, Slug: &slug, Status: &status, UpstreamGit: &upstream,
 	})
 	if err != nil || got.Status != domain.NodePaused {
 		t.Fatalf("UpdateNode: %+v err=%v", got, err)
@@ -217,5 +218,34 @@ func TestClientUpdateAndGetProject(t *testing.T) {
 	}
 	if gotMethod != "GET" || gotPath != "/api/v1/nodes/p1" {
 		t.Errorf("GET method/path = %s %s", gotMethod, gotPath)
+	}
+}
+
+// TestUpdateNode_OmitsUnsetFields proves UpdateNodeFields is partial: a nil
+// field must not appear in the wire body at all (so the server leaves it
+// untouched), while a set field is sent verbatim. This is the regression
+// guard for the icon-zeroing bug (flow node pause/resume/archive used to send
+// a full-replace body with an empty icon).
+func TestUpdateNode_OmitsUnsetFields(t *testing.T) {
+	var body map[string]any
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		_, _ = w.Write([]byte(`{"id":"n1"}`))
+	}))
+	defer ts.Close()
+	c := apiclient.New(ts.URL, "tok")
+
+	desc := "neu"
+	if _, err := c.UpdateNode(context.Background(), "n1", apiclient.UpdateNodeFields{Description: &desc}); err != nil {
+		t.Fatalf("UpdateNode: %v", err)
+	}
+	if _, ok := body["icon"]; ok {
+		t.Errorf("icon key present in partial body: %v", body)
+	}
+	if _, ok := body["name"]; ok {
+		t.Errorf("name key present in partial body: %v", body)
+	}
+	if body["description"] != "neu" {
+		t.Errorf("description = %v, want neu", body["description"])
 	}
 }

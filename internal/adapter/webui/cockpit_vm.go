@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"strconv"
 	"strings"
 	"time"
@@ -105,6 +106,13 @@ type NodeCockpit struct {
 	// degrades to no panel rather than crashing (see nodeCockpitData).
 	Context  *CockpitContextVM
 	PanelErr string // inline error surfaced on #cockpit-main, #cockpit-rail, or #cockpit-artifacts
+	// README (FR-A): the node's own `readme` document, rendered to sanitized
+	// HTML with inline ![[slug]] artifacts. HasReadme is false when the node has
+	// no readme doc — then ReadmeNewHref points at the doc-create editor for the
+	// empty-state link. No ancestor/subtree inheritance: only the node's own doc.
+	Readme        template.HTML
+	HasReadme     bool
+	ReadmeNewHref string
 	// EditSession is set by nodeCockpitData when the ?edit={sid} query resolves
 	// to one of the owner's sessions — it drives the edit-mode SessionDialog
 	// (sessionDialogEditVM), rendered pre-opened. nil when not editing.

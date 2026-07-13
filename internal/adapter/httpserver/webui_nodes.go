@@ -359,14 +359,14 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	n, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
-		Name:        vals.Name,
-		Slug:        vals.Slug,
-		Color:       vals.Color,
-		Glyph:       vals.Glyph,
-		Icon:        vals.Icon,
-		Description: vals.Description,
-		UpstreamGit: vals.UpstreamGit,
-		Status:      domain.NodeStatus(orStatus(vals.Status)),
+		Name:        sp(vals.Name),
+		Slug:        sp(vals.Slug),
+		Color:       sp(vals.Color),
+		Glyph:       sp(vals.Glyph),
+		Icon:        sp(vals.Icon),
+		Description: sp(vals.Description),
+		UpstreamGit: sp(vals.UpstreamGit),
+		Status:      nsp(domain.NodeStatus(orStatus(vals.Status))),
 	})
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
@@ -417,14 +417,14 @@ func (s *Server) handleWebNodeStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, err = s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
-		Name:        cur.Name,
-		Slug:        cur.Slug,
-		Color:       cur.Color,
-		Glyph:       cur.Glyph,
-		Icon:        cur.Icon,
-		Description: cur.Description,
-		UpstreamGit: cur.UpstreamGit,
-		Status:      domain.NodeStatus(r.FormValue("status")),
+		Name:        sp(cur.Name),
+		Slug:        sp(cur.Slug),
+		Color:       sp(cur.Color),
+		Glyph:       sp(cur.Glyph),
+		Icon:        sp(cur.Icon),
+		Description: sp(cur.Description),
+		UpstreamGit: sp(cur.UpstreamGit),
+		Status:      nsp(domain.NodeStatus(r.FormValue("status"))),
 	})
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
