@@ -5,12 +5,47 @@ package webui
 
 import (
 	"context"
+	"html/template"
 	"strings"
 	"testing"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/i18n"
 )
+
+// TestCockpitMain_ReadmeSectionRendersContent verifies the README front page
+// (FR-A Task 8) renders the pre-rendered, already-sanitized HTML raw via
+// components.MarkdownProse when HasReadme is true, and skips the empty-state
+// text.
+func TestCockpitMain_ReadmeSectionRendersContent(t *testing.T) {
+	d := seededCockpit()
+	d.HasReadme = true
+	d.Readme = template.HTML("<p>Hello README</p>")
+	out := renderToBuf(t, context.Background(), CockpitMain(d))
+	if !strings.Contains(out, "<p>Hello README</p>") {
+		t.Fatalf("README section must render d.Readme raw HTML:\n%s", out)
+	}
+	if strings.Contains(out, "cockpit.readme.empty") {
+		t.Fatalf("README section must not render the empty-state text when HasReadme:\n%s", out)
+	}
+}
+
+// TestCockpitMain_ReadmeSectionEmptyState verifies the discreet empty-state
+// line + create link (hx-boost="false", so the doc-create editor gets a real
+// navigation, not an htmx swap into #cockpit-main) when the node has no
+// readme doc yet.
+func TestCockpitMain_ReadmeSectionEmptyState(t *testing.T) {
+	d := seededCockpit()
+	d.HasReadme = false
+	d.ReadmeNewHref = "/wissen/neu?node=n1"
+	out := renderToBuf(t, context.Background(), CockpitMain(d))
+	if !strings.Contains(out, `href="/wissen/neu?node=n1"`) {
+		t.Fatalf("README empty-state missing create link href:\n%s", out)
+	}
+	if !strings.Contains(out, `hx-boost="false"`) {
+		t.Fatalf("README empty-state create link missing hx-boost=false:\n%s", out)
+	}
+}
 
 // TestCockpitMain_WissenRowHasTypechipAndReadtime pins the Wissen section's
 // row markup — type chip, title, reading time — and that the whole main

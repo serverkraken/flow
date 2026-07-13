@@ -184,6 +184,10 @@ func init() {
 			"cockpit.stats.repoTotal":  "repo total",
 			"cockpit.stats.chainTotal": "chain",
 			// cockpit main content (L2 T6): Enthält · Wissen · Buchungen · Puls
+			// README front page (FR-A Task 8)
+			"cockpit.readme.title":     "README",
+			"cockpit.readme.empty":     "No README — create a document with path readme",
+			"cockpit.readme.emptyLink": "Create README",
 			"cockpit.enthaelt.title":     "Contains",
 			"cockpit.wissen.sectionRepo": "Knowledge on this repo",
 			"cockpit.wissen.section":     "Knowledge on this node",

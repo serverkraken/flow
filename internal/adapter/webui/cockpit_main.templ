@@ -13,7 +13,8 @@ import (
 // part of the CockpitHead spine, Task 4/5 review-fix), an inline error banner
 // when a #cockpit-main mutation (Nachbuchen, session edit/delete) failed
 // (Task 7: every #cockpit-main handler sets d.PanelErr on its error path),
-// then four stacked Haarlinien-Sektionen — Enthält (non-leaf only), Wissen,
+// then the README front page (FR-A Task 8, rendered or empty-state) followed
+// by four stacked Haarlinien-Sektionen — Enthält (non-leaf only), Wissen,
 // Buchungen (bookable only), Puls. Mounted in #cockpit-main by Task 7's
 // fragment GET /nodes/{id}/main.
 //
@@ -28,6 +29,7 @@ templ CockpitMain(d NodeCockpit) {
 	if d.PanelErr != "" {
 		<p class="text-warn text-sm mb-3" role="alert">{ d.PanelErr }</p>
 	}
+	@cockpitReadmeSection(d)
 	if d.N.Kind != domain.KindRepo {
 		@cockpitEnthaeltSection(d)
 	}
@@ -39,6 +41,27 @@ templ CockpitMain(d NodeCockpit) {
 	if d.EditSession != nil {
 		@components.SessionDialog(sessionDialogEditVM(d))
 	}
+}
+
+// cockpitReadmeSection renders the node's own README (FR-A) as the project's
+// front page — full rendered HTML with inline artifacts via the shared
+// components.MarkdownProse (same `.prose` container as the document read
+// view, /wissen/{id}) — or a discreet empty-state with a create link when no
+// readme doc exists yet.
+templ cockpitReadmeSection(d NodeCockpit) {
+	<div class="sect">
+		<div class="sect-h">
+			<span class="eyebrow">{ components.T(ctx, "cockpit.readme.title") }</span>
+		</div>
+		if d.HasReadme {
+			@components.MarkdownProse(d.Readme)
+		} else {
+			<p class="text-sm text-faint">
+				{ components.T(ctx, "cockpit.readme.empty") }
+				<a class="more ml-2" href={ templ.SafeURL(d.ReadmeNewHref) } hx-boost="false">{ components.T(ctx, "cockpit.readme.emptyLink") }</a>
+			</p>
+		}
+	</div>
 }
 
 // cockpitEnthaeltSection lists the node's direct children as Haarlinien-Zeilen
