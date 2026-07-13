@@ -25,7 +25,7 @@ func TestCockpitMain_ReadmeSectionRendersContent(t *testing.T) {
 	if !strings.Contains(out, "<p>Hello README</p>") {
 		t.Fatalf("README section must render d.Readme raw HTML:\n%s", out)
 	}
-	if strings.Contains(out, "cockpit.readme.empty") {
+	if strings.Contains(out, "Kein README") {
 		t.Fatalf("README section must not render the empty-state text when HasReadme:\n%s", out)
 	}
 }

@@ -106,11 +106,7 @@ func (h *handlers) bindProject(ctx context.Context, req *mcp.CallToolRequest, in
 	return textResult(msg), nil, nil
 }
 
-// updateNodeIn addresses a node (via h.artifactNode: slug/name/id, or the
-// current directory's binding when node is omitted) plus the partial
-// metadata/rate fields to change. An empty string means "leave unchanged" —
-// the MCP surface cannot clear a text field to empty (use the WebUI/TUI for
-// that); the rate can be cleared via clearRate.
+// updateNodeIn holds node identification and partial metadata/rate fields to change.
 type updateNodeIn struct {
 	Node        string `json:"node,omitempty" jsonschema:"project slug, name, or id to update; omit to use the current directory's bound project"`
 	Name        string `json:"name,omitempty" jsonschema:"new display name"`
