@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
+	"github.com/serverkraken/flow/internal/artifactfile"
 	"github.com/serverkraken/flow/internal/domain"
 )
 
@@ -33,26 +36,52 @@ const errFreeNodeExclusive = "free and node are mutually exclusive"
 type uploadArtifactIn struct {
 	Node   string `json:"node,omitempty" jsonschema:"project slug, name, or id to attach the artifact to; omit to use the current directory's project"`
 	Free   bool   `json:"free,omitempty" jsonschema:"upload/list/delete in the owner-global free (node-less) library instead of a node"`
-	Name   string `json:"name" jsonschema:"the artifact's file name"`
-	Mime   string `json:"mime" jsonschema:"the artifact's MIME type, e.g. image/png or application/pdf"`
-	Base64 string `json:"base64" jsonschema:"the file contents, base64-encoded"`
+	Path   string `json:"path,omitempty" jsonschema:"absolute or relative filesystem path the local MCP process reads directly (relative resolves against the MCP process's working directory); preferred for files on disk. Mutually exclusive with base64."`
+	Name   string `json:"name,omitempty" jsonschema:"the artifact's file name; optional with path (defaults to the file's basename), required with base64"`
+	Mime   string `json:"mime,omitempty" jsonschema:"the artifact's MIME type, e.g. image/png; optional with path (guessed from the extension), required with base64"`
+	Base64 string `json:"base64,omitempty" jsonschema:"the file contents, base64-encoded; use for small generated content. Mutually exclusive with path."`
 }
 
 func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest, in uploadArtifactIn) (*mcp.CallToolResult, any, error) {
-	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Mime) == "" {
-		return errorResult("name and mime are required"), nil, nil
-	}
 	if in.Free && in.Node != "" {
 		return errorResult(errFreeNodeExclusive), nil, nil
 	}
-	data, decErr := base64.StdEncoding.DecodeString(in.Base64)
-	if decErr != nil {
-		return errorResult("base64: invalid encoding: " + decErr.Error()), nil, nil
+	hasPath := strings.TrimSpace(in.Path) != ""
+	hasB64 := strings.TrimSpace(in.Base64) != ""
+	switch {
+	case hasPath && hasB64:
+		return errorResult("provide either path or base64, not both"), nil, nil
+	case !hasPath && !hasB64:
+		return errorResult("provide either path or base64"), nil, nil
 	}
+
+	var data []byte
+	name, mimeType := in.Name, in.Mime
+	if hasPath {
+		b, readErr := os.ReadFile(in.Path)
+		if readErr != nil {
+			return errorResult(fmt.Sprintf("read %s: %v", in.Path, readErr)), nil, nil
+		}
+		data = b
+		if strings.TrimSpace(name) == "" {
+			name = filepath.Base(in.Path)
+		}
+		mimeType = artifactfile.GuessMime(in.Path, in.Mime)
+	} else {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(mimeType) == "" {
+			return errorResult("name and mime are required"), nil, nil
+		}
+		b, decErr := base64.StdEncoding.DecodeString(in.Base64)
+		if decErr != nil {
+			return errorResult("base64: invalid encoding: " + decErr.Error()), nil, nil
+		}
+		data = b
+	}
+
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		if in.Free {
-			a, err := c.UploadFreeArtifact(ctx, in.Name, in.Mime, data)
+			a, err := c.UploadFreeArtifact(ctx, name, mimeType, data)
 			if err != nil {
 				return err
 			}
@@ -63,7 +92,7 @@ func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest,
 		if err != nil {
 			return err
 		}
-		a, err := c.UploadArtifact(ctx, nodeID, in.Name, in.Mime, data)
+		a, err := c.UploadArtifact(ctx, nodeID, name, mimeType, data)
 		if err != nil {
 			return err
 		}

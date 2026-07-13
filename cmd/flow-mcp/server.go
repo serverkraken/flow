@@ -112,7 +112,7 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.archiveDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_upload_artifact",
-		Description: "Upload an artifact (image or downloadable file) onto a node. Scoped to the current project by default; pass node to target another. Images render inline via ![[slug]] in Kompendium docs; other MIME types are download links.",
+		Description: "Upload an artifact (image or downloadable file) onto a node. Provide the file as `path` (a filesystem path the local MCP process reads directly — preferred for files on disk, no token overhead) or as `base64` (for small generated content); exactly one is required. With `path`, name and mime are optional (basename / guessed from the extension). Scoped to the current project by default; pass node to target another. Images render inline via ![[slug]] in Kompendium docs; other MIME types are download links.",
 	}, h.uploadArtifact)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_list_artifacts",

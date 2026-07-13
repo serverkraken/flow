@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -398,5 +400,87 @@ func TestLoopback_FreeArtifact_OwnerScope404(t *testing.T) {
 	res, out = callText(t, sess, "flow_delete_artifact", map[string]any{"free": true, "slug": "whatever"})
 	if !res.IsError {
 		t.Fatalf("free delete against a 404ing backend = (IsError=%v, %q), want an error", res.IsError, out)
+	}
+}
+
+// TestLoopback_UploadArtifact_Path is the FR core: an agent uploads by path
+// instead of base64. The MCP process reads the file from disk; name defaults to
+// the basename and mime is guessed from the extension.
+func TestLoopback_UploadArtifact_Path_Node(t *testing.T) {
+	sess := authedArtifactServer(t)
+	p := filepath.Join(t.TempDir(), "pic.png")
+	if err := os.WriteFile(p, []byte("hello world"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": p})
+	if res.IsError {
+		t.Fatalf("path upload errored: %s", out)
+	}
+	if !strings.Contains(out, "pic.png") || !strings.Contains(out, "image/png") {
+		t.Fatalf("path upload result = %q, want basename name + guessed mime", out)
+	}
+}
+
+func TestLoopback_UploadArtifact_Path_Free(t *testing.T) {
+	sess := unboundArtifactServer(t)
+	p := filepath.Join(t.TempDir(), "doc.pdf")
+	if err := os.WriteFile(p, []byte("%PDF-1.4 body"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"path": p, "free": true})
+	if res.IsError {
+		t.Fatalf("free path upload errored: %s", out)
+	}
+	if !strings.Contains(out, "freeslug") || !strings.Contains(out, "doc.pdf") || !strings.Contains(out, "application/pdf") {
+		t.Fatalf("free path upload result = %q", out)
+	}
+}
+
+func TestLoopback_UploadArtifact_Path_Overrides(t *testing.T) {
+	sess := authedArtifactServer(t)
+	p := filepath.Join(t.TempDir(), "pic.png")
+	if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{
+		"path": p, "name": "custom.bin", "mime": "application/x-custom",
+	})
+	if res.IsError {
+		t.Fatalf("path upload with overrides errored: %s", out)
+	}
+	if !strings.Contains(out, "custom.bin") || !strings.Contains(out, "application/x-custom") {
+		t.Fatalf("overrides not applied: %q", out)
+	}
+}
+
+func TestLoopback_UploadArtifact_PathAndBase64(t *testing.T) {
+	sess := authedArtifactServer(t)
+	p := filepath.Join(t.TempDir(), "pic.png")
+	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{
+		"path": p, "base64": base64.StdEncoding.EncodeToString([]byte("x")),
+	})
+	if !res.IsError || !strings.Contains(out, "either path or base64") {
+		t.Fatalf("path+base64 = (IsError=%v, %q), want a mutual-exclusion error", res.IsError, out)
+	}
+}
+
+func TestLoopback_UploadArtifact_NeitherPathNorBase64(t *testing.T) {
+	sess := authedArtifactServer(t)
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"name": "x", "mime": "image/png"})
+	if !res.IsError || !strings.Contains(out, "either path or base64") {
+		t.Fatalf("neither path nor base64 = (IsError=%v, %q), want a path-or-base64 error", res.IsError, out)
+	}
+}
+
+func TestLoopback_UploadArtifact_Path_Unreadable(t *testing.T) {
+	sess := authedArtifactServer(t)
+	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{
+		"path": filepath.Join(t.TempDir(), "nope.png"),
+	})
+	if !res.IsError || !strings.Contains(out, "read ") {
+		t.Fatalf("unreadable path = (IsError=%v, %q), want a read error", res.IsError, out)
 	}
 }
