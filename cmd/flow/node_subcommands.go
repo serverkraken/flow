@@ -170,6 +170,9 @@ func runNodeShow(ctx context.Context, c *apiclient.Client, w io.Writer, getenv f
 	}
 	_, _ = fmt.Fprintf(w, "%s %s (%s)\n", node.Kind, node.Name, node.Slug)
 	_, _ = fmt.Fprintf(w, "status: %s\n", node.Status)
+	if node.Description != "" {
+		_, _ = fmt.Fprintf(w, "description: %s\n", node.Description)
+	}
 	if node.UpstreamGit != "" {
 		_, _ = fmt.Fprintf(w, "upstream: %s\n", node.UpstreamGit)
 	}

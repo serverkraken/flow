@@ -23,6 +23,7 @@ import (
 type fakeNodeClient struct {
 	t          *testing.T
 	nodeBySlug map[string]string
+	nodes      map[string]domain.Node
 
 	lastUpdate       *apiclient.UpdateNodeFields
 	rateCalls        int
@@ -32,7 +33,7 @@ type fakeNodeClient struct {
 
 func newFakeNodeClient(t *testing.T) *fakeNodeClient {
 	t.Helper()
-	return &fakeNodeClient{t: t, nodeBySlug: map[string]string{}}
+	return &fakeNodeClient{t: t, nodeBySlug: map[string]string{}, nodes: map[string]domain.Node{}}
 }
 
 func (fc *fakeNodeClient) client() *apiclient.Client {
@@ -47,9 +48,26 @@ func (fc *fakeNodeClient) handle(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes":
 		nodes := make([]domain.Node, 0, len(fc.nodeBySlug))
 		for slug, id := range fc.nodeBySlug {
-			nodes = append(nodes, domain.Node{ID: id, Slug: slug})
+			n := fc.nodes[id]
+			n.ID = id
+			n.Slug = slug
+			nodes = append(nodes, n)
 		}
 		_ = json.NewEncoder(w).Encode(nodes)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/nodes/"):
+		// Handle both /api/v1/nodes/{id} and /api/v1/nodes/{id}/ancestors
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/nodes/"), "/")
+		id := parts[0]
+		if len(parts) > 1 && parts[1] == "ancestors" {
+			// Return empty ancestors for test
+			_ = json.NewEncoder(w).Encode([]domain.Node{})
+		} else {
+			if n, ok := fc.nodes[id]; ok {
+				_ = json.NewEncoder(w).Encode(n)
+			} else {
+				http.NotFound(w, r)
+			}
+		}
 	case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/api/v1/nodes/"):
 		var f apiclient.UpdateNodeFields
 		_ = json.NewDecoder(r.Body).Decode(&f)
@@ -223,5 +241,18 @@ func TestRunNodeMove_CycleSurfaced(t *testing.T) {
 	err := runNodeMove(context.Background(), c, &out, "a", "b")
 	if err == nil || !strings.Contains(err.Error(), "cycle") {
 		t.Fatalf("want cycle error, got %v", err)
+	}
+}
+
+func TestRunNodeShow_PrintsDescription(t *testing.T) {
+	fc := newFakeNodeClient(t)
+	fc.nodeBySlug["r"] = "n1"
+	fc.nodes["n1"] = domain.Node{ID: "n1", Kind: domain.KindRepo, Name: "R", Slug: "r", Description: "eine Beschreibung"}
+	var buf bytes.Buffer
+	if err := runNodeShow(context.Background(), fc.client(), &buf, func(string) string { return "" }, "", "r"); err != nil {
+		t.Fatalf("runNodeShow: %v", err)
+	}
+	if !strings.Contains(buf.String(), "eine Beschreibung") {
+		t.Errorf("output missing description:\n%s", buf.String())
 	}
 }
