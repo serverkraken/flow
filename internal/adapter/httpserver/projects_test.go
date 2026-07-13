@@ -230,6 +230,41 @@ func TestCreateAndUpdateNode_IconRoundTrips(t *testing.T) {
 	}
 }
 
+// TestHandleUpdateNode_PartialBodyKeepsIcon pins the pointer-DTO partial
+// semantics (Task 2): a PATCH body that only sets "description" must leave
+// unrelated fields (icon) untouched, since Task 1's UpdateNodeInput treats an
+// absent JSON key as nil → field skipped.
+func TestHandleUpdateNode_PartialBodyKeepsIcon(t *testing.T) {
+	_, do, _ := newProjectsSrv(t)
+
+	res := do("POST", "/api/v1/nodes", `{"name":"R","kind":"engagement","icon":"rocket"}`)
+	if res.StatusCode != http.StatusCreated {
+		t.Fatalf("create status %d, want 201", res.StatusCode)
+	}
+	var created map[string]any
+	if err := decodeJSON(res.Body, &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	_ = res.Body.Close()
+	id := created["id"].(string)
+
+	res = do("PATCH", "/api/v1/nodes/"+id, `{"description":"neu"}`)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PATCH status %d, want 200", res.StatusCode)
+	}
+	var got map[string]any
+	if err := decodeJSON(res.Body, &got); err != nil {
+		t.Fatalf("decode got: %v", err)
+	}
+	_ = res.Body.Close()
+	if got["icon"] != "rocket" {
+		t.Errorf("icon = %v, want preserved rocket", got["icon"])
+	}
+	if got["description"] != "neu" {
+		t.Errorf("description = %v, want neu", got["description"])
+	}
+}
+
 func TestListProjectsStatusFilter(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 

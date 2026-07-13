@@ -226,8 +226,8 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	// Apply optional description/upstream (auto-syncs the remote binding).
 	if req.Description != "" || req.UpstreamGit != "" {
 		p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
-			Name: p.Name, Slug: p.Slug, Color: p.Color, Glyph: p.Glyph, Icon: p.Icon,
-			Description: req.Description, UpstreamGit: req.UpstreamGit, Status: p.Status,
+			Name: sp(p.Name), Slug: sp(p.Slug), Color: sp(p.Color), Glyph: sp(p.Glyph), Icon: sp(p.Icon),
+			Description: sp(req.Description), UpstreamGit: sp(req.UpstreamGit), Status: nsp(p.Status),
 		})
 		if err != nil {
 			http.Error(w, "server error", http.StatusInternalServerError)
@@ -307,15 +307,15 @@ func (s *Server) handleGetNode(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProjReq struct {
-	Name               string `json:"name"`
-	Slug               string `json:"slug"`
-	Color              string `json:"color"`
-	Glyph              string `json:"glyph"`
-	Icon               string `json:"icon"`
-	Description        string `json:"description"`
-	UpstreamGit        string `json:"upstreamGit"`
-	Status             string `json:"status"`
-	CountsTowardTarget *bool  `json:"countsTowardTarget"`
+	Name               *string `json:"name"`
+	Slug               *string `json:"slug"`
+	Color              *string `json:"color"`
+	Glyph              *string `json:"glyph"`
+	Icon               *string `json:"icon"`
+	Description        *string `json:"description"`
+	UpstreamGit        *string `json:"upstreamGit"`
+	Status             *string `json:"status"`
+	CountsTowardTarget *bool   `json:"countsTowardTarget"`
 }
 
 func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
@@ -325,12 +325,16 @@ func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	p, err := s.UpdateNode.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateNodeInput{
+	in := usecase.UpdateNodeInput{
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph, Icon: req.Icon,
 		Description: req.Description, UpstreamGit: req.UpstreamGit,
-		Status:             domain.NodeStatus(req.Status),
 		CountsTowardTarget: req.CountsTowardTarget,
-	})
+	}
+	if req.Status != nil {
+		st := domain.NodeStatus(*req.Status)
+		in.Status = &st
+	}
+	p, err := s.UpdateNode.Execute(r.Context(), u.ID, r.PathValue("id"), in)
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
