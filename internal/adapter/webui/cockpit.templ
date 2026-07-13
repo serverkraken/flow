@@ -72,4 +72,11 @@ templ cockpitBody(d NodeCockpit) {
 	</div>
 	@components.SessionDialog(sessionDialogAddVM(d))
 	<script src={ AssetURL("js/clipboard.js") } defer></script>
+	// mermaid-init.js renders any <pre class="mermaid"> in the cockpit's rendered
+	// README (FR-A) — mounted once here, outside the SSE-swapped #cockpit-main,
+	// exactly like document.templ does for /wissen/{id}. It is page-agnostic
+	// (scans the whole document on load and on every htmx:afterSwap) and lazy-
+	// loads mermaid.min.js only when a diagram is present, so cockpit pages
+	// without a diagram pay nothing.
+	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 }
