@@ -149,8 +149,18 @@ type ArtifactStore interface {
 	TotalBytes(ctx context.Context, ownerID string) (int64, error)
 }
 
+// SessionWriter is the mutation surface handed to SessionStore.WithinTransaction.
+// Its methods share one transaction, including the polymorphic session tags.
+type SessionWriter interface {
+	Create(ctx context.Context, s domain.WorkSession) (domain.WorkSession, error)
+	Stop(ctx context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error)
+	Update(ctx context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error)
+	Delete(ctx context.Context, ownerID, id string) error
+	SetTags(ctx context.Context, ownerID, sessionID string, tags []string) ([]string, error)
+}
+
 // SessionStore persists work sessions. The DB enforces at most one running
-// session per owner (partial unique index); Running returns it if present.
+// session and no overlapping interval per owner. Running returns the active one.
 type SessionStore interface {
 	Create(ctx context.Context, s domain.WorkSession) (domain.WorkSession, error)
 	Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error)
@@ -181,6 +191,15 @@ type SessionStore interface {
 	// (stop_at NULL) and unbooked (node_id NULL) sessions are excluded. Backs the
 	// stop-picker MRU ranking (usecase.NodeMRU).
 	LastBookedByNode(ctx context.Context, ownerID string) (map[string]time.Time, error)
+}
+
+// TransactionalSessionStore adds the aggregate mutation boundary required by
+// session-writing use cases. Read-only consumers depend only on SessionStore.
+type TransactionalSessionStore interface {
+	SessionStore
+	// WithinTransaction commits fn's session and tag mutations together. Any
+	// returned error rolls the complete aggregate write back.
+	WithinTransaction(ctx context.Context, fn func(SessionWriter) error) error
 }
 
 // DayOffStore persists manual day-offs (vacation/sick). Holidays are computed,

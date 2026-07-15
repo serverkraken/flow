@@ -20,7 +20,7 @@ func TestEditSession(t *testing.T) {
 	if _, err := ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	uc := usecase.EditSession{Sessions: ss, Tags: testutil.NewFakeTagStore()}
+	uc := usecase.EditSession{Sessions: ss}
 
 	newStop := start.Add(3 * time.Hour)
 	deepTags := []string{"deep"}
@@ -155,6 +155,34 @@ func TestEditSession_NoSelfOverlap(t *testing.T) {
 	}
 }
 
+func TestEditSession_RejectsFutureAndCrossBusinessDay(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ss := testutil.NewFakeSessionStore()
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 7, 15, 20, 0, 0, 0, time.UTC)
+	start := now.Add(-2 * time.Hour)
+	stop := now.Add(-time.Hour)
+	_, _ = ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop})
+	uc := usecase.EditSession{Sessions: ss, Clock: testutil.FakeClock{T: now}, Loc: loc}
+
+	futureStart := now.Add(time.Minute)
+	futureStop := futureStart.Add(time.Hour)
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Start: futureStart, Stop: &futureStop}); !errors.Is(err, domain.ErrFutureSession) {
+		t.Fatalf("future edit: want ErrFutureSession, got %v", err)
+	}
+
+	uc.Clock = testutil.FakeClock{T: time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)}
+	crossStart := time.Date(2026, 7, 15, 21, 30, 0, 0, time.UTC)
+	crossStop := time.Date(2026, 7, 15, 22, 30, 0, 0, time.UTC)
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{Start: crossStart, Stop: &crossStop}); !errors.Is(err, domain.ErrInvalidSession) {
+		t.Fatalf("cross-day edit: want ErrInvalidSession, got %v", err)
+	}
+}
+
 // TestEditSession_NilTagsPreserve is a regression test for the tri-state Tags
 // field: nil must leave a session's taggings untouched so that the TUI
 // adjust-start path (which passes Tags: nil) does not wipe existing tags.
@@ -162,13 +190,12 @@ func TestEditSession_NilTagsPreserve(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()
-	ts := testutil.NewFakeTagStore()
 	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
 	stop := start.Add(2 * time.Hour)
 	if _, err := ss.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
-	uc := usecase.EditSession{Sessions: ss, Tags: ts}
+	uc := usecase.EditSession{Sessions: ss}
 	newStop := start.Add(3 * time.Hour)
 
 	// Seed tags onto s1 via a first edit.
@@ -186,12 +213,12 @@ func TestEditSession_NilTagsPreserve(t *testing.T) {
 	if err != nil {
 		t.Fatalf("nil-tags edit: %v", err)
 	}
-	stored, err := ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, "s1")
+	stored, err := ss.Get(ctx, "u1", "s1")
 	if err != nil {
-		t.Fatalf("TagsFor: %v", err)
+		t.Fatalf("Get: %v", err)
 	}
-	if len(stored) != 1 || stored[0].Slug != "deep" {
-		t.Fatalf("nil Tags wiped taggings: stored=%v result=%v", stored, got.Tags)
+	if len(stored.Tags) != 1 || stored.Tags[0] != "deep" {
+		t.Fatalf("nil Tags wiped taggings: stored=%v result=%v", stored.Tags, got.Tags)
 	}
 
 	// Explicit &[]string{} must clear the tags.
@@ -201,11 +228,11 @@ func TestEditSession_NilTagsPreserve(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("clear edit: %v", err)
 	}
-	stored, err = ts.TagsFor(ctx, "u1", domain.TaggableWorkSession, "s1")
+	stored, err = ss.Get(ctx, "u1", "s1")
 	if err != nil {
-		t.Fatalf("TagsFor after clear: %v", err)
+		t.Fatalf("Get after clear: %v", err)
 	}
-	if len(stored) != 0 {
-		t.Fatalf("explicit empty Tags did not wipe: stored=%v", stored)
+	if len(stored.Tags) != 0 {
+		t.Fatalf("explicit empty Tags did not wipe: stored=%v", stored.Tags)
 	}
 }

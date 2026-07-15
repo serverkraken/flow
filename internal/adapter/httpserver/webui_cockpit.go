@@ -527,34 +527,26 @@ func (s *Server) handleWebNodeStop(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWebNodeSwitch(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	id := r.PathValue("id")
-	if rs, ok, gerr := s.GetRunningSession.Execute(r.Context(), u.ID); gerr == nil && ok {
-		// Book the stopped session to its own node when bound; else to {id}.
-		stopNode := id
-		if rs.NodeID != nil {
-			stopNode = *rs.NodeID
-		}
-		stoppedSess, err := s.StopSession.Execute(r.Context(), u.ID, rs.ID, &stopNode)
-		if err != nil {
-			http.Error(w, "could not switch", http.StatusBadRequest)
+	nid := id
+	stoppedSess, hadStopped, sess, err := s.SwitchSession.Execute(r.Context(), u.ID, &nid)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidNode) {
+			http.Error(w, "node not bookable", http.StatusBadRequest)
 			return
 		}
+		http.Error(w, "could not switch", http.StatusBadRequest)
+		return
+	}
+	if hadStopped {
 		s.Emitter.Emit(r.Context(), domain.Event{
 			Type: domain.EventSessionStopped, UserID: u.ID,
 			Data: s.sessionEventData(r.Context(), u.ID, stoppedSess.ID, stoppedSess.NodeID),
 		})
 	}
-	nid := id
-	if sess, err := s.StartSession.Execute(r.Context(), u.ID, &nid, nil, ""); err != nil {
-		if errors.Is(err, domain.ErrInvalidNode) {
-			http.Error(w, "node not bookable", http.StatusBadRequest)
-			return
-		}
-	} else {
-		s.Emitter.Emit(r.Context(), domain.Event{
-			Type: domain.EventSessionStarted, UserID: u.ID,
-			Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
-		})
-	}
+	s.Emitter.Emit(r.Context(), domain.Event{
+		Type: domain.EventSessionStarted, UserID: u.ID,
+		Data: s.sessionEventData(r.Context(), u.ID, sess.ID, sess.NodeID),
+	})
 	s.renderCockpitMain(w, r, u, id, "")
 }
 

@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -16,13 +15,12 @@ import (
 // one or more local midnights is split into one session per calendar day, all
 // booked to the same engagement, so each day's totals stay accurate.
 type StopSession struct {
-	Sessions ports.SessionStore
+	Sessions ports.TransactionalSessionStore
 	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Loc      *time.Location
-	// Tags copies the original session's tags onto each split chunk via the
-	// taggings junction after Create. Nil-safe: when unwired tags are silently dropped.
+	// Deprecated: split tags are written through Sessions.WithinTransaction.
 	Tags ports.TagStore
 }
 
@@ -49,35 +47,63 @@ func (uc StopSession) Execute(ctx context.Context, ownerID, sessionID string, no
 		return domain.WorkSession{}, err
 	}
 	now := uc.Clock.Now()
-	ranges := domain.SplitDaily(cur.Start, now, uc.loc())
-	// Defensive: without an IDGen we cannot mint chunk ids, so stop the whole
-	// span unsplit rather than panic (production always wires IDs; this guards
-	// any future composition root / harness that does not).
-	if uc.IDs == nil || len(ranges) == 1 {
-		return uc.Sessions.Stop(ctx, ownerID, sessionID, nodeID, now)
-	}
-	// Stop the original session at the first day boundary, booking the project.
-	first, err := uc.Sessions.Stop(ctx, ownerID, sessionID, nodeID, ranges[0].Stop)
+	plan, err := buildStopPlan(cur, nodeID, now, uc.loc(), uc.IDs)
 	if err != nil {
 		return domain.WorkSession{}, err
 	}
-	// One extra booked session per subsequent calendar day, same project/tag/note,
-	// so a timer left running across midnight is attributed per day.
+	var first domain.WorkSession
+	err = uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+		first, err = persistStopPlan(ctx, tx, plan)
+		return err
+	})
+	if err != nil {
+		return domain.WorkSession{}, err
+	}
+	return first, nil
+}
+
+type stopPlan struct {
+	ownerID  string
+	session  domain.WorkSession
+	nodeID   *string
+	firstEnd time.Time
+	chunks   []domain.WorkSession
+}
+
+func buildStopPlan(cur domain.WorkSession, nodeID *string, now time.Time, loc *time.Location, ids ports.IDGen) (stopPlan, error) {
+	ranges := domain.SplitDaily(cur.Start, now, loc)
+	plan := stopPlan{ownerID: cur.OwnerID, session: cur, nodeID: nodeID, firstEnd: now}
+	if ids == nil || len(ranges) <= 1 {
+		return plan, nil
+	}
+	plan.firstEnd = ranges[0].Stop
 	for _, r := range ranges[1:] {
-		chunk, nerr := domain.NewWorkSession(uc.IDs.NewID(), ownerID, nodeID, r.Start)
-		if nerr != nil {
-			return first, nerr
+		chunk, err := domain.NewWorkSession(ids.NewID(), cur.OwnerID, nodeID, r.Start)
+		if err != nil {
+			return stopPlan{}, err
 		}
 		stop := r.Stop
 		chunk.Stop = &stop
-		chunk.Tags, chunk.Note = cur.Tags, cur.Note
-		if _, cerr := uc.Sessions.Create(ctx, chunk); cerr != nil {
-			return first, cerr
+		chunk.Tags = append([]string(nil), cur.Tags...)
+		chunk.Note = cur.Note
+		plan.chunks = append(plan.chunks, chunk)
+	}
+	return plan, nil
+}
+
+func persistStopPlan(ctx context.Context, tx ports.SessionWriter, plan stopPlan) (domain.WorkSession, error) {
+	first, err := tx.Stop(ctx, plan.ownerID, plan.session.ID, plan.nodeID, plan.firstEnd)
+	if err != nil {
+		return domain.WorkSession{}, err
+	}
+	first.Tags = append([]string(nil), plan.session.Tags...)
+	for _, chunk := range plan.chunks {
+		created, err := tx.Create(ctx, chunk)
+		if err != nil {
+			return domain.WorkSession{}, err
 		}
-		if uc.Tags != nil {
-			if _, serr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, chunk.ID, cur.Tags); serr != nil {
-				slog.WarnContext(ctx, "stop_session: failed to copy tags onto split chunk", "chunk", chunk.ID, "err", serr)
-			}
+		if _, err := tx.SetTags(ctx, plan.ownerID, created.ID, chunk.Tags); err != nil {
+			return domain.WorkSession{}, err
 		}
 	}
 	return first, nil

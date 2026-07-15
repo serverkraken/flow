@@ -29,6 +29,7 @@ type Server struct {
 	// worktime usecases
 	StartSession      usecase.StartSession
 	StopSession       usecase.StopSession
+	SwitchSession     usecase.SwitchSession
 	ListSessions      usecase.ListSessions
 	CreateNode        usecase.CreateNode
 	ListNodes         usecase.ListNodes

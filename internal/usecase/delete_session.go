@@ -2,26 +2,21 @@ package usecase
 
 import (
 	"context"
-	"log/slog"
 
-	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
 // DeleteSession removes a session. Owner-scoped via the store.
 type DeleteSession struct {
-	Sessions ports.SessionStore
-	Tags     ports.TagStore // optional; if non-nil, taggings are cleared on delete
+	Sessions ports.TransactionalSessionStore
+	Tags     ports.TagStore // Deprecated: tags are cleared inside the session transaction.
 }
 
 func (uc DeleteSession) Execute(ctx context.Context, ownerID, id string) error {
-	if err := uc.Sessions.Delete(ctx, ownerID, id); err != nil {
-		return err
-	}
-	if uc.Tags != nil {
-		if err := uc.Tags.ClearTaggable(ctx, ownerID, domain.TaggableWorkSession, id); err != nil {
-			slog.WarnContext(ctx, "delete_session: clear taggings failed", "id", id, "err", err)
+	return uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+		if _, err := tx.SetTags(ctx, ownerID, id, nil); err != nil {
+			return err
 		}
-	}
-	return nil
+		return tx.Delete(ctx, ownerID, id)
+	})
 }

@@ -314,15 +314,7 @@ func NewFakeSessionStore() *FakeSessionStore {
 func (s *FakeSessionStore) Create(_ context.Context, ws domain.WorkSession) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if ws.Stop == nil {
-		for _, e := range s.m {
-			if e.OwnerID == ws.OwnerID && e.Stop == nil {
-				return domain.WorkSession{}, errors.New("fake: running session exists")
-			}
-		}
-	}
-	s.m[ws.ID] = ws
-	return ws, nil
+	return fakeSessionCreate(s.m, ws)
 }
 
 func (s *FakeSessionStore) Running(_ context.Context, ownerID string) (domain.WorkSession, bool, error) {
@@ -349,14 +341,7 @@ func (s *FakeSessionStore) Get(_ context.Context, ownerID, id string) (domain.Wo
 func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e, ok := s.m[id]
-	if !ok || e.OwnerID != ownerID || e.Stop != nil {
-		return domain.WorkSession{}, ports.ErrSessionNotFound
-	}
-	e.Stop = &stop
-	e.NodeID = nodeID
-	s.m[id] = e
-	return e, nil
+	return fakeSessionStop(s.m, ownerID, id, nodeID, stop)
 }
 
 // Update mirrors pgstore: it overwrites project/note/start/stop but NOT Tags
@@ -365,32 +350,122 @@ func (s *FakeSessionStore) Stop(_ context.Context, ownerID, id string, nodeID *s
 func (s *FakeSessionStore) Update(_ context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e, ok := s.m[id]
-	if !ok || e.OwnerID != ownerID {
-		return domain.WorkSession{}, ports.ErrSessionNotFound
-	}
-	e.NodeID = nodeID
-	e.Note = note
-	e.Start = start
-	if stop != nil {
-		t := *stop
-		e.Stop = &t
-	} else {
-		e.Stop = nil
-	}
-	s.m[id] = e
-	return e, nil
+	return fakeSessionUpdate(s.m, ownerID, id, nodeID, note, start, stop)
 }
 
 func (s *FakeSessionStore) Delete(_ context.Context, ownerID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e, ok := s.m[id]
+	return fakeSessionDelete(s.m, ownerID, id)
+}
+
+// WithinTransaction mirrors pgstore's rollback semantics over a cloned map.
+// The writer assumes the outer lock is held for the complete callback.
+func (s *FakeSessionStore) WithinTransaction(ctx context.Context, fn func(ports.SessionWriter) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snapshot := cloneSessions(s.m)
+	if err := fn(fakeSessionWriter{m: s.m}); err != nil {
+		s.m = snapshot
+		return err
+	}
+	return nil
+}
+
+type fakeSessionWriter struct{ m map[string]domain.WorkSession }
+
+func (w fakeSessionWriter) Create(_ context.Context, ws domain.WorkSession) (domain.WorkSession, error) {
+	return fakeSessionCreate(w.m, ws)
+}
+
+func (w fakeSessionWriter) Stop(_ context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
+	return fakeSessionStop(w.m, ownerID, id, nodeID, stop)
+}
+
+func (w fakeSessionWriter) Update(_ context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	return fakeSessionUpdate(w.m, ownerID, id, nodeID, note, start, stop)
+}
+
+func (w fakeSessionWriter) Delete(_ context.Context, ownerID, id string) error {
+	return fakeSessionDelete(w.m, ownerID, id)
+}
+
+func (w fakeSessionWriter) SetTags(_ context.Context, ownerID, sessionID string, tags []string) ([]string, error) {
+	e, ok := w.m[sessionID]
+	if !ok || e.OwnerID != ownerID {
+		return nil, ports.ErrSessionNotFound
+	}
+	e.Tags = domain.NormalizeTags(tags)
+	w.m[sessionID] = e
+	return append([]string(nil), e.Tags...), nil
+}
+
+func fakeSessionCreate(m map[string]domain.WorkSession, ws domain.WorkSession) (domain.WorkSession, error) {
+	if _, exists := m[ws.ID]; exists {
+		return domain.WorkSession{}, errors.New("fake: duplicate session id")
+	}
+	if ws.Stop == nil {
+		for _, e := range m {
+			if e.OwnerID == ws.OwnerID && e.Stop == nil {
+				return domain.WorkSession{}, domain.ErrAlreadyRunning
+			}
+		}
+	}
+	ws.Tags = append([]string(nil), ws.Tags...)
+	m[ws.ID] = ws
+	return ws, nil
+}
+
+func fakeSessionStop(m map[string]domain.WorkSession, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
+	e, ok := m[id]
+	if !ok || e.OwnerID != ownerID || e.Stop != nil {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	e.Stop = &stop
+	e.NodeID = nodeID
+	m[id] = e
+	return e, nil
+}
+
+func fakeSessionUpdate(m map[string]domain.WorkSession, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	e, ok := m[id]
+	if !ok || e.OwnerID != ownerID {
+		return domain.WorkSession{}, ports.ErrSessionNotFound
+	}
+	e.NodeID, e.Note, e.Start = nodeID, note, start
+	e.Stop = nil
+	if stop != nil {
+		t := *stop
+		e.Stop = &t
+	}
+	m[id] = e
+	return e, nil
+}
+
+func fakeSessionDelete(m map[string]domain.WorkSession, ownerID, id string) error {
+	e, ok := m[id]
 	if !ok || e.OwnerID != ownerID {
 		return ports.ErrSessionNotFound
 	}
-	delete(s.m, id)
+	delete(m, id)
 	return nil
+}
+
+func cloneSessions(in map[string]domain.WorkSession) map[string]domain.WorkSession {
+	out := make(map[string]domain.WorkSession, len(in))
+	for id, ws := range in {
+		if ws.NodeID != nil {
+			n := *ws.NodeID
+			ws.NodeID = &n
+		}
+		if ws.Stop != nil {
+			t := *ws.Stop
+			ws.Stop = &t
+		}
+		ws.Tags = append([]string(nil), ws.Tags...)
+		out[id] = ws
+	}
+	return out
 }
 
 func (s *FakeSessionStore) List(_ context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error) {

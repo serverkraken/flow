@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -21,26 +22,46 @@ type EditSessionInput struct {
 // EditSession overwrites a session's project/tags/note/times. Owner-scoped via
 // the store. A set Stop must be strictly after Start.
 type EditSession struct {
-	Sessions ports.SessionStore
+	Sessions ports.TransactionalSessionStore
 	Nodes    ports.NodeStore
-	// Tags re-sets the session's tags in the taggings junction after the row is
-	// updated. Nil-safe: when unwired, tags are left untouched.
+	Clock    ports.Clock
+	Loc      *time.Location
+	// Deprecated: session tags are written through Sessions.WithinTransaction.
 	Tags ports.TagStore
+}
+
+func (uc EditSession) loc() *time.Location {
+	if uc.Loc != nil {
+		return uc.Loc
+	}
+	return time.Local
 }
 
 func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSessionInput) (domain.WorkSession, error) {
 	if in.Stop != nil && !in.Stop.After(in.Start) {
 		return domain.WorkSession{}, domain.ErrStopBeforeStart
 	}
-	// Existence check before overlap: a non-existent or foreign-owned session
-	// must return ErrSessionNotFound (→ 404), not ErrOverlap (→ 409).
-	if _, err := uc.Sessions.Get(ctx, ownerID, id); err != nil {
+	// Existence check before overlap/validation: a non-existent or foreign-owned
+	// session must return ErrSessionNotFound, not disclose conflicting data.
+	current, err := uc.Sessions.Get(ctx, ownerID, id)
+	if err != nil {
 		return domain.WorkSession{}, err
+	}
+	now := time.Now()
+	if uc.Clock != nil {
+		now = uc.Clock.Now()
+	}
+	if in.Start.After(now) || (in.Stop != nil && in.Stop.After(now)) {
+		return domain.WorkSession{}, domain.ErrFutureSession
+	}
+	if in.Stop != nil && !sameDayIn(in.Start, *in.Stop, uc.loc()) {
+		return domain.WorkSession{}, fmt.Errorf("%w: start and stop must be on the same day", domain.ErrInvalidSession)
 	}
 	if err := requireBookable(ctx, uc.Nodes, ownerID, in.NodeID); err != nil {
 		return domain.WorkSession{}, err
 	}
-	dayStart := time.Date(in.Start.Year(), in.Start.Month(), in.Start.Day(), 0, 0, 0, 0, in.Start.Location())
+	localStart := in.Start.In(uc.loc())
+	dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, uc.loc())
 	existing, err := uc.Sessions.ListRange(ctx, ownerID, dayStart.Add(-24*time.Hour), dayStart.Add(48*time.Hour))
 	if err != nil {
 		return domain.WorkSession{}, err
@@ -57,16 +78,21 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	if domain.HasOverlap(existing, in.Start, in.Stop, id) {
 		return domain.WorkSession{}, domain.ErrOverlap
 	}
-	updated, err := uc.Sessions.Update(ctx, ownerID, id, in.NodeID, in.Note, in.Start, in.Stop)
+	var updated domain.WorkSession
+	err = uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+		updated, err = tx.Update(ctx, ownerID, id, in.NodeID, in.Note, in.Start, in.Stop)
+		if err != nil {
+			return err
+		}
+		if in.Tags != nil {
+			updated.Tags, err = tx.SetTags(ctx, ownerID, id, *in.Tags)
+		} else {
+			updated.Tags = current.Tags
+		}
+		return err
+	})
 	if err != nil {
 		return domain.WorkSession{}, err
-	}
-	if uc.Tags != nil && in.Tags != nil {
-		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, id, *in.Tags)
-		if terr != nil {
-			return updated, terr
-		}
-		updated.Tags = slugsOf(t)
 	}
 	return updated, nil
 }

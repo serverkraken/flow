@@ -15,13 +15,20 @@ import (
 // When nodeID is set it must name an engagement (worktime books to engagements,
 // D3).
 type AddSession struct {
-	Sessions ports.SessionStore
+	Sessions ports.TransactionalSessionStore
 	Nodes    ports.NodeStore
 	IDs      ports.IDGen
 	Clock    ports.Clock
-	// Tags persists the session's tags into the taggings junction after the
-	// session row is created. Nil-safe: when unwired, tags are dropped.
+	Loc      *time.Location
+	// Deprecated: session tags are written through Sessions.WithinTransaction.
 	Tags ports.TagStore
+}
+
+func (uc AddSession) loc() *time.Location {
+	if uc.Loc != nil {
+		return uc.Loc
+	}
+	return time.Local
 }
 
 func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string, start, stop time.Time, tags []string, note string) (domain.WorkSession, error) {
@@ -35,12 +42,13 @@ func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string
 	if start.After(now) || stop.After(now) {
 		return domain.WorkSession{}, domain.ErrFutureSession
 	}
-	if !sameLocalDay(start, stop) {
+	if !sameDayIn(start, stop, uc.loc()) {
 		return domain.WorkSession{}, fmt.Errorf("%w: start and stop must be on the same day", domain.ErrInvalidSession)
 	}
 	// Overlap check: pull the sessions around the candidate's day (±1 day to also
 	// catch a cross-midnight neighbour) and apply the single-source rule.
-	dayStart := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+	localStart := start.In(uc.loc())
+	dayStart := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, uc.loc())
 	existing, err := uc.Sessions.ListRange(ctx, ownerID, dayStart.Add(-24*time.Hour), dayStart.Add(48*time.Hour))
 	if err != nil {
 		return domain.WorkSession{}, err
@@ -62,24 +70,23 @@ func (uc AddSession) Execute(ctx context.Context, ownerID string, nodeID *string
 	}
 	s.Stop = &stop
 	s.Note = note
-	created, err := uc.Sessions.Create(ctx, s)
+	var created domain.WorkSession
+	err = uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+		created, err = tx.Create(ctx, s)
+		if err != nil {
+			return err
+		}
+		created.Tags, err = tx.SetTags(ctx, ownerID, created.ID, tags)
+		return err
+	})
 	if err != nil {
 		return domain.WorkSession{}, err
-	}
-	if uc.Tags != nil {
-		t, terr := uc.Tags.SetTags(ctx, ownerID, domain.TaggableWorkSession, created.ID, tags)
-		if terr != nil {
-			return created, terr
-		}
-		created.Tags = slugsOf(t)
 	}
 	return created, nil
 }
 
-// sameLocalDay reports whether a and b fall on the same calendar day in their
-// own locations.
-func sameLocalDay(a, b time.Time) bool {
-	ay, am, ad := a.Date()
-	by, bm, bd := b.Date()
+func sameDayIn(a, b time.Time, loc *time.Location) bool {
+	ay, am, ad := a.In(loc).Date()
+	by, bm, bd := b.In(loc).Date()
 	return ay == by && am == bm && ad == bd
 }

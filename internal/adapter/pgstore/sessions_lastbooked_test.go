@@ -54,7 +54,7 @@ func TestSessionStore_LastBookedByNode(t *testing.T) {
 	mk("b", "u1", &n1, base.AddDate(0, 0, 5), true)  // n1 newest → this start wins
 	mk("c", "u1", &n2, base.AddDate(0, 0, 2), true)  // n2
 	mk("d", "u1", &n1, base.AddDate(0, 0, 9), false) // running → ignored
-	mk("e", "u1", nil, base.AddDate(0, 0, 9), true)  // unbooked → ignored
+	mk("e", "u1", nil, base.AddDate(0, 0, 8), true)  // unbooked → ignored
 	mk("f", "u2", &n1, base.AddDate(0, 0, 9), true)  // other owner → ignored for u1
 
 	got, err := store.LastBookedByNode(ctx, "u1")

@@ -57,6 +57,7 @@ func newCockpitTestServer(t *testing.T) *cockpitTestServer {
 		Session:           codec,
 		StartSession:      usecase.StartSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
 		StopSession:       usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
+		SwitchSession:     usecase.SwitchSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk, Loc: time.Local},
 		AddSession:        usecase.AddSession{Sessions: ss, Nodes: ps, IDs: ids, Clock: clk},
 		EditSession:       usecase.EditSession{Sessions: ss, Nodes: ps, Tags: tags},
 		DeleteSession:     usecase.DeleteSession{Sessions: ss, Tags: tags},

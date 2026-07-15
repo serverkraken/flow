@@ -7,12 +7,20 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
 type SessionStore struct{ pool *pgxpool.Pool }
+
+type sessionQuerier interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+type sessionWriter struct{ tx pgx.Tx }
 
 func NewSessionStore(pool *pgxpool.Pool) *SessionStore { return &SessionStore{pool: pool} }
 
@@ -22,12 +30,17 @@ func NewSessionStore(pool *pgxpool.Pool) *SessionStore { return &SessionStore{po
 const sessCols = `id, owner_id, node_id, note, start_at, stop_at, created_at`
 
 func (s *SessionStore) Create(ctx context.Context, ws domain.WorkSession) (domain.WorkSession, error) {
+	return createSession(ctx, s.pool, ws)
+}
+
+func createSession(ctx context.Context, db sessionQuerier, ws domain.WorkSession) (domain.WorkSession, error) {
 	const q = `
 INSERT INTO work_sessions (id, owner_id, node_id, note, start_at, stop_at, created_at)
 VALUES ($1,$2,$3,$4,$5,$6,$7)
 RETURNING ` + sessCols
-	return scanSession(s.pool.QueryRow(ctx, q,
+	created, err := scanSession(db.QueryRow(ctx, q,
 		ws.ID, ws.OwnerID, ws.NodeID, ws.Note, ws.Start, ws.Stop, ws.CreatedAt))
+	return created, mapSessionWriteError(err, ws.Stop == nil)
 }
 
 func (s *SessionStore) Running(ctx context.Context, ownerID string) (domain.WorkSession, bool, error) {
@@ -65,32 +78,44 @@ FROM work_sessions WHERE owner_id=$1 AND id=$2`
 }
 
 func (s *SessionStore) Stop(ctx context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
+	return stopSession(ctx, s.pool, ownerID, id, nodeID, stop)
+}
+
+func stopSession(ctx context.Context, db sessionQuerier, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
 	const q = `
 UPDATE work_sessions SET stop_at=$1, node_id=$2
 WHERE owner_id=$3 AND id=$4 AND stop_at IS NULL
 RETURNING ` + sessCols
-	ws, err := scanSession(s.pool.QueryRow(ctx, q, stop, nodeID, ownerID, id))
+	ws, err := scanSession(db.QueryRow(ctx, q, stop, nodeID, ownerID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.WorkSession{}, ports.ErrSessionNotFound
 	}
-	return ws, err
+	return ws, mapSessionWriteError(err, false)
 }
 
 func (s *SessionStore) Update(ctx context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	return updateSession(ctx, s.pool, ownerID, id, nodeID, note, start, stop)
+}
+
+func updateSession(ctx context.Context, db sessionQuerier, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
 	const q = `
 UPDATE work_sessions SET node_id=$1, note=$2, start_at=$3, stop_at=$4
 WHERE owner_id=$5 AND id=$6
 RETURNING ` + sessCols
-	ws, err := scanSession(s.pool.QueryRow(ctx, q, nodeID, note, start, stop, ownerID, id))
+	ws, err := scanSession(db.QueryRow(ctx, q, nodeID, note, start, stop, ownerID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.WorkSession{}, ports.ErrSessionNotFound
 	}
-	return ws, err
+	return ws, mapSessionWriteError(err, stop == nil)
 }
 
 func (s *SessionStore) Delete(ctx context.Context, ownerID, id string) error {
+	return deleteSession(ctx, s.pool, ownerID, id)
+}
+
+func deleteSession(ctx context.Context, db sessionQuerier, ownerID, id string) error {
 	const q = `DELETE FROM work_sessions WHERE owner_id=$1 AND id=$2`
-	ct, err := s.pool.Exec(ctx, q, ownerID, id)
+	ct, err := db.Exec(ctx, q, ownerID, id)
 	if err != nil {
 		return fmt.Errorf("pgstore: delete session: %w", err)
 	}
@@ -98,6 +123,98 @@ func (s *SessionStore) Delete(ctx context.Context, ownerID, id string) error {
 		return ports.ErrSessionNotFound
 	}
 	return nil
+}
+
+func (s *SessionStore) WithinTransaction(ctx context.Context, fn func(ports.SessionWriter) error) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: begin session transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := fn(sessionWriter{tx: tx}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pgstore: commit session transaction: %w", err)
+	}
+	return nil
+}
+
+func (w sessionWriter) Create(ctx context.Context, ws domain.WorkSession) (domain.WorkSession, error) {
+	return createSession(ctx, w.tx, ws)
+}
+
+func (w sessionWriter) Stop(ctx context.Context, ownerID, id string, nodeID *string, stop time.Time) (domain.WorkSession, error) {
+	return stopSession(ctx, w.tx, ownerID, id, nodeID, stop)
+}
+
+func (w sessionWriter) Update(ctx context.Context, ownerID, id string, nodeID *string, note string, start time.Time, stop *time.Time) (domain.WorkSession, error) {
+	return updateSession(ctx, w.tx, ownerID, id, nodeID, note, start, stop)
+}
+
+func (w sessionWriter) Delete(ctx context.Context, ownerID, id string) error {
+	return deleteSession(ctx, w.tx, ownerID, id)
+}
+
+func (w sessionWriter) SetTags(ctx context.Context, ownerID, sessionID string, raw []string) ([]string, error) {
+	var exists bool
+	if err := w.tx.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM work_sessions WHERE owner_id=$1 AND id=$2)`,
+		ownerID, sessionID,
+	).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("pgstore: verify session tags owner: %w", err)
+	}
+	if !exists {
+		return nil, ports.ErrSessionNotFound
+	}
+	if _, err := w.tx.Exec(ctx,
+		`DELETE FROM taggings WHERE taggable_type='work_session' AND taggable_id=$1
+		AND tag_id IN (SELECT id FROM tags WHERE owner_id=$2)`,
+		sessionID, ownerID,
+	); err != nil {
+		return nil, fmt.Errorf("pgstore: clear session taggings: %w", err)
+	}
+
+	seen := make(map[string]bool, len(raw))
+	slugs := make([]string, 0, len(raw))
+	for _, display := range raw {
+		slug, ok := domain.NormalizeTag(display)
+		if !ok || seen[slug] {
+			continue
+		}
+		seen[slug] = true
+		var tagID string
+		if err := w.tx.QueryRow(ctx, `INSERT INTO tags (id, owner_id, slug, display)
+VALUES ('tag-' || md5($1 || ':' || $2), $1, $2, $3)
+ON CONFLICT (owner_id, slug) DO UPDATE SET slug=EXCLUDED.slug
+RETURNING id`, ownerID, slug, display).Scan(&tagID); err != nil {
+			return nil, fmt.Errorf("pgstore: upsert session tag: %w", err)
+		}
+		if _, err := w.tx.Exec(ctx, `INSERT INTO taggings (tag_id, taggable_type, taggable_id)
+VALUES ($1, 'work_session', $2) ON CONFLICT DO NOTHING`, tagID, sessionID); err != nil {
+			return nil, fmt.Errorf("pgstore: insert session tagging: %w", err)
+		}
+		slugs = append(slugs, slug)
+	}
+	return slugs, nil
+}
+
+func mapSessionWriteError(err error, running bool) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch {
+		case pgErr.Code == "23505" && pgErr.ConstraintName == "one_running_session_per_user":
+			return domain.ErrAlreadyRunning
+		case pgErr.Code == "23P01" && running:
+			return domain.ErrAlreadyRunning
+		case pgErr.Code == "23P01":
+			return domain.ErrOverlap
+		}
+	}
+	return err
 }
 
 func (s *SessionStore) List(ctx context.Context, ownerID string, since time.Time) ([]domain.WorkSession, error) {

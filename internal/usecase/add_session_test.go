@@ -12,7 +12,7 @@ import (
 )
 
 func newAddSession(ss *testutil.FakeSessionStore, ns *testutil.FakeNodeStore, now time.Time) usecase.AddSession {
-	return usecase.AddSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}, Tags: testutil.NewFakeTagStore()}
+	return usecase.AddSession{Sessions: ss, Nodes: ns, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: now}, Loc: time.UTC}
 }
 
 func TestAddSession_HappyPath(t *testing.T) {
@@ -87,6 +87,22 @@ func TestAddSession_CrossMidnight(t *testing.T) {
 	stop := time.Date(2026, 6, 16, 1, 0, 0, 0, time.UTC)
 	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrInvalidSession) {
 		t.Fatalf("want ErrInvalidSession (cross-midnight), got %v", err)
+	}
+}
+
+func TestAddSession_UsesBusinessTimezoneForSameDayRule(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 7, 15, 21, 30, 0, 0, time.UTC) // 23:30 in Berlin
+	stop := time.Date(2026, 7, 15, 22, 30, 0, 0, time.UTC)  // 00:30 next day in Berlin
+	uc := newAddSession(testutil.NewFakeSessionStore(), testutil.NewFakeNodeStore(), stop.Add(time.Hour))
+	uc.Loc = loc
+	if _, err := uc.Execute(ctx, "u1", nil, start, stop, nil, ""); !errors.Is(err, domain.ErrInvalidSession) {
+		t.Fatalf("want business-day ErrInvalidSession, got %v", err)
 	}
 }
 

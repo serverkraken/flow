@@ -3,17 +3,15 @@ package usecase
 import (
 	"context"
 	"errors"
-	"log/slog"
 
-	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 )
 
 // BulkDeleteSessions deletes many sessions at once (import cleanup). Owner-scoped;
 // missing/foreign ids are skipped. Returns the count actually deleted.
 type BulkDeleteSessions struct {
-	Sessions ports.SessionStore
-	Tags     ports.TagStore // optional; if non-nil, taggings are cleared on delete
+	Sessions ports.TransactionalSessionStore
+	Tags     ports.TagStore // Deprecated: tags are cleared inside each session transaction.
 }
 
 func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []string) (int, error) {
@@ -22,7 +20,12 @@ func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []
 	}
 	deleted := 0
 	for _, id := range ids {
-		err := uc.Sessions.Delete(ctx, ownerID, id)
+		err := uc.Sessions.WithinTransaction(ctx, func(tx ports.SessionWriter) error {
+			if _, err := tx.SetTags(ctx, ownerID, id, nil); err != nil {
+				return err
+			}
+			return tx.Delete(ctx, ownerID, id)
+		})
 		if errors.Is(err, ports.ErrSessionNotFound) {
 			continue
 		}
@@ -30,11 +33,6 @@ func (uc BulkDeleteSessions) Execute(ctx context.Context, ownerID string, ids []
 			return deleted, err
 		}
 		deleted++
-		if uc.Tags != nil {
-			if err := uc.Tags.ClearTaggable(ctx, ownerID, domain.TaggableWorkSession, id); err != nil {
-				slog.WarnContext(ctx, "bulk_delete_sessions: clear taggings failed", "id", id, "err", err)
-			}
-		}
 	}
 	return deleted, nil
 }
