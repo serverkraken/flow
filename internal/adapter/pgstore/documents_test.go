@@ -111,6 +111,69 @@ func TestDocumentStore_CRUDRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_MoveMetadataIsOwnerScopedAndCollisionSafe(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	users := pgstore.NewUserStore(pool)
+	for _, u := range []domain.User{
+		{ID: "move-u1", OIDCSub: "move-sub-1", Username: "move1", Email: "move1@example.test"},
+		{ID: "move-u2", OIDCSub: "move-sub-2", Username: "move2", Email: "move2@example.test"},
+	} {
+		if _, err := users.UpsertBySub(ctx, u); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nodes := pgstore.NewNodeStore(pool)
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, n := range []domain.Node{
+		{ID: "move-n1", OwnerID: "move-u1", Kind: domain.KindEngagement, Name: "Own", Slug: "own", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+		{ID: "move-n2", OwnerID: "move-u2", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive, CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := nodes.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	docs := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	ownNode := "move-n1"
+	for _, d := range []domain.Document{
+		{ID: "move-d1", OwnerID: "move-u1", Type: domain.DocFree, Path: "notes/source", CreatedAt: now, UpdatedAt: now},
+		{ID: "move-d2", OwnerID: "move-u1", Type: domain.DocProject, NodeID: &ownNode, Path: "readme", CreatedAt: now, UpdatedAt: now},
+	} {
+		if _, err := docs.Create(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	collision := domain.Document{ID: "move-d1", OwnerID: "move-u1", Type: domain.DocProject, NodeID: &ownNode, Path: "readme", UpdatedAt: now.Add(time.Minute)}
+	if _, err := docs.Move(ctx, collision); !errors.Is(err, ports.ErrDocumentExists) {
+		t.Fatalf("collision: want ErrDocumentExists, got %v", err)
+	}
+	foreignNode := "move-n2"
+	foreign := collision
+	foreign.NodeID, foreign.Path = &foreignNode, "foreign"
+	if _, err := docs.Move(ctx, foreign); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("foreign node: want ErrNodeNotFound, got %v", err)
+	}
+
+	valid := collision
+	valid.Path = "overview"
+	got, err := docs.Move(ctx, valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Type != domain.DocProject || got.NodeID == nil || *got.NodeID != ownNode || got.Path != "overview" {
+		t.Fatalf("moved = %+v", got)
+	}
+}
+
 // TestDocumentStore_ProvenanceRoundTrip covers Task 3 (Migration 0028): the
 // updated_by_kind/updated_by_ref stamp survives Get AND Search (Codex #8 —
 // Search scans via prefixedDocCols/scanSearchHit, a separate column list +

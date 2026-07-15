@@ -22,6 +22,7 @@ templ editorBody(vm EditorVM) {
 	@components.AppShell("docs", components.Breadcrumb(editorCrumbs(ctx, vm)), nil, editorOuter(vm))
 	<script src={ AssetURL("js/mermaid-init.js") } defer data-v={ AssetVersion() }></script>
 	<script src={ AssetURL("js/editor-insert.js") } defer data-v={ AssetVersion() }></script>
+	<script src={ AssetURL("js/editor-metadata.js") } defer data-v={ AssetVersion() }></script>
 }
 
 templ editorOuter(vm EditorVM) {
@@ -62,40 +63,39 @@ templ editorOuter(vm EditorVM) {
 		<p class="mb-5 rounded-lg bg-danger/10 px-4 py-3 text-[.9rem] font-medium text-danger" role="alert">{ vm.Err }</p>
 	}
 	<div class="grid gap-6 lg:grid-cols-2 lg:items-start">
-		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5">
+		<form action={ templ.SafeURL(vm.Action()) } method="post" class="panel p-5" data-document-metadata>
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
 					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.type") }</span>
-					if vm.Editing() {
-						<input type="text" value={ vm.Type } disabled class="field"/>
-					} else {
-						<select name="type" class="field">
-							for _, option := range vm.TypeOptions {
-								<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
-							}
-						</select>
-					}
+					<select name="type" class="field" data-document-type>
+						for _, option := range vm.TypeOptions {
+							<option value={ option.Value } selected?={ option.Value == vm.Type }>{ option.Label }</option>
+						}
+					</select>
 				</label>
-				if !vm.Editing() {
-					<label class="block">
-						<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
-						<select name="projectId" class="field">
-							<option value="">{ components.T(ctx, "wissen.project.none") }</option>
-							for _, option := range vm.ProjectOptions {
-								<option value={ option.Value } selected?={ option.Value == vm.NodeID }>{ option.Label }</option>
-							}
-						</select>
-					</label>
-				}
+				<label class="block" data-metadata-field="project" hidden?={ !vm.ShowsProject() }>
+					<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.project") }</span>
+					<select name="projectId" class="field" data-document-project disabled?={ !vm.ShowsProject() } required?={ vm.Type == "project" }>
+						<option value="">{ components.T(ctx, "wissen.project.none") }</option>
+						for _, option := range vm.ProjectOptions {
+							<option value={ option.Value } selected?={ option.Value == vm.NodeID }>{ option.Label }</option>
+						}
+					</select>
+				</label>
 			</div>
-			<label class="mt-4 block">
-				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
-				if vm.Editing() {
-					<input type="text" value={ vm.Path } disabled class="field font-mono"/>
-				} else {
-					<input type="text" name="path" value={ vm.Path } class="field font-mono"/>
-				}
+			<label class="mt-4 block" data-metadata-field="date" hidden?={ !vm.Daily() }>
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.date") }</span>
+				<input type="date" name="date" value={ vm.Date } class="field" data-document-date disabled?={ !vm.Daily() } required?={ vm.Daily() }/>
 			</label>
+			<label class="mt-4 block" data-metadata-field="path" hidden?={ vm.Daily() }>
+				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path") }</span>
+				<input type="text" name="path" value={ vm.Path } class="field font-mono" data-document-path disabled?={ vm.Daily() } required?={ !vm.Daily() }/>
+			</label>
+			<div class="mt-4 rounded-lg border border-line bg-sunken px-4 py-3" data-metadata-field="derived-path" hidden?={ !vm.Daily() }>
+				<span class="mb-1 block text-[.72rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.path.derived") }</span>
+				<code class="text-[.86rem] text-ink" data-derived-path>{ vm.Path }</code>
+				<p class="mt-1 text-[.78rem] text-muted">{ components.T(ctx, "wissen.path.dailyHint") }</p>
+			</div>
 			<label class="mt-4 block">
 				<span class="mb-1 block text-[.78rem] font-semibold uppercase text-muted">{ components.T(ctx, "wissen.title.field") }</span>
 				<input type="text" name="title" value={ vm.Title } class="field"/>

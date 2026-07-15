@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/bubbles/v2/paginator"
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -107,15 +107,15 @@ type DocsModel struct {
 	tagsTarget   docMode // distinguishes which mode tagsLoadedMsg should open (0=modeFiltering)
 	tagNewBuf    string  // inline new-tag input buffer in modeDocTags
 
-	searchQuery string             // current query buffer (input phase)
-	searching   bool               // true once a query has been run (results phase)
+	searchQuery string // current query buffer (input phase)
+	searching   bool   // true once a query has been run (results phase)
 	searchHits  []domain.SearchHit
 	searchSel   int
 
 	pal        theme.Palette
 	projects   []domain.Node
 	projByID   map[string]domain.Node
-	projFilter string        // selected project ID; "" = all projects
+	projFilter string          // selected project ID; "" = all projects
 	projList   fuzzylist.Model // project-filter picker (fuzzy)
 }
 
@@ -408,8 +408,13 @@ func (m DocsModel) persist(d editorDoneMsg) tea.Cmd {
 			}
 			return docSavedMsg{}
 		}
+		var nodeID *string
+		if m.projFilter != "" && d.typ != domain.DocDaily && d.typ != domain.DocFree {
+			selected := m.projFilter
+			nodeID = &selected
+		}
 		if _, err := m.client.CreateDocument(ctx, apiclient.CreateDocumentInput{
-			Type: string(d.typ), Path: d.path, Title: d.title, Body: string(d.body),
+			Type: string(d.typ), NodeID: nodeID, Path: d.path, Title: d.title, Body: string(d.body),
 		}); err != nil {
 			return errMsg{err}
 		}
@@ -801,7 +806,11 @@ func (m DocsModel) loadDocNoPush(id string) tea.Cmd {
 	return m.loadDoc(id, false)
 }
 
-var docTypeCycle = []domain.DocumentType{domain.DocFree, domain.DocDaily, domain.DocAgent}
+var docTypeCycle = []domain.DocumentType{
+	domain.DocFree, domain.DocDaily, domain.DocProject, domain.DocAgent,
+	domain.DocMemory, domain.DocInstruction, domain.DocSkill, domain.DocPlan,
+	domain.DocSpec, domain.DocActiveContext,
+}
 
 func (m DocsModel) handleCreateKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
@@ -819,6 +828,10 @@ func (m DocsModel) handleCreateKey(k tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if !domain.SlugOK(m.newPath) {
 			m.err = fmt.Errorf("invalid slug %q", m.newPath)
+			return m, nil
+		}
+		if m.newType == domain.DocProject && m.projFilter == "" {
+			m.err = fmt.Errorf("projektdokumente brauchen einen gewählten Projektfilter")
 			return m, nil
 		}
 		if strings.TrimSpace(m.newTitle) == "" {

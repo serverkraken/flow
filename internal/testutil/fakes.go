@@ -770,6 +770,30 @@ func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain
 	return existing, nil
 }
 
+func (s *FakeDocumentStore) Move(_ context.Context, d domain.Document) (domain.Document, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.m[d.ID]
+	if !ok || existing.OwnerID != d.OwnerID {
+		return domain.Document{}, ports.ErrDocumentNotFound
+	}
+	want := docCollisionKey(d.OwnerID, d.NodeID, d.Path)
+	for id, other := range s.m {
+		if id != d.ID && docCollisionKey(other.OwnerID, other.NodeID, other.Path) == want {
+			return domain.Document{}, ports.ErrDocumentExists
+		}
+	}
+	existing.Type = d.Type
+	existing.NodeID = d.NodeID
+	existing.Path = d.Path
+	existing.Date = d.Date
+	existing.UpdatedAt = d.UpdatedAt
+	existing.UpdatedByKind = d.UpdatedByKind
+	existing.UpdatedByRef = d.UpdatedByRef
+	s.m[d.ID] = existing
+	return existing, nil
+}
+
 func (s *FakeDocumentStore) Delete(_ context.Context, ownerID, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

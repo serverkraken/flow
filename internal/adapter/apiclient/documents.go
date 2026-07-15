@@ -11,12 +11,13 @@ import (
 
 // CreateDocumentInput mirrors the server's create payload.
 type CreateDocumentInput struct {
-	Type   string   `json:"type"`
-	NodeID *string  `json:"projectId,omitempty"`
-	Path   string   `json:"path"`
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
-	Tags   []string `json:"tags,omitempty"`
+	Type   string     `json:"type"`
+	NodeID *string    `json:"projectId,omitempty"`
+	Path   string     `json:"path"`
+	Date   *time.Time `json:"date,omitempty"`
+	Title  string     `json:"title"`
+	Body   string     `json:"body"`
+	Tags   []string   `json:"tags,omitempty"`
 }
 
 func (c *Client) CreateDocument(ctx context.Context, in CreateDocumentInput) (domain.Document, error) {
@@ -82,6 +83,19 @@ type UpdateDocumentInput struct {
 func (c *Client) UpdateDocument(ctx context.Context, id string, in UpdateDocumentInput) (domain.Document, error) {
 	var out domain.Document
 	err := c.do(ctx, http.MethodPut, "/api/v1/documents/"+id, in, &out)
+	return out, err
+}
+
+type MoveDocumentInput struct {
+	Type   string     `json:"type"`
+	NodeID *string    `json:"projectId"`
+	Path   string     `json:"path"`
+	Date   *time.Time `json:"date"`
+}
+
+func (c *Client) MoveDocument(ctx context.Context, id string, in MoveDocumentInput) (domain.Document, error) {
+	var out domain.Document
+	err := c.do(ctx, http.MethodPost, "/api/v1/documents/"+id+"/move", in, &out)
 	return out, err
 }
 

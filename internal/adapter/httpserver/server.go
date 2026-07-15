@@ -99,6 +99,7 @@ type Server struct {
 	ListDocuments     usecase.ListDocuments
 	ListDocumentsPage *usecase.ListDocumentsPage
 	UpdateDocument    usecase.UpdateDocument
+	MoveDocument      usecase.MoveDocument
 	DeleteDocument    usecase.DeleteDocument
 	BacklinksDocument usecase.Backlinks
 	ListTags          usecase.ListTags
@@ -218,6 +219,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/v1/documents/archived", s.auth(http.HandlerFunc(s.handleListArchived)))
 	mux.Handle("GET /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleGetDocument)))
 	mux.Handle("PUT /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleUpdateDocument)))
+	mux.Handle("POST /api/v1/documents/{id}/move", s.auth(http.HandlerFunc(s.handleMoveDocument)))
 	mux.Handle("DELETE /api/v1/documents/{id}", s.auth(http.HandlerFunc(s.handleDeleteDocument)))
 	mux.Handle("GET /api/v1/documents/{id}/backlinks", s.auth(http.HandlerFunc(s.handleDocumentBacklinks)))
 	mux.Handle("POST /api/v1/documents/{id}/pin", s.auth(http.HandlerFunc(s.handlePinDocument)))

@@ -5,8 +5,10 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/webui"
+	"github.com/serverkraken/flow/internal/adapter/webui/components"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/usecase"
@@ -85,7 +87,21 @@ func (s *Server) buildEditorArtifactResolver(r *http.Request, ownerID, nodeID st
 func (s *Server) handleWebEditorNew(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	nodeID := r.URL.Query().Get("node")
-	vm, err := s.editorVM(r, u, webui.EditorVM{User: u.Username, Type: "free", NodeID: nodeID})
+	typ := editorDocumentType(r.URL.Query().Get("type"))
+	if typ == "" {
+		typ = "free"
+		if nodeID != "" {
+			typ = "project"
+		}
+	}
+	date := ""
+	if typ == string(domain.DocDaily) {
+		date = s.Clock.Now().Format("2006-01-02")
+	}
+	vm, err := s.editorVM(r, u, webui.EditorVM{
+		User: u.Username, Type: typ, NodeID: nodeID,
+		Path: r.URL.Query().Get("path"), Date: date,
+	})
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -113,6 +129,7 @@ func (s *Server) handleWebEditorEdit(w http.ResponseWriter, r *http.Request) {
 	vm, err := s.editorVM(r, u, webui.EditorVM{
 		User: u.Username, ID: doc.ID, Type: string(doc.Type), NodeID: nodeID,
 		Path: doc.Path, Title: doc.Title, TagsCSV: strings.Join(doc.Tags, " "), Body: doc.Body,
+		Date: editorDate(doc.Date),
 	})
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -129,7 +146,12 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	submitted := webui.EditorVM{
 		User: u.Username, Type: r.FormValue("type"), NodeID: r.FormValue("projectId"),
 		Path: r.FormValue("path"), Title: r.FormValue("title"), TagsCSV: r.FormValue("tags"),
-		Body: r.FormValue("body"),
+		Body: r.FormValue("body"), Date: r.FormValue("date"),
+	}
+	date, err := parseEditorDate(submitted.Type, submitted.Date)
+	if err != nil {
+		s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, components.T(r.Context(), "wissen.date.invalid"))
+		return
 	}
 	var nodeID *string
 	if submitted.NodeID != "" {
@@ -137,13 +159,13 @@ func (s *Server) handleWebEditorCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
 		Type: domain.DocumentType(submitted.Type), NodeID: nodeID,
-		Path: submitted.Path, Title: submitted.Title, Tags: tags, Body: submitted.Body,
+		Path: submitted.Path, Date: date, Title: submitted.Title, Tags: tags, Body: submitted.Body,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidDocument):
-		s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, err.Error())
+		s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, components.T(r.Context(), "wissen.metadata.invalid"))
 	case errors.Is(err, ports.ErrDocumentExists):
-		s.renderEditorError(w, r, u, submitted, http.StatusConflict, "a document with that path already exists")
+		s.renderEditorError(w, r, u, submitted, http.StatusConflict, components.T(r.Context(), "wissen.path.exists"))
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
@@ -157,7 +179,36 @@ func (s *Server) handleWebEditorUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_ = r.ParseForm()
 	tags := strings.Fields(r.FormValue("tags"))
-	_, err := s.UpdateDocument.Execute(r.Context(), u.ID, id, usecase.UpdateDocumentInput{
+	submitted := webui.EditorVM{
+		User: u.Username, ID: id, Type: r.FormValue("type"), NodeID: r.FormValue("projectId"),
+		Path: r.FormValue("path"), Date: r.FormValue("date"), Title: r.FormValue("title"),
+		TagsCSV: r.FormValue("tags"), Body: r.FormValue("body"),
+	}
+	date, err := parseEditorDate(submitted.Type, submitted.Date)
+	if err != nil {
+		s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, components.T(r.Context(), "wissen.date.invalid"))
+		return
+	}
+	var nodeID *string
+	if submitted.NodeID != "" {
+		nodeID = &submitted.NodeID
+	}
+	if _, err = s.MoveDocument.Execute(r.Context(), u.ID, id, usecase.MoveDocumentInput{
+		Type: domain.DocumentType(submitted.Type), NodeID: nodeID, Path: submitted.Path, Date: date,
+	}); err != nil {
+		switch {
+		case errors.Is(err, ports.ErrDocumentNotFound), errors.Is(err, ports.ErrNodeNotFound):
+			http.Error(w, "not found", http.StatusNotFound)
+		case errors.Is(err, domain.ErrInvalidDocument):
+			s.renderEditorError(w, r, u, submitted, http.StatusBadRequest, components.T(r.Context(), "wissen.metadata.invalid"))
+		case errors.Is(err, ports.ErrDocumentExists):
+			s.renderEditorError(w, r, u, submitted, http.StatusConflict, components.T(r.Context(), "wissen.path.exists"))
+		default:
+			http.Error(w, "server error", http.StatusInternalServerError)
+		}
+		return
+	}
+	_, err = s.UpdateDocument.Execute(r.Context(), u.ID, id, usecase.UpdateDocumentInput{
 		Title: r.FormValue("title"),
 		Body:  r.FormValue("body"),
 		Tags:  &tags,
@@ -218,7 +269,7 @@ func (s *Server) editorVM(r *http.Request, u domain.User, vm webui.EditorVM) (we
 	if vm.Type == "" {
 		vm.Type = "free"
 	}
-	vm.TypeOptions = webui.DocumentTypeOptions(vm.Type)
+	vm.TypeOptions = webui.DocumentTypeOptions(r.Context(), vm.Type)
 	if s.ListNodes.Nodes != nil {
 		projects, err := s.ListNodes.Execute(r.Context(), u.ID)
 		if err != nil {
@@ -228,6 +279,33 @@ func (s *Server) editorVM(r *http.Request, u domain.User, vm webui.EditorVM) (we
 	}
 	vm.PreviewHTML = s.renderEditorPreview(r, u, vm.NodeID, vm.Body)
 	return vm, nil
+}
+
+func editorDocumentType(raw string) string {
+	for _, typ := range domain.DocumentTypes() {
+		if raw == string(typ) {
+			return raw
+		}
+	}
+	return ""
+}
+
+func editorDate(date *time.Time) string {
+	if date == nil {
+		return ""
+	}
+	return date.Format("2006-01-02")
+}
+
+func parseEditorDate(typ, raw string) (*time.Time, error) {
+	if typ != string(domain.DocDaily) {
+		return nil, nil
+	}
+	date, err := time.Parse("2006-01-02", strings.TrimSpace(raw))
+	if err != nil {
+		return nil, errors.New("daily documents need a valid date")
+	}
+	return &date, nil
 }
 
 func (s *Server) renderEditorPreview(r *http.Request, u domain.User, nodeID, bodyMD string) template.HTML {

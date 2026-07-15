@@ -117,7 +117,7 @@ templ cockpitWissenSection(d NodeCockpit) {
 				<a class="more" href={ templ.SafeURL(cockpitMainURL(d, true)) }
 					hx-get={ cockpitMainURL(d, true) } hx-target="#cockpit-main" hx-swap="innerHTML">{ fmt.Sprintf(components.T(ctx, "cockpit.wissen.all"), d.WissenTotal) }</a>
 			}
-			<a class="more" href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID) } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
+			<a class="more" href={ templ.SafeURL("/wissen/neu?node=" + d.N.ID + "&type=project") } hx-boost="false">+ { components.T(ctx, "cockpit.wissen.add") }</a>
 		</div>
 		if d.N.Kind != domain.KindRepo {
 			<div class="seg seg-sm mb-4 inline-flex">

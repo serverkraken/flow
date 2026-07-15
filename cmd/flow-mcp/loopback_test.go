@@ -323,13 +323,13 @@ func TestLoopback_BindProject(t *testing.T) {
 	_ = mgr
 	sess := connect(t, h.srv)
 
-	// 1. Tool surface = 18: flow_list_projects, flow_bind_project, flow_archive_doc, flow_update_node present.
+	// 1. Tool surface = 19: includes the transactional flow_move_doc capability.
 	tools, err := sess.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(tools.Tools) != 18 {
-		t.Fatalf("tool count = %d, want 18; got %v", len(tools.Tools), toolNames(tools.Tools))
+	if len(tools.Tools) != 19 {
+		t.Fatalf("tool count = %d, want 19; got %v", len(tools.Tools), toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_list_projects") {
 		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))

@@ -13,12 +13,13 @@ import (
 )
 
 type createDocReq struct {
-	Type   string   `json:"type"`
-	NodeID *string  `json:"projectId"`
-	Path   string   `json:"path"`
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
-	Tags   []string `json:"tags"`
+	Type   string     `json:"type"`
+	NodeID *string    `json:"projectId"`
+	Path   string     `json:"path"`
+	Date   *time.Time `json:"date"`
+	Title  string     `json:"title"`
+	Body   string     `json:"body"`
+	Tags   []string   `json:"tags"`
 }
 
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +32,7 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		Type:   domain.DocumentType(req.Type),
 		NodeID: req.NodeID,
 		Path:   req.Path,
+		Date:   req.Date,
 		Title:  req.Title,
 		Body:   req.Body,
 		Tags:   req.Tags,
@@ -121,6 +123,39 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
 		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
+		writeJSON(w, http.StatusOK, doc)
+	}
+}
+
+type moveDocumentRequest struct {
+	Type   string     `json:"type"`
+	NodeID *string    `json:"projectId"`
+	Path   string     `json:"path"`
+	Date   *time.Time `json:"date"`
+}
+
+func (s *Server) handleMoveDocument(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req moveDocumentRequest
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
+		return
+	}
+	doc, err := s.MoveDocument.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.MoveDocumentInput{
+		Type: domain.DocumentType(req.Type), NodeID: req.NodeID, Path: req.Path, Date: req.Date,
+	})
+	switch {
+	case errors.Is(err, domain.ErrInvalidDocument):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, ports.ErrDocumentNotFound), errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case errors.Is(err, ports.ErrDocumentExists):
+		http.Error(w, "a document with that path already exists", http.StatusConflict)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{
+			"id": doc.ID, "title": doc.Title, "type": doc.Type, "path": doc.Path,
+		}})
 		writeJSON(w, http.StatusOK, doc)
 	}
 }

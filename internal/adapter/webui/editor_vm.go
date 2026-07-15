@@ -5,6 +5,7 @@ import (
 	"html/template"
 
 	"github.com/serverkraken/flow/internal/adapter/webui/components"
+	"github.com/serverkraken/flow/internal/domain"
 )
 
 type EditorOption struct {
@@ -18,6 +19,7 @@ type EditorVM struct {
 	Type           string
 	NodeID         string
 	Path           string
+	Date           string
 	Title          string
 	TagsCSV        string
 	Body           string
@@ -28,6 +30,18 @@ type EditorVM struct {
 }
 
 func (vm EditorVM) Editing() bool { return vm.ID != "" }
+
+func (vm EditorVM) Daily() bool { return vm.Type == string(domain.DocDaily) }
+
+func (vm EditorVM) ShowsProject() bool {
+	switch domain.DocumentType(vm.Type) {
+	case domain.DocProject, domain.DocAgent, domain.DocMemory, domain.DocInstruction,
+		domain.DocSkill, domain.DocPlan, domain.DocSpec, domain.DocActiveContext:
+		return true
+	default:
+		return false
+	}
+}
 
 func (vm EditorVM) Action() string {
 	if vm.Editing() {
@@ -52,11 +66,11 @@ func editorCrumbs(ctx context.Context, vm EditorVM) []components.Crumb {
 	}
 }
 
-func DocumentTypeOptions(_ string) []EditorOption {
-	values := []string{"free", "project", "daily", "agent", "memory", "instruction", "skill", "plan"}
+func DocumentTypeOptions(ctx context.Context, _ string) []EditorOption {
+	values := domain.DocumentTypes()
 	opts := make([]EditorOption, 0, len(values))
 	for _, v := range values {
-		opts = append(opts, EditorOption{Value: v, Label: v})
+		opts = append(opts, EditorOption{Value: string(v), Label: components.T(ctx, "wissen.type."+string(v))})
 	}
 	return opts
 }

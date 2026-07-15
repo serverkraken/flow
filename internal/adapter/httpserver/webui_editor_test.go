@@ -89,6 +89,56 @@ func TestEditorNewAndEditRender(t *testing.T) {
 	}
 }
 
+func TestEditorNewUsesShelfAndCockpitPresets(t *testing.T) {
+	srv, _, _, projects := newWebWissenServer(t)
+	ctx := context.Background()
+	if _, err := projects.Create(ctx, domain.Node{ID: "n1", OwnerID: "u1", Name: "Flow", Slug: "flow", Kind: domain.KindRepo}); err != nil {
+		t.Fatal(err)
+	}
+
+	req := authedEditorRequest(http.MethodGet, "/wissen/neu?node=n1&type=project&path=readme", nil)
+	rec := httptest.NewRecorder()
+	srv.handleWebEditorNew(rec, req)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.500s", rec.Code, body)
+	}
+	for _, want := range []string{
+		`name="type"`, `value="project" selected`, `name="projectId"`, `value="n1" selected`,
+		`name="path" value="readme"`, `data-metadata-field="date"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("preset editor missing %q: %.1200s", want, body)
+		}
+	}
+}
+
+func TestEditorEditExposesCanonicalMetadataFields(t *testing.T) {
+	srv, _, docs, _ := newWebWissenServer(t)
+	day := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
+	_, _ = docs.Create(context.Background(), domain.Document{
+		ID: "doc-1", OwnerID: "u1", Type: domain.DocDaily, Path: "daily/2026-07-03", Date: &day,
+		Title: "Daily", Body: "body",
+	})
+
+	req := authedEditorRequest(http.MethodGet, "/wissen/doc-1/bearbeiten", nil)
+	req.SetPathValue("id", "doc-1")
+	rec := httptest.NewRecorder()
+	srv.handleWebEditorEdit(rec, req)
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code=%d body=%.500s", rec.Code, body)
+	}
+	for _, want := range []string{`name="type"`, `name="date" value="2026-07-03"`, `data-derived-path`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("edit metadata missing %q: %.1200s", want, body)
+		}
+	}
+	if strings.Contains(body, `value="daily" disabled`) {
+		t.Fatalf("document type must be editable: %.800s", body)
+	}
+}
+
 func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 	srv, _, docs, _ := newWebWissenServer(t)
 	ctx := context.Background()
@@ -97,7 +147,10 @@ func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 		Title: "Edit Me", Body: "body",
 	})
 
-	updateForm := url.Values{"title": {"Updated"}, "body": {"new body"}}
+	updateForm := url.Values{
+		"type": {"daily"}, "date": {"2026-07-03"},
+		"title": {"Updated"}, "body": {"new body"},
+	}
 	updateReq := authedEditorRequest(http.MethodPost, "/wissen/doc-1", strings.NewReader(updateForm.Encode()))
 	updateReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	updateReq.SetPathValue("id", "doc-1")
@@ -106,12 +159,19 @@ func TestEditorUpdateAndDeleteRedirect(t *testing.T) {
 	if updateRec.Code != http.StatusSeeOther || updateRec.Header().Get("Location") != "/wissen/doc-1" {
 		t.Fatalf("update code=%d location=%q", updateRec.Code, updateRec.Header().Get("Location"))
 	}
+	moved, err := docs.Get(ctx, "u1", "doc-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if moved.Type != domain.DocDaily || moved.Path != "daily/2026-07-03" || moved.Date == nil {
+		t.Fatalf("editor did not reclassify metadata: %+v", moved)
+	}
 
 	deleteReq := authedEditorRequest(http.MethodPost, "/wissen/doc-1/delete", nil)
 	deleteReq.SetPathValue("id", "doc-1")
 	deleteRec := httptest.NewRecorder()
 	srv.handleWebEditorDelete(deleteRec, deleteReq)
-	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen/typ?type=free" {
+	if deleteRec.Code != http.StatusSeeOther || deleteRec.Header().Get("Location") != "/wissen/typ?type=daily" {
 		t.Fatalf("delete code=%d location=%q", deleteRec.Code, deleteRec.Header().Get("Location"))
 	}
 }
@@ -235,7 +295,8 @@ func TestEditorLesesaalPanelAndField(t *testing.T) {
 		t.Fatalf("save button must be preserved: %.400s", newBody)
 	}
 
-	// Edit-doc form (disabled type/path fields).
+	// Edit-doc form (type/path are now intentionally editable through the
+	// transactional MoveDocument use case).
 	editReq := authedEditorRequest(http.MethodGet, "/wissen/doc-1/bearbeiten", nil)
 	editReq.SetPathValue("id", "doc-1")
 	editRec := httptest.NewRecorder()
@@ -254,10 +315,10 @@ func TestEditorLesesaalPanelAndField(t *testing.T) {
 		t.Fatalf("edit editor form/preview panel must not use Kristall glass/shadow-soft/bg-surface anymore: %.800s", editorPanel)
 	}
 	if !strings.Contains(editBody, "field") {
-		t.Fatalf("edit editor disabled fields must carry the .field class (for .field:disabled styling): %.800s", editBody)
+		t.Fatalf("edit editor metadata fields must carry the .field class: %.800s", editBody)
 	}
-	if !strings.Contains(editBody, "disabled") {
-		t.Fatalf("edit editor must preserve disabled state on type/path: %.400s", editBody)
+	if !strings.Contains(editBody, `name="type"`) || !strings.Contains(editBody, `name="path"`) {
+		t.Fatalf("edit editor must expose type/path through MoveDocument: %.800s", editBody)
 	}
 }
 

@@ -40,6 +40,7 @@ func docsCmd() *cobra.Command {
 	cmd.AddCommand(docsImportCmd())
 	cmd.AddCommand(docsStripFrontmatterCmd())
 	cmd.AddCommand(docsAuditCmd())
+	cmd.AddCommand(docsMoveCmd())
 	return cmd
 }
 

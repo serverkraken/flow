@@ -76,12 +76,16 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.backlinks)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_create_doc",
-		Description: "Create a Kompendium document in the current project by default. Tags are set via YAML frontmatter in the body. Type must be one of: daily, project, free, memory, instruction, skill, plan, spec, activecontext (agent: deprecated).",
+		Description: "Create a Kompendium document in the current project by default. Tags are a flat list; daily documents accept date=YYYY-MM-DD and derive their path. Type must be one of: daily, project, free, memory, instruction, skill, plan, spec, activecontext (agent: deprecated).",
 	}, h.createDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_doc",
 		Description: "Update a document's title and/or body by id (partial: omit a field to keep it). Modifying a human-owned note (daily/project/free) requires confirm=true.",
 	}, h.updateDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_move_doc",
+		Description: "Atomically reclassify a document's type, project, path, and date. Daily paths are derived from date. Modifying a human-owned note requires confirm=true.",
+	}, h.moveDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_delete_doc",
 		Description: "Delete a document by id. Deleting a human-owned note (daily/project/free) requires confirm=true.",

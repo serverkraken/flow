@@ -31,6 +31,13 @@ type WissenShelf struct {
 	Count    int
 }
 
+func (s WissenShelf) NewDocumentHref() string {
+	if len(s.Types) == 0 {
+		return "/wissen/neu"
+	}
+	return "/wissen/neu?type=" + url.QueryEscape(string(s.Types[0]))
+}
+
 // WissenShelves returns the 7 fixed type-shelves in Mockup order (Z.821–
 // 830). DocAgent (deprecated, B3d: split into spec/plan) folds into the spec
 // shelf; DocActiveContext/DocInstruction/DocSkill fold into "context".

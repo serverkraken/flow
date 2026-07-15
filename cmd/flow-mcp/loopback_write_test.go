@@ -122,6 +122,24 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		}
 		_ = json.NewEncoder(w).Encode(d)
 	})
+	mux.HandleFunc("POST /api/v1/documents/{id}/move", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		id := r.PathValue("id")
+		d, ok := docs[id]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		var in apiclient.MoveDocumentInput
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		d.Type = domain.DocumentType(in.Type)
+		d.NodeID = in.NodeID
+		d.Path = in.Path
+		d.Date = in.Date
+		docs[id] = d
+		_ = json.NewEncoder(w).Encode(d)
+	})
 	mux.HandleFunc("PUT /api/v1/documents/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var in apiclient.UpdateDocumentInput
 		_ = json.NewDecoder(r.Body).Decode(&in)
@@ -175,10 +193,26 @@ func TestLoopback_WriteTools_Advertised(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"flow_create_doc", "flow_update_doc", "flow_delete_doc"} {
+	for _, name := range []string{"flow_create_doc", "flow_update_doc", "flow_move_doc", "flow_delete_doc"} {
 		if !hasTool(tools.Tools, name) {
 			t.Fatalf("%s not advertised; got %v", name, toolNames(tools.Tools))
 		}
+	}
+}
+
+func TestLoopback_MoveGuardAndReclassify(t *testing.T) {
+	sess := authedWriteServer(t)
+	res, out := callText(t, sess, "flow_move_doc", map[string]any{
+		"id": "d-human", "type": "project", "project": "alpha", "path": "readme",
+	})
+	if !res.IsError || !strings.Contains(out, "confirm") {
+		t.Fatalf("unguarded move = (IsError=%v, %q), want confirm refusal", res.IsError, out)
+	}
+	res, out = callText(t, sess, "flow_move_doc", map[string]any{
+		"id": "d-human", "type": "project", "project": "alpha", "path": "readme", "confirm": true,
+	})
+	if res.IsError || !strings.Contains(out, "project") || !strings.Contains(out, "readme") {
+		t.Fatalf("confirmed move = (IsError=%v, %q)", res.IsError, out)
 	}
 }
 

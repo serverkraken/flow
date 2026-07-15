@@ -58,6 +58,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		GetDocument:          usecase.GetDocument{Docs: docs},
 		ListDocuments:        usecase.ListDocuments{Docs: docs},
 		UpdateDocument:       usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
+		MoveDocument:         usecase.MoveDocument{Docs: docs, Nodes: nodes, Clock: clk},
 		DeleteDocument:       usecase.DeleteDocument{Docs: docs, Tags: tags},
 		BacklinksDocument:    usecase.Backlinks{Docs: docs},
 		ListTags:             usecase.ListTags{Tags: tags},
@@ -85,6 +86,47 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		ContextBudget:      6000,
 	}
 	return srv, bus
+}
+
+func TestHandleMoveDocument_ReclassifiesDailyMetadata(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	createdRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents", `{"type":"free","path":"notes/move","title":"Move me","body":"body"}`)
+	defer func() { _ = createdRes.Body.Close() }()
+	if createdRes.StatusCode != http.StatusCreated {
+		t.Fatalf("create status=%d", createdRes.StatusCode)
+	}
+	var created domain.Document
+	if err := json.NewDecoder(createdRes.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+
+	moveRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents/"+created.ID+"/move", `{"type":"daily","path":"ignored","date":"2026-07-03T00:00:00Z"}`)
+	defer func() { _ = moveRes.Body.Close() }()
+	if moveRes.StatusCode != http.StatusOK {
+		t.Fatalf("move status=%d", moveRes.StatusCode)
+	}
+	var moved domain.Document
+	if err := json.NewDecoder(moveRes.Body).Decode(&moved); err != nil {
+		t.Fatal(err)
+	}
+	if moved.Type != domain.DocDaily || moved.Path != "daily/2026-07-03" || moved.Date == nil || moved.NodeID != nil {
+		t.Fatalf("moved metadata = %+v", moved)
+	}
+}
+
+func TestHandleMoveDocument_RejectsUnknownFields(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	res := doDoc(t, ts, http.MethodPost, "/api/v1/documents/missing/move", `{"type":"free","path":"notes/x","surprise":true}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d want 400", res.StatusCode)
+	}
 }
 
 // doDoc issues an authenticated JSON request to the document API.

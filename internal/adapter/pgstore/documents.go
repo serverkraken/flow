@@ -189,6 +189,49 @@ RETURNING ` + docCols
 	return out, err
 }
 
+func (s *DocumentStore) Move(ctx context.Context, d domain.Document) (domain.Document, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return domain.Document{}, fmt.Errorf("pgstore: begin document move: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if d.NodeID != nil && *d.NodeID != "" {
+		var owned int
+		err = tx.QueryRow(ctx,
+			`SELECT 1 FROM nodes WHERE owner_id=$1 AND id=$2 FOR KEY SHARE`,
+			d.OwnerID, *d.NodeID,
+		).Scan(&owned)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Document{}, ports.ErrNodeNotFound
+		}
+		if err != nil {
+			return domain.Document{}, fmt.Errorf("pgstore: lock document move node: %w", err)
+		}
+	}
+
+	const q = `UPDATE documents
+SET type=$1, node_id=$2, path=$3, doc_date=$4, updated_at=$5, updated_by_kind=$6, updated_by_ref=$7
+WHERE owner_id=$8 AND id=$9
+RETURNING ` + docCols
+	out, err := scanDocument(tx.QueryRow(ctx, q,
+		string(d.Type), d.NodeID, d.Path, d.Date, d.UpdatedAt,
+		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.OwnerID, d.ID))
+	if isUniqueViolation(err) {
+		return domain.Document{}, ports.ErrDocumentExists
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Document{}, ports.ErrDocumentNotFound
+	}
+	if err != nil {
+		return domain.Document{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Document{}, fmt.Errorf("pgstore: commit document move: %w", err)
+	}
+	return out, nil
+}
+
 func (s *DocumentStore) Delete(ctx context.Context, ownerID, id string) error {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM documents WHERE owner_id=$1 AND id=$2`, ownerID, id)
 	if err != nil {

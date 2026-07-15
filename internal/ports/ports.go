@@ -227,6 +227,9 @@ type DocumentStore interface {
 	// matching the owner/project/tag filter, for server-side pagination.
 	ListPage(ctx context.Context, ownerID string, nodeID *string, limit, offset int, tags ...string) ([]domain.Document, int, error)
 	Update(ctx context.Context, d domain.Document) (domain.Document, error)
+	// Move atomically replaces type, node, path, date and write provenance.
+	// Implementations must reject destination collisions and owner-foreign nodes.
+	Move(ctx context.Context, d domain.Document) (domain.Document, error)
 	Delete(ctx context.Context, ownerID, id string) error
 	// ReplaceLinks rewrites the outbound wikilink targets of one document
 	// (delete-then-insert). Empty targets clears them.

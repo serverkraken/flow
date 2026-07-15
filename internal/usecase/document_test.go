@@ -60,6 +60,26 @@ func TestCreateDocument_FreeAndDaily(t *testing.T) {
 	}
 }
 
+func TestCreateDocument_DailyUsesRequestedDate(t *testing.T) {
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	requested := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
+	uc := usecase.CreateDocument{
+		Docs: docs, IDs: &testutil.FakeIDGen{},
+		Clock: testutil.FakeClock{T: time.Date(2026, 7, 15, 9, 0, 0, 0, time.UTC)},
+	}
+
+	got, err := uc.Execute(ctx, "u1", usecase.CreateDocumentInput{
+		Type: domain.DocDaily, Date: &requested, Path: "ignored", NodeID: stringPtr("ignored"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != "daily/2026-07-03" || got.Date == nil || !got.Date.Equal(requested) || got.NodeID != nil {
+		t.Fatalf("daily metadata = %+v", got)
+	}
+}
+
 func TestCreateDocument_Persisted(t *testing.T) {
 	ctx := context.Background()
 	docs := testutil.NewFakeDocumentStore()

@@ -59,6 +59,7 @@ func newWebWissenServer(t *testing.T) (*Server, *websession.Codec, *testutil.Fak
 		CreateDocument:    usecase.CreateDocument{Docs: docs, Tags: tags, IDs: &testutil.FakeIDGen{}, Clock: clk},
 		GetDocument:       usecase.GetDocument{Docs: docs},
 		UpdateDocument:    usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
+		MoveDocument:      usecase.MoveDocument{Docs: docs, Nodes: projects, Clock: clk},
 		DeleteDocument:    usecase.DeleteDocument{Docs: docs},
 		BacklinksDocument: usecase.Backlinks{Docs: docs},
 		ListTags:          usecase.ListTags{Tags: tags},

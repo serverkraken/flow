@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -74,6 +75,7 @@ func newFakeDocSrv(t *testing.T, docs []domain.Document) (*apiclient.Client, fun
 		d := domain.Document{
 			ID:        fmt.Sprintf("new-%d", len(stored)+1),
 			Type:      domain.DocumentType(in.Type),
+			NodeID:    in.NodeID,
 			Path:      in.Path,
 			Title:     in.Title,
 			Body:      in.Body,
@@ -121,6 +123,35 @@ func newFakeDocSrv(t *testing.T, docs []domain.Document) (*apiclient.Client, fun
 	srv := httptest.NewServer(mux)
 	c := apiclient.New(srv.URL, "tok")
 	return c, srv.Close
+}
+
+func TestDocsPersistProjectUsesSelectedProjectFilter(t *testing.T) {
+	c, closeFn := newFakeDocSrv(t, nil)
+	defer closeFn()
+	m := NewDocs(c, nil, nil, theme.Default, "tester")
+	m.projFilter = "n1"
+	msg := m.persist(editorDoneMsg{
+		body: []byte("body"), typ: domain.DocProject, path: "readme", title: "README",
+	})()
+	if _, ok := msg.(docSavedMsg); !ok {
+		t.Fatalf("persist result = %#v", msg)
+	}
+	got, err := c.GetDocument(context.Background(), "new-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.NodeID == nil || *got.NodeID != "n1" || got.Type != domain.DocProject {
+		t.Fatalf("created project doc = %+v", got)
+	}
+}
+
+func TestDocTypeCycleUsesCanonicalCatalog(t *testing.T) {
+	if len(docTypeCycle) != len(domain.DocumentTypes()) {
+		t.Fatalf("cycle has %d types, canonical catalog has %d", len(docTypeCycle), len(domain.DocumentTypes()))
+	}
+	if got := nextDocType(domain.DocPlan); got != domain.DocSpec {
+		t.Fatalf("type after plan = %q, want spec", got)
+	}
 }
 
 func sampleDocs() []domain.Document {
@@ -385,8 +416,11 @@ func TestDocsNextDocType(t *testing.T) {
 	if got := nextDocType(domain.DocFree); got != domain.DocDaily {
 		t.Fatalf("free → %q, want daily", got)
 	}
-	if got := nextDocType(domain.DocAgent); got != domain.DocFree {
-		t.Fatalf("agent → %q (wrap), want free", got)
+	if got := nextDocType(domain.DocAgent); got != domain.DocMemory {
+		t.Fatalf("agent → %q, want memory", got)
+	}
+	if got := nextDocType(domain.DocActiveContext); got != domain.DocFree {
+		t.Fatalf("activecontext → %q (wrap), want free", got)
 	}
 }
 
@@ -823,8 +857,8 @@ func TestDocsHandleCreateKey_SpaceCyclesType(t *testing.T) {
 	// Right arrow also cycles.
 	next, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	m = next.(DocsModel)
-	if m.newType != domain.DocAgent {
-		t.Fatalf("right on type field: got %q, want DocAgent", m.newType)
+	if m.newType != domain.DocProject {
+		t.Fatalf("right on type field: got %q, want DocProject", m.newType)
 	}
 }
 

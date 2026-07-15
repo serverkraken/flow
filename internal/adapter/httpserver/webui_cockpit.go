@@ -195,7 +195,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	// front page. Own-node only (no inheritance). Degrades silently — a missing
 	// readme, an unwired store, or a render error never 500s the cockpit; it
 	// falls back to the empty-state link.
-	d.ReadmeNewHref = "/wissen/neu?node=" + n.ID
+	d.ReadmeNewHref = "/wissen/neu?node=" + n.ID + "&type=project&path=readme"
 	if s.ListDocuments.Docs != nil {
 		if docs, derr := s.ListDocuments.Execute(ctx, u.ID, &n.ID, nil); derr == nil {
 			if doc, ok := findReadme(docs); ok {

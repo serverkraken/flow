@@ -167,6 +167,34 @@ func TestUpdateDocument_PutsBody(t *testing.T) {
 	}
 }
 
+func TestMoveDocument_PostsCompleteMetadata(t *testing.T) {
+	day := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/documents/doc-5/move" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var in apiclient.MoveDocumentInput
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			t.Fatal(err)
+		}
+		if in.Type != "daily" || in.Date == nil || !in.Date.Equal(day) {
+			t.Fatalf("input = %+v", in)
+		}
+		_ = json.NewEncoder(w).Encode(domain.Document{ID: "doc-5", Type: domain.DocDaily, Path: "daily/2026-07-03", Date: &day})
+	}))
+	defer srv.Close()
+
+	got, err := apiclient.New(srv.URL, "tok").MoveDocument(context.Background(), "doc-5", apiclient.MoveDocumentInput{
+		Type: "daily", Date: &day,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Path != "daily/2026-07-03" {
+		t.Fatalf("result = %+v", got)
+	}
+}
+
 func TestDeleteDocument_Issues204(t *testing.T) {
 	var gotMethod, gotPath string
 
