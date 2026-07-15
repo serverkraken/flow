@@ -47,6 +47,38 @@ func TestBuildTree_OrphanTreatedAsRoot(t *testing.T) {
 	}
 }
 
+func TestBuildTree_CorruptCycleSurfacesEveryNodeOnce(t *testing.T) {
+	t.Parallel()
+	a, b := "a", "b"
+	rows := BuildTree([]domain.Node{
+		{ID: a, ParentID: &b, Kind: domain.KindVorhaben, Name: "A"},
+		{ID: b, ParentID: &a, Kind: domain.KindVorhaben, Name: "B"},
+	})
+	if len(rows) != 2 {
+		t.Fatalf("cycle-safe rows = %+v, want both nodes", rows)
+	}
+	seen := map[string]bool{}
+	for _, row := range rows {
+		if seen[row.Node.ID] {
+			t.Fatalf("node %s rendered twice: %+v", row.Node.ID, rows)
+		}
+		seen[row.Node.ID] = true
+	}
+}
+
+func TestFuzzyFilter_CorruptCycleStopsAncestorWalk(t *testing.T) {
+	t.Parallel()
+	a, b := "a", "b"
+	rows := []Row{
+		{Node: domain.Node{ID: a, ParentID: &b, Kind: domain.KindVorhaben, Name: "Alpha"}},
+		{Node: domain.Node{ID: b, ParentID: &a, Kind: domain.KindVorhaben, Name: "Beta"}},
+	}
+	got := FuzzyFilter(rows, "Alpha")
+	if len(got) != 2 {
+		t.Fatalf("cycle-safe fuzzy rows = %+v, want match plus one ancestor", got)
+	}
+}
+
 func TestFilterKind_FlattensToZeroDepth(t *testing.T) {
 	t.Parallel()
 	rows := FilterKind(BuildTree(sample()), domain.KindRepo)

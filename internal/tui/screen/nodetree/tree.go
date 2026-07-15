@@ -44,14 +44,33 @@ func BuildTree(nodes []domain.Node) []Row {
 		byParent[k] = kids
 	}
 	var rows []Row
-	var walk func(parentKey string, depth int)
-	walk = func(parentKey string, depth int) {
-		for _, n := range byParent[parentKey] {
-			rows = append(rows, Row{Node: n, Depth: depth})
-			walk(n.ID, depth+1)
+	seen := make(map[string]bool, len(nodes))
+	var walkNode func(domain.Node, int)
+	walkNode = func(n domain.Node, depth int) {
+		if seen[n.ID] {
+			return
+		}
+		seen[n.ID] = true
+		rows = append(rows, Row{Node: n, Depth: depth})
+		for _, child := range byParent[n.ID] {
+			walkNode(child, depth+1)
 		}
 	}
-	walk("", 0)
+	for _, root := range byParent[""] {
+		walkNode(root, 0)
+	}
+	// A corrupt parent cycle has no root. Surface each remaining component at
+	// level zero, deterministically, and let seen stop the back-edge.
+	remaining := append([]domain.Node(nil), nodes...)
+	sort.SliceStable(remaining, func(i, j int) bool {
+		if remaining[i].Name != remaining[j].Name {
+			return remaining[i].Name < remaining[j].Name
+		}
+		return remaining[i].ID < remaining[j].ID
+	})
+	for _, n := range remaining {
+		walkNode(n, 0)
+	}
 	return rows
 }
 
@@ -87,7 +106,12 @@ func FuzzyFilter(rows []Row, query string) []Row {
 		if _, _, ok := fuzzymatch.Match(query, r.Node.Name); ok {
 			keep[r.Node.ID] = true
 			cur := r.Node
+			seen := map[string]bool{cur.ID: true}
 			for cur.ParentID != nil {
+				if seen[*cur.ParentID] {
+					break
+				}
+				seen[*cur.ParentID] = true
 				j, ok := idx[*cur.ParentID]
 				if !ok {
 					break

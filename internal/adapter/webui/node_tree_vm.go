@@ -180,7 +180,9 @@ func SubtreeHourTotals(nodes []domain.Node, sessions []domain.WorkSession, now t
 			continue
 		}
 		id := *s.NodeID
-		for {
+		seen := make(map[string]bool, len(parent))
+		for !seen[id] { // defensively stop at corrupt parent cycles
+			seen[id] = true
 			p, ok := parent[id]
 			if !ok {
 				break // node not visible (archived/foreign) — stop the walk

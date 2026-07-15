@@ -161,3 +161,20 @@ func TestSubtreeHourTotals_RollsUpAncestors(t *testing.T) {
 		t.Errorf("sub-1h must render empty, got %q", short[0].Hours)
 	}
 }
+
+func TestSubtreeHourTotals_CorruptCycleCountsEachNodeOnce(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 7, 15, 18, 0, 0, 0, time.UTC)
+	a, b := "a", "b"
+	nodes := []domain.Node{
+		{ID: a, ParentID: &b, Kind: domain.KindVorhaben},
+		{ID: b, ParentID: &a, Kind: domain.KindVorhaben},
+	}
+	start := now.Add(-time.Hour)
+	sessions := []domain.WorkSession{{ID: "s", NodeID: &a, Start: start, Stop: &now}}
+
+	got := SubtreeHourTotals(nodes, sessions, now)
+	if got[a] != time.Hour || got[b] != time.Hour {
+		t.Fatalf("cycle-safe totals = %v, want each node counted exactly once", got)
+	}
+}
