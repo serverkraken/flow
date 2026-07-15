@@ -31,16 +31,16 @@ func newProjectsSrv(t *testing.T) (*httptest.Server, func(method, path, body str
 
 	bus := sse.NewBus()
 	srv := &httpserver.Server{
-		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           bus,
-		Emitter:       sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
-		Clock:         clk,
+		Verifier:   testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:     usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:        bus,
+		Emitter:    sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Clock:      clk,
 		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:  usecase.ListNodes{Nodes: ps},
 		DeleteNode: usecase.DeleteNode{Nodes: ps},
 		GetNode:    usecase.GetNode{Nodes: ps},
-		UpdateNode: usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
+		UpdateNode: usecase.UpdateNode{Nodes: ps, Clock: clk},
 	}
 
 	ts := httptest.NewServer(srv.Routes())
@@ -117,7 +117,8 @@ func remoteSlugs(bs *testutil.FakeProjectBindingStore) []string {
 func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	_, do, bs := newProjectsSrv(t)
 
-	// create with an upstream → auto-synced remote binding
+	// Canonical upstream identity is stored on the node; explicit bindings are
+	// separate aliases/overrides and are not synthesized by create.
 	res := do("POST", "/api/v1/nodes", `{"name":"Flow","kind":"engagement","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
 	if res.StatusCode != http.StatusCreated {
 		t.Fatalf("create status %d, want 201", res.StatusCode)
@@ -128,8 +129,8 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 	}
 	_ = res.Body.Close()
 	id := created["id"].(string)
-	if got := remoteSlugs(bs); len(got) != 1 || got[0] != "github.com/serverkraken/flow" {
-		t.Fatalf("create-with-upstream should auto-bind, got %v", got)
+	if got := remoteSlugs(bs); len(got) != 0 {
+		t.Fatalf("create-with-upstream synthesized an explicit binding: %v", got)
 	}
 
 	// GET one
@@ -179,15 +180,12 @@ func TestUpdateAndGetProjectRoutes(t *testing.T) {
 }
 
 // TestCreateAndUpdateNode_IconRoundTrips pins REST parity for the icon field
-// (cockpit-story Task 5): create with an icon + upstream (which triggers the
-// handler's follow-up full-replace UpdateNodeInput call to apply description/
-// upstream) must not wipe the icon that CreateNode just set, and a PATCH must
-// be able to change it.
+// (cockpit-story Task 5): create persists icon and upstream in the same node
+// write, and a PATCH can change the icon.
 func TestCreateAndUpdateNode_IconRoundTrips(t *testing.T) {
 	_, do, _ := newProjectsSrv(t)
 
-	// Create with an icon AND an upstreamGit, so the handler's post-create
-	// UpdateNodeInput call (to apply description/upstream) also runs.
+	// Create with an icon and upstreamGit in one request.
 	res := do("POST", "/api/v1/nodes",
 		`{"name":"Iconic","kind":"engagement","icon":"rocket","upstreamGit":"git@github.com:serverkraken/flow.git"}`)
 	if res.StatusCode != http.StatusCreated {
@@ -200,7 +198,7 @@ func TestCreateAndUpdateNode_IconRoundTrips(t *testing.T) {
 	_ = res.Body.Close()
 	id := created["id"].(string)
 	if created["icon"] != "rocket" {
-		t.Fatalf("create response icon = %v, want rocket (must survive the post-create description/upstream UpdateNodeInput call)", created["icon"])
+		t.Fatalf("create response icon = %v, want rocket", created["icon"])
 	}
 
 	// GET confirms the icon persisted (not just echoed on create response).

@@ -45,6 +45,8 @@ func newWebNodeLogoServer(t *testing.T) (*httpserver.Server, *httptest.Server, *
 	ids := &testutil.FakeIDGen{}
 	ns := testutil.NewFakeNodeStore()
 	ls := testutil.NewFakeNodeLogoStore()
+	tags := testutil.NewFakeTagStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -61,11 +63,11 @@ func newWebNodeLogoServer(t *testing.T) (*httpserver.Server, *httptest.Server, *
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateNode:     usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
+		CreateNode:     usecase.CreateNode{Nodes: ns, Aggregate: agg, IDs: ids, Clock: clk},
 		ListNodes:      usecase.ListNodes{Nodes: ns},
 		GetNode:        usecase.GetNode{Nodes: ns},
-		UploadNodeLogo: usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
-		DeleteNodeLogo: usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
+		UploadNodeLogo: usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
+		DeleteNodeLogo: usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
 		GetNodeLogo:    usecase.GetNodeLogo{Logos: ls},
 	}
 	ts := httptest.NewServer(srv.Routes())

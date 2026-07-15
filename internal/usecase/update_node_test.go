@@ -12,27 +12,15 @@ import (
 	"github.com/serverkraken/flow/internal/usecase"
 )
 
-// countingBindingStore wraps the fake bindings store to make DeleteRemote
-// calls observable — used to assert that a partial update omitting
-// UpstreamGit never touches the node's remote binding.
-type countingBindingStore struct {
-	*testutil.FakeProjectBindingStore
-	deletedRemotes int
-}
-
-func (s *countingBindingStore) DeleteRemote(ctx context.Context, ownerID, remoteSlug string) error {
-	s.deletedRemotes++
-	return s.FakeProjectBindingStore.DeleteRemote(ctx, ownerID, remoteSlug)
-}
-
-func newUpdateNodeFixture(t *testing.T) (usecase.UpdateNode, *testutil.FakeNodeStore, *countingBindingStore) {
+func newUpdateNodeFixture(t *testing.T) (usecase.UpdateNode, *testutil.FakeNodeStore, *testutil.FakeProjectBindingStore) {
 	t.Helper()
 	ns := testutil.NewFakeNodeStore()
-	bs := &countingBindingStore{FakeProjectBindingStore: testutil.NewFakeProjectBindingStore()}
+	bs := testutil.NewFakeProjectBindingStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, testutil.NewFakeNodeLogoStore(), testutil.NewFakeTagStore())
 	uc := usecase.UpdateNode{
-		Nodes: ns, Bindings: bs,
-		IDs:   &testutil.FakeIDGen{},
-		Clock: testutil.FakeClock{T: time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC)},
+		Nodes:     ns,
+		Aggregate: agg,
+		Clock:     testutil.FakeClock{T: time.Date(2026, 6, 23, 10, 0, 0, 0, time.UTC)},
 	}
 	return uc, ns, bs
 }
@@ -75,7 +63,7 @@ func remoteSlugs(bs *testutil.FakeProjectBindingStore) []string {
 	return out
 }
 
-func TestUpdateNode_SetUpstreamCreatesBinding(t *testing.T) {
+func TestUpdateNode_SetUpstreamSetsCanonicalIdentityWithoutBinding(t *testing.T) {
 	uc, ps, bs := newUpdateNodeFixture(t)
 	seedProj(t, ps, "p1", "")
 	in := baseInput()
@@ -90,12 +78,12 @@ func TestUpdateNode_SetUpstreamCreatesBinding(t *testing.T) {
 	if got.OriginSlug != "github.com/serverkraken/flow" {
 		t.Errorf("origin slug = %q, want normalized upstream", got.OriginSlug)
 	}
-	if slugs := remoteSlugs(bs.FakeProjectBindingStore); len(slugs) != 1 || slugs[0] != "github.com/serverkraken/flow" {
-		t.Errorf("want one remote binding github.com/serverkraken/flow, got %v", slugs)
+	if slugs := remoteSlugs(bs); len(slugs) != 0 {
+		t.Errorf("canonical upstream must not create an explicit binding, got %v", slugs)
 	}
 }
 
-func TestUpdateNode_ClearUpstreamRemovesBinding(t *testing.T) {
+func TestUpdateNode_ClearUpstreamPreservesExplicitBinding(t *testing.T) {
 	uc, ps, bs := newUpdateNodeFixture(t)
 	seedProj(t, ps, "p1", "git@github.com:serverkraken/flow.git")
 	// pre-create the matching binding
@@ -112,12 +100,12 @@ func TestUpdateNode_ClearUpstreamRemovesBinding(t *testing.T) {
 	if got.OriginSlug != "" {
 		t.Errorf("origin slug should be cleared, got %q", got.OriginSlug)
 	}
-	if slugs := remoteSlugs(bs.FakeProjectBindingStore); len(slugs) != 0 {
-		t.Errorf("binding should be gone, got %v", slugs)
+	if slugs := remoteSlugs(bs); len(slugs) != 1 || slugs[0] != "github.com/serverkraken/flow" {
+		t.Errorf("explicit binding changed while clearing canonical upstream: %v", slugs)
 	}
 }
 
-func TestUpdateNode_ReassignUpstreamRepointsBinding(t *testing.T) {
+func TestUpdateNode_ReassignUpstreamPreservesExplicitBinding(t *testing.T) {
 	uc, ps, bs := newUpdateNodeFixture(t)
 	seedProj(t, ps, "p1", "git@github.com:serverkraken/old.git")
 	_, _ = bs.Upsert(context.Background(), domain.ProjectBinding{
@@ -133,9 +121,9 @@ func TestUpdateNode_ReassignUpstreamRepointsBinding(t *testing.T) {
 	if got.OriginSlug != "github.com/serverkraken/new" {
 		t.Errorf("origin slug = %q, want github.com/serverkraken/new", got.OriginSlug)
 	}
-	slugs := remoteSlugs(bs.FakeProjectBindingStore)
-	if len(slugs) != 1 || slugs[0] != "github.com/serverkraken/new" {
-		t.Errorf("want only github.com/serverkraken/new, got %v", slugs)
+	slugs := remoteSlugs(bs)
+	if len(slugs) != 1 || slugs[0] != "github.com/serverkraken/old" {
+		t.Errorf("explicit binding changed with canonical upstream: %v", slugs)
 	}
 }
 
@@ -152,7 +140,7 @@ func TestUpdateNode_InvalidUpstreamRejected(t *testing.T) {
 	if got.UpstreamGit != "" {
 		t.Errorf("upstream must not be persisted on reject, got %q", got.UpstreamGit)
 	}
-	if len(remoteSlugs(bs.FakeProjectBindingStore)) != 0 {
+	if len(remoteSlugs(bs)) != 0 {
 		t.Errorf("no binding expected on reject")
 	}
 }
@@ -187,7 +175,7 @@ func TestUpdateNode_DescriptionOnlyNoBindingChurn(t *testing.T) {
 	if _, err := uc.Execute(context.Background(), "u1", "p1", in); err != nil {
 		t.Fatal(err)
 	}
-	if len(remoteSlugs(bs.FakeProjectBindingStore)) != 0 {
+	if len(remoteSlugs(bs)) != 0 {
 		t.Errorf("description-only edit must not create a binding")
 	}
 }
@@ -248,12 +236,17 @@ func TestUpdateNode_NilUpstreamKeepsBinding(t *testing.T) {
 		ID: "n1", OwnerID: "o1", Kind: domain.KindRepo, Status: domain.NodeActive,
 		Name: "R", Slug: "r", UpstreamGit: "https://github.com/a/b",
 	})
+	_, _ = bs.Upsert(context.Background(), domain.ProjectBinding{
+		ID: "explicit", OwnerID: "o1", NodeID: "n1",
+		Kind: domain.BindingRemote, RemoteSlug: "github.com/a/b",
+	})
 	name := "R2"
 	if _, err := uc.Execute(context.Background(), "o1", "n1", usecase.UpdateNodeInput{Name: &name}); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if bs.deletedRemotes != 0 {
-		t.Errorf("partial update without upstream deleted %d bindings, want 0", bs.deletedRemotes)
+	bindings, err := bs.List(context.Background(), "o1")
+	if err != nil || len(bindings) != 1 || bindings[0].ID != "explicit" {
+		t.Errorf("partial update changed explicit binding: bindings=%+v err=%v", bindings, err)
 	}
 }
 

@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"errors"
+	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
@@ -9,9 +11,9 @@ import (
 
 // UpdateNodeInput is a PARTIAL update: a nil field is left untouched, a non-nil
 // field is applied (a non-nil pointer to "" deliberately clears the field).
-// Rate is excluded — see SetNodeRate. syncRemoteBinding only fires when
-// UpstreamGit is provided (non-nil) and actually changes, so an update that
-// omits UpstreamGit can never delete the node's remote binding.
+// Git identity is projected onto OriginSlug from an explicitly supplied
+// UpstreamGit. Explicit bindings are independent aliases/overrides and are
+// never mutated by this use case.
 type UpdateNodeInput struct {
 	Name               *string
 	Slug               *string
@@ -22,22 +24,46 @@ type UpdateNodeInput struct {
 	UpstreamGit        *string
 	Status             *domain.NodeStatus
 	CountsTowardTarget *bool
+	// ApplyCountsTowardTarget distinguishes "set inherit" (true + nil) from
+	// an omitted partial field. The remaining fields are WebUI aggregate writes.
+	ApplyCountsTowardTarget bool
+	ApplyRate               bool
+	Rate                    *domain.Money
+	Tags                    *[]string
+	LogoData                []byte
+	DeleteLogo              bool
 }
 
-// UpdateNode overwrites a project's metadata and keeps the auto-managed
-// remote binding in sync with its upstream git (set/clear/repoint).
+// UpdateNode overwrites a node's metadata. Canonical Git identity lives on the
+// repo node itself (OriginSlug / normalized UpstreamGit); explicit bindings
+// are managed only through BindNode and UnbindNode.
 type UpdateNode struct {
-	Nodes    ports.NodeStore
-	Bindings ports.ProjectBindingStore
-	IDs      ports.IDGen
-	Clock    ports.Clock
+	Nodes     ports.NodeStore
+	Aggregate ports.NodeAggregateStore
+	Clock     ports.Clock
 }
 
 func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateNodeInput) (domain.Node, error) {
+	if uc.Aggregate != nil {
+		return uc.Aggregate.UpdateAggregate(ctx, ownerID, id, func(cur domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+			return applyNodeUpdate(cur, ownerID, in, uc.Clock.Now())
+		})
+	}
 	cur, err := uc.Nodes.Get(ctx, ownerID, id)
 	if err != nil {
 		return domain.Node{}, err
 	}
+	p, changes, err := applyNodeUpdate(cur, ownerID, in, uc.Clock.Now())
+	if err != nil {
+		return domain.Node{}, err
+	}
+	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep {
+		return domain.Node{}, errors.New("update node aggregate store is not configured")
+	}
+	return uc.Nodes.Update(ctx, ownerID, p)
+}
+
+func applyNodeUpdate(cur domain.Node, ownerID string, in UpdateNodeInput, now time.Time) (domain.Node, ports.NodeAggregateChanges, error) {
 	p := cur
 	if in.Name != nil {
 		p.Name = *in.Name
@@ -63,20 +89,45 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 	if in.Status != nil {
 		p.Status = *in.Status
 	}
-	if in.CountsTowardTarget != nil {
+	if in.ApplyCountsTowardTarget || in.CountsTowardTarget != nil {
 		p.CountsTowardTarget = in.CountsTowardTarget
 	}
-	p.UpdatedAt = uc.Clock.Now()
+	p.UpdatedAt = now
+	changes := ports.NodeAggregateChanges{SetRate: in.ApplyRate, Rate: in.Rate}
+	if in.ApplyRate {
+		if p.Kind != domain.KindEngagement || (in.Rate != nil && (in.Rate.Amount < 0 || len(in.Rate.Currency) != 3)) {
+			return domain.Node{}, ports.NodeAggregateChanges{}, domain.ErrInvalidRate
+		}
+	}
+	if in.Tags != nil {
+		changes.SetTags = true
+		changes.Tags = *in.Tags
+	}
+	if in.DeleteLogo && len(in.LogoData) > 0 {
+		return domain.Node{}, ports.NodeAggregateChanges{}, errors.New("cannot upload and delete a node logo together")
+	}
+	if in.DeleteLogo {
+		p.LogoRef = ""
+		changes.Logo = ports.NodeLogoDelete
+	} else if len(in.LogoData) > 0 {
+		logo, err := buildNodeLogo(ownerID, p.ID, in.LogoData, now)
+		if err != nil {
+			return domain.Node{}, ports.NodeAggregateChanges{}, err
+		}
+		p.LogoRef = logo.Ref
+		changes.Logo = ports.NodeLogoPut
+		changes.LogoValue = logo
+	}
 	if err := p.Validate(); err != nil {
-		return domain.Node{}, err
+		return domain.Node{}, ports.NodeAggregateChanges{}, err
 	}
 	// Pre-validate the upstream so a bad URL rejects the whole update before any
-	// write or binding mutation.
+	// write.
 	var newSlug string
 	if p.UpstreamGit != "" {
 		s, ok := domain.NormalizeRemoteSlug(p.UpstreamGit)
 		if !ok {
-			return domain.Node{}, domain.ErrInvalidUpstream
+			return domain.Node{}, ports.NodeAggregateChanges{}, domain.ErrInvalidUpstream
 		}
 		newSlug = s
 	}
@@ -86,38 +137,5 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 	if in.UpstreamGit != nil && p.Kind == domain.KindRepo {
 		p.OriginSlug = newSlug
 	}
-	saved, err := uc.Nodes.Update(ctx, ownerID, p)
-	if err != nil {
-		return domain.Node{}, err
-	}
-	if cur.UpstreamGit != p.UpstreamGit {
-		if err := uc.syncRemoteBinding(ctx, ownerID, saved.ID, cur.UpstreamGit, newSlug); err != nil {
-			return domain.Node{}, err
-		}
-	}
-	return saved, nil
-}
-
-// syncRemoteBinding drops the previous upstream's remote binding (when it
-// changed) and upserts the new one. newSlug == "" means the upstream was cleared.
-func (uc UpdateNode) syncRemoteBinding(ctx context.Context, ownerID, nodeID, oldURL, newSlug string) error {
-	if oldSlug, ok := domain.NormalizeRemoteSlug(oldURL); ok && oldSlug != newSlug {
-		if err := uc.Bindings.DeleteRemote(ctx, ownerID, oldSlug); err != nil {
-			return err
-		}
-	}
-	if newSlug == "" {
-		return nil
-	}
-	now := uc.Clock.Now()
-	_, err := uc.Bindings.Upsert(ctx, domain.ProjectBinding{
-		ID:         uc.IDs.NewID(),
-		OwnerID:    ownerID,
-		NodeID:     nodeID,
-		Kind:       domain.BindingRemote,
-		RemoteSlug: newSlug,
-		CreatedAt:  now,
-		UpdatedAt:  now,
-	})
-	return err
+	return p, changes, nil
 }

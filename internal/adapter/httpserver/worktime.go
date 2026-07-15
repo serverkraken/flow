@@ -215,6 +215,7 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 		Name: req.Name, Slug: req.Slug, Color: req.Color, Glyph: req.Glyph, Icon: req.Icon,
 		Kind: domain.NodeKind(req.Kind), ParentID: req.ParentID,
 		CountsTowardTarget: req.CountsTowardTarget,
+		Description:        req.Description, UpstreamGit: req.UpstreamGit,
 	})
 	switch {
 	case errors.Is(err, domain.ErrInvalidNode):
@@ -229,17 +230,6 @@ func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
-	}
-	// Apply optional description/upstream (auto-syncs the remote binding).
-	if req.Description != "" || req.UpstreamGit != "" {
-		p, err = s.UpdateNode.Execute(r.Context(), u.ID, p.ID, usecase.UpdateNodeInput{
-			Name: sp(p.Name), Slug: sp(p.Slug), Color: sp(p.Color), Glyph: sp(p.Glyph), Icon: sp(p.Icon),
-			Description: sp(req.Description), UpstreamGit: sp(req.UpstreamGit), Status: nsp(p.Status),
-		})
-		if err != nil {
-			http.Error(w, "server error", http.StatusInternalServerError)
-			return
-		}
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": p.ID, "name": p.Name}})
 	writeJSON(w, http.StatusCreated, p)

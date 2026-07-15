@@ -1593,6 +1593,217 @@ func (s *FakeNodeLogoStore) Delete(_ context.Context, ownerID, nodeID string) er
 	return nil
 }
 
+const (
+	NodeAggregateFailNode   = "node"
+	NodeAggregateFailRate   = "rate"
+	NodeAggregateFailTags   = "tags"
+	NodeAggregateFailLogo   = "logo"
+	NodeAggregateFailCommit = "commit"
+)
+
+// FakeNodeAggregateStore provides an atomic in-memory transaction boundary
+// across the existing node, logo and tag fakes. FailStage is a test hook that
+// injects a failure after earlier stages have run; snapshots are restored just
+// like a database rollback.
+type FakeNodeAggregateStore struct {
+	mu        sync.Mutex
+	Nodes     *FakeNodeStore
+	Logos     *FakeNodeLogoStore
+	Tags      *FakeTagStore
+	FailStage string
+}
+
+func NewFakeNodeAggregateStore(nodes *FakeNodeStore, logos *FakeNodeLogoStore, tags *FakeTagStore) *FakeNodeAggregateStore {
+	return &FakeNodeAggregateStore{Nodes: nodes, Logos: logos, Tags: tags}
+}
+
+type fakeNodeAggregateSnapshot struct {
+	nodes      map[string]domain.Node
+	logos      map[string]domain.NodeLogo
+	tagDisplay map[string]string
+	tagLinks   map[string]map[string]bool
+	tagIDGen   int
+}
+
+func (s *FakeNodeAggregateStore) snapshot() fakeNodeAggregateSnapshot {
+	s.Nodes.mu.Lock()
+	nodes := make(map[string]domain.Node, len(s.Nodes.m))
+	for k, v := range s.Nodes.m {
+		nodes[k] = v
+	}
+	s.Nodes.mu.Unlock()
+	s.Logos.mu.Lock()
+	logos := make(map[string]domain.NodeLogo, len(s.Logos.logos))
+	for k, v := range s.Logos.logos {
+		logos[k] = v
+	}
+	s.Logos.mu.Unlock()
+	s.Tags.mu.Lock()
+	display := make(map[string]string, len(s.Tags.display))
+	for k, v := range s.Tags.display {
+		display[k] = v
+	}
+	links := make(map[string]map[string]bool, len(s.Tags.links))
+	for k, v := range s.Tags.links {
+		cp := make(map[string]bool, len(v))
+		for slug, present := range v {
+			cp[slug] = present
+		}
+		links[k] = cp
+	}
+	idgen := s.Tags.idgen
+	s.Tags.mu.Unlock()
+	return fakeNodeAggregateSnapshot{nodes: nodes, logos: logos, tagDisplay: display, tagLinks: links, tagIDGen: idgen}
+}
+
+func (s *FakeNodeAggregateStore) restore(snap fakeNodeAggregateSnapshot) {
+	s.Nodes.mu.Lock()
+	s.Nodes.m = snap.nodes
+	s.Nodes.mu.Unlock()
+	s.Logos.mu.Lock()
+	s.Logos.logos = snap.logos
+	s.Logos.mu.Unlock()
+	s.Tags.mu.Lock()
+	s.Tags.display = snap.tagDisplay
+	s.Tags.links = snap.tagLinks
+	s.Tags.idgen = snap.tagIDGen
+	s.Tags.mu.Unlock()
+}
+
+func (s *FakeNodeAggregateStore) fail(stage string) error {
+	if s.FailStage == stage {
+		return errors.New("fake node aggregate failure: " + stage)
+	}
+	return nil
+}
+
+func (s *FakeNodeAggregateStore) CreateAggregate(ctx context.Context, n domain.Node, changes ports.NodeAggregateChanges) (domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snap := s.snapshot()
+	rollback := func(err error) (domain.Node, error) {
+		s.restore(snap)
+		return domain.Node{}, err
+	}
+	if changes.SetRate {
+		n.Rate = changes.Rate
+	}
+	if changes.Logo == ports.NodeLogoPut {
+		if changes.LogoValue.OwnerID != n.OwnerID || changes.LogoValue.NodeID != n.ID {
+			return rollback(errors.New("fake node aggregate create logo identity mismatch"))
+		}
+		n.LogoRef = changes.LogoValue.Ref
+	}
+	created, err := s.Nodes.Create(ctx, n)
+	if err != nil {
+		return rollback(err)
+	}
+	if err := s.fail(NodeAggregateFailNode); err != nil {
+		return rollback(err)
+	}
+	if changes.SetRate {
+		if err := s.fail(NodeAggregateFailRate); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.SetTags {
+		if _, err := s.Tags.SetTags(ctx, n.OwnerID, domain.TaggableNode, n.ID, changes.Tags); err != nil {
+			return rollback(err)
+		}
+		if err := s.fail(NodeAggregateFailTags); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.Logo == ports.NodeLogoPut {
+		if err := s.Logos.Put(ctx, changes.LogoValue); err != nil {
+			return rollback(err)
+		}
+		if err := s.fail(NodeAggregateFailLogo); err != nil {
+			return rollback(err)
+		}
+	}
+	if err := s.fail(NodeAggregateFailCommit); err != nil {
+		return rollback(err)
+	}
+	return created, nil
+}
+
+func (s *FakeNodeAggregateStore) UpdateAggregate(ctx context.Context, ownerID, nodeID string, mutate func(domain.Node) (domain.Node, ports.NodeAggregateChanges, error)) (domain.Node, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	snap := s.snapshot()
+	rollback := func(err error) (domain.Node, error) {
+		s.restore(snap)
+		return domain.Node{}, err
+	}
+	current, err := s.Nodes.Get(ctx, ownerID, nodeID)
+	if err != nil {
+		return domain.Node{}, err
+	}
+	n, changes, err := mutate(current)
+	if err != nil {
+		return domain.Node{}, err
+	}
+	switch changes.Logo {
+	case ports.NodeLogoKeep:
+		n.LogoRef = current.LogoRef
+	case ports.NodeLogoPut:
+		if changes.LogoValue.OwnerID != current.OwnerID || changes.LogoValue.NodeID != current.ID {
+			return rollback(errors.New("fake node aggregate update logo identity mismatch"))
+		}
+		n.LogoRef = changes.LogoValue.Ref
+	case ports.NodeLogoDelete:
+		n.LogoRef = ""
+	}
+	updated, err := s.Nodes.Update(ctx, ownerID, n)
+	if err != nil {
+		return rollback(err)
+	}
+	if err := s.fail(NodeAggregateFailNode); err != nil {
+		return rollback(err)
+	}
+	if changes.SetRate {
+		if err := s.Nodes.SetRate(ctx, ownerID, nodeID, changes.Rate); err != nil {
+			return rollback(err)
+		}
+		if err := s.fail(NodeAggregateFailRate); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.SetTags {
+		if _, err := s.Tags.SetTags(ctx, ownerID, domain.TaggableNode, nodeID, changes.Tags); err != nil {
+			return rollback(err)
+		}
+		if err := s.fail(NodeAggregateFailTags); err != nil {
+			return rollback(err)
+		}
+	}
+	switch changes.Logo {
+	case ports.NodeLogoPut:
+		if err := s.Logos.Put(ctx, changes.LogoValue); err != nil {
+			return rollback(err)
+		}
+	case ports.NodeLogoDelete:
+		if err := s.Logos.Delete(ctx, ownerID, nodeID); err != nil {
+			return rollback(err)
+		}
+	}
+	if changes.Logo != ports.NodeLogoKeep {
+		if err := s.fail(NodeAggregateFailLogo); err != nil {
+			return rollback(err)
+		}
+	}
+	if err := s.fail(NodeAggregateFailCommit); err != nil {
+		return rollback(err)
+	}
+	if changes.SetRate {
+		updated.Rate = changes.Rate
+	}
+	return updated, nil
+}
+
+var _ ports.NodeAggregateStore = (*FakeNodeAggregateStore)(nil)
+
 // artifactKey is the (owner,node,slug) composite key FakeArtifactStore uses,
 // mirroring the DB's UNIQUE (owner_id, node_id, slug) constraint.
 type artifactKey struct{ owner, node, slug string }

@@ -126,6 +126,38 @@ type NodeLogoStore interface {
 	Delete(ctx context.Context, ownerID, nodeID string) error
 }
 
+// NodeLogoMutation describes the logo part of a transactional node mutation.
+// Keep leaves the current blob/ref untouched, Put replaces both, and Delete
+// removes the blob while clearing the ref.
+type NodeLogoMutation uint8
+
+const (
+	NodeLogoKeep NodeLogoMutation = iota
+	NodeLogoPut
+	NodeLogoDelete
+)
+
+// NodeAggregateChanges are the optional dependent writes committed with one
+// node create/update. Rate and tags use explicit Set flags so clearing them is
+// distinct from leaving them untouched.
+type NodeAggregateChanges struct {
+	SetRate   bool
+	Rate      *domain.Money
+	SetTags   bool
+	Tags      []string
+	Logo      NodeLogoMutation
+	LogoValue domain.NodeLogo
+}
+
+// NodeAggregateStore owns the transaction boundary for node metadata and its
+// dependent rate, tag and logo state. Update locks and supplies the current
+// owner-scoped row to mutate so concurrent partial updates do not overwrite
+// fields read before the transaction began.
+type NodeAggregateStore interface {
+	CreateAggregate(ctx context.Context, n domain.Node, changes NodeAggregateChanges) (domain.Node, error)
+	UpdateAggregate(ctx context.Context, ownerID, nodeID string, mutate func(domain.Node) (domain.Node, NodeAggregateChanges, error)) (domain.Node, error)
+}
+
 // ArtifactStore persists node-scoped artifacts as Postgres blobs (N per node,
 // FK ON DELETE CASCADE). All reads are owner-scoped.
 type ArtifactStore interface {

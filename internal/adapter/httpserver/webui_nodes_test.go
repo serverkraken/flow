@@ -9,13 +9,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/adapter/httpserver"
 	"github.com/serverkraken/flow/internal/adapter/sse"
-	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/adapter/websession"
+	"github.com/serverkraken/flow/internal/adapter/webui"
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
@@ -24,7 +25,24 @@ import (
 
 // newWebNodesServerFull builds a test server with node + tag usecases wired.
 // Returns the server, session cookie, fake node store, and fake tag store.
-func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore, *testutil.FakeTagStore) {
+type captureEmitter struct {
+	mu     sync.Mutex
+	events []domain.Event
+}
+
+func (e *captureEmitter) Emit(_ context.Context, event domain.Event) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.events = append(e.events, event)
+}
+
+func (e *captureEmitter) count() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return len(e.events)
+}
+
+func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore, *testutil.FakeTagStore, *testutil.FakeNodeAggregateStore, *captureEmitter) {
 	t.Helper()
 	clk := testutil.FakeClock{T: time.Date(2026, 6, 27, 9, 0, 0, 0, time.UTC)}
 	ids := &testutil.FakeIDGen{}
@@ -32,6 +50,7 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	bs := testutil.NewFakeProjectBindingStore()
 	tags := testutil.NewFakeTagStore()
 	ls := testutil.NewFakeNodeLogoStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
 	users := testutil.NewFakeUserStore()
 	u, _ := domain.NewUser("u1", "sub-1", "msoent", "m@x.de", "M")
 	_, _ = users.UpsertBySub(context.Background(), u)
@@ -39,26 +58,27 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	ss := testutil.NewFakeSessionStore()
 	docs := testutil.NewFakeDocumentStore()
 	bus := sse.NewBus()
+	emitter := &captureEmitter{}
 	srv := &httpserver.Server{
 		Users:   users,
 		Session: codec,
 		Bus:     bus,
-		Emitter: sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Emitter: emitter,
 		Clock:   clk,
 		Ensure: usecase.EnsureUser{
 			Users: users,
 			IDs:   ids,
 			Allow: func(ports.Identity) bool { return true },
 		},
-		CreateNode:            usecase.CreateNode{Nodes: ns, IDs: ids, Clock: clk},
+		CreateNode:            usecase.CreateNode{Nodes: ns, Aggregate: agg, IDs: ids, Clock: clk},
 		ListNodes:             usecase.ListNodes{Nodes: ns},
 		GetNode:               usecase.GetNode{Nodes: ns},
-		UpdateNode:            usecase.UpdateNode{Nodes: ns, Bindings: bs, IDs: ids, Clock: clk},
+		UpdateNode:            usecase.UpdateNode{Nodes: ns, Aggregate: agg, Clock: clk},
 		DeleteNode:            usecase.DeleteNode{Nodes: ns},
 		SetNodeRate:           usecase.SetNodeRate{Nodes: ns},
-		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: ns, Clock: clk},
-		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
-		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Clock: clk},
+		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: ns, Aggregate: agg, Clock: clk},
+		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
+		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk},
 		GetNodeLogo:           usecase.GetNodeLogo{Logos: ls},
 		MoveNode:              usecase.MoveNode{Nodes: ns},
 		NodeAncestors:         usecase.NodeAncestors{Nodes: ns},
@@ -78,14 +98,14 @@ func newWebNodesServerFull(t *testing.T) (*httptest.Server, *http.Cookie, *testu
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)
 	cv, _ := codec.Issue("u1")
-	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns, tags
+	return ts, &http.Cookie{Name: "flow_session", Value: cv}, ns, tags, agg, emitter
 }
 
 // newWebNodesServer builds a test server with the node usecases wired and a
 // seeded user. Returns the server, a session cookie, and the fake node store.
 func newWebNodesServer(t *testing.T) (*httptest.Server, *http.Cookie, *testutil.FakeNodeStore) {
 	t.Helper()
-	ts, c, ns, _ := newWebNodesServerFull(t)
+	ts, c, ns, _, _, _ := newWebNodesServerFull(t)
 	return ts, c, ns
 }
 
@@ -713,7 +733,7 @@ func TestWebNodeMove(t *testing.T) {
 // create form results in the node carrying those 2 tags (E2).
 func TestWebNodeFormTags(t *testing.T) {
 	t.Parallel()
-	ts, c, ns, tags := newWebNodesServerFull(t)
+	ts, c, ns, tags, _, _ := newWebNodesServerFull(t)
 
 	// POST /nodes: create an engagement with two tags.
 	res := postN(t, ts, c, "/nodes", url.Values{
@@ -926,6 +946,59 @@ func TestWebNodeForm_IconAndLogo(t *testing.T) {
 		if nn.Name == "BadLogo" {
 			t.Errorf("rejected upload must not create a half-configured node: %+v", nn)
 		}
+	}
+}
+
+func TestWebNodeCreate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
+	ts, c, ns, _, agg, emitter := newWebNodesServerFull(t)
+	agg.FailStage = testutil.NodeAggregateFailLogo
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("name", "Rollback")
+	_ = mw.WriteField("kind", "engagement")
+	_ = mw.WriteField("status", "active")
+	_ = mw.WriteField("rateAmount", "95.00")
+	_ = mw.WriteField("rateCurrency", "EUR")
+	_ = mw.WriteField("tags", "atomic")
+	fw, _ := mw.CreateFormFile("logo", "logo.png")
+	_, _ = fw.Write(pngPixel(t))
+	_ = mw.Close()
+	res := postNMultipart(t, ts, c, "/nodes", mw.FormDataContentType(), &buf)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("aggregate create failure = %d, want 400 form error", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	if got, err := ns.List(context.Background(), "u1"); err != nil || len(got) != 0 {
+		t.Fatalf("partial node survived failed create: nodes=%+v err=%v", got, err)
+	}
+	if emitter.count() != 0 {
+		t.Fatalf("failed create emitted %d event(s)", emitter.count())
+	}
+}
+
+func TestWebNodeUpdate_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
+	ts, c, ns, _, agg, emitter := newWebNodesServerFull(t)
+	n := seedTreeNode(t, ns, "n-rollback", "Old", domain.KindEngagement, nil)
+	agg.FailStage = testutil.NodeAggregateFailLogo
+
+	res := postN(t, ts, c, "/nodes/"+n.ID, url.Values{
+		"name": {"New"}, "slug": {n.Slug}, "kind": {"engagement"},
+		"status": {"active"}, "tags": {"new"}, "logoRemove": {"1"},
+	})
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("aggregate update failure = %d, want 500", res.StatusCode)
+	}
+	_ = res.Body.Close()
+	got, err := ns.Get(context.Background(), "u1", n.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Old" {
+		t.Fatalf("metadata survived failed update: %+v", got)
+	}
+	if emitter.count() != 0 {
+		t.Fatalf("failed update emitted %d event(s)", emitter.count())
 	}
 }
 

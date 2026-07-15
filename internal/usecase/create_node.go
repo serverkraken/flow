@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -20,16 +21,35 @@ type CreateNodeInput struct {
 	// CountsTowardTarget overrides the domain default (nil = erbt) when non-nil.
 	// Omitting it (nil) preserves NewNode's default of nil (inherit).
 	CountsTowardTarget *bool
+	// WebUI aggregate fields. A nil Tags pointer leaves tag state outside this
+	// mutation; a non-nil pointer replaces it, including with an empty set.
+	Rate     *domain.Money
+	Tags     *[]string
+	LogoData []byte
 }
 
 // CreateNode creates an owner-scoped node, validating kind+parent placement.
 type CreateNode struct {
-	Nodes ports.NodeStore
-	IDs   ports.IDGen
-	Clock ports.Clock
+	Nodes     ports.NodeStore
+	Aggregate ports.NodeAggregateStore
+	IDs       ports.IDGen
+	Clock     ports.Clock
 }
 
 func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeInput) (domain.Node, error) {
+	if in.Rate != nil {
+		if in.Kind != domain.KindEngagement || in.Rate.Amount < 0 || len(in.Rate.Currency) != 3 {
+			return domain.Node{}, domain.ErrInvalidRate
+		}
+	}
+	var logo domain.NodeLogo
+	if len(in.LogoData) > 0 {
+		var err error
+		logo, err = buildNodeLogo(ownerID, "", in.LogoData, uc.Clock.Now())
+		if err != nil {
+			return domain.Node{}, err
+		}
+	}
 	var upstreamSlug string
 	if in.UpstreamGit != "" {
 		var ok bool
@@ -67,8 +87,25 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 	n.Color, n.Glyph, n.Icon = in.Color, in.Glyph, in.Icon
 	n.CountsTowardTarget = in.CountsTowardTarget
 	n.Description, n.UpstreamGit = in.Description, in.UpstreamGit
+	changes := ports.NodeAggregateChanges{SetRate: in.Rate != nil, Rate: in.Rate}
+	if in.Tags != nil {
+		changes.SetTags = true
+		changes.Tags = *in.Tags
+	}
+	if len(in.LogoData) > 0 {
+		logo.NodeID = n.ID
+		n.LogoRef = logo.Ref
+		changes.Logo = ports.NodeLogoPut
+		changes.LogoValue = logo
+	}
 	if err := n.Validate(); err != nil {
 		return domain.Node{}, err
+	}
+	if uc.Aggregate != nil {
+		return uc.Aggregate.CreateAggregate(ctx, n, changes)
+	}
+	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep {
+		return domain.Node{}, errors.New("create node aggregate store is not configured")
 	}
 	return uc.Nodes.Create(ctx, n)
 }

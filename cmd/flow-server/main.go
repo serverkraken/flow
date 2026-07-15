@@ -79,6 +79,7 @@ func run() error {
 	artifactStore := pgstore.NewArtifactStore(pool)
 	clock := systemclock.Clock{}
 	ids := uuidgen.Gen{}
+	nodeAggregateStore := pgstore.NewNodeAggregateStore(pool, ids)
 	documentStore := pgstore.NewDocumentStore(pool, ids)
 	tagStore := pgstore.NewTagStore(pool, ids)
 	bus := sse.NewBus()
@@ -123,9 +124,9 @@ func run() error {
 		StopSession:        usecase.StopSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local, Tags: tagStore},
 		SwitchSession:      usecase.SwitchSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessions:       usecase.ListSessions{Sessions: sessionStore, Clock: clock},
-		CreateNode:         usecase.CreateNode{Nodes: nodeStore, IDs: ids, Clock: clock},
+		CreateNode:         usecase.CreateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, IDs: ids, Clock: clock},
 		ListNodes:          usecase.ListNodes{Nodes: nodeStore},
-		UpdateNode:         usecase.UpdateNode{Nodes: nodeStore, Bindings: bindingStore, IDs: ids, Clock: clock},
+		UpdateNode:         usecase.UpdateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNode:            usecase.GetNode{Nodes: nodeStore},
 		EditSession:        usecase.EditSession{Sessions: sessionStore, Nodes: nodeStore, Clock: clock, Loc: time.Local, Tags: tagStore},
 		DeleteSession:      usecase.DeleteSession{Sessions: sessionStore, Tags: tagStore},
@@ -158,9 +159,9 @@ func run() error {
 			Loc:      time.Local,
 		},
 		SetNodeRate:           usecase.SetNodeRate{Nodes: nodeStore},
-		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: nodeStore, Clock: clock},
-		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Clock: clock},
-		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Clock: clock},
+		SetCountsTowardTarget: usecase.SetCountsTowardTarget{Nodes: nodeStore, Aggregate: nodeAggregateStore, Clock: clock},
+		UploadNodeLogo:        usecase.UploadNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
+		DeleteNodeLogo:        usecase.DeleteNodeLogo{Nodes: nodeStore, Logos: nodeLogoStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNodeLogo:           usecase.GetNodeLogo{Logos: nodeLogoStore},
 		UploadArtifact:        usecase.UploadArtifact{Nodes: nodeStore, Artifacts: artifactStore, IDs: ids, Clock: clock, Emitter: emitter},
 		RenameArtifact:        usecase.RenameArtifact{Artifacts: artifactStore, Emitter: emitter},

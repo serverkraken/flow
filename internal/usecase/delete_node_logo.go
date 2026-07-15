@@ -10,12 +10,22 @@ import (
 // DeleteNodeLogo removes a node's uploaded logo and clears its LogoRef, so
 // rendering falls back to icon/glyph. Absent logo is a no-op.
 type DeleteNodeLogo struct {
-	Nodes ports.NodeStore
-	Logos ports.NodeLogoStore
-	Clock ports.Clock
+	Nodes     ports.NodeStore
+	Logos     ports.NodeLogoStore
+	Aggregate ports.NodeAggregateStore
+	Clock     ports.Clock
 }
 
 func (uc DeleteNodeLogo) Execute(ctx context.Context, ownerID, nodeID string) (domain.Node, error) {
+	if uc.Aggregate != nil {
+		return uc.Aggregate.UpdateAggregate(ctx, ownerID, nodeID, func(n domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+			if n.LogoRef != "" {
+				n.UpdatedAt = uc.Clock.Now()
+			}
+			n.LogoRef = ""
+			return n, ports.NodeAggregateChanges{Logo: ports.NodeLogoDelete}, nil
+		})
+	}
 	n, err := uc.Nodes.Get(ctx, ownerID, nodeID)
 	if err != nil {
 		return domain.Node{}, err

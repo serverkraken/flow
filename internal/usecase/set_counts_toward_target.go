@@ -12,11 +12,19 @@ import (
 // applies the value verbatim — the WebUI tri-state control uses it so "set to
 // inherit" is expressible. Mirrors SetNodeRate's always-apply shape.
 type SetCountsTowardTarget struct {
-	Nodes ports.NodeStore
-	Clock ports.Clock
+	Nodes     ports.NodeStore
+	Aggregate ports.NodeAggregateStore
+	Clock     ports.Clock
 }
 
 func (uc SetCountsTowardTarget) Execute(ctx context.Context, ownerID, id string, mode *bool) (domain.Node, error) {
+	if uc.Aggregate != nil {
+		return uc.Aggregate.UpdateAggregate(ctx, ownerID, id, func(n domain.Node) (domain.Node, ports.NodeAggregateChanges, error) {
+			n.CountsTowardTarget = mode
+			n.UpdatedAt = uc.Clock.Now()
+			return n, ports.NodeAggregateChanges{}, nil
+		})
+	}
 	n, err := uc.Nodes.Get(ctx, ownerID, id)
 	if err != nil {
 		return domain.Node{}, err // ErrNodeNotFound bubbles to a 404

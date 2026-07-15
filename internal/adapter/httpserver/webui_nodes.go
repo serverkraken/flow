@@ -260,28 +260,21 @@ func (s *Server) handleWebNodeCreate(w http.ResponseWriter, r *http.Request) {
 	if kind == domain.KindEngagement {
 		parent = nil // engagements are always roots
 	}
+	tags := strings.Fields(vals.TagsCSV)
+	var nodeRate *domain.Money
+	if kind == domain.KindEngagement {
+		nodeRate = rate
+	}
 	n, err := s.CreateNode.Execute(r.Context(), u.ID, usecase.CreateNodeInput{
 		Name: vals.Name, Slug: vals.Slug, Kind: kind, ParentID: parent,
 		Color: vals.Color, Glyph: vals.Glyph, Icon: vals.Icon,
 		Description: vals.Description, UpstreamGit: vals.UpstreamGit,
 		CountsTowardTarget: countsModeToPtr(vals.CountsMode),
+		Rate:               nodeRate, Tags: &tags, LogoData: logoData,
 	})
 	if err != nil {
 		reRender(i18nT(r, "node.err.create") + ": " + err.Error())
 		return
-	}
-	if kind == domain.KindEngagement && rate != nil {
-		_ = s.SetNodeRate.Execute(r.Context(), u.ID, n.ID, rate)
-	}
-	if s.SetTags.Tags != nil {
-		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {
-			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
-		}
-	}
-	if len(logoData) > 0 {
-		if _, err := s.UploadNodeLogo.Execute(r.Context(), u.ID, n.ID, logoData); err != nil {
-			slog.WarnContext(r.Context(), "webui: upload node logo failed", "nodeID", n.ID, "err", err)
-		}
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
 	http.Redirect(w, r, "/nodes/"+n.ID, http.StatusSeeOther)
@@ -358,6 +351,11 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		reRender(errMsg)
 		return
 	}
+	tags := strings.Fields(vals.TagsCSV)
+	removeLogo := r.FormValue("logoRemove") == "1"
+	if removeLogo {
+		logoData = nil
+	}
 	n, err := s.UpdateNode.Execute(r.Context(), u.ID, id, usecase.UpdateNodeInput{
 		Name:        sp(vals.Name),
 		Slug:        sp(vals.Slug),
@@ -367,6 +365,9 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 		Description: sp(vals.Description),
 		UpstreamGit: sp(vals.UpstreamGit),
 		Status:      nsp(domain.NodeStatus(orStatus(vals.Status))),
+		ApplyRate:   cur.Kind == domain.KindEngagement, Rate: rate,
+		ApplyCountsTowardTarget: true, CountsTowardTarget: countsModeToPtr(vals.CountsMode),
+		Tags: &tags, LogoData: logoData, DeleteLogo: removeLogo,
 	})
 	switch {
 	case errors.Is(err, ports.ErrNodeNotFound):
@@ -378,29 +379,6 @@ func (s *Server) handleWebNodeUpdate(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
-	}
-	// Rate applies only to engagements; nil clears any existing rate.
-	if n.Kind == domain.KindEngagement {
-		_ = s.SetNodeRate.Execute(r.Context(), u.ID, id, rate)
-	}
-	// Work/Privat tri-state: always-apply (UpdateNodeInput's nil means preserve,
-	// which cannot express "set back to inherit" — SetCountsTowardTarget can).
-	if _, err := s.SetCountsTowardTarget.Execute(r.Context(), u.ID, id, countsModeToPtr(vals.CountsMode)); err != nil {
-		slog.WarnContext(r.Context(), "webui: set counts-toward-target failed", "nodeID", id, "err", err)
-	}
-	if s.SetTags.Tags != nil {
-		if _, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, n.ID, strings.Fields(vals.TagsCSV)); err != nil {
-			slog.WarnContext(r.Context(), "webui: set node tags failed", "nodeID", n.ID, "err", err)
-		}
-	}
-	if r.FormValue("logoRemove") == "1" {
-		if _, err := s.DeleteNodeLogo.Execute(r.Context(), u.ID, id); err != nil {
-			slog.WarnContext(r.Context(), "webui: delete node logo failed", "nodeID", id, "err", err)
-		}
-	} else if len(logoData) > 0 {
-		if _, err := s.UploadNodeLogo.Execute(r.Context(), u.ID, id, logoData); err != nil {
-			slog.WarnContext(r.Context(), "webui: upload node logo failed", "nodeID", id, "err", err)
-		}
 	}
 	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeUpdated, UserID: u.ID, Data: map[string]any{"id": n.ID, "name": n.Name}})
 	http.Redirect(w, r, "/nodes/"+id, http.StatusSeeOther)

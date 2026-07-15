@@ -90,6 +90,91 @@ func TestDeleteNodeLogo(t *testing.T) {
 	}
 }
 
+func TestUploadNodeLogo_RollsBackBlobWhenNodeWriteFails(t *testing.T) {
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ls := testutil.NewFakeNodeLogoStore()
+	tags := testutil.NewFakeTagStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
+	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+	agg.FailStage = testutil.NodeAggregateFailNode
+
+	uc := usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
+	if _, err := uc.Execute(ctx, "u1", "n1", pngPixel(t)); err == nil {
+		t.Fatal("upload succeeded despite injected node write failure")
+	}
+	got, err := ns.Get(ctx, "u1", "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LogoRef != "" {
+		t.Fatalf("logo ref persisted after rollback: %q", got.LogoRef)
+	}
+	if _, err := ls.Get(ctx, "u1", "n1"); !errors.Is(err, ports.ErrNodeLogoNotFound) {
+		t.Fatalf("logo blob persisted after rollback: %v", err)
+	}
+}
+
+func TestDeleteNodeLogo_RollsBackRefWhenBlobDeleteFails(t *testing.T) {
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ls := testutil.NewFakeNodeLogoStore()
+	tags := testutil.NewFakeTagStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
+	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+	upload := usecase.UploadNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
+	before, err := upload.Execute(ctx, "u1", "n1", pngPixel(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	agg.FailStage = testutil.NodeAggregateFailLogo
+
+	del := usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
+	if _, err := del.Execute(ctx, "u1", "n1"); err == nil {
+		t.Fatal("delete succeeded despite injected blob failure")
+	}
+	got, err := ns.Get(ctx, "u1", "n1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.LogoRef != before.LogoRef {
+		t.Fatalf("logo ref changed after rollback: got %q want %q", got.LogoRef, before.LogoRef)
+	}
+	logo, err := ls.Get(ctx, "u1", "n1")
+	if err != nil || logo.Ref != before.LogoRef {
+		t.Fatalf("logo blob changed after rollback: logo=%+v err=%v", logo, err)
+	}
+}
+
+func TestDeleteNodeLogo_RemovesOrphanBlobWhenRefIsAlreadyEmpty(t *testing.T) {
+	ctx := context.Background()
+	ns := testutil.NewFakeNodeStore()
+	ls := testutil.NewFakeNodeLogoStore()
+	tags := testutil.NewFakeTagStore()
+	agg := testutil.NewFakeNodeAggregateStore(ns, ls, tags)
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 2, 12, 0, 0, 0, time.UTC)}
+	n, _ := domain.NewNode("n1", "u1", "flow", "flow", clk.Now())
+	n.Kind = domain.KindEngagement
+	_, _ = ns.Create(ctx, n)
+	if err := ls.Put(ctx, domain.NodeLogo{NodeID: n.ID, OwnerID: n.OwnerID, Ref: "orphan", Bytes: pngPixel(t)}); err != nil {
+		t.Fatal(err)
+	}
+
+	del := usecase.DeleteNodeLogo{Nodes: ns, Logos: ls, Aggregate: agg, Clock: clk}
+	if _, err := del.Execute(ctx, "u1", n.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ls.Get(ctx, "u1", n.ID); !errors.Is(err, ports.ErrNodeLogoNotFound) {
+		t.Fatalf("orphan blob survived delete: %v", err)
+	}
+}
+
 // TestUploadNodeLogo_MeasuresDimensions pins that ValidateNodeLogo's measured
 // width/height (via image.DecodeConfig) land on the stored NodeLogo — the
 // aspect ratio webui.LogoShape later needs to pick hex vs. tile treatment.

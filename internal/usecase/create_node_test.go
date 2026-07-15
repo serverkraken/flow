@@ -114,4 +114,11 @@ func TestCreateNode_ValidatesAndPersistsUpstreamGit(t *testing.T) {
 	if repo.OriginSlug != "github.com/serverkraken/flow" {
 		t.Fatalf("originSlug = %q, want normalized upstream", repo.OriginSlug)
 	}
+	resolved, ok, err := (usecase.ResolveNode{
+		Bindings: testutil.NewFakeProjectBindingStore(),
+		Nodes:    nodes,
+	}).Execute(ctx, "o", "github.com/serverkraken/flow", "", "")
+	if err != nil || !ok || resolved.ID != repo.ID {
+		t.Fatalf("created repo must resolve through canonical origin without binding: node=%+v ok=%v err=%v", resolved, ok, err)
+	}
 }

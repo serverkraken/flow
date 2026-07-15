@@ -684,7 +684,7 @@ func TestNodeCockpit_WithRateAndSessions(t *testing.T) {
 		CreateNode:        usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
 		ListNodes:         usecase.ListNodes{Nodes: ps},
 		GetNode:           usecase.GetNode{Nodes: ps},
-		UpdateNode:        usecase.UpdateNode{Nodes: ps, Bindings: bs, IDs: ids, Clock: clk},
+		UpdateNode:        usecase.UpdateNode{Nodes: ps, Clock: clk},
 		DeleteNode:        usecase.DeleteNode{Nodes: ps},
 		SetNodeRate:       usecase.SetNodeRate{Nodes: ps},
 		NodeAncestors:     usecase.NodeAncestors{Nodes: ps},
