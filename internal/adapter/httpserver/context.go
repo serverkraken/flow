@@ -89,5 +89,10 @@ func (s *Server) handleGetContext(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
+	cc, err = usecase.ApplyContextProfile(cc, q.Get("profile"))
+	if errors.Is(err, usecase.ErrInvalidContextProfile) {
+		http.Error(w, "invalid context profile; use handoff, standard or full", http.StatusBadRequest)
+		return
+	}
 	writeJSON(w, http.StatusOK, cc)
 }

@@ -86,6 +86,21 @@ func (c *Client) UpdateDocument(ctx context.Context, id string, in UpdateDocumen
 	return out, err
 }
 
+// PatchDocumentInput changes only non-nil fields. ExpectedUpdatedAt enables an
+// atomic compare-and-swap against the row version returned by GetDocument.
+type PatchDocumentInput struct {
+	Title             *string    `json:"title,omitempty"`
+	Body              *string    `json:"body,omitempty"`
+	Tags              *[]string  `json:"tags,omitempty"`
+	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt,omitempty"`
+}
+
+func (c *Client) PatchDocument(ctx context.Context, id string, in PatchDocumentInput) (domain.Document, error) {
+	var out domain.Document
+	err := c.do(ctx, http.MethodPatch, "/api/v1/documents/"+id, in, &out)
+	return out, err
+}
+
 type MoveDocumentInput struct {
 	Type   string     `json:"type"`
 	NodeID *string    `json:"projectId"`

@@ -41,6 +41,20 @@ func TestResolveScope_DefaultUnmatchedIsGlobal(t *testing.T) {
 	}
 }
 
+func TestResolveWriteScope_FailsClosedWithoutResolvedProject(t *testing.T) {
+	h := &handlers{matched: false}
+	if _, err := h.resolveWriteScope(context.Background(), ""); err == nil || !strings.Contains(err.Error(), "flow_bind_project") {
+		t.Fatalf("unresolved default write err = %v, want fail-closed guidance", err)
+	}
+	if _, err := h.resolveWriteScope(context.Background(), "global"); err == nil || !strings.Contains(err.Error(), "none") {
+		t.Fatalf("global write err = %v, want explicit none guidance", err)
+	}
+	sc, err := h.resolveWriteScope(context.Background(), "none")
+	if err != nil || sc.nodeID == nil || *sc.nodeID != "none" {
+		t.Fatalf("explicit none write scope = (%+v,%v)", sc, err)
+	}
+}
+
 func TestResolveScope_GlobalAndNoneSentinels(t *testing.T) {
 	h := &handlers{matched: true, proj: domain.Node{ID: "p1"}}
 	g, err := h.resolveScope(context.Background(), "global")

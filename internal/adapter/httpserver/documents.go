@@ -127,6 +127,45 @@ func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type patchDocReq struct {
+	Title             *string    `json:"title"`
+	Body              *string    `json:"body"`
+	Tags              *[]string  `json:"tags"`
+	ExpectedUpdatedAt *time.Time `json:"expectedUpdatedAt"`
+}
+
+func (s *Server) handlePatchDocument(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req patchDocReq
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
+		return
+	}
+	doc, err := s.UpdateDocument.ExecutePatch(r.Context(), u.ID, r.PathValue("id"), usecase.PatchDocumentInput{
+		Title: req.Title, Body: req.Body, Tags: req.Tags, ExpectedUpdatedAt: req.ExpectedUpdatedAt,
+	})
+	switch {
+	case errors.Is(err, ports.ErrDocumentNotFound):
+		http.Error(w, "not found", http.StatusNotFound)
+	case errors.Is(err, ports.ErrDocumentConflict):
+		data := map[string]any{
+			"code": "document_conflict", "message": "document changed since it was read",
+			"httpStatus": http.StatusConflict, "retryable": true,
+		}
+		var conflict ports.DocumentConflictError
+		if errors.As(err, &conflict) {
+			data["conflictVersion"] = conflict.CurrentUpdatedAt.UTC().Format(time.RFC3339Nano)
+		}
+		writeJSON(w, http.StatusConflict, data)
+	case errors.Is(err, domain.ErrInvalidDocument):
+		http.Error(w, "at least one document field is required", http.StatusBadRequest)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc.ID, "title": doc.Title}})
+		writeJSON(w, http.StatusOK, doc)
+	}
+}
+
 type moveDocumentRequest struct {
 	Type   string     `json:"type"`
 	NodeID *string    `json:"projectId"`

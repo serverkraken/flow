@@ -45,6 +45,21 @@ func (h *handlers) resolveScope(ctx context.Context, project string) (scope, err
 	}
 }
 
+// resolveWriteScope is deliberately stricter than read scoping: an unresolved
+// cwd must never turn an omitted project into an unassigned/global write.
+// Unassigned writes require the explicit sentinel "none".
+func (h *handlers) resolveWriteScope(ctx context.Context, project string) (scope, error) {
+	switch strings.TrimSpace(project) {
+	case "":
+		if _, matched := h.resolved(); !matched {
+			return scope{}, errGuard{fmt.Errorf("no project is bound to this directory; use flow_bind_project or pass project=\"none\" explicitly")}
+		}
+	case "global":
+		return scope{}, errGuard{fmt.Errorf("project=\"global\" is read-only; pass project=\"none\" explicitly for an unassigned write")}
+	}
+	return h.resolveScope(ctx, project)
+}
+
 // lookupNode finds a project by id, slug, or name (case-insensitive for slug
 // and name). On a miss it refreshes the cache once — to catch a just-created
 // project — then returns an actionable error listing the known slugs.

@@ -333,7 +333,7 @@ func fakeBindBackend(t *testing.T, bindCalled, createBoundCalled *bool) *httptes
 	return httptest.NewServer(mux)
 }
 
-// TestLoopback_BindProject covers the 5 required assertions for the 11th tool.
+// TestLoopback_BindProject covers the binding tool and the complete MCP surface.
 func TestLoopback_BindProject(t *testing.T) {
 	ctx := context.Background()
 	var bindCalled, createBoundCalled bool
@@ -345,13 +345,13 @@ func TestLoopback_BindProject(t *testing.T) {
 	_ = mgr
 	sess := connect(t, h.srv)
 
-	// 1. Tool surface = 19: includes the transactional flow_move_doc capability.
+	// 1. Tool surface includes CAS document patches and resource reconciliation.
 	tools, err := sess.ListTools(ctx, nil)
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(tools.Tools) != 19 {
-		t.Fatalf("tool count = %d, want 19; got %v", len(tools.Tools), toolNames(tools.Tools))
+	if len(tools.Tools) != 21 {
+		t.Fatalf("tool count = %d, want 21; got %v", len(tools.Tools), toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_list_projects") {
 		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))
@@ -361,6 +361,9 @@ func TestLoopback_BindProject(t *testing.T) {
 	}
 	if !hasTool(tools.Tools, "flow_archive_doc") {
 		t.Fatalf("flow_archive_doc not advertised; got %v", toolNames(tools.Tools))
+	}
+	if !hasTool(tools.Tools, "flow_patch_doc") || !hasTool(tools.Tools, "flow_refresh_resources") {
+		t.Fatalf("reliability tools not advertised; got %v", toolNames(tools.Tools))
 	}
 
 	// 2. flow_list_projects returns fixture projects.

@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
@@ -27,11 +29,46 @@ type UpdateDocumentInput struct {
 }
 
 func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in UpdateDocumentInput) (domain.Document, error) {
+	title, body := in.Title, in.Body
+	return uc.execute(ctx, ownerID, id, PatchDocumentInput{Title: &title, Body: &body, Tags: in.Tags})
+}
+
+// PatchDocumentInput changes only explicitly supplied fields. ExpectedUpdatedAt
+// is checked after the owner-scoped row is locked, so concurrent writers cannot
+// pass the same precondition and silently overwrite one another.
+type PatchDocumentInput struct {
+	Title             *string
+	Body              *string
+	Tags              *[]string
+	ExpectedUpdatedAt *time.Time
+}
+
+func (uc UpdateDocument) ExecutePatch(ctx context.Context, ownerID, id string, in PatchDocumentInput) (domain.Document, error) {
+	if in.Title == nil && in.Body == nil && in.Tags == nil {
+		return domain.Document{}, fmt.Errorf("%w: no document fields supplied", domain.ErrInvalidDocument)
+	}
+	return uc.execute(ctx, ownerID, id, in)
+}
+
+func (uc UpdateDocument) execute(ctx context.Context, ownerID, id string, in PatchDocumentInput) (domain.Document, error) {
 	mutate := func(cur domain.Document) (domain.Document, ports.DocumentAggregateChanges, error) {
-		cur.Title = domain.StripHighlightSentinels(in.Title)
-		cur.Body = domain.StripHighlightSentinels(in.Body)
+		if in.ExpectedUpdatedAt != nil && !cur.UpdatedAt.Equal(*in.ExpectedUpdatedAt) {
+			return domain.Document{}, ports.DocumentAggregateChanges{}, ports.DocumentConflictError{CurrentUpdatedAt: cur.UpdatedAt}
+		}
+		if in.Title != nil {
+			cur.Title = domain.StripHighlightSentinels(*in.Title)
+		}
+		if in.Body != nil {
+			cur.Body = domain.StripHighlightSentinels(*in.Body)
+		}
 		_, bodyStart := domain.ParseFrontmatter(cur.Body)
-		cur.UpdatedAt = uc.Clock.Now()
+		updatedAt := uc.Clock.Now()
+		// updated_at doubles as the external CAS version. Keep it strictly
+		// increasing even when two writes land within the clock's resolution.
+		if !updatedAt.After(cur.UpdatedAt) {
+			updatedAt = cur.UpdatedAt.Add(time.Microsecond)
+		}
+		cur.UpdatedAt = updatedAt
 		a := actor.FromContext(ctx)
 		cur.UpdatedByKind, cur.UpdatedByRef = string(a.Kind), a.Ref
 		return cur, ports.DocumentAggregateChanges{

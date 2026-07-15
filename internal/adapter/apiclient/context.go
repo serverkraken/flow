@@ -14,6 +14,7 @@ import (
 // ContextQuery carries the resolution hints for GET /api/v1/context.
 type ContextQuery struct {
 	Remote, Machine, Path, Node string
+	Profile                     string
 	Cap                         int
 }
 
@@ -28,6 +29,7 @@ func (q ContextQuery) values() url.Values {
 	set("machine", q.Machine)
 	set("path", q.Path)
 	set("node", q.Node)
+	set("profile", q.Profile)
 	if q.Cap > 0 {
 		v.Set("cap", strconv.Itoa(q.Cap))
 	}
@@ -102,11 +104,11 @@ func (c *Client) RedesignDocTypes(ctx context.Context, dryRun bool) (domain.Rede
 
 // UpsertByPathInput mirrors the by-path upsert payload.
 type UpsertByPathInput struct {
-	Type   string   `json:"type"`
-	NodeID *string  `json:"projectId,omitempty"`
-	Path   string   `json:"path"`
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
+	Type     string   `json:"type"`
+	NodeID   *string  `json:"projectId,omitempty"`
+	Path     string   `json:"path"`
+	Title    string   `json:"title"`
+	Body     string   `json:"body"`
 	Tags     []string `json:"tags,omitempty"`
 	Pinned   bool     `json:"pinned"`
 	Archived bool     `json:"archived"`

@@ -18,25 +18,26 @@ import (
 )
 
 func contextCmd() *cobra.Command {
-	var path, repo string
+	var path, repo, profile string
 	var capN int
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "context",
 		Short: "Show the composed start-context for this repo (SessionStart hook source)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runContext(cmd.Context(), cmd.OutOrStdout(), path, repo, capN, asJSON)
+			return runContext(cmd.Context(), cmd.OutOrStdout(), path, repo, profile, capN, asJSON)
 		},
 	}
 	cmd.Flags().StringVar(&path, "path", "", "directory to resolve (default: cwd)")
 	cmd.Flags().StringVar(&repo, "repo", "", "explicit node slug override")
+	cmd.Flags().StringVar(&profile, "profile", "standard", "context profile: handoff, standard or full")
 	cmd.Flags().IntVar(&capN, "cap", 0, "token budget override")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit the raw compose JSON")
 	cmd.AddCommand(installHooksCmd(), flushCheckCmd(), contextMigrateCmd(), contextArchiveCmd(), contextArchivedCmd())
 	return cmd
 }
 
-func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }, path, repo string, capN int, asJSON bool) error {
+func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }, path, repo, profile string, capN int, asJSON bool) error {
 	dir := path
 	if dir == "" {
 		dir, _ = os.Getwd()
@@ -44,7 +45,7 @@ func runContext(ctx context.Context, out interface{ Write([]byte) (int, error) }
 	dir = filepath.Clean(dir)
 	remote, _, _ := gitremote.OriginSlug(dir)
 	m, _ := clientmachine.Load()
-	q := apiclient.ContextQuery{Remote: remote, Machine: m.ID, Path: dir, Node: repo, Cap: capN}
+	q := apiclient.ContextQuery{Remote: remote, Machine: m.ID, Path: dir, Node: repo, Profile: profile, Cap: capN}
 
 	c, err := clientFromStore(ctx)
 	if err == nil {
@@ -134,6 +135,15 @@ func renderContext(cc usecase.ComposedContext, offline bool, stamp string) strin
 	if cc.Budget.Dropped.Pinned > 0 {
 		fmt.Fprintf(&b, " · !! %d pinned not shown — raise --cap or unpin", cc.Budget.Dropped.Pinned)
 	}
+	if cc.Budget.Dropped.Instructions > 0 {
+		fmt.Fprintf(&b, " · +%d instructions not shown", cc.Budget.Dropped.Instructions)
+	}
+	if cc.Budget.Dropped.Always > 0 {
+		fmt.Fprintf(&b, " · +%d always not shown", cc.Budget.Dropped.Always)
+	}
+	if cc.Budget.Deduplicated > 0 {
+		fmt.Fprintf(&b, " · %d duplicate instructions removed", cc.Budget.Deduplicated)
+	}
 	if offline {
 		fmt.Fprintf(&b, " · offline — Stand %s", stamp)
 	}
@@ -157,20 +167,48 @@ func contextCacheDir() string {
 }
 
 func cacheKey(q apiclient.ContextQuery) string {
-	sum := sha256.Sum256([]byte(q.Remote + "|" + q.Node + "|" + q.Path))
+	sum := sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%s|%s|%d|%s", q.Remote, q.Node, q.Path, q.Machine, q.Cap, q.Profile)))
 	return fmt.Sprintf("%x", sum[:8])
 }
 
 func writeContextCache(q apiclient.ContextQuery, cc usecase.ComposedContext) error {
 	dir := contextCacheDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
 		return err
 	}
 	b, err := json.Marshal(cachedContext{Stamp: nowStamp(), CC: cc})
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, cacheKey(q)+".json"), b, 0o644)
+	tmp, err := os.CreateTemp(dir, ".context-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(b); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	target := filepath.Join(dir, cacheKey(q)+".json")
+	if err := os.Rename(tmpName, target); err != nil {
+		return err
+	}
+	return os.Chmod(target, 0o600)
 }
 
 func readContextCache(q apiclient.ContextQuery) (usecase.ComposedContext, string, bool) {

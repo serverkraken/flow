@@ -53,6 +53,101 @@ func TestCompose_TiersAndActiveContext(t *testing.T) {
 	}
 }
 
+func TestCompose_HardCapPrioritizesActiveContextAndDeduplicatesInstructions(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		doc("global-dup", nil, domain.DocInstruction, "global", false, t0, "same"),
+		doc("repo-dup", &leaf, domain.DocInstruction, "repo", false, t0, "same"),
+		doc("repo-extra", &leaf, domain.DocInstruction, "extra", false, t0, "more"),
+		doc("active", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, "1234567890123456"), // 4 tokens
+	}
+
+	got := usecase.Compose(chain, docs, map[string]bool{}, 5)
+	if got.Budget.Used > got.Budget.Cap {
+		t.Fatalf("hard budget violated: used=%d cap=%d", got.Budget.Used, got.Budget.Cap)
+	}
+	if got.ActiveContext == nil || got.ActiveContext.ID != "active" || got.ActiveContext.Body != "1234567890123456" {
+		t.Fatalf("active context must fill first: %+v", got.ActiveContext)
+	}
+	if len(got.Instructions) != 1 || got.Instructions[0].ID != "repo-dup" {
+		t.Fatalf("want one deduplicated repo-specific instruction after active context, got %+v", got.Instructions)
+	}
+}
+
+func TestCompose_DiagnosticItemsDoNotDuplicateDocumentBodies(t *testing.T) {
+	t.Parallel()
+	leaf := "L"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 7, 15, 0, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		doc("included", &leaf, domain.DocMemory, "included", false, t0, "included body"),
+		{ID: "hidden", NodeID: &leaf, Type: domain.DocMemory, Path: "hidden", ContextMode: domain.ContextModeNie, UpdatedAt: t0, Body: "hidden body"},
+	}
+
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100)
+	if len(got.Ranked) != 1 || got.Ranked[0].Item.Body != "" {
+		t.Fatalf("ranked metadata duplicated a body: %+v", got.Ranked)
+	}
+	if len(got.Hidden) != 1 || got.Hidden[0].Body != "" {
+		t.Fatalf("hidden metadata exposed a body: %+v", got.Hidden)
+	}
+	if len(got.Memories["leaf"]) != 1 || got.Memories["leaf"][0].Body != "included body" {
+		t.Fatalf("included memory lost its content: %+v", got.Memories["leaf"])
+	}
+}
+
+func TestApplyContextProfile_HandoffKeepsOnlyOrientationAndActiveState(t *testing.T) {
+	t.Parallel()
+	cc := usecase.ComposedContext{
+		Instructions:   []usecase.ContextItem{{ID: "i", EstTokens: 2, Body: "rules"}},
+		ActiveContext:  &usecase.ContextItem{ID: "ac", EstTokens: 3, Body: "next"},
+		AlwaysMemories: []usecase.ContextItem{{ID: "always", EstTokens: 4, Body: "always"}},
+		Memories:       map[string][]usecase.ContextItem{"leaf": {{ID: "m", EstTokens: 5, Body: "memory"}}},
+		Ranked:         []usecase.RankedItem{{Item: usecase.ContextItem{ID: "m"}}},
+		Hidden:         []usecase.ContextItem{{ID: "hidden"}},
+		Budget:         usecase.ContextBudget{Cap: 20, Used: 14},
+	}
+
+	got, err := usecase.ApplyContextProfile(cc, "handoff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != usecase.ContextProfileHandoff || got.ActiveContext == nil || len(got.Instructions) != 1 {
+		t.Fatalf("handoff lost orientation/active state: %+v", got)
+	}
+	if len(got.AlwaysMemories) != 0 || len(got.Memories) != 0 || len(got.Ranked) != 0 || len(got.Hidden) != 0 {
+		t.Fatalf("handoff retained non-handoff payload: %+v", got)
+	}
+	if got.Budget.Used != 5 || got.Budget.Used > got.Budget.Cap {
+		t.Fatalf("handoff budget=%+v", got.Budget)
+	}
+}
+
+func TestApplyContextProfile_StandardOmitsCurationDiagnostics(t *testing.T) {
+	t.Parallel()
+	cc := usecase.ComposedContext{
+		Memories: map[string][]usecase.ContextItem{"leaf": {{ID: "m", Body: "memory"}}},
+		Ranked:   []usecase.RankedItem{{Item: usecase.ContextItem{ID: "m"}}},
+		Hidden:   []usecase.ContextItem{{ID: "hidden"}},
+	}
+	got, err := usecase.ApplyContextProfile(cc, "standard")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Profile != usecase.ContextProfileStandard || len(got.Memories["leaf"]) != 1 {
+		t.Fatalf("standard lost composed memories: %+v", got)
+	}
+	if len(got.Ranked) != 0 || len(got.Hidden) != 0 {
+		t.Fatalf("standard retained curation diagnostics: %+v", got)
+	}
+	if _, err := usecase.ApplyContextProfile(cc, "invalid"); err == nil {
+		t.Fatal("invalid profile must fail")
+	}
+}
+
 func TestCompose_BudgetDropsRelevanceByRank(t *testing.T) {
 	t.Parallel()
 	leaf, eng := "L", "E"
@@ -254,7 +349,7 @@ func TestCompose_PriorityLiftsAcrossTier(t *testing.T) {
 
 // TestCompose_RankedFlatOrder: Ranked mirrors the pool's global fill order;
 // Included items get a contiguous 1..N rank, dropped items get Included=false
-// and Rank=0. Priority does NOT bypass the cap (only pinned does): a
+// and Rank=0. Neither priority nor pin bypasses the hard cap: a
 // high-priority item that does not fit still drops.
 func TestCompose_RankedFlatOrder(t *testing.T) {
 	t.Parallel()
@@ -421,10 +516,9 @@ func TestComposeContext_ExecuteForNode_ForeignNode(t *testing.T) {
 	}
 }
 
-// TestCompose_ImmerAlwaysUncapped: a memory doc marked ContextModeImmer lands
-// in AlwaysMemories, is counted in Budget.Used, and is never dropped even
-// under a cap far too small to hold it — the always-tier is uncapped.
-func TestCompose_ImmerAlwaysUncapped(t *testing.T) {
+// TestCompose_ImmerRespectsHardCap: an immer memory keeps priority over pooled
+// memories but is truncated when it alone would exceed the hard cap.
+func TestCompose_ImmerRespectsHardCap(t *testing.T) {
 	t.Parallel()
 	leaf := "L"
 	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
@@ -433,13 +527,16 @@ func TestCompose_ImmerAlwaysUncapped(t *testing.T) {
 	docs := []domain.Document{
 		{ID: "immerMem", NodeID: &leaf, Type: domain.DocMemory, Path: "m", ContextMode: domain.ContextModeImmer, UpdatedAt: t0, Body: body(400)},
 	}
-	// cap=1 is far too small for the 100-tok doc; immer must still be kept.
+	// cap=1 is far too small for the 100-token doc; immer is kept but truncated.
 	got := usecase.Compose(chain, docs, map[string]bool{}, 1)
 	if len(got.AlwaysMemories) != 1 || got.AlwaysMemories[0].ID != "immerMem" {
 		t.Fatalf("immer memory must land in AlwaysMemories, got %+v", got.AlwaysMemories)
 	}
-	if got.Budget.Used != 100 {
-		t.Errorf("immer memory must count in Budget.Used, got %d", got.Budget.Used)
+	if got.Budget.Used != 1 || got.Budget.Used > got.Budget.Cap {
+		t.Errorf("immer memory must respect the hard cap, got %+v", got.Budget)
+	}
+	if !got.AlwaysMemories[0].Truncated || got.AlwaysMemories[0].EstTokens != 1 {
+		t.Errorf("immer memory must be marked truncated: %+v", got.AlwaysMemories[0])
 	}
 	if len(got.Memories["leaf"]) != 0 {
 		t.Errorf("immer memory must NOT appear in the pooled Memories, got %+v", got.Memories["leaf"])
@@ -584,7 +681,7 @@ func TestStandingOf_ImmerMemoryAlways(t *testing.T) {
 	}
 }
 
-func TestCompose_FloorExceedsCapKeepsAlways(t *testing.T) {
+func TestCompose_FloorExceedsCapPrioritizesAndTruncatesActiveContext(t *testing.T) {
 	t.Parallel()
 	leaf := "L"
 	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
@@ -595,13 +692,17 @@ func TestCompose_FloorExceedsCapKeepsAlways(t *testing.T) {
 		doc("ac", &leaf, domain.DocActiveContext, usecase.ActiveContextPath, false, t0, body(400)), // 100 tok
 		doc("m", &leaf, domain.DocMemory, "m", false, t0, body(400)),                               // 100 tok
 	}
-	// cap=50 < instructions(200)+activeContext(100): both always-tier kept, Used>cap, memory dropped.
+	// cap=50 < instructions(200)+activeContext(100): active context fills first
+	// and is truncated; instruction and memory are dropped.
 	got := usecase.Compose(chain, docs, map[string]bool{}, 50)
-	if len(got.Instructions) != 1 || got.ActiveContext == nil {
-		t.Fatalf("instructions+activeContext must always load over cap: %+v / %+v", got.Instructions, got.ActiveContext)
+	if len(got.Instructions) != 0 || got.ActiveContext == nil || !got.ActiveContext.Truncated {
+		t.Fatalf("active context must win the hard budget: %+v / %+v", got.Instructions, got.ActiveContext)
 	}
-	if got.Budget.Used != 300 {
-		t.Errorf("Used should be the always-tier sum 300, got %d", got.Budget.Used)
+	if got.Budget.Used != 50 || got.Budget.Used > got.Budget.Cap {
+		t.Errorf("hard budget violated: %+v", got.Budget)
+	}
+	if got.Budget.Dropped.Instructions != 1 {
+		t.Errorf("instruction drop not accounted: %+v", got.Budget.Dropped)
 	}
 	if len(got.Memories["leaf"]) != 0 || got.Budget.Dropped.Leaf != 1 {
 		t.Errorf("the leaf memory must drop, got mem=%+v dropped=%+v", got.Memories["leaf"], got.Budget.Dropped)

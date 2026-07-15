@@ -104,6 +104,29 @@ func TestLoopback_GetContext_ReturnsJSON(t *testing.T) {
 	}
 }
 
+func TestLoopback_GetContext_ForwardsHardCapAndProfile(t *testing.T) {
+	var gotCap, gotProfile string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/context", func(w http.ResponseWriter, r *http.Request) {
+		gotCap = r.URL.Query().Get("cap")
+		gotProfile = r.URL.Query().Get("profile")
+		_ = json.NewEncoder(w).Encode(usecase.ComposedContext{Budget: usecase.ContextBudget{Cap: 2200, Used: 2200}})
+	})
+	be := httptest.NewServer(mux)
+	defer be.Close()
+	client := apiclient.New(be.URL, "tok")
+	_, h := managerFor(t, client, domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"})
+	sess := connect(t, h.srv)
+
+	res, out := callText(t, sess, "flow_get_context", map[string]any{"cap": 2200, "profile": "handoff"})
+	if res.IsError {
+		t.Fatalf("flow_get_context errored: %s", out)
+	}
+	if gotCap != "2200" || gotProfile != "handoff" {
+		t.Fatalf("context query cap=%q profile=%q, want 2200/handoff", gotCap, gotProfile)
+	}
+}
+
 func TestLoopback_GetContext_RepoOverride(t *testing.T) {
 	var capturedNode string
 	sess, _ := authedContextServer(t, &capturedNode, nil)
@@ -157,11 +180,28 @@ func TestLoopback_SetActiveContext_UpdatesAndReturnsConfirmation(t *testing.T) {
 	if res.IsError {
 		t.Fatalf("flow_set_active_context IsError: %s", got)
 	}
-	if !strings.Contains(got, "active-context updated") {
-		t.Fatalf("flow_set_active_context = %q, want 'active-context updated'", got)
+	if !strings.Contains(got, `"action":"active_context_updated"`) || !strings.Contains(got, `"project":"alpha"`) || !strings.Contains(got, `"id":"ac1"`) || !strings.Contains(got, `"hash":"sha256:`) {
+		t.Fatalf("flow_set_active_context = %q, want structured write metadata", got)
 	}
 	if capturedBody != "I was in task C4; next: commit + slice-C gate" {
 		t.Fatalf("PUT body = %q, want the input body forwarded verbatim", capturedBody)
+	}
+}
+
+func TestLoopback_SetActiveContext_FailsClosedWhenUnresolved(t *testing.T) {
+	var capturedBody string
+	sess, h := authedContextServer(t, nil, &capturedBody)
+	h.projMu.Lock()
+	h.proj = domain.Node{}
+	h.matched = false
+	h.projMu.Unlock()
+
+	res, got := callText(t, sess, "flow_set_active_context", map[string]any{"body": "must not be written"})
+	if !res.IsError || !strings.Contains(got, "flow_bind_project") {
+		t.Fatalf("unresolved set_active_context = (IsError=%v, %q), want fail-closed guidance", res.IsError, got)
+	}
+	if capturedBody != "" {
+		t.Fatalf("unresolved set_active_context reached backend with body %q", capturedBody)
 	}
 }
 

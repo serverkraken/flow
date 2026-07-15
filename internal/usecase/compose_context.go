@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
@@ -113,6 +114,7 @@ type ContextItem struct {
 	Priority    int                 `json:"priority,omitempty"`
 	EstTokens   int                 `json:"estTokens"`
 	Body        string              `json:"body"`
+	Truncated   bool                `json:"truncated,omitempty"`
 	ContextMode domain.ContextMode  `json:"contextMode,omitempty"`
 }
 
@@ -138,11 +140,13 @@ type ContextStanding struct {
 }
 
 type DroppedCount struct {
-	Leaf       int `json:"leaf"`
-	Vorhaben   int `json:"vorhaben"`
-	Engagement int `json:"engagement"`
-	Global     int `json:"global"`
-	Pinned     int `json:"pinned"`
+	Leaf         int `json:"leaf"`
+	Vorhaben     int `json:"vorhaben"`
+	Engagement   int `json:"engagement"`
+	Global       int `json:"global"`
+	Pinned       int `json:"pinned"`
+	Instructions int `json:"instructions,omitempty"`
+	Always       int `json:"always,omitempty"`
 }
 
 type ContextResolution struct {
@@ -152,13 +156,15 @@ type ContextResolution struct {
 }
 
 type ContextBudget struct {
-	Used    int          `json:"used"`
-	Cap     int          `json:"cap"`
-	Dropped DroppedCount `json:"dropped"`
+	Used         int          `json:"used"`
+	Cap          int          `json:"cap"`
+	Dropped      DroppedCount `json:"dropped"`
+	Deduplicated int          `json:"deduplicated,omitempty"`
 }
 
 type ComposedContext struct {
 	Resolution     ContextResolution        `json:"resolution"`
+	Profile        ContextProfile           `json:"profile,omitempty"`
 	Instructions   []ContextItem            `json:"instructions"`
 	ActiveContext  *ContextItem             `json:"activeContext"`
 	Memories       map[string][]ContextItem `json:"memories"`
@@ -166,6 +172,50 @@ type ComposedContext struct {
 	AlwaysMemories []ContextItem            `json:"alwaysMemories,omitempty"`
 	Hidden         []ContextItem            `json:"hidden,omitempty"`
 	Budget         ContextBudget            `json:"budget"`
+}
+
+type ContextProfile string
+
+const (
+	ContextProfileHandoff  ContextProfile = "handoff"
+	ContextProfileStandard ContextProfile = "standard"
+	ContextProfileFull     ContextProfile = "full"
+)
+
+var ErrInvalidContextProfile = errors.New("usecase: invalid context profile")
+
+// ApplyContextProfile shapes one already hard-budgeted context for its caller.
+// Handoff is intentionally small and deterministic; standard omits curation
+// diagnostics; full retains the complete metadata view used for audits.
+func ApplyContextProfile(cc ComposedContext, raw string) (ComposedContext, error) {
+	profile := ContextProfile(strings.TrimSpace(raw))
+	if profile == "" {
+		profile = ContextProfileStandard
+	}
+	cc.Profile = profile
+	switch profile {
+	case ContextProfileHandoff:
+		cc.AlwaysMemories = nil
+		cc.Memories = map[string][]ContextItem{}
+		cc.Ranked = nil
+		cc.Hidden = nil
+		cc.Budget.Used = 0
+		if cc.ActiveContext != nil {
+			cc.Budget.Used += cc.ActiveContext.EstTokens
+		}
+		for _, it := range cc.Instructions {
+			cc.Budget.Used += it.EstTokens
+		}
+	case ContextProfileStandard:
+		cc.Ranked = nil
+		cc.Hidden = nil
+	case ContextProfileFull:
+		// Keep all metadata. Ranked and Hidden bodies were already stripped by
+		// Compose, so full does not duplicate content outside the budget.
+	default:
+		return ComposedContext{}, ErrInvalidContextProfile
+	}
+	return cc, nil
 }
 
 func estTokens(body string) int { return (len(body) + 3) / 4 }
@@ -179,6 +229,78 @@ func itemOf(d domain.Document, label string) ContextItem {
 	}
 }
 
+// metadataItem removes body content from diagnostic-only copies such as Ranked
+// and Hidden. The canonical included item keeps its body; diagnostics must not
+// duplicate or leak content outside the token budget.
+func metadataItem(it ContextItem) ContextItem {
+	it.Body = ""
+	return it
+}
+
+// fitContextItem returns an item that consumes at most remaining estimated
+// tokens. Priority-tier items (active context, instructions and immer memories)
+// may be truncated so the hard budget remains true even when one item alone is
+// larger than the cap.
+func fitContextItem(it ContextItem, remaining int) (ContextItem, bool) {
+	if remaining <= 0 {
+		return ContextItem{}, false
+	}
+	if it.EstTokens <= remaining {
+		return it, true
+	}
+	maxBytes := remaining * 4
+	if maxBytes > len(it.Body) {
+		maxBytes = len(it.Body)
+	}
+	for maxBytes > 0 && !utf8.ValidString(it.Body[:maxBytes]) {
+		maxBytes--
+	}
+	if maxBytes == 0 {
+		return ContextItem{}, false
+	}
+	it.Body = it.Body[:maxBytes]
+	it.EstTokens = estTokens(it.Body)
+	it.Truncated = true
+	return it, it.EstTokens > 0 && it.EstTokens <= remaining
+}
+
+func instructionRank(it ContextItem, tier map[string]string) int {
+	if it.NodeID == nil {
+		return 3
+	}
+	switch tier[*it.NodeID] {
+	case "leaf":
+		return 0
+	case "vorhaben":
+		return 1
+	case "engagement":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// dedupeInstructions prefers the most specific scope when identical
+// instruction bodies exist globally and on the repo chain.
+func dedupeInstructions(items []ContextItem, tier map[string]string) ([]ContextItem, int) {
+	sort.SliceStable(items, func(i, j int) bool {
+		return instructionRank(items[i], tier) < instructionRank(items[j], tier)
+	})
+	seen := make(map[string]bool, len(items))
+	out := make([]ContextItem, 0, len(items))
+	deduped := 0
+	for _, it := range items {
+		key := strings.TrimSpace(it.Body)
+		if seen[key] {
+			deduped++
+			continue
+		}
+		seen[key] = true
+		out = append(out, it)
+	}
+	return out, deduped
+}
+
 // Compose classifies docs, ranks all memories into one pool
 // (pinned desc, priority desc, tierRank asc, updatedAt desc), and fills until
 // the token cap. Priority is a manual curation override: it lifts a doc's
@@ -186,8 +308,9 @@ func itemOf(d domain.Document, label string) ContextItem {
 // docs do that, via first-fill priority alone — a too-large pin still drops).
 // Default priority 0 is behavior-neutral: with every doc at 0 the key
 // degenerates to the pre-L5 (pinned, tierRank, updatedAt) order.
-// instructions + activeContext are always-tier (counted, never dropped). A pinned
-// global memory bypasses the D7 tag-gate. Pure: no I/O.
+// Active context is filled first, followed by deduplicated instructions and
+// immer memories; these priority tiers may be truncated but never exceed the
+// hard cap. A pinned global memory bypasses the D7 tag-gate. Pure: no I/O.
 func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[string]bool, cap int) ComposedContext {
 	out := ComposedContext{Memories: map[string][]ContextItem{}}
 	out.Budget.Cap = cap
@@ -240,11 +363,12 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 					continue // node not in chain — not this chain's concern
 				}
 			}
-			out.Hidden = append(out.Hidden, itemOf(d, lbl))
+			out.Hidden = append(out.Hidden, metadataItem(itemOf(d, lbl)))
 			continue
 		}
 		if mode == domain.ContextModeImmer {
-			// Forced always-tier regardless of type/tag-gate/pin. Uncapped; counted below.
+			// Forced priority tier regardless of type/tag-gate/pin. It is budgeted
+			// before pooled memories but remains subject to the hard cap.
 			lbl := "global"
 			if d.NodeID != nil {
 				if l, ok := label[*d.NodeID]; ok {
@@ -298,15 +422,38 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		}
 	}
 
-	// Always-tier (uncapped): instructions + activeContext + immer memories into Used.
-	for _, it := range out.Instructions {
-		out.Budget.Used += it.EstTokens
+	// Hard-cap priority: active context first, then repo-specific instructions,
+	// then immer memories. None of these tiers may make Used exceed Cap.
+	active := out.ActiveContext
+	instructions, deduplicated := dedupeInstructions(out.Instructions, tier)
+	always := out.AlwaysMemories
+	out.ActiveContext = nil
+	out.Instructions = nil
+	out.AlwaysMemories = nil
+	out.Budget.Deduplicated = deduplicated
+	if active != nil {
+		if fitted, ok := fitContextItem(*active, cap-out.Budget.Used); ok {
+			out.ActiveContext = &fitted
+			out.Budget.Used += fitted.EstTokens
+		}
 	}
-	if out.ActiveContext != nil {
-		out.Budget.Used += out.ActiveContext.EstTokens
+	for _, it := range instructions {
+		fitted, ok := fitContextItem(it, cap-out.Budget.Used)
+		if !ok {
+			out.Budget.Dropped.Instructions++
+			continue
+		}
+		out.Instructions = append(out.Instructions, fitted)
+		out.Budget.Used += fitted.EstTokens
 	}
-	for _, it := range out.AlwaysMemories {
-		out.Budget.Used += it.EstTokens
+	for _, it := range always {
+		fitted, ok := fitContextItem(it, cap-out.Budget.Used)
+		if !ok {
+			out.Budget.Dropped.Always++
+			continue
+		}
+		out.AlwaysMemories = append(out.AlwaysMemories, fitted)
+		out.Budget.Used += fitted.EstTokens
 	}
 
 	// Rank: pinned first, then priority (manual override), then tierRank
@@ -329,7 +476,7 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 			out.Budget.Used += r.item.EstTokens
 			out.Memories[r.group] = append(out.Memories[r.group], r.item)
 			incl++
-			out.Ranked = append(out.Ranked, RankedItem{Item: r.item, Group: r.group, Included: true, Rank: incl})
+			out.Ranked = append(out.Ranked, RankedItem{Item: metadataItem(r.item), Group: r.group, Included: true, Rank: incl})
 			continue
 		}
 		switch r.group {
@@ -345,7 +492,7 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 		if r.pinned {
 			out.Budget.Dropped.Pinned++
 		}
-		out.Ranked = append(out.Ranked, RankedItem{Item: r.item, Group: r.group, Included: false, Rank: 0})
+		out.Ranked = append(out.Ranked, RankedItem{Item: metadataItem(r.item), Group: r.group, Included: false, Rank: 0})
 	}
 	return out
 }

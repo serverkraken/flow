@@ -7,8 +7,6 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
-func sp(s string) *string { return &s }
-
 func TestRequireType(t *testing.T) {
 	if got, err := requireType("memory"); err != nil || got != domain.DocMemory {
 		t.Fatalf("requireType(memory) = (%q,%v), want (memory,nil)", got, err)
@@ -21,21 +19,36 @@ func TestRequireType(t *testing.T) {
 	}
 }
 
-func TestMergeUpdate(t *testing.T) {
-	cur := domain.Document{Title: "Old", Body: "old body"}
-	// title only → body carried over
-	got, err := mergeUpdate(cur, sp("New"), nil)
-	if err != nil || got.Title != "New" || got.Body != "old body" {
-		t.Fatalf("title-only merge = (%+v,%v), want New/old body", got, err)
+func TestPatchMarkdownSectionsAndCheckboxes(t *testing.T) {
+	base := "# Review\n\n## Checklist\n\n- [ ] F40 context\n- [x] F39 done\n\n## Notes\n\nkeep\n"
+
+	replaced, err := patchMarkdown(base, patchDocIn{Operation: "replace_section", Section: "Notes", Body: "replacement"})
+	if err != nil || replaced != "# Review\n\n## Checklist\n\n- [ ] F40 context\n- [x] F39 done\n\n## Notes\n\nreplacement\n" {
+		t.Fatalf("replace section = %q, %v", replaced, err)
 	}
-	// body only → title carried over
-	got, err = mergeUpdate(cur, nil, sp("new body"))
-	if err != nil || got.Title != "Old" || got.Body != "new body" {
-		t.Fatalf("body-only merge = (%+v,%v), want Old/new body", got, err)
+
+	appended, err := patchMarkdown(base, patchDocIn{Operation: "append_section", Section: "Checklist", Body: "- [ ] F41 scope"})
+	if err != nil || !strings.Contains(appended, "- [x] F39 done\n\n- [ ] F41 scope\n\n## Notes") {
+		t.Fatalf("append section = %q, %v", appended, err)
 	}
-	// both nil → error
-	if _, err := mergeUpdate(cur, nil, nil); err == nil {
-		t.Fatal("merge with no fields should error")
+
+	checked := true
+	toggled, err := patchMarkdown(base, patchDocIn{Operation: "set_checkbox", Checkbox: "F40 context", Checked: &checked})
+	if err != nil || !strings.Contains(toggled, "- [x] F40 context") {
+		t.Fatalf("set checkbox = %q, %v", toggled, err)
+	}
+}
+
+func TestPatchMarkdownRejectsAmbiguousOrMissingTargets(t *testing.T) {
+	checked := true
+	if _, err := patchMarkdown("## A\n\n## A\n", patchDocIn{Operation: "replace_section", Section: "A", Body: "x"}); err == nil {
+		t.Fatal("duplicate section should be rejected")
+	}
+	if _, err := patchMarkdown("- [ ] other\n", patchDocIn{Operation: "set_checkbox", Checkbox: "missing", Checked: &checked}); err == nil {
+		t.Fatal("missing checkbox should be rejected")
+	}
+	if _, err := patchMarkdown("body", patchDocIn{Operation: "bogus"}); err == nil {
+		t.Fatal("unknown operation should be rejected")
 	}
 }
 

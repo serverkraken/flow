@@ -53,10 +53,10 @@ func TestAuthManager_NoTokenReturnsLoginRequired_NoOnAuth(t *testing.T) {
 }
 
 func TestAuthManager_Do_RetriesOnceOn401ThenSucceeds(t *testing.T) {
-	builds := 0
+	builds, auths := 0, 0
 	m := newAuthManager(
 		func(context.Context) (*apiclient.Client, error) { builds++; return dummyClient(), nil },
-		func(context.Context, *apiclient.Client) {},
+		func(context.Context, *apiclient.Client) { auths++ },
 	)
 	calls := 0
 	err := m.Do(context.Background(), func(*apiclient.Client) error {
@@ -74,6 +74,9 @@ func TestAuthManager_Do_RetriesOnceOn401ThenSucceeds(t *testing.T) {
 	}
 	if builds != 2 {
 		t.Fatalf("builds = %d, want 2 (initial + rebuild after reset)", builds)
+	}
+	if auths != 2 {
+		t.Fatalf("onAuth fired %d times, want 2 so resources reconcile after identity rebuild", auths)
 	}
 }
 

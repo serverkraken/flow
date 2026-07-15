@@ -56,8 +56,9 @@ func (t DocumentType) valid() bool {
 }
 
 // ContextMode is a document's agent-context membership mode: auto (type-driven,
-// the pre-L5.5 behavior), immer (always composed, uncapped, bypasses tag-gate
-// and pin), or nie (never composed but fully visible in Wissen/search).
+// the pre-L5.5 behavior), immer (highest-priority context, bypasses tag-gate
+// and pin but remains subject to the hard cap), or nie (never composed but
+// fully visible in Wissen/search).
 type ContextMode string
 
 const (

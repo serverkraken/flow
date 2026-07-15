@@ -74,7 +74,10 @@ var (
 	ErrFeedTokenNotFound = errors.New("feed token not found")
 	ErrDocumentNotFound  = errors.New("document not found")
 	ErrDocumentExists    = errors.New("document already exists")
-	ErrBindingNotFound   = errors.New("ports: binding not found")
+	// ErrDocumentConflict means an optimistic concurrency precondition no longer
+	// matches the owner-scoped row locked by the aggregate transaction.
+	ErrDocumentConflict = errors.New("document changed since it was read")
+	ErrBindingNotFound  = errors.New("ports: binding not found")
 	// ErrNodeCycle marks a reparent operation that would persist a hierarchy cycle.
 	ErrNodeCycle = errors.New("node move would create a cycle")
 	// ErrEmbedStaleSnapshot means the document changed after a worker selected it.
@@ -87,6 +90,16 @@ var (
 	// document or just stop and retry the whole batch next tick.
 	ErrEmbedTransient = errors.New("embed backend transient failure")
 )
+
+// DocumentConflictError carries the version observed while the owner-scoped
+// document row was locked. It unwraps to ErrDocumentConflict for stable branch
+// logic while allowing API clients to re-read or retry against a precise value.
+type DocumentConflictError struct {
+	CurrentUpdatedAt time.Time
+}
+
+func (e DocumentConflictError) Error() string { return ErrDocumentConflict.Error() }
+func (e DocumentConflictError) Unwrap() error { return ErrDocumentConflict }
 
 // NodeStore persists projects. All reads are owner-scoped.
 type NodeStore interface {

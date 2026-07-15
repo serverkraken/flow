@@ -17,14 +17,15 @@ import (
 func TestClient_ComposeContext(t *testing.T) {
 	t.Parallel()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/context" || r.URL.Query().Get("remote") != "flow" {
+		if r.URL.Path != "/api/v1/context" || r.URL.Query().Get("remote") != "flow" ||
+			r.URL.Query().Get("cap") != "2200" || r.URL.Query().Get("profile") != "handoff" {
 			t.Errorf("unexpected request: %s?%s", r.URL.Path, r.URL.RawQuery)
 		}
 		_, _ = w.Write([]byte(`{"resolution":{"unresolved":false},"instructions":[],"memories":{},"budget":{"used":10,"cap":6000}}`))
 	}))
 	defer ts.Close()
 	c := apiclient.New(ts.URL, "tok")
-	cc, err := c.ComposeContext(context.Background(), apiclient.ContextQuery{Remote: "flow"})
+	cc, err := c.ComposeContext(context.Background(), apiclient.ContextQuery{Remote: "flow", Cap: 2200, Profile: "handoff"})
 	if err != nil {
 		t.Fatal(err)
 	}

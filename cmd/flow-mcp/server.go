@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"sync"
 
@@ -33,13 +35,17 @@ type handlers struct {
 	projects     []domain.Node
 	projFetched  bool
 	listProjects func(ctx context.Context) ([]domain.Node, error)
+
+	resourceRefreshMu sync.Mutex
+	resourceMu        sync.Mutex
+	resources         map[string]string // document id -> descriptor fingerprint
 }
 
 // newServerH builds the server + handlers and returns both. It also sets
-// mgr.onAuth to this handlers' run-once post-auth init and h.srv to the server,
+// mgr.onAuth to this handlers' per-client post-auth reconciliation and h.srv,
 // and wires the project-ref fetch seam through the manager.
 func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
-	h := &handlers{mgr: mgr}
+	h := &handlers{mgr: mgr, resources: make(map[string]string)}
 	h.listProjects = func(ctx context.Context) ([]domain.Node, error) {
 		c, err := mgr.client(ctx)
 		if err != nil {
@@ -80,8 +86,12 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.createDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_update_doc",
-		Description: "Update a document's title and/or body by id (partial: omit a field to keep it). Modifying a human-owned note (daily/project/free) requires confirm=true.",
+		Description: "CAS-safe partial update of a document's title, body, and/or tags. Returns id, canonical project, version, updatedAt, and hash. Modifying a human-owned note requires confirm=true.",
 	}, h.updateDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_patch_doc",
+		Description: "CAS-safe Markdown mutation without loading a large document into model context: replace_section, append_section, or set_checkbox. Returns id, canonical project, version, updatedAt, and hash.",
+	}, h.patchDoc)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_move_doc",
 		Description: "Atomically reclassify a document's type, project, path, and date. Daily paths are derived from date. Modifying a human-owned note requires confirm=true.",
@@ -104,12 +114,16 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.updateNode)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_get_context",
-		Description: "Compose the cross-device start-context (instructions + activeContext + memories) for the current repo, token-budgeted.",
+		Description: "Compose the cross-device start-context for the current repo with a hard token cap. Profiles: handoff, standard (default), full.",
 	}, h.getContext)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_set_active_context",
-		Description: "Upsert this repo's activeContext memory (where I was / what's open / next step).",
+		Description: "Upsert this repo's activeContext memory (where I was / what's open / next step). Fails closed when the repo cannot be resolved and returns id, canonical project, version, updatedAt, and hash.",
 	}, h.setActiveContext)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_refresh_resources",
+		Description: "Reconcile the complete MCP resource URI set with the currently resolved project's live documents, removing stale URIs and adding external changes.",
+	}, h.refreshResourcesTool)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_archive_doc",
 		Description: "Archive a context doc (out of bootstrap + default lists/search, but findable + reversible) or un-archive it. Safe, reversible — use this to retire done/historical memories instead of deleting them.",
@@ -143,28 +157,67 @@ func (h *handlers) resolved() (domain.Node, bool) {
 func (h *handlers) resultErr(err error) *mcp.CallToolResult {
 	var g errGuard
 	if errors.As(err, &g) {
-		return errorResult(g.Error())
+		return structuredErrorResult("invalid_request", g.Error(), http.StatusBadRequest, false, "")
 	}
 	if errors.Is(err, errLoginRequired) {
 		return h.loginRequired()
 	}
-	return errorResult("flow server error: " + err.Error())
+	var apiErr *apiclient.APIError
+	if errors.As(err, &apiErr) {
+		code := "flow_server_error"
+		retryable := apiErr.StatusCode == http.StatusTooManyRequests || apiErr.StatusCode >= 500
+		switch apiErr.StatusCode {
+		case http.StatusConflict:
+			code, retryable = "document_conflict", true
+		case http.StatusNotFound:
+			code = "not_found"
+		case http.StatusUnauthorized:
+			code = "authentication_required"
+		}
+		message := apiErr.Message
+		conflictVersion := ""
+		var problem struct {
+			Code            string `json:"code"`
+			Message         string `json:"message"`
+			Retryable       *bool  `json:"retryable"`
+			ConflictVersion string `json:"conflictVersion"`
+		}
+		if json.Unmarshal([]byte(apiErr.Message), &problem) == nil {
+			if problem.Code != "" {
+				code = problem.Code
+			}
+			if problem.Message != "" {
+				message = problem.Message
+			}
+			if problem.Retryable != nil {
+				retryable = *problem.Retryable
+			}
+			conflictVersion = problem.ConflictVersion
+		}
+		if message == "" {
+			message = http.StatusText(apiErr.StatusCode)
+		}
+		return structuredErrorResult(code, message, apiErr.StatusCode, retryable, conflictVersion)
+	}
+	return structuredErrorResult("flow_server_error", "flow server error: "+err.Error(), http.StatusInternalServerError, true, "")
 }
 
-// refreshResolved re-resolves the cwd→project and re-registers the project's
-// documents as resources, overwriting the resolved state under projMu. Run once
-// by postAuthInit and again by flow_bind_project after a successful bind.
+// refreshResolved re-resolves the cwd→project and fully reconciles the project's
+// resources, overwriting the resolved state under projMu. It runs after every
+// authenticated client build and after flow_bind_project.
 func (h *handlers) refreshResolved(ctx context.Context, c *apiclient.Client) {
+	h.resourceRefreshMu.Lock()
+	defer h.resourceRefreshMu.Unlock()
 	proj, matched := resolveProject(ctx, c, mcpLog())
 	h.projMu.Lock()
 	h.proj, h.matched = proj, matched
 	h.projMu.Unlock()
-	if err := h.registerResources(ctx, c); err != nil {
+	if _, err := h.reconcileResourcesLocked(ctx, c); err != nil {
 		mcpLog().Warn("could not register document resources", "err", err)
 	}
 }
 
-// postAuthInit runs once on the first successful auth (mgr.onAuth).
+// postAuthInit runs after every successful authenticated-client build.
 func (h *handlers) postAuthInit(ctx context.Context, c *apiclient.Client) {
 	h.refreshResolved(ctx, c)
 }
@@ -212,10 +265,26 @@ func textResult(s string) *mcp.CallToolResult {
 
 // errorResult wraps an actionable error result (IsError=true).
 func errorResult(s string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: s}}}
+	return structuredErrorResult("invalid_request", s, http.StatusBadRequest, false, "")
+}
+
+type toolErrorResult struct {
+	Code            string `json:"code"`
+	Message         string `json:"message"`
+	HTTPStatus      int    `json:"httpStatus"`
+	Retryable       bool   `json:"retryable"`
+	ConflictVersion string `json:"conflictVersion,omitempty"`
+}
+
+func structuredErrorResult(code, message string, status int, retryable bool, conflictVersion string) *mcp.CallToolResult {
+	out := toolErrorResult{Code: code, Message: message, HTTPStatus: status, Retryable: retryable, ConflictVersion: conflictVersion}
+	b, _ := json.Marshal(out)
+	return &mcp.CallToolResult{
+		IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}, StructuredContent: out,
+	}
 }
 
 // loginRequired is the standard degraded-mode short-circuit.
 func (h *handlers) loginRequired() *mcp.CallToolResult {
-	return errorResult("Login required: run 'flow login' in a terminal on this device.")
+	return structuredErrorResult("authentication_required", "Login required: run 'flow login' in a terminal on this device.", http.StatusUnauthorized, false, "")
 }

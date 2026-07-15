@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -19,8 +20,8 @@ func main() {
 	srv, h := newServerH(mgr) // wires mgr.onAuth = h.postAuthInit
 	_ = h
 
-	// Eager warm: if a valid token is stored, this builds the client, fires the
-	// run-once post-auth init (resolve project + register resources), and logs
+	// Eager warm: if a valid token is stored, this builds the client, resolves the
+	// project, reconciles resources, and logs
 	// who we are. Failures are expected when logged out — the server still starts
 	// and recovers on the first authed tool call.
 	if c, err := mgr.client(ctx); err != nil {
@@ -30,6 +31,7 @@ func main() {
 	} else {
 		log.Info("flow-mcp authenticated", "user", u.Email)
 	}
+	go h.runResourceReconciler(ctx, 30*time.Second)
 
 	if err := srv.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		log.Error("flow-mcp exited", "err", err)

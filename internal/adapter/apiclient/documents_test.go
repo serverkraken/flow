@@ -167,6 +167,46 @@ func TestUpdateDocument_PutsBody(t *testing.T) {
 	}
 }
 
+func TestPatchDocument_SendsOnlySuppliedFieldsAndCAS(t *testing.T) {
+	expected := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	title := "Updated"
+	want := stubDoc("doc-patch", title)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/api/v1/documents/doc-patch" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var raw map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := raw["body"]; ok {
+			t.Fatal("omitted body was serialized")
+		}
+		if _, ok := raw["tags"]; ok {
+			t.Fatal("omitted tags were serialized")
+		}
+		if _, ok := raw["title"]; !ok {
+			t.Fatal("title missing from patch")
+		}
+		if _, ok := raw["expectedUpdatedAt"]; !ok {
+			t.Fatal("expectedUpdatedAt missing from patch")
+		}
+		_ = json.NewEncoder(w).Encode(want)
+	}))
+	defer srv.Close()
+
+	c := apiclient.New(srv.URL, "tok")
+	got, err := c.PatchDocument(context.Background(), "doc-patch", apiclient.PatchDocumentInput{
+		Title: &title, ExpectedUpdatedAt: &expected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != title {
+		t.Fatalf("title = %q, want %q", got.Title, title)
+	}
+}
+
 func TestMoveDocument_PostsCompleteMetadata(t *testing.T) {
 	day := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

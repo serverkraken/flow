@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
@@ -73,6 +74,122 @@ func TestUpdateDocument_LinkFailureRollsBackDocument(t *testing.T) {
 	}
 	if links := docs.LinksFor(seed.ID); len(links) != 1 || links[0] != "before" {
 		t.Fatalf("links changed after rollback: %v", links)
+	}
+}
+
+func TestPatchDocument_UpdatesOnlySuppliedFields(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	updatedAt := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
+	seed := domain.Document{
+		ID: "doc-patch", OwnerID: "owner", Type: domain.DocMemory, Path: "memory/patch",
+		Title: "Before", Body: "keep this body", CreatedAt: updatedAt, UpdatedAt: updatedAt,
+	}
+	if _, err := docs.Create(ctx, seed); err != nil {
+		t.Fatal(err)
+	}
+	tags := testutil.NewFakeTagStore()
+	aggregate := testutil.NewFakeDocumentAggregateStore(docs, tags)
+	uc := usecase.UpdateDocument{
+		Docs: docs, Aggregate: aggregate, Tags: tags,
+		Clock: testutil.FakeClock{T: updatedAt.Add(time.Minute)},
+	}
+	newTags := []string{"reliable"}
+
+	got, err := uc.ExecutePatch(ctx, "owner", seed.ID, usecase.PatchDocumentInput{
+		Tags: &newTags, ExpectedUpdatedAt: &updatedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != seed.Title || got.Body != seed.Body {
+		t.Fatalf("tags-only patch clobbered content: %+v", got)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "reliable" {
+		t.Fatalf("tags = %v, want [reliable]", got.Tags)
+	}
+}
+
+func TestPatchDocument_RejectsStaleExpectedUpdatedAt(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	updatedAt := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
+	seed := domain.Document{
+		ID: "doc-conflict", OwnerID: "owner", Type: domain.DocMemory, Path: "memory/conflict",
+		Title: "Current", Body: "current body", CreatedAt: updatedAt, UpdatedAt: updatedAt,
+	}
+	if _, err := docs.Create(ctx, seed); err != nil {
+		t.Fatal(err)
+	}
+	tags := testutil.NewFakeTagStore()
+	uc := usecase.UpdateDocument{
+		Docs: docs, Aggregate: testutil.NewFakeDocumentAggregateStore(docs, tags), Tags: tags,
+		Clock: testutil.FakeClock{T: updatedAt.Add(time.Minute)},
+	}
+	stale := updatedAt.Add(-time.Minute)
+	title := "Stale overwrite"
+
+	_, err := uc.ExecutePatch(ctx, "owner", seed.ID, usecase.PatchDocumentInput{
+		Title: &title, ExpectedUpdatedAt: &stale,
+	})
+	if !errors.Is(err, ports.ErrDocumentConflict) {
+		t.Fatalf("error = %v, want ErrDocumentConflict", err)
+	}
+	got, getErr := docs.Get(ctx, "owner", seed.ID)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if got.Title != seed.Title || got.Body != seed.Body {
+		t.Fatalf("stale patch changed document: %+v", got)
+	}
+}
+
+func TestPatchDocument_ConcurrentCASAllowsOneWriter(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	updatedAt := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
+	seed := domain.Document{
+		ID: "doc-race", OwnerID: "owner", Type: domain.DocMemory, Path: "memory/race",
+		Title: "Current", Body: "current body", CreatedAt: updatedAt, UpdatedAt: updatedAt,
+	}
+	if _, err := docs.Create(ctx, seed); err != nil {
+		t.Fatal(err)
+	}
+	tags := testutil.NewFakeTagStore()
+	uc := usecase.UpdateDocument{
+		Docs: docs, Aggregate: testutil.NewFakeDocumentAggregateStore(docs, tags), Tags: tags,
+		Clock: testutil.FakeClock{T: updatedAt},
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for _, title := range []string{"First", "Second"} {
+		title := title
+		go func() {
+			<-start
+			_, err := uc.ExecutePatch(ctx, "owner", seed.ID, usecase.PatchDocumentInput{
+				Title: &title, ExpectedUpdatedAt: &updatedAt,
+			})
+			errs <- err
+		}()
+	}
+	close(start)
+	var successes, conflicts int
+	for range 2 {
+		switch err := <-errs; {
+		case err == nil:
+			successes++
+		case errors.Is(err, ports.ErrDocumentConflict):
+			conflicts++
+		default:
+			t.Fatalf("unexpected concurrent patch error: %v", err)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("successes=%d conflicts=%d, want 1/1", successes, conflicts)
 	}
 }
 

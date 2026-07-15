@@ -10,6 +10,7 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func newDocumentAggregateFixture(t *testing.T) (context.Context, *pgstore.DocumentStore, *pgstore.TagStore, func(string, ...any)) {
@@ -234,6 +235,47 @@ func TestDocumentAggregateStore_ConcurrentUpdatesKeepContentIndexesTogether(t *t
 	backlinks, err := docs.Backlinks(ctx, "u-doc-agg", variant)
 	if err != nil || !containsDocumentID(backlinks, got.ID) {
 		t.Fatalf("content and links diverged: variant=%s backlinks=%+v err=%v", variant, backlinks, err)
+	}
+}
+
+func TestDocumentAggregateStore_ConcurrentCASPatchAllowsOneWriter(t *testing.T) {
+	ctx, docs, tags, _ := newDocumentAggregateFixture(t)
+	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	created, err := docs.CreateDocumentAggregate(ctx,
+		aggregateDocument("doc-cas-race", "notes/cas-race", "Initial", "body", now),
+		ports.DocumentAggregateChanges{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uc := usecase.UpdateDocument{
+		Docs: docs, Aggregate: docs, Tags: tags, Clock: testutil.FakeClock{T: created.UpdatedAt},
+	}
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	for _, title := range []string{"alpha", "beta"} {
+		title := title
+		go func() {
+			<-start
+			_, err := uc.ExecutePatch(ctx, "u-doc-agg", created.ID, usecase.PatchDocumentInput{
+				Title: &title, ExpectedUpdatedAt: &created.UpdatedAt,
+			})
+			errCh <- err
+		}()
+	}
+	close(start)
+	var successes, conflicts int
+	for range 2 {
+		switch err := <-errCh; {
+		case err == nil:
+			successes++
+		case errors.Is(err, ports.ErrDocumentConflict):
+			conflicts++
+		default:
+			t.Fatalf("unexpected concurrent CAS error: %v", err)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("successes=%d conflicts=%d, want 1/1", successes, conflicts)
 	}
 }
 

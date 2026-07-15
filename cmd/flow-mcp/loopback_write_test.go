@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
@@ -65,6 +66,86 @@ func TestLoopback_Resources_BootAndLiveSync(t *testing.T) {
 	}
 }
 
+func TestLoopback_Resources_ReconcileExternalCreateDeleteAndRebind(t *testing.T) {
+	sess, h := authedWriteServerWithResources(t)
+	ctx := context.Background()
+	c, err := h.mgr.client(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p1 := "p1"
+	external, err := c.CreateDocument(ctx, apiclient.CreateDocumentInput{
+		Type: string(domain.DocMemory), NodeID: &p1, Path: "external", Title: "External", Body: "outside MCP",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, out := callText(t, sess, "flow_refresh_resources", map[string]any{})
+	if res.IsError || !strings.Contains(out, "Reconciled") {
+		t.Fatalf("refresh after external create = (IsError=%v, %q)", res.IsError, out)
+	}
+	rs, err := sess.ListResources(ctx, nil)
+	if err != nil || !hasResource(rs.Resources, docURI(external.ID)) {
+		t.Fatalf("after external create reconcile resources=%v err=%v", resourceURIs(rs.Resources), err)
+	}
+
+	if err := c.DeleteDocument(ctx, external.ID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = callText(t, sess, "flow_refresh_resources", map[string]any{})
+	if res.IsError {
+		t.Fatalf("refresh after external delete: %s", out)
+	}
+	rs, err = sess.ListResources(ctx, nil)
+	if err != nil || hasResource(rs.Resources, docURI(external.ID)) {
+		t.Fatalf("after external delete reconcile resources=%v err=%v", resourceURIs(rs.Resources), err)
+	}
+
+	h.projMu.Lock()
+	h.proj = domain.Node{ID: "p2", Name: "Beta", Slug: "beta"}
+	h.matched = true
+	h.projMu.Unlock()
+	res, out = callText(t, sess, "flow_refresh_resources", map[string]any{})
+	if res.IsError {
+		t.Fatalf("refresh after rebind: %s", out)
+	}
+	rs, err = sess.ListResources(ctx, nil)
+	if err != nil || len(rs.Resources) != 0 {
+		t.Fatalf("after rebind resources=%v err=%v, want empty p2 set", resourceURIs(rs.Resources), err)
+	}
+}
+
+func TestLoopback_Resources_PeriodicReconcileSeesExternalCreate(t *testing.T) {
+	sess, h := authedWriteServerWithResources(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c, err := h.mgr.client(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p1 := "p1"
+	external, err := c.CreateDocument(ctx, apiclient.CreateDocumentInput{
+		Type: string(domain.DocMemory), NodeID: &p1, Path: "periodic", Title: "Periodic", Body: "outside MCP",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go h.runResourceReconciler(ctx, 5*time.Millisecond)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		rs, listErr := sess.ListResources(ctx, nil)
+		if listErr != nil {
+			t.Fatal(listErr)
+		}
+		if hasResource(rs.Resources, docURI(external.ID)) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("periodic reconciliation did not expose external create")
+}
+
 func hasResource(rs []*mcp.Resource, uri string) bool {
 	for _, r := range rs {
 		if r.URI == uri {
@@ -88,8 +169,9 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 	t.Helper()
 	var mu sync.Mutex
 	p1 := "p1"
+	baseTime := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	docs := map[string]domain.Document{
-		"d-human": {ID: "d-human", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "human note"},
+		"d-human": {ID: "d-human", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "## Checklist\n\n- [ ] F40 context\n\nhuman note", UpdatedAt: baseTime},
 	}
 	seq := 0
 	mux := http.NewServeMux()
@@ -107,7 +189,7 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		defer mu.Unlock()
 		seq++
 		id := "new" + string(rune('0'+seq))
-		d := domain.Document{ID: id, OwnerID: "u1", NodeID: in.NodeID, Type: domain.DocumentType(in.Type), Path: in.Path, Title: in.Title, Body: in.Body}
+		d := domain.Document{ID: id, OwnerID: "u1", NodeID: in.NodeID, Type: domain.DocumentType(in.Type), Path: in.Path, Title: in.Title, Body: in.Body, Tags: in.Tags, UpdatedAt: baseTime}
 		docs[id] = d
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(d)
@@ -154,6 +236,39 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		docs[d.ID] = d
 		_ = json.NewEncoder(w).Encode(d)
 	})
+	mux.HandleFunc("PATCH /api/v1/documents/{id}", func(w http.ResponseWriter, r *http.Request) {
+		var in apiclient.PatchDocumentInput
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		mu.Lock()
+		defer mu.Unlock()
+		d, ok := docs[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if in.ExpectedUpdatedAt != nil && !d.UpdatedAt.Equal(*in.ExpectedUpdatedAt) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": "document_conflict", "message": "document changed since it was read",
+				"httpStatus": http.StatusConflict, "retryable": true,
+				"conflictVersion": d.UpdatedAt.UTC().Format(time.RFC3339Nano),
+			})
+			return
+		}
+		if in.Title != nil {
+			d.Title = *in.Title
+		}
+		if in.Body != nil {
+			d.Body = *in.Body
+		}
+		if in.Tags != nil {
+			d.Tags = append([]string(nil), (*in.Tags)...)
+		}
+		d.UpdatedAt = d.UpdatedAt.Add(time.Microsecond)
+		docs[d.ID] = d
+		_ = json.NewEncoder(w).Encode(d)
+	})
 	mux.HandleFunc("DELETE /api/v1/documents/{id}", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
@@ -193,7 +308,7 @@ func TestLoopback_WriteTools_Advertised(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"flow_create_doc", "flow_update_doc", "flow_move_doc", "flow_delete_doc"} {
+	for _, name := range []string{"flow_create_doc", "flow_update_doc", "flow_patch_doc", "flow_move_doc", "flow_delete_doc"} {
 		if !hasTool(tools.Tools, name) {
 			t.Fatalf("%s not advertised; got %v", name, toolNames(tools.Tools))
 		}
@@ -259,6 +374,49 @@ func TestLoopback_UpdateGuard(t *testing.T) {
 	}
 }
 
+func TestLoopback_UpdateTagsOnlyAndPatchCheckbox(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	tags := []string{"reliable"}
+	res, out := callText(t, sess, "flow_update_doc", map[string]any{"id": "d-human", "tags": tags, "confirm": true})
+	if res.IsError || !strings.Contains(out, `"project":"alpha"`) || !strings.Contains(out, `"version":`) || !strings.Contains(out, `"hash":"sha256:`) {
+		t.Fatalf("tags-only update = (IsError=%v, %q), want structured write result", res.IsError, out)
+	}
+	_, got := callText(t, sess, "flow_get_doc", map[string]any{"id": "d-human"})
+	if !strings.Contains(got, "human note") || !strings.Contains(got, "reliable") {
+		t.Fatalf("tags-only update clobbered content or tags: %q", got)
+	}
+
+	res, out = callText(t, sess, "flow_patch_doc", map[string]any{
+		"id": "d-human", "operation": "set_checkbox", "checkbox": "F40 context", "checked": true, "confirm": true,
+	})
+	if res.IsError || !strings.Contains(out, `"action":"patched"`) {
+		t.Fatalf("checkbox patch = (IsError=%v, %q)", res.IsError, out)
+	}
+	_, got = callText(t, sess, "flow_get_doc", map[string]any{"id": "d-human"})
+	if !strings.Contains(got, "- [x] F40 context") {
+		t.Fatalf("checkbox was not patched: %q", got)
+	}
+}
+
+func TestLoopback_UpdateConflictReturnsStructuredError(t *testing.T) {
+	sess := authedWriteServer(t)
+	baseVersion := "2026-07-15T12:00:00Z"
+
+	res, out := callText(t, sess, "flow_update_doc", map[string]any{
+		"id": "d-human", "title": "first", "expectedUpdatedAt": baseVersion, "confirm": true,
+	})
+	if res.IsError {
+		t.Fatalf("first update errored: %s", out)
+	}
+	res, out = callText(t, sess, "flow_update_doc", map[string]any{
+		"id": "d-human", "title": "stale", "expectedUpdatedAt": baseVersion, "confirm": true,
+	})
+	if !res.IsError || !strings.Contains(out, `"code":"document_conflict"`) || !strings.Contains(out, `"httpStatus":409`) || !strings.Contains(out, `"retryable":true`) || !strings.Contains(out, `"conflictVersion":"2026-07-15T12:00:00.000001Z"`) {
+		t.Fatalf("stale update = (IsError=%v, %q), want structured conflict", res.IsError, out)
+	}
+}
+
 func TestLoopback_UpdateAgentOwnedNoConfirm(t *testing.T) {
 	sess := authedWriteServer(t)
 	_, _ = callText(t, sess, "flow_create_doc", map[string]any{"type": "memory", "path": "notes/a", "title": "A", "body": "B"})
@@ -317,9 +475,9 @@ func TestLoopback_Resources_OutOfScopeCreateNotRegistered(t *testing.T) {
 	}
 	beforeCount := len(rs.Resources)
 
-	// create in "global" scope → NodeID nil → not in scope of p1
+	// create explicitly unassigned → NodeID nil → not in scope of p1
 	res, out := callText(t, sess, "flow_create_doc", map[string]any{
-		"type": "memory", "path": "notes/oob", "title": "OutOfBand", "body": "nowhere", "project": "global",
+		"type": "memory", "path": "notes/oob", "title": "OutOfBand", "body": "nowhere", "project": "none",
 	})
 	if res.IsError {
 		t.Fatalf("out-of-scope create errored: %s", out)

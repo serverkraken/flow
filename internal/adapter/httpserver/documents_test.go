@@ -404,6 +404,59 @@ func TestHandleUpdateDocument_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandlePatchDocument_TagsOnlyAndCASConflict(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	primeUser(t, ts.URL)
+	createRes := doDoc(t, ts, "POST", "/api/v1/documents", `{"type":"memory","path":"patch-test","title":"Keep","body":"keep body"}`)
+	defer func() { _ = createRes.Body.Close() }()
+	var created domain.Document
+	if err := json.NewDecoder(createRes.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(map[string]any{
+		"tags":              []string{"reliable"},
+		"expectedUpdatedAt": created.UpdatedAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res := doDoc(t, ts, "PATCH", "/api/v1/documents/"+created.ID, string(payload))
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("PATCH want 200, got %d", res.StatusCode)
+	}
+	var updated domain.Document
+	if err := json.NewDecoder(res.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	if updated.Title != created.Title || updated.Body != created.Body {
+		t.Fatalf("tags-only PATCH clobbered content: %+v", updated)
+	}
+
+	staleTitle := `{"title":"stale","expectedUpdatedAt":"` + created.UpdatedAt.Format(time.RFC3339Nano) + `"}`
+	conflict := doDoc(t, ts, "PATCH", "/api/v1/documents/"+created.ID, staleTitle)
+	defer func() { _ = conflict.Body.Close() }()
+	if conflict.StatusCode != http.StatusConflict {
+		t.Fatalf("stale PATCH want 409, got %d", conflict.StatusCode)
+	}
+	var problem struct {
+		Code            string `json:"code"`
+		HTTPStatus      int    `json:"httpStatus"`
+		Retryable       bool   `json:"retryable"`
+		ConflictVersion string `json:"conflictVersion"`
+	}
+	if err := json.NewDecoder(conflict.Body).Decode(&problem); err != nil {
+		t.Fatal(err)
+	}
+	if problem.Code != "document_conflict" || problem.HTTPStatus != http.StatusConflict || !problem.Retryable || problem.ConflictVersion != updated.UpdatedAt.UTC().Format(time.RFC3339Nano) {
+		t.Fatalf("conflict payload = %+v", problem)
+	}
+}
+
 func TestHandleDeleteDocument_HappyPath(t *testing.T) {
 	srv, _ := newDocServer(t)
 	ts := httptest.NewServer(srv.Routes())
