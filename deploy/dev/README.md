@@ -50,6 +50,40 @@ make dev-down            # stop containers (keeps the db volume)
 make dev-down ARGS=-v    # also drop the Postgres volume (fresh DB next time)
 ```
 
+## Refresh from production
+
+`make dev-refresh-prod` replaces the local dev database with a current,
+read-only snapshot of the production Flow database. Stop `make dev-run` first;
+Postgres, Dex and Ollama must remain running.
+
+The refresh deliberately preserves the production `users.id`, because all
+owner-scoped data references that stable internal ID. It changes only the
+selected production user's `oidc_sub` from the Authentik subject to the static
+Dex subject from `deploy/dev/flow.env`. The imported database is then migrated
+with the current checkout's embedded goose migrations.
+
+Safety properties:
+
+- production is accessed only through `pg_dump` and read-only validation;
+- dump and pre-refresh local backup use mode `0600` in a temporary directory;
+- the dev PostgreSQL major is kept aligned with production (currently 17);
+- the previous local database is restored automatically if import, mapping,
+  migration or validation fails;
+- temporary dumps are removed on every exit and must never be committed;
+- the script refuses to run while the local Flow server listens on port 8080;
+- exactly one source user must match `FLOW_PROD_OIDC_SUB` (default `msoent`).
+
+The refreshed local environment contains real production content. Keep it on
+the trusted development machine and remove the dev volume when it is no longer
+needed (`make dev-down ARGS=-v`). Override the pinned cluster or mapping only
+explicitly, for example:
+
+```bash
+FLOW_PROD_KUBE_CONTEXT=admin@study-en75-mybackbone-cc \
+FLOW_PROD_OIDC_SUB=msoent \
+make dev-refresh-prod
+```
+
 ## What's where
 | File | Purpose |
 |------|---------|
@@ -58,6 +92,7 @@ make dev-down ARGS=-v    # also drop the Postgres volume (fresh DB next time)
 | `deploy/dev/flow.env` | flow-server env (DB + OIDC + `FLOW_DEV=1`) |
 | `scripts/dev-up.sh` / `dev-down.sh` | bring the deps up / down |
 | `scripts/dev-token.sh` | mint a Dex id_token for `FLOW_TOKEN` |
+| `scripts/dev-refresh-prod.sh` | safely replace dev DB from Prod and map Authentik to Dex |
 | `scripts/dev-run.sh` | run flow-server with `flow.env` sourced |
 
 ## Notes / not for production

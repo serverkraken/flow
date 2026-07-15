@@ -6,7 +6,7 @@ COVER_PKG       := ./internal/...
 PREFIX          ?= $(HOME)/.local
 BINDIR          ?= $(PREFIX)/bin
 
-.PHONY: build install test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login
+.PHONY: build install test cover lint fmt ci db-up db-down smoke smoke-m1b web generate verify-generate verify-css verify-no-popups dev-up dev-down dev-run dev-token dev-login dev-refresh-prod
 build:
 	@mkdir -p bin
 	go build -o bin/flow-server ./cmd/flow-server
@@ -50,6 +50,8 @@ dev-token:
 	@./scripts/dev-token.sh
 dev-login:
 	set -a; . deploy/dev/flow-cli.env; set +a; go run ./cmd/flow login
+dev-refresh-prod:
+	./scripts/dev-refresh-prod.sh
 # web builds the Tailwind v4 stylesheet. Requires the tailwindcss CLI (NOT part of make ci).
 web:
 	tailwindcss --input web/tailwind.css --output internal/adapter/webui/static/app.css --minify

@@ -52,6 +52,12 @@ func run() error {
 	if err := pgstore.Migrate(ctx, pool); err != nil {
 		return err
 	}
+	// The dev database refresh imports the production schema first and then uses
+	// the application's embedded goose migrations as the single source of truth.
+	// Exit before OIDC/server wiring when only that migration step was requested.
+	if os.Getenv("FLOW_MIGRATE_ONLY") == "1" {
+		return nil
+	}
 	verifier, err := oidcverify.New(ctx, oidcverify.VerifierPairs(
 		cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCCliIssuer, cfg.OIDCCliClientID))
 	if err != nil {

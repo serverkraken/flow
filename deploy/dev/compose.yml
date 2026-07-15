@@ -4,7 +4,9 @@
 name: flow-dev
 services:
   db:
-    image: docker.io/pgvector/pgvector:pg16
+    # Keep the dev major aligned with the CloudNativePG production cluster so
+    # current pg_dump archives restore without version-specific SET failures.
+    image: docker.io/pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: flow
       POSTGRES_USER: flow
