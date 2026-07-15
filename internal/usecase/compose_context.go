@@ -107,6 +107,7 @@ type ContextItem struct {
 	NodeID      *string             `json:"nodeId"`
 	ScopeLabel  string              `json:"scope"`
 	Type        domain.DocumentType `json:"type"`
+	Path        string              `json:"path"`
 	Title       string              `json:"title"`
 	Tags        []string            `json:"tags,omitempty"`
 	UpdatedAt   string              `json:"updatedAt"`
@@ -171,6 +172,7 @@ type ComposedContext struct {
 	Ranked         []RankedItem             `json:"ranked,omitempty"`
 	AlwaysMemories []ContextItem            `json:"alwaysMemories,omitempty"`
 	Hidden         []ContextItem            `json:"hidden,omitempty"`
+	Candidates     []ContextItem            `json:"candidates,omitempty"`
 	Budget         ContextBudget            `json:"budget"`
 }
 
@@ -199,6 +201,7 @@ func ApplyContextProfile(cc ComposedContext, raw string) (ComposedContext, error
 		cc.Memories = map[string][]ContextItem{}
 		cc.Ranked = nil
 		cc.Hidden = nil
+		cc.Candidates = nil
 		cc.Budget.Used = 0
 		if cc.ActiveContext != nil {
 			cc.Budget.Used += cc.ActiveContext.EstTokens
@@ -209,6 +212,7 @@ func ApplyContextProfile(cc ComposedContext, raw string) (ComposedContext, error
 	case ContextProfileStandard:
 		cc.Ranked = nil
 		cc.Hidden = nil
+		cc.Candidates = nil
 	case ContextProfileFull:
 		// Keep all metadata. Ranked and Hidden bodies were already stripped by
 		// Compose, so full does not duplicate content outside the budget.
@@ -222,7 +226,7 @@ func estTokens(body string) int { return (len(body) + 3) / 4 }
 
 func itemOf(d domain.Document, label string) ContextItem {
 	return ContextItem{
-		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Title: d.Title, Tags: d.Tags,
+		ID: d.ID, NodeID: d.NodeID, ScopeLabel: label, Type: d.Type, Path: d.Path, Title: d.Title, Tags: d.Tags,
 		UpdatedAt: d.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"), Pinned: d.Pinned,
 		Priority: d.Priority, EstTokens: estTokens(d.Body), Body: d.Body,
 		ContextMode: d.ContextMode.OrAuto(),
@@ -351,6 +355,23 @@ func Compose(chain []domain.Node, docs []domain.Document, globalAllowed map[stri
 	var pool []ranked
 
 	for _, d := range docs {
+		if d.Archived {
+			continue
+		}
+		switch d.Type {
+		case domain.DocInstruction, domain.DocMemory, domain.DocActiveContext:
+		default:
+			continue
+		}
+		candidateLabel := "global"
+		if d.NodeID != nil {
+			var ok bool
+			candidateLabel, ok = label[*d.NodeID]
+			if !ok {
+				continue
+			}
+		}
+		out.Candidates = append(out.Candidates, metadataItem(itemOf(d, candidateLabel)))
 		mode := d.ContextMode.OrAuto()
 		if mode == domain.ContextModeNie {
 			// Never composed. Collect for the Kuratieren restore affordance only

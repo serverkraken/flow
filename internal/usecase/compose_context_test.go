@@ -99,6 +99,50 @@ func TestCompose_DiagnosticItemsDoNotDuplicateDocumentBodies(t *testing.T) {
 	}
 }
 
+func TestCompose_FullCandidatesInventoryIsCompleteAndMetadataOnly(t *testing.T) {
+	t.Parallel()
+	leaf := "leaf"
+	chain := []domain.Node{node(leaf, "flow", domain.KindRepo)}
+	t0 := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
+	docs := []domain.Document{
+		{ID: "instruction", NodeID: &leaf, Type: domain.DocInstruction, Path: "agents", Title: "Rules", Body: "same", UpdatedAt: t0},
+		{ID: "memory", NodeID: &leaf, Type: domain.DocMemory, Path: "memory/kept", Title: "Kept", Body: "kept body", UpdatedAt: t0},
+		{ID: "hidden", NodeID: &leaf, Type: domain.DocMemory, Path: "memory/hidden", Title: "Hidden", Body: "hidden body", ContextMode: domain.ContextModeNie, UpdatedAt: t0},
+		{ID: "gated-global", Type: domain.DocMemory, Path: "memory/global", Title: "Gated", Body: "gated body", UpdatedAt: t0},
+		{ID: "archived", NodeID: &leaf, Type: domain.DocMemory, Path: "memory/archived", Title: "Archived", Body: "must not compose", Archived: true, UpdatedAt: t0},
+	}
+
+	got := usecase.Compose(chain, docs, map[string]bool{}, 100)
+	if len(got.Candidates) != 4 {
+		t.Fatalf("candidates = %+v, want four non-archived context documents", got.Candidates)
+	}
+	byID := make(map[string]usecase.ContextItem, len(got.Candidates))
+	for _, item := range got.Candidates {
+		byID[item.ID] = item
+		if item.Body != "" {
+			t.Fatalf("candidate %s leaked body %q", item.ID, item.Body)
+		}
+	}
+	if byID["memory"].Path != "memory/kept" || byID["hidden"].ContextMode != domain.ContextModeNie {
+		t.Fatalf("candidate metadata incomplete: %+v", byID)
+	}
+	if _, ok := byID["gated-global"]; !ok {
+		t.Fatal("tag-gated global memory must remain visible to curation inventory")
+	}
+	if _, ok := byID["archived"]; ok {
+		t.Fatal("archived document must not be a context candidate")
+	}
+
+	full, err := usecase.ApplyContextProfile(got, "full")
+	if err != nil || len(full.Candidates) != 4 {
+		t.Fatalf("full profile candidates = %d, %v", len(full.Candidates), err)
+	}
+	standard, err := usecase.ApplyContextProfile(got, "standard")
+	if err != nil || len(standard.Candidates) != 0 {
+		t.Fatalf("standard profile exposed candidates = %d, %v", len(standard.Candidates), err)
+	}
+}
+
 func TestApplyContextProfile_HandoffKeepsOnlyOrientationAndActiveState(t *testing.T) {
 	t.Parallel()
 	cc := usecase.ComposedContext{

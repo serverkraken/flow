@@ -350,8 +350,8 @@ func TestLoopback_BindProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	if len(tools.Tools) != 21 {
-		t.Fatalf("tool count = %d, want 21; got %v", len(tools.Tools), toolNames(tools.Tools))
+	if len(tools.Tools) != 25 {
+		t.Fatalf("tool count = %d, want 25; got %v", len(tools.Tools), toolNames(tools.Tools))
 	}
 	if !hasTool(tools.Tools, "flow_list_projects") {
 		t.Fatalf("flow_list_projects not advertised; got %v", toolNames(tools.Tools))
@@ -364,6 +364,11 @@ func TestLoopback_BindProject(t *testing.T) {
 	}
 	if !hasTool(tools.Tools, "flow_patch_doc") || !hasTool(tools.Tools, "flow_refresh_resources") {
 		t.Fatalf("reliability tools not advertised; got %v", toolNames(tools.Tools))
+	}
+	for _, name := range []string{"flow_context_inventory", "flow_curate_context", "flow_reorder_context", "flow_list_archived_docs"} {
+		if !hasTool(tools.Tools, name) {
+			t.Fatalf("%s not advertised; got %v", name, toolNames(tools.Tools))
+		}
 	}
 
 	// 2. flow_list_projects returns fixture projects.

@@ -47,16 +47,25 @@ type reorderReq struct {
 	IDs []string `json:"ids"`
 }
 
+const maxReorderContextDocuments = 200
+
 func (s *Server) handleReorderContext(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req reorderReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
+		return
+	}
+	if len(req.IDs) > maxReorderContextDocuments {
+		http.Error(w, "too many document ids", http.StatusBadRequest)
 		return
 	}
 	if err := s.ReorderContextDocs.Execute(r.Context(), u.ID, req.IDs); err != nil {
 		if errors.Is(err, ports.ErrDocumentNotFound) {
 			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, domain.ErrInvalidDocument) {
+			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 		http.Error(w, "server error", http.StatusInternalServerError)

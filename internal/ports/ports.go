@@ -368,6 +368,9 @@ type DocumentStore interface {
 	// ErrDocumentNotFound if absent or foreign. Deliberately does NOT bump
 	// updated_at (priority is orthogonal to recency).
 	SetPriority(ctx context.Context, ownerID, id string, priority int) error
+	// ReorderPriorities atomically stamps dense descending priorities for the
+	// complete ordered id list. Any missing/foreign id aborts every change.
+	ReorderPriorities(ctx context.Context, ownerID string, orderedIDs []string) error
 
 	// SetContextMode sets a document's agent-context membership mode
 	// (auto/immer/nie). Owner-scoped; returns ErrDocumentNotFound if absent or

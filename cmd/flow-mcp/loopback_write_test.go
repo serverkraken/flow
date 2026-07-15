@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/usecase"
 )
 
 func authedWriteServerWithResources(t *testing.T) (*mcp.ClientSession, *handlers) {
@@ -171,7 +173,9 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 	p1 := "p1"
 	baseTime := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
 	docs := map[string]domain.Document{
-		"d-human": {ID: "d-human", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "## Checklist\n\n- [ ] F40 context\n\nhuman note", UpdatedAt: baseTime},
+		"d-human":    {ID: "d-human", OwnerID: "u1", NodeID: &p1, Type: domain.DocFree, Path: "notes/keep", Title: "Keep", Body: "## Checklist\n\n- [ ] F40 context\n\nhuman note", UpdatedAt: baseTime},
+		"d-memory":   {ID: "d-memory", OwnerID: "u1", NodeID: &p1, Type: domain.DocMemory, Path: "memory/one", Title: "Memory One", Body: "memory body", Priority: 2, ContextMode: domain.ContextModeAuto, UpdatedAt: baseTime},
+		"d-memory-2": {ID: "d-memory-2", OwnerID: "u1", NodeID: &p1, Type: domain.DocMemory, Path: "memory/two", Title: "Memory Two", Body: "second memory body", Priority: 1, ContextMode: domain.ContextModeAuto, UpdatedAt: baseTime},
 	}
 	seq := 0
 	mux := http.NewServeMux()
@@ -275,6 +279,124 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		delete(docs, r.PathValue("id"))
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("POST /api/v1/documents/{id}/pin", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Pinned bool `json:"pinned"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		mu.Lock()
+		defer mu.Unlock()
+		d, ok := docs[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		d.Pinned = in.Pinned
+		d.UpdatedAt = d.UpdatedAt.Add(time.Microsecond)
+		docs[d.ID] = d
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /api/v1/documents/{id}/context-mode", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Mode domain.ContextMode `json:"mode"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		mu.Lock()
+		defer mu.Unlock()
+		d, ok := docs[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		d.ContextMode = in.Mode
+		d.UpdatedAt = d.UpdatedAt.Add(time.Microsecond)
+		docs[d.ID] = d
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("POST /api/v1/documents/{id}/archive", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			Archived bool `json:"archived"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		mu.Lock()
+		defer mu.Unlock()
+		d, ok := docs[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		d.Archived = in.Archived
+		d.UpdatedAt = d.UpdatedAt.Add(time.Microsecond)
+		if in.Archived {
+			now := baseTime.Add(time.Hour)
+			d.ArchivedAt = &now
+			d.Pinned = false
+		} else {
+			d.ArchivedAt = nil
+		}
+		docs[d.ID] = d
+		_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+	})
+	mux.HandleFunc("GET /api/v1/documents/archived", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		var out []domain.Document
+		for _, d := range docs {
+			if d.Archived {
+				out = append(out, d)
+			}
+		}
+		_ = json.NewEncoder(w).Encode(out)
+	})
+	mux.HandleFunc("GET /api/v1/context", func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		proj := domain.Node{ID: p1, Name: "Alpha", Slug: "alpha"}
+		cc := usecase.ComposedContext{
+			Resolution: usecase.ContextResolution{Repo: &proj, Chain: []domain.Node{proj}},
+			Memories:   map[string][]usecase.ContextItem{p1: {}},
+			Budget:     usecase.ContextBudget{Cap: 100},
+		}
+		var ranked []domain.Document
+		for _, d := range docs {
+			if d.Archived || !contextDocumentType(d.Type) || d.NodeID == nil || *d.NodeID != p1 {
+				continue
+			}
+			item := usecase.ContextItem{ID: d.ID, NodeID: d.NodeID, ScopeLabel: "repo:alpha", Type: d.Type, Path: d.Path, Title: d.Title, Tags: d.Tags, Pinned: d.Pinned, Priority: d.Priority, ContextMode: d.ContextMode, EstTokens: 10}
+			cc.Candidates = append(cc.Candidates, item)
+			if d.ContextMode.OrAuto() == domain.ContextModeNie {
+				cc.Hidden = append(cc.Hidden, item)
+				continue
+			}
+			ranked = append(ranked, d)
+		}
+		sort.Slice(ranked, func(i, j int) bool { return ranked[i].Priority > ranked[j].Priority })
+		for i, d := range ranked {
+			item := usecase.ContextItem{ID: d.ID, NodeID: d.NodeID, ScopeLabel: "repo:alpha", Type: d.Type, Path: d.Path, Title: d.Title, Body: d.Body, Pinned: d.Pinned, Priority: d.Priority, ContextMode: d.ContextMode, EstTokens: 10}
+			cc.Ranked = append(cc.Ranked, usecase.RankedItem{Item: item, Group: p1, Included: true, Rank: i + 1})
+			cc.Memories[p1] = append(cc.Memories[p1], item)
+			cc.Budget.Used += item.EstTokens
+		}
+		_ = json.NewEncoder(w).Encode(cc)
+	})
+	mux.HandleFunc("POST /api/v1/context/reorder", func(w http.ResponseWriter, r *http.Request) {
+		var in struct {
+			IDs []string `json:"ids"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&in)
+		mu.Lock()
+		defer mu.Unlock()
+		for i, id := range in.IDs {
+			d, ok := docs[id]
+			if !ok {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			d.Priority = len(in.IDs) - i
+			docs[id] = d
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "n": len(in.IDs)})
+	})
 	// list (used by resolveScope's nothing here, but harmless to provide)
 	mux.HandleFunc("GET /api/v1/documents", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -282,7 +404,7 @@ func fakeWriteBackend(t *testing.T) *httptest.Server {
 		var out []domain.Document
 		pid, has := r.URL.Query().Get("projectId"), r.URL.Query().Has("projectId")
 		for _, d := range docs {
-			if !has || (d.NodeID != nil && *d.NodeID == pid) {
+			if !d.Archived && (!has || (d.NodeID != nil && *d.NodeID == pid)) {
 				out = append(out, d)
 			}
 		}
@@ -441,6 +563,68 @@ func TestLoopback_DeleteGuard(t *testing.T) {
 	res, _ = callText(t, sess, "flow_get_doc", map[string]any{"id": "d-human"})
 	if !res.IsError {
 		t.Fatal("get after delete should error (not found)")
+	}
+}
+
+func TestLoopback_ContextCurationInventoryModeAndOrder(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	res, inventory := callText(t, sess, "flow_context_inventory", map[string]any{"cap": 100})
+	if res.IsError || !strings.Contains(inventory, `"id":"d-memory"`) || !strings.Contains(inventory, `"state":"included"`) {
+		t.Fatalf("inventory = (IsError=%v, %q)", res.IsError, inventory)
+	}
+	if strings.Contains(inventory, "memory body") || strings.Contains(inventory, `"body"`) {
+		t.Fatalf("inventory leaked a body: %q", inventory)
+	}
+	res, pinned := callText(t, sess, "flow_curate_context", map[string]any{"id": "d-memory", "pinned": true, "cap": 100})
+	if res.IsError || !strings.Contains(pinned, `"pinned":true`) {
+		t.Fatalf("curate pin = (IsError=%v, %q)", res.IsError, pinned)
+	}
+
+	res, invalid := callText(t, sess, "flow_reorder_context", map[string]any{"ids": []string{"d-memory"}, "cap": 100})
+	if !res.IsError || !strings.Contains(invalid, "all 2 ranked") {
+		t.Fatalf("incomplete reorder = (IsError=%v, %q)", res.IsError, invalid)
+	}
+	res, reordered := callText(t, sess, "flow_reorder_context", map[string]any{"ids": []string{"d-memory-2", "d-memory"}, "cap": 100})
+	if res.IsError || !strings.Contains(reordered, `"count":2`) {
+		t.Fatalf("complete reorder = (IsError=%v, %q)", res.IsError, reordered)
+	}
+
+	res, curated := callText(t, sess, "flow_curate_context", map[string]any{"id": "d-memory", "mode": "nie", "cap": 100})
+	if res.IsError || !strings.Contains(curated, `"state":"hidden"`) || !strings.Contains(curated, `"contextMode":"nie"`) {
+		t.Fatalf("curate mode = (IsError=%v, %q)", res.IsError, curated)
+	}
+	res, archived := callText(t, sess, "flow_curate_context", map[string]any{"id": "d-memory-2", "archived": true, "cap": 100})
+	if res.IsError || !strings.Contains(archived, `"state":"archived"`) {
+		t.Fatalf("curate archive = (IsError=%v, %q)", res.IsError, archived)
+	}
+	res, inventory = callText(t, sess, "flow_context_inventory", map[string]any{"cap": 100})
+	if res.IsError || strings.Contains(inventory, `"id":"d-memory-2"`) {
+		t.Fatalf("archived document remained in inventory = (IsError=%v, %q)", res.IsError, inventory)
+	}
+}
+
+func TestLoopback_ArchiveGuardListAndRestore(t *testing.T) {
+	sess := authedWriteServer(t)
+
+	res, refused := callText(t, sess, "flow_archive_doc", map[string]any{"id": "d-human"})
+	if !res.IsError || !strings.Contains(refused, "confirm") {
+		t.Fatalf("unguarded archive = (IsError=%v, %q)", res.IsError, refused)
+	}
+	res, archived := callText(t, sess, "flow_archive_doc", map[string]any{"id": "d-human", "confirm": true})
+	if res.IsError || !strings.Contains(archived, `"archived":true`) {
+		t.Fatalf("confirmed archive = (IsError=%v, %q)", res.IsError, archived)
+	}
+	res, listed := callText(t, sess, "flow_list_archived_docs", map[string]any{})
+	if res.IsError || !strings.Contains(listed, `"id":"d-human"`) {
+		t.Fatalf("archived list = (IsError=%v, %q)", res.IsError, listed)
+	}
+	if strings.Contains(listed, "human note") || strings.Contains(listed, `"body"`) {
+		t.Fatalf("archived list leaked a body: %q", listed)
+	}
+	res, restored := callText(t, sess, "flow_archive_doc", map[string]any{"id": "d-human", "archived": false, "confirm": true})
+	if res.IsError || !strings.Contains(restored, `"archived":false`) {
+		t.Fatalf("restore = (IsError=%v, %q)", res.IsError, restored)
 	}
 }
 

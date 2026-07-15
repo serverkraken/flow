@@ -798,6 +798,72 @@ func TestDocumentStore_SetPriority(t *testing.T) {
 	}
 }
 
+func TestDocumentStore_ReorderPrioritiesRollsBackForeignID(t *testing.T) {
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	seedUser(t, us, "u2")
+	for _, d := range []domain.Document{
+		{ID: "a", OwnerID: "u1", Type: domain.DocMemory, Path: "a", Title: "A", Priority: 7},
+		{ID: "foreign", OwnerID: "u2", Type: domain.DocMemory, Path: "foreign", Title: "Foreign"},
+	} {
+		if _, err := ds.Create(ctx, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := ds.ReorderPriorities(ctx, "u1", []string{"a", "foreign"}); !errors.Is(err, ports.ErrDocumentNotFound) {
+		t.Fatalf("error = %v, want ErrDocumentNotFound", err)
+	}
+	got, err := ds.Get(ctx, "u1", "a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Priority != 7 {
+		t.Fatalf("partial reorder survived rollback: priority=%d", got.Priority)
+	}
+}
+
+func TestDocumentStore_ConcurrentReorderPrioritiesKeepsCompleteOrder(t *testing.T) {
+	ds, us, _, done := newDocStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := ds.Create(ctx, domain.Document{ID: id, OwnerID: "u1", Type: domain.DocMemory, Path: id, Title: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	for _, order := range [][]string{{"a", "b", "c"}, {"c", "b", "a"}} {
+		order := append([]string(nil), order...)
+		go func() {
+			<-start
+			errs <- ds.ReorderPriorities(ctx, "u1", order)
+		}()
+	}
+	close(start)
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent reorder: %v", err)
+		}
+	}
+	priorities := map[string]int{}
+	for _, id := range []string{"a", "b", "c"} {
+		d, err := ds.Get(ctx, "u1", id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		priorities[id] = d.Priority
+	}
+	forward := priorities["a"] == 3 && priorities["b"] == 2 && priorities["c"] == 1
+	reverse := priorities["c"] == 3 && priorities["b"] == 2 && priorities["a"] == 1
+	if !forward && !reverse {
+		t.Fatalf("concurrent reorder mixed two orders: %+v", priorities)
+	}
+}
+
 func TestDocumentStore_SetContextMode(t *testing.T) {
 	t.Parallel()
 	ds, us, _, done := newDocStore(t)

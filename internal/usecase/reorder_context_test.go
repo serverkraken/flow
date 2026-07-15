@@ -57,4 +57,11 @@ func TestReorderContextDocs_ForeignDocPropagatesError(t *testing.T) {
 	if !errors.Is(err, ports.ErrDocumentNotFound) {
 		t.Fatalf("Execute: got %v, want ErrDocumentNotFound", err)
 	}
+	got, getErr := docs.Get(ctx, "owner-1", a.ID)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if got.Priority != 0 {
+		t.Fatalf("partial reorder survived foreign-id failure: priority=%d", got.Priority)
+	}
 }

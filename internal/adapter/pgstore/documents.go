@@ -270,6 +270,43 @@ func (s *DocumentStore) SetPriority(ctx context.Context, ownerID, id string, pri
 	return nil
 }
 
+func (s *DocumentStore) ReorderPriorities(ctx context.Context, ownerID string, orderedIDs []string) error {
+	if len(orderedIDs) == 0 {
+		return nil
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: begin reorder priorities: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rows, err := tx.Query(ctx, `SELECT id FROM documents WHERE owner_id=$1 AND id = ANY($2) ORDER BY id FOR UPDATE`, ownerID, orderedIDs)
+	if err != nil {
+		return fmt.Errorf("pgstore: lock reorder priorities: %w", err)
+	}
+	locked := 0
+	for rows.Next() {
+		locked++
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("pgstore: scan reorder priorities: %w", err)
+	}
+	rows.Close()
+	if locked != len(orderedIDs) {
+		return ports.ErrDocumentNotFound
+	}
+	for i, id := range orderedIDs {
+		if _, err := tx.Exec(ctx, `UPDATE documents SET priority=$1 WHERE owner_id=$2 AND id=$3`, len(orderedIDs)-i, ownerID, id); err != nil {
+			return fmt.Errorf("pgstore: reorder priority: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pgstore: commit reorder priorities: %w", err)
+	}
+	return nil
+}
+
 // SetContextMode sets a document's agent-context membership mode. Owner-scoped;
 // deliberately does NOT bump updated_at (mode is curation, orthogonal to content
 // recency — mirrors SetPriority; see domain.Document.ContextMode / Offene Entsch. #2).

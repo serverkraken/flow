@@ -264,6 +264,12 @@ func (h *handlers) deleteDoc(ctx context.Context, req *mcp.CallToolRequest, in d
 type archiveDocIn struct {
 	ID       string `json:"id" jsonschema:"the document id to archive or un-archive"`
 	Archived *bool  `json:"archived,omitempty" jsonschema:"true (default) to archive — out of bootstrap + default lists/search but still findable; false to un-archive"`
+	Confirm  bool   `json:"confirm,omitempty" jsonschema:"required (true) to archive or un-archive a human-owned note (daily/project/free)"`
+}
+
+type archiveDocResult struct {
+	Action   string                  `json:"action"`
+	Document curatedDocumentMetadata `json:"document"`
 }
 
 func (h *handlers) archiveDoc(ctx context.Context, req *mcp.CallToolRequest, in archiveDocIn) (*mcp.CallToolResult, any, error) {
@@ -274,26 +280,32 @@ func (h *handlers) archiveDoc(ctx context.Context, req *mcp.CallToolRequest, in 
 	if in.Archived != nil {
 		archived = *in.Archived
 	}
-	var out string
+	var out archiveDocResult
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		cur, err := c.GetDocument(ctx, in.ID)
 		if err != nil {
 			return err
 		}
+		if err := guardMutation(cur, in.Confirm); err != nil {
+			return errGuard{err}
+		}
 		if err := c.SetArchived(ctx, in.ID, archived); err != nil {
+			return err
+		}
+		updated, err := c.GetDocument(ctx, in.ID)
+		if err != nil {
 			return err
 		}
 		if archived {
 			h.removeResource(cur.ID)
-			out = fmt.Sprintf("Archived [%s] %s.", cur.ID, cur.Title)
 		} else {
-			h.addResource(ctx, cur)
-			out = fmt.Sprintf("Un-archived [%s] %s.", cur.ID, cur.Title)
+			h.addResource(ctx, updated)
 		}
+		out = archiveDocResult{Action: "set_archived", Document: archivedMetadataOf(updated)}
 		return nil
 	})
 	if err != nil {
 		return h.resultErr(err), nil, nil
 	}
-	return textResult(out), nil, nil
+	return structuredResult(out), nil, nil
 }

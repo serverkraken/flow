@@ -117,6 +117,18 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 		Description: "Compose the cross-device start-context for the current repo with a hard token cap. Profiles: handoff, standard (default), full.",
 	}, h.getContext)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_context_inventory",
+		Description: "Inspect every context candidate for the current repo as metadata only, including its included, dropped, hidden, or always standing and the reason. Use before curating.",
+	}, h.contextInventory)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_curate_context",
+		Description: "Apply exactly one checked context action to a document: set mode (auto/immer/nie), pin/unpin, or archive/un-archive. Returns the resulting standing and budget.",
+	}, h.curateContext)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_reorder_context",
+		Description: "Atomically reorder the complete ranked context set for the current repo. Requires every currently ranked document id exactly once.",
+	}, h.reorderContext)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_set_active_context",
 		Description: "Upsert this repo's activeContext memory (where I was / what's open / next step). Fails closed when the repo cannot be resolved and returns id, canonical project, version, updatedAt, and hash.",
 	}, h.setActiveContext)
@@ -126,8 +138,12 @@ func newServerH(mgr *authManager) (*mcp.Server, *handlers) {
 	}, h.refreshResourcesTool)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_archive_doc",
-		Description: "Archive a context doc (out of bootstrap + default lists/search, but findable + reversible) or un-archive it. Safe, reversible — use this to retire done/historical memories instead of deleting them.",
+		Description: "Archive any document (out of bootstrap + default lists/search, but reversible) or un-archive it. Human-owned notes require confirm=true.",
 	}, h.archiveDoc)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "flow_list_archived_docs",
+		Description: "List archived documents as metadata only, scoped to the current project by default and optionally filtered by project or type.",
+	}, h.listArchivedDocs)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "flow_upload_artifact",
 		Description: "Upload an artifact (image or downloadable file) onto a node. Scoped to the current project by default; pass node to target another. Images render inline via ![[slug]] in Kompendium docs; other MIME types are download links.",
@@ -261,6 +277,11 @@ func (h *handlers) do(ctx context.Context, req *mcp.CallToolRequest, fn func(*ap
 // textResult wraps a plain-text success result.
 func textResult(s string) *mcp.CallToolResult {
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: s}}}
+}
+
+func structuredResult(out any) *mcp.CallToolResult {
+	b, _ := json.Marshal(out)
+	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}, StructuredContent: out}
 }
 
 // errorResult wraps an actionable error result (IsError=true).

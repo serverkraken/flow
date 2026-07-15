@@ -214,3 +214,21 @@ func TestHandleReorderContext_ForeignDocReturns404(t *testing.T) {
 		t.Fatalf("want 404, got %d", res.StatusCode)
 	}
 }
+
+func TestHandleReorderContext_RejectsDuplicateAndUnknownFields(t *testing.T) {
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+
+	for _, body := range []string{
+		`{"ids":["same","same"]}`,
+		`{"ids":[],"unexpected":true}`,
+	} {
+		res := doDoc(t, ts, http.MethodPost, "/api/v1/context/reorder", body)
+		_ = res.Body.Close()
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("body %s: status=%d, want 400", body, res.StatusCode)
+		}
+	}
+}

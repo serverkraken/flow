@@ -1201,6 +1201,23 @@ func (s *FakeDocumentStore) SetPriority(_ context.Context, ownerID, id string, p
 	return nil
 }
 
+func (s *FakeDocumentStore) ReorderPriorities(_ context.Context, ownerID string, orderedIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range orderedIDs {
+		d, ok := s.m[id]
+		if !ok || d.OwnerID != ownerID {
+			return ports.ErrDocumentNotFound
+		}
+	}
+	for i, id := range orderedIDs {
+		d := s.m[id]
+		d.Priority = len(orderedIDs) - i
+		s.m[id] = d
+	}
+	return nil
+}
+
 func (s *FakeDocumentStore) SetContextMode(_ context.Context, ownerID, id string, mode domain.ContextMode) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
