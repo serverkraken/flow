@@ -37,9 +37,23 @@ type CreateNode struct {
 }
 
 func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeInput) (domain.Node, error) {
+	n, changes, err := uc.prepare(ctx, ownerID, in)
+	if err != nil {
+		return domain.Node{}, err
+	}
+	if uc.Aggregate != nil {
+		return uc.Aggregate.CreateAggregate(ctx, n, changes)
+	}
+	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep {
+		return domain.Node{}, errors.New("create node aggregate store is not configured")
+	}
+	return uc.Nodes.Create(ctx, n)
+}
+
+func (uc CreateNode) prepare(ctx context.Context, ownerID string, in CreateNodeInput) (domain.Node, ports.NodeAggregateChanges, error) {
 	if in.Rate != nil {
 		if in.Kind != domain.KindEngagement || in.Rate.Amount < 0 || len(in.Rate.Currency) != 3 {
-			return domain.Node{}, domain.ErrInvalidRate
+			return domain.Node{}, ports.NodeAggregateChanges{}, domain.ErrInvalidRate
 		}
 	}
 	var logo domain.NodeLogo
@@ -47,7 +61,7 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 		var err error
 		logo, err = buildNodeLogo(ownerID, "", in.LogoData, uc.Clock.Now())
 		if err != nil {
-			return domain.Node{}, err
+			return domain.Node{}, ports.NodeAggregateChanges{}, err
 		}
 	}
 	var upstreamSlug string
@@ -55,7 +69,7 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 		var ok bool
 		upstreamSlug, ok = domain.NormalizeRemoteSlug(in.UpstreamGit)
 		if !ok {
-			return domain.Node{}, domain.ErrInvalidUpstream
+			return domain.Node{}, ports.NodeAggregateChanges{}, domain.ErrInvalidUpstream
 		}
 	}
 	slug := in.Slug
@@ -64,20 +78,20 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 	}
 	if in.ParentID == nil {
 		if in.Kind != domain.KindEngagement {
-			return domain.Node{}, fmt.Errorf("%w: root node must be an engagement", domain.ErrInvalidNode)
+			return domain.Node{}, ports.NodeAggregateChanges{}, fmt.Errorf("%w: root node must be an engagement", domain.ErrInvalidNode)
 		}
 	} else {
 		parent, err := uc.Nodes.Get(ctx, ownerID, *in.ParentID)
 		if err != nil {
-			return domain.Node{}, err
+			return domain.Node{}, ports.NodeAggregateChanges{}, err
 		}
 		if !domain.AllowedChildKind(parent.Kind, in.Kind) {
-			return domain.Node{}, fmt.Errorf("%w: %s cannot be a child of %s", domain.ErrInvalidNode, in.Kind, parent.Kind)
+			return domain.Node{}, ports.NodeAggregateChanges{}, fmt.Errorf("%w: %s cannot be a child of %s", domain.ErrInvalidNode, in.Kind, parent.Kind)
 		}
 	}
 	n, err := domain.NewNode(uc.IDs.NewID(), ownerID, in.Name, slug, uc.Clock.Now())
 	if err != nil {
-		return domain.Node{}, err
+		return domain.Node{}, ports.NodeAggregateChanges{}, err
 	}
 	n.Kind = in.Kind
 	n.ParentID = in.ParentID
@@ -99,15 +113,9 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 		changes.LogoValue = logo
 	}
 	if err := n.Validate(); err != nil {
-		return domain.Node{}, err
+		return domain.Node{}, ports.NodeAggregateChanges{}, err
 	}
-	if uc.Aggregate != nil {
-		return uc.Aggregate.CreateAggregate(ctx, n, changes)
-	}
-	if changes.SetRate || changes.SetTags || changes.Logo != ports.NodeLogoKeep {
-		return domain.Node{}, errors.New("create node aggregate store is not configured")
-	}
-	return uc.Nodes.Create(ctx, n)
+	return n, changes, nil
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)

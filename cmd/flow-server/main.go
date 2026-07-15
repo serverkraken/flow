@@ -125,6 +125,7 @@ func run() error {
 		SwitchSession:      usecase.SwitchSession{Sessions: sessionStore, Nodes: nodeStore, IDs: ids, Clock: clock, Loc: time.Local},
 		ListSessions:       usecase.ListSessions{Sessions: sessionStore, Clock: clock},
 		CreateNode:         usecase.CreateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, IDs: ids, Clock: clock},
+		CreateBoundNode:    usecase.CreateBoundNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, IDs: ids, Clock: clock},
 		ListNodes:          usecase.ListNodes{Nodes: nodeStore},
 		UpdateNode:         usecase.UpdateNode{Nodes: nodeStore, Aggregate: nodeAggregateStore, Clock: clock},
 		GetNode:            usecase.GetNode{Nodes: nodeStore},

@@ -158,6 +158,13 @@ type NodeAggregateStore interface {
 	UpdateAggregate(ctx context.Context, ownerID, nodeID string, mutate func(domain.Node) (domain.Node, NodeAggregateChanges, error)) (domain.Node, error)
 }
 
+// NodeBindingAggregateStore owns the intentional create-and-bind command used
+// by MCP create_name. Node and explicit binding either both commit or neither
+// becomes visible.
+type NodeBindingAggregateStore interface {
+	CreateBoundAggregate(ctx context.Context, n domain.Node, changes NodeAggregateChanges, binding domain.ProjectBinding) (domain.Node, domain.ProjectBinding, error)
+}
+
 // ArtifactStore persists node-scoped artifacts as Postgres blobs (N per node,
 // FK ON DELETE CASCADE). All reads are owner-scoped.
 type ArtifactStore interface {

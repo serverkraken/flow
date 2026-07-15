@@ -89,6 +89,41 @@ func TestBindRemote(t *testing.T) {
 	}
 }
 
+func TestCreateBoundNode(t *testing.T) {
+	var got apiclient.CreateBoundNodeInput
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/nodes/create-bound" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{
+			"node":{"id":"n1","name":"Flow","slug":"flow","kind":"repo","originSlug":"github.com/serverkraken/flow"},
+			"binding":{"ID":"b1","NodeID":"n1","Kind":"remote","RemoteSlug":"github.com/serverkraken/flow"}
+		}`))
+	}))
+	defer ts.Close()
+
+	c := apiclient.New(ts.URL, "tok")
+	parentID := "parent"
+	result, err := c.CreateBoundNode(context.Background(), apiclient.CreateBoundNodeInput{
+		Node:    apiclient.CreateNodeFields{Name: "Flow", Kind: "repo", ParentID: &parentID},
+		Binding: apiclient.BindingFields{Kind: "remote", RemoteSlug: "github.com/serverkraken/flow"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Node.Name != "Flow" || got.Node.ParentID == nil || *got.Node.ParentID != parentID || got.Binding.RemoteSlug != "github.com/serverkraken/flow" {
+		t.Fatalf("body=%+v", got)
+	}
+	if result.Node.ID != "n1" || result.Binding.ID != "b1" || result.Binding.NodeID != "n1" {
+		t.Fatalf("result=%+v", result)
+	}
+}
+
 func TestUnbindRemote(t *testing.T) {
 	var gotQuery string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -32,6 +32,7 @@ type Server struct {
 	SwitchSession     usecase.SwitchSession
 	ListSessions      usecase.ListSessions
 	CreateNode        usecase.CreateNode
+	CreateBoundNode   usecase.CreateBoundNode
 	ListNodes         usecase.ListNodes
 	DeleteNode        usecase.DeleteNode
 	UpdateNode        usecase.UpdateNode
@@ -160,6 +161,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("PATCH /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleEditSession)))
 	mux.Handle("DELETE /api/v1/sessions/{id}", s.auth(http.HandlerFunc(s.handleDeleteSession)))
 	mux.Handle("POST /api/v1/nodes", s.auth(http.HandlerFunc(s.handleCreateNode)))
+	mux.Handle("POST /api/v1/nodes/create-bound", s.auth(http.HandlerFunc(s.handleCreateBoundNode)))
 	mux.Handle("GET /api/v1/nodes", s.auth(http.HandlerFunc(s.handleListNodes)))
 	mux.Handle("DELETE /api/v1/nodes/{id}", s.auth(http.HandlerFunc(s.handleDeleteNode)))
 	mux.Handle("GET /api/v1/nodes/{id}", s.auth(http.HandlerFunc(s.handleGetNode)))

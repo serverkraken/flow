@@ -23,17 +23,25 @@ func NewProjectBindingStore(pool *pgxpool.Pool) *ProjectBindingStore {
 // is (owner_id, remote_slug) WHERE kind='remote'; for path bindings it is
 // (owner_id, machine_id, path) WHERE kind='path'.
 func (s *ProjectBindingStore) Upsert(ctx context.Context, b domain.ProjectBinding) (domain.ProjectBinding, error) {
+	return upsertProjectBinding(ctx, s.pool, b)
+}
+
+type bindingQueryRower interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func upsertProjectBinding(ctx context.Context, q bindingQueryRower, b domain.ProjectBinding) (domain.ProjectBinding, error) {
 	switch b.Kind {
 	case domain.BindingRemote:
-		return s.upsertRemote(ctx, b)
+		return upsertRemoteBinding(ctx, q, b)
 	case domain.BindingPath:
-		return s.upsertPath(ctx, b)
+		return upsertPathBinding(ctx, q, b)
 	default:
 		return domain.ProjectBinding{}, fmt.Errorf("pgstore: unknown binding kind %q", b.Kind)
 	}
 }
 
-func (s *ProjectBindingStore) upsertRemote(ctx context.Context, b domain.ProjectBinding) (domain.ProjectBinding, error) {
+func upsertRemoteBinding(ctx context.Context, querier bindingQueryRower, b domain.ProjectBinding) (domain.ProjectBinding, error) {
 	const q = `
 INSERT INTO project_bindings
   (id, owner_id, node_id, kind, remote_slug, machine_id, machine_label, path, created_at, updated_at)
@@ -41,11 +49,11 @@ VALUES ($1,$2,$3,'remote',$4,NULL,NULL,NULL,$5,$6)
 ON CONFLICT (owner_id, remote_slug) WHERE kind='remote'
 DO UPDATE SET node_id=EXCLUDED.node_id, updated_at=EXCLUDED.updated_at
 RETURNING id, owner_id, node_id, kind, remote_slug, machine_id, machine_label, path, created_at, updated_at`
-	return scanBinding(s.pool.QueryRow(ctx, q,
+	return scanBinding(querier.QueryRow(ctx, q,
 		b.ID, b.OwnerID, b.NodeID, b.RemoteSlug, b.CreatedAt, b.UpdatedAt))
 }
 
-func (s *ProjectBindingStore) upsertPath(ctx context.Context, b domain.ProjectBinding) (domain.ProjectBinding, error) {
+func upsertPathBinding(ctx context.Context, querier bindingQueryRower, b domain.ProjectBinding) (domain.ProjectBinding, error) {
 	const q = `
 INSERT INTO project_bindings
   (id, owner_id, node_id, kind, remote_slug, machine_id, machine_label, path, created_at, updated_at)
@@ -53,7 +61,7 @@ VALUES ($1,$2,$3,'path',NULL,$4,$5,$6,$7,$8)
 ON CONFLICT (owner_id, machine_id, path) WHERE kind='path'
 DO UPDATE SET node_id=EXCLUDED.node_id, machine_label=EXCLUDED.machine_label, updated_at=EXCLUDED.updated_at
 RETURNING id, owner_id, node_id, kind, remote_slug, machine_id, machine_label, path, created_at, updated_at`
-	return scanBinding(s.pool.QueryRow(ctx, q,
+	return scanBinding(querier.QueryRow(ctx, q,
 		b.ID, b.OwnerID, b.NodeID, b.MachineID, b.MachineLabel, b.Path, b.CreatedAt, b.UpdatedAt))
 }
 

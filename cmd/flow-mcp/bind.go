@@ -60,32 +60,51 @@ func (h *handlers) bindNodeCore(ctx context.Context, c *apiclient.Client, in bin
 	if err != nil {
 		return domain.Node{}, "", err
 	}
+	if kind == "path" && machine.ID == "" {
+		return domain.Node{}, "", errGuard{errors.New("cannot determine this device's machine id for a path binding")}
+	}
+
+	creating := strings.TrimSpace(in.CreateName) != ""
 	var proj domain.Node
-	if name := strings.TrimSpace(in.CreateName); name != "" {
+	if creating {
 		parent, perr := h.lookupNode(ctx, strings.TrimSpace(in.CreateParent))
 		if perr != nil {
 			return domain.Node{}, "", fmt.Errorf("create_parent: %w", perr)
 		}
-		proj, err = c.CreateNode(ctx, apiclient.CreateNodeFields{
-			Name: name, Kind: string(domain.KindRepo), ParentID: &parent.ID,
+		binding := apiclient.BindingFields{Kind: kind}
+		switch kind {
+		case "remote":
+			binding.RemoteSlug = originSlug
+		case "path":
+			binding.MachineID = machine.ID
+			binding.MachineLabel = machine.Label
+			binding.Path = filepath.Clean(cwd)
+		}
+		result, createErr := c.CreateBoundNode(ctx, apiclient.CreateBoundNodeInput{
+			Node: apiclient.CreateNodeFields{
+				Name:     strings.TrimSpace(in.CreateName),
+				Kind:     string(domain.KindRepo),
+				ParentID: &parent.ID,
+			},
+			Binding: binding,
 		})
+		proj, err = result.Node, createErr
 	} else {
 		proj, err = h.lookupNode(ctx, strings.TrimSpace(in.Project))
 	}
 	if err != nil {
 		return domain.Node{}, "", err
 	}
-	switch kind {
-	case "remote":
-		if _, err := c.BindRemote(ctx, proj.ID, originSlug); err != nil {
-			return domain.Node{}, "", err
-		}
-	case "path":
-		if machine.ID == "" {
-			return domain.Node{}, "", errGuard{errors.New("cannot determine this device's machine id for a path binding")}
-		}
-		if _, err := c.BindPath(ctx, proj.ID, machine.ID, machine.Label, filepath.Clean(cwd)); err != nil {
-			return domain.Node{}, "", err
+	if !creating {
+		switch kind {
+		case "remote":
+			if _, err := c.BindRemote(ctx, proj.ID, originSlug); err != nil {
+				return domain.Node{}, "", err
+			}
+		case "path":
+			if _, err := c.BindPath(ctx, proj.ID, machine.ID, machine.Label, filepath.Clean(cwd)); err != nil {
+				return domain.Node{}, "", err
+			}
 		}
 	}
 	return proj, kind, nil

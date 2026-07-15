@@ -31,6 +31,40 @@ func (s *NodeAggregateStore) CreateAggregate(ctx context.Context, n domain.Node,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	created, err := s.createAggregateTx(ctx, tx, n, changes)
+	if err != nil {
+		return domain.Node{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Node{}, fmt.Errorf("pgstore: commit node create: %w", err)
+	}
+	return created, nil
+}
+
+func (s *NodeAggregateStore) CreateBoundAggregate(ctx context.Context, n domain.Node, changes ports.NodeAggregateChanges, binding domain.ProjectBinding) (domain.Node, domain.ProjectBinding, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, fmt.Errorf("pgstore: begin bound node create: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if binding.OwnerID != n.OwnerID || binding.NodeID != n.ID {
+		return domain.Node{}, domain.ProjectBinding{}, errors.New("pgstore: bound node identity mismatch")
+	}
+	created, err := s.createAggregateTx(ctx, tx, n, changes)
+	if err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, err
+	}
+	bound, err := upsertProjectBinding(ctx, tx, binding)
+	if err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, fmt.Errorf("pgstore: create node binding: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, fmt.Errorf("pgstore: commit bound node create: %w", err)
+	}
+	return created, bound, nil
+}
+
+func (s *NodeAggregateStore) createAggregateTx(ctx context.Context, tx pgx.Tx, n domain.Node, changes ports.NodeAggregateChanges) (domain.Node, error) {
 	if changes.SetRate {
 		n.Rate = changes.Rate
 	}
@@ -53,9 +87,6 @@ func (s *NodeAggregateStore) CreateAggregate(ctx context.Context, n domain.Node,
 		if err := putNodeLogoTx(ctx, tx, changes.LogoValue); err != nil {
 			return domain.Node{}, err
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return domain.Node{}, fmt.Errorf("pgstore: commit node create: %w", err)
 	}
 	return created, nil
 }
@@ -239,3 +270,4 @@ func deleteNodeLogoTx(ctx context.Context, tx pgx.Tx, ownerID, nodeID string) er
 }
 
 var _ ports.NodeAggregateStore = (*NodeAggregateStore)(nil)
+var _ ports.NodeBindingAggregateStore = (*NodeAggregateStore)(nil)

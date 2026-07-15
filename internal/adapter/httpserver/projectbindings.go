@@ -19,6 +19,44 @@ type bindingReq struct {
 	Path         string `json:"path"`
 }
 
+type createBoundNodeReq struct {
+	Node    createNodeReq `json:"node"`
+	Binding bindingReq    `json:"binding"`
+}
+
+func (s *Server) handleCreateBoundNode(w http.ResponseWriter, r *http.Request) {
+	u, _ := userFrom(r.Context())
+	var req createBoundNodeReq
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
+		return
+	}
+	result, err := s.CreateBoundNode.Execute(r.Context(), u.ID, usecase.CreateBoundNodeInput{
+		Node: usecase.CreateNodeInput{
+			Name: req.Node.Name, Slug: req.Node.Slug, Kind: domain.NodeKind(req.Node.Kind), ParentID: req.Node.ParentID,
+			Color: req.Node.Color, Glyph: req.Node.Glyph, Icon: req.Node.Icon,
+			Description: req.Node.Description, UpstreamGit: req.Node.UpstreamGit,
+			CountsTowardTarget: req.Node.CountsTowardTarget,
+		},
+		Binding: usecase.BindKey{
+			Kind: domain.BindingKind(req.Binding.Kind), RemoteSlug: req.Binding.RemoteSlug,
+			MachineID: req.Binding.MachineID, MachineLabel: req.Binding.MachineLabel, Path: req.Binding.Path,
+		},
+	})
+	switch {
+	case errors.Is(err, domain.ErrInvalidNode), errors.Is(err, domain.ErrInvalidUpstream), errors.Is(err, usecase.ErrInvalidBindTarget):
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "parent not found", http.StatusBadRequest)
+	case errors.Is(err, ports.ErrNodeSlugTaken):
+		http.Error(w, "a sibling node already uses this slug", http.StatusConflict)
+	case err != nil:
+		http.Error(w, "server error", http.StatusInternalServerError)
+	default:
+		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventNodeCreated, UserID: u.ID, Data: map[string]any{"id": result.Node.ID, "name": result.Node.Name}})
+		writeJSON(w, http.StatusCreated, result)
+	}
+}
+
 // handleResolveNode handles GET /api/v1/nodes/resolve.
 // Query: ?slug=<remoteSlug>&machine=<machineID>&path=<cwd>
 // Returns 200 Project | 404.

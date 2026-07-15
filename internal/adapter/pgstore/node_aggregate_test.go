@@ -13,7 +13,7 @@ import (
 	"github.com/serverkraken/flow/internal/testutil"
 )
 
-func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore, *pgstore.NodeLogoStore, *pgstore.TagStore, *pgstore.NodeAggregateStore, func(string, ...any)) {
+func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore, *pgstore.NodeLogoStore, *pgstore.TagStore, *pgstore.NodeAggregateStore, *pgstore.ProjectBindingStore, func(string, ...any)) {
 	t.Helper()
 	ctx := context.Background()
 	pool, err := pgstore.NewPool(ctx, startPG(t))
@@ -35,7 +35,7 @@ func newNodeAggregateFixture(t *testing.T) (context.Context, *pgstore.NodeStore,
 			t.Fatal(err)
 		}
 	}
-	return ctx, pgstore.NewNodeStore(pool), pgstore.NewNodeLogoStore(pool), pgstore.NewTagStore(pool, ids), pgstore.NewNodeAggregateStore(pool, ids), exec
+	return ctx, pgstore.NewNodeStore(pool), pgstore.NewNodeLogoStore(pool), pgstore.NewTagStore(pool, ids), pgstore.NewNodeAggregateStore(pool, ids), pgstore.NewProjectBindingStore(pool), exec
 }
 
 func aggregateNode(id string, now time.Time) domain.Node {
@@ -52,7 +52,7 @@ func aggregateLogo(nodeID, ref string, now time.Time) domain.NodeLogo {
 }
 
 func TestNodeAggregateStore_RollsBackCreateAndUpdateFollowFailures(t *testing.T) {
-	ctx, nodes, logos, tags, agg, exec := newNodeAggregateFixture(t)
+	ctx, nodes, logos, tags, agg, _, exec := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	for _, id := range []string{"agg-rate", "agg-tags", "agg-logo"} {
 		n := aggregateNode(id, now)
@@ -148,7 +148,7 @@ FOR EACH ROW EXECUTE FUNCTION test_fail_node_logo()`)
 }
 
 func TestNodeAggregateStore_ConcurrentLogoUploadsStayConsistent(t *testing.T) {
-	ctx, nodes, logos, _, agg, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-upload", now), ports.NodeAggregateChanges{}); err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestNodeAggregateStore_ConcurrentLogoUploadsStayConsistent(t *testing.T) {
 }
 
 func TestNodeAggregateStore_ConcurrentLogoDeleteAndUploadStayConsistent(t *testing.T) {
-	ctx, nodes, logos, _, agg, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-delete-upload", now), ports.NodeAggregateChanges{
 		Logo: ports.NodeLogoPut, LogoValue: aggregateLogo("agg-delete-upload", "old", now),
@@ -205,7 +205,7 @@ func TestNodeAggregateStore_ConcurrentLogoDeleteAndUploadStayConsistent(t *testi
 }
 
 func TestNodeAggregateStore_ConcurrentMetadataAndLogoUpdatesDoNotLoseEither(t *testing.T) {
-	ctx, nodes, logos, _, agg, _ := newNodeAggregateFixture(t)
+	ctx, nodes, logos, _, agg, _, _ := newNodeAggregateFixture(t)
 	now := time.Date(2026, 7, 15, 10, 0, 0, 0, time.UTC)
 	if _, err := agg.CreateAggregate(ctx, aggregateNode("agg-meta-logo", now), ports.NodeAggregateChanges{}); err != nil {
 		t.Fatal(err)
@@ -228,6 +228,125 @@ func TestNodeAggregateStore_ConcurrentMetadataAndLogoUpdatesDoNotLoseEither(t *t
 	logo, err := logos.Get(ctx, "u-agg", "agg-meta-logo")
 	if err != nil || got.Name != "renamed" || got.LogoRef != "logo" || logo.Ref != "logo" {
 		t.Fatalf("concurrent updates lost state: node=%+v logo=%+v err=%v", got, logo, err)
+	}
+}
+
+func TestNodeAggregateStore_CreateBoundAggregateRollsBackNodeWhenBindingFails(t *testing.T) {
+	ctx, nodes, _, _, agg, bindings, exec := newNodeAggregateFixture(t)
+	now := time.Date(2026, 7, 15, 13, 0, 0, 0, time.UTC)
+	parent := aggregateNode("bound-parent", now)
+	if _, err := agg.CreateAggregate(ctx, parent, ports.NodeAggregateChanges{}); err != nil {
+		t.Fatal(err)
+	}
+	exec(`CREATE FUNCTION test_fail_bound_node_binding() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN IF NEW.remote_slug='github.com/serverkraken/fail' THEN RAISE EXCEPTION 'binding failure'; END IF; RETURN NEW; END $$`)
+	exec(`CREATE TRIGGER test_fail_bound_node_binding BEFORE INSERT ON project_bindings
+FOR EACH ROW EXECUTE FUNCTION test_fail_bound_node_binding()`)
+
+	failed, _ := domain.NewNode("bound-failed", "u-agg", "Failed", "failed", now)
+	failed.Kind = domain.KindRepo
+	failed.ParentID = &parent.ID
+	failed.OriginSlug = "github.com/serverkraken/fail"
+	failedBinding := domain.ProjectBinding{
+		ID: "binding-failed", OwnerID: failed.OwnerID, NodeID: failed.ID,
+		Kind: domain.BindingRemote, RemoteSlug: failed.OriginSlug,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if _, _, err := agg.CreateBoundAggregate(ctx, failed, ports.NodeAggregateChanges{}, failedBinding); err == nil {
+		t.Fatal("binding failure did not abort aggregate create")
+	}
+	if _, err := nodes.Get(ctx, failed.OwnerID, failed.ID); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("node survived failed binding write: %v", err)
+	}
+	gotBindings, err := bindings.List(ctx, failed.OwnerID)
+	if err != nil || len(gotBindings) != 0 {
+		t.Fatalf("binding survived failed aggregate: %+v err=%v", gotBindings, err)
+	}
+
+	created, _ := domain.NewNode("bound-created", "u-agg", "Created", "created", now)
+	created.Kind = domain.KindRepo
+	created.ParentID = &parent.ID
+	created.OriginSlug = "github.com/serverkraken/created"
+	wantBinding := domain.ProjectBinding{
+		ID: "binding-created", OwnerID: created.OwnerID, NodeID: created.ID,
+		Kind: domain.BindingRemote, RemoteSlug: created.OriginSlug,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	gotNode, gotBinding, err := agg.CreateBoundAggregate(ctx, created, ports.NodeAggregateChanges{}, wantBinding)
+	if err != nil {
+		t.Fatalf("successful aggregate: %v", err)
+	}
+	if gotNode.ID != created.ID || gotBinding.NodeID != created.ID || gotBinding.RemoteSlug != created.OriginSlug {
+		t.Fatalf("node=%+v binding=%+v", gotNode, gotBinding)
+	}
+	ownerBindings, err := bindings.List(ctx, "u-agg")
+	if err != nil || len(ownerBindings) != 1 || ownerBindings[0].NodeID != created.ID {
+		t.Fatalf("owner bindings=%+v err=%v", ownerBindings, err)
+	}
+	foreignBindings, err := bindings.List(ctx, "foreign-owner")
+	if err != nil || len(foreignBindings) != 0 {
+		t.Fatalf("foreign owner can see binding: %+v err=%v", foreignBindings, err)
+	}
+}
+
+func TestNodeAggregateStore_ConcurrentCreateBoundKeepsNodeAndBindingCardinalityEqual(t *testing.T) {
+	ctx, nodes, _, _, agg, bindings, _ := newNodeAggregateFixture(t)
+	now := time.Date(2026, 7, 15, 14, 0, 0, 0, time.UTC)
+	parent := aggregateNode("bound-race-parent", now)
+	if _, err := agg.CreateAggregate(ctx, parent, ports.NodeAggregateChanges{}); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			id := []string{"bound-race-a", "bound-race-b"}[i]
+			n, _ := domain.NewNode(id, "u-agg", "Same", "same", now)
+			n.Kind = domain.KindRepo
+			n.ParentID = &parent.ID
+			n.OriginSlug = "github.com/serverkraken/" + id
+			_, _, err := agg.CreateBoundAggregate(ctx, n, ports.NodeAggregateChanges{}, domain.ProjectBinding{
+				ID: "binding-" + id, OwnerID: n.OwnerID, NodeID: n.ID,
+				Kind: domain.BindingRemote, RemoteSlug: n.OriginSlug,
+				CreatedAt: now, UpdatedAt: now,
+			})
+			errCh <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+	successes := 0
+	conflicts := 0
+	for err := range errCh {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ports.ErrNodeSlugTaken):
+			conflicts++
+		default:
+			t.Fatalf("unexpected concurrent error: %v", err)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("successes=%d conflicts=%d", successes, conflicts)
+	}
+	children, err := nodes.Children(ctx, "u-agg", &parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerBindings, err := bindings.List(ctx, "u-agg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(children) != 1 || len(ownerBindings) != 1 || ownerBindings[0].NodeID != children[0].ID {
+		t.Fatalf("children=%+v bindings=%+v", children, ownerBindings)
 	}
 }
 

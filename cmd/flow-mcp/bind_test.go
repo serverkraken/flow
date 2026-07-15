@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/serverkraken/flow/internal/clientmachine"
+)
 
 func TestValidateBindRef(t *testing.T) {
 	cases := []struct {
@@ -51,5 +57,17 @@ func TestDecideBindKind(t *testing.T) {
 				t.Fatalf("decideBindKind(%q,%v)=%q want %q", c.override, c.originOK, got, c.want)
 			}
 		})
+	}
+}
+
+func TestBindNodeCore_CreatePathRejectsMissingMachineBeforeAnyAPIWrite(t *testing.T) {
+	h := &handlers{}
+	_, _, err := h.bindNodeCore(
+		context.Background(), nil,
+		bindNodeIn{CreateName: "Flow", CreateParent: "work", Kind: "path"},
+		"", false, clientmachine.Machine{}, "/work/flow",
+	)
+	if err == nil || !strings.Contains(err.Error(), "machine id") {
+		t.Fatalf("want missing machine-id guard, got %v", err)
 	}
 }

@@ -9,6 +9,30 @@ import (
 	"github.com/serverkraken/flow/internal/domain"
 )
 
+type BindingFields struct {
+	Kind         string `json:"kind"`
+	RemoteSlug   string `json:"remoteSlug,omitempty"`
+	MachineID    string `json:"machineId,omitempty"`
+	MachineLabel string `json:"machineLabel,omitempty"`
+	Path         string `json:"path,omitempty"`
+}
+
+type CreateBoundNodeInput struct {
+	Node    CreateNodeFields `json:"node"`
+	Binding BindingFields    `json:"binding"`
+}
+
+type CreateBoundNodeResult struct {
+	Node    domain.Node           `json:"node"`
+	Binding domain.ProjectBinding `json:"binding"`
+}
+
+func (c *Client) CreateBoundNode(ctx context.Context, in CreateBoundNodeInput) (CreateBoundNodeResult, error) {
+	var out CreateBoundNodeResult
+	err := c.do(ctx, http.MethodPost, "/api/v1/nodes/create-bound", in, &out)
+	return out, err
+}
+
 // ResolveNode calls GET /api/v1/nodes/resolve and returns the matched
 // project. If the server returns 404 (no binding found), ok is false and err
 // is nil. Any other non-2xx status is returned as an error.

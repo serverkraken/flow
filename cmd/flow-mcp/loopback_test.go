@@ -231,9 +231,9 @@ func fakeReadBackend(t *testing.T) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// fakeBindBackend extends fakeReadBackend with POST /projects and PUT /nodes/{id}/bindings.
-// bindCalled is written (true) on the first PUT bindings call, to assert bind happened.
-func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
+// fakeBindBackend extends fakeReadBackend with the create-and-bind aggregate
+// endpoint and the existing-node binding endpoint.
+func fakeBindBackend(t *testing.T, bindCalled, createBoundCalled *bool) *httptest.Server {
 	t.Helper()
 	docs := readFixture()
 	mux := http.NewServeMux()
@@ -257,6 +257,28 @@ func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
 		}
 		slug := strings.ToLower(strings.ReplaceAll(body.Name, " ", "-"))
 		_ = json.NewEncoder(w).Encode(domain.Node{ID: "pX", Name: body.Name, Slug: slug})
+	})
+	mux.HandleFunc("POST /api/v1/nodes/create-bound", func(w http.ResponseWriter, r *http.Request) {
+		if createBoundCalled != nil {
+			*createBoundCalled = true
+		}
+		var body struct {
+			Node struct {
+				Name string `json:"name"`
+			} `json:"node"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		slug := strings.ToLower(strings.ReplaceAll(body.Node.Name, " ", "-"))
+		_ = json.NewEncoder(w).Encode(apiclient.CreateBoundNodeResult{
+			Node: domain.Node{ID: "pX", Name: body.Node.Name, Slug: slug},
+			Binding: domain.ProjectBinding{
+				ID: "bX", NodeID: "pX", Kind: domain.BindingRemote,
+				RemoteSlug: "github.com/serverkraken/flow",
+			},
+		})
 	})
 	mux.HandleFunc("PUT /api/v1/nodes/{id}/bindings", func(w http.ResponseWriter, _ *http.Request) {
 		if bindCalled != nil {
@@ -314,8 +336,8 @@ func fakeBindBackend(t *testing.T, bindCalled *bool) *httptest.Server {
 // TestLoopback_BindProject covers the 5 required assertions for the 11th tool.
 func TestLoopback_BindProject(t *testing.T) {
 	ctx := context.Background()
-	var bindCalled bool
-	be := fakeBindBackend(t, &bindCalled)
+	var bindCalled, createBoundCalled bool
+	be := fakeBindBackend(t, &bindCalled, &createBoundCalled)
 	t.Cleanup(be.Close)
 	client := apiclient.New(be.URL, "tok")
 	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
@@ -349,7 +371,7 @@ func TestLoopback_BindProject(t *testing.T) {
 
 	// 3. create-then-bind: create_name + kind:remote (deterministic — the test process
 	// runs inside the flow-rebuild git checkout which has a git origin).
-	bindCalled = false
+	bindCalled, createBoundCalled = false, false
 	res, bindTxt := callText(t, sess, "flow_bind_project", map[string]any{
 		"create_name":   "Scratch",
 		"create_parent": "alpha", // nest the new repo under an existing node (repo can't be a root)
@@ -361,8 +383,11 @@ func TestLoopback_BindProject(t *testing.T) {
 	if !strings.Contains(bindTxt, "Scratch") {
 		t.Fatalf("bind result = %q, want it to name 'Scratch'", bindTxt)
 	}
-	if !bindCalled {
-		t.Fatalf("PUT /api/v1/nodes/{id}/bindings was never called")
+	if !createBoundCalled {
+		t.Fatal("POST /api/v1/nodes/create-bound was never called")
+	}
+	if bindCalled {
+		t.Fatal("create_name used a second PUT binding commit")
 	}
 
 	// 4. error case: neither project nor create_name.

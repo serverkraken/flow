@@ -1,7 +1,9 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,11 +19,32 @@ import (
 )
 
 type bindingsSrv struct {
-	ts  *httptest.Server
-	ps  *testutil.FakeNodeStore
-	ids *testutil.FakeIDGen
-	clk testutil.FakeClock
-	do  func(method, path, body string) *http.Response
+	ts      *httptest.Server
+	ps      *testutil.FakeNodeStore
+	bs      *testutil.FakeProjectBindingStore
+	bound   *fakeBoundNodeAggregate
+	emitter *captureEmitter
+	ids     *testutil.FakeIDGen
+	clk     testutil.FakeClock
+	do      func(method, path, body string) *http.Response
+}
+
+type fakeBoundNodeAggregate struct {
+	nodes    *testutil.FakeNodeStore
+	bindings *testutil.FakeProjectBindingStore
+	err      error
+}
+
+func (s *fakeBoundNodeAggregate) CreateBoundAggregate(ctx context.Context, n domain.Node, _ ports.NodeAggregateChanges, binding domain.ProjectBinding) (domain.Node, domain.ProjectBinding, error) {
+	if s.err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, s.err
+	}
+	created, err := s.nodes.Create(ctx, n)
+	if err != nil {
+		return domain.Node{}, domain.ProjectBinding{}, err
+	}
+	bound, err := s.bindings.Upsert(ctx, binding)
+	return created, bound, err
 }
 
 func newBindingsSrv(t *testing.T) (*httptest.Server, func(method, path, body string) *http.Response) {
@@ -36,6 +59,7 @@ func newBindingsSrvFull(t *testing.T) *bindingsSrv {
 	ids := &testutil.FakeIDGen{}
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()
+	bound := &fakeBoundNodeAggregate{nodes: ps, bindings: bs}
 	users := testutil.NewFakeUserStore()
 
 	bus := sse.NewBus()
@@ -43,9 +67,10 @@ func newBindingsSrvFull(t *testing.T) *bindingsSrv {
 		Verifier:         testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
 		Ensure:           usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
 		Bus:              bus,
-		Emitter:          sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Emitter:          &captureEmitter{},
 		Clock:            clk,
 		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		CreateBoundNode:  usecase.CreateBoundNode{Nodes: ps, Aggregate: bound, IDs: ids, Clock: clk},
 		ListNodes:        usecase.ListNodes{Nodes: ps},
 		BindNode:         usecase.BindNode{Bindings: bs, Nodes: ps, IDs: ids, Clock: clk},
 		UnbindNode:       usecase.UnbindNode{Bindings: bs},
@@ -66,7 +91,87 @@ func newBindingsSrvFull(t *testing.T) *bindingsSrv {
 		}
 		return res
 	}
-	return &bindingsSrv{ts: ts, ps: ps, ids: ids, clk: clk, do: do}
+	return &bindingsSrv{
+		ts: ts, ps: ps, bs: bs, bound: bound, emitter: srv.Emitter.(*captureEmitter),
+		ids: ids, clk: clk, do: do,
+	}
+}
+
+func TestProjectBindings_CreateBoundNodeCommitsBeforeEmitting(t *testing.T) {
+	srv := newBindingsSrvFull(t)
+	ctx := t.Context()
+	res := srv.do("GET", "/api/v1/nodes", "")
+	_ = res.Body.Close()
+	parentID := srv.ids.NewID()
+	_, err := srv.ps.Create(ctx, domain.Node{
+		ID: parentID, OwnerID: "id-1", Name: "Work", Slug: "work",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res = srv.do("POST", "/api/v1/nodes/create-bound", `{
+		"node":{"name":"Flow","kind":"repo","parentId":"`+parentID+`"},
+		"binding":{"kind":"remote","remoteSlug":"git@github.com:serverkraken/flow.git"}
+	}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusCreated {
+		body := make([]byte, 512)
+		n, _ := res.Body.Read(body)
+		t.Fatalf("create-bound: status %d body=%s", res.StatusCode, body[:n])
+	}
+	var result usecase.CreateBoundNodeResult
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Node.OriginSlug != "github.com/serverkraken/flow" || result.Binding.NodeID != result.Node.ID {
+		t.Fatalf("result=%+v", result)
+	}
+	stored, err := srv.ps.Get(ctx, "id-1", result.Node.ID)
+	if err != nil || stored.ID != result.Node.ID {
+		t.Fatalf("stored node=%+v err=%v", stored, err)
+	}
+	bindings, err := srv.bs.List(ctx, "id-1")
+	if err != nil || len(bindings) != 1 || bindings[0].NodeID != result.Node.ID {
+		t.Fatalf("stored bindings=%+v err=%v", bindings, err)
+	}
+	if srv.emitter.count() != 1 {
+		t.Fatalf("events=%d, want 1 after commit", srv.emitter.count())
+	}
+}
+
+func TestProjectBindings_CreateBoundNodeFailureDoesNotEmitOrLeaveNode(t *testing.T) {
+	srv := newBindingsSrvFull(t)
+	ctx := t.Context()
+	res := srv.do("GET", "/api/v1/nodes", "")
+	_ = res.Body.Close()
+	parentID := srv.ids.NewID()
+	_, _ = srv.ps.Create(ctx, domain.Node{
+		ID: parentID, OwnerID: "id-1", Name: "Work", Slug: "work",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+	})
+	srv.bound.err = errors.New("binding write failed")
+
+	res = srv.do("POST", "/api/v1/nodes/create-bound", `{
+		"node":{"name":"Flow","kind":"repo","parentId":"`+parentID+`"},
+		"binding":{"kind":"remote","remoteSlug":"github.com/serverkraken/flow"}
+	}`)
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("create-bound failure: status %d", res.StatusCode)
+	}
+	if srv.emitter.count() != 0 {
+		t.Fatalf("events=%d after failed commit", srv.emitter.count())
+	}
+	nodes, err := srv.ps.List(ctx, "id-1")
+	if err != nil || len(nodes) != 1 || nodes[0].ID != parentID {
+		t.Fatalf("partial node survived: %+v err=%v", nodes, err)
+	}
+	bindings, err := srv.bs.List(ctx, "id-1")
+	if err != nil || len(bindings) != 0 {
+		t.Fatalf("partial binding survived: %+v err=%v", bindings, err)
+	}
 }
 
 // TestProjectBindings_BindAndResolveAndList is the primary TDD scenario:
