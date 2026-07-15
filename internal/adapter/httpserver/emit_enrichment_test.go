@@ -2,6 +2,8 @@ package httpserver_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -92,6 +94,80 @@ func TestCreateDocumentRecordsActivity(t *testing.T) {
 	}
 	if e.ActorKind != "human" {
 		t.Errorf("ActorKind: want %q, got %q", "human", e.ActorKind)
+	}
+}
+
+func TestSetActiveContextRecordsEffectiveDefaultTitle(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 15, 14, 0, 0, 0, time.UTC)}
+	ids := &testutil.FakeIDGen{}
+	bus := sse.NewBus()
+	actStore := &recordingActivityStore{}
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	nodes := testutil.NewFakeNodeStore()
+	bindings := testutil.NewFakeProjectBindingStore()
+	eng, _ := nodes.Create(ctx, domain.Node{ID: "eng", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Work", Slug: "work"})
+	repo, _ := nodes.Create(ctx, domain.Node{ID: "repo", OwnerID: "id-1", Kind: domain.KindRepo, Name: "Flow", Slug: "flow", ParentID: &eng.ID})
+	if err := bindings.BindRemote(ctx, "id-1", "github-com-serverkraken-flow", repo.ID); err != nil {
+		t.Fatal(err)
+	}
+	srv := &httpserver.Server{
+		Verifier: testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:   usecase.EnsureUser{Users: testutil.NewFakeUserStore(), IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:      bus,
+		Emitter:  sse.NewEmitter(bus, actStore, ids, clk),
+		SetActiveContext: usecase.SetActiveContext{
+			Resolve: usecase.ResolveNode{Bindings: bindings, Nodes: nodes},
+			Nodes:   nodes, Docs: docs, Tags: tags,
+		},
+		GetDocument: usecase.GetDocument{Docs: docs},
+	}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	res := doDoc(t, ts, http.MethodPut, "/api/v1/context/active", `{"remote":"github-com-serverkraken-flow","body":"state"}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", res.StatusCode)
+	}
+	entries := actStore.snapshot()
+	if len(entries) != 1 {
+		t.Fatalf("activity entries = %d, want 1", len(entries))
+	}
+	if entries[0].Label == nil || *entries[0].Label != "Active Context" {
+		t.Fatalf("activity label = %v, want Active Context", entries[0].Label)
+	}
+}
+
+func TestPinDocumentRecordsDocumentTitle(t *testing.T) {
+	t.Parallel()
+	srv, bus := newDocServer(t)
+	actStore := &recordingActivityStore{}
+	srv.Emitter = sse.NewEmitter(bus, actStore, &testutil.FakeIDGen{}, testutil.FakeClock{T: time.Date(2026, 7, 15, 14, 0, 0, 0, time.UTC)})
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	createdRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents", `{"type":"free","path":"activity-pin","title":"Pinned title","body":""}`)
+	var doc domain.Document
+	if err := json.NewDecoder(createdRes.Body).Decode(&doc); err != nil {
+		t.Fatal(err)
+	}
+	_ = createdRes.Body.Close()
+	before := len(actStore.snapshot())
+	pinRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents/"+doc.ID+"/pin", `{"pinned":true}`)
+	defer func() { _ = pinRes.Body.Close() }()
+	if pinRes.StatusCode != http.StatusNoContent {
+		t.Fatalf("pin status = %d, want 204", pinRes.StatusCode)
+	}
+	entries := actStore.snapshot()
+	if len(entries) != before+1 {
+		t.Fatalf("activity entries after pin = %d, want %d", len(entries), before+1)
+	}
+	last := entries[len(entries)-1]
+	if last.Label == nil || *last.Label != doc.Title {
+		t.Fatalf("pin activity label = %v, want %q", last.Label, doc.Title)
 	}
 }
 

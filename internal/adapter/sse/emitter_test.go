@@ -176,3 +176,30 @@ func TestEmitter_settingsChanged_notLogged(t *testing.T) {
 		t.Errorf("store must be empty for settings.changed, got %d entries", len(store.entries))
 	}
 }
+
+func TestEmitter_incompleteDocumentNotLogged(t *testing.T) {
+	t.Parallel()
+	for name, data := range map[string]map[string]any{
+		"batch without target": {"reordered": 2},
+		"target without title": {"id": "d1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bus := sse.NewBus()
+			store := &fakeStore{}
+			emitter := sse.NewEmitter(bus, store, fakeIDs{"x"}, fakeClock{time.Now()})
+			ch, cancel := bus.Subscribe("user-1")
+			defer cancel()
+
+			emitter.Emit(context.Background(), domain.Event{
+				Type: domain.EventDocumentUpdated, UserID: "user-1", Data: data,
+			})
+			events := drain(ch, 2)
+			if len(events) != 1 || events[0].Type != domain.EventDocumentUpdated {
+				t.Fatalf("events = %+v, want only document.updated", events)
+			}
+			if len(store.entries) != 0 {
+				t.Fatalf("incomplete document event wrote malformed activity: %+v", store.entries)
+			}
+		})
+	}
+}

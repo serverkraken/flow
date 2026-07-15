@@ -272,7 +272,7 @@ func (s *Server) handleWebDocPin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	doc.Pinned = !doc.Pinned
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 
 	vm, err := s.buildDocumentVM(r, u.ID, doc)
 	if err != nil {
@@ -309,7 +309,7 @@ func (s *Server) handleWebDocMode(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.SetContextMode.Execute(r.Context(), u.ID, id, domain.ContextMode(mode)); err == nil {
 		doc.ContextMode = domain.ContextMode(mode)
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id}})
 	} else if !contextModeErrKnown(err) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

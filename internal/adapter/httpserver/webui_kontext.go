@@ -127,7 +127,7 @@ func (s *Server) handleWebKontextReorder(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
-		s.Emitter.Emit(ctx, domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": true}})
+		s.emitEvent(ctx, domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": true}})
 	}
 
 	vm, err := s.kontextDataFor(r, u.ID, nodeID)
@@ -152,7 +152,7 @@ func (s *Server) handleWebKontextPin(w http.ResponseWriter, r *http.Request) {
 
 	d, _ := s.GetDocument.Execute(r.Context(), u.ID, doc)
 	if err := s.SetPinned.Execute(r.Context(), u.ID, doc, !d.Pinned); err == nil {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
 	} else if !errors.Is(err, ports.ErrDocumentNotFound) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
@@ -184,7 +184,7 @@ func (s *Server) handleWebKontextMode(w http.ResponseWriter, r *http.Request) {
 	mode := r.FormValue("mode")
 
 	if err := s.SetContextMode.Execute(r.Context(), u.ID, doc, domain.ContextMode(mode)); err == nil {
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": doc}})
 	} else if !contextModeErrKnown(err) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return

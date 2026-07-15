@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"strings"
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
@@ -34,6 +35,12 @@ func activityFor(ctx context.Context, ev domain.Event) (domain.ActivityEntry, bo
 		if v, ok := ev.Data["node"].(string); ok && v != "" {
 			e.NodeRef = &v
 		}
+	}
+	// German document verbs such as "bearbeitete" require a concrete object,
+	// and a document activity without a target cannot link anywhere. Keep the
+	// live SSE event, but do not persist a malformed activity row.
+	if strings.HasPrefix(e.Kind, "document.") && (e.TargetRef == nil || e.Label == nil) {
+		return domain.ActivityEntry{}, false
 	}
 	return e, true
 }

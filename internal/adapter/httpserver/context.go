@@ -38,7 +38,7 @@ func (s *Server) handlePutContextActive(w http.ResponseWriter, r *http.Request) 
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
-		s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
+		s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"id": id, "title": req.Title}})
 		writeJSON(w, http.StatusOK, map[string]any{"id": id, "updatedAt": updated})
 	}
 }
@@ -62,7 +62,7 @@ func (s *Server) handleReorderContext(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	s.Emitter.Emit(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": len(req.IDs)}})
+	s.emitEvent(r.Context(), domain.Event{Type: domain.EventDocumentUpdated, UserID: u.ID, Data: map[string]any{"reordered": len(req.IDs)}})
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "n": len(req.IDs)})
 }
 
