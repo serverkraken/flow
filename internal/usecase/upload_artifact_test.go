@@ -143,6 +143,9 @@ func TestUploadArtifact_SlugCollisionGetsSuffix(t *testing.T) {
 	if len(em.events) != 2 || em.events[1].Type != domain.EventArtifactCreated {
 		t.Fatalf("want two artifact.created events, got %+v", em.events)
 	}
+	if em.events[1].Data["id"] != "diagram-1" {
+		t.Fatalf("collision event id = %v, want diagram-1", em.events[1].Data["id"])
+	}
 }
 
 func TestUploadArtifact_ReplaceSlugOverwritesAndUpdates(t *testing.T) {
@@ -170,6 +173,13 @@ func TestUploadArtifact_ReplaceSlugOverwritesAndUpdates(t *testing.T) {
 	if replaced.Name != "diagram-v2.png" {
 		t.Errorf("name = %q, want updated diagram-v2.png", replaced.Name)
 	}
+	if replaced.ID != orig.ID || !replaced.CreatedAt.Equal(orig.CreatedAt) {
+		t.Errorf("replace changed creation identity: original=%+v replaced=%+v", orig, replaced)
+	}
+	if replaced.CreatedByKind != orig.CreatedByKind || replaced.CreatedByRef != orig.CreatedByRef {
+		t.Errorf("replace changed creator: original=%s/%s replaced=%s/%s",
+			orig.CreatedByKind, orig.CreatedByRef, replaced.CreatedByKind, replaced.CreatedByRef)
+	}
 	if len(em.events) != 2 || em.events[1].Type != domain.EventArtifactUpdated {
 		t.Fatalf("want [created, updated], got %+v", em.events)
 	}
@@ -180,6 +190,52 @@ func TestUploadArtifact_ReplaceSlugOverwritesAndUpdates(t *testing.T) {
 	}
 	if len(all) != 1 {
 		t.Fatalf("want 1 stored artifact after replace, got %d", len(all))
+	}
+}
+
+func TestUploadArtifact_ReplaceRequiresExistingValidSlug(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := newArtifactTestNode(t, clk)
+	as := testutil.NewFakeArtifactStore()
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	if _, err := uc.Execute(ctx, "u1", "n1", "replacement.pdf", "application/pdf", pdfBytes(), "missing", "human", "soenne"); !errors.Is(err, ports.ErrArtifactNotFound) {
+		t.Fatalf("missing replace error = %v, want ErrArtifactNotFound", err)
+	}
+	if _, err := uc.Execute(ctx, "u1", "n1", "replacement.pdf", "application/pdf", pdfBytes(), "../invalid", "human", "soenne"); !errors.Is(err, domain.ErrInvalidArtifact) {
+		t.Fatalf("invalid replace slug error = %v, want ErrInvalidArtifact", err)
+	}
+	if len(em.events) != 0 {
+		t.Fatalf("failed replaces emitted events: %+v", em.events)
+	}
+}
+
+func TestUploadArtifact_ReplaceQuotaSubtractsOldSize(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	clk := testutil.FakeClock{T: time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)}
+	ns := newArtifactTestNode(t, clk)
+	as := testutil.NewFakeArtifactStore()
+	original := domain.Artifact{
+		ID: "original", OwnerID: "u1", NodeID: "n1", Slug: "report", Name: "report.pdf",
+		Mime: "application/pdf", SizeBytes: usecase.MaxArtifactBytesPerOwner - 1,
+		CreatedByKind: "human", CreatedByRef: "soenne", CreatedAt: clk.Now(), UpdatedAt: clk.Now(),
+	}
+	if err := as.Put(ctx, original); err != nil {
+		t.Fatal(err)
+	}
+	em := &recEmitter{}
+	uc := usecase.UploadArtifact{Nodes: ns, Artifacts: as, IDs: &testutil.FakeIDGen{}, Clock: clk, Emitter: em}
+
+	got, err := uc.Execute(ctx, "u1", "n1", "report-v2.pdf", "application/pdf", pdfBytes(), "report", "agent", "codex")
+	if err != nil {
+		t.Fatalf("smaller replacement must fit after subtracting old size: %v", err)
+	}
+	if got.ID != original.ID || got.CreatedByRef != original.CreatedByRef {
+		t.Fatalf("replace did not preserve creation metadata: %+v", got)
 	}
 }
 

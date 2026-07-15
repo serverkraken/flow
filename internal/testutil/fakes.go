@@ -1615,6 +1615,55 @@ func (s *FakeArtifactStore) Put(_ context.Context, a domain.Artifact) error {
 	return nil
 }
 
+func (s *FakeArtifactStore) Create(_ context.Context, a domain.Artifact, maxBytes int64) (domain.Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var total int64
+	var slugs []string
+	for key, stored := range s.artifacts {
+		if stored.OwnerID == a.OwnerID {
+			total += stored.SizeBytes
+		}
+		if key.owner == a.OwnerID && key.node == a.NodeID {
+			slugs = append(slugs, key.slug)
+		}
+	}
+	if total > maxBytes || a.SizeBytes > maxBytes-total {
+		return domain.Artifact{}, ports.ErrArtifactQuotaExceeded
+	}
+	a.Slug = domain.NextArtifactSlug(a.Slug, slugs)
+	s.artifacts[artifactKey{a.OwnerID, a.NodeID, a.Slug}] = a
+	a.Bytes = nil
+	return a, nil
+}
+
+func (s *FakeArtifactStore) Replace(_ context.Context, a domain.Artifact, maxBytes int64) (domain.Artifact, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := artifactKey{a.OwnerID, a.NodeID, a.Slug}
+	old, ok := s.artifacts[key]
+	if !ok {
+		return domain.Artifact{}, ports.ErrArtifactNotFound
+	}
+	var total int64
+	for _, stored := range s.artifacts {
+		if stored.OwnerID == a.OwnerID {
+			total += stored.SizeBytes
+		}
+	}
+	retained := total - old.SizeBytes
+	if retained < 0 || retained > maxBytes || a.SizeBytes > maxBytes-retained {
+		return domain.Artifact{}, ports.ErrArtifactQuotaExceeded
+	}
+	a.ID = old.ID
+	a.CreatedAt = old.CreatedAt
+	a.CreatedByKind = old.CreatedByKind
+	a.CreatedByRef = old.CreatedByRef
+	s.artifacts[key] = a
+	a.Bytes = nil
+	return a, nil
+}
+
 func (s *FakeArtifactStore) Get(_ context.Context, ownerID, nodeID, slug string) (domain.Artifact, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

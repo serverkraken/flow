@@ -66,6 +66,9 @@ var (
 	ErrNodeLogoNotFound = errors.New("node logo not found")
 	// ErrArtifactNotFound signals a missing (or owner-foreign) artifact.
 	ErrArtifactNotFound = errors.New("artifact not found")
+	// ErrArtifactQuotaExceeded signals that an atomic create or replace would
+	// exceed the owner's total artifact storage limit.
+	ErrArtifactQuotaExceeded = errors.New("owner artifact quota exceeded")
 
 	ErrSessionNotFound   = errors.New("session not found")
 	ErrFeedTokenNotFound = errors.New("feed token not found")
@@ -126,8 +129,13 @@ type NodeLogoStore interface {
 // ArtifactStore persists node-scoped artifacts as Postgres blobs (N per node,
 // FK ON DELETE CASCADE). All reads are owner-scoped.
 type ArtifactStore interface {
-	// Put upserts on (owner_id, node_id, slug).
-	Put(ctx context.Context, a domain.Artifact) error
+	// Create allocates a collision-free slug from a.Slug and enforces maxBytes
+	// atomically with the insert. It returns the persisted metadata.
+	Create(ctx context.Context, a domain.Artifact, maxBytes int64) (domain.Artifact, error)
+	// Replace updates an existing artifact selected by owner/node/a.Slug,
+	// preserving its creation identity. The quota calculation subtracts the old
+	// size and is atomic with the update.
+	Replace(ctx context.Context, a domain.Artifact, maxBytes int64) (domain.Artifact, error)
 	// Get returns one artifact incl. bytes. Owner-scoped; ErrArtifactNotFound when absent.
 	Get(ctx context.Context, ownerID, nodeID, slug string) (domain.Artifact, error)
 	// GetMeta returns one artifact WITHOUT bytes (rename/exists checks).
@@ -143,10 +151,6 @@ type ArtifactStore interface {
 	Rename(ctx context.Context, ownerID, nodeID, slug, name string) error
 	// Delete removes one artifact; ErrArtifactNotFound when absent.
 	Delete(ctx context.Context, ownerID, nodeID, slug string) error
-	// ExistingSlugs returns the slugs already used under (owner,node) — collision suffix.
-	ExistingSlugs(ctx context.Context, ownerID, nodeID string) ([]string, error)
-	// TotalBytes returns SUM(size_bytes) for the owner (per-user quota).
-	TotalBytes(ctx context.Context, ownerID string) (int64, error)
 }
 
 // SessionWriter is the mutation surface handed to SessionStore.WithinTransaction.

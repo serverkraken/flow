@@ -26,7 +26,8 @@ import (
 func pngPixelBytes(t *testing.T) []byte {
 	t.Helper()
 	b, err := base64.StdEncoding.DecodeString(
-		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,6 +186,44 @@ func TestHandleUploadArtifact_ReplaceSlug_EmitsUpdated(t *testing.T) {
 	}
 	if second.Ref == first.Ref {
 		t.Error("ref did not change after replacing with different content")
+	}
+}
+
+func TestHandleUploadArtifact_ReplaceMissingOrInvalidSlug(t *testing.T) {
+	t.Parallel()
+	srv, ns, _, bus, _ := newArtifactServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	seedArtifactNode(t, ns, "n1", "u1")
+	ch, cancel := bus.Subscribe("u1")
+	defer cancel()
+
+	body := func(slug string) []byte {
+		payload, err := json.Marshal(map[string]string{
+			"name": "Diagram-v2.pdf", "mime": "application/pdf",
+			"dataBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 mock content")),
+			"slug":       slug,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return payload
+	}
+
+	missing := doArtifact(t, ts, http.MethodPost, "/api/v1/nodes/n1/artifacts", body("missing"))
+	defer func() { _ = missing.Body.Close() }()
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing replace status = %d, want 404", missing.StatusCode)
+	}
+	invalid := doArtifact(t, ts, http.MethodPost, "/api/v1/nodes/n1/artifacts", body("../invalid"))
+	defer func() { _ = invalid.Body.Close() }()
+	if invalid.StatusCode != http.StatusBadRequest {
+		t.Fatalf("invalid replace status = %d, want 400", invalid.StatusCode)
+	}
+	select {
+	case event := <-ch:
+		t.Fatalf("failed replaces emitted event: %+v", event)
+	default:
 	}
 }
 

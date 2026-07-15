@@ -81,8 +81,10 @@ func ArtifactSlugOK(s string) bool {
 // artifactDeUmlauts and artifactNonSlug duplicate usecase.Slugify's
 // transliteration/collapsing rules here in domain — domain must not import
 // usecase (hexagonal dependency direction points inward).
-var artifactDeUmlauts = strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
-var artifactNonSlug = regexp.MustCompile(`[^a-z0-9]+`)
+var (
+	artifactDeUmlauts = strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
+	artifactNonSlug   = regexp.MustCompile(`[^a-z0-9]+`)
+)
 
 // ArtifactSlug derives a flat slug from a file's display name: the extension
 // is stripped first (so "Mein Bild.PNG" → "mein-bild"), then the remainder is
@@ -95,6 +97,25 @@ func ArtifactSlug(name string) string {
 	s := artifactDeUmlauts.Replace(strings.ToLower(name))
 	s = artifactNonSlug.ReplaceAllString(s, "-")
 	return strings.Trim(s, "-")
+}
+
+// NextArtifactSlug returns base unchanged when it is free, otherwise the next
+// free base-1, base-2, ... suffix. Callers must serialize the read and write
+// when uniqueness matters; this helper only performs the deterministic choice.
+func NextArtifactSlug(base string, existing []string) string {
+	taken := make(map[string]bool, len(existing))
+	for _, slug := range existing {
+		taken[slug] = true
+	}
+	if !taken[base] {
+		return base
+	}
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s-%d", base, i)
+		if !taken[candidate] {
+			return candidate
+		}
+	}
 }
 
 // IsImage reports whether the artifact's MIME type is inline-renderable.

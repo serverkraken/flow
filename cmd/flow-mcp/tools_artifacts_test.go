@@ -247,6 +247,14 @@ func TestLoopback_UploadArtifact_InvalidBase64(t *testing.T) {
 	}
 }
 
+func TestDecodeArtifactBase64_RejectsOversizedInputBeforeDecode(t *testing.T) {
+	t.Parallel()
+	raw := strings.Repeat("A", base64.StdEncoding.EncodedLen(int(domain.MaxArtifactBytes))+4)
+	if _, err := decodeArtifactBase64(raw); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized base64 error = %v, want size rejection", err)
+	}
+}
+
 func TestLoopback_UploadArtifact_MissingFields(t *testing.T) {
 	sess := authedArtifactServer(t)
 	res, out := callText(t, sess, "flow_upload_artifact", map[string]any{"base64": "aGk="})

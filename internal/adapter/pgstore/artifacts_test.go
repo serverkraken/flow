@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -111,10 +112,14 @@ func TestArtifactStore_ListAcrossAncestorChainNewestFirst(t *testing.T) {
 	repo := seedArtifactNode(t, ns, "u1", "repo", &eng.ID, domain.KindRepo)
 
 	t0 := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
-	older := domain.Artifact{ID: "a-old", OwnerID: "u1", NodeID: eng.ID, Slug: "old", Name: "old.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref000000001", Bytes: []byte{1}, CreatedAt: t0, UpdatedAt: t0}
-	newer := domain.Artifact{ID: "a-new", OwnerID: "u1", NodeID: repo.ID, Slug: "new", Name: "new.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref000000002", Bytes: []byte{2}, CreatedAt: t0.Add(time.Minute), UpdatedAt: t0.Add(time.Minute)}
+	older := domain.Artifact{
+		ID: "a-old", OwnerID: "u1", NodeID: eng.ID, Slug: "old", Name: "old.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref000000001", Bytes: []byte{1}, CreatedAt: t0, UpdatedAt: t0,
+	}
+	newer := domain.Artifact{
+		ID: "a-new", OwnerID: "u1", NodeID: repo.ID, Slug: "new", Name: "new.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref000000002", Bytes: []byte{2}, CreatedAt: t0.Add(time.Minute), UpdatedAt: t0.Add(time.Minute),
+	}
 	if err := as.Put(ctx, older); err != nil {
 		t.Fatal(err)
 	}
@@ -147,8 +152,10 @@ func TestArtifactStore_ExistingSlugs(t *testing.T) {
 
 	now := time.Now().UTC()
 	for _, slug := range []string{"a", "b", "c"} {
-		a := domain.Artifact{ID: "id-" + slug, OwnerID: "u1", NodeID: n.ID, Slug: slug, Name: slug,
-			Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000" + slug, Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
+		a := domain.Artifact{
+			ID: "id-" + slug, OwnerID: "u1", NodeID: n.ID, Slug: slug, Name: slug,
+			Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000" + slug, Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+		}
 		if err := as.Put(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -181,8 +188,10 @@ func TestArtifactStore_TotalBytesSums(t *testing.T) {
 		{"sc", 300, "ref00000000c"},
 	}
 	for _, it := range items {
-		a := domain.Artifact{ID: "id-" + it.slug, OwnerID: "u1", NodeID: n.ID, Slug: it.slug, Name: "n",
-			Mime: "text/plain", SizeBytes: it.size, Ref: it.ref, Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
+		a := domain.Artifact{
+			ID: "id-" + it.slug, OwnerID: "u1", NodeID: n.ID, Slug: it.slug, Name: "n",
+			Mime: "text/plain", SizeBytes: it.size, Ref: it.ref, Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+		}
 		if err := as.Put(ctx, a); err != nil {
 			t.Fatal(err)
 		}
@@ -205,8 +214,10 @@ func TestArtifactStore_DeleteNotFound(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	a := domain.Artifact{ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
+	a := domain.Artifact{
+		ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, a); err != nil {
 		t.Fatal(err)
 	}
@@ -234,8 +245,10 @@ func TestArtifactStore_OwnerScopeNegative(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	a := domain.Artifact{ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
+	a := domain.Artifact{
+		ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, a); err != nil {
 		t.Fatal(err)
 	}
@@ -278,8 +291,10 @@ func TestArtifactStore_PutUpsertsOnSlugCollision(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	first := domain.Artifact{ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref111111111", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
+	first := domain.Artifact{
+		ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref111111111", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, first); err != nil {
 		t.Fatal(err)
 	}
@@ -317,8 +332,10 @@ func TestArtifactStore_Rename(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	a := domain.Artifact{ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
+	a := domain.Artifact{
+		ID: "a1", OwnerID: "u1", NodeID: n.ID, Slug: "bild", Name: "bild.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, a); err != nil {
 		t.Fatal(err)
 	}
@@ -416,12 +433,18 @@ func TestArtifactStore_ListFreeOnlyNodeLessNewestFirst(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	t0 := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
-	freeOld := domain.Artifact{ID: "f-old", OwnerID: "u1", NodeID: "", Slug: "free-old", Name: "old.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref000000001", Bytes: []byte{1}, CreatedAt: t0, UpdatedAt: t0}
-	freeNew := domain.Artifact{ID: "f-new", OwnerID: "u1", NodeID: "", Slug: "free-new", Name: "new.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref000000002", Bytes: []byte{2}, CreatedAt: t0.Add(time.Minute), UpdatedAt: t0.Add(time.Minute)}
-	nodeBound := domain.Artifact{ID: "n-bound", OwnerID: "u1", NodeID: n.ID, Slug: "node-one", Name: "node.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref000000003", Bytes: []byte{3}, CreatedAt: t0.Add(2 * time.Minute), UpdatedAt: t0.Add(2 * time.Minute)}
+	freeOld := domain.Artifact{
+		ID: "f-old", OwnerID: "u1", NodeID: "", Slug: "free-old", Name: "old.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref000000001", Bytes: []byte{1}, CreatedAt: t0, UpdatedAt: t0,
+	}
+	freeNew := domain.Artifact{
+		ID: "f-new", OwnerID: "u1", NodeID: "", Slug: "free-new", Name: "new.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref000000002", Bytes: []byte{2}, CreatedAt: t0.Add(time.Minute), UpdatedAt: t0.Add(time.Minute),
+	}
+	nodeBound := domain.Artifact{
+		ID: "n-bound", OwnerID: "u1", NodeID: n.ID, Slug: "node-one", Name: "node.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref000000003", Bytes: []byte{3}, CreatedAt: t0.Add(2 * time.Minute), UpdatedAt: t0.Add(2 * time.Minute),
+	}
 	for _, a := range []domain.Artifact{freeOld, freeNew, nodeBound} {
 		if err := as.Put(ctx, a); err != nil {
 			t.Fatal(err)
@@ -467,10 +490,14 @@ func TestArtifactStore_ExistingSlugsFreeOnly(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	free := domain.Artifact{ID: "f1", OwnerID: "u1", NodeID: "", Slug: "free-a", Name: "a",
-		Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000a", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
-	nodeBound := domain.Artifact{ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "node-b", Name: "b",
-		Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000b", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
+	free := domain.Artifact{
+		ID: "f1", OwnerID: "u1", NodeID: "", Slug: "free-a", Name: "a",
+		Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000a", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+	}
+	nodeBound := domain.Artifact{
+		ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "node-b", Name: "b",
+		Mime: "text/plain", SizeBytes: 1, Ref: "ref00000000b", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, free); err != nil {
 		t.Fatal(err)
 	}
@@ -500,8 +527,10 @@ func TestArtifactStore_FreeOwnerScopeNegative(t *testing.T) {
 	seedUser(t, us, "intruder")
 
 	now := time.Now().UTC()
-	a := domain.Artifact{ID: "a1", OwnerID: "u1", NodeID: "", Slug: "logo", Name: "logo.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
+	a := domain.Artifact{
+		ID: "a1", OwnerID: "u1", NodeID: "", Slug: "logo", Name: "logo.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref123456789", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, a); err != nil {
 		t.Fatal(err)
 	}
@@ -549,10 +578,14 @@ func TestArtifactStore_FreeAndNodeSlugCoexist(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	free := domain.Artifact{ID: "f1", OwnerID: "u1", NodeID: "", Slug: "logo", Name: "free-logo.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref111111111", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now}
-	nodeBound := domain.Artifact{ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "logo", Name: "node-logo.png",
-		Mime: "image/png", SizeBytes: 1, Ref: "ref222222222", Bytes: []byte{2}, CreatedAt: now, UpdatedAt: now}
+	free := domain.Artifact{
+		ID: "f1", OwnerID: "u1", NodeID: "", Slug: "logo", Name: "free-logo.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref111111111", Bytes: []byte{1}, CreatedAt: now, UpdatedAt: now,
+	}
+	nodeBound := domain.Artifact{
+		ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "logo", Name: "node-logo.png",
+		Mime: "image/png", SizeBytes: 1, Ref: "ref222222222", Bytes: []byte{2}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, free); err != nil {
 		t.Fatal(err)
 	}
@@ -611,10 +644,14 @@ func TestArtifactStore_TotalBytesSumsNodeAndFree(t *testing.T) {
 	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
 
 	now := time.Now().UTC()
-	nodeArt := domain.Artifact{ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "node-file", Name: "n",
-		Mime: "text/plain", SizeBytes: 100, Ref: "ref00000000a", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
-	freeArt := domain.Artifact{ID: "f1", OwnerID: "u1", NodeID: "", Slug: "free-file", Name: "f",
-		Mime: "text/plain", SizeBytes: 250, Ref: "ref00000000b", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now}
+	nodeArt := domain.Artifact{
+		ID: "n1", OwnerID: "u1", NodeID: n.ID, Slug: "node-file", Name: "n",
+		Mime: "text/plain", SizeBytes: 100, Ref: "ref00000000a", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+	}
+	freeArt := domain.Artifact{
+		ID: "f1", OwnerID: "u1", NodeID: "", Slug: "free-file", Name: "f",
+		Mime: "text/plain", SizeBytes: 250, Ref: "ref00000000b", Bytes: []byte{0}, CreatedAt: now, UpdatedAt: now,
+	}
 	if err := as.Put(ctx, nodeArt); err != nil {
 		t.Fatal(err)
 	}
@@ -628,5 +665,141 @@ func TestArtifactStore_TotalBytesSumsNodeAndFree(t *testing.T) {
 	}
 	if total != 350 {
 		t.Errorf("want total 350 (node+free), got %d", total)
+	}
+}
+
+func TestArtifactStore_CreateSerializesSlugAllocation(t *testing.T) {
+	t.Parallel()
+	as, us, ns, done := newArtifactStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
+	now := time.Now().UTC()
+
+	start := make(chan struct{})
+	results := make(chan domain.Artifact, 2)
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, id := range []string{"a1", "a2"} {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			<-start
+			got, err := as.Create(ctx, domain.Artifact{
+				ID: id, OwnerID: "u1", NodeID: n.ID, Slug: "diagram", Name: "diagram.png",
+				Mime: "image/png", SizeBytes: 1, Ref: id + "-ref", Bytes: []byte{1},
+				CreatedAt: now, UpdatedAt: now,
+			}, 10)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- got
+		}(id)
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent create: %v", err)
+	}
+	seen := map[string]bool{}
+	for result := range results {
+		seen[result.Slug] = true
+	}
+	if !seen["diagram"] || !seen["diagram-1"] || len(seen) != 2 {
+		t.Fatalf("serialized slugs = %+v, want diagram and diagram-1", seen)
+	}
+}
+
+func TestArtifactStore_CreateSerializesOwnerQuota(t *testing.T) {
+	t.Parallel()
+	as, us, ns, done := newArtifactStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
+	now := time.Now().UTC()
+	if err := as.Put(ctx, domain.Artifact{
+		ID: "seed", OwnerID: "u1", NodeID: n.ID, Slug: "seed", Name: "seed.bin",
+		Mime: "application/octet-stream", SizeBytes: 9, Ref: "seed-ref", Bytes: []byte{1},
+		CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, id := range []string{"a1", "a2"} {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			<-start
+			_, err := as.Create(ctx, domain.Artifact{
+				ID: id, OwnerID: "u1", NodeID: n.ID, Slug: id, Name: id + ".bin",
+				Mime: "application/octet-stream", SizeBytes: 1, Ref: id + "-ref", Bytes: []byte{1},
+				CreatedAt: now, UpdatedAt: now,
+			}, 10)
+			errs <- err
+		}(id)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	var succeeded, quotaRejected int
+	for err := range errs {
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, ports.ErrArtifactQuotaExceeded):
+			quotaRejected++
+		default:
+			t.Fatalf("concurrent quota create: %v", err)
+		}
+	}
+	if succeeded != 1 || quotaRejected != 1 {
+		t.Fatalf("concurrent quota results: success=%d rejected=%d, want 1/1", succeeded, quotaRejected)
+	}
+}
+
+func TestArtifactStore_ReplacePreservesCreationAndSubtractsOldSize(t *testing.T) {
+	t.Parallel()
+	as, us, ns, done := newArtifactStore(t)
+	defer done()
+	ctx := context.Background()
+	seedUser(t, us, "u1")
+	n := seedArtifactNode(t, ns, "u1", "n1", nil, domain.KindEngagement)
+	created := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	original := domain.Artifact{
+		ID: "original", OwnerID: "u1", NodeID: n.ID, Slug: "report", Name: "report.pdf",
+		Mime: "application/pdf", SizeBytes: 9, Ref: "old-ref", Bytes: []byte{1},
+		CreatedByKind: "human", CreatedByRef: "soenne", CreatedAt: created, UpdatedAt: created,
+	}
+	if err := as.Put(ctx, original); err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := as.Replace(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: n.ID, Slug: "report", Name: "report-v2.pdf",
+		Mime: "application/pdf", SizeBytes: 2, Ref: "new-ref", Bytes: []byte{2, 2},
+		CreatedByKind: "agent", CreatedByRef: "codex", UpdatedAt: created.Add(time.Hour),
+	}, 10)
+	if err != nil {
+		t.Fatalf("replace smaller artifact: %v", err)
+	}
+	if replaced.ID != original.ID || !replaced.CreatedAt.Equal(original.CreatedAt) ||
+		replaced.CreatedByKind != original.CreatedByKind || replaced.CreatedByRef != original.CreatedByRef {
+		t.Fatalf("replace changed creation metadata: %+v", replaced)
+	}
+	if replaced.Name != "report-v2.pdf" || replaced.SizeBytes != 2 || replaced.Ref != "new-ref" {
+		t.Fatalf("replace did not update mutable metadata: %+v", replaced)
+	}
+	if _, err := as.Replace(ctx, domain.Artifact{
+		OwnerID: "u1", NodeID: n.ID, Slug: "missing", Name: "x.pdf", Mime: "application/pdf",
+		SizeBytes: 1, Ref: "x", Bytes: []byte{1}, UpdatedAt: time.Now().UTC(),
+	}, 10); !errors.Is(err, ports.ErrArtifactNotFound) {
+		t.Fatalf("missing replace error = %v, want ErrArtifactNotFound", err)
 	}
 }

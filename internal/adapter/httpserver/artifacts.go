@@ -63,11 +63,11 @@ func (s *Server) uploadArtifactJSON(w http.ResponseWriter, r *http.Request, node
 	a := actor.FromContext(r.Context())
 	art, err := s.UploadArtifact.Execute(r.Context(), u.ID, nodeID, req.Name, req.Mime, data, req.Slug, string(a.Kind), a.Ref)
 	switch {
-	case errors.Is(err, usecase.ErrArtifactTooLarge), errors.Is(err, usecase.ErrArtifactBadType):
+	case errors.Is(err, usecase.ErrArtifactTooLarge), errors.Is(err, usecase.ErrArtifactBadType), errors.Is(err, domain.ErrInvalidArtifact):
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	case errors.Is(err, usecase.ErrArtifactQuotaExceeded):
 		http.Error(w, err.Error(), http.StatusRequestEntityTooLarge)
-	case errors.Is(err, ports.ErrNodeNotFound):
+	case errors.Is(err, ports.ErrNodeNotFound), errors.Is(err, ports.ErrArtifactNotFound):
 		http.Error(w, "not found", http.StatusNotFound)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)

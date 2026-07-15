@@ -176,6 +176,25 @@ func TestRunArtifactAdd_UnreadableFile(t *testing.T) {
 	}
 }
 
+func TestRunArtifactAdd_RejectsOversizedFileBeforeUpload(t *testing.T) {
+	t.Parallel()
+	srv := fakeArtifactCLIBackend(t)
+	defer srv.Close()
+	c := apiclient.New(srv.URL, "tkn")
+	path := filepath.Join(t.TempDir(), "huge.bin")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(path, domain.MaxArtifactBytes+1); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runArtifactAdd(context.Background(), c, &bytes.Buffer{}, path, "alpha", "application/octet-stream", false)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized add error = %v, want local size rejection", err)
+	}
+}
+
 func TestRunArtifactLs_EmptyAndAfterUpload(t *testing.T) {
 	t.Parallel()
 	srv := fakeArtifactCLIBackend(t)

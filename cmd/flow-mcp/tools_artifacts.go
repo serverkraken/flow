@@ -38,6 +38,21 @@ type uploadArtifactIn struct {
 	Base64 string `json:"base64" jsonschema:"the file contents, base64-encoded"`
 }
 
+func decodeArtifactBase64(raw string) ([]byte, error) {
+	maxEncoded := base64.StdEncoding.EncodedLen(int(domain.MaxArtifactBytes))
+	if len(raw) > maxEncoded {
+		return nil, fmt.Errorf("artifact exceeds %d bytes", domain.MaxArtifactBytes)
+	}
+	data, err := base64.StdEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid encoding: %w", err)
+	}
+	if int64(len(data)) > domain.MaxArtifactBytes {
+		return nil, fmt.Errorf("artifact exceeds %d bytes", domain.MaxArtifactBytes)
+	}
+	return data, nil
+}
+
 func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest, in uploadArtifactIn) (*mcp.CallToolResult, any, error) {
 	if strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Mime) == "" {
 		return errorResult("name and mime are required"), nil, nil
@@ -45,9 +60,9 @@ func (h *handlers) uploadArtifact(ctx context.Context, req *mcp.CallToolRequest,
 	if in.Free && in.Node != "" {
 		return errorResult(errFreeNodeExclusive), nil, nil
 	}
-	data, decErr := base64.StdEncoding.DecodeString(in.Base64)
+	data, decErr := decodeArtifactBase64(in.Base64)
 	if decErr != nil {
-		return errorResult("base64: invalid encoding: " + decErr.Error()), nil, nil
+		return errorResult("base64: " + decErr.Error()), nil, nil
 	}
 	var out string
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
