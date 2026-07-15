@@ -52,6 +52,7 @@ func TestHandlePutContextActive_HappyPath(t *testing.T) {
 	binds := testutil.NewFakeProjectBindingStore()
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
+	aggregate := testutil.NewFakeDocumentAggregateStore(docs, tags)
 
 	eng, _ := nodes.Create(ctx, domain.Node{ID: "E2", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Work", Slug: "work"})
 	leaf, _ := nodes.Create(ctx, domain.Node{ID: "L2", OwnerID: "id-1", Kind: domain.KindRepo, Name: "myrepo", Slug: "myrepo", ParentID: &eng.ID, OriginSlug: "myrepo"})
@@ -61,7 +62,7 @@ func TestHandlePutContextActive_HappyPath(t *testing.T) {
 	// Override the context store fakes to include our seeded binding+node.
 	srv.SetActiveContext = usecase.SetActiveContext{
 		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
-		Nodes:   nodes, Docs: docs, Tags: tags,
+		Nodes:   nodes, Docs: docs, Aggregate: aggregate, Tags: tags,
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -79,6 +80,42 @@ func TestHandlePutContextActive_HappyPath(t *testing.T) {
 	if id, ok := out["id"].(string); !ok || id == "" {
 		t.Fatalf("want non-empty id in response, got %+v", out)
 	}
+}
+
+func TestHandlePutContextActive_AggregateFailureRollsBackAndEmitsNoEvent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	binds := testutil.NewFakeProjectBindingStore()
+	docs := testutil.NewFakeDocumentStore()
+	tags := testutil.NewFakeTagStore()
+	aggregate := testutil.NewFakeDocumentAggregateStore(docs, tags)
+	aggregate.FailStage = "tags"
+
+	eng, _ := nodes.Create(ctx, domain.Node{ID: "E-fail", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Work", Slug: "work-fail"})
+	leaf, _ := nodes.Create(ctx, domain.Node{ID: "L-fail", OwnerID: "id-1", Kind: domain.KindRepo, Name: "repo-fail", Slug: "repo-fail", ParentID: &eng.ID, OriginSlug: "repo-fail"})
+	_ = binds.BindRemote(ctx, "id-1", "repo-fail", leaf.ID)
+
+	srv, bus := newDocServer(t)
+	srv.SetActiveContext = usecase.SetActiveContext{
+		Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
+		Nodes:   nodes, Docs: docs, Aggregate: aggregate, Tags: tags,
+	}
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+	ch, cancel := bus.Subscribe("id-1")
+	defer cancel()
+
+	res := doDoc(t, ts, http.MethodPut, "/api/v1/context/active", `{"remote":"repo-fail","body":"[[next]]","tags":["handoff"]}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want 500", res.StatusCode)
+	}
+	if got, _ := docs.List(ctx, "id-1", nil); len(got) != 0 {
+		t.Fatalf("partial active context survived: %+v", got)
+	}
+	assertNoDocumentEvent(t, ch)
 }
 
 func TestHandleReorderContext_StampsPrioritiesAndEmitsOneEvent(t *testing.T) {

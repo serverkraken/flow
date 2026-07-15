@@ -275,6 +275,40 @@ type StaleDoc struct {
 	SnapshotHash string
 }
 
+// DocumentAggregateChanges describes the dependent indexes belonging to one
+// document content write. Links are always replaced; nil Tags leave the
+// existing tag set unchanged while a non-nil slice replaces it.
+type DocumentAggregateChanges struct {
+	Links []string
+	Tags  *[]string
+}
+
+// DocumentAggregateUpsert is the complete idempotent document write used by
+// import/memory paths. Pinned and archived are part of the same commit as the
+// content, links, and optional tags.
+type DocumentAggregateUpsert struct {
+	OwnerID       string
+	NodeID        *string
+	Type          domain.DocumentType
+	Path          string
+	Title         string
+	Body          string
+	Pinned        bool
+	Archived      bool
+	UpdatedByKind string
+	UpdatedByRef  string
+	Changes       DocumentAggregateChanges
+}
+
+// DocumentAggregateStore is the transactional mutation boundary for a
+// document and its dependent wikilink/tag indexes.
+type DocumentAggregateStore interface {
+	CreateDocumentAggregate(ctx context.Context, d domain.Document, changes DocumentAggregateChanges) (domain.Document, error)
+	UpdateDocumentAggregate(ctx context.Context, ownerID, id string, mutate func(domain.Document) (domain.Document, DocumentAggregateChanges, error)) (domain.Document, error)
+	UpsertDocumentAggregate(ctx context.Context, in DocumentAggregateUpsert) (domain.Document, error)
+	DeleteDocumentAggregate(ctx context.Context, ownerID, id string) error
+}
+
 // DocumentStore persists compendium documents. All reads are owner-scoped.
 // Create returns ErrDocumentExists on a (owner, project, path) collision.
 type DocumentStore interface {

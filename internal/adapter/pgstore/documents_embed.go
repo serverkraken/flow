@@ -14,14 +14,22 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 )
 
+// Snapshot hashes use a byte-length prefix between title and body so distinct
+// pairs cannot collapse through plain concatenation ("ab"+"c" vs "a"+"bc").
+// SHA-256 also makes the token suitable as the compare-and-swap identity for
+// concurrently embedded content.
+const documentSnapshotHashExpr = `encode(sha256(convert_to(octet_length(coalesce(title,''))::text || ':' || coalesce(title,'') || coalesce(body,''), 'UTF8')), 'hex')`
+
+const prefixedDocumentSnapshotHashExpr = `encode(sha256(convert_to(octet_length(coalesce(d.title,''))::text || ':' || coalesce(d.title,'') || coalesce(d.body,''), 'UTF8')), 'hex')`
+
 // StaleDocuments returns up to limit documents whose chunks are out of date,
 // skipping dead-lettered docs and those still inside a backoff window, ordered
 // oldest-update-first, each with its prior consecutive failure count.
 func (s *DocumentStore) StaleDocuments(ctx context.Context, limit int) ([]ports.StaleDoc, error) {
-	q := `SELECT ` + prefixedDocCols + `, coalesce(f.attempts, 0), md5(coalesce(d.title,'')||coalesce(d.body,''))
+	q := `SELECT ` + prefixedDocCols + `, coalesce(f.attempts, 0), ` + prefixedDocumentSnapshotHashExpr + `
 FROM documents d
 LEFT JOIN document_embed_failures f ON f.document_id = d.id
-WHERE d.chunks_hash IS DISTINCT FROM md5(coalesce(d.title,'')||coalesce(d.body,''))
+WHERE d.chunks_hash IS DISTINCT FROM ` + prefixedDocumentSnapshotHashExpr + `
   AND coalesce(f.dead, false) = false
   AND (f.next_retry_at IS NULL OR f.next_retry_at <= now())
 ORDER BY d.updated_at ASC
@@ -85,7 +93,7 @@ func (s *DocumentStore) RecordEmbedFailure(ctx context.Context, docID, ownerID, 
 func lockEmbedSnapshot(ctx context.Context, tx pgx.Tx, docID, ownerID, snapshotHash string) error {
 	var currentHash string
 	err := tx.QueryRow(ctx,
-		`SELECT md5(coalesce(title,'')||coalesce(body,''))
+		`SELECT `+documentSnapshotHashExpr+`
 		 FROM documents WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
 		docID, ownerID).Scan(&currentHash)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -108,12 +116,21 @@ func (s *DocumentStore) ClearEmbedFailure(ctx context.Context, docID, ownerID st
 	return nil
 }
 
+func clearDocumentEmbedFailureTx(ctx context.Context, tx pgx.Tx, docID, ownerID string) error {
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM document_embed_failures WHERE document_id = $1 AND owner_id = $2`,
+		docID, ownerID); err != nil {
+		return fmt.Errorf("pgstore: clear obsolete document embed failure: %w", err)
+	}
+	return nil
+}
+
 func (s *DocumentStore) EmbedStatus(ctx context.Context, ownerID, docID string) (domain.EmbedStatus, error) {
 	q := `SELECT
   CASE
     WHEN f.dead THEN 'failed'
     WHEN f.document_id IS NOT NULL THEN 'retrying'
-    WHEN d.chunks_hash IS DISTINCT FROM md5(coalesce(d.title,'')||coalesce(d.body,'')) THEN 'pending'
+    WHEN d.chunks_hash IS DISTINCT FROM ` + prefixedDocumentSnapshotHashExpr + ` THEN 'pending'
     ELSE 'ok'
   END,
   coalesce(f.attempts, 0), coalesce(f.last_error, ''), f.next_retry_at

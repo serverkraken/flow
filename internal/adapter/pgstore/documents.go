@@ -172,21 +172,23 @@ func (s *DocumentStore) ListPage(ctx context.Context, ownerID string, nodeID *st
 }
 
 func (s *DocumentStore) Update(ctx context.Context, d domain.Document) (domain.Document, error) {
-	// type and path are included so maintenance ops (RedesignDocTypes) can reclassify docs.
-	const q = `UPDATE documents SET title=$1, body=$2, extra=$3, updated_at=$4, type=$5, path=$6, updated_by_kind=$7, updated_by_ref=$8
-WHERE owner_id=$9 AND id=$10
-RETURNING ` + docCols
-	extra, err := json.Marshal(orEmpty(d.Extra))
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return domain.Document{}, fmt.Errorf("pgstore: marshal extra: %w", err)
+		return domain.Document{}, fmt.Errorf("pgstore: begin document update: %w", err)
 	}
-	out, err := scanDocument(s.pool.QueryRow(ctx, q,
-		d.Title, d.Body, extra, d.UpdatedAt, string(d.Type), d.Path,
-		nullIfEmpty(d.UpdatedByKind), nullIfEmpty(d.UpdatedByRef), d.OwnerID, d.ID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.Document{}, ports.ErrDocumentNotFound
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	out, err := updateDocumentTx(ctx, tx, d)
+	if err != nil {
+		return domain.Document{}, err
 	}
-	return out, err
+	if err := clearDocumentEmbedFailureTx(ctx, tx, out.ID, out.OwnerID); err != nil {
+		return domain.Document{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Document{}, fmt.Errorf("pgstore: commit document update: %w", err)
+	}
+	return out, nil
 }
 
 func (s *DocumentStore) Move(ctx context.Context, d domain.Document) (domain.Document, error) {
@@ -303,6 +305,12 @@ func (s *DocumentStore) ListArchived(ctx context.Context, ownerID string) ([]dom
 }
 
 func (s *DocumentStore) UpsertByPath(ctx context.Context, ownerID string, nodeID *string, typ domain.DocumentType, path, title, body string, pinned, archived bool, updatedByKind, updatedByRef string) (string, time.Time, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("pgstore: begin upsert by path: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	id := s.ids.NewID()
 	const q = `
 INSERT INTO documents (id, owner_id, node_id, type, path, title, body, extra, pinned, archived, created_at, updated_at, updated_by_kind, updated_by_ref)
@@ -313,10 +321,16 @@ DO UPDATE SET title = EXCLUDED.title, body = EXCLUDED.body, type = EXCLUDED.type
 RETURNING id, updated_at`
 	var gotID string
 	var updated time.Time
-	err := s.pool.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned, archived,
+	err = tx.QueryRow(ctx, q, id, ownerID, nodeID, string(typ), path, title, body, pinned, archived,
 		nullIfEmpty(updatedByKind), nullIfEmpty(updatedByRef)).Scan(&gotID, &updated)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("pgstore: upsert by path: %w", err)
+	}
+	if err := clearDocumentEmbedFailureTx(ctx, tx, gotID, ownerID); err != nil {
+		return "", time.Time{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", time.Time{}, fmt.Errorf("pgstore: commit upsert by path: %w", err)
 	}
 	return gotID, updated, nil
 }

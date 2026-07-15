@@ -21,16 +21,17 @@ var ErrContextUnresolved = errors.New("usecase: context not resolved (bind the r
 // resolved leaf node. It mirrors how ComposeContext resolves a leaf, then calls
 // Docs.UpsertByPath at the fixed ActiveContextPath.
 type SetActiveContext struct {
-	Resolve ResolveNode
-	Nodes   ports.NodeStore
-	Docs    ports.DocumentStore
-	Tags    ports.TagStore
+	Resolve   ResolveNode
+	Nodes     ports.NodeStore
+	Docs      ports.DocumentStore
+	Aggregate ports.DocumentAggregateStore
+	Tags      ports.TagStore
 }
 
 // Execute resolves the leaf (NodeOverride slug lookup OR Resolve.Execute),
-// returns ErrContextUnresolved when no bound node is found, then upserts the
-// active-context memory doc. Tag writes happen after the upsert; a tag error
-// is swallowed to avoid orphaning the successful upsert.
+// returns ErrContextUnresolved when no bound node is found, then atomically
+// upserts the active-context memory doc and its links/tags when Aggregate is
+// configured.
 func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in ContextResolveInput, title, body string, tags []string) (string, time.Time, error) {
 	var leaf domain.Node
 	var ok bool
@@ -59,12 +60,37 @@ func (uc SetActiveContext) Execute(ctx context.Context, ownerID string, in Conte
 		title = "Active Context"
 	}
 	a := actor.FromContext(ctx)
+	if uc.Aggregate != nil {
+		var tagChanges *[]string
+		if tags != nil {
+			tagValues := tags
+			tagChanges = &tagValues
+		}
+		doc, err := uc.Aggregate.UpsertDocumentAggregate(ctx, ports.DocumentAggregateUpsert{
+			OwnerID:       ownerID,
+			NodeID:        &leaf.ID,
+			Type:          domain.DocActiveContext,
+			Path:          ActiveContextPath,
+			Title:         title,
+			Body:          body,
+			UpdatedByKind: string(a.Kind),
+			UpdatedByRef:  a.Ref,
+			Changes: ports.DocumentAggregateChanges{
+				Links: domain.WikilinkTargets(body),
+				Tags:  tagChanges,
+			},
+		})
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		return doc.ID, doc.UpdatedAt, nil
+	}
 	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, &leaf.ID, domain.DocActiveContext, ActiveContextPath, title, body, false, false, string(a.Kind), a.Ref)
 	if err != nil {
 		return "", time.Time{}, err
 	}
 	if tags != nil {
-		// Tag write after the entity write; a tag failure must not orphan the upsert.
+		// Legacy fallback preserves the historical best-effort behavior.
 		if _, err := uc.Tags.SetTags(ctx, ownerID, domain.TaggableDocument, id, tags); err != nil {
 			slog.WarnContext(ctx, "set active-context tags", "id", id, "err", err)
 		}

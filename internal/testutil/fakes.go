@@ -741,7 +741,7 @@ type fakeEmbedFail struct {
 }
 
 func fakeDocHash(d domain.Document) string {
-	sum := sha256.Sum256([]byte(d.Title + d.Body))
+	sum := sha256.Sum256([]byte(itoa(len(d.Title)) + ":" + d.Title + d.Body))
 	return string(sum[:])
 }
 
@@ -871,6 +871,7 @@ func (s *FakeDocumentStore) Update(_ context.Context, d domain.Document) (domain
 	existing.UpdatedByKind = d.UpdatedByKind
 	existing.UpdatedByRef = d.UpdatedByRef
 	s.m[d.ID] = existing
+	delete(s.embedFail, d.ID)
 	return existing, nil
 }
 
@@ -934,6 +935,67 @@ func (s *FakeDocumentStore) LinksFor(docID string) []string {
 	out := make([]string, len(s.links[docID]))
 	copy(out, s.links[docID])
 	return out
+}
+
+type fakeDocumentStoreSnapshot struct {
+	m          map[string]domain.Document
+	seq        int
+	links      map[string][]string
+	chunks     map[string][]fakeChunk
+	chunksHash map[string]string
+	embedFail  map[string]fakeEmbedFail
+}
+
+func (s *FakeDocumentStore) snapshot() fakeDocumentStoreSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := fakeDocumentStoreSnapshot{
+		m:          make(map[string]domain.Document, len(s.m)),
+		seq:        s.seq,
+		links:      make(map[string][]string, len(s.links)),
+		chunks:     make(map[string][]fakeChunk, len(s.chunks)),
+		chunksHash: make(map[string]string, len(s.chunksHash)),
+		embedFail:  make(map[string]fakeEmbedFail, len(s.embedFail)),
+	}
+	for id, d := range s.m {
+		d.Tags = append([]string(nil), d.Tags...)
+		if d.Extra != nil {
+			extra := make(map[string]any, len(d.Extra))
+			for key, value := range d.Extra {
+				extra[key] = value
+			}
+			d.Extra = extra
+		}
+		out.m[id] = d
+	}
+	for id, links := range s.links {
+		out.links[id] = append([]string(nil), links...)
+	}
+	for id, chunks := range s.chunks {
+		cloned := make([]fakeChunk, len(chunks))
+		for i := range chunks {
+			cloned[i] = fakeChunk{content: chunks[i].content, emb: append([]float32(nil), chunks[i].emb...)}
+		}
+		out.chunks[id] = cloned
+	}
+	for id, hash := range s.chunksHash {
+		out.chunksHash[id] = hash
+	}
+	for id, failure := range s.embedFail {
+		out.embedFail[id] = failure
+	}
+	return out
+}
+
+func (s *FakeDocumentStore) restore(snapshot fakeDocumentStoreSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m = snapshot.m
+	s.seq = snapshot.seq
+	s.links = snapshot.links
+	s.chunks = snapshot.chunks
+	s.chunksHash = snapshot.chunksHash
+	s.embedFail = snapshot.embedFail
 }
 
 func (s *FakeDocumentStore) Backlinks(_ context.Context, ownerID, targetPath string) ([]domain.Document, error) {
@@ -1208,6 +1270,7 @@ func (s *FakeDocumentStore) UpsertByPath(_ context.Context, ownerID string, node
 			d.Title, d.Body, d.Type = title, body, typ // preserve pinned, archived, id; mirror pgstore ON CONFLICT
 			d.UpdatedByKind, d.UpdatedByRef = updatedByKind, updatedByRef
 			s.m[d.ID] = d
+			delete(s.embedFail, d.ID)
 			return d.ID, time.Time{}, nil
 		}
 	}
@@ -1275,6 +1338,41 @@ type FakeTagStore struct {
 
 func NewFakeTagStore() *FakeTagStore {
 	return &FakeTagStore{display: map[string]string{}, links: map[string]map[string]bool{}}
+}
+
+type fakeTagStoreSnapshot struct {
+	display map[string]string
+	links   map[string]map[string]bool
+	idgen   int
+}
+
+func (s *FakeTagStore) snapshot() fakeTagStoreSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := fakeTagStoreSnapshot{
+		display: make(map[string]string, len(s.display)),
+		links:   make(map[string]map[string]bool, len(s.links)),
+		idgen:   s.idgen,
+	}
+	for key, value := range s.display {
+		out.display[key] = value
+	}
+	for key, values := range s.links {
+		copyValues := make(map[string]bool, len(values))
+		for slug, present := range values {
+			copyValues[slug] = present
+		}
+		out.links[key] = copyValues
+	}
+	return out
+}
+
+func (s *FakeTagStore) restore(snapshot fakeTagStoreSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.display = snapshot.display
+	s.links = snapshot.links
+	s.idgen = snapshot.idgen
 }
 
 func (s *FakeTagStore) key(owner string, typ domain.TaggableType, id string) string {
@@ -1981,3 +2079,205 @@ func (s *FakeArtifactStore) TotalBytes(_ context.Context, ownerID string) (int64
 }
 
 var _ ports.ArtifactStore = (*FakeArtifactStore)(nil)
+
+// ErrFakeDocumentAggregate is returned by an injected aggregate failure stage.
+var ErrFakeDocumentAggregate = errors.New("fake document aggregate failure")
+
+// FakeDocumentAggregateStore composes the document and tag fakes behind one
+// rollback boundary. FailStage may be document, links, tags, curation, or
+// commit.
+type FakeDocumentAggregateStore struct {
+	mu        sync.Mutex
+	Docs      *FakeDocumentStore
+	Tags      *FakeTagStore
+	FailStage string
+}
+
+func NewFakeDocumentAggregateStore(docs *FakeDocumentStore, tags *FakeTagStore) *FakeDocumentAggregateStore {
+	if docs == nil {
+		docs = NewFakeDocumentStore()
+	}
+	if tags == nil {
+		tags = NewFakeTagStore()
+	}
+	return &FakeDocumentAggregateStore{Docs: docs, Tags: tags}
+}
+
+func (s *FakeDocumentAggregateStore) transaction(fn func() error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	docSnapshot := s.Docs.snapshot()
+	tagSnapshot := s.Tags.snapshot()
+	err := fn()
+	if err == nil && s.FailStage == "commit" {
+		err = ErrFakeDocumentAggregate
+	}
+	if err != nil {
+		s.Docs.restore(docSnapshot)
+		s.Tags.restore(tagSnapshot)
+	}
+	return err
+}
+
+func (s *FakeDocumentAggregateStore) fail(stage string) error {
+	if s.FailStage == stage {
+		return ErrFakeDocumentAggregate
+	}
+	return nil
+}
+
+func (s *FakeDocumentAggregateStore) CreateDocumentAggregate(ctx context.Context, d domain.Document, changes ports.DocumentAggregateChanges) (out domain.Document, err error) {
+	err = s.transaction(func() error {
+		if err := s.fail("document"); err != nil {
+			return err
+		}
+		created, err := s.Docs.Create(ctx, d)
+		if err != nil {
+			return err
+		}
+		if err := s.fail("links"); err != nil {
+			return err
+		}
+		if err := s.Docs.ReplaceLinks(ctx, created.ID, created.OwnerID, changes.Links); err != nil {
+			return err
+		}
+		if changes.Tags != nil {
+			if err := s.fail("tags"); err != nil {
+				return err
+			}
+			tags, err := s.Tags.SetTags(ctx, created.OwnerID, domain.TaggableDocument, created.ID, *changes.Tags)
+			if err != nil {
+				return err
+			}
+			created.Tags = fakeTagSlugs(tags)
+			if _, err := s.Docs.Update(ctx, created); err != nil {
+				return err
+			}
+		}
+		out = created
+		return nil
+	})
+	return out, err
+}
+
+func (s *FakeDocumentAggregateStore) UpdateDocumentAggregate(ctx context.Context, ownerID, id string, mutate func(domain.Document) (domain.Document, ports.DocumentAggregateChanges, error)) (out domain.Document, err error) {
+	err = s.transaction(func() error {
+		current, err := s.Docs.Get(ctx, ownerID, id)
+		if err != nil {
+			return err
+		}
+		next, changes, err := mutate(current)
+		if err != nil {
+			return err
+		}
+		if next.ID != current.ID || next.OwnerID != current.OwnerID {
+			return errors.New("fake document aggregate identity changed")
+		}
+		if err := s.fail("document"); err != nil {
+			return err
+		}
+		updated, err := s.Docs.Update(ctx, next)
+		if err != nil {
+			return err
+		}
+		if err := s.fail("links"); err != nil {
+			return err
+		}
+		if err := s.Docs.ReplaceLinks(ctx, updated.ID, updated.OwnerID, changes.Links); err != nil {
+			return err
+		}
+		if changes.Tags != nil {
+			if err := s.fail("tags"); err != nil {
+				return err
+			}
+			tags, err := s.Tags.SetTags(ctx, updated.OwnerID, domain.TaggableDocument, updated.ID, *changes.Tags)
+			if err != nil {
+				return err
+			}
+			updated.Tags = fakeTagSlugs(tags)
+			if _, err := s.Docs.Update(ctx, updated); err != nil {
+				return err
+			}
+		}
+		out = updated
+		return nil
+	})
+	return out, err
+}
+
+func (s *FakeDocumentAggregateStore) UpsertDocumentAggregate(ctx context.Context, in ports.DocumentAggregateUpsert) (out domain.Document, err error) {
+	err = s.transaction(func() error {
+		if err := s.fail("document"); err != nil {
+			return err
+		}
+		id, _, err := s.Docs.UpsertByPath(ctx, in.OwnerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned, in.Archived, in.UpdatedByKind, in.UpdatedByRef)
+		if err != nil {
+			return err
+		}
+		if err := s.fail("links"); err != nil {
+			return err
+		}
+		if err := s.Docs.ReplaceLinks(ctx, id, in.OwnerID, in.Changes.Links); err != nil {
+			return err
+		}
+		var tags []domain.Tag
+		if in.Changes.Tags != nil {
+			if err := s.fail("tags"); err != nil {
+				return err
+			}
+			tags, err = s.Tags.SetTags(ctx, in.OwnerID, domain.TaggableDocument, id, *in.Changes.Tags)
+			if err != nil {
+				return err
+			}
+		}
+		if err := s.fail("curation"); err != nil {
+			return err
+		}
+		if err := s.Docs.SetPinned(ctx, in.OwnerID, id, in.Pinned); err != nil {
+			return err
+		}
+		if err := s.Docs.SetArchived(ctx, in.OwnerID, id, in.Archived); err != nil {
+			return err
+		}
+		out, err = s.Docs.Get(ctx, in.OwnerID, id)
+		if err != nil {
+			return err
+		}
+		if in.Changes.Tags != nil {
+			out.Tags = fakeTagSlugs(tags)
+			if _, err := s.Docs.Update(ctx, out); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (s *FakeDocumentAggregateStore) DeleteDocumentAggregate(ctx context.Context, ownerID, id string) error {
+	return s.transaction(func() error {
+		if _, err := s.Docs.Get(ctx, ownerID, id); err != nil {
+			return err
+		}
+		if err := s.fail("tags"); err != nil {
+			return err
+		}
+		if err := s.Tags.ClearTaggable(ctx, ownerID, domain.TaggableDocument, id); err != nil {
+			return err
+		}
+		if err := s.fail("document"); err != nil {
+			return err
+		}
+		return s.Docs.Delete(ctx, ownerID, id)
+	})
+}
+
+func fakeTagSlugs(tags []domain.Tag) []string {
+	out := make([]string, len(tags))
+	for i := range tags {
+		out[i] = tags[i].Slug
+	}
+	return out
+}
+
+var _ ports.DocumentAggregateStore = (*FakeDocumentAggregateStore)(nil)

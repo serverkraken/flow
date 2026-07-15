@@ -28,10 +28,11 @@ type UpsertByPathInput struct {
 // every run (so re-imports stay in sync). It is the general idempotent write
 // behind `flow context migrate memories`.
 type UpsertDocumentByPath struct {
-	Docs     ports.DocumentStore
-	Nodes    ports.NodeStore
-	Tags     ports.TagStore
-	Notifier ports.DocChangeNotifier // optional; nil -> no notification
+	Docs      ports.DocumentStore
+	Aggregate ports.DocumentAggregateStore
+	Nodes     ports.NodeStore
+	Tags      ports.TagStore
+	Notifier  ports.DocChangeNotifier // optional; nil -> no notification
 }
 
 func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in UpsertByPathInput) (string, time.Time, error) {
@@ -43,6 +44,36 @@ func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in U
 		return "", time.Time{}, err
 	}
 	a := actor.FromContext(ctx)
+	if uc.Aggregate != nil {
+		var tags *[]string
+		if in.Tags != nil {
+			tagValues := in.Tags
+			tags = &tagValues
+		}
+		doc, err := uc.Aggregate.UpsertDocumentAggregate(ctx, ports.DocumentAggregateUpsert{
+			OwnerID:       ownerID,
+			NodeID:        in.NodeID,
+			Type:          in.Type,
+			Path:          in.Path,
+			Title:         in.Title,
+			Body:          in.Body,
+			Pinned:        in.Pinned,
+			Archived:      in.Archived,
+			UpdatedByKind: string(a.Kind),
+			UpdatedByRef:  a.Ref,
+			Changes: ports.DocumentAggregateChanges{
+				Links: domain.WikilinkTargets(in.Body),
+				Tags:  tags,
+			},
+		})
+		if err != nil {
+			return "", time.Time{}, err
+		}
+		if uc.Notifier != nil {
+			uc.Notifier.DocumentChanged()
+		}
+		return doc.ID, doc.UpdatedAt, nil
+	}
 	id, updated, err := uc.Docs.UpsertByPath(ctx, ownerID, in.NodeID, in.Type, in.Path, in.Title, in.Body, in.Pinned, in.Archived, string(a.Kind), a.Ref)
 	if err != nil {
 		return "", time.Time{}, err
@@ -55,11 +86,10 @@ func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in U
 			return id, updated, err
 		}
 	}
-	// UpsertByPath's ON CONFLICT path does not touch pinned; enforce it explicitly.
+	// Legacy fallback enforces curation fields in separate store calls.
 	if err := uc.Docs.SetPinned(ctx, ownerID, id, in.Pinned); err != nil {
 		return id, updated, err
 	}
-	// ON CONFLICT also does not touch archived; enforce it explicitly for idempotent reclassify.
 	if err := uc.Docs.SetArchived(ctx, ownerID, id, in.Archived); err != nil {
 		return "", time.Time{}, fmt.Errorf("upsert by path: set archived: %w", err)
 	}

@@ -30,6 +30,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 	emitter := sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk)
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
+	aggregate := testutil.NewFakeDocumentAggregateStore(docs, tags)
 
 	nodes := testutil.NewFakeNodeStore()
 	binds := testutil.NewFakeProjectBindingStore()
@@ -53,13 +54,13 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		Emitter:              emitter,
 		Clock:                clk,
 		Stats:                stats,
-		CreateDocument:       usecase.CreateDocument{Docs: docs, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
-		ImportDocument:       usecase.ImportDocument{Docs: docs, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
+		CreateDocument:       usecase.CreateDocument{Docs: docs, Aggregate: aggregate, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
+		ImportDocument:       usecase.ImportDocument{Docs: docs, Aggregate: aggregate, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
 		GetDocument:          usecase.GetDocument{Docs: docs},
 		ListDocuments:        usecase.ListDocuments{Docs: docs},
-		UpdateDocument:       usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
+		UpdateDocument:       usecase.UpdateDocument{Docs: docs, Aggregate: aggregate, Tags: tags, Clock: clk},
 		MoveDocument:         usecase.MoveDocument{Docs: docs, Nodes: nodes, Clock: clk},
-		DeleteDocument:       usecase.DeleteDocument{Docs: docs, Tags: tags},
+		DeleteDocument:       usecase.DeleteDocument{Docs: docs, Aggregate: aggregate, Tags: tags},
 		BacklinksDocument:    usecase.Backlinks{Docs: docs},
 		ListTags:             usecase.ListTags{Tags: tags},
 		SearchDocuments:      usecase.SearchDocuments{Docs: docs},
@@ -67,7 +68,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		SetContextMode:       usecase.SetContextMode{Docs: docs},
 		SetArchived:          usecase.SetArchived{Docs: docs},
 		ListArchived:         usecase.ListArchived{Docs: docs},
-		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Nodes: nodes, Tags: tags},
+		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Aggregate: aggregate, Nodes: nodes, Tags: tags},
 		AuditDocuments:       usecase.AuditDocuments{Docs: docs, Nodes: nodes},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
@@ -80,7 +81,7 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		},
 		SetActiveContext: usecase.SetActiveContext{
 			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
-			Nodes:   nodes, Docs: docs, Tags: tags,
+			Nodes:   nodes, Docs: docs, Aggregate: aggregate, Tags: tags,
 		},
 		ReorderContextDocs: usecase.ReorderContextDocs{Docs: docs},
 		ContextBudget:      6000,
@@ -440,6 +441,115 @@ func TestHandleDeleteDocument_NotFound(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", res.StatusCode)
+	}
+}
+
+func TestDocumentAggregateFailuresEmitNoEvents(t *testing.T) {
+	t.Parallel()
+	t.Run("create", func(t *testing.T) {
+		srv, bus := newDocServer(t)
+		ts := httptest.NewServer(srv.Routes())
+		defer ts.Close()
+		primeUser(t, ts.URL)
+		aggregate := srv.CreateDocument.Aggregate.(*testutil.FakeDocumentAggregateStore)
+		aggregate.FailStage = "links"
+		ch, cancel := bus.Subscribe("id-1")
+		defer cancel()
+
+		res := doDoc(t, ts, http.MethodPost, "/api/v1/documents", `{"type":"free","path":"aggregate-failure","title":"No event","body":"[[target]]"}`)
+		defer func() { _ = res.Body.Close() }()
+		if res.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want 500", res.StatusCode)
+		}
+		if got, _ := srv.CreateDocument.Docs.List(context.Background(), "id-1", nil); len(got) != 0 {
+			t.Fatalf("partial create survived: %+v", got)
+		}
+		assertNoDocumentEvent(t, ch)
+	})
+
+	t.Run("update", func(t *testing.T) {
+		srv, bus := newDocServer(t)
+		ts := httptest.NewServer(srv.Routes())
+		defer ts.Close()
+		primeUser(t, ts.URL)
+		createRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents", `{"type":"free","path":"aggregate-update","title":"Before","body":"[[before]]","tags":["old"]}`)
+		var created domain.Document
+		if err := json.NewDecoder(createRes.Body).Decode(&created); err != nil {
+			t.Fatal(err)
+		}
+		_ = createRes.Body.Close()
+		aggregate := srv.UpdateDocument.Aggregate.(*testutil.FakeDocumentAggregateStore)
+		aggregate.FailStage = "tags"
+		ch, cancel := bus.Subscribe("id-1")
+		defer cancel()
+
+		res := doDoc(t, ts, http.MethodPut, "/api/v1/documents/"+created.ID, `{"title":"After","body":"[[after]]","tags":["new"]}`)
+		defer func() { _ = res.Body.Close() }()
+		if res.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want 500", res.StatusCode)
+		}
+		got, err := srv.UpdateDocument.Docs.Get(context.Background(), "id-1", created.ID)
+		if err != nil || got.Title != "Before" || got.Body != "[[before]]" {
+			t.Fatalf("partial update survived: doc=%+v err=%v", got, err)
+		}
+		assertNoDocumentEvent(t, ch)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		srv, bus := newDocServer(t)
+		ts := httptest.NewServer(srv.Routes())
+		defer ts.Close()
+		primeUser(t, ts.URL)
+		createRes := doDoc(t, ts, http.MethodPost, "/api/v1/documents", `{"type":"free","path":"aggregate-delete","title":"Keep","body":"body","tags":["old"]}`)
+		var created domain.Document
+		if err := json.NewDecoder(createRes.Body).Decode(&created); err != nil {
+			t.Fatal(err)
+		}
+		_ = createRes.Body.Close()
+		aggregate := srv.DeleteDocument.Aggregate.(*testutil.FakeDocumentAggregateStore)
+		aggregate.FailStage = "tags"
+		ch, cancel := bus.Subscribe("id-1")
+		defer cancel()
+
+		res := doDoc(t, ts, http.MethodDelete, "/api/v1/documents/"+created.ID, "")
+		defer func() { _ = res.Body.Close() }()
+		if res.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want 500", res.StatusCode)
+		}
+		if _, err := srv.DeleteDocument.Docs.Get(context.Background(), "id-1", created.ID); err != nil {
+			t.Fatalf("document lost after failed delete: %v", err)
+		}
+		assertNoDocumentEvent(t, ch)
+	})
+
+	t.Run("upsert", func(t *testing.T) {
+		srv, bus := newDocServer(t)
+		ts := httptest.NewServer(srv.Routes())
+		defer ts.Close()
+		primeUser(t, ts.URL)
+		aggregate := srv.UpsertDocumentByPath.Aggregate.(*testutil.FakeDocumentAggregateStore)
+		aggregate.FailStage = "curation"
+		ch, cancel := bus.Subscribe("id-1")
+		defer cancel()
+
+		res := doDoc(t, ts, http.MethodPut, "/api/v1/documents/by-path", `{"type":"memory","path":"aggregate-upsert","title":"No event","body":"[[target]]","tags":["new"],"pinned":true}`)
+		defer func() { _ = res.Body.Close() }()
+		if res.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("status=%d, want 500", res.StatusCode)
+		}
+		if got, _ := srv.UpsertDocumentByPath.Docs.List(context.Background(), "id-1", nil); len(got) != 0 {
+			t.Fatalf("partial upsert survived: %+v", got)
+		}
+		assertNoDocumentEvent(t, ch)
+	})
+}
+
+func assertNoDocumentEvent(t *testing.T, ch <-chan domain.Event) {
+	t.Helper()
+	select {
+	case event := <-ch:
+		t.Fatalf("unexpected event after failed aggregate commit: %+v", event)
+	default:
 	}
 }
 

@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -65,6 +66,261 @@ func TestReplaceChunks_RejectsStaleAndDeletedSnapshots(t *testing.T) {
 	}
 	if err := st.ReplaceChunks(ctx, doc.ID, doc.OwnerID, newHash, nil, nil); !errors.Is(err, ports.ErrDocumentNotFound) {
 		t.Fatalf("deleted snapshot: want ErrDocumentNotFound, got %v", err)
+	}
+}
+
+func TestEmbeddingSnapshot_DistinguishesTitleBodyBoundary(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-boundary", "sub-boundary", "boundary", "boundary@example.test", "Boundary")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Now().UTC().Truncate(time.Second)
+	doc := domain.Document{
+		ID: "d-boundary", OwnerID: u.ID, Type: domain.DocFree, Path: "boundary",
+		Title: "ab", Body: "c", CreatedAt: now, UpdatedAt: now,
+	}
+	if _, err := st.Create(ctx, doc); err != nil {
+		t.Fatal(err)
+	}
+	oldHash := snapshotHash(t, st, doc.ID)
+	if err := st.ReplaceChunks(ctx, doc.ID, doc.OwnerID, oldHash, []string{"ab\n\nc"}, [][]float32{vec768(0)}); err != nil {
+		t.Fatal(err)
+	}
+
+	doc.Title, doc.Body, doc.UpdatedAt = "a", "bc", now.Add(time.Second)
+	if _, err := st.Update(ctx, doc); err != nil {
+		t.Fatal(err)
+	}
+	status, err := st.EmbedStatus(ctx, doc.OwnerID, doc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.State != domain.EmbedPending {
+		t.Fatalf("boundary-changing edit must invalidate chunks, status=%s", status.State)
+	}
+	newHash := snapshotHash(t, st, doc.ID)
+	if newHash == oldHash {
+		t.Fatalf("snapshot hash did not distinguish title/body boundary: %q", newHash)
+	}
+}
+
+func TestDocumentContentWrites_ClearObsoleteEmbedFailures(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-failure-reset", "sub-failure-reset", "failure-reset", "failure-reset@example.test", "Failure Reset")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Now().UTC().Truncate(time.Second)
+	for _, id := range []string{"d-aggregate-reset", "d-direct-reset", "d-upsert-reset", "d-direct-upsert-reset"} {
+		doc := domain.Document{
+			ID: id, OwnerID: u.ID, Type: domain.DocFree, Path: id,
+			Title: "Old", Body: "old body", CreatedAt: now, UpdatedAt: now,
+		}
+		if _, err := st.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.RecordEmbedFailure(ctx, id, u.ID, snapshotHash(t, st, id), 5, now, true, "old content failed"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := st.UpdateDocumentAggregate(ctx, u.ID, "d-aggregate-reset", func(doc domain.Document) (domain.Document, ports.DocumentAggregateChanges, error) {
+		doc.Title, doc.Body, doc.UpdatedAt = "New aggregate", "new body", now.Add(time.Second)
+		return doc, ports.DocumentAggregateChanges{}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	direct, err := st.Get(ctx, u.ID, "d-direct-reset")
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct.Title, direct.Body, direct.UpdatedAt = "New direct", "new body", now.Add(time.Second)
+	if _, err := st.Update(ctx, direct); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.UpsertDocumentAggregate(ctx, ports.DocumentAggregateUpsert{
+		OwnerID: u.ID, Type: domain.DocFree, Path: "d-upsert-reset",
+		Title: "New upsert", Body: "new body",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.UpsertByPath(ctx, u.ID, nil, domain.DocFree, "d-direct-upsert-reset", "New direct upsert", "new body", false, false, "human", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, id := range []string{"d-aggregate-reset", "d-direct-reset", "d-upsert-reset", "d-direct-upsert-reset"} {
+		status, err := st.EmbedStatus(ctx, u.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.State != domain.EmbedPending || status.Attempts != 0 || status.LastError != "" {
+			t.Fatalf("%s retained obsolete failure: %#v", id, status)
+		}
+		_ = snapshotHash(t, st, id)
+	}
+
+	rollbackIDs := []string{"d-aggregate-rollback", "d-direct-rollback", "d-upsert-rollback", "d-direct-upsert-rollback"}
+	for _, id := range rollbackIDs {
+		doc := domain.Document{
+			ID: id, OwnerID: u.ID, Type: domain.DocFree, Path: id,
+			Title: "Old", Body: "old body", CreatedAt: now, UpdatedAt: now,
+		}
+		if _, err := st.Create(ctx, doc); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.RecordEmbedFailure(ctx, id, u.ID, snapshotHash(t, st, id), 5, now, true, "must survive rollback"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+CREATE FUNCTION reject_test_embed_failure_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.document_id LIKE 'd-%-rollback' THEN
+    RAISE EXCEPTION 'injected embed failure delete error';
+  END IF;
+  RETURN OLD;
+END $$;
+CREATE TRIGGER reject_test_embed_failure_delete
+BEFORE DELETE ON document_embed_failures
+FOR EACH ROW EXECUTE FUNCTION reject_test_embed_failure_delete()`); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := st.UpdateDocumentAggregate(ctx, u.ID, "d-aggregate-rollback", func(doc domain.Document) (domain.Document, ports.DocumentAggregateChanges, error) {
+		doc.Title, doc.Body, doc.UpdatedAt = "New aggregate", "new body", now.Add(time.Second)
+		return doc, ports.DocumentAggregateChanges{}, nil
+	}); err == nil {
+		t.Fatal("aggregate update succeeded despite injected failure clear error")
+	}
+	direct, err = st.Get(ctx, u.ID, "d-direct-rollback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	direct.Title, direct.Body, direct.UpdatedAt = "New direct", "new body", now.Add(time.Second)
+	if _, err := st.Update(ctx, direct); err == nil {
+		t.Fatal("direct update succeeded despite injected failure clear error")
+	}
+	if _, err := st.UpsertDocumentAggregate(ctx, ports.DocumentAggregateUpsert{
+		OwnerID: u.ID, Type: domain.DocFree, Path: "d-upsert-rollback",
+		Title: "New upsert", Body: "new body",
+	}); err == nil {
+		t.Fatal("aggregate upsert succeeded despite injected failure clear error")
+	}
+	if _, _, err := st.UpsertByPath(ctx, u.ID, nil, domain.DocFree, "d-direct-upsert-rollback", "New direct upsert", "new body", false, false, "human", ""); err == nil {
+		t.Fatal("direct upsert succeeded despite injected failure clear error")
+	}
+
+	for _, id := range rollbackIDs {
+		doc, err := st.Get(ctx, u.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.Title != "Old" || doc.Body != "old body" {
+			t.Fatalf("%s content escaped rollback: title=%q body=%q", id, doc.Title, doc.Body)
+		}
+		status, err := st.EmbedStatus(ctx, u.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status.State != domain.EmbedFailed || status.Attempts != 5 || status.LastError != "must survive rollback" {
+			t.Fatalf("%s failure state escaped rollback: %#v", id, status)
+		}
+	}
+}
+
+func TestEmbeddingSnapshot_ConcurrentContentMutationRejectsObsoleteResult(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-embed-race", "sub-embed-race", "embed-race", "embed-race@example.test", "Embed Race")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewDocumentStore(pool, &testutil.FakeIDGen{})
+	now := time.Now().UTC().Truncate(time.Second)
+	vector := make([]float32, 768)
+	vector[0] = 1
+
+	for _, result := range []string{"failure", "chunks"} {
+		result := result
+		t.Run(result, func(t *testing.T) {
+			for i := 0; i < 8; i++ {
+				id := fmt.Sprintf("d-embed-race-%s-%d", result, i)
+				doc := domain.Document{
+					ID: id, OwnerID: u.ID, Type: domain.DocFree, Path: id,
+					Title: "Old", Body: "old body", CreatedAt: now, UpdatedAt: now,
+				}
+				if _, err := st.Create(ctx, doc); err != nil {
+					t.Fatal(err)
+				}
+				oldHash := snapshotHash(t, st, id)
+				start := make(chan struct{})
+				updateErr := make(chan error, 1)
+				resultErr := make(chan error, 1)
+				go func() {
+					<-start
+					_, err := st.UpdateDocumentAggregate(ctx, u.ID, id, func(current domain.Document) (domain.Document, ports.DocumentAggregateChanges, error) {
+						current.Title = "New"
+						current.Body = "new body"
+						current.UpdatedAt = now.Add(time.Duration(i+1) * time.Second)
+						return current, ports.DocumentAggregateChanges{}, nil
+					})
+					updateErr <- err
+				}()
+				go func() {
+					<-start
+					if result == "failure" {
+						resultErr <- st.RecordEmbedFailure(ctx, id, u.ID, oldHash, 5, now, true, "obsolete failure")
+						return
+					}
+					resultErr <- st.ReplaceChunks(ctx, id, u.ID, oldHash, []string{"obsolete chunk"}, [][]float32{vector})
+				}()
+				close(start)
+
+				if err := <-updateErr; err != nil {
+					t.Fatalf("content update: %v", err)
+				}
+				if err := <-resultErr; err != nil && !errors.Is(err, ports.ErrEmbedStaleSnapshot) {
+					t.Fatalf("obsolete %s result: %v", result, err)
+				}
+				status, err := st.EmbedStatus(ctx, u.ID, id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if status.State != domain.EmbedPending || status.Attempts != 0 || status.LastError != "" {
+					t.Fatalf("obsolete %s won race: %#v", result, status)
+				}
+				newHash := snapshotHash(t, st, id)
+				if newHash == oldHash {
+					t.Fatal("content mutation retained obsolete snapshot hash")
+				}
+			}
+		})
 	}
 }
 

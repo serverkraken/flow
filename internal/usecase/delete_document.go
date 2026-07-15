@@ -8,11 +8,15 @@ import (
 )
 
 type DeleteDocument struct {
-	Docs ports.DocumentStore
-	Tags ports.TagStore // optional; if non-nil, taggings are cleared on delete
+	Docs      ports.DocumentStore
+	Aggregate ports.DocumentAggregateStore
+	Tags      ports.TagStore // legacy fallback for callers without Aggregate
 }
 
 func (uc DeleteDocument) Execute(ctx context.Context, ownerID, id string) error {
+	if uc.Aggregate != nil {
+		return uc.Aggregate.DeleteDocumentAggregate(ctx, ownerID, id)
+	}
 	if err := uc.Docs.Delete(ctx, ownerID, id); err != nil {
 		return err
 	}

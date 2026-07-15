@@ -13,10 +13,11 @@ import (
 // deliberately preserves the loaded type/path (only title/body/tags change
 // here); Docs.Update itself can persist type/path for maintenance ops.
 type UpdateDocument struct {
-	Docs     ports.DocumentStore
-	Tags     ports.TagStore          // optional until B3 wires the composition root
-	Clock    ports.Clock
-	Notifier ports.DocChangeNotifier // optional; nil → no notification
+	Docs      ports.DocumentStore
+	Aggregate ports.DocumentAggregateStore
+	Tags      ports.TagStore // legacy fallback for callers without Aggregate
+	Clock     ports.Clock
+	Notifier  ports.DocChangeNotifier // optional; nil → no notification
 }
 
 type UpdateDocumentInput struct {
@@ -26,23 +27,42 @@ type UpdateDocumentInput struct {
 }
 
 func (uc UpdateDocument) Execute(ctx context.Context, ownerID, id string, in UpdateDocumentInput) (domain.Document, error) {
+	mutate := func(cur domain.Document) (domain.Document, ports.DocumentAggregateChanges, error) {
+		cur.Title = domain.StripHighlightSentinels(in.Title)
+		cur.Body = domain.StripHighlightSentinels(in.Body)
+		_, bodyStart := domain.ParseFrontmatter(cur.Body)
+		cur.UpdatedAt = uc.Clock.Now()
+		a := actor.FromContext(ctx)
+		cur.UpdatedByKind, cur.UpdatedByRef = string(a.Kind), a.Ref
+		return cur, ports.DocumentAggregateChanges{
+			Links: domain.WikilinkTargets(cur.Body[bodyStart:]),
+			Tags:  in.Tags,
+		}, nil
+	}
+	if uc.Aggregate != nil {
+		updated, err := uc.Aggregate.UpdateDocumentAggregate(ctx, ownerID, id, mutate)
+		if err != nil {
+			return domain.Document{}, err
+		}
+		if uc.Notifier != nil {
+			uc.Notifier.DocumentChanged()
+		}
+		return updated, nil
+	}
 	cur, err := uc.Docs.Get(ctx, ownerID, id)
 	if err != nil {
 		return domain.Document{}, err
 	}
-	cur.Title, cur.Body = domain.StripHighlightSentinels(in.Title), domain.StripHighlightSentinels(in.Body)
-	_, bodyStart := domain.ParseFrontmatter(in.Body)
-	cur.UpdatedAt = uc.Clock.Now()
-	a := actor.FromContext(ctx)
-	cur.UpdatedByKind, cur.UpdatedByRef = string(a.Kind), a.Ref
+	cur, changes, err := mutate(cur)
+	if err != nil {
+		return domain.Document{}, err
+	}
 	updated, err := uc.Docs.Update(ctx, cur)
 	if err != nil {
 		return domain.Document{}, err
 	}
-	// Link extraction is deliberately non-atomic: the update is already
-	// persisted above. A ReplaceLinks failure surfaces as an error even though
-	// the update succeeded; a subsequent save heals the link index.
-	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, domain.WikilinkTargets(updated.Body[bodyStart:])); err != nil {
+	// Legacy fallback for isolated callers that have not wired Aggregate.
+	if err := uc.Docs.ReplaceLinks(ctx, updated.ID, ownerID, changes.Links); err != nil {
 		return domain.Document{}, err
 	}
 	if uc.Tags != nil && in.Tags != nil {

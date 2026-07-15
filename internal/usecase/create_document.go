@@ -12,12 +12,13 @@ import (
 // CreateDocument stamps id+timestamps, derives the daily path from the date,
 // validates, and persists an owner-scoped document.
 type CreateDocument struct {
-	Docs     ports.DocumentStore
-	Nodes    ports.NodeStore
-	Tags     ports.TagStore // optional until B3 wires the composition root
-	IDs      ports.IDGen
-	Clock    ports.Clock
-	Notifier ports.DocChangeNotifier // optional; nil → no notification
+	Docs      ports.DocumentStore
+	Aggregate ports.DocumentAggregateStore
+	Nodes     ports.NodeStore
+	Tags      ports.TagStore // legacy fallback for callers without Aggregate
+	IDs       ports.IDGen
+	Clock     ports.Clock
+	Notifier  ports.DocChangeNotifier // optional; nil → no notification
 }
 
 // CreateDocumentInput is the caller-supplied shape (the use case fills the rest).
@@ -56,14 +57,27 @@ func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateD
 		return domain.Document{}, err
 	}
 	_, bodyStart := domain.ParseFrontmatter(d.Body)
+	links := domain.WikilinkTargets(d.Body[bodyStart:])
+	if uc.Aggregate != nil {
+		tags := eff
+		created, err := uc.Aggregate.CreateDocumentAggregate(ctx, d, ports.DocumentAggregateChanges{
+			Links: links,
+			Tags:  &tags,
+		})
+		if err != nil {
+			return domain.Document{}, err
+		}
+		if uc.Notifier != nil {
+			uc.Notifier.DocumentChanged()
+		}
+		return created, nil
+	}
 	created, err := uc.Docs.Create(ctx, d)
 	if err != nil {
 		return domain.Document{}, err
 	}
-	// Link extraction is deliberately non-atomic: the document is already
-	// persisted above. A ReplaceLinks failure surfaces as an error even though
-	// the create succeeded; a subsequent save heals the link index.
-	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, domain.WikilinkTargets(created.Body[bodyStart:])); err != nil {
+	// Legacy fallback for isolated callers that have not wired Aggregate.
+	if err := uc.Docs.ReplaceLinks(ctx, created.ID, ownerID, links); err != nil {
 		return domain.Document{}, err
 	}
 	if uc.Tags != nil {
