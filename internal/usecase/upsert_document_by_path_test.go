@@ -7,9 +7,26 @@ import (
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+func TestUpsertDocumentByPath_RejectsForeignNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(ctx, domain.Node{ID: "n2", OwnerID: "u2", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nodeID := "n2"
+	uc := usecase.UpsertDocumentByPath{Docs: docs, Tags: testutil.NewFakeTagStore(), Nodes: nodes}
+	_, _, err := uc.Execute(ctx, "u1", usecase.UpsertByPathInput{Type: domain.DocProject, NodeID: &nodeID, Path: "projects/foreign", Title: "T", Body: "B"})
+	if !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ErrNodeNotFound, got %v", err)
+	}
+}
 
 func TestUpsertDocumentByPath_Idempotent(t *testing.T) {
 	store := testutil.NewFakeDocumentStore()

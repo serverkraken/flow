@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -25,8 +24,7 @@ type createDocReq struct {
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req createDocReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
 		return
 	}
 	doc, err := s.CreateDocument.Execute(r.Context(), u.ID, usecase.CreateDocumentInput{
@@ -42,6 +40,8 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid document", http.StatusBadRequest)
 	case errors.Is(err, ports.ErrDocumentExists):
 		http.Error(w, "path already exists", http.StatusConflict)
+	case errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "project not found", http.StatusNotFound)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
@@ -106,8 +106,7 @@ type updateDocReq struct {
 func (s *Server) handleUpdateDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req updateDocReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
 		return
 	}
 	doc, err := s.UpdateDocument.Execute(r.Context(), u.ID, r.PathValue("id"), usecase.UpdateDocumentInput{
@@ -193,8 +192,7 @@ type importDocReq struct {
 func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req importDocReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
 		return
 	}
 	doc, err := s.ImportDocument.Execute(r.Context(), u.ID, usecase.ImportDocumentInput{
@@ -206,6 +204,8 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid document", http.StatusBadRequest)
 	case errors.Is(err, ports.ErrDocumentExists):
 		http.Error(w, "path already exists", http.StatusConflict)
+	case errors.Is(err, ports.ErrNodeNotFound):
+		http.Error(w, "project not found", http.StatusNotFound)
 	case err != nil:
 		http.Error(w, "server error", http.StatusInternalServerError)
 	default:
@@ -219,11 +219,11 @@ func (s *Server) handleImportDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 type upsertByPathReq struct {
-	Type   string   `json:"type"`
-	NodeID *string  `json:"projectId,omitempty"`
-	Path   string   `json:"path"`
-	Title  string   `json:"title"`
-	Body   string   `json:"body"`
+	Type     string   `json:"type"`
+	NodeID   *string  `json:"projectId,omitempty"`
+	Path     string   `json:"path"`
+	Title    string   `json:"title"`
+	Body     string   `json:"body"`
 	Tags     []string `json:"tags,omitempty"`
 	Pinned   bool     `json:"pinned"`
 	Archived bool     `json:"archived"`
@@ -232,8 +232,7 @@ type upsertByPathReq struct {
 func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req upsertByPathReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxDocumentJSONBodyBytes, false) {
 		return
 	}
 	id, updated, err := s.UpsertDocumentByPath.Execute(r.Context(), u.ID, usecase.UpsertByPathInput{
@@ -243,6 +242,10 @@ func (s *Server) handleUpsertByPath(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidDocument) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if errors.Is(err, ports.ErrNodeNotFound) {
+			http.Error(w, "project not found", http.StatusNotFound)
 			return
 		}
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -259,8 +262,7 @@ type archiveReq struct {
 func (s *Server) handleArchiveDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req archiveReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	id := r.PathValue("id")
@@ -286,8 +288,7 @@ type contextModeReq struct {
 func (s *Server) handleSetContextMode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req contextModeReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	id := r.PathValue("id")
@@ -320,8 +321,7 @@ func (s *Server) handleListArchived(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handlePinDocument(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req pinReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	id := r.PathValue("id")

@@ -15,7 +15,8 @@ import (
 // and extracts wikilinks.
 type ImportDocument struct {
 	Docs     ports.DocumentStore
-	Tags     ports.TagStore          // optional until B3 wires the composition root
+	Nodes    ports.NodeStore
+	Tags     ports.TagStore // optional until B3 wires the composition root
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Notifier ports.DocChangeNotifier // optional; nil → no notification
@@ -33,15 +34,18 @@ type ImportDocumentInput struct {
 }
 
 func (uc ImportDocument) Execute(ctx context.Context, ownerID string, in ImportDocumentInput) (domain.Document, error) {
+	if err := requireOwnedNode(ctx, uc.Nodes, ownerID, in.NodeID); err != nil {
+		return domain.Document{}, err
+	}
 	now := uc.Clock.Now()
 	eff := in.Tags
 	d := domain.Document{
 		ID: uc.IDs.NewID(), OwnerID: ownerID, NodeID: in.NodeID, Type: in.Type,
-		Path:      in.Path,
-		Title:     domain.StripHighlightSentinels(in.Title),
-		Body:      domain.StripHighlightSentinels(in.Body),
-		Tags:      domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
-		Date:      in.Date, CreatedAt: now, UpdatedAt: now,
+		Path:  in.Path,
+		Title: domain.StripHighlightSentinels(in.Title),
+		Body:  domain.StripHighlightSentinels(in.Body),
+		Tags:  domain.NormalizeTags(eff), // fake-store filter field only; pgstore reads tags from taggings (column dropped)
+		Date:  in.Date, CreatedAt: now, UpdatedAt: now,
 	}
 	_, bodyStart := domain.ParseFrontmatter(d.Body)
 	if err := d.Validate(); err != nil {

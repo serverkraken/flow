@@ -143,6 +143,40 @@ func TestLiveStart_StillWorks(t *testing.T) {
 	}
 }
 
+func TestStartSession_RejectsMalformedJSON(t *testing.T) {
+	t.Parallel()
+	srv, sessions := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/v1/sessions", bytes.NewBufferString(`{"note":`))
+	req.Header.Set("Authorization", "Bearer x")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", res.StatusCode)
+	}
+	if got, _ := sessions.ListRange(context.Background(), "id-1", time.Time{}, time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC)); len(got) != 0 {
+		t.Fatalf("malformed request created sessions: %+v", got)
+	}
+}
+
+func TestStartSession_RejectsUnknownJSONField(t *testing.T) {
+	t.Parallel()
+	srv, _ := newWorktimeServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+
+	res := authPost(t, ts.URL+"/api/v1/sessions", map[string]any{"notte": "typo"})
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", res.StatusCode)
+	}
+}
+
 func TestHandleListSessions_Pagination(t *testing.T) {
 	srv, _ := newWorktimeServer(t)
 	ts := httptest.NewServer(srv.Routes())
@@ -271,9 +305,9 @@ func newReassignServer(t *testing.T) (*httpserver.Server, *testutil.FakeSessionS
 		ListSessions:      usecase.ListSessions{Sessions: sessions, Clock: clk},
 		AddSession:        usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk},
 		ListSessionsRange: usecase.ListSessionsRange{Sessions: sessions},
-		EditSession:       usecase.EditSession{Sessions: sessions},
+		EditSession:       usecase.EditSession{Sessions: sessions, Nodes: ps},
 		ListSessionsPage:  usecase.ListSessionsPage{Sessions: sessions},
-		BulkAssignNode: usecase.BulkAssignNode{Sessions: sessions, Nodes: ps},
+		BulkAssignNode:    usecase.BulkAssignNode{Sessions: sessions, Nodes: ps},
 	}
 	return srv, sessions, ps
 }

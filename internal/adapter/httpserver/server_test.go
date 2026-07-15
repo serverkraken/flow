@@ -73,17 +73,17 @@ func TestSessionStartStopRoutes(t *testing.T) {
 	users := testutil.NewFakeUserStore()
 	bus := sse.NewBus()
 	srv := &httpserver.Server{
-		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           bus,
-		Emitter:       sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
-		Clock:         clk,
-		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
-		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:  usecase.ListNodes{Nodes: ps},
-		GetNode:    usecase.GetNode{Nodes: ps},
+		Verifier:     testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:       usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:          bus,
+		Emitter:      sse.NewEmitter(bus, &fakeActivityStore{}, ids, clk),
+		Clock:        clk,
+		StartSession: usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:  usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
+		ListSessions: usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateNode:   usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:    usecase.ListNodes{Nodes: ps},
+		GetNode:      usecase.GetNode{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -151,10 +151,10 @@ func TestSessionEditDeleteRoutes(t *testing.T) {
 		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk, Tags: tags},
 		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
 		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:  usecase.ListNodes{Nodes: ps},
-		GetNode:    usecase.GetNode{Nodes: ps},
-		EditSession:   usecase.EditSession{Sessions: ss, Tags: tags},
+		CreateNode:    usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:     usecase.ListNodes{Nodes: ps},
+		GetNode:       usecase.GetNode{Nodes: ps},
+		EditSession:   usecase.EditSession{Sessions: ss, Nodes: ps, Tags: tags},
 		DeleteSession: usecase.DeleteSession{Sessions: ss},
 	}
 	ts := httptest.NewServer(srv.Routes())
@@ -229,15 +229,15 @@ func TestListSessionsAndProjects(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	users := testutil.NewFakeUserStore()
 	srv := &httpserver.Server{
-		Verifier:      testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
-		Ensure:        usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:           sse.NewBus(),
-		Clock:         clk,
-		StartSession:  usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:   usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
-		ListSessions:  usecase.ListSessions{Sessions: ss, Clock: clk},
-		CreateNode: usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:  usecase.ListNodes{Nodes: ps},
+		Verifier:     testutil.FakeVerifier{ID: ports.Identity{Subject: "sub-1", Username: "msoent"}},
+		Ensure:       usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:          sse.NewBus(),
+		Clock:        clk,
+		StartSession: usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:  usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
+		ListSessions: usecase.ListSessions{Sessions: ss, Clock: clk},
+		CreateNode:   usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:    usecase.ListNodes{Nodes: ps},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -291,20 +291,20 @@ func newWebSrv(t *testing.T) (*httptest.Server, *websession.Codec, string) {
 	codec := websession.NewCodec("0123456789abcdef0123456789abcdef", time.Hour)
 	webBus := sse.NewBus()
 	srv := &httpserver.Server{
-		Ensure:              usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
-		Bus:                 webBus,
-		Emitter:             sse.NewEmitter(webBus, &fakeActivityStore{}, ids, clk),
-		Clock:               clk,
-		Users:               users,
-		Session:             codec,
-		OIDCAuth:            fakeAuth{url: "https://id/authorize?state="},
-		StartSession:        usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
-		StopSession:         usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
-		ListSessions:        usecase.ListSessions{Sessions: ss, Clock: clk},
-		ListSessionsRange:   usecase.ListSessionsRange{Sessions: ss},
-		CreateNode:       usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
-		ListNodes:        usecase.ListNodes{Nodes: ps},
-		ListNodeBindings: usecase.ListNodeBindings{Bindings: bs},
+		Ensure:            usecase.EnsureUser{Users: users, IDs: ids, Allow: func(ports.Identity) bool { return true }},
+		Bus:               webBus,
+		Emitter:           sse.NewEmitter(webBus, &fakeActivityStore{}, ids, clk),
+		Clock:             clk,
+		Users:             users,
+		Session:           codec,
+		OIDCAuth:          fakeAuth{url: "https://id/authorize?state="},
+		StartSession:      usecase.StartSession{Sessions: ss, IDs: ids, Clock: clk},
+		StopSession:       usecase.StopSession{Sessions: ss, Nodes: ps, Clock: clk},
+		ListSessions:      usecase.ListSessions{Sessions: ss, Clock: clk},
+		ListSessionsRange: usecase.ListSessionsRange{Sessions: ss},
+		CreateNode:        usecase.CreateNode{Nodes: ps, IDs: ids, Clock: clk},
+		ListNodes:         usecase.ListNodes{Nodes: ps},
+		ListNodeBindings:  usecase.ListNodeBindings{Bindings: bs},
 	}
 	ts := httptest.NewServer(srv.Routes())
 	t.Cleanup(ts.Close)

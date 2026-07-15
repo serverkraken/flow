@@ -12,7 +12,8 @@ import (
 // validates, and persists an owner-scoped document.
 type CreateDocument struct {
 	Docs     ports.DocumentStore
-	Tags     ports.TagStore          // optional until B3 wires the composition root
+	Nodes    ports.NodeStore
+	Tags     ports.TagStore // optional until B3 wires the composition root
 	IDs      ports.IDGen
 	Clock    ports.Clock
 	Notifier ports.DocChangeNotifier // optional; nil → no notification
@@ -29,6 +30,9 @@ type CreateDocumentInput struct {
 }
 
 func (uc CreateDocument) Execute(ctx context.Context, ownerID string, in CreateDocumentInput) (domain.Document, error) {
+	if err := requireOwnedNode(ctx, uc.Nodes, ownerID, in.NodeID); err != nil {
+		return domain.Document{}, err
+	}
 	now := uc.Clock.Now()
 	eff := in.Tags
 	a := actor.FromContext(ctx)

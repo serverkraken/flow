@@ -24,3 +24,12 @@ func TestIsUnauthorized(t *testing.T) {
 		t.Error("nil is not unauthorized")
 	}
 }
+
+func TestIsNotFound(t *testing.T) {
+	if !IsNotFound(fmt.Errorf("wrapped: %w", &APIError{StatusCode: http.StatusNotFound})) {
+		t.Fatal("wrapped 404 should be recognized")
+	}
+	if IsNotFound(&APIError{StatusCode: http.StatusUnauthorized}) || IsNotFound(nil) {
+		t.Fatal("non-404 errors must not be recognized")
+	}
+}

@@ -12,16 +12,17 @@ import (
 // Tags is tri-state: nil = leave taggings untouched; &[] = clear; &[v...] = replace.
 type EditSessionInput struct {
 	NodeID *string
-	Tags      *[]string
-	Note      string
-	Start     time.Time
-	Stop      *time.Time
+	Tags   *[]string
+	Note   string
+	Start  time.Time
+	Stop   *time.Time
 }
 
 // EditSession overwrites a session's project/tags/note/times. Owner-scoped via
 // the store. A set Stop must be strictly after Start.
 type EditSession struct {
 	Sessions ports.SessionStore
+	Nodes    ports.NodeStore
 	// Tags re-sets the session's tags in the taggings junction after the row is
 	// updated. Nil-safe: when unwired, tags are left untouched.
 	Tags ports.TagStore
@@ -34,6 +35,9 @@ func (uc EditSession) Execute(ctx context.Context, ownerID, id string, in EditSe
 	// Existence check before overlap: a non-existent or foreign-owned session
 	// must return ErrSessionNotFound (→ 404), not ErrOverlap (→ 409).
 	if _, err := uc.Sessions.Get(ctx, ownerID, id); err != nil {
+		return domain.WorkSession{}, err
+	}
+	if err := requireBookable(ctx, uc.Nodes, ownerID, in.NodeID); err != nil {
 		return domain.WorkSession{}, err
 	}
 	dayStart := time.Date(in.Start.Year(), in.Start.Month(), in.Start.Day(), 0, 0, 0, 0, in.Start.Location())

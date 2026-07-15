@@ -1,10 +1,11 @@
 package httpserver
 
 import (
-	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 )
 
 type setTagsReq struct {
@@ -13,8 +14,12 @@ type setTagsReq struct {
 
 func (s *Server) handleGetNodeTags(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	tags, err := s.GetTags.Execute(r.Context(), u.ID, domain.TaggableNode, r.PathValue("id"))
+	tags, err := s.NodeTags.Get(r.Context(), u.ID, r.PathValue("id"))
 	if err != nil {
+		if errors.Is(err, ports.ErrNodeNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
@@ -27,13 +32,16 @@ func (s *Server) handleGetNodeTags(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSetNodeTags(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req setTagsReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	id := r.PathValue("id")
-	tags, err := s.SetTags.Execute(r.Context(), u.ID, domain.TaggableNode, id, req.Tags)
+	tags, err := s.NodeTags.Set(r.Context(), u.ID, id, req.Tags)
 	if err != nil {
+		if errors.Is(err, ports.ErrNodeNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}

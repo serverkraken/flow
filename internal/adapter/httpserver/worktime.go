@@ -30,7 +30,9 @@ type startReq struct {
 func (s *Server) handleStartSession(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req startReq
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, true) {
+		return
+	}
 
 	// Nachbuchen: both timestamps present → create a complete past session.
 	if req.Start != nil || req.Stop != nil {
@@ -92,7 +94,9 @@ type stopReq struct {
 func (s *Server) handleStopSession(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req stopReq
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, true) {
+		return
+	}
 	sess, err := s.StopSession.Execute(r.Context(), u.ID, r.PathValue("id"), req.NodeID)
 	switch {
 	case errors.Is(err, domain.ErrProjectRequired):
@@ -189,7 +193,10 @@ type createNodeReq struct {
 func (s *Server) handleCreateNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req createNodeReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
+		return
+	}
+	if req.Name == "" {
 		http.Error(w, "name required", http.StatusBadRequest)
 		return
 	}
@@ -321,8 +328,7 @@ type updateProjReq struct {
 func (s *Server) handleUpdateNode(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req updateProjReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	in := usecase.UpdateNodeInput{
@@ -361,8 +367,7 @@ type editSessionReq struct {
 func (s *Server) handleEditSession(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req editSessionReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	if req.Start.IsZero() {
@@ -415,8 +420,7 @@ type reassignReq struct {
 func (s *Server) handleReassignSessions(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req reassignReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	n, err := s.BulkAssignNode.Execute(r.Context(), u.ID, req.IDs, req.NodeID)
@@ -445,8 +449,7 @@ type bulkDeleteReq struct {
 func (s *Server) handleBulkDeleteSessions(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
 	var req bulkDeleteReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !decodeJSONBody(w, r, &req, maxJSONBodyBytes, false) {
 		return
 	}
 	n, err := s.BulkDeleteSessions.Execute(r.Context(), u.ID, req.IDs)

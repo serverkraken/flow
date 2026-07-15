@@ -43,6 +43,34 @@ func TestEditSession(t *testing.T) {
 	}
 }
 
+func TestEditSession_RejectsForeignAndNonBookableNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	sessions := testutil.NewFakeSessionStore()
+	nodes := testutil.NewFakeNodeStore()
+	start := time.Date(2026, 6, 14, 9, 0, 0, 0, time.UTC)
+	stop := start.Add(time.Hour)
+	if _, err := sessions.Create(ctx, domain.WorkSession{ID: "s1", OwnerID: "u1", Start: start, Stop: &stop}); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	foreign := "foreign"
+	if _, err := nodes.Create(ctx, domain.Node{ID: foreign, OwnerID: "u2", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed foreign node: %v", err)
+	}
+	area := "area"
+	if _, err := nodes.Create(ctx, domain.Node{ID: area, OwnerID: "u1", Kind: domain.KindBranch, Name: "Area", Slug: "area", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed area: %v", err)
+	}
+	uc := usecase.EditSession{Sessions: sessions, Nodes: nodes}
+
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{NodeID: &foreign, Start: start, Stop: &stop}); !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("foreign node: want ErrNodeNotFound, got %v", err)
+	}
+	if _, err := uc.Execute(ctx, "u1", "s1", usecase.EditSessionInput{NodeID: &area, Start: start, Stop: &stop}); !errors.Is(err, domain.ErrInvalidNode) {
+		t.Fatalf("non-bookable node: want ErrInvalidNode, got %v", err)
+	}
+}
+
 func TestEditSession_RejectsOverlap(t *testing.T) {
 	ctx := context.Background()
 	ss := testutil.NewFakeSessionStore()

@@ -2,15 +2,36 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/serverkraken/flow/internal/actor"
 	"github.com/serverkraken/flow/internal/domain"
+	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 	"github.com/serverkraken/flow/internal/usecase"
 )
+
+func TestCreateDocument_RejectsForeignNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(ctx, domain.Node{ID: "n2", OwnerID: "u2", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nodeID := "n2"
+	uc := usecase.CreateDocument{Docs: docs, Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Now()}}
+	_, err := uc.Execute(ctx, "u1", usecase.CreateDocumentInput{Type: domain.DocProject, NodeID: &nodeID, Path: "projects/foreign", Title: "T", Body: "B"})
+	if !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ErrNodeNotFound, got %v", err)
+	}
+	if got, _ := docs.List(ctx, "u1", nil); len(got) != 0 {
+		t.Fatalf("foreign project document was persisted: %+v", got)
+	}
+}
 
 func TestCreateDocument_ExplicitTagsParam(t *testing.T) {
 	t.Parallel()

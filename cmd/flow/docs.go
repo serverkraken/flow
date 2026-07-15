@@ -1,15 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/serverkraken/flow/internal/adapter/apiclient"
 	"github.com/serverkraken/flow/internal/adapter/editor"
 	"github.com/serverkraken/flow/internal/adapter/opener"
 	"github.com/serverkraken/flow/internal/tui"
 	"github.com/serverkraken/flow/internal/tui/theme"
+	"github.com/serverkraken/flow/internal/usecase"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +39,53 @@ func docsCmd() *cobra.Command {
 	}
 	cmd.AddCommand(docsImportCmd())
 	cmd.AddCommand(docsStripFrontmatterCmd())
+	cmd.AddCommand(docsAuditCmd())
+	return cmd
+}
+
+func docsAuditCmd() *cobra.Command {
+	var jsonOutput bool
+	cmd := &cobra.Command{
+		Use:   "audit",
+		Short: "Audit document metadata without changing data",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			c, err := clientFromStore(cmd.Context())
+			if err != nil {
+				return err
+			}
+			report, err := c.AuditDocuments(cmd.Context())
+			if apiclient.IsNotFound(err) {
+				active, listErr := c.ListDocuments(cmd.Context())
+				if listErr != nil {
+					return listErr
+				}
+				archived, listErr := c.ListArchived(cmd.Context())
+				if listErr != nil {
+					return listErr
+				}
+				nodes, listErr := c.ListNodes(cmd.Context())
+				if listErr != nil {
+					return listErr
+				}
+				report = usecase.BuildDocumentAuditReport(active, archived, nodes)
+			} else if err != nil {
+				return err
+			}
+			if jsonOutput {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(report)
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "scanned %d documents (%d active, %d archived), found %d issues\n",
+				report.Scanned, report.Active, report.Archived, len(report.Issues))
+			for _, issue := range report.Issues {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s  %s  %s (%s)\n",
+					issue.Severity, issue.Code, issue.Path, issue.Detail, issue.DocumentID)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "print the complete report as JSON")
 	return cmd
 }
 

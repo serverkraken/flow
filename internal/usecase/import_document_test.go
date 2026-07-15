@@ -44,9 +44,14 @@ func TestImportDocument_DailyKeepsHistoricalDateAndPath(t *testing.T) {
 func TestImportDocument_ProjectAndTags(t *testing.T) {
 	docs := testutil.NewFakeDocumentStore()
 	tags := testutil.NewFakeTagStore()
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(context.Background(), domain.Node{ID: "proj-1", OwnerID: "owner-1", Kind: domain.KindVorhaben, Name: "Project", Slug: "project", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
 	uc := usecase.ImportDocument{
 		Docs:  docs,
 		Tags:  tags,
+		Nodes: nodes,
 		IDs:   &testutil.FakeIDGen{},
 		Clock: testutil.FakeClock{T: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC)},
 	}
@@ -64,6 +69,23 @@ func TestImportDocument_ProjectAndTags(t *testing.T) {
 	}
 	if len(got.Tags) != 2 {
 		t.Fatalf("tags not set correctly: %v", got.Tags)
+	}
+}
+
+func TestImportDocument_RejectsForeignNode(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	docs := testutil.NewFakeDocumentStore()
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(ctx, domain.Node{ID: "n2", OwnerID: "u2", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	nodeID := "n2"
+	uc := newImport(docs)
+	uc.Nodes = nodes
+	_, err := uc.Execute(ctx, "u1", usecase.ImportDocumentInput{Type: domain.DocProject, NodeID: &nodeID, Path: "projects/foreign", Title: "T", Body: "B"})
+	if !errors.Is(err, ports.ErrNodeNotFound) {
+		t.Fatalf("want ErrNodeNotFound, got %v", err)
 	}
 }
 

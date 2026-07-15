@@ -53,8 +53,8 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		Emitter:              emitter,
 		Clock:                clk,
 		Stats:                stats,
-		CreateDocument:       usecase.CreateDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
-		ImportDocument:       usecase.ImportDocument{Docs: docs, Tags: tags, IDs: ids, Clock: clk},
+		CreateDocument:       usecase.CreateDocument{Docs: docs, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
+		ImportDocument:       usecase.ImportDocument{Docs: docs, Nodes: nodes, Tags: tags, IDs: ids, Clock: clk},
 		GetDocument:          usecase.GetDocument{Docs: docs},
 		ListDocuments:        usecase.ListDocuments{Docs: docs},
 		UpdateDocument:       usecase.UpdateDocument{Docs: docs, Tags: tags, Clock: clk},
@@ -66,12 +66,13 @@ func newDocServer(t *testing.T) (*httpserver.Server, *sse.Bus) {
 		SetContextMode:       usecase.SetContextMode{Docs: docs},
 		SetArchived:          usecase.SetArchived{Docs: docs},
 		ListArchived:         usecase.ListArchived{Docs: docs},
-		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Tags: tags},
+		UpsertDocumentByPath: usecase.UpsertDocumentByPath{Docs: docs, Nodes: nodes, Tags: tags},
+		AuditDocuments:       usecase.AuditDocuments{Docs: docs, Nodes: nodes},
 		// Session usecases wired with the shared FakeTagStore so session
 		// multi-tags round-trip through the taggings junction (B2 D1).
 		StartSession: usecase.StartSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
 		AddSession:   usecase.AddSession{Sessions: sessions, IDs: ids, Clock: clk, Tags: tags},
-		EditSession:  usecase.EditSession{Sessions: sessions, Tags: tags},
+		EditSession:  usecase.EditSession{Sessions: sessions, Nodes: nodes, Tags: tags},
 		ComposeContext: usecase.ComposeContext{
 			Resolve: usecase.ResolveNode{Bindings: binds, Nodes: nodes},
 			Nodes:   nodes, Docs: docs, Tags: tags,
@@ -159,6 +160,21 @@ func TestHandleCreateDocument_BadType(t *testing.T) {
 	_ = res.Body.Close()
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("want 400 for invalid type, got %d", res.StatusCode)
+	}
+}
+
+func TestHandleCreateDocument_RejectsOversizedJSON(t *testing.T) {
+	t.Parallel()
+	srv, _ := newDocServer(t)
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+
+	body := `{"type":"free","path":"large","title":"T","body":"` + strings.Repeat("x", 3*1024*1024) + `"}`
+	res := doDoc(t, ts, http.MethodPost, "/api/v1/documents", body)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", res.StatusCode)
 	}
 }
 

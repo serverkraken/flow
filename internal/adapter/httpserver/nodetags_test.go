@@ -1,6 +1,7 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,11 @@ func TestNodeTags_SetThenGet(t *testing.T) {
 	t.Parallel()
 	srv, _ := newDocServer(t)
 	tags := testutil.NewFakeTagStore()
-	srv.SetTags = usecase.SetTags{Tags: tags}
-	srv.GetTags = usecase.GetTags{Tags: tags}
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(context.Background(), domain.Node{ID: "n1", OwnerID: "id-1", Kind: domain.KindEngagement, Name: "Node", Slug: "node", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	srv.NodeTags = usecase.NodeTags{Nodes: nodes, Tags: tags}
 
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -42,8 +46,8 @@ func TestNodeTags_GetEmpty(t *testing.T) {
 	t.Parallel()
 	srv, _ := newDocServer(t)
 	tags := testutil.NewFakeTagStore()
-	srv.SetTags = usecase.SetTags{Tags: tags}
-	srv.GetTags = usecase.GetTags{Tags: tags}
+	nodes := testutil.NewFakeNodeStore()
+	srv.NodeTags = usecase.NodeTags{Nodes: nodes, Tags: tags}
 
 	ts := httptest.NewServer(srv.Routes())
 	defer ts.Close()
@@ -51,15 +55,35 @@ func TestNodeTags_GetEmpty(t *testing.T) {
 
 	res := doDoc(t, ts, "GET", "/api/v1/nodes/n-unknown/tags", "")
 	defer func() { _ = res.Body.Close() }()
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("GET empty want 200, got %d", res.StatusCode)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET unknown want 404, got %d", res.StatusCode)
 	}
-	var got []domain.Tag
-	_ = json.NewDecoder(res.Body).Decode(&got)
-	if got == nil {
-		t.Fatal("want non-nil empty slice, got nil")
+}
+
+func TestNodeTags_SetForeignNodeReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	srv, _ := newDocServer(t)
+	tags := testutil.NewFakeTagStore()
+	nodes := testutil.NewFakeNodeStore()
+	if _, err := nodes.Create(context.Background(), domain.Node{ID: "foreign", OwnerID: "other", Kind: domain.KindEngagement, Name: "Foreign", Slug: "foreign", Status: domain.NodeActive}); err != nil {
+		t.Fatalf("seed node: %v", err)
+	}
+	srv.NodeTags = usecase.NodeTags{Nodes: nodes, Tags: tags}
+
+	ts := httptest.NewServer(srv.Routes())
+	defer ts.Close()
+	primeUser(t, ts.URL)
+
+	res := doDoc(t, ts, "PUT", "/api/v1/nodes/foreign/tags", `{"tags":["secret"]}`)
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("PUT foreign want 404, got %d", res.StatusCode)
+	}
+	got, err := tags.TagsFor(context.Background(), "id-1", domain.TaggableNode, "foreign")
+	if err != nil {
+		t.Fatal(err)
 	}
 	if len(got) != 0 {
-		t.Fatalf("want 0 tags for unknown node, got %+v", got)
+		t.Fatalf("tags persisted for foreign node: %+v", got)
 	}
 }

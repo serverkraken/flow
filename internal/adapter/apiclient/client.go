@@ -165,6 +165,12 @@ func IsUnauthorized(err error) bool {
 	return errors.As(err, &ae) && ae.StatusCode == http.StatusUnauthorized
 }
 
+// IsNotFound reports whether err is an APIError with HTTP 404.
+func IsNotFound(err error) bool {
+	var ae *APIError
+	return errors.As(err, &ae) && ae.StatusCode == http.StatusNotFound
+}
+
 func (c *Client) StartSession(ctx context.Context, nodeID *string, tags []string, note string) (domain.WorkSession, error) {
 	var s domain.WorkSession
 	err := c.do(ctx, http.MethodPost, "/api/v1/sessions",

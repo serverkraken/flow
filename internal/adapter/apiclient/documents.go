@@ -151,3 +151,11 @@ func (c *Client) StripFrontmatter(ctx context.Context, dryRun bool) (domain.Stri
 	err := c.do(ctx, http.MethodPost, path, nil, &out)
 	return out, err
 }
+
+// AuditDocuments returns a read-only metadata integrity report for all active
+// and archived documents owned by the caller.
+func (c *Client) AuditDocuments(ctx context.Context) (domain.DocumentAuditReport, error) {
+	var out domain.DocumentAuditReport
+	err := c.do(ctx, http.MethodGet, "/api/v1/maintenance/audit-documents", nil, &out)
+	return out, err
+}

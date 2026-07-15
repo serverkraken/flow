@@ -29,11 +29,15 @@ type UpsertByPathInput struct {
 // behind `flow context migrate memories`.
 type UpsertDocumentByPath struct {
 	Docs     ports.DocumentStore
+	Nodes    ports.NodeStore
 	Tags     ports.TagStore
 	Notifier ports.DocChangeNotifier // optional; nil -> no notification
 }
 
 func (uc UpsertDocumentByPath) Execute(ctx context.Context, ownerID string, in UpsertByPathInput) (string, time.Time, error) {
+	if err := requireOwnedNode(ctx, uc.Nodes, ownerID, in.NodeID); err != nil {
+		return "", time.Time{}, err
+	}
 	// Validate via a domain.Document (type set, slug form, project rule).
 	if err := (domain.Document{Type: in.Type, NodeID: in.NodeID, Path: in.Path, Title: in.Title, Body: in.Body}).Validate(); err != nil {
 		return "", time.Time{}, err
