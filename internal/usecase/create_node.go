@@ -30,6 +30,14 @@ type CreateNode struct {
 }
 
 func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeInput) (domain.Node, error) {
+	var upstreamSlug string
+	if in.UpstreamGit != "" {
+		var ok bool
+		upstreamSlug, ok = domain.NormalizeRemoteSlug(in.UpstreamGit)
+		if !ok {
+			return domain.Node{}, domain.ErrInvalidUpstream
+		}
+	}
 	slug := in.Slug
 	if slug == "" {
 		slug = Slugify(in.Name)
@@ -53,6 +61,9 @@ func (uc CreateNode) Execute(ctx context.Context, ownerID string, in CreateNodeI
 	}
 	n.Kind = in.Kind
 	n.ParentID = in.ParentID
+	if n.Kind == domain.KindRepo {
+		n.OriginSlug = upstreamSlug
+	}
 	n.Color, n.Glyph, n.Icon = in.Color, in.Glyph, in.Icon
 	n.CountsTowardTarget = in.CountsTowardTarget
 	n.Description, n.UpstreamGit = in.Description, in.UpstreamGit

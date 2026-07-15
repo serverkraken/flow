@@ -32,9 +32,13 @@ func fakeContextBackend(t *testing.T, capturedNode *string, capturedBody *string
 	})
 	mux.HandleFunc("PUT /api/v1/context/active", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
+			Node string `json:"node"`
 			Body string `json:"body"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
+		if capturedNode != nil {
+			*capturedNode = body.Node
+		}
 		if capturedBody != nil {
 			*capturedBody = body.Body
 		}
@@ -51,6 +55,20 @@ func authedContextServer(t *testing.T, capturedNode *string, capturedBody *strin
 	proj := domain.Node{ID: "p1", Name: "Alpha", Slug: "alpha"}
 	mgr, h := managerFor(t, client, proj)
 	_ = mgr
+	h.listProjects = func(context.Context) ([]domain.Node, error) {
+		return []domain.Node{
+			proj,
+			{ID: "p2", Name: "Beta", Slug: "beta"},
+			{
+				ID:          "p-flow",
+				Name:        "Flow",
+				Slug:        "github-com-serverkraken-flow",
+				Kind:        domain.KindRepo,
+				OriginSlug:  "github.com/serverkraken/flow",
+				UpstreamGit: "git@github.com:serverkraken/flow.git",
+			},
+		}, nil
+	}
 	return connect(t, h.srv), h
 }
 
@@ -96,6 +114,35 @@ func TestLoopback_GetContext_RepoOverride(t *testing.T) {
 	}
 	if capturedNode != "beta" {
 		t.Fatalf("GET /api/v1/context got node=%q, want 'beta' (repo override)", capturedNode)
+	}
+}
+
+func TestLoopback_GetContext_RepoOverrideByUpstreamGit(t *testing.T) {
+	var capturedNode string
+	sess, _ := authedContextServer(t, &capturedNode, nil)
+
+	res, got := callText(t, sess, "flow_get_context", map[string]any{"repo": "github.com/serverkraken/flow"})
+	if res.IsError {
+		t.Fatalf("flow_get_context (upstream override) IsError: %s", got)
+	}
+	if capturedNode != "github-com-serverkraken-flow" {
+		t.Fatalf("GET /api/v1/context got node=%q, want canonical node slug", capturedNode)
+	}
+}
+
+func TestLoopback_SetActiveContext_RepoOverrideByUpstreamGit(t *testing.T) {
+	var capturedNode string
+	sess, _ := authedContextServer(t, &capturedNode, nil)
+
+	res, got := callText(t, sess, "flow_set_active_context", map[string]any{
+		"repo": "git@github.com:serverkraken/flow.git",
+		"body": "next",
+	})
+	if res.IsError {
+		t.Fatalf("flow_set_active_context (upstream override) IsError: %s", got)
+	}
+	if capturedNode != "github-com-serverkraken-flow" {
+		t.Fatalf("PUT /api/v1/context/active got node=%q, want canonical node slug", capturedNode)
 	}
 }
 

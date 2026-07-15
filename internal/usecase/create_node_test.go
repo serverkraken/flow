@@ -70,3 +70,48 @@ func TestCreateNode_CountsTowardTarget(t *testing.T) {
 		t.Fatalf("countsTowardTarget omitted: want nil (inherit), got %v", *eng2.CountsTowardTarget)
 	}
 }
+
+func TestCreateNode_ValidatesAndPersistsUpstreamGit(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	nodes := testutil.NewFakeNodeStore()
+	uc := usecase.CreateNode{Nodes: nodes, IDs: &testutil.FakeIDGen{}, Clock: testutil.FakeClock{T: time.Now()}}
+
+	eng, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{Name: "Work", Kind: domain.KindEngagement})
+	if err != nil {
+		t.Fatalf("create engagement: %v", err)
+	}
+
+	if _, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{
+		Name:        "invalid",
+		Kind:        domain.KindRepo,
+		ParentID:    &eng.ID,
+		UpstreamGit: "not-a-git-remote",
+	}); !errors.Is(err, domain.ErrInvalidUpstream) {
+		t.Fatalf("invalid upstream: want ErrInvalidUpstream, got %v", err)
+	}
+
+	all, err := nodes.List(ctx, "o")
+	if err != nil {
+		t.Fatalf("list nodes: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("invalid create wrote a node: got %d nodes, want 1", len(all))
+	}
+
+	repo, err := uc.Execute(ctx, "o", usecase.CreateNodeInput{
+		Name:        "flow",
+		Kind:        domain.KindRepo,
+		ParentID:    &eng.ID,
+		UpstreamGit: "git@github.com:serverkraken/flow.git",
+	})
+	if err != nil {
+		t.Fatalf("valid upstream: %v", err)
+	}
+	if repo.UpstreamGit != "git@github.com:serverkraken/flow.git" {
+		t.Fatalf("upstreamGit = %q", repo.UpstreamGit)
+	}
+	if repo.OriginSlug != "github.com/serverkraken/flow" {
+		t.Fatalf("originSlug = %q, want normalized upstream", repo.OriginSlug)
+	}
+}

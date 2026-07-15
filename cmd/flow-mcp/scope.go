@@ -13,7 +13,7 @@ import (
 // for result text.
 type scope struct {
 	nodeID *string
-	label     string
+	label  string
 }
 
 // resolveScope maps a tool's optional `project` argument to a scope. Accepts:
@@ -102,10 +102,47 @@ func (h *handlers) projectName(ctx context.Context, id *string) string {
 }
 
 func matchNode(ps []domain.Node, ref string) (domain.Node, bool) {
+	ref = strings.TrimSpace(ref)
 	for _, p := range ps {
 		if p.ID == ref || strings.EqualFold(p.Slug, ref) || strings.EqualFold(p.Name, ref) {
 			return p, true
 		}
+	}
+
+	remoteSlug := strings.ToLower(ref)
+	if normalized, ok := domain.NormalizeRemoteSlug(ref); ok {
+		remoteSlug = normalized
+	}
+
+	var match domain.Node
+	matches := 0
+	for _, p := range ps {
+		if p.Kind != domain.KindRepo || !strings.EqualFold(p.OriginSlug, remoteSlug) {
+			continue
+		}
+		match = p
+		matches++
+	}
+	if matches == 1 {
+		return match, true
+	}
+	if matches > 1 {
+		return domain.Node{}, false
+	}
+
+	for _, p := range ps {
+		if p.Kind != domain.KindRepo {
+			continue
+		}
+		slug, ok := domain.NormalizeRemoteSlug(p.UpstreamGit)
+		if !ok || !strings.EqualFold(slug, remoteSlug) {
+			continue
+		}
+		match = p
+		matches++
+	}
+	if matches == 1 {
+		return match, true
 	}
 	return domain.Node{}, false
 }

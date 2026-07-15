@@ -50,7 +50,11 @@ func seedProj(t *testing.T, ps *testutil.FakeNodeStore, id, upstream string) {
 	t.Helper()
 	now := time.Date(2026, 6, 23, 9, 0, 0, 0, time.UTC)
 	p, _ := domain.NewNode(id, "u1", "Flow", "flow", now)
+	p.Kind = domain.KindRepo
 	p.UpstreamGit = upstream
+	if slug, ok := domain.NormalizeRemoteSlug(upstream); ok {
+		p.OriginSlug = slug
+	}
 	_, _ = ps.Create(context.Background(), p)
 }
 
@@ -83,6 +87,9 @@ func TestUpdateNode_SetUpstreamCreatesBinding(t *testing.T) {
 	if got.UpstreamGit != *in.UpstreamGit {
 		t.Errorf("upstream not saved: %q", got.UpstreamGit)
 	}
+	if got.OriginSlug != "github.com/serverkraken/flow" {
+		t.Errorf("origin slug = %q, want normalized upstream", got.OriginSlug)
+	}
 	if slugs := remoteSlugs(bs.FakeProjectBindingStore); len(slugs) != 1 || slugs[0] != "github.com/serverkraken/flow" {
 		t.Errorf("want one remote binding github.com/serverkraken/flow, got %v", slugs)
 	}
@@ -98,8 +105,12 @@ func TestUpdateNode_ClearUpstreamRemovesBinding(t *testing.T) {
 	})
 	in := baseInput()
 	in.UpstreamGit = sp("") // explicit clear
-	if _, err := uc.Execute(context.Background(), "u1", "p1", in); err != nil {
+	got, err := uc.Execute(context.Background(), "u1", "p1", in)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if got.OriginSlug != "" {
+		t.Errorf("origin slug should be cleared, got %q", got.OriginSlug)
 	}
 	if slugs := remoteSlugs(bs.FakeProjectBindingStore); len(slugs) != 0 {
 		t.Errorf("binding should be gone, got %v", slugs)
@@ -115,8 +126,12 @@ func TestUpdateNode_ReassignUpstreamRepointsBinding(t *testing.T) {
 	})
 	in := baseInput()
 	in.UpstreamGit = sp("https://github.com/serverkraken/new.git")
-	if _, err := uc.Execute(context.Background(), "u1", "p1", in); err != nil {
+	got, err := uc.Execute(context.Background(), "u1", "p1", in)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if got.OriginSlug != "github.com/serverkraken/new" {
+		t.Errorf("origin slug = %q, want github.com/serverkraken/new", got.OriginSlug)
 	}
 	slugs := remoteSlugs(bs.FakeProjectBindingStore)
 	if len(slugs) != 1 || slugs[0] != "github.com/serverkraken/new" {

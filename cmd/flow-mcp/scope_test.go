@@ -84,6 +84,43 @@ func TestResolveScope_ExplicitBySlugAndName(t *testing.T) {
 	}
 }
 
+func TestResolveScope_ExplicitByUpstreamGit(t *testing.T) {
+	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {
+		return []domain.Node{{
+			ID:          "p-flow",
+			Name:        "Flow",
+			Slug:        "github-com-serverkraken-flow",
+			Kind:        domain.KindRepo,
+			OriginSlug:  "github.com/serverkraken/flow",
+			UpstreamGit: "git@github.com:serverkraken/flow.git",
+		}}, nil
+	}}
+
+	for _, ref := range []string{
+		"github.com/serverkraken/flow",
+		"https://github.com/serverkraken/flow.git",
+		"git@github.com:serverkraken/flow.git",
+	} {
+		sc, err := h.resolveScope(context.Background(), ref)
+		if err != nil {
+			t.Fatalf("resolve %q: %v", ref, err)
+		}
+		if sc.nodeID == nil || *sc.nodeID != "p-flow" {
+			t.Fatalf("resolve %q = %v, want p-flow", ref, sc.nodeID)
+		}
+	}
+}
+
+func TestMatchNode_AmbiguousUpstreamGitDoesNotChooseArbitrarily(t *testing.T) {
+	ps := []domain.Node{
+		{ID: "one", Slug: "one", Kind: domain.KindRepo, UpstreamGit: "git@github.com:o/r.git"},
+		{ID: "two", Slug: "two", Kind: domain.KindRepo, UpstreamGit: "https://github.com/o/r.git"},
+	}
+	if got, ok := matchNode(ps, "github.com/o/r"); ok {
+		t.Fatalf("ambiguous remote resolved to %q", got.ID)
+	}
+}
+
 func TestResolveScope_UnknownRefreshesOnceThenErrors(t *testing.T) {
 	calls := 0
 	h := &handlers{listProjects: func(context.Context) ([]domain.Node, error) {

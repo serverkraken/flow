@@ -122,6 +122,171 @@ func TestResolveNode_MatchingRemoteReturnsNode(t *testing.T) {
 	}
 }
 
+func TestResolveNode_UpstreamGitFallback(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+
+	_, _ = ps.Create(context.Background(), domain.Node{
+		ID:          "p-upstream",
+		OwnerID:     "bob",
+		Slug:        "svc",
+		Kind:        domain.KindRepo,
+		UpstreamGit: "git@github.com:bob/svc.git",
+	})
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	got, ok, err := resolver.Execute(context.Background(), "bob", "github.com/bob/svc", "", "")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected upstreamGit match, got no match")
+	}
+	if got.ID != "p-upstream" {
+		t.Fatalf("got node %q, want p-upstream", got.ID)
+	}
+}
+
+func TestResolveNode_OriginSlugFallback(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+
+	_, _ = ps.Create(context.Background(), domain.Node{
+		ID:         "p-origin",
+		OwnerID:    "bob",
+		Slug:       "svc",
+		Kind:       domain.KindRepo,
+		OriginSlug: "github.com/bob/svc",
+	})
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	got, ok, err := resolver.Execute(context.Background(), "bob", "github.com/bob/svc", "", "")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if !ok || got.ID != "p-origin" {
+		t.Fatalf("got node %q, ok=%v; want originSlug match", got.ID, ok)
+	}
+}
+
+func TestResolveNode_ExplicitRemoteBindingOverridesUpstreamGit(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+	ctx := context.Background()
+
+	_, _ = ps.Create(ctx, domain.Node{
+		ID:          "canonical",
+		OwnerID:     "bob",
+		Slug:        "canonical",
+		Kind:        domain.KindRepo,
+		UpstreamGit: "https://github.com/bob/svc.git",
+	})
+	alias, _ := ps.Create(ctx, domain.Node{
+		ID:      "alias",
+		OwnerID: "bob",
+		Slug:    "alias",
+		Kind:    domain.KindRepo,
+	})
+	binder := usecase.BindNode{
+		Bindings: bs,
+		Nodes:    ps,
+		IDs:      &testutil.FakeIDGen{},
+		Clock:    testutil.FakeClock{T: time.Now()},
+	}
+	if _, err := binder.Execute(ctx, "bob", alias.ID, usecase.BindKey{
+		Kind:       domain.BindingRemote,
+		RemoteSlug: "github.com/bob/svc",
+	}); err != nil {
+		t.Fatalf("bind override: %v", err)
+	}
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	got, ok, err := resolver.Execute(ctx, "bob", "github.com/bob/svc", "", "")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if !ok || got.ID != "alias" {
+		t.Fatalf("got node %q, ok=%v; want explicit alias binding", got.ID, ok)
+	}
+}
+
+func TestResolveNode_AmbiguousUpstreamGitReturnsNoMatch(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+	ctx := context.Background()
+
+	for _, id := range []string{"one", "two"} {
+		_, _ = ps.Create(ctx, domain.Node{
+			ID:          id,
+			OwnerID:     "bob",
+			Slug:        id,
+			Kind:        domain.KindRepo,
+			UpstreamGit: "git@github.com:bob/svc.git",
+		})
+	}
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	_, ok, err := resolver.Execute(ctx, "bob", "github.com/bob/svc", "", "")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if ok {
+		t.Fatal("ambiguous upstreamGit must not resolve arbitrarily")
+	}
+}
+
+func TestResolveNode_UpstreamGitIsOwnerScoped(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+
+	_, _ = ps.Create(context.Background(), domain.Node{
+		ID:          "foreign",
+		OwnerID:     "alice",
+		Slug:        "svc",
+		Kind:        domain.KindRepo,
+		UpstreamGit: "git@github.com:bob/svc.git",
+	})
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	_, ok, err := resolver.Execute(context.Background(), "bob", "github.com/bob/svc", "", "")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if ok {
+		t.Fatal("foreign upstreamGit must not resolve")
+	}
+}
+
+func TestResolveNode_PathBindingFallback(t *testing.T) {
+	ps := testutil.NewFakeNodeStore()
+	bs := testutil.NewFakeProjectBindingStore()
+	ctx := context.Background()
+
+	p, _ := ps.Create(ctx, domain.Node{ID: "path-node", OwnerID: "bob", Slug: "svc", Kind: domain.KindRepo})
+	binder := usecase.BindNode{
+		Bindings: bs,
+		Nodes:    ps,
+		IDs:      &testutil.FakeIDGen{},
+		Clock:    testutil.FakeClock{T: time.Now()},
+	}
+	if _, err := binder.Execute(ctx, "bob", p.ID, usecase.BindKey{
+		Kind:      domain.BindingPath,
+		MachineID: "mac-1",
+		Path:      "/src/svc",
+	}); err != nil {
+		t.Fatalf("bind path: %v", err)
+	}
+
+	resolver := usecase.ResolveNode{Bindings: bs, Nodes: ps}
+	got, ok, err := resolver.Execute(ctx, "bob", "github.com/bob/unknown", "mac-1", "/src/svc/subdir")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if !ok || got.ID != "path-node" {
+		t.Fatalf("got node %q, ok=%v; want path fallback", got.ID, ok)
+	}
+}
+
 func TestResolveNode_NoMatchReturnsFalse(t *testing.T) {
 	ps := testutil.NewFakeNodeStore()
 	bs := testutil.NewFakeProjectBindingStore()

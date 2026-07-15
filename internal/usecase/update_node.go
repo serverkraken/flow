@@ -80,6 +80,12 @@ func (uc UpdateNode) Execute(ctx context.Context, ownerID, id string, in UpdateN
 		}
 		newSlug = s
 	}
+	// origin_slug is the resolution projection of a repo's display/clone URL.
+	// Only an explicit upstream update changes it; omitted partial fields retain
+	// the stored value, and the database restricts origin_slug to repo nodes.
+	if in.UpstreamGit != nil && p.Kind == domain.KindRepo {
+		p.OriginSlug = newSlug
+	}
 	saved, err := uc.Nodes.Update(ctx, ownerID, p)
 	if err != nil {
 		return domain.Node{}, err

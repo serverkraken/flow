@@ -133,6 +133,42 @@ func TestProjectBindings_BindAndResolveAndList(t *testing.T) {
 	}
 }
 
+func TestProjectBindings_ResolveByUpstreamGitWithoutBinding(t *testing.T) {
+	srv := newBindingsSrvFull(t)
+	ctx := t.Context()
+
+	// Seed the authenticated user, then a repo with only its canonical upstream.
+	res := srv.do("GET", "/api/v1/nodes", "")
+	_ = res.Body.Close()
+	ownerID := "id-1"
+	engID := srv.ids.NewID()
+	repoID := srv.ids.NewID()
+	_, _ = srv.ps.Create(ctx, domain.Node{
+		ID: engID, OwnerID: ownerID, Name: "Privat", Slug: "privat",
+		Kind: domain.KindEngagement, Status: domain.NodeActive,
+	})
+	_, _ = srv.ps.Create(ctx, domain.Node{
+		ID: repoID, OwnerID: ownerID, Name: "Flow", Slug: "flow",
+		Kind: domain.KindRepo, ParentID: &engID, Status: domain.NodeActive,
+		UpstreamGit: "git@github.com:serverkraken/flow.git",
+	})
+
+	res = srv.do("GET", "/api/v1/nodes/resolve?slug=github.com%2Fserverkraken%2Fflow", "")
+	if res.StatusCode != http.StatusOK {
+		_ = res.Body.Close()
+		t.Fatalf("resolve upstreamGit: status %d", res.StatusCode)
+	}
+	var resolved domain.Node
+	if err := json.NewDecoder(res.Body).Decode(&resolved); err != nil {
+		_ = res.Body.Close()
+		t.Fatalf("decode resolved node: %v", err)
+	}
+	_ = res.Body.Close()
+	if resolved.ID != repoID {
+		t.Fatalf("resolved node ID = %q, want %q", resolved.ID, repoID)
+	}
+}
+
 // TestProjectBindings_ResolveUnknown ensures 404 when no binding matches.
 func TestProjectBindings_ResolveUnknown(t *testing.T) {
 	_, do := newBindingsSrv(t)

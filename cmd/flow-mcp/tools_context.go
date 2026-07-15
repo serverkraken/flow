@@ -9,7 +9,7 @@ import (
 )
 
 type getContextIn struct {
-	Repo string `json:"repo,omitempty" jsonschema:"explicit node slug override; default = the current directory's resolved repo"`
+	Repo string `json:"repo,omitempty" jsonschema:"explicit node id, slug, name, origin slug, or upstream Git remote; default = the current directory's resolved repo"`
 	Cap  int    `json:"cap,omitempty"  jsonschema:"token budget override"`
 }
 
@@ -22,7 +22,11 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		q := apiclient.ContextQuery{Cap: in.Cap}
 		if in.Repo != "" {
-			q.Node = in.Repo
+			node, err := h.lookupNode(ctx, in.Repo)
+			if err != nil {
+				return err
+			}
+			q.Node = node.Slug
 		} else if proj, matched := h.resolved(); matched {
 			q.Node = proj.Slug
 		}
@@ -41,7 +45,7 @@ func (h *handlers) getContext(ctx context.Context, req *mcp.CallToolRequest, in 
 }
 
 type setActiveContextIn struct {
-	Repo string   `json:"repo,omitempty" jsonschema:"explicit node slug override; default = the current directory's resolved repo"`
+	Repo string   `json:"repo,omitempty" jsonschema:"explicit node id, slug, name, origin slug, or upstream Git remote; default = the current directory's resolved repo"`
 	Body string   `json:"body"           jsonschema:"the activeContext markdown (where I was / what's open / next step)"`
 	Tags []string `json:"tags,omitempty" jsonschema:"tags as a flat list; replaces the whole set"`
 }
@@ -53,7 +57,11 @@ func (h *handlers) setActiveContext(ctx context.Context, req *mcp.CallToolReques
 	err := h.do(ctx, req, func(c *apiclient.Client) error {
 		input := apiclient.SetActiveContextInput{Body: in.Body, Tags: in.Tags}
 		if in.Repo != "" {
-			input.Node = in.Repo
+			node, err := h.lookupNode(ctx, in.Repo)
+			if err != nil {
+				return err
+			}
+			input.Node = node.Slug
 		} else if proj, matched := h.resolved(); matched {
 			input.Node = proj.Slug
 		}
