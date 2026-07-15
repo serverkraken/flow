@@ -119,7 +119,10 @@ func (w *EmbedWorker) embedDoc(ctx context.Context, sd ports.StaleDoc) bool {
 	d := sd.Doc
 	texts := chunk.Split(d.Title, d.Body)
 	if len(texts) == 0 {
-		if err := w.docs.ReplaceChunks(ctx, d.ID, d.OwnerID, nil, nil); err != nil {
+		if err := w.docs.ReplaceChunks(ctx, d.ID, d.OwnerID, sd.SnapshotHash, nil, nil); err != nil {
+			if obsoleteEmbedJob(err) {
+				return true
+			}
 			w.log.Warn("embed worker: clear chunks", "id", d.ID, "err", err)
 			return false
 		}
@@ -134,16 +137,26 @@ func (w *EmbedWorker) embedDoc(ctx context.Context, sd ports.StaleDoc) bool {
 		attempts := sd.Attempts + 1
 		dead := attempts >= w.pol.MaxAttempts
 		next := w.clock().Add(backoff(attempts, w.pol.BackoffBase, w.pol.BackoffCap))
-		if rerr := w.docs.RecordEmbedFailure(ctx, d.ID, d.OwnerID, attempts, next, dead, err.Error()); rerr != nil {
+		if rerr := w.docs.RecordEmbedFailure(ctx, d.ID, d.OwnerID, sd.SnapshotHash, attempts, next, dead, err.Error()); rerr != nil {
+			if obsoleteEmbedJob(rerr) {
+				return true
+			}
 			w.log.Warn("embed worker: record failure", "id", d.ID, "err", rerr)
 			return false
 		}
 		w.log.Warn("embed worker: per-doc embed failure", "id", d.ID, "attempts", attempts, "dead", dead, "err", err)
 		return true // skip this doc, keep going (no head-of-line block)
 	}
-	if err := w.docs.ReplaceChunks(ctx, d.ID, d.OwnerID, texts, vecs); err != nil {
+	if err := w.docs.ReplaceChunks(ctx, d.ID, d.OwnerID, sd.SnapshotHash, texts, vecs); err != nil {
+		if obsoleteEmbedJob(err) {
+			return true
+		}
 		w.log.Warn("embed worker: replace chunks", "id", d.ID, "err", err)
 		return false
 	}
 	return true
+}
+
+func obsoleteEmbedJob(err error) bool {
+	return errors.Is(err, ports.ErrEmbedStaleSnapshot) || errors.Is(err, ports.ErrDocumentNotFound)
 }

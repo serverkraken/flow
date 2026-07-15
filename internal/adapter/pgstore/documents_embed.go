@@ -18,7 +18,7 @@ import (
 // skipping dead-lettered docs and those still inside a backoff window, ordered
 // oldest-update-first, each with its prior consecutive failure count.
 func (s *DocumentStore) StaleDocuments(ctx context.Context, limit int) ([]ports.StaleDoc, error) {
-	q := `SELECT ` + prefixedDocCols + `, coalesce(f.attempts, 0)
+	q := `SELECT ` + prefixedDocCols + `, coalesce(f.attempts, 0), md5(coalesce(d.title,'')||coalesce(d.body,''))
 FROM documents d
 LEFT JOIN document_embed_failures f ON f.document_id = d.id
 WHERE d.chunks_hash IS DISTINCT FROM md5(coalesce(d.title,'')||coalesce(d.body,''))
@@ -39,9 +39,10 @@ LIMIT $1`
 		var updatedByKind, updatedByRef sql.NullString
 		var mode string
 		var attempts int
+		var snapshotHash string
 		if err := rows.Scan(&d.ID, &d.OwnerID, &d.NodeID, &typ, &d.Path, &d.Title, &d.Body,
 			&d.Date, &d.Role, &extra, &d.CreatedAt, &d.UpdatedAt, &d.Pinned, &d.Archived, &d.ArchivedAt,
-			&updatedByKind, &updatedByRef, &d.Priority, &mode, &attempts); err != nil {
+			&updatedByKind, &updatedByRef, &d.Priority, &mode, &attempts, &snapshotHash); err != nil {
 			return nil, fmt.Errorf("pgstore: scan stale document: %w", err)
 		}
 		d.Type = domain.DocumentType(typ)
@@ -52,13 +53,21 @@ LIMIT $1`
 				return nil, fmt.Errorf("pgstore: unmarshal extra: %w", err)
 			}
 		}
-		out = append(out, ports.StaleDoc{Doc: d, Attempts: attempts})
+		out = append(out, ports.StaleDoc{Doc: d, Attempts: attempts, SnapshotHash: snapshotHash})
 	}
 	return out, rows.Err()
 }
 
-func (s *DocumentStore) RecordEmbedFailure(ctx context.Context, docID, ownerID string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
-	_, err := s.pool.Exec(ctx,
+func (s *DocumentStore) RecordEmbedFailure(ctx context.Context, docID, ownerID, snapshotHash string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: record embed failure begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockEmbedSnapshot(ctx, tx, docID, ownerID, snapshotHash); err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx,
 		`INSERT INTO document_embed_failures (document_id, owner_id, attempts, next_retry_at, last_error, dead)
 		 VALUES ($1,$2,$3,$4,$5,$6)
 		 ON CONFLICT (document_id) DO UPDATE
@@ -66,6 +75,27 @@ func (s *DocumentStore) RecordEmbedFailure(ctx context.Context, docID, ownerID s
 		docID, ownerID, attempts, nextRetryAt, lastErr, dead)
 	if err != nil {
 		return fmt.Errorf("pgstore: record embed failure: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pgstore: record embed failure commit: %w", err)
+	}
+	return nil
+}
+
+func lockEmbedSnapshot(ctx context.Context, tx pgx.Tx, docID, ownerID, snapshotHash string) error {
+	var currentHash string
+	err := tx.QueryRow(ctx,
+		`SELECT md5(coalesce(title,'')||coalesce(body,''))
+		 FROM documents WHERE id=$1 AND owner_id=$2 FOR UPDATE`,
+		docID, ownerID).Scan(&currentHash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ports.ErrDocumentNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("pgstore: lock embed snapshot: %w", err)
+	}
+	if currentHash != snapshotHash {
+		return ports.ErrEmbedStaleSnapshot
 	}
 	return nil
 }

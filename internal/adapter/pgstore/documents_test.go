@@ -265,7 +265,7 @@ VALUES ($1,$2,$3,$4,$5,$6,'{}',$7,$7)`,
 	for i := range vec {
 		vec[i] = 0.5
 	}
-	if err := st.ReplaceChunks(ctx, "prov-1", owner, []string{"chunk"}, [][]float32{vec}); err != nil {
+	if err := st.ReplaceChunks(ctx, "prov-1", owner, snapshotHash(t, st, "prov-1"), []string{"chunk"}, [][]float32{vec}); err != nil {
 		t.Fatal(err)
 	}
 	semHits, err := st.SemanticSearch(ctx, owner, vec, nil, nil, 10)
@@ -612,10 +612,10 @@ func TestDocumentStore_SemanticSearch(t *testing.T) {
 	mkDoc("near", "Near", "near doc", "go")
 	mkDoc("far", "Far", "far doc")
 
-	if err := s.ReplaceChunks(ctx, "near", owner, []string{"near chunk"}, [][]float32{vec(0.9)}); err != nil {
+	if err := s.ReplaceChunks(ctx, "near", owner, snapshotHash(t, s, "near"), []string{"near chunk"}, [][]float32{vec(0.9)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ReplaceChunks(ctx, "far", owner, []string{"far chunk"}, [][]float32{vec(-0.9)}); err != nil {
+	if err := s.ReplaceChunks(ctx, "far", owner, snapshotHash(t, s, "far"), []string{"far chunk"}, [][]float32{vec(-0.9)}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/serverkraken/flow/internal/domain"
@@ -10,7 +9,7 @@ import (
 )
 
 // ErrNodeCycle is returned when a move would make a node its own ancestor.
-var ErrNodeCycle = errors.New("usecase: move would create a cycle")
+var ErrNodeCycle = ports.ErrNodeCycle
 
 // MoveNode reparents a node, enforcing kind rules and acyclicity.
 type MoveNode struct {

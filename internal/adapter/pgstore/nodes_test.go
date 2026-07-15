@@ -3,6 +3,7 @@ package pgstore_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,122 @@ import (
 	"github.com/serverkraken/flow/internal/ports"
 	"github.com/serverkraken/flow/internal/testutil"
 )
+
+func TestNodeStore_ReparentRejectsCycleAtomically(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-cycle", "sub-cycle", "cycle", "cycle@x.de", "Cycle")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Now().UTC()
+	mk := func(id string, parent *string) {
+		n, _ := domain.NewNode(id, u.ID, id, id, now)
+		n.Kind = domain.KindVorhaben
+		n.ParentID = parent
+		if _, err := st.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	root, _ := domain.NewNode("root-cycle", u.ID, "root-cycle", "root-cycle", now)
+	root.Kind = domain.KindEngagement
+	if _, err := st.Create(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	mk("a-cycle", strptr(root.ID))
+	mk("b-cycle", strptr(root.ID))
+
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, move := range []struct{ id, parent string }{{"a-cycle", "b-cycle"}, {"b-cycle", "a-cycle"}} {
+		move := move
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := st.Reparent(ctx, u.ID, move.id, strptr(move.parent))
+			errCh <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+	cycleErrors := 0
+	for err := range errCh {
+		if errors.Is(err, ports.ErrNodeCycle) {
+			cycleErrors++
+		} else if err != nil {
+			t.Fatalf("unexpected move error: %v", err)
+		}
+	}
+	if cycleErrors != 1 {
+		t.Fatalf("exactly one concurrent move must be rejected, cycle errors=%d", cycleErrors)
+	}
+	for _, id := range []string{"a-cycle", "b-cycle"} {
+		chain, err := st.Ancestors(ctx, u.ID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for _, n := range chain {
+			if seen[n.ID] {
+				t.Fatalf("cycle persisted in ancestor chain for %s: %v", id, chain)
+			}
+			seen[n.ID] = true
+		}
+	}
+}
+
+func TestNodeStore_RecursiveReadsStopAtCorruptCycle(t *testing.T) {
+	ctx := context.Background()
+	pool, err := pgstore.NewPool(ctx, startPG(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pgstore.Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	u, _ := domain.NewUser("u-corrupt-cycle", "sub-corrupt-cycle", "corrupt", "corrupt@x.de", "Corrupt")
+	if _, err := pgstore.NewUserStore(pool).UpsertBySub(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	st := pgstore.NewNodeStore(pool)
+	now := time.Now().UTC()
+	root, _ := domain.NewNode("root-corrupt", u.ID, "root-corrupt", "root-corrupt", now)
+	root.Kind = domain.KindEngagement
+	if _, err := st.Create(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a-corrupt", "b-corrupt"} {
+		n, _ := domain.NewNode(id, u.ID, id, id, now)
+		n.Kind = domain.KindVorhaben
+		n.ParentID = strptr(root.ID)
+		if _, err := st.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `UPDATE nodes SET parent_id=CASE id WHEN 'a-corrupt' THEN 'b-corrupt' ELSE 'a-corrupt' END WHERE owner_id=$1 AND id IN ('a-corrupt','b-corrupt')`, u.ID); err != nil {
+		t.Fatal(err)
+	}
+	anc, err := st.Ancestors(ctx, u.ID, "a-corrupt")
+	if err != nil || len(anc) != 2 {
+		t.Fatalf("cycle-safe ancestors: len=%d err=%v", len(anc), err)
+	}
+	sub, err := st.Subtree(ctx, u.ID, "a-corrupt")
+	if err != nil || len(sub) != 2 {
+		t.Fatalf("cycle-safe subtree: len=%d err=%v", len(sub), err)
+	}
+}
 
 func TestProjectStore_Delete(t *testing.T) {
 	ctx := context.Background()

@@ -115,10 +115,10 @@ func TestDocumentStore_SemanticSearchProjectScope(t *testing.T) {
 	ctx := context.Background()
 	st, owner, pA, _ := seedProjectScope(t)
 	// give each doc one chunk so SemanticSearch has candidates
-	if err := st.ReplaceChunks(ctx, "d-a", owner, []string{"alpha"}, [][]float32{vec768(0)}); err != nil {
+	if err := st.ReplaceChunks(ctx, "d-a", owner, snapshotHash(t, st, "d-a"), []string{"alpha"}, [][]float32{vec768(0)}); err != nil {
 		t.Fatalf("chunks d-a: %v", err)
 	}
-	if err := st.ReplaceChunks(ctx, "d-b", owner, []string{"beta"}, [][]float32{vec768(1)}); err != nil {
+	if err := st.ReplaceChunks(ctx, "d-b", owner, snapshotHash(t, st, "d-b"), []string{"beta"}, [][]float32{vec768(1)}); err != nil {
 		t.Fatalf("chunks d-b: %v", err)
 	}
 

@@ -166,12 +166,12 @@ func (s *NodeStore) Children(ctx context.Context, ownerID string, parentID *stri
 func (s *NodeStore) Ancestors(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE chain AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth, ARRAY[id] AS path
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, c.depth+1
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, c.depth+1, c.path || n.id
   FROM nodes n JOIN chain c ON n.id = c.parent_id
-  WHERE n.owner_id=$1
+  WHERE n.owner_id=$1 AND NOT n.id = ANY(c.path)
 )
 SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref
 FROM chain ORDER BY depth`
@@ -195,12 +195,12 @@ FROM chain ORDER BY depth`
 func (s *NodeStore) Subtree(ctx context.Context, ownerID, nodeID string) ([]domain.Node, error) {
 	const q = `
 WITH RECURSIVE sub AS (
-  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth
+  SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref, 0 AS depth, ARRAY[id] AS path
   FROM nodes WHERE owner_id=$1 AND id=$2
   UNION ALL
-  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, s.depth+1
+  SELECT n.id, n.owner_id, n.parent_id, n.kind, n.name, n.slug, n.color, n.glyph, n.description, n.upstream_git, n.origin_slug, n.status, n.rate_amount, n.rate_currency, n.extra, n.created_at, n.updated_at, n.counts_toward_target, n.icon, n.logo_ref, s.depth+1, s.path || n.id
   FROM nodes n JOIN sub s ON n.parent_id = s.id
-  WHERE n.owner_id=$1
+  WHERE n.owner_id=$1 AND NOT n.id = ANY(s.path)
 )
 SELECT id, owner_id, parent_id, kind, name, slug, color, glyph, description, upstream_git, origin_slug, status, rate_amount, rate_currency, extra, created_at, updated_at, counts_toward_target, icon, logo_ref
 FROM sub ORDER BY depth`
@@ -221,13 +221,58 @@ FROM sub ORDER BY depth`
 }
 
 func (s *NodeStore) Reparent(ctx context.Context, ownerID, id string, parentID *string) (domain.Node, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return domain.Node{}, fmt.Errorf("pgstore: reparent begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	// Serialize hierarchy mutations per tenant. The usecase's pre-check remains
+	// useful for fast feedback, while this lock closes the concurrent-move gap.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, ownerID); err != nil {
+		return domain.Node{}, fmt.Errorf("pgstore: lock node hierarchy: %w", err)
+	}
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM nodes WHERE owner_id=$1 AND id=$2)`, ownerID, id).Scan(&exists); err != nil {
+		return domain.Node{}, fmt.Errorf("pgstore: find moved node: %w", err)
+	}
+	if !exists {
+		return domain.Node{}, ports.ErrNodeNotFound
+	}
+	if parentID != nil {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM nodes WHERE owner_id=$1 AND id=$2)`, ownerID, *parentID).Scan(&exists); err != nil {
+			return domain.Node{}, fmt.Errorf("pgstore: find new parent: %w", err)
+		}
+		if !exists {
+			return domain.Node{}, ports.ErrNodeNotFound
+		}
+		const cycleQ = `
+WITH RECURSIVE chain AS (
+  SELECT id, parent_id, ARRAY[id] AS path
+  FROM nodes WHERE owner_id=$1 AND id=$2
+  UNION ALL
+  SELECT n.id, n.parent_id, c.path || n.id
+  FROM nodes n JOIN chain c ON n.id=c.parent_id
+  WHERE n.owner_id=$1 AND NOT n.id = ANY(c.path)
+)
+SELECT EXISTS(SELECT 1 FROM chain WHERE id=$3)`
+		var cycle bool
+		if err := tx.QueryRow(ctx, cycleQ, ownerID, *parentID, id).Scan(&cycle); err != nil {
+			return domain.Node{}, fmt.Errorf("pgstore: check node cycle: %w", err)
+		}
+		if cycle {
+			return domain.Node{}, ports.ErrNodeCycle
+		}
+	}
 	const q = `UPDATE nodes SET parent_id=$1, updated_at=now() WHERE owner_id=$2 AND id=$3 RETURNING ` + nodeCols
-	n, err := scanNode(s.pool.QueryRow(ctx, q, parentID, ownerID, id))
+	n, err := scanNode(tx.QueryRow(ctx, q, parentID, ownerID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
 	if err != nil {
 		return domain.Node{}, mapSlugConflict(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Node{}, fmt.Errorf("pgstore: reparent commit: %w", err)
 	}
 	return n, nil
 }

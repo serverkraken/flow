@@ -510,3 +510,34 @@ func TestStatsComputer_Week_WorkOverrideUnderPrivatCountsTowardSaldo(t *testing.
 		t.Errorf("TargetTotal: want 2h (work override counts), got %v", st.TargetTotal)
 	}
 }
+
+func TestStatsComputer_CyclicParentDataFallsBackToCounting(t *testing.T) {
+	ctx := context.Background()
+	set := domain.Settings{Bundesland: "NW", DefaultTargetMin: 480, WeekdayTargetMin: map[time.Weekday]int{}}
+	ns := testutil.NewFakeNodeStore()
+	aID, bID := "cycle-a", "cycle-b"
+	for _, n := range []domain.Node{
+		{ID: aID, OwnerID: "u1", Name: "A", Slug: "a", Kind: domain.KindVorhaben, Status: domain.NodeActive, ParentID: &bID},
+		{ID: bID, OwnerID: "u1", Name: "B", Slug: "b", Kind: domain.KindVorhaben, Status: domain.NodeActive, ParentID: &aID},
+	} {
+		if _, err := ns.Create(ctx, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := time.Date(2026, 6, 15, 11, 0, 0, 0, time.UTC)
+	c := usecase.StatsComputer{
+		Sessions: fakeSessionStore{list: []domain.WorkSession{{ID: "s1", OwnerID: "u1", NodeID: &aID, Start: time.Date(2026, 6, 15, 9, 0, 0, 0, time.UTC), Stop: &stop}}},
+		Settings: fakeStatsSettings{s: set},
+		DayOffs:  usecase.ListDayOffs{Store: fakeDayOffStore{}, Settings: fakeStatsSettings{s: set}, Loc: time.UTC},
+		Clock:    fixedClock{t: time.Date(2026, 6, 15, 14, 0, 0, 0, time.UTC)},
+		Loc:      time.UTC,
+		Nodes:    ns,
+	}
+	st, err := c.RangeStats(ctx, "u1", "week")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.TargetTotal != 2*time.Hour {
+		t.Fatalf("cyclic legacy data should degrade to counting, target total=%v", st.TargetTotal)
+	}
+}

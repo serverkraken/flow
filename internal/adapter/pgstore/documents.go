@@ -492,12 +492,15 @@ func vectorLiteral(v []float32) string {
 	return b.String()
 }
 
-func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error {
+func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID, snapshotHash string, contents []string, embeddings [][]float32) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("pgstore: replace chunks begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := lockEmbedSnapshot(ctx, tx, docID, ownerID, snapshotHash); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `DELETE FROM document_chunks WHERE document_id = $1`, docID); err != nil {
 		return fmt.Errorf("pgstore: delete chunks: %w", err)
 	}
@@ -510,8 +513,8 @@ func (s *DocumentStore) ReplaceChunks(ctx context.Context, docID, ownerID string
 		}
 	}
 	if _, err := tx.Exec(ctx,
-		`UPDATE documents SET chunks_hash = md5(coalesce(title,'')||coalesce(body,'')) WHERE id = $1`,
-		docID); err != nil {
+		`UPDATE documents SET chunks_hash = $3 WHERE id = $1 AND owner_id = $2`,
+		docID, ownerID, snapshotHash); err != nil {
 		return fmt.Errorf("pgstore: stamp chunks_hash: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM document_embed_failures WHERE document_id = $1`, docID); err != nil {

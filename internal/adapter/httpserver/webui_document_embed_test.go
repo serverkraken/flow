@@ -18,7 +18,7 @@ func TestWebDocumentView_EmbedBadgeFailedShowsRetry(t *testing.T) {
 		ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p/x",
 		Title: "X", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
-	_ = docs.RecordEmbedFailure(ctx, "d1", "u1", 5, time.Now(), true, "boom")
+	_ = docs.RecordEmbedFailure(ctx, "d1", "u1", docs.SnapshotHash("d1"), 5, time.Now(), true, "boom")
 
 	body, status := getWissenDocument(t, srv, codec, "/wissen/d1")
 	if status != http.StatusOK {
@@ -53,7 +53,7 @@ func TestWebDocumentReembedHTMX(t *testing.T) {
 		ID: "d1", OwnerID: "u1", Type: domain.DocFree, Path: "p/x",
 		Title: "X", Body: "b", CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	})
-	_ = docs.RecordEmbedFailure(ctx, "d1", "u1", 5, time.Now(), true, "boom")
+	_ = docs.RecordEmbedFailure(ctx, "d1", "u1", docs.SnapshotHash("d1"), 5, time.Now(), true, "boom")
 
 	body, status := postWissenReembed(t, srv, codec, "d1")
 	if status != http.StatusOK {

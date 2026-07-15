@@ -72,6 +72,10 @@ var (
 	ErrDocumentNotFound  = errors.New("document not found")
 	ErrDocumentExists    = errors.New("document already exists")
 	ErrBindingNotFound   = errors.New("ports: binding not found")
+	// ErrNodeCycle marks a reparent operation that would persist a hierarchy cycle.
+	ErrNodeCycle = errors.New("node move would create a cycle")
+	// ErrEmbedStaleSnapshot means the document changed after a worker selected it.
+	ErrEmbedStaleSnapshot = errors.New("embed snapshot is stale")
 
 	// ErrEmbedTransient marks an embed failure as transient/global — the backend is
 	// unavailable or misconfigured (connection error, timeout, HTTP 503/429, or a
@@ -208,10 +212,12 @@ type FeedTokenStore interface {
 }
 
 // StaleDoc is a document needing (re)embedding plus its prior consecutive
-// embed-failure count, so the worker computes backoff without an extra read.
+// embed-failure count and content snapshot hash. Stores compare the hash again
+// before committing chunks or failure state.
 type StaleDoc struct {
-	Doc      domain.Document
-	Attempts int
+	Doc          domain.Document
+	Attempts     int
+	SnapshotHash string
 }
 
 // DocumentStore persists compendium documents. All reads are owner-scoped.
@@ -290,8 +296,9 @@ type DocumentStore interface {
 
 	// ReplaceChunks atomically replaces a document's chunks with the given
 	// (content, embedding) pairs (len-equal, may be empty) and stamps chunks_hash
-	// so the document is no longer stale.
-	ReplaceChunks(ctx context.Context, docID, ownerID string, contents []string, embeddings [][]float32) error
+	// so the document is no longer stale. It returns ErrEmbedStaleSnapshot when
+	// the current content no longer matches snapshotHash.
+	ReplaceChunks(ctx context.Context, docID, ownerID, snapshotHash string, contents []string, embeddings [][]float32) error
 
 	// SemanticSearch returns the owner's documents whose chunks are nearest to the
 	// query vector (cosine), best chunk per document, optionally AND-filtered by
@@ -300,8 +307,8 @@ type DocumentStore interface {
 	SemanticSearch(ctx context.Context, ownerID string, query []float32, nodeID *string, tags []string, limit int) ([]domain.SemanticHit, error)
 
 	// RecordEmbedFailure upserts the per-document embed-failure state used for
-	// backoff and dead-lettering.
-	RecordEmbedFailure(ctx context.Context, docID, ownerID string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error
+	// backoff and dead-lettering only if snapshotHash is still current.
+	RecordEmbedFailure(ctx context.Context, docID, ownerID, snapshotHash string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error
 	// ClearEmbedFailure removes a document's recorded embed failure (manual
 	// retry); a successful ReplaceChunks clears it implicitly.
 	ClearEmbedFailure(ctx context.Context, docID, ownerID string) error

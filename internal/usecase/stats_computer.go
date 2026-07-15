@@ -88,9 +88,10 @@ func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func
 		byID[n.ID] = n
 	}
 	// Effective flag per node, resolved in-memory over the parent chain and
-	// memoized. Cycles cannot occur (reparenting keeps the tree acyclic), and
-	// a dangling ParentID degrades to the default (true).
+	// memoized. Reparenting keeps the tree acyclic; defensive cycle detection and
+	// dangling ParentIDs both degrade legacy/corrupt data to the default (true).
 	eff := make(map[string]bool, len(nodes))
+	visiting := make(map[string]bool, len(nodes))
 	var resolve func(id string) bool
 	resolve = func(id string) bool {
 		if v, ok := eff[id]; ok {
@@ -100,6 +101,11 @@ func (c StatsComputer) countsTowardFn(ctx context.Context, ownerID string) (func
 		if !ok {
 			return true // unknown node → count (legacy-safe)
 		}
+		if visiting[id] {
+			return true // defensively break corrupt parent cycles
+		}
+		visiting[id] = true
+		defer delete(visiting, id)
 		var v bool
 		switch {
 		case n.CountsTowardTarget != nil:

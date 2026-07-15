@@ -536,7 +536,7 @@ func TestSearchDocuments_FusesSemanticArm(t *testing.T) {
 	_, _ = docs.Create(ctx, domain.Document{ID: "b", OwnerID: "u", Type: domain.DocFree, Path: "b", Title: "Beta", Body: "totally different"})
 	texts := []string{"Beta\n\ntotally different"}
 	vecs, _ := emb.Embed(ctx, texts)
-	if err := docs.ReplaceChunks(ctx, "b", "u", texts, vecs); err != nil {
+	if err := docs.ReplaceChunks(ctx, "b", "u", docs.SnapshotHash("b"), texts, vecs); err != nil {
 		t.Fatal(err)
 	}
 

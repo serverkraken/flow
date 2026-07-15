@@ -20,7 +20,7 @@ func TestRetryEmbedding_ClearsAndKicks(t *testing.T) {
 	ctx := context.Background()
 	docs := testutil.NewFakeDocumentStore()
 	_, _ = docs.Create(ctx, domain.Document{ID: "d", OwnerID: "u", Type: domain.DocFree, Path: "d", Title: "D", Body: "b"})
-	_ = docs.RecordEmbedFailure(ctx, "d", "u", 5, time.Now(), true, "boom")
+	_ = docs.RecordEmbedFailure(ctx, "d", "u", docs.SnapshotHash("d"), 5, time.Now(), true, "boom")
 	spy := &spyNotifier{}
 
 	uc := usecase.RetryEmbedding{Docs: docs, Notifier: spy}

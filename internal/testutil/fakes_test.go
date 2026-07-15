@@ -201,7 +201,7 @@ func TestFakeStore_ChunksAndSemantic(t *testing.T) {
 
 	texts := []string{"Alpha\n\nalpha body"}
 	vecs, _ := e.Embed(ctx, texts)
-	if err := s.ReplaceChunks(ctx, a.ID, a.OwnerID, texts, vecs); err != nil {
+	if err := s.ReplaceChunks(ctx, a.ID, a.OwnerID, s.SnapshotHash(a.ID), texts, vecs); err != nil {
 		t.Fatal(err)
 	}
 	stale, _ = s.StaleDocuments(ctx, 10)
@@ -281,7 +281,7 @@ func TestFakeProjectBindingStore_DeletePath(t *testing.T) {
 	b := domain.ProjectBinding{
 		ID:        "b1",
 		OwnerID:   "u1",
-		NodeID: "p1",
+		NodeID:    "p1",
 		Kind:      domain.BindingPath,
 		MachineID: "mac-1",
 		Path:      "/home/user/proj",

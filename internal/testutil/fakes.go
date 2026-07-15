@@ -221,7 +221,9 @@ func (s *FakeNodeStore) Ancestors(_ context.Context, ownerID, nodeID string) ([]
 	defer s.mu.Unlock()
 	var out []domain.Node
 	cur := nodeID
-	for {
+	seen := map[string]bool{}
+	for !seen[cur] {
+		seen[cur] = true
 		n, ok := s.m[cur]
 		if !ok || n.OwnerID != ownerID {
 			break
@@ -242,6 +244,21 @@ func (s *FakeNodeStore) Reparent(_ context.Context, ownerID, id string, parentID
 	if !ok || n.OwnerID != ownerID {
 		return domain.Node{}, ports.ErrNodeNotFound
 	}
+	seen := map[string]bool{}
+	for cur := parentID; cur != nil; {
+		if *cur == id {
+			return domain.Node{}, ports.ErrNodeCycle
+		}
+		if seen[*cur] {
+			break
+		}
+		seen[*cur] = true
+		parent, ok := s.m[*cur]
+		if !ok || parent.OwnerID != ownerID {
+			return domain.Node{}, ports.ErrNodeNotFound
+		}
+		cur = parent.ParentID
+	}
 	if s.slugTaken(ownerID, parentID, n.Slug, id) {
 		return domain.Node{}, ports.ErrNodeSlugTaken
 	}
@@ -260,6 +277,7 @@ func (s *FakeNodeStore) Subtree(_ context.Context, ownerID, nodeID string) ([]do
 	}
 	out := []domain.Node{root}
 	frontier := []string{nodeID}
+	seen := map[string]bool{nodeID: true}
 	for len(frontier) > 0 {
 		cur := frontier[0]
 		frontier = frontier[1:]
@@ -271,6 +289,10 @@ func (s *FakeNodeStore) Subtree(_ context.Context, ownerID, nodeID string) ([]do
 		}
 		sort.Slice(kids, func(i, j int) bool { return kids[i].Name < kids[j].Name })
 		for _, k := range kids {
+			if seen[k.ID] {
+				continue
+			}
+			seen[k.ID] = true
 			out = append(out, k)
 			frontier = append(frontier, k.ID)
 		}
@@ -648,6 +670,13 @@ func fakeDocHash(d domain.Document) string {
 	return string(sum[:])
 }
 
+// SnapshotHash returns the current content snapshot hash for embedding tests.
+func (s *FakeDocumentStore) SnapshotHash(docID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return fakeDocHash(s.m[docID])
+}
+
 func docCollisionKey(ownerID string, nodeID *string, path string) string {
 	proj := ""
 	if nodeID != nil {
@@ -802,6 +831,9 @@ func (s *FakeDocumentStore) Delete(_ context.Context, ownerID, id string) error 
 		return ports.ErrDocumentNotFound
 	}
 	delete(s.links, id)
+	delete(s.chunks, id)
+	delete(s.chunksHash, id)
+	delete(s.embedFail, id)
 	delete(s.m, id)
 	return nil
 }
@@ -900,7 +932,7 @@ func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]port
 			}
 			attempts = f.attempts
 		}
-		out = append(out, ports.StaleDoc{Doc: d, Attempts: attempts})
+		out = append(out, ports.StaleDoc{Doc: d, Attempts: attempts, SnapshotHash: fakeDocHash(d)})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Doc.UpdatedAt.Equal(out[j].Doc.UpdatedAt) {
@@ -914,24 +946,36 @@ func (s *FakeDocumentStore) StaleDocuments(_ context.Context, limit int) ([]port
 	return out, nil
 }
 
-func (s *FakeDocumentStore) ReplaceChunks(_ context.Context, docID, _ string, contents []string, embeddings [][]float32) error {
+func (s *FakeDocumentStore) ReplaceChunks(_ context.Context, docID, ownerID, snapshotHash string, contents []string, embeddings [][]float32) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	d, ok := s.m[docID]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	if fakeDocHash(d) != snapshotHash {
+		return ports.ErrEmbedStaleSnapshot
+	}
 	cs := make([]fakeChunk, len(contents))
 	for i := range contents {
 		cs[i] = fakeChunk{content: contents[i], emb: embeddings[i]}
 	}
 	s.chunks[docID] = cs
-	if d, ok := s.m[docID]; ok {
-		s.chunksHash[docID] = fakeDocHash(d)
-	}
+	s.chunksHash[docID] = snapshotHash
 	delete(s.embedFail, docID)
 	return nil
 }
 
-func (s *FakeDocumentStore) RecordEmbedFailure(_ context.Context, docID, _ string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
+func (s *FakeDocumentStore) RecordEmbedFailure(_ context.Context, docID, ownerID, snapshotHash string, attempts int, nextRetryAt time.Time, dead bool, lastErr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	d, ok := s.m[docID]
+	if !ok || d.OwnerID != ownerID {
+		return ports.ErrDocumentNotFound
+	}
+	if fakeDocHash(d) != snapshotHash {
+		return ports.ErrEmbedStaleSnapshot
+	}
 	s.embedFail[docID] = fakeEmbedFail{attempts: attempts, nextRetry: nextRetryAt, lastErr: lastErr, dead: dead}
 	return nil
 }

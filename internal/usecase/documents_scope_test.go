@@ -60,7 +60,7 @@ func TestSearchDocuments_ProjectScopeReachesSemanticArm(t *testing.T) {
 			t.Fatalf("seed %s: %v", id, err)
 		}
 		// chunk embedding == query vector → the semantic arm ranks it top
-		if err := fake.ReplaceChunks(ctx, id, "u1", []string{"haystack"}, [][]float32{qvec[0]}); err != nil {
+		if err := fake.ReplaceChunks(ctx, id, "u1", fake.SnapshotHash(id), []string{"haystack"}, [][]float32{qvec[0]}); err != nil {
 			t.Fatalf("chunks %s: %v", id, err)
 		}
 	}

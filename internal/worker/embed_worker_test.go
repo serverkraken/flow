@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -30,6 +31,78 @@ func TestEmbedWorker_DrainEmbedsStaleDocs(t *testing.T) {
 	hits, _ := docs.SemanticSearch(ctx, "u", mustEmbed(t, emb, "Alpha\n\nalpha body"), nil, nil, 10)
 	if len(hits) != 1 || hits[0].ID != "a" {
 		t.Fatalf("expected embedded doc to be semantically findable: %#v", hits)
+	}
+}
+
+func TestEmbedWorker_ContentChangedDuringEmbedding_ReembedsLatestSnapshot(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	ctx := context.Background()
+	doc, err := docs.Create(ctx, domain.Document{ID: "race", OwnerID: "u", Type: domain.DocFree, Path: "race", Title: "Old", Body: "old body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	emb.FailFunc = func([]string) error {
+		calls++
+		if calls == 1 {
+			doc.Title = "New"
+			doc.Body = "new body"
+			doc.UpdatedAt = time.Now().Add(time.Second)
+			if _, err := docs.Update(ctx, doc); err != nil {
+				t.Fatalf("update during embed: %v", err)
+			}
+		}
+		return nil
+	}
+
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
+	w.drain(ctx)
+
+	if calls != 2 {
+		t.Fatalf("want old snapshot discarded and latest snapshot embedded, calls=%d", calls)
+	}
+	stale, err := docs.StaleDocuments(ctx, 10)
+	if err != nil || len(stale) != 0 {
+		t.Fatalf("latest snapshot should be embedded, stale=%v err=%v", stale, err)
+	}
+	hits, err := docs.SemanticSearch(ctx, "u", mustEmbed(t, emb, "New\n\nnew body"), nil, nil, 10)
+	if err != nil || len(hits) != 1 || hits[0].Snippet != "New\n\nnew body" {
+		t.Fatalf("semantic search should expose latest chunks, hits=%#v err=%v", hits, err)
+	}
+}
+
+func TestEmbedWorker_FailedStaleSnapshot_DoesNotBackoffLatestContent(t *testing.T) {
+	docs := testutil.NewFakeDocumentStore()
+	emb := testutil.NewFakeEmbedder()
+	ctx := context.Background()
+	doc, err := docs.Create(ctx, domain.Document{ID: "race-fail", OwnerID: "u", Type: domain.DocFree, Path: "race-fail", Title: "Old", Body: "old body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	emb.FailFunc = func([]string) error {
+		calls++
+		if calls == 1 {
+			doc.Title = "New"
+			doc.Body = "new body"
+			doc.UpdatedAt = time.Now().Add(time.Second)
+			if _, err := docs.Update(ctx, doc); err != nil {
+				t.Fatalf("update during embed: %v", err)
+			}
+			return errors.New("old content rejected")
+		}
+		return nil
+	}
+
+	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{MaxAttempts: 1}, slog.Default())
+	w.drain(ctx)
+
+	if calls != 2 {
+		t.Fatalf("stale failure must not dead-letter new content, calls=%d", calls)
+	}
+	if status, err := docs.EmbedStatus(ctx, "u", doc.ID); err != nil || status.State != domain.EmbedOK {
+		t.Fatalf("latest content should be embedded, status=%#v err=%v", status, err)
 	}
 }
 
@@ -91,7 +164,7 @@ func TestEmbedWorker_PerDocFailure_DeadLettersAtCap(t *testing.T) {
 	ctx := context.Background()
 	_, _ = docs.Create(ctx, domain.Document{ID: "x", OwnerID: "u", Type: domain.DocFree, Path: "x", Title: "X", Body: "b"})
 	// pre-seed 4 prior failures (maxAttempts default 5) that are already due
-	_ = docs.RecordEmbedFailure(ctx, "x", "u", 4, time.Now().Add(-time.Hour), false, "prev")
+	_ = docs.RecordEmbedFailure(ctx, "x", "u", docs.SnapshotHash("x"), 4, time.Now().Add(-time.Hour), false, "prev")
 
 	w := NewEmbedWorker(docs, emb, 0, 10, EmbedPolicy{}, slog.Default())
 	w.drain(ctx)
