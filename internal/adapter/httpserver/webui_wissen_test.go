@@ -171,10 +171,11 @@ func TestWebWissenSubtreeScopeMatchesCockpitInventoryAndStaysOwnerScoped(t *test
 	srv, codec, docs, nodes := newWebWissenServer(t)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 15, 12, 0, 0, 0, time.UTC)
-	engID := "eng"
+	engID, vorID := "eng", "vor"
 	for _, node := range []domain.Node{
 		{ID: engID, OwnerID: "u1", Name: "Engagement", Slug: "engagement", Kind: domain.KindEngagement, Status: domain.NodeActive},
-		{ID: "repo", OwnerID: "u1", ParentID: &engID, Name: "Flow", Slug: "flow", Kind: domain.KindRepo, Status: domain.NodeActive},
+		{ID: vorID, OwnerID: "u1", ParentID: &engID, Name: "Vorhaben", Slug: "vorhaben", Kind: domain.KindVorhaben, Status: domain.NodeActive},
+		{ID: "repo", OwnerID: "u1", ParentID: &vorID, Name: "Flow", Slug: "flow", Kind: domain.KindRepo, Status: domain.NodeActive},
 		{ID: "other", OwnerID: "u1", Name: "Other", Slug: "other", Kind: domain.KindRepo, Status: domain.NodeActive},
 	} {
 		if _, err := nodes.Create(ctx, node); err != nil {
@@ -183,6 +184,8 @@ func TestWebWissenSubtreeScopeMatchesCockpitInventoryAndStaysOwnerScoped(t *test
 	}
 	repoID, otherID := "repo", "other"
 	for _, doc := range []domain.Document{
+		{ID: "root-active", OwnerID: "u1", NodeID: &engID, Type: domain.DocMemory, Path: "memory/root", Title: "Root Active", Body: "body", CreatedAt: now, UpdatedAt: now},
+		{ID: "middle-active", OwnerID: "u1", NodeID: &vorID, Type: domain.DocMemory, Path: "memory/middle", Title: "Middle Active", Body: "body", CreatedAt: now, UpdatedAt: now},
 		{ID: "child-active", OwnerID: "u1", NodeID: &repoID, Type: domain.DocMemory, Path: "memory/child", Title: "Child Active", Body: "body", CreatedAt: now, UpdatedAt: now},
 		{ID: "child-archived", OwnerID: "u1", NodeID: &repoID, Type: domain.DocMemory, Path: "memory/archive", Title: "Child Archived", Body: "body", CreatedAt: now, UpdatedAt: now},
 		{ID: "outside", OwnerID: "u1", NodeID: &otherID, Type: domain.DocMemory, Path: "memory/outside", Title: "Outside", Body: "body", CreatedAt: now, UpdatedAt: now},
@@ -196,11 +199,11 @@ func TestWebWissenSubtreeScopeMatchesCockpitInventoryAndStaysOwnerScoped(t *test
 		t.Fatal(err)
 	}
 
-	body, status := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&scope=subtree&status=all", codec)
+	body, status := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&status=all", codec)
 	if status != http.StatusOK {
 		t.Fatalf("GET subtree Wissen status=%d body=%.500s", status, body)
 	}
-	for _, want := range []string{"Child Active", "Child Archived", "1 aktiv", "1 archiviert", `name="scope" value="subtree"`} {
+	for _, want := range []string{"Root Active", "Middle Active", "Child Active", "Child Archived", "3 aktiv", "1 archiviert", `name="scope" value="subtree"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("subtree Wissen missing %q in %.2200s", want, body)
 		}
@@ -211,12 +214,31 @@ func TestWebWissenSubtreeScopeMatchesCockpitInventoryAndStaysOwnerScoped(t *test
 		}
 	}
 
-	searchBody, searchStatus := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&scope=subtree&q=Child", codec)
+	searchBody, searchStatus := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&q=Child", codec)
 	if searchStatus != http.StatusOK {
 		t.Fatalf("GET subtree search status=%d body=%.500s", searchStatus, searchBody)
 	}
 	if !strings.Contains(searchBody, "Child Active") || strings.Contains(searchBody, "Outside") || strings.Contains(searchBody, "Foreign Collision") {
 		t.Errorf("subtree search scope mismatch in %.2200s", searchBody)
+	}
+
+	typeBody, typeStatus := getWissen(t, wissenTestMux(srv), "/wissen/typ?type=memory&node=eng", codec)
+	if typeStatus != http.StatusOK {
+		t.Fatalf("GET subtree type shelf status=%d body=%.500s", typeStatus, typeBody)
+	}
+	if !strings.Contains(typeBody, "Middle Active") || !strings.Contains(typeBody, "Child Active") || strings.Contains(typeBody, "Outside") {
+		t.Errorf("subtree type shelf scope mismatch in %.2200s", typeBody)
+	}
+
+	selfBody, selfStatus := getWissen(t, wissenTestMux(srv), "/wissen?node=eng&scope=self&status=all", codec)
+	if selfStatus != http.StatusOK {
+		t.Fatalf("GET explicit self Wissen status=%d body=%.500s", selfStatus, selfBody)
+	}
+	if !strings.Contains(selfBody, "Root Active") || strings.Contains(selfBody, "Middle Active") || strings.Contains(selfBody, "Child Active") {
+		t.Errorf("explicit cockpit self scope mismatch in %.2200s", selfBody)
+	}
+	if !strings.Contains(selfBody, `name="scope" value="subtree"`) {
+		t.Errorf("Wissen filter must reset a newly selected node to subtree scope: %.2200s", selfBody)
 	}
 }
 

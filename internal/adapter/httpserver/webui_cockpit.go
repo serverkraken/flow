@@ -179,10 +179,7 @@ func (s *Server) nodeCockpitData(r *http.Request, u domain.User, id string) (web
 	d.WissenScope = scope
 	d.WissenRows = webui.BuildWissenRows(docs, now)
 	d.WissenTotal = len(d.WissenRows)
-	d.WissenManagerHref = "/wissen?node=" + url.QueryEscape(n.ID)
-	if scope == "subtree" {
-		d.WissenManagerHref += "&scope=subtree"
-	}
+	d.WissenManagerHref = "/wissen?node=" + url.QueryEscape(n.ID) + "&scope=" + url.QueryEscape(scope)
 	d.WissenArchivedTotal = s.wissenArchivedCount(ctx, u.ID, n, scope)
 	d.WissenAll = r.URL.Query().Get("wissen") == "all"
 	if !d.WissenAll && len(d.WissenRows) > wissenSectionCap {

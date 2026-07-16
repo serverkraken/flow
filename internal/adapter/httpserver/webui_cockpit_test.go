@@ -395,7 +395,7 @@ func TestCockpitWissen_ListsNodeDocs(t *testing.T) {
 	if !strings.Contains(body, "Architektur") || !strings.Contains(body, "/wissen/neu?node=n1") {
 		t.Errorf("wissen section missing doc / scoped-new link: %.300s", body)
 	}
-	for _, want := range []string{`href="/wissen?node=n1"`, "1 aktiv", "1 archiviert", "Verwalten"} {
+	for _, want := range []string{`href="/wissen?node=n1&amp;scope=self"`, "1 aktiv", "1 archiviert", "Verwalten"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("wissen section missing manager summary %q: %.900s", want, body)
 		}
@@ -458,6 +458,9 @@ func TestCockpitWissen_ScopeSelfIsOwnOnly(t *testing.T) {
 	if strings.Contains(body, "doc-on-repo-title") {
 		t.Errorf("scope=self must NOT include child docs: %.600s", body)
 	}
+	if !strings.Contains(body, `href="/wissen?node=eng&amp;scope=self"`) {
+		t.Errorf("scope=self manager link must preserve the explicit cockpit scope: %.900s", body)
+	}
 }
 
 // TestCockpitWissen_RepoOwnOnlyNoToggle pins that a Repo cockpit's Wissen
@@ -471,7 +474,7 @@ func TestCockpitWissen_RepoOwnOnlyNoToggle(t *testing.T) {
 		t.Fatalf("status %d body=%.400s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if strings.Contains(body, "scope=self") || strings.Contains(body, "scope=subtree") {
+	if strings.Contains(body, "/nodes/r1/main?scope=self") || strings.Contains(body, "/nodes/r1/main?scope=subtree") {
 		t.Errorf("repo wissen section must not render the subtree toggle: %.600s", body)
 	}
 }

@@ -679,10 +679,15 @@ func wissenStatus(v string) string {
 }
 
 func wissenScope(v, node string) string {
-	if v == "subtree" && node != "" && node != "none" {
-		return "subtree"
+	if node == "" || node == "none" {
+		return ""
 	}
-	return ""
+	// The Wissen node picker means the complete containment subtree. Only a
+	// Cockpit link from its explicit "this node only" view may opt into self.
+	if v == "self" {
+		return "self"
+	}
+	return "subtree"
 }
 
 func wissenNodeFilter(node string) *string {

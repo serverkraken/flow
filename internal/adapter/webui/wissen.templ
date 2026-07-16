@@ -111,9 +111,7 @@ templ wissenManagementFilters(vm WissenVM) {
 				if vm.SearchQ != "" {
 					<input type="hidden" name="q" value={ vm.SearchQ }/>
 				}
-				if vm.Scope != "" {
-					<input type="hidden" name="scope" value={ vm.Scope }/>
-				}
+				<input type="hidden" name="scope" value="subtree"/>
 				for _, tag := range vm.ActiveTags {
 					<input type="hidden" name="tag" value={ tag }/>
 				}

@@ -78,6 +78,15 @@ func TestWissenQueryStringFullPreservesManagementFilters(t *testing.T) {
 	if got := wissenStatus("bogus"); got != "active" {
 		t.Fatalf("wissenStatus(bogus) = %q, want active", got)
 	}
+	if got := wissenScope("", "node-1"); got != "subtree" {
+		t.Fatalf("wissenScope(default node filter) = %q, want subtree", got)
+	}
+	if got := wissenScope("self", "node-1"); got != "self" {
+		t.Fatalf("wissenScope(explicit self) = %q, want self", got)
+	}
+	if got := wissenScope("subtree", "none"); got != "" {
+		t.Fatalf("wissenScope(unassigned) = %q, want empty", got)
+	}
 }
 
 func TestToggledTags(t *testing.T) {
